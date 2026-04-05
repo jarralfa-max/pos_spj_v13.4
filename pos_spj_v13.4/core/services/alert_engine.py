@@ -93,6 +93,12 @@ class AlertEngine:
         self.alertas = alertas_service
         self._module_config = module_config
         self._alerts: List[Alert] = []
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
         self._ensure_table()
 
     @property
@@ -518,6 +524,20 @@ class AlertEngine:
                 pass
         except Exception:
             pass
+        # Publicar ALERT_CRITICAL al EventBus para severidades high/critical
+        if self._bus and alert.severity in (Severity.HIGH, Severity.CRITICAL):
+            try:
+                from core.events.event_bus import ALERT_CRITICAL
+                self._bus.publish(ALERT_CRITICAL, {
+                    "category":    alert.category,
+                    "severity":    alert.severity,
+                    "title":       alert.title,
+                    "message":     alert.message,
+                    "data":        alert.data or {},
+                    "sucursal_id": sucursal_id,
+                }, async_=True)
+            except Exception:
+                pass
 
     def _notify_whatsapp(self, alerts: List[Alert], sucursal_id: int):
         """Envía alertas críticas al staff por WhatsApp."""

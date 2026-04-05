@@ -20,6 +20,7 @@ Eventos de dominio (v13.1):
   Sistema:    SESION_INICIADA, SESION_CERRADA, FORECAST_GENERADO
   BI:         CONCILIACION_DIFERENCIA
   Impresión:  TICKET_IMPRESO, PRINT_FAILED
+  Alertas:    ALERT_CRITICAL
 """
 from __future__ import annotations
 
@@ -84,6 +85,9 @@ CLIENTE_CREADO          = "CLIENTE_CREADO"
 # Impresión — FASE 1
 TICKET_IMPRESO          = "TICKET_IMPRESO"    # job_id, job_type, destination, folio, total
 PRINT_FAILED            = "PRINT_FAILED"      # job_id, job_type, destination, error_msg, retries
+
+# Alertas — FASE 4
+ALERT_CRITICAL          = "ALERT_CRITICAL"    # category, severity, title, message, data, sucursal_id
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"

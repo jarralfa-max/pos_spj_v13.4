@@ -28,6 +28,12 @@ class AlertasService:
     def __init__(self, conn=None, sucursal_id: int = 1):
         self.conn = conn or get_connection()
         self.sucursal_id = sucursal_id
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
         self._init_tables()
 
     def _init_tables(self):
@@ -110,6 +116,20 @@ class AlertasService:
                 wa.send_message(tipo, {"descripcion": mensaje})
             except Exception as e:
                 logger.debug("WhatsApp alerta: %s", e)
+        # Publicar ALERT_CRITICAL al EventBus cuando el canal es whatsapp/ambos
+        if self._bus and cfg["canal"] in ("whatsapp", "ambos"):
+            try:
+                from core.events.event_bus import ALERT_CRITICAL
+                self._bus.publish(ALERT_CRITICAL, {
+                    "category":    tipo,
+                    "severity":    "critical",
+                    "title":       tipo,
+                    "message":     mensaje,
+                    "data":        datos or {},
+                    "sucursal_id": self.sucursal_id,
+                }, async_=True)
+            except Exception:
+                pass
         logger.info("Alerta [%s]: %s", tipo, mensaje)
         return True
 
