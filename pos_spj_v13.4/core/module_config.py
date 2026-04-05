@@ -29,6 +29,7 @@ DEFAULT_TOGGLES = {
     "ai_enabled":                    False,   # Fase 8
     "franchise_mode_enabled":        False,   # Fase 10
     "whatsapp_integration_enabled":  False,
+    "rrhh_enabled":                  True,    # FASE RRHH — HRRuleEngine
 }
 
 

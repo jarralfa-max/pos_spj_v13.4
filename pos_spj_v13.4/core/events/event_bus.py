@@ -19,6 +19,7 @@ Eventos de dominio (v13.1):
   Fidelidad:  TARJETA_ESCANEADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
   Sistema:    SESION_INICIADA, SESION_CERRADA, FORECAST_GENERADO
   BI:         CONCILIACION_DIFERENCIA
+  Impresión:  TICKET_IMPRESO, PRINT_FAILED
 """
 from __future__ import annotations
 
@@ -79,6 +80,10 @@ EMPLEADO_ACTUALIZADO        = "EMPLEADO_ACTUALIZADO"
 # Clientes
 CLIENTE_ACTUALIZADO     = "CLIENTE_ACTUALIZADO"
 CLIENTE_CREADO          = "CLIENTE_CREADO"
+
+# Impresión — FASE 1
+TICKET_IMPRESO          = "TICKET_IMPRESO"    # job_id, job_type, destination, folio, total
+PRINT_FAILED            = "PRINT_FAILED"      # job_id, job_type, destination, error_msg, retries
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"
