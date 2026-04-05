@@ -22,6 +22,7 @@ Eventos de dominio (v13.1):
   Impresión:  TICKET_IMPRESO, PRINT_FAILED
   Alertas:    ALERT_CRITICAL
   Decisiones: DECISION_URGENTE
+  Simulación: SIMULACION_EJECUTADA
 """
 from __future__ import annotations
 
@@ -92,6 +93,9 @@ ALERT_CRITICAL          = "ALERT_CRITICAL"    # category, severity, title, messa
 
 # Decisiones — FASE 5
 DECISION_URGENTE        = "DECISION_URGENTE"  # tipo, prioridad, titulo, detalle, impacto_estimado, accion_propuesta
+
+# Simulación — FASE 7
+SIMULACION_EJECUTADA    = "SIMULACION_EJECUTADA"  # escenario, recomendacion, roi_pct, viable
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"

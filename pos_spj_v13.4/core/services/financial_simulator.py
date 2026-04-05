@@ -30,12 +30,74 @@ class FinancialSimulator:
         self.db = db_conn
         self.treasury = treasury_service
         self._module_config = module_config
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
+        self._ensure_table()
 
     @property
     def enabled(self) -> bool:
         if self._module_config:
             return self._module_config.is_enabled('simulation')
         return True
+
+    def _ensure_table(self):
+        try:
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS simulation_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    escenario TEXT NOT NULL,
+                    parametros_json TEXT DEFAULT '{}',
+                    resultado_json TEXT DEFAULT '{}',
+                    recomendacion TEXT DEFAULT '',
+                    viable INTEGER DEFAULT 0,
+                    fecha TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _persist_sim(self, escenario: str, params: dict, resultado: dict) -> None:
+        import json
+        try:
+            recomendacion = resultado.get("recomendacion", "")
+            viable = 1 if ("✅" in recomendacion) else 0
+            self.db.execute(
+                "INSERT INTO simulation_log "
+                "(escenario, parametros_json, resultado_json, recomendacion, viable) "
+                "VALUES (?,?,?,?,?)",
+                (escenario,
+                 json.dumps(params, default=str),
+                 json.dumps({k: v for k, v in resultado.items()
+                              if k != "proyeccion_mensual"}, default=str),
+                 recomendacion, viable))
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+            # Publicar SIMULACION_EJECUTADA al EventBus
+            if self._bus:
+                from core.events.event_bus import SIMULACION_EJECUTADA
+                self._bus.publish(SIMULACION_EJECUTADA, {
+                    "escenario":      escenario,
+                    "recomendacion":  recomendacion,
+                    "roi_pct":        resultado.get("roi_pct",
+                                      resultado.get(
+                                          [k for k in resultado
+                                           if "roi" in k.lower()][0], 0)
+                                          if any("roi" in k.lower()
+                                                 for k in resultado) else 0),
+                    "viable":         bool(viable),
+                }, async_=True)
+        except Exception:
+            pass
 
     # ══════════════════════════════════════════════════════════════════════════
     #  1. Simular nueva sucursal
@@ -108,7 +170,7 @@ class FinancialSimulator:
                 (capital_actual - inversion_inicial) / max(1, total_mensual), 1),
         }
 
-        return {
+        resultado = {
             "escenario": "nueva_sucursal",
             "inversion_inicial": inversion_inicial,
             "gastos_mensuales": {
@@ -121,7 +183,7 @@ class FinancialSimulator:
             "margen_estimado_pct": round(margen_neto_actual, 1),
             "mes_breakeven": breakeven_mes or f">{meses}",
             "meses_para_roi": breakeven_mes or meses + 1,
-            "roi_{meses}m_pct": round(roi_final, 1),
+            "roi_pct": round(roi_final, 1),
             "utilidad_acumulada": round(acumulado, 2),
             "flujo_caja_impacto": flujo_impacto,
             "proyeccion_mensual": proyeccion,
@@ -130,6 +192,12 @@ class FinancialSimulator:
                 else "⚠️ Revisar" if breakeven_mes and breakeven_mes <= 12
                 else "❌ Riesgoso — recuperación >12 meses"),
         }
+        self._persist_sim("nueva_sucursal", {
+            "renta_mensual": renta_mensual, "personal": personal,
+            "salario_promedio": salario_promedio,
+            "inversion_inicial": inversion_inicial, "meses": meses,
+        }, resultado)
+        return resultado
 
     # ══════════════════════════════════════════════════════════════════════════
     #  2. Simular compra de activo
@@ -157,7 +225,7 @@ class FinancialSimulator:
             except Exception:
                 pass
 
-        return {
+        resultado = {
             "escenario": "compra_activo",
             "activo": nombre,
             "costo": costo,
@@ -165,7 +233,7 @@ class FinancialSimulator:
             "depreciacion_mensual": round(depreciacion_mensual, 2),
             "beneficio_mensual": round(beneficio_mensual, 2),
             "meses_recuperacion": round(meses_recuperacion, 1),
-            "roi_anual_pct": round(roi_anual, 1),
+            "roi_pct": round(roi_anual, 1),
             "capital_suficiente": capital_ok,
             "flujo_caja_impacto": {
                 "capital_antes": round(capital_disp, 2),
@@ -177,6 +245,11 @@ class FinancialSimulator:
                 else "⚠️ Recuperación lenta" if meses_recuperacion <= 36
                 else "❌ No recomendable"),
         }
+        self._persist_sim("compra_activo", {
+            "nombre": nombre, "costo": costo,
+            "vida_util_anios": vida_util_anios,
+        }, resultado)
+        return resultado
 
     # ══════════════════════════════════════════════════════════════════════════
     #  3. Simular contratación
@@ -202,7 +275,7 @@ class FinancialSimulator:
         ratio_actual = (nomina_actual / ingresos_actual * 100) if ingresos_actual else 0
         ratio_nuevo = (nueva_nomina / nuevos_ingresos * 100) if nuevos_ingresos else 0
 
-        return {
+        resultado = {
             "escenario": "contratacion",
             "nuevos_empleados": cantidad,
             "salario_bruto": salario,
@@ -224,11 +297,18 @@ class FinancialSimulator:
                 "ingreso_esperado_mensual": round(ingresos_adicionales, 2),
                 "neto_mensual": round(ingresos_adicionales - costo_total_mensual, 2),
             },
+            "roi_pct": round(
+                (ingresos_adicionales - costo_total_mensual) / max(1, costo_total_mensual) * 100, 1),
             "recomendacion": (
                 "✅ Viable" if ratio_nuevo < 30
                 else "⚠️ Nómina alta" if ratio_nuevo < 40
                 else "❌ Riesgoso — nómina excedería 40% de ingresos"),
         }
+        self._persist_sim("contratacion", {
+            "cantidad": cantidad, "salario": salario,
+            "productividad_esperada": productividad_esperada,
+        }, resultado)
+        return resultado
 
     # ══════════════════════════════════════════════════════════════════════════
     #  4. Simular cambio en fidelización
@@ -252,7 +332,7 @@ class FinancialSimulator:
         pasivo_actual = self._q(
             "SELECT COALESCE(SUM(monto_total),0) FROM loyalty_pasivo_log")
 
-        return {
+        resultado = {
             "escenario": "cambio_fidelizacion",
             "tasa_actual": tasa_actual,
             "tasa_nueva": nueva_tasa,
@@ -262,10 +342,15 @@ class FinancialSimulator:
             "ahorro_mensual": round(ahorro, 2),
             "ahorro_anual": round(ahorro * 12, 2),
             "pasivo_actual": round(pasivo_actual, 2),
+            "roi_pct": round(ahorro / max(1, emision_actual) * 100, 1),
             "recomendacion": (
-                f"Reducir tasa a {nueva_tasa} ahorra ${ahorro:,.2f}/mes"
-                if ahorro > 0 else "La nueva tasa aumenta costos"),
+                f"✅ Reducir tasa a {nueva_tasa} ahorra ${ahorro:,.2f}/mes"
+                if ahorro > 0 else "⚠️ La nueva tasa aumenta costos"),
         }
+        self._persist_sim("cambio_fidelizacion", {
+            "nueva_tasa": nueva_tasa, "nuevo_cap_pct": nuevo_cap_pct,
+        }, resultado)
+        return resultado
 
     # ══════════════════════════════════════════════════════════════════════════
     #  5. Simulación genérica de inversión
@@ -287,7 +372,7 @@ class FinancialSimulator:
             except Exception:
                 pass
 
-        return {
+        resultado = {
             "escenario": "inversion_generica",
             "descripcion": descripcion or "Inversión",
             "monto": monto,
@@ -303,6 +388,11 @@ class FinancialSimulator:
                 else "⚠️ Marginal" if roi > 0
                 else "❌ No rentable"),
         }
+        self._persist_sim("inversion_generica", {
+            "monto": monto, "retorno_mensual": retorno_mensual,
+            "duracion_meses": duracion_meses, "descripcion": descripcion,
+        }, resultado)
+        return resultado
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Helpers
