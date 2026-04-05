@@ -69,6 +69,34 @@ class DecisionEngine:
         self.loyalty = loyalty_service
         self.alerts = alert_engine
         self._module_config = module_config
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
+        self._ensure_table()
+
+    def _ensure_table(self):
+        try:
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS decision_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tipo TEXT NOT NULL,
+                    prioridad TEXT NOT NULL,
+                    titulo TEXT NOT NULL,
+                    detalle TEXT DEFAULT '',
+                    impacto_estimado TEXT DEFAULT '',
+                    accion_json TEXT DEFAULT '{}',
+                    fecha TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     @property
     def enabled(self) -> bool:
@@ -98,9 +126,46 @@ class DecisionEngine:
         order = {"urgente": 0, "alta": 1, "media": 2, "baja": 3}
         sugs.sort(key=lambda s: order.get(s.prioridad, 9))
 
+        # Persistir en log y publicar urgentes al EventBus
+        import json
+        for s in sugs:
+            self._persist(s)
+            if s.prioridad in ("urgente", "alta") and self._bus:
+                try:
+                    from core.events.event_bus import DECISION_URGENTE
+                    self._bus.publish(DECISION_URGENTE, {
+                        "tipo":              s.tipo,
+                        "prioridad":         s.prioridad,
+                        "titulo":            s.titulo,
+                        "detalle":           s.detalle,
+                        "impacto_estimado":  s.impacto_estimado,
+                        "accion_propuesta":  s.accion_propuesta,
+                    }, async_=True)
+                except Exception:
+                    pass
+
         result = [s.to_dict() for s in sugs]
-        logger.info("DecisionEngine: %d sugerencias generadas", len(result))
+        logger.info("DecisionEngine: %d sugerencias (%d urgentes/altas)",
+                    len(result),
+                    sum(1 for s in sugs if s.prioridad in ("urgente", "alta")))
         return result
+
+    def _persist(self, s: "Suggestion") -> None:
+        import json
+        try:
+            self.db.execute(
+                "INSERT INTO decision_log "
+                "(tipo, prioridad, titulo, detalle, impacto_estimado, accion_json) "
+                "VALUES (?,?,?,?,?,?)",
+                (s.tipo, s.prioridad, s.titulo, s.detalle,
+                 s.impacto_estimado,
+                 json.dumps(s.accion_propuesta or {}, default=str)))
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # ══════════════════════════════════════════════════════════════════════════
     #  PRICING — Ajuste de precios

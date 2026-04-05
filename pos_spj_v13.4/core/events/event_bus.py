@@ -21,6 +21,7 @@ Eventos de dominio (v13.1):
   BI:         CONCILIACION_DIFERENCIA
   Impresión:  TICKET_IMPRESO, PRINT_FAILED
   Alertas:    ALERT_CRITICAL
+  Decisiones: DECISION_URGENTE
 """
 from __future__ import annotations
 
@@ -88,6 +89,9 @@ PRINT_FAILED            = "PRINT_FAILED"      # job_id, job_type, destination, e
 
 # Alertas — FASE 4
 ALERT_CRITICAL          = "ALERT_CRITICAL"    # category, severity, title, message, data, sucursal_id
+
+# Decisiones — FASE 5
+DECISION_URGENTE        = "DECISION_URGENTE"  # tipo, prioridad, titulo, detalle, impacto_estimado, accion_propuesta
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"
