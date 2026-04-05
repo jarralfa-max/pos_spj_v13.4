@@ -1,0 +1,1 @@
+{"ts": "2026-04-01T04:00:11.174815", "level": "ERROR", "logger": "spj.scheduler", "msg": "Scheduler 'forecast' FALLÓ (err_consecutivos=1): 'ForecastEngine' object has no attribute 'generar_forecast_diario'", "module": "scheduler_service", "line": 200}

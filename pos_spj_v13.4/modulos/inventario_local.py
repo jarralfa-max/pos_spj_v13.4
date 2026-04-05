@@ -1,0 +1,185 @@
+# modulos/inventario_local.py — SPJ POS v13.2
+from __future__ import annotations
+from modulos.spj_styles import spj_btn, apply_btn_styles
+import logging
+from modulos.spj_refresh_mixin import RefreshMixin
+from core.events.event_bus import VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO, AJUSTE_INVENTARIO, COMPRA_REGISTRADA
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QMessageBox, QInputDialog, QLineEdit, QFileDialog,
+)
+from PyQt5.QtCore import Qt
+
+logger = logging.getLogger("spj.inventario")
+
+
+class ModuloInventarioLocal(QWidget, RefreshMixin):
+
+    def __init__(self, container, parent=None):
+        super().__init__(parent)
+        try: self._init_refresh(container, ["VENTA_COMPLETADA", "PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO", "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA"])
+        except Exception: pass
+        self.container     = container
+        self.sucursal_id   = 1
+        self.usuario_actual = ""
+        self.init_ui()
+
+    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = ""):
+        self.sucursal_id = sucursal_id
+        self.lbl_titulo.setText(f"📦 Inventario — {nombre_sucursal}")
+        self.cargar_datos()
+
+    def set_usuario_actual(self, usuario: str, rol: str = ""):
+        self.usuario_actual = usuario
+
+    def init_ui(self):
+        lay = QVBoxLayout(self)
+
+        self.lbl_titulo = QLabel("📦 Inventario Local")
+        self.lbl_titulo.setStyleSheet("font-size:18px;font-weight:bold;")
+        lay.addWidget(self.lbl_titulo)
+
+        # Search + actions
+        ctrl = QHBoxLayout()
+        self.txt_buscar = QLineEdit(); self.txt_buscar.setPlaceholderText("Buscar producto…")
+        self.txt_buscar.textChanged.connect(self.cargar_datos)
+        ctrl.addWidget(self.txt_buscar, 1)
+        btn_ref = QPushButton("🔄"); btn_ref.setFixedWidth(32); btn_ref.clicked.connect(self.cargar_datos)
+        btn_ajuste = QPushButton("⚖️ Ajuste"); btn_ajuste.clicked.connect(self.abrir_dialogo_ajuste)
+        btn_ajuste.setStyleSheet("background:#e67e22;color:white;padding:5px 12px;")
+        btn_exp_csv = QPushButton("📊 Exportar CSV"); btn_exp_csv.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
+        btn_exp_csv.clicked.connect(lambda: self._exportar("csv"))
+        btn_exp_xls = QPushButton("📑 Exportar Excel"); btn_exp_xls.setStyleSheet("background:#2980b9;color:white;padding:5px 12px;")
+        btn_exp_xls.clicked.connect(lambda: self._exportar("xlsx"))
+        ctrl.addWidget(btn_ref); ctrl.addWidget(btn_ajuste)
+        ctrl.addWidget(btn_exp_csv); ctrl.addWidget(btn_exp_xls)
+        lay.addLayout(ctrl)
+
+        self.tabla = QTableWidget()
+        self.tabla.setColumnCount(5)
+        self.tabla.setHorizontalHeaderLabels(["ID", "Producto", "Categoría", "Stock", "Unidad"])
+        hh = self.tabla.horizontalHeader()
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla.setAlternatingRowColors(True)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        lay.addWidget(self.tabla)
+
+        self.lbl_total = QLabel("")
+        self.lbl_total.setStyleSheet("color:#555;font-size:11px;padding:4px;")
+        lay.addWidget(self.lbl_total)
+
+        self.cargar_datos()
+
+    def _on_refresh(self, event_type: str, data: dict) -> None:
+        """Auto-refresh inventory on any stock change event."""
+        try: self.cargar_datos()
+        except Exception: pass
+
+    def cargar_datos(self):
+        buscar = self.txt_buscar.text().strip() if hasattr(self,"txt_buscar") else ""
+        self.tabla.setRowCount(0)
+        try:
+            db = self.container.db
+            q = ("SELECT p.id, p.nombre, COALESCE(p.categoria,''), "
+                 "COALESCE(bi.quantity, p.existencia, 0), COALESCE(p.unidad,'pza') "
+                 "FROM productos p "
+                 "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
+                 "WHERE p.activo=1")
+            params = [self.sucursal_id]
+            if buscar:
+                q += " AND (p.nombre LIKE ? OR p.categoria LIKE ?)"
+                params += [f"%{buscar}%", f"%{buscar}%"]
+            q += " ORDER BY p.nombre"
+            rows = db.execute(q, params).fetchall()
+        except Exception as e:
+            logger.warning("cargar inventario: %s", e)
+            rows = []
+        for i, r in enumerate(rows):
+            self.tabla.insertRow(i)
+            for j, v in enumerate(r):
+                it = QTableWidgetItem(f"{float(v):.3f}" if j == 3 else str(v) if v else "")
+                if j == 3:
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    if float(v) <= 0:
+                        it.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                self.tabla.setItem(i, j, it)
+        self.lbl_total.setText(f"{len(rows)} productos")
+
+    def abrir_dialogo_ajuste(self):
+        # v13.30: Verificar permiso
+        try:
+            from core.permissions import verificar_permiso
+            if not verificar_permiso(self.container, "inventario.ajustar", self):
+                return
+        except Exception: pass
+        row = self.tabla.currentRow()
+        if row < 0:
+            QMessageBox.warning(self,"Aviso","Seleccione un producto."); return
+        prod_id   = int(self.tabla.item(row,0).text())
+        nombre    = self.tabla.item(row,1).text()
+        stock_act = float(self.tabla.item(row,3).text())
+        nuevo, ok = QInputDialog.getDouble(
+            self,"Ajuste de Inventario",
+            f"Producto: {nombre}\nStock sistema: {stock_act:.3f}\nConteo físico real:",
+            value=stock_act, min=0, max=999999, decimals=3)
+        if not ok or nuevo == stock_act: return
+        motivo, ok2 = QInputDialog.getText(self,"Motivo","Razón del ajuste (para auditoría):")
+        if not ok2 or not motivo.strip():
+            QMessageBox.warning(self,"Aviso","El motivo es obligatorio."); return
+        try:
+            uc = getattr(self.container, "uc_inventario", None)
+            if uc:
+                r = uc.registrar_ajuste(prod_id, nuevo, self.sucursal_id,
+                                         self.usuario_actual, motivo)
+                if not r.ok: raise Exception(r.error)
+            else:
+                inv = self.container.inventory_service
+                inv.execute_manual_adjustment(prod_id, self.sucursal_id,
+                                               nuevo, self.usuario_actual, motivo)
+            QMessageBox.information(self,"✅","Inventario ajustado correctamente.")
+            self.cargar_datos()
+        except Exception as e:
+            QMessageBox.critical(self,"Error",str(e))
+
+    def _exportar(self, fmt: str):
+        """Exporta inventario a CSV o Excel."""
+        rows = []
+        for i in range(self.tabla.rowCount()):
+            rows.append([
+                self.tabla.item(i,j).text() if self.tabla.item(i,j) else ""
+                for j in range(self.tabla.columnCount())
+            ])
+        headers = ["ID","Producto","Categoría","Stock","Unidad"]
+        if fmt == "csv":
+            path, _ = QFileDialog.getSaveFileName(self,"Exportar CSV","inventario.csv","CSV (*.csv)")
+            if not path: return
+            try:
+                import csv
+                with open(path,'w',newline='',encoding='utf-8') as f:
+                    w = csv.writer(f)
+                    w.writerow(headers); w.writerows(rows)
+                QMessageBox.information(self,"✅",f"Exportado: {path}")
+            except Exception as e:
+                QMessageBox.critical(self,"Error",str(e))
+        else:
+            path, _ = QFileDialog.getSaveFileName(self,"Exportar Excel","inventario.xlsx","Excel (*.xlsx)")
+            if not path: return
+            try:
+                import openpyxl
+                wb = openpyxl.Workbook(); ws = wb.active
+                ws.append(headers)
+                for r in rows: ws.append(r)
+                wb.save(path)
+                QMessageBox.information(self,"✅",f"Exportado: {path}")
+            except ImportError:
+                # Fallback to CSV if openpyxl not installed
+                path2 = path.replace('.xlsx','.csv')
+                import csv
+                with open(path2,'w',newline='',encoding='utf-8') as f:
+                    csv.writer(f).writerows([headers]+rows)
+                QMessageBox.information(self,"✅",f"openpyxl no instalado — guardado como CSV:\n{path2}")
+            except Exception as e:
+                QMessageBox.critical(self,"Error",str(e))

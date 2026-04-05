@@ -1,0 +1,55 @@
+{"ts": "2026-03-30T02:01:30.175520", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro Moderno' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:01:52.333249", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:15.994323", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 843}
+{"ts": "2026-03-30T02:02:23.352429", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:23.353392", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:24.652924", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:24.653450", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:25.737530", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:25.737928", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:26.815461", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:26.816385", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:29.962332", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T02:02:29.962745", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T03:41:40.257910", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-30T03:41:45.557709", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:21:58.572869", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro Moderno' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:02.945610", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:16.444841", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 843}
+{"ts": "2026-03-31T04:22:25.015194", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:25.015890", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:26.137704", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:26.138517", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:27.527153", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:27.527643", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:27.567057", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:27.567625", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:30.829434", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:22:30.830009", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:34:47.771830", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:34:51.765500", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:05.847375", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 843}
+{"ts": "2026-03-31T04:35:27.591156", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:27.591468", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:29.642234", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:29.642535", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:31.255262", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:31.255630", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:31.619873", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:31.620250", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:33.123994", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T04:35:33.124337", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:31:28.230080", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:47:26.891794", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:47:32.887104", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:48:38.354363", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 843}
+{"ts": "2026-03-31T05:49:33.502447", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:33.502875", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:34.670463", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:34.670764", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:36.317436", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:36.317719", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:38.420134", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:38.420478", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:39.605746", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
+{"ts": "2026-03-31T05:49:39.606040", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 821}
