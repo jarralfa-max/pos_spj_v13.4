@@ -67,6 +67,7 @@ class PrintJob:
     raw_data: Dict[str, Any] = field(default_factory=dict)  # Datos originales
     transport: TransportType = TransportType.AUTO
     destination: str = ""              # IP:port, COM port, o printer name
+    baud: int = 9600                   # Baud rate para transporte serial
     priority: int = 5                  # 1=urgente, 10=baja
     retries: int = 2
     status: PrintJobStatus = PrintJobStatus.QUEUED
@@ -87,15 +88,20 @@ class PrintTransport:
     """Capa de transporte — envía bytes a cualquier tipo de impresora."""
 
     @staticmethod
-    def send(data: bytes, transport: TransportType, destination: str) -> bool:
-        """Envía bytes a la impresora según el tipo de transporte."""
+    def send(data: bytes, transport: TransportType, destination: str,
+             baud: int = 9600) -> bool:
+        """Envía bytes a la impresora según el tipo de transporte.
+
+        Args:
+            baud: velocidad serial; ignorado si transporte != SERIAL.
+        """
         if transport == TransportType.AUTO:
             transport = PrintTransport.detect_type(destination)
 
         if transport == TransportType.NETWORK:
             return PrintTransport._send_tcp(data, destination)
         elif transport == TransportType.SERIAL:
-            return PrintTransport._send_serial(data, destination)
+            return PrintTransport._send_serial(data, destination, baud=baud)
         elif transport == TransportType.USB_WIN32:
             return PrintTransport._send_win32(data, destination)
         else:
@@ -129,9 +135,9 @@ class PrintTransport:
             s.close()
 
     @staticmethod
-    def _send_serial(data: bytes, destination: str) -> bool:
+    def _send_serial(data: bytes, destination: str, baud: int = 9600) -> bool:
         import serial
-        with serial.Serial(destination, 9600, timeout=3) as sp:
+        with serial.Serial(destination, baud, timeout=3) as sp:
             sp.write(data)
         return True
 
@@ -230,7 +236,8 @@ class PrintQueue:
 
             for attempt in range(1, job.retries + 1):
                 try:
-                    PrintTransport.send(job.data, job.transport, job.destination)
+                    PrintTransport.send(job.data, job.transport,
+                                       job.destination, baud=job.baud)
                     success = True
                     job.status = PrintJobStatus.SUCCESS
                     self.total_printed += 1
@@ -403,6 +410,7 @@ class PrinterService:
             data=data,
             raw_data=ticket_data,
             destination=dest,
+            baud=int(self._ticket_cfg.get('baud_rate', 9600)),
             priority=2,  # Tickets tienen alta prioridad
             on_success=on_success,
             on_error=on_error,
@@ -427,6 +435,7 @@ class PrinterService:
             job_type=PrintJobType.LABEL,
             data=label_data,
             destination=dest,
+            baud=int(cfg.get('baud_rate', 9600)),
             priority=5,
             on_success=on_success,
             on_error=on_error,

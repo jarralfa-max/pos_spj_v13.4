@@ -77,14 +77,25 @@ _THRESHOLDS: Dict[str, Tuple[Optional[float], Optional[float]]] = {
     "valor_activos_fijos":(None, None),
 
     # Pasivos / riesgo
-    "pasivo_fidelizacion":(None, None),     # más bajo = mejor (invertir lógica)
-    "cxp_pendiente":      (None, None),
-    "egresos_total":      (None, None),
+    "pasivo_fidelizacion":(None, None),     # solo informativo — umbral relativo al negocio
+    "cxp_pendiente":      (None, None),     # solo informativo
+    "egresos_total":      (None, None),     # solo informativo
+
+    # Gastos — métrica relativa a ingresos; umbrales como % de ingresos
+    # LOWER_IS_BETTER: danger si gasto excede el umbral "good"
+    # Para gastos absolutos no hay umbral universal — se evalúa contra ingresos en UI.
+    # Aquí solo colorizamos los ratios porcentuales de gasto:
+    "pct_nomina_ingresos":    (25.0, 35.0),  # <25% good, 25-35% warning, >35% danger
+    "pct_gastos_fijos":       (20.0, 30.0),  # <20% good, 20-30% warning, >30% danger
+    "pct_gastos_operativos":  (15.0, 25.0),  # <15% good, 15-25% warning, >25% danger
 }
 
-# KPIs donde MENOR es mejor (inverso)
-_LOWER_IS_BETTER = {"pasivo_fidelizacion", "cxp_pendiente", "egresos_total",
-                    "gastos_fijos", "gastos_operativos", "nomina"}
+# KPIs donde MENOR es mejor — lógica de color invertida
+_LOWER_IS_BETTER = {
+    "pasivo_fidelizacion", "cxp_pendiente", "egresos_total",
+    # Ratios de gasto/ingreso (nuevos)
+    "pct_nomina_ingresos", "pct_gastos_fijos", "pct_gastos_operativos",
+}
 
 
 class KPIColorEngine:

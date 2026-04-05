@@ -420,12 +420,9 @@ class TreasuryService:
             "INSERT INTO gastos (fecha, categoria, concepto, monto, metodo_pago, "
             "usuario, fecha_registro) VALUES (datetime('now'),?,?,?,?,?,datetime('now'))",
             (categoria, concepto, monto, metodo_pago, usuario))
+        # registrar_egreso ya hace commit y publica MOVIMIENTO_FINANCIERO al EventBus
         self.registrar_egreso("gasto_operativo:" + categoria, concepto, monto,
                               sucursal_id, usuario=usuario)
-        try:
-            self.db.commit()
-        except Exception:
-            pass
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Cuentas por Pagar (CXP) — usado por modulos/tesoreria.py

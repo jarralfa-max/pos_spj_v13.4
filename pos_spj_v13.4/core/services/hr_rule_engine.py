@@ -53,6 +53,8 @@ class HRRuleEngine:
             self._bus = get_bus()
         except Exception:
             pass
+        # Detectar tabla de empleados (personal vs empleados según schema)
+        self._emp_table = self._detect_emp_table()
         self._ensure_tables()
 
     @property
@@ -187,11 +189,12 @@ class HRRuleEngine:
         hoy = date.today()
         pendientes: List[Dict] = []
 
+        tbl = getattr(self, "_emp_table", "personal")
         try:
-            rows = self.db.execute("""
+            rows = self.db.execute(f"""
                 SELECT p.id, p.nombre, p.apellidos, p.sucursal_id,
                        MAX(np.fecha) AS ultimo_pago
-                FROM personal p
+                FROM {tbl} p
                 LEFT JOIN nomina_pagos np
                        ON np.empleado_id = p.id AND np.estado = 'pagado'
                 WHERE p.activo = 1
@@ -358,10 +361,11 @@ class HRRuleEngine:
 
     def _empleados_con_descanso(self, sucursal_id: int, fecha: date) -> int:
         """Cuenta empleados programados para descansar en una fecha."""
+        tbl = getattr(self, "_emp_table", "personal")
         try:
-            row = self.db.execute("""
+            row = self.db.execute(f"""
                 SELECT COUNT(*) FROM asistencias a
-                JOIN personal p ON p.id = a.personal_id
+                JOIN {tbl} p ON p.id = a.personal_id
                 WHERE p.sucursal_id = ?
                   AND a.fecha = ?
                   AND a.estado = 'DESCANSO'
@@ -372,9 +376,10 @@ class HRRuleEngine:
 
     def _empleados_activos_hoy(self, sucursal_id: int, fecha: date) -> int:
         """Cuenta empleados activos (no en descanso) en la sucursal para una fecha."""
+        tbl = getattr(self, "_emp_table", "personal")
         try:
-            row = self.db.execute("""
-                SELECT COUNT(*) FROM personal p
+            row = self.db.execute(f"""
+                SELECT COUNT(*) FROM {tbl} p
                 WHERE p.sucursal_id = ? AND p.activo = 1
                   AND p.id NOT IN (
                       SELECT personal_id FROM asistencias
@@ -389,11 +394,28 @@ class HRRuleEngine:
     #  Internals — DB helpers
     # ══════════════════════════════════════════════════════════════════════════
 
+    # ── Detección dinámica de tabla de empleados ─────────────────────────────
+    # El schema puede usar 'personal' (v13) o 'empleados' (legacy). Detectamos
+    # en __init__ cuál existe y la usamos de forma consistente.
+
+    def _detect_emp_table(self) -> str:
+        """Detecta qué tabla existe: 'personal' (preferida) o 'empleados' (legacy)."""
+        if not self.db:
+            return "personal"
+        for tbl in ("personal", "empleados"):
+            try:
+                self.db.execute(f"SELECT 1 FROM {tbl} LIMIT 1")
+                return tbl
+            except Exception:
+                continue
+        return "personal"  # fallback — error se mostrará en tiempo de consulta
+
     def _get_empleados(self, sucursal_id: int) -> List[Dict]:
+        tbl = getattr(self, "_emp_table", "personal")
         try:
-            rows = self.db.execute("""
+            rows = self.db.execute(f"""
                 SELECT id, nombre, apellidos, sucursal_id
-                FROM personal WHERE sucursal_id = ? AND activo = 1
+                FROM {tbl} WHERE sucursal_id = ? AND activo = 1
             """, (sucursal_id,)).fetchall()
             return [{"id": r[0], "nombre": f"{r[1]} {r[2] or ''}".strip(),
                      "sucursal_id": r[3]} for r in rows]
@@ -401,10 +423,11 @@ class HRRuleEngine:
             return []
 
     def _get_empleado(self, empleado_id: int) -> Optional[Dict]:
+        tbl = getattr(self, "_emp_table", "personal")
         try:
-            row = self.db.execute("""
+            row = self.db.execute(f"""
                 SELECT id, nombre, apellidos, sucursal_id
-                FROM personal WHERE id = ?
+                FROM {tbl} WHERE id = ?
             """, (empleado_id,)).fetchone()
             if row:
                 return {"id": row[0],
