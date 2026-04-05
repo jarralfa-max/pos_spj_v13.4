@@ -24,6 +24,8 @@ Eventos de dominio (v13.1):
   Decisiones: DECISION_URGENTE
   Simulación: SIMULACION_EJECUTADA
   IA:         AI_CONSULTA_REALIZADA
+  Franquicia: FRANQUICIA_RANKING_GENERADO, FRANQUICIA_TRANSFERENCIA_SUGERIDA
+  RRHH:       EMPLOYEE_OVERWORK, EMPLOYEE_REST_DAY, PAYROLL_GENERATED, PAYROLL_DUE
 """
 from __future__ import annotations
 
@@ -100,6 +102,16 @@ SIMULACION_EJECUTADA    = "SIMULACION_EJECUTADA"  # escenario, recomendacion, ro
 
 # IA — FASE 8
 AI_CONSULTA_REALIZADA   = "AI_CONSULTA_REALIZADA"  # tipo, pregunta, disponible, tiene_alertas
+
+# Franquicia — FASE 10
+FRANQUICIA_RANKING_GENERADO = "FRANQUICIA_RANKING_GENERADO"  # sucursales_count, top_sucursal, top_utilidad, fecha_desde, fecha_hasta
+FRANQUICIA_TRANSFERENCIA_SUGERIDA = "FRANQUICIA_TRANSFERENCIA_SUGERIDA"  # producto, desde_sucursal, hacia_sucursal, cantidad_sugerida
+
+# RRHH — FASE 11
+EMPLOYEE_OVERWORK       = "EMPLOYEE_OVERWORK"    # empleado_id, nombre, dias_consecutivos, sucursal_id
+EMPLOYEE_REST_DAY       = "EMPLOYEE_REST_DAY"    # empleado_id, nombre, fecha_descanso, sucursal_id
+PAYROLL_GENERATED       = "PAYROLL_GENERATED"    # empleado_id, nombre, periodo, total, sucursal_id
+PAYROLL_DUE             = "PAYROLL_DUE"          # empleado_id, nombre, dias_vencimiento, sucursal_id
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"

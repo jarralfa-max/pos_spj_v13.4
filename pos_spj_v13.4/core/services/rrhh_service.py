@@ -1,5 +1,5 @@
 
-# core/services/rrhh_service.py
+# core/services/rrhh_service.py — SPJ POS v13.30 — FASE 11
 import logging
 from datetime import datetime
 from core.db.connection import transaction
@@ -10,12 +10,15 @@ class RRHHService:
     """
     Orquestador de Recursos Humanos.
     Calcula salarios, genera recibos, notifica por WhatsApp y registra el gasto contable.
+    Integrado con HRRuleEngine para cumplimiento laboral automático.
     """
-    def __init__(self, db_conn, treasury_service, whatsapp_service, template_engine):
+    def __init__(self, db_conn, treasury_service, whatsapp_service,
+                 template_engine, hr_rule_engine=None):
         self.db = db_conn
         self.treasury_service = treasury_service
         self.whatsapp_service = whatsapp_service
         self.template_engine = template_engine
+        self.hr_rule_engine = hr_rule_engine
 
     def calcular_nomina(self, empleado_id: int, fecha_inicio: str, fecha_fin: str) -> dict:
         """Calcula el salario basado en horas trabajadas o salario fijo."""
@@ -57,22 +60,31 @@ class RRHHService:
         2. Registra el GASTO OPEX en Tesorería.
         3. Genera PDF.
         4. Envía WhatsApp.
+        5. Audita cumplimiento laboral vía HRRuleEngine.
         """
+        # Pre-check: verificar días consecutivos antes de procesar (no bloquea)
+        if self.hr_rule_engine:
+            try:
+                self.hr_rule_engine.verificar_dias_consecutivos(
+                    datos_nomina['empleado_id'])
+            except Exception as e:
+                logger.debug("hr_rule pre-check: %s", e)
+
         try:
             # transaction() handles BEGIN IMMEDIATE + ROLLBACK on exception
             _tx_cm = transaction(self.db)
             conn   = _tx_cm.__enter__()
             cursor = conn
-            
+
             periodo = f"Pago Nómina {datetime.now().strftime('%Y-%m-%d')}"
-            
+
             # 1. Guardar en historial de nóminas
             cursor.execute("""
                 INSERT INTO nomina_pagos (empleado_id, periodo_inicio, periodo_fin, salario_base, total, metodo_pago, estado, usuario)
                 VALUES (?, date('now', '-7 days'), date('now'), ?, ?, ?, 'pagado', ?)
             """, (datos_nomina['empleado_id'], datos_nomina['salario_base'], datos_nomina['neto_a_pagar'], metodo_pago, admin_user))
-            
-            # 2. 🚀 MAGIA ENTERPRISE: Registrar el gasto directamente en Tesorería
+
+            # 2. Registrar el gasto directamente en Tesorería
             concepto = f"Nómina: {datos_nomina['nombre_completo']} ({datos_nomina['total_horas']} hrs)"
             self.treasury_service.registrar_gasto_opex(
                 categoria="Nómina",
@@ -82,13 +94,26 @@ class RRHHService:
                 usuario=admin_user,
                 sucursal_id=sucursal_id
             )
-            
+
             _tx_cm.__exit__(None, None, None)  # COMMIT
-            
-            # 3. Generar Recibo de Nómina (Simulado aquí, usarías TemplateEngine)
+
+            # 3. Auditar pago — publica PAYROLL_GENERATED vía HRRuleEngine
+            if self.hr_rule_engine:
+                try:
+                    self.hr_rule_engine.registrar_pago_auditado(
+                        empleado_id=datos_nomina['empleado_id'],
+                        nombre=datos_nomina['nombre_completo'],
+                        periodo=periodo,
+                        total=datos_nomina['neto_a_pagar'],
+                        sucursal_id=sucursal_id,
+                    )
+                except Exception as e:
+                    logger.debug("hr_rule post-pago: %s", e)
+
+            # 4. Generar Recibo de Nómina (Simulado aquí, usarías TemplateEngine)
             recibo_texto = f"Recibo de Nómina: {datos_nomina['nombre_completo']}\nTotal: ${datos_nomina['neto_a_pagar']:.2f}\nHoras: {datos_nomina['total_horas']}"
-            
-            # 4. Notificar nómina via NotificationService (WhatsApp + inbox POS)
+
+            # 5. Notificar nómina via NotificationService (WhatsApp + inbox POS)
             try:
                 notif = getattr(self, 'notification_service', None)
                 if notif:
@@ -109,7 +134,7 @@ class RRHHService:
                 logger.warning("notificar_nomina: %s", e)
 
             return "Nómina pagada, contabilizada y notificada correctamente."
-            
+
         except Exception as e:
             try: _tx_cm.__exit__(type(e), e, None)  # ROLLBACK
             except Exception: pass
