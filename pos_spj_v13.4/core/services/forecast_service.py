@@ -16,8 +16,21 @@ class ForecastService:
     Motor de Inteligencia Artificial para Pronóstico de Demanda.
     Utiliza suavizado exponencial (Holt-Winters) y cálculo de inventario.
     """
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, module_config=None):
         self.db = db_conn
+        self._module_config = module_config
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
+
+    @property
+    def enabled(self) -> bool:
+        if self._module_config:
+            return self._module_config.is_enabled('forecasting')
+        return True
 
     def generar_plan_compras(self, producto_id: int, sucursal_id: int, dias_historial: int, dias_pronostico: int, stock_seguridad: float) -> dict:
         """
@@ -80,7 +93,7 @@ class ForecastService:
         # 6. Empaquetar resultados para la UI
         fechas_futuras = [ (datetime.now() + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(1, dias_pronostico + 1) ]
 
-        return {
+        resultado = {
             "historial_fechas": [d.strftime('%Y-%m-%d') for d in df.index],
             "historial_valores": df['total_vendido'].tolist(),
             "pronostico_fechas": fechas_futuras,
@@ -91,3 +104,19 @@ class ForecastService:
                 "compra_recomendada": cantidad_a_comprar
             }
         }
+        # Publicar FORECAST_GENERADO al EventBus
+        if self._bus:
+            try:
+                from core.events.event_bus import FORECAST_GENERADO
+                self._bus.publish(FORECAST_GENERADO, {
+                    "motor":              "holt_winters",
+                    "producto_id":        producto_id,
+                    "sucursal_id":        sucursal_id,
+                    "dias_pronostico":    dias_pronostico,
+                    "venta_proyectada":   float(total_proyectado),
+                    "compra_recomendada": float(cantidad_a_comprar),
+                    "stock_actual":       float(stock_actual),
+                }, async_=True)
+            except Exception:
+                pass
+        return resultado
