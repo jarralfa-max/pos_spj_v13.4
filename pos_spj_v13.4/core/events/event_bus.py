@@ -23,6 +23,7 @@ Eventos de dominio (v13.1):
   Alertas:    ALERT_CRITICAL
   Decisiones: DECISION_URGENTE
   Simulación: SIMULACION_EJECUTADA
+  IA:         AI_CONSULTA_REALIZADA
 """
 from __future__ import annotations
 
@@ -96,6 +97,9 @@ DECISION_URGENTE        = "DECISION_URGENTE"  # tipo, prioridad, titulo, detalle
 
 # Simulación — FASE 7
 SIMULACION_EJECUTADA    = "SIMULACION_EJECUTADA"  # escenario, recomendacion, roi_pct, viable
+
+# IA — FASE 8
+AI_CONSULTA_REALIZADA   = "AI_CONSULTA_REALIZADA"  # tipo, pregunta, disponible, tiene_alertas
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"
