@@ -269,37 +269,49 @@ class RecetaRepository:
         from datetime import datetime
         now = datetime.utcnow().isoformat()
 
-        # Build dynamic INSERT with all required product columns
-        columns = ['nombre_receta', 'total_rendimiento', 'total_merma',
-                   'is_active', 'activa', 'created_at', 'validates_at']
-        placeholders = ['?'] * len(columns)
-        parameters = [nombre.strip(), float(total_rend), float(total_merma), 1, 1, now, now]
+        # Build dynamic INSERT — solo columnas que REALMENTE existen en product_recipes
+        # para evitar OperationalError con columnas opcionales (activa, validates_at, etc.)
+        columns: list = []
+        placeholders: list = []
+        parameters: list = []
 
-        # Ensure product_id is always inserted if it exists (to avoid NOT NULL constraint)
-        if 'product_id' in self._product_columns:
-            if 'product_id' not in columns:
-                columns.append('product_id')
+        def _add(col: str, val) -> None:
+            if col in self._product_columns:
+                columns.append(col)
                 placeholders.append('?')
-                parameters.append(base_product_id)
-        # Also insert base_product_id if it exists (for backward compatibility)
-        if 'base_product_id' in self._product_columns:
-            if 'base_product_id' not in columns:
-                columns.append('base_product_id')
-                placeholders.append('?')
-                parameters.append(base_product_id)
+                parameters.append(val)
+
+        _add('nombre_receta',    nombre.strip())
+        _add('total_rendimiento', float(total_rend))
+        _add('total_merma',      float(total_merma))
+        _add('is_active',        1)
+        _add('activa',           1)           # columna opcional (legacy)
+        _add('created_at',       now)
+        _add('validates_at',     now)         # columna opcional (legacy)
+        # Columnas de referencia al producto base (detectadas dinámicamente)
+        _add('product_id',       base_product_id)
+        _add('base_product_id',  base_product_id)
+
+        if not columns:
+            raise RecetaError("No se encontraron columnas válidas en product_recipes")
 
         with self.db.transaction("RECETA_CREATE"):
             # Insert the recipe
             sql = f"INSERT INTO product_recipes ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
-            self.db.execute(sql, parameters)
+            cur = self.db.execute(sql, parameters)
 
-            # Retrieve the generated ID
-            row = self.db.execute(f"""
-                SELECT id FROM product_recipes
-                WHERE {self._product_col} = ?
-                ORDER BY id DESC LIMIT 1
-            """, (base_product_id,)).fetchone()
-            receta_id = row["id"]
+            # Usar lastrowid — no depende de row_factory
+            receta_id = cur.lastrowid
+            if not receta_id:
+                # Fallback: buscar por producto base (index[0] — no depende de row_factory)
+                row = self.db.execute(f"""
+                    SELECT id FROM product_recipes
+                    WHERE {self._product_col} = ?
+                    ORDER BY id DESC LIMIT 1
+                """, (base_product_id,)).fetchone()
+                if not row:
+                    raise RecetaError("No se pudo obtener el ID de la receta creada")
+                receta_id = row[0]
 
             # Insert components
             for i, comp in enumerate(components):

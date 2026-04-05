@@ -91,25 +91,31 @@ class TreasuryService:
         cur = self.db.execute(
             "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
             "VALUES('inyeccion',?,?,?)", (monto, descripcion, usuario))
-        self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,ingreso,usuario) "
-            "VALUES('ingreso','capital:inyeccion',?,?,?)",
-            (descripcion, monto, usuario))
-        self.db.commit()
+        row_id = cur.lastrowid
+        try:
+            self.db.commit()
+        except Exception:
+            pass
         logger.info("Capital inyectado: $%.2f", monto)
-        return cur.lastrowid
+        # Registrar en ledger y publicar MOVIMIENTO_FINANCIERO al EventBus
+        self.registrar_ingreso("capital:inyeccion", descripcion, abs(monto),
+                               usuario=usuario)
+        return row_id
 
     def retirar_capital(self, monto: float, descripcion: str = "",
                          usuario: str = "") -> int:
         cur = self.db.execute(
             "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
             "VALUES('retiro',?,?,?)", (-abs(monto), descripcion, usuario))
-        self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,egreso,usuario) "
-            "VALUES('egreso','capital:retiro',?,?,?)",
-            (descripcion, abs(monto), usuario))
-        self.db.commit()
-        return cur.lastrowid
+        row_id = cur.lastrowid
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+        # Registrar en ledger y publicar MOVIMIENTO_FINANCIERO al EventBus
+        self.registrar_egreso("capital:retiro", descripcion, abs(monto),
+                              usuario=usuario)
+        return row_id
 
     def capital_total(self) -> float:
         return self._q("SELECT COALESCE(SUM(monto),0) FROM treasury_capital")
