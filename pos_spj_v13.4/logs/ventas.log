@@ -1,3 +1,0 @@
-{"ts": "2026-04-05T00:07:38.367978", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 844}
-{"ts": "2026-04-05T00:07:42.207288", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Claro' aplicado correctamente", "module": "ventas", "line": 844}
-{"ts": "2026-04-05T00:07:59.719861", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 866}
