@@ -29,6 +29,12 @@ class TreasuryService:
     def __init__(self, db_conn, module_config=None):
         self.db = db_conn
         self._module_config = module_config
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
         self._ensure_tables()
 
     @property
@@ -123,6 +129,8 @@ class TreasuryService:
             self.db.commit()
         except Exception:
             pass
+        self._publish_movimiento("ingreso", categoria, concepto, monto,
+                                  sucursal_id, referencia, usuario)
 
     def registrar_egreso(self, categoria: str, concepto: str, monto: float,
                          sucursal_id: int = 1, referencia: str = "",
@@ -133,6 +141,28 @@ class TreasuryService:
             (categoria, concepto, abs(monto), sucursal_id, referencia, usuario))
         try:
             self.db.commit()
+        except Exception:
+            pass
+        self._publish_movimiento("egreso", categoria, concepto, abs(monto),
+                                  sucursal_id, referencia, usuario)
+
+    def _publish_movimiento(self, tipo: str, categoria: str, concepto: str,
+                             monto: float, sucursal_id: int,
+                             referencia: str, usuario: str) -> None:
+        """Publica MOVIMIENTO_FINANCIERO al EventBus (async, no bloquea)."""
+        if not self._bus:
+            return
+        try:
+            from core.events.event_bus import MOVIMIENTO_FINANCIERO
+            self._bus.publish(MOVIMIENTO_FINANCIERO, {
+                "tipo":        tipo,          # "ingreso" | "egreso"
+                "categoria":   categoria,
+                "concepto":    concepto,
+                "monto":       monto,
+                "sucursal_id": sucursal_id,
+                "referencia":  referencia,
+                "usuario":     usuario,
+            }, async_=True)
         except Exception:
             pass
 
