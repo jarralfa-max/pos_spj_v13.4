@@ -2213,10 +2213,14 @@ class ModuloVentas(ModuloBase):
         except Exception:
             pass
 
-        # Legacy Fallback
+        # Legacy Fallback — solo si báscula está habilitada en config hardware
+        if not self._hw_bascula_habilitada:
+            return
         try:
             if not self.bascula:
-                self.bascula = serial.Serial("COM3", 9600, timeout=0.2)
+                puerto = self._hw_bascula_cfg.get("puerto", "COM3")
+                baud   = int(self._hw_bascula_cfg.get("baud", 9600))
+                self.bascula = serial.Serial(puerto, baud, timeout=0.2)
                 self.lbl_estado_bascula.setText("Báscula: ✅ Conectada")
 
             self.bascula.write(b'P\r\n')
@@ -2233,12 +2237,15 @@ class ModuloVentas(ModuloBase):
             self.lbl_estado_bascula.setText("Báscula: ❌ Desconectada")
                 
     def iniciar_monitoreo_peso(self, producto: Dict[str, Any]):
+        # BUG FIX: no iniciar si la báscula está deshabilitada en config hardware
+        if not self._hw_bascula_habilitada:
+            return
         self.producto_pendiente = producto
         self.lecturas_estables = []
-        self.peso_inicial = 0 
-        self.lecturas_peso = [self.peso_actual] 
+        self.peso_inicial = 0
+        self.lecturas_peso = [self.peso_actual]
         self.monitoreo_inicio = time.time()
-        
+
         if not self.timer_bascula.isActive():
             self.timer_bascula.start()
 

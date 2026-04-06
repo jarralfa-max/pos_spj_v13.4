@@ -19,6 +19,13 @@ Eventos de dominio (v13.1):
   Fidelidad:  TARJETA_ESCANEADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
   Sistema:    SESION_INICIADA, SESION_CERRADA, FORECAST_GENERADO
   BI:         CONCILIACION_DIFERENCIA
+  Impresión:  TICKET_IMPRESO, PRINT_FAILED
+  Alertas:    ALERT_CRITICAL
+  Decisiones: DECISION_URGENTE
+  Simulación: SIMULACION_EJECUTADA
+  IA:         AI_CONSULTA_REALIZADA
+  Franquicia: FRANQUICIA_RANKING_GENERADO, FRANQUICIA_TRANSFERENCIA_SUGERIDA
+  RRHH:       EMPLOYEE_OVERWORK, EMPLOYEE_REST_DAY, PAYROLL_GENERATED, PAYROLL_DUE
 """
 from __future__ import annotations
 
@@ -79,6 +86,32 @@ EMPLEADO_ACTUALIZADO        = "EMPLEADO_ACTUALIZADO"
 # Clientes
 CLIENTE_ACTUALIZADO     = "CLIENTE_ACTUALIZADO"
 CLIENTE_CREADO          = "CLIENTE_CREADO"
+
+# Impresión — FASE 1
+TICKET_IMPRESO          = "TICKET_IMPRESO"    # job_id, job_type, destination, folio, total
+PRINT_FAILED            = "PRINT_FAILED"      # job_id, job_type, destination, error_msg, retries
+
+# Alertas — FASE 4
+ALERT_CRITICAL          = "ALERT_CRITICAL"    # category, severity, title, message, data, sucursal_id
+
+# Decisiones — FASE 5
+DECISION_URGENTE        = "DECISION_URGENTE"  # tipo, prioridad, titulo, detalle, impacto_estimado, accion_propuesta
+
+# Simulación — FASE 7
+SIMULACION_EJECUTADA    = "SIMULACION_EJECUTADA"  # escenario, recomendacion, roi_pct, viable
+
+# IA — FASE 8
+AI_CONSULTA_REALIZADA   = "AI_CONSULTA_REALIZADA"  # tipo, pregunta, disponible, tiene_alertas
+
+# Franquicia — FASE 10
+FRANQUICIA_RANKING_GENERADO = "FRANQUICIA_RANKING_GENERADO"  # sucursales_count, top_sucursal, top_utilidad, fecha_desde, fecha_hasta
+FRANQUICIA_TRANSFERENCIA_SUGERIDA = "FRANQUICIA_TRANSFERENCIA_SUGERIDA"  # producto, desde_sucursal, hacia_sucursal, cantidad_sugerida
+
+# RRHH — FASE 11
+EMPLOYEE_OVERWORK       = "EMPLOYEE_OVERWORK"    # empleado_id, nombre, dias_consecutivos, sucursal_id
+EMPLOYEE_REST_DAY       = "EMPLOYEE_REST_DAY"    # empleado_id, nombre, fecha_descanso, sucursal_id
+PAYROLL_GENERATED       = "PAYROLL_GENERATED"    # empleado_id, nombre, periodo, total, sucursal_id
+PAYROLL_DUE             = "PAYROLL_DUE"          # empleado_id, nombre, dias_vencimiento, sucursal_id
 
 # Sistema
 SESION_INICIADA         = "SESION_INICIADA"

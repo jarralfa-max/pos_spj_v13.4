@@ -67,6 +67,7 @@ class PrintJob:
     raw_data: Dict[str, Any] = field(default_factory=dict)  # Datos originales
     transport: TransportType = TransportType.AUTO
     destination: str = ""              # IP:port, COM port, o printer name
+    baud: int = 9600                   # Baud rate para transporte serial
     priority: int = 5                  # 1=urgente, 10=baja
     retries: int = 2
     status: PrintJobStatus = PrintJobStatus.QUEUED
@@ -87,15 +88,20 @@ class PrintTransport:
     """Capa de transporte — envía bytes a cualquier tipo de impresora."""
 
     @staticmethod
-    def send(data: bytes, transport: TransportType, destination: str) -> bool:
-        """Envía bytes a la impresora según el tipo de transporte."""
+    def send(data: bytes, transport: TransportType, destination: str,
+             baud: int = 9600) -> bool:
+        """Envía bytes a la impresora según el tipo de transporte.
+
+        Args:
+            baud: velocidad serial; ignorado si transporte != SERIAL.
+        """
         if transport == TransportType.AUTO:
             transport = PrintTransport.detect_type(destination)
 
         if transport == TransportType.NETWORK:
             return PrintTransport._send_tcp(data, destination)
         elif transport == TransportType.SERIAL:
-            return PrintTransport._send_serial(data, destination)
+            return PrintTransport._send_serial(data, destination, baud=baud)
         elif transport == TransportType.USB_WIN32:
             return PrintTransport._send_win32(data, destination)
         else:
@@ -129,9 +135,9 @@ class PrintTransport:
             s.close()
 
     @staticmethod
-    def _send_serial(data: bytes, destination: str) -> bool:
+    def _send_serial(data: bytes, destination: str, baud: int = 9600) -> bool:
         import serial
-        with serial.Serial(destination, 9600, timeout=3) as sp:
+        with serial.Serial(destination, baud, timeout=3) as sp:
             sp.write(data)
         return True
 
@@ -184,6 +190,8 @@ class PrintQueue:
         # Stats
         self.total_printed = 0
         self.total_failed = 0
+        # EventBus — inyectado desde PrinterService después de construcción
+        self._bus = None
 
     def start(self):
         if self._running:
@@ -228,7 +236,8 @@ class PrintQueue:
 
             for attempt in range(1, job.retries + 1):
                 try:
-                    PrintTransport.send(job.data, job.transport, job.destination)
+                    PrintTransport.send(job.data, job.transport,
+                                       job.destination, baud=job.baud)
                     success = True
                     job.status = PrintJobStatus.SUCCESS
                     self.total_printed += 1
@@ -237,6 +246,20 @@ class PrintQueue:
                     if job.on_success:
                         try:
                             job.on_success()
+                        except Exception:
+                            pass
+                    # Publicar evento TICKET_IMPRESO al EventBus
+                    if self._bus:
+                        try:
+                            from core.events.event_bus import TICKET_IMPRESO
+                            rd = job.raw_data or {}
+                            self._bus.publish(TICKET_IMPRESO, {
+                                "job_id": job.id,
+                                "job_type": job.job_type.value,
+                                "destination": job.destination,
+                                "folio": rd.get("folio", ""),
+                                "total": rd.get("totales", {}).get("total_final", 0),
+                            }, async_=True)
                         except Exception:
                             pass
                     break
@@ -255,6 +278,19 @@ class PrintQueue:
                 if job.on_error:
                     try:
                         job.on_error(Exception(job.error_msg))
+                    except Exception:
+                        pass
+                # Publicar evento PRINT_FAILED al EventBus
+                if self._bus:
+                    try:
+                        from core.events.event_bus import PRINT_FAILED
+                        self._bus.publish(PRINT_FAILED, {
+                            "job_id": job.id,
+                            "job_type": job.job_type.value,
+                            "destination": job.destination,
+                            "error_msg": job.error_msg,
+                            "retries": job.retries,
+                        }, async_=True)
                     except Exception:
                         pass
 
@@ -283,6 +319,12 @@ class PrinterService:
         self._ticket_cfg: Dict = {}
         self._label_cfg: Dict = {}
         self._enabled = True
+        # Conectar EventBus para publicar TICKET_IMPRESO / PRINT_FAILED
+        try:
+            from core.events.event_bus import get_bus
+            self.queue._bus = get_bus()
+        except Exception:
+            pass
         self.queue.start()
         self._load_configs()
 
@@ -333,8 +375,8 @@ class PrinterService:
         Imprime un ticket de venta/corte. Retorna el job_id.
         Genera ESC/POS automáticamente usando TicketESCPOSRenderer.
         """
-        if not self._enabled:
-            logger.debug("Impresión deshabilitada")
+        if not self.enabled:
+            logger.debug("Impresión deshabilitada (toggle printing)")
             return ""
 
         try:
@@ -368,6 +410,7 @@ class PrinterService:
             data=data,
             raw_data=ticket_data,
             destination=dest,
+            baud=int(self._ticket_cfg.get('baud_rate', 9600)),
             priority=2,  # Tickets tienen alta prioridad
             on_success=on_success,
             on_error=on_error,
@@ -382,7 +425,7 @@ class PrinterService:
                     on_success: Callable = None,
                     on_error: Callable = None) -> str:
         """Imprime una etiqueta (bytes ZPL/TSPL/imagen ya formateados)."""
-        if not self._enabled:
+        if not self.enabled:
             return ""
 
         cfg = printer_cfg or self._label_cfg
@@ -392,6 +435,7 @@ class PrinterService:
             job_type=PrintJobType.LABEL,
             data=label_data,
             destination=dest,
+            baud=int(cfg.get('baud_rate', 9600)),
             priority=5,
             on_success=on_success,
             on_error=on_error,
@@ -404,7 +448,7 @@ class PrinterService:
     def print_raw(self, data: bytes, destination: str = "",
                   priority: int = 5) -> str:
         """Envía bytes raw a cualquier impresora."""
-        if not self._enabled:
+        if not self.enabled:
             return ""
         dest = destination or self._ticket_cfg.get('ubicacion', '')
         job = PrintJob(

@@ -59,6 +59,67 @@ class AIAdvisor:
         self._ollama_url = "http://localhost:11434"
         self._model = "deepseek-r1:8b"
         self._available: Optional[bool] = None
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
+        self._ensure_table()
+
+    def _ensure_table(self):
+        if not self.db:
+            return
+        try:
+            self.db.execute("""
+                CREATE TABLE IF NOT EXISTS ai_consulta_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tipo TEXT NOT NULL,
+                    pregunta TEXT DEFAULT '',
+                    respuesta TEXT DEFAULT '',
+                    datos_contexto TEXT DEFAULT '{}',
+                    disponible INTEGER DEFAULT 0,
+                    fecha TEXT DEFAULT (datetime('now'))
+                )
+            """)
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _persist_consulta(self, tipo: str, pregunta: str,
+                           respuesta: str, contexto: dict,
+                           disponible: bool) -> None:
+        if not self.db:
+            return
+        try:
+            self.db.execute(
+                "INSERT INTO ai_consulta_log "
+                "(tipo, pregunta, respuesta, datos_contexto, disponible) "
+                "VALUES (?,?,?,?,?)",
+                (tipo, pregunta[:500], respuesta[:2000],
+                 json.dumps(contexto, default=str)[:2000],
+                 1 if disponible else 0))
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # Publicar evento
+        if self._bus:
+            try:
+                from core.events.event_bus import AI_CONSULTA_REALIZADA
+                self._bus.publish(AI_CONSULTA_REALIZADA, {
+                    "tipo":          tipo,
+                    "pregunta":      pregunta[:200],
+                    "disponible":    disponible,
+                    "tiene_alertas": bool(contexto.get("alertas_activas", 0)),
+                }, async_=True)
+            except Exception:
+                pass
 
     @property
     def enabled(self) -> bool:
@@ -122,14 +183,17 @@ class AIAdvisor:
 
         try:
             respuesta = await self._call_ollama(prompt)
-            return {
+            resultado = {
                 "respuesta": respuesta,
                 "datos_usados": contexto,
                 "disponible": True,
                 "timestamp": datetime.now().isoformat(),
             }
+            self._persist_consulta("llm", pregunta, respuesta, contexto, True)
+            return resultado
         except Exception as e:
             logger.error("AI consulta error: %s", e)
+            self._persist_consulta("llm_error", pregunta, str(e), contexto, True)
             return {"respuesta": f"Error: {e}", "disponible": True}
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -173,6 +237,12 @@ class AIAdvisor:
             except Exception:
                 pass
 
+        self._persist_consulta(
+            "analisis_rapido", "", "",
+            {"kpis": resultado.get("kpis", {}),
+             "alertas": len(resultado.get("alertas_criticas", [])),
+             "sugerencias": len(resultado.get("sugerencias", []))},
+            disponible=True)
         return resultado
 
     # ══════════════════════════════════════════════════════════════════════════

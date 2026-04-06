@@ -200,12 +200,19 @@ class AppContainer:
         from core.services.treasury_service import TreasuryService
         self.treasury_service = TreasuryService(self.db, self.module_config)
 
+        from core.services.hr_rule_engine import HRRuleEngine
+        self.hr_rule_engine = HRRuleEngine(
+            db_conn=self.db,
+            module_config=self.module_config,
+        )
+
         from core.services.rrhh_service import RRHHService
         self.rrhh_service = RRHHService(
             db_conn=self.db,
             treasury_service=self.treasury_service,
             whatsapp_service=self.whatsapp_service,
             template_engine=None,
+            hr_rule_engine=self.hr_rule_engine,
         )
 
         from core.services.bi_service import BIService

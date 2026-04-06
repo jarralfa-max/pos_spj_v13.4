@@ -23,26 +23,56 @@ logger = logging.getLogger("spj.ui.dashboard")
 
 
 class KPICard(QFrame):
-    """Tarjeta de KPI individual."""
+    """
+    Tarjeta de KPI individual.
+    El color lo determina KPIColorEngine según el estado financiero —
+    nunca se hardcodea aquí.
+    """
     clicked = pyqtSignal(str)
 
     def __init__(self, titulo: str, valor: str = "—",
-                 color: str = "#3498DB", icono: str = "📊",
-                 key: str = "", parent=None):
+                 color: str = "",          # deprecated: se ignora si metric_key dado
+                 icono: str = "📊",
+                 key: str = "",
+                 metric_key: str = "",     # clave para KPIColorEngine
+                 metric_value: float = 0,  # valor numérico actual
+                 metric_prev: float = 0,   # valor período anterior (para tendencia)
+                 tendencia: str = "",      # override manual de tendencia
+                 parent=None):
         super().__init__(parent)
         self._key = key
+        self._metric_key = metric_key
+
+        # Resolver color via KPIColorEngine si se provee metric_key
+        if metric_key:
+            try:
+                from core.services.kpi_color_engine import get_kpi_color_engine
+                _eng = get_kpi_color_engine()
+                cfg = _eng.kpi_config(metric_key, metric_value, metric_prev)
+                _color = cfg["color"]
+                _text_sub = cfg["text_sub_color"]
+                if not tendencia and metric_prev:
+                    tendencia = cfg["tendencia"]
+            except Exception:
+                _color = color or "#2980B9"
+                _text_sub = "rgba(255,255,255,0.85)"
+        else:
+            _color = color or "#2980B9"
+            _text_sub = "rgba(255,255,255,0.85)"
+
         self.setFrameStyle(QFrame.StyledPanel)
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(f"""
             KPICard {{
-                background: {color};
+                background: {_color};
                 border-radius: 12px;
                 border: none;
             }}
             KPICard:hover {{
-                background: {color}dd;
+                background: {_color}dd;
             }}
         """)
+        self._current_color = _color
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setMinimumHeight(100)
 
@@ -54,6 +84,15 @@ class KPICard(QFrame):
         lbl_icono.setStyleSheet("font-size: 26px; background: transparent;")
         top.addWidget(lbl_icono)
         top.addStretch()
+        # Tendencia — muestra % de cambio si disponible
+        if tendencia:
+            self.lbl_tendencia = QLabel(tendencia)
+            self.lbl_tendencia.setStyleSheet(
+                f"color: {_text_sub}; font-size: 10px; "
+                "font-weight: 600; background: transparent;")
+            top.addWidget(self.lbl_tendencia)
+        else:
+            self.lbl_tendencia = None
         lyt.addLayout(top)
 
         self.lbl_valor = QLabel(valor)
@@ -63,7 +102,7 @@ class KPICard(QFrame):
 
         lbl_titulo = QLabel(titulo)
         lbl_titulo.setStyleSheet(
-            "color: rgba(255,255,255,0.85); font-size: 12px; background: transparent;")
+            f"color: {_text_sub}; font-size: 12px; background: transparent;")
         lyt.addWidget(lbl_titulo)
 
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
@@ -84,6 +123,32 @@ class KPICard(QFrame):
 
     def set_valor(self, valor: str):
         self.lbl_valor.setText(valor)
+
+    def set_estado(self, metric_value: float, metric_prev: float = 0) -> None:
+        """
+        Actualiza color y tendencia según el nuevo valor.
+        Llama a KPIColorEngine — sin lógica de color aquí.
+        """
+        if not self._metric_key:
+            return
+        try:
+            from core.services.kpi_color_engine import get_kpi_color_engine
+            _eng = get_kpi_color_engine()
+            cfg = _eng.kpi_config(self._metric_key, metric_value, metric_prev)
+            _color = cfg["color"]
+            _text_sub = cfg["text_sub_color"]
+            self.setStyleSheet(f"""
+                KPICard {{ background: {_color}; border-radius: 12px; border: none; }}
+                KPICard:hover {{ background: {_color}dd; }}
+            """)
+            self._current_color = _color
+            if self.lbl_tendencia and cfg.get("tendencia"):
+                self.lbl_tendencia.setText(cfg["tendencia"])
+                self.lbl_tendencia.setStyleSheet(
+                    f"color: {_text_sub}; font-size: 10px; "
+                    "font-weight: 600; background: transparent;")
+        except Exception:
+            pass
 
     def mousePressEvent(self, event):
         self.clicked.emit(self._key)

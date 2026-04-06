@@ -1,18 +1,27 @@
-#Python
-__pycache/
-*.__pycache
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
 
-#Entornos virtuales
+# Virtual environments
+.venv/
 venv/
-.env
+env/
 
-#bas3 de datos 
-.db
-
-#Vscode 
+# IDEs
+.idea/
 .vscode/
+*.swp
 
-#Logs 
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
 
-*.temp
+# SQLite
+*.db-shm
+*.db-wal

@@ -29,6 +29,12 @@ class TreasuryService:
     def __init__(self, db_conn, module_config=None):
         self.db = db_conn
         self._module_config = module_config
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
         self._ensure_tables()
 
     @property
@@ -85,25 +91,31 @@ class TreasuryService:
         cur = self.db.execute(
             "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
             "VALUES('inyeccion',?,?,?)", (monto, descripcion, usuario))
-        self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,ingreso,usuario) "
-            "VALUES('ingreso','capital:inyeccion',?,?,?)",
-            (descripcion, monto, usuario))
-        self.db.commit()
+        row_id = cur.lastrowid
+        try:
+            self.db.commit()
+        except Exception:
+            pass
         logger.info("Capital inyectado: $%.2f", monto)
-        return cur.lastrowid
+        # Registrar en ledger y publicar MOVIMIENTO_FINANCIERO al EventBus
+        self.registrar_ingreso("capital:inyeccion", descripcion, abs(monto),
+                               usuario=usuario)
+        return row_id
 
     def retirar_capital(self, monto: float, descripcion: str = "",
                          usuario: str = "") -> int:
         cur = self.db.execute(
             "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
             "VALUES('retiro',?,?,?)", (-abs(monto), descripcion, usuario))
-        self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,egreso,usuario) "
-            "VALUES('egreso','capital:retiro',?,?,?)",
-            (descripcion, abs(monto), usuario))
-        self.db.commit()
-        return cur.lastrowid
+        row_id = cur.lastrowid
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+        # Registrar en ledger y publicar MOVIMIENTO_FINANCIERO al EventBus
+        self.registrar_egreso("capital:retiro", descripcion, abs(monto),
+                              usuario=usuario)
+        return row_id
 
     def capital_total(self) -> float:
         return self._q("SELECT COALESCE(SUM(monto),0) FROM treasury_capital")
@@ -123,6 +135,8 @@ class TreasuryService:
             self.db.commit()
         except Exception:
             pass
+        self._publish_movimiento("ingreso", categoria, concepto, monto,
+                                  sucursal_id, referencia, usuario)
 
     def registrar_egreso(self, categoria: str, concepto: str, monto: float,
                          sucursal_id: int = 1, referencia: str = "",
@@ -133,6 +147,28 @@ class TreasuryService:
             (categoria, concepto, abs(monto), sucursal_id, referencia, usuario))
         try:
             self.db.commit()
+        except Exception:
+            pass
+        self._publish_movimiento("egreso", categoria, concepto, abs(monto),
+                                  sucursal_id, referencia, usuario)
+
+    def _publish_movimiento(self, tipo: str, categoria: str, concepto: str,
+                             monto: float, sucursal_id: int,
+                             referencia: str, usuario: str) -> None:
+        """Publica MOVIMIENTO_FINANCIERO al EventBus (async, no bloquea)."""
+        if not self._bus:
+            return
+        try:
+            from core.events.event_bus import MOVIMIENTO_FINANCIERO
+            self._bus.publish(MOVIMIENTO_FINANCIERO, {
+                "tipo":        tipo,          # "ingreso" | "egreso"
+                "categoria":   categoria,
+                "concepto":    concepto,
+                "monto":       monto,
+                "sucursal_id": sucursal_id,
+                "referencia":  referencia,
+                "usuario":     usuario,
+            }, async_=True)
         except Exception:
             pass
 
@@ -384,12 +420,9 @@ class TreasuryService:
             "INSERT INTO gastos (fecha, categoria, concepto, monto, metodo_pago, "
             "usuario, fecha_registro) VALUES (datetime('now'),?,?,?,?,?,datetime('now'))",
             (categoria, concepto, monto, metodo_pago, usuario))
+        # registrar_egreso ya hace commit y publica MOVIMIENTO_FINANCIERO al EventBus
         self.registrar_egreso("gasto_operativo:" + categoria, concepto, monto,
                               sucursal_id, usuario=usuario)
-        try:
-            self.db.commit()
-        except Exception:
-            pass
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Cuentas por Pagar (CXP) — usado por modulos/tesoreria.py

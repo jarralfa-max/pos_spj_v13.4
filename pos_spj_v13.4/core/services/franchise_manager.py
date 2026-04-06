@@ -30,6 +30,12 @@ class FranchiseManager:
         self.db = db_conn
         self.treasury = treasury_service
         self._module_config = module_config
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
 
     @property
     def enabled(self) -> bool:
@@ -101,6 +107,23 @@ class FranchiseManager:
         for i, r in enumerate(ranking):
             r["posicion"] = i + 1
             r["medalla"] = ["🥇", "🥈", "🥉"][i] if i < 3 else f"#{i+1}"
+
+        # Publicar evento de ranking generado
+        if self._bus and ranking:
+            try:
+                from core.events.event_bus import FRANQUICIA_RANKING_GENERADO
+                top = ranking[0]
+                self._bus.publish(FRANQUICIA_RANKING_GENERADO, {
+                    "sucursales_count": len(ranking),
+                    "top_sucursal":     top["nombre"],
+                    "top_sucursal_id":  top["sucursal_id"],
+                    "top_utilidad":     top["utilidad_estimada"],
+                    "top_margen_pct":   top["margen_pct"],
+                    "fecha_desde":      df,
+                    "fecha_hasta":      dt,
+                }, async_=True)
+            except Exception:
+                pass
 
         return ranking
 
@@ -190,6 +213,33 @@ class FranchiseManager:
                         "stock_destino": round(r[7], 2),
                         "cantidad_sugerida": round(qty_transferir, 2),
                     })
+            # Publicar sugerencias de transferencia como decisiones urgentes
+            if self._bus and transferencias:
+                try:
+                    from core.events.event_bus import (
+                        FRANQUICIA_TRANSFERENCIA_SUGERIDA, DECISION_URGENTE)
+                    for t in transferencias[:5]:  # máximo 5 eventos
+                        self._bus.publish(FRANQUICIA_TRANSFERENCIA_SUGERIDA, {
+                            "producto_id":       t["producto_id"],
+                            "producto":          t["producto"],
+                            "desde_sucursal":    t["desde_sucursal"],
+                            "desde_id":          t["desde_id"],
+                            "hacia_sucursal":    t["hacia_sucursal"],
+                            "hacia_id":          t["hacia_id"],
+                            "cantidad_sugerida": t["cantidad_sugerida"],
+                        }, async_=True)
+                    # Publicar decisión urgente si hay transferencias pendientes
+                    self._bus.publish(DECISION_URGENTE, {
+                        "tipo":             "franquicia_transferencia",
+                        "prioridad":        "media",
+                        "titulo":           f"Transferencias de inventario sugeridas ({len(transferencias)})",
+                        "detalle":          f"Hay {len(transferencias)} productos con desequilibrio de stock entre sucursales.",
+                        "impacto_estimado": "Reducción de merma y mejora de disponibilidad",
+                        "accion_propuesta": "Revisar y aprobar transferencias en módulo de logística",
+                    }, async_=True)
+                except Exception:
+                    pass
+
             return transferencias
         except Exception as e:
             logger.debug("transferencias: %s", e)

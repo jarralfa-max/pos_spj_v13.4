@@ -78,6 +78,12 @@ class DemandForecastingEngine:
 
     def __init__(self, db):
         self.db = db
+        self._bus = None
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
 
     # ═════════════════════════════════════════════════════════════════════════
     # HISTORIAL DE VENTAS
@@ -299,6 +305,23 @@ class DemandForecastingEngine:
                 results.append(fc)
             except Exception as e:
                 logger.warning("forecast_producto %s: %s", row["producto_id"], e)
+
+        # Publicar FORECAST_GENERADO al EventBus con resumen del batch
+        if self._bus and results:
+            try:
+                from core.events.event_bus import FORECAST_GENERADO
+                criticos = [f for f in results if f.alerta == "CRITICO"]
+                self._bus.publish(FORECAST_GENERADO, {
+                    "motor":           "wma_sma",
+                    "branch_id":       branch_id,
+                    "productos_total": len(results),
+                    "criticos":        len(criticos),
+                    "criticos_ids":    [f.producto_id for f in criticos],
+                    "top_n":           top_n,
+                    "days_history":    days_history,
+                }, async_=True)
+            except Exception:
+                pass
         return results
 
     # ═════════════════════════════════════════════════════════════════════════

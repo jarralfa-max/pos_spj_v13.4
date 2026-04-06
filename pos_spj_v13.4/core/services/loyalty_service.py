@@ -19,8 +19,17 @@ class LoyaltyService:
         self.sucursal_id = sucursal_id
         self._module_config = module_config
         self._engine = None
+        self._bus = None
         self._init_engine(whatsapp_service)
+        self._init_bus()
         self._ensure_tables()
+
+    def _init_bus(self):
+        try:
+            from core.events.event_bus import get_bus
+            self._bus = get_bus()
+        except Exception:
+            pass
 
     def _init_engine(self, wa=None):
         try:
@@ -60,10 +69,82 @@ class LoyaltyService:
             estrellas = resultado.get("estrellas_ganadas", 0)
             if estrellas > 0:
                 self._registrar_pasivo(estrellas, venta_id, "acreditar")
+                self._publish_puntos(cliente_id, estrellas,
+                                     resultado.get("saldo_actual", 0), venta_id)
             return resultado
         except Exception as e:
             logger.error("acreditar_venta: %s", e)
             return empty
+
+    def process_loyalty_for_sale(self, client_id: int,
+                                  total_sale: float,
+                                  branch_id: int = 1) -> Dict:
+        """
+        API unificada llamada por wiring.py, use_cases/venta.py y sales_service.py.
+
+        Mapea a acreditar_venta() y normaliza las claves de retorno para que
+        todos los consumidores reciban: puntos_ganados, puntos_totales, nivel, mensaje.
+        """
+        resultado = self.acreditar_venta(
+            cliente_id=client_id,
+            venta_id=0,
+            cajero="Sistema",
+            total=total_sale,
+        )
+        estrellas = resultado.get("estrellas_ganadas", 0)
+        saldo = resultado.get("saldo_actual", 0)
+
+        # Calcular nivel con la regla de dominio centralizada
+        nivel = "Bronce"
+        try:
+            from core.domain.models import LoyaltySnapshot
+            nivel = LoyaltySnapshot.calcular_nivel(saldo)
+        except Exception:
+            pass
+
+        return {
+            # Claves legacy (GrowthEngine)
+            "estrellas_ganadas":    estrellas,
+            "saldo_actual":         saldo,
+            "mensaje_gamificacion": resultado.get("mensaje_gamificacion", ""),
+            # Claves normalizadas (use_cases/venta.py, sales_service.py)
+            "puntos_ganados":       estrellas,
+            "puntos_totales":       saldo,
+            "nivel":                nivel,
+            "mensaje":              resultado.get("mensaje_gamificacion", ""),
+        }
+
+    def _publish_puntos(self, cliente_id: int, estrellas: int,
+                        saldo: int, venta_id) -> None:
+        """Publica PUNTOS_ACUMULADOS y NIVEL_CAMBIADO al EventBus."""
+        if not self._bus:
+            return
+        try:
+            from core.events.event_bus import PUNTOS_ACUMULADOS
+            self._bus.publish(PUNTOS_ACUMULADOS, {
+                "cliente_id":    cliente_id,
+                "estrellas":     estrellas,
+                "saldo_actual":  saldo,
+                "venta_id":      venta_id,
+                "sucursal_id":   self.sucursal_id,
+            }, async_=True)
+        except Exception:
+            pass
+        try:
+            from core.events.event_bus import NIVEL_CAMBIADO
+            from core.domain.models import LoyaltySnapshot
+            nivel_actual = LoyaltySnapshot.calcular_nivel(saldo)
+            nivel_previo = LoyaltySnapshot.calcular_nivel(max(0, saldo - estrellas))
+            if nivel_actual != nivel_previo:
+                self._bus.publish(NIVEL_CAMBIADO, {
+                    "cliente_id":   cliente_id,
+                    "nivel_previo": nivel_previo,
+                    "nivel_nuevo":  nivel_actual,
+                    "saldo":        saldo,
+                    "sucursal_id":  self.sucursal_id,
+                }, async_=True)
+        except Exception:
+            pass
 
     # ── Canjear estrellas como descuento ───────────────────────────────────────
 
