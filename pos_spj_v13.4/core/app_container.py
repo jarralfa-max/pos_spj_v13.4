@@ -316,17 +316,6 @@ class AppContainer:
             loyalty_service=self.loyalty_service,
             sucursal_id=self.sucursal_id)
 
-        from repositories.cliente_repository import ClienteRepository
-        self.cliente_repo = ClienteRepository(self.db)
-
-        # MercadoPago (pagos digitales con link)
-        try:
-            from services.mercado_pago_service import MercadoPagoService
-            self.mercado_pago_service = MercadoPagoService(conn=self.db)
-        except Exception as _e:
-            self.mercado_pago_service = None
-            import logging; logging.getLogger(__name__).debug("MercadoPago no cargado: %s", _e)
-
         # Notificar backup_engine la ruta real de la BD
         try:
             from modulos.sistema import backup_engine as _be

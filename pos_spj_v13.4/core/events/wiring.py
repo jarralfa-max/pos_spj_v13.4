@@ -39,6 +39,12 @@ def wire_all(container: "AppContainer") -> None:
     _wire_inventario(bus, container)
     _wire_produccion(bus, container)
 
+    # FASE 12: handlers cruzados para servicios inteligentes
+    _wire_alertas(bus, container)
+    _wire_finanzas(bus, container)
+    _wire_rrhh(bus, container)
+    _wire_precio_margen(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -234,3 +240,141 @@ def _wire_produccion(bus, container) -> None:
 
     bus.subscribe(PRODUCCION_COMPLETADA, _sync_produccion,
                   priority=100, label="sync_produccion")
+
+
+# ── ALERT_CRITICAL ────────────────────────────────────────────────────────────
+
+def _wire_alertas(bus, container) -> None:
+    from core.events.event_bus import ALERT_CRITICAL
+
+    def _notify_alert_critical(data: dict) -> None:
+        """Enruta ALERT_CRITICAL al NotificationService (FASE 12)."""
+        severity = data.get("severity", "")
+        if severity not in ("high", "critical"):
+            return
+        try:
+            ns = getattr(container, "notification_service", None)
+            if ns and hasattr(ns, "notificar_alerta_critica"):
+                ns.notificar_alerta_critica(
+                    titulo=data.get("title", "Alerta crítica"),
+                    mensaje=data.get("message", ""),
+                    sucursal_id=data.get("sucursal_id", 1),
+                )
+        except Exception as e:
+            logger.warning("notify_alert_critical: %s", e)
+
+    bus.subscribe(ALERT_CRITICAL, _notify_alert_critical,
+                  priority=10, label="notify_alert_critical")
+
+
+# ── MOVIMIENTO_FINANCIERO ─────────────────────────────────────────────────────
+
+def _wire_finanzas(bus, container) -> None:
+    from core.events.event_bus import MOVIMIENTO_FINANCIERO
+
+    def _audit_movimiento(data: dict) -> None:
+        """Audita cada movimiento financiero para trazabilidad (FASE 12)."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES(?,?,?,?,?,?,?,datetime('now'))",
+                (
+                    data.get("tipo", "MOVIMIENTO"),
+                    "TESORERIA",
+                    "movimientos_caja",
+                    None,
+                    data.get("referencia", "sistema"),
+                    data.get("sucursal_id", 1),
+                    f"Concepto={data.get('concepto','')} Monto=${float(data.get('monto',0)):.2f}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("audit_movimiento handler: %s", e)
+
+    bus.subscribe(MOVIMIENTO_FINANCIERO, _audit_movimiento,
+                  priority=30, label="audit_movimiento_financiero")
+
+
+# ── RRHH: EMPLOYEE_OVERWORK / PAYROLL_DUE ────────────────────────────────────
+
+def _wire_rrhh(bus, container) -> None:
+    from core.events.event_bus import EMPLOYEE_OVERWORK, PAYROLL_DUE
+
+    def _notify_overwork(data: dict) -> None:
+        """Notifica por WhatsApp cuando un empleado supera días consecutivos (FASE 12)."""
+        try:
+            ws = getattr(container, "whatsapp_service", None)
+            if not ws:
+                return
+            tel_row = container.db.execute(
+                "SELECT telefono FROM configuraciones WHERE clave='tel_gerente_rrhh' LIMIT 1"
+            ).fetchone()
+            if not tel_row or not tel_row[0]:
+                return
+            nombre = data.get("nombre", f"Empleado #{data.get('empleado_id')}")
+            dias = data.get("dias_consecutivos", "?")
+            msg = (f"RRHH: {nombre} lleva {dias} días consecutivos trabajando. "
+                   f"Programar descanso obligatorio (NOM-035).")
+            ws.send_message(phone_number=tel_row[0], message=msg)
+        except Exception as e:
+            logger.debug("notify_overwork: %s", e)
+
+    def _notify_payroll_due(data: dict) -> None:
+        """Notifica cuando una nómina está por vencer (FASE 12)."""
+        try:
+            ws = getattr(container, "whatsapp_service", None)
+            if not ws:
+                return
+            tel_row = container.db.execute(
+                "SELECT telefono FROM configuraciones WHERE clave='tel_gerente_rrhh' LIMIT 1"
+            ).fetchone()
+            if not tel_row or not tel_row[0]:
+                return
+            nombre = data.get("nombre", f"Empleado #{data.get('empleado_id')}")
+            dias = data.get("dias_vencimiento", "?")
+            msg = f"RRHH: Nómina de {nombre} vence en {dias} días. Procesar pago."
+            ws.send_message(phone_number=tel_row[0], message=msg)
+        except Exception as e:
+            logger.debug("notify_payroll_due: %s", e)
+
+    bus.subscribe(EMPLOYEE_OVERWORK, _notify_overwork,
+                  priority=10, label="notify_overwork_wa")
+    bus.subscribe(PAYROLL_DUE, _notify_payroll_due,
+                  priority=10, label="notify_payroll_due_wa")
+
+
+# ── PRICE_BELOW_MARGIN ────────────────────────────────────────────────────────
+
+def _wire_precio_margen(bus, container) -> None:
+    from core.events.event_bus import PRICE_BELOW_MARGIN
+
+    def _on_price_below_margin(data: dict) -> None:
+        """Registra en audit_logs cuando se vende por debajo del margen (FASE 12)."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('PRECIO_BAJO_MARGEN','VENTAS','productos',?,?,?,?,datetime('now'))",
+                (
+                    data.get("producto_id"),
+                    data.get("usuario", "cajero"),
+                    data.get("sucursal_id", 1),
+                    (f"Precio=${float(data.get('precio_venta',0)):.2f} "
+                     f"Costo=${float(data.get('costo',0)):.2f} "
+                     f"Margen={float(data.get('margen_pct',0)):.1f}%"),
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("price_below_margin handler: %s", e)
+
+    bus.subscribe(PRICE_BELOW_MARGIN, _on_price_below_margin,
+                  priority=30, label="audit_price_below_margin")

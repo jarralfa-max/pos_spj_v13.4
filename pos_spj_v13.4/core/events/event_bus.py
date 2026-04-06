@@ -26,6 +26,8 @@ Eventos de dominio (v13.1):
   IA:         AI_CONSULTA_REALIZADA
   Franquicia: FRANQUICIA_RANKING_GENERADO, FRANQUICIA_TRANSFERENCIA_SUGERIDA
   RRHH:       EMPLOYEE_OVERWORK, EMPLOYEE_REST_DAY, PAYROLL_GENERATED, PAYROLL_DUE
+  Spec (FASE 12): SALE_CREATED (=VENTA_COMPLETADA), STOCK_LOW (=STOCK_BAJO_MINIMO),
+                  PRICE_BELOW_MARGIN
 """
 from __future__ import annotations
 
@@ -102,6 +104,15 @@ SIMULACION_EJECUTADA    = "SIMULACION_EJECUTADA"  # escenario, recomendacion, ro
 
 # IA — FASE 8
 AI_CONSULTA_REALIZADA   = "AI_CONSULTA_REALIZADA"  # tipo, pregunta, disponible, tiene_alertas
+
+# Ventas — alias English spec (FASE 12)
+SALE_CREATED            = VENTA_COMPLETADA          # alias: spec requires SALE_CREATED
+
+# Inventario — alias English spec (FASE 12)
+STOCK_LOW               = STOCK_BAJO_MINIMO         # alias: spec requires STOCK_LOW
+
+# Márgenes — FASE 12 (spec requires PRICE_BELOW_MARGIN)
+PRICE_BELOW_MARGIN      = "PRICE_BELOW_MARGIN"      # producto_id, precio_venta, costo, margen_pct, sucursal_id
 
 # Franquicia — FASE 10
 FRANQUICIA_RANKING_GENERADO = "FRANQUICIA_RANKING_GENERADO"  # sucursales_count, top_sucursal, top_utilidad, fecha_desde, fecha_hasta
