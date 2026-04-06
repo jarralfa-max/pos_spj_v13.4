@@ -42,6 +42,8 @@ MIGRATIONS = [
     ("046",  "migrations.standalone.046_comisiones_happy_hour"),
     ("047",  "migrations.standalone.047_v13_schema"),
     ("048",  "migrations.standalone.048_v131_hardening"),
+    ("049",  "migrations.standalone.049_v134_intelligent_erp"),  # FASE 13: tablas ERP inteligente
+    ("050",  "migrations.standalone.050_wa_integration"),        # FASE WA: tablas orquestación WA↔ERP
 ]
 
 def _ensure_tracking_table(conn):

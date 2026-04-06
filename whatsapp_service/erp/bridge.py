@@ -259,3 +259,210 @@ class ERPBridge:
         if self._conn:
             self._conn.close()
             self._conn = None
+
+    # ── Conversión Cotización → Venta ─────────────────────────────────────────
+
+    def convertir_cotizacion_a_venta(self, cotizacion_id: int,
+                                     usuario: str = "whatsapp") -> Optional[Dict]:
+        """
+        Convierte una cotización existente en venta real (estado pendiente_wa).
+        NO duplica lógica de ventas — solo crea la venta y vincula la cotización.
+        """
+        cot = self.db.execute(
+            "SELECT * FROM cotizaciones WHERE id=? AND estado='pendiente'",
+            (cotizacion_id,)
+        ).fetchone()
+        if not cot:
+            return None
+
+        cot = dict(cot)
+        items = self.db.execute(
+            "SELECT * FROM cotizaciones_detalle WHERE cotizacion_id=?",
+            (cotizacion_id,)
+        ).fetchall()
+        items = [dict(i) for i in items]
+
+        if not items:
+            return None
+
+        import uuid
+        folio = f"WA-{uuid.uuid4().hex[:8].upper()}"
+        total = float(cot.get("total", 0))
+
+        cursor = self.db.execute("""
+            INSERT INTO ventas (folio, cliente_id, total, estado,
+                               sucursal_id, tipo_entrega, canal, fecha)
+            VALUES (?, ?, ?, 'pendiente_wa', ?, 'sucursal', 'whatsapp', datetime('now'))
+        """, (folio, cot["cliente_id"], total, cot.get("sucursal_id", 1)))
+        venta_id = cursor.lastrowid
+
+        for it in items:
+            self.db.execute("""
+                INSERT INTO detalle_ventas (venta_id, producto_id, nombre,
+                    cantidad, precio_unitario, subtotal)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (venta_id, it["producto_id"], it["nombre"],
+                  it["cantidad"], it["precio_unitario"],
+                  it.get("subtotal", it["cantidad"] * it["precio_unitario"])))
+
+        # Actualizar cotización
+        self.db.execute(
+            "UPDATE cotizaciones SET estado='convertida', venta_ref_id=? WHERE id=?",
+            (venta_id, cotizacion_id)
+        )
+        self.db.commit()
+        return {"venta_id": venta_id, "folio": folio, "total": total,
+                "cotizacion_id": cotizacion_id}
+
+    # ── Calcular anticipo según reglas del ERP ────────────────────────────────
+
+    def calcular_anticipo_rules(self, cliente_id: int, total: float,
+                                 items: Optional[List[Dict]] = None) -> Dict:
+        """
+        Calcula anticipo usando anticipo_reglas + anticipo_config del ERP.
+        Retorna: {requiere: bool, monto: float, razon: str}
+        """
+        credito = self.get_credito_disponible(cliente_id)
+
+        # Verificar exenciones: crédito suficiente
+        if credito >= total:
+            # Revisar si algún producto es categoría especial
+            if items:
+                for it in items:
+                    prod_id = it.get("producto_id")
+                    if prod_id:
+                        regla = self.db.execute("""
+                            SELECT porcentaje FROM anticipo_reglas
+                            WHERE tipo='categoria' AND activo=1
+                            AND categoria = (SELECT categoria FROM productos WHERE id=?)
+                            ORDER BY porcentaje DESC LIMIT 1
+                        """, (prod_id,)).fetchone()
+                        if regla:
+                            pct = float(regla[0]) / 100.0
+                            return {"requiere": True,
+                                    "monto": round(total * pct, 2),
+                                    "razon": "producto_especial"}
+            return {"requiere": False, "monto": 0.0, "razon": "credito_suficiente"}
+
+        # Sin crédito suficiente — aplicar regla por monto
+        regla_monto = self.db.execute("""
+            SELECT porcentaje FROM anticipo_reglas
+            WHERE tipo='monto' AND activo=1
+              AND ? BETWEEN COALESCE(monto_minimo,0) AND COALESCE(monto_maximo,999999)
+            ORDER BY porcentaje DESC LIMIT 1
+        """, (total,)).fetchone()
+
+        if regla_monto:
+            pct = float(regla_monto[0]) / 100.0
+        else:
+            pct = 0.5  # Default 50% si no hay regla configurada
+
+        return {"requiere": True,
+                "monto": round(total * pct, 2),
+                "razon": "sin_credito"}
+
+    # ── Confirmar pago de anticipo ────────────────────────────────────────────
+
+    def confirmar_pago_anticipo(self, venta_id: int, monto: float,
+                                 referencia: str = "",
+                                 metodo: str = "mercadopago") -> bool:
+        """Marca anticipo como pagado y actualiza la venta."""
+        try:
+            self.db.execute("""
+                UPDATE anticipos SET estado='pagado', fecha_pago=datetime('now'),
+                    referencia=? WHERE venta_id=? AND estado='pendiente'
+            """, (referencia, venta_id))
+            self.db.execute(
+                "UPDATE ventas SET estado='confirmada', anticipo_pagado=? WHERE id=?",
+                (monto, venta_id)
+            )
+            self.db.commit()
+            return True
+        except Exception as e:
+            logger.warning("confirmar_pago_anticipo: %s", e)
+            return False
+
+    # ── Verificar stock y generar OC ──────────────────────────────────────────
+
+    def verificar_stock_items(self, items: List[Dict],
+                               sucursal_id: int) -> List[Dict]:
+        """
+        Verifica stock para cada item.
+        Retorna lista de items con campo 'falta' (cantidad que no hay en stock).
+        """
+        resultado = []
+        for it in items:
+            prod_id = it.get("producto_id")
+            cantidad = float(it.get("cantidad", 0))
+            if not prod_id:
+                continue
+            stock_row = self.db.execute("""
+                SELECT COALESCE(bi.quantity, p.existencia, 0)
+                FROM productos p
+                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
+                WHERE p.id=?
+            """, (sucursal_id, prod_id)).fetchone()
+            stock_actual = float(stock_row[0]) if stock_row else 0.0
+            falta = max(0.0, cantidad - stock_actual)
+            resultado.append({**it, "stock_actual": stock_actual, "falta": falta})
+        return resultado
+
+    def generar_orden_compra(self, producto_id: int, cantidad: float,
+                              sucursal_id: int,
+                              notas: str = "OC automática desde WA") -> Optional[int]:
+        """Genera una Orden de Compra cuando falta stock."""
+        try:
+            prod = self.db.execute(
+                "SELECT nombre, proveedor_id FROM productos WHERE id=?",
+                (producto_id,)
+            ).fetchone()
+            if not prod:
+                return None
+
+            proveedor_id = prod["proveedor_id"] if prod["proveedor_id"] else None
+            cursor = self.db.execute("""
+                INSERT INTO ordenes_compra (
+                    producto_id, proveedor_id, cantidad, estado,
+                    sucursal_id, notas, fecha_creacion
+                ) VALUES (?, ?, ?, 'pendiente', ?, ?, datetime('now'))
+            """, (producto_id, proveedor_id, cantidad, sucursal_id, notas))
+            self.db.commit()
+            return cursor.lastrowid
+        except Exception as e:
+            logger.warning("generar_orden_compra: %s", e)
+            return None
+
+    # ── Programar delivery ────────────────────────────────────────────────────
+
+    def programar_delivery(self, venta_id: int, direccion: str,
+                            fecha_entrega: str = "",
+                            telefono_cliente: str = "") -> bool:
+        """Registra el delivery en pedidos_whatsapp (flujo existente) sin modificarlo."""
+        try:
+            # Solo actualiza el tipo_entrega y datos en ventas — NO toca programar_delivery()
+            self.db.execute("""
+                UPDATE ventas SET tipo_entrega='domicilio',
+                    direccion_entrega=?,
+                    fecha_entrega_programada=COALESCE(NULLIF(?,''),(datetime('now','+1 day')))
+                WHERE id=?
+            """, (direccion, fecha_entrega, venta_id))
+            self.db.commit()
+            return True
+        except Exception as e:
+            logger.warning("programar_delivery: %s", e)
+            return False
+
+    # ── Compras / OC staff phones ─────────────────────────────────────────────
+
+    def get_compras_phones(self, sucursal_id: int) -> List[str]:
+        """Obtiene teléfonos del personal de compras."""
+        rows = self.db.execute("""
+            SELECT COALESCE(telefono, '') as tel
+            FROM configuraciones
+            WHERE clave LIKE 'tel_compras%' AND COALESCE(valor,'') != ''
+        """).fetchall()
+        if rows:
+            return [r[0] for r in rows if r[0]]
+
+        # Fallback: empleados con rol compras
+        return self.get_staff_phones(sucursal_id, rol="compras")

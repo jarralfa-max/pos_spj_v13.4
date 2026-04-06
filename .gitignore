@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python
 __pycache__/
 *.py[cod]
@@ -25,3 +26,23 @@ Thumbs.db
 # SQLite
 *.db-shm
 *.db-wal
+=======
+# Base de datos
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+
+# Python
+__pycache__/
+*.pyc
+
+# Entorno virtual
+.venv/
+>>>>>>> 88c42a0 (Cambios locales antes de actualizar)

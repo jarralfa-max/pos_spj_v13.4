@@ -39,6 +39,15 @@ def wire_all(container: "AppContainer") -> None:
     _wire_inventario(bus, container)
     _wire_produccion(bus, container)
 
+    # FASE 12: handlers cruzados para servicios inteligentes
+    _wire_alertas(bus, container)
+    _wire_finanzas(bus, container)
+    _wire_rrhh(bus, container)
+    _wire_precio_margen(bus, container)
+
+    # FASE WA: handlers para orquestación WhatsApp ↔ ERP
+    _wire_wa_events(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -234,3 +243,266 @@ def _wire_produccion(bus, container) -> None:
 
     bus.subscribe(PRODUCCION_COMPLETADA, _sync_produccion,
                   priority=100, label="sync_produccion")
+
+
+# ── ALERT_CRITICAL ────────────────────────────────────────────────────────────
+
+def _wire_alertas(bus, container) -> None:
+    from core.events.event_bus import ALERT_CRITICAL
+
+    def _notify_alert_critical(data: dict) -> None:
+        """Enruta ALERT_CRITICAL al NotificationService (FASE 12)."""
+        severity = data.get("severity", "")
+        if severity not in ("high", "critical"):
+            return
+        try:
+            ns = getattr(container, "notification_service", None)
+            if ns and hasattr(ns, "notificar_alerta_critica"):
+                ns.notificar_alerta_critica(
+                    titulo=data.get("title", "Alerta crítica"),
+                    mensaje=data.get("message", ""),
+                    sucursal_id=data.get("sucursal_id", 1),
+                )
+        except Exception as e:
+            logger.warning("notify_alert_critical: %s", e)
+
+    bus.subscribe(ALERT_CRITICAL, _notify_alert_critical,
+                  priority=10, label="notify_alert_critical")
+
+
+# ── MOVIMIENTO_FINANCIERO ─────────────────────────────────────────────────────
+
+def _wire_finanzas(bus, container) -> None:
+    from core.events.event_bus import MOVIMIENTO_FINANCIERO
+
+    def _audit_movimiento(data: dict) -> None:
+        """Audita cada movimiento financiero para trazabilidad (FASE 12)."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES(?,?,?,?,?,?,?,datetime('now'))",
+                (
+                    data.get("tipo", "MOVIMIENTO"),
+                    "TESORERIA",
+                    "movimientos_caja",
+                    None,
+                    data.get("referencia", "sistema"),
+                    data.get("sucursal_id", 1),
+                    f"Concepto={data.get('concepto','')} Monto=${float(data.get('monto',0)):.2f}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("audit_movimiento handler: %s", e)
+
+    bus.subscribe(MOVIMIENTO_FINANCIERO, _audit_movimiento,
+                  priority=30, label="audit_movimiento_financiero")
+
+
+# ── RRHH: EMPLOYEE_OVERWORK / PAYROLL_DUE ────────────────────────────────────
+
+def _wire_rrhh(bus, container) -> None:
+    from core.events.event_bus import EMPLOYEE_OVERWORK, PAYROLL_DUE
+
+    def _notify_overwork(data: dict) -> None:
+        """Notifica por WhatsApp cuando un empleado supera días consecutivos (FASE 12)."""
+        try:
+            ws = getattr(container, "whatsapp_service", None)
+            if not ws:
+                return
+            tel_row = container.db.execute(
+                "SELECT telefono FROM configuraciones WHERE clave='tel_gerente_rrhh' LIMIT 1"
+            ).fetchone()
+            if not tel_row or not tel_row[0]:
+                return
+            nombre = data.get("nombre", f"Empleado #{data.get('empleado_id')}")
+            dias = data.get("dias_consecutivos", "?")
+            msg = (f"RRHH: {nombre} lleva {dias} días consecutivos trabajando. "
+                   f"Programar descanso obligatorio (NOM-035).")
+            ws.send_message(phone_number=tel_row[0], message=msg)
+        except Exception as e:
+            logger.debug("notify_overwork: %s", e)
+
+    def _notify_payroll_due(data: dict) -> None:
+        """Notifica cuando una nómina está por vencer (FASE 12)."""
+        try:
+            ws = getattr(container, "whatsapp_service", None)
+            if not ws:
+                return
+            tel_row = container.db.execute(
+                "SELECT telefono FROM configuraciones WHERE clave='tel_gerente_rrhh' LIMIT 1"
+            ).fetchone()
+            if not tel_row or not tel_row[0]:
+                return
+            nombre = data.get("nombre", f"Empleado #{data.get('empleado_id')}")
+            dias = data.get("dias_vencimiento", "?")
+            msg = f"RRHH: Nómina de {nombre} vence en {dias} días. Procesar pago."
+            ws.send_message(phone_number=tel_row[0], message=msg)
+        except Exception as e:
+            logger.debug("notify_payroll_due: %s", e)
+
+    bus.subscribe(EMPLOYEE_OVERWORK, _notify_overwork,
+                  priority=10, label="notify_overwork_wa")
+    bus.subscribe(PAYROLL_DUE, _notify_payroll_due,
+                  priority=10, label="notify_payroll_due_wa")
+
+
+# ── PRICE_BELOW_MARGIN ────────────────────────────────────────────────────────
+
+def _wire_precio_margen(bus, container) -> None:
+    from core.events.event_bus import PRICE_BELOW_MARGIN
+
+    def _on_price_below_margin(data: dict) -> None:
+        """Registra en audit_logs cuando se vende por debajo del margen (FASE 12)."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('PRECIO_BAJO_MARGEN','VENTAS','productos',?,?,?,?,datetime('now'))",
+                (
+                    data.get("producto_id"),
+                    data.get("usuario", "cajero"),
+                    data.get("sucursal_id", 1),
+                    (f"Precio=${float(data.get('precio_venta',0)):.2f} "
+                     f"Costo=${float(data.get('costo',0)):.2f} "
+                     f"Margen={float(data.get('margen_pct',0)):.1f}%"),
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("price_below_margin handler: %s", e)
+
+    bus.subscribe(PRICE_BELOW_MARGIN, _on_price_below_margin,
+                  priority=30, label="audit_price_below_margin")
+
+
+# ── WA Events (FASE WA) ───────────────────────────────────────────────────────
+
+def _wire_wa_events(bus, container) -> None:
+    """
+    Conecta eventos del microservicio WA al ERP:
+      SALE_CREATED      → audit + BI cache invalidation
+      PAYMENT_RECEIVED  → audit + treasury
+      PURCHASE_ORDER_CREATED → audit + notificación
+    """
+    # Importar constantes del bus WA (definidas en erp/events.py del microservicio
+    # pero también como strings normales — no necesita importar el módulo WA)
+    SALE_CREATED_WA        = "SALE_CREATED"
+    PAYMENT_RECEIVED_WA    = "PAYMENT_RECEIVED"
+    PURCHASE_ORDER_WA      = "PURCHASE_ORDER_CREATED"
+    STAFF_NOTIFICATION_WA  = "STAFF_NOTIFICATION"
+    FORECAST_DEMAND_WA     = "FORECAST_DEMAND_UPDATED"
+
+    def _on_sale_created(data: dict) -> None:
+        """Registra en audit_logs cuando se crea una venta desde WA."""
+        if data.get("canal") != "whatsapp":
+            return  # Solo procesar ventas WA (evitar loops con VENTA_COMPLETADA)
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('CREADA','VENTAS_WA','ventas',?,?,?,?,datetime('now'))",
+                (
+                    data.get("venta_id"),
+                    data.get("cliente_id", 0),
+                    data.get("sucursal_id", 1),
+                    f"Folio={data.get('folio','')} Total=${float(data.get('total',0)):.2f} origen={data.get('origen','wa')}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+            # Invalidar caché BI
+            bi = getattr(container, "bi_service", None)
+            if bi:
+                getattr(bi, "invalidar_cache", lambda *a: None)(
+                    data.get("sucursal_id", 1))
+        except Exception as e:
+            logger.debug("on_sale_created: %s", e)
+
+    def _on_payment_received(data: dict) -> None:
+        """Registra el pago recibido en audit + tesorería."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('PAGO_RECIBIDO','WA_PAGOS','anticipos',?,?,?,?,datetime('now'))",
+                (
+                    data.get("venta_id"),
+                    data.get("telefono", "cliente_wa"),
+                    data.get("sucursal_id", 1),
+                    f"Folio={data.get('folio','')} Monto=${float(data.get('monto',0)):.2f} metodo={data.get('metodo','')}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("on_payment_received: %s", e)
+
+    def _on_purchase_order(data: dict) -> None:
+        """Audita generación automática de OC desde WA."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('OC_AUTOMATICA','COMPRAS','ordenes_compra',?,?,?,?,datetime('now'))",
+                (
+                    data.get("oc_id"),
+                    "wa_orchestrator",
+                    data.get("sucursal_id", 1),
+                    f"Producto={data.get('nombre','')} Cant={data.get('cantidad',0)} venta={data.get('venta_id',0)}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("on_purchase_order: %s", e)
+
+    def _on_staff_notification(data: dict) -> None:
+        """Reenvía notificaciones de staff via WhatsAppService del ERP."""
+        try:
+            ws = getattr(container, "whatsapp_service", None)
+            if not ws:
+                return
+            phones = data.get("phones", [])
+            mensaje = data.get("mensaje", "")
+            if not mensaje or not phones:
+                return
+            for phone in phones[:5]:  # Máximo 5 destinatarios por evento
+                try:
+                    ws.send_message(phone_number=phone, message=mensaje)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("on_staff_notification: %s", e)
+
+    def _on_forecast_demand(data: dict) -> None:
+        """Pasa demanda WA al ForecastService del ERP (SOLO LECTURA — no ejecuta)."""
+        try:
+            fs = getattr(container, "actionable_forecast", None)
+            if fs and hasattr(fs, "registrar_demanda_wa"):
+                fs.registrar_demanda_wa(
+                    producto_id=data.get("producto_id"),
+                    cantidad=data.get("demanda_est", 0),
+                    periodo=data.get("periodo", ""),
+                )
+        except Exception as e:
+            logger.debug("on_forecast_demand: %s", e)
+
+    bus.subscribe(SALE_CREATED_WA,       _on_sale_created,     priority=30, label="wa_sale_audit")
+    bus.subscribe(PAYMENT_RECEIVED_WA,   _on_payment_received, priority=30, label="wa_payment_audit")
+    bus.subscribe(PURCHASE_ORDER_WA,     _on_purchase_order,   priority=30, label="wa_oc_audit")
+    bus.subscribe(STAFF_NOTIFICATION_WA, _on_staff_notification, priority=10, label="wa_staff_notify")
+    bus.subscribe(FORECAST_DEMAND_WA,    _on_forecast_demand,  priority=5,  label="wa_forecast_demand")

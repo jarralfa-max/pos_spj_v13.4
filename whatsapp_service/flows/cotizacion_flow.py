@@ -127,16 +127,36 @@ class CotizacionFlow(BaseFlow):
 
         if aid == "confirm_cotizacion":
             items = [i.to_dict() for i in ctx.cotizacion_items]
-            result = self.erp.crear_cotizacion_wa(
-                items=items,
-                cliente_id=ctx.cliente_id or 0,
-                sucursal_id=ctx.sucursal_id or 1)
+            suc_id = ctx.sucursal_id or 1
 
-            self.events.emit(WA_COTIZACION_CREADA, {
-                "folio": result["folio"],
-                "total": result["total"],
-                "cliente_id": ctx.cliente_id,
-            }, sucursal_id=ctx.sucursal_id or 1)
+            # ── FASE WA: Usar orchestrator si disponible ──────────────────
+            if self.orchestrator:
+                result = self.orchestrator.confirmar_cotizacion(
+                    cotizacion_id=0,   # se asigna internamente
+                    cliente_id=ctx.cliente_id or 0,
+                    items=items,
+                )
+                # Guardar cotizacion_id en contexto para conversión posterior
+                ctx._cotizacion_id = result.get("cotizacion_id")
+
+                # Programar recordatorio de confirmación
+                if self.reminders:
+                    self.reminders.programar_confirmacion_pedido(
+                        venta_id=result.get("cotizacion_id", 0),
+                        folio=result["folio"],
+                        phone=ctx.phone,
+                        sucursal_id=suc_id,
+                        delay_horas=24)
+            else:
+                result = self.erp.crear_cotizacion_wa(
+                    items=items,
+                    cliente_id=ctx.cliente_id or 0,
+                    sucursal_id=suc_id)
+                self.events.emit(WA_COTIZACION_CREADA, {
+                    "folio": result["folio"],
+                    "total": result["total"],
+                    "cliente_id": ctx.cliente_id,
+                }, sucursal_id=suc_id)
 
             await send_text(ctx.phone,
                 f"✅ *Cotización generada*\n\n"

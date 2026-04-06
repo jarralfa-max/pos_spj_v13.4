@@ -400,8 +400,10 @@ class MainWindow(QMainWindow):
         self._conectar("PROVEEDORES",    ModuloProveedores,    "🏭 Proveedores")
 
         # ── Producción ───────────────────────────────────────────────────────
-        self._conectar("PRODUCCION",     ModuloProduccion,     "🔪 Procesamiento Cárnico")
-        self._conectar("ETIQUETAS",      ModuloEtiquetas,      "🏷️ Etiquetas")
+        self._conectar("PRODUCCION",       ModuloProduccion,       "🔪 Procesamiento Cárnico")
+        self._conectar("ETIQUETAS",        ModuloEtiquetas,        "🏷️ Etiquetas")
+        self._conectar("RECETAS",          ModuloRecetas,          "📖 Recetas Industriales")
+        self._conectar("PLANEACION_COMPRAS", ModuloPlaneacionCompras, "📈 Planeación de Compras")
 
         # ── Administración ───────────────────────────────────────────────────
         self._conectar("TESORERIA",      ModuloTesoreria,      "🏦 Tesorería")
@@ -528,6 +530,14 @@ class MainWindow(QMainWindow):
                 self.container.session.set_permisos(permisos)
             except Exception:
                 pass
+        except Exception:
+            pass
+
+        # v13.4 FASES 1-13: Aplicar feature flags al menú tras login
+        try:
+            mc = getattr(self.container, 'module_config', None)
+            if mc and hasattr(self.menu, 'set_module_config'):
+                self.menu.set_module_config(mc)
         except Exception:
             pass
 

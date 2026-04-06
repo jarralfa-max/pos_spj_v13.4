@@ -128,6 +128,8 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_header("Producción"))
         layout_botones.addWidget(self._crear_boton("🔪 Procesamiento Cárnico", "PRODUCCION"))
         layout_botones.addWidget(self._crear_boton("🏷️ Etiquetas", "ETIQUETAS"))
+        layout_botones.addWidget(self._crear_boton("📖 Recetas Industriales", "RECETAS"))
+        layout_botones.addWidget(self._crear_boton("📈 Planeación de Compras", "PLANEACION_COMPRAS"))
 
         # --- SECCIÓN: ADMINISTRACIÓN ---
         layout_botones.addWidget(self._crear_header("Administración"))
@@ -206,6 +208,38 @@ class MenuLateral(QFrame):
             elif codigo in GERENTE_O_SUPERIOR and self._rol not in ("admin", "administrador", "gerente"):
                 visible = False
             btn.setVisible(visible)
+
+    def set_module_config(self, module_config) -> None:
+        """
+        Muestra u oculta botones según feature flags del ModuleConfig (FASES 1-13).
+        Se llama desde main_window después del login exitoso.
+
+        Módulos avanzados que se ocultan si su toggle está desactivado:
+          franchise_mode_enabled  → (solo info — no hay módulo UI independiente)
+          forecasting_enabled     → PLANEACION_COMPRAS
+          whatsapp_integration_enabled → WHATSAPP
+          rrhh_enabled            → RRHH
+          treasury_central_enabled → TESORERIA
+        """
+        # Mapeo: código de botón → clave de toggle en module_config
+        TOGGLE_MAP = {
+            "PLANEACION_COMPRAS": "forecasting_enabled",
+            "WHATSAPP":           "whatsapp_integration_enabled",
+            "RRHH":               "rrhh_enabled",
+            "TESORERIA":          "treasury_central_enabled",
+            "INTELIGENCIA_BI":    "finance_enabled",
+        }
+
+        from PyQt5.QtWidgets import QPushButton as _QPB
+        for btn in self.findChildren(_QPB):
+            codigo = btn.property("modulo_codigo")
+            if not codigo or codigo == "LOGOUT":
+                continue
+            toggle_key = TOGGLE_MAP.get(codigo)
+            if toggle_key is not None:
+                enabled = module_config.is_enabled(toggle_key)
+                if not enabled:
+                    btn.setVisible(False)
 
     def actualizar_logo(self, logo_path: str = "", nombre: str = "SPJ POS") -> None:
         """Actualiza el logo y nombre del negocio en el sidebar."""

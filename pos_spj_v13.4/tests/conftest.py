@@ -79,7 +79,7 @@ def sales_svc(mem_db):
     from core.services.loyalty_service import LoyaltyService
     from repositories.inventory_repository import InventoryRepository
     from repositories.sales_repository import SalesRepository
-    from repositories.recipe_repository import RecipeRepository
+    from repositories.recetas import RecetaRepository as RecipeRepository
 
     inv_repo   = InventoryRepository(mem_db)
     sales_repo = SalesRepository(mem_db)
