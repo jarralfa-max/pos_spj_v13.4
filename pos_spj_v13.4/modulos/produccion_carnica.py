@@ -64,14 +64,11 @@ class ModuloProduccionCarnica(QWidget):
         """Llena el ComboBox con las recetas activas (Ej. Despiece de Pollo Estándar)"""
         self.cmb_receta.clear()
         try:
-            # Le pedimos al repositorio las recetas
-            # Asumiendo un método get_all_active_recipes()
-            recetas = self.container.recipe_repo.get_all_active_recipes()
+            recetas = self.container.recipe_repo.get_all(include_inactive=False)
             for rec in recetas:
-                # Guardamos el ID de la receta (rec['id']) de forma invisible en el item
                 self.cmb_receta.addItem(rec['nombre_receta'], rec['id'])
         except Exception as e:
-            QMessageBox.warning(self, "Error", "No se pudieron cargar las recetas.")
+            QMessageBox.warning(self, "Error", f"No se pudieron cargar las recetas: {e}")
 
     def ejecutar_produccion(self):
         """Envía la orden de producción al cerebro del ERP."""
@@ -93,27 +90,21 @@ class ModuloProduccionCarnica(QWidget):
         if resp == QMessageBox.No:
             return
 
-        # 🚀 LA MAGIA ENTERPRISE: Le pasamos la "papa caliente" al Servicio
         try:
-            # El ProductionService (que debes tener en core/services/production_service.py)
-            # se encargará de:
-            # 1. Validar RBAC.
-            # 2. Descontar el pollo entero (InventoryService).
-            # 3. Calcular porcentajes matemáticos (ProductionEngine).
-            # 4. Sumar las piezas resultantes (InventoryService).
-            # 5. Guardar la bitácora de auditoría.
-            resultado = self.container.production_service.execute_production(
-                recipe_id=receta_id,
-                input_qty=peso_entrada,
-                branch_id=self.sucursal_id,
-                user_id=self.usuario_actual,
-                actual_waste=merma_real if merma_real > 0 else None
+            engine = self.container.recipe_engine
+            resultado = engine.ejecutar_produccion(
+                receta_id=receta_id,
+                cantidad_base=peso_entrada,
+                usuario=self.usuario_actual or "Sistema",
+                sucursal_id=self.sucursal_id,
             )
-            
+
             # Mostramos el desglose al usuario
-            msg = f"✅ Producción exitosa. Folio: {resultado['folio']}\n\nSe generaron:\n"
-            for item in resultado['productos_generados']:
-                msg += f"• {item['nombre']}: {item['cantidad']:.2f} kg\n"
+            folio = f"#{resultado.produccion_id}"
+            msg = f"✅ Producción exitosa. Folio: {folio}\n\nSe generaron:\n"
+            for comp in resultado.componentes:
+                if comp.tipo in ("salida", "subproducto", "corte"):
+                    msg += f"• {comp.nombre}: {comp.cantidad:.2f} kg\n"
                 
             QMessageBox.information(self, "Despiece Completado", msg)
             

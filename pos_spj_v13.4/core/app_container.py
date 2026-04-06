@@ -8,7 +8,7 @@ from repositories.config_repository import ConfigRepository
 from repositories.security_repository import SecurityRepository
 from repositories.auth_repository import AuthRepository
 from repositories.inventory_repository import InventoryRepository
-from repositories.recipe_repository import RecipeRepository
+from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
 from repositories.sales_repository import SalesRepository
 from repositories.purchase_repository import PurchaseRepository
@@ -28,7 +28,8 @@ from core.services.auth_service import AuthService
 from core.services.inventory_service import InventoryService
 from core.services.finance_service import FinanceService
 from core.services.loyalty_service import LoyaltyService
-from core.services.production_service import ProductionService
+from core.services.recipe_engine import RecipeEngine
+from core.production.production_engine import ProductionEngine
 from core.engines.template_engine import TicketTemplateEngine
 from core.services.whatsapp_service import WhatsAppService
 from core.services.sales_service import SalesService
@@ -117,10 +118,13 @@ class AppContainer:
         # =========================================================
         self.inventory_service = InventoryService(self.db, self.inventory_repo)
         self.inventory_service.audit_service = self.audit_service # Inyectar auditoría manualmente
-        
+
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
         self.loyalty_service = LoyaltyService(self.db)  # module_config set below
-        self.production_service = ProductionService(self.db, self.inventory_service)
+
+        # Motores de producción — fuente canónica
+        self.recipe_engine = RecipeEngine(self.db, branch_id=1)
+        self.production_engine = ProductionEngine(self.db, branch_id=1)
         
         # Motores visuales y de comunicación
         self.ticket_template_engine = TicketTemplateEngine(db_conn=self.db)
