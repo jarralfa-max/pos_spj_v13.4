@@ -6,7 +6,7 @@ from __future__ import annotations
 from models.context import ConversationContext, FlowState
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
-from erp.events import WA_ANTICIPO_PAGADO
+from erp.events import WA_ANTICIPO_PAGADO, PAYMENT_RECEIVED
 from messaging.sender import send_text, send_buttons
 from messaging import interactive
 from config.settings import MP_ACCESS_TOKEN

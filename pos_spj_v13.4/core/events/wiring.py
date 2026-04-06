@@ -45,6 +45,9 @@ def wire_all(container: "AppContainer") -> None:
     _wire_rrhh(bus, container)
     _wire_precio_margen(bus, container)
 
+    # FASE WA: handlers para orquestación WhatsApp ↔ ERP
+    _wire_wa_events(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -378,3 +381,128 @@ def _wire_precio_margen(bus, container) -> None:
 
     bus.subscribe(PRICE_BELOW_MARGIN, _on_price_below_margin,
                   priority=30, label="audit_price_below_margin")
+
+
+# ── WA Events (FASE WA) ───────────────────────────────────────────────────────
+
+def _wire_wa_events(bus, container) -> None:
+    """
+    Conecta eventos del microservicio WA al ERP:
+      SALE_CREATED      → audit + BI cache invalidation
+      PAYMENT_RECEIVED  → audit + treasury
+      PURCHASE_ORDER_CREATED → audit + notificación
+    """
+    # Importar constantes del bus WA (definidas en erp/events.py del microservicio
+    # pero también como strings normales — no necesita importar el módulo WA)
+    SALE_CREATED_WA        = "SALE_CREATED"
+    PAYMENT_RECEIVED_WA    = "PAYMENT_RECEIVED"
+    PURCHASE_ORDER_WA      = "PURCHASE_ORDER_CREATED"
+    STAFF_NOTIFICATION_WA  = "STAFF_NOTIFICATION"
+    FORECAST_DEMAND_WA     = "FORECAST_DEMAND_UPDATED"
+
+    def _on_sale_created(data: dict) -> None:
+        """Registra en audit_logs cuando se crea una venta desde WA."""
+        if data.get("canal") != "whatsapp":
+            return  # Solo procesar ventas WA (evitar loops con VENTA_COMPLETADA)
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('CREADA','VENTAS_WA','ventas',?,?,?,?,datetime('now'))",
+                (
+                    data.get("venta_id"),
+                    data.get("cliente_id", 0),
+                    data.get("sucursal_id", 1),
+                    f"Folio={data.get('folio','')} Total=${float(data.get('total',0)):.2f} origen={data.get('origen','wa')}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+            # Invalidar caché BI
+            bi = getattr(container, "bi_service", None)
+            if bi:
+                getattr(bi, "invalidar_cache", lambda *a: None)(
+                    data.get("sucursal_id", 1))
+        except Exception as e:
+            logger.debug("on_sale_created: %s", e)
+
+    def _on_payment_received(data: dict) -> None:
+        """Registra el pago recibido en audit + tesorería."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('PAGO_RECIBIDO','WA_PAGOS','anticipos',?,?,?,?,datetime('now'))",
+                (
+                    data.get("venta_id"),
+                    data.get("telefono", "cliente_wa"),
+                    data.get("sucursal_id", 1),
+                    f"Folio={data.get('folio','')} Monto=${float(data.get('monto',0)):.2f} metodo={data.get('metodo','')}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("on_payment_received: %s", e)
+
+    def _on_purchase_order(data: dict) -> None:
+        """Audita generación automática de OC desde WA."""
+        try:
+            container.db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES('OC_AUTOMATICA','COMPRAS','ordenes_compra',?,?,?,?,datetime('now'))",
+                (
+                    data.get("oc_id"),
+                    "wa_orchestrator",
+                    data.get("sucursal_id", 1),
+                    f"Producto={data.get('nombre','')} Cant={data.get('cantidad',0)} venta={data.get('venta_id',0)}",
+                ),
+            )
+            try:
+                container.db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("on_purchase_order: %s", e)
+
+    def _on_staff_notification(data: dict) -> None:
+        """Reenvía notificaciones de staff via WhatsAppService del ERP."""
+        try:
+            ws = getattr(container, "whatsapp_service", None)
+            if not ws:
+                return
+            phones = data.get("phones", [])
+            mensaje = data.get("mensaje", "")
+            if not mensaje or not phones:
+                return
+            for phone in phones[:5]:  # Máximo 5 destinatarios por evento
+                try:
+                    ws.send_message(phone_number=phone, message=mensaje)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("on_staff_notification: %s", e)
+
+    def _on_forecast_demand(data: dict) -> None:
+        """Pasa demanda WA al ForecastService del ERP (SOLO LECTURA — no ejecuta)."""
+        try:
+            fs = getattr(container, "actionable_forecast", None)
+            if fs and hasattr(fs, "registrar_demanda_wa"):
+                fs.registrar_demanda_wa(
+                    producto_id=data.get("producto_id"),
+                    cantidad=data.get("demanda_est", 0),
+                    periodo=data.get("periodo", ""),
+                )
+        except Exception as e:
+            logger.debug("on_forecast_demand: %s", e)
+
+    bus.subscribe(SALE_CREATED_WA,       _on_sale_created,     priority=30, label="wa_sale_audit")
+    bus.subscribe(PAYMENT_RECEIVED_WA,   _on_payment_received, priority=30, label="wa_payment_audit")
+    bus.subscribe(PURCHASE_ORDER_WA,     _on_purchase_order,   priority=30, label="wa_oc_audit")
+    bus.subscribe(STAFF_NOTIFICATION_WA, _on_staff_notification, priority=10, label="wa_staff_notify")
+    bus.subscribe(FORECAST_DEMAND_WA,    _on_forecast_demand,  priority=5,  label="wa_forecast_demand")

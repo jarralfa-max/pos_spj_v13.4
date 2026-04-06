@@ -67,11 +67,37 @@ async def mp_notification(request: Request):
                 external_ref, f"MP-{payment_id}", amount)
 
             if _events:
-                from erp.events import WA_ANTICIPO_PAGADO
+                # FASE WA: Emitir PAYMENT_RECEIVED (spec) además de WA_ANTICIPO_PAGADO
+                from erp.events import WA_ANTICIPO_PAGADO, PAYMENT_RECEIVED
+
+                # Buscar venta_id por teléfono (external_reference = phone del cliente)
+                venta_id = 0
+                folio = ""
+                try:
+                    row = _erp_bridge.db.execute("""
+                        SELECT v.id, v.folio FROM ventas v
+                        JOIN clientes c ON c.id=v.cliente_id
+                        WHERE c.telefono LIKE ? AND v.estado='pendiente_wa'
+                        ORDER BY v.fecha DESC LIMIT 1
+                    """, (f"%{external_ref[-10:]}",)).fetchone()
+                    if row:
+                        venta_id, folio = row[0], row[1]
+                except Exception:
+                    pass
+
+                _events.emit(PAYMENT_RECEIVED, {
+                    "venta_id": venta_id,
+                    "folio": folio,
+                    "monto": amount,
+                    "metodo": "mercadopago",
+                    "referencia": str(payment_id),
+                    "telefono": external_ref,
+                })
                 _events.emit(WA_ANTICIPO_PAGADO, {
                     "payment_id": payment_id,
                     "monto": amount,
                     "telefono": external_ref,
+                    "folio": folio,
                 })
 
     except Exception as e:

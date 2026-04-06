@@ -29,6 +29,8 @@ DEFAULT_TOGGLES = {
     "ai_enabled":                    False,   # Fase 8
     "franchise_mode_enabled":        False,   # Fase 10
     "whatsapp_integration_enabled":  False,
+    "whatsapp_advanced_enabled":     False,   # FASE WA — Orchestrator + OC auto
+    "reminder_engine_enabled":       False,   # FASE WA — ReminderEngine
     "rrhh_enabled":                  True,    # FASE RRHH — HRRuleEngine
 }
 

@@ -271,24 +271,47 @@ class PedidoFlow(BaseFlow):
 
             folio = result["folio"]
             total = result["total"]
+            venta_id = result["venta_id"]
+            suc_id = ctx.sucursal_id or 1
 
-            # Emitir evento
-            self.events.emit(WA_PEDIDO_CREADO, {
-                "folio": folio, "total": total,
-                "cliente_id": ctx.cliente_id,
-                "items_count": len(ctx.pedido_items),
-                "tipo_entrega": ctx.pedido_tipo_entrega,
-            }, sucursal_id=ctx.sucursal_id or 1, prioridad=3)
+            # ── FASE WA: Orquestación completa (OC, anticipo real, delivery) ──
+            if self.orchestrator:
+                orch_result = self.orchestrator.procesar_pedido_wa(
+                    venta_id=venta_id, folio=folio, total=total,
+                    cliente_id=ctx.cliente_id or 0,
+                    items=items,
+                    tipo_entrega=ctx.pedido_tipo_entrega,
+                    direccion=ctx.pedido_direccion,
+                )
+                anticipo_req = orch_result.get("anticipo_requerido", False)
+                anticipo_monto = orch_result.get("anticipo_monto", total * 0.5)
 
-            # Verificar si requiere anticipo
-            if self.erp.requiere_anticipo(
-                    ctx.cliente_id or 0, total, ctx.pedido_programado):
-                self.events.emit(WA_ANTICIPO_REQUERIDO, {
-                    "folio": folio, "monto": total * 0.5,
-                }, sucursal_id=ctx.sucursal_id or 1, prioridad=2)
+                # Programar recordatorios
+                if self.reminders and anticipo_req:
+                    self.reminders.programar_anticipo_pendiente(
+                        venta_id=venta_id, folio=folio,
+                        monto=anticipo_monto, phone=ctx.phone,
+                        sucursal_id=suc_id, delay_horas=2)
+                if self.reminders and ctx.pedido_tipo_entrega == "domicilio":
+                    self.reminders.programar_recordatorio_entrega(
+                        venta_id=venta_id, folio=folio,
+                        fecha_entrega=getattr(ctx, "pedido_fecha_entrega", ""),
+                        phone=ctx.phone, sucursal_id=suc_id)
+            else:
+                # Fallback legacy: anticipo hardcodeado al 50%
+                anticipo_req = self.erp.requiere_anticipo(
+                    ctx.cliente_id or 0, total,
+                    getattr(ctx, "pedido_programado", False))
+                anticipo_monto = total * 0.5
+                if anticipo_req:
+                    self.events.emit(WA_ANTICIPO_REQUERIDO, {
+                        "folio": folio, "monto": anticipo_monto,
+                    }, sucursal_id=suc_id, prioridad=2)
+
+            if anticipo_req:
                 await send_text(ctx.phone,
-                    f"⚠️ Este pedido requiere un anticipo del 50%: "
-                    f"*${total * 0.5:.2f}*\n"
+                    f"⚠️ Este pedido requiere un anticipo de "
+                    f"*${anticipo_monto:.2f}*\n"
                     f"Te enviaremos el link de pago.")
 
             # Confirmar
