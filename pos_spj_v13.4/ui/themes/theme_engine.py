@@ -1,8 +1,8 @@
 
-# ui/themes/theme_engine.py — SPJ POS v6.1
-# Motor de temas enterprise — extrae QSS de config.py y añade los 5 temas requeridos.
-# Los temas existentes (Oscuro Moderno, Claro Elegante, etc.) son preservados.
-# Los nuevos temas del spec se mapean a los existentes para compatibilidad.
+# ui/themes/theme_engine.py — SPJ POS v13.4
+# ThemeManager global — aplica QSS a QApplication + widget activo.
+# Los temas se cargan desde config.TEMAS (fuente única de verdad).
+# La persistencia usa la tabla configuraciones (clave='tema').
 from __future__ import annotations
 import logging
 from typing import Optional
@@ -45,7 +45,6 @@ def get_available_themes() -> list:
 def get_qss(theme_name: str) -> str:
     """Retorna el QSS para el tema dado. Acepta nombres spec o nombres legacy."""
     temas = _get_temas()
-    # Resolver alias
     real_name = _THEME_ALIASES.get(theme_name, theme_name)
     qss = temas.get(real_name, "")
     if not qss:
@@ -55,16 +54,36 @@ def get_qss(theme_name: str) -> str:
 
 
 def apply_theme(widget, theme_name: str) -> bool:
-    """Aplica un tema a un QWidget (usualmente la QApplication o QMainWindow)."""
+    """
+    Aplica un tema GLOBALMENTE: primero a QApplication (todos los widgets),
+    después al widget específico si es distinto de la app.
+
+    Siempre persiste el tema en BD para que sobreviva reinicios.
+    """
     global _current_theme
     qss = get_qss(theme_name)
     if not qss:
         return False
     try:
-        widget.setStyleSheet(qss)
+        # 1. Aplicar a QApplication para que TODOS los widgets hereden el tema
+        try:
+            from PyQt5.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app is not None:
+                app.setStyleSheet(qss)
+        except Exception:
+            pass
+
+        # 2. Aplicar también al widget específico (refuerzo)
+        if widget is not None:
+            try:
+                widget.setStyleSheet(qss)
+            except Exception:
+                pass
+
         _current_theme = theme_name
         _persist_theme(theme_name)
-        logger.info("Tema aplicado: %s", theme_name)
+        logger.info("Tema aplicado globalmente: %s", theme_name)
         return True
     except Exception as e:
         logger.error("Error aplicando tema '%s': %s", theme_name, e)
@@ -75,8 +94,11 @@ def get_current_theme() -> str:
     return _current_theme
 
 
-def load_saved_theme(widget) -> str:
-    """Carga el tema guardado en BD y lo aplica."""
+def load_saved_theme(widget=None) -> str:
+    """
+    Carga el tema guardado en BD y lo aplica globalmente.
+    Si no hay widget, aplica solo a QApplication.
+    """
     try:
         from core.db.connection import get_connection
         conn = get_connection()
@@ -104,7 +126,10 @@ def _persist_theme(theme_name: str) -> None:
 
 
 class ThemeEngine:
-    """Clase de compatibilidad con GestorTemas existente en config.py."""
+    """
+    Clase de compatibilidad con GestorTemas existente en config.py.
+    Delega en las funciones de módulo para garantizar consistencia global.
+    """
     def __init__(self, conexion=None):
         self.conexion = conexion
 
@@ -120,5 +145,9 @@ class ThemeEngine:
     def obtener_tema_actual(self) -> str:
         return get_current_theme()
 
-    def cargar_tema_guardado(self, widget) -> Optional[str]:
+    def cargar_tema_guardado(self, widget=None) -> Optional[str]:
         return load_saved_theme(widget)
+
+
+# Alias de conveniencia — ThemeManager es el punto de entrada preferido
+ThemeManager = ThemeEngine

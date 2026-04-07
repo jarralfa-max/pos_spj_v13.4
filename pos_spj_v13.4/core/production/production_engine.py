@@ -126,7 +126,8 @@ class ProductionEngine:
     """
 
     def __init__(self, db, branch_id: int):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
         self.branch_id = branch_id
 
     def _now(self) -> str:

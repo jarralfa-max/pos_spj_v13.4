@@ -55,26 +55,29 @@ class ModuloBase(QWidget):
         
         # Si no existe el archivo, usar iconos del sistema como fallback
         iconos_sistema = {
-            "search.png": QStyle.SP_FileDialogContentsView,
-            "filter.png": QStyle.SP_FileDialogDetailedView,
-            "add.png": QStyle.SP_FileDialogNewFolder,
-            "edit.png": QStyle.SP_FileDialogContentsView,
-            "delete.png": QStyle.SP_TrashIcon,
-            "payment.png": QStyle.SP_DialogApplyButton,
-            "refresh.png": QStyle.SP_BrowserReload,
-            "list.png": QStyle.SP_FileDialogListView,
+            "search.png":   QStyle.SP_FileDialogContentsView,
+            "filter.png":   QStyle.SP_FileDialogDetailedView,
+            "add.png":      QStyle.SP_FileDialogNewFolder,
+            "edit.png":     QStyle.SP_FileDialogContentsView,
+            "delete.png":   QStyle.SP_TrashIcon,
+            "history.png":  QStyle.SP_FileDialogDetailedView,
+            "card.png":     QStyle.SP_FileDialogInfoView,
+            "payment.png":  QStyle.SP_DialogApplyButton,
+            "refresh.png":  QStyle.SP_BrowserReload,
+            "list.png":     QStyle.SP_FileDialogListView,
             "transfer.png": QStyle.SP_FileDialogBack,
-            "save.png": QStyle.SP_DialogSaveButton,
-            "cancel.png": QStyle.SP_DialogCancelButton,
-            "print.png": QStyle.SP_ComputerIcon,
-            "config.png": QStyle.SP_ComputerIcon
+            "save.png":     QStyle.SP_DialogSaveButton,
+            "cancel.png":   QStyle.SP_DialogCancelButton,
+            "print.png":    QStyle.SP_ComputerIcon,
+            "config.png":   QStyle.SP_ComputerIcon,
+            "security.png": QStyle.SP_MessageBoxWarning,
         }
-        
+
         if nombre_icono in iconos_sistema:
             return self.style().standardIcon(iconos_sistema[nombre_icono])
-        
-        # Icono por defecto si no se encuentra ninguno
-        logger.warning(f"Advertencia: Icono '{nombre_icono}' no encontrado, usando icono por defecto")
+
+        # Icono vacío sin ruido en el log
+        logger.debug("Icono '%s' no encontrado, usando QIcon vacío", nombre_icono)
         return QIcon()
 
     def mostrar_mensaje(self, titulo: str, mensaje: str, 

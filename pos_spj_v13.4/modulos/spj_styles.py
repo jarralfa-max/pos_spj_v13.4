@@ -188,21 +188,27 @@ def apply_theme_dialogs(dialog) -> None:
 
 def apply_global_theme(db_conn=None) -> None:
     """
-    v13.30: Solo Light/Dark. Lee 'tema' de BD → aplica QSS.
+    v13.4: Lee 'tema' de BD y aplica QSS a QApplication.
+    Primero intenta ThemeService; si falla, usa theme_engine.
     No modifica tamaño de iconos ni botones — solo colores.
     """
     from PyQt5.QtWidgets import QApplication
+    _log = __import__("logging").getLogger("spj.styles")
+
     tema = "Light"
     if db_conn:
         try:
             row = db_conn.execute(
                 "SELECT valor FROM configuraciones WHERE clave='tema'"
             ).fetchone()
-            if row and row[0] and 'dark' in str(row[0]).lower():
-                tema = "Dark"
+            if row and row[0]:
+                tema = str(row[0])
+                if 'dark' in tema.lower():
+                    tema = "Dark"
         except Exception:
             pass
 
+    # Intento 1: ThemeService (puede generar QSS richer)
     try:
         from core.services.theme_service import ThemeService
         ts = ThemeService(db_conn)
@@ -210,8 +216,15 @@ def apply_global_theme(db_conn=None) -> None:
                             font_size="12", icon_size="24")
         qss = ts.generate_qss()
         app = QApplication.instance()
-        if app:
+        if app and qss:
             app.setStyleSheet(qss)
+            return
     except Exception as e:
-        import logging
-        logging.getLogger("spj.styles").debug("apply_global_theme: %s", e)
+        _log.debug("ThemeService no disponible, usando theme_engine: %s", e)
+
+    # Intento 2: theme_engine (fuente de verdad config.TEMAS)
+    try:
+        from ui.themes.theme_engine import load_saved_theme
+        load_saved_theme(None)
+    except Exception as e:
+        _log.debug("apply_global_theme: %s", e)

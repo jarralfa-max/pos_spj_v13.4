@@ -251,6 +251,10 @@ class ModuloRRHH(QWidget):
         self.tab_roles_turno = QWidget()
         self.tabs_rrhh.addTab(self.tab_roles_turno, "🗓️ Turnos de Trabajo")
 
+        # ── Tab Reglas Laborales (HRRuleEngine) ──────────────────────────
+        self.tab_reglas = QWidget()
+        self.tabs_rrhh.addTab(self.tab_reglas, "⚖️ Reglas Laborales")
+
         self.tabs_rrhh.currentChanged.connect(self._on_rrhh_tab_change)
         lay.addWidget(self.tabs_rrhh)
 
@@ -261,6 +265,7 @@ class ModuloRRHH(QWidget):
         self.setup_tab_evaluaciones()
         self.setup_tab_puestos()
         self._setup_tab_turnos_completo()
+        self.setup_tab_reglas_laborales()
         return dashboard
 
     def setup_tab_roles_turno(self):
@@ -1272,3 +1277,268 @@ class ModuloRRHH(QWidget):
         except Exception as e:
         # [spj-dedup removed local QMessageBox import]
             QMessageBox.critical(self, "Error", str(e))
+
+    # =========================================================
+    # TAB: REGLAS LABORALES (HRRuleEngine)
+    # =========================================================
+
+    def setup_tab_reglas_laborales(self):
+        """
+        UI para configurar y auditar las reglas laborales del HRRuleEngine.
+        Muestra: días consecutivos, descansos, cobertura mínima, horas extra.
+        """
+        from PyQt5.QtWidgets import (
+            QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
+            QSpinBox, QLabel, QPushButton, QTextEdit, QScrollArea,
+            QWidget, QFrame, QSizePolicy
+        )
+        from PyQt5.QtCore import Qt
+
+        lay = QVBoxLayout(self.tab_reglas)
+        lay.setContentsMargins(12, 12, 12, 12)
+        lay.setSpacing(10)
+
+        # ── Encabezado ────────────────────────────────────────────────────────
+        lbl_titulo = QLabel("⚖️ Reglas Laborales — NOM-035 / LFT México")
+        lbl_titulo.setStyleSheet(
+            "font-size:16px;font-weight:bold;color:#2c3e50;padding:4px 0;"
+        )
+        lay.addWidget(lbl_titulo)
+
+        lbl_desc = QLabel(
+            "Configura los parámetros de jornada y ejecuta auditorías "
+            "automáticas para detectar violaciones laborales en tiempo real."
+        )
+        lbl_desc.setWordWrap(True)
+        lbl_desc.setStyleSheet("color:#555;font-size:11px;margin-bottom:6px;")
+        lay.addWidget(lbl_desc)
+
+        # ── Parámetros configurables ──────────────────────────────────────────
+        grp_params = QGroupBox("Parámetros de jornada (Art. LFT)")
+        grp_params.setStyleSheet(
+            "QGroupBox{font-weight:bold;border:1px solid #bdc3c7;"
+            "border-radius:6px;margin-top:6px;padding-top:8px;}"
+            "QGroupBox::title{subcontrol-origin:margin;left:8px;}"
+        )
+        form = QFormLayout(grp_params)
+        form.setLabelAlignment(Qt.AlignRight)
+        form.setSpacing(8)
+
+        self._spin_max_dias = QSpinBox()
+        self._spin_max_dias.setRange(1, 7)
+        self._spin_max_dias.setValue(6)
+        self._spin_max_dias.setSuffix(" días")
+        self._spin_max_dias.setToolTip("Art. 69 LFT: máximo días consecutivos sin descanso")
+        form.addRow("Máx. días consecutivos:", self._spin_max_dias)
+
+        self._spin_horas_sem = QSpinBox()
+        self._spin_horas_sem.setRange(1, 72)
+        self._spin_horas_sem.setValue(48)
+        self._spin_horas_sem.setSuffix(" hrs/semana")
+        self._spin_horas_sem.setToolTip("Art. 61 LFT: jornada semanal máxima diurna")
+        form.addRow("Límite semanal de horas:", self._spin_horas_sem)
+
+        self._spin_cobertura = QSpinBox()
+        self._spin_cobertura.setRange(1, 20)
+        self._spin_cobertura.setValue(1)
+        self._spin_cobertura.setSuffix(" empleado(s)")
+        self._spin_cobertura.setToolTip("Empleados mínimos activos por turno/sucursal")
+        form.addRow("Cobertura mínima por turno:", self._spin_cobertura)
+
+        self._spin_periodo_pago = QSpinBox()
+        self._spin_periodo_pago.setRange(1, 30)
+        self._spin_periodo_pago.setValue(7)
+        self._spin_periodo_pago.setSuffix(" días")
+        self._spin_periodo_pago.setToolTip("Frecuencia de pago: 7=semanal, 14=quincenal, 30=mensual")
+        form.addRow("Periodo de nómina:", self._spin_periodo_pago)
+
+        lay.addWidget(grp_params)
+
+        # ── Botones de acción ─────────────────────────────────────────────────
+        row_btns = QHBoxLayout()
+
+        btn_guardar = QPushButton("💾 Guardar parámetros")
+        btn_guardar.setStyleSheet(
+            "background:#27ae60;color:white;font-weight:bold;"
+            "padding:8px 20px;border-radius:4px;"
+        )
+        btn_guardar.clicked.connect(self._guardar_reglas_laborales)
+
+        btn_auditar = QPushButton("🔍 Ejecutar auditoría ahora")
+        btn_auditar.setStyleSheet(
+            "background:#2980b9;color:white;font-weight:bold;"
+            "padding:8px 20px;border-radius:4px;"
+        )
+        btn_auditar.clicked.connect(self._ejecutar_auditoria_hr)
+
+        btn_nomina = QPushButton("💰 Verificar nóminas vencidas")
+        btn_nomina.setStyleSheet(
+            "background:#8e44ad;color:white;font-weight:bold;"
+            "padding:8px 20px;border-radius:4px;"
+        )
+        btn_nomina.clicked.connect(self._verificar_nomina_hr)
+
+        row_btns.addWidget(btn_guardar)
+        row_btns.addWidget(btn_auditar)
+        row_btns.addWidget(btn_nomina)
+        row_btns.addStretch()
+        lay.addLayout(row_btns)
+
+        # ── Panel de resultados ───────────────────────────────────────────────
+        grp_resultado = QGroupBox("Resultado de auditoría")
+        grp_resultado.setStyleSheet(
+            "QGroupBox{font-weight:bold;border:1px solid #bdc3c7;"
+            "border-radius:6px;margin-top:6px;padding-top:8px;}"
+            "QGroupBox::title{subcontrol-origin:margin;left:8px;}"
+        )
+        lay_res = QVBoxLayout(grp_resultado)
+
+        self._txt_resultado_hr = QTextEdit()
+        self._txt_resultado_hr.setReadOnly(True)
+        self._txt_resultado_hr.setMinimumHeight(200)
+        self._txt_resultado_hr.setStyleSheet(
+            "font-family:Consolas,monospace;font-size:12px;"
+            "background:#f8f9fa;border:none;"
+        )
+        self._txt_resultado_hr.setPlaceholderText(
+            "Presiona 'Ejecutar auditoría' para ver violaciones laborales, "
+            "descansos sugeridos y estado de cobertura..."
+        )
+        lay_res.addWidget(self._txt_resultado_hr)
+        lay.addWidget(grp_resultado)
+
+        # Cargar parámetros guardados al abrir
+        self._cargar_reglas_laborales()
+
+    def _cargar_reglas_laborales(self):
+        """Carga parámetros desde la BD (tabla configuraciones)."""
+        try:
+            db = self.container.db
+            def _cfg(k, d):
+                r = db.execute(
+                    "SELECT valor FROM configuraciones WHERE clave=?", (k,)
+                ).fetchone()
+                return r[0] if r else d
+            self._spin_max_dias.setValue(int(_cfg("hr_max_dias_consecutivos", 6)))
+            self._spin_horas_sem.setValue(int(_cfg("hr_max_horas_semana", 48)))
+            self._spin_cobertura.setValue(int(_cfg("hr_cobertura_minima", 1)))
+            self._spin_periodo_pago.setValue(int(_cfg("hr_periodo_pago_dias", 7)))
+        except Exception:
+            pass
+
+    def _guardar_reglas_laborales(self):
+        """Persiste los parámetros en la tabla configuraciones."""
+        try:
+            db = self.container.db
+            params = {
+                "hr_max_dias_consecutivos": self._spin_max_dias.value(),
+                "hr_max_horas_semana":      self._spin_horas_sem.value(),
+                "hr_cobertura_minima":      self._spin_cobertura.value(),
+                "hr_periodo_pago_dias":     self._spin_periodo_pago.value(),
+            }
+            for clave, valor in params.items():
+                db.execute(
+                    "INSERT OR REPLACE INTO configuraciones "
+                    "(clave, valor, descripcion) VALUES (?,?,?)",
+                    (clave, str(valor), "Regla laboral LFT")
+                )
+            try:
+                db.commit()
+            except Exception:
+                pass
+            QMessageBox.information(
+                self, "✅ Guardado",
+                "Parámetros de reglas laborales actualizados correctamente."
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo guardar: {e}")
+
+    def _ejecutar_auditoria_hr(self):
+        """Llama a HRRuleEngine.auditar_sucursal() y muestra el resultado."""
+        try:
+            engine = getattr(self.container, "hr_rule_engine", None)
+            if engine is None:
+                from core.services.hr_rule_engine import HRRuleEngine
+                engine = HRRuleEngine(
+                    self.container.db,
+                    getattr(self.container, "module_config", None)
+                )
+            resultado = engine.auditar_sucursal(self.sucursal_id)
+            self._mostrar_resultado_auditoria(resultado)
+        except Exception as e:
+            self._txt_resultado_hr.setPlainText(f"❌ Error al auditar: {e}")
+
+    def _verificar_nomina_hr(self):
+        """Verifica nóminas vencidas o próximas a vencer."""
+        try:
+            engine = getattr(self.container, "hr_rule_engine", None)
+            if engine is None:
+                from core.services.hr_rule_engine import HRRuleEngine
+                engine = HRRuleEngine(
+                    self.container.db,
+                    getattr(self.container, "module_config", None)
+                )
+            alertas = engine.auditar_nomina_pendiente()
+            if not alertas:
+                self._txt_resultado_hr.setPlainText(
+                    "✅ Nóminas al día — ningún empleado con pago vencido."
+                )
+                return
+            lineas = ["⚠️ NÓMINAS PENDIENTES / VENCIDAS\n" + "─" * 50]
+            for a in alertas:
+                lineas.append(
+                    f"• {a.get('nombre','?')} — "
+                    f"Último pago: {a.get('ultimo_pago','N/A')} "
+                    f"({a.get('dias_vencido', '?')} días)"
+                )
+            self._txt_resultado_hr.setPlainText("\n".join(lineas))
+        except Exception as e:
+            self._txt_resultado_hr.setPlainText(f"❌ Error al verificar nómina: {e}")
+
+    def _mostrar_resultado_auditoria(self, resultado: dict):
+        """Formatea y muestra el resultado de auditoría en el QTextEdit."""
+        lineas = []
+        lineas.append("═" * 55)
+        lineas.append(f"  AUDITORÍA LABORAL — Sucursal {resultado.get('sucursal_id', '?')}")
+        lineas.append(f"  Fecha: {resultado.get('fecha', 'N/A')}")
+        lineas.append("═" * 55)
+        lineas.append(
+            f"  Empleados total : {resultado.get('empleados_total', 0)}"
+        )
+        lineas.append(
+            f"  Activos hoy     : {resultado.get('activos_hoy', 0)}"
+        )
+        cob = resultado.get("cobertura_ok", True)
+        lineas.append(
+            f"  Cobertura mín.  : {'✅ OK' if cob else '❌ INSUFICIENTE'}"
+        )
+        lineas.append("")
+
+        overwork = resultado.get("overwork", [])
+        if overwork:
+            lineas.append(f"⚠️  SOBRETIEMPO DETECTADO ({len(overwork)} empleado(s)):")
+            for ov in overwork:
+                lineas.append(
+                    f"   • {ov.get('nombre','?')} — "
+                    f"{ov.get('dias_consecutivos', 0)} días consecutivos "
+                    f"(máx. permitido: 6)"
+                )
+        else:
+            lineas.append("✅ Ningún empleado excede días consecutivos.")
+
+        lineas.append("")
+        descansos = resultado.get("descansos_sugeridos", [])
+        if descansos:
+            lineas.append(f"🗓️  DESCANSOS SUGERIDOS ({len(descansos)}):")
+            for d in descansos:
+                lineas.append(
+                    f"   • {d.get('nombre','?')} — "
+                    f"descanso sugerido: {d.get('fecha_descanso', 'N/A')}"
+                )
+        else:
+            lineas.append("✅ No se requieren descansos adicionales.")
+
+        lineas.append("")
+        lineas.append("─" * 55)
+        lineas.append("Auditoría completada. Revisa el log del sistema para más detalles.")
+        self._txt_resultado_hr.setPlainText("\n".join(lineas))

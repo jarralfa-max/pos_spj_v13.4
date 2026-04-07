@@ -28,7 +28,8 @@ logger = logging.getLogger("spj.report_engine_v2")
 class ReportEngineV2:
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
         self._forecast = DemandForecastingEngine(db)
 
     def _now(self) -> str:

@@ -92,10 +92,10 @@ def _new_connection(path: str) -> sqlite3.Connection:
 # OBTENER CONEXIÓN
 # ─────────────────────────────────────────────────────────────
 
-def get_connection(path: Optional[str] = None) -> sqlite3.Connection:
+def get_connection(path: Optional[str] = None) -> "DatabaseWrapper":
     """
-    Devuelve la conexión thread-local.
-    Crea una nueva si no existe.
+    Devuelve la conexión thread-local envuelta en DatabaseWrapper.
+    Crea una nueva si no existe o si está muerta.
     """
 
     db_path = path or _DB_PATH
@@ -103,25 +103,31 @@ def get_connection(path: Optional[str] = None) -> sqlite3.Connection:
     conn = getattr(_tls, "conn", None)
 
     if conn is not None:
+        # Unwrap si ya es DatabaseWrapper para hacer el ping
+        raw = conn._conn if isinstance(conn, DatabaseWrapper) else conn
         try:
-            conn.execute("SELECT 1")
-            return conn
+            raw.execute("SELECT 1")
+            # Asegurar que siempre retornamos DatabaseWrapper
+            if isinstance(conn, DatabaseWrapper):
+                return conn
+            wrapped = DatabaseWrapper(conn)
+            _tls.conn = wrapped
+            return wrapped
         except Exception:
             logger.warning(
                 "Conexión muerta en hilo %s — reconectando",
                 threading.current_thread().name
             )
             try:
-                conn.close()
+                raw.close()
             except Exception:
                 pass
-
             _tls.conn = None
 
-    conn = _new_connection(db_path)
-    _tls.conn = conn
-
-    return conn
+    raw_conn = _new_connection(db_path)
+    wrapped = DatabaseWrapper(raw_conn)
+    _tls.conn = wrapped
+    return wrapped
 
 
 # ─────────────────────────────────────────────────────────────
@@ -216,6 +222,97 @@ def transaction(conn: sqlite3.Connection):
 
 
 # ─────────────────────────────────────────────────────────────
+# DATABASE WRAPPER — añade fetchall / fetchone / transaction
+# a sqlite3.Connection para compatibilidad con repositorios.
+# ─────────────────────────────────────────────────────────────
+
+class DatabaseWrapper:
+    """
+    Envuelve sqlite3.Connection y expone la API extendida que usan
+    los repositorios del ERP (fetchall, fetchone, transaction).
+
+    Se usa automáticamente en get_connection() para que TODO el
+    código que obtiene una conexión reciba esta interfaz unificada.
+    """
+
+    __slots__ = ("_conn",)
+
+    def __init__(self, conn: sqlite3.Connection):
+        object.__setattr__(self, "_conn", conn)
+
+    # ── API extendida ─────────────────────────────────────────
+
+    def fetchall(self, sql: str, params=()) -> list:
+        """Ejecuta sql y retorna todas las filas."""
+        return self._conn.execute(sql, params).fetchall()
+
+    def fetchone(self, sql: str, params=()) -> Optional[sqlite3.Row]:
+        """Ejecuta sql y retorna la primera fila o None."""
+        return self._conn.execute(sql, params).fetchone()
+
+    def transaction(self, name: str = ""):
+        """Context manager de transacción con SAVEPOINT."""
+        return transaction(self._conn)
+
+    # ── Delegación total a sqlite3.Connection ────────────────
+
+    def execute(self, sql: str, params=()):
+        return self._conn.execute(sql, params)
+
+    def executemany(self, sql: str, params):
+        return self._conn.executemany(sql, params)
+
+    def executescript(self, sql: str):
+        return self._conn.executescript(sql)
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self):
+        return self._conn.close()
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    @property
+    def row_factory(self):
+        return self._conn.row_factory
+
+    @row_factory.setter
+    def row_factory(self, value):
+        self._conn.row_factory = value
+
+    @property
+    def in_transaction(self):
+        return self._conn.in_transaction
+
+    def __getattr__(self, name: str):
+        return getattr(self._conn, name)
+
+    def __setattr__(self, name: str, value):
+        if name == "_conn":
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._conn, name, value)
+
+    def __enter__(self):
+        return self._conn.__enter__()
+
+    def __exit__(self, *args):
+        return self._conn.__exit__(*args)
+
+
+def wrap(conn) -> "DatabaseWrapper":
+    """Envuelve una conexión si todavía no es DatabaseWrapper."""
+    if isinstance(conn, DatabaseWrapper):
+        return conn
+    return DatabaseWrapper(conn)
+
+
+# ─────────────────────────────────────────────────────────────
 # SHIMS DE COMPATIBILIDAD
 # ─────────────────────────────────────────────────────────────
 
@@ -266,7 +363,7 @@ class Database:
 
 
 # Alias legacy
-def get_db(path: str = None) -> sqlite3.Connection:
+def get_db(path: str = None) -> "DatabaseWrapper":
     return get_connection(path)
 
 
@@ -282,6 +379,8 @@ __all__ = [
     "close_thread_connection",
     "execute_with_retry",
     "transaction",
+    "DatabaseWrapper",
+    "wrap",
     "Connection",
     "Database",
     "get_db",

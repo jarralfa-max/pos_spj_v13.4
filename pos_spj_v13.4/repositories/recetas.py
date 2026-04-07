@@ -41,49 +41,12 @@ class RecetaDuplicadaError(RecetaError):
     pass
 
 
-class _SQLiteTransaction:
-    """Context manager for SQLite transactions."""
-    def __init__(self, conn):
-        self.conn = conn
-
-    def __enter__(self):
-        self.conn.execute("BEGIN")
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
-            self.conn.commit()
-        else:
-            self.conn.rollback()
-
-
-class SQLiteConnectionWrapper:
-    """Wrapper for sqlite3.Connection that adds a transaction method."""
-    def __init__(self, conn: sqlite3.Connection):
-        self._conn = conn
-
-    def transaction(self, name=None):
-        """Return a transaction context manager."""
-        return _SQLiteTransaction(self._conn)
-
-    def execute(self, sql, parameters=None):
-        """Delegate execute to the underlying connection."""
-        if parameters is None:
-            return self._conn.execute(sql)
-        return self._conn.execute(sql, parameters)
-
-    def __getattr__(self, name):
-        """Delegate any other attribute to the underlying connection."""
-        return getattr(self._conn, name)
-
-
 class RecetaRepository:
 
     def __init__(self, db):
-        # Wrap db if it doesn't have a transaction method
-        if not hasattr(db, 'transaction'):
-            db = SQLiteConnectionWrapper(db)
-        self.db = db
+        # Usar DatabaseWrapper para garantizar fetchall/fetchone/transaction
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
         # Detect all columns in product_recipes
         self._product_columns = self._get_table_columns('product_recipes')

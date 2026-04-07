@@ -61,11 +61,10 @@ class FinanceService:
 
     def __init__(self, db):
         """
-        db: objeto con métodos fetchone(sql,params), fetchall(sql,params),
-            execute(sql,params), conn (sqlite3.Connection).
-        Compatible con el helper DB del sistema SPJ.
+        db: sqlite3.Connection o DatabaseWrapper — se envuelve automáticamente.
         """
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
 
     # ═════════════════════════════════════════════════════════════════════════
     # DASHBOARD KPIs
