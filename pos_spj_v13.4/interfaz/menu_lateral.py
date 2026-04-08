@@ -5,6 +5,34 @@ from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QPushButton, QLabel,
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QPixmap
 
+# Inventario explícito de módulos v13.4 (referencia para wiring UI)
+MODULOS = [
+    "ventas",
+    "compras_pro",
+    "inventario",
+    "productos",
+    "clientes",
+    "proveedores",
+    "caja",
+    "tesoreria",
+    "finanzas",
+    "rrhh",
+    "activos",
+    "merma",
+    "produccion",
+    "recetas",
+    "transferencias",
+    "delivery",
+    "whatsapp",
+    "tarjetas",
+    "fidelidad",
+    "etiquetas",
+    "ticket_designer",
+    "hardware",
+    "configuracion",
+    "modulos_config",
+]
+
 class MenuLateral(QFrame):
     # Señal maestra que avisa a la ventana principal a qué módulo queremos ir
     opcion_seleccionada = pyqtSignal(str)
