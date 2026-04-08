@@ -48,10 +48,36 @@ class RecetaRepository:
         from core.db.connection import wrap
         self.db = wrap(db)
 
+        # Ensure required columns exist before detecting them
+        self._ensure_product_recipes_columns()
+
         # Detect all columns in product_recipes
         self._product_columns = self._get_table_columns('product_recipes')
         # Determine which column to use for product reference (prefer product_id if exists)
         self._product_col = self._detect_product_column()
+
+    def _ensure_product_recipes_columns(self) -> None:
+        """Add missing columns to product_recipes so detection never fails."""
+        _missing_cols = [
+            ("product_id",        "INTEGER"),
+            ("base_product_id",   "INTEGER"),
+            ("nombre_receta",     "TEXT"),
+            ("is_active",         "INTEGER NOT NULL DEFAULT 1"),
+            ("activa",            "INTEGER DEFAULT 1"),
+            ("total_rendimiento", "REAL DEFAULT 0"),
+            ("total_merma",       "REAL DEFAULT 0"),
+        ]
+        for col, typedef in _missing_cols:
+            try:
+                self.db.execute(
+                    f"ALTER TABLE product_recipes ADD COLUMN {col} {typedef}"
+                )
+                try:
+                    self.db.execute("COMMIT")
+                except Exception:
+                    pass
+            except Exception:
+                pass  # Column already exists or table doesn't exist yet
 
     def _get_table_columns(self, table_name: str) -> Set[str]:
         """Return a set of column names for the given table."""
@@ -69,7 +95,9 @@ class RecetaRepository:
         elif 'base_product_id' in self._product_columns:
             return 'base_product_id'
         else:
-            raise RecetaError("No product column found in product_recipes")
+            # Fallback: use base_product_id as it was just added by _ensure_product_recipes_columns
+            logger.warning("product_recipes missing product columns — using base_product_id fallback")
+            return 'base_product_id'
 
     # ── Read ─────────────────────────────────────────────────────────────────
 
