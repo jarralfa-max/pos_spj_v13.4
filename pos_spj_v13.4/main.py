@@ -43,6 +43,7 @@ sys.excepthook = _crash_handler
 from core.app_container import AppContainer
 from migrations import engine as migrator
 from interfaz.main_window import MainWindow
+from scripts.bootstrap_db import bootstrap_database
 
 
 def _bootstrap_db(db_path: str) -> None:
@@ -153,6 +154,7 @@ def inicializar_sistema():
 
     try:
         _bootstrap_db(DB_PATH)
+        bootstrap_database(DB_PATH)
         logger.info("✅ Bootstrap DB OK")
     except Exception as e:
         logger.critical("Bootstrap DB falló: %s", e)
