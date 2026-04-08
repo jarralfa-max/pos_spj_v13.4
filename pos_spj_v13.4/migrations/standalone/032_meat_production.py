@@ -1,3 +1,6 @@
+# 032_meat_production.py — FUSIONADO en 053_meat_production_tables.py (v13.4 audit)
+# Este archivo NO está registrado en engine.py. Sus tablas se aplican via 053.
+# NO ELIMINAR — referencia histórica para git blame.
 
 import logging
 import sqlite3

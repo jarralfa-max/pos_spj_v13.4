@@ -142,6 +142,20 @@ class SalesService:
         if amount_paid < total_a_pagar and payment_method != 'Credito':
             raise ValueError(f"El monto pagado (${amount_paid:,.2f}) es menor al total a cobrar (${total_a_pagar:,.2f})")
 
+        # Guardia de margen v13.4 — no bloquea la venta, solo registra en audit
+        if self.finance_service and hasattr(self.finance_service, 'validar_margen'):
+            for _item in carrito_final:
+                try:
+                    if not self.finance_service.validar_margen(
+                        _item.get('product_id', 0), _item.get('unit_price', 0)
+                    ):
+                        logger.warning(
+                            "VENTA_BAJO_MARGEN: producto=%s precio=%.2f usuario=%s",
+                            _item.get('product_id'), _item.get('unit_price'), user
+                        )
+                except Exception:
+                    pass  # guardia no crítica
+
         # =========================================================
         # 2. TRANSACCIÓN CRÍTICA DE BASE DE DATOS
         # =========================================================

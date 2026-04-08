@@ -108,6 +108,12 @@ AI_CONSULTA_REALIZADA   = "AI_CONSULTA_REALIZADA"  # tipo, pregunta, disponible,
 # Ventas — alias English spec (FASE 12)
 SALE_CREATED            = VENTA_COMPLETADA          # alias: spec requires SALE_CREATED
 
+# v13.4 spec aliases — aditivos, no cambian el core
+SALE_COMPLETED          = VENTA_COMPLETADA          # alias v13.4 spec
+STOCK_UPDATED           = AJUSTE_INVENTARIO         # alias v13.4 spec
+PURCHASE_CREATED        = COMPRA_REGISTRADA         # alias v13.4 spec
+MERMA_CREATED           = "MERMA_REGISTRADA"        # evento específico de merma v13.4
+
 # Inventario — alias English spec (FASE 12)
 STOCK_LOW               = STOCK_BAJO_MINIMO         # alias: spec requires STOCK_LOW
 

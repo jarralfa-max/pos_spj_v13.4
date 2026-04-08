@@ -1075,3 +1075,202 @@ class FinanceService:
             import logging as _lg
             _lg.getLogger(__name__).warning("register_income non-fatal: %s", _ri_e)
             # Non-fatal: the sale itself is still committed by the outer SAVEPOINT
+
+    # ─── v13.4 spec methods ──────────────────────────────────────────────────
+
+    def registrar_asiento(self, debe: str, haber: str, concepto: str,
+                          monto: float, modulo: str = "",
+                          referencia_id: int = None,
+                          usuario_id: int = None,
+                          sucursal_id: int = 1,
+                          evento: str = "ASIENTO_MANUAL",
+                          metadata: dict = None) -> int:
+        """
+        Registra un asiento contable de doble entrada en financial_event_log.
+        Garantiza debe = haber mediante el campo único monto.
+
+        Returns: id del registro insertado (0 si tabla aún no existe).
+        """
+        import json as _json
+        try:
+            cur = self.db.execute(
+                """INSERT INTO financial_event_log
+                   (evento, modulo, referencia_id, monto, cuenta_debe, cuenta_haber,
+                    usuario_id, sucursal_id, metadata)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                (
+                    evento, modulo or concepto, referencia_id,
+                    monto, debe, haber,
+                    usuario_id, sucursal_id,
+                    _json.dumps({"concepto": concepto, **(metadata or {})},
+                                ensure_ascii=False),
+                )
+            )
+            self.db.commit()
+            return cur.lastrowid or 0
+        except Exception as _e:
+            import logging as _lg
+            _lg.getLogger(__name__).warning("registrar_asiento non-fatal: %s", _e)
+            return 0
+
+    def obtener_ledger(self, cuenta: str, fecha_desde: str = None,
+                       fecha_hasta: str = None) -> list:
+        """
+        Retorna asientos de financial_event_log filtrados por cuenta
+        (debe O haber) y rango de fechas opcional.
+        """
+        params: list = []
+        where = "(cuenta_debe=? OR cuenta_haber=?)"
+        params += [cuenta, cuenta]
+
+        if fecha_desde:
+            where += " AND timestamp >= ?"
+            params.append(fecha_desde)
+        if fecha_hasta:
+            where += " AND timestamp <= ?"
+            params.append(fecha_hasta)
+
+        try:
+            rows = self.db.execute(
+                f"SELECT * FROM financial_event_log WHERE {where} ORDER BY timestamp",
+                params
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    def validar_margen(self, producto_id: int, precio_venta: float,
+                       margen_minimo: float = 0.05) -> bool:
+        """
+        Retorna True si el precio_venta supera el margen mínimo sobre el costo.
+        margen_minimo: fracción (0.05 = 5%).
+        Si no se encuentra el costo del producto, devuelve True (permisivo).
+        """
+        try:
+            row = self.db.execute(
+                "SELECT precio_costo FROM productos WHERE id=? LIMIT 1",
+                (producto_id,)
+            ).fetchone()
+            if not row or not row["precio_costo"]:
+                return True
+            costo = float(row["precio_costo"])
+            if costo <= 0:
+                return True
+            margen = (precio_venta - costo) / costo
+            return margen >= margen_minimo
+        except Exception:
+            return True  # permisivo ante errores
+
+    def controlar_credito(self, cliente_id: int, monto: float) -> dict:
+        """
+        Verifica si el cliente tiene crédito disponible para el monto solicitado.
+        Returns: {"aprobado": bool, "disponible": float, "limite": float}
+        """
+        try:
+            row = self.db.execute(
+                "SELECT limite_credito FROM clientes WHERE id=? LIMIT 1",
+                (cliente_id,)
+            ).fetchone()
+            limite = float(row["limite_credito"]) if row and row["limite_credito"] else 0.0
+
+            saldo_row = self.db.execute(
+                "SELECT COALESCE(SUM(saldo_pendiente),0) AS total "
+                "FROM cuentas_por_cobrar WHERE cliente_id=? AND estado!='pagado'",
+                (cliente_id,)
+            ).fetchone()
+            usado = float(saldo_row["total"]) if saldo_row else 0.0
+            disponible = max(0.0, limite - usado)
+            return {
+                "aprobado": disponible >= monto,
+                "disponible": disponible,
+                "limite": limite,
+                "usado": usado,
+            }
+        except Exception:
+            return {"aprobado": True, "disponible": 0.0, "limite": 0.0, "usado": 0.0}
+
+    def controlar_anticipo(self, venta_id: int, monto_anticipo: float,
+                           usuario_id: int = None, sucursal_id: int = 1) -> dict:
+        """
+        Registra un anticipo contra una venta y loguea el asiento contable.
+        Returns: {"registrado": bool, "anticipo_id": int}
+        """
+        try:
+            cur = self.db.execute(
+                """INSERT INTO anticipos (venta_id, monto, estado, usuario_id, sucursal_id)
+                   VALUES (?, ?, 'aplicado', ?, ?)""",
+                (venta_id, monto_anticipo, usuario_id, sucursal_id)
+            )
+            anticipo_id = cur.lastrowid
+
+            self.registrar_asiento(
+                debe="caja",
+                haber="anticipos_clientes",
+                concepto=f"Anticipo venta #{venta_id}",
+                monto=monto_anticipo,
+                modulo="ventas",
+                referencia_id=venta_id,
+                usuario_id=usuario_id,
+                sucursal_id=sucursal_id,
+                evento="ANTICIPO_REGISTRADO",
+            )
+            self.db.commit()
+            return {"registrado": True, "anticipo_id": anticipo_id}
+        except Exception as _e:
+            import logging as _lg
+            _lg.getLogger(__name__).warning("controlar_anticipo: %s", _e)
+            return {"registrado": False, "anticipo_id": 0}
+
+    def calcular_margen_real(self, venta_id: int) -> float:
+        """
+        Calcula el margen real de una venta incluyendo:
+        costo de productos + mermas asociadas + costos de delivery + comisiones.
+        Returns: margen como fracción (0.20 = 20%). -1.0 si no se puede calcular.
+        """
+        try:
+            # Ingreso bruto de la venta
+            venta_row = self.db.execute(
+                "SELECT total FROM ventas WHERE id=? LIMIT 1", (venta_id,)
+            ).fetchone()
+            if not venta_row:
+                return -1.0
+            total_venta = float(venta_row["total"])
+            if total_venta <= 0:
+                return -1.0
+
+            # Costo directo de items
+            costo_items = self.db.execute(
+                """SELECT COALESCE(SUM(vi.cantidad * p.precio_costo), 0) AS costo
+                   FROM venta_items vi
+                   JOIN productos p ON p.id = vi.producto_id
+                   WHERE vi.venta_id=?""",
+                (venta_id,)
+            ).fetchone()
+            costo = float(costo_items["costo"]) if costo_items else 0.0
+
+            # Costo de delivery (tabla opcional)
+            try:
+                delivery_row = self.db.execute(
+                    "SELECT COALESCE(costo_envio, 0) AS costo_envio "
+                    "FROM pedidos_delivery WHERE venta_id=? LIMIT 1",
+                    (venta_id,)
+                ).fetchone()
+                costo += float(delivery_row["costo_envio"]) if delivery_row else 0.0
+            except Exception:
+                pass  # tabla puede no existir en todas las instalaciones
+
+            # Comisiones aplicadas (tabla opcional)
+            try:
+                comision_row = self.db.execute(
+                    "SELECT COALESCE(SUM(monto_comision), 0) AS total_comision "
+                    "FROM comisiones WHERE venta_id=?",
+                    (venta_id,)
+                ).fetchone()
+                costo += float(comision_row["total_comision"]) if comision_row else 0.0
+            except Exception:
+                pass  # tabla puede no existir en todas las instalaciones
+
+            utilidad = total_venta - costo
+            return round(utilidad / total_venta, 4)
+        except Exception:
+            return -1.0

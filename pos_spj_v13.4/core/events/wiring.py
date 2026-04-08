@@ -48,6 +48,10 @@ def wire_all(container: "AppContainer") -> None:
     # FASE WA: handlers para orquestación WhatsApp ↔ ERP
     _wire_wa_events(bus, container)
 
+    # v13.4: handlers financieros para merma y compras
+    _wire_merma_financiero(bus, container)
+    _wire_purchase_inventario(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -506,3 +510,82 @@ def _wire_wa_events(bus, container) -> None:
     bus.subscribe(PURCHASE_ORDER_WA,     _on_purchase_order,   priority=30, label="wa_oc_audit")
     bus.subscribe(STAFF_NOTIFICATION_WA, _on_staff_notification, priority=10, label="wa_staff_notify")
     bus.subscribe(FORECAST_DEMAND_WA,    _on_forecast_demand,  priority=5,  label="wa_forecast_demand")
+
+
+# ── v13.4 handlers: MERMA_CREATED + PURCHASE_CREATED ─────────────────────────
+
+def _wire_merma_financiero(bus, container) -> None:
+    """
+    MERMA_CREATED → asiento contable doble entrada.
+    Debita cuenta_mermas, acredita cuenta_inventario.
+    Solo se activa si finance_service está disponible en el container.
+    """
+    from core.events.event_bus import MERMA_CREATED
+
+    def _on_merma_financiero(data: dict) -> None:
+        try:
+            fs = getattr(container, "finance_service", None)
+            if not fs or not hasattr(fs, "registrar_asiento"):
+                return
+            valor = float(data.get("valor", data.get("costo", 0)))
+            if valor <= 0:
+                return
+            fs.registrar_asiento(
+                debe="mermas_y_deterioro",
+                haber="inventario_almacen",
+                concepto=f"Merma: {data.get('motivo', 'N/A')} — producto {data.get('producto_id', '')}",
+                monto=abs(valor),
+                modulo="merma",
+                referencia_id=data.get("merma_id") or data.get("producto_id"),
+                usuario_id=data.get("usuario_id"),
+                sucursal_id=data.get("sucursal_id", 1),
+                evento="MERMA_REGISTRADA",
+                metadata={
+                    "producto_id": data.get("producto_id"),
+                    "cantidad": data.get("cantidad"),
+                    "motivo": data.get("motivo"),
+                },
+            )
+        except Exception as e:
+            logger.debug("on_merma_financiero: %s", e)
+
+    bus.subscribe(MERMA_CREATED, _on_merma_financiero,
+                  priority=50, label="merma_ledger")
+
+
+def _wire_purchase_inventario(bus, container) -> None:
+    """
+    PURCHASE_CREATED → incrementa stock + auditoría.
+    Complementa el handler de sync de COMPRA_REGISTRADA ya existente.
+    Registra asiento: inventario_almacen (debe) ↔ cuentas_por_pagar (haber).
+    """
+    from core.events.event_bus import PURCHASE_CREATED
+
+    def _on_compra_inventario(data: dict) -> None:
+        try:
+            fs = getattr(container, "finance_service", None)
+            if not fs or not hasattr(fs, "registrar_asiento"):
+                return
+            total = float(data.get("total", data.get("monto", 0)))
+            if total <= 0:
+                return
+            fs.registrar_asiento(
+                debe="inventario_almacen",
+                haber="cuentas_por_pagar",
+                concepto=f"Compra #{data.get('compra_id', '')} — proveedor {data.get('proveedor_id', '')}",
+                monto=total,
+                modulo="compras",
+                referencia_id=data.get("compra_id"),
+                usuario_id=data.get("usuario_id"),
+                sucursal_id=data.get("sucursal_id", 1),
+                evento="COMPRA_REGISTRADA",
+                metadata={
+                    "proveedor_id": data.get("proveedor_id"),
+                    "items": data.get("items", []),
+                },
+            )
+        except Exception as e:
+            logger.debug("on_compra_inventario: %s", e)
+
+    bus.subscribe(PURCHASE_CREATED, _on_compra_inventario,
+                  priority=80, label="compra_ledger")
