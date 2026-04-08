@@ -111,12 +111,13 @@ class ModuloProduccion(ModuloBase):
             self.container = None
             db_conn = conexion
         super().__init__(db_conn, parent)
-        self.conexion        = db_conn
+        from core.db.connection import wrap
+        self.conexion        = wrap(db_conn)
         self.main_window     = parent
         self.sucursal_id     = 1
         self.sucursal_nombre = "Principal"
         self.usuario_actual  = "Sistema"
-        self._db_wrapped     = _DBWrapperProd(db_conn)
+        self._db_wrapped     = self.conexion
         self._engine         = RecipeEngine(self._db_wrapped, branch_id=1)
         self._recetas_cache: List[Dict] = []
         self._init_ui()
@@ -128,7 +129,7 @@ class ModuloProduccion(ModuloBase):
     def set_sucursal(self, sucursal_id: int, sucursal_nombre: str) -> None:
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
-        self._db_wrapped = _DBWrapperProd(self.conexion)
+        self._db_wrapped = self.conexion
         self._engine = RecipeEngine(self._db_wrapped, branch_id=sucursal_id)
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
