@@ -39,8 +39,8 @@ def run(conn: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_vd_fecha_suc ON ventas_diarias(fecha, sucursal_id)",
         "CREATE INDEX IF NOT EXISTS idx_id_fecha ON inventario_diario(fecha)",
         "CREATE INDEX IF NOT EXISTS idx_cd_fecha_suc ON clientes_diarios(fecha, sucursal_id)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(fecha)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(sucursal_id)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(snapshot_date)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(branch_id)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_tipo ON report_export_log(tipo)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_fecha ON report_export_log(created_at)",
     ]:
@@ -407,30 +407,30 @@ def _create_export_log(conn):
     
 
 def _create_kpi_snapshots(conn):
-    conn.execute("DROP TABLE IF EXISTS kpi_snapshots") # <--- AÑADE ESTO
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS kpi_snapshots (...
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha           DATE    NOT NULL,
-            sucursal_id     INTEGER NOT NULL,
-            total_revenue   REAL    NOT NULL DEFAULT 0,
-            total_cost      REAL    NOT NULL DEFAULT 0,
-            gross_margin    REAL    NOT NULL DEFAULT 0,
-            gross_margin_pct REAL   NOT NULL DEFAULT 0,
-            ticket_count    INTEGER NOT NULL DEFAULT 0,
-            avg_ticket      REAL    NOT NULL DEFAULT 0,
-            active_clients  INTEGER NOT NULL DEFAULT 0,
-            inventory_value REAL    NOT NULL DEFAULT 0,
-            merma_total     REAL    NOT NULL DEFAULT 0,
-            created_at      DATETIME DEFAULT (datetime('now')),
-            UNIQUE (fecha, sucursal_id)
+        CREATE TABLE IF NOT EXISTS kpi_snapshots (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch_id        INTEGER NOT NULL,
+            snapshot_date    DATE    NOT NULL,
+            total_revenue    REAL    NOT NULL DEFAULT 0,
+            total_cost       REAL    NOT NULL DEFAULT 0,
+            gross_margin     REAL    NOT NULL DEFAULT 0,
+            gross_margin_pct REAL    NOT NULL DEFAULT 0,
+            ticket_count     INTEGER NOT NULL DEFAULT 0,
+            avg_ticket       REAL    NOT NULL DEFAULT 0,
+            active_clients   INTEGER NOT NULL DEFAULT 0,
+            new_clients      INTEGER NOT NULL DEFAULT 0,
+            points_issued    INTEGER NOT NULL DEFAULT 0,
+            inventory_value  REAL    NOT NULL DEFAULT 0,
+            computed_at      DATETIME NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (branch_id, snapshot_date)
         )
     """)
 
 
 def _create_indexes(conn):
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha   ON kpi_snapshots(fecha)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc     ON kpi_snapshots(sucursal_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha   ON kpi_snapshots(snapshot_date)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc     ON kpi_snapshots(branch_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_export_log_tipo  ON report_export_log(tipo)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_export_log_fecha ON report_export_log(created_at)")
 
@@ -464,8 +464,8 @@ def up(conn):
         "CREATE INDEX IF NOT EXISTS idx_vd_fecha_suc ON ventas_diarias(fecha, sucursal_id)",
         "CREATE INDEX IF NOT EXISTS idx_id_fecha ON inventario_diario(fecha)",
         "CREATE INDEX IF NOT EXISTS idx_cd_fecha_suc ON clientes_diarios(fecha, sucursal_id)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(fecha)",
-        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(sucursal_id)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_fecha ON kpi_snapshots(snapshot_date)",
+        "CREATE INDEX IF NOT EXISTS idx_kpi_snap_suc ON kpi_snapshots(branch_id)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_tipo ON report_export_log(tipo)",
         "CREATE INDEX IF NOT EXISTS idx_export_log_fecha ON report_export_log(created_at)",
     ]:

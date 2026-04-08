@@ -296,17 +296,24 @@ def up(conn: sqlite3.Connection) -> None:
     """)
     _add_idx(conn, "json_log_events", "idx_jle_level_date", "level, created_at DESC")
 
-    # Report cache / KPI snapshots
-    conn.execute("DROP TABLE IF EXISTS kpi_snapshots")
+    # Report cache / KPI snapshots — schema canónico (branch_id + snapshot_date)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kpi_snapshots (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id   INTEGER NOT NULL,
-            date_from   DATE    NOT NULL,
-            date_to     DATE    NOT NULL,
-            snapshot    TEXT    NOT NULL,
-            generated_at DATETIME DEFAULT (datetime('now')),
-            UNIQUE(branch_id, date_from, date_to)
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch_id        INTEGER NOT NULL,
+            snapshot_date    DATE    NOT NULL,
+            total_revenue    REAL    NOT NULL DEFAULT 0,
+            total_cost       REAL    NOT NULL DEFAULT 0,
+            gross_margin     REAL    NOT NULL DEFAULT 0,
+            gross_margin_pct REAL    NOT NULL DEFAULT 0,
+            ticket_count     INTEGER NOT NULL DEFAULT 0,
+            avg_ticket       REAL    NOT NULL DEFAULT 0,
+            active_clients   INTEGER NOT NULL DEFAULT 0,
+            new_clients      INTEGER NOT NULL DEFAULT 0,
+            points_issued    INTEGER NOT NULL DEFAULT 0,
+            inventory_value  REAL    NOT NULL DEFAULT 0,
+            computed_at      DATETIME NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (branch_id, snapshot_date)
         )
     """)
 
