@@ -48,6 +48,7 @@ MIGRATIONS = [
     ("052",  "migrations.standalone.052_financial_event_log"),  # v13.4: audit trail financiero doble entrada
     ("053",  "migrations.standalone.053_meat_production_tables"),  # v13.4: tablas cárnicas huérfanas de 032
     ("054",  "migrations.standalone.054_sync_improvements_orphan"),  # v13.4: columnas sync huérfanas de 048
+    ("055",  "migrations.standalone.055_inventario_compat"),  # v13.4: compat tabla/vista inventario
 ]
 
 def _ensure_tracking_table(conn):

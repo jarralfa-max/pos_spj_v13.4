@@ -47,6 +47,22 @@ TABLAS_CRITICAS = [
     "sync_outbox", "sync_state",
 ]
 
+# Alias de compatibilidad: nombre canónico -> nombres válidos en esquema real.
+TABLAS_EQUIVALENTES = {
+    "venta_items": {"venta_items", "detalles_venta"},
+    "cotizacion_items": {"cotizacion_items", "cotizaciones_detalle"},
+    "inventario": {"inventario", "inventario_actual"},
+    "compra_items": {"compra_items", "detalles_compra", "ordenes_compra_items"},
+    "cuentas_por_cobrar": {"cuentas_por_cobrar", "accounts_receivable"},
+    "cuentas_por_pagar": {"cuentas_por_pagar", "accounts_payable"},
+    "empleados": {"empleados", "personal"},
+    "nomina": {"nomina", "nomina_records", "nomina_pagos"},
+    "receta_ingredientes": {"receta_ingredientes", "receta_componentes"},
+    "pedidos_delivery": {"pedidos_delivery", "delivery_orders"},
+    "audit_log": {"audit_log", "audit_logs"},
+}
+
+
 
 def verificar_tablas(db_path: str) -> dict:
     """Verifica tablas en la DB. Devuelve dict con presentes/faltantes."""
@@ -61,8 +77,14 @@ def verificar_tablas(db_path: str) -> dict:
     finally:
         conn.close()
 
-    presentes = [t for t in TABLAS_CRITICAS if t in existing]
-    faltantes = [t for t in TABLAS_CRITICAS if t not in existing]
+    presentes = []
+    faltantes = []
+    for tabla in TABLAS_CRITICAS:
+        equivalentes = TABLAS_EQUIVALENTES.get(tabla, {tabla})
+        if existing & equivalentes:
+            presentes.append(tabla)
+        else:
+            faltantes.append(tabla)
     extras = sorted(existing - set(TABLAS_CRITICAS))
 
     return {
