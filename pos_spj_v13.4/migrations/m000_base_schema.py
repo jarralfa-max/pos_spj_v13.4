@@ -3046,11 +3046,9 @@ def _ensure_extra_columns(conn):
 
 def _seed_initial_data(conn: sqlite3.Connection):
     """
-    Inyecta los datos semilla mínimos, vitales e indestructibles 
+    Inyecta los datos semilla mínimos, vitales e indestructibles
     para que el sistema pueda operar desde cero.
     """
-    import bcrypt
-    
     # 1. Crear Sucursal Matriz
     conn.execute("""
         INSERT OR IGNORE INTO sucursales (id, nombre, direccion, activa) 

@@ -96,18 +96,19 @@ class ModuloRecetas(ModuloBase):
         # 1. Inicializar la clase base estricta de PyQt5 (SOLO acepta parent)
         super().__init__(parent)
         
-        # 2. Extraer la base de datos del contenedor
-        db_conn = container.db if hasattr(container, 'db') else container
-        
+        # 2. Extraer la base de datos del contenedor (usar DatabaseWrapper directamente)
+        from core.db.connection import wrap
+        db_conn = wrap(container.db if hasattr(container, 'db') else container)
+
         # 3. Guardar referencias y variables de sucursal
         self.container = container
         self.main_window = parent
         self.sucursal_id = 1
         self.sucursal_nombre = "Principal"
-        
-        # 4. Envolver la conexión
-        self.conexion = _DBWrapper(db_conn)
-        
+
+        # 4. Exponer conexión (ya es DatabaseWrapper, no double-wrap con _DBWrapper)
+        self.conexion = db_conn
+
         # 5. Inyectar repositorios de forma segura
         from repositories.recetas import RecetaRepository
         from repositories.productos import ProductoRepository
