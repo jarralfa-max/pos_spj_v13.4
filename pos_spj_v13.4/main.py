@@ -6,6 +6,10 @@ from PyQt5.QtWidgets import QApplication, QMessageBox
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
+# Agregar raíz del proyecto para que 'scripts/' sea importable
+_ROOT_DIR = os.path.dirname(_BASE_DIR)
+if _ROOT_DIR not in sys.path:
+    sys.path.insert(0, _ROOT_DIR)
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 try:
