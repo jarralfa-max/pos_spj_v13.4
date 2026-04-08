@@ -44,6 +44,7 @@ MIGRATIONS = [
     ("048",  "migrations.standalone.048_v131_hardening"),
     ("049",  "migrations.standalone.049_v134_intelligent_erp"),  # FASE 13: tablas ERP inteligente
     ("050",  "migrations.standalone.050_wa_integration"),        # FASE WA: tablas orquestación WA↔ERP
+    ("051",  "migrations.standalone.051_fix_kpi_snapshots"),     # FIX: kpi_snapshots faltante por error 032
 ]
 
 def _ensure_tracking_table(conn):
