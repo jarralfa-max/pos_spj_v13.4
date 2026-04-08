@@ -43,6 +43,7 @@ sys.excepthook = _crash_handler
 from core.app_container import AppContainer
 from migrations import engine as migrator
 from interfaz.main_window import MainWindow
+from scripts.bootstrap_db import bootstrap_database
 
 DB_PATH = "spj_pos_database.db"
 _LOCAL_SERVER = None
@@ -126,6 +127,14 @@ def inicializar_sistema():
         sys.exit(0)
 
     if not _verificar_bd(DB_PATH):
+        sys.exit(1)
+
+    try:
+        bootstrap_database(DB_PATH)
+        logger.info("✅ Bootstrap DB OK")
+    except Exception as e:
+        logger.critical("Bootstrap DB falló: %s", e)
+        QMessageBox.critical(None, "Error Fatal — Bootstrap DB", str(e))
         sys.exit(1)
 
     try:

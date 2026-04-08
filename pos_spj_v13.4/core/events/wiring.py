@@ -55,9 +55,89 @@ def wire_all(container: "AppContainer") -> None:
     # v13.4: asiento ingreso en venta + ajuste stock en merma
     _wire_venta_financiero(bus, container)
     _wire_merma_inventario(bus, container)
+    _wire_flujos_criticos(bus, container)
 
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
+
+
+def _wire_flujos_criticos(bus, container) -> None:
+    """
+    Wiring mínimo solicitado por operación:
+      VENTA_COMPLETADA   -> inventory/finance
+      COMPRA_REGISTRADA  -> inventory/finance
+      MERMA_REGISTRADA   -> inventory/finance
+    Implementación aditiva y defensiva (no rompe wiring previo).
+    """
+    from core.events.event_bus import (
+        VENTA_COMPLETADA, COMPRA_REGISTRADA, MERMA_CREATED
+    )
+
+    def _venta_stock(data: dict) -> None:
+        inv = getattr(container, "inventory_service", None)
+        if not inv or not hasattr(inv, "descontar_stock"):
+            return
+        for item in data.get("items", []):
+            try:
+                inv.descontar_stock(
+                    producto_id=item.get("producto_id"),
+                    cantidad=float(item.get("cantidad", 0)),
+                    branch_id=data.get("sucursal_id", 1),
+                    referencia_id=data.get("venta_id", "VENTA"),
+                    usuario=data.get("usuario", "sistema"),
+                    operation_id=data.get("operation_id"),
+                )
+            except Exception:
+                continue
+
+    def _compra_stock(data: dict) -> None:
+        inv = getattr(container, "inventory_service", None)
+        if not inv or not hasattr(inv, "incrementar_stock"):
+            return
+        for item in data.get("items", []):
+            try:
+                inv.incrementar_stock(
+                    producto_id=item.get("producto_id"),
+                    cantidad=float(item.get("cantidad", 0)),
+                    unit_cost=float(item.get("costo_unitario", item.get("unit_cost", 0))),
+                    branch_id=data.get("sucursal_id", 1),
+                    referencia_id=data.get("compra_id", "COMPRA"),
+                    usuario=data.get("usuario", "sistema"),
+                    operation_id=data.get("operation_id"),
+                )
+            except Exception:
+                continue
+
+    def _compra_egreso(data: dict) -> None:
+        fs = getattr(container, "finance_service", None)
+        if not fs or not hasattr(fs, "registrar_egreso"):
+            return
+        fs.registrar_egreso(
+            concepto=f"Compra #{data.get('compra_id', '')}",
+            monto=float(data.get("total", data.get("monto", 0))),
+            referencia_id=data.get("compra_id"),
+            usuario_id=data.get("usuario_id"),
+            sucursal_id=data.get("sucursal_id", 1),
+            metadata={"proveedor_id": data.get("proveedor_id")},
+        )
+
+    def _merma_perdida(data: dict) -> None:
+        fs = getattr(container, "finance_service", None)
+        if not fs or not hasattr(fs, "registrar_perdida"):
+            return
+        fs.registrar_perdida(
+            concepto=f"Merma #{data.get('merma_id', '')}",
+            monto=float(data.get("valor", data.get("costo", 0))),
+            referencia_id=data.get("merma_id"),
+            usuario_id=data.get("usuario_id"),
+            sucursal_id=data.get("sucursal_id", 1),
+            metadata={"producto_id": data.get("producto_id")},
+        )
+
+    bus.subscribe(VENTA_COMPLETADA, _venta_stock, priority=45, label="venta_stock_critico")
+    bus.subscribe(COMPRA_REGISTRADA, _compra_stock, priority=45, label="compra_stock_critico")
+    bus.subscribe(COMPRA_REGISTRADA, _compra_egreso, priority=45, label="compra_egreso_critico")
+    bus.subscribe(MERMA_CREATED, _merma_perdida, priority=45, label="merma_perdida_critico")
 
 
 # ── VENTA_COMPLETADA ──────────────────────────────────────────────────────────
