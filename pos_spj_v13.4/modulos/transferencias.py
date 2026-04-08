@@ -100,7 +100,8 @@ class ModuloTransferencias(ModuloBase):
         self.rol_usuario     = ""
         
         # 4. Envolver la conexión y crear repositorios
-        self.conexion = _DBWrapper(db_conn)
+        from core.db.connection import wrap
+        self.conexion = wrap(db_conn)
         self._repo    = TransferRepository(self.conexion)
         self._prepo   = ProductoRepository(self.conexion)
         
