@@ -1274,3 +1274,47 @@ class FinanceService:
             return round(utilidad / total_venta, 4)
         except Exception:
             return -1.0
+
+    # ── v13.4: convenience wrappers around registrar_asiento ─────────────────
+
+    def registrar_ingreso(self, concepto: str, monto: float, **kwargs) -> int:
+        """Registra un ingreso: caja_ventas (debe) ↔ ventas_contado (haber)."""
+        return self.registrar_asiento(
+            debe=kwargs.get("debe", "caja_ventas"),
+            haber=kwargs.get("haber", "ventas_contado"),
+            concepto=concepto, monto=monto,
+            modulo=kwargs.get("modulo", "ventas"),
+            referencia_id=kwargs.get("referencia_id"),
+            usuario_id=kwargs.get("usuario_id"),
+            sucursal_id=kwargs.get("sucursal_id", 1),
+            evento=kwargs.get("evento", "VENTA_COMPLETADA"),
+            metadata=kwargs.get("metadata"),
+        )
+
+    def registrar_egreso(self, concepto: str, monto: float, **kwargs) -> int:
+        """Registra un egreso: inventario_almacen (debe) ↔ cuentas_por_pagar (haber)."""
+        return self.registrar_asiento(
+            debe=kwargs.get("debe", "inventario_almacen"),
+            haber=kwargs.get("haber", "cuentas_por_pagar"),
+            concepto=concepto, monto=monto,
+            modulo=kwargs.get("modulo", "compras"),
+            referencia_id=kwargs.get("referencia_id"),
+            usuario_id=kwargs.get("usuario_id"),
+            sucursal_id=kwargs.get("sucursal_id", 1),
+            evento=kwargs.get("evento", "COMPRA_REGISTRADA"),
+            metadata=kwargs.get("metadata"),
+        )
+
+    def registrar_perdida(self, concepto: str, monto: float, **kwargs) -> int:
+        """Registra una pérdida/merma: mermas_y_deterioro (debe) ↔ inventario_almacen (haber)."""
+        return self.registrar_asiento(
+            debe=kwargs.get("debe", "mermas_y_deterioro"),
+            haber=kwargs.get("haber", "inventario_almacen"),
+            concepto=concepto, monto=monto,
+            modulo=kwargs.get("modulo", "merma"),
+            referencia_id=kwargs.get("referencia_id"),
+            usuario_id=kwargs.get("usuario_id"),
+            sucursal_id=kwargs.get("sucursal_id", 1),
+            evento=kwargs.get("evento", "MERMA_REGISTRADA"),
+            metadata=kwargs.get("metadata"),
+        )

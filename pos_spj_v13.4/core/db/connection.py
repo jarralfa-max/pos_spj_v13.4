@@ -313,6 +313,33 @@ def wrap(conn) -> "DatabaseWrapper":
 
 
 # ─────────────────────────────────────────────────────────────
+# v13.4: VALIDACIÓN FAIL-FAST
+# ─────────────────────────────────────────────────────────────
+
+TABLAS_REQUERIDAS = [
+    "usuarios", "productos", "clientes",
+    "ventas", "configuraciones", "inventario",
+]
+
+
+def verificar_tablas(conn) -> None:
+    """Levanta RuntimeError si alguna tabla crítica falta en la DB.
+
+    Se llama desde main.py justo después de ejecutar las migraciones
+    para garantizar un arranque fail-fast antes de inicializar la UI.
+    """
+    cur = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    )
+    existentes = {r[0] for r in cur.fetchall()}
+    faltantes = [t for t in TABLAS_REQUERIDAS if t not in existentes]
+    if faltantes:
+        raise RuntimeError(
+            f"DB incompleta — tablas faltantes: {faltantes}"
+        )
+
+
+# ─────────────────────────────────────────────────────────────
 # SHIMS DE COMPATIBILIDAD
 # ─────────────────────────────────────────────────────────────
 

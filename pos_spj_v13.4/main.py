@@ -130,9 +130,20 @@ def inicializar_sistema():
 
     try:
         import sqlite3
+        from core.db.connection import verificar_tablas
         conn = sqlite3.connect(DB_PATH)
-        migrator.up(conn); conn.close()
+        migrator.up(conn)
+        verificar_tablas(conn)
+        conn.close()
         logger.info("✅ Migraciones OK")
+    except RuntimeError as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        logger.critical("DB incompleta post-migraciones: %s", e)
+        QMessageBox.critical(None, "Error Fatal — DB incompleta", str(e))
+        sys.exit(1)
     except Exception as e:
         logger.warning("Migraciones (continuando): %s", e)
 

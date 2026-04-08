@@ -52,6 +52,10 @@ def wire_all(container: "AppContainer") -> None:
     _wire_merma_financiero(bus, container)
     _wire_purchase_inventario(bus, container)
 
+    # v13.4: asiento ingreso en venta + ajuste stock en merma
+    _wire_venta_financiero(bus, container)
+    _wire_merma_inventario(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -589,3 +593,69 @@ def _wire_purchase_inventario(bus, container) -> None:
 
     bus.subscribe(PURCHASE_CREATED, _on_compra_inventario,
                   priority=80, label="compra_ledger")
+
+
+# ── v13.4: VENTA_COMPLETADA → asiento ingreso ────────────────────────────────
+
+def _wire_venta_financiero(bus, container) -> None:
+    """
+    VENTA_COMPLETADA → asiento contable de ingreso doble entrada.
+    Debita caja_ventas, acredita ventas_contado.
+    Solo activo si finance_service.registrar_ingreso está disponible.
+    """
+    from core.events.event_bus import VENTA_COMPLETADA
+
+    def _on_venta_ingreso(data: dict) -> None:
+        try:
+            fs = getattr(container, "finance_service", None)
+            if not fs or not hasattr(fs, "registrar_ingreso"):
+                return
+            total = float(data.get("total", 0))
+            if total <= 0:
+                return
+            fs.registrar_ingreso(
+                concepto=f"Venta #{data.get('folio', data.get('venta_id', ''))}",
+                monto=total,
+                referencia_id=data.get("venta_id"),
+                usuario_id=data.get("usuario_id"),
+                sucursal_id=data.get("sucursal_id", 1),
+                metadata={"folio": data.get("folio"),
+                          "cliente_id": data.get("cliente_id")},
+            )
+        except Exception as e:
+            logger.debug("on_venta_ingreso: %s", e)
+
+    bus.subscribe(VENTA_COMPLETADA, _on_venta_ingreso,
+                  priority=50, label="venta_ledger")
+
+
+# ── v13.4: MERMA_CREATED → ajuste stock físico ───────────────────────────────
+
+def _wire_merma_inventario(bus, container) -> None:
+    """
+    MERMA_CREATED → descuenta la cantidad merma del stock físico.
+    Complementa _wire_merma_financiero (que solo registra el asiento).
+    Solo activo si inventory_service.ajustar_merma está disponible.
+    """
+    from core.events.event_bus import MERMA_CREATED
+
+    def _on_merma_inventario(data: dict) -> None:
+        try:
+            inv = getattr(container, "inventory_service", None)
+            if not inv or not hasattr(inv, "ajustar_merma"):
+                return
+            cantidad = float(data.get("cantidad", 0))
+            if cantidad <= 0:
+                return
+            inv.ajustar_merma(
+                producto_id=data.get("producto_id"),
+                cantidad=cantidad,
+                branch_id=data.get("sucursal_id", 1),
+                referencia_id=str(data.get("merma_id", "MERMA")),
+                usuario=data.get("usuario", "sistema"),
+            )
+        except Exception as e:
+            logger.debug("on_merma_inventario: %s", e)
+
+    bus.subscribe(MERMA_CREATED, _on_merma_inventario,
+                  priority=80, label="merma_stock")
