@@ -119,6 +119,43 @@ class InventoryService:
         """
         return self.repo.get_current_stock(product_id, branch_id)
 
+    # ── v13.4: aliases en español para EventBus wiring ────────────────────────
+
+    def descontar_stock(self, producto_id: int, cantidad: float,
+                        branch_id: int = 1, referencia_id: str = "EVT",
+                        usuario: str = "sistema", **kwargs) -> None:
+        """Alias de deduct_stock() para uso desde EventBus."""
+        self.deduct_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            reference_type="SALE_EVENT", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", ""),
+        )
+
+    def incrementar_stock(self, producto_id: int, cantidad: float,
+                          unit_cost: float = 0.0, branch_id: int = 1,
+                          referencia_id: str = "EVT",
+                          usuario: str = "sistema", **kwargs) -> None:
+        """Alias de add_stock() para uso desde EventBus."""
+        self.add_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            unit_cost=unit_cost,
+            reference_type="PURCHASE_EVENT", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", ""),
+        )
+
+    def ajustar_merma(self, producto_id: int, cantidad: float,
+                      branch_id: int = 1, referencia_id: str = "MERMA",
+                      usuario: str = "sistema", **kwargs) -> None:
+        """Descuenta merma del inventario. Alias para EventBus."""
+        self.deduct_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            reference_type="WASTE", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", "merma"),
+        )
+
     def conciliate_stock(self, product_id: int, branch_id: int):
         """
         🚨 BOTÓN DE PÁNICO / AUDITORÍA 🚨

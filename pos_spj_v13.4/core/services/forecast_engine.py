@@ -53,6 +53,10 @@ class ForecastEngine:
             "demanda_mes": round(fc * 30, 3),
         }
 
+    def generar_forecast_diario(self) -> list:
+        """Alias de run() requerido por SchedulerService."""
+        return self.run()
+
     def _get_productos_activos(self) -> list:
         try:
             rows = self.conn.execute(

@@ -104,3 +104,36 @@ documentarse aquí antes del commit.
 - **Archivo**: `054_sync_improvements_orphan.py`
 - **Motivo**: Resolución del conflicto 048. Columnas del huérfano
   `048_sync_improvements.py` aplicadas de forma idempotente via ALTER TABLE.
+
+---
+
+## v13.4 wiring + bootstrap fix — 2026-04-08
+
+### Cambios en servicios (solo aditivos)
+
+- **`core/db/connection.py`**: Agregada función `verificar_tablas(conn)` que
+  levanta `RuntimeError` si alguna de las tablas críticas
+  (`usuarios`, `productos`, `clientes`, `ventas`, `configuraciones`, `inventario`)
+  no existe. Usada por `main.py` como check fail-fast post-migraciones.
+
+- **`main.py`**: `inicializar_sistema()` ahora llama `verificar_tablas()` justo
+  después de `migrator.up()`. Si las tablas faltan se muestra un diálogo y se
+  aborta el arranque en lugar de continuar con DB vacía.
+
+- **`core/services/forecast_engine.py`**: Agregado `generar_forecast_diario()`
+  como alias de `run()`. Resuelve el crash del `SchedulerService` que llamaba
+  este método inexistente.
+
+- **`core/services/inventory_service.py`**: Agregados alias en español
+  `descontar_stock()`, `incrementar_stock()`, `ajustar_merma()` que delegan en
+  `deduct_stock()` / `add_stock()` respectivamente.
+
+- **`core/services/enterprise/finance_service.py`**: Agregados
+  `registrar_ingreso()`, `registrar_egreso()`, `registrar_perdida()` como
+  wrappers de `registrar_asiento()` con cuentas contables predeterminadas.
+
+- **`core/events/wiring.py`**: Agregadas dos nuevas funciones de wiring:
+  - `_wire_venta_financiero`: `VENTA_COMPLETADA` → `finance_service.registrar_ingreso`
+    (prioridad 50) para generar asiento contable en cada venta.
+  - `_wire_merma_inventario`: `MERMA_CREATED` → `inventory_service.ajustar_merma`
+    (prioridad 80) para descontar stock físico ante mermas vía evento.
