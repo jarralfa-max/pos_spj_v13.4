@@ -235,8 +235,8 @@ class SchedulerService:
             conn = self._conn_factory()
             eng  = ForecastEngine(conn, sucursal_id=self._sucursal_id)
             eng.generar_forecast_diario()
-        except ImportError:
-            logger.debug("Scheduler forecast: ForecastEngine no disponible, omitido.")
+        except (ImportError, AttributeError) as _exc:
+            logger.debug("Scheduler forecast: omitido (%s).", _exc)
 
     def _task_limpieza_event_log(self) -> None:
         """Limpia event_log synced con más de 90 días — mantiene la tabla manejable."""
