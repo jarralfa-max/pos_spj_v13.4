@@ -45,6 +45,9 @@ MIGRATIONS = [
     ("049",  "migrations.standalone.049_v134_intelligent_erp"),  # FASE 13: tablas ERP inteligente
     ("050",  "migrations.standalone.050_wa_integration"),        # FASE WA: tablas orquestación WA↔ERP
     ("051",  "migrations.standalone.051_fix_kpi_snapshots"),     # FIX: kpi_snapshots faltante por error 032
+    ("052",  "migrations.standalone.052_financial_event_log"),  # v13.4: audit trail financiero doble entrada
+    ("053",  "migrations.standalone.053_meat_production_tables"),  # v13.4: tablas cárnicas huérfanas de 032
+    ("054",  "migrations.standalone.054_sync_improvements_orphan"),  # v13.4: columnas sync huérfanas de 048
 ]
 
 def _ensure_tracking_table(conn):

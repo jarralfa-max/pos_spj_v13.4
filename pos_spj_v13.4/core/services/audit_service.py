@@ -41,3 +41,20 @@ class AuditService:
             detalles=detalles
         )
         logger.debug(f"Auditoría: {accion} en {entidad} ID {entidad_id} por {usuario}.")
+
+    def registrar(self, accion: str, entidad: str, entidad_id: int,
+                  usuario_id: int, datos_antes: dict = None,
+                  datos_despues: dict = None, ip: str = None) -> None:
+        """
+        Alias de log_change() para compatibilidad con spec v13.4.
+        Firma normalizada usada por decoradores y handlers del EventBus.
+        """
+        self.log_change(
+            usuario=str(usuario_id),
+            accion=accion,
+            modulo=entidad,
+            entidad=entidad,
+            entidad_id=str(entidad_id),
+            before_state=datos_antes,
+            after_state=datos_despues,
+        )

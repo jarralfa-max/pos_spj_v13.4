@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(python -m pytest*)"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"\nimport ast, sys, os\npath = os.environ.get('CLAUDE_TOOL_INPUT_FILE_PATH', '')\nif path.endswith('.py') and os.path.exists(path):\n    try:\n        ast.parse(open(path).read())\n    except SyntaxError as e:\n        print(f'SYNTAX ERROR in {path}: {e}', file=sys.stderr)\n        sys.exit(1)\n\""
+          }
+        ]
+      }
+    ]
+  }
+}

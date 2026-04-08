@@ -1,4 +1,7 @@
 # migrations/standalone/048_sync_improvements.py — SPJ POS v13.2
+# FUSIONADO en 054_sync_improvements_orphan.py (v13.4 audit)
+# Este archivo NO está registrado en engine.py. Sus cambios se aplican via 054.
+# NO ELIMINAR — referencia histórica para git blame.
 """
 Migración 048 — Mejoras al sistema de sync (v13.2).
 
