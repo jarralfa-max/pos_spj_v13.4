@@ -112,6 +112,14 @@ def inicializar_sistema():
     app.setApplicationName(__app_name__)
     app.setApplicationVersion(__version__)
 
+    # ── Aplicar tema guardado ANTES de mostrar cualquier ventana ─────────────
+    try:
+        from ui.themes.theme_engine import load_saved_theme
+        load_saved_theme(None)   # None → aplica solo a QApplication
+        logger.info("✅ Tema aplicado al arranque")
+    except Exception as _te:
+        logger.warning("Tema no aplicado al arranque: %s", _te)
+
     if not _instancia_unica(app):
         QMessageBox.information(None, "Ya está ejecutándose",
             "SPJ POS ya está abierto en esta computadora.")

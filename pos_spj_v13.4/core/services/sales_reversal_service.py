@@ -128,10 +128,11 @@ class SalesReversalService:
 
     def __init__(self, db, branch_id: int):
         """
-        db        — instancia de core.database.Database
+        db        — sqlite3.Connection o DatabaseWrapper
         branch_id — sucursal activa
         """
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
         self.branch_id = branch_id
 
     # ── Helpers internos ─────────────────────────────────────────────────────

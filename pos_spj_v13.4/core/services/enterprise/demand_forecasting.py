@@ -77,7 +77,8 @@ DIAS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Doming
 class DemandForecastingEngine:
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
         self._bus = None
         try:
             from core.events.event_bus import get_bus

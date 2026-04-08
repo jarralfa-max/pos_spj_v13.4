@@ -300,6 +300,14 @@ def calcular_depreciacion_mensual(db, sucursal_id: int = 1) -> list:
     logger = logging.getLogger("spj.activos.depreciacion")
     resultados = []
     try:
+        # Asegurar que la columna valor_residual existe (puede faltar en DBs antiguas)
+        try:
+            db.execute("ALTER TABLE activos ADD COLUMN valor_residual REAL DEFAULT 0")
+            try: db.commit()
+            except Exception: pass
+        except Exception:
+            pass  # La columna ya existe o la tabla no existe aún
+
         activos = db.execute("""
             SELECT id, nombre, valor_actual, depreciacion_anual, vida_util_anios,
                    COALESCE(valor_residual, 0) as valor_residual

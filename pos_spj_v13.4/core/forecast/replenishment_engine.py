@@ -47,7 +47,8 @@ class ReplenishmentEngine:
     """
 
     def __init__(self, db):
-        self.db = db
+        from core.db.connection import wrap
+        self.db = wrap(db)
         self._forecast_eng = DemandForecastEngine(db)
 
     # ── Helpers ─────────────────────────────────────────────────────────────────
