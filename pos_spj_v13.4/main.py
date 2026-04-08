@@ -44,6 +44,29 @@ from core.app_container import AppContainer
 from migrations import engine as migrator
 from interfaz.main_window import MainWindow
 
+
+def _bootstrap_db(db_path: str) -> None:
+    """
+    Ejecuta bootstrap DB con fallback seguro para layouts donde /scripts no existe.
+    """
+    try:
+        from scripts.bootstrap_db import bootstrap_database
+        bootstrap_database(db_path)
+        return
+    except Exception as e:
+        logger.warning("bootstrap_db externo no disponible (%s). Usando fallback interno.", e)
+
+    # Fallback interno: migrar + validar sin depender del módulo scripts
+    import sqlite3
+    from core.db.connection import verificar_tablas
+
+    conn = sqlite3.connect(db_path)
+    try:
+        migrator.up(conn)
+        verificar_tablas(conn)
+    finally:
+        conn.close()
+
 DB_PATH = "spj_pos_database.db"
 _LOCAL_SERVER = None
 
@@ -126,6 +149,14 @@ def inicializar_sistema():
         sys.exit(0)
 
     if not _verificar_bd(DB_PATH):
+        sys.exit(1)
+
+    try:
+        _bootstrap_db(DB_PATH)
+        logger.info("✅ Bootstrap DB OK")
+    except Exception as e:
+        logger.critical("Bootstrap DB falló: %s", e)
+        QMessageBox.critical(None, "Error Fatal — Bootstrap DB", str(e))
         sys.exit(1)
 
     try:
