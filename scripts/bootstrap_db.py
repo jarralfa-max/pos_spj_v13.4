@@ -9,6 +9,7 @@ Uso:
 """
 import argparse
 import logging
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -25,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 def _run_migrations(db_path: str) -> None:
     """Ejecuta migraciones usando el engine canónico (función up)."""
+    _parent = os.path.dirname(os.path.abspath(db_path))
+    if _parent:
+        os.makedirs(_parent, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         try:
@@ -53,6 +57,9 @@ def bootstrap_database(db_path: str = "pos_spj.db", verify_only: bool = False) -
     - Si la DB está vacía, fuerza ejecución de migraciones.
     - Si no está vacía, valida tablas críticas.
     """
+    _parent = os.path.dirname(os.path.abspath(db_path))
+    if _parent:
+        os.makedirs(_parent, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         is_empty = db_vacia(conn)
