@@ -72,12 +72,31 @@ def _mark_done(conn, version):
         conn.commit()
     except Exception: pass
 
+def _schema_needs_bootstrap(conn: sqlite3.Connection) -> bool:
+    """Return True if essential tables are missing (DB not initialized)."""
+    try:
+        conn.execute("SELECT 1 FROM configuraciones LIMIT 1")
+        return False
+    except Exception:
+        return True
+
 def up(db_conn: sqlite3.Connection) -> None:
     """
     Ejecuta todas las migraciones pendientes en orden.
     Seguro de llamar en cada arranque de la aplicación.
     """
     _ensure_tracking_table(db_conn)
+
+    # Si las tablas esenciales no existen aunque m000 esté marcada como hecha,
+    # borrar el registro y forzar re-ejecución (DB vacía / corrupta / reemplazada).
+    if _schema_needs_bootstrap(db_conn):
+        try:
+            db_conn.execute("DELETE FROM schema_migrations WHERE version='m000'")
+            db_conn.commit()
+            logger.warning("Schema vacío detectado — forzando re-ejecución de m000.")
+        except Exception:
+            pass
+
     executed = 0
 
     for version, module_path in MIGRATIONS:
