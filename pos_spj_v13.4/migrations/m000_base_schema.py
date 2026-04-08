@@ -48,45 +48,75 @@ def ensure_column(conn: sqlite3.Connection, table: str, column_definition: str) 
 # up(conn) — crea todo el esquema
 # ─────────────────────────────────────────────────────────────────────────────
 
+import logging as _logging
+_m000_log = _logging.getLogger("spj.migrations.m000")
+
+
+def _safe(conn: sqlite3.Connection, fn, label: str) -> bool:
+    """Ejecuta fn(conn) y registra el error sin propagarlo. Retorna True si OK."""
+    try:
+        fn(conn)
+        try:
+            conn.commit()
+        except Exception:
+            pass
+        return True
+    except Exception as _e:
+        _m000_log.error("m000 sub-función %s falló (continuando): %s", label, _e)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return False
+
+
 def up(conn: sqlite3.Connection) -> None:
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA foreign_keys = OFF")   # desactivar FK durante creación
+    # PRAGMAs opcionales — fallar aquí no debe abortar la creación de tablas
+    for pragma in ("PRAGMA journal_mode = WAL", "PRAGMA foreign_keys = OFF"):
+        try:
+            conn.execute(pragma)
+        except Exception:
+            pass
 
-    _create_core_config(conn)
-    _create_auth(conn)
-    _create_clientes(conn)
-    _create_productos(conn)
-    _create_inventario(conn)
-    _create_ventas(conn)
-    _create_caja(conn)
-    _create_compras(conn)
-    _create_pedidos_whatsapp(conn)
-    _create_delivery(conn)
-    _create_trazabilidad(conn)
-    _create_listas_precio(conn)
-    _create_documentos(conn)
-    _create_personal_rrhh(conn)
-    _create_activos(conn)
-    _create_loyalty(conn)
-    _create_tarjetas(conn)
-    _create_recetas_produccion(conn)
-    _create_batch_fifo(conn)
-    _create_transferencias(conn)
-    _create_mermas_ajustes(conn)
-    _create_sync(conn)
-    _create_forecast(conn)
-    _create_reportes(conn)
-    _create_alertas(conn)
-    _create_logs_auditoria(conn)
-    _create_cuentas_cp_cr(conn)
-    _ensure_extra_columns(conn)
-    
-    # ── NUEVO: AUTO-SEMBRADO DE DATOS VITALES ──
-    _seed_initial_data(conn)
+    # Cada dominio en su propio try/except: un fallo parcial no aborta los demás
+    _safe(conn, _create_core_config,       "core_config")
+    _safe(conn, _create_auth,              "auth")
+    _safe(conn, _create_clientes,          "clientes")
+    _safe(conn, _create_productos,         "productos")
+    _safe(conn, _create_inventario,        "inventario")
+    _safe(conn, _create_ventas,            "ventas")
+    _safe(conn, _create_caja,              "caja")
+    _safe(conn, _create_compras,           "compras")
+    _safe(conn, _create_pedidos_whatsapp,  "pedidos_whatsapp")
+    _safe(conn, _create_delivery,          "delivery")
+    _safe(conn, _create_trazabilidad,      "trazabilidad")
+    _safe(conn, _create_listas_precio,     "listas_precio")
+    _safe(conn, _create_documentos,        "documentos")
+    _safe(conn, _create_personal_rrhh,     "personal_rrhh")
+    _safe(conn, _create_activos,           "activos")
+    _safe(conn, _create_loyalty,           "loyalty")
+    _safe(conn, _create_tarjetas,          "tarjetas")
+    _safe(conn, _create_recetas_produccion,"recetas_produccion")
+    _safe(conn, _create_batch_fifo,        "batch_fifo")
+    _safe(conn, _create_transferencias,    "transferencias")
+    _safe(conn, _create_mermas_ajustes,    "mermas_ajustes")
+    _safe(conn, _create_sync,              "sync")
+    _safe(conn, _create_forecast,          "forecast")
+    _safe(conn, _create_reportes,          "reportes")
+    _safe(conn, _create_alertas,           "alertas")
+    _safe(conn, _create_logs_auditoria,    "logs_auditoria")
+    _safe(conn, _create_cuentas_cp_cr,     "cuentas_cp_cr")
+    _safe(conn, _ensure_extra_columns,     "extra_columns")
+    _safe(conn, _seed_initial_data,        "seed_data")
 
-    conn.execute("PRAGMA foreign_keys = ON")
-    try: conn.commit()
-    except Exception: pass
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        pass
+    try:
+        conn.commit()
+    except Exception:
+        pass
 # ─────────────────────────────────────────────────────────────────────────────
 # Bloques de creación por dominio
 # ─────────────────────────────────────────────────────────────────────────────

@@ -246,18 +246,19 @@ class ModuloFinanzas(ModuloBase):
     def __init__(self, conexion, parent=None):
         super().__init__(conexion, parent)
         # Accept AppContainer or direct db connection
+        from core.db.connection import wrap
         if hasattr(conexion, 'db'):
             self.container = conexion
-            self.conexion  = conexion.db
+            self.conexion  = wrap(conexion.db)
         else:
             self.container = None
-            self.conexion  = conexion
+            self.conexion  = wrap(conexion)
         self.main_window     = parent
         self.usuario_actual  = "admin"
         self.rol_usuario     = ""
         self.sucursal_id     = 1
         self.sucursal_nombre = "Principal"
-        self._svc = FinanceService(_DBWrapper(conexion))
+        self._svc = FinanceService(self.conexion)
         self._init_ui()
         try:
             EventBus().subscribe("VENTA_COMPLETADA",
