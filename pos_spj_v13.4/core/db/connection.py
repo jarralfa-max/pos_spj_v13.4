@@ -321,6 +321,11 @@ TABLAS_REQUERIDAS = [
     "ventas", "configuraciones", "inventario",
 ]
 
+# Reglas de equivalencia para esquemas donde hubo refactor de nombres.
+_EQUIVALENCIAS_TABLAS = {
+    "inventario": {"inventario", "inventario_actual"},
+}
+
 
 def verificar_tablas(conn) -> None:
     """Levanta RuntimeError si alguna tabla crítica falta en la DB.
@@ -332,7 +337,12 @@ def verificar_tablas(conn) -> None:
         "SELECT name FROM sqlite_master WHERE type='table'"
     )
     existentes = {r[0] for r in cur.fetchall()}
-    faltantes = [t for t in TABLAS_REQUERIDAS if t not in existentes]
+
+    faltantes = []
+    for tabla in TABLAS_REQUERIDAS:
+        opciones = _EQUIVALENCIAS_TABLAS.get(tabla, {tabla})
+        if not (existentes & opciones):
+            faltantes.append(tabla)
     if faltantes:
         raise RuntimeError(
             f"DB incompleta — tablas faltantes: {faltantes}"
