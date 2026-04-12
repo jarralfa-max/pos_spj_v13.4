@@ -1558,7 +1558,16 @@ class ModuloVentas(ModuloBase):
                     )
                     return
 
-                # 1c. No encontrado → poner en txt_cliente para búsqueda manual
+                # 1c. No encontrado — Flujo dual Fase 2 (Plan Maestro SPJ v13.4):
+                # Si el código tiene formato de tarjeta (TF-/TAR-/CARD-) →
+                # abrir DialogoAgregarCliente con tarjeta_id precargado.
+                # Si no, poner en txt_cliente para búsqueda manual.
+                import re as _re2
+                _es_tarjeta = bool(_re2.match(
+                    r'^(TF|TAR|CARD)-[A-Za-z0-9]+$', codigo, _re2.IGNORECASE))
+                if _es_tarjeta:
+                    self._abrir_nuevo_cliente_con_tarjeta(codigo)
+                    return
                 if hasattr(self, 'txt_cliente'):
                     self.txt_cliente.clear()
                     self.txt_cliente.setText(codigo)
@@ -1868,6 +1877,25 @@ class ModuloVentas(ModuloBase):
             pass
 
     
+    def _abrir_nuevo_cliente_con_tarjeta(self, codigo: str) -> None:
+        """
+        Flujo dual Fase 2 — tarjeta de fidelidad escaneada pero sin cliente registrado.
+        Abre DialogoAgregarCliente con el campo tarjeta_id precargado.
+        Si el usuario confirma, registra el cliente y lo vincula a la tarjeta.
+        """
+        try:
+            self._mostrar_notif_scanner(
+                f"🪪 Tarjeta nueva — registra el cliente: {codigo}", "card")
+            dialogo = DialogoAgregarCliente(self)
+            dialogo.txt_tarjeta_id.setText(codigo)
+            dialogo.txt_tarjeta_id.setReadOnly(True)   # evitar edición accidental
+            if dialogo.exec_() == QDialog.Accepted:
+                cliente_data = dialogo.get_cliente_data()
+                self.guardar_nuevo_cliente(cliente_data)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("_abrir_nuevo_cliente_con_tarjeta: %s", e)
+
     def _cargar_tarjeta_desde_scanner(self, tarjeta_row) -> None:
         """
         Carga automáticamente la tarjeta de fidelidad en la venta activa.
