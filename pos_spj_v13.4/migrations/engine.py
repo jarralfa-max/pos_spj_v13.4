@@ -50,6 +50,8 @@ MIGRATIONS = [
     ("054",  "migrations.standalone.054_sync_improvements_orphan"),  # v13.4: columnas sync huérfanas de 048
     ("055",  "migrations.standalone.055_inventario_compat"),  # v13.4: compat tabla/vista inventario
     ("056",  "migrations.standalone.056_print_job_log"),      # v13.4: bitácora de impresión Fase 1
+    ("057",  "migrations.standalone.057_loyalty_ledger_unificado"),  # v13.4: ledger unificado fidelización Fase 2
+    ("058",  "migrations.standalone.058_scan_event_log"),    # v13.4: auditoría de escaneos Fase 2
 ]
 
 def _ensure_tracking_table(conn):
