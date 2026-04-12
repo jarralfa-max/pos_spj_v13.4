@@ -5,6 +5,16 @@ documentarse aquí antes del commit.
 
 ---
 
+## 056_print_job_log — 2026-04-12
+
+**Motivo:** Fase 1 Plan Maestro — bitácora de impresión obligatoria.
+**Tabla creada:** `print_job_log` (job_id, job_type, plantilla, impresora, folio,
+estado, reintentos, total, error_msg, created_at, finished_at).
+**Impacto:** Auditoría de cada trabajo de impresión; sin cambios destructivos.
+**Registrado en:** `migrations/engine.py` posición 056.
+
+---
+
 ## Estado inicial auditado — 2026-04-08
 
 ### Migraciones canónicas (en engine.py)
