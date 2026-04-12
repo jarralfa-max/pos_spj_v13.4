@@ -164,6 +164,12 @@ try:
 except Exception:
     ModuloTransferencias = None
 
+# Fase 0 — Decisiones: usa BI Pro como placeholder hasta Fase 5
+try:
+    from modulos.reportes_bi_v2 import ModuloReportesBIv2 as ModuloDecisiones
+except Exception:
+    ModuloDecisiones = None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DIÁLOGO DE LOGIN
@@ -414,6 +420,7 @@ class MainWindow(QMainWindow):
         self._conectar("TARJETAS_FIDELIDAD", ModuloTarjetas,         "💳 Tarjetas Fidelidad")
         self._conectar("INTELIGENCIA_BI",    ModuloReportesBIv2,     "📈 Inteligencia BI")
         self._conectar("WHATSAPP",           ModuloWhatsApp,         "📱 Pedidos WhatsApp")
+        self._conectar("DECISIONES",         ModuloDecisiones,       "🧠 Decisiones / BI Pro")
 
         # ── Sistema ──────────────────────────────────────────────────────────
         self._conectar("DISEÑADOR_TICKETS", ModuloTicketDesigner, "🎨 Diseñador Tickets")

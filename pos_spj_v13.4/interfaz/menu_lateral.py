@@ -16,6 +16,7 @@ MODULOS = [
     "caja",
     "tesoreria",
     "finanzas",
+    "contabilidad",
     "rrhh",
     "activos",
     "merma",
@@ -31,7 +32,21 @@ MODULOS = [
     "hardware",
     "configuracion",
     "modulos_config",
+    "decisiones",
 ]
+
+# Módulos que SIEMPRE deben ser visibles sin importar los toggles de ModuleConfig
+# (Fase 0 whitelist — Plan Maestro SPJ v13.4)
+WHITELIST_SIEMPRE_VISIBLE = {
+    "TESORERIA",
+    "FINANZAS",
+    "ACTIVOS",
+    "PLANEACION_COMPRAS",
+    "WHATSAPP",
+    "DECISIONES",
+    "CONFIG_SEGURIDAD",
+    "INTELIGENCIA_BI",
+}
 
 class MenuLateral(QFrame):
     # Señal maestra que avisa a la ventana principal a qué módulo queremos ir
@@ -169,6 +184,7 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_boton("💳 Tarjetas Fidelidad", "TARJETAS_FIDELIDAD"))
         layout_botones.addWidget(self._crear_boton("📈 Inteligencia (BI)", "INTELIGENCIA_BI"))
         layout_botones.addWidget(self._crear_boton("📱 Pedidos WhatsApp", "WHATSAPP"))
+        layout_botones.addWidget(self._crear_boton("🧠 Decisiones / BI Pro", "DECISIONES"))
 
         # --- SECCIÓN: CONFIGURACIÓN ---
         layout_botones.addWidget(self._crear_header("Sistema"))
@@ -262,6 +278,10 @@ class MenuLateral(QFrame):
         for btn in self.findChildren(_QPB):
             codigo = btn.property("modulo_codigo")
             if not codigo or codigo == "LOGOUT":
+                continue
+            # Módulos en whitelist SIEMPRE visibles (Fase 0 — Plan Maestro)
+            if codigo in WHITELIST_SIEMPRE_VISIBLE:
+                btn.setVisible(True)
                 continue
             toggle_key = TOGGLE_MAP.get(codigo)
             if toggle_key is not None:

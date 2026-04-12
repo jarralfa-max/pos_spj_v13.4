@@ -509,6 +509,37 @@ class DialogoPago(QDialog):
             self.lbl_mixto_diff.setStyleSheet("color:#e74c3c;font-size:11px;")
             self.btn_aceptar.setEnabled(False)
 
+    def _toggle_canje(self, checked: bool):
+        """v13.4 Fase 0 hotfix: Activa/desactiva el canje de puntos de fidelidad."""
+        self._spin_puntos.setEnabled(checked)
+        if checked:
+            self._recalcular_canje(self._spin_puntos.value())
+        else:
+            self.descuento_puntos = 0.0
+            self.puntos_a_canjear = 0
+            self.total_a_pagar = self.total_original
+            self._lbl_desc_puntos.setText("")
+            self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
+            self.txt_recibido.setValue(self.total_a_pagar)
+            self.calcular_cambio()
+
+    def _recalcular_canje(self, value: int):
+        """v13.4 Fase 0 hotfix: Recalcula descuento al modificar puntos a canjear."""
+        pts = self._loyalty.get("puntos", 0)
+        valor_total = self._loyalty.get("valor_canje", 0.0)
+        if pts <= 0:
+            return
+        valor_por_punto = valor_total / pts
+        descuento = round(value * valor_por_punto, 2)
+        descuento = min(descuento, self.total_original)
+        self.descuento_puntos = descuento
+        self.puntos_a_canjear = value
+        self.total_a_pagar = round(self.total_original - descuento, 2)
+        self._lbl_desc_puntos.setText(f"-${descuento:.2f}")
+        self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
+        self.txt_recibido.setValue(self.total_a_pagar)
+        self.calcular_cambio()
+
     def get_datos_pago(self) -> Dict[str, Any]:
         return {
             "forma_pago": self.forma_pago,
@@ -523,7 +554,9 @@ class DialogoPago(QDialog):
                 if self.forma_pago == "Pago Mixto" else 0.0
             ),
             "cambio": self.cambio,
-            "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0
+            "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
+            "puntos_canjeados": self.puntos_a_canjear,
+            "descuento_puntos": self.descuento_puntos,
         }
 
 # ==============================================================================
