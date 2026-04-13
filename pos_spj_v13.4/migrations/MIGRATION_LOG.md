@@ -5,6 +5,24 @@ documentarse aquí antes del commit.
 
 ---
 
+## 060_depreciacion_acumulada — 2026-04-13
+
+**Motivo:** Fase 3 — acumulado mensual de depreciación por activo y periodo.
+**Tabla:** `depreciacion_acumulada` (activo_id, periodo YYYY-MM, monto_mes, acumulado, cuenta_id).
+**Constraint:** UNIQUE(activo_id, periodo) — idempotente por diseño.
+**Impacto:** Solo aditivo; vincula `activos` → `depreciacion_acumulada` → `plan_cuentas`.
+
+---
+
+## 059_plan_cuentas — 2026-04-13
+
+**Motivo:** Fase 3 — catálogo contable mínimo NIF/SAT para plan de cuentas formal.
+**Tabla:** `plan_cuentas` (codigo_sat UNIQUE, nombre, tipo, nivel, padre_id).
+**Catálogo:** 41 cuentas 1xx–6xx (Activo, Pasivo, Capital, Ingresos, Costos, Gastos).
+**Impacto:** Solo aditivo; base para asientos doble entrada en `finance_service`.
+
+---
+
 ## 058_scan_event_log — 2026-04-12
 
 **Motivo:** Fase 2 — auditoría de eventos de escaneo (Plan Maestro).
