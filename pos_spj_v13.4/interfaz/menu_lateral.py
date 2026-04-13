@@ -6,6 +6,7 @@ from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QPixmap
 
 # Inventario explícito de módulos v13.4 (referencia para wiring UI)
+# NOTA: 'recetas' eliminado - funcionalidad fusionada en 'produccion' (Procesamiento Cárnico)
 MODULOS = [
     "ventas",
     "compras_pro",
@@ -19,8 +20,7 @@ MODULOS = [
     "rrhh",
     "activos",
     "merma",
-    "produccion",
-    "recetas",
+    "produccion",  # Incluye tab de Recetas Industriales
     "transferencias",
     "delivery",
     "whatsapp",
@@ -156,7 +156,8 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_header("Producción"))
         layout_botones.addWidget(self._crear_boton("🔪 Procesamiento Cárnico", "PRODUCCION"))
         layout_botones.addWidget(self._crear_boton("🏷️ Etiquetas", "ETIQUETAS"))
-        layout_botones.addWidget(self._crear_boton("📖 Recetas Industriales", "RECETAS"))
+        # NOTA: Recetas Industriales fusionado en Procesamiento Cárnico (tab interno)
+        # layout_botones.addWidget(self._crear_boton("📖 Recetas Industriales", "RECETAS"))  # ELIMINADO - duplicado
         layout_botones.addWidget(self._crear_boton("📈 Planeación de Compras", "PLANEACION_COMPRAS"))
 
         # --- SECCIÓN: ADMINISTRACIÓN ---

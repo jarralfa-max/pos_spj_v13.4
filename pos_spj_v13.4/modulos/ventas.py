@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QMessageBox, QHBoxLayout,
     QFrame, QTableWidget, QTableWidgetItem, QSplitter,
     QGroupBox, QSizePolicy, QAction, QGridLayout,
-    QAbstractItemView, QDialog, QCheckBox, QFormLayout, QDoubleSpinBox,
+    QAbstractItemView, QDialog, QCheckBox, QFormLayout, QDoubleSpinBox, QSpinBox,
     QHeaderView, QRadioButton, QScrollArea, QListWidget, QListWidgetItem,
     QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter
 )
@@ -1106,6 +1106,16 @@ class ModuloVentas(ModuloBase):
         self.lbl_total = QLabel("TOTAL: $0.00")
         self.lbl_puntos_venta = QLabel("Puntos: 0")
         
+        # Input manual de peso para cuando báscula no está habilitada
+        self.txt_peso_manual = QDoubleSpinBox()
+        self.txt_peso_manual.setRange(0.001, 9999.0)
+        self.txt_peso_manual.setDecimals(3)
+        self.txt_peso_manual.setSuffix(" kg")
+        self.txt_peso_manual.setPrefix("Peso: ")
+        self.txt_peso_manual.setStyleSheet("font-weight:bold; font-size:13px;")
+        self.txt_peso_manual.setVisible(not self._hw_bascula_habilitada)
+        self.txt_peso_manual.setToolTip("Captura manual de peso (báscula desactivada)")
+        
         self.lbl_peso_bascula.setProperty("class", "info-box")
         self.lbl_total.setProperty("class", "total-box")
         self.lbl_puntos_venta.setProperty("class", "info-box")
@@ -1115,6 +1125,7 @@ class ModuloVentas(ModuloBase):
         self.lbl_puntos_venta.setAlignment(Qt.AlignCenter)
         
         info_venta_layout.addWidget(self.lbl_peso_bascula, 0, 0)
+        info_venta_layout.addWidget(self.txt_peso_manual, 0, 0)  # Mismo posición, visible según config
         info_venta_layout.addWidget(self.lbl_total, 0, 1)
         info_venta_layout.addWidget(self.lbl_puntos_venta, 1, 0, 1, 2)
 
@@ -1291,6 +1302,11 @@ class ModuloVentas(ModuloBase):
             
         self.producto_seleccionado = producto
         unidad = producto['unidad'].lower()
+        
+        # Limpiar input manual de peso al seleccionar nuevo producto
+        if hasattr(self, 'txt_peso_manual'):
+            self.txt_peso_manual.setValue(0)
+            self.txt_peso_manual.setFocus()  # Poner foco para captura rápida
         
         if any(peso_keyword in unidad for peso_keyword in ['kg', 'kilogramo', 'kilo', 'gramo', 'gr']):
             self.iniciar_monitoreo_peso(producto)
@@ -2237,9 +2253,13 @@ class ModuloVentas(ModuloBase):
             self.lbl_estado_bascula.setText("Báscula: ❌ Desconectada")
                 
     def iniciar_monitoreo_peso(self, producto: Dict[str, Any]):
-        # BUG FIX: no iniciar si la báscula está deshabilitada en config hardware
+        # Si báscula está deshabilitada, usar input manual en lugar de monitoreo
         if not self._hw_bascula_habilitada:
+            # El usuario ya tiene txt_peso_manual visible para capturar peso
+            # Solo asignamos el producto pendiente y esperamos confirmación
+            self.producto_pendiente = producto
             return
+            
         self.producto_pendiente = producto
         self.lecturas_estables = []
         self.peso_inicial = 0
@@ -2321,6 +2341,23 @@ class ModuloVentas(ModuloBase):
             self.finalizar_monitoreo_peso()
             
     def agregar_producto_por_unidad(self, producto: Dict[str, Any]):
+        # Si es producto por peso y báscula está deshabilitada, usar input manual
+        unidad = producto.get('unidad', '').lower()
+        es_por_peso = any(kw in unidad for kw in ['kg', 'kilogramo', 'kilo', 'gramo', 'gr'])
+        
+        if es_por_peso and not self._hw_bascula_habilitada:
+            # Usar el widget txt_peso_manual que ya está visible
+            if hasattr(self, 'txt_peso_manual') and self.txt_peso_manual.isVisible():
+                cantidad = self.txt_peso_manual.value()
+                if cantidad > 0:
+                    self.agregar_producto_directo(producto, cantidad)
+                    self.txt_peso_manual.setValue(0)  # Resetear para próxima venta
+                else:
+                    QMessageBox.warning(self, "Peso requerido", 
+                        "Ingrese el peso del producto en el campo 'Peso' antes de agregar.")
+                return
+        
+        # Comportamiento normal para productos por pieza o con báscula activa
         cantidad, ok = QInputDialog.getDouble(
             self, "Cantidad", 
             f"Ingrese la cantidad para {producto['nombre']}:",

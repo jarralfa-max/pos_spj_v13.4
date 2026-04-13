@@ -14,10 +14,10 @@ MODULE_REGISTRY = {
     "inventario_enterprise":("ModuloInventarioEnterprise","modulos.inventario_enterprise",[]),
     "productos":        ("ModuloProductos",           "modulos.productos",              []),
     "clientes":         ("ModuloClientes",            "modulos.clientes",               []),
-    "recetas":          ("ModuloRecetas",             "modulos.recetas",                []),
-    "produccion":       ("ModuloProduccion",          "modulos.produccion",             []),
+    # "recetas":          ("ModuloRecetas",             "modulos.recetas",                []),  # ❌ ELIMINADO: funcionalidad integrada en ModuloProduccion (tab "Recetas")
+    "produccion":       ("ModuloProduccion",          "modulos.produccion",             []),  # ✅ Unificado: incluye tabs Ejecutar, Historial, Cárnica/Lotes, Recetas
     "inv_industrial":   ("ModuloInventarioIndustrial","modulos.inventario_industrial",  []),
-    "prod_carnica":     ("ModuloProduccionCarnica",   "modulos.produccion_carnica",     []),
+    # "prod_carnica":   ("ModuloProduccionCarnica",   "modulos.produccion_carnica",     []),  # ❌ ELIMINADO: funcionalidad ya integrada en ModuloProduccion (tab "Cárnica / Lotes")
     "planeacion":       ("ModuloPlaneacionCompras",   "modulos.planeacion_compras",     []),
     "bi":               ("ModuloReportesBi",          "modulos.reportes_bi",            []),
     "transferencias":   ("ModuloTransferencias",      "modulos.transferencias",         []),

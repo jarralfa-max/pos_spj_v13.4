@@ -131,11 +131,7 @@ except Exception:
     ModuloProduccion = None
 
 # produccion_carnica unificada en ModuloProduccion (tabs Cárnica + Recetas)
-
-try:
-    from modulos.recetas import ModuloRecetas
-except Exception:
-    ModuloRecetas = None
+# ModuloRecetas eliminado — funcionalidad integrada en Produccion
 
 try:
     from modulos.whatsapp_module import ModuloWhatsApp
@@ -402,7 +398,6 @@ class MainWindow(QMainWindow):
         # ── Producción ───────────────────────────────────────────────────────
         self._conectar("PRODUCCION",       ModuloProduccion,       "🔪 Procesamiento Cárnico")
         self._conectar("ETIQUETAS",        ModuloEtiquetas,        "🏷️ Etiquetas")
-        self._conectar("RECETAS",          ModuloRecetas,          "📖 Recetas Industriales")
         self._conectar("PLANEACION_COMPRAS", ModuloPlaneacionCompras, "📈 Planeación de Compras")
 
         # ── Administración ───────────────────────────────────────────────────

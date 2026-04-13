@@ -507,7 +507,7 @@ class ModuloProduccion(ModuloBase):
             QMessageBox.critical(self, "Error en producción", str(e))
 
     def _build_tab_recetas(self) -> QWidget:
-        """Tab de recetas — CRUD completo con DialogoReceta de recetas.py."""
+        """Tab de recetas — CRUD integrado en módulo de Producción."""
         from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
             QLabel, QLineEdit, QPushButton, QTableWidget,
             QTableWidgetItem, QHeaderView, QSplitter, QMessageBox)
@@ -593,30 +593,15 @@ class ModuloProduccion(ModuloBase):
                 self._rec_tabla.setItem(i, j, QTableWidgetItem(v))
 
     def _receta_nueva(self):
-        """Abre DialogoReceta de recetas.py para crear receta completa."""
+        """Crea receta nueva con dialogo simple integrado."""
         conn = self._conexion if hasattr(self, '_conexion') else (
             self.conexion if hasattr(self, 'conexion') else None)
         if not conn:
             return
-        try:
-            from modulos.recetas import DialogoReceta
-            from repositories.recetas import RecetaRepository
-            repo = RecetaRepository(conn)
-            productos = conn.execute(
-                "SELECT id, nombre, unidad FROM productos WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            prods = [{'id': p[0], 'nombre': p[1], 'unidad': p[2] or 'kg'} for p in productos]
-            usuario = getattr(self, 'usuario_actual', 'Sistema') or 'Sistema'
-            dlg = DialogoReceta(repo, prods, usuario, parent=self)
-            if dlg.exec_() == dlg.Accepted:
-                self._cargar_lista_recetas()
-        except ImportError:
-            self._nueva_receta_simple()
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"No se pudo abrir editor de recetas:\n{e}")
+        self._nueva_receta_simple()
 
     def _receta_editar(self):
-        """Abre DialogoReceta para editar la receta seleccionada."""
+        """Edita receta seleccionada con dialogo simple integrado."""
         row = self._rec_tabla.currentRow()
         if row < 0:
             QMessageBox.information(self, "Aviso", "Selecciona una receta.")
@@ -626,32 +611,18 @@ class ModuloProduccion(ModuloBase):
             self.conexion if hasattr(self, 'conexion') else None)
         if not conn:
             return
+        # Cargar datos de receta existente y pasar al dialogo simple
         try:
-            from modulos.recetas import DialogoReceta
-            from repositories.recetas import RecetaRepository
-            repo = RecetaRepository(conn)
-            productos = conn.execute(
-                "SELECT id, nombre, unidad FROM productos WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            prods = [{'id': p[0], 'nombre': p[1], 'unidad': p[2] or 'kg'} for p in productos]
-            usuario = getattr(self, 'usuario_actual', 'Sistema') or 'Sistema'
-            # Cargar datos de receta existente
             receta_row = conn.execute("SELECT * FROM recetas WHERE id=?", (rid,)).fetchone()
-            receta_data = dict(receta_row) if receta_row else None
+            if not receta_row:
+                QMessageBox.warning(self, "Error", "Receta no encontrada.")
+                return
             comps = conn.execute(
                 "SELECT * FROM recipe_components WHERE recipe_id=?", (rid,)
             ).fetchall()
-            componentes = [dict(c) for c in comps] if comps else []
-            dlg = DialogoReceta(repo, prods, usuario,
-                                receta_data=receta_data,
-                                componentes=componentes, parent=self)
-            if dlg.exec_() == dlg.Accepted:
-                self._cargar_lista_recetas()
-        except ImportError:
-            QMessageBox.warning(self, "Aviso",
-                "Editor de recetas no disponible. Verifica el módulo recetas.py.")
+            self._editar_receta_simple(rid, dict(receta_row), [dict(c) for c in comps] if comps else [])
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"No se pudo abrir editor:\n{e}")
+            QMessageBox.warning(self, "Error", f"No se pudo cargar la receta:\n{e}")
 
     def _receta_desactivar(self):
         """Desactiva la receta seleccionada (soft delete)."""
@@ -681,7 +652,7 @@ class ModuloProduccion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _nueva_receta_simple(self):
-        """Fallback: crear receta con diálogo simple (sin DialogoReceta)."""
+        """Crear receta con diálogo simple integrado."""
         from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout,
             QVBoxLayout, QLineEdit, QComboBox, QDoubleSpinBox, QMessageBox)
         conn = self._conexion if hasattr(self, '_conexion') else (
@@ -700,9 +671,9 @@ class ModuloProduccion(ModuloBase):
                 cmb_producto.addItem(p[1], p[0])
         except Exception:
             pass
-        spin_rend = QDoubleSpinBox()
-        spin_rend.setRange(0, 100); spin_rend.setSuffix("%"); spin_rend.setDecimals(1)
-        form.addRow("Nombre *:", txt_nombre)
+        spin_rend = QDoubleSpinBox(); spin_rend.setRange(1, 100); spin_rend.setValue(95)
+        spin_rend.setSuffix("%")
+        form.addRow("Nombre:", txt_nombre)
         form.addRow("Producto base:", cmb_producto)
         form.addRow("Rendimiento esperado:", spin_rend)
         lay.addLayout(form)
@@ -723,6 +694,84 @@ class ModuloProduccion(ModuloBase):
             except Exception:
                 pass
             self._cargar_lista_recetas()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _editar_receta_simple(self, receta_id, receta_data, componentes):
+        """Diálogo simple para editar receta existente."""
+        from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout,
+            QVBoxLayout, QLineEdit, QComboBox, QDoubleSpinBox, QMessageBox, QLabel)
+        conn = self._conexion if hasattr(self, '_conexion') else (
+            self.conexion if hasattr(self, 'conexion') else None)
+        if not conn:
+            return
+        dlg = QDialog(self); dlg.setWindowTitle("Editar Receta"); dlg.setMinimumWidth(400)
+        lay = QVBoxLayout(dlg)
+        
+        # Información básica
+        info = QLabel(f"<b>Receta:</b> {receta_data.get('nombre', 'N/A')}<br>"
+                      f"<b>ID:</b> {receta_id}")
+        info.setStyleSheet("background:#f0f4ff;padding:8px;border-radius:4px;")
+        lay.addWidget(info)
+        
+        form = QFormLayout()
+        txt_nombre = QLineEdit(receta_data.get('nombre', ''))
+        cmb_producto = QComboBox()
+        spin_rend = QDoubleSpinBox()
+        spin_rend.setRange(1, 100)
+        spin_rend.setValue(float(receta_data.get('rendimiento_esperado_pct', 95)))
+        spin_rend.setSuffix("%")
+        
+        try:
+            prods = conn.execute(
+                "SELECT id, nombre FROM productos WHERE activo=1 ORDER BY nombre"
+            ).fetchall()
+            for i, p in enumerate(prods):
+                cmb_producto.addItem(p[1], p[0])
+                if p[0] == receta_data.get('producto_id'):
+                    cmb_producto.setCurrentIndex(i)
+        except Exception:
+            pass
+        
+        form.addRow("Nombre:", txt_nombre)
+        form.addRow("Producto base:", cmb_producto)
+        form.addRow("Rendimiento esperado:", spin_rend)
+        lay.addLayout(form)
+        
+        # Mostrar componentes (solo lectura en modo simple)
+        if componentes:
+            grp = QGroupBox(f"Componentes ({len(componentes)})")
+            comp_lay = QVBoxLayout(grp)
+            for c in componentes[:10]:  # Mostrar primeros 10
+                lbl = QLabel(f"• {c.get('component_name', 'N/A')}: {c.get('quantity', 0)} {c.get('unit', 'kg')}")
+                comp_lay.addWidget(lbl)
+            if len(componentes) > 10:
+                comp_lay.addWidget(QLabel(f"... y {len(componentes)-10} más"))
+            lay.addWidget(grp)
+        
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+        
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        
+        nombre = txt_nombre.text().strip()
+        if not nombre:
+            QMessageBox.warning(self, "Error", "El nombre es requerido")
+            return
+        
+        try:
+            conn.execute(
+                "UPDATE recetas SET nombre=?, producto_id=?, rendimiento_esperado_pct=? WHERE id=?",
+                (nombre, cmb_producto.currentData(), spin_rend.value(), receta_id))
+            try:
+                conn.commit()
+            except Exception:
+                pass
+            self._cargar_lista_recetas()
+            QMessageBox.information(self, "Éxito", "Receta actualizada correctamente")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
