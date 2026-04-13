@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QSizePolicy, QAction, QGridLayout,
     QAbstractItemView, QDialog, QCheckBox, QFormLayout, QDoubleSpinBox,
     QHeaderView, QRadioButton, QScrollArea, QListWidget, QListWidgetItem,
-    QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter
+    QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
 from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette
