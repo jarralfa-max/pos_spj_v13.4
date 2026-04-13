@@ -280,6 +280,8 @@ class RecetaRepository:
         _add('created_at',       now)
         _add('validates_at',     now)         # columna opcional (legacy)
         # Columnas de referencia al producto base (detectadas dinámicamente)
+        # FASE 0: Forzar piece_product_id = base_product_id para evitar IntegrityError
+        _add('piece_product_id', base_product_id)
         _add('product_id',       base_product_id)
         _add('base_product_id',  base_product_id)
         # piece_product_id: NOT NULL — usar base_product_id como valor por defecto

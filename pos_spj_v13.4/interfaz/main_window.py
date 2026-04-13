@@ -133,11 +133,6 @@ except Exception:
 # produccion_carnica unificada en ModuloProduccion (tabs Cárnica + Recetas)
 
 try:
-    from modulos.recetas import ModuloRecetas
-except Exception:
-    ModuloRecetas = None
-
-try:
     from modulos.whatsapp_module import ModuloWhatsApp
 except Exception:
     ModuloWhatsApp = None
@@ -408,7 +403,6 @@ class MainWindow(QMainWindow):
         # ── Producción ───────────────────────────────────────────────────────
         self._conectar("PRODUCCION",       ModuloProduccion,       "🔪 Procesamiento Cárnico")
         self._conectar("ETIQUETAS",        ModuloEtiquetas,        "🏷️ Etiquetas")
-        self._conectar("RECETAS",          ModuloRecetas,          "📖 Recetas Industriales")
         self._conectar("PLANEACION_COMPRAS", ModuloPlaneacionCompras, "📈 Planeación de Compras")
 
         # ── Administración ───────────────────────────────────────────────────
@@ -425,6 +419,7 @@ class MainWindow(QMainWindow):
         # ── Sistema ──────────────────────────────────────────────────────────
         self._conectar("DISEÑADOR_TICKETS", ModuloTicketDesigner, "🎨 Diseñador Tickets")
         self._conectar("CONFIG_HARDWARE",   ModuloConfigHardware, "🖨️ Hardware")
+        self._conectar("CONFIG_MODULOS",    ModuloConfigModulos,  "🔌 Configuración Módulos")
         self._conectar("CONFIG_SEGURIDAD",  ModuloConfiguracion,  "🛡️ Configuración")
 
     def _conectar(self, codigo, clase_widget, titulo_fallback):

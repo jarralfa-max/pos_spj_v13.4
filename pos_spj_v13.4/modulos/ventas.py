@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QSizePolicy, QAction, QGridLayout,
     QAbstractItemView, QDialog, QCheckBox, QFormLayout, QDoubleSpinBox,
     QHeaderView, QRadioButton, QScrollArea, QListWidget, QListWidgetItem,
-    QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter
+    QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
 from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette
@@ -42,7 +42,7 @@ try:
     from config import TEMAS, configuraciones_POR_DEFECTO, GestorTemas
 except ImportError:
     TEMAS = {}
-    configuraciones_POR_DEFECTO = {'tema': 'Oscuro Moderno'}
+    configuraciones_POR_DEFECTO = {'tema': 'Oscuro'}
     
     class GestorTemas:
         def __init__(self, conexion):
@@ -56,7 +56,7 @@ except ImportError:
             self.temas = TEMAS
         
         def obtener_tema_actual(self):
-            return "Oscuro Moderno"
+            return "Oscuro"
         
         def aplicar_tema(self, widget, nombre_tema):
             return False
@@ -488,6 +488,35 @@ class DialogoPago(QDialog):
             self.efectivo_recibido = self.total_a_pagar
             self.cambio = 0.0
             self.btn_aceptar.setEnabled(True)
+
+    def _toggle_canje(self, activado: bool):
+        """v13.4 Fase 2: Activa/desactiva el canje de puntos de fidelidad."""
+        if not hasattr(self, '_spin_puntos'):
+            return
+        self._spin_puntos.setEnabled(activado)
+        if activado:
+            self._recalcular_canje(self._spin_puntos.value())
+        else:
+            self.puntos_a_canjear = 0
+            self.descuento_puntos = 0.0
+            self._lbl_desc_puntos.setText("")
+            # Recalcular total sin descuento de puntos
+            self.total_a_pagar = self.total_original
+            self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
+            self.calcular_cambio()
+
+    def _recalcular_canje(self, puntos: int):
+        """v13.4 Fase 2: Recalcula el descuento por canje de puntos."""
+        if not hasattr(self, '_chk_canjear') or not self._chk_canjear.isChecked():
+            return
+        self.puntos_a_canjear = puntos
+        valor_por_punto = self._loyalty.get("valor_por_punto", 0.01)  # $0.01 por punto default
+        self.descuento_puntos = round(puntos * valor_por_punto, 2)
+        self._lbl_desc_puntos.setText(f"-=${self.descuento_puntos:.2f}")
+        # Aplicar descuento al total
+        self.total_a_pagar = max(0.0, self.total_original - self.descuento_puntos)
+        self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
+        self.calcular_cambio()
 
     def _recalcular_mixto(self):
         if self.forma_pago != "Pago Mixto":

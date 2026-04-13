@@ -1,48 +1,23 @@
-<<<<<<< HEAD
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# SQLite
-*.db-shm
-*.db-wal
-=======
-# Base de datos
-*.db
-*.db-shm
-*.db-wal
-
-# Logs
-logs/
-*.log
-
-# Backups
-backups/
-
+```
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# Entorno virtual
+# Dependencies
 .venv/
->>>>>>> 88c42a0 (Cambios locales antes de actualizar)
+venv/
+env/
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+```

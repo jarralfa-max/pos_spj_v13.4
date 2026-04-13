@@ -36,7 +36,6 @@ MODULOS_SISTEMA = [
     ("INTELIGENCIA_BI",  "📊 Inteligencia BI",       True),
     ("PREDICCIONES",     "🔮 Predicciones",          True),
     ("PRODUCCION",       "🏭 Producción",            True),
-    ("RECETAS",          "📖 Recetas",               True),
     ("DELIVERY_AUTO",    "🤖 Auto-asign Delivery",   True),
 ]
 

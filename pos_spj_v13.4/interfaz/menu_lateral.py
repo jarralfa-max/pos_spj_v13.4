@@ -21,7 +21,6 @@ MODULOS = [
     "activos",
     "merma",
     "produccion",
-    "recetas",
     "transferencias",
     "delivery",
     "whatsapp",
@@ -171,7 +170,6 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_header("Producción"))
         layout_botones.addWidget(self._crear_boton("🔪 Procesamiento Cárnico", "PRODUCCION"))
         layout_botones.addWidget(self._crear_boton("🏷️ Etiquetas", "ETIQUETAS"))
-        layout_botones.addWidget(self._crear_boton("📖 Recetas Industriales", "RECETAS"))
         layout_botones.addWidget(self._crear_boton("📈 Planeación de Compras", "PLANEACION_COMPRAS"))
 
         # --- SECCIÓN: ADMINISTRACIÓN ---
@@ -186,10 +184,11 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_boton("📱 Pedidos WhatsApp", "WHATSAPP"))
         layout_botones.addWidget(self._crear_boton("🧠 Decisiones / BI Pro", "DECISIONES"))
 
-        # --- SECCIÓN: CONFIGURACIÓN ---
+        # --- SECCIÓN: SISTEMA ---
         layout_botones.addWidget(self._crear_header("Sistema"))
         layout_botones.addWidget(self._crear_boton("🎨 Diseñador Tickets", "DISEÑADOR_TICKETS"))
         layout_botones.addWidget(self._crear_boton("🖨️ Hardware", "CONFIG_HARDWARE"))
+        layout_botones.addWidget(self._crear_boton("🔌 Configuración Módulos", "CONFIG_MODULOS"))
         layout_botones.addWidget(self._crear_boton("🛡️ Configuración", "CONFIG_SEGURIDAD"))
 
         # Espaciador para empujar los botones hacia arriba dentro del scroll
