@@ -44,6 +44,10 @@ class RRHHService:
         salario_base = empleado['salario']
         total_pagar = (salario_base / 8.0) * total_horas # Asumiendo salario diario / 8 hrs
 
+        # Fase 3 — retenciones IMSS e ISR (aditivo: no cambia neto_a_pagar existente)
+        ret_imss = self.calcular_retenciones_imss(salario_base)
+        ret_isr  = self.calcular_isr_mensual(total_pagar)
+
         return {
             'empleado_id': empleado_id,
             'nombre_completo': f"{empleado['nombre']} {empleado['apellidos']}",
@@ -51,7 +55,18 @@ class RRHHService:
             'dias_asistidos': dias_asistidos,
             'total_horas': total_horas,
             'salario_base': salario_base,
-            'neto_a_pagar': total_pagar
+            'neto_a_pagar': total_pagar,
+            # ── retenciones Fase 3 ────────────────────────────────────────────
+            'imss_obrero':    ret_imss['obrero'],
+            'isr_mensual':    ret_isr['isr_mensual'],
+            'neto_deducido':  round(total_pagar
+                                   - ret_imss['obrero']
+                                   - ret_isr['isr_mensual'], 2),
+            'retenciones': {
+                'imss_obrero':  ret_imss['obrero'],
+                'imss_patronal': ret_imss['patronal'],
+                'isr_mensual':   ret_isr['isr_mensual'],
+            },
         }
 
     def procesar_pago_nomina(self, datos_nomina: dict, metodo_pago: str, sucursal_id: int, admin_user: str) -> str:
@@ -140,3 +155,67 @@ class RRHHService:
             except Exception: pass
             logger.error("Fallo al procesar nómina: %s", e)
             raise RuntimeError(f"Fallo al procesar nómina: {str(e)}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  Fase 3 — Retenciones IMSS e ISR (Plan Maestro SPJ v13.4)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    # Tasas IMSS 2024 sobre Salario Base de Cotización (SBC)
+    _IMSS_TASA_OBRERO   = 0.02375   # cuota obrero (Enf+Maternidad+Invalidez+Vejez)
+    _IMSS_TASA_PATRONAL = 0.20400   # cuota patronal total
+
+    # Tabla ISR Art. 96 LISR 2024 mensual
+    # (lim_inf, lim_sup, cuota_fija, tasa_excedente)
+    _ISR_TABLA_2024 = [
+        (0.01,       746.04,      0.00,      0.0192),
+        (746.05,     6332.05,     14.32,     0.0640),
+        (6332.06,    11128.01,    371.83,    0.1088),
+        (11128.02,   12935.82,    893.63,    0.1600),
+        (12935.83,   15487.71,    1182.88,   0.1792),
+        (15487.72,   31236.49,    1640.18,   0.2136),
+        (31236.50,   49233.00,    5004.12,   0.2352),
+        (49233.01,   93993.90,    9236.89,   0.3000),
+        (93993.91,   125325.20,  22665.17,   0.3200),
+        (125325.21, 375975.61,   32691.18,   0.3400),
+        (375975.62, float('inf'), 117912.32, 0.3500),
+    ]
+
+    def calcular_retenciones_imss(self, salario: float) -> dict:
+        """
+        Calcula cuotas IMSS obrero y patronal mensuales.
+        Usa tasas 2024 sobre el Salario Base de Cotización (SBC).
+        """
+        if salario <= 0:
+            return {"salario_base": 0.0, "obrero": 0.0, "patronal": 0.0,
+                    "tasa_obrero": self._IMSS_TASA_OBRERO,
+                    "tasa_patronal": self._IMSS_TASA_PATRONAL}
+        obrero    = round(salario * self._IMSS_TASA_OBRERO, 2)
+        patronal  = round(salario * self._IMSS_TASA_PATRONAL, 2)
+        return {
+            "salario_base":    round(salario, 2),
+            "tasa_obrero":     self._IMSS_TASA_OBRERO,
+            "tasa_patronal":   self._IMSS_TASA_PATRONAL,
+            "obrero":          obrero,
+            "patronal":        patronal,
+        }
+
+    def calcular_isr_mensual(self, salario: float) -> dict:
+        """
+        Retención mensual ISR empleado — tabla SAT Art. 96 LISR 2024.
+        """
+        if salario <= 0:
+            return {"salario_mensual": 0.0, "isr_mensual": 0.0, "tasa_efectiva_pct": 0.0}
+
+        isr = 0.0
+        for li, ls, cuota_fija, tasa in self._ISR_TABLA_2024:
+            if li <= salario <= ls:
+                isr = cuota_fija + (salario - li) * tasa
+                break
+
+        isr = max(0.0, round(isr, 2))
+        tasa_efectiva = round((isr / salario) * 100, 2) if salario > 0 else 0.0
+        return {
+            "salario_mensual":  round(salario, 2),
+            "isr_mensual":      isr,
+            "tasa_efectiva_pct": tasa_efectiva,
+        }

@@ -525,6 +525,154 @@ class TreasuryService:
             pass
 
     # ══════════════════════════════════════════════════════════════════════════
+    #  Balance General y Estado de Resultados (Fase 3 — Plan Maestro SPJ v13.4)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def balance_general(self, fecha_corte: str = "") -> Dict[str, Any]:
+        """
+        Balance general simplificado al cierre del periodo.
+        Activo = Pasivo + Capital  (ecuación contable fundamental).
+        """
+        fc = fecha_corte or ""
+        dt_filter = f"AND DATE(fecha) <= '{fc}'" if fc else ""
+
+        # ── ACTIVO ────────────────────────────────────────────────────────────
+        caja = max(0.0,
+            self._q(f"SELECT COALESCE(SUM(ingreso),0) FROM treasury_ledger"
+                    f" WHERE tipo='ingreso' {dt_filter}")
+            - self._q(f"SELECT COALESCE(SUM(egreso),0) FROM treasury_ledger"
+                      f" WHERE tipo='egreso' {dt_filter}")
+        )
+        cxc = self._q(
+            "SELECT COALESCE(SUM(balance),0) FROM accounts_receivable "
+            "WHERE status IN ('pendiente','parcial')", [])
+        inventario = self._q(
+            "SELECT COALESCE(SUM(existencia * COALESCE(precio_compra,costo,0)),0) "
+            "FROM productos WHERE activo=1", [])
+        activos_fijos = self._q(
+            "SELECT COALESCE(SUM(valor_adquisicion),0) FROM activos "
+            "WHERE estado='activo'", [])
+        dep_acumulada = self._q(
+            "SELECT COALESCE(SUM(acumulado),0) FROM depreciacion_acumulada "
+            "WHERE activo_id IN (SELECT id FROM activos WHERE estado='activo')", [])
+        activo_fijo_neto = max(0.0, activos_fijos - dep_acumulada)
+        total_activo = caja + cxc + inventario + activo_fijo_neto
+
+        # ── PASIVO ────────────────────────────────────────────────────────────
+        cxp = self._q(
+            "SELECT COALESCE(SUM(balance),0) FROM accounts_payable "
+            "WHERE status IN ('pendiente','parcial')", [])
+        pasivo_loyalty = self._q(
+            "SELECT COALESCE(SUM(monto_total),0) FROM loyalty_pasivo_log", [])
+        total_pasivo = cxp + pasivo_loyalty
+
+        # ── CAPITAL ───────────────────────────────────────────────────────────
+        aportaciones = self._q(
+            "SELECT COALESCE(SUM(monto),0) FROM treasury_capital "
+            f"WHERE tipo='inyeccion' {dt_filter}")
+        retiros = abs(self._q(
+            "SELECT COALESCE(SUM(monto),0) FROM treasury_capital "
+            f"WHERE tipo='retiro' {dt_filter}"))
+        utilidad = total_activo - total_pasivo - (aportaciones - retiros)
+        total_capital = aportaciones - retiros + utilidad
+
+        return {
+            "activo": {
+                "caja_bancos":       r2(caja),
+                "cuentas_cobrar":    r2(cxc),
+                "inventario":        r2(inventario),
+                "activos_fijos":     r2(activos_fijos),
+                "dep_acumulada":     r2(dep_acumulada),
+                "activo_fijo_neto":  r2(activo_fijo_neto),
+                "total_activo":      r2(total_activo),
+            },
+            "pasivo": {
+                "cuentas_pagar":     r2(cxp),
+                "pasivo_fidelizacion": r2(pasivo_loyalty),
+                "total_pasivo":      r2(total_pasivo),
+            },
+            "capital": {
+                "aportaciones":      r2(aportaciones),
+                "retiros":           r2(retiros),
+                "utilidad_ejercicio": r2(utilidad),
+                "total_capital":     r2(total_capital),
+            },
+            "ecuacion_ok": abs(total_activo - (total_pasivo + total_capital)) < 0.02,
+        }
+
+    def estado_resultados(self, fecha_ini: str = "",
+                          fecha_fin: str = "") -> Dict[str, Any]:
+        """
+        Estado de resultados para el periodo dado.
+        Utilidad = Ventas − CostoVentas − Gastos
+        """
+        from datetime import date
+        hoy = date.today()
+        df = fecha_ini or date(hoy.year, hoy.month, 1).isoformat()
+        dt = fecha_fin or hoy.isoformat()
+
+        ventas = self._q(
+            "SELECT COALESCE(SUM(total),0) FROM ventas "
+            "WHERE estado='completada' AND DATE(fecha) BETWEEN ? AND ?", [df, dt])
+        costo_venta = self._q(
+            "SELECT COALESCE(SUM(dv.cantidad * COALESCE(dv.costo_unitario_real,"
+            "p.precio_compra,p.costo,0)),0) "
+            "FROM detalles_venta dv "
+            "JOIN ventas v ON v.id=dv.venta_id "
+            "LEFT JOIN productos p ON p.id=dv.producto_id "
+            "WHERE v.estado='completada' AND DATE(v.fecha) BETWEEN ? AND ?", [df, dt])
+        merma = self._q(
+            "SELECT COALESCE(SUM(cantidad * COALESCE(costo_unitario,0)),0) "
+            "FROM merma WHERE DATE(fecha) BETWEEN ? AND ?", [df, dt])
+        utilidad_bruta = ventas - costo_venta - merma
+
+        nomina = self._q(
+            "SELECT COALESCE(SUM(total),0) FROM nomina_pagos "
+            "WHERE estado='pagado' AND DATE(fecha) BETWEEN ? AND ?", [df, dt])
+        depreciacion = self._q(
+            "SELECT COALESCE(SUM(monto_mes),0) FROM depreciacion_acumulada "
+            "WHERE periodo BETWEEN ? AND ?",
+            [df[:7], dt[:7]])
+        gastos_fijos = self._q(
+            "SELECT COALESCE(SUM(monto),0) FROM gastos "
+            "WHERE DATE(fecha) BETWEEN ? AND ? AND ("
+            "LOWER(categoria) LIKE '%fijo%' OR LOWER(categoria) LIKE '%renta%' "
+            "OR LOWER(categoria) LIKE '%luz%' OR LOWER(categoria) LIKE '%agua%' "
+            "OR LOWER(categoria) LIKE '%gas%' OR LOWER(categoria) LIKE '%internet%' "
+            "OR LOWER(categoria) LIKE '%seguro%')", [df, dt])
+        gastos_op = self._q(
+            "SELECT COALESCE(SUM(monto),0) FROM gastos "
+            "WHERE DATE(fecha) BETWEEN ? AND ? AND ("
+            "LOWER(categoria) LIKE '%operativ%' OR LOWER(categoria) LIKE '%insumo%' "
+            "OR LOWER(categoria) LIKE '%mantenimiento%' OR LOWER(categoria) LIKE '%limpieza%' "
+            "OR LOWER(categoria) LIKE '%publicidad%' OR LOWER(categoria) LIKE '%empaque%')",
+            [df, dt])
+        comisiones = self._q(
+            "SELECT COALESCE(SUM(total*0.036),0) FROM ventas "
+            "WHERE estado='completada' AND forma_pago='Mercado Pago' "
+            "AND DATE(fecha) BETWEEN ? AND ?", [df, dt])
+        total_gastos = nomina + depreciacion + gastos_fijos + gastos_op + comisiones
+        utilidad_neta = utilidad_bruta - total_gastos
+
+        return {
+            "periodo":          {"desde": df, "hasta": dt},
+            "ventas":           r2(ventas),
+            "costo_venta":      r2(costo_venta),
+            "merma":            r2(merma),
+            "utilidad_bruta":   r2(utilidad_bruta),
+            "gastos": {
+                "nomina":       r2(nomina),
+                "depreciacion": r2(depreciacion),
+                "gastos_fijos": r2(gastos_fijos),
+                "gastos_op":    r2(gastos_op),
+                "comisiones":   r2(comisiones),
+                "total":        r2(total_gastos),
+            },
+            "utilidad_neta":    r2(utilidad_neta),
+            "margen_neto_pct":  r1((utilidad_neta / ventas * 100) if ventas else 0),
+        }
+
+    # ══════════════════════════════════════════════════════════════════════════
     #  Helper
     # ══════════════════════════════════════════════════════════════════════════
 
@@ -538,3 +686,75 @@ class TreasuryService:
 
 def r2(v): return round(v, 2)
 def r1(v): return round(v, 1)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  CapitalAccount — Fase 3 (Plan Maestro SPJ v13.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class CapitalAccount:
+    """
+    Wrapper de treasury_capital — Fase 3.
+    Encapsula inyección, retiro y consulta de saldo del capital corporativo.
+    """
+
+    def __init__(self, treasury_svc: "TreasuryService"):
+        self._t = treasury_svc
+
+    # ── escritura ──────────────────────────────────────────────────────────────
+
+    def inyectar(self, monto: float, concepto: str = "Inyección de capital",
+                 usuario: str = "sistema") -> Dict[str, Any]:
+        """Registra una aportación de capital en treasury_capital."""
+        if monto <= 0:
+            return {"ok": False, "error": "Monto debe ser mayor a cero"}
+        try:
+            self._t.db.execute(
+                "INSERT INTO treasury_capital(tipo, monto, concepto, usuario) "
+                "VALUES('inyeccion', ?, ?, ?)",
+                (monto, concepto, usuario),
+            )
+            self._t.db.commit()
+            return {"ok": True, "tipo": "inyeccion", "monto": r2(monto)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def retirar(self, monto: float, concepto: str = "Retiro de capital",
+                usuario: str = "sistema") -> Dict[str, Any]:
+        """Registra un retiro de capital en treasury_capital."""
+        if monto <= 0:
+            return {"ok": False, "error": "Monto debe ser mayor a cero"}
+        saldo = self.saldo_actual()
+        if monto > saldo + 0.001:
+            return {"ok": False, "error": f"Saldo insuficiente: {saldo:.2f}"}
+        try:
+            self._t.db.execute(
+                "INSERT INTO treasury_capital(tipo, monto, concepto, usuario) "
+                "VALUES('retiro', ?, ?, ?)",
+                (monto, concepto, usuario),
+            )
+            self._t.db.commit()
+            return {"ok": True, "tipo": "retiro", "monto": r2(monto)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    # ── lectura ────────────────────────────────────────────────────────────────
+
+    def saldo_actual(self) -> float:
+        """Saldo neto = inyecciones − retiros (nunca negativo)."""
+        iny = self._t._q(
+            "SELECT COALESCE(SUM(monto),0) FROM treasury_capital WHERE tipo='inyeccion'")
+        ret = self._t._q(
+            "SELECT COALESCE(SUM(monto),0) FROM treasury_capital WHERE tipo='retiro'")
+        return r2(max(0.0, iny - ret))
+
+    def historial(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Retorna los últimos movimientos de capital."""
+        try:
+            rows = self._t.db.execute(
+                "SELECT tipo, monto, concepto, usuario, created_at "
+                "FROM treasury_capital ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
