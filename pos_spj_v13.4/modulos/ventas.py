@@ -42,7 +42,7 @@ try:
     from config import TEMAS, configuraciones_POR_DEFECTO, GestorTemas
 except ImportError:
     TEMAS = {}
-    configuraciones_POR_DEFECTO = {'tema': 'Oscuro Moderno'}
+    configuraciones_POR_DEFECTO = {'tema': 'Oscuro'}
     
     class GestorTemas:
         def __init__(self, conexion):
@@ -56,7 +56,7 @@ except ImportError:
             self.temas = TEMAS
         
         def obtener_tema_actual(self):
-            return "Oscuro Moderno"
+            return "Oscuro"
         
         def aplicar_tema(self, widget, nombre_tema):
             return False
