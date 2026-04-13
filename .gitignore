@@ -1,1 +1,23 @@
-Nothing should be ignored based on the provided file changes. The modification of 'pos_spj_v13.4/modulos/configuracion.py' is a source code file that should remain tracked in version control. No build artifacts, dependencies, or temporary files are present in the changes to warrant adding ignore rules.
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dependencies
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.*
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+```
