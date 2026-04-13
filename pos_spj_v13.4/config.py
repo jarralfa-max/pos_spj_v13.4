@@ -8,15 +8,25 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICONS_DIR = os.path.join(BASE_DIR, "recursos", "icons")
 DATABASE_NAME = "punto_venta.db"
 
-# --- TEMAS ELEGANTES Y MODERNOS ---
+# --- TEMAS SIMPLIFICADOS: SOLO CLARO Y OSCURO ---
 TEMAS = {
-    "Oscuro Moderno": """
-        /* ===== PALETA DE COLORES OSCURO MODERNO ===== */
+    "Oscuro": """
+        /* ===== PALETA DE COLORES OSCURO ===== */
         QMainWindow, QDialog, QWidget {
             background-color: #1E1E1E;
             color: #E8E8E8;
             font-family: 'Segoe UI', 'Roboto', sans-serif;
             font-size: 11px;
+        }
+        
+        /* ===== TOOLTIPS ===== */
+        QToolTip {
+            background-color: #2D3748;
+            color: #E8E8E8;
+            border: 1px solid #4A5568;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 10px;
         }
         
         /* ===== BOTONES PRINCIPALES ===== */
@@ -744,13 +754,23 @@ TEMAS = {
         
     """,
     
-    "Claro Elegante": """
-        /* ===== PALETA DE COLORES CLARO ELEGANTE ===== */
+    "Claro": """
+        /* ===== PALETA DE COLORES CLARO ===== */
         QMainWindow, QDialog, QWidget {
             background-color: #F7FAFC;
             color: #2D3748;
             font-family: 'Segoe UI', 'Roboto', sans-serif;
             font-size: 11px;
+        }
+        
+        /* ===== TOOLTIPS ===== */
+        QToolTip {
+            background-color: #FFFFFF;
+            color: #2D3748;
+            border: 1px solid #CBD5E0;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 10px;
         }
         
         /* ===== BOTONES PRINCIPALES ===== */
@@ -1616,7 +1636,7 @@ TEMAS = {
 
 # --- Configuración por defecto ---
 configuraciones_POR_DEFECTO = {
-    'tema': 'Oscuro Moderno',
+    'tema': 'Oscuro',
     'requerir_admin': 'True',
     'whatsapp_numero': '+525659274265',
     'impuesto_por_defecto': '16'
@@ -1666,9 +1686,9 @@ class GestorTemas:
             cursor = self.conexion.cursor()
             cursor.execute("SELECT valor FROM configuraciones WHERE clave = 'tema'")
             resultado = cursor.fetchone()
-            return resultado[0] if resultado else "Oscuro Moderno"
+            return resultado[0] if resultado else "Oscuro"
         except sqlite3.Error:
-            return "Oscuro Moderno"
+            return "Oscuro"
     
     def cargar_tema_guardado(self, widget):
         """

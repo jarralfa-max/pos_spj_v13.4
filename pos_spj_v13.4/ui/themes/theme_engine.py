@@ -11,15 +11,12 @@ logger = logging.getLogger("spj.theme_engine")
 
 # Mapa: nombres spec → nombres en TEMAS existentes
 _THEME_ALIASES = {
-    "SPJ_DARK":           "Oscuro Moderno",
-    "SPJ_LIGHT":          "Claro Elegante",
-    "SPJ_BLUE_PRO":       "Azul Profesional",
-    "SPJ_GREEN_ELEGANT":  "Verde Naturaleza",
-    "SPJ_PURPLE_PREMIUM": "Púrpura Creativo",
+    "SPJ_DARK":           "Oscuro",
+    "SPJ_LIGHT":          "Claro",
 }
 
 # Nombre por defecto
-_DEFAULT_THEME = "Oscuro Moderno"
+_DEFAULT_THEME = "Oscuro"
 _current_theme = _DEFAULT_THEME
 
 

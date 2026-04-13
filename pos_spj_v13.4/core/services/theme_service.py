@@ -33,7 +33,7 @@ class ThemeService:
         }
 
     def get_user_preferences(self) -> dict:
-        prefs = {'theme': 'Light', 'density': 'Normal',
+        prefs = {'theme': 'Oscuro', 'density': 'Normal',
                  'font_size': '12', 'icon_size': '24'}
         try:
             rows = self.db.execute(
