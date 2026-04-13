@@ -192,6 +192,8 @@ class PrintQueue:
         self.total_failed = 0
         # EventBus — inyectado desde PrinterService después de construcción
         self._bus = None
+        # DB — inyectado desde PrinterService para bitácora de impresión
+        self._db = None
 
     def start(self):
         if self._running:
@@ -294,7 +296,42 @@ class PrintQueue:
                     except Exception:
                         pass
 
+            # ── Bitácora de impresión en BD (Fase 1 — Plan Maestro) ───────────
+            self._log_job_to_db(job, attempt if success else job.retries)
+
             self._queue.task_done()
+
+    def _log_job_to_db(self, job: "PrintJob", reintentos: int) -> None:
+        """Persiste el resultado del trabajo en print_job_log."""
+        if not self._db:
+            return
+        try:
+            from datetime import datetime
+            rd = job.raw_data or {}
+            self._db.execute("""
+                INSERT INTO print_job_log
+                    (job_id, job_type, plantilla, impresora, folio, estado,
+                     reintentos, total, error_msg, finished_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (
+                job.id,
+                job.job_type.value,
+                rd.get("plantilla", rd.get("ticket_type", "")),
+                job.destination or "",
+                rd.get("folio", ""),
+                job.status.value,
+                max(0, reintentos - 1),
+                float(rd.get("totales", {}).get("total_final",
+                      rd.get("total", 0)) or 0),
+                job.error_msg or "",
+                datetime.utcnow().isoformat(),
+            ))
+            try:
+                self._db.commit()
+            except Exception:
+                pass
+        except Exception as exc:
+            logger.debug("print_job_log insert failed: %s", exc)
 
     @property
     def pending(self) -> int:
@@ -325,6 +362,8 @@ class PrinterService:
             self.queue._bus = get_bus()
         except Exception:
             pass
+        # Conectar DB para bitácora de impresión (Fase 1)
+        self.queue._db = db_conn
         self.queue.start()
         self._load_configs()
 

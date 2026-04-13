@@ -5,6 +5,33 @@ documentarse aquí antes del commit.
 
 ---
 
+## 058_scan_event_log — 2026-04-12
+
+**Motivo:** Fase 2 — auditoría de eventos de escaneo (Plan Maestro).
+**Tabla:** `scan_event_log` (raw_code, tipo, contexto, accion, payload, cliente_id, producto_id).
+**Impacto:** Solo lectura/escritura de auditoría; sin cambios destructivos.
+
+---
+
+## 057_loyalty_ledger_unificado — 2026-04-12
+
+**Motivo:** Fase 2 — ledger unificado de fidelización (acumulación+canje+reversa).
+**Tabla:** `loyalty_ledger` (cliente_id, tipo, puntos, monto_equiv, saldo_post, referencia).
+**Tablas existentes preservadas:** `growth_ledger`, `loyalty_pasivo_log`, `historico_puntos`.
+**Impacto:** Solo aditivo; no modifica tablas existentes.
+
+---
+
+## 056_print_job_log — 2026-04-12
+
+**Motivo:** Fase 1 Plan Maestro — bitácora de impresión obligatoria.
+**Tabla creada:** `print_job_log` (job_id, job_type, plantilla, impresora, folio,
+estado, reintentos, total, error_msg, created_at, finished_at).
+**Impacto:** Auditoría de cada trabajo de impresión; sin cambios destructivos.
+**Registrado en:** `migrations/engine.py` posición 056.
+
+---
+
 ## Estado inicial auditado — 2026-04-08
 
 ### Migraciones canónicas (en engine.py)

@@ -228,3 +228,122 @@ def apply_global_theme(db_conn=None) -> None:
         load_saved_theme(None)
     except Exception as e:
         _log.debug("apply_global_theme: %s", e)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Tooltips obligatorios (Fase 1 — Plan Maestro SPJ v13.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Mapeo texto → tooltip descriptivo por keyword
+_TOOLTIP_MAP = {
+    "guardar":       "Guardar cambios",
+    "nuevo":         "Crear nuevo registro",
+    "agregar":       "Agregar elemento",
+    "crear":         "Crear nuevo elemento",
+    "confirmar":     "Confirmar operación",
+    "aceptar":       "Aceptar y continuar",
+    "eliminar":      "Eliminar permanentemente",
+    "borrar":        "Borrar registro",
+    "cancelar":      "Cancelar operación",
+    "editar":        "Editar registro",
+    "modificar":     "Modificar datos",
+    "actualizar":    "Actualizar información",
+    "buscar":        "Buscar en catálogo",
+    "filtrar":       "Filtrar resultados",
+    "imprimir":      "Enviar a impresora",
+    "reimprimir":    "Reimprimir último documento",
+    "exportar":      "Exportar a archivo",
+    "reporte":       "Ver reporte",
+    "cerrar":        "Cerrar ventana",
+    "salir":         "Salir del módulo",
+    "cobrar":        "Procesar pago",
+    "nueva venta":   "Iniciar nueva venta",
+    "abrir caja":    "Abrir turno de caja",
+    "corte":         "Generar corte de caja",
+    "generar":       "Generar documento",
+    "enviar":        "Enviar información",
+    "conectar":      "Probar conexión",
+    "probar":        "Probar función",
+    "analizar":      "Analizar datos",
+}
+
+
+def _tooltip_for_text(text: str) -> str:
+    """Determina tooltip a partir del texto del botón."""
+    import re
+    t = re.sub(r'[^\w\s]', ' ', text.lower()).strip()
+    best_kw, best_tip = "", ""
+    for kw, tip in _TOOLTIP_MAP.items():
+        if kw in t and len(kw) > len(best_kw):
+            best_kw, best_tip = kw, tip
+    return best_tip
+
+
+def apply_spj_tooltips(widget) -> None:
+    """
+    Recorre todos los QPushButton del widget y asigna tooltips descriptivos
+    basados en el texto del botón. Solo asigna si el botón no tiene tooltip.
+
+    Fase 1 — Plan Maestro: tooltips obligatorios en UI.
+    """
+    from PyQt5.QtWidgets import QPushButton
+    for btn in widget.findChildren(QPushButton):
+        if btn.toolTip():
+            continue  # Ya tiene tooltip
+        tip = _tooltip_for_text(btn.text())
+        if tip:
+            btn.setToolTip(tip)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Scrollbars uniformes (Fase 1 — Plan Maestro SPJ v13.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SCROLLBAR_QSS = """
+QScrollBar:vertical {
+    background: #f0f0f0;
+    width: 10px;
+    margin: 0;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical {
+    background: #b0b8c1;
+    min-height: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #0FB9B1;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+    background: none;
+}
+QScrollBar:horizontal {
+    background: #f0f0f0;
+    height: 10px;
+    margin: 0;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal {
+    background: #b0b8c1;
+    min-width: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #0FB9B1;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+    background: none;
+}
+"""
+
+
+def apply_scrollbars(widget) -> None:
+    """
+    Aplica el estilo uniforme de scrollbars a un widget.
+    Fase 1 — Plan Maestro: scrollbars consistentes en toda la app.
+    """
+    existing = widget.styleSheet() or ""
+    if "QScrollBar" not in existing:
+        widget.setStyleSheet(existing + SCROLLBAR_QSS)
