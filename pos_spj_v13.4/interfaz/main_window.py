@@ -133,11 +133,6 @@ except Exception:
 # produccion_carnica unificada en ModuloProduccion (tabs Cárnica + Recetas)
 
 try:
-    from modulos.recetas import ModuloRecetas
-except Exception:
-    ModuloRecetas = None
-
-try:
     from modulos.whatsapp_module import ModuloWhatsApp
 except Exception:
     ModuloWhatsApp = None
