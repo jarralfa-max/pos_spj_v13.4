@@ -1,28 +1,9 @@
 ```
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-# Compiled and build artifacts
-*.o
-*.obj
+*.py[cod]
+*$py.class
 *.so
-*.a
-*.dll
-*.exe
-*.out
-
-# Dependencies
-.venv/
-venv/
-env/
-.env
-.env.local
-.env.*
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -40,28 +21,19 @@ wheels/
 .installed.cfg
 *.egg
 
-# IDEs
+# IDE
 .vscode/
 .idea/
-*.swp
-*.swo
+
+# Environment
+.env
+.env.local
+*.env.*
 
 # Logs
 *.log
 
-# Coverage
-.coverage
-htmlcov/
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# Temporary files
-*.tmp
-*~
+# OS
 .DS_Store
 Thumbs.db
 ```
