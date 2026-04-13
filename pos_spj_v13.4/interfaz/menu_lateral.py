@@ -20,7 +20,6 @@ MODULOS = [
     "activos",
     "merma",
     "produccion",
-    "recetas",
     "transferencias",
     "delivery",
     "whatsapp",
