@@ -2172,8 +2172,8 @@ class ModuloConfiguracion(ModuloBase):
         form = QFormLayout(grp)
 
         self.ap_combo_tema = QComboBox()
-        self.ap_combo_tema.addItems(["Light", "Dark", "Green Elegant", "Blue", "Purple"])
-        self.ap_combo_tema.setToolTip("Paleta de colores del sistema")
+        self.ap_combo_tema.addItems(["Claro", "Oscuro"])
+        self.ap_combo_tema.setToolTip("Tema de colores del sistema\nClaro: fondo blanco, texto oscuro\nOscuro: fondo oscuro, texto claro")
 
         self.ap_combo_densidad = QComboBox()
         self.ap_combo_densidad.addItems(["Compact", "Normal", "Comfortable"])
@@ -2210,50 +2210,84 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_apariencia(self):
         try:
+            # Cargar tema desde BD (clave='tema') para sincronización global
+            from core.db.connection import get_connection
+            conn = get_connection()
+            row = conn.execute(
+                "SELECT valor FROM configuraciones WHERE clave='tema'"
+            ).fetchone()
+            tema_guardado = row[0] if row else 'Oscuro'
+            
+            # Normalizar a nombres válidos: Light/Dark → Claro/Oscuro
+            tema_normalizado = 'Oscuro' if 'dark' in tema_guardado.lower() or tema_guardado == 'Oscuro' else 'Claro'
+            
+            densidad = 'Normal'
+            fuente = 12
+            iconos = 24
+            
+            # Intentar cargar prefs adicionales de ThemeService si existe
             ts = getattr(self.container, 'theme_service', None) if hasattr(self, 'container') else None
-            prefs = ts.get_user_preferences() if ts else {}
-            tema     = prefs.get('theme', 'Light')
-            densidad = prefs.get('density', 'Normal')
-            fuente   = int(prefs.get('font_size', 12))
-            iconos   = int(prefs.get('icon_size', 24))
-            idx = self.ap_combo_tema.findText(tema)
-            if idx >= 0: self.ap_combo_tema.setCurrentIndex(idx)
+            if ts:
+                prefs = ts.get_user_preferences()
+                densidad = prefs.get('density', 'Normal')
+                fuente = int(prefs.get('font_size', 12))
+                iconos = int(prefs.get('icon_size', 24))
+            
+            # Solo mostrar opciones Claro/Oscuro en el combo
+            idx = self.ap_combo_tema.findText(tema_normalizado)
+            if idx >= 0: 
+                self.ap_combo_tema.setCurrentIndex(idx)
+            else:
+                # Si el tema guardado no existe, usar Oscuro por defecto
+                self.ap_combo_tema.setCurrentIndex(0)
+                
             idx2 = self.ap_combo_densidad.findText(densidad)
             if idx2 >= 0: self.ap_combo_densidad.setCurrentIndex(idx2)
             self.ap_spin_fuente.setValue(fuente)
             self.ap_spin_iconos.setValue(iconos)
-        except Exception:
+        except Exception as e:
+            logging.getLogger("spj.config").debug("Error cargando apariencia: %s", e)
             pass
 
     def _previsualizar_tema(self):
         self._aplicar_apariencia(save=False)
 
     def _aplicar_apariencia(self, save=True):
-        # [spj-dedup removed local QMessageBox import]
-        tema     = self.ap_combo_tema.currentText()
+        from PyQt5.QtWidgets import QApplication, QMessageBox
+        # Solo permitir temas Claro u Oscuro
+        tema_raw = self.ap_combo_tema.currentText()
+        tema = 'Oscuro' if 'dark' in tema_raw.lower() or tema_raw == 'Oscuro' else 'Claro'
+        
         densidad = self.ap_combo_densidad.currentText()
         fuente   = str(self.ap_spin_fuente.value())
         iconos   = str(self.ap_spin_iconos.value())
+        
         try:
+            # 1. Guardar en BD (clave='tema') para persistencia global
+            from core.db.connection import get_connection
+            conn = get_connection()
+            conn.execute(
+                "INSERT OR REPLACE INTO configuraciones (clave, valor) VALUES ('tema', ?)",
+                (tema,)
+            )
+            conn.commit()
+            
+            # 2. Aplicar tema usando theme_engine (fuente única de verdad: config.TEMAS)
+            from ui.themes.theme_engine import apply_theme
+            app = QApplication.instance()
+            apply_theme(app, tema)
+            
+            # 3. Guardar prefs adicionales en ThemeService si existe
             ts = getattr(self.container, 'theme_service', None) if hasattr(self, 'container') else None
-            if ts:
-                if save:
-                    ts.save_preferences(tema, densidad, fuente, iconos)
-                ts.apply_to_app(QApplication.instance())
-                if save:
-                    QMessageBox.information(self, "✅ Aplicado",
-                        f"Tema '{tema}' | Densidad '{densidad}' aplicados.")
-            else:
-                # Fallback: guardar directo en configuraciones
-                for clave, valor in [('ui_theme', tema), ('ui_density', densidad),
-                                      ('ui_font_size', fuente), ('ui_icon_size', iconos)]:
-                    self.conexion.execute(
-                        "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)",
-                        (clave, valor))
-                self.conexion.commit()
+            if ts and save:
+                ts.save_preferences(tema, densidad, fuente, iconos)
+            
+            if save:
+                QMessageBox.information(self, "✅ Aplicado",
+                    f"Tema '{tema}' aplicado correctamente.\nLos cambios son inmediatos.")
         except Exception as e:
-        # [spj-dedup removed local QMessageBox import]
-            QMessageBox.warning(self, "Aviso", f"No se pudo aplicar el tema:\n{e}")
+            logging.getLogger("spj.config").error("Error aplicando tema: %s", e)
+            QMessageBox.warning(self, "Error", f"No se pudo aplicar el tema:\n{e}")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: 📧 Email / SMTP
