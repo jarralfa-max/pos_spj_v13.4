@@ -48,9 +48,7 @@ class DialogoCorteZCiego(QDialog):
         # ── Header ───────────────────────────────────────────────────────────
         hdr = QLabel("CORTE Z — CONTEO FÍSICO DE EFECTIVO")
         hdr.setAlignment(Qt.AlignCenter)
-        hdr.setStyleSheet(
-            "font-size:16px;font-weight:bold;color:white;"
-            "background:#2c3e50;padding:10px;border-radius:6px;")
+        hdr.setObjectName("dialogHeader")
         root.addWidget(hdr)
 
         aviso = QLabel(
@@ -58,9 +56,7 @@ class DialogoCorteZCiego(QDialog):
             "los resultados del sistema. No consultes el modulo de ventas. "
             "El sistema te mostrara la diferencia solo despues de confirmar tu conteo.")
         aviso.setWordWrap(True)
-        aviso.setStyleSheet(
-            "background:#fffbea;border:1px solid #f39c12;"
-            "padding:10px;border-radius:6px;font-size:12px;")
+        aviso.setObjectName("warningBox")
         root.addWidget(aviso)
 
         # ── Stacked pages ─────────────────────────────────────────────────────
@@ -74,19 +70,18 @@ class DialogoCorteZCiego(QDialog):
 
         # ── Navigation buttons ────────────────────────────────────────────────
         nav = QHBoxLayout()
-        self._btn_back = QPushButton("◀ Anterior")
-        self._btn_back.setEnabled(False)
-        self._btn_next = QPushButton("Siguiente ▶")
-        self._btn_next.setStyleSheet(
-            "background:#2E86C1;color:white;font-weight:bold;"
-            "padding:8px 20px;border-radius:5px;")
-        self._btn_next.clicked.connect(self._next_page)
-        self._btn_back.clicked.connect(self._prev_page)
-
+        
         self._btn_cancel = QPushButton("Cancelar")
-        self._btn_cancel.setStyleSheet(
-            "background:#7f8c8d;color:white;padding:8px 16px;border-radius:5px;")
+        spj_btn(self._btn_cancel, "secondary", "sm")
         self._btn_cancel.clicked.connect(self.reject)
+
+        self._btn_back = QPushButton("◀ Anterior")
+        spj_btn(self._btn_back, "secondary", "sm")
+        self._btn_back.setEnabled(False)
+
+        self._btn_next = QPushButton("Siguiente ▶")
+        spj_btn(self._btn_next, "primary", "sm")
+        self._btn_next.clicked.connect(self._next_page)
 
         nav.addWidget(self._btn_cancel)
         nav.addStretch()
@@ -100,13 +95,11 @@ class DialogoCorteZCiego(QDialog):
         lay = QVBoxLayout(w)
 
         lbl = QLabel("Paso 1 de 2 — Cuenta los billetes y monedas del cajón")
-        lbl.setStyleSheet("font-weight:bold;font-size:13px;padding:4px;")
+        lbl.setObjectName("subheading")
         lay.addWidget(lbl)
 
         grp = QGroupBox("Denominaciones")
-        grp.setStyleSheet(
-            "QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-            "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         grid = QGridLayout(grp)
         grid.setSpacing(6)
 
@@ -124,7 +117,7 @@ class DialogoCorteZCiego(QDialog):
             grid.addWidget(spin, row_idx, col + 1)
             lbl_sub = QLabel("$0.00")
             lbl_sub.setFixedWidth(80)
-            lbl_sub.setStyleSheet("color:#2c3e50;")
+            lbl_sub.setObjectName("textSecondary")
             self._den_labels[valor] = lbl_sub
             grid.addWidget(lbl_sub, row_idx, col + 2)
 
@@ -132,9 +125,7 @@ class DialogoCorteZCiego(QDialog):
 
         self.lbl_total_arq = QLabel("Total contado: $0.00")
         self.lbl_total_arq.setAlignment(Qt.AlignRight)
-        self.lbl_total_arq.setStyleSheet(
-            "font-size:16px;font-weight:bold;"
-            "background:#eafaf1;padding:8px;border-radius:5px;")
+        self.lbl_total_arq.setObjectName("successBox")
         lay.addWidget(self.lbl_total_arq)
         return w
 
@@ -153,32 +144,30 @@ class DialogoCorteZCiego(QDialog):
         lay = QVBoxLayout(w)
 
         lbl = QLabel("Paso 2 de 2 — Confirma el total que contaste")
-        lbl.setStyleSheet("font-weight:bold;font-size:13px;padding:4px;")
+        lbl.setObjectName("subheading")
         lay.addWidget(lbl)
 
         aviso = QLabel(
             "El total del arqueo se muestra abajo. Si es correcto, haz clic en CONFIRMAR CORTE. El sistema calculara la diferencia en ese momento.")
         aviso.setWordWrap(True)
-        aviso.setStyleSheet("color:#555;padding:8px;")
+        aviso.setObjectName("textSecondary")
         lay.addWidget(aviso)
 
         grp = QGroupBox("Total físico contado")
-        grp.setStyleSheet(
-            "QGroupBox{font-weight:bold;border:1px solid #27ae60;"
-            "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         form = QFormLayout(grp)
 
         self.spin_total_fisico = QDoubleSpinBox()
         self.spin_total_fisico.setRange(0, 9999999)
         self.spin_total_fisico.setDecimals(2)
         self.spin_total_fisico.setPrefix("$ ")
-        self.spin_total_fisico.setStyleSheet(
-            "font-size:18px;font-weight:bold;padding:6px;")
+        self.spin_total_fisico.setObjectName("input")
         form.addRow("Efectivo contado:", self.spin_total_fisico)
 
         self.txt_observaciones = QLineEdit()
         self.txt_observaciones.setPlaceholderText(
             "Observaciones opcionales (ej. faltante detectado antes del corte)")
+        self.txt_observaciones.setObjectName("input")
         form.addRow("Observaciones:", self.txt_observaciones)
         lay.addWidget(grp)
         lay.addStretch()
@@ -191,9 +180,7 @@ class DialogoCorteZCiego(QDialog):
         self.lbl_resultado = QLabel("Procesando...")
         self.lbl_resultado.setWordWrap(True)
         self.lbl_resultado.setAlignment(Qt.AlignCenter)
-        self.lbl_resultado.setStyleSheet(
-            "font-size:13px;padding:16px;background:#f8f9fa;"
-            "border-radius:8px;border:1px solid #dee2e6;")
+        self.lbl_resultado.setObjectName("card")
         lay.addWidget(self.lbl_resultado, 1)
         return w
 
@@ -207,9 +194,7 @@ class DialogoCorteZCiego(QDialog):
             self._stack.setCurrentIndex(1)
             self._btn_back.setEnabled(True)
             self._btn_next.setText("✅ CONFIRMAR CORTE")
-            self._btn_next.setStyleSheet(
-                "background:#27ae60;color:white;font-weight:bold;"
-                "padding:8px 20px;border-radius:5px;")
+            spj_btn(self._btn_next, "success", "sm")
 
         elif cur == 1:
             # Paso 2 → 3: execute corte and reveal result
@@ -221,9 +206,7 @@ class DialogoCorteZCiego(QDialog):
             self._stack.setCurrentIndex(0)
             self._btn_back.setEnabled(False)
             self._btn_next.setText("Siguiente ▶")
-            self._btn_next.setStyleSheet(
-                "background:#2E86C1;color:white;font-weight:bold;"
-                "padding:8px 20px;border-radius:5px;")
+            spj_btn(self._btn_next, "primary", "sm")
 
     def _ejecutar_corte(self):
         """Llama al servicio, luego revela el resultado."""
@@ -289,9 +272,7 @@ class DialogoCorteZCiego(QDialog):
             self._stack.setCurrentIndex(2)
             self._btn_back.setEnabled(False)
             self._btn_next.setText("🖨️ Cerrar e Imprimir")
-            self._btn_next.setStyleSheet(
-                "background:#2E86C1;color:white;font-weight:bold;"
-                "padding:8px 20px;border-radius:5px;")
+            spj_btn(self._btn_next, "primary", "sm")
             self._btn_next.clicked.disconnect()
             self._btn_next.clicked.connect(self.accept)
             self._btn_cancel.setEnabled(False)
@@ -350,22 +331,22 @@ class ModuloCaja(QWidget, RefreshMixin):
         layout_principal = QVBoxLayout(self)
         
         self.lbl_titulo = QLabel("💵 Gestión de Caja Registradora")
-        self.lbl_titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.lbl_titulo.setObjectName("heading")
         layout_principal.addWidget(self.lbl_titulo)
         
         # --- PANEL DE ESTADO ---
         self.panel_estado = QGroupBox("Estado Actual")
-        self.panel_estado.setStyleSheet("font-size: 14px;")
+        self.panel_estado.setObjectName("styledGroup")
         layout_estado = QVBoxLayout(self.panel_estado)
         
         self.lbl_status = QLabel("Buscando estado del turno...")
         self.lbl_status.setAlignment(Qt.AlignCenter)
-        self.lbl_status.setStyleSheet("font-weight: bold; font-size: 16px; padding: 10px;")
+        self.lbl_status.setObjectName("statusLabel")
         layout_estado.addWidget(self.lbl_status)
         
         # Botón dinámico (Abrir o Cerrar Turno)
         self.btn_accion_turno = QPushButton("Acción de Turno")
-        self.btn_accion_turno.setStyleSheet("padding: 15px; font-weight: bold; font-size: 14px;")
+        spj_btn(self.btn_accion_turno, "primary")
         self.btn_accion_turno.clicked.connect(self.gestionar_turno)
         layout_estado.addWidget(self.btn_accion_turno)
         
@@ -373,6 +354,7 @@ class ModuloCaja(QWidget, RefreshMixin):
         
         # --- PANEL DE MOVIMIENTOS (RETIROS / INGRESOS) ---
         self.panel_movimientos = QGroupBox("💸 Registrar Movimiento de Efectivo")
+        self.panel_movimientos.setObjectName("styledGroup")
         layout_mov = QFormLayout(self.panel_movimientos)
         
         self.cmb_tipo_movimiento = QComboBox()
@@ -386,6 +368,7 @@ class ModuloCaja(QWidget, RefreshMixin):
         self.txt_concepto.setPlaceholderText("Ej. Pago a proveedor de refrescos, Cambio extra...")
         
         self.btn_guardar_mov = QPushButton("Guardar Movimiento")
+        spj_btn(self.btn_guardar_mov, "success")
         self.btn_guardar_mov.clicked.connect(self.registrar_movimiento)
         
         layout_mov.addRow("Tipo:", self.cmb_tipo_movimiento)
@@ -434,16 +417,20 @@ class ModuloCaja(QWidget, RefreshMixin):
             if turno:
                 self.turno_actual = turno['id']
                 self.lbl_status.setText(f"✅ TURNO ABIERTO\nFondo Inicial: ${turno['fondo_inicial']:.2f}")
-                self.lbl_status.setStyleSheet("color: #27ae60; font-weight: bold; font-size: 16px;")
+                self.lbl_status.setProperty("class", "status-success")
+                self.lbl_status.style().unpolish(self.lbl_status)
+                self.lbl_status.style().polish(self.lbl_status)
                 self.btn_accion_turno.setText("🔒 CERRAR CAJA (CORTE Z)")
-                self.btn_accion_turno.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+                spj_btn(self.btn_accion_turno, "danger")
                 self.panel_movimientos.setEnabled(True)
             else:
                 self.turno_actual = None
                 self.lbl_status.setText("❌ CAJA CERRADA")
-                self.lbl_status.setStyleSheet("color: #7f8c8d; font-weight: bold; font-size: 16px;")
+                self.lbl_status.setProperty("class", "status-neutral")
+                self.lbl_status.style().unpolish(self.lbl_status)
+                self.lbl_status.style().polish(self.lbl_status)
                 self.btn_accion_turno.setText("🔓 ABRIR TURNO DE CAJA")
-                self.btn_accion_turno.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+                spj_btn(self.btn_accion_turno, "primary")
                 self.panel_movimientos.setEnabled(False) # No se puede retirar dinero si la caja está cerrada
                 
         except Exception as e:
@@ -623,15 +610,11 @@ class ModuloCaja(QWidget, RefreshMixin):
 
             btn_row = QHBoxLayout()
             btn_print = QPushButton("🖨️ Imprimir")
-            btn_print.setStyleSheet(
-                "background:#2E86C1;color:white;font-weight:bold;"
-                "padding:8px 20px;border-radius:4px;")
+            spj_btn(btn_print, "primary", "sm")
             btn_pdf = QPushButton("💾 Guardar PDF")
-            btn_pdf.setStyleSheet(
-                "background:#27ae60;color:white;font-weight:bold;"
-                "padding:8px 16px;border-radius:4px;")
+            spj_btn(btn_pdf, "success", "sm")
             btn_close = QPushButton("Cerrar")
-            btn_close.setStyleSheet("padding:8px 16px;")
+            spj_btn(btn_close, "secondary", "sm")
 
             def _do_print():
                 # Try ESC/POS thermal printer first (from HardwareService config)
