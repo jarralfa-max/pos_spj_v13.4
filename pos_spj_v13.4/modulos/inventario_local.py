@@ -9,7 +9,7 @@ from core.events.event_bus import VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUC
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QInputDialog, QLineEdit, QFileDialog,
+    QMessageBox, QInputDialog, QLineEdit, QFileDialog, QComboBox,
 )
 from PyQt5.QtCore import Qt
 
