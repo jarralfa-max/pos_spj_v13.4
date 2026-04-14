@@ -5,7 +5,7 @@ import re
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input_field, create_combo, create_card, apply_tooltip, create_heading, create_subheading, create_caption, create_table_with_columns, create_table_button
 from core.events.event_bus import VENTA_COMPLETADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
 from core.services.auto_audit import audit_write

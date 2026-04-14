@@ -9,7 +9,7 @@ Diseñador profesional de Tickets con:
 """
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input, create_combo, create_card, apply_tooltip
 import logging
 import base64

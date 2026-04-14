@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input, create_combo, create_card, apply_tooltip
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
@@ -106,7 +106,7 @@ class TarjetaPedido(QFrame):
         self.setStyleSheet(f"""
             QFrame#cardPedido {{
                 border-left: 4px solid {color};
-                border-radius: {Radii.MD};
+                border-radius: {Borders.RADIUS_MD};
                 background: {Colors.CARD_DARK if hasattr(Colors, 'CARD_DARK') else Colors.NEUTRAL_800};
                 padding: {Spacing.SM};
                 margin: {Spacing.XS};

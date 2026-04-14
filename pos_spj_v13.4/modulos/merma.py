@@ -8,7 +8,7 @@ Módulo de registro de merma con:
 """
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_secondary_button, create_input, create_combo, create_card, create_heading, create_caption, apply_tooltip
 import logging
 import uuid
@@ -260,11 +260,11 @@ class ModuloMerma(QWidget):
             if valor >= UMBRAL_VALOR_ALTO:
                 self.lbl_valor_perdida.setStyleSheet(
                     f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.TEXT_INVERTED}; "
-                    f"background-color: {Colors.DANGER_BASE}; padding: {Spacing.XS} {Spacing.SM}; border-radius: {Radii.MD};")
+                    f"background-color: {Colors.DANGER_BASE}; padding: {Spacing.XS} {Spacing.SM}; border-radius: {Borders.RADIUS_MD};")
             else:
                 self.lbl_valor_perdida.setStyleSheet(
                     f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.DANGER_BASE}; "
-                    f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER_BG}; border-radius: {Radii.MD};")
+                    f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER_BG}; border-radius: {Borders.RADIUS_MD};")
         else:
             self.lbl_valor_perdida.setText("$0.00")
 

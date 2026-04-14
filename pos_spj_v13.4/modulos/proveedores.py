@@ -16,7 +16,7 @@ from datetime import date
 
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_heading, apply_tooltip
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (

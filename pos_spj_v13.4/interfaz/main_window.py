@@ -232,12 +232,14 @@ class DialogoLogin(QDialog):
         layout.setSpacing(16)
         layout.setContentsMargins(30, 30, 30, 30)
 
-        # Logo empresa - CORREGIDO: Sin cortes, escalado proporcional adecuado
+        # Logo empresa - CORREGIDO: Sin cortes, escalado proporcional adecuado y visible completo
         self.lbl_logo = QLabel()
         self.lbl_logo.setAlignment(Qt.AlignCenter)
         self.lbl_logo.setObjectName("loginLogo")
-        self.lbl_logo.setMinimumHeight(80)  # Espacio mínimo para evitar cortes
+        self.lbl_logo.setMinimumHeight(100)  # Espacio mínimo aumentado para evitar cortes
+        self.lbl_logo.setMaximumHeight(140)  # Límite máximo para no ocupar toda la pantalla
         self.lbl_logo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.lbl_logo.setScaledContents(False)  # Importante: no distorsionar
         
         try:
             from PyQt5.QtGui import QPixmap as _QP
@@ -248,9 +250,10 @@ class DialogoLogin(QDialog):
                 if _r and _r[0] and os.path.exists(_r[0]):
                     _pix = _QP(_r[0])
                     if not _pix.isNull():
-                        # Escalar manteniendo aspecto, tamaño máximo 120x120 para mejor visibilidad
-                        _scaled = _pix.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        # Escalar manteniendo aspecto, tamaño máximo 140x140 para mejor visibilidad completa
+                        _scaled = _pix.scaled(140, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         self.lbl_logo.setPixmap(_scaled)
+                        self.lbl_logo.setAlignment(Qt.AlignCenter)
                     else:
                         raise Exception()
                 else:
@@ -259,7 +262,8 @@ class DialogoLogin(QDialog):
                 raise Exception()
         except Exception:
             self.lbl_logo.setText("🏢")
-            self.lbl_logo.setStyleSheet("font-size: 48px; background-color: transparent;")
+            self.lbl_logo.setStyleSheet("font-size: 64px; background-color: transparent; min-height: 100px;")
+            self.lbl_logo.setAlignment(Qt.AlignCenter)
 
         layout.addWidget(self.lbl_logo)
 
