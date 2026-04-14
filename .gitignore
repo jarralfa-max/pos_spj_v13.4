@@ -1,13 +1,7 @@
-```
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
 # Logs and temp files
 *.log
 *.tmp
+*.swp
 
 # Environment
 .env
@@ -18,7 +12,110 @@ __pycache__/
 .vscode/
 .idea/
 
-# Dependencies
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
 venv/
 .venv/
-```
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.DS_Store
+Thumbs.db
+
+# Build and distribution artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
+.installed.cfg
+lib/
+lib64/
+parts/
+sdist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+.travis.yml
+.travis/
+.circleci/
+.github/
+
+# Testing
+.pytest_cache/
+.hypothesis/
+.coverage*
+htmlcov/
+.cov/
+coverage/
+nosetests.xml
+rejester-coverage/
+coverage.xml
+.installed.cfg
+
+# IDE specific
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.vscode/
+.idea/
+*.tmproj
+*.sublime-project
+*.sublime-workspace
+nbproject/
+.settings/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*:*
+*.DS_Store
+.DS_Store
+.Spotlight-V100
+.Trashes
+Icon?
+VolumeIcon.icns
+com.apple.timemachine.donotpresent
+
+# Local configuration files (may be local to the dev's machine)
+.venv/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# PyCharm
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Coverage
+.coverage*
+htmlcov/
+
+# End of .gitignore content
