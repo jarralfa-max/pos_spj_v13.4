@@ -6,7 +6,7 @@ from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.design_tokens import Colors, Spacing, Typography, Radii
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input, create_combo, create_card, apply_tooltip, create_heading, create_subheading, create_caption
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input_field, create_combo, create_card, apply_tooltip, create_heading, create_subheading, create_caption, create_table_with_columns, create_table_button
 from core.events.event_bus import VENTA_COMPLETADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
 from core.services.auto_audit import audit_write
 from core.events.event_bus import get_bus
@@ -111,14 +111,14 @@ class ModuloClientes(ModuloBase):
         layout.addLayout(toolbar)
 
         # --- Tabla de Clientes ---
-        self.tabla_clientes = QTableWidget()
-        self.tabla_clientes.setColumnCount(9)
-        self.tabla_clientes.setHorizontalHeaderLabels([
-            "ID", "Nombre", "Apellido", "Teléfono", "Puntos", "Nivel", "Saldo", "Límite Crédito", "Estado"
-        ])
+        self.tabla_clientes = create_table_with_columns(
+            self, 
+            columns=["ID", "Nombre", "Apellido", "Teléfono", "Puntos", "Nivel", "Saldo", "Límite Crédito", "Estado"],
+            show_grid=False,
+            alternating_colors=True
+        )
         self.tabla_clientes.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_clientes.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla_clientes.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.tabla_clientes)
 
         # --- Barra de estado/botones de acción ---

@@ -4,7 +4,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Shadows
 from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_danger_button,
     create_success_button, create_card, create_input_field,
-    create_heading, create_subheading, apply_tooltip, create_caption
+    create_heading, create_subheading, apply_tooltip, create_caption,
+    create_table_with_columns, create_table_button
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA
@@ -819,17 +820,16 @@ class ModuloCaja(QWidget, RefreshMixin):
         lay.addLayout(hdr)
 
         # Table
-        self._tbl_movs = QTableWidget()
-        self._tbl_movs.setColumnCount(6)
-        self._tbl_movs.setHorizontalHeaderLabels(
-            ["Hora", "Tipo", "Concepto", "Monto", "Usuario", "ID Turno"])
+        self._tbl_movs = create_table_with_columns(
+            self,
+            columns=["Hora", "Tipo", "Concepto", "Monto", "Usuario", "ID Turno"],
+            show_grid=False,
+            alternating_colors=True
+        )
         hh = self._tbl_movs.horizontalHeader()
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
         for c in (0, 1, 3, 4, 5):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
-        self._tbl_movs.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_movs.setAlternatingRowColors(True)
-        self._tbl_movs.verticalHeader().setVisible(False)
         lay.addWidget(self._tbl_movs)
 
         # Totals bar

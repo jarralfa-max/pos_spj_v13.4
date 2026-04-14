@@ -398,10 +398,11 @@ TEMAS = {
             border: none;
             border-bottom: 2px solid #475569;
             font-weight: 600;
-            padding: 8px 12px;
+            padding: 6px 10px;
             text-transform: uppercase;
-            font-size: 11px;
+            font-size: 10px;
             letter-spacing: 0.5px;
+            min-height: 40px;
         }
         QHeaderView::section:hover {
             background-color: #475569;
