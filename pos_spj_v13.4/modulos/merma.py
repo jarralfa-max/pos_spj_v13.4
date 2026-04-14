@@ -8,6 +8,8 @@ Módulo de registro de merma con:
 """
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.ui_components import create_primary_button, create_secondary_button, create_input, create_combo, create_card, create_heading, create_caption, apply_tooltip
 import logging
 import uuid
 from datetime import date, datetime
@@ -88,23 +90,18 @@ class ModuloMerma(QWidget):
         # Header
         hdr = QHBoxLayout()
         titulo = QLabel("🗑️ Control de Merma")
-        titulo.setStyleSheet("font-size:17px;font-weight:bold;color:#2c3e50;")
+        titulo.setObjectName("heading")
         hdr.addWidget(titulo)
         hdr.addStretch()
         # Resumen financiero del día
         self.lbl_resumen = QLabel()
-        self.lbl_resumen.setStyleSheet(
-            "font-size:12px;color:#e74c3c;font-weight:bold;"
-            "background:#fdf2f2;padding:6px 12px;border-radius:4px;")
+        self.lbl_resumen.setObjectName("caption")
+        self.lbl_resumen.setStyleSheet(f"color: {Colors.DANGER_BASE}; font-weight: bold;")
         hdr.addWidget(self.lbl_resumen)
         lay.addLayout(hdr)
 
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane { border:1px solid #ddd; background:white; border-radius:4px; }
-            QTabBar::tab { padding:7px 16px; font-size:12px; }
-            QTabBar::tab:selected { background:#e74c3c; color:white; font-weight:bold; }
-        """)
+        tabs.setObjectName("tabWidget")
 
         # ── Tab 1: Registro ───────────────────────────────────────────────
         tab_reg = QWidget()
@@ -123,16 +120,12 @@ class ModuloMerma(QWidget):
         lay.setSpacing(10)
 
         grp = QGroupBox("Datos de la merma")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp.setObjectName("styledGroup")
         form = QFormLayout(grp)
         form.setSpacing(8)
 
         # ── Búsqueda con autocompletado ───────────────────────────────────
-        self.txt_producto = QLineEdit()
-        self.txt_producto.setPlaceholderText("🔍 Buscar producto por nombre...")
-        self.txt_producto.setStyleSheet(
-            "padding:8px 12px;border:2px solid #e74c3c;border-radius:6px;"
-            "font-size:13px;background:white;")
+        self.txt_producto = create_input(self, "🔍 Buscar producto por nombre...")
         self._completer_model = QStringListModel()
         self._completer = QCompleter()
         self._completer.setModel(self._completer_model)
@@ -146,39 +139,35 @@ class ModuloMerma(QWidget):
 
         # ── Info del producto (feedback visual) ───────────────────────────
         self.lbl_producto_info = QLabel("")
-        self.lbl_producto_info.setStyleSheet(
-            "color:#666;font-size:11px;padding:2px 4px;background:#f8f8f8;border-radius:3px;")
+        self.lbl_producto_info.setObjectName("caption")
         form.addRow("", self.lbl_producto_info)
 
         # ── Cantidad ──────────────────────────────────────────────────────
         self.spin_cantidad = QDoubleSpinBox()
         self.spin_cantidad.setRange(0.001, 99999)
         self.spin_cantidad.setDecimals(3)
-        self.spin_cantidad.setStyleSheet("padding:6px;font-size:13px;")
+        self.spin_cantidad.setStyleSheet(f"padding: {Spacing.XS}; font-size: {Typography.SIZE_SM};")
         self.spin_cantidad.valueChanged.connect(self._actualizar_valor_perdida)
         form.addRow("Cantidad:", self.spin_cantidad)
 
         # ── Valor estimado de pérdida (protección financiera) ─────────────
         self.lbl_valor_perdida = QLabel("$0.00")
-        self.lbl_valor_perdida.setStyleSheet(
-            "font-size:16px;font-weight:bold;color:#e74c3c;"
-            "padding:4px 8px;background:#fff5f5;border-radius:4px;")
+        self.lbl_valor_perdida.setObjectName("heading")
+        self.lbl_valor_perdida.setStyleSheet(f"color: {Colors.DANGER_BASE};")
         form.addRow("Valor pérdida:", self.lbl_valor_perdida)
 
         # ── Motivo ────────────────────────────────────────────────────────
-        self.cmb_motivo = QComboBox()
-        self.cmb_motivo.addItems(self.MOTIVOS)
-        self.cmb_motivo.setStyleSheet("padding:4px;")
+        self.cmb_motivo = create_combo(self, self.MOTIVOS)
         form.addRow("Motivo:", self.cmb_motivo)
 
         # ── Notas ─────────────────────────────────────────────────────────
-        self.txt_notas = QLineEdit()
-        self.txt_notas.setPlaceholderText("Observaciones (opcional)")
+        self.txt_notas = create_input(self, "Observaciones (opcional)")
         form.addRow("Notas:", self.txt_notas)
 
         # ── Fecha ─────────────────────────────────────────────────────────
         self.date_edit = QDateEdit(QDate.currentDate())
         self.date_edit.setCalendarPopup(True)
+        self.date_edit.setObjectName("inputField")
         form.addRow("Fecha:", self.date_edit)
 
         lay.addWidget(grp)
@@ -186,10 +175,7 @@ class ModuloMerma(QWidget):
         # Botón registrar
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        btn_guardar = QPushButton("🗑️ Registrar Merma")
-        btn_guardar.setStyleSheet(
-            "background:#e74c3c;color:white;font-weight:bold;"
-            "padding:10px 28px;border-radius:5px;font-size:14px;")
+        btn_guardar = create_primary_button(self, "🗑️ Registrar Merma", "Confirmar el registro de la merma seleccionada")
         btn_guardar.clicked.connect(self._registrar)
         btn_row.addWidget(btn_guardar)
         lay.addLayout(btn_row)
@@ -200,19 +186,21 @@ class ModuloMerma(QWidget):
 
         # Filtros
         filt = QHBoxLayout()
-        filt.addWidget(QLabel("Período:"))
-        self.cmb_periodo = QComboBox()
-        self.cmb_periodo.addItems(["Hoy", "Última semana", "Último mes", "Todo"])
+        lbl_periodo = QLabel("Período:")
+        lbl_periodo.setObjectName("caption")
+        filt.addWidget(lbl_periodo)
+        self.cmb_periodo = create_combo(self, ["Hoy", "Última semana", "Último mes", "Todo"])
         self.cmb_periodo.currentIndexChanged.connect(self._cargar_historial)
         filt.addWidget(self.cmb_periodo)
         filt.addStretch()
-        btn_refresh = QPushButton("🔄 Actualizar")
+        btn_refresh = create_secondary_button(self, "🔄 Actualizar", "Recargar el historial de mermas")
         btn_refresh.clicked.connect(self._cargar_historial)
         filt.addWidget(btn_refresh)
         lay.addLayout(filt)
 
         # Tabla con columnas financieras
         self.tbl = QTableWidget()
+        self.tbl.setObjectName("tableView")
         self.tbl.setColumnCount(9)
         self.tbl.setHorizontalHeaderLabels([
             "Fecha", "Producto", "Cantidad", "Unidad",
@@ -229,9 +217,8 @@ class ModuloMerma(QWidget):
 
         # Totales
         self.lbl_total_hist = QLabel()
-        self.lbl_total_hist.setStyleSheet(
-            "font-weight:bold;font-size:13px;color:#c0392b;"
-            "padding:6px;background:#fdf2f2;border-radius:4px;")
+        self.lbl_total_hist.setObjectName("caption")
+        self.lbl_total_hist.setStyleSheet(f"font-weight: bold; color: {Colors.DANGER_BASE};")
         lay.addWidget(self.lbl_total_hist)
 
     # ── Productos y autocompletado ────────────────────────────────────────────
@@ -269,14 +256,15 @@ class ModuloMerma(QWidget):
             cantidad = self.spin_cantidad.value()
             valor = round(cantidad * costo, 2)
             self.lbl_valor_perdida.setText(f"${valor:.2f}")
+            # Estilo dinámico según el monto (protección financiera visual)
             if valor >= UMBRAL_VALOR_ALTO:
                 self.lbl_valor_perdida.setStyleSheet(
-                    "font-size:16px;font-weight:bold;color:#fff;background:#e74c3c;"
-                    "padding:4px 8px;border-radius:4px;")
+                    f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.TEXT_INVERTED}; "
+                    f"background-color: {Colors.DANGER_BASE}; padding: {Spacing.XS} {Spacing.SM}; border-radius: {Radii.MD};")
             else:
                 self.lbl_valor_perdida.setStyleSheet(
-                    "font-size:16px;font-weight:bold;color:#e74c3c;"
-                    "padding:4px 8px;background:#fff5f5;border-radius:4px;")
+                    f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.DANGER_BASE}; "
+                    f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER_BG}; border-radius: {Radii.MD};")
         else:
             self.lbl_valor_perdida.setText("$0.00")
 

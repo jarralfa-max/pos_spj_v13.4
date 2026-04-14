@@ -117,8 +117,7 @@ class ModuloPlaneacionCompras(QWidget):
         self.lbl_recomendacion = QLabel("COMPRAR: 0.00")
         self.lbl_recomendacion.setAlignment(Qt.AlignCenter)
         self.lbl_recomendacion.setObjectName("heading")
-        # Estilo base inicial (se actualizará dinámicamente según el resultado)
-        self.lbl_recomendacion.setStyleSheet(f"padding: {Spacing.LG}px;")
+        # El padding se maneja vía CSS global, no se necesita setStyleSheet inline
 
         btn_enviar_compras = create_success_button(self, "🛒 Generar Orden de Compra", "Crear orden de compra automática")
         btn_enviar_compras.clicked.connect(self.enviar_a_modulo_compras)
@@ -215,12 +214,16 @@ class ModuloPlaneacionCompras(QWidget):
         compra = metricas['compra_recomendada']
         self.lbl_recomendacion.setText(f"COMPRAR:\n{compra:.2f}")
         
-        # Actualizar color dinámicamente según el resultado
+        # Actualizar color dinámicamente según el resultado usando objectName en lugar de setStyleSheet
         if compra <= 0:
-            self.lbl_recomendacion.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; padding: {Spacing.LG}px;")
+            self.lbl_recomendacion.setObjectName("textSecondary")
             self.lbl_recomendacion.setText("STOCK\nSUFICIENTE")
         else:
-            self.lbl_recomendacion.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; padding: {Spacing.LG}px;")
+            self.lbl_recomendacion.setObjectName("textSuccess")
+        
+        # Forzar actualización de estilo
+        self.lbl_recomendacion.style().unpolish(self.lbl_recomendacion)
+        self.lbl_recomendacion.style().polish(self.lbl_recomendacion)
 
     def enviar_a_modulo_compras(self):
         """Crea un puente entre la predicción y la acción real de comprar."""
