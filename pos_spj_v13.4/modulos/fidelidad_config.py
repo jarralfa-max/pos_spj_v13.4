@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QColor, QFont
 import logging
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_heading, create_primary_button, create_success_button, create_danger_button, create_secondary_button, apply_tooltip
 
 logger = logging.getLogger("spj.fidelidad_unified")

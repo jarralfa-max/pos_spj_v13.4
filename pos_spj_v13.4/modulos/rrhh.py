@@ -4,7 +4,7 @@ import logging
 from core.events.event_bus import get_bus
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_input, create_heading, create_subheading, apply_tooltip
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
@@ -285,7 +285,7 @@ class ModuloRRHH(QWidget):
                       "Cada rol tiene horario y color para el calendario.")
         info.setWordWrap(True)
         info.setObjectName("caption")  # Usar clase CSS para texto secundario
-        info.setStyleSheet(f"background: {Colors.INFO_BG}; padding: {Spacing.SM}; border-radius: {Radii.SM}; font-size: {Typography.SIZE_XS};")
+        info.setStyleSheet(f"background: {Colors.INFO_BG}; padding: {Spacing.SM}; border-radius: {Borders.RADIUS_SM}; font-size: {Typography.SIZE_XS};")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()

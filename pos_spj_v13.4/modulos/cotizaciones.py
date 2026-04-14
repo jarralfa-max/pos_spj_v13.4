@@ -9,7 +9,7 @@ import logging
 from typing import Dict, List, Optional
 
 from modulos.spj_phone_widget import PhoneWidget
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_card, create_input, create_combo, apply_tooltip, create_heading, create_subheading
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
