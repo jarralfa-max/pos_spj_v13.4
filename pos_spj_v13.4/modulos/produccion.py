@@ -824,10 +824,11 @@ class ModuloProduccion(ModuloBase):
             unidad = r.get("unidad_base") or "kg"
             ok = stock >= cant
             self._lbl_stock.setText(f"{stock:.3f} {unidad}")
-            if ok:
-                self._lbl_stock.setStyleSheet(f"color: {Colors.SUCCESS_BASE};")
-            else:
-                self._lbl_stock.setStyleSheet(f"color: {Colors.DANGER_BASE};")
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_stock.setObjectName("textSuccess" if ok else "textDanger")
+            # Forzar actualización de estilo
+            self._lbl_stock.style().unpolish(self._lbl_stock)
+            self._lbl_stock.style().polish(self._lbl_stock)
         except Exception as exc:
             logger.warning("update_stock_label: %s", exc)
             self._lbl_stock.setText("?")
@@ -905,14 +906,20 @@ class ModuloProduccion(ModuloBase):
             self._lbl_resumen.setText(
                 f"❌ STOCK INSUFICIENTE | Consumo: {total_out:.3f} | Generado: {total_in:.3f}"
             )
-            self._lbl_resumen.setStyleSheet(f"color: {Colors.DANGER_BASE}; font-weight: bold;")
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_resumen.setObjectName("textDanger")
+            self._lbl_resumen.style().unpolish(self._lbl_resumen)
+            self._lbl_resumen.style().polish(self._lbl_resumen)
             self._btn_ejecutar.setEnabled(False)
         else:
             self._lbl_resumen.setText(
                 f"✅ OK | Consumo: {total_out:.3f} | Generado: {total_in:.3f} | "
                 f"Movimientos: {len(movs)}"
             )
-            self._lbl_resumen.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; font-weight: bold;")
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_resumen.setObjectName("textSuccess")
+            self._lbl_resumen.style().unpolish(self._lbl_resumen)
+            self._lbl_resumen.style().polish(self._lbl_resumen)
             self._btn_ejecutar.setEnabled(True)
 
     # ── Ejecutar ──────────────────────────────────────────────────────────────
@@ -1282,12 +1289,16 @@ class DialogoReceta(QDialog):
             f"Merma total: {float(total_merma):.3f}%  |  "
             f"Suma: {grand:.3f}%"
         )
+        # Usar objectName para estilos dinámicos en lugar de setStyleSheet
         if color == "red":
-            self._lbl_totales.setStyleSheet(f"color: {Colors.DANGER_BASE}; font-weight: bold;")
+            self._lbl_totales.setObjectName("textDanger")
         elif color == "green":
-            self._lbl_totales.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; font-weight: bold;")
+            self._lbl_totales.setObjectName("textSuccess")
         else:
-            self._lbl_totales.setStyleSheet(f"color: {Colors.TEXT_PRIMARY}; font-weight: bold;")
+            self._lbl_totales.setObjectName("textPrimary")
+        # Forzar actualización de estilo
+        self._lbl_totales.style().unpolish(self._lbl_totales)
+        self._lbl_totales.style().polish(self._lbl_totales)
 
     def _guardar(self) -> None:
         nombre = self._e_nombre.text().strip()
