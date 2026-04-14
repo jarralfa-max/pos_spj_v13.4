@@ -3,11 +3,14 @@
 # ── Ventana Principal / Orquestador Visual ────────────────────────────────────
 # Conecta TODOS los módulos disponibles mediante try/except por seguridad.
 # Un módulo con error de sintaxis NO derrumba el sistema completo.
+import logging
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
                              QLabel, QDialog, QVBoxLayout, QLineEdit, QPushButton,
                              QMessageBox, QFrame, QMenuBar, QSizePolicy, QComboBox, QFormLayout)
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPixmap
+
+logger = logging.getLogger("spj.main_window")
 
 from interfaz.menu_lateral import MenuLateral
 
@@ -19,145 +22,172 @@ from interfaz.menu_lateral import MenuLateral
 # ── Operaciones ──────────────────────────────────────────────────────────────
 try:
     from modulos.ventas import ModuloVentas
-except Exception:
+except Exception as e:
     ModuloVentas = None
+    logger.error("Error cargando ModuloVentas: %s", e)
 
 try:
     from modulos.caja import ModuloCaja
-except Exception:
+except Exception as e:
     ModuloCaja = None
+    logger.error("Error cargando ModuloCaja: %s", e)
 
 try:
     from modulos.inventario_local import ModuloInventarioLocal
-except Exception:
+except Exception as e:
     ModuloInventarioLocal = None
+    logger.error("Error cargando ModuloInventarioLocal: %s", e)
 
 try:
     from modulos.productos import ModuloProductos
-except Exception:
+except Exception as e:
     ModuloProductos = None
+    logger.error("Error cargando ModuloProductos: %s", e)
 
 try:
     from modulos.clientes import ModuloClientes
-except Exception:
+except Exception as e:
     ModuloClientes = None
+    logger.error("Error cargando ModuloClientes: %s", e)
 
 try:
     from modulos.delivery import ModuloDelivery
-except Exception:
+except Exception as e:
     ModuloDelivery = None
+    logger.error("Error cargando ModuloDelivery: %s", e)
 
 try:
     from modulos.compras_pro import ModuloComprasPro
-except Exception:
+except Exception as e:
     ModuloComprasPro = None
+    logger.error("Error cargando ModuloComprasPro: %s", e)
 
 try:
     from modulos.cotizaciones import ModuloCotizaciones
-except Exception:
+except Exception as e:
     ModuloCotizaciones = None
+    logger.error("Error cargando ModuloCotizaciones: %s", e)
 
 try:
     from modulos.merma import ModuloMerma
-except Exception:
+except Exception as e:
     ModuloMerma = None
+    logger.error("Error cargando ModuloMerma: %s", e)
 
 try:
     from modulos.proveedores import ModuloProveedores
-except Exception:
+except Exception as e:
     ModuloProveedores = None
+    logger.error("Error cargando ModuloProveedores: %s", e)
 
 try:
     from modulos.etiquetas import ModuloEtiquetas
-except Exception:
+except Exception as e:
     ModuloEtiquetas = None
+    logger.error("Error cargando ModuloEtiquetas: %s", e)
 
 try:
     from modulos.config_modules import ModuloConfigModulos
-except Exception:
+except Exception as e:
     ModuloConfigModulos = None
+    logger.error("Error cargando ModuloConfigModulos: %s", e)
 
 # ── Finanzas & Admin ──────────────────────────────────────────────────────────
 try:
     from modulos.finanzas import ModuloFinanzas
-except Exception:
+except Exception as e:
     ModuloFinanzas = None
+    logger.error("Error cargando ModuloFinanzas: %s", e)
 
 try:
     from modulos.tesoreria import ModuloTesoreria
-except Exception:
+except Exception as e:
     ModuloTesoreria = None
+    logger.error("Error cargando ModuloTesoreria: %s", e)
 
 try:
     from modulos.rrhh import ModuloRRHH
-except Exception:
+except Exception as e:
     ModuloRRHH = None
+    logger.error("Error cargando ModuloRRHH: %s", e)
 
 try:
     from modulos.activos import ModuloActivos
-except Exception:
+except Exception as e:
     ModuloActivos = None
+    logger.error("Error cargando ModuloActivos: %s", e)
 
 # ── Marketing & Fidelidad ─────────────────────────────────────────────────────
 try:
     from modulos.tarjetas import ModuloTarjetas
-except Exception:
+except Exception as e:
     ModuloTarjetas = None
+    logger.error("Error cargando ModuloTarjetas: %s", e)
 
 try:
     from modulos.fidelidad_config import ModuloFidelidadConfig
-except Exception:
+except Exception as e:
     ModuloFidelidadConfig = None
+    logger.error("Error cargando ModuloFidelidadConfig: %s", e)
 
 try:
     from modulos.loyalty_card_designer import ModuloLoyaltyCardDesigner
-except Exception:
+except Exception as e:
     ModuloLoyaltyCardDesigner = None
+    logger.error("Error cargando ModuloLoyaltyCardDesigner: %s", e)
 
 try:
     from modulos.reportes_bi_v2 import ModuloReportesBIv2
-except Exception:
+except Exception as e:
     ModuloReportesBIv2 = None
+    logger.error("Error cargando ModuloReportesBIv2: %s", e)
 
 try:
     from modulos.planeacion_compras import ModuloPlaneacionCompras
-except Exception:
+except Exception as e:
     ModuloPlaneacionCompras = None
+    logger.error("Error cargando ModuloPlaneacionCompras: %s", e)
 
 # ── Producción & Recetas ──────────────────────────────────────────────────────
 try:
     from modulos.produccion import ModuloProduccion
-except Exception:
+except Exception as e:
     ModuloProduccion = None
+    logger.error("Error cargando ModuloProduccion: %s", e)
 
 # produccion_carnica unificada en ModuloProduccion (tabs Cárnica + Recetas)
 
 try:
     from modulos.whatsapp_module import ModuloWhatsApp
-except Exception:
+except Exception as e:
     ModuloWhatsApp = None
+    logger.error("Error cargando ModuloWhatsApp: %s", e)
 
 
 # ── Configuración & Herramientas ──────────────────────────────────────────────
 try:
     from modulos.configuracion import ModuloConfiguracion
-except Exception:
+except Exception as e:
     ModuloConfiguracion = None
+    logger.error("Error cargando ModuloConfiguracion: %s", e)
 
 try:
     from modulos.config_hardware import ModuloConfigHardware
-except Exception:
+except Exception as e:
     ModuloConfigHardware = None
+    logger.error("Error cargando ModuloConfigHardware: %s", e)
 
 try:
     from modulos.ticket_designer import ModuloTicketDesigner
-except Exception:
+except Exception as e:
     ModuloTicketDesigner = None
+    logger.error("Error cargando ModuloTicketDesigner: %s", e)
 
 try:
     from modulos.transferencias import ModuloTransferencias
-except Exception:
+except Exception as e:
     ModuloTransferencias = None
+    logger.error("Error cargando ModuloTransferencias: %s", e)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -211,7 +241,6 @@ class DialogoLogin(QDialog):
         
         try:
             from PyQt5.QtGui import QPixmap as _QP
-            from PyQt5.QtCore import QSizePolicy
             import os
             _db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if _db:

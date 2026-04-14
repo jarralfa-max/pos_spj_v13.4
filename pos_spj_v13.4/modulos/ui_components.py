@@ -27,7 +27,8 @@ USO:
 
 from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QFrame, QLabel, QVBoxLayout, 
-    QHBoxLayout, QWidget, QToolTip, QGraphicsDropShadowEffect
+    QHBoxLayout, QWidget, QToolTip, QGraphicsDropShadowEffect,
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
 )
 from PyQt5.QtCore import Qt, QPoint, QTimer
 from PyQt5.QtGui import QFont, QPalette, QColor
@@ -406,6 +407,188 @@ def create_section_container(parent, title: str = None) -> QFrame:
     return container
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  TABLAS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_table(parent, show_grid: bool = False, alternating_colors: bool = True,
+                 selection_behavior: str = "SelectRows", editable: bool = False) -> QTableWidget:
+    """
+    Crea una QTableWidget estandarizada con estilos consistentes.
+    
+    Args:
+        parent: Widget padre
+        show_grid: Mostrar líneas de grid (default: False)
+        alternating_colors: Colores alternos en filas (default: True)
+        selection_behavior: "SelectRows", "SelectItems", "NoSelection"
+        editable: Si las celdas son editables (default: False)
+    
+    Returns:
+        QTableWidget configurada con estilos estándar
+    """
+    table = QTableWidget(parent)
+    table.setObjectName("standardTable")
+    
+    # Configuración básica
+    table.setAlternatingRowColors(alternating_colors)
+    table.setShowGrid(show_grid)
+    
+    # Comportamiento de selección
+    selection_map = {
+        "SelectRows": QAbstractItemView.SelectRows,
+        "SelectItems": QAbstractItemView.SelectItems,
+        "NoSelection": QAbstractItemView.NoSelection,
+    }
+    table.setSelectionBehavior(selection_map.get(selection_behavior, QAbstractItemView.SelectRows))
+    table.setSelectionMode(QAbstractItemView.SingleSelection if selection_behavior != "SelectItems" else QAbstractItemView.ExtendedSelection)
+    
+    # Edición
+    if not editable:
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+    
+    # Headers optimizados
+    header = table.horizontalHeader()
+    header.setStretchLastSection(True)
+    header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    header.setMinimumSectionSize(80)
+    header.setMaximumSectionSize(400)
+    
+    # Header vertical oculto por defecto
+    table.verticalHeader().setVisible(False)
+    table.verticalHeader().setDefaultSectionSize(Spacing.BTN_HEIGHT_MIN + 8)  # Altura de fila consistente
+    
+    # Scrollbars
+    table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    
+    # Ajuste automático
+    table.setSizeAdjustPolicy(QAbstractItemView.AdjustToContentsOnFirstShow)
+    
+    # Estilo CSS inline para garantizar consistencia
+    table.setStyleSheet(f"""
+        QTableWidget {{
+            background-color: {Colors.NEUTRAL.DARK_CARD};
+            color: {Colors.NEUTRAL.DARK_TEXT};
+            gridline-color: {Colors.NEUTRAL.DARK_BORDER};
+            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
+            alternate-background-color: {Colors.NEUTRAL.DARK_BG};
+            border-radius: {Borders.RADIUS_LG}px;
+            font-size: {Typography.SIZE_SM};
+        }}
+        QTableWidget::item {{
+            padding: {Spacing.SM}px {Spacing.MD}px;
+            border-bottom: 1px solid {Colors.NEUTRAL.DARK_BORDER};
+        }}
+        QTableWidget::item:selected {{
+            background-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+        }}
+        QTableWidget::item:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_700};
+        }}
+        QHeaderView::section {{
+            background-color: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.DARK_TEXT};
+            border: none;
+            border-bottom: 2px solid {Colors.NEUTRAL.SLATE_600};
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
+            padding: {Spacing.SM}px {Spacing.MD}px;
+            text-transform: uppercase;
+            font-size: {Typography.SIZE_XS};
+            letter-spacing: 0.5px;
+            min-height: 40px;
+        }}
+        QHeaderView::section:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_600};
+        }}
+    """)
+    
+    return table
+
+
+def create_table_with_columns(parent, columns: list, 
+                              show_grid: bool = False,
+                              alternating_colors: bool = True) -> QTableWidget:
+    """
+    Crea una tabla con columnas predefinidas.
+    
+    Args:
+        parent: Widget padre
+        columns: Lista de nombres de columnas
+        show_grid: Mostrar líneas de grid
+        alternating_colors: Colores alternos
+    
+    Returns:
+        QTableWidget con columnas configuradas
+    """
+    table = create_table(parent, show_grid, alternating_colors)
+    table.setColumnCount(len(columns))
+    table.setHorizontalHeaderLabels(columns)
+    return table
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  BOTONES PARA TABLAS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_table_button(parent, text: str, tooltip: str, variant: str = "outline") -> QPushButton:
+    """
+    Crea un botón compacto para usar dentro de tablas (acciones por fila).
+    Tamaño reducido para no romper el layout de la tabla.
+    
+    Args:
+        parent: Widget padre
+        text: Texto del botón (o ícono)
+        tooltip: Tooltip al hover
+        variant: Variante de color (outline, primary, danger, etc.)
+    
+    Returns:
+        QPushButton compacto estilizado
+    """
+    btn = QPushButton(text, parent)
+    btn.setFixedHeight(28)  # Más pequeño que el estándar 36px
+    btn.setCursor(Qt.PointingHandCursor)
+    
+    # Mapeo de variantes
+    variant_map = {
+        "primary": "primaryBtn",
+        "secondary": "secondaryBtn",
+        "success": "successBtn",
+        "danger": "dangerBtn",
+        "warning": "warningBtn",
+        "outline": "outlineBtn",
+    }
+    
+    object_name = variant_map.get(variant, "outlineBtn")
+    btn.setObjectName(object_name)
+    
+    # Estilo inline específico para botones de tabla
+    btn.setStyleSheet(f"""
+        QPushButton#{object_name} {{
+            background-color: transparent;
+            border: 1px solid {Colors.NEUTRAL.SLATE_600};
+            border-radius: {Borders.RADIUS_MD}px;
+            padding: {Spacing.XS}px {Spacing.SM}px;
+            font-size: {Typography.SIZE_XS};
+            font-weight: {Typography.WEIGHT_MEDIUM};
+            color: {Colors.NEUTRAL.SLATE_300};
+        }}
+        QPushButton#{object_name}:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_700};
+            border-color: {Colors.NEUTRAL.SLATE_500};
+            color: {Colors.NEUTRAL.WHITE};
+        }}
+        QPushButton#{object_name}:pressed {{
+            background-color: {Colors.NEUTRAL.SLATE_800};
+        }}
+    """)
+    
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    
+    return btn
+
+
 # Exportar todo
 __all__ = [
     # Botones
@@ -441,4 +624,9 @@ __all__ = [
     
     # Contenedores
     "create_section_container",
+    
+    # Tablas (NUEVO)
+    "create_table",
+    "create_table_with_columns",
+    "create_table_button",
 ]

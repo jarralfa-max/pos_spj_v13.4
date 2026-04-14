@@ -11,8 +11,9 @@ logger = logging.getLogger("spj.theme_engine")
 
 # Mapa: nombres spec → nombres en TEMAS existentes
 _THEME_ALIASES = {
-    "SPJ_DARK":           "Oscuro",
-    "SPJ_LIGHT":          "Claro",
+    "SPJ_DARK":          "Oscuro",
+    "SPJ_LIGHT":         "Claro",
+    "Oscuro Moderno":    "Oscuro",  # Alias para compatibilidad con versiones anteriores
 }
 
 # Nombre por defecto
