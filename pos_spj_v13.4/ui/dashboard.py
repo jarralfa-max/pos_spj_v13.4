@@ -1,5 +1,5 @@
 
-# ui/dashboard.py — SPJ POS v12
+# ui/dashboard.py — SPJ POS v13.4
 """
 Dashboard principal del POS en tiempo real.
   - KPIs del día: ventas, tickets, productos top
@@ -7,6 +7,8 @@ Dashboard principal del POS en tiempo real.
   - Alertas de stock bajo y lotes por caducar
   - Estado de repartidores activos
   - Acceso rápido a módulos clave
+
+UI OPTIMIZADA: Sistema de diseño SPJ con variables CSS y clases semánticas.
 """
 from __future__ import annotations
 import logging
@@ -21,11 +23,32 @@ from core.db.connection import get_connection
 
 logger = logging.getLogger("spj.ui.dashboard")
 
+# Variables CSS para reutilización (design tokens)
+CSS_VARS = """
+    --bg-card: #FFFFFF;
+    --bg-hover: #F8FAFC;
+    --border: #E2E8F0;
+    --border-active: #2563EB;
+    --text-primary: #0F172A;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
+    --primary: #2563EB;
+    --primary-hover: #E600E6;
+    --success: #16A34A;
+    --warning: #D97706;
+    --danger: #DC2626;
+    --bg-danger-soft: #FEF2F2;
+    --bg-warning-soft: #FEF3C7;
+    --bg-success-soft: #DCFCE7;
+    --bg-info-soft: #DBEAFE;
+"""
+
 
 class KPICard(QFrame):
     """
     Tarjeta de KPI individual.
     Diseño optimizado: fondo neutro con indicador de color, no card saturada.
+    Usa variables CSS para consistencia.
     """
     clicked = pyqtSignal(str)
 
@@ -64,13 +87,13 @@ class KPICard(QFrame):
         # Card con fondo neutro y borde sutil - solo el icono tiene color
         self.setStyleSheet(f"""
             KPICard {{
-                background: #FFFFFF;
+                background: var(--bg-card);
                 border-radius: 8px;
-                border: 1px solid #E2E8F0;
+                border: 1px solid var(--border);
             }}
             KPICard:hover {{
-                background: #F8FAFC;
-                border-color: #2563EB;
+                background: var(--bg-hover);
+                border-color: var(--border-active);
             }}
         """)
         self._current_color = _color
@@ -98,7 +121,7 @@ class KPICard(QFrame):
 
         self.lbl_valor = QLabel(valor)
         self.lbl_valor.setStyleSheet(
-            "color: #0F172A; font-size: 22px; font-weight: 700; background: transparent;")
+            "color: var(--text-primary); font-size: 22px; font-weight: 700; background: transparent;")
         lyt.addWidget(self.lbl_valor)
 
         lbl_titulo = QLabel(titulo)
@@ -156,21 +179,27 @@ class KPICard(QFrame):
 
 
 class AlertaItem(QFrame):
-    """Item de alerta en la lista lateral."""
+    """Item de alerta en la lista lateral. Usa variables CSS para consistencia."""
     def __init__(self, texto: str, tipo: str = "info", parent=None):
         super().__init__(parent)
-        colores = {
-            "danger":  "#FDEDEC",
-            "warning": "#FEF9E7",
-            "success": "#EAFAF1",
-            "info":    "#EBF5FB",
+        colores_bg = {
+            "danger":  "var(--bg-danger-soft)",
+            "warning": "var(--bg-warning-soft)",
+            "success": "var(--bg-success-soft)",
+            "info":    "var(--bg-info-soft)",
+        }
+        colores_border = {
+            "danger":  "var(--danger)",
+            "warning": "var(--warning)",
+            "success": "var(--success)",
+            "info":    "var(--primary)",
         }
         iconos = {"danger":"🔴","warning":"⚠️","success":"✅","info":"ℹ️"}
         self.setStyleSheet(f"""
             AlertaItem {{
-                background: {colores.get(tipo,'#EBF5FB')};
+                background: {colores_bg.get(tipo,'var(--bg-info-soft)')};
                 border-radius: 8px;
-                border-left: 4px solid {'#E74C3C' if tipo=='danger' else '#F39C12' if tipo=='warning' else '#27AE60' if tipo=='success' else '#3498DB'};
+                border-left: 4px solid {colores_border.get(tipo,'var(--primary)')};
             }}
         """)
         lyt = QHBoxLayout(self)
@@ -182,7 +211,7 @@ class AlertaItem(QFrame):
 
 
 class PedidoWAItem(QFrame):
-    """Tarjeta de pedido WhatsApp en el dashboard."""
+    """Tarjeta de pedido WhatsApp en el dashboard. Usa variables CSS."""
     ver_pedido = pyqtSignal(int)
 
     def __init__(self, pedido: dict, parent=None):
@@ -190,11 +219,11 @@ class PedidoWAItem(QFrame):
         pid = pedido.get("id", 0)
         self.setStyleSheet("""
             PedidoWAItem {
-                background: white;
+                background: var(--bg-card);
                 border-radius: 8px;
-                border: 1px solid #E0E0E0;
+                border: 1px solid var(--border);
             }
-            PedidoWAItem:hover { border-color: #3498DB; }
+            PedidoWAItem:hover { border-color: var(--primary); }
         """)
         lyt = QVBoxLayout(self)
         lyt.setContentsMargins(12, 10, 12, 10)
@@ -206,12 +235,16 @@ class PedidoWAItem(QFrame):
         top.addWidget(lbl_id)
         top.addStretch()
         estado = pedido.get("estado","nuevo")
-        colores_estado = {"nuevo":"#E74C3C","confirmado":"#2980B9",
-                          "pesando":"#F39C12","listo":"#27AE60"}
+        colores_estado = {
+            "nuevo": "var(--danger)",
+            "confirmado": "#2563EB",
+            "pesando": "var(--warning)",
+            "listo": "var(--success)"
+        }
         badge = QLabel(estado.upper())
         badge.setStyleSheet(
-            f"background:{colores_estado.get(estado,'#95A5A6')};"
-            "color:white;padding:2px 8px;border-radius:10px;font-size:10px;")
+            f"background:{colores_estado.get(estado,'var(--text-muted)')};"
+            "color:white;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:600;")
         top.addWidget(badge)
         lyt.addLayout(top)
 
@@ -221,10 +254,9 @@ class PedidoWAItem(QFrame):
             f"{pedido.get('tipo_entrega','mostrador')}"))
 
         btn = QPushButton("Ver detalle →")
-        btn.setStyleSheet(
-            "background: transparent; color: #3498DB; border: none; "
-            "font-size: 11px; text-align: left; padding: 0;")
+        btn.setObjectName("primaryBtn")
         btn.setCursor(Qt.PointingHandCursor)
+        btn.setToolTip(f"Ver detalles del pedido #{pid}")
         btn.clicked.connect(lambda: self.ver_pedido.emit(pid))
         lyt.addWidget(btn)
 
@@ -281,18 +313,16 @@ class Dashboard(QWidget):
 
         # ── Header ──────────────────────────────────────────────────
         header = QFrame()
-        header.setStyleSheet("background: #1E293B; padding: 0;")  # Color neutro oscuro
+        header.setObjectName("dashboardHeader")
         header.setFixedHeight(50)  # Reducido de 60 a 50
         hdr_lyt = QHBoxLayout(header)
         hdr_lyt.setContentsMargins(16, 0, 16, 0)
         lbl_titulo = QLabel("📊 Dashboard SPJ POS")
-        lbl_titulo.setStyleSheet(
-            "color: white; font-size: 16px; font-weight: 600;")  # Tamaño reducido
+        lbl_titulo.setObjectName("dashboardTitle")
         hdr_lyt.addWidget(lbl_titulo)
         hdr_lyt.addStretch()
         self.lbl_hora = QLabel()
-        self.lbl_hora.setStyleSheet(
-            "color: rgba(255,255,255,0.7); font-size: 12px;")  # Tamaño reducido
+        self.lbl_hora.setObjectName("dashboardTime")
         hdr_lyt.addWidget(self.lbl_hora)
         root.addWidget(header)
 
@@ -321,13 +351,11 @@ class Dashboard(QWidget):
 
         # Cola pedidos WA
         lbl_wa = QLabel("📲 Pedidos WhatsApp pendientes")
-        lbl_wa.setStyleSheet(
-            "font-size: 13px; font-weight: 600; color: #475569; margin-top: 4px;")
+        lbl_wa.setObjectName("sectionLabel")
         left.addWidget(lbl_wa)
 
         self._scroll_wa = QScrollArea()
         self._scroll_wa.setWidgetResizable(True)
-        self._scroll_wa.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         self._scroll_wa.setMinimumHeight(180)  # Reducido de 220 a 180
         self._container_wa = QWidget()
         self._lyt_wa = QVBoxLayout(self._container_wa)
@@ -339,7 +367,7 @@ class Dashboard(QWidget):
 
         # Accesos rápidos
         lbl_acc = QLabel("⚡ Acceso rápido")
-        lbl_acc.setStyleSheet("font-size: 13px; font-weight: 600; color: #475569;")
+        lbl_acc.setObjectName("sectionLabel")
         left.addWidget(lbl_acc)
         acc_row = QHBoxLayout()
         acc_row.setSpacing(6)  # Reducido de 8 a 6
@@ -364,15 +392,12 @@ class Dashboard(QWidget):
         right.setContentsMargins(0, 0, 0, 0)
 
         lbl_alertas = QLabel("🔔 Alertas")
-        lbl_alertas.setStyleSheet(
-            "font-size: 14px; font-weight: 700; color: #2C3E50;")
+        lbl_alertas.setObjectName("sectionLabelBold")
         right.addWidget(lbl_alertas)
 
         self._scroll_alertas = QScrollArea()
         self._scroll_alertas.setWidgetResizable(True)
         self._scroll_alertas.setFixedWidth(300)
-        self._scroll_alertas.setStyleSheet(
-            "QScrollArea { border: none; background: transparent; }")
         self._container_alertas = QWidget()
         self._lyt_alertas = QVBoxLayout(self._container_alertas)
         self._lyt_alertas.setSpacing(6)
@@ -382,14 +407,11 @@ class Dashboard(QWidget):
         right.addWidget(self._scroll_alertas)
 
         lbl_reps = QLabel("🚚 Repartidores activos")
-        lbl_reps.setStyleSheet(
-            "font-size: 14px; font-weight: 700; color: #2C3E50;")
+        lbl_reps.setObjectName("sectionLabelBold")
         right.addWidget(lbl_reps)
         self._lbl_reps = QLabel("Sin repartidores activos")
         self._lbl_reps.setWordWrap(True)
-        self._lbl_reps.setStyleSheet(
-            "color: #7F8C8D; font-size: 12px; background: white; "
-            "border-radius: 8px; padding: 10px;")
+        self._lbl_reps.setObjectName("repartidorStatus")
         right.addWidget(self._lbl_reps)
         right.addStretch()
 
