@@ -31,8 +31,9 @@ DATABASE_NAME = "punto_venta.db"
 TEMAS = {
     "Oscuro": """
         /* ═══════════════════════════════════════════════════════════════════
-           TEMA OSCURO — SPJ POS v13.4
+           TEMA OSCURO — SPJ POS v13.4 OPTIMIZED
            Paleta: Slate/Zinc modern dark theme con acentos magenta hover
+           BOTONES REDUCIDOS: 36px height, padding 6px 12px
            ═══════════════════════════════════════════════════════════════════ */
 
         /* ===== VARIABLES GLOBALES ===== */
@@ -43,7 +44,7 @@ TEMAS = {
             font-size: 13px;
         }
 
-        /* ===== TOOLTIPS ===== */
+        /* ===== TOOLTIPS GLOBALES ===== */
         QToolTip {
             background-color: #1E293B;
             color: #F1F5F9;
@@ -52,6 +53,7 @@ TEMAS = {
             padding: 6px 10px;
             font-size: 12px;
             font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
         /* ===== BOTONES PRIMARIOS ===== */
@@ -61,10 +63,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #3B82F6;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#primaryBtn:hover, QPushButton[variant="primary"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -83,10 +85,10 @@ TEMAS = {
             color: #F1F5F9;
             border: 1px solid #475569;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#secondaryBtn:hover, QPushButton[variant="secondary"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -101,10 +103,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #22C55E;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#successBtn:hover, QPushButton[variant="success"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -119,10 +121,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #EF4444;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#dangerBtn:hover, QPushButton[variant="danger"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -137,10 +139,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #F59E0B;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#warningBtn:hover, QPushButton[variant="warning"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -154,10 +156,10 @@ TEMAS = {
             color: #2563EB;
             border: 2px solid #2563EB;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#outlineBtn:hover, QPushButton[variant="outline"]:hover {
             background: rgba(37, 99, 235, 0.1);
@@ -172,10 +174,10 @@ TEMAS = {
             color: #F1F5F9;
             border: 1px solid #475569;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -236,7 +238,7 @@ TEMAS = {
             color: #94A3B8;
             border: 1px solid transparent;
             border-bottom: none;
-            padding: 10px 20px;
+            padding: 6px 12px;
             margin-right: 2px;
             border-radius: 8px 8px 0 0;
             font-weight: 500;
@@ -259,9 +261,10 @@ TEMAS = {
             color: #F1F5F9;
             border: 1px solid #334155;
             border-radius: 8px;
-            padding: 10px 14px;
+            padding: 6px 12px;
             selection-background-color: #2563EB;
             font-size: 13px;
+            min-height: 36px;
         }
         QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, 
         QSpinBox:focus, QDoubleSpinBox:focus {
@@ -279,8 +282,8 @@ TEMAS = {
             color: #F1F5F9;
             border: 1px solid #334155;
             border-radius: 8px;
-            padding: 10px 14px;
-            min-height: 40px;
+            padding: 6px 12px;
+            min-height: 36px;
         }
         QComboBox:hover {
             border: 1px solid #475569;
@@ -309,8 +312,8 @@ TEMAS = {
             padding: 4px;
         }
         QComboBox QAbstractItemView::item {
-            min-height: 40px;
-            padding: 8px 12px;
+            min-height: 36px;
+            padding: 6px 12px;
             border-radius: 4px;
         }
         QComboBox QAbstractItemView::item:hover {
@@ -650,10 +653,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #3B82F6;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#primaryBtn:hover, QPushButton[variant="primary"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -672,10 +675,10 @@ TEMAS = {
             color: #334155;
             border: 1px solid #CBD5E0;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#secondaryBtn:hover, QPushButton[variant="secondary"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -690,10 +693,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #22C55E;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#successBtn:hover, QPushButton[variant="success"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -708,10 +711,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #EF4444;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#dangerBtn:hover, QPushButton[variant="danger"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -726,10 +729,10 @@ TEMAS = {
             color: #FFFFFF;
             border: 1px solid #F59E0B;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#warningBtn:hover, QPushButton[variant="warning"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -743,10 +746,10 @@ TEMAS = {
             color: #2563EB;
             border: 2px solid #2563EB;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton#outlineBtn:hover, QPushButton[variant="outline"]:hover {
             background: rgba(37, 99, 235, 0.08);
@@ -761,10 +764,10 @@ TEMAS = {
             color: #334155;
             border: 1px solid #E2E8F0;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             font-weight: 600;
             font-size: 13px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QPushButton:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -825,7 +828,7 @@ TEMAS = {
             color: #64748B;
             border: 1px solid transparent;
             border-bottom: none;
-            padding: 10px 20px;
+            padding: 6px 12px;
             margin-right: 2px;
             border-radius: 8px 8px 0 0;
             font-weight: 500;
@@ -869,7 +872,7 @@ TEMAS = {
             border: 1px solid #E2E8F0;
             border-radius: 8px;
             padding: 10px 14px;
-            min-height: 40px;
+            min-height: 36px;
         }
         QComboBox:hover {
             border: 1px solid #CBD5E0;
@@ -898,7 +901,7 @@ TEMAS = {
             padding: 4px;
         }
         QComboBox QAbstractItemView::item {
-            min-height: 40px;
+            min-height: 36px;
             padding: 8px 12px;
             border-radius: 4px;
         }
