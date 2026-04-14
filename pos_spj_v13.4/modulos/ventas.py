@@ -2,6 +2,8 @@
 # MÓDULO DE VENTAS ENTERPRISE CON INYECCIÓN DE DEPENDENCIAS Y HAL (Hardware Abstraction Layer)
 
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, apply_tooltip
 import logging
 import os
 import sqlite3
@@ -325,10 +327,9 @@ class DialogoPago(QDialog):
         self.txt_recibido.setSingleStep(10.0)
         self.txt_recibido.setPrefix("$ ")
         self.txt_recibido.setMinimumHeight(36)
-        self.txt_recibido.setStyleSheet("font-size:16px;font-weight:bold;")
+        self.txt_recibido.setProperty("class", "payment-spinbox")
         # v13.4: Select all on click so user can type directly
         self.txt_recibido.lineEdit().setReadOnly(False)
-        self.txt_recibido.setProperty("class", "payment-spinbox")
         form_layout.addRow("💵 Monto Recibido:", self.txt_recibido)
         
         self.lbl_cambio = QLabel("Cambio: $0.00")
@@ -346,7 +347,7 @@ class DialogoPago(QDialog):
 
         _loy_header = QHBoxLayout()
         self._lbl_puntos = QLabel(f"⭐ {pts} puntos disponibles (=${valor:.2f})")
-        self._lbl_puntos.setStyleSheet("font-weight:bold;")
+        self._lbl_puntos.setProperty("class", "text-bold")
         _loy_header.addWidget(self._lbl_puntos)
         _loy_lay.addLayout(_loy_header)
 
@@ -361,7 +362,7 @@ class DialogoPago(QDialog):
         self._spin_puntos.setSuffix(" pts")
         self._spin_puntos.valueChanged.connect(self._recalcular_canje)
         self._lbl_desc_puntos = QLabel("")
-        self._lbl_desc_puntos.setStyleSheet("color:#27ae60;font-weight:bold;")
+        self._lbl_desc_puntos.setProperty("class", "text-success")
         _loy_row.addWidget(self._chk_canjear)
         _loy_row.addWidget(self._spin_puntos)
         _loy_row.addWidget(self._lbl_desc_puntos)
@@ -396,7 +397,7 @@ class DialogoPago(QDialog):
         self.spin_tarjeta_mixto.valueChanged.connect(self._recalcular_mixto)
         _ml.addWidget(self.spin_tarjeta_mixto)
         self.lbl_mixto_diff = QLabel("")
-        self.lbl_mixto_diff.setStyleSheet("color:#e74c3c;font-size:11px;")
+        self.lbl_mixto_diff.setProperty("class", "text-danger caption")
         _ml.addWidget(self.lbl_mixto_diff)
         self._mixto_widget.hide()
         form_layout.addRow("", self._mixto_widget)
@@ -453,7 +454,7 @@ class DialogoPago(QDialog):
             if not self.lbl_mp_info:
                 from PyQt5.QtWidgets import QLabel
                 self.lbl_mp_info = QLabel("🔗 Se generará link de pago al confirmar")
-                self.lbl_mp_info.setStyleSheet("color:#009ee3;font-size:11px;font-weight:bold;")
+                self.lbl_mp_info.setProperty("class", "text-info caption-bold")
                 self.layout().insertWidget(self.layout().count()-1, self.lbl_mp_info)
             self.lbl_mp_info.show()
         elif forma_pago == "Pago Mixto":
@@ -527,15 +528,15 @@ class DialogoPago(QDialog):
         diff = round(total - self.total_a_pagar, 2)
         if abs(diff) < 0.01:
             self.lbl_mixto_diff.setText("✅ Cuadra")
-            self.lbl_mixto_diff.setStyleSheet("color:#27ae60;font-size:11px;")
+            self.lbl_mixto_diff.setProperty("class", "text-success caption")
             self.btn_aceptar.setEnabled(True)
         elif diff > 0:
             self.lbl_mixto_diff.setText(f"Sobran ${diff:.2f}")
-            self.lbl_mixto_diff.setStyleSheet("color:#f39c12;font-size:11px;")
+            self.lbl_mixto_diff.setProperty("class", "text-warning caption")
             self.btn_aceptar.setEnabled(True)
         else:
             self.lbl_mixto_diff.setText(f"Faltan ${abs(diff):.2f}")
-            self.lbl_mixto_diff.setStyleSheet("color:#e74c3c;font-size:11px;")
+            self.lbl_mixto_diff.setProperty("class", "text-danger caption")
             self.btn_aceptar.setEnabled(False)
 
     def _toggle_canje(self, checked: bool):
@@ -1183,10 +1184,7 @@ class ModuloVentas(ModuloBase):
         # Widget de comisión del turno (configurable: se muestra si está habilitado)
         self.lbl_comision_turno = QLabel("💰 Comisión turno: $0.00")
         self.lbl_comision_turno.setAlignment(Qt.AlignCenter)
-        self.lbl_comision_turno.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;"
-            "font-size:13px;padding:6px;border-radius:4px;"
-        )
+        self.lbl_comision_turno.setProperty("class", "badge-success")
         self.lbl_comision_turno.setVisible(False)   # se activa si tiene config
         info_venta_layout.addWidget(self.lbl_comision_turno, 2, 0, 1, 2)
         
@@ -1207,60 +1205,39 @@ class ModuloVentas(ModuloBase):
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
-            btn_d.setStyleSheet("padding:3px 6px;font-size:11px;")
+            btn_d.setProperty("class", "btn-outline btn-sm")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
         btn_custom = QPushButton("Custom")
         btn_custom.setToolTip("Descuento personalizado")
-        btn_custom.setStyleSheet("padding:3px 6px;font-size:11px;background:#8e44ad;color:white;")
+        btn_custom.setProperty("class", "btn-accent btn-sm")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
         desc_lay.addWidget(btn_custom)
         layout_derecho.addWidget(grp_desc)
 
-        self.btn_factura = QPushButton("🧾 Factura")
-        self.btn_factura.setToolTip("Generar CFDI de la última venta")
-        self.btn_factura.setStyleSheet("padding:6px 10px;border-radius:4px;background:#2c3e50;color:white;")
+        self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta")
         self.btn_factura.setEnabled(False)
         self.btn_factura.clicked.connect(self._generar_factura)
         layout_derecho.addWidget(self.btn_factura)
 
-        self.btn_reimprimir = QPushButton("🖨️ Reimprimir")
-        self.btn_reimprimir.setToolTip("Reimprimir el ticket de la última venta")
-        self.btn_reimprimir.setStyleSheet("padding:6px 10px;border-radius:4px;background:#7f8c8d;color:white;")
+        self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimprimir", "Reimprimir el ticket de la última venta")
         self.btn_reimprimir.setEnabled(False)
         self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
         layout_derecho.addWidget(self.btn_reimprimir)
 
         self._banner_sin_impresora = QLabel(
             "⚠️  Sin impresora configurada — los tickets se guardarán en PDF (carpeta TICKETS/)")
-        self._banner_sin_impresora.setStyleSheet(
-            "background:#fff3cd;color:#856404;padding:5px 10px;"
-            "border:1px solid #ffc107;border-radius:4px;font-size:11px;")
+        self._banner_sin_impresora.setProperty("class", "banner-warning caption")
         self._banner_sin_impresora.setWordWrap(True)
         self._banner_sin_impresora.setVisible(False)
         layout_derecho.addWidget(self._banner_sin_impresora)
 
-        self.btn_cobrar = QPushButton("💰 Cobrar")
-        self.btn_suspender = QPushButton("⏸️ Suspender")
-        self.btn_reanudar = QPushButton("▶️ Reanudar (0)")
-        self.btn_cancelar = QPushButton("❌ Cancelar")
+        self.btn_cobrar = create_success_button(self, "💰 Cobrar", "Procesar el pago de la venta")
+        self.btn_suspender = create_warning_button(self, "⏸️ Suspender", "Suspender venta actual para atender otra")
+        self.btn_reanudar = create_primary_button(self, "▶️ Reanudar (0)", "Reanudar venta suspendida")
+        self.btn_cancelar = create_danger_button(self, "❌ Cancelar", "Cancelar venta actual")
         
-        button_height = 38
-        self.btn_cobrar.setFixedHeight(button_height)
-        self.btn_suspender.setFixedHeight(button_height)
-        self.btn_reanudar.setFixedHeight(button_height)
-        self.btn_cancelar.setFixedHeight(button_height)
-        
-        self.btn_cobrar.setProperty("class", "venta-button")
-        self.btn_cancelar.setProperty("class", "venta-button")
-        self.btn_suspender.setProperty("class", "venta-button")
-        self.btn_reanudar.setProperty("class", "venta-button")
-
-        self.btn_devolucion = QPushButton("↩ Devolución")
-        self.btn_devolucion.setFixedHeight(button_height)
-        self.btn_devolucion.setProperty("class", "venta-button")
-        self.btn_devolucion.setToolTip(
-            "Cancelar o devolver una venta anterior (requiere permiso)")
+        self.btn_devolucion = create_secondary_button(self, "↩ Devolución", "Cancelar o devolver una venta anterior (requiere permiso)")
         self.btn_devolucion.setEnabled(False)   # se activa tras login con permiso
 
         acciones_layout.addWidget(self.btn_cobrar, 0, 0, 1, 2)
@@ -1804,32 +1781,33 @@ class ModuloVentas(ModuloBase):
         """
         self._scan_context = context
 
-        # Reset styles — v13.4: sin colores de fondo hardcoded (compat dark mode)
-        base_product = ("QLineEdit { padding:6px 8px; border:2px solid gray;"
-                        " border-radius:4px; font-size:13px; }")
-        active_product = ("QLineEdit { padding:6px 8px; border:2px solid #27ae60;"
-                          " border-radius:4px; font-size:13px; }"
-                          "QLineEdit:focus { border-color:#27ae60; }")
-        active_client  = ("QLineEdit { padding:6px 8px; border:2px solid #2E86C1;"
-                          " border-radius:4px; font-size:13px; }"
-                          "QLineEdit:focus { border-color:#2E86C1; }")
-
+        # v13.4: Usar clases CSS en lugar de estilos inline
         for field in (getattr(self,'txt_busqueda',None), getattr(self,'txt_cliente',None)):
             if field is None: continue
+            
+            # Remover clases previas
+            field.setProperty("class", "")
+            
             if field is active_field:
                 if context == "producto":
-                    field.setStyleSheet(active_product)
+                    field.setProperty("class", "input-scanner-success")
                     field.setPlaceholderText("🟢 SCANNER ACTIVO — Escanear producto...")
                 elif context == "cliente":
-                    field.setStyleSheet(active_client)
+                    field.setProperty("class", "input-scanner-primary")
                     field.setPlaceholderText("🔵 SCANNER ACTIVO — Escanear tarjeta o cliente...")
             else:
-                field.setStyleSheet(base_product)
+                field.setProperty("class", "input-scanner-base")
                 # Restore original placeholder
                 if field is getattr(self, 'txt_busqueda', None):
                     field.setPlaceholderText("🔍 Escanear o escribir producto...")
                 elif field is getattr(self, 'txt_cliente', None):
                     field.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
+        
+        # Forzar actualización de estilos
+        for field in (getattr(self,'txt_busqueda',None), getattr(self,'txt_cliente',None)):
+            if field:
+                field.style().unpolish(field)
+                field.style().polish(field)
 
     def _cargar_cliente_en_venta(
         self,
@@ -1884,18 +1862,16 @@ class ModuloVentas(ModuloBase):
     def _mostrar_notif_scanner(self, mensaje: str, tipo: str = "product") -> None:
         """Muestra una notificación visual del resultado del scanner."""
         try:
-            colores = {
-                "product":   "#27ae60",
-                "card":      "#f39c12",
-                "container": "#3498db",
-                "search":    "#7f8c8d",
+            clases_css = {
+                "product":   "badge-scanner-success",
+                "card":      "badge-scanner-warning",
+                "container": "badge-scanner-info",
+                "search":    "badge-scanner-secondary",
             }
-            color = colores.get(tipo, "#2c3e50")
+            clase = clases_css.get(tipo, "badge-scanner-default")
             if hasattr(self, 'lbl_scanner_notif'):
                 self.lbl_scanner_notif.setText(mensaje)
-                self.lbl_scanner_notif.setStyleSheet(
-                    f"background:{color};color:white;padding:6px 12px;"
-                    "border-radius:4px;font-weight:bold;font-size:12px;")
+                self.lbl_scanner_notif.setProperty("class", f"{clase} badge")
                 self.lbl_scanner_notif.show()
                 # Auto-hide after 3s
                 from PyQt5.QtCore import QTimer
@@ -2539,9 +2515,7 @@ class ModuloVentas(ModuloBase):
             if desc_pct > 0:
                 btn_desc = QPushButton(f"-{desc_pct:.0f}%")
                 btn_desc.setToolTip("Click para quitar descuento")
-                btn_desc.setStyleSheet(
-                    "background:#e74c3c;color:white;font-size:10px;"
-                    "padding:1px 3px;border-radius:3px;")
+                btn_desc.setProperty("class", "btn-item-discount btn-xs")
                 btn_desc.clicked.connect(
                     lambda _, r=row: self._quitar_descuento_item(r))
                 self.tabla_compra.setCellWidget(row, 3, btn_desc)
@@ -2554,13 +2528,15 @@ class ModuloVentas(ModuloBase):
             
             btn_modificar = QPushButton("✏️")
             btn_modificar.setToolTip("Modificar cantidad")
-            btn_modificar.setFixedSize(26, 26)
+            btn_modificar.setFixedSize(28, 28)
+            btn_modificar.setProperty("class", "btn-icon-table")
             btn_modificar.clicked.connect(lambda checked, r=row: self.modificar_cantidad_producto(r))
             self.tabla_compra.setCellWidget(row, 5, btn_modificar)
             
             btn_eliminar = QPushButton("❌")
             btn_eliminar.setToolTip("Eliminar producto")
-            btn_eliminar.setFixedSize(26, 26)
+            btn_eliminar.setFixedSize(28, 28)
+            btn_eliminar.setProperty("class", "btn-icon-table btn-danger")
             btn_eliminar.clicked.connect(lambda checked, r=row: self.eliminar_producto_carrito(r))
             self.tabla_compra.setCellWidget(row, 6, btn_eliminar)
             
@@ -3460,29 +3436,39 @@ class ModuloVentas(ModuloBase):
 
         grp = QGroupBox("Buscar venta a devolver")
         sf = QFormLayout(grp)
-        txt_folio = QLineEdit(); txt_folio.setPlaceholderText("Folio VNT-… o ID")
+        txt_folio = QLineEdit()
+        txt_folio.setPlaceholderText("Folio VNT-… o ID")
+        txt_folio.setProperty("class", "standardInput")
         sf.addRow("Folio / ID:", txt_folio)
         lay.addWidget(grp)
 
         lbl_info = QLabel("Ingresa el folio y presiona Buscar")
-        lbl_info.setStyleSheet("color:#666;padding:4px;")
+        lbl_info.setProperty("class", "text-secondary caption")
         lay.addWidget(lbl_info)
 
         tbl = QTableWidget(0, 4)
         tbl.setHorizontalHeaderLabels(["Producto","Cant.","Precio","Subtotal"])
         tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        tbl.setProperty("class", "standardTable")
         lay.addWidget(tbl)
 
         cmb_motivo = QComboBox()
         cmb_motivo.addItems(["Producto defectuoso","Error de cajero","Cliente arrepentido","Otro"])
-        lay.addWidget(QLabel("Motivo:")); lay.addWidget(cmb_motivo)
+        cmb_motivo.setProperty("class", "standardCombobox")
+        lay.addWidget(QLabel("Motivo:"))
+        lay.addWidget(cmb_motivo)
 
         btn_bar = QHBoxLayout()
-        btn_buscar = QPushButton("🔍 Buscar"); btn_buscar.setStyleSheet("background:#3498db;color:white;padding:7px 16px;")
-        btn_cancel = QPushButton("❌ Cancelar venta"); btn_cancel.setStyleSheet("background:#e74c3c;color:white;padding:7px 16px;"); btn_cancel.setEnabled(False)
-        btn_cerrar = QPushButton("Cerrar"); btn_cerrar.clicked.connect(dlg.reject)
-        btn_bar.addWidget(btn_buscar); btn_bar.addWidget(btn_cancel); btn_bar.addStretch(); btn_bar.addWidget(btn_cerrar)
+        btn_buscar = create_primary_button(dlg, "🔍 Buscar", "Buscar venta por folio")
+        btn_cancel = create_danger_button(dlg, "❌ Cancelar venta", "Cancelar venta completa")
+        btn_cancel.setEnabled(False)
+        btn_cerrar = create_secondary_button(dlg, "Cerrar", "Cerrar diálogo")
+        btn_cerrar.clicked.connect(dlg.reject)
+        btn_bar.addWidget(btn_buscar)
+        btn_bar.addWidget(btn_cancel)
+        btn_bar.addStretch()
+        btn_bar.addWidget(btn_cerrar)
         lay.addLayout(btn_bar)
 
         _vid = [None]

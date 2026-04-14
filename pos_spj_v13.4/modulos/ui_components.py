@@ -1,0 +1,444 @@
+# modulos/ui_components.py — SPJ POS v13.4
+"""
+Sistema de componentes UI reutilizables para SPJ POS.
+Proporciona funciones factory para crear componentes estandarizados.
+
+USO:
+    from modulos.ui_components import (
+        create_primary_button,
+        create_input_field,
+        create_card,
+        create_badge,
+        apply_tooltip,
+    )
+    
+    # Crear botón primario con tooltip
+    btn = create_primary_button(parent, "Guardar", "Guardar cambios del pedido")
+    
+    # Crear input con label y tooltip
+    input_field = create_input_field(parent, "Nombre del cliente", "Ingrese el nombre completo")
+    
+    # Crear card contenedora
+    card = create_card(parent)
+    
+    # Crear badge de estado
+    badge = create_badge(parent, "Completado", "success")
+"""
+
+from PyQt5.QtWidgets import (
+    QPushButton, QLineEdit, QFrame, QLabel, QVBoxLayout, 
+    QHBoxLayout, QWidget, QToolTip, QGraphicsDropShadowEffect
+)
+from PyQt5.QtCore import Qt, QPoint, QTimer
+from PyQt5.QtGui import QFont, QPalette, QColor
+
+from modulos.design_tokens import (
+    Colors, Spacing, Typography, Borders, Shadows, ComponentStyles
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  BOTONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _configure_button(btn: QPushButton, variant: str = "primary") -> QPushButton:
+    """Configura un botón con estilos estándar según variante."""
+    btn.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
+    btn.setCursor(Qt.PointingHandCursor)
+    
+    # Asignar objectName para usar estilos CSS globales de config.py
+    variant_map = {
+        "primary": "primaryBtn",
+        "secondary": "secondaryBtn",
+        "success": "successBtn",
+        "danger": "dangerBtn",
+        "warning": "warningBtn",
+        "outline": "outlineBtn",
+    }
+    
+    object_name = variant_map.get(variant, "primaryBtn")
+    btn.setObjectName(object_name)
+    
+    return btn
+
+
+def create_primary_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """Crea un botón primario (azul) para acciones principales."""
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "primary")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
+def create_secondary_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """Crea un botón secundario (gris) para acciones secundarias."""
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "secondary")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
+def create_success_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """Crea un botón de éxito (verde) para guardar/confirmar."""
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "success")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
+def create_danger_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """Crea un botón de peligro (rojo) para eliminar/cancelar."""
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "danger")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
+def create_warning_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """Crea un botón de advertencia (ámbar) para editar/ajustar."""
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "warning")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
+def create_outline_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """Crea un botón outline (borde) para acciones menos prominentes."""
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "outline")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
+def create_icon_button(parent, icon_path: str, tooltip: str, variant: str = "secondary") -> QPushButton:
+    """Crea un botón solo con ícono."""
+    btn = QPushButton(parent)
+    btn.setFixedSize(36, 36)  # Tamaño cuadrado estándar
+    btn = _configure_button(btn, variant)
+    
+    if icon_path:
+        from PyQt5.QtGui import QIcon
+        btn.setIcon(QIcon(icon_path))
+        btn.setIconSize(QSize(18, 18))
+    
+    apply_tooltip(btn, tooltip)
+    return btn
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  INPUTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QLineEdit:
+    """Crea un input field estandarizado."""
+    input_field = QLineEdit(parent)
+    input_field.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
+    input_field.setPlaceholderText(placeholder)
+    
+    # Asignar objectName para estilos CSS
+    input_field.setObjectName("standardInput")
+    
+    if tooltip:
+        apply_tooltip(input_field, tooltip)
+    
+    return input_field
+
+
+def create_labeled_input(parent, label_text: str, placeholder: str = "", 
+                         tooltip: str = None, required: bool = False) -> QWidget:
+    """Crea un input con label encima."""
+    container = QWidget(parent)
+    layout = QVBoxLayout(container)
+    layout.setSpacing(Spacing.XS)
+    layout.setContentsMargins(0, 0, 0, 0)
+    
+    # Label
+    label = QLabel(label_text, container)
+    label.setFont(QFont(Typography.FONT_FAMILY, 12, QFont.Medium))
+    if required:
+        label.setText(f"{label_text} *")
+        label.setStyleSheet(f"color: {Colors.DANGER.BASE}; font-weight: 600;")
+    else:
+        label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_700}; font-weight: 500;")
+    
+    # Input
+    input_field = create_input_field(container, placeholder, tooltip)
+    
+    layout.addWidget(label)
+    layout.addWidget(input_field)
+    
+    return container
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CARDS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_card(parent, padding: int = Spacing.LG) -> QFrame:
+    """Crea una card contenedora con sombra suave."""
+    card = QFrame(parent)
+    card.setObjectName("card")
+    card.setFrameStyle(QFrame.StyledPanel)
+    
+    # Padding interno
+    layout = QVBoxLayout(card)
+    layout.setSpacing(Spacing.MD)
+    layout.setContentsMargins(padding, padding, padding, padding)
+    
+    return card
+
+
+def create_stat_card(parent, title: str, value: str, icon_path: str = None,
+                     color_variant: str = "primary") -> QFrame:
+    """
+    Crea una card de estadística para dashboards.
+    Fondo neutro con indicador de color en ícono/borde.
+    """
+    card = create_card(parent, padding=Spacing.MD)
+    card.setFixedHeight(80)  # Height reducido
+    
+    layout = QHBoxLayout(card)
+    layout.setSpacing(Spacing.MD)
+    
+    # Ícono (si existe)
+    if icon_path:
+        from PyQt5.QtWidgets import QLabel
+        from PyQt5.QtGui import QPixmap
+        
+        icon_label = QLabel()
+        icon_label.setFixedSize(40, 40)
+        pixmap = QPixmap(icon_path).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        icon_label.setPixmap(pixmap)
+        
+        # Color del ícono según variante
+        color_map = {
+            "primary": Colors.PRIMARY.BASE,
+            "success": Colors.SUCCESS.BASE,
+            "danger": Colors.DANGER.BASE,
+            "warning": Colors.WARNING.BASE,
+        }
+        # Aplicar tinte al ícono (simplificado)
+        icon_label.setStyleSheet(f"background-color: {color_map.get(color_variant, Colors.PRIMARY.BASE)}20; border-radius: 8px;")
+        
+        layout.addWidget(icon_label)
+    
+    # Texto
+    text_layout = QVBoxLayout()
+    text_layout.setSpacing(Spacing.XS)
+    
+    # Título
+    title_label = QLabel(title)
+    title_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS}; font-weight: 500;")
+    text_layout.addWidget(title_label)
+    
+    # Valor
+    value_label = QLabel(value)
+    value_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_900}; font-size: {Typography.SIZE_XL}; font-weight: 700;")
+    text_layout.addWidget(value_label)
+    
+    layout.addLayout(text_layout)
+    layout.addStretch()
+    
+    return card
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  BADGES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_badge(parent, text: str, variant: str = "primary") -> QLabel:
+    """
+    Crea un badge/pill de estado.
+    Variantes: primary, success, danger, warning, info, neutral
+    """
+    badge = QLabel(text, parent)
+    badge.setAlignment(Qt.AlignCenter)
+    
+    # Colores según variante
+    color_map = {
+        "primary": (Colors.PRIMARY.BASE, Colors.PRIMARY.LIGHT),
+        "success": (Colors.SUCCESS.BASE, Colors.SUCCESS.BG_SOFT),
+        "danger": (Colors.DANGER.BASE, Colors.DANGER.BG_SOFT),
+        "warning": (Colors.WARNING.BASE, Colors.WARNING.BG_SOFT),
+        "info": (Colors.INFO.BASE, Colors.INFO.BG_SOFT),
+        "neutral": (Colors.NEUTRAL.SLATE_600, Colors.NEUTRAL.SLATE_100),
+    }
+    
+    text_color, bg_color = color_map.get(variant, color_map["primary"])
+    
+    badge.setStyleSheet(f"""
+        background-color: {bg_color};
+        color: {text_color};
+        border-radius: {Borders.RADIUS_FULL}px;
+        padding: {Spacing.XS}px {Spacing.SM}px;
+        font-size: {Typography.SIZE_XS};
+        font-weight: 600;
+    """)
+    
+    # Size mínimo
+    badge.setMinimumHeight(24)
+    
+    return badge
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  TOOLTIPS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def apply_tooltip(widget, text: str, delay_ms: int = 300):
+    """
+    Aplica un tooltip global estilizado a cualquier widget.
+    El tooltip aparece en hover después del delay especificado.
+    """
+    if not text:
+        return
+    
+    widget.setToolTip(text)
+    
+    # Configurar estilo del tooltip (se aplica globalmente desde config.py)
+    # El QSS ya define QToolTip con colores correctos según tema
+    
+    # Opcional: agregar timer para control más fino del delay
+    if hasattr(widget, '_tooltip_timer'):
+        return
+    
+    widget._tooltip_timer = QTimer(widget)
+    widget._tooltip_timer.setSingleShot(True)
+    widget._tooltip_timer.setInterval(delay_ms)
+    
+    original_enter = widget.enterEvent
+    original_leave = widget.leaveEvent
+    
+    def enter_event(e):
+        widget._tooltip_timer.start()
+        if original_enter:
+            original_enter(e)
+    
+    def leave_event(e):
+        widget._tooltip_timer.stop()
+        QToolTip.hideText()
+        if original_leave:
+            original_leave(e)
+    
+    widget.enterEvent = enter_event
+    widget.leaveEvent = leave_event
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SEPARADORES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_divider(parent, orientation: str = "horizontal") -> QFrame:
+    """Crea un separador/divisor."""
+    divider = QFrame(parent)
+    
+    if orientation == "horizontal":
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFixedHeight(1)
+    else:
+        divider.setFrameShape(QFrame.VLine)
+        divider.setFixedWidth(1)
+    
+    divider.setObjectName("divider")
+    return divider
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  LABELS CON JERARQUÍA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_heading(parent, text: str) -> QLabel:
+    """Crea un label de título principal (24px bold)."""
+    label = QLabel(text, parent)
+    label.setStyleSheet(f"""
+        color: {Colors.NEUTRAL.SLATE_900};
+        font-size: {Typography.SIZE_XXL};
+        font-weight: {Typography.WEIGHT_BOLD};
+    """)
+    return label
+
+
+def create_subheading(parent, text: str) -> QLabel:
+    """Crea un label de subtítulo (16px semibold)."""
+    label = QLabel(text, parent)
+    label.setStyleSheet(f"""
+        color: {Colors.NEUTRAL.SLATE_700};
+        font-size: {Typography.SIZE_LG};
+        font-weight: {Typography.WEIGHT_SEMIBOLD};
+    """)
+    return label
+
+
+def create_caption(parent, text: str) -> QLabel:
+    """Crea un label de caption/texto secundario (11px)."""
+    label = QLabel(text, parent)
+    label.setStyleSheet(f"""
+        color: {Colors.NEUTRAL.SLATE_500};
+        font-size: {Typography.SIZE_XS};
+    """)
+    return label
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CONTENEDORES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_section_container(parent, title: str = None) -> QFrame:
+    """Crea un contenedor de sección con borde y padding."""
+    container = QFrame(parent)
+    container.setObjectName("sectionContainer")
+    container.setFrameStyle(QFrame.StyledPanel)
+    
+    layout = QVBoxLayout(container)
+    layout.setSpacing(Spacing.LG)
+    layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+    
+    if title:
+        title_label = create_subheading(container, title)
+        layout.addWidget(title_label)
+    
+    return container
+
+
+# Exportar todo
+__all__ = [
+    # Botones
+    "create_primary_button",
+    "create_secondary_button",
+    "create_success_button",
+    "create_danger_button",
+    "create_warning_button",
+    "create_outline_button",
+    "create_icon_button",
+    
+    # Inputs
+    "create_input_field",
+    "create_labeled_input",
+    
+    # Cards
+    "create_card",
+    "create_stat_card",
+    
+    # Badges
+    "create_badge",
+    
+    # Tooltips
+    "apply_tooltip",
+    
+    # Separadores
+    "create_divider",
+    
+    # Labels
+    "create_heading",
+    "create_subheading",
+    "create_caption",
+    
+    # Contenedores
+    "create_section_container",
+]

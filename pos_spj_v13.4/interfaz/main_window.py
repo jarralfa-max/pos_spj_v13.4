@@ -178,15 +178,9 @@ class DialogoLogin(QDialog):
 
         self.setWindowTitle("SPJ POS — Iniciar Sesión")
         self.setFixedSize(340, 280)
-        self.setStyleSheet("""
-            QDialog    { background-color: #1E1E1E; color: #E8E8E8; }
-            QLabel     { color: #E8E8E8; }
-            QLineEdit  { padding: 10px; border: 1px solid #4A5568;
-                         border-radius: 4px; background: #2D3748; color: white; }
-            QPushButton{ background: #3498DB; color: white; font-weight: bold;
-                         padding: 10px; border-radius: 4px; }
-            QPushButton:hover { background: #2980B9; }
-        """)
+        
+        # Usar objectName para que el tema global aplique estilos consistentes
+        self.setObjectName("loginDialog")
         self._configurar_ui()
 
     def _leer_sucursal_instalacion(self) -> dict:
@@ -211,13 +205,19 @@ class DialogoLogin(QDialog):
 
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(16)
+        layout.setContentsMargins(30, 30, 30, 30)
 
-        # Logo empresa
-        lbl_logo = QLabel()
-        lbl_logo.setAlignment(Qt.AlignCenter)
+        # Logo empresa - CORREGIDO: Sin cortes, escalado proporcional adecuado
+        self.lbl_logo = QLabel()
+        self.lbl_logo.setAlignment(Qt.AlignCenter)
+        self.lbl_logo.setObjectName("loginLogo")
+        self.lbl_logo.setMinimumHeight(80)  # Espacio mínimo para evitar cortes
+        self.lbl_logo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        
         try:
             from PyQt5.QtGui import QPixmap as _QP
+            from PyQt5.QtCore import QSizePolicy
             import os
             _db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if _db:
@@ -225,7 +225,9 @@ class DialogoLogin(QDialog):
                 if _r and _r[0] and os.path.exists(_r[0]):
                     _pix = _QP(_r[0])
                     if not _pix.isNull():
-                        lbl_logo.setPixmap(_pix.scaled(70, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                        # Escalar manteniendo aspecto, tamaño máximo 120x120 para mejor visibilidad
+                        _scaled = _pix.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        self.lbl_logo.setPixmap(_scaled)
                     else:
                         raise Exception()
                 else:
@@ -233,31 +235,56 @@ class DialogoLogin(QDialog):
             else:
                 raise Exception()
         except Exception:
-            lbl_logo.setText("🏢"); lbl_logo.setStyleSheet("font-size:32px;")
-        layout.addWidget(lbl_logo)
+            self.lbl_logo.setText("🏢")
+            self.lbl_logo.setStyleSheet("font-size: 48px; background-color: transparent;")
 
-        titulo = QLabel("🏪 Iniciar Sesión")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        layout.addWidget(self.lbl_logo)
+
+        titulo = QLabel("Iniciar Sesión")
+        titulo.setObjectName("loginTitle")
         titulo.setAlignment(Qt.AlignCenter)
         layout.addWidget(titulo)
 
         # Mostrar sucursal de esta instalación (solo info, no editable)
         suc_nombre = self._sucursal_instalacion.get('nombre', 'Principal')
-        lbl_suc = QLabel(f"📍 Sucursal: {suc_nombre}")
+        lbl_suc = QLabel(f"Sucursal: {suc_nombre}")
         lbl_suc.setAlignment(Qt.AlignCenter)
-        lbl_suc.setStyleSheet("font-size:11px; color:#0FB9B1;")
+        lbl_suc.setObjectName("loginSucursal")
+        lbl_suc.setWordWrap(True)
         layout.addWidget(lbl_suc)
 
-        self.txt_usuario  = QLineEdit(); self.txt_usuario.setPlaceholderText("Usuario o PIN")
-        self.txt_password = QLineEdit(); self.txt_password.setPlaceholderText("Contraseña")
+        layout.addSpacing(10)  # Espacio extra antes de inputs
+
+        self.txt_usuario = QLineEdit()
+        self.txt_usuario.setPlaceholderText("Usuario o PIN")
+        self.txt_usuario.setObjectName("inputField")
+        self.txt_usuario.setMinimumHeight(40)
+        
+        self.txt_password = QLineEdit()
+        self.txt_password.setPlaceholderText("Contraseña")
         self.txt_password.setEchoMode(QLineEdit.Password)
+        self.txt_password.setObjectName("inputField")
+        self.txt_password.setMinimumHeight(40)
+        self.txt_password.returnPressed.connect(self.intentar_login)
+        
         layout.addWidget(self.txt_usuario)
         layout.addWidget(self.txt_password)
 
-        self.btn_login = QPushButton("Entrar al Sistema")
+        layout.addStretch()  # Empuja el botón hacia abajo
+
+        self.btn_login = QPushButton("ENTRAR AL SISTEMA")
+        self.btn_login.setObjectName("primaryBtn")
+        self.btn_login.setCursor(Qt.PointingHandCursor)
+        self.btn_login.setMinimumHeight(45)
         self.btn_login.clicked.connect(self.intentar_login)
-        self.txt_password.returnPressed.connect(self.intentar_login)
         layout.addWidget(self.btn_login)
+
+        # Mensaje de error (oculto por defecto)
+        self.lbl_error = QLabel("")
+        self.lbl_error.setObjectName("errorMsg")
+        self.lbl_error.setAlignment(Qt.AlignCenter)
+        self.lbl_error.setWordWrap(True)
+        layout.addWidget(self.lbl_error)
 
     def intentar_login(self):
         usuario  = self.txt_usuario.text().strip()

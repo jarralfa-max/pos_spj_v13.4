@@ -5,6 +5,8 @@ import re
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
+from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input, create_combo, create_card, apply_tooltip, create_heading, create_subheading, create_caption
 from core.events.event_bus import VENTA_COMPLETADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
 from core.services.auto_audit import audit_write
 from core.events.event_bus import get_bus
@@ -145,8 +147,7 @@ class ModuloClientes(ModuloBase):
         acciones_layout.addWidget(self.btn_eliminar_cliente)
         acciones_layout.addWidget(self.btn_ver_historial)
         acciones_layout.addWidget(self.btn_asignar_tarjeta)
-        self.btn_rfm = QPushButton("📊 Segmentación RFM")
-        self.btn_rfm.setStyleSheet("background:#8e44ad;color:white;font-weight:bold;padding:6px 10px;border-radius:5px;")
+        self.btn_rfm = create_secondary_button(self, "📊 Segmentación RFM", "Analizar segmentación RFM de clientes")
         self.btn_rfm.clicked.connect(self._abrir_rfm)
         acciones_layout.addWidget(self.btn_ver_tarjetas)
         acciones_layout.addWidget(self.btn_rfm)
@@ -1231,12 +1232,10 @@ class _DialogoRFM(QDialog):
 
         # Header
         hdr = QHBoxLayout()
-        t = QLabel("📊 Segmentación RFM")
-        t.setStyleSheet("font-size:16px;font-weight:bold;")
-        self.cmb_periodo = QComboBox()
-        self.cmb_periodo.addItems(["Últimos 90 días","Últimos 180 días","Últimos 365 días","Todo el tiempo"])
+        t = create_heading(self, "📊 Segmentación RFM")
+        self.cmb_periodo = create_combo(self, ["Últimos 90 días","Últimos 180 días","Últimos 365 días","Todo el tiempo"])
         self.cmb_periodo.currentIndexChanged.connect(self._calcular_rfm)
-        btn_export = QPushButton("📥 Exportar Excel")
+        btn_export = create_primary_button(self, "📥 Exportar Excel", "Exportar análisis RFM a Excel")
         btn_export.clicked.connect(self._exportar)
         hdr.addWidget(t); hdr.addStretch()
         hdr.addWidget(QLabel("Período:")); hdr.addWidget(self.cmb_periodo)
@@ -1250,10 +1249,11 @@ class _DialogoRFM(QDialog):
         self._seg_labels = {}
         for seg, cfg in self.SEGMENTOS.items():
             card = QFrame(); card.setFrameStyle(QFrame.Box)
-            card.setStyleSheet(f"background:{cfg['color']}22;border:1px solid {cfg['color']};border-radius:6px;padding:4px;")
+            card.setObjectName("card")
             c_lay = QVBoxLayout(card)
-            lbl_n = QLabel(f"{cfg['icono']} {seg}"); lbl_n.setStyleSheet(f"font-weight:bold;color:{cfg['color']};")
-            lbl_c = QLabel("0"); lbl_c.setStyleSheet("font-size:18px;font-weight:bold;")
+            lbl_n = QLabel(f"{cfg['icono']} {seg}")
+            lbl_n.setStyleSheet(f"font-weight:bold;color:{cfg['color']};")
+            lbl_c = QLabel("0"); lbl_c.setObjectName("heading")
             lbl_c.setAlignment(Qt.AlignCenter)
             c_lay.addWidget(lbl_n); c_lay.addWidget(lbl_c)
             self._seg_labels[seg] = lbl_c
@@ -1263,9 +1263,7 @@ class _DialogoRFM(QDialog):
 
         # Filter by segment
         flt = QHBoxLayout()
-        self.cmb_seg_filter = QComboBox()
-        self.cmb_seg_filter.addItem("Todos los segmentos")
-        self.cmb_seg_filter.addItems(list(self.SEGMENTOS.keys()))
+        self.cmb_seg_filter = create_combo(self, ["Todos los segmentos"] + list(self.SEGMENTOS.keys()))
         self.cmb_seg_filter.currentIndexChanged.connect(self._filtrar_tabla)
         flt.addWidget(QLabel("Filtrar:")); flt.addWidget(self.cmb_seg_filter); flt.addStretch()
         lay.addLayout(flt)
@@ -1282,11 +1280,11 @@ class _DialogoRFM(QDialog):
         self.tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.setAlternatingRowColors(True)
+        self.tbl.setObjectName("tableView")
         lay.addWidget(self.tbl)
 
         # Footer
-        self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet("color:#666;font-size:11px;")
+        self.lbl_status = create_caption(self, "")
         lay.addWidget(self.lbl_status)
 
     def _dias_periodo(self) -> int:

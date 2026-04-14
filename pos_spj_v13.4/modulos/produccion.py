@@ -17,6 +17,12 @@ from __future__ import annotations
 from core.events.event_bus import get_bus
 from core.services.auto_audit import audit_write
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Radii, Shadows
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_input, create_combo, create_card,
+    create_heading, create_subheading, create_caption, apply_tooltip
+)
 
 import logging
 from datetime import datetime
@@ -44,10 +50,6 @@ from core.services.recipe_engine import (
 )
 
 logger = logging.getLogger("spj.ui.produccion")
-
-_DARK  = "#1a252f"
-_BLUE  = "#2980b9"
-_GREEN = "#27ae60"
 _RED   = "#e74c3c"
 _GOLD  = "#f39c12"
 _GRAY  = "#7f8c8d"
@@ -167,10 +169,9 @@ class ModuloProduccion(ModuloBase):
         # Header
         hdr = QHBoxLayout()
         ttl = QLabel("🔪 Procesamiento Cárnico")
-        f = ttl.font(); f.setPointSize(15); f.setBold(True); ttl.setFont(f)
-        ttl.setObjectName("tituloPrincipal")
+        ttl.setObjectName("heading")
         self._lbl_suc = QLabel()
-        self._lbl_suc.setStyleSheet(f"color:{_GRAY};")
+        self._lbl_suc.setObjectName("textSecondary")
         hdr.addWidget(ttl); hdr.addStretch(); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
@@ -204,11 +205,11 @@ class ModuloProduccion(ModuloBase):
 
         # Info receta
         self._lbl_tipo = QLabel()
-        self._lbl_tipo.setStyleSheet("font-weight:bold; padding:4px; border-radius:4px;")
+        self._lbl_tipo.setObjectName("badge")
         fl.addWidget(self._lbl_tipo)
 
         self._lbl_base = QLabel()
-        self._lbl_base.setStyleSheet(f"color:{_GRAY}; font-size:12px;")
+        self._lbl_base.setObjectName("caption")
         fl.addWidget(self._lbl_base)
 
         # Cantidad base
@@ -221,7 +222,7 @@ class ModuloProduccion(ModuloBase):
         self._spin_cant.setSingleStep(0.5)
         self._spin_cant.valueChanged.connect(self._on_cant_changed)
         self._lbl_unidad = QLabel("kg")
-        self._lbl_unidad.setStyleSheet(f"color:{_GRAY};")
+        self._lbl_unidad.setObjectName("textSecondary")
         qty_row.addWidget(self._spin_cant)
         qty_row.addWidget(self._lbl_unidad)
         qty_row.addStretch()
@@ -239,21 +240,16 @@ class ModuloProduccion(ModuloBase):
         self._grp_stock = QGroupBox("Stock disponible")
         sl = QVBoxLayout(self._grp_stock)
         self._lbl_stock = QLabel("—")
-        self._lbl_stock.setStyleSheet("font-size:14px; font-weight:bold;")
+        self._lbl_stock.setObjectName("subheading")
         sl.addWidget(self._lbl_stock)
         fl.addWidget(self._grp_stock)
 
         # Botones
-        btn_preview = QPushButton("🔍 Vista Previa")
-        btn_preview.setStyleSheet(f"background:{_BLUE};color:white;font-weight:bold;padding:8px;border-radius:4px;")
+        btn_preview = create_primary_button(self, "🔍 Vista Previa", "Ver movimientos antes de ejecutar producción")
         btn_preview.clicked.connect(self._preview)
         fl.addWidget(btn_preview)
 
-        self._btn_ejecutar = QPushButton("▶ EJECUTAR PRODUCCIÓN")
-        self._btn_ejecutar.setStyleSheet(
-            f"background:{_GREEN};color:white;font-size:14px;font-weight:bold;"
-            f"padding:10px;border-radius:4px;"
-        )
+        self._btn_ejecutar = create_success_button(self, "▶ EJECUTAR PRODUCCIÓN", "Ejecutar producción con validación de stock")
         self._btn_ejecutar.clicked.connect(self._ejecutar)
         fl.addWidget(self._btn_ejecutar)
 
@@ -280,7 +276,7 @@ class ModuloProduccion(ModuloBase):
 
         # Resumen
         self._lbl_resumen = QLabel()
-        self._lbl_resumen.setStyleSheet("font-weight:bold; padding:4px;")
+        self._lbl_resumen.setObjectName("subheading")
         rl.addWidget(self._lbl_resumen)
 
         sp.addWidget(right)
@@ -343,7 +339,7 @@ class ModuloProduccion(ModuloBase):
             hdr3.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         rl.addWidget(self._tbl_det)
         self._lbl_det_info = QLabel()
-        self._lbl_det_info.setStyleSheet(f"color:{_GRAY}; font-size:12px;")
+        self._lbl_det_info.setObjectName("caption")
         rl.addWidget(self._lbl_det_info)
         sp.addWidget(right)
         sp.setSizes([480, 340])
@@ -372,7 +368,7 @@ class ModuloProduccion(ModuloBase):
         lay.addWidget(grp_in)
 
         btn_row = QHBoxLayout()
-        btn_proc = QPushButton("⚙️ Procesar lote cárnico"); btn_proc.setStyleSheet("background:#c0392b;color:white;font-weight:bold;padding:7px;")
+        btn_proc = create_danger_button(self, "⚙️ Procesar lote cárnico", "Procesar lote de producción cárnica con cálculo de merma")
         btn_row.addWidget(btn_proc); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -518,19 +514,17 @@ class ModuloProduccion(ModuloBase):
         info = QLabel("Gestión de recetas para producción y despiece cárnico. "
                        "Cada receta define insumos, rendimientos y subproductos.")
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#f0f4ff;padding:5px;border-radius:5px;font-size:11px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         # Botones principales
         btn_row = QHBoxLayout()
-        btn_nueva = QPushButton("➕ Nueva receta")
-        btn_nueva.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:5px 12px;border-radius:4px;")
-        btn_editar = QPushButton("✏️ Editar receta")
-        btn_editar.setStyleSheet("background:#e67e22;color:white;font-weight:bold;padding:5px 12px;border-radius:4px;")
+        btn_nueva = create_success_button(self, "➕ Nueva receta", "Crear nueva receta de producción")
+        btn_editar = create_secondary_button(self, "✏️ Editar receta", "Editar receta seleccionada")
         btn_ver = QPushButton("👁️ Ver detalle")
-        btn_desact = QPushButton("🗑️ Desactivar")
-        btn_desact.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:5px 12px;border-radius:4px;")
+        btn_desact = create_danger_button(self, "🗑️ Desactivar", "Desactivar receta seleccionada")
         btn_refresh = QPushButton("🔄")
+        apply_tooltip(btn_refresh, "Actualizar lista de recetas")
         btn_row.addWidget(btn_nueva); btn_row.addWidget(btn_editar)
         btn_row.addWidget(btn_ver); btn_row.addWidget(btn_desact)
         btn_row.addStretch(); btn_row.addWidget(btn_refresh)
@@ -799,12 +793,8 @@ class ModuloProduccion(ModuloBase):
             self._lbl_stock.setText("—")
             return
         tipo = r.get("tipo_receta", "")
-        color = TIPO_COLOR.get(tipo, _GRAY)
         self._lbl_tipo.setText(TIPO_LABELS.get(tipo, tipo))
-        self._lbl_tipo.setStyleSheet(
-            f"font-weight:bold;padding:4px;border-radius:4px;"
-            f"background:{color};color:white;"
-        )
+        self._lbl_tipo.setObjectName("badge")
         peso = r.get("peso_promedio_kg") or 1.0
         unidad = r.get("unidad_base") or r.get("prod_unidad") or "kg"
         self._lbl_base.setText(
@@ -833,11 +823,12 @@ class ModuloProduccion(ModuloBase):
             cant = self._spin_cant.value()
             unidad = r.get("unidad_base") or "kg"
             ok = stock >= cant
-            color = _GREEN if ok else _RED
             self._lbl_stock.setText(f"{stock:.3f} {unidad}")
-            self._lbl_stock.setStyleSheet(
-                f"font-size:14px;font-weight:bold;color:{color};"
-            )
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_stock.setObjectName("textSuccess" if ok else "textDanger")
+            # Forzar actualización de estilo
+            self._lbl_stock.style().unpolish(self._lbl_stock)
+            self._lbl_stock.style().polish(self._lbl_stock)
         except Exception as exc:
             logger.warning("update_stock_label: %s", exc)
             self._lbl_stock.setText("?")
@@ -915,14 +906,20 @@ class ModuloProduccion(ModuloBase):
             self._lbl_resumen.setText(
                 f"❌ STOCK INSUFICIENTE | Consumo: {total_out:.3f} | Generado: {total_in:.3f}"
             )
-            self._lbl_resumen.setStyleSheet(f"color:{_RED};font-weight:bold;")
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_resumen.setObjectName("textDanger")
+            self._lbl_resumen.style().unpolish(self._lbl_resumen)
+            self._lbl_resumen.style().polish(self._lbl_resumen)
             self._btn_ejecutar.setEnabled(False)
         else:
             self._lbl_resumen.setText(
                 f"✅ OK | Consumo: {total_out:.3f} | Generado: {total_in:.3f} | "
                 f"Movimientos: {len(movs)}"
             )
-            self._lbl_resumen.setStyleSheet(f"color:{_GREEN};font-weight:bold;")
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_resumen.setObjectName("textSuccess")
+            self._lbl_resumen.style().unpolish(self._lbl_resumen)
+            self._lbl_resumen.style().polish(self._lbl_resumen)
             self._btn_ejecutar.setEnabled(True)
 
     # ── Ejecutar ──────────────────────────────────────────────────────────────
@@ -1173,10 +1170,9 @@ class DialogoReceta(QDialog):
         self._spin_rend  = QDoubleSpinBox(); self._spin_rend.setRange(0, 100); self._spin_rend.setDecimals(3); self._spin_rend.setSuffix(" %")
         self._spin_merma = QDoubleSpinBox(); self._spin_merma.setRange(0, 100); self._spin_merma.setDecimals(3); self._spin_merma.setSuffix(" %")
         self._e_desc     = QLineEdit(); self._e_desc.setPlaceholderText("Descripción (opcional)")
-        btn_add = QPushButton("➕ Agregar")
+        btn_add = create_primary_button(self, "➕ Agregar", "Agregar componente a la receta")
         btn_add.clicked.connect(self._add_component)
-        btn_add.setStyleSheet(f"background:{_C3};color:white;padding:4px 10px;border-radius:3px;")
-        btn_del = QPushButton("🗑 Quitar Sel.")
+        btn_del = create_secondary_button(self, "🗑 Quitar Sel.", "Quitar componente seleccionado")
         btn_del.clicked.connect(self._remove_component)
         self._spin_tolerancia = QDoubleSpinBox()
         self._spin_tolerancia.setRange(0.1, 20.0); self._spin_tolerancia.setDecimals(1)
@@ -1196,15 +1192,16 @@ class DialogoReceta(QDialog):
 
         # Totals
         self._lbl_totales = QLabel("Suma: 0.00%")
-        self._lbl_totales.setStyleSheet("font-size:13px;font-weight:bold;")
+        self._lbl_totales.setObjectName("subheading")
         gl.addWidget(self._lbl_totales)
         lay.addWidget(grp)
 
         # Buttons
         bl = QHBoxLayout()
-        btn_ok = QPushButton("💾 Guardar Receta"); btn_ok.clicked.connect(self._guardar)
-        btn_no = QPushButton("Cancelar"); btn_no.clicked.connect(self.reject)
-        btn_ok.setStyleSheet(f"background:{_C4};color:white;font-weight:bold;padding:6px 14px;border-radius:4px;")
+        btn_ok = create_success_button(self, "💾 Guardar Receta", "Guardar receta de producción")
+        btn_ok.clicked.connect(self._guardar)
+        btn_no = create_secondary_button(self, "Cancelar", "Cancelar y cerrar")
+        btn_no.clicked.connect(self.reject)
         bl.addStretch(); bl.addWidget(btn_ok); bl.addWidget(btn_no)
         lay.addLayout(bl)
 
@@ -1292,7 +1289,16 @@ class DialogoReceta(QDialog):
             f"Merma total: {float(total_merma):.3f}%  |  "
             f"Suma: {grand:.3f}%"
         )
-        self._lbl_totales.setStyleSheet(f"font-size:13px;font-weight:bold;color:{color};")
+        # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+        if color == "red":
+            self._lbl_totales.setObjectName("textDanger")
+        elif color == "green":
+            self._lbl_totales.setObjectName("textSuccess")
+        else:
+            self._lbl_totales.setObjectName("textPrimary")
+        # Forzar actualización de estilo
+        self._lbl_totales.style().unpolish(self._lbl_totales)
+        self._lbl_totales.style().polish(self._lbl_totales)
 
     def _guardar(self) -> None:
         nombre = self._e_nombre.text().strip()

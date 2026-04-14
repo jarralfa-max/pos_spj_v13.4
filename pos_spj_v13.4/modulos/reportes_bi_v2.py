@@ -1,5 +1,11 @@
 
 # modulos/reportes_bi_v2.py
+from modulos.design_tokens import Colors, Spacing, Typography, Radii, Shadows
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button, 
+    create_secondary_button, create_input, create_combo, create_card,
+    create_heading, create_subheading, create_caption, apply_tooltip
+)
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
@@ -36,31 +42,22 @@ class ModuloReportesBIv2(QWidget):
         # --- HEADER Y FILTROS ---
         header_layout = QHBoxLayout()
         
-        lbl_titulo = QLabel("📈 Inteligencia Comercial (Dashboard)")
-        lbl_titulo.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;")
+        lbl_titulo = create_heading(self, "📈 Inteligencia Comercial (Dashboard)")
         header_layout.addWidget(lbl_titulo)
         
         header_layout.addStretch()
         
-        self.cmb_rango = QComboBox()
-        self.cmb_rango.addItems(["Hoy", "Esta Semana", "Este Mes"])
-        self.cmb_rango.setStyleSheet("padding: 5px; font-size: 14px;")
+        self.cmb_rango = create_combo(self, ["Hoy", "Esta Semana", "Este Mes"])
         self.cmb_rango.currentTextChanged.connect(self.cargar_dashboard)
         
-        self.btn_actualizar = QPushButton("🔄 Refrescar")
+        self.btn_actualizar = create_secondary_button(self, "🔄 Refrescar", "Actualizar datos del dashboard")
         self.btn_actualizar.clicked.connect(self.cargar_dashboard)
 
-        btn_excel = QPushButton("📊 Excel")
-        btn_excel.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;padding:5px 12px;border-radius:3px;")
+        btn_excel = create_success_button(self, "📊 Excel", "Exportar dashboard a Excel (.xlsx)")
         btn_excel.clicked.connect(lambda: self._exportar("excel"))
-        btn_excel.setToolTip("Exportar dashboard a Excel (.xlsx)")
 
-        btn_pdf = QPushButton("📄 PDF")
-        btn_pdf.setStyleSheet(
-            "background:#e74c3c;color:white;font-weight:bold;padding:5px 12px;border-radius:3px;")
+        btn_pdf = create_danger_button(self, "📄 PDF", "Exportar dashboard a PDF")
         btn_pdf.clicked.connect(lambda: self._exportar("pdf"))
-        btn_pdf.setToolTip("Exportar dashboard a PDF")
 
         header_layout.addWidget(QLabel("Período:"))
         header_layout.addWidget(self.cmb_rango)
@@ -85,9 +82,8 @@ class ModuloReportesBIv2(QWidget):
         
         layout_principal.addLayout(kpi_layout)
 
-        self.lbl_comparativa = QLabel("")
+        self.lbl_comparativa = create_caption(self, "")
         self.lbl_comparativa.setAlignment(Qt.AlignCenter)
-        self.lbl_comparativa.setStyleSheet("font-size:12px;padding:3px;")
         self.lbl_comparativa.hide()
         layout_principal.addWidget(self.lbl_comparativa)
 
@@ -117,16 +113,13 @@ class ModuloReportesBIv2(QWidget):
         """Tabla de rentabilidad por producto: margen, rotación, contribución."""
         from PyQt5.QtWidgets import QGroupBox
         grp = QGroupBox("💰 Rentabilidad por Producto (Margen Bruto)")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                          "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         lay = QVBoxLayout(grp)
 
         toolbar = QHBoxLayout()
-        btn_rent = QPushButton("📊 Calcular Rentabilidad")
-        btn_rent.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;"
-                               "padding:6px 14px;border-radius:4px;")
+        btn_rent = create_primary_button(self, "📊 Calcular Rentabilidad", "Calcular rentabilidad por producto")
         btn_rent.clicked.connect(self._cargar_rentabilidad)
-        btn_export = QPushButton("📥 Exportar CSV")
+        btn_export = create_secondary_button(self, "📥 Exportar CSV", "Exportar reporte a CSV")
         btn_export.clicked.connect(self._exportar_rentabilidad_csv)
         toolbar.addWidget(btn_rent); toolbar.addWidget(btn_export); toolbar.addStretch()
         lay.addLayout(toolbar)
@@ -231,31 +224,25 @@ class ModuloReportesBIv2(QWidget):
 
     def _crear_tarjeta_kpi(self, titulo, valor_inicial):
         """Crea una tarjeta visual estilizada para los indicadores."""
-        tarjeta = QFrame()
-        tarjeta.setStyleSheet("""
-            QFrame { background-color: #ffffff; border-radius: 8px; border: 1px solid #e0e0e0; }
-            QLabel { background-color: transparent; border: none; }
-        """)
+        tarjeta = create_card(self)
         layout = QVBoxLayout(tarjeta)
-        
-        lbl_titulo = QLabel(titulo)
-        lbl_titulo.setStyleSheet("color: #7f8c8d; font-size: 14px; font-weight: bold;")
+
+        lbl_titulo = create_caption(self, titulo)
         lbl_titulo.setAlignment(Qt.AlignCenter)
-        
-        lbl_valor = QLabel(valor_inicial)
-        lbl_valor.setStyleSheet("color: #2980b9; font-size: 24px; font-weight: bold;")
+
+        lbl_valor = create_subheading(self, valor_inicial)
+        lbl_valor.setObjectName("textPrimary")  # Color azul primario
         lbl_valor.setAlignment(Qt.AlignCenter)
-        
+
         layout.addWidget(lbl_titulo)
         layout.addWidget(lbl_valor)
         tarjeta._lbl_valor = lbl_valor   # keep reference on the frame
         return tarjeta
-
     def _crear_tabla_ranking(self, titulo, headers):
         """Crea un panel con una tabla limpia para los rankings.
         Returns the QGroupBox (parent kept alive) with _tabla attribute."""
         grupo = QGroupBox(titulo)
-        grupo.setStyleSheet("font-weight: bold; font-size: 14px; margin-top: 10px;")
+        grupo.setObjectName("styledGroup")
         layout = QVBoxLayout(grupo)
         
         tabla = QTableWidget()
@@ -264,7 +251,7 @@ class ModuloReportesBIv2(QWidget):
         tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         tabla.verticalHeader().setVisible(False)
         tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        tabla.setStyleSheet("font-weight: normal; font-size: 12px;")
+        tabla.setObjectName("tableView")
         
         layout.addWidget(tabla)
         grupo._tabla = tabla   # keep strong reference on the container
