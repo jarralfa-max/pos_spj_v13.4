@@ -25,8 +25,7 @@ logger = logging.getLogger("spj.ui.dashboard")
 class KPICard(QFrame):
     """
     Tarjeta de KPI individual.
-    El color lo determina KPIColorEngine según el estado financiero —
-    nunca se hardcodea aquí.
+    Diseño optimizado: fondo neutro con indicador de color, no card saturada.
     """
     clicked = pyqtSignal(str)
 
@@ -54,34 +53,36 @@ class KPICard(QFrame):
                 if not tendencia and metric_prev:
                     tendencia = cfg["tendencia"]
             except Exception:
-                _color = color or "#2980B9"
-                _text_sub = "rgba(255,255,255,0.85)"
+                _color = "#2563EB"  # Default azul primario
+                _text_sub = "#64748B"
         else:
-            _color = color or "#2980B9"
-            _text_sub = "rgba(255,255,255,0.85)"
+            _color = "#2563EB"  # Default azul primario
+            _text_sub = "#64748B"
 
         self.setFrameStyle(QFrame.StyledPanel)
         self.setCursor(Qt.PointingHandCursor)
+        # Card con fondo neutro y borde sutil - solo el icono tiene color
         self.setStyleSheet(f"""
             KPICard {{
-                background: {_color};
-                border-radius: 12px;
-                border: none;
+                background: #FFFFFF;
+                border-radius: 8px;
+                border: 1px solid #E2E8F0;
             }}
             KPICard:hover {{
-                background: {_color}dd;
+                background: #F8FAFC;
+                border-color: #2563EB;
             }}
         """)
         self._current_color = _color
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(100)
+        self.setMinimumHeight(80)  # Reducido de 100 a 80px
 
         lyt = QVBoxLayout(self)
-        lyt.setContentsMargins(16, 12, 16, 12)
+        lyt.setContentsMargins(12, 8, 12, 8)  # Padding reducido
 
         top = QHBoxLayout()
         lbl_icono = QLabel(icono)
-        lbl_icono.setStyleSheet("font-size: 26px; background: transparent;")
+        lbl_icono.setStyleSheet(f"font-size: 20px; background: transparent; color: {_color};")
         top.addWidget(lbl_icono)
         top.addStretch()
         # Tendencia — muestra % de cambio si disponible
@@ -97,12 +98,12 @@ class KPICard(QFrame):
 
         self.lbl_valor = QLabel(valor)
         self.lbl_valor.setStyleSheet(
-            "color: white; font-size: 26px; font-weight: 800; background: transparent;")
+            "color: #0F172A; font-size: 22px; font-weight: 700; background: transparent;")
         lyt.addWidget(self.lbl_valor)
 
         lbl_titulo = QLabel(titulo)
         lbl_titulo.setStyleSheet(
-            f"color: {_text_sub}; font-size: 12px; background: transparent;")
+            f"color: {_text_sub}; font-size: 11px; background: transparent;")
         lyt.addWidget(lbl_titulo)
 
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
@@ -275,30 +276,30 @@ class Dashboard(QWidget):
         self.setStyleSheet("QWidget#Dashboard { background: #F0F4F8; }")
 
         root = QVBoxLayout(self)
-        root.setSpacing(0)
+        root.setSpacing(8)  # Reducido de 16 a 8
         root.setContentsMargins(0, 0, 0, 0)
 
         # ── Header ──────────────────────────────────────────────────
         header = QFrame()
-        header.setStyleSheet("background: #1A237E; padding: 0;")
-        header.setFixedHeight(60)
+        header.setStyleSheet("background: #1E293B; padding: 0;")  # Color neutro oscuro
+        header.setFixedHeight(50)  # Reducido de 60 a 50
         hdr_lyt = QHBoxLayout(header)
-        hdr_lyt.setContentsMargins(24, 0, 24, 0)
+        hdr_lyt.setContentsMargins(16, 0, 16, 0)
         lbl_titulo = QLabel("📊 Dashboard SPJ POS")
         lbl_titulo.setStyleSheet(
-            "color: white; font-size: 20px; font-weight: 700;")
+            "color: white; font-size: 16px; font-weight: 600;")  # Tamaño reducido
         hdr_lyt.addWidget(lbl_titulo)
         hdr_lyt.addStretch()
         self.lbl_hora = QLabel()
         self.lbl_hora.setStyleSheet(
-            "color: rgba(255,255,255,0.8); font-size: 13px;")
+            "color: rgba(255,255,255,0.7); font-size: 12px;")  # Tamaño reducido
         hdr_lyt.addWidget(self.lbl_hora)
         root.addWidget(header)
 
         # ── Cuerpo ───────────────────────────────────────────────────
         body = QHBoxLayout()
-        body.setContentsMargins(16, 16, 16, 16)
-        body.setSpacing(16)
+        body.setContentsMargins(12, 12, 12, 12)  # Padding reducido
+        body.setSpacing(12)
 
         # Columna izquierda (KPIs + pedidos WA)
         left = QVBoxLayout()
@@ -306,12 +307,12 @@ class Dashboard(QWidget):
 
         # KPIs grid
         kpi_grid = QGridLayout()
-        kpi_grid.setSpacing(10)
+        kpi_grid.setSpacing(8)  # Reducido de 10 a 8
         self._kpis = {
-            "ventas_hoy":    KPICard("Ventas hoy",    "$0",  "#2ECC71", "💰", "ventas"),
-            "tickets_hoy":   KPICard("Tickets",       "0",   "#3498DB", "🧾", "ventas"),
-            "pedidos_wa":    KPICard("Pedidos WA",    "0",   "#E74C3C", "📲", "pedidos_whatsapp"),
-            "productos_bajo": KPICard("Stock bajo",   "0",   "#E67E22", "⚠️", "inventario"),
+            "ventas_hoy":    KPICard("Ventas hoy",    "$0",  "#2563EB", "💰", "ventas"),
+            "tickets_hoy":   KPICard("Tickets",       "0",   "#2563EB", "🧾", "ventas"),
+            "pedidos_wa":    KPICard("Pedidos WA",    "0",   "#2563EB", "📲", "pedidos_whatsapp"),
+            "productos_bajo": KPICard("Stock bajo",   "0",   "#2563EB", "⚠️", "inventario"),
         }
         for i, (key, card) in enumerate(self._kpis.items()):
             card.clicked.connect(self.abrir_modulo)
@@ -321,16 +322,16 @@ class Dashboard(QWidget):
         # Cola pedidos WA
         lbl_wa = QLabel("📲 Pedidos WhatsApp pendientes")
         lbl_wa.setStyleSheet(
-            "font-size: 14px; font-weight: 700; color: #2C3E50; margin-top: 8px;")
+            "font-size: 13px; font-weight: 600; color: #475569; margin-top: 4px;")
         left.addWidget(lbl_wa)
 
         self._scroll_wa = QScrollArea()
         self._scroll_wa.setWidgetResizable(True)
         self._scroll_wa.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        self._scroll_wa.setMinimumHeight(220)
+        self._scroll_wa.setMinimumHeight(180)  # Reducido de 220 a 180
         self._container_wa = QWidget()
         self._lyt_wa = QVBoxLayout(self._container_wa)
-        self._lyt_wa.setSpacing(8)
+        self._lyt_wa.setSpacing(6)  # Reducido de 8 a 6
         self._lyt_wa.setContentsMargins(0, 0, 0, 0)
         self._lyt_wa.addStretch()
         self._scroll_wa.setWidget(self._container_wa)
@@ -338,22 +339,20 @@ class Dashboard(QWidget):
 
         # Accesos rápidos
         lbl_acc = QLabel("⚡ Acceso rápido")
-        lbl_acc.setStyleSheet("font-size: 14px; font-weight: 700; color: #2C3E50;")
+        lbl_acc.setStyleSheet("font-size: 13px; font-weight: 600; color: #475569;")
         left.addWidget(lbl_acc)
         acc_row = QHBoxLayout()
-        acc_row.setSpacing(8)
+        acc_row.setSpacing(6)  # Reducido de 8 a 6
         for texto, key, color in [
-            ("🛒 Nueva Venta",    "ventas",           "#2ECC71"),
-            ("📦 Inventario",     "inventario",        "#3498DB"),
-            ("📲 Pedidos WA",     "pedidos_whatsapp",  "#E74C3C"),
-            ("📊 Reportes",       "reportes",          "#9B59B6"),
+            ("🛒 Nueva Venta",    "ventas",           "#2563EB"),  # Azul primario
+            ("📦 Inventario",     "inventario",        "#2563EB"),
+            ("📲 Pedidos WA",     "pedidos_whatsapp",  "#2563EB"),
+            ("📊 Reportes",       "reportes",          "#2563EB"),
         ]:
             btn = QPushButton(texto)
-            btn.setMinimumHeight(44)
-            btn.setStyleSheet(
-                f"background:{color};color:white;border-radius:8px;"
-                "font-weight:600;font-size:12px;")
+            btn.setObjectName("primaryBtn")  # Usar estilo global
             btn.setCursor(Qt.PointingHandCursor)
+            btn.setToolTip(f"Ir al módulo de {texto.lower()}")  # Tooltip agregado
             btn.clicked.connect(lambda _, k=key: self.abrir_modulo.emit(k))
             acc_row.addWidget(btn)
         left.addLayout(acc_row)
