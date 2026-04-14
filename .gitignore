@@ -9,12 +9,19 @@ __pycache__/
 .venv/
 venv/
 env/
+.env
+.env.local
+.env.*
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
 
 # Logs
 *.log
 
-# Temporary files
-*.tmp
-*.swp
-*~
+# OS generated files
+.DS_Store
+Thumbs.db
 ```
