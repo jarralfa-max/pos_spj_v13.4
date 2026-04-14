@@ -41,11 +41,12 @@ class MenuLateral(QFrame):
         self.setObjectName("MenuLateral")
         self.setFixedWidth(240) # Lo hicimos un poco más ancho para que quepan los nombres largos
         
-        # Estilos base del panel lateral
+        # Estilos base del panel lateral — SIEMPRE OSCURO según sistema de diseño
         self.setStyleSheet("""
             QFrame#MenuLateral {
-                background-color: #1E272E;
-                color: white;
+                background-color: #020617;
+                color: #E2E8F0;
+                border-right: 1px solid #1E293B;
             }
             QScrollArea {
                 border: none;
@@ -55,31 +56,38 @@ class MenuLateral(QFrame):
                 background-color: transparent;
             }
             QLabel.SeccionHeader {
-                color: #808E9B;
+                color: #64748B;
                 font-size: 11px;
-                font-weight: bold;
+                font-weight: 700;
                 text-transform: uppercase;
                 padding-left: 15px;
-                margin-top: 15px;
-                margin-bottom: 5px;
+                margin-top: 20px;
+                margin-bottom: 8px;
+                letter-spacing: 0.5px;
             }
             QPushButton {
                 background-color: transparent;
-                color: #D2DAE2;
+                color: #94A3B8;
                 text-align: left;
-                padding: 10px 15px;
+                padding: 12px 16px;
                 font-size: 13px;
+                font-weight: 500;
                 border: none;
-                border-radius: 4px;
-                margin: 0px 5px;
+                border-radius: 8px;
+                margin: 2px 8px;
             }
             QPushButton:hover {
-                background-color: #34495E;
-                color: white;
+                background-color: #1E293B;
+                color: #E2E8F0;
             }
             QPushButton:pressed {
-                background-color: #0FB9B1;
-                color: white;
+                background-color: #2563EB;
+                color: #FFFFFF;
+            }
+            QPushButton:checked {
+                background-color: #2563EB;
+                color: #FFFFFF;
+                font-weight: 600;
             }
         """)
         self._permisos = set()
@@ -96,9 +104,9 @@ class MenuLateral(QFrame):
         # 1. ZONA DEL LOGO Y NOMBRE DE LA EMPRESA
         # ==========================================
         zona_logo = QFrame()
-        zona_logo.setStyleSheet("background-color: #1E272E;")
+        zona_logo.setStyleSheet("background-color: #020617; border-bottom: 1px solid #1E293B;")
         layout_logo = QVBoxLayout(zona_logo)
-        layout_logo.setContentsMargins(10, 20, 10, 20)
+        layout_logo.setContentsMargins(10, 24, 10, 24)
         layout_logo.setAlignment(Qt.AlignCenter)
 
         self.lbl_logo = QLabel()
@@ -109,13 +117,13 @@ class MenuLateral(QFrame):
             self.lbl_logo.setPixmap(pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             self.lbl_logo.setText("🏢\nSPJ POS")
-            self.lbl_logo.setStyleSheet("font-size: 24px; font-weight: bold; color: white;")
+            self.lbl_logo.setStyleSheet("font-size: 28px; font-weight: 700; color: #FFFFFF;")
             
         layout_logo.addWidget(self.lbl_logo)
         
         lbl_version = QLabel("Enterprise Edition v13.4")
         lbl_version.setAlignment(Qt.AlignCenter)
-        lbl_version.setStyleSheet("color: #0FB9B1; font-size: 10px; font-weight: bold;")
+        lbl_version.setStyleSheet("color: #2563EB; font-size: 11px; font-weight: 600; letter-spacing: 0.5px;")
         layout_logo.addWidget(lbl_version)
         
         layout_principal.addWidget(zona_logo)
@@ -187,15 +195,12 @@ class MenuLateral(QFrame):
         # 3. ZONA INFERIOR (CERRAR SESIÓN)
         # ==========================================
         zona_inferior = QFrame()
-        zona_inferior.setStyleSheet("background-color: #1E272E;")
+        zona_inferior.setStyleSheet("background-color: #020617; border-top: 1px solid #1E293B;")
         layout_inferior = QVBoxLayout(zona_inferior)
-        layout_inferior.setContentsMargins(5, 10, 5, 10)
+        layout_inferior.setContentsMargins(8, 12, 8, 12)
         
         btn_logout = self._crear_boton("🚪 Cerrar Sesión", "LOGOUT")
-        btn_logout.setStyleSheet(
-            "color: #FF4757; font-weight: bold; background-color: transparent;"
-            "text-align: left; padding: 10px 15px; border: none; border-radius: 4px;"
-            "margin: 0px 5px;")
+        # El hover se maneja por el estilo global del sidebar
         layout_inferior.addWidget(btn_logout)
         
         layout_principal.addWidget(zona_inferior)
