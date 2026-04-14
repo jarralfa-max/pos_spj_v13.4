@@ -1,8 +1,20 @@
 
 # modulos/configuracion.py
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea,
+    QListWidgetItem as QListWidgetItemAlias
+)
+from PyQt5.QtCore import Qt, QTimer, QUrl, QPropertyAnimation, QRect, QSize, pyqtSignal, QThread
+from PyQt5.QtGui import QPixmap, QColor, QIcon, QFont, QPalette, QBrush, QPainter, QPen, QLinearGradient, QCursor
 import sqlite3
 from .base import ModuloBase
 import os
