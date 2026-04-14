@@ -9,6 +9,8 @@ Diseñador profesional de Tickets con:
 """
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input, create_combo, create_card, apply_tooltip
 import logging
 import base64
 import os
@@ -66,33 +68,28 @@ class ModuloTicketDesigner(QWidget):
 
     def init_ui(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
 
         header = QHBoxLayout()
         lbl = QLabel("🎨 Diseñador de Tickets")
-        lbl.setStyleSheet("font-size:18px;font-weight:bold;color:#2C3E50;")
+        lbl.setObjectName("heading")
         header.addWidget(lbl)
         header.addStretch()
+        
         btn_print = QPushButton("🖨️ Imprimir muestra")
-        btn_print.setStyleSheet(
-            "background:#8e44ad;color:white;font-weight:bold;"
-            "padding:8px 18px;border-radius:5px;font-size:12px;")
+        btn_print = create_secondary_button(self, btn_print, "Imprimir ticket de prueba")
         btn_print.clicked.connect(self._imprimir_muestra)
+        
         btn_save_all = QPushButton("💾 Guardar todo")
-        btn_save_all.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;"
-            "padding:8px 18px;border-radius:5px;font-size:12px;")
+        btn_save_all = create_success_button(self, btn_save_all, "Guardar configuración del ticket")
         btn_save_all.clicked.connect(self._guardar_todo)
+        
         header.addWidget(btn_print)
         header.addWidget(btn_save_all)
         lay.addLayout(header)
 
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane { border:1px solid #ddd; background:white; }
-            QTabBar::tab { padding:8px 16px; font-size:12px; }
-            QTabBar::tab:selected { background:#3498db; color:white; font-weight:bold; }
-        """)
+        tabs.setObjectName("tabWidget")
         lay.addWidget(tabs)
 
         # Tab 1: Diseño
@@ -118,34 +115,34 @@ class ModuloTicketDesigner(QWidget):
         grp_vars.setMaximumWidth(180)
         lv = QVBoxLayout(grp_vars)
         lbl_help = QLabel("Doble clic para insertar:")
-        lbl_help.setStyleSheet("font-size:10px;color:#888;")
+        lbl_help.setObjectName("caption")
         lv.addWidget(lbl_help)
         self.lista_variables = QListWidget()
-        self.lista_variables.setStyleSheet("font-size:11px;")
+        self.lista_variables.setObjectName("inputField")
         self.lista_variables.addItems(self.variables_disponibles)
         self.lista_variables.itemDoubleClicked.connect(self.insertar_variable)
         lv.addWidget(self.lista_variables)
         splitter.addWidget(grp_vars)
 
         grp_ed = QGroupBox("📝 Plantilla HTML")
+        grp_ed.setObjectName("styledGroup")
         le = QVBoxLayout(grp_ed)
         self.txt_editor = QPlainTextEdit()
         self.txt_editor.setFont(QFont("Courier New", 10))
-        self.txt_editor.setStyleSheet(
-            "background:#1e1e1e;color:#d4d4d4;border:1px solid #555;"
-            "border-radius:4px;padding:4px;")
+        self.txt_editor.setObjectName("codeEditor")
         self.txt_editor.textChanged.connect(self.actualizar_vista_previa)
         le.addWidget(self.txt_editor)
         btn_rest = QPushButton("🔄 Restaurar")
+        btn_rest = create_secondary_button(self, btn_rest, "Restaurar plantilla por defecto")
         btn_rest.clicked.connect(self.restaurar_defecto)
         le.addWidget(btn_rest)
         splitter.addWidget(grp_ed)
 
         grp_prev = QGroupBox("👁️ Vista Previa")
+        grp_prev.setObjectName("styledGroup")
         lp = QVBoxLayout(grp_prev)
         self.visor_preview = QTextBrowser()
-        self.visor_preview.setStyleSheet(
-            "background:white;color:black;border:2px solid #ccc;border-radius:4px;")
+        self.visor_preview.setObjectName("previewBox")
         self.visor_preview.setMaximumWidth(350)
         self.visor_preview.setMinimumWidth(280)
         lp.addWidget(self.visor_preview)
@@ -154,57 +151,68 @@ class ModuloTicketDesigner(QWidget):
 
     def _build_tab_media(self, parent):
         scroll = QScrollArea(); scroll.setWidgetResizable(True)
-        content = QWidget(); lm = QVBoxLayout(content); lm.setSpacing(10)
+        content = QWidget(); lm = QVBoxLayout(content); lm.setSpacing(Spacing.MD)
 
         # Logo
         grp_logo = QGroupBox("Logo de la empresa")
-        grp_logo.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp_logo.setObjectName("styledGroup")
         fl = QFormLayout(grp_logo)
         self.lbl_logo_preview = QLabel("Sin logo cargado")
         self.lbl_logo_preview.setFixedHeight(90)
         self.lbl_logo_preview.setFixedWidth(200)
         self.lbl_logo_preview.setAlignment(Qt.AlignCenter)
-        self.lbl_logo_preview.setStyleSheet(
-            "border:2px dashed #bbb;background:#fafafa;border-radius:6px;")
+        self.lbl_logo_preview.setObjectName("logoPreviewBox")
         fl.addRow("Vista previa:", self.lbl_logo_preview)
         btn_lr = QHBoxLayout()
-        btn_logo = QPushButton("📁 Cargar"); btn_logo.clicked.connect(self._cargar_logo)
-        btn_clear = QPushButton("🗑️ Quitar"); btn_clear.clicked.connect(self._quitar_logo)
+        btn_logo = QPushButton("📁 Cargar")
+        btn_logo = create_primary_button(self, btn_logo, "Cargar imagen del logo")
+        btn_logo.clicked.connect(self._cargar_logo)
+        btn_clear = QPushButton("🗑️ Quitar")
+        btn_clear = create_secondary_button(self, btn_clear, "Quitar logo actual")
+        btn_clear.clicked.connect(self._quitar_logo)
         btn_lr.addWidget(btn_logo); btn_lr.addWidget(btn_clear)
         fl.addRow("", btn_lr)
         self.spin_logo_w = QSpinBox()
         self.spin_logo_w.setRange(20, 400); self.spin_logo_w.setValue(150)
         self.spin_logo_w.setSuffix(" px")
+        self.spin_logo_w.setObjectName("inputField")
         self.spin_logo_w.valueChanged.connect(self.actualizar_vista_previa)
         fl.addRow("Ancho:", self.spin_logo_w)
         self.cmb_logo_pos = QComboBox()
         self.cmb_logo_pos.addItems(["Centrado", "Izquierda", "Derecha"])
+        self.cmb_logo_pos.setObjectName("inputField")
         self.cmb_logo_pos.currentIndexChanged.connect(self.actualizar_vista_previa)
         fl.addRow("Posición:", self.cmb_logo_pos)
         lm.addWidget(grp_logo)
 
         # QR
-        grp_qr = QGroupBox("Código QR"); grp_qr.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp_qr = QGroupBox("Código QR")
+        grp_qr.setObjectName("styledGroup")
         fq = QFormLayout(grp_qr)
         self.chk_qr = QCheckBox("Incluir QR")
         self.chk_qr.stateChanged.connect(self.actualizar_vista_previa)
         fq.addRow("", self.chk_qr)
         self.cmb_qr_dato = QComboBox()
         self.cmb_qr_dato.addItems(["URL del negocio","Folio de la venta","Número de cliente","WhatsApp del negocio"])
+        self.cmb_qr_dato.setObjectName("inputField")
         fq.addRow("Dato:", self.cmb_qr_dato)
         self.txt_qr_url = QLineEdit(); self.txt_qr_url.setPlaceholderText("https://mitienda.com")
+        self.txt_qr_url.setObjectName("inputField")
         fq.addRow("URL:", self.txt_qr_url)
         self.spin_qr_size = QSpinBox(); self.spin_qr_size.setRange(40,200); self.spin_qr_size.setValue(100); self.spin_qr_size.setSuffix(" px")
+        self.spin_qr_size.setObjectName("inputField")
         fq.addRow("Tamaño:", self.spin_qr_size)
         lm.addWidget(grp_qr)
 
         # Barcode
-        grp_bc = QGroupBox("Código de barras"); grp_bc.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp_bc = QGroupBox("Código de barras")
+        grp_bc.setObjectName("styledGroup")
         fb = QFormLayout(grp_bc)
         self.chk_barcode = QCheckBox("Incluir barcode (folio)")
         fb.addRow("", self.chk_barcode)
         self.cmb_barcode_type = QComboBox()
         self.cmb_barcode_type.addItems(["Code128","EAN13","QR (alternativo)"])
+        self.cmb_barcode_type.setObjectName("inputField")
         fb.addRow("Tipo:", self.cmb_barcode_type)
         lm.addWidget(grp_bc)
         lm.addStretch()
@@ -212,34 +220,43 @@ class ModuloTicketDesigner(QWidget):
         QVBoxLayout(parent).addWidget(scroll)
 
     def _build_tab_paper(self, parent):
-        lp = QVBoxLayout(parent); lp.setSpacing(12)
+        lp = QVBoxLayout(parent); lp.setSpacing(Spacing.MD)
 
-        grp = QGroupBox("Tamaño de papel"); grp.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp = QGroupBox("Tamaño de papel")
+        grp.setObjectName("styledGroup")
         pf = QFormLayout(grp)
         self.cmb_paper_size = QComboBox()
         self.cmb_paper_size.addItems(list(PAPER_SIZES.keys()))
         self.cmb_paper_size.setCurrentIndex(1)
+        self.cmb_paper_size.setObjectName("inputField")
         self.cmb_paper_size.currentIndexChanged.connect(self._on_paper_change)
         pf.addRow("Predefinido:", self.cmb_paper_size)
         self.spin_paper_w = QSpinBox(); self.spin_paper_w.setRange(30,300); self.spin_paper_w.setValue(80); self.spin_paper_w.setSuffix(" mm")
+        self.spin_paper_w.setObjectName("inputField")
         pf.addRow("Ancho:", self.spin_paper_w)
         self.spin_paper_h = QSpinBox(); self.spin_paper_h.setRange(0,500); self.spin_paper_h.setValue(0); self.spin_paper_h.setSuffix(" mm")
         self.spin_paper_h.setSpecialValueText("Continuo (sin corte)")
+        self.spin_paper_h.setObjectName("inputField")
         pf.addRow("Alto:", self.spin_paper_h)
         lp.addWidget(grp)
 
-        grp_m = QGroupBox("Márgenes"); grp_m.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp_m = QGroupBox("Márgenes")
+        grp_m.setObjectName("styledGroup")
         mf = QFormLayout(grp_m)
         self.spin_margin_top = QSpinBox(); self.spin_margin_top.setRange(0,30); self.spin_margin_top.setValue(5); self.spin_margin_top.setSuffix(" mm")
+        self.spin_margin_top.setObjectName("inputField")
         mf.addRow("Superior:", self.spin_margin_top)
         self.spin_margin_side = QSpinBox(); self.spin_margin_side.setRange(0,20); self.spin_margin_side.setValue(3); self.spin_margin_side.setSuffix(" mm")
+        self.spin_margin_side.setObjectName("inputField")
         mf.addRow("Laterales:", self.spin_margin_side)
         lp.addWidget(grp_m)
 
-        grp_f = QGroupBox("Tipografía"); grp_f.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp_f = QGroupBox("Tipografía")
+        grp_f.setObjectName("styledGroup")
         ff = QFormLayout(grp_f)
         self.cmb_font_family = QComboBox()
         self.cmb_font_family.addItems(["Courier New","Arial","Helvetica","Consolas","Lucida Console","monospace"])
+        self.cmb_font_family.setObjectName("inputField")
         ff.addRow("Fuente:", self.cmb_font_family)
         self.spin_font_base = QSpinBox(); self.spin_font_base.setRange(8,18); self.spin_font_base.setValue(12); self.spin_font_base.setSuffix(" px")
         ff.addRow("Tamaño base:", self.spin_font_base)
@@ -274,7 +291,7 @@ class ModuloTicketDesigner(QWidget):
         self._logo_b64 = ""
         self.lbl_logo_preview.setPixmap(QPixmap())
         self.lbl_logo_preview.setText("Sin logo cargado")
-        self.lbl_logo_preview.setStyleSheet("border:2px dashed #bbb;background:#fafafa;border-radius:6px;")
+        self.lbl_logo_preview.setObjectName("logoPreviewBox")
         self.actualizar_vista_previa()
 
     def _mostrar_logo_thumbnail(self, raw_data=None):
@@ -286,7 +303,7 @@ class ModuloTicketDesigner(QWidget):
                 pix = QPixmap(); pix.loadFromData(raw_data)
                 if not pix.isNull():
                     self.lbl_logo_preview.setPixmap(pix.scaledToHeight(80, Qt.SmoothTransformation))
-                    self.lbl_logo_preview.setStyleSheet("border:2px solid #27ae60;background:#eafaf1;border-radius:6px;")
+                    self.lbl_logo_preview.setObjectName("logoPreviewSuccess")
                     return
         except Exception: pass
         self.lbl_logo_preview.setText("Sin logo")
