@@ -223,10 +223,11 @@ TEMAS = {
             color: #F1F5F9;
             border: 1px solid #475569;
             border-radius: 8px;
-            padding: 6px 12px;
+            padding: 5px 10px;
             font-weight: 600;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 12px;
+            min-height: 32px;
+            max-height: 36px;
         }
         QPushButton:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -382,7 +383,7 @@ TEMAS = {
             border-radius: 8px;
         }
         QTableWidget::item, QTableView::item {
-            padding: 8px 12px;
+            padding: 4px 8px;
             border-bottom: 1px solid #334155;
         }
         QTableWidget::item:selected, QTableView::item:selected {
@@ -400,9 +401,10 @@ TEMAS = {
             font-weight: 600;
             padding: 6px 10px;
             text-transform: uppercase;
-            font-size: 10px;
+            font-size: 11px;
             letter-spacing: 0.5px;
-            min-height: 40px;
+            min-height: 32px;
+            max-height: 32px;
         }
         QHeaderView::section:hover {
             background-color: #475569;
