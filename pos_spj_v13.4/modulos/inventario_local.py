@@ -1,6 +1,8 @@
 # modulos/inventario_local.py — SPJ POS v13.2
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography
+from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input, apply_tooltip
 import logging
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO, AJUSTE_INVENTARIO, COMPRA_REGISTRADA
@@ -35,25 +37,38 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def init_ui(self):
         lay = QVBoxLayout(self)
+        lay.setSpacing(Spacing.MD)
 
         self.lbl_titulo = QLabel("📦 Inventario Local")
-        self.lbl_titulo.setStyleSheet("font-size:18px;font-weight:bold;")
+        self.lbl_titulo.setObjectName("heading")
         lay.addWidget(self.lbl_titulo)
 
         # Search + actions
         ctrl = QHBoxLayout()
-        self.txt_buscar = QLineEdit(); self.txt_buscar.setPlaceholderText("Buscar producto…")
+        ctrl.setSpacing(Spacing.SM)
+        self.txt_buscar = create_input(self, "Buscar producto…")
         self.txt_buscar.textChanged.connect(self.cargar_datos)
         ctrl.addWidget(self.txt_buscar, 1)
-        btn_ref = QPushButton("🔄"); btn_ref.setFixedWidth(32); btn_ref.clicked.connect(self.cargar_datos)
-        btn_ajuste = QPushButton("⚖️ Ajuste"); btn_ajuste.clicked.connect(self.abrir_dialogo_ajuste)
-        btn_ajuste.setStyleSheet("background:#e67e22;color:white;padding:5px 12px;")
-        btn_exp_csv = QPushButton("📊 Exportar CSV"); btn_exp_csv.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
+        
+        btn_ref = QPushButton("🔄")
+        btn_ref.setFixedWidth(36)
+        btn_ref.setObjectName("secondaryBtn")
+        apply_tooltip(btn_ref, "Refrescar inventario")
+        btn_ref.clicked.connect(self.cargar_datos)
+        
+        btn_ajuste = create_secondary_button(self, "⚖️ Ajuste", "Registrar ajuste de inventario")
+        btn_ajuste.clicked.connect(self.abrir_dialogo_ajuste)
+        
+        btn_exp_csv = create_success_button(self, "📊 Exportar CSV", "Exportar inventario a CSV")
         btn_exp_csv.clicked.connect(lambda: self._exportar("csv"))
-        btn_exp_xls = QPushButton("📑 Exportar Excel"); btn_exp_xls.setStyleSheet("background:#2980b9;color:white;padding:5px 12px;")
+        
+        btn_exp_xls = create_primary_button(self, "📑 Exportar Excel", "Exportar inventario a Excel")
         btn_exp_xls.clicked.connect(lambda: self._exportar("xlsx"))
-        ctrl.addWidget(btn_ref); ctrl.addWidget(btn_ajuste)
-        ctrl.addWidget(btn_exp_csv); ctrl.addWidget(btn_exp_xls)
+        
+        ctrl.addWidget(btn_ref)
+        ctrl.addWidget(btn_ajuste)
+        ctrl.addWidget(btn_exp_csv)
+        ctrl.addWidget(btn_exp_xls)
         lay.addLayout(ctrl)
 
         self.tabla = QTableWidget()
@@ -65,10 +80,11 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.tabla.setAlternatingRowColors(True)
         self.tabla.verticalHeader().setVisible(False)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla.setObjectName("tableView")
         lay.addWidget(self.tabla)
 
         self.lbl_total = QLabel("")
-        self.lbl_total.setStyleSheet("color:#555;font-size:11px;padding:4px;")
+        self.lbl_total.setObjectName("caption")
         lay.addWidget(self.lbl_total)
 
         self.cargar_datos()
