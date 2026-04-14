@@ -172,15 +172,9 @@ class DialogoLogin(QDialog):
 
         self.setWindowTitle("SPJ POS — Iniciar Sesión")
         self.setFixedSize(340, 280)
-        self.setStyleSheet("""
-            QDialog    { background-color: #1E1E1E; color: #E8E8E8; }
-            QLabel     { color: #E8E8E8; }
-            QLineEdit  { padding: 10px; border: 1px solid #4A5568;
-                         border-radius: 4px; background: #2D3748; color: white; }
-            QPushButton{ background: #3498DB; color: white; font-weight: bold;
-                         padding: 10px; border-radius: 4px; }
-            QPushButton:hover { background: #2980B9; }
-        """)
+        
+        # Usar objectName para que el tema global aplique estilos consistentes
+        self.setObjectName("loginDialog")
         self._configurar_ui()
 
     def _leer_sucursal_instalacion(self) -> dict:
@@ -206,10 +200,12 @@ class DialogoLogin(QDialog):
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
 
         # Logo empresa
         lbl_logo = QLabel()
         lbl_logo.setAlignment(Qt.AlignCenter)
+        lbl_logo.setObjectName("loginLogo")
         try:
             from PyQt5.QtGui import QPixmap as _QP
             import os
@@ -227,11 +223,12 @@ class DialogoLogin(QDialog):
             else:
                 raise Exception()
         except Exception:
-            lbl_logo.setText("🏢"); lbl_logo.setStyleSheet("font-size:32px;")
+            lbl_logo.setText("🏢")
+            lbl_logo.setObjectName("loginLogoEmoji")
         layout.addWidget(lbl_logo)
 
         titulo = QLabel("🏪 Iniciar Sesión")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setObjectName("loginTitle")
         titulo.setAlignment(Qt.AlignCenter)
         layout.addWidget(titulo)
 
@@ -239,16 +236,23 @@ class DialogoLogin(QDialog):
         suc_nombre = self._sucursal_instalacion.get('nombre', 'Principal')
         lbl_suc = QLabel(f"📍 Sucursal: {suc_nombre}")
         lbl_suc.setAlignment(Qt.AlignCenter)
-        lbl_suc.setStyleSheet("font-size:11px; color:#0FB9B1;")
+        lbl_suc.setObjectName("loginSucursal")
         layout.addWidget(lbl_suc)
 
-        self.txt_usuario  = QLineEdit(); self.txt_usuario.setPlaceholderText("Usuario o PIN")
-        self.txt_password = QLineEdit(); self.txt_password.setPlaceholderText("Contraseña")
+        self.txt_usuario = QLineEdit()
+        self.txt_usuario.setPlaceholderText("Usuario o PIN")
+        self.txt_usuario.setObjectName("inputField")
+        
+        self.txt_password = QLineEdit()
+        self.txt_password.setPlaceholderText("Contraseña")
         self.txt_password.setEchoMode(QLineEdit.Password)
+        self.txt_password.setObjectName("inputField")
+        
         layout.addWidget(self.txt_usuario)
         layout.addWidget(self.txt_password)
 
         self.btn_login = QPushButton("Entrar al Sistema")
+        self.btn_login.setObjectName("primaryBtn")
         self.btn_login.clicked.connect(self.intentar_login)
         self.txt_password.returnPressed.connect(self.intentar_login)
         layout.addWidget(self.btn_login)
