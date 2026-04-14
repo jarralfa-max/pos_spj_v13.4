@@ -1,6 +1,12 @@
 
 # modulos/productos.py
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button, 
+    create_secondary_button, create_input, create_combo, create_card,
+    create_heading, create_subheading, create_caption, apply_tooltip
+)
 import os
 import shutil
 from datetime import datetime
@@ -113,12 +119,13 @@ class DialogoProducto(QDialog):
         self.lbl_imagen = QLabel("Sin Imagen")
         self.lbl_imagen.setAlignment(Qt.AlignCenter)
         self.lbl_imagen.setFixedSize(180, 180)
-        self.lbl_imagen.setStyleSheet("border: 2px dashed #ccc; background-color: #f9f9f9;")
+        self.lbl_imagen.setObjectName("imagePlaceholder")
+        self.lbl_imagen.setToolTip("Vista previa de la imagen del producto. Haga clic en 'Subir Imagen' para cargar una.")
         
-        btn_cargar_img = QPushButton("📸 Subir Imagen")
+        btn_cargar_img = create_secondary_button(self, "📸 Subir Imagen", "Cargar una imagen desde su computadora")
         btn_cargar_img.clicked.connect(self.cargar_imagen)
         
-        btn_quitar_img = QPushButton("❌ Quitar")
+        btn_quitar_img = create_danger_button(self, "❌ Quitar", "Eliminar la imagen actual del producto")
         btn_quitar_img.clicked.connect(self.quitar_imagen)
         
         panel_imagen.addWidget(self.lbl_imagen)
@@ -430,13 +437,12 @@ class ModuloProductos(QWidget, RefreshMixin):
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
         
-        self.lbl_titulo = QLabel("🥩 Centro de Productos y Procesamiento Cárnico")
-        self.lbl_titulo.setStyleSheet("font-size: 18px; font-weight: bold; color: #2c3e50;")
+        self.lbl_titulo = create_heading(self, "🥩 Centro de Productos y Procesamiento Cárnico")
         layout_principal.addWidget(self.lbl_titulo)
         
         # --- PESTAÑAS DEL MÓDULO ---
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("QTabWidget::pane { border: 1px solid #ccc; background: white; }")
+        self.tabs.setObjectName("tabWidget")
         
         self.tab_catalogo = QWidget()
         self.tab_sucursales = QWidget()
@@ -461,12 +467,10 @@ class ModuloProductos(QWidget, RefreshMixin):
         
         # ── Barra de búsqueda + filtros ───────────────────────────────────
         filtros_layout = QHBoxLayout()
-        self.txt_buscar_prod = QLineEdit()
-        self.txt_buscar_prod.setPlaceholderText("🔍 Buscar por nombre, código o barras...")
-        self.txt_buscar_prod.setStyleSheet("padding:6px 10px;border:1px solid #ccc;border-radius:4px;")
+        self.txt_buscar_prod = create_input(self, "🔍 Buscar por nombre, código o barras...", "Ingrese términos de búsqueda para filtrar productos")
         self.txt_buscar_prod.returnPressed.connect(self.cargar_catalogo)
         
-        btn_buscar = QPushButton("🔍 Buscar")
+        btn_buscar = create_primary_button(self, "🔍 Buscar", "Ejecutar búsqueda de productos")
         btn_buscar.clicked.connect(self.cargar_catalogo)
 
         # v13.30: Filtro de categoría
@@ -490,20 +494,14 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.cmb_filtro_estado.setMinimumWidth(130)
         self.cmb_filtro_estado.currentIndexChanged.connect(self.cargar_catalogo)
         
-        btn_nuevo = QPushButton("➕ Nuevo Producto")
-        btn_nuevo.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_nuevo = create_success_button(self, "➕ Nuevo Producto", "Crear un nuevo producto en el catálogo")
         btn_nuevo.clicked.connect(self.abrir_nuevo_producto)
         
-        btn_historial_precio = QPushButton("📈 Historial Precios")
-        btn_historial_precio.setToolTip(
-            "Ver el historial de cambios de precio del producto seleccionado")
+        btn_historial_precio = create_secondary_button(self, "📈 Historial Precios", "Ver el historial de cambios de precio del producto seleccionado")
         btn_historial_precio.clicked.connect(self._ver_historial_precio)
 
-        btn_importar = QPushButton("📥 Importar Excel")
-        btn_importar.setToolTip(
-            "Importar productos desde Excel (.xlsx)\n"
-            "Columnas requeridas: nombre, precio\n"
-            "Opcionales: codigo, codigo_barras, categoria, precio_compra, unidad, stock_minimo")
+        btn_importar = create_secondary_button(self, "📥 Importar Excel", 
+            "Importar productos desde Excel (.xlsx)\nColumnas requeridas: nombre, precio\nOpcionales: codigo, codigo_barras, categoria, precio_compra, unidad, stock_minimo")
         btn_importar.clicked.connect(self._importar_excel)
 
         filtros_layout.addWidget(self.txt_buscar_prod, 2)
@@ -516,8 +514,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         layout.addLayout(filtros_layout)
 
         # v13.30: Contador de resultados
-        self.lbl_conteo = QLabel("")
-        self.lbl_conteo.setStyleSheet("color:#888;font-size:11px;padding:2px 4px;")
+        self.lbl_conteo = create_caption(self, "")
         layout.addWidget(self.lbl_conteo)
         
         # Tabla de Catálogo
@@ -630,32 +627,28 @@ class ModuloProductos(QWidget, RefreshMixin):
                 _cell = _QW(); _lay = _HL(_cell)
                 _lay.setContentsMargins(2, 2, 2, 2); _lay.setSpacing(2)
 
-                btn_editar = QPushButton("✏️"); btn_editar.setFixedWidth(30)
-                btn_editar.setStyleSheet("background:#f39c12;color:white;border-radius:5px;")
-                btn_editar.setToolTip("Editar producto")
+                btn_editar = create_secondary_button(self, "✏️", "Editar producto")
+                btn_editar.setFixedWidth(30)
                 btn_editar.clicked.connect(lambda _, pid=prod_id: self.abrir_editar_producto(pid))
                 _lay.addWidget(btn_editar)
 
                 if activo:
                     # Producto activo: ocultar + eliminar
-                    btn_toggle = QPushButton("🙈"); btn_toggle.setFixedWidth(30)
-                    btn_toggle.setStyleSheet("background:#8e44ad;color:white;border-radius:5px;")
-                    btn_toggle.setToolTip("Ocultar del POS")
+                    btn_toggle = create_secondary_button(self, "🙈", "Ocultar del POS")
+                    btn_toggle.setFixedWidth(30)
                     btn_toggle.clicked.connect(
                         lambda _, pid=prod_id, a=activo: self._toggle_activo(pid, a))
                     _lay.addWidget(btn_toggle)
 
-                    btn_del = QPushButton("🗑️"); btn_del.setFixedWidth(30)
-                    btn_del.setStyleSheet("background:#e74c3c;color:white;border-radius:5px;")
-                    btn_del.setToolTip("Eliminar (soft delete)")
+                    btn_del = create_danger_button(self, "🗑️", "Eliminar (soft delete)")
+                    btn_del.setFixedWidth(30)
                     btn_del.clicked.connect(
                         lambda _, pid=prod_id, nom=row_data['nombre']: self.eliminar_producto(pid, nom))
                     _lay.addWidget(btn_del)
                 else:
                     # v13.30: Producto eliminado: botón RESTAURAR
-                    btn_restaurar = QPushButton("♻️"); btn_restaurar.setFixedWidth(30)
-                    btn_restaurar.setStyleSheet("background:#27ae60;color:white;border-radius:5px;font-weight:bold;")
-                    btn_restaurar.setToolTip("Restaurar producto")
+                    btn_restaurar = create_success_button(self, "♻️", "Restaurar producto")
+                    btn_restaurar.setFixedWidth(30)
                     btn_restaurar.clicked.connect(
                         lambda _, pid=prod_id, nom=row_data['nombre']: self._restaurar_producto(pid, nom))
                     _lay.addWidget(btn_restaurar)
@@ -751,22 +744,24 @@ class ModuloProductos(QWidget, RefreshMixin):
     def setup_tab_procesamiento(self):
         layout = QVBoxLayout(self.tab_procesamiento)
         
-        instrucciones = QLabel("Seleccione una receta e ingrese el peso de la materia prima para ejecutar el despiece en el inventario.")
-        instrucciones.setStyleSheet("color: gray; font-style: italic;")
+        instrucciones = create_caption(self, "Seleccione una receta e ingrese el peso de la materia prima para ejecutar el despiece en el inventario.")
         layout.addWidget(instrucciones)
         
         panel_proc = QGroupBox("Orden de Producción")
+        panel_proc.setObjectName("styledGroup")
         form_proc = QFormLayout(panel_proc)
         
-        self.cmb_receta_ejecutar = QComboBox()
+        self.cmb_receta_ejecutar = create_combo(self, ["Seleccione una receta..."])
         self.txt_peso_entrada = QDoubleSpinBox()
         self.txt_peso_entrada.setRange(0.1, 9999.0)
         self.txt_peso_entrada.setSuffix(" kg")
         self.txt_peso_entrada.setDecimals(2)
+        self.txt_peso_entrada.setObjectName("inputField")
         
         self.txt_merma_real = QDoubleSpinBox()
         self.txt_merma_real.setRange(0.0, 999.0)
         self.txt_merma_real.setSuffix(" kg")
+        self.txt_merma_real.setObjectName("inputField")
         self.txt_merma_real.setToolTip("Pese la merma real (huesos, sangre). Dejar en 0 usa el teórico.")
         
         form_proc.addRow("Receta a Ejecutar:", self.cmb_receta_ejecutar)
@@ -775,8 +770,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         
         layout.addWidget(panel_proc)
         
-        self.btn_ejecutar_despiece = QPushButton("⚙️ Iniciar Despiece y Actualizar Inventario")
-        self.btn_ejecutar_despiece.setStyleSheet("background-color: #e67e22; color: white; font-weight: bold; padding: 15px; font-size: 14px;")
+        self.btn_ejecutar_despiece = create_primary_button(self, "⚙️ Iniciar Despiece y Actualizar Inventario", 
+            "Ejecutar el despiece de la receta seleccionada y actualizar el inventario automáticamente")
         self.btn_ejecutar_despiece.clicked.connect(self.ejecutar_produccion)
         layout.addWidget(self.btn_ejecutar_despiece)
         
@@ -839,19 +834,19 @@ class ModuloProductos(QWidget, RefreshMixin):
             "Precio/stock en blanco = usar valor global del catálogo."
         )
         lbl_info.setWordWrap(True)
-        lbl_info.setStyleSheet("color:#555; font-size:12px; padding:4px;")
+        lbl_info.setObjectName("textSecondary")
         lay.addWidget(lbl_info)
 
         # ── Filtro por sucursal ───────────────────────────────────────────────
         top = QHBoxLayout()
         top.addWidget(QLabel("Ver sucursal:"))
-        self._combo_suc_filter = QComboBox()
+        self._combo_suc_filter = create_combo(self, ["— Todas —"])
         self._combo_suc_filter.addItem("— Todas —", None)
         self._cargar_sucursales_combo_bp()
         self._combo_suc_filter.currentIndexChanged.connect(self._cargar_tabla_branch_products)
         top.addWidget(self._combo_suc_filter)
         top.addStretch()
-        btn_refresh = QPushButton("🔄 Actualizar")
+        btn_refresh = create_secondary_button(self, "🔄 Actualizar", "Recargar la tabla de productos por sucursal")
         btn_refresh.clicked.connect(self._cargar_tabla_branch_products)
         top.addWidget(btn_refresh)
         lay.addLayout(top)
@@ -890,8 +885,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self._spin_bp_stock_min.setSpecialValueText("(global)")
         grp_lay.addWidget(self._spin_bp_stock_min)
         grp_lay.addStretch()
-        btn_guardar_bp = QPushButton("💾 Guardar Cambios")
-        btn_guardar_bp.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:5px 12px;border-radius:5px;")
+        btn_guardar_bp = create_success_button(self, "💾 Guardar Cambios", "Guardar los cambios de activación, precio y stock mínimo del producto seleccionado")
         btn_guardar_bp.clicked.connect(self._guardar_branch_product)
         grp_lay.addWidget(btn_guardar_bp)
         lay.addWidget(grp)
@@ -1054,10 +1048,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         dlg.setMinimumWidth(620)
         lay = QVBoxLayout(dlg)
 
-        lbl = QLabel(
-            f"<b>{nombre_prod}</b>  |  Precio actual: <b>${precio_actual:.2f}</b>"
-        )
-        lbl.setStyleSheet("font-size:13px; padding:4px;")
+        lbl = create_subheading(self, f"<b>{nombre_prod}</b>  |  Precio actual: <b>${precio_actual:.2f}</b>")
         lay.addWidget(lbl)
 
         if not rows:
