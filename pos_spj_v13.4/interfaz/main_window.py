@@ -384,7 +384,12 @@ class MainWindow(QMainWindow):
         m_hw.addAction("⚙️ Configurar Dispositivos").triggered.connect(
             lambda: self.manejar_navegacion("CONFIG_HARDWARE"))
 
-        mb.addMenu("❓ Ayuda")
+        # ── Menú Ayuda con Diagnóstico ────────────────────────────────────────
+        m_ayuda = mb.addMenu("❓ Ayuda")
+        m_ayuda.addAction("🔧 Diagnóstico del Sistema").triggered.connect(
+            self._mostrar_diagnostico)
+        m_ayuda.addAction("ℹ️ Acerca de SPJ POS").triggered.connect(
+            self._mostrar_acerca_de)
 
         # ── Badge de pedidos WhatsApp ─────────────────────────────────────────
         self._btn_pedidos = mb.addMenu("📦 Pedidos (0)")
@@ -770,6 +775,34 @@ class MainWindow(QMainWindow):
     def _abrir_panel_pedidos(self) -> None:
         """Navega al módulo de pedidos WA o muestra panel lateral."""
         self.manejar_navegacion("DELIVERY")
+
+    def _mostrar_diagnostico(self):
+        """Muestra el diálogo de diagnóstico del sistema"""
+        try:
+            from interfaz.diagnostico import mostrar_diagnostico
+            mostrar_diagnostico(self)
+        except Exception as e:
+            logger.error(f"Error al mostrar diagnóstico: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"No se pudo abrir el diagnóstico del sistema:\n{str(e)}"
+            )
+
+    def _mostrar_acerca_de(self):
+        """Muestra información sobre la aplicación"""
+        from datetime import datetime
+        mensaje = (
+            "<h2>SPJ POS v13.4</h2>"
+            "<p><b>Sistema de Punto de Venta Profesional</b></p>"
+            "<hr>"
+            f"<p><b>Versión:</b> 13.4.0</p>"
+            f"<p><b>Fecha de compilación:</b> {datetime.now().strftime('%Y-%m-%d')}</p>"
+            "<p><b>Desarrollado con:</b> Python + PyQt5</p>"
+            "<hr>"
+            "<p>© 2024-2025 SPJ Systems</p>"
+        )
+        QMessageBox.information(self, "Acerca de SPJ POS", mensaje)
 
     def manejar_navegacion(self, modulo: str):
         if modulo == "LOGOUT":
