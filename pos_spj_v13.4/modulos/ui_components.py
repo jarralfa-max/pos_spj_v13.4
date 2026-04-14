@@ -28,7 +28,8 @@ USO:
 from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QFrame, QLabel, QVBoxLayout, 
     QHBoxLayout, QWidget, QToolTip, QGraphicsDropShadowEffect,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QComboBox
 )
 from PyQt5.QtCore import Qt, QPoint, QTimer
 from PyQt5.QtGui import QFont, QPalette, QColor
