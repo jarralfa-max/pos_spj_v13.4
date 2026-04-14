@@ -7,7 +7,14 @@ from modulos.ui_components import (
     create_heading, create_subheading, create_caption, apply_tooltip
 )
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem,
+    QHeaderView, QGridLayout, QGroupBox, QFrame, QSplitter, QTabWidget,
+    QAbstractItemView, QDialog, QCheckBox, QListWidget, QListWidgetItem,
+    QSizePolicy, QAction, QMenu, QToolBar, QStatusBar, QProgressBar,
+    QScrollArea, QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
