@@ -37,11 +37,40 @@ TEMAS = {
            ═══════════════════════════════════════════════════════════════════ */
 
         /* ===== VARIABLES GLOBALES ===== */
-        QMainWindow, QDialog, QWidget {
+        QMainWindow, QWidget {
             background-color: #0F172A;
             color: #F1F5F9;
             font-family: 'Segoe UI', 'Inter', 'Roboto', sans-serif;
             font-size: 13px;
+        }
+        
+        QDialog#loginDialog {
+            background-color: #1E293B;
+            color: #F1F5F9;
+        }
+        
+        QLabel#loginTitle {
+            font-size: 18px;
+            font-weight: 700;
+            color: #F1F5F9;
+        }
+        
+        QLabel#loginSucursal {
+            font-size: 11px;
+            color: #60A5FA;
+        }
+        
+        QLineEdit#inputField {
+            padding: 8px 12px;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            background-color: #0F172A;
+            color: #F1F5F9;
+            font-size: 13px;
+        }
+        
+        QLineEdit#inputField:focus {
+            border: 1px solid #2563EB;
         }
 
         /* ===== TOOLTIPS GLOBALES ===== */
@@ -53,7 +82,6 @@ TEMAS = {
             padding: 6px 10px;
             font-size: 12px;
             font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
         /* ===== BOTONES PRIMARIOS ===== */
@@ -349,7 +377,7 @@ TEMAS = {
             border: none;
             border-bottom: 2px solid #475569;
             font-weight: 600;
-            padding: 12px;
+            padding: 8px 12px;
             text-transform: uppercase;
             font-size: 11px;
             letter-spacing: 0.5px;
@@ -395,7 +423,7 @@ TEMAS = {
             color: #F1F5F9;
         }
         QLabel#subheading {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             color: #94A3B8;
         }
@@ -971,7 +999,6 @@ TEMAS = {
             border: 1px solid #E2E8F0;
             border-radius: 12px;
             padding: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         QFrame#cardHover:hover, QFrame[variant="card-hover"]:hover {
             background-color: #F8FAFC;
@@ -1132,7 +1159,6 @@ TEMAS = {
             border: 1px solid #E2E8F0;
             border-radius: 8px;
             padding: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         QMenu::item {
             padding: 10px 30px 10px 16px;
