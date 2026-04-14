@@ -8,7 +8,8 @@ Dashboard principal del POS en tiempo real.
   - Estado de repartidores activos
   - Acceso rápido a módulos clave
 
-UI OPTIMIZADA: Sistema de diseño SPJ con variables CSS y clases semánticas.
+UI OPTIMIZADA v13.4: Usa design_tokens y ui_components para consistencia global.
+Sistema de diseño centralizado con variables CSS y clases semánticas.
 """
 from __future__ import annotations
 import logging
@@ -21,9 +22,12 @@ from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
 
+# Importar design tokens para consistencia
+from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
+
 logger = logging.getLogger("spj.ui.dashboard")
 
-# Variables CSS para reutilización (design tokens)
+# Variables CSS para reutilización (design tokens - modo claro por defecto)
 CSS_VARS = """
     --bg-card: #FFFFFF;
     --bg-hover: #F8FAFC;
