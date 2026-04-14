@@ -13,11 +13,6 @@ env/
 .env.local
 .env.*
 
-# Build artifacts
-dist/
-build/
-*.egg-info/
-
 # Logs
 *.log
 

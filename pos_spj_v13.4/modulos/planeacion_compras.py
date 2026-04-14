@@ -1,6 +1,8 @@
 
 # modulos/planeacion_compras.py
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_heading, create_subheading, create_card, apply_tooltip
 import sys
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
@@ -42,7 +44,7 @@ class ModuloPlaneacionCompras(QWidget):
 
         # Título
         lbl_titulo = QLabel("🧠 Planeación Inteligente de Compras (Machine Learning)")
-        lbl_titulo.setStyleSheet("font-size: 20px; font-weight: bold; color: #2980b9;")
+        lbl_titulo.setObjectName("heading")
         layout.addWidget(lbl_titulo)
 
         # --- PANEL DE CONFIGURACIÓN ---
@@ -51,27 +53,30 @@ class ModuloPlaneacionCompras(QWidget):
 
         self.cmb_producto = QComboBox()
         self.cmb_producto.setMinimumWidth(200)
+        self.cmb_producto.setObjectName("inputField")
 
         self.spin_historial = QSpinBox()
         self.spin_historial.setRange(7, 365)
         self.spin_historial.setValue(30)
         self.spin_historial.setSuffix(" días")
         self.spin_historial.setToolTip("Días de historia a analizar")
+        self.spin_historial.setObjectName("inputField")
 
         self.spin_pronostico = QSpinBox()
         self.spin_pronostico.setRange(1, 30)
         self.spin_pronostico.setValue(7)
         self.spin_pronostico.setSuffix(" días")
         self.spin_pronostico.setToolTip("Días al futuro a predecir")
+        self.spin_pronostico.setObjectName("inputField")
 
         self.spin_seguridad = QDoubleSpinBox()
         self.spin_seguridad.setRange(0, 9999)
         self.spin_seguridad.setValue(10.0)
         self.spin_seguridad.setSuffix(" kg/pza")
         self.spin_seguridad.setToolTip("Inventario base que nunca debe faltar")
+        self.spin_seguridad.setObjectName("inputField")
 
-        btn_generar = QPushButton("🔮 Generar Pronóstico")
-        btn_generar.setStyleSheet("background:#8e44ad;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_generar = create_primary_button(self, "🔮 Generar Pronóstico", "Ejecutar modelo predictivo de compras")
         btn_generar.clicked.connect(self.ejecutar_pronostico)
 
         config_layout.addWidget(QLabel("Producto:"))
@@ -97,22 +102,25 @@ class ModuloPlaneacionCompras(QWidget):
 
         # 2. Panel de Resultados y Recomendación
         panel_resultados = QFrame()
-        panel_resultados.setStyleSheet("background-color: #f8f9fa; border-radius: 8px; border: 1px solid #dcdde1;")
+        panel_resultados.setObjectName("card")
         res_layout = QVBoxLayout(panel_resultados)
 
         lbl_res_titulo = QLabel("📊 Recomendación de Compra")
         lbl_res_titulo.setAlignment(Qt.AlignCenter)
-        lbl_res_titulo.setStyleSheet("font-size: 16px; font-weight: bold; border: none;")
+        lbl_res_titulo.setObjectName("subheading")
         
         self.lbl_stock_actual = QLabel("Stock Actual: 0.00")
+        self.lbl_stock_actual.setObjectName("textSecondary")
         self.lbl_venta_proyectada = QLabel("Demanda Proyectada: 0.00")
+        self.lbl_venta_proyectada.setObjectName("textSecondary")
         
         self.lbl_recomendacion = QLabel("COMPRAR: 0.00")
         self.lbl_recomendacion.setAlignment(Qt.AlignCenter)
-        self.lbl_recomendacion.setStyleSheet("font-size: 22px; font-weight: bold; color: #27ae60; border: none; padding: 15px;")
+        self.lbl_recomendacion.setObjectName("heading")
+        # Estilo base inicial (se actualizará dinámicamente según el resultado)
+        self.lbl_recomendacion.setStyleSheet(f"padding: {Spacing.LG}px;")
 
-        btn_enviar_compras = QPushButton("🛒 Generar Orden de Compra")
-        btn_enviar_compras.setStyleSheet("background-color: #e67e22; color: white; font-weight: bold; padding: 10px;")
+        btn_enviar_compras = create_success_button(self, "🛒 Generar Orden de Compra", "Crear orden de compra automática")
         btn_enviar_compras.clicked.connect(self.enviar_a_modulo_compras)
 
         res_layout.addWidget(lbl_res_titulo)
@@ -207,11 +215,12 @@ class ModuloPlaneacionCompras(QWidget):
         compra = metricas['compra_recomendada']
         self.lbl_recomendacion.setText(f"COMPRAR:\n{compra:.2f}")
         
+        # Actualizar color dinámicamente según el resultado
         if compra <= 0:
-            self.lbl_recomendacion.setStyleSheet("font-size: 22px; font-weight: bold; color: #7f8c8d; border: none; padding: 15px;")
+            self.lbl_recomendacion.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; padding: {Spacing.LG}px;")
             self.lbl_recomendacion.setText("STOCK\nSUFICIENTE")
         else:
-            self.lbl_recomendacion.setStyleSheet("font-size: 22px; font-weight: bold; color: #27ae60; border: none; padding: 15px;")
+            self.lbl_recomendacion.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; padding: {Spacing.LG}px;")
 
     def enviar_a_modulo_compras(self):
         """Crea un puente entre la predicción y la acción real de comprar."""
