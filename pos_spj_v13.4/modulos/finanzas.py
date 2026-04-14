@@ -23,7 +23,8 @@ from datetime import date, datetime
 from typing import Optional
 
 from modulos.spj_phone_widget import PhoneWidget
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Shadows
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input_field, create_card, apply_tooltip, create_heading, create_subheading, create_badge
 from PyQt5.QtCore import Qt, QDate, QTimer
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
@@ -41,7 +42,9 @@ from core.events.event_bus import EventBus
 
 logger = logging.getLogger("spj.ui.finanzas")
 
-# ── Paleta corporativa ────────────────────────────────────────────────────────
+# ── Paleta corporativa (LEGACY - en desuso, usar design_tokens) ─────────────
+# Estas constantes se mantienen solo para compatibilidad con código no refactorizado
+# NUEVO CÓDIGO: usar Colors.PRIMARY_BASE, Colors.SUCCESS_BASE, etc.
 _NAVY  = "#0F4C81"
 _BLUE  = "#2E86C1"
 _TEAL  = "#1ABC9C"
@@ -96,6 +99,7 @@ _R = Qt.AlignRight | Qt.AlignVCenter
 
 
 def _tbl(headers, stretch=0):
+    """Tabla estandarizada con diseño limpio."""
     t = QTableWidget()
     t.setColumnCount(len(headers))
     t.setHorizontalHeaderLabels(headers)
@@ -103,7 +107,7 @@ def _tbl(headers, stretch=0):
     t.setSelectionBehavior(QAbstractItemView.SelectRows)
     t.verticalHeader().setVisible(False)
     t.setAlternatingRowColors(True)
-    t.setStyleSheet(_TBL)
+    t.setObjectName("dataTable")  # Usa estilos de design_tokens
     h = t.horizontalHeader()
     h.setSectionResizeMode(stretch, QHeaderView.Stretch)
     for i in range(len(headers)):
@@ -112,29 +116,24 @@ def _tbl(headers, stretch=0):
     return t
 
 
-def _btn(label, color=_BLUE, parent=None):
+def _btn(label, color=Colors.PRIMARY_BASE, parent=None):
+    """Botón estandarizado usando factory."""
     b = QPushButton(label, parent)
-    b.setStyleSheet(
-        f"background:{color};color:white;padding:5px 12px;"
-        f"border-radius:3px;font-weight:bold;"
-    )
+    b.setObjectName("primaryBtn")  # Usa estilos centralizados
     return b
 
 
     def _tab_rrhh_redirect(self):
         """Tab que linkea al módulo RRHH dedicado."""
         w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
-        lbl = QLabel("👥 Módulo RRHH")
+        lbl = create_heading(self, "👥 Módulo RRHH")
         lbl.setAlignment(Qt.AlignCenter)
-        lbl.setStyleSheet("font-size:24px;font-weight:bold;color:#3B82F6;")
-        desc = QLabel("El módulo de Recursos Humanos ahora tiene su propio panel.\n\nAccede desde el menú lateral → RRHH")
+        desc = create_subheading(self, "El módulo de Recursos Humanos ahora tiene su propio panel.\n\nAccede desde el menú lateral → RRHH")
         desc.setAlignment(Qt.AlignCenter)
-        desc.setStyleSheet("color:#94A3B8;font-size:13px;")
         try:
-            btn = QPushButton("Ir a RRHH →")
-            btn.setStyleSheet("background:#3B82F6;color:white;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:bold;")
+            btn = create_primary_button(self, "Ir a RRHH →", "Navegar al módulo de Recursos Humanos")
             btn.clicked.connect(lambda: self.parent().mostrar_modulo("rrhh") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
-            layout.addWidget(lbl); layout.addSpacing(12); layout.addWidget(desc); layout.addSpacing(16); layout.addWidget(btn, 0, Qt.AlignCenter)
+            layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
         except Exception:
             layout.addWidget(lbl); layout.addWidget(desc)
         layout.addStretch()
@@ -142,15 +141,14 @@ def _btn(label, color=_BLUE, parent=None):
 
     def _tab_activos_redirect(self):
         w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
-        lbl = QLabel("🏭 Módulo Activos Fijos")
-        lbl.setAlignment(Qt.AlignCenter); lbl.setStyleSheet("font-size:24px;font-weight:bold;color:#F59E0B;")
-        desc = QLabel("El módulo de Activos Fijos ahora tiene su propio panel.\n\nAccede desde el menú lateral → ACTIVOS")
-        desc.setAlignment(Qt.AlignCenter); desc.setStyleSheet("color:#94A3B8;font-size:13px;")
+        lbl = create_heading(self, "🏭 Módulo Activos Fijos")
+        lbl.setAlignment(Qt.AlignCenter)
+        desc = create_subheading(self, "El módulo de Activos Fijos ahora tiene su propio panel.\n\nAccede desde el menú lateral → ACTIVOS")
+        desc.setAlignment(Qt.AlignCenter)
         try:
-            btn = QPushButton("Ir a Activos →")
-            btn.setStyleSheet("background:#F59E0B;color:white;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:bold;")
+            btn = create_warning_button(self, "Ir a Activos →", "Navegar al módulo de Activos Fijos")
             btn.clicked.connect(lambda: self.parent().mostrar_modulo("activos") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
-            layout.addWidget(lbl); layout.addSpacing(12); layout.addWidget(desc); layout.addSpacing(16); layout.addWidget(btn, 0, Qt.AlignCenter)
+            layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
         except Exception:
             layout.addWidget(lbl); layout.addWidget(desc)
         layout.addStretch()
@@ -158,15 +156,14 @@ def _btn(label, color=_BLUE, parent=None):
 
     def _tab_compras_redirect(self):
         w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
-        lbl = QLabel("🛒 Sistema de Compras Pro")
-        lbl.setAlignment(Qt.AlignCenter); lbl.setStyleSheet("font-size:24px;font-weight:bold;color:#10B981;")
-        desc = QLabel("El sistema de Compras ahora tiene su propio panel completo.\n\nAccede desde el menú lateral → COMPRAS PRO")
-        desc.setAlignment(Qt.AlignCenter); desc.setStyleSheet("color:#94A3B8;font-size:13px;")
+        lbl = create_heading(self, "🛒 Sistema de Compras Pro")
+        lbl.setAlignment(Qt.AlignCenter)
+        desc = create_subheading(self, "El sistema de Compras ahora tiene su propio panel completo.\n\nAccede desde el menú lateral → COMPRAS PRO")
+        desc.setAlignment(Qt.AlignCenter)
         try:
-            btn = QPushButton("Ir a Compras Pro →")
-            btn.setStyleSheet("background:#10B981;color:white;padding:10px 24px;border-radius:6px;font-size:14px;font-weight:bold;")
+            btn = create_success_button(self, "Ir a Compras Pro →", "Navegar al módulo de Compras Pro")
             btn.clicked.connect(lambda: self.parent().mostrar_modulo("compras_pro") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
-            layout.addWidget(lbl); layout.addSpacing(12); layout.addWidget(desc); layout.addSpacing(16); layout.addWidget(btn, 0, Qt.AlignCenter)
+            layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
         except Exception:
             layout.addWidget(lbl); layout.addWidget(desc)
         layout.addStretch()
@@ -177,23 +174,16 @@ class _KpiCard(QFrame):
     def __init__(self, title, color, icon=""):
         super().__init__()
         self.setFixedHeight(88)
-        self.setStyleSheet(
-            f"QFrame{{background:{_SLATE};border-left:4px solid {color};"
-            f"border-radius:4px;}}"
-        )
+        self.setObjectName("kpiCard")  # Usa estilos centralizados
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 5, 10, 5)
-        lay.setSpacing(1)
+        lay.setContentsMargins(Spacing.SM, Spacing.XS, Spacing.SM, Spacing.XS)
+        lay.setSpacing(Spacing.XS)
         lbl = QLabel(f"{icon}  {title}".strip())
-        lbl.setStyleSheet(
-            f"color:{_GRAY};font-size:9px;font-weight:bold;letter-spacing:0.5px;"
-        )
+        lbl.setObjectName("caption")  # Usa estilo caption
         self._v = QLabel("—")
-        self._v.setStyleSheet(
-            f"color:{color};font-size:18px;font-weight:bold;"
-        )
+        self._v.setObjectName("kpiValue")  # Usa estilo centralizado para valor KPI con color dinámico
         self._s = QLabel("")
-        self._s.setStyleSheet(f"color:{_GRAY};font-size:9px;")
+        self._s.setObjectName("caption")
         lay.addWidget(lbl)
         lay.addWidget(self._v)
         lay.addWidget(self._s)
@@ -203,7 +193,7 @@ class _KpiCard(QFrame):
         if sub:
             c = _GREEN if pos else (_RED if pos is False else _GRAY)
             self._s.setText(sub)
-            self._s.setStyleSheet(f"color:{c};font-size:9px;")
+            self._s.setStyleSheet(f"color:{c};font-size:9px;")  # Subtítulo mantiene color dinámico pequeño
 
 
 # ── Wrapper DB compatible con FinanceService ──────────────────────────────────
@@ -299,16 +289,14 @@ class ModuloFinanzas(ModuloBase):
 
     def _init_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(10, 8, 10, 8)
-        root.setSpacing(6)
+        root.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
+        root.setSpacing(Spacing.SM)
 
         # Cabecera
         hdr = QHBoxLayout()
-        ttl = QLabel("💼  Motor Financiero Enterprise")
-        f = QFont(); f.setPointSize(13); f.setBold(True)
-        ttl.setFont(f); ttl.setStyleSheet(f"color:{_ASH};")
+        ttl = create_heading(self, "💼  Motor Financiero Enterprise")
         self._lbl_hdr = QLabel()
-        self._lbl_hdr.setStyleSheet(f"color:{_GRAY};font-size:11px;")
+        self._lbl_hdr.setObjectName("caption")
         hdr.addWidget(ttl); hdr.addStretch(); hdr.addWidget(self._lbl_hdr)
         root.addLayout(hdr)
 
@@ -325,18 +313,15 @@ class ModuloFinanzas(ModuloBase):
 
         for d, lb in [(7,"7d"),(30,"30d"),(90,"3m"),(365,"Año")]:
             b = QPushButton(lb); b.setFixedWidth(40)
-            b.setStyleSheet(
-                f"background:{_NAVY};color:{_ASH};border-radius:3px;padding:3px;"
-            )
+            b.setObjectName("secondaryBtn")  # Usa estilo centralizado
             b.clicked.connect(lambda _, dd=d: self._set_period(dd))
             ctrl.addWidget(b)
 
-        br = _btn("🔄 Actualizar", _BLUE)
+        br = create_primary_button(self, "🔄 Actualizar", "Actualizar datos financieros")
         br.clicked.connect(lambda _, _vs=s: self._on_tab(_vself.tabs.currentIndex()))
         ctrl.addWidget(br)
 
-        bs = _btn("🔗 Sincronizar", _TEAL)
-        bs.setToolTip("Sincronizar CXP desde compras y CXC desde ventas crédito")
+        bs = create_success_button(self, "🔗 Sincronizar", "Sincronizar CXP desde compras y CXC desde ventas crédito")
         bs.clicked.connect(self._sync_and_refresh)
         ctrl.addWidget(bs)
         ctrl.addStretch()
@@ -344,7 +329,7 @@ class ModuloFinanzas(ModuloBase):
 
         # Tabs
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet(_TAB_STYLE)
+        self.tabs.setObjectName("tabWidget")  # Usa estilo centralizado
         self.tabs.currentChanged.connect(self._on_tab)
         self.tabs.addTab(self._tab_dashboard(),   "📊 Dashboard")
         self.tabs.addTab(self._tab_cxp(),         "💸 C×Pagar")
@@ -380,8 +365,7 @@ class ModuloFinanzas(ModuloBase):
         root.addLayout(g)
 
         # Balance general (tabla)
-        lbl_bg = QLabel("🏦  Balance General")
-        lbl_bg.setStyleSheet(f"color:{_ASH};font-weight:bold;font-size:12px;padding:4px 0;")
+        lbl_bg = create_subheading(self, "🏦  Balance General")
         root.addWidget(lbl_bg)
 
         self.tbl_balance = _tbl(["Rubro", "Subcategoría", "Monto"], stretch=1)
@@ -389,8 +373,7 @@ class ModuloFinanzas(ModuloBase):
         root.addWidget(self.tbl_balance)
 
         # Flujo de caja (tabla simple)
-        lbl_fc = QLabel("💸  Flujo de Caja del Período")
-        lbl_fc.setStyleSheet(f"color:{_ASH};font-weight:bold;font-size:12px;padding:4px 0;")
+        lbl_fc = create_subheading(self, "💸  Flujo de Caja del Período")
         root.addWidget(lbl_fc)
         self.tbl_flujo = _tbl(["Tipo", "Concepto", "Monto"], stretch=1)
         self.tbl_flujo.setMaximumHeight(180)
@@ -407,15 +390,13 @@ class ModuloFinanzas(ModuloBase):
 
         top = QHBoxLayout()
         self._lbl_cxp_resumen = QLabel()
-        self._lbl_cxp_resumen.setStyleSheet(
-            f"color:{_RED};font-weight:bold;font-size:11px;"
-        )
+        self._lbl_cxp_resumen.setObjectName("caption")  # Usa estilo caption
         top.addWidget(self._lbl_cxp_resumen); top.addStretch()
 
-        bt_nuevo  = _btn("➕ Nueva CXP",  _NAVY)
-        bt_abonar = _btn("💵 Abonar",     _GREEN)
-        bt_hist   = _btn("📜 Historial",  _BLUE)
-        bt_ref    = _btn("🔄 Actualizar", _GRAY)
+        bt_nuevo  = create_primary_button(self, "➕ Nueva CXP", "Crear nueva cuenta por pagar")
+        bt_abonar = create_success_button(self, "💵 Abonar", "Registrar abono a CXP")
+        bt_hist   = create_secondary_button(self, "📜 Historial", "Ver historial de pagos")
+        bt_ref    = create_secondary_button(self, "🔄 Actualizar", "Actualizar lista de CXP")
         bt_nuevo.clicked.connect(self._nueva_cxp)
         bt_abonar.clicked.connect(self._abonar_cxp)
         bt_hist.clicked.connect(self._historial_cxp)
@@ -451,14 +432,12 @@ class ModuloFinanzas(ModuloBase):
 
         top = QHBoxLayout()
         self._lbl_cxc_resumen = QLabel()
-        self._lbl_cxc_resumen.setStyleSheet(
-            f"color:{_TEAL};font-weight:bold;font-size:11px;"
-        )
+        self._lbl_cxc_resumen.setObjectName("textAccent")  # Usa estilo centralizado para texto destacado
         top.addWidget(self._lbl_cxc_resumen); top.addStretch()
 
-        bt_nueva  = _btn("➕ Nueva CXC", _NAVY)
-        bt_cobrar = _btn("💵 Cobrar",    _GREEN)
-        bt_ref    = _btn("🔄 Actualizar",_GRAY)
+        bt_nueva  = create_primary_button(self, "➕ Nueva CXC", "Crear nueva cuenta por cobrar")
+        bt_cobrar = create_success_button(self, "💵 Cobrar", "Registrar cobro de cuenta por cobrar")
+        bt_ref    = create_secondary_button(self, "🔄 Actualizar", "Refrescar lista de CXC")
         bt_nueva.clicked.connect(self._nueva_cxc)
         bt_cobrar.clicked.connect(self._cobrar_cxc)
         bt_ref.clicked.connect(self._load_cxc)
@@ -510,9 +489,7 @@ class ModuloFinanzas(ModuloBase):
         rl.addWidget(QLabel("Detalle de Proveedor:"))
         self._prov_detail = QTextEdit()
         self._prov_detail.setReadOnly(True)
-        self._prov_detail.setStyleSheet(
-            f"background:{_SLATE};color:{_ASH};font-size:11px;"
-        )
+        self._prov_detail.setObjectName("infoBox")  # Usa estilo centralizado para box informativo
         rl.addWidget(self._prov_detail)
 
         rl.addWidget(QLabel("CXP abiertas:"))
@@ -578,7 +555,8 @@ class ModuloFinanzas(ModuloBase):
         root.addWidget(self.tabla_gastos)
 
         # Resumen por categoría
-        grp = QGroupBox("Resumen por Categoría"); grp.setStyleSheet(_GRP)
+        grp = QGroupBox("Resumen por Categoría")
+        grp.setObjectName("styledGroup")  # Usa estilo centralizado para GroupBox
         gl = QVBoxLayout(grp)
         self.tbl_gastos_cat = _tbl(
             ["Categoría","Registros","Total","Pagado","Pendiente"],
@@ -637,7 +615,8 @@ class ModuloFinanzas(ModuloBase):
         self.tabla_personal.itemSelectionChanged.connect(self.actualizar_botones_personal)
         sp.addWidget(self.tabla_personal)
 
-        grp_nom = QGroupBox("Últimos Pagos de Nómina"); grp_nom.setStyleSheet(_GRP)
+        grp_nom = QGroupBox("Últimos Pagos de Nómina")
+        grp_nom.setObjectName("styledGroup")  # Usa estilo centralizado para GroupBox
         gn_lay = QVBoxLayout(grp_nom)
         self.tbl_nomina = _tbl(
             ["ID","Empleado","Puesto","Período","Salario","Bonos","Ded.","Total","Método","Fecha"],
@@ -688,7 +667,7 @@ class ModuloFinanzas(ModuloBase):
         # Historial de mantenimientos
         bot_w = QWidget(); bl = QVBoxLayout(bot_w)
         lbl_m = QLabel("Historial de Mantenimientos:")
-        lbl_m.setStyleSheet(f"color:{_ASH};font-weight:bold;")
+        lbl_m.setObjectName("subheading")  # Usa estilo centralizado para subtítulo
         bl.addWidget(lbl_m)
         self.tbl_mant = _tbl(
             ["ID","Activo","Tipo","Fecha","Descripción","Costo",
@@ -727,12 +706,11 @@ class ModuloFinanzas(ModuloBase):
         sp.addWidget(self.tbl_compras_inv)
 
         # CXP de estas compras
-        grp = QGroupBox("Cuentas por Pagar de Compras"); grp.setStyleSheet(_GRP)
+        grp = QGroupBox("Cuentas por Pagar de Compras")
+        grp.setObjectName("styledGroup")  # Usa estilo centralizado para GroupBox
         gl = QVBoxLayout(grp)
         self._lbl_cxp_ci_total = QLabel()
-        self._lbl_cxp_ci_total.setStyleSheet(
-            f"color:{_RED};font-weight:bold;"
-        )
+        self._lbl_cxp_ci_total.setObjectName("textDanger")  # Usa estilo centralizado para texto de peligro
         gl.addWidget(self._lbl_cxp_ci_total)
         self.tbl_cxp_ci = _tbl(
             ["ID","Proveedor","Producto","Total","Pagado","Saldo","Vencimiento","Estado"],
