@@ -944,13 +944,11 @@ class ModuloConfiguracion(ModuloBase):
             "y bloquea esos registros para que no puedan modificarse retroactivamente.")
         info.setWordWrap(True)
         info.setObjectName("infoBox")
-        info.setStyleSheet(f"background:{Colors.INFO_BG};padding:{Spacing.MD};border-radius:{Radii.SM};color:{Colors.TEXT_PRIMARY};font-size:{Typography.SIZE_SM};")
         lay.addWidget(info)
 
         # ── Ejecutar cierre ───────────────────────────────────────────────────
         grp_exec = QGroupBox("Ejecutar Cierre del Mes")
         grp_exec.setObjectName("styledGroup")
-        grp_exec.setStyleSheet(f"QGroupBox{{font-weight:bold;border:1px solid {Colors.BORDER};border-radius:{Radii.SM};margin-top:{Spacing.SM};padding-top:{Spacing.SM};}}")
         exec_lay = QHBoxLayout(grp_exec)
 
         lbl_periodo = QLabel("Mes a cerrar:")
@@ -975,7 +973,6 @@ class ModuloConfiguracion(ModuloBase):
         # ── Historial de cierres ──────────────────────────────────────────────
         grp_hist = QGroupBox("Historial de Cierres")
         grp_hist.setObjectName("styledGroup")
-        grp_hist.setStyleSheet(f"QGroupBox{{font-weight:bold;border:1px solid {Colors.BORDER};border-radius:{Radii.SM};margin-top:{Spacing.SM};padding-top:{Spacing.SM};}}")
         hist_lay = QVBoxLayout(grp_hist)
 
         self._tbl_cierres = QTableWidget()
@@ -1064,7 +1061,7 @@ class ModuloConfiguracion(ModuloBase):
 
             self._lbl_cierre_status.setText(
                 f"✅ {periodo} cerrado — Ventas ${total_ventas:,.2f}")
-            self._lbl_cierre_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};font-weight:bold;")
+            self._lbl_cierre_status.setObjectName("textSuccess")
             self._cargar_historial_cierres()
             from PyQt5.QtWidgets import QMessageBox as _QMB
             _QMB.information(self, "Cierre ejecutado",
@@ -1076,7 +1073,7 @@ class ModuloConfiguracion(ModuloBase):
             from PyQt5.QtWidgets import QMessageBox as _QMB
             _QMB.critical(self, "Error", str(e))
             self._lbl_cierre_status.setText(f"❌ {e}")
-            self._lbl_cierre_status.setStyleSheet(f"color:{Colors.DANGER_BASE};")
+            self._lbl_cierre_status.setObjectName("textDanger")
 
     def _cargar_historial_cierres(self) -> None:
         """Loads the cierre_mensual history table."""
@@ -1430,7 +1427,6 @@ class ModuloConfiguracion(ModuloBase):
         info = QLabel("💡 Los cajeros solo verán sus ventas. El administrador puede ver todas las sucursales en Reportes.")
         info.setWordWrap(True)
         info.setObjectName("caption")
-        info.setStyleSheet(f"color:{Colors.TEXT_SECONDARY};font-style:italic;padding:{Spacing.XS};font-size:{Typography.SIZE_XS};")
         layout.addWidget(info)
 
         return tab
@@ -1530,7 +1526,6 @@ class ModuloConfiguracion(ModuloBase):
         )
         info.setWordWrap(True)
         info.setObjectName("caption")
-        info.setStyleSheet(f"color:{Colors.TEXT_SECONDARY};font-size:{Typography.SIZE_SM};")
         lay.addWidget(info)
 
         # ── Tabla de números configurados ─────────────────────────────────────
@@ -1696,7 +1691,7 @@ class ModuloConfiguracion(ModuloBase):
             "El widget de comisión se muestra automáticamente en el POS cuando está activo."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#666;font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         # Tabla de comisiones
@@ -1727,7 +1722,8 @@ class ModuloConfiguracion(ModuloBase):
         form.addRow("", self._com_chk_activo)
         btn_row = QHBoxLayout()
         btn_save = QPushButton("💾 Guardar")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;")
+        btn_save.setObjectName("successBtn")
+        apply_tooltip(btn_save, "Guardar configuración de comisión")
         btn_save.clicked.connect(self._guardar_comision)
         btn_row.addStretch(); btn_row.addWidget(btn_save)
         form.addRow("", btn_row)
@@ -1815,7 +1811,7 @@ class ModuloConfiguracion(ModuloBase):
             "con teléfono registrado cuando inicie la promoción."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#666;font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         # Tabla de reglas
@@ -1865,7 +1861,8 @@ class ModuloConfiguracion(ModuloBase):
 
         btn_row = QHBoxLayout()
         btn_save = QPushButton("💾 Guardar regla")
-        btn_save.setStyleSheet("background:#e67e22;color:white;font-weight:bold;padding:7px 16px;")
+        btn_save.setObjectName("warningBtn")
+        apply_tooltip(btn_save, "Guardar regla de Happy Hour")
         btn_save.clicked.connect(self._guardar_happy_hour)
         btn_enviar = QPushButton("📣 Enviar promo ahora")
         btn_enviar.setToolTip("Envía el mensaje de la regla seleccionada a todos los clientes con teléfono")
@@ -2026,12 +2023,13 @@ class ModuloConfiguracion(ModuloBase):
             "⚠️ Esta configuración determina la sucursal para TODA esta terminal.\n"
             "Inventario, ventas y caja se filtrarán por esta sucursal.")
         lbl_info_suc.setWordWrap(True)
-        lbl_info_suc.setStyleSheet("font-size:10px;color:#e67e22;")
+        lbl_info_suc.setObjectName("textWarning")
         f4.addRow("", lbl_info_suc)
         lay.addWidget(grp4)
 
         btn_save = QPushButton("💾 Guardar datos de empresa")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_save.setObjectName("successBtn")
+        apply_tooltip(btn_save, "Guardar configuración de empresa")
         btn_save.clicked.connect(self._guardar_empresa)
         lay.addWidget(btn_save, 0, Qt.AlignRight)
         lay.addStretch()
@@ -2188,14 +2186,15 @@ class ModuloConfiguracion(ModuloBase):
         lay.addWidget(grp)
 
         info = QLabel("Los cambios se aplican en tiempo real sin necesidad de reiniciar.")
-        info.setStyleSheet("color:#27ae60;font-size:11px;font-style:italic;")
+        info.setObjectName("textSuccess")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
         btn_preview = QPushButton("👁 Vista previa")
         btn_preview.clicked.connect(self._previsualizar_tema)
         btn_apply = QPushButton("✅ Aplicar ahora")
-        btn_apply.setStyleSheet("background:#3498db;color:white;font-weight:bold;padding:8px 18px;border-radius:5px;")
+        btn_apply.setObjectName("primaryBtn")
+        apply_tooltip(btn_apply, "Aplicar configuración de apariencia")
         btn_apply.clicked.connect(self._aplicar_apariencia)
         btn_row.addWidget(btn_preview); btn_row.addStretch(); btn_row.addWidget(btn_apply)
         lay.addLayout(btn_row)
@@ -2317,7 +2316,8 @@ class ModuloConfiguracion(ModuloBase):
         btn_test = QPushButton("📧 Enviar correo de prueba")
         btn_test.clicked.connect(self._test_smtp)
         btn_save = QPushButton("💾 Guardar")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_save.setObjectName("successBtn")
+        apply_tooltip(btn_save, "Guardar configuración SMTP")
         btn_save.clicked.connect(self._guardar_smtp)
         btn_row.addWidget(btn_test); btn_row.addStretch(); btn_row.addWidget(btn_save)
         lay.addLayout(btn_row)
@@ -2408,7 +2408,8 @@ class ModuloConfiguracion(ModuloBase):
             "Configura tus credenciales de Mercado Pago para recibir pagos con link.\n"
             "Obtén el Access Token en: https://www.mercadopago.com.mx/developers/panel"
         )
-        info.setWordWrap(True); info.setStyleSheet("color:#666;font-size:11px;padding:4px;")
+        info.setWordWrap(True)
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         grp = QGroupBox("Credenciales API")
@@ -2436,13 +2437,14 @@ class ModuloConfiguracion(ModuloBase):
         btn_verify = QPushButton("🔍 Verificar token")
         btn_verify.clicked.connect(self._verificar_mp_token)
         btn_save = QPushButton("💾 Guardar")
-        btn_save.setStyleSheet("background:#009ee3;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_save.setObjectName("accentBtn")
+        apply_tooltip(btn_save, "Guardar credenciales de Mercado Pago")
         btn_save.clicked.connect(self._guardar_mp)
         btn_row.addWidget(btn_verify); btn_row.addStretch(); btn_row.addWidget(btn_save)
         lay.addLayout(btn_row)
 
         self.mp_status_lbl = QLabel("")
-        self.mp_status_lbl.setStyleSheet("font-size:12px;padding:4px;")
+        self.mp_status_lbl.setObjectName("caption")
         lay.addWidget(self.mp_status_lbl)
         lay.addStretch()
         self._cargar_mp()
@@ -2483,7 +2485,7 @@ class ModuloConfiguracion(ModuloBase):
         token = self.mp_token.text().strip()
         if not token:
             self.mp_status_lbl.setText("❌ Ingresa el Access Token primero.")
-            self.mp_status_lbl.setStyleSheet("color:#e74c3c;font-size:12px;")
+            self.mp_status_lbl.setObjectName("textDanger")
             return
         self.mp_status_lbl.setText("⏳ Verificando...")
         try:
@@ -2496,13 +2498,13 @@ class ModuloConfiguracion(ModuloBase):
             data = json.loads(resp.read())
             if isinstance(data, list) and len(data) > 0:
                 self.mp_status_lbl.setText(f"✅ Token válido — {len(data)} métodos de pago disponibles.")
-                self.mp_status_lbl.setStyleSheet("color:#27ae60;font-size:12px;")
+                self.mp_status_lbl.setObjectName("textSuccess")
             else:
                 self.mp_status_lbl.setText("⚠️ Respuesta inesperada del servidor.")
-                self.mp_status_lbl.setStyleSheet("color:#f39c12;font-size:12px;")
+                self.mp_status_lbl.setObjectName("textWarning")
         except Exception as e:
             self.mp_status_lbl.setText(f"❌ Error: {str(e)[:80]}")
-            self.mp_status_lbl.setStyleSheet("color:#e74c3c;font-size:12px;")
+            self.mp_status_lbl.setObjectName("textDanger")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: 👤 Usuarios y Roles — versión embebida en config
@@ -2526,7 +2528,8 @@ class ModuloConfiguracion(ModuloBase):
         suc_hdr.addWidget(QLabel("Sucursales del sistema con horarios de atención"))
         suc_hdr.addStretch()
         btn_new_suc = QPushButton("➕ Nueva sucursal")
-        btn_new_suc.setStyleSheet("background:#27ae60;color:white;padding:7px 16px;border-radius:5px;")
+        btn_new_suc.setObjectName("successBtn")
+        apply_tooltip(btn_new_suc, "Crear nueva sucursal")
         btn_new_suc.clicked.connect(self._nueva_sucursal_v13)
         suc_hdr.addWidget(btn_new_suc)
         suc_lay.addLayout(suc_hdr)
@@ -2550,7 +2553,8 @@ class ModuloConfiguracion(ModuloBase):
         usr_hdr.addWidget(QLabel("Usuarios del sistema vinculados a empleados RRHH"))
         usr_hdr.addStretch()
         btn_new_usr = QPushButton("➕ Nuevo usuario")
-        btn_new_usr.setStyleSheet("background:#3498db;color:white;padding:7px 16px;border-radius:5px;")
+        btn_new_usr.setObjectName("primaryBtn")
+        apply_tooltip(btn_new_usr, "Crear nuevo usuario")
         btn_new_usr.clicked.connect(self._nuevo_usuario_v13)
         usr_hdr.addWidget(btn_new_usr)
         usr_lay.addLayout(usr_hdr)
@@ -2785,7 +2789,7 @@ class ModuloConfiguracion(ModuloBase):
         chk_activo   = QCheckBox("Activo"); chk_activo.setChecked(True)
         cmb_empleado = QComboBox(); cmb_empleado.addItem("(ninguno)", None)
         lbl_emp_hint = QLabel("Vincula este usuario a un empleado de RRHH")
-        lbl_emp_hint.setStyleSheet("color:#666;font-size:10px;")
+        lbl_emp_hint.setObjectName("caption")
 
         # Fill roles and sucursales
         try:
@@ -2925,7 +2929,8 @@ class ModuloConfiguracion(ModuloBase):
                 self._tbl_roles_v13.setItem(ri, ci, it)
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
             btn_perm = QPushButton("🔑 Permisos")
-            btn_perm.setStyleSheet("font-size:11px;padding:2px 6px;")
+            btn_perm.setObjectName("secondaryBtn")
+            apply_tooltip(btn_perm, f"Editar permisos del rol {r[1]}")
             btn_perm.clicked.connect(
                 lambda _, rid=r[0], rnom=r[1]: self._editar_permisos_rol(rid, rnom))
             bl.addWidget(btn_perm)
