@@ -1,6 +1,5 @@
 
-# modulos/configuraciones.py
-from modulos.spj_styles import spj_btn, apply_btn_styles
+# modulos/configuracion.py
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -8,6 +7,15 @@ import sqlite3
 from .base import ModuloBase
 import os
 import json
+
+# Design System Imports
+from modulos.design_tokens import Colors, Spacing, Typography, Shadows
+from modulos.ui_components import (
+    create_primary_button, create_secondary_button, create_success_button, 
+    create_danger_button, create_input_field, create_card,
+    create_heading, create_subheading, apply_tooltip
+)
+
 try:
     import bcrypt
 except ImportError:
@@ -123,24 +131,10 @@ class ModuloConfiguracion(ModuloBase):
 
         content_splitter = QSplitter(Qt.Horizontal)
 
-        # Sidebar de categorías
+        # Sidebar de categorías (SIEMPRE OSCURO - estilo del sistema)
         self._nav_list = QListWidget()
         self._nav_list.setFixedWidth(200)
-        self._nav_list.setStyleSheet("""
-            QListWidget {
-                background:#2c3e50; border:none;
-                color:white; font-size:12px;
-            }
-            QListWidget::item {
-                padding:10px 14px; border-bottom:1px solid #34495e;
-            }
-            QListWidget::item:selected {
-                background:#3498db; color:white; font-weight:bold;
-            }
-            QListWidget::item:hover:!selected {
-                background:#34495e;
-            }
-        """)
+        self._nav_list.setObjectName("sidebarNav")  # Usar clase CSS en lugar de inline
         self._nav_list.currentRowChanged.connect(self._on_nav_changed)
 
         # Stack de páginas
@@ -220,30 +214,30 @@ class ModuloConfiguracion(ModuloBase):
 
         # Grupo de Apariencia — v13.30: solo toggle dark mode
         grupo_apariencia = QGroupBox("Apariencia")
-        grupo_apariencia.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_apariencia.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_apariencia = QFormLayout()
         
         self.chk_dark_mode = QCheckBox("🌙 Modo Oscuro")
         self.chk_dark_mode.setToolTip("Activa el tema oscuro para toda la interfaz")
-        self.chk_dark_mode.setStyleSheet("font-size:13px;padding:4px;")
+        self.chk_dark_mode.setObjectName("checkboxStandard")  # Clase CSS
         self.chk_dark_mode.stateChanged.connect(self._toggle_dark_mode)
         layout_apariencia.addRow("", self.chk_dark_mode)
         grupo_apariencia.setLayout(layout_apariencia)
 
         # Grupo de Impuestos
         grupo_impuestos = QGroupBox("Configuración Fiscal")
-        grupo_impuestos.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_impuestos.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_impuestos = QFormLayout()
         
         self.spin_impuesto = QDoubleSpinBox()
         self.spin_impuesto.setRange(0.0, 100.0)
         self.spin_impuesto.setSuffix(" %")
         self.spin_impuesto.setDecimals(2)
+        self.spin_impuesto.setObjectName("inputField")  # Clase CSS para inputs
         self.spin_impuesto.setToolTip("Impuesto por defecto aplicado a las ventas")
         
-        btn_guardar_impuesto = QPushButton("Guardar Impuesto")
+        btn_guardar_impuesto = create_primary_button(self, "Guardar Impuesto", "Guardar configuración de impuesto")
         btn_guardar_impuesto.setIcon(self.obtener_icono("save.png"))
-        btn_guardar_impuesto.clicked.connect(self.guardar_impuesto)
         
         layout_impuestos.addRow("IVA por defecto:", self.spin_impuesto)
         layout_impuestos.addRow("", btn_guardar_impuesto)
@@ -251,15 +245,15 @@ class ModuloConfiguracion(ModuloBase):
 
         # Grupo de Seguridad
         grupo_seguridad = QGroupBox("Seguridad")
-        grupo_seguridad.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_seguridad.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_seguridad = QVBoxLayout()
         
         self.chk_requerir_admin = QCheckBox("Requerir autorización de administrador para acciones críticas")
         self.chk_requerir_admin.setToolTip("Activar para requerir permisos de administrador en operaciones sensibles")
+        self.chk_requerir_admin.setObjectName("checkboxStandard")  # Clase CSS
         
-        btn_guardar_seguridad = QPushButton("Guardar Configuración de Seguridad")
+        btn_guardar_seguridad = create_primary_button(self, "Guardar Configuración de Seguridad", "Guardar configuración de seguridad")
         btn_guardar_seguridad.setIcon(self.obtener_icono("security.png"))
-        btn_guardar_seguridad.clicked.connect(self.guardar_seguridad)
         
         layout_seguridad.addWidget(self.chk_requerir_admin)
         layout_seguridad.addWidget(btn_guardar_seguridad, 0, Qt.AlignLeft)
@@ -342,48 +336,35 @@ class ModuloConfiguracion(ModuloBase):
 
         # Información del programa actual
         grupo_info = QGroupBox("Información del Programa Actual")
-        grupo_info.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_info.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_info = QVBoxLayout()
         
         self.lbl_info_programa = QLabel()
         self.lbl_info_programa.setWordWrap(True)
-        self.lbl_info_programa.setStyleSheet("""
-            QLabel {
-                background-color: #f0f0f0;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                padding: 10px;
-                margin: 5px;
-            }
-        """)
+        self.lbl_info_programa.setObjectName("infoCard")  # Clase CSS para cards informativas
         layout_info.addWidget(self.lbl_info_programa)
         grupo_info.setLayout(layout_info)
 
         # Configuración del programa
         grupo_config = QGroupBox("Configuración del Programa de Fidelidad")
-        grupo_config.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_config.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_config = QFormLayout()
         layout_config.setLabelAlignment(Qt.AlignRight)
         
-        self.edit_nombre_programa = QLineEdit()
-        self.edit_nombre_programa.setPlaceholderText("Ej: Programa de Puntos MiTienda")
-        self.edit_nombre_programa.setToolTip("Nombre del programa de fidelidad")
+        self.edit_nombre_programa = create_input_field(self, "Ej: Programa de Puntos MiTienda", "Nombre del programa de fidelidad")
         
         self.spin_puntos_por_peso = QDoubleSpinBox()
         self.spin_puntos_por_peso.setRange(0.01, 100.0)
         self.spin_puntos_por_peso.setValue(1.0)
         self.spin_puntos_por_peso.setSuffix(" puntos por $")
+        self.spin_puntos_por_peso.setObjectName("inputField")  # Clase CSS
         self.spin_puntos_por_peso.setToolTip("Puntos ganados por cada peso gastado")
         
-        self.edit_niveles = QLineEdit()
-        self.edit_niveles.setPlaceholderText("Ej: Bronce,Plata,Oro,Diamante")
-        self.edit_niveles.setToolTip("Niveles del programa separados por comas")
+        self.edit_niveles = create_input_field(self, "Ej: Bronce,Plata,Oro,Diamante", "Niveles del programa separados por comas")
         
-        self.edit_requisitos = QLineEdit()
-        self.edit_requisitos.setPlaceholderText("Ej: 0,1000,5000,10000")
-        self.edit_requisitos.setToolTip("Puntos requeridos para cada nivel")
+        self.edit_requisitos = create_input_field(self, "Ej: 0,1000,5000,10000", "Puntos requeridos para cada nivel")
         
-        self.edit_descuentos = QLineEdit()
+        self.edit_descuentos = create_input_field(self, "Ej: 5,10,15,20", "Descuentos porcentuales por nivel")
         self.edit_descuentos.setPlaceholderText("Ej: 0,5,10,15")
         self.edit_descuentos.setToolTip("Porcentaje de descuento para cada nivel")
         
