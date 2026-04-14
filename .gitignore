@@ -1,20 +1,13 @@
 ```
-# Compiled and build artifacts
-*.pyc
+# Python
 __pycache__/
-
-# Dependencies
-.venv/
-venv/
-node_modules/
-dist/
-build/
-*.egg-info/
+*.pyc
+*.pyo
+*.pyd
 
 # Logs and temp files
 *.log
 *.tmp
-*.swp
 
 # Environment
 .env
@@ -24,21 +17,8 @@ build/
 # Editors
 .vscode/
 .idea/
-*.swo
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Python specific
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg
-
-# Backup files
-*~
-.#*
+# Dependencies
+.venv/
+venv/
 ```

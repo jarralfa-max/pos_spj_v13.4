@@ -151,6 +151,31 @@ def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QL
     return input_field
 
 
+# Alias para compatibilidad con código legacy
+create_input = create_input_field
+
+
+def create_combo(parent, items: list = None, placeholder: str = "", tooltip: str = None) -> QComboBox:
+    """Crea un ComboBox estandarizado."""
+    from PyQt5.QtWidgets import QComboBox
+    
+    combo = QComboBox(parent)
+    combo.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
+    combo.setObjectName("standardInput")
+    
+    if items:
+        combo.addItems(items)
+    
+    if placeholder:
+        combo.addItem(placeholder)
+        combo.setCurrentIndex(-1)
+    
+    if tooltip:
+        apply_tooltip(combo, tooltip)
+    
+    return combo
+
+
 def create_labeled_input(parent, label_text: str, placeholder: str = "", 
                          tooltip: str = None, required: bool = False) -> QWidget:
     """Crea un input con label encima."""
@@ -602,6 +627,8 @@ __all__ = [
     
     # Inputs
     "create_input_field",
+    "create_input",  # Alias para compatibilidad
+    "create_combo",  # Nuevo
     "create_labeled_input",
     
     # Cards
