@@ -943,14 +943,14 @@ class ModuloConfiguracion(ModuloBase):
             "El cierre mensual consolida las ventas, compras y mermas del período "
             "y bloquea esos registros para que no puedan modificarse retroactivamente.")
         info.setWordWrap(True)
-        info.setStyleSheet("background:#eaf4ff;padding:10px;border-radius:6px;"
-                           "color:#2c3e50;font-size:12px;")
+        info.setObjectName("infoBox")
+        info.setStyleSheet(f"background:{Colors.INFO_BG};padding:{Spacing.MD};border-radius:{Radii.SM};color:{Colors.TEXT_PRIMARY};font-size:{Typography.SIZE_SM};")
         lay.addWidget(info)
 
         # ── Ejecutar cierre ───────────────────────────────────────────────────
         grp_exec = QGroupBox("Ejecutar Cierre del Mes")
-        grp_exec.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                               "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp_exec.setObjectName("styledGroup")
+        grp_exec.setStyleSheet(f"QGroupBox{{font-weight:bold;border:1px solid {Colors.BORDER};border-radius:{Radii.SM};margin-top:{Spacing.SM};padding-top:{Spacing.SM};}}")
         exec_lay = QHBoxLayout(grp_exec)
 
         lbl_periodo = QLabel("Mes a cerrar:")
@@ -958,10 +958,10 @@ class ModuloConfiguracion(ModuloBase):
         self._dte_cierre.setDate(QDate.currentDate().addMonths(-1))
         self._dte_cierre.setDisplayFormat("yyyy-MM")
         self._dte_cierre.setCalendarPopup(True)
+        self._dte_cierre.setObjectName("inputField")
 
         btn_cerrar = QPushButton("🔒 Ejecutar Cierre Mensual")
-        btn_cerrar.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;"
-                                 "padding:8px 18px;border-radius:5px;")
+        btn_cerrar = create_danger_button(self, btn_cerrar.text(), "Ejecutar cierre mensual de forma irreversible")
         btn_cerrar.clicked.connect(self._ejecutar_cierre_mensual)
 
         self._lbl_cierre_status = QLabel("")
@@ -974,8 +974,8 @@ class ModuloConfiguracion(ModuloBase):
 
         # ── Historial de cierres ──────────────────────────────────────────────
         grp_hist = QGroupBox("Historial de Cierres")
-        grp_hist.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                               "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp_hist.setObjectName("styledGroup")
+        grp_hist.setStyleSheet(f"QGroupBox{{font-weight:bold;border:1px solid {Colors.BORDER};border-radius:{Radii.SM};margin-top:{Spacing.SM};padding-top:{Spacing.SM};}}")
         hist_lay = QVBoxLayout(grp_hist)
 
         self._tbl_cierres = QTableWidget()
@@ -1064,7 +1064,7 @@ class ModuloConfiguracion(ModuloBase):
 
             self._lbl_cierre_status.setText(
                 f"✅ {periodo} cerrado — Ventas ${total_ventas:,.2f}")
-            self._lbl_cierre_status.setStyleSheet("color:green;font-weight:bold;")
+            self._lbl_cierre_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};font-weight:bold;")
             self._cargar_historial_cierres()
             from PyQt5.QtWidgets import QMessageBox as _QMB
             _QMB.information(self, "Cierre ejecutado",
@@ -1076,7 +1076,7 @@ class ModuloConfiguracion(ModuloBase):
             from PyQt5.QtWidgets import QMessageBox as _QMB
             _QMB.critical(self, "Error", str(e))
             self._lbl_cierre_status.setText(f"❌ {e}")
-            self._lbl_cierre_status.setStyleSheet("color:red;")
+            self._lbl_cierre_status.setStyleSheet(f"color:{Colors.DANGER_BASE};")
 
     def _cargar_historial_cierres(self) -> None:
         """Loads the cierre_mensual history table."""
@@ -1429,7 +1429,8 @@ class ModuloConfiguracion(ModuloBase):
         # Info
         info = QLabel("💡 Los cajeros solo verán sus ventas. El administrador puede ver todas las sucursales en Reportes.")
         info.setWordWrap(True)
-        info.setStyleSheet("color: #666; font-style: italic; padding: 4px;")
+        info.setObjectName("caption")
+        info.setStyleSheet(f"color:{Colors.TEXT_SECONDARY};font-style:italic;padding:{Spacing.XS};font-size:{Typography.SIZE_XS};")
         layout.addWidget(info)
 
         return tab
@@ -1528,7 +1529,8 @@ class ModuloConfiguracion(ModuloBase):
             "Agrega uno por sucursal cuando lo necesites."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#666; font-size:12px;")
+        info.setObjectName("caption")
+        info.setStyleSheet(f"color:{Colors.TEXT_SECONDARY};font-size:{Typography.SIZE_SM};")
         lay.addWidget(info)
 
         # ── Tabla de números configurados ─────────────────────────────────────
@@ -1548,20 +1550,29 @@ class ModuloConfiguracion(ModuloBase):
 
         # ── Formulario agregar/editar ──────────────────────────────────────────
         form_grp = QGroupBox("Agregar / Editar número")
+        form_grp.setObjectName("styledGroup")
         form = QFormLayout(form_grp)
 
         self._wa_txt_nombre = QLineEdit(); self._wa_txt_nombre.setPlaceholderText("Ej: Principal, RRHH")
+        self._wa_txt_nombre.setObjectName("inputField")
         self._wa_cmb_canal  = QComboBox()
         self._wa_cmb_canal.addItems(["todos", "clientes", "rrhh", "alertas"])
+        self._wa_cmb_canal.setObjectName("inputField")
         self._wa_cmb_prov   = QComboBox()
         self._wa_cmb_prov.addItems(["meta", "twilio", "mock"])
+        self._wa_cmb_prov.setObjectName("inputField")
         self._wa_txt_numero = QLineEdit(); self._wa_txt_numero.setPlaceholderText("+521234567890")
+        self._wa_txt_numero.setObjectName("inputField")
         self._wa_txt_meta_token = QLineEdit(); self._wa_txt_meta_token.setPlaceholderText("Meta Cloud API token")
         self._wa_txt_meta_token.setEchoMode(QLineEdit.Password)
+        self._wa_txt_meta_token.setObjectName("inputField")
         self._wa_txt_phone_id   = QLineEdit(); self._wa_txt_phone_id.setPlaceholderText("Meta Phone ID")
+        self._wa_txt_phone_id.setObjectName("inputField")
         self._wa_txt_twilio_sid = QLineEdit(); self._wa_txt_twilio_sid.setPlaceholderText("Twilio Account SID")
+        self._wa_txt_twilio_sid.setObjectName("inputField")
         self._wa_txt_twilio_tok = QLineEdit(); self._wa_txt_twilio_tok.setPlaceholderText("Twilio Auth Token")
         self._wa_txt_twilio_tok.setEchoMode(QLineEdit.Password)
+        self._wa_txt_twilio_tok.setObjectName("inputField")
         self._wa_chk_activo = QCheckBox("Activo"); self._wa_chk_activo.setChecked(True)
 
         form.addRow("Nombre*:",        self._wa_txt_nombre)
@@ -1576,11 +1587,13 @@ class ModuloConfiguracion(ModuloBase):
 
         btns = QHBoxLayout()
         btn_guardar_wa = QPushButton("💾 Guardar")
-        btn_guardar_wa.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_guardar_wa = create_success_button(self, btn_guardar_wa.text(), "Guardar configuración de WhatsApp")
         btn_guardar_wa.clicked.connect(self._guardar_numero_wa)
         btn_del_wa = QPushButton("🗑 Desactivar")
+        btn_del_wa = create_secondary_button(self, btn_del_wa.text(), "Desactivar número seleccionado")
         btn_del_wa.clicked.connect(self._desactivar_numero_wa)
         btn_test_wa = QPushButton("🧪 Probar envío")
+        btn_test_wa = create_primary_button(self, btn_test_wa.text(), "Enviar mensaje de prueba")
         btn_test_wa.clicked.connect(self._probar_wa)
         btns.addStretch(); btns.addWidget(btn_test_wa)
         btns.addWidget(btn_del_wa); btns.addWidget(btn_guardar_wa)
