@@ -5,7 +5,7 @@
 # Un módulo con error de sintaxis NO derrumba el sistema completo.
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
                              QLabel, QDialog, QVBoxLayout, QLineEdit, QPushButton,
-                             QMessageBox, QFrame, QMenuBar)
+                             QMessageBox, QFrame, QMenuBar, QSizePolicy, QComboBox, QFormLayout)
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPixmap
 
