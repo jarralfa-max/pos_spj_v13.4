@@ -18,8 +18,8 @@ USO:
     # Crear input con label y tooltip
     input_field = create_input_field(parent, "Nombre del cliente", "Ingrese el nombre completo")
     
-    # Crear card contenedora
-    card = create_card(parent)
+    # Crear card contenedora (con layout por defecto)
+    card = create_card(parent, with_layout=True)
     
     # Crear badge de estado
     badge = create_badge(parent, "Completado", "success")
