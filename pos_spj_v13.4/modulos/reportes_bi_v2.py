@@ -231,7 +231,8 @@ class ModuloReportesBIv2(QWidget):
 
     def _crear_tarjeta_kpi(self, titulo, valor_inicial):
         """Crea una tarjeta visual estilizada para los indicadores."""
-        tarjeta = create_card(self)
+        # CORRECCIÓN: with_layout=False para evitar conflicto de layouts
+        tarjeta = create_card(self, with_layout=False)
         layout = QVBoxLayout(tarjeta)
 
         lbl_titulo = create_caption(self, titulo)
