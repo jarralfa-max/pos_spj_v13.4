@@ -207,23 +207,32 @@ def create_labeled_input(parent, label_text: str, placeholder: str = "",
 #  CARDS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_card(parent, padding: int = Spacing.LG, with_layout: bool = True) -> QFrame:
+def create_card(parent, padding: int = Spacing.LG, with_layout: bool = True, 
+                layout_type: str = "vertical") -> QFrame:
     """
     Crea una card contenedora con sombra suave.
     
     Args:
         parent: Widget padre
         padding: Espacio interno en píxeles
-        with_layout: Si True (default), crea un QVBoxLayout interno. 
+        with_layout: Si True (default), crea un layout interno. 
                      Si False, el caller debe agregar su propio layout.
+        layout_type: Tipo de layout a crear si with_layout=True. 
+                     Valores: "vertical" (QVBoxLayout), "horizontal" (QHBoxLayout)
+    
+    Returns:
+        QFrame configurado como card
     """
     card = QFrame(parent)
     card.setObjectName("card")
     card.setFrameStyle(QFrame.StyledPanel)
     
     if with_layout:
-        # Padding interno
-        layout = QVBoxLayout(card)
+        # Seleccionar tipo de layout según parámetro
+        if layout_type == "horizontal":
+            layout = QHBoxLayout(card)
+        else:
+            layout = QVBoxLayout(card)
         layout.setSpacing(Spacing.MD)
         layout.setContentsMargins(padding, padding, padding, padding)
     
@@ -235,8 +244,19 @@ def create_stat_card(parent, title: str, value: str, icon_path: str = None,
     """
     Crea una card de estadística para dashboards.
     Fondo neutro con indicador de color en ícono/borde.
+    
+    Args:
+        parent: Widget padre
+        title: Título de la estadística
+        value: Valor a mostrar
+        icon_path: Ruta al ícono (opcional)
+        color_variant: Variante de color (primary, success, danger, warning)
+    
+    Returns:
+        QFrame configurado como stat card
     """
-    card = create_card(parent, padding=Spacing.MD)
+    # CORRECCIÓN CRÍTICA: with_layout=False porque vamos a usar QHBoxLayout personalizado
+    card = create_card(parent, padding=Spacing.MD, with_layout=False)
     card.setFixedHeight(80)  # Height reducido
     
     layout = QHBoxLayout(card)
@@ -244,7 +264,6 @@ def create_stat_card(parent, title: str, value: str, icon_path: str = None,
     
     # Ícono (si existe)
     if icon_path:
-        from PyQt5.QtWidgets import QLabel
         from PyQt5.QtGui import QPixmap
         
         icon_label = QLabel()

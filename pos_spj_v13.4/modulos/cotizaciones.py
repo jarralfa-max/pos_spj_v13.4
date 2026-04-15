@@ -177,7 +177,19 @@ class ModuloCotizaciones(ModuloBase):
         root.addLayout(ab)
 
     def _kpi(self, titulo: str, valor: str, color: str) -> QFrame:
-        card = QFrame()
+        """
+        Crea una tarjeta KPI para mostrar métricas.
+        
+        Args:
+            titulo: Título del KPI
+            valor: Valor a mostrar
+            color: Color del texto del valor
+        
+        Returns:
+            QFrame configurado como tarjeta KPI
+        """
+        # CORRECCIÓN: Usar create_card con with_layout=False para evitar conflicto de layouts
+        card = create_card(self, padding=Spacing.SM, with_layout=False)
         card.setObjectName("statCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         card.setFixedHeight(68)
