@@ -112,8 +112,7 @@ class ModuloPlaneacionCompras(QWidget):
         h_layout.addWidget(self.canvas, stretch=3)
 
         # 2. Panel de Resultados y Recomendación
-        panel_resultados = QFrame()
-        panel_resultados.setObjectName("card")
+        panel_resultados = create_card(self, padding=Spacing.MD, with_layout=False)
         res_layout = QVBoxLayout(panel_resultados)
 
         lbl_res_titulo = QLabel("📊 Recomendación de Compra")

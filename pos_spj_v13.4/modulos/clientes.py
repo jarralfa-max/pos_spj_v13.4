@@ -1248,9 +1248,11 @@ class _DialogoRFM(QDialog):
         seg_w = QWidget(); seg_lay = QHBoxLayout(seg_w)
         self._seg_labels = {}
         for seg, cfg in self.SEGMENTOS.items():
-            card = QFrame(); card.setFrameStyle(QFrame.Box)
-            card.setObjectName("card")
+            card = create_card(self, padding=Spacing.SM, with_layout=False)
+            card.setFrameStyle(QFrame.Box)
             c_lay = QVBoxLayout(card)
+            c_lay.setSpacing(Spacing.XS)
+            c_lay.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
             lbl_n = QLabel(f"{cfg['icono']} {seg}")
             lbl_n.setStyleSheet(f"font-weight:bold;color:{cfg['color']};")
             lbl_c = QLabel("0"); lbl_c.setObjectName("heading")

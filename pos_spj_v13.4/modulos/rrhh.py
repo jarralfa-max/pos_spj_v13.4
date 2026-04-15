@@ -5,7 +5,7 @@ from core.events.event_bus import get_bus
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_input, create_heading, create_subheading, apply_tooltip
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_input, create_heading, create_subheading, apply_tooltip, create_card
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
@@ -178,8 +178,7 @@ class ModuloRRHH(QWidget):
     # PANTALLA DE BLOQUEO DE SEGURIDAD
     # =========================================================
     def _crear_pantalla_bloqueo(self):
-        panel = QWidget()
-        panel.setObjectName("card")  # Usar clase CSS para fondo y bordes
+        panel = create_card(self, padding=Spacing.LG, with_layout=False)
         
         layout = QVBoxLayout(panel)
         
