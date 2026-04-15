@@ -45,28 +45,28 @@ TEMAS = {
         }
         
         QDialog#loginDialog {
-            background-color: var(--card-bg);
-            color: var(--text-primary);
+            background-color: #1E293B;
+            color: #F1F5F9;
             border-radius: 12px;
         }
-        
+
         QLabel#loginLogo {
             padding: 10px;
             background-color: transparent;
         }
-        
+
         QLabel#loginTitle {
             font-size: 24px;
             font-weight: 700;
-            color: var(--text-primary);
+            color: #F1F5F9;
             margin-bottom: 5px;
         }
-        
+
         QLabel#loginSucursal {
             font-size: 13px;
-            color: var(--text-secondary);
+            color: #94A3B8;
         }
-        
+
         QLabel#errorMsg {
             color: #DC2626;
             font-weight: bold;
@@ -74,24 +74,24 @@ TEMAS = {
             background-color: #FEE2E2;
             border-radius: 6px;
         }
-        
+
         QLineEdit#inputField {
             padding: 10px 14px;
-            border: 1px solid var(--border);
+            border: 1px solid #334155;
             border-radius: 8px;
-            background-color: var(--bg-input);
-            color: var(--text-primary);
+            background-color: #1E293B;
+            color: #F1F5F9;
             font-size: 14px;
             min-height: 40px;
         }
-        
+
         QLineEdit#inputField:focus {
-            border: 2px solid var(--primary);
-            background-color: var(--bg-input-focus);
+            border: 2px solid #2563EB;
+            background-color: #1E3A5F;
         }
-        
+
         QLineEdit#inputField::placeholder {
-            color: var(--text-placeholder);
+            color: #64748B;
         }
 
         /* ===== TOOLTIPS GLOBALES ===== */

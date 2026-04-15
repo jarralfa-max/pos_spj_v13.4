@@ -45,6 +45,8 @@ class HardwareService:
                 # Aquí llamarías a la instancia de tu impresora para mandar el byte
                 return self._send_raw_to_printer(pulse)
             elif metodo == 'serial':
+                if serial is None:
+                    return False
                 with serial.Serial(config['puerto'], config['baud_rate'], timeout=1) as s:
                     s.write(bytes([0x10, 0x14, 0x01, 0x00, 0x05]))
             return True
@@ -55,6 +57,9 @@ class HardwareService:
     # --- 2. BÁSCULA DIGITAL ---
     def read_scale(self) -> float:
         """Lee el puerto serial de la báscula y extrae el peso."""
+        if serial is None:
+            logger.warning("pyserial no disponible — báscula deshabilitada")
+            return 0.0
         config = self._cache_config.get('bascula', {})
         if not config: return 0.0
 
