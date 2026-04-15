@@ -51,6 +51,8 @@ from core.services.recipe_engine import (
 
 logger = logging.getLogger("spj.ui.produccion")
 _RED   = "#e74c3c"
+_BLUE  = "#2563EB"
+_GREEN = "#16A34A"
 _GOLD  = "#f39c12"
 _GRAY  = "#7f8c8d"
 
