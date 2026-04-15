@@ -410,7 +410,8 @@ class ModuloTransferencias(ModuloBase):
         lay.setContentsMargins(0, 8, 0, 0); lay.setSpacing(10)
 
         # ── Header con descripción del método ────────────────────────────────
-        info_box = QFrame()
+        # CORRECCIÓN: Usar create_card en lugar de QFrame() directo para consistencia
+        info_box = create_card(self, padding=Spacing.SM, with_layout=False)
         info_box.setStyleSheet(
             "QFrame{background:#eaf4fb;border:none;border-left:4px solid #3498db;"
             "border-radius:4px;padding:6px;}"
