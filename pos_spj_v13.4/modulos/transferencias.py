@@ -235,8 +235,7 @@ class ModuloTransferencias(ModuloBase):
         root.addLayout(ab)
 
     def _make_kpi(self, title: str, value: str, color: str) -> QFrame:
-        card = QFrame()
-        card.setObjectName("card")
+        card = create_card(self, padding=Spacing.SM, with_layout=False)
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); card.setFixedHeight(72)
         lay = QVBoxLayout(card); lay.setContentsMargins(10, 6, 10, 6)
         lt = QLabel(title); lt.setObjectName("caption")

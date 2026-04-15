@@ -207,16 +207,25 @@ def create_labeled_input(parent, label_text: str, placeholder: str = "",
 #  CARDS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_card(parent, padding: int = Spacing.LG) -> QFrame:
-    """Crea una card contenedora con sombra suave."""
+def create_card(parent, padding: int = Spacing.LG, with_layout: bool = True) -> QFrame:
+    """
+    Crea una card contenedora con sombra suave.
+    
+    Args:
+        parent: Widget padre
+        padding: Espacio interno en píxeles
+        with_layout: Si True (default), crea un QVBoxLayout interno. 
+                     Si False, el caller debe agregar su propio layout.
+    """
     card = QFrame(parent)
     card.setObjectName("card")
     card.setFrameStyle(QFrame.StyledPanel)
     
-    # Padding interno
-    layout = QVBoxLayout(card)
-    layout.setSpacing(Spacing.MD)
-    layout.setContentsMargins(padding, padding, padding, padding)
+    if with_layout:
+        # Padding interno
+        layout = QVBoxLayout(card)
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(padding, padding, padding, padding)
     
     return card
 
