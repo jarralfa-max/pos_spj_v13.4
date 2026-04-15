@@ -193,7 +193,7 @@ class DialogoCorteZCiego(QDialog):
         self.lbl_resultado = QLabel("Procesando...")
         self.lbl_resultado.setWordWrap(True)
         self.lbl_resultado.setAlignment(Qt.AlignCenter)
-        self.lbl_resultado.setObjectName("card")
+        self.lbl_resultado.setObjectName("resultadoCard")  # Nombre único para evitar conflicto con QFrame card
         lay.addWidget(self.lbl_resultado, 1)
         return w
 
