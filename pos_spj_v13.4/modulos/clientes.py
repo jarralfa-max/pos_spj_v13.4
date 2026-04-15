@@ -87,18 +87,15 @@ class ModuloClientes(ModuloBase):
 
         # --- Barra de herramientas ---
         toolbar = QHBoxLayout()
-        self.busqueda_cliente = QLineEdit()
-        self.busqueda_cliente.setPlaceholderText("Buscar por nombre, teléfono, ID o código QR...")
-        self.btn_buscar_cliente = QPushButton()
-        self.btn_buscar_cliente.setIcon(self.obtener_icono("search.png"))
-        self.btn_buscar_cliente.setToolTip("Buscar Cliente")
+        self.busqueda_cliente = create_input_field(self, "Buscar por nombre, teléfono, ID o código QR...")
+        self.busqueda_cliente.setFixedWidth(300)
+        self.btn_buscar_cliente = create_icon_button(self, "", "Buscar Cliente", "primary")
+        self.btn_buscar_cliente.setFixedSize(36, 36)
         
-        self.combo_filtro = QComboBox()
-        self.combo_filtro.addItems(["Activos", "Todos", "Inactivos"])
+        self.combo_filtro = create_combo(self, ["Activos", "Todos", "Inactivos"])
         self.combo_filtro.setCurrentText("Activos")
         
-        self.btn_nuevo_cliente = QPushButton("Nuevo Cliente")
-        self.btn_nuevo_cliente.setIcon(self.obtener_icono("add.png"))
+        self.btn_nuevo_cliente = create_primary_button(self, "Nuevo Cliente", "Crear nuevo cliente")
         
         toolbar.addWidget(QLabel("Buscar:"))
         toolbar.addWidget(self.busqueda_cliente)
@@ -123,24 +120,20 @@ class ModuloClientes(ModuloBase):
 
         # --- Barra de estado/botones de acción ---
         acciones_layout = QHBoxLayout()
-        self.btn_editar_cliente = QPushButton("Editar")
-        self.btn_editar_cliente.setIcon(self.obtener_icono("edit.png"))
+        self.btn_editar_cliente = create_secondary_button(self, "Editar", "Editar cliente seleccionado")
         self.btn_editar_cliente.setEnabled(False)
         
-        self.btn_eliminar_cliente = QPushButton("Eliminar")
-        self.btn_eliminar_cliente.setIcon(self.obtener_icono("delete.png"))
+        self.btn_eliminar_cliente = create_danger_button(self, "Eliminar", "Eliminar cliente seleccionado")
         self.btn_eliminar_cliente.setEnabled(False)
         
-        self.btn_ver_historial = QPushButton("Historial")
-        self.btn_ver_historial.setIcon(self.obtener_icono("history.png"))
+        self.btn_ver_historial = create_secondary_button(self, "Historial", "Ver historial del cliente")
         self.btn_ver_historial.setEnabled(False)
         
-        self.btn_asignar_tarjeta = QPushButton("Asignar Tarjeta")
-        self.btn_asignar_tarjeta.setIcon(self.obtener_icono("card.png"))
+        self.btn_asignar_tarjeta = create_secondary_button(self, "Asignar Tarjeta", "Asignar tarjeta de fidelidad")
         self.btn_asignar_tarjeta.setEnabled(False)
 
         # v9: Botón ver tarjetas y gestión completa
-        self.btn_ver_tarjetas = QPushButton("💳 Tarjetas")
+        self.btn_ver_tarjetas = create_secondary_button(self, "💳 Tarjetas", "Ver tarjetas del cliente")
         self.btn_ver_tarjetas.setEnabled(False)
         
         acciones_layout.addWidget(self.btn_editar_cliente)
