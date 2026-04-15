@@ -558,7 +558,7 @@ class DialogoCliente(QDialog):
         layout.addWidget(create_heading(self, "Nuevo Cliente" if not self.cliente_data else "Editar Cliente"))
         
         # Card principal con formulario
-        card = create_card(self, padding=Spacing.MD)
+        card = create_card(self, padding=Spacing.MD, with_layout=False)
         form_layout = QFormLayout()
         form_layout.setSpacing(Spacing.SM)
         form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
@@ -942,7 +942,7 @@ class _DialogoAsignarTarjetaCliente(QDialog):
         layout.addWidget(create_subheading(self, f"Cliente: {self.cliente_nombre}"))
 
         # Card principal
-        card = create_card(self, padding=Spacing.MD)
+        card = create_card(self, padding=Spacing.MD, with_layout=False)
         card_layout = QVBoxLayout()
         card_layout.setSpacing(Spacing.SM)
 
