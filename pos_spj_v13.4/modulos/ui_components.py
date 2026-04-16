@@ -109,6 +109,18 @@ def create_warning_button(parent, text: str, tooltip: str = None) -> QPushButton
     return btn
 
 
+def create_accent_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """
+    Botón accent para compatibilidad legacy.
+    Actualmente reutiliza variante `primary`.
+    """
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "primary")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
 def create_outline_button(parent, text: str, tooltip: str = None) -> QPushButton:
     """Crea un botón outline (borde) para acciones menos prominentes."""
     btn = QPushButton(text, parent)
@@ -417,6 +429,11 @@ def create_heading(parent, text: str) -> QLabel:
         font-weight: {Typography.WEIGHT_BOLD};
     """)
     return label
+
+
+def create_heading_label(parent, text: str) -> QLabel:
+    """Alias legacy de create_heading para módulos existentes."""
+    return create_heading(parent, text)
 
 
 def create_subheading(parent, text: str) -> QLabel:

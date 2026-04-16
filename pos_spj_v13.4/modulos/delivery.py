@@ -5,7 +5,7 @@ import logging
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input, create_combo, create_card, apply_tooltip
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, create_input, create_combo, create_card, apply_tooltip
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
@@ -1071,4 +1071,3 @@ class GestorDriversDialog(QDialog):
         self.cmb_activo.setCurrentIndex(0)
         self.btn_edit.setEnabled(False); self.btn_delete.setEnabled(False)
         self.tabla.clearSelection()
-

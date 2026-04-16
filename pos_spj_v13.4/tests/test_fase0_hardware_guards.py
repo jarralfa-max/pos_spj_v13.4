@@ -93,3 +93,54 @@ def test_read_scale_zero_without_config(hw_db):
     from core.services.hardware_service import HardwareService
     svc = HardwareService(conn)
     assert svc.read_scale() == 0.0, "Sin config de báscula debe retornar 0.0"
+
+
+def test_read_scale_respects_inactive_flag(hw_db):
+    """Si bascula.activo=False en config, no intenta leer y retorna 0.0."""
+    hw_db.execute(
+        "UPDATE hardware_config SET configuraciones=? WHERE tipo='bascula'",
+        ('{"activo": false, "puerto": "/dev/ttyUSB0", "baud_rate": 9600}',)
+    )
+    hw_db.commit()
+    from core.services.hardware_service import HardwareService
+    svc = HardwareService(hw_db)
+    assert svc.read_scale() == 0.0
+
+
+def test_get_weight_fallback_manual(hw_service_no_serial):
+    """get_weight() debe regresar peso manual si no hay lectura de báscula."""
+    assert hw_service_no_serial.get_weight(1.234) == pytest.approx(1.234)
+    assert hw_service_no_serial.get_weight(-1) == 0.0
+
+
+def test_read_scale_invalid_baud_uses_default(hw_db):
+    """Baud inválido en config no debe romper lectura; usa 9600 por defecto."""
+    import core.services.hardware_service as hw_module_local
+    hw_db.execute(
+        "UPDATE hardware_config SET configuraciones=? WHERE tipo='bascula'",
+        ('{"puerto": "/dev/ttyUSB9", "baud_rate": "INVALID"}',)
+    )
+    hw_db.commit()
+
+    class _FakeSerialConn:
+        last_baud = None
+        def __init__(self, port, baud, timeout=0.5):
+            _FakeSerialConn.last_baud = baud
+        def __enter__(self): return self
+        def __exit__(self, exc_type, exc, tb): return False
+        def write(self, data): pass
+        def readline(self): return b"WT 1.250 kg"
+
+    class _FakeSerialModule:
+        Serial = _FakeSerialConn
+
+    original_serial = hw_module_local.serial
+    hw_module_local.serial = _FakeSerialModule
+    try:
+        from core.services.hardware_service import HardwareService
+        svc = HardwareService(hw_db)
+        peso = svc.read_scale()
+        assert peso == pytest.approx(1.250)
+        assert _FakeSerialConn.last_baud == 9600
+    finally:
+        hw_module_local.serial = original_serial

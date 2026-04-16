@@ -29,6 +29,10 @@
 from __future__ import annotations
 
 import logging
+import json
+import re
+import csv
+from io import StringIO
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
@@ -55,6 +59,41 @@ def _aging(due_date_str: Optional[str]) -> str:
         return AGING_MAS
     except Exception:
         return AGING_CORRIENTE
+
+
+_RFC_RE = re.compile(r"^[A-Z&Ñ]{3,4}\d{6}[A-Z0-9]{3}$")
+
+
+def _normalize_rfc(rfc: Optional[str]) -> Optional[str]:
+    if not rfc:
+        return None
+    r = re.sub(r"[^A-Za-z0-9&Ññ]", "", str(rfc)).upper().strip()
+    return r or None
+
+
+def _validate_supplier_payload(data: Dict) -> Dict:
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        raise ValueError("El nombre del proveedor es obligatorio.")
+
+    rfc = _normalize_rfc(data.get("rfc"))
+    if rfc and not _RFC_RE.match(rfc):
+        raise ValueError("RFC de proveedor inválido (formato SAT).")
+
+    limite = float(data.get("limite_credito", 0) or 0)
+    if limite < 0:
+        raise ValueError("El límite de crédito no puede ser negativo.")
+
+    condiciones = int(data.get("condiciones_pago", 30) or 30)
+    if condiciones < 0:
+        raise ValueError("Las condiciones de pago no pueden ser negativas.")
+
+    clean = dict(data)
+    clean["nombre"] = nombre
+    clean["rfc"] = rfc
+    clean["limite_credito"] = limite
+    clean["condiciones_pago"] = condiciones
+    return clean
 
 
 class FinanceService:
@@ -481,8 +520,19 @@ class FinanceService:
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, (folio, supplier_id, concepto, amount, amount,
               due_date, "pendiente", tipo, referencia, ref_type, usuario, notas))
-        self.db.conn.commit()
-        return cur.lastrowid
+        ap_id = cur.lastrowid
+        self.registrar_asiento(
+            debe="gastos_operativos",
+            haber="cuentas_por_pagar",
+            concepto=f"CXP {folio}: {concepto}",
+            monto=float(amount or 0),
+            modulo="finanzas",
+            referencia_id=ap_id,
+            evento="CXP_CREADA",
+            metadata={"folio": folio, "supplier_id": supplier_id, "tipo": tipo},
+        )
+        self.db.commit()
+        return ap_id
 
     def abonar_cxp(
         self,
@@ -515,8 +565,18 @@ class FinanceService:
         INSERT INTO ap_payments (ap_id, monto, metodo_pago, usuario, notas)
             VALUES (?,?,?,?,?)
         """, (ap_id, monto, metodo_pago, usuario, notas))
+        self.registrar_asiento(
+            debe="cuentas_por_pagar",
+            haber="caja_bancos",
+            concepto=f"Pago CXP #{ap_id}",
+            monto=float(monto or 0),
+            modulo="finanzas",
+            referencia_id=ap_id,
+            evento="CXP_ABONADA",
+            metadata={"metodo_pago": metodo_pago},
+        )
 
-        self.db.conn.commit()
+        self.db.commit()
         return {"nuevo_balance": nuevo_balance, "nuevo_status": nuevo_status}
 
     def historial_pagos_cxp(self, ap_id: int) -> List[Dict]:
@@ -586,8 +646,19 @@ class FinanceService:
             VALUES (?,?,?,?,?,?,?,'pendiente','manual',?)
         """, (folio, cliente_id, venta_id, concepto, amount, amount,
               due_date, usuario))
-        self.db.conn.commit()
-        return cur.lastrowid
+        ar_id = cur.lastrowid
+        self.registrar_asiento(
+            debe="cuentas_por_cobrar",
+            haber="ventas_credito",
+            concepto=f"CXC {folio}: {concepto}",
+            monto=float(amount or 0),
+            modulo="finanzas",
+            referencia_id=ar_id,
+            evento="CXC_CREADA",
+            metadata={"folio": folio, "cliente_id": cliente_id, "venta_id": venta_id},
+        )
+        self.db.commit()
+        return ar_id
 
     def cobrar_cxc(
         self,
@@ -619,8 +690,18 @@ class FinanceService:
         INSERT INTO ar_payments (ar_id, monto, metodo_pago, usuario, notas)
             VALUES (?,?,?,?,?)
         """, (ar_id, monto, metodo_pago, usuario, notas))
+        self.registrar_asiento(
+            debe="caja_bancos",
+            haber="cuentas_por_cobrar",
+            concepto=f"Cobro CXC #{ar_id}",
+            monto=float(monto or 0),
+            modulo="finanzas",
+            referencia_id=ar_id,
+            evento="CXC_COBRADA",
+            metadata={"metodo_pago": metodo_pago},
+        )
 
-        self.db.conn.commit()
+        self.db.commit()
         return {"nuevo_balance": nuevo_balance, "nuevo_status": nuevo_status}
 
     # ═════════════════════════════════════════════════════════════════════════
@@ -651,6 +732,7 @@ class FinanceService:
         return [dict(r) for r in rows]
 
     def upsert_supplier(self, data: Dict) -> int:
+        data = _validate_supplier_payload(data)
         sid = data.get("id")
         if sid:
             self.db.execute("""
@@ -677,7 +759,7 @@ class FinanceService:
                   data.get("banco"), data.get("cuenta_bancaria"), data.get("contacto"),
                   data.get("notas"), 1))
             sid = cur.lastrowid
-        self.db.conn.commit()
+        self.db.commit()
         return sid
 
     # ═════════════════════════════════════════════════════════════════════════
@@ -735,7 +817,7 @@ class FinanceService:
                   data.get("ubicacion"), data.get("sucursal_id",1),
                   data.get("responsable"), data.get("proveedor"), data.get("notas")))
             aid = cur.lastrowid
-        self.db.conn.commit()
+        self.db.commit()
         return aid
 
     def get_maintenance(
@@ -770,7 +852,7 @@ class FinanceService:
               data.get("responsable"), data.get("proveedor"),
               data.get("estado","completado"),
               data.get("proxima_revision"), data.get("notas")))
-        self.db.conn.commit()
+        self.db.commit()
         return cur.lastrowid
 
     # ═════════════════════════════════════════════════════════════════════════
@@ -842,7 +924,21 @@ class FinanceService:
             VALUES (?,?,?,?,?,?,?,'efectivo','pagado',?,?)
         """, (empleado_id, periodo_inicio, periodo_fin, salario_base,
               bonos, deducciones, total, usuario, notas))
-        self.db.conn.commit()
+        self.registrar_asiento(
+            debe="gasto_nomina",
+            haber="caja_bancos",
+            concepto=f"Pago nómina empleado #{empleado_id}",
+            monto=float(total or 0),
+            modulo="rrhh",
+            referencia_id=cur.lastrowid,
+            evento="NOMINA_PAGADA",
+            metadata={
+                "empleado_id": empleado_id,
+                "periodo_inicio": periodo_inicio,
+                "periodo_fin": periodo_fin,
+            },
+        )
+        self.db.commit()
         return cur.lastrowid
 
     def costo_nomina_mes(self, date_from: str, date_to: str) -> float:
@@ -1138,6 +1234,123 @@ class FinanceService:
             return [dict(r) for r in rows]
         except Exception:
             return []
+
+    def generar_poliza_periodo(
+        self,
+        fecha_desde: str,
+        fecha_hasta: str,
+        sucursal_id: Optional[int] = None,
+        cuentas: Optional[List[str]] = None,
+        eventos: Optional[List[str]] = None,
+    ) -> Dict:
+        """
+        Genera una póliza contable consolidada por período.
+        Retorna movimientos, sumas Debe/Haber y validación de balance.
+        Compatible con SQLite (usa DATE(timestamp)).
+        """
+        where = ["DATE(timestamp) BETWEEN DATE(?) AND DATE(?)"]
+        params: list = [fecha_desde, fecha_hasta]
+        if sucursal_id is not None:
+            where.append("sucursal_id = ?")
+            params.append(sucursal_id)
+        if cuentas:
+            placeholders = ",".join("?" for _ in cuentas)
+            where.append(f"(cuenta_debe IN ({placeholders}) OR cuenta_haber IN ({placeholders}))")
+            params.extend(cuentas)
+            params.extend(cuentas)
+        if eventos:
+            placeholders = ",".join("?" for _ in eventos)
+            where.append(f"evento IN ({placeholders})")
+            params.extend(eventos)
+
+        try:
+            rows = self.db.execute(
+                f"""
+                SELECT id, timestamp, evento, modulo, referencia_id, monto,
+                       cuenta_debe, cuenta_haber, usuario_id, sucursal_id, metadata
+                FROM financial_event_log
+                WHERE {' AND '.join(where)}
+                ORDER BY timestamp, id
+                """,
+                params
+            ).fetchall()
+        except Exception:
+            rows = []
+
+        movimientos = []
+        total_debe = 0.0
+        total_haber = 0.0
+        for r in rows:
+            d = dict(r)
+            monto = float(d.get("monto") or 0.0)
+            total_debe += monto
+            total_haber += monto
+            movimientos.append({
+                "id": d.get("id"),
+                "fecha": d.get("timestamp"),
+                "evento": d.get("evento"),
+                "modulo": d.get("modulo"),
+                "referencia_id": d.get("referencia_id"),
+                "debe": d.get("cuenta_debe"),
+                "haber": d.get("cuenta_haber"),
+                "monto": round(monto, 2),
+                "sucursal_id": d.get("sucursal_id"),
+                "metadata": d.get("metadata"),
+            })
+
+        desbalance = round(total_debe - total_haber, 4)
+        return {
+            "fecha_desde": fecha_desde,
+            "fecha_hasta": fecha_hasta,
+            "sucursal_id": sucursal_id,
+            "cuentas": cuentas or [],
+            "eventos": eventos or [],
+            "num_asientos": len(movimientos),
+            "total_debe": round(total_debe, 2),
+            "total_haber": round(total_haber, 2),
+            "balanceado": abs(desbalance) < 0.0001,
+            "desbalance": desbalance,
+            "movimientos": movimientos,
+        }
+
+    def exportar_poliza_periodo(
+        self,
+        fecha_desde: str,
+        fecha_hasta: str,
+        sucursal_id: Optional[int] = None,
+        cuentas: Optional[List[str]] = None,
+        eventos: Optional[List[str]] = None,
+        formato: str = "json",
+    ) -> str:
+        """
+        Exporta póliza por período a JSON o CSV (texto).
+        Diseñado para integraciones y auditoría sin depender de librerías externas.
+        """
+        poliza = self.generar_poliza_periodo(
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            sucursal_id=sucursal_id,
+            cuentas=cuentas,
+            eventos=eventos,
+        )
+        fmt = (formato or "json").strip().lower()
+        if fmt == "json":
+            return json.dumps(poliza, ensure_ascii=False, indent=2)
+        if fmt == "csv":
+            out = StringIO()
+            writer = csv.writer(out)
+            writer.writerow([
+                "id", "fecha", "evento", "modulo", "referencia_id",
+                "debe", "haber", "monto", "sucursal_id", "metadata",
+            ])
+            for m in poliza.get("movimientos", []):
+                writer.writerow([
+                    m.get("id"), m.get("fecha"), m.get("evento"), m.get("modulo"),
+                    m.get("referencia_id"), m.get("debe"), m.get("haber"),
+                    m.get("monto"), m.get("sucursal_id"), m.get("metadata"),
+                ])
+            return out.getvalue()
+        raise ValueError("Formato de exportación no soportado. Usa 'json' o 'csv'.")
 
     def validar_margen(self, producto_id: int, precio_venta: float,
                        margen_minimo: float = 0.05) -> bool:
