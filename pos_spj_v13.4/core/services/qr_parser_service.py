@@ -31,6 +31,7 @@ logger = logging.getLogger("spj.qr")
 
 class QRType:
     CLIENT_ID = "client_id"
+    FIDELIDAD = "fidelidad"   # SPJ:FIDEL:xxx — tarjeta/QR de programa de lealtad
     TARJETA = "tarjeta"
     CONTENEDOR = "contenedor"
     TELEFONO = "telefono"
@@ -66,6 +67,15 @@ _RE_TELEFONO = re.compile(r'^\d{10}$')
 _RE_UUID_HEX = re.compile(r'^[a-f0-9]{12,}$', re.IGNORECASE)
 _RE_EAN = re.compile(r'^\d{8}(\d{5})?$')  # EAN-8 o EAN-13
 
+# Prefijos SPJ nativos (emitidos por lector_qr.py y tarjetas impresas)
+_SPJ_PREFIXES = {
+    "SPJ:FIDEL":  QRType.FIDELIDAD,   # programa de lealtad / tarjeta cliente
+    "SPJ:PROD":   QRType.PRODUCTO,    # producto por UUID interno
+    "SPJ:CONT":   QRType.CONTENEDOR,  # contenedor físico (caja/pallet)
+    "SPJ:DEL":    QRType.BUSQUEDA,    # ticket delivery
+    "SPJ:MAP":    QRType.BUSQUEDA,    # mapa de entrega
+}
+
 
 class QRParserService:
     """Parsea códigos QR escaneados y separa client_id de nombre."""
@@ -82,6 +92,22 @@ class QRParserService:
         if not code:
             return QRResult(tipo=QRType.BUSQUEDA, raw=code,
                             valid=False, error="Código vacío")
+
+        # 0. Prefijos nativos SPJ — prioridad máxima (normalizar a upper primero)
+        upper = code.upper()
+        for prefix, tipo in _SPJ_PREFIXES.items():
+            if upper.startswith(prefix + ":"):
+                payload = code[len(prefix) + 1:].strip()
+                # SPJ:FIDEL:42 → client_id si el payload es numérico
+                if tipo == QRType.FIDELIDAD:
+                    if payload.isdigit():
+                        cid = int(payload)
+                        nombre = self._lookup_client_name(cid)
+                        return QRResult(tipo=QRType.FIDELIDAD, raw=code,
+                                        client_id=cid, nombre=nombre, codigo=payload)
+                    return QRResult(tipo=QRType.FIDELIDAD, raw=code,
+                                    codigo=payload)
+                return QRResult(tipo=tipo, raw=code, codigo=payload)
 
         # 1. Formato CLT-{id}-{nombre}
         m = _RE_CLT_ID_NAME.match(code)
@@ -232,3 +258,56 @@ class QRParserService:
         return QRResult(tipo=QRType.BUSQUEDA, raw=codigo,
                         nombre=codigo, valid=False,
                         error="No encontrado")
+
+    # ── Auditoría de escaneos ─────────────────────────────────────────────────
+
+    def log_scan(self, result: "QRResult", accion: str = "",
+                 sucursal_id: int = 1, usuario: str = "") -> None:
+        """
+        Persiste el evento de escaneo en scan_event_log.
+        Fase 2 — Plan Maestro: trazabilidad de cada código leído.
+        """
+        if not self.db:
+            return
+        import json as _json
+        try:
+            payload_json = _json.dumps({
+                "client_id": result.client_id,
+                "nombre": result.nombre,
+                "codigo": result.codigo,
+            }, ensure_ascii=False)
+            self.db.execute(
+                """INSERT INTO scan_event_log
+                       (raw_code, tipo, accion, payload, cliente_id,
+                        sucursal_id, usuario)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (result.raw, result.tipo, accion, payload_json,
+                 result.client_id, sucursal_id, usuario))
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+        except Exception as exc:
+            logger.debug("log_scan: %s", exc)
+
+    @classmethod
+    def log_scan_raw(cls, db, raw_code: str, tipo: str, accion: str = "",
+                     cliente_id: int = None, producto_id: int = None,
+                     sucursal_id: int = 1, usuario: str = "") -> None:
+        """Variante estática para loggear sin instanciar el servicio completo."""
+        if not db:
+            return
+        try:
+            db.execute(
+                """INSERT INTO scan_event_log
+                       (raw_code, tipo, accion, cliente_id, producto_id,
+                        sucursal_id, usuario)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (raw_code, tipo, accion, cliente_id, producto_id,
+                 sucursal_id, usuario))
+            try:
+                db.commit()
+            except Exception:
+                pass
+        except Exception as exc:
+            logger.debug("log_scan_raw: %s", exc)

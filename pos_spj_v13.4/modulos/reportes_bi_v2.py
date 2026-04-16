@@ -115,6 +115,7 @@ class ModuloReportesBIv2(QWidget):
 
         # ── Rentabilidad por producto (tab adicional) ─────────────────────────
         self._build_rentabilidad_section(layout_principal)
+        self._build_cajeros_section(layout_principal)
         self._build_decision_engine_section(layout_principal)
         self._build_franchise_section(layout_principal)
 
@@ -149,6 +150,76 @@ class ModuloReportesBIv2(QWidget):
 
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
+
+    # ── Rendimiento Cajeros: ranking por frecuencia y volumen ─────────────────
+
+    def _build_cajeros_section(self, parent_layout):
+        """Ranking de cajeros por # transacciones, volumen y ticket prom. Fase 2."""
+        grp = QGroupBox("📊 Rendimiento de Cajeros")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_caj = create_primary_button(self, "📋 Cargar Ranking Cajeros",
+                                        "Calcular ranking de cajeros por transacciones y volumen")
+        btn_caj.clicked.connect(self._cargar_cajeros)
+        toolbar.addWidget(btn_caj)
+        toolbar.addStretch()
+        self._lbl_caj_estado = QLabel("Haz clic para ver el rendimiento de cajeros del mes.")
+        self._lbl_caj_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_caj_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_caj = QTableWidget()
+        self._tbl_caj.setColumnCount(6)
+        self._tbl_caj.setHorizontalHeaderLabels([
+            "Cajero", "# Ventas", "Total $", "Ticket Prom $", "Descuentos $", "Días Activo"
+        ])
+        hh = self._tbl_caj.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_caj.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_caj.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_caj.setAlternatingRowColors(True)
+        self._tbl_caj.setMaximumHeight(240)
+        lay.addWidget(self._tbl_caj)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_cajeros(self):
+        """Carga ranking de cajeros via BIService.ranking_cajeros()."""
+        self._tbl_caj.setRowCount(0)
+        try:
+            bi_svc = getattr(self.container, "bi_service", None)
+            if bi_svc is None:
+                self._lbl_caj_estado.setText("BIService no disponible.")
+                return
+            rango = self.cmb_rango.currentText()
+            rango_key = "hoy" if "hoy" in rango.lower() else \
+                        "semana" if "semana" in rango.lower() else "mes"
+            rows = bi_svc.ranking_cajeros(self.sucursal_id, rango_key)
+            self._lbl_caj_estado.setText(f"{len(rows)} cajeros encontrados.")
+            for i, r in enumerate(rows):
+                self._tbl_caj.insertRow(i)
+                vals = [
+                    str(r.get("cajero", "(sin usuario)")),
+                    str(r.get("num_ventas", 0)),
+                    f"${float(r.get('total_ventas', 0)):,.2f}",
+                    f"${float(r.get('ticket_promedio', 0)):,.2f}",
+                    f"${float(r.get('total_descuentos', 0)):,.2f}",
+                    str(r.get("dias_activo", 0)),
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if i == 0:  # Top cajero destacado
+                        item.setForeground(
+                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#27ae60'))
+                    self._tbl_caj.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_caj_estado.setText(f"Error: {exc}")
 
     # ── DecisionEngine: sugerencias accionables ───────────────────────────────
 

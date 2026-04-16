@@ -154,6 +154,38 @@ class BIService:
             'periodo':     f"{fi} → {ff}",
         }
 
+    def ranking_cajeros(self, sucursal_id: int, rango: str = 'mes') -> list:
+        """
+        Ranking de cajeros por frecuencia, volumen y ticket promedio.
+        Fase 2 — Plan Maestro SPJ v13.4.
+        """
+        hoy = datetime.now()
+        if rango == 'hoy':
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'semana':
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:  # mes (default)
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        return self.repo.get_ranking_cajeros(sucursal_id, fecha_inicio, fecha_fin)
+
+    def scan_telemetria(self, sucursal_id: int, rango: str = 'mes') -> list:
+        """
+        Resumen de eventos de escaneo por tipo y acción.
+        Fase 2 — trazabilidad de escáner.
+        """
+        hoy = datetime.now()
+        if rango == 'hoy':
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'semana':
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        return self.repo.get_scan_telemetria(sucursal_id, fecha_inicio, fecha_fin)
+
     def invalidar_cache(self, branch_id: int = None) -> None:
         """Invalida el caché tras una venta (llamado desde EventBus)."""
         if branch_id:
