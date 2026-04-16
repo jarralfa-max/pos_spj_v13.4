@@ -317,7 +317,7 @@ class ModuloFinanzas(ModuloBase):
             ctrl.addWidget(b)
 
         br = create_primary_button(self, "🔄 Actualizar", "Actualizar datos financieros")
-        br.clicked.connect(lambda _, _vs=s: self._on_tab(_vself.tabs.currentIndex()))
+        br.clicked.connect(lambda _: self._on_tab(self.tabs.currentIndex()))
         ctrl.addWidget(br)
 
         bs = create_success_button(self, "🔗 Sincronizar", "Sincronizar CXP desde compras y CXC desde ventas crédito")

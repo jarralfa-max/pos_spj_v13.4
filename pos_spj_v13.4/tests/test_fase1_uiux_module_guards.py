@@ -59,3 +59,11 @@ def test_ui_components_legacy_dynamic_alias_resolution():
     assert 'if "button" in n' in src
     assert 'if "heading_label" in n' in src
     assert 'if "table" in n' in src
+
+
+def test_ui_components_accept_legacy_kwargs_and_flexible_signatures():
+    src = Path('modulos/ui_components.py').read_text(encoding='utf-8')
+    assert 'def _normalize_button_call' in src
+    assert 'min_width' in src and 'max_width' in src and 'fixed_width' in src
+    assert 'create_heading(parent=None, text: str = "")' in src
+    assert 'create_subheading(parent=None, text: str = "")' in src

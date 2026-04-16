@@ -67,66 +67,91 @@ def _configure_button(btn: QPushButton, variant: str = "primary") -> QPushButton
     return btn
 
 
-def create_primary_button(parent, text: str, tooltip: str = None) -> QPushButton:
-    """Crea un botón primario (azul) para acciones principales."""
+def _normalize_button_call(parent=None, text: str = "", tooltip: str = None):
+    """
+    Compatibilidad de firma:
+      - create_xxx_button(parent, text, tooltip)
+      - create_xxx_button(text, parent, tooltip)
+      - create_xxx_button(existing_qpushbutton, text?, tooltip?)
+    """
+    if isinstance(parent, QPushButton):
+        btn = parent
+        if isinstance(text, str) and text:
+            btn.setText(text)
+        return btn, tooltip, True
+
+    if isinstance(parent, str) and (text is None or isinstance(text, QWidget)):
+        parent, text = text, parent
+
+    text = text or ""
+    if not isinstance(text, str):
+        text = str(text)
+    if not isinstance(parent, QWidget):
+        parent = None
     btn = QPushButton(text, parent)
+    return btn, tooltip, False
+
+
+def create_primary_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
+    """Crea un botón primario (azul) para acciones principales."""
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "primary")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_secondary_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_secondary_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón secundario (gris) para acciones secundarias."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "secondary")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_success_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_success_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón de éxito (verde) para guardar/confirmar."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "success")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_danger_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_danger_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón de peligro (rojo) para eliminar/cancelar."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "danger")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_warning_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_warning_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón de advertencia (ámbar) para editar/ajustar."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "warning")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_accent_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_accent_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """
     Botón accent para compatibilidad legacy.
     Actualmente reutiliza variante `primary`.
     """
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "primary")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_outline_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_outline_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón outline (borde) para acciones menos prominentes."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "outline")
     if tooltip:
         apply_tooltip(btn, tooltip)
@@ -152,7 +177,9 @@ def create_icon_button(parent, icon_path: str, tooltip: str, variant: str = "sec
 #  INPUTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QLineEdit:
+def create_input_field(parent, placeholder: str = "", tooltip: str = None,
+                       min_width: int = None, max_width: int = None,
+                       fixed_width: int = None, **_ignored) -> QLineEdit:
     """Crea un input field estandarizado."""
     input_field = QLineEdit(parent)
     input_field.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
@@ -163,6 +190,13 @@ def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QL
     
     if tooltip:
         apply_tooltip(input_field, tooltip)
+    if fixed_width:
+        input_field.setFixedWidth(int(fixed_width))
+    else:
+        if min_width:
+            input_field.setMinimumWidth(int(min_width))
+        if max_width:
+            input_field.setMaximumWidth(int(max_width))
     
     return input_field
 
@@ -171,7 +205,9 @@ def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QL
 create_input = create_input_field
 
 
-def create_combo(parent, items: list = None, placeholder: str = "", tooltip: str = None) -> QComboBox:
+def create_combo(parent, items: list = None, placeholder: str = "", tooltip: str = None,
+                 min_width: int = None, max_width: int = None,
+                 fixed_width: int = None, editable: bool = False, **_ignored) -> QComboBox:
     """Crea un ComboBox estandarizado."""
     from PyQt5.QtWidgets import QComboBox
     
@@ -185,9 +221,17 @@ def create_combo(parent, items: list = None, placeholder: str = "", tooltip: str
     if placeholder:
         combo.addItem(placeholder)
         combo.setCurrentIndex(-1)
+    combo.setEditable(bool(editable))
     
     if tooltip:
         apply_tooltip(combo, tooltip)
+    if fixed_width:
+        combo.setFixedWidth(int(fixed_width))
+    else:
+        if min_width:
+            combo.setMinimumWidth(int(min_width))
+        if max_width:
+            combo.setMaximumWidth(int(max_width))
     
     return combo
 
@@ -423,8 +467,14 @@ def create_divider(parent, orientation: str = "horizontal") -> QFrame:
 #  LABELS CON JERARQUÍA
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_heading(parent, text: str) -> QLabel:
+def create_heading(parent=None, text: str = "") -> QLabel:
     """Crea un label de título principal (24px bold)."""
+    if isinstance(parent, str) and not text:
+        parent, text = None, parent
+    if text is None:
+        text = ""
+    if not isinstance(parent, QWidget):
+        parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
         color: {Colors.NEUTRAL.SLATE_900};
@@ -434,13 +484,19 @@ def create_heading(parent, text: str) -> QLabel:
     return label
 
 
-def create_heading_label(parent, text: str) -> QLabel:
+def create_heading_label(parent=None, text: str = "") -> QLabel:
     """Alias legacy de create_heading para módulos existentes."""
     return create_heading(parent, text)
 
 
-def create_subheading(parent, text: str) -> QLabel:
+def create_subheading(parent=None, text: str = "") -> QLabel:
     """Crea un label de subtítulo (16px semibold)."""
+    if isinstance(parent, str) and not text:
+        parent, text = None, parent
+    if text is None:
+        text = ""
+    if not isinstance(parent, QWidget):
+        parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
         color: {Colors.NEUTRAL.SLATE_700};
@@ -450,8 +506,14 @@ def create_subheading(parent, text: str) -> QLabel:
     return label
 
 
-def create_caption(parent, text: str) -> QLabel:
+def create_caption(parent=None, text: str = "") -> QLabel:
     """Crea un label de caption/texto secundario (11px)."""
+    if isinstance(parent, str) and not text:
+        parent, text = None, parent
+    if text is None:
+        text = ""
+    if not isinstance(parent, QWidget):
+        parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
         color: {Colors.NEUTRAL.SLATE_500};
