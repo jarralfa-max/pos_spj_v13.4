@@ -33,10 +33,13 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QPoint, QTimer, QSize
 from PyQt5.QtGui import QFont, QPalette, QColor
+import logging
 
 from modulos.design_tokens import (
     Colors, Spacing, Typography, Borders, Shadows, ComponentStyles
 )
+
+logger = logging.getLogger("spj.ui_components")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -64,54 +67,96 @@ def _configure_button(btn: QPushButton, variant: str = "primary") -> QPushButton
     return btn
 
 
-def create_primary_button(parent, text: str, tooltip: str = None) -> QPushButton:
-    """Crea un botón primario (azul) para acciones principales."""
+def _normalize_button_call(parent=None, text: str = "", tooltip: str = None):
+    """
+    Compatibilidad de firma:
+      - create_xxx_button(parent, text, tooltip)
+      - create_xxx_button(text, parent, tooltip)
+      - create_xxx_button(existing_qpushbutton, text?, tooltip?)
+    """
+    if isinstance(parent, QPushButton):
+        btn = parent
+        if isinstance(text, str) and text:
+            btn.setText(text)
+        return btn, tooltip, True
+
+    # Caso legacy: se pasa un QPushButton ya creado en "text".
+    if isinstance(text, QPushButton):
+        btn = text
+        return btn, tooltip, True
+
+    if isinstance(parent, str) and (text is None or isinstance(text, QWidget)):
+        parent, text = text, parent
+
+    text = text or ""
+    if not isinstance(text, str):
+        text = str(text)
+    if not isinstance(parent, QWidget):
+        parent = None
     btn = QPushButton(text, parent)
+    return btn, tooltip, False
+
+
+def create_primary_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
+    """Crea un botón primario (azul) para acciones principales."""
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "primary")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_secondary_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_secondary_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón secundario (gris) para acciones secundarias."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "secondary")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_success_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_success_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón de éxito (verde) para guardar/confirmar."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "success")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_danger_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_danger_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón de peligro (rojo) para eliminar/cancelar."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "danger")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_warning_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_warning_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón de advertencia (ámbar) para editar/ajustar."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "warning")
     if tooltip:
         apply_tooltip(btn, tooltip)
     return btn
 
 
-def create_outline_button(parent, text: str, tooltip: str = None) -> QPushButton:
+def create_accent_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
+    """
+    Botón accent para compatibilidad legacy.
+    Actualmente reutiliza variante `primary`.
+    """
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
+    btn = _configure_button(btn, "primary")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
+def create_outline_button(parent=None, text: str = "", tooltip: str = None) -> QPushButton:
     """Crea un botón outline (borde) para acciones menos prominentes."""
-    btn = QPushButton(text, parent)
+    btn, tooltip, _ = _normalize_button_call(parent, text, tooltip)
     btn = _configure_button(btn, "outline")
     if tooltip:
         apply_tooltip(btn, tooltip)
@@ -137,7 +182,9 @@ def create_icon_button(parent, icon_path: str, tooltip: str, variant: str = "sec
 #  INPUTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QLineEdit:
+def create_input_field(parent, placeholder: str = "", tooltip: str = None,
+                       min_width: int = None, max_width: int = None,
+                       fixed_width: int = None, **_ignored) -> QLineEdit:
     """Crea un input field estandarizado."""
     input_field = QLineEdit(parent)
     input_field.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
@@ -148,6 +195,13 @@ def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QL
     
     if tooltip:
         apply_tooltip(input_field, tooltip)
+    if fixed_width:
+        input_field.setFixedWidth(int(fixed_width))
+    else:
+        if min_width:
+            input_field.setMinimumWidth(int(min_width))
+        if max_width:
+            input_field.setMaximumWidth(int(max_width))
     
     return input_field
 
@@ -156,7 +210,9 @@ def create_input_field(parent, placeholder: str = "", tooltip: str = None) -> QL
 create_input = create_input_field
 
 
-def create_combo(parent, items: list = None, placeholder: str = "", tooltip: str = None) -> QComboBox:
+def create_combo(parent=None, items: list = None, placeholder: str = "", tooltip: str = None,
+                 min_width: int = None, max_width: int = None,
+                 fixed_width: int = None, editable: bool = False, **_ignored) -> QComboBox:
     """Crea un ComboBox estandarizado."""
     from PyQt5.QtWidgets import QComboBox
     
@@ -170,9 +226,17 @@ def create_combo(parent, items: list = None, placeholder: str = "", tooltip: str
     if placeholder:
         combo.addItem(placeholder)
         combo.setCurrentIndex(-1)
+    combo.setEditable(bool(editable))
     
     if tooltip:
         apply_tooltip(combo, tooltip)
+    if fixed_width:
+        combo.setFixedWidth(int(fixed_width))
+    else:
+        if min_width:
+            combo.setMinimumWidth(int(min_width))
+        if max_width:
+            combo.setMaximumWidth(int(max_width))
     
     return combo
 
@@ -408,8 +472,14 @@ def create_divider(parent, orientation: str = "horizontal") -> QFrame:
 #  LABELS CON JERARQUÍA
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_heading(parent, text: str) -> QLabel:
+def create_heading(parent=None, text: str = "") -> QLabel:
     """Crea un label de título principal (24px bold)."""
+    if isinstance(parent, str) and not text:
+        parent, text = None, parent
+    if text is None:
+        text = ""
+    if not isinstance(parent, QWidget):
+        parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
         color: {Colors.NEUTRAL.SLATE_900};
@@ -419,8 +489,19 @@ def create_heading(parent, text: str) -> QLabel:
     return label
 
 
-def create_subheading(parent, text: str) -> QLabel:
+def create_heading_label(parent=None, text: str = "") -> QLabel:
+    """Alias legacy de create_heading para módulos existentes."""
+    return create_heading(parent, text)
+
+
+def create_subheading(parent=None, text: str = "") -> QLabel:
     """Crea un label de subtítulo (16px semibold)."""
+    if isinstance(parent, str) and not text:
+        parent, text = None, parent
+    if text is None:
+        text = ""
+    if not isinstance(parent, QWidget):
+        parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
         color: {Colors.NEUTRAL.SLATE_700};
@@ -430,12 +511,40 @@ def create_subheading(parent, text: str) -> QLabel:
     return label
 
 
-def create_caption(parent, text: str) -> QLabel:
+def create_caption(parent=None, text: str = "") -> QLabel:
     """Crea un label de caption/texto secundario (11px)."""
+    if isinstance(parent, str) and not text:
+        parent, text = None, parent
+    if text is None:
+        text = ""
+    if not isinstance(parent, QWidget):
+        parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
         color: {Colors.NEUTRAL.SLATE_500};
         font-size: {Typography.SIZE_XS};
+    """)
+    return label
+
+
+def create_label(parent, text: str, variant: str = "body") -> QLabel:
+    """
+    Helper legacy para crear labels por variante.
+    Variantes: heading, subheading, caption, body.
+    """
+    v = (variant or "body").strip().lower()
+    if v == "heading":
+        return create_heading(parent, text)
+    if v == "subheading":
+        return create_subheading(parent, text)
+    if v == "caption":
+        return create_caption(parent, text)
+
+    label = QLabel(text, parent)
+    label.setStyleSheet(f"""
+        color: {Colors.NEUTRAL.SLATE_700};
+        font-size: {Typography.SIZE_MD};
+        font-weight: {Typography.WEIGHT_REGULAR};
     """)
     return label
 
@@ -643,6 +752,70 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
     return btn
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  COMPATIBILIDAD DINÁMICA (IMPORTS LEGACY)
+# ═══════════════════════════════════════════════════════════════════════════════
+_LEGACY_WARNED = set()
+
+
+def _resolve_legacy_factory(name: str):
+    """Mapea helpers create_* legacy a factories existentes."""
+    n = name.lower()
+    if "button" in n:
+        if "primary" in n:
+            return create_primary_button
+        if "success" in n:
+            return create_success_button
+        if "danger" in n:
+            return create_danger_button
+        if "warning" in n:
+            return create_warning_button
+        if "accent" in n:
+            return create_accent_button
+        if "outline" in n:
+            return create_outline_button
+        return create_secondary_button
+    if "heading_label" in n:
+        return create_heading_label
+    if "heading" in n:
+        return create_heading
+    if "subheading" in n:
+        return create_subheading
+    if "caption" in n:
+        return create_caption
+    if "label" in n:
+        return create_label
+    if "input" in n:
+        return create_input_field
+    if "combo" in n:
+        return create_combo
+    if "card" in n:
+        return create_card
+    if "table_button" in n:
+        return create_table_button
+    if "table" in n:
+        return create_table
+    return None
+
+
+def __getattr__(name: str):
+    """
+    Fallback para imports legacy:
+      from modulos.ui_components import create_xxx
+    """
+    if not name.startswith("create_"):
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    factory = _resolve_legacy_factory(name)
+    if factory is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if name not in _LEGACY_WARNED:
+        logger.warning("ui_components alias dinámico: %s -> %s", name, factory.__name__)
+        _LEGACY_WARNED.add(name)
+    return factory
+
+
 # Exportar todo
 __all__ = [
     # Botones
@@ -651,6 +824,7 @@ __all__ = [
     "create_success_button",
     "create_danger_button",
     "create_warning_button",
+    "create_accent_button",
     "create_outline_button",
     "create_icon_button",
     
@@ -675,8 +849,10 @@ __all__ = [
     
     # Labels
     "create_heading",
+    "create_heading_label",
     "create_subheading",
     "create_caption",
+    "create_label",
     
     # Contenedores
     "create_section_container",

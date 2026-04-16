@@ -11,6 +11,7 @@ Tabs:
 from __future__ import annotations
 import json
 import logging
+from modulos.design_tokens import Colors, Spacing, Typography
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
@@ -50,7 +51,6 @@ class ModuloConfigHardware(QWidget):
     # ══════════════════════════════════════════════════════════════════════
 
     def _init_ui(self):
-        from modulos.design_tokens import Colors, Spacing, Typography
         from modulos.ui_components import create_primary_button, create_heading_label
 
         root = QVBoxLayout(self)
