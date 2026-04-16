@@ -72,6 +72,93 @@ def _make_db():
             usuario_id INTEGER,
             sucursal_id INTEGER
         );
+
+        CREATE TABLE suppliers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            rfc TEXT,
+            telefono TEXT,
+            email TEXT,
+            direccion TEXT,
+            tipo TEXT DEFAULT 'general',
+            condiciones_pago INTEGER DEFAULT 30,
+            limite_credito REAL DEFAULT 0,
+            banco TEXT,
+            cuenta_bancaria TEXT,
+            contacto TEXT,
+            notas TEXT,
+            activo INTEGER DEFAULT 1
+        );
+
+        CREATE TABLE accounts_payable (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folio TEXT,
+            supplier_id INTEGER,
+            concepto TEXT,
+            amount REAL,
+            balance REAL,
+            due_date TEXT,
+            status TEXT,
+            tipo TEXT,
+            referencia TEXT,
+            ref_type TEXT,
+            usuario TEXT,
+            notas TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT
+        );
+
+        CREATE TABLE ap_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ap_id INTEGER,
+            monto REAL,
+            metodo_pago TEXT,
+            usuario TEXT,
+            notas TEXT,
+            fecha TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE accounts_receivable (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folio TEXT,
+            cliente_id INTEGER,
+            venta_id INTEGER,
+            concepto TEXT,
+            amount REAL,
+            balance REAL,
+            due_date TEXT,
+            status TEXT,
+            tipo TEXT,
+            usuario TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT
+        );
+
+        CREATE TABLE ar_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ar_id INTEGER,
+            monto REAL,
+            metodo_pago TEXT,
+            usuario TEXT,
+            notas TEXT,
+            fecha TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE nomina_pagos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empleado_id INTEGER,
+            periodo_inicio TEXT,
+            periodo_fin TEXT,
+            salario_base REAL,
+            bonos REAL,
+            deducciones REAL,
+            total REAL,
+            metodo_pago TEXT,
+            estado TEXT,
+            usuario TEXT,
+            notas TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     return conn
 
@@ -186,3 +273,219 @@ class TestCalcularMargenReal:
         conn = _make_db()
         svc = _make_service(conn)
         assert svc.calcular_margen_real(9999) == -1.0
+
+
+class TestSuppliersValidacionSat:
+    def test_upsert_supplier_normaliza_rfc(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        sid = svc.upsert_supplier({
+            "nombre": "Proveedor Uno",
+            "rfc": " aaa010101aaa ",
+            "limite_credito": 1500.0,
+            "condiciones_pago": 30,
+        })
+        row = conn.execute("SELECT rfc FROM suppliers WHERE id=?", (sid,)).fetchone()
+        assert row["rfc"] == "AAA010101AAA"
+
+    def test_upsert_supplier_rechaza_rfc_invalido(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        try:
+            svc.upsert_supplier({
+                "nombre": "Proveedor Dos",
+                "rfc": "RFC_INVALIDO",
+            })
+            assert False, "Se esperaba ValueError por RFC inválido"
+        except ValueError as exc:
+            assert "RFC" in str(exc)
+
+    def test_upsert_supplier_rechaza_limite_negativo(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        try:
+            svc.upsert_supplier({
+                "nombre": "Proveedor Tres",
+                "rfc": "AAA010101AAA",
+                "limite_credito": -1,
+            })
+            assert False, "Se esperaba ValueError por límite negativo"
+        except ValueError as exc:
+            assert "límite de crédito" in str(exc)
+
+
+class TestAsientosAutomaticosFinanzas:
+    def test_crear_cxp_genera_asiento(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        ap_id = svc.crear_cxp(
+            supplier_id=None,
+            concepto="Compra de insumos",
+            amount=500.0,
+            due_date="2026-04-30",
+        )
+        assert ap_id > 0
+        row = conn.execute(
+            "SELECT evento, cuenta_debe, cuenta_haber FROM financial_event_log WHERE referencia_id=? ORDER BY id DESC LIMIT 1",
+            (ap_id,),
+        ).fetchone()
+        assert row["evento"] == "CXP_CREADA"
+        assert row["cuenta_debe"] == "gastos_operativos"
+        assert row["cuenta_haber"] == "cuentas_por_pagar"
+
+    def test_cobrar_cxc_genera_asiento(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        ar_id = svc.crear_cxc(cliente_id=1, concepto="Venta a crédito", amount=300.0)
+        r = svc.cobrar_cxc(ar_id=ar_id, monto=100.0, metodo_pago="transferencia")
+        assert r["nuevo_status"] == "parcial"
+        row = conn.execute(
+            "SELECT evento, cuenta_debe, cuenta_haber FROM financial_event_log WHERE evento='CXC_COBRADA' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        assert row["cuenta_debe"] == "caja_bancos"
+        assert row["cuenta_haber"] == "cuentas_por_cobrar"
+
+    def test_pagar_nomina_genera_asiento(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        np_id = svc.pagar_nomina(
+            empleado_id=7,
+            periodo_inicio="2026-04-01",
+            periodo_fin="2026-04-15",
+            salario_base=1000.0,
+            bonos=50.0,
+            deducciones=25.0,
+            usuario="rh",
+        )
+        assert np_id > 0
+        row = conn.execute(
+            "SELECT evento, cuenta_debe, cuenta_haber, referencia_id FROM financial_event_log WHERE evento='NOMINA_PAGADA' ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        assert row["cuenta_debe"] == "gasto_nomina"
+        assert row["cuenta_haber"] == "caja_bancos"
+        assert int(row["referencia_id"]) == int(np_id)
+
+
+class TestGenerarPolizaPeriodo:
+    def test_poliza_periodo_balanceada(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        svc.registrar_asiento(
+            debe="caja_bancos",
+            haber="ventas_contado",
+            concepto="Ingreso contado",
+            monto=100.0,
+            modulo="ventas",
+            evento="VENTA_COMPLETADA",
+        )
+        svc.registrar_asiento(
+            debe="gasto_nomina",
+            haber="caja_bancos",
+            concepto="Nómina quincenal",
+            monto=80.0,
+            modulo="rrhh",
+            evento="NOMINA_PAGADA",
+        )
+
+        pol = svc.generar_poliza_periodo("2000-01-01", "2100-12-31")
+        assert pol["num_asientos"] >= 2
+        assert pol["total_debe"] == pol["total_haber"]
+        assert pol["balanceado"] is True
+        assert len(pol["movimientos"]) >= 2
+
+    def test_poliza_periodo_filtra_por_sucursal(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        svc.registrar_asiento(
+            debe="caja_bancos",
+            haber="ventas_contado",
+            concepto="Sucursal 1",
+            monto=50.0,
+            modulo="ventas",
+            sucursal_id=1,
+            evento="VENTA_COMPLETADA",
+        )
+        svc.registrar_asiento(
+            debe="caja_bancos",
+            haber="ventas_contado",
+            concepto="Sucursal 2",
+            monto=70.0,
+            modulo="ventas",
+            sucursal_id=2,
+            evento="VENTA_COMPLETADA",
+        )
+
+        pol = svc.generar_poliza_periodo("2000-01-01", "2100-12-31", sucursal_id=2)
+        assert pol["num_asientos"] >= 1
+        assert all(m["sucursal_id"] == 2 for m in pol["movimientos"])
+
+
+class TestExportarPolizaPeriodo:
+    def test_exporta_json_valido(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        svc.registrar_asiento(
+            debe="caja_bancos",
+            haber="ventas_contado",
+            concepto="Venta",
+            monto=123.45,
+            modulo="ventas",
+            evento="VENTA_COMPLETADA",
+        )
+        payload = svc.exportar_poliza_periodo("2000-01-01", "2100-12-31", formato="json")
+        assert "\"num_asientos\"" in payload
+        assert "\"movimientos\"" in payload
+        assert "VENTA_COMPLETADA" in payload
+
+    def test_exporta_csv_con_headers(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        svc.registrar_asiento(
+            debe="caja_bancos",
+            haber="ventas_contado",
+            concepto="Venta",
+            monto=10.0,
+            modulo="ventas",
+            evento="VENTA_COMPLETADA",
+        )
+        csv_txt = svc.exportar_poliza_periodo("2000-01-01", "2100-12-31", formato="csv")
+        assert "id,fecha,evento,modulo,referencia_id,debe,haber,monto,sucursal_id,metadata" in csv_txt
+        assert "VENTA_COMPLETADA" in csv_txt
+
+    def test_formato_invalido_lanza_error(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        try:
+            svc.exportar_poliza_periodo("2000-01-01", "2100-12-31", formato="xml")
+            assert False, "Se esperaba ValueError por formato inválido"
+        except ValueError as exc:
+            assert "json" in str(exc).lower()
+
+    def test_filtro_por_evento_y_cuenta(self):
+        conn = _make_db()
+        svc = _make_service(conn)
+        svc.registrar_asiento(
+            debe="caja_bancos",
+            haber="ventas_contado",
+            concepto="Venta",
+            monto=100.0,
+            modulo="ventas",
+            evento="VENTA_COMPLETADA",
+        )
+        svc.registrar_asiento(
+            debe="gasto_nomina",
+            haber="caja_bancos",
+            concepto="Nómina",
+            monto=80.0,
+            modulo="rrhh",
+            evento="NOMINA_PAGADA",
+        )
+
+        pol = svc.generar_poliza_periodo(
+            "2000-01-01", "2100-12-31",
+            cuentas=["gasto_nomina"],
+            eventos=["NOMINA_PAGADA"],
+        )
+        assert pol["num_asientos"] == 1
+        assert pol["movimientos"][0]["evento"] == "NOMINA_PAGADA"
+        assert pol["movimientos"][0]["debe"] == "gasto_nomina"

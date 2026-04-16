@@ -13,6 +13,8 @@ logger = logging.getLogger("spj.theme_engine")
 _THEME_ALIASES = {
     "SPJ_DARK":          "Oscuro",
     "SPJ_LIGHT":         "Claro",
+    "Dark":              "Oscuro",
+    "Light":             "Claro",
     "Oscuro Moderno":    "Oscuro",  # Alias para compatibilidad con versiones anteriores
 }
 
