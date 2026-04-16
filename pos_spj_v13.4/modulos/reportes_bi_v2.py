@@ -115,6 +115,8 @@ class ModuloReportesBIv2(QWidget):
 
         # ── Rentabilidad por producto (tab adicional) ─────────────────────────
         self._build_rentabilidad_section(layout_principal)
+        self._build_decision_engine_section(layout_principal)
+        self._build_franchise_section(layout_principal)
 
     def _build_rentabilidad_section(self, parent_layout):
         """Tabla de rentabilidad por producto: margen, rotación, contribución."""
@@ -147,6 +149,139 @@ class ModuloReportesBIv2(QWidget):
 
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
+
+    # ── DecisionEngine: sugerencias accionables ───────────────────────────────
+
+    def _build_decision_engine_section(self, parent_layout):
+        """Panel de sugerencias del DecisionEngine (FASE 5 — solo lectura)."""
+        grp = QGroupBox("🤖 Sugerencias Accionables (DecisionEngine)")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_gen = create_primary_button(self, "🔍 Generar Sugerencias",
+                                        "Analizar datos y generar sugerencias accionables")
+        btn_gen.clicked.connect(self._cargar_decision_engine)
+        toolbar.addWidget(btn_gen)
+        toolbar.addStretch()
+        self._lbl_de_estado = QLabel("Haz clic en 'Generar Sugerencias' para analizar.")
+        self._lbl_de_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_de_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_de = QTableWidget()
+        self._tbl_de.setColumnCount(5)
+        self._tbl_de.setHorizontalHeaderLabels([
+            "Prioridad", "Tipo", "Sugerencia", "Impacto Estimado", "Acción Propuesta"
+        ])
+        hh = self._tbl_de.horizontalHeader()
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self._tbl_de.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_de.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_de.setAlternatingRowColors(True)
+        self._tbl_de.setMaximumHeight(280)
+        lay.addWidget(self._tbl_de)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_decision_engine(self):
+        """Invoca DecisionEngine.generar_sugerencias() y muestra los resultados."""
+        self._tbl_de.setRowCount(0)
+        try:
+            engine = getattr(self.container, "decision_engine", None)
+            if engine is None:
+                self._lbl_de_estado.setText("DecisionEngine no disponible en este contenedor.")
+                return
+            sugs = engine.generar_sugerencias(sucursal_id=self.sucursal_id)
+            self._lbl_de_estado.setText(
+                f"{len(sugs)} sugerencias generadas — solo lectura, no se ejecuta nada."
+            )
+            for i, s in enumerate(sugs):
+                self._tbl_de.insertRow(i)
+                accion = s.get("accion_propuesta", {})
+                accion_txt = accion.get("descripcion", str(accion)) if isinstance(accion, dict) else str(accion)
+                vals = [
+                    s.get("prioridad", ""),
+                    s.get("tipo", ""),
+                    s.get("titulo", "") + (" — " + s.get("detalle", "") if s.get("detalle") else ""),
+                    s.get("impacto_estimado", ""),
+                    accion_txt[:80],
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(str(v))
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_de.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_de_estado.setText(f"Error: {exc}")
+
+    # ── FranchiseManager: ranking multi-sucursal ──────────────────────────────
+
+    def _build_franchise_section(self, parent_layout):
+        """Ranking de sucursales via FranchiseManager (Fase 6 — multi-franquicia)."""
+        grp = QGroupBox("🏪 Ranking de Sucursales (FranchiseManager)")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_rank = create_primary_button(self, "🏆 Calcular Ranking",
+                                         "Calcular ranking de sucursales por ventas y rentabilidad")
+        btn_rank.clicked.connect(self._cargar_franchise_ranking)
+        toolbar.addWidget(btn_rank)
+        toolbar.addStretch()
+        self._lbl_fm_estado = QLabel("Haz clic en 'Calcular Ranking' para comparar sucursales.")
+        self._lbl_fm_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_fm_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_fm = QTableWidget()
+        self._tbl_fm.setColumnCount(6)
+        self._tbl_fm.setHorizontalHeaderLabels([
+            "Sucursal", "Ventas $", "# Transacciones", "Ticket Prom $",
+            "Margen Bruto %", "Rank"
+        ])
+        hh = self._tbl_fm.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_fm.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_fm.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_fm.setAlternatingRowColors(True)
+        self._tbl_fm.setMaximumHeight(220)
+        lay.addWidget(self._tbl_fm)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_franchise_ranking(self):
+        """Carga ranking de sucursales via FranchiseManager."""
+        self._tbl_fm.setRowCount(0)
+        try:
+            fm = getattr(self.container, "franchise_manager", None)
+            if fm is None:
+                self._lbl_fm_estado.setText("FranchiseManager no disponible.")
+                return
+            rows = fm.ranking_sucursales()
+            self._lbl_fm_estado.setText(f"{len(rows)} sucursales analizadas.")
+            for i, r in enumerate(rows):
+                self._tbl_fm.insertRow(i)
+                vals = [
+                    str(r.get("nombre", r.get("sucursal_id", ""))),
+                    f"${float(r.get('total_ventas', 0)):,.2f}",
+                    str(r.get("num_transacciones", 0)),
+                    f"${float(r.get('ticket_promedio', 0)):,.2f}",
+                    f"{float(r.get('margen_bruto_pct', 0)):.1f}%",
+                    str(r.get("rank", i + 1)),
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(str(v))
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_fm.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_fm_estado.setText(f"Error: {exc}")
 
     def _cargar_rentabilidad(self):
         """Carga el reporte de rentabilidad por producto para el período activo."""
