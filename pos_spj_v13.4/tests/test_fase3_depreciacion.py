@@ -159,6 +159,21 @@ class TestAccrualDepreciacion:
         assert res["ok"] is True
         assert res["activos"] == 0
 
+    def test_asiento_usa_debe_haber_correctos(self):
+        """registrar_asiento() debe recibir debe='6105' y haber='1302' (Fase 3 fix)."""
+        from unittest.mock import MagicMock
+        conn = _db_with_asset_tables()
+        _insert_activo(conn, valor=12000.0, vida=5)
+        mock_fs = MagicMock()
+        mock_fs.registrar_asiento.return_value = 1
+        svc = _make_asset_svc(conn, finance_service=mock_fs)
+        svc.accrual_depreciacion_mensual("2026-04")
+        assert mock_fs.registrar_asiento.call_count == 1
+        kwargs = mock_fs.registrar_asiento.call_args[1]
+        assert kwargs.get("debe") == "6105", f"Esperado debe='6105', obtenido: {kwargs}"
+        assert kwargs.get("haber") == "1302", f"Esperado haber='1302', obtenido: {kwargs}"
+        assert kwargs.get("evento") == "DEPRECIACION_MENSUAL"
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BLOQUE 2 — capitalizar_mantenimiento
