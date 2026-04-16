@@ -105,7 +105,7 @@ class PrintTransport:
             return PrintTransport._send_serial(data, destination, baud=baud)
         elif transport == TransportType.FILE:
             return PrintTransport._send_file(data, destination)
-        elif transport == TransportType.USB_WIN32:
+        elif transport in (TransportType.USB_WIN32, TransportType.SYSTEM):
             return PrintTransport._send_win32(data, destination)
         else:
             raise ValueError(f"Transporte no soportado: {transport}")
@@ -426,6 +426,42 @@ class PrinterService:
     def reload_configs(self):
         self._load_configs()
 
+    @staticmethod
+    def _safe_baud(raw_value: Any, default: int = 9600) -> int:
+        """Normaliza baud rate para evitar ValueError por config legacy/rota."""
+        try:
+            baud = int(raw_value)
+            if 1200 <= baud <= 115200:
+                return baud
+        except Exception:
+            pass
+        return default
+
+    @staticmethod
+    def _resolve_transport(cfg: Dict[str, Any]) -> TransportType:
+        """
+        Estandariza tipo de transporte desde config legacy/nueva.
+        Acepta claves `transport`, `tipo`, `metodo`.
+        """
+        raw = str(
+            cfg.get('transport') or cfg.get('tipo') or cfg.get('metodo') or 'auto'
+        ).strip().lower()
+        mapping = {
+            'auto': TransportType.AUTO,
+            'network': TransportType.NETWORK,
+            'tcp': TransportType.NETWORK,
+            'serial': TransportType.SERIAL,
+            'escpos_serial': TransportType.SERIAL,
+            'file': TransportType.FILE,
+            'usb_win32': TransportType.USB_WIN32,
+            'win32': TransportType.USB_WIN32,
+            'win32print': TransportType.USB_WIN32,
+            'system': TransportType.SYSTEM,
+            'escpos_usb': TransportType.USB_WIN32,
+            'escpos': TransportType.AUTO,
+        }
+        return mapping.get(raw, TransportType.AUTO)
+
     # ── API de tickets ────────────────────────────────────────────────────────
 
     def print_ticket(self, ticket_data: Dict[str, Any],
@@ -470,7 +506,8 @@ class PrinterService:
             data=data,
             raw_data=ticket_data,
             destination=dest,
-            baud=int(self._ticket_cfg.get('baud_rate', 9600)),
+            transport=self._resolve_transport(self._ticket_cfg),
+            baud=self._safe_baud(self._ticket_cfg.get('baud_rate', 9600)),
             priority=2,  # Tickets tienen alta prioridad
             on_success=on_success,
             on_error=on_error,
@@ -495,7 +532,8 @@ class PrinterService:
             job_type=PrintJobType.LABEL,
             data=label_data,
             destination=dest,
-            baud=int(cfg.get('baud_rate', 9600)),
+            transport=self._resolve_transport(cfg),
+            baud=self._safe_baud(cfg.get('baud_rate', 9600)),
             priority=5,
             on_success=on_success,
             on_error=on_error,
@@ -515,6 +553,8 @@ class PrinterService:
             job_type=PrintJobType.RAW,
             data=data,
             destination=dest,
+            transport=self._resolve_transport(self._ticket_cfg),
+            baud=self._safe_baud(self._ticket_cfg.get('baud_rate', 9600)),
             priority=priority,
         )
         self.queue.submit(job)

@@ -78,3 +78,18 @@ def test_main_window_py_wire_decisiones():
     """main_window.py tiene wiring para DECISIONES."""
     src = open("interfaz/main_window.py").read()
     assert "DECISIONES" in src, "DECISIONES no está wired en main_window.py"
+
+
+def test_menu_lateral_sidebar_siempre_oscuro():
+    """Sidebar define QSS oscuro fijo y método de refuerzo tras cambio de tema."""
+    src = _leer_menu_lateral()
+    assert "_SIDEBAR_DARK_QSS" in src, "Falta QSS oscuro dedicado del sidebar"
+    assert "background-color: #020617" in src, "Sidebar no tiene color oscuro base esperado"
+    assert "def enforce_dark_mode" in src, "Falta método enforce_dark_mode en MenuLateral"
+
+
+def test_main_window_refuerza_sidebar_tras_tema():
+    """main_window reafirma modo oscuro del sidebar al aplicar/cargar tema."""
+    src = open("interfaz/main_window.py").read()
+    assert "self.menu.enforce_dark_mode()" in src, \
+        "main_window no refuerza sidebar oscuro después de cambios de tema"

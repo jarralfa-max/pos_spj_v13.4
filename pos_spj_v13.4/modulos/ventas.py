@@ -490,35 +490,6 @@ class DialogoPago(QDialog):
             self.cambio = 0.0
             self.btn_aceptar.setEnabled(True)
 
-    def _toggle_canje(self, activado: bool):
-        """v13.4 Fase 2: Activa/desactiva el canje de puntos de fidelidad."""
-        if not hasattr(self, '_spin_puntos'):
-            return
-        self._spin_puntos.setEnabled(activado)
-        if activado:
-            self._recalcular_canje(self._spin_puntos.value())
-        else:
-            self.puntos_a_canjear = 0
-            self.descuento_puntos = 0.0
-            self._lbl_desc_puntos.setText("")
-            # Recalcular total sin descuento de puntos
-            self.total_a_pagar = self.total_original
-            self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
-            self.calcular_cambio()
-
-    def _recalcular_canje(self, puntos: int):
-        """v13.4 Fase 2: Recalcula el descuento por canje de puntos."""
-        if not hasattr(self, '_chk_canjear') or not self._chk_canjear.isChecked():
-            return
-        self.puntos_a_canjear = puntos
-        valor_por_punto = self._loyalty.get("valor_por_punto", 0.01)  # $0.01 por punto default
-        self.descuento_puntos = round(puntos * valor_por_punto, 2)
-        self._lbl_desc_puntos.setText(f"-=${self.descuento_puntos:.2f}")
-        # Aplicar descuento al total
-        self.total_a_pagar = max(0.0, self.total_original - self.descuento_puntos)
-        self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
-        self.calcular_cambio()
-
     def _recalcular_mixto(self):
         if self.forma_pago != "Pago Mixto":
             return
@@ -541,6 +512,8 @@ class DialogoPago(QDialog):
 
     def _toggle_canje(self, checked: bool):
         """v13.4 Fase 0 hotfix: Activa/desactiva el canje de puntos de fidelidad."""
+        if not hasattr(self, "_spin_puntos"):
+            return
         self._spin_puntos.setEnabled(checked)
         if checked:
             self._recalcular_canje(self._spin_puntos.value())
@@ -550,11 +523,14 @@ class DialogoPago(QDialog):
             self.total_a_pagar = self.total_original
             self._lbl_desc_puntos.setText("")
             self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
-            self.txt_recibido.setValue(self.total_a_pagar)
+            if hasattr(self, "txt_recibido"):
+                self.txt_recibido.setValue(self.total_a_pagar)
             self.calcular_cambio()
 
     def _recalcular_canje(self, value: int):
         """v13.4 Fase 0 hotfix: Recalcula descuento al modificar puntos a canjear."""
+        if not hasattr(self, "_chk_canjear") or not self._chk_canjear.isChecked():
+            return
         pts = self._loyalty.get("puntos", 0)
         valor_total = self._loyalty.get("valor_canje", 0.0)
         if pts <= 0:
@@ -567,7 +543,8 @@ class DialogoPago(QDialog):
         self.total_a_pagar = round(self.total_original - descuento, 2)
         self._lbl_desc_puntos.setText(f"-${descuento:.2f}")
         self.lbl_total.setText(f"Total a pagar: ${self.total_a_pagar:.2f}")
-        self.txt_recibido.setValue(self.total_a_pagar)
+        if hasattr(self, "txt_recibido"):
+            self.txt_recibido.setValue(self.total_a_pagar)
         self.calcular_cambio()
 
     def get_datos_pago(self) -> Dict[str, Any]:
@@ -2265,27 +2242,36 @@ class ModuloVentas(ModuloBase):
         self.timer_bascula.start()
         
     def leer_peso(self):
-        """🛠️ FIX ENTERPRISE: Usa el Hardware Service centralizado."""
+        """Lee peso priorizando HAL y mantiene fallback serial legacy."""
         try:
-            if hasattr(self.container, 'hardware_service'):
-                peso = self.container.hardware_service.read_scale()
+            hw = getattr(self.container, 'hardware_service', None)
+            if hw:
+                # API unificada del HAL: intenta báscula y puede sanear fallback manual.
+                # Evita reciclar peso previo cuando no hay lectura nueva.
+                peso = hw.get_weight(0.0)
                 if peso > 0:
                     self.peso_actual = peso
                     self.lbl_peso_bascula.setText(f"Peso: {peso:.3f} kg")
                     self.lbl_estado_bascula.setText("Báscula: ✅ Conectada (HAL)")
                     if self.producto_pendiente:
                         self.procesar_peso_para_producto(peso)
-                return
+                    return
         except Exception:
             pass
 
         # Legacy Fallback — solo si báscula está habilitada en config hardware
         if not self._hw_bascula_habilitada:
             return
+        if not HAS_SERIAL_MODULE or serial is None:
+            self.lbl_estado_bascula.setText("Báscula: ⚠️ Serial no disponible")
+            return
         try:
             if not self.bascula:
                 puerto = self._hw_bascula_cfg.get("puerto", "COM3")
-                baud   = int(self._hw_bascula_cfg.get("baud", 9600))
+                try:
+                    baud = int(self._hw_bascula_cfg.get("baud", 9600))
+                except Exception:
+                    baud = 9600
                 self.bascula = serial.Serial(puerto, baud, timeout=0.2)
                 self.lbl_estado_bascula.setText("Báscula: ✅ Conectada")
 
