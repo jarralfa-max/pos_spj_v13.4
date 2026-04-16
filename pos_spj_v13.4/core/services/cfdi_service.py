@@ -28,8 +28,9 @@ logger = logging.getLogger("spj.cfdi")
 
 class CFDIService:
 
-    def __init__(self, db_conn):
+    def __init__(self, db_conn, finance_service=None):
         self.db = db_conn
+        self._finance = finance_service
 
     # ── Config ────────────────────────────────────────────────────────────────
 
@@ -233,6 +234,21 @@ class CFDIService:
                 except Exception: pass
             except Exception as e:
                 logger.warning("Guardar CFDI en BD: %s", e)
+
+            # Asiento contable (CLAUDE.md regla 8)
+            if self._finance and total > 0:
+                try:
+                    self._finance.registrar_asiento(
+                        debe="401.2-ingresos-facturados",
+                        haber="119.1-cfdi-por-cobrar",
+                        concepto=f"CFDI generado venta #{venta_id} folio {serie}{folio}",
+                        monto=total,
+                        modulo="cfdi",
+                        referencia_id=venta_id,
+                        evento="CFDI_GENERADO",
+                    )
+                except Exception as exc:
+                    logger.debug("cfdi registrar_asiento: %s", exc)
 
             return {
                 "xml":      xml_timbrado,
