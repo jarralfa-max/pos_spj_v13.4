@@ -402,12 +402,15 @@ class ModuloActivos(ModuloBase):
         
         self.tab_activos = QWidget()
         self.tab_mantenimiento = QWidget()
-        
+        self.tab_depreciacion = QWidget()
+
         self.tabs.addTab(self.tab_activos, "📋 Inventario de Equipos")
         self.tabs.addTab(self.tab_mantenimiento, "🔧 Agenda y Ordenes de Servicio")
-        
+        self.tabs.addTab(self.tab_depreciacion, "📊 Depreciación Acumulada")
+
         self.setup_activos()
         self.setup_mantenimiento()
+        self.setup_depreciacion()
         
         layout.addWidget(self.tabs)
 
@@ -566,6 +569,73 @@ class ModuloActivos(ModuloBase):
         layout.addWidget(self.tabla_mant)
         
         self.cargar_mantenimientos()
+
+    # ── Tab 3: Depreciación Acumulada ─────────────────────────────────────
+
+    def setup_depreciacion(self):
+        """Reporte de depreciación acumulada por activo y periodo (tabla depreciacion_acumulada)."""
+        layout = QVBoxLayout(self.tab_depreciacion)
+
+        controles = QHBoxLayout()
+        btn_actualizar = QPushButton("📊 Cargar Reporte")
+        btn_actualizar = create_secondary_button(self, btn_actualizar,
+                                                 "Cargar datos de depreciación acumulada")
+        btn_actualizar.clicked.connect(self.cargar_depreciacion)
+        controles.addWidget(btn_actualizar)
+        controles.addStretch()
+        layout.addLayout(controles)
+
+        info = QLabel(
+            "Depreciación en línea recta NIF B-2. "
+            "Los montos se registran mensualmente via accrual_depreciacion_mensual()."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color:#555; font-size:11px; background:#fffbea; padding:5px; border-radius:4px;")
+        layout.addWidget(info)
+
+        self.tabla_dep = QTableWidget()
+        self.tabla_dep.setColumnCount(6)
+        self.tabla_dep.setHorizontalHeaderLabels([
+            "Activo ID", "Nombre Activo", "Periodo", "Cargo Mes $",
+            "Acumulado $", "Registrado"
+        ])
+        hh = self.tabla_dep.horizontalHeader()
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        self.tabla_dep.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_dep.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_dep.setAlternatingRowColors(True)
+        layout.addWidget(self.tabla_dep)
+
+        self.cargar_depreciacion()
+
+    def cargar_depreciacion(self):
+        """Carga datos de depreciacion_acumulada con JOIN a activos."""
+        self.tabla_dep.setRowCount(0)
+        try:
+            rows = self.conexion.execute("""
+                SELECT da.activo_id,
+                       COALESCE(a.nombre, '—') AS nombre,
+                       da.periodo,
+                       da.monto_mes,
+                       da.acumulado,
+                       da.created_at
+                FROM depreciacion_acumulada da
+                LEFT JOIN activos a ON a.id = da.activo_id
+                ORDER BY da.periodo DESC, a.nombre ASC
+                LIMIT 500
+            """).fetchall()
+        except Exception:
+            rows = []
+        for i, r in enumerate(rows):
+            self.tabla_dep.insertRow(i)
+            vals = [str(r[0]), str(r[1]), str(r[2]),
+                    f"${float(r[3] or 0):,.2f}",
+                    f"${float(r[4] or 0):,.2f}",
+                    str(r[5] or "")[:16]]
+            for j, v in enumerate(vals):
+                item = QTableWidgetItem(v)
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                self.tabla_dep.setItem(i, j, item)
 
     def cargar_mantenimientos(self):
         self.tabla_mant.setRowCount(0)

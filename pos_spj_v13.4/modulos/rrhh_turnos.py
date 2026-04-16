@@ -5,7 +5,7 @@ y notifica vía WhatsApp el día de descanso una semana y un día antes.
 """
 from __future__ import annotations
 from core.services.auto_audit import audit_write
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.spj_styles import spj_btn, apply_btn_styles, apply_object_names
 import logging
 from datetime import date, timedelta, datetime
 from modulos.spj_phone_widget import PhoneWidget
@@ -161,6 +161,7 @@ class ModuloRRHHTurnos(QWidget):
         btn_save_n.clicked.connect(self._guardar_config_notif)
         ln.addWidget(btn_save_n); ln.addStretch()
         self._cargar_config_notif()
+        apply_object_names(self)
 
     # ── Cargar ────────────────────────────────────────────────────────────────
 

@@ -144,12 +144,13 @@ class AssetService:
                 if self.finance_service and monto_mes > 0:
                     try:
                         self.finance_service.registrar_asiento(
+                            debe="6105",
+                            haber="1302",
                             concepto=f"Depreciación {periodo} — {nombre}",
-                            cuenta_debe="6105",
-                            cuenta_haber="1302",
                             monto=monto_mes,
-                            referencia=f"DEPR-{aid}-{periodo}",
-                            usuario="sistema",
+                            modulo="activos",
+                            referencia_id=aid,
+                            evento="DEPRECIACION_MENSUAL",
                         )
                     except Exception as e_as:
                         logger.warning("asiento depr activo %s: %s", aid, e_as)

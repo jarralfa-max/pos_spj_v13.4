@@ -48,6 +48,7 @@ class TransportType(str, Enum):
     SERIAL = "serial"       # COM port
     USB_WIN32 = "usb_win32" # Windows print spooler
     SYSTEM = "system"       # QPrinter del sistema
+    FILE = "file"           # Archivo local (spool, /dev/usb/lp0, etc.)
     AUTO = "auto"           # Detectar por ubicación
 
 
@@ -102,6 +103,8 @@ class PrintTransport:
             return PrintTransport._send_tcp(data, destination)
         elif transport == TransportType.SERIAL:
             return PrintTransport._send_serial(data, destination, baud=baud)
+        elif transport == TransportType.FILE:
+            return PrintTransport._send_file(data, destination)
         elif transport == TransportType.USB_WIN32:
             return PrintTransport._send_win32(data, destination)
         else:
@@ -117,6 +120,9 @@ class PrintTransport:
             return TransportType.NETWORK
         if d.upper().startswith('COM') or '/dev/tty' in d:
             return TransportType.SERIAL
+        if (d.startswith('/') or d.startswith('./') or d.startswith('../')
+                or d.endswith('.prn') or '/dev/usb/' in d):
+            return TransportType.FILE
         return TransportType.USB_WIN32
 
     @staticmethod
@@ -136,9 +142,20 @@ class PrintTransport:
 
     @staticmethod
     def _send_serial(data: bytes, destination: str, baud: int = 9600) -> bool:
-        import serial
-        with serial.Serial(destination, baud, timeout=3) as sp:
+        try:
+            import serial as _serial
+        except ImportError:
+            logger.warning("pyserial no instalado — canal SERIAL no disponible")
+            return False
+        with _serial.Serial(destination, baud, timeout=3) as sp:
             sp.write(data)
+        return True
+
+    @staticmethod
+    def _send_file(data: bytes, destination: str) -> bool:
+        """Escribe bytes a un archivo/dispositivo local (spool, /dev/usb/lp0, .prn)."""
+        with open(destination, 'wb') as f:
+            f.write(data)
         return True
 
     @staticmethod
@@ -169,6 +186,10 @@ class PrintTransport:
                 s.connect((parts[0].strip(), int(parts[1]) if len(parts) > 1 else 9100))
                 s.close()
                 return True
+            if transport == TransportType.FILE:
+                import os
+                parent = os.path.dirname(destination) or '.'
+                return os.path.isdir(parent)
             return True  # Serial/USB: assume available
         except Exception:
             return False
