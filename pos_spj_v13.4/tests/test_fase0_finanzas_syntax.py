@@ -23,3 +23,5 @@ def test_finanzas_no_tiene_lambda_rota_de_refresh():
     src = Path("modulos/finanzas.py").read_text(encoding="utf-8")
     assert "_vself" not in src
     assert "_vs=s" not in src
+    assert "_vdf" not in src
+    assert "_vd=d" not in src

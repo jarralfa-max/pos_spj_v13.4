@@ -745,11 +745,11 @@ class ModuloFinanzas(ModuloBase):
             f"Sucursal: {self.sucursal_nombre}  ·  {df} → {dt}"
         )
         loaders = [
-            lambda _, _vd=d: self._load_dashboard(_vdf, dt),
+            lambda: self._load_dashboard(df, dt),
             lambda: self._load_cxp(),
             lambda: self._load_cxc(),
             lambda: self._load_proveedores(),
-            lambda _, _vd=d: self._load_gastos(_vdf, dt),
+            lambda: self._load_gastos(df, dt),
             lambda: self._load_personal(),
             lambda: self._load_activos(),
             lambda: self._load_compras_inv(),
