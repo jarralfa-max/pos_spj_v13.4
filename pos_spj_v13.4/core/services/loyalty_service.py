@@ -14,10 +14,12 @@ class LoyaltyService:
     """Servicio central de fidelización. Delega a GrowthEngine."""
 
     def __init__(self, db_conn, sucursal_id: int = 1,
-                 module_config=None, whatsapp_service=None):
+                 module_config=None, whatsapp_service=None,
+                 finance_service=None):
         self.db = db_conn
         self.sucursal_id = sucursal_id
         self._module_config = module_config
+        self._finance = finance_service
         self._engine = None
         self._bus = None
         self._init_engine(whatsapp_service)
@@ -180,6 +182,24 @@ class LoyaltyService:
                     descripcion=f"Canje venta #{venta_id}",
                     usuario=str(cajero_id),
                 )
+                # Asiento contable (CLAUDE.md regla 8: todo impacto financiero)
+                if self._finance:
+                    try:
+                        valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
+                        monto = canjeadas * valor
+                        self._finance.registrar_asiento(
+                            debe="215.1-pasivo-fidelizacion",
+                            haber="401.1-descuento-clientes",
+                            concepto=f"Canje estrellas venta #{venta_id}",
+                            monto=monto,
+                            modulo="loyalty",
+                            referencia_id=venta_id,
+                            usuario_id=cajero_id,
+                            sucursal_id=self.sucursal_id,
+                            evento="LOYALTY_CANJE",
+                        )
+                    except Exception as exc:
+                        logger.debug("loyalty registrar_asiento: %s", exc)
         return resultado
 
     # ── Consultas ─────────────────────────────────────────────────────────────
