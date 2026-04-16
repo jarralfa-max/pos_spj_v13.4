@@ -24,7 +24,7 @@
 #
 from __future__ import annotations
 from core.services.auto_audit import audit_write
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.spj_styles import spj_btn, apply_btn_styles, apply_object_names
 import logging, uuid, json
 from typing import Dict, List, Optional
 from PyQt5.QtWidgets import (
@@ -445,6 +445,7 @@ class RecepcionQRWidget(QWidget):
 
         self._cargar_historial_qr()
         self._cargar_historial()
+        apply_object_names(self)
 
     # ── Lógica de negocio ─────────────────────────────────────────────────────
 

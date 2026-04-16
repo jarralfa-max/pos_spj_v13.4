@@ -2,7 +2,7 @@ from core.services.auto_audit import audit_write
 
 # modulos/tesoreria.py
 from core.events.event_bus import get_bus
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.spj_styles import spj_btn, apply_btn_styles, apply_object_names
 import logging
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -91,6 +91,7 @@ class ModuloTesoreria(QWidget):
         
         layout.addWidget(self.tabs)
         self.tabs.currentChanged.connect(self.al_cambiar_pestana)
+        apply_object_names(self)  # Fase 1: design tokens en botones raw
 
     def al_cambiar_pestana(self, index):
         if index == 1: self.cargar_cuentas_pagar()

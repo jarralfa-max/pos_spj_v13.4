@@ -276,6 +276,35 @@ def _tooltip_for_text(text: str) -> str:
     return best_tip
 
 
+def apply_object_names(widget) -> None:
+    """
+    Recorre todos los QPushButton del widget y asigna objectName según el texto,
+    SOLO si el botón aún no tiene objectName asignado (es idempotente).
+
+    Permite que el QSS global de TEMAS (QPushButton#primaryBtn, etc.) se aplique
+    a botones creados con QPushButton() directo sin usar las factories de ui_components.
+
+    Fase 1 — Plan Maestro: design tokens uniformes en todos los módulos.
+    """
+    from PyQt5.QtWidgets import QPushButton
+    _NAMED = {"primaryBtn", "secondaryBtn", "successBtn", "dangerBtn",
+              "warningBtn", "outlineBtn"}
+    for btn in widget.findChildren(QPushButton):
+        if btn.objectName() in _NAMED:
+            continue  # Ya tiene objectName SPJ — no sobrescribir
+        v = _variant_for_text(btn.text())
+        if v:
+            name_map = {
+                "primary": "primaryBtn", "success": "successBtn",
+                "danger": "dangerBtn", "warning": "warningBtn",
+                "secondary": "secondaryBtn", "info": "primaryBtn",
+                "purple": "outlineBtn",
+            }
+            btn.setObjectName(name_map.get(v, "secondaryBtn"))
+        else:
+            btn.setObjectName("secondaryBtn")  # Fallback seguro para botones sin keyword
+
+
 def apply_spj_tooltips(widget) -> None:
     """
     Recorre todos los QPushButton del widget y asigna tooltips descriptivos
