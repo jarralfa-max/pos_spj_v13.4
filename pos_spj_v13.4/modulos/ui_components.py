@@ -109,6 +109,18 @@ def create_warning_button(parent, text: str, tooltip: str = None) -> QPushButton
     return btn
 
 
+def create_accent_button(parent, text: str, tooltip: str = None) -> QPushButton:
+    """
+    Botón accent para compatibilidad legacy.
+    Actualmente reutiliza variante `primary`.
+    """
+    btn = QPushButton(text, parent)
+    btn = _configure_button(btn, "primary")
+    if tooltip:
+        apply_tooltip(btn, tooltip)
+    return btn
+
+
 def create_outline_button(parent, text: str, tooltip: str = None) -> QPushButton:
     """Crea un botón outline (borde) para acciones menos prominentes."""
     btn = QPushButton(text, parent)
@@ -419,6 +431,11 @@ def create_heading(parent, text: str) -> QLabel:
     return label
 
 
+def create_heading_label(parent, text: str) -> QLabel:
+    """Alias legacy de create_heading para módulos existentes."""
+    return create_heading(parent, text)
+
+
 def create_subheading(parent, text: str) -> QLabel:
     """Crea un label de subtítulo (16px semibold)."""
     label = QLabel(text, parent)
@@ -436,6 +453,28 @@ def create_caption(parent, text: str) -> QLabel:
     label.setStyleSheet(f"""
         color: {Colors.NEUTRAL.SLATE_500};
         font-size: {Typography.SIZE_XS};
+    """)
+    return label
+
+
+def create_label(parent, text: str, variant: str = "body") -> QLabel:
+    """
+    Helper legacy para crear labels por variante.
+    Variantes: heading, subheading, caption, body.
+    """
+    v = (variant or "body").strip().lower()
+    if v == "heading":
+        return create_heading(parent, text)
+    if v == "subheading":
+        return create_subheading(parent, text)
+    if v == "caption":
+        return create_caption(parent, text)
+
+    label = QLabel(text, parent)
+    label.setStyleSheet(f"""
+        color: {Colors.NEUTRAL.SLATE_700};
+        font-size: {Typography.SIZE_MD};
+        font-weight: {Typography.WEIGHT_REGULAR};
     """)
     return label
 
@@ -651,6 +690,7 @@ __all__ = [
     "create_success_button",
     "create_danger_button",
     "create_warning_button",
+    "create_accent_button",
     "create_outline_button",
     "create_icon_button",
     
@@ -675,8 +715,10 @@ __all__ = [
     
     # Labels
     "create_heading",
+    "create_heading_label",
     "create_subheading",
     "create_caption",
+    "create_label",
     
     # Contenedores
     "create_section_container",

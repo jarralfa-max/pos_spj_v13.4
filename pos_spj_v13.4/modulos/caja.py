@@ -4,7 +4,7 @@ from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_danger_button,
     create_success_button, create_card, create_input_field,
     create_heading, create_subheading, apply_tooltip, create_caption,
-    create_table_with_columns, create_table_button
+    create_table_with_columns, create_table_button, create_label
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA
@@ -1123,4 +1123,3 @@ class ModuloCaja(QWidget, RefreshMixin):
     def _limpiar_arqueo(self) -> None:
         for spin in self._arqueo_spins.values():
             spin.setValue(0)
-

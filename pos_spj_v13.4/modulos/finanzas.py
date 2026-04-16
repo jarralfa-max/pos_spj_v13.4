@@ -23,7 +23,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from modulos.design_tokens import Colors, Spacing, Typography, Shadows
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input_field, create_card, apply_tooltip, create_heading, create_subheading, create_badge
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, create_input_field, create_card, apply_tooltip, create_heading, create_subheading, create_badge
 from PyQt5.QtCore import Qt, QDate, QTimer
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
