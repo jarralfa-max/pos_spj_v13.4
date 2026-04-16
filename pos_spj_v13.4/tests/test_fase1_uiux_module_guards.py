@@ -2,6 +2,7 @@ import ast
 from pathlib import Path
 
 TARGETS = [
+    'modulos/caja.py',
     'modulos/productos.py',
     'modulos/delivery.py',
     'modulos/compras_pro.py',
@@ -47,3 +48,4 @@ def test_ui_components_expose_legacy_aliases():
     src = Path('modulos/ui_components.py').read_text(encoding='utf-8')
     assert 'def create_heading_label' in src
     assert 'def create_accent_button' in src
+    assert 'def create_label' in src
