@@ -33,10 +33,13 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QPoint, QTimer, QSize
 from PyQt5.QtGui import QFont, QPalette, QColor
+import logging
 
 from modulos.design_tokens import (
     Colors, Spacing, Typography, Borders, Shadows, ComponentStyles
 )
+
+logger = logging.getLogger("spj.ui_components")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -680,6 +683,70 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
         apply_tooltip(btn, tooltip)
     
     return btn
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  COMPATIBILIDAD DINÁMICA (IMPORTS LEGACY)
+# ═══════════════════════════════════════════════════════════════════════════════
+_LEGACY_WARNED = set()
+
+
+def _resolve_legacy_factory(name: str):
+    """Mapea helpers create_* legacy a factories existentes."""
+    n = name.lower()
+    if "button" in n:
+        if "primary" in n:
+            return create_primary_button
+        if "success" in n:
+            return create_success_button
+        if "danger" in n:
+            return create_danger_button
+        if "warning" in n:
+            return create_warning_button
+        if "accent" in n:
+            return create_accent_button
+        if "outline" in n:
+            return create_outline_button
+        return create_secondary_button
+    if "heading_label" in n:
+        return create_heading_label
+    if "heading" in n:
+        return create_heading
+    if "subheading" in n:
+        return create_subheading
+    if "caption" in n:
+        return create_caption
+    if "label" in n:
+        return create_label
+    if "input" in n:
+        return create_input_field
+    if "combo" in n:
+        return create_combo
+    if "card" in n:
+        return create_card
+    if "table_button" in n:
+        return create_table_button
+    if "table" in n:
+        return create_table
+    return None
+
+
+def __getattr__(name: str):
+    """
+    Fallback para imports legacy:
+      from modulos.ui_components import create_xxx
+    """
+    if not name.startswith("create_"):
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    factory = _resolve_legacy_factory(name)
+    if factory is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if name not in _LEGACY_WARNED:
+        logger.warning("ui_components alias dinámico: %s -> %s", name, factory.__name__)
+        _LEGACY_WARNED.add(name)
+    return factory
 
 
 # Exportar todo

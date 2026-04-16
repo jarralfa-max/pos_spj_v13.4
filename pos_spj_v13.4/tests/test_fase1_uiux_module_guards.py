@@ -49,3 +49,13 @@ def test_ui_components_expose_legacy_aliases():
     assert 'def create_heading_label' in src
     assert 'def create_accent_button' in src
     assert 'def create_label' in src
+    assert 'def __getattr__' in src
+
+
+def test_ui_components_legacy_dynamic_alias_resolution():
+    src = Path('modulos/ui_components.py').read_text(encoding='utf-8')
+    assert 'def _resolve_legacy_factory' in src
+    assert 'def __getattr__' in src
+    assert 'if "button" in n' in src
+    assert 'if "heading_label" in n' in src
+    assert 'if "table" in n' in src
