@@ -64,6 +64,19 @@ def test_ui_components_legacy_dynamic_alias_resolution():
 def test_ui_components_accept_legacy_kwargs_and_flexible_signatures():
     src = Path('modulos/ui_components.py').read_text(encoding='utf-8')
     assert 'def _normalize_button_call' in src
+    assert 'if isinstance(text, QPushButton):' in src
     assert 'min_width' in src and 'max_width' in src and 'fixed_width' in src
+    assert 'def create_combo(parent=None' in src
     assert 'create_heading(parent=None, text: str = "")' in src
     assert 'create_subheading(parent=None, text: str = "")' in src
+
+
+def test_rrhh_no_usa_typography_sizes_inexistentes():
+    src = Path('modulos/rrhh.py').read_text(encoding='utf-8')
+    assert 'Typography.SIZE_72' not in src
+    assert 'Typography.SIZE_24' not in src
+
+
+def test_config_hardware_importa_spacing_module_level():
+    src = Path('modulos/config_hardware.py').read_text(encoding='utf-8')
+    assert 'from modulos.design_tokens import Colors, Spacing, Typography' in src

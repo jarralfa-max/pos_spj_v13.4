@@ -80,6 +80,11 @@ def _normalize_button_call(parent=None, text: str = "", tooltip: str = None):
             btn.setText(text)
         return btn, tooltip, True
 
+    # Caso legacy: se pasa un QPushButton ya creado en "text".
+    if isinstance(text, QPushButton):
+        btn = text
+        return btn, tooltip, True
+
     if isinstance(parent, str) and (text is None or isinstance(text, QWidget)):
         parent, text = text, parent
 
@@ -205,7 +210,7 @@ def create_input_field(parent, placeholder: str = "", tooltip: str = None,
 create_input = create_input_field
 
 
-def create_combo(parent, items: list = None, placeholder: str = "", tooltip: str = None,
+def create_combo(parent=None, items: list = None, placeholder: str = "", tooltip: str = None,
                  min_width: int = None, max_width: int = None,
                  fixed_width: int = None, editable: bool = False, **_ignored) -> QComboBox:
     """Crea un ComboBox estandarizado."""

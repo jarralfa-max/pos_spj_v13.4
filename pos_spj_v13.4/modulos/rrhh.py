@@ -184,7 +184,7 @@ class ModuloRRHH(QWidget):
         
         lbl_icono = QLabel("🔒")
         lbl_icono.setAlignment(Qt.AlignCenter)
-        lbl_icono.setStyleSheet(f"font-size: {Typography.SIZE_72};")
+        lbl_icono.setStyleSheet(f"font-size: {Typography.SIZE_XXL};")
         
         lbl_titulo = create_heading(self, "Área Restringida: Recursos Humanos y Nómina")
         lbl_titulo.setAlignment(Qt.AlignCenter)
@@ -552,7 +552,7 @@ class ModuloRRHH(QWidget):
         self.lbl_horas = QLabel("0.0")
         self.lbl_total_pago = QLabel("$0.00")
         self.lbl_total_pago.setObjectName("textSuccess")
-        self.lbl_total_pago.setStyleSheet(f"font-size: {Typography.SIZE_24}; font-weight: bold;")
+        self.lbl_total_pago.setStyleSheet(f"font-size: {Typography.SIZE_XXL}; font-weight: bold;")
         
         recibo_layout.addRow("Nombre Completo:", self.lbl_nom_empleado)
         recibo_layout.addRow("Días Asistidos:", self.lbl_dias)

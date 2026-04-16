@@ -105,6 +105,32 @@ class FinanceService:
         from core.db.connection import wrap
         self.db = wrap(db)
 
+    def _has_column(self, table: str, column: str) -> bool:
+        """Compatibilidad de esquema SQLite (instalaciones legacy)."""
+        try:
+            rows = self.db.fetchall(f"PRAGMA table_info({table})")
+            for r in rows:
+                # sqlite Row puede exponer por índice o por clave
+                name = r["name"] if "name" in r.keys() else r[1]
+                if str(name).lower() == column.lower():
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _productos_inventory_expr(self) -> str:
+        """
+        Expresión de valuación inventario compatible con columnas legacy.
+        Prioridad: precio_compra -> costo -> precio_costo -> 0
+        """
+        opts = []
+        for col in ("precio_compra", "costo", "precio_costo"):
+            if self._has_column("productos", col):
+                opts.append(col)
+        if not opts:
+            return "0"
+        return "COALESCE(" + ", ".join(opts + ["0"]) + ")"
+
     # ═════════════════════════════════════════════════════════════════════════
     # DASHBOARD KPIs
     # ═════════════════════════════════════════════════════════════════════════
@@ -138,11 +164,12 @@ class FinanceService:
         tickets     = int  (rev_row["tickets"]     or 0)
 
         # Gastos del período
-        gasto_row = self.db.fetchone("""
+        gasto_activo = "AND activo = 1" if self._has_column("gastos", "activo") else ""
+        gasto_row = self.db.fetchone(f"""
             SELECT COALESCE(SUM(monto), 0) AS gastos
             FROM gastos
             WHERE DATE(fecha) BETWEEN DATE(?) AND DATE(?)
-              AND activo = 1
+              {gasto_activo}
         """, (df, dt))
         gastos = float(gasto_row["gastos"] or 0) if gasto_row else 0
 
@@ -176,9 +203,11 @@ class FinanceService:
         nomina = float(nom_row["nomina"] or 0) if nom_row else 0
 
         # Valor inventario
-        inv_row = self.db.fetchone("""
-            SELECT COALESCE(SUM(existencia * COALESCE(precio_compra, costo, 0)), 0) AS inv_val
-            FROM productos WHERE activo = 1
+        prod_activo = "AND activo = 1" if self._has_column("productos", "activo") else ""
+        inv_expr = self._productos_inventory_expr()
+        inv_row = self.db.fetchone(f"""
+            SELECT COALESCE(SUM(existencia * {inv_expr}), 0) AS inv_val
+            FROM productos WHERE 1=1 {prod_activo}
         """)
         inv_val = float(inv_row["inv_val"] or 0) if inv_row else 0
 
@@ -238,9 +267,11 @@ class FinanceService:
         """
         fecha = as_of or date.today().isoformat()
 
-        inv_row = self.db.fetchone("""
-            SELECT COALESCE(SUM(existencia * COALESCE(precio_compra,costo,0)), 0) AS v
-            FROM productos WHERE activo=1
+        prod_activo = "AND activo = 1" if self._has_column("productos", "activo") else ""
+        inv_expr = self._productos_inventory_expr()
+        inv_row = self.db.fetchone(f"""
+            SELECT COALESCE(SUM(existencia * {inv_expr}), 0) AS v
+            FROM productos WHERE 1=1 {prod_activo}
         """)
         inventario = float(inv_row["v"] or 0) if inv_row else 0
 
@@ -270,9 +301,10 @@ class FinanceService:
         """)
         cxp = float(cxp_row["v"] or 0) if cxp_row else 0
 
-        gastos_pend_row = self.db.fetchone("""
+        gasto_activo = "AND activo = 1" if self._has_column("gastos", "activo") else ""
+        gastos_pend_row = self.db.fetchone(f"""
             SELECT COALESCE(SUM(monto - COALESCE(monto_pagado,0)), 0) AS v
-            FROM gastos WHERE estado != 'pagado' AND activo=1
+            FROM gastos WHERE estado != 'pagado' {gasto_activo}
         """)
         gastos_pend = float(gastos_pend_row["v"] or 0) if gastos_pend_row else 0
 
@@ -342,11 +374,12 @@ class FinanceService:
         cobros_cxc = float(cobros_row["total"] or 0) if cobros_row else 0
 
         # Salidas — gastos pagados
-        gastos_row = self.db.fetchone("""
+        gasto_activo = "AND activo = 1" if self._has_column("gastos", "activo") else ""
+        gastos_row = self.db.fetchone(f"""
             SELECT COALESCE(SUM(monto), 0) AS total
             FROM gastos
             WHERE DATE(fecha) BETWEEN DATE(?) AND DATE(?)
-              AND estado = 'pagado' AND activo = 1
+              AND estado = 'pagado' {gasto_activo}
         """, (date_from, date_to))
         gastos_tot = float(gastos_row["total"] or 0) if gastos_row else 0
 
@@ -379,12 +412,12 @@ class FinanceService:
             GROUP BY DATE(fecha) ORDER BY DATE(fecha)
         """, bp + [date_from, date_to])
 
-        daily_gastos = self.db.fetchall("""
+        daily_gastos = self.db.fetchall(f"""
         SELECT DATE(fecha) AS dia,
                    COALESCE(SUM(monto), 0) AS egresos
             FROM gastos
             WHERE DATE(fecha) BETWEEN DATE(?) AND DATE(?)
-              AND activo=1
+              {gasto_activo}
             GROUP BY DATE(fecha) ORDER BY DATE(fecha)
         """, (date_from, date_to))
 
