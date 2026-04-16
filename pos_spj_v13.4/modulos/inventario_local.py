@@ -2,14 +2,14 @@
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography
-from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input, apply_tooltip
+from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input_field, apply_tooltip
 import logging
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO, AJUSTE_INVENTARIO, COMPRA_REGISTRADA
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QInputDialog, QLineEdit, QFileDialog,
+    QMessageBox, QInputDialog, QLineEdit, QFileDialog, QComboBox,
 )
 from PyQt5.QtCore import Qt
 
@@ -46,7 +46,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         # Search + actions
         ctrl = QHBoxLayout()
         ctrl.setSpacing(Spacing.SM)
-        self.txt_buscar = create_input(self, "Buscar producto…")
+        self.txt_buscar = create_input_field(self, "Buscar producto…")
         self.txt_buscar.textChanged.connect(self.cargar_datos)
         ctrl.addWidget(self.txt_buscar, 1)
         

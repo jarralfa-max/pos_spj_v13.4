@@ -15,7 +15,7 @@
 from __future__ import annotations
 from core.events.event_bus import get_bus
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_danger_button, create_input, create_combo, create_card, apply_tooltip
 import logging
 from typing import Dict, List, Optional
@@ -235,8 +235,7 @@ class ModuloTransferencias(ModuloBase):
         root.addLayout(ab)
 
     def _make_kpi(self, title: str, value: str, color: str) -> QFrame:
-        card = QFrame()
-        card.setObjectName("card")
+        card = create_card(self, padding=Spacing.SM, with_layout=False)
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); card.setFixedHeight(72)
         lay = QVBoxLayout(card); lay.setContentsMargins(10, 6, 10, 6)
         lt = QLabel(title); lt.setObjectName("caption")
@@ -411,7 +410,8 @@ class ModuloTransferencias(ModuloBase):
         lay.setContentsMargins(0, 8, 0, 0); lay.setSpacing(10)
 
         # ── Header con descripción del método ────────────────────────────────
-        info_box = QFrame()
+        # CORRECCIÓN: Usar create_card en lugar de QFrame() directo para consistencia
+        info_box = create_card(self, padding=Spacing.SM, with_layout=False)
         info_box.setStyleSheet(
             "QFrame{background:#eaf4fb;border:none;border-left:4px solid #3498db;"
             "border-radius:4px;padding:6px;}"

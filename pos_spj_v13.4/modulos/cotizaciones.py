@@ -9,7 +9,7 @@ import logging
 from typing import Dict, List, Optional
 
 from modulos.spj_phone_widget import PhoneWidget
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_card, create_input, create_combo, apply_tooltip, create_heading, create_subheading
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -177,7 +177,19 @@ class ModuloCotizaciones(ModuloBase):
         root.addLayout(ab)
 
     def _kpi(self, titulo: str, valor: str, color: str) -> QFrame:
-        card = QFrame()
+        """
+        Crea una tarjeta KPI para mostrar métricas.
+        
+        Args:
+            titulo: Título del KPI
+            valor: Valor a mostrar
+            color: Color del texto del valor
+        
+        Returns:
+            QFrame configurado como tarjeta KPI
+        """
+        # CORRECCIÓN: Usar create_card con with_layout=False para evitar conflicto de layouts
+        card = create_card(self, padding=Spacing.SM, with_layout=False)
         card.setObjectName("statCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         card.setFixedHeight(68)

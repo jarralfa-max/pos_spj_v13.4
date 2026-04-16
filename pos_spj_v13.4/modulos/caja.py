@@ -1,14 +1,25 @@
-
 # modulos/caja.py
 from modulos.design_tokens import Colors, Spacing, Typography, Shadows
 from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_danger_button,
     create_success_button, create_card, create_input_field,
-    create_heading, create_subheading, apply_tooltip, create_caption
+    create_heading, create_subheading, apply_tooltip, create_caption,
+    create_table_with_columns, create_table_button
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QCompleter as QCompleterAlias
+)
 from PyQt5.QtCore import Qt
 from datetime import datetime
 
@@ -182,7 +193,7 @@ class DialogoCorteZCiego(QDialog):
         self.lbl_resultado = QLabel("Procesando...")
         self.lbl_resultado.setWordWrap(True)
         self.lbl_resultado.setAlignment(Qt.AlignCenter)
-        self.lbl_resultado.setObjectName("card")
+        self.lbl_resultado.setObjectName("resultadoCard")  # Nombre único para evitar conflicto con QFrame card
         lay.addWidget(self.lbl_resultado, 1)
         return w
 
@@ -309,6 +320,7 @@ class ModuloCaja(QWidget, RefreshMixin):
         self.sucursal_id = 1
         self.usuario_actual = ""
         self.turno_actual = None # Almacenará el ID del turno si está abierto
+        self.layout_estado = None  # Referencia al layout de estado
         
         self.init_ui()
 
@@ -350,17 +362,17 @@ class ModuloCaja(QWidget, RefreshMixin):
         # --- PANEL DE ESTADO ---
         self.panel_estado = QGroupBox("Estado Actual")
         self.panel_estado.setObjectName("styledGroup")
-        layout_estado = QVBoxLayout(self.panel_estado)
+        self.layout_estado = QVBoxLayout(self.panel_estado)
         
         self.lbl_status = QLabel("Buscando estado del turno...")
         self.lbl_status.setAlignment(Qt.AlignCenter)
         self.lbl_status.setObjectName("statusLabel")
-        layout_estado.addWidget(self.lbl_status)
+        self.layout_estado.addWidget(self.lbl_status)
         
         # Botón dinámico (Abrir o Cerrar Turno)
         self.btn_accion_turno = create_primary_button(self, "Acción de Turno", "Abrir o cerrar turno de caja según estado")
         self.btn_accion_turno.clicked.connect(self.gestionar_turno)
-        layout_estado.addWidget(self.btn_accion_turno)
+        self.layout_estado.addWidget(self.btn_accion_turno)
         
         layout_principal.addWidget(self.panel_estado)
         
@@ -436,14 +448,14 @@ class ModuloCaja(QWidget, RefreshMixin):
                 self.lbl_status.style().polish(self.lbl_status)
                 
                 # Reemplazar botón por uno de peligro
-                idx = layout_estado.indexOf(self.btn_accion_turno)
+                idx = self.layout_estado.indexOf(self.btn_accion_turno)
                 if idx != -1:
-                    layout_estado.removeWidget(self.btn_accion_turno)
+                    self.layout_estado.removeWidget(self.btn_accion_turno)
                     self.btn_accion_turno.deleteLater()
                 
                 self.btn_accion_turno = create_danger_button(self, "🔒 CERRAR CAJA (CORTE Z)", "Cerrar turno y realizar corte Z")
                 self.btn_accion_turno.clicked.connect(self.gestionar_turno)
-                layout_estado.insertWidget(idx, self.btn_accion_turno)
+                self.layout_estado.insertWidget(idx, self.btn_accion_turno)
                 self.panel_movimientos.setEnabled(True)
             else:
                 self.turno_actual = None
@@ -453,14 +465,14 @@ class ModuloCaja(QWidget, RefreshMixin):
                 self.lbl_status.style().polish(self.lbl_status)
                 
                 # Reemplazar botón por uno primario
-                idx = layout_estado.indexOf(self.btn_accion_turno)
+                idx = self.layout_estado.indexOf(self.btn_accion_turno)
                 if idx != -1:
-                    layout_estado.removeWidget(self.btn_accion_turno)
+                    self.layout_estado.removeWidget(self.btn_accion_turno)
                     self.btn_accion_turno.deleteLater()
                 
                 self.btn_accion_turno = create_primary_button(self, "🔓 ABRIR TURNO DE CAJA", "Iniciar nuevo turno de caja con fondo inicial")
                 self.btn_accion_turno.clicked.connect(self.gestionar_turno)
-                layout_estado.insertWidget(idx, self.btn_accion_turno)
+                self.layout_estado.insertWidget(idx, self.btn_accion_turno)
                 self.panel_movimientos.setEnabled(False) # No se puede retirar dinero si la caja está cerrada
                 
         except Exception as e:
@@ -819,17 +831,16 @@ class ModuloCaja(QWidget, RefreshMixin):
         lay.addLayout(hdr)
 
         # Table
-        self._tbl_movs = QTableWidget()
-        self._tbl_movs.setColumnCount(6)
-        self._tbl_movs.setHorizontalHeaderLabels(
-            ["Hora", "Tipo", "Concepto", "Monto", "Usuario", "ID Turno"])
+        self._tbl_movs = create_table_with_columns(
+            self,
+            columns=["Hora", "Tipo", "Concepto", "Monto", "Usuario", "ID Turno"],
+            show_grid=False,
+            alternating_colors=True
+        )
         hh = self._tbl_movs.horizontalHeader()
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
         for c in (0, 1, 3, 4, 5):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
-        self._tbl_movs.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_movs.setAlternatingRowColors(True)
-        self._tbl_movs.verticalHeader().setVisible(False)
         lay.addWidget(self._tbl_movs)
 
         # Totals bar

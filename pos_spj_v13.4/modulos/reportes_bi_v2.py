@@ -1,13 +1,20 @@
 
 # modulos/reportes_bi_v2.py
-from modulos.design_tokens import Colors, Spacing, Typography, Radii, Shadows
+from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button, 
     create_secondary_button, create_input, create_combo, create_card,
     create_heading, create_subheading, create_caption, apply_tooltip
 )
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem,
+    QHeaderView, QGridLayout, QGroupBox, QFrame, QSplitter, QTabWidget,
+    QAbstractItemView, QDialog, QCheckBox, QListWidget, QListWidgetItem,
+    QSizePolicy, QAction, QMenu, QToolBar, QStatusBar, QProgressBar,
+    QScrollArea, QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
@@ -224,7 +231,8 @@ class ModuloReportesBIv2(QWidget):
 
     def _crear_tarjeta_kpi(self, titulo, valor_inicial):
         """Crea una tarjeta visual estilizada para los indicadores."""
-        tarjeta = create_card(self)
+        # CORRECCIÓN: with_layout=False para evitar conflicto de layouts
+        tarjeta = create_card(self, with_layout=False)
         layout = QVBoxLayout(tarjeta)
 
         lbl_titulo = create_caption(self, titulo)

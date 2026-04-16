@@ -1,10 +1,21 @@
 
 # modulos/planeacion_compras.py
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_heading, create_subheading, create_card, apply_tooltip
 import sys
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
 import matplotlib
@@ -101,8 +112,7 @@ class ModuloPlaneacionCompras(QWidget):
         h_layout.addWidget(self.canvas, stretch=3)
 
         # 2. Panel de Resultados y Recomendación
-        panel_resultados = QFrame()
-        panel_resultados.setObjectName("card")
+        panel_resultados = create_card(self, padding=Spacing.MD, with_layout=False)
         res_layout = QVBoxLayout(panel_resultados)
 
         lbl_res_titulo = QLabel("📊 Recomendación de Compra")

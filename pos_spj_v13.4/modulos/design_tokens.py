@@ -167,15 +167,20 @@ class Colors:
     SIDEBAR = SidebarColors()
     TOOLTIP = TooltipColors()
     
-    # Alias directos para compatibilidad
+    # Alias directos para compatibilidad (Single Source of Truth)
     PRIMARY_BASE = "#2563EB"
     PRIMARY_HOVER = "#E600E6"
     PRIMARY_ACTIVE = "#CC00CC"
     SUCCESS_BASE = "#16A34A"
+    SUCCESS_HOVER = "#22C55E"
     DANGER_BASE = "#DC2626"
+    DANGER_HOVER = "#EF4444"
     WARNING_BASE = "#D97706"
+    WARNING_HOVER = "#F59E0B"
     INFO_BASE = "#0891B2"
+    INFO_HOVER = "#06B6D4"
     ACCENT_BASE = "#7C3AED"
+    ACCENT_HOVER = "#8B5CF6"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

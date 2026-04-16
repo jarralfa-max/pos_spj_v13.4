@@ -4,9 +4,20 @@ import logging
 from core.events.event_bus import get_bus
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_input, create_heading, create_subheading, apply_tooltip
-from PyQt5.QtWidgets import *
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_input, create_heading, create_subheading, apply_tooltip, create_card
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QIcon
 from datetime import datetime, timedelta
@@ -167,8 +178,7 @@ class ModuloRRHH(QWidget):
     # PANTALLA DE BLOQUEO DE SEGURIDAD
     # =========================================================
     def _crear_pantalla_bloqueo(self):
-        panel = QWidget()
-        panel.setObjectName("card")  # Usar clase CSS para fondo y bordes
+        panel = create_card(self, padding=Spacing.LG, with_layout=False)
         
         layout = QVBoxLayout(panel)
         
@@ -285,7 +295,7 @@ class ModuloRRHH(QWidget):
                       "Cada rol tiene horario y color para el calendario.")
         info.setWordWrap(True)
         info.setObjectName("caption")  # Usar clase CSS para texto secundario
-        info.setStyleSheet(f"background: {Colors.INFO_BG}; padding: {Spacing.SM}; border-radius: {Radii.SM}; font-size: {Typography.SIZE_XS};")
+        info.setStyleSheet(f"background: {Colors.INFO_BG}; padding: {Spacing.SM}; border-radius: {Borders.RADIUS_SM}; font-size: {Typography.SIZE_XS};")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()

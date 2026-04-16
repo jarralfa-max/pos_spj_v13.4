@@ -17,7 +17,7 @@ from __future__ import annotations
 from core.events.event_bus import get_bus
 from core.services.auto_audit import audit_write
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Radii, Shadows
+from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_input, create_combo, create_card,
@@ -51,6 +51,8 @@ from core.services.recipe_engine import (
 
 logger = logging.getLogger("spj.ui.produccion")
 _RED   = "#e74c3c"
+_BLUE  = "#2563EB"
+_GREEN = "#16A34A"
 _GOLD  = "#f39c12"
 _GRAY  = "#7f8c8d"
 

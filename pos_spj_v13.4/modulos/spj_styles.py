@@ -1,43 +1,40 @@
-# modulos/spj_styles.py — SPJ POS v13.30
+# modulos/spj_styles.py — SPJ POS v13.4
 """
 Sistema de estilos centralizado SPJ.
-Paleta estándar de botones + temas globales aplicados desde configuración.
+Funciones utilitarias para auto-styling y temas globales.
 
-USO BOTONES:
-    from modulos.spj_styles import spj_btn, apply_btn_styles
-    spj_btn(btn, "success")   # verde → guardar, crear
-    spj_btn(btn, "danger")    # rojo → eliminar, cancelar
-    spj_btn(btn, "warning")   # naranja → editar
-    spj_btn(btn, "primary")   # azul → confirmar, cobrar
-    spj_btn(btn, "secondary") # gris → cerrar, volver
-    spj_btn(btn, "info")      # azul claro → ver, buscar
-    spj_btn(btn, "purple")    # morado → reportes, BI
-    spj_btn(btn, "dark")      # oscuro → menú
+NOTA: Los colores ahora están centralizados en design_tokens.py
+Este módulo solo proporciona funciones de utilidad para aplicar estilos.
 
-USO TEMA GLOBAL:
-    from modulos.spj_styles import apply_global_theme
-    apply_global_theme(db_connection)  # Lee tema de BD y aplica QSS
-
-USO AUTO-ESTILIZADO:
-    from modulos.spj_styles import apply_spj_buttons
-    apply_spj_buttons(widget)  # Recorre botones y asigna color por keyword
+USO:
+    from modulos.spj_styles import apply_spj_buttons, apply_global_theme, apply_theme_dialogs
+    
+    # Auto-aplicar estilos a botones por keyword
+    apply_spj_buttons(widget)
+    
+    # Aplicar tema global desde BD
+    apply_global_theme(db_connection)
+    
+    # Aplicar tema a dialogs
+    apply_theme_dialogs(dialog)
 """
 
 from PyQt5.QtWidgets import QPushButton
+from modulos.design_tokens import Colors
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Paleta oficial SPJ
+#  Mapeo de variantes a colores centralizados (design_tokens.py)
 # ══════════════════════════════════════════════════════════════════════════════
 
 SPJ_COLORS = {
-    "primary":   ("#2E86C1", "#1A5276"),
-    "success":   ("#27ae60", "#1e8449"),
-    "danger":    ("#e74c3c", "#c0392b"),
-    "warning":   ("#e67e22", "#ca6f1e"),
-    "secondary": ("#7f8c8d", "#616a6b"),
-    "info":      ("#3498db", "#2980b9"),
-    "dark":      ("#2c3e50", "#1a252f"),
-    "purple":    ("#8e44ad", "#76369a"),
+    "primary":   (Colors.PRIMARY_BASE, Colors.PRIMARY_HOVER),
+    "success":   (Colors.SUCCESS_BASE, Colors.SUCCESS_HOVER),
+    "danger":    (Colors.DANGER_BASE, Colors.DANGER_HOVER),
+    "warning":   (Colors.WARNING_BASE, Colors.WARNING_HOVER),
+    "secondary": (Colors.NEUTRAL.SLATE_600, Colors.NEUTRAL.SLATE_500),
+    "info":      (Colors.INFO_BASE, Colors.INFO_HOVER),
+    "dark":      (Colors.NEUTRAL.SLATE_800, Colors.NEUTRAL.SLATE_700),
+    "purple":    (Colors.ACCENT_BASE, Colors.ACCENT_HOVER),
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
