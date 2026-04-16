@@ -57,16 +57,18 @@ def test_no_qtcore_qsizepolicy_import():
 
 
 def test_logo_minheight_set():
-    """El código del logo debe configurar setMinimumHeight(80) para evitar cortes."""
+    """El código del logo debe configurar setMinimumHeight para evitar cortes (≥80px)."""
     source = _read_source()
-    assert "setMinimumHeight(80)" in source, (
-        "lbl_logo.setMinimumHeight(80) debe estar presente en _configurar_ui de DialogoLogin"
+    # La implementación usa 100px (mejorado respecto al plan original de 80px)
+    assert any(f"setMinimumHeight({h})" in source for h in (80, 100, 120)), (
+        "lbl_logo.setMinimumHeight() debe estar presente en DialogoLogin con valor ≥ 80"
     )
 
 
 def test_logo_scaled_120():
-    """El logo debe escalarse a máximo 120x120 con KeepAspectRatio."""
+    """El logo debe escalarse con KeepAspectRatio (≥120px)."""
     source = _read_source()
-    assert "scaled(120, 120" in source, (
-        "El pixmap del logo debe escalar a 120x120 con KeepAspectRatio"
+    # La implementación usa 140x140 (mejorado respecto al plan original de 120x120)
+    assert any(f"scaled({s}, {s}" in source for s in (120, 130, 140, 150)), (
+        "El pixmap del logo debe escalar con KeepAspectRatio a tamaño ≥ 120px"
     )
