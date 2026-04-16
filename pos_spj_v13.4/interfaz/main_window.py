@@ -501,8 +501,9 @@ class MainWindow(QMainWindow):
                 pantalla = clase_widget(self.container)
                 # v13.4: Auto-aplicar colores estándar a botones del módulo
                 try:
-                    from modulos.spj_styles import apply_spj_buttons
+                    from modulos.spj_styles import apply_spj_buttons, apply_spj_tooltips
                     apply_spj_buttons(pantalla)
+                    apply_spj_tooltips(pantalla)
                 except Exception:
                     pass
                 self.indices_pantallas[codigo] = self.stack.addWidget(pantalla)
@@ -867,6 +868,9 @@ class MainWindow(QMainWindow):
             )
             qss = theme_svc.generate_qss()
             QApplication.instance().setStyleSheet(qss)
+            # Sidebar siempre oscuro (regla de diseño)
+            if hasattr(self, "menu") and hasattr(self.menu, "enforce_dark_mode"):
+                self.menu.enforce_dark_mode()
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("_aplicar_tema: %s", e)
@@ -1030,6 +1034,8 @@ class MainWindow(QMainWindow):
             is_dark = row and row[0] and 'dark' in str(row[0]).lower()
             if hasattr(self, '_action_dark'):
                 self._action_dark.setChecked(is_dark)
+            if hasattr(self, "menu") and hasattr(self.menu, "enforce_dark_mode"):
+                self.menu.enforce_dark_mode()
         except Exception as e:
             import logging
             logging.getLogger(__name__).debug("_cargar_tema_inicial: %s", e)

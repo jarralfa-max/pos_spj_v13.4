@@ -29,6 +29,14 @@ from core.services.inventory_engine import InventoryEngine, StockInsuficienteErr
 logger = logging.getLogger("spj.recipe_engine")
 CENTAVO = Decimal("0.001")
 
+def _recipe_name(receta: dict) -> str:
+    """Compatibilidad entre esquemas legacy (`nombre`) y actual (`nombre_receta`)."""
+    return (
+        receta.get("nombre")
+        or receta.get("nombre_receta")
+        or f"Receta #{receta.get('id', '?')}"
+    )
+
 
 class RecipeEngineError(Exception):
     pass
@@ -266,7 +274,7 @@ class RecipeEngine:
 
         logger.info(
             "PRODUCCION_OK id=%d receta=%s tipo=%s base=%.4f gen=%.4f cons=%.4f op=%s",
-            produccion_id, receta["nombre"], tipo,
+            produccion_id, _recipe_name(receta), tipo,
             cantidad_base, total_generado, total_consumido, op_id,
         )
 
@@ -275,7 +283,7 @@ class RecipeEngine:
         return ProduccionResultDTO(
             produccion_id=produccion_id,
             receta_id=receta_id,
-            receta_nombre=receta["nombre"],
+            receta_nombre=_recipe_name(receta),
             tipo_receta=tipo,
             operation_id=op_id,
             cantidad_base=cantidad_base,
@@ -422,8 +430,16 @@ class RecipeEngine:
             filters.append("p.receta_id = ?"); params.append(receta_id)
         where = "WHERE " + " AND ".join(filters) if filters else ""
         params.append(limit)
+        cols = {r[1] for r in self.db.fetchall("PRAGMA table_info(product_recipes)")}
+        if "nombre_receta" in cols:
+            recipe_name_sql = "r.nombre_receta"
+        elif "nombre" in cols:
+            recipe_name_sql = "r.nombre"
+        else:
+            recipe_name_sql = "'Receta sin nombre'"
         rows = self.db.fetchall(f"""
-            SELECT p.id, p.fecha, p.receta_id, r.nombre AS receta_nombre,
+            SELECT p.id, p.fecha, p.receta_id,
+                   {recipe_name_sql} AS receta_nombre,
                    COALESCE(r.tipo_receta,'subproducto') AS tipo_receta, p.cantidad_base, p.unidad_base,
                    prod.nombre AS producto_base_nombre,
                    p.usuario, p.estado, p.operation_id
@@ -451,7 +467,7 @@ class RecipeEngine:
             get_bus().publish("PRODUCCION_COMPLETADA", {
                 "produccion_id": produccion_id,
                 "receta_id": receta["id"],
-                "receta_nombre": receta["nombre"],
+                "receta_nombre": _recipe_name(receta),
                 "sucursal_id": sucursal_id,
                 "movimientos": len(movimientos),
             })
