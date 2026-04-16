@@ -4,7 +4,8 @@ from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button, 
-    create_secondary_button, create_input_field, apply_tooltip
+    create_secondary_button, create_input_field, create_input, create_combo,
+    create_heading, create_subheading, create_caption, apply_tooltip
 )
 import os
 import shutil

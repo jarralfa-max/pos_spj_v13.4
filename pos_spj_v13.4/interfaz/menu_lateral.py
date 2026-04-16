@@ -47,6 +47,55 @@ WHITELIST_SIEMPRE_VISIBLE = {
     "INTELIGENCIA_BI",
 }
 
+_SIDEBAR_DARK_QSS = """
+    QFrame#MenuLateral {
+        background-color: #020617;
+        color: #E2E8F0;
+        border-right: 1px solid #1E293B;
+    }
+    QFrame#MenuLateral QScrollArea {
+        border: none;
+        background-color: transparent;
+    }
+    QFrame#MenuLateral QWidget#ContenedorBotones {
+        background-color: transparent;
+    }
+    QFrame#MenuLateral QLabel.SeccionHeader {
+        color: #64748B;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding-left: 15px;
+        margin-top: 20px;
+        margin-bottom: 8px;
+        letter-spacing: 0.5px;
+    }
+    QFrame#MenuLateral QPushButton {
+        background-color: transparent;
+        color: #94A3B8;
+        text-align: left;
+        padding: 12px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        border: none;
+        border-radius: 8px;
+        margin: 2px 8px;
+    }
+    QFrame#MenuLateral QPushButton:hover {
+        background-color: #1E293B;
+        color: #E2E8F0;
+    }
+    QFrame#MenuLateral QPushButton:pressed {
+        background-color: #2563EB;
+        color: #FFFFFF;
+    }
+    QFrame#MenuLateral QPushButton:checked {
+        background-color: #2563EB;
+        color: #FFFFFF;
+        font-weight: 600;
+    }
+"""
+
 class MenuLateral(QFrame):
     # Señal maestra que avisa a la ventana principal a qué módulo queremos ir
     opcion_seleccionada = pyqtSignal(str)
@@ -55,59 +104,17 @@ class MenuLateral(QFrame):
         super().__init__(parent)
         self.setObjectName("MenuLateral")
         self.setFixedWidth(240) # Lo hicimos un poco más ancho para que quepan los nombres largos
-        
-        # Estilos base del panel lateral — SIEMPRE OSCURO según sistema de diseño
-        self.setStyleSheet("""
-            QFrame#MenuLateral {
-                background-color: #020617;
-                color: #E2E8F0;
-                border-right: 1px solid #1E293B;
-            }
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-            QWidget#ContenedorBotones {
-                background-color: transparent;
-            }
-            QLabel.SeccionHeader {
-                color: #64748B;
-                font-size: 11px;
-                font-weight: 700;
-                text-transform: uppercase;
-                padding-left: 15px;
-                margin-top: 20px;
-                margin-bottom: 8px;
-                letter-spacing: 0.5px;
-            }
-            QPushButton {
-                background-color: transparent;
-                color: #94A3B8;
-                text-align: left;
-                padding: 12px 16px;
-                font-size: 13px;
-                font-weight: 500;
-                border: none;
-                border-radius: 8px;
-                margin: 2px 8px;
-            }
-            QPushButton:hover {
-                background-color: #1E293B;
-                color: #E2E8F0;
-            }
-            QPushButton:pressed {
-                background-color: #2563EB;
-                color: #FFFFFF;
-            }
-            QPushButton:checked {
-                background-color: #2563EB;
-                color: #FFFFFF;
-                font-weight: 600;
-            }
-        """)
+        self.enforce_dark_mode()
         self._permisos = set()
         self._rol = ""
         self._configurar_ui()
+
+    def enforce_dark_mode(self) -> None:
+        """
+        Sidebar SIEMPRE oscuro por diseño global.
+        Se puede invocar tras aplicar tema global para re-afirmar su skin.
+        """
+        self.setStyleSheet(_SIDEBAR_DARK_QSS)
 
     def _configurar_ui(self):
         # Layout principal del Frame

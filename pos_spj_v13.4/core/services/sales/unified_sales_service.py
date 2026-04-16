@@ -11,6 +11,22 @@ logger = logging.getLogger("spj.sales.unified")
 from dataclasses import dataclass, field
 from typing import Optional
 
+
+class VentaError(Exception):
+    """Error base de venta legacy (compatibilidad con test suite histórica)."""
+
+
+class CarritoVacioError(VentaError):
+    """Se intentó procesar una venta sin ítems."""
+
+
+class PagoInsuficienteError(VentaError):
+    """El monto pagado no cubre el total."""
+
+
+class StockError(VentaError):
+    """No hay stock suficiente para uno o más ítems."""
+
 @dataclass
 class ItemVenta:
     producto_id:   int
@@ -94,7 +110,14 @@ class UnifiedSalesService:
         )
         r = uc.ejecutar(items_uc, dp, self.branch_id, usr)
         if not r.ok:
-            raise RuntimeError(r.error)
+            msg = (r.error or "").lower()
+            if "carrito" in msg and ("vacío" in msg or "vacio" in msg):
+                raise CarritoVacioError(r.error)
+            if "stock" in msg or "insuficiente" in msg:
+                raise StockError(r.error)
+            if "monto pagado" in msg or "menor al total" in msg:
+                raise PagoInsuficienteError(r.error)
+            raise VentaError(r.error or "Error al procesar venta")
 
         return ResultadoVenta(
             venta_id=r.venta_id, folio=r.folio,
@@ -104,4 +127,12 @@ class UnifiedSalesService:
 
     def anular_venta(self, venta_id, motivo=""):
         from core.services.sales_reversal_service import SalesReversalService
-        SalesReversalService(self.conn).cancel_sale(venta_id, self.usuario)
+        from core.services.sales_reversal_service import (
+            VentaNoEncontradaError, VentaYaCanceladaError, ReversalError
+        )
+        try:
+            SalesReversalService(self.conn, self.branch_id).cancel_sale(venta_id, self.usuario)
+        except (VentaNoEncontradaError, VentaYaCanceladaError) as exc:
+            raise VentaError(str(exc)) from exc
+        except ReversalError as exc:
+            raise VentaError(str(exc)) from exc

@@ -22,9 +22,8 @@ import sqlite3
 from datetime import date, datetime
 from typing import Optional
 
-from modulos.spj_phone_widget import PhoneWidget
 from modulos.design_tokens import Colors, Spacing, Typography, Shadows
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input_field, create_card, apply_tooltip, create_heading, create_subheading, create_badge
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, create_input_field, create_card, apply_tooltip, create_heading, create_subheading, create_badge
 from PyQt5.QtCore import Qt, QDate, QTimer
 from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
@@ -318,7 +317,7 @@ class ModuloFinanzas(ModuloBase):
             ctrl.addWidget(b)
 
         br = create_primary_button(self, "🔄 Actualizar", "Actualizar datos financieros")
-        br.clicked.connect(lambda _, _vs=s: self._on_tab(_vself.tabs.currentIndex()))
+        br.clicked.connect(lambda _: self._on_tab(self.tabs.currentIndex()))
         ctrl.addWidget(br)
 
         bs = create_success_button(self, "🔗 Sincronizar", "Sincronizar CXP desde compras y CXC desde ventas crédito")
