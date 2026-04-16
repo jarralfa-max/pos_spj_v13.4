@@ -199,3 +199,16 @@ def test_ventas_py_tiene_metodo_toggle_canje():
     ]
     assert "_toggle_canje" in methods, "_toggle_canje no está definido en modulos/ventas.py"
     assert "_recalcular_canje" in methods, "_recalcular_canje no está definido en modulos/ventas.py"
+
+
+def test_ventas_py_no_duplica_metodos_canje():
+    """Evita regresión por doble definición accidental en DialogoPago."""
+    import ast
+    src = open("modulos/ventas.py").read()
+    tree = ast.parse(src)
+    names = [
+        n.name for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name in {"_toggle_canje", "_recalcular_canje"}
+    ]
+    assert names.count("_toggle_canje") == 1, "_toggle_canje está duplicado en modulos/ventas.py"
+    assert names.count("_recalcular_canje") == 1, "_recalcular_canje está duplicado en modulos/ventas.py"
