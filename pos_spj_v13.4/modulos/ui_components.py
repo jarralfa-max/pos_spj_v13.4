@@ -182,7 +182,7 @@ def create_icon_button(parent, icon_path: str, tooltip: str, variant: str = "sec
 #  INPUTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_input_field(parent, placeholder: str = "", tooltip: str = None,
+def create_input_field(parent=None, placeholder: str = "", tooltip: str = None,
                        min_width: int = None, max_width: int = None,
                        fixed_width: int = None, **_ignored) -> QLineEdit:
     """Crea un input field estandarizado."""
@@ -220,7 +220,7 @@ def create_combo(parent=None, items: list = None, placeholder: str = "", tooltip
     combo.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
     combo.setObjectName("standardInput")
     
-    if items:
+    if items and combo is not None:
         combo.addItems(items)
     
     if placeholder:

@@ -1284,20 +1284,14 @@ class DialogoReceta(QDialog):
                 self._tbl_comp.setItem(ri, ci, it)
         grand = float(total_rend + total_merma)
         ok = grand <= 100.01
-        color = _C4 if ok else _C5
         icon  = "✅" if ok else "❌ EXCEDE 100%"
         self._lbl_totales.setText(
             f"{icon}  Rendimiento total: {float(total_rend):.3f}%  |  "
             f"Merma total: {float(total_merma):.3f}%  |  "
             f"Suma: {grand:.3f}%"
         )
-        # Usar objectName para estilos dinámicos en lugar de setStyleSheet
-        if color == "red":
-            self._lbl_totales.setObjectName("textDanger")
-        elif color == "green":
-            self._lbl_totales.setObjectName("textSuccess")
-        else:
-            self._lbl_totales.setObjectName("textPrimary")
+        # Usar objectName para estilos dinámicos en lugar de setStyleSheet.
+        self._lbl_totales.setObjectName("textSuccess" if ok else "textDanger")
         # Forzar actualización de estilo
         self._lbl_totales.style().unpolish(self._lbl_totales)
         self._lbl_totales.style().polish(self._lbl_totales)

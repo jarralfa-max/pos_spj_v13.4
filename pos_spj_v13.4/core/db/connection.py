@@ -349,6 +349,68 @@ def verificar_tablas(conn) -> None:
         )
 
 
+def _column_exists(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    except Exception:
+        return False
+    for row in rows:
+        # sqlite3.Row o tuple
+        name = row["name"] if isinstance(row, sqlite3.Row) else row[1]
+        if name == column_name:
+            return True
+    return False
+
+
+def migrate_db(conn: sqlite3.Connection) -> None:
+    """
+    Migraciones defensivas de compatibilidad para DB legacy.
+    - Agrega columnas faltantes `created_at` y `activo` donde se usan en queries.
+    - Idempotente y seguro de ejecutar en cada arranque.
+    """
+    compat_columns = {
+        "productos": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "clientes": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "proveedores": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "personal": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "recetas_produccion": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+    }
+    for table_name, columns in compat_columns.items():
+        table_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,),
+        ).fetchone()
+        if not table_exists:
+            continue
+        for column_name, ddl in columns:
+            if _column_exists(conn, table_name, column_name):
+                continue
+            conn.execute(
+                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}"
+            )
+            logger.warning(
+                "DB compat: columna agregada %s.%s",
+                table_name,
+                column_name,
+            )
+    conn.commit()
+
+
 # ─────────────────────────────────────────────────────────────
 # SHIMS DE COMPATIBILIDAD
 # ─────────────────────────────────────────────────────────────
@@ -421,4 +483,5 @@ __all__ = [
     "Connection",
     "Database",
     "get_db",
+    "migrate_db",
 ]

@@ -59,11 +59,12 @@ def _bootstrap_db(db_path: str) -> None:
 
     # Fallback interno: migrar + validar sin depender del módulo scripts
     import sqlite3
-    from core.db.connection import verificar_tablas
+    from core.db.connection import migrate_db, verificar_tablas
 
     conn = sqlite3.connect(db_path)
     try:
         migrator.up(conn)
+        migrate_db(conn)
         verificar_tablas(conn)
     finally:
         conn.close()
@@ -166,9 +167,10 @@ def inicializar_sistema():
 
     try:
         import sqlite3
-        from core.db.connection import verificar_tablas
+        from core.db.connection import migrate_db, verificar_tablas
         conn = sqlite3.connect(DB_PATH)
         migrator.up(conn)
+        migrate_db(conn)
         verificar_tablas(conn)
         conn.close()
         logger.info("✅ Migraciones OK")

@@ -33,7 +33,9 @@ def _run_migrations(db_path: str) -> None:
     try:
         try:
             from migrations import engine as migration_engine  # path canónico
+            from core.db.connection import migrate_db
             migration_engine.up(conn)
+            migrate_db(conn)
         except Exception:
             import importlib.util
             engine_path = ROOT / "pos_spj_v13.4" / "migrations" / "engine.py"
@@ -41,6 +43,8 @@ def _run_migrations(db_path: str) -> None:
             engine_mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(engine_mod)
             engine_mod.up(conn)
+            from core.db.connection import migrate_db
+            migrate_db(conn)
     finally:
         conn.close()
 
