@@ -479,7 +479,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         fl = QFormLayout(grp_logo)
         self.txt_logo_path = QLineEdit(self.plantilla.get("logo_path", ""))
         self.txt_logo_path.setReadOnly(True)
-        btn_logo = QPushButton("📁 Seleccionar...")
+        btn_logo = create_secondary_button(self, "📁 Seleccionar logo")
+        apply_tooltip(btn_logo, "Seleccionar archivo de imagen para el logo")
         btn_logo.clicked.connect(self._seleccionar_logo)
         logo_row = QHBoxLayout(); logo_row.addWidget(self.txt_logo_path, 1); logo_row.addWidget(btn_logo)
         fl.addRow("Archivo:", logo_row)
@@ -490,11 +491,12 @@ class ModuloLoyaltyCardDesigner(QWidget):
         fbg = QFormLayout(grp_bg)
         self.txt_bg_path = QLineEdit(self.plantilla.get("bg_image_path", ""))
         self.txt_bg_path.setReadOnly(True)
-        btn_bg = QPushButton("📁 Cargar fondo...")
+        btn_bg = create_secondary_button(self, "📁 Cargar imagen de fondo")
+        apply_tooltip(btn_bg, "Seleccionar archivo de imagen para el fondo de la tarjeta")
         btn_bg.clicked.connect(self._seleccionar_fondo)
-        btn_bg_clear = QPushButton("🗑️")
-        btn_bg_clear.setFixedWidth(36)
+        btn_bg_clear = create_danger_button(self, "🗑️ Limpiar fondo")
         apply_tooltip(btn_bg_clear, "Quitar imagen de fondo")
+        btn_bg_clear.setFixedWidth(120)
         btn_bg_clear.clicked.connect(lambda: (
             self.txt_bg_path.clear(),
             self.plantilla.update({"bg_image_path": ""}),
@@ -544,6 +546,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
 
     def _mk_color_btn(self, color: str, campo: str) -> QPushButton:
         btn = QPushButton(color)
+        spj_btn(btn, "secondary")
         btn.setStyleSheet(f"background:{color};color:{'white' if color.startswith('#') and color[1:3] < '80' else 'black'};")
         btn.clicked.connect(lambda _, c=campo, b=btn: self._pick_color(c, b))
         return btn
@@ -840,11 +843,15 @@ class ModuloLoyaltyCardDesigner(QWidget):
         lay.addWidget(self.tbl_tarj)
 
         acc = QHBoxLayout()
-        for label, slot in [("💰 Ajustar puntos", self._ajustar_puntos),
-                             ("⬆ Subir nivel", self._subir_nivel),
-                             ("🔒 Bloquear", self._bloquear),
-                             ("+ Asignar nueva", self._asignar_nueva)]:
-            btn = QPushButton(label); btn.clicked.connect(slot); acc.addWidget(btn)
+        for label, slot in [
+            ("💰 Ajustar puntos", self._ajustar_puntos),
+            ("⬆ Subir nivel", self._subir_nivel),
+            ("🔒 Bloquear", self._bloquear),
+            ("+ Asignar nueva", self._asignar_nueva)
+        ]:
+            btn = create_secondary_button(self, label)
+            btn.clicked.connect(slot)
+            acc.addWidget(btn)
         lay.addLayout(acc)
         return w
 
@@ -994,7 +1001,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
                 self.tbl_hist_lotes.setItem(ri, ci, it)
             ruta = r[3] or ""
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
-            btn_abr = QPushButton("📄 Abrir")
+            btn_abr = create_secondary_button(self, "📄 Abrir PDF")
+            apply_tooltip(btn_abr, "Abrir archivo PDF generado")
             btn_abr.setObjectName("smallBtn")
             btn_abr.setEnabled(bool(ruta and os.path.exists(ruta)))
             btn_abr.clicked.connect(lambda _, p=ruta: self._abrir_pdf(p))
