@@ -26,9 +26,10 @@ except ImportError:
     HAS_QR = False
 
 try:
-    from reportlab.lib.pagesizes import mm, A4
+    from reportlab.lib.pagesizes import mm, inch
     from reportlab.pdfgen import canvas as rl_canvas
     from reportlab.lib.utils import ImageReader
+    from reportlab.lib.colors import HexColor
     HAS_REPORTLAB = True
 except ImportError:
     HAS_REPORTLAB = False
@@ -435,8 +436,8 @@ class CardBatchEngine:
         self,
         batch_id:  int,
         ruta_pdf:  str,
-        cols:      int = 4,
-        rows_page: int = 8,
+        cols:      int = 6,
+        rows_page: int = 4,
     ) -> int:
         """
         Genera PDF con todas las tarjetas del lote para imprenta.
@@ -461,8 +462,9 @@ class CardBatchEngine:
 
         batch = self._load_batch(batch_id)
 
-        c    = rl_canvas.Canvas(ruta_pdf, pagesize=A4)
-        W, H = A4
+        pagesize = (12 * inch, 18 * inch)
+        c    = rl_canvas.Canvas(ruta_pdf, pagesize=pagesize)
+        W, H = pagesize
         mg   = 10 * mm
         cell_w = (W - 2 * mg) / cols
         cell_h = (H - 2 * mg) / rows_page
@@ -474,10 +476,11 @@ class CardBatchEngine:
             c.rect(x + 1*mm, y + 1*mm, cell_w - 2*mm, cell_h - 2*mm)
             # Número
             c.setFont("Helvetica-Bold", 7)
-            c.setFillColorRGB(0, 0, 0)
+            c.setFillColor(HexColor("#ffc72c"))
             c.drawString(x + 3*mm, y + cell_h - 8*mm, numero)
             # Nivel
             c.setFont("Helvetica", 6)
+            c.setFillColor(HexColor("#ffc72c"))
             c.drawString(x + 3*mm, y + cell_h - 13*mm, f"Nivel: {nivel}")
             # QR si disponible
             if HAS_QR and qr_code:
@@ -490,6 +493,7 @@ class CardBatchEngine:
                                     y + 2*mm, qr_size, qr_size)
                 except Exception:
                     c.setFont("Helvetica", 5)
+                    c.setFillColor(HexColor("#ffc72c"))
                     c.drawString(x + 3*mm, y + cell_h/2, qr_code[:16])
 
         idx = 0
