@@ -131,6 +131,13 @@ class FinanceService:
             return "0"
         return "COALESCE(" + ", ".join(opts + ["0"]) + ")"
 
+    def _resolve_column(self, table: str, *candidates: str) -> Optional[str]:
+        """Retorna la primera columna existente de `candidates` para `table`."""
+        for col in candidates:
+            if self._has_column(table, col):
+                return col
+        return None
+
     # ═════════════════════════════════════════════════════════════════════════
     # DASHBOARD KPIs
     # ═════════════════════════════════════════════════════════════════════════
@@ -194,12 +201,14 @@ class FinanceService:
         cxc_count = int  (cxc_row["cxc_count"] or 0) if cxc_row else 0
 
         # Nómina del período
-        nom_row = self.db.fetchone("""
+        nomina_date_col = self._resolve_column("nomina_pagos", "created_at", "fecha", "fecha_registro")
+        nom_filter = f"DATE({nomina_date_col}) BETWEEN DATE(?) AND DATE(?)" if nomina_date_col else "1=1"
+        nom_row = self.db.fetchone(f"""
             SELECT COALESCE(SUM(total), 0) AS nomina
             FROM nomina_pagos
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            WHERE {nom_filter}
               AND estado = 'pagado'
-        """, (df, dt))
+        """, (df, dt) if nomina_date_col else ())
         nomina = float(nom_row["nomina"] or 0) if nom_row else 0
 
         # Valor inventario
@@ -212,9 +221,10 @@ class FinanceService:
         inv_val = float(inv_row["inv_val"] or 0) if inv_row else 0
 
         # Activos fijos
-        assets_row = self.db.fetchone("""
+        assets_activo = "AND activo=1" if self._has_column("assets", "activo") else ""
+        assets_row = self.db.fetchone(f"""
             SELECT COALESCE(SUM(valor_actual), 0) AS activos_total
-            FROM assets WHERE activo = 1 AND estado != 'dado_baja'
+            FROM assets WHERE estado != 'dado_baja' {assets_activo}
         """)
         activos_val = float(assets_row["activos_total"] or 0) if assets_row else 0
 
@@ -275,9 +285,10 @@ class FinanceService:
         """)
         inventario = float(inv_row["v"] or 0) if inv_row else 0
 
-        af_row = self.db.fetchone("""
+        assets_activo = "AND activo=1" if self._has_column("assets", "activo") else ""
+        af_row = self.db.fetchone(f"""
             SELECT COALESCE(SUM(valor_actual), 0) AS v
-            FROM assets WHERE activo=1 AND estado != 'dado_baja'
+            FROM assets WHERE estado != 'dado_baja' {assets_activo}
         """)
         activos_fijos = float(af_row["v"] or 0) if af_row else 0
 
@@ -302,8 +313,9 @@ class FinanceService:
         cxp = float(cxp_row["v"] or 0) if cxp_row else 0
 
         gasto_activo = "AND activo = 1" if self._has_column("gastos", "activo") else ""
+        gastos_pagado_expr = "COALESCE(monto_pagado,0)" if self._has_column("gastos", "monto_pagado") else "0"
         gastos_pend_row = self.db.fetchone(f"""
-            SELECT COALESCE(SUM(monto - COALESCE(monto_pagado,0)), 0) AS v
+            SELECT COALESCE(SUM(monto - {gastos_pagado_expr}), 0) AS v
             FROM gastos WHERE estado != 'pagado' {gasto_activo}
         """)
         gastos_pend = float(gastos_pend_row["v"] or 0) if gastos_pend_row else 0
@@ -391,11 +403,13 @@ class FinanceService:
         pagos_prov = float(pagos_prov_row["total"] or 0) if pagos_prov_row else 0
 
         # Nómina pagada
-        nomina_row = self.db.fetchone("""
+        nomina_date_col = self._resolve_column("nomina_pagos", "created_at", "fecha", "fecha_registro")
+        nom_filter = f"DATE({nomina_date_col}) BETWEEN DATE(?) AND DATE(?)" if nomina_date_col else "1=1"
+        nomina_row = self.db.fetchone(f"""
             SELECT COALESCE(SUM(total), 0) AS total FROM nomina_pagos
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            WHERE {nom_filter}
               AND estado = 'pagado'
-        """, (date_from, date_to))
+        """, (date_from, date_to) if nomina_date_col else ())
         nomina_tot = float(nomina_row["total"] or 0) if nomina_row else 0
 
         entradas = round(ventas_tot + cobros_cxc, 2)
@@ -448,28 +462,30 @@ class FinanceService:
         self, date_from: str, date_to: str
     ) -> Dict:
         """Gastos agrupados por categoría y estado para el período."""
-        by_cat = self.db.fetchall("""
+        gastos_pagado_expr = "COALESCE(monto_pagado,0)" if self._has_column("gastos", "monto_pagado") else "0"
+        gasto_activo = "AND activo=1" if self._has_column("gastos", "activo") else ""
+        by_cat = self.db.fetchall(f"""
             SELECT categoria,
                    COUNT(*)            AS num_registros,
                    SUM(monto)          AS total,
-                   SUM(COALESCE(monto_pagado,0)) AS pagado,
-                   SUM(monto - COALESCE(monto_pagado,0)) AS pendiente
+                   SUM({gastos_pagado_expr}) AS pagado,
+                   SUM(monto - {gastos_pagado_expr}) AS pendiente
             FROM gastos
             WHERE DATE(fecha) BETWEEN DATE(?) AND DATE(?)
-              AND activo=1
+              {gasto_activo}
             GROUP BY categoria
             ORDER BY total DESC
         """, (date_from, date_to))
 
-        detalle = self.db.fetchall("""
+        detalle = self.db.fetchall(f"""
         SELECT g.id, g.fecha, g.categoria, g.concepto, g.descripcion,
-                   g.monto, g.monto_pagado, g.estado, g.metodo_pago,
+                   g.monto, {gastos_pagado_expr} AS monto_pagado, g.estado, g.metodo_pago,
                    g.recurrente, g.usuario,
                    COALESCE(p.nombre, g.referencia, '') AS proveedor
             FROM gastos g
             LEFT JOIN proveedores p ON p.id = g.proveedor_id
             WHERE DATE(g.fecha) BETWEEN DATE(?) AND DATE(?)
-              AND g.activo=1
+              {gasto_activo}
             ORDER BY g.fecha DESC
         """, (date_from, date_to))
 
@@ -802,8 +818,10 @@ class FinanceService:
     def get_assets(
         self, estado: Optional[str] = None, tipo: Optional[str] = None
     ) -> List[Dict]:
-        conds = ["activo=1"]
+        conds = ["1=1"]
         params = []
+        if self._has_column("assets", "activo"):
+            conds.append("activo=1")
         if estado:
             conds.append("estado=?"); params.append(estado)
         if tipo:
@@ -921,11 +939,13 @@ class FinanceService:
         params = []
         if empleado_id:
             conds.append("np.empleado_id=?"); params.append(empleado_id)
-        if date_from:
-            conds.append("DATE(np.created_at) >= DATE(?)"); params.append(date_from)
-        if date_to:
-            conds.append("DATE(np.created_at) <= DATE(?)"); params.append(date_to)
+        nomina_date_col = self._resolve_column("nomina_pagos", "created_at", "fecha", "fecha_registro")
+        if date_from and nomina_date_col:
+            conds.append(f"DATE(np.{nomina_date_col}) >= DATE(?)"); params.append(date_from)
+        if date_to and nomina_date_col:
+            conds.append(f"DATE(np.{nomina_date_col}) <= DATE(?)"); params.append(date_to)
         params.append(limit)
+        order_col = nomina_date_col or "id"
         rows = self.db.fetchall(f"""
             SELECT np.*,
                    COALESCE(p.nombre,'?') || ' ' || COALESCE(p.apellidos,'') AS empleado_nombre,
@@ -933,7 +953,7 @@ class FinanceService:
             FROM nomina_pagos np
             LEFT JOIN personal p ON p.id = np.empleado_id
             WHERE {' AND '.join(conds)}
-            ORDER BY np.created_at DESC LIMIT ?
+            ORDER BY np.{order_col} DESC LIMIT ?
         """, params)
         return [dict(r) for r in rows]
 
@@ -975,11 +995,13 @@ class FinanceService:
         return cur.lastrowid
 
     def costo_nomina_mes(self, date_from: str, date_to: str) -> float:
-        row = self.db.fetchone("""
+        nomina_date_col = self._resolve_column("nomina_pagos", "created_at", "fecha", "fecha_registro")
+        nom_filter = f"DATE({nomina_date_col}) BETWEEN DATE(?) AND DATE(?)" if nomina_date_col else "1=1"
+        row = self.db.fetchone(f"""
         SELECT COALESCE(SUM(total),0) AS total FROM nomina_pagos
-            WHERE DATE(created_at) BETWEEN DATE(?) AND DATE(?)
+            WHERE {nom_filter}
               AND estado='pagado'
-        """, (date_from, date_to))
+        """, (date_from, date_to) if nomina_date_col else ())
         return float(row["total"] or 0) if row else 0
 
     # ═════════════════════════════════════════════════════════════════════════
