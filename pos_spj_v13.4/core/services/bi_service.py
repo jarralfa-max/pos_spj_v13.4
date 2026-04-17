@@ -10,9 +10,9 @@ class BIService:
     Orquestador de Inteligencia de Negocios.
     Recopila los datos de los repositorios y los formatea para el Dashboard.
     """
-    def __init__(self, bi_repo, feature_flag_service):
+    def __init__(self, bi_repo, feature_flag_service=None, feature_flag_svc=None):
         self.repo = bi_repo
-        self.feature_flag_service = feature_flag_service
+        self.feature_flag_service = feature_flag_service or feature_flag_svc
 
     # ── Caché en memoria: evita recalcular el mismo rango repetidamente ─────
     _cache: dict = {}
