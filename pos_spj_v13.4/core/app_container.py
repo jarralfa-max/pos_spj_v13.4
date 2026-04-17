@@ -354,6 +354,18 @@ class AppContainer:
             self.uc_produccion = None
             logger.debug("uc_produccion: %s", _uc_p)
 
+        # ── v13.5: ERP Use Cases — compra, cliente, nomina ──────────────────
+        try:
+            from core.use_cases.compra import ProcesarCompraUC
+            from core.use_cases.cliente import GestionarClienteUC
+            from core.use_cases.nomina import GestionarNominaUC
+            self.uc_compra  = ProcesarCompraUC.desde_container(self)
+            self.uc_cliente = GestionarClienteUC.desde_container(self)
+            self.uc_nomina  = GestionarNominaUC.desde_container(self)
+        except Exception as _uc_erp:
+            self.uc_compra = self.uc_cliente = self.uc_nomina = None
+            logger.debug("uc_erp v13.5: %s", _uc_erp)
+
         # ── v13.4: EventLogger para sync (usado por handlers del EventBus) ──
         try:
             from sync.event_logger import EventLogger
