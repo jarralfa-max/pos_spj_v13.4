@@ -115,6 +115,8 @@ class ModuloReportesBIv2(QWidget):
 
         # ── Rentabilidad por producto (tab adicional) ─────────────────────────
         self._build_rentabilidad_section(layout_principal)
+        self._build_cajeros_section(layout_principal)
+        self._build_forecast_section(layout_principal)
         self._build_decision_engine_section(layout_principal)
         self._build_franchise_section(layout_principal)
 
@@ -149,6 +151,187 @@ class ModuloReportesBIv2(QWidget):
 
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
+
+    # ── Rendimiento Cajeros: ranking por frecuencia y volumen ─────────────────
+
+    def _build_cajeros_section(self, parent_layout):
+        """Ranking de cajeros por # transacciones, volumen y ticket prom. Fase 2."""
+        grp = QGroupBox("📊 Rendimiento de Cajeros")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_caj = create_primary_button(self, "📋 Cargar Ranking Cajeros",
+                                        "Calcular ranking de cajeros por transacciones y volumen")
+        btn_caj.clicked.connect(self._cargar_cajeros)
+        toolbar.addWidget(btn_caj)
+        toolbar.addStretch()
+        self._lbl_caj_estado = QLabel("Haz clic para ver el rendimiento de cajeros del mes.")
+        self._lbl_caj_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_caj_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_caj = QTableWidget()
+        self._tbl_caj.setColumnCount(6)
+        self._tbl_caj.setHorizontalHeaderLabels([
+            "Cajero", "# Ventas", "Total $", "Ticket Prom $", "Descuentos $", "Días Activo"
+        ])
+        hh = self._tbl_caj.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_caj.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_caj.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_caj.setAlternatingRowColors(True)
+        self._tbl_caj.setMaximumHeight(240)
+        lay.addWidget(self._tbl_caj)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_cajeros(self):
+        """Carga ranking de cajeros via BIService.ranking_cajeros()."""
+        self._tbl_caj.setRowCount(0)
+        try:
+            bi_svc = getattr(self.container, "bi_service", None)
+            if bi_svc is None:
+                self._lbl_caj_estado.setText("BIService no disponible.")
+                return
+            rango = self.cmb_rango.currentText()
+            rango_key = "hoy" if "hoy" in rango.lower() else \
+                        "semana" if "semana" in rango.lower() else "mes"
+            rows = bi_svc.ranking_cajeros(self.sucursal_id, rango_key)
+            self._lbl_caj_estado.setText(f"{len(rows)} cajeros encontrados.")
+            for i, r in enumerate(rows):
+                self._tbl_caj.insertRow(i)
+                vals = [
+                    str(r.get("cajero", "(sin usuario)")),
+                    str(r.get("num_ventas", 0)),
+                    f"${float(r.get('total_ventas', 0)):,.2f}",
+                    f"${float(r.get('ticket_promedio', 0)):,.2f}",
+                    f"${float(r.get('total_descuentos', 0)):,.2f}",
+                    str(r.get("dias_activo", 0)),
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if i == 0:  # Top cajero destacado
+                        item.setForeground(
+                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#27ae60'))
+                    self._tbl_caj.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_caj_estado.setText(f"Error: {exc}")
+
+    # ── ActionableForecast: plan de compras y riesgos ─────────────────────────
+
+    def _build_forecast_section(self, parent_layout):
+        """Plan de compras semanal + análisis de riesgos de inventario. Fase 5."""
+        grp = QGroupBox("🔮 Forecast & Abastecimiento (ActionableForecast)")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_compras = create_primary_button(self, "🛒 Plan Compras Semanal",
+                                            "Generar plan de compras basado en demanda histórica")
+        btn_compras.clicked.connect(self._cargar_plan_compras)
+        btn_riesgos = create_secondary_button(self, "⚠️ Análisis de Riesgos",
+                                              "Detectar productos con riesgo de desabasto")
+        btn_riesgos.clicked.connect(self._cargar_riesgos_inventario)
+        toolbar.addWidget(btn_compras)
+        toolbar.addWidget(btn_riesgos)
+        toolbar.addStretch()
+        self._lbl_fc_estado = QLabel("Selecciona una acción para generar el forecast.")
+        self._lbl_fc_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_fc_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_fc = QTableWidget()
+        self._tbl_fc.setColumnCount(6)
+        self._tbl_fc.setHorizontalHeaderLabels([
+            "Producto", "Stock Actual", "Demanda/día", "Días Stock",
+            "Comprar", "Costo Estimado $"
+        ])
+        hh = self._tbl_fc.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_fc.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_fc.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_fc.setAlternatingRowColors(True)
+        self._tbl_fc.setMaximumHeight(240)
+        lay.addWidget(self._tbl_fc)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_plan_compras(self):
+        """Carga el plan de compras via ActionableForecastService.plan_compras_semanal()."""
+        self._tbl_fc.setRowCount(0)
+        self._tbl_fc.setHorizontalHeaderLabels([
+            "Producto", "Stock Actual", "Demanda/día", "Días Stock",
+            "Comprar", "Costo Estimado $"
+        ])
+        try:
+            svc = getattr(self.container, "actionable_forecast", None)
+            if svc is None:
+                self._lbl_fc_estado.setText("ActionableForecastService no disponible.")
+                return
+            rows = svc.plan_compras_semanal(sucursal_id=self.sucursal_id)
+            self._lbl_fc_estado.setText(f"{len(rows)} productos en plan de compras.")
+            for i, r in enumerate(rows):
+                self._tbl_fc.insertRow(i)
+                prioridad = r.get("prioridad", "")
+                vals = [
+                    str(r.get("producto", "")),
+                    f"{float(r.get('stock_actual', 0)):.2f}",
+                    f"{float(r.get('demanda_diaria', 0)):.2f}",
+                    f"{float(r.get('dias_stock', 0)):.1f}",
+                    f"{float(r.get('comprar_kg', r.get('cantidad_comprar', 0))):.2f}",
+                    f"${float(r.get('costo_est', r.get('costo_estimado', 0))):,.2f}",
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if prioridad == "alta" and j == 0:
+                        item.setForeground(
+                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                    self._tbl_fc.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_fc_estado.setText(f"Error: {exc}")
+
+    def _cargar_riesgos_inventario(self):
+        """Carga riesgos de inventario via ActionableForecastService.analisis_riesgos()."""
+        self._tbl_fc.setRowCount(0)
+        self._tbl_fc.setHorizontalHeaderLabels([
+            "Tipo Riesgo", "Producto", "Días Stock", "Stock Actual",
+            "Prioridad", "Acción Sugerida"
+        ])
+        try:
+            svc = getattr(self.container, "actionable_forecast", None)
+            if svc is None:
+                self._lbl_fc_estado.setText("ActionableForecastService no disponible.")
+                return
+            rows = svc.analisis_riesgos(sucursal_id=self.sucursal_id)
+            self._lbl_fc_estado.setText(f"{len(rows)} riesgos detectados.")
+            for i, r in enumerate(rows):
+                self._tbl_fc.insertRow(i)
+                vals = [
+                    str(r.get("tipo", "")),
+                    str(r.get("producto", "")),
+                    f"{float(r.get('dias_stock', 0)):.1f}",
+                    f"{float(r.get('stock_actual', 0)):.2f}",
+                    str(r.get("prioridad", "")),
+                    str(r.get("accion", r.get("accion_sugerida", "")))[:60],
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if r.get("prioridad") == "crítica":
+                        item.setForeground(
+                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                    self._tbl_fc.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_fc_estado.setText(f"Error: {exc}")
 
     # ── DecisionEngine: sugerencias accionables ───────────────────────────────
 

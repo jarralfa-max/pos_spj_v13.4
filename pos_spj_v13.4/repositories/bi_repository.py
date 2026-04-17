@@ -77,3 +77,48 @@ class BIRepository:
             LIMIT 10
         """
         return [dict(row) for row in self.db.execute(query, (sucursal_id, fecha_inicio, fecha_fin)).fetchall()]
+
+    def get_ranking_cajeros(self, sucursal_id: int, fecha_inicio: str,
+                            fecha_fin: str, limite: int = 20) -> list:
+        """
+        Ranking de cajeros por número de transacciones, volumen y ticket promedio.
+        Fase 2 — Plan Maestro SPJ v13.4: frecuencia y rendimiento por cajero.
+        """
+        query = """
+            SELECT
+                COALESCE(usuario, '(sin usuario)') AS cajero,
+                COUNT(id)          AS num_ventas,
+                SUM(total)         AS total_ventas,
+                AVG(total)         AS ticket_promedio,
+                SUM(descuento)     AS total_descuentos,
+                COUNT(DISTINCT DATE(fecha)) AS dias_activo
+            FROM ventas
+            WHERE sucursal_id = ?
+              AND estado = 'completada'
+              AND date(fecha) BETWEEN date(?) AND date(?)
+            GROUP BY usuario
+            ORDER BY num_ventas DESC
+            LIMIT ?
+        """
+        return [dict(row) for row in self.db.execute(
+            query, (sucursal_id, fecha_inicio, fecha_fin, limite)).fetchall()]
+
+    def get_scan_telemetria(self, sucursal_id: int, fecha_inicio: str,
+                            fecha_fin: str) -> list:
+        """
+        Resumen de eventos de escaneo por tipo y acción.
+        Fase 2 — trazabilidad de escáner.
+        """
+        try:
+            query = """
+                SELECT tipo, accion, COUNT(*) AS total
+                FROM scan_event_log
+                WHERE sucursal_id = ?
+                  AND date(created_at) BETWEEN date(?) AND date(?)
+                GROUP BY tipo, accion
+                ORDER BY total DESC
+            """
+            return [dict(row) for row in self.db.execute(
+                query, (sucursal_id, fecha_inicio, fecha_fin)).fetchall()]
+        except Exception:
+            return []

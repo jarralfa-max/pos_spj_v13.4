@@ -1458,6 +1458,18 @@ class ModuloVentas(ModuloBase):
             return
 
         ctx = self._scan_context
+        # Fase 2 — helper para telemetría de escaneo sin romper el flujo
+        def _log_scan(tipo: str, accion: str, cliente_id=None, producto_id=None):
+            try:
+                from core.services.qr_parser_service import QRParserService
+                usuario = getattr(self, 'usuario_actual', '')
+                suc_id  = getattr(self, 'sucursal_id', 1)
+                QRParserService.log_scan_raw(
+                    self.conexion, codigo, tipo, accion,
+                    cliente_id=cliente_id, producto_id=producto_id,
+                    sucursal_id=suc_id, usuario=usuario)
+            except Exception:
+                pass
 
         try:
             # ════════════════════════════════════════════════════════════════
@@ -1490,6 +1502,8 @@ class ModuloVentas(ModuloBase):
                             telefono="",
                             puntos=puntos,
                             nivel=nivel)
+                        _log_scan(qr_result.tipo, "cliente_cargado",
+                                  cliente_id=qr_result.client_id)
                         return
 
                     if qr_result.tipo == QRType.TARJETA and qr_result.valid:
@@ -1497,6 +1511,8 @@ class ModuloVentas(ModuloBase):
                             cliente_id=qr_result.client_id,
                             nombre=qr_result.nombre,
                             puntos=0, nivel="Bronce")
+                        _log_scan("tarjeta", "cliente_cargado",
+                                  cliente_id=qr_result.client_id)
                         return
 
                 # Fallback: búsqueda tradicional
@@ -1519,6 +1535,8 @@ class ModuloVentas(ModuloBase):
                         puntos=int(row_tarj['puntos']),
                         nivel=row_tarj['nivel'],
                     )
+                    _log_scan("tarjeta", "cliente_cargado",
+                              cliente_id=row_tarj['cliente_id'])
                     return
 
                 # 1b. Buscar cliente por ID o teléfono (NO por nombre LIKE)
@@ -1539,6 +1557,8 @@ class ModuloVentas(ModuloBase):
                         puntos=int(row_cli['puntos']),
                         nivel=row_cli['nivel'],
                     )
+                    _log_scan("client_id", "cliente_cargado",
+                              cliente_id=row_cli['id'])
                     return
 
                 # 1c. No encontrado — Flujo dual Fase 2 (Plan Maestro SPJ v13.4):
@@ -1549,8 +1569,10 @@ class ModuloVentas(ModuloBase):
                 _es_tarjeta = bool(_re2.match(
                     r'^(TF|TAR|CARD)-[A-Za-z0-9]+$', codigo, _re2.IGNORECASE))
                 if _es_tarjeta:
+                    _log_scan("tarjeta", "cliente_no_encontrado")
                     self._abrir_nuevo_cliente_con_tarjeta(codigo)
                     return
+                _log_scan("busqueda", "cliente_no_encontrado")
                 if hasattr(self, 'txt_cliente'):
                     self.txt_cliente.clear()
                     self.txt_cliente.setText(codigo)
@@ -1577,10 +1599,13 @@ class ModuloVentas(ModuloBase):
                     self.agregar_al_carrito(dict(row_prod))
                     self._mostrar_notif_scanner(
                         f"📦 {row_prod['nombre']}", "product")
+                    _log_scan("producto", "producto_agregado",
+                              producto_id=row_prod['id'])
                     if hasattr(self, 'txt_busqueda'):
                         self.txt_busqueda.clear()
                     return
                 # Not found → populate search field
+                _log_scan("producto", "producto_no_encontrado")
                 if hasattr(self, 'txt_busqueda'):
                     self.txt_busqueda.setText(codigo)
                     self.buscar_productos()
@@ -1607,6 +1632,8 @@ class ModuloVentas(ModuloBase):
             if row_prod:
                 self.agregar_al_carrito(dict(row_prod))
                 self._mostrar_notif_scanner(f"📦 {row_prod['nombre']}", "product")
+                _log_scan("producto", "producto_agregado",
+                          producto_id=row_prod['id'])
                 return
 
             # ── 2. Tarjeta de fidelidad ──────────────────────────────────────
@@ -1628,6 +1655,8 @@ class ModuloVentas(ModuloBase):
                     puntos=int(row_tarj['puntos']),
                     nivel=row_tarj['nivel'],
                 )
+                _log_scan("tarjeta", "cliente_cargado",
+                          cliente_id=row_tarj['cliente_id'])
                 return
 
             # ── 3. UUID contenedor ───────────────────────────────────────────
@@ -1644,11 +1673,13 @@ class ModuloVentas(ModuloBase):
                         self._mostrar_notif_scanner(
                             f"📦 Contenedor: {row_c['descripcion'] or codigo[:8]}...",
                             "container")
+                        _log_scan("contenedor", "contenedor_escaneado")
                         return
                 except Exception:
                     pass
 
             # ── 4. Sin coincidencia ──────────────────────────────────────────
+            _log_scan("busqueda", "sin_coincidencia")
             if hasattr(self, 'txt_busqueda'):
                 self.txt_busqueda.setText(codigo)
                 self.buscar_productos()

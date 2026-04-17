@@ -10,9 +10,9 @@ class BIService:
     Orquestador de Inteligencia de Negocios.
     Recopila los datos de los repositorios y los formatea para el Dashboard.
     """
-    def __init__(self, bi_repo, feature_flag_service):
+    def __init__(self, bi_repo, feature_flag_service=None, feature_flag_svc=None):
         self.repo = bi_repo
-        self.feature_flag_service = feature_flag_service
+        self.feature_flag_service = feature_flag_service or feature_flag_svc
 
     # ── Caché en memoria: evita recalcular el mismo rango repetidamente ─────
     _cache: dict = {}
@@ -153,6 +153,38 @@ class BIService:
             'ticket_prom': float(kpis.get('ticket_promedio') or 0),
             'periodo':     f"{fi} → {ff}",
         }
+
+    def ranking_cajeros(self, sucursal_id: int, rango: str = 'mes') -> list:
+        """
+        Ranking de cajeros por frecuencia, volumen y ticket promedio.
+        Fase 2 — Plan Maestro SPJ v13.4.
+        """
+        hoy = datetime.now()
+        if rango == 'hoy':
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'semana':
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:  # mes (default)
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        return self.repo.get_ranking_cajeros(sucursal_id, fecha_inicio, fecha_fin)
+
+    def scan_telemetria(self, sucursal_id: int, rango: str = 'mes') -> list:
+        """
+        Resumen de eventos de escaneo por tipo y acción.
+        Fase 2 — trazabilidad de escáner.
+        """
+        hoy = datetime.now()
+        if rango == 'hoy':
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'semana':
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        return self.repo.get_scan_telemetria(sucursal_id, fecha_inicio, fecha_fin)
 
     def invalidar_cache(self, branch_id: int = None) -> None:
         """Invalida el caché tras una venta (llamado desde EventBus)."""
