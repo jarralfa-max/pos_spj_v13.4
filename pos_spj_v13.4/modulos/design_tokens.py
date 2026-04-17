@@ -182,6 +182,11 @@ class Colors:
     ACCENT_BASE = "#7C3AED"
     ACCENT_HOVER = "#8B5CF6"
 
+    # Alias legacy de texto (evita crashes por atributos faltantes).
+    TEXT_PRIMARY = NeutralColors().SLATE_800
+    TEXT_SECONDARY = NeutralColors().SLATE_500
+    TEXT_MUTED = NeutralColors().SLATE_400
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ESPACIADO — Sistema de grid de 8px
