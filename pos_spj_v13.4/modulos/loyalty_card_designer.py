@@ -2,17 +2,12 @@
 """
 Diseñador y generador de tarjetas de fidelidad físicas.
 
-Layout CR80 (85.6 × 54mm):
-  ┌──────────┬────────────────────────┬──────────┐
-  │  [QR]    │  NOMBRE NEGOCIO        │  [LOGO]  │
-  │          │  Tarjeta de Fidelidad  │          │
-  │  ID:...  │  "Eslogan del negocio" │          │
-  └──────────┴────────────────────────┴──────────┘
-
+Layout: 24 tarjetas por hoja (12×18 pulgadas), grid 6×4
+  
 Pestañas:
   🎨 Diseñador — plantilla con vista previa en tiempo real
   ⚙️  QR Config — qué datos codifica cada QR
-  🖨️  Generar Lote — PDF para imprenta (8 tarjetas/página A4)
+  🖨️  Generar Lote — PDF para imprenta (24 tarjetas/hoja 12×18")
   📋 Emitidas — gestión de tarjetas asignadas
   📦 Historial Lotes — registro de PDFs generados
 """
@@ -59,7 +54,7 @@ PLANTILLA_DEFAULT = {
     "nombre_empresa": "CARNICERÍA SPJ",
     "eslogan": "Tu fidelidad, tu premio",
     "color_fondo": "#1a1a2e",
-    "color_texto": "#ffffff",
+    "color_texto": "#ffc72c",
     "color_acento": "#e94560",
     "logo_path": "",
     "qr_incluir_id": True,
@@ -227,18 +222,22 @@ class BatchPDFWorker(QThread):
     def run(self):
         try:
             from reportlab.pdfgen import canvas as rl_canvas
-            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.pagesizes import inch
             from reportlab.lib.units import mm
             from reportlab.graphics.barcode.qr import QrCodeWidget
             from reportlab.graphics.shapes import Drawing
             from reportlab.graphics import renderPDF
             from reportlab.lib.colors import HexColor, white
 
-            A4_W, A4_H = A4
-            CW = 85.6 * mm; CH = 54.0 * mm
-            GAP = 5 * mm; MARGIN = 10 * mm
-            cols = int((A4_W - 2 * MARGIN + GAP) / (CW + GAP))
-            rows = int((A4_H - 2 * MARGIN + GAP) / (CH + GAP))
+            # Tamaño de papel: 12 x 18 pulgadas
+            pagesize = (12 * inch, 18 * inch)
+            PAGE_W, PAGE_H = pagesize
+            # Grid: 6 columnas x 4 filas = 24 tarjetas por hoja
+            cols, rows = 6, 4
+            MARGIN = 5 * mm
+            GAP = 3 * mm
+            CW = (PAGE_W - 2 * MARGIN - (cols - 1) * GAP) / cols
+            CH = (PAGE_H - 2 * MARGIN - (rows - 1) * GAP) / rows
 
             p = self.plantilla
 
@@ -251,7 +250,7 @@ class BatchPDFWorker(QThread):
                 if p.get("qr_tiktok"):    parts.append(f"TT:{p['qr_tiktok']}")
                 return (p.get("qr_separador", "|")).join(parts) or card_id
 
-            c = rl_canvas.Canvas(self.output_path, pagesize=A4)
+            c = rl_canvas.Canvas(self.output_path, pagesize=pagesize)
             total = len(self.cards)
 
             def draw_card(x, y, card):
@@ -318,18 +317,18 @@ class BatchPDFWorker(QThread):
                     for col in range(cols):
                         if card_idx >= total: break
                         px2 = MARGIN + col * (CW + GAP)
-                        py2 = A4_H - MARGIN - (row + 1) * CH - row * GAP
+                        py2 = PAGE_H - MARGIN - (row + 1) * CH - row * GAP
                         draw_card(px2, py2, self.cards[card_idx])
                         card_idx += 1
                         self.progress.emit(card_idx, total)
                     if card_idx >= total: break
                 c.setStrokeColor(HexColor("#aaaaaa")); c.setLineWidth(0.2)
                 for rr in range(rows + 1):
-                    yc = A4_H - MARGIN - rr * (CH + GAP) + GAP / 2
-                    c.line(MARGIN - 3*mm, yc, A4_W - MARGIN + 3*mm, yc)
+                    yc = PAGE_H - MARGIN - rr * (CH + GAP) + GAP / 2
+                    c.line(MARGIN - 3*mm, yc, PAGE_W - MARGIN + 3*mm, yc)
                 for cc in range(cols + 1):
                     xc = MARGIN + cc * (CW + GAP) - GAP / 2
-                    c.line(xc, MARGIN - 3*mm, xc, A4_H - MARGIN + 3*mm)
+                    c.line(xc, MARGIN - 3*mm, xc, PAGE_H - MARGIN + 3*mm)
                 if card_idx < total: c.showPage()
 
             c.save()
@@ -479,7 +478,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
         fl = QFormLayout(grp_logo)
         self.txt_logo_path = QLineEdit(self.plantilla.get("logo_path", ""))
         self.txt_logo_path.setReadOnly(True)
-        btn_logo = QPushButton("📁 Seleccionar...")
+        btn_logo = create_secondary_button(self, "📁 Seleccionar logo")
+        apply_tooltip(btn_logo, "Seleccionar archivo de imagen para el logo")
         btn_logo.clicked.connect(self._seleccionar_logo)
         logo_row = QHBoxLayout(); logo_row.addWidget(self.txt_logo_path, 1); logo_row.addWidget(btn_logo)
         fl.addRow("Archivo:", logo_row)
@@ -490,11 +490,12 @@ class ModuloLoyaltyCardDesigner(QWidget):
         fbg = QFormLayout(grp_bg)
         self.txt_bg_path = QLineEdit(self.plantilla.get("bg_image_path", ""))
         self.txt_bg_path.setReadOnly(True)
-        btn_bg = QPushButton("📁 Cargar fondo...")
+        btn_bg = create_secondary_button(self, "📁 Cargar imagen de fondo")
+        apply_tooltip(btn_bg, "Seleccionar archivo de imagen para el fondo de la tarjeta")
         btn_bg.clicked.connect(self._seleccionar_fondo)
-        btn_bg_clear = QPushButton("🗑️")
-        btn_bg_clear.setFixedWidth(36)
+        btn_bg_clear = create_danger_button(self, "🗑️ Limpiar fondo")
         apply_tooltip(btn_bg_clear, "Quitar imagen de fondo")
+        btn_bg_clear.setFixedWidth(120)
         btn_bg_clear.clicked.connect(lambda: (
             self.txt_bg_path.clear(),
             self.plantilla.update({"bg_image_path": ""}),
@@ -543,8 +544,10 @@ class ModuloLoyaltyCardDesigner(QWidget):
         return w
 
     def _mk_color_btn(self, color: str, campo: str) -> QPushButton:
-        btn = QPushButton(color)
-        btn.setStyleSheet(f"background:{color};color:{'white' if color.startswith('#') and color[1:3] < '80' else 'black'};")
+        btn = QPushButton(f"🎨 {campo.replace('color_', '').capitalize()}")
+        spj_btn(btn, "secondary")
+        btn.setStyleSheet(f"background:{color};color:{'white' if color.startswith('#') and len(color) > 1 and color[1:3] < '80' else 'black'};font-weight:bold;")
+        btn.setToolTip(f"Seleccionar color para {campo.replace('_', ' ')}")
         btn.clicked.connect(lambda _, c=campo, b=btn: self._pick_color(c, b))
         return btn
 
@@ -553,8 +556,9 @@ class ModuloLoyaltyCardDesigner(QWidget):
         if col.isValid():
             hex_col = col.name()
             self.plantilla[campo] = hex_col
-            btn.setText(hex_col)
-            btn.setStyleSheet(f"background:{hex_col};color:white;")
+            label = f"🎨 {campo.replace('color_', '').capitalize()}"
+            btn.setText(label)
+            btn.setStyleSheet(f"background:{hex_col};color:{'white' if hex_col.startswith('#') and len(hex_col) > 1 and hex_col[1:3] < '80' else 'black'};font-weight:bold;")
             self._update_preview()
 
     def _seleccionar_logo(self):
@@ -693,7 +697,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         lay.addLayout(btn_row)
 
         info = QLabel(
-            "💡 El PDF contiene 8 tarjetas CR80 (85.6×54mm) por hoja A4 con marcas de corte.\n"
+            "💡 El PDF contiene 24 tarjetas por hoja (12×18 pulgadas) en grid 6×4 con marcas de corte.\n"
             "Envíalo a la imprenta en cartulina 350gr para obtener tarjetas de calidad.")
         info.setWordWrap(True)
         info.setObjectName("caption")
@@ -840,11 +844,15 @@ class ModuloLoyaltyCardDesigner(QWidget):
         lay.addWidget(self.tbl_tarj)
 
         acc = QHBoxLayout()
-        for label, slot in [("💰 Ajustar puntos", self._ajustar_puntos),
-                             ("⬆ Subir nivel", self._subir_nivel),
-                             ("🔒 Bloquear", self._bloquear),
-                             ("+ Asignar nueva", self._asignar_nueva)]:
-            btn = QPushButton(label); btn.clicked.connect(slot); acc.addWidget(btn)
+        for label, slot in [
+            ("💰 Ajustar puntos", self._ajustar_puntos),
+            ("⬆ Subir nivel", self._subir_nivel),
+            ("🔒 Bloquear", self._bloquear),
+            ("+ Asignar nueva", self._asignar_nueva)
+        ]:
+            btn = create_secondary_button(self, label)
+            btn.clicked.connect(slot)
+            acc.addWidget(btn)
         lay.addLayout(acc)
         return w
 
@@ -994,7 +1002,8 @@ class ModuloLoyaltyCardDesigner(QWidget):
                 self.tbl_hist_lotes.setItem(ri, ci, it)
             ruta = r[3] or ""
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
-            btn_abr = QPushButton("📄 Abrir")
+            btn_abr = create_secondary_button(self, "📄 Abrir PDF")
+            apply_tooltip(btn_abr, "Abrir archivo PDF generado")
             btn_abr.setObjectName("smallBtn")
             btn_abr.setEnabled(bool(ruta and os.path.exists(ruta)))
             btn_abr.clicked.connect(lambda _, p=ruta: self._abrir_pdf(p))
