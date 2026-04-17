@@ -389,6 +389,48 @@ def migrate_db(conn: sqlite3.Connection) -> None:
             ("created_at", "TEXT DEFAULT (datetime('now'))"),
             ("activo", "INTEGER DEFAULT 1"),
         ],
+        # Catálogos / configuración
+        "sucursales": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "categorias": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "usuarios": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        # RRHH
+        "empleados": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "puestos": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        # Producción / recetas
+        "recetas": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "receta_componentes": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        # Transferencias
+        "transferencias": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+            ("activo", "INTEGER DEFAULT 1"),
+        ],
+        "transfer_items": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+        ],
+        "mermas": [
+            ("created_at", "TEXT DEFAULT (datetime('now'))"),
+        ],
     }
     for table_name, columns in compat_columns.items():
         table_exists = conn.execute(

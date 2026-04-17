@@ -42,6 +42,8 @@ class UnifiedInventoryService:
             stock_ant=float(row[0] or 0); nombre=row[1]
             if es_salida and stock_ant<quantity: raise StockInsuficienteError(nombre,stock_ant,quantity)
             stock_nuevo=round(stock_ant+delta,4)
+            if stock_nuevo < 0:
+                raise StockInsuficienteError(nombre, stock_ant, quantity)
             mid=c.execute("""INSERT INTO movimientos_inventario
                 (uuid,producto_id,tipo,tipo_movimiento,cantidad,existencia_anterior,existencia_nueva,
                  costo_unitario,costo_total,descripcion,referencia,usuario,sucursal_id,fecha)
@@ -61,22 +63,30 @@ class UnifiedInventoryService:
         return mid
     def adjust_stock(self, producto_id, new_qty, reason="Ajuste", sucursal_id=None):
         """Ajusta el stock al valor exacto new_qty, creando movimiento de ajuste."""
+        new_qty = float(new_qty)
+        if new_qty < 0:
+            raise InventoryError(
+                f"No se permite stock negativo (producto_id={producto_id}, nuevo_stock={new_qty:.3f})."
+            )
         current = self.get_stock(producto_id)
         diff = new_qty - current
-        if diff == 0: return
+        if abs(diff) < 1e-9:
+            return
         if diff > 0:
             # Necesitamos subir el stock: usamos 'purchase' con delta positivo
             self.register_movement(producto_id, "purchase", diff,
                                    reference=reason, sucursal_id=sucursal_id,
                                    notas=f"Ajuste: {current:.3f} -> {new_qty:.3f}")
         else:
-            # Necesitamos bajar el stock: usamos 'adjustment' que no valida stock
-            # Pero adjustment no es salida en es_salida, asi que no descuenta.
-            # Necesitamos forzar la reduccion directamente:
+            # Necesitamos bajar el stock de forma explícita sin permitir valores negativos.
             from core.db.connection import transaction
             import uuid as _uuid
             with transaction(self.conn) as c:
                 stock_nuevo = round(new_qty, 4)
+                if stock_nuevo < 0:
+                    raise InventoryError(
+                        f"No se permite stock negativo (producto_id={producto_id}, nuevo_stock={stock_nuevo:.3f})."
+                    )
                 c.execute("""INSERT INTO movimientos_inventario
                     (uuid,producto_id,tipo,tipo_movimiento,cantidad,existencia_anterior,existencia_nueva,
                      descripcion,referencia,usuario,sucursal_id,fecha)
