@@ -22,6 +22,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QColor, QFont
 import logging
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_heading, create_primary_button, create_success_button, create_danger_button, create_secondary_button, apply_tooltip
 
 logger = logging.getLogger("spj.fidelidad_unified")
 
@@ -54,18 +56,14 @@ class ModuloFidelidadConfig(QWidget):
         # Header
         hdr = QHBoxLayout()
         titulo = QLabel("⭐ Centro de Fidelización")
-        titulo.setStyleSheet("font-size:18px;font-weight:bold;color:#2C3E50;padding:8px;")
+        titulo.setObjectName("heading")
         hdr.addWidget(titulo)
         hdr.addStretch()
         lay.addLayout(hdr)
 
         # Tabs principales
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border:1px solid #ddd; background:white; }
-            QTabBar::tab { padding:8px 16px; font-size:12px; }
-            QTabBar::tab:selected { background:#e67e22; color:white; font-weight:bold; }
-        """)
+        self.tabs.setObjectName("tabWidget")
         self.tabs.currentChanged.connect(self._on_tab_change)
 
         # v13.30 FIX: _tabs_loaded MUST exist before addTab triggers currentChanged
@@ -137,8 +135,7 @@ class ModuloFidelidadConfig(QWidget):
         form.addRow("Máximo por mes:", self.spin_ref_max)
         lay.addWidget(grp)
 
-        btn_save = QPushButton("💾 Guardar configuración")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        btn_save = create_success_button(self, "💾 Guardar configuración", "Guardar configuración del programa de referidos")
         btn_save.clicked.connect(self._guardar_config_referidos)
         lay.addWidget(btn_save)
 
@@ -229,8 +226,7 @@ class ModuloFidelidadConfig(QWidget):
         form.addRow("Mensaje WA:", self.txt_cumple_msg)
         lay.addWidget(grp)
 
-        btn_save = QPushButton("💾 Guardar")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        btn_save = create_success_button(self, "💾 Guardar", "Guardar configuración de cumpleaños")
         btn_save.clicked.connect(self._guardar_config_cumples)
         lay.addWidget(btn_save)
 
@@ -244,8 +240,7 @@ class ModuloFidelidadConfig(QWidget):
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
         lay.addWidget(self.tbl_cumples)
 
-        btn_enviar = QPushButton("📱 Enviar felicitaciones ahora")
-        btn_enviar.setStyleSheet("background:#25D366;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        btn_enviar = create_primary_button(self, "📱 Enviar felicitaciones ahora", "Enviar mensajes de cumpleaños vía WhatsApp")
         btn_enviar.clicked.connect(self._enviar_cumples)
         lay.addWidget(btn_enviar)
 
@@ -323,8 +318,7 @@ class ModuloFidelidadConfig(QWidget):
         form.addRow("Umbral de riesgo:", self.spin_dias_inactivo)
         lay.addWidget(grp)
 
-        btn_analizar = QPushButton("🔍 Analizar clientes en riesgo")
-        btn_analizar.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        btn_analizar = create_danger_button(self, "🔍 Analizar clientes en riesgo", "Identificar clientes que no han comprado recientemente")
         btn_analizar.clicked.connect(self._analizar_riesgo)
         lay.addWidget(btn_analizar)
 
@@ -339,7 +333,7 @@ class ModuloFidelidadConfig(QWidget):
         lay.addWidget(self.tbl_riesgo)
 
         self.lbl_riesgo_resumen = QLabel("")
-        self.lbl_riesgo_resumen.setStyleSheet("font-weight:bold;color:#e74c3c;padding:4px;")
+        self.lbl_riesgo_resumen.setObjectName("textDanger")
         lay.addWidget(self.lbl_riesgo_resumen)
 
     def _analizar_riesgo(self):

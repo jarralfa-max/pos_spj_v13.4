@@ -30,6 +30,21 @@ class HardwareService:
         except Exception as e:
             logger.error("Error cargando hardware_config: %s", e)
 
+    @staticmethod
+    def _safe_baud(config: Dict[str, Any], default: int = 9600) -> int:
+        """
+        Normaliza baud rate desde claves legacy (`baud`) o nuevas (`baud_rate`).
+        Retorna default si el valor es inválido.
+        """
+        raw = config.get("baud_rate", config.get("baud", default))
+        try:
+            baud = int(raw)
+            if 1200 <= baud <= 115200:
+                return baud
+        except Exception:
+            pass
+        return default
+
     # --- 1. CAJÓN DE DINERO ---
     def open_cash_drawer(self) -> bool:
         """Abre el cajón enviando el pulso a la impresora o puerto directo."""
@@ -45,7 +60,13 @@ class HardwareService:
                 # Aquí llamarías a la instancia de tu impresora para mandar el byte
                 return self._send_raw_to_printer(pulse)
             elif metodo == 'serial':
-                with serial.Serial(config['puerto'], config['baud_rate'], timeout=1) as s:
+                if serial is None:
+                    return False
+                puerto = config.get("puerto")
+                if not puerto:
+                    return False
+                baud = self._safe_baud(config)
+                with serial.Serial(puerto, baud, timeout=1) as s:
                     s.write(bytes([0x10, 0x14, 0x01, 0x00, 0x05]))
             return True
         except Exception as e:
@@ -56,10 +77,21 @@ class HardwareService:
     def read_scale(self) -> float:
         """Lee el puerto serial de la báscula y extrae el peso."""
         config = self._cache_config.get('bascula', {})
-        if not config: return 0.0
+        if not config:
+            return 0.0
+        if config.get("activo", True) is False:
+            logger.info("Báscula desactivada por configuración.")
+            return 0.0
+        if serial is None:
+            logger.warning("pyserial no disponible — báscula deshabilitada")
+            return 0.0
+        puerto = config.get("puerto")
+        if not puerto:
+            return 0.0
 
         try:
-            with serial.Serial(config['puerto'], config['baud_rate'], timeout=0.5) as bascula:
+            baud = self._safe_baud(config)
+            with serial.Serial(puerto, baud, timeout=0.5) as bascula:
                 comando = config.get('comando_lectura', 'P\r\n').encode('utf-8')
                 bascula.write(comando)
                 respuesta = bascula.readline().decode('utf-8', errors='ignore').strip()
@@ -68,6 +100,21 @@ class HardwareService:
                 return self._parse_scale_response(respuesta)
         except Exception as e:
             logger.warning(f"Error leyendo báscula en {config.get('puerto')}: {e}")
+            return 0.0
+
+    def get_weight(self, manual_weight: float = 0.0) -> float:
+        """
+        API unificada para POS:
+        1) intenta lectura de báscula
+        2) si no hay lectura válida, retorna peso manual saneado.
+        """
+        w = self.read_scale()
+        if w > 0:
+            return w
+        try:
+            mw = float(manual_weight or 0.0)
+            return max(0.0, mw)
+        except Exception:
             return 0.0
 
     def _parse_scale_response(self, raw_data: str) -> float:

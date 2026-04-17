@@ -48,6 +48,7 @@ class TransportType(str, Enum):
     SERIAL = "serial"       # COM port
     USB_WIN32 = "usb_win32" # Windows print spooler
     SYSTEM = "system"       # QPrinter del sistema
+    FILE = "file"           # Archivo local (spool, /dev/usb/lp0, etc.)
     AUTO = "auto"           # Detectar por ubicación
 
 
@@ -102,7 +103,9 @@ class PrintTransport:
             return PrintTransport._send_tcp(data, destination)
         elif transport == TransportType.SERIAL:
             return PrintTransport._send_serial(data, destination, baud=baud)
-        elif transport == TransportType.USB_WIN32:
+        elif transport == TransportType.FILE:
+            return PrintTransport._send_file(data, destination)
+        elif transport in (TransportType.USB_WIN32, TransportType.SYSTEM):
             return PrintTransport._send_win32(data, destination)
         else:
             raise ValueError(f"Transporte no soportado: {transport}")
@@ -117,6 +120,9 @@ class PrintTransport:
             return TransportType.NETWORK
         if d.upper().startswith('COM') or '/dev/tty' in d:
             return TransportType.SERIAL
+        if (d.startswith('/') or d.startswith('./') or d.startswith('../')
+                or d.endswith('.prn') or '/dev/usb/' in d):
+            return TransportType.FILE
         return TransportType.USB_WIN32
 
     @staticmethod
@@ -136,9 +142,20 @@ class PrintTransport:
 
     @staticmethod
     def _send_serial(data: bytes, destination: str, baud: int = 9600) -> bool:
-        import serial
-        with serial.Serial(destination, baud, timeout=3) as sp:
+        try:
+            import serial as _serial
+        except ImportError:
+            logger.warning("pyserial no instalado — canal SERIAL no disponible")
+            return False
+        with _serial.Serial(destination, baud, timeout=3) as sp:
             sp.write(data)
+        return True
+
+    @staticmethod
+    def _send_file(data: bytes, destination: str) -> bool:
+        """Escribe bytes a un archivo/dispositivo local (spool, /dev/usb/lp0, .prn)."""
+        with open(destination, 'wb') as f:
+            f.write(data)
         return True
 
     @staticmethod
@@ -169,6 +186,10 @@ class PrintTransport:
                 s.connect((parts[0].strip(), int(parts[1]) if len(parts) > 1 else 9100))
                 s.close()
                 return True
+            if transport == TransportType.FILE:
+                import os
+                parent = os.path.dirname(destination) or '.'
+                return os.path.isdir(parent)
             return True  # Serial/USB: assume available
         except Exception:
             return False
@@ -192,6 +213,8 @@ class PrintQueue:
         self.total_failed = 0
         # EventBus — inyectado desde PrinterService después de construcción
         self._bus = None
+        # DB — inyectado desde PrinterService para bitácora de impresión
+        self._db = None
 
     def start(self):
         if self._running:
@@ -294,7 +317,42 @@ class PrintQueue:
                     except Exception:
                         pass
 
+            # ── Bitácora de impresión en BD (Fase 1 — Plan Maestro) ───────────
+            self._log_job_to_db(job, attempt if success else job.retries)
+
             self._queue.task_done()
+
+    def _log_job_to_db(self, job: "PrintJob", reintentos: int) -> None:
+        """Persiste el resultado del trabajo en print_job_log."""
+        if not self._db:
+            return
+        try:
+            from datetime import datetime
+            rd = job.raw_data or {}
+            self._db.execute("""
+                INSERT INTO print_job_log
+                    (job_id, job_type, plantilla, impresora, folio, estado,
+                     reintentos, total, error_msg, finished_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (
+                job.id,
+                job.job_type.value,
+                rd.get("plantilla", rd.get("ticket_type", "")),
+                job.destination or "",
+                rd.get("folio", ""),
+                job.status.value,
+                max(0, reintentos - 1),
+                float(rd.get("totales", {}).get("total_final",
+                      rd.get("total", 0)) or 0),
+                job.error_msg or "",
+                datetime.utcnow().isoformat(),
+            ))
+            try:
+                self._db.commit()
+            except Exception:
+                pass
+        except Exception as exc:
+            logger.debug("print_job_log insert failed: %s", exc)
 
     @property
     def pending(self) -> int:
@@ -325,6 +383,8 @@ class PrinterService:
             self.queue._bus = get_bus()
         except Exception:
             pass
+        # Conectar DB para bitácora de impresión (Fase 1)
+        self.queue._db = db_conn
         self.queue.start()
         self._load_configs()
 
@@ -365,6 +425,42 @@ class PrinterService:
 
     def reload_configs(self):
         self._load_configs()
+
+    @staticmethod
+    def _safe_baud(raw_value: Any, default: int = 9600) -> int:
+        """Normaliza baud rate para evitar ValueError por config legacy/rota."""
+        try:
+            baud = int(raw_value)
+            if 1200 <= baud <= 115200:
+                return baud
+        except Exception:
+            pass
+        return default
+
+    @staticmethod
+    def _resolve_transport(cfg: Dict[str, Any]) -> TransportType:
+        """
+        Estandariza tipo de transporte desde config legacy/nueva.
+        Acepta claves `transport`, `tipo`, `metodo`.
+        """
+        raw = str(
+            cfg.get('transport') or cfg.get('tipo') or cfg.get('metodo') or 'auto'
+        ).strip().lower()
+        mapping = {
+            'auto': TransportType.AUTO,
+            'network': TransportType.NETWORK,
+            'tcp': TransportType.NETWORK,
+            'serial': TransportType.SERIAL,
+            'escpos_serial': TransportType.SERIAL,
+            'file': TransportType.FILE,
+            'usb_win32': TransportType.USB_WIN32,
+            'win32': TransportType.USB_WIN32,
+            'win32print': TransportType.USB_WIN32,
+            'system': TransportType.SYSTEM,
+            'escpos_usb': TransportType.USB_WIN32,
+            'escpos': TransportType.AUTO,
+        }
+        return mapping.get(raw, TransportType.AUTO)
 
     # ── API de tickets ────────────────────────────────────────────────────────
 
@@ -410,7 +506,8 @@ class PrinterService:
             data=data,
             raw_data=ticket_data,
             destination=dest,
-            baud=int(self._ticket_cfg.get('baud_rate', 9600)),
+            transport=self._resolve_transport(self._ticket_cfg),
+            baud=self._safe_baud(self._ticket_cfg.get('baud_rate', 9600)),
             priority=2,  # Tickets tienen alta prioridad
             on_success=on_success,
             on_error=on_error,
@@ -435,7 +532,8 @@ class PrinterService:
             job_type=PrintJobType.LABEL,
             data=label_data,
             destination=dest,
-            baud=int(cfg.get('baud_rate', 9600)),
+            transport=self._resolve_transport(cfg),
+            baud=self._safe_baud(cfg.get('baud_rate', 9600)),
             priority=5,
             on_success=on_success,
             on_error=on_error,
@@ -455,6 +553,8 @@ class PrinterService:
             job_type=PrintJobType.RAW,
             data=data,
             destination=dest,
+            transport=self._resolve_transport(self._ticket_cfg),
+            baud=self._safe_baud(self._ticket_cfg.get('baud_rate', 9600)),
             priority=priority,
         )
         self.queue.submit(job)

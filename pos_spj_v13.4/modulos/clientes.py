@@ -5,6 +5,8 @@ import re
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input_field, create_combo, create_card, apply_tooltip, create_heading, create_subheading, create_caption, create_table_with_columns, create_table_button
 from core.events.event_bus import VENTA_COMPLETADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
 from core.services.auto_audit import audit_write
 from core.events.event_bus import get_bus
@@ -109,14 +111,14 @@ class ModuloClientes(ModuloBase):
         layout.addLayout(toolbar)
 
         # --- Tabla de Clientes ---
-        self.tabla_clientes = QTableWidget()
-        self.tabla_clientes.setColumnCount(9)
-        self.tabla_clientes.setHorizontalHeaderLabels([
-            "ID", "Nombre", "Apellido", "Teléfono", "Puntos", "Nivel", "Saldo", "Límite Crédito", "Estado"
-        ])
+        self.tabla_clientes = create_table_with_columns(
+            self, 
+            columns=["ID", "Nombre", "Apellido", "Teléfono", "Puntos", "Nivel", "Saldo", "Límite Crédito", "Estado"],
+            show_grid=False,
+            alternating_colors=True
+        )
         self.tabla_clientes.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_clientes.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla_clientes.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.tabla_clientes)
 
         # --- Barra de estado/botones de acción ---
@@ -145,8 +147,7 @@ class ModuloClientes(ModuloBase):
         acciones_layout.addWidget(self.btn_eliminar_cliente)
         acciones_layout.addWidget(self.btn_ver_historial)
         acciones_layout.addWidget(self.btn_asignar_tarjeta)
-        self.btn_rfm = QPushButton("📊 Segmentación RFM")
-        self.btn_rfm.setStyleSheet("background:#8e44ad;color:white;font-weight:bold;padding:6px 10px;border-radius:5px;")
+        self.btn_rfm = create_secondary_button(self, "📊 Segmentación RFM", "Analizar segmentación RFM de clientes")
         self.btn_rfm.clicked.connect(self._abrir_rfm)
         acciones_layout.addWidget(self.btn_ver_tarjetas)
         acciones_layout.addWidget(self.btn_rfm)
@@ -550,21 +551,30 @@ class DialogoCliente(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout()
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
 
+        # Encabezado
+        layout.addWidget(create_heading(self, "Nuevo Cliente" if not self.cliente_data else "Editar Cliente"))
+        
+        # Card principal con formulario
+        card = create_card(self, padding=Spacing.MD, with_layout=False)
         form_layout = QFormLayout()
+        form_layout.setSpacing(Spacing.SM)
+        form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         
         # v13.4: Campo ID Tarjeta
-        self.edit_tarjeta_id = QLineEdit()
-        self.edit_tarjeta_id.setPlaceholderText("Escanear QR de tarjeta o escribir ID")
+        self.edit_tarjeta_id = create_input_field(self, "Escanear QR de tarjeta o escribir ID")
         
-        self.edit_nombre = QLineEdit()
-        self.edit_apellido = QLineEdit()
+        self.edit_nombre = create_input_field(self, "Nombre completo*")
+        self.edit_apellido = create_input_field(self, "Apellido")
         self.edit_telefono = PhoneWidget(default_country="+52")
         # setInputMask removed — PhoneWidget handles international format internally
         
         self.edit_puntos = QSpinBox()
         self.edit_puntos.setRange(0, 999999)
-        self.edit_nivel = QLineEdit()
+        self.edit_nivel = create_combo(self, ["Bronce", "Plata", "Oro", "Platino"])
+        self.edit_nivel.setEditable(True)
         self.edit_descuento = QDoubleSpinBox()
         self.edit_descuento.setRange(0.0, 100.0)
         self.edit_descuento.setSuffix(" %")
@@ -577,13 +587,14 @@ class DialogoCliente(QDialog):
         self.edit_limite_credito.setPrefix("$ ")
         
         self.chk_activo = QCheckBox("Activo")
+        self.chk_activo.setChecked(True)
 
         if self.cliente_data:
             self.edit_nombre.setText(self.cliente_data.get('nombre', ''))
             self.edit_apellido.setText(self.cliente_data.get('apellido', ''))
             self.edit_telefono.set_phone(self.cliente_data.get('telefono', ''))
             self.edit_puntos.setValue(self.cliente_data.get('puntos', 0))
-            self.edit_nivel.setText(self.cliente_data.get('nivel_fidelidad', ''))
+            self.edit_nivel.setCurrentText(self.cliente_data.get('nivel_fidelidad', 'Bronce'))
             self.edit_descuento.setValue(self.cliente_data.get('descuento', 0.0))
             self.edit_saldo.setValue(self.cliente_data.get('saldo', 0.0))
             self.edit_limite_credito.setValue(self.cliente_data.get('limite_credito', 0.0))
@@ -600,15 +611,20 @@ class DialogoCliente(QDialog):
         form_layout.addRow("Descuento (%):", self.edit_descuento)
         form_layout.addRow("Saldo Crédito:", self.edit_saldo)
         form_layout.addRow("Límite Crédito:", self.edit_limite_credito)
-        form_layout.addRow(self.chk_activo)
+        form_layout.addRow("", self.chk_activo)
+        
+        card.setLayout(form_layout)
+        layout.addWidget(card)
 
+        # Botones de acción
         btn_layout = QHBoxLayout()
-        self.btn_guardar = QPushButton("Guardar")
-        self.btn_cancelar = QPushButton("Cancelar")
-        btn_layout.addWidget(self.btn_guardar)
+        btn_layout.setSpacing(Spacing.SM)
+        self.btn_guardar = create_primary_button(self, "💾 Guardar", "Guardar datos del cliente")
+        self.btn_cancelar = create_secondary_button(self, "Cancelar", "Cancelar sin guardar")
+        btn_layout.addStretch()
         btn_layout.addWidget(self.btn_cancelar)
+        btn_layout.addWidget(self.btn_guardar)
 
-        layout.addLayout(form_layout)
         layout.addLayout(btn_layout)
         self.setLayout(layout)
 
@@ -758,46 +774,71 @@ class DialogoHistorialCliente(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout()
-        
-        lbl_titulo = QLabel(f"Historial del Cliente: {self.nombre_cliente} (ID: {self.id_cliente})")
-        lbl_titulo.setObjectName("tituloPrincipal")
-        layout.addWidget(lbl_titulo)
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+
+        # Encabezado con información del cliente
+        layout.addWidget(create_heading(self, f"Historial de {self.nombre_cliente}"))
+        layout.addWidget(create_subheading(self, f"ID: {self.id_cliente}"))
         
         tabs = QTabWidget()
+        tabs.setObjectName("historialTabs")
         
         # Pestaña de Compras
         self.tab_compras = QWidget()
         layout_compras = QVBoxLayout()
-        self.tabla_compras = QTableWidget()
-        self.tabla_compras.setColumnCount(5)
-        self.tabla_compras.setHorizontalHeaderLabels(["Fecha", "Total", "Método Pago", "Puntos Ganados", "Detalles"])
+        layout_compras.setSpacing(Spacing.SM)
+        layout_compras.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        
+        layout_compras.addWidget(create_subheading(self, "Compras realizadas"))
+        self.tabla_compras = create_table_with_columns(
+            self, 
+            columns=["Fecha", "Total", "Método Pago", "Puntos Ganados", "Detalles"],
+            show_grid=False,
+            alternating_colors=True
+        )
         layout_compras.addWidget(self.tabla_compras)
         self.tab_compras.setLayout(layout_compras)
-        tabs.addTab(self.tab_compras, "Compras")
+        tabs.addTab(self.tab_compras, "🛒 Compras")
 
         # Pestaña de Puntos
         self.tab_puntos = QWidget()
         layout_puntos = QVBoxLayout()
-        self.tabla_puntos = QTableWidget()
-        self.tabla_puntos.setColumnCount(5)
-        self.tabla_puntos.setHorizontalHeaderLabels(["Fecha", "Tipo", "Puntos", "Saldo Actual", "Descripción"])
+        layout_puntos.setSpacing(Spacing.SM)
+        layout_puntos.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        
+        layout_puntos.addWidget(create_subheading(self, "Movimientos de puntos"))
+        self.tabla_puntos = create_table_with_columns(
+            self,
+            columns=["Fecha", "Tipo", "Puntos", "Saldo Actual", "Descripción"],
+            show_grid=False,
+            alternating_colors=True
+        )
         layout_puntos.addWidget(self.tabla_puntos)
         self.tab_puntos.setLayout(layout_puntos)
-        tabs.addTab(self.tab_puntos, "Historial de Puntos")
+        tabs.addTab(self.tab_puntos, "⭐ Puntos")
 
         # Pestaña de Créditos
         self.tab_creditos = QWidget()
         layout_creditos = QVBoxLayout()
-        self.tabla_creditos = QTableWidget()
-        self.tabla_creditos.setColumnCount(5)
-        self.tabla_creditos.setHorizontalHeaderLabels(["Fecha", "Tipo", "Monto", "Descripción", "Usuario"])
+        layout_creditos.setSpacing(Spacing.SM)
+        layout_creditos.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+        
+        layout_creditos.addWidget(create_subheading(self, "Movimientos de crédito"))
+        self.tabla_creditos = create_table_with_columns(
+            self,
+            columns=["Fecha", "Tipo", "Monto", "Descripción", "Usuario"],
+            show_grid=False,
+            alternating_colors=True
+        )
         layout_creditos.addWidget(self.tabla_creditos)
         self.tab_creditos.setLayout(layout_creditos)
-        tabs.addTab(self.tab_creditos, "Movimientos de Crédito")
+        tabs.addTab(self.tab_creditos, "💳 Créditos")
 
         layout.addWidget(tabs)
         
-        btn_cerrar = QPushButton("Cerrar")
+        # Botón de cierre
+        btn_cerrar = create_secondary_button(self, "Cerrar", "Cerrar ventana de historial")
         btn_cerrar.clicked.connect(self.close)
         layout.addWidget(btn_cerrar)
         
@@ -892,45 +933,51 @@ class _DialogoAsignarTarjetaCliente(QDialog):
         self._build_ui()
 
     def _build_ui(self):
-        from PyQt5.QtWidgets import (
-            QVBoxLayout, QLabel, QComboBox, QHBoxLayout,
-            QPushButton, QGroupBox, QLineEdit, QFormLayout
-        )
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(Spacing.MD)
+        layout.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
 
-        layout.addWidget(QLabel(f"Asignar tarjeta libre a: <b>{self.cliente_nombre}</b>"))
+        # Encabezado
+        layout.addWidget(create_heading(self, f"Asignar Tarjeta"))
+        layout.addWidget(create_subheading(self, f"Cliente: {self.cliente_nombre}"))
+
+        # Card principal
+        card = create_card(self, padding=Spacing.MD, with_layout=False)
+        card_layout = QVBoxLayout()
+        card_layout.setSpacing(Spacing.SM)
 
         # Tarjetas libres
-        self.combo_tarjeta = QComboBox()
+        card_layout.addWidget(create_caption(self, "Tarjeta disponible:"))
+        self.combo_tarjeta = create_combo(self, [])
         self._cargar_tarjetas_libres()
-        layout.addWidget(QLabel("Tarjeta disponible:"))
-        layout.addWidget(self.combo_tarjeta)
+        card_layout.addWidget(self.combo_tarjeta)
 
         # O ingresar número manualmente
-        grp = QGroupBox("O buscar por número")
-        lay_g = QHBoxLayout(grp)
-        self.txt_numero = QLineEdit()
-        self.txt_numero.setPlaceholderText("Número de tarjeta…")
-        btn_buscar = QPushButton("Buscar")
+        card_layout.addWidget(create_subheading(self, "O buscar por número"))
+        search_layout = QHBoxLayout()
+        self.txt_numero = create_input_field(self, "Número de tarjeta…")
+        btn_buscar = create_primary_button(self, "🔍 Buscar", "Buscar tarjeta por número")
         btn_buscar.clicked.connect(self._buscar_numero)
-        lay_g.addWidget(self.txt_numero)
-        lay_g.addWidget(btn_buscar)
-        layout.addWidget(grp)
+        search_layout.addWidget(self.txt_numero)
+        search_layout.addWidget(btn_buscar)
+        card_layout.addLayout(search_layout)
 
-        self.lbl_estado_busqueda = QLabel("")
-        layout.addWidget(self.lbl_estado_busqueda)
+        self.lbl_estado_busqueda = create_caption(self, "")
+        card_layout.addWidget(self.lbl_estado_busqueda)
+        
+        card.setLayout(card_layout)
+        layout.addWidget(card)
 
-        # Botones
+        # Botones de acción
         btns = QHBoxLayout()
-        btn_ok  = QPushButton("✅ Asignar")
+        btns.setSpacing(Spacing.SM)
+        btn_ok = create_success_button(self, "✅ Asignar", "Asignar tarjeta al cliente")
         btn_ok.clicked.connect(self._confirmar)
-        btn_cancel = QPushButton("Cancelar")
+        btn_cancel = create_secondary_button(self, "Cancelar", "Cancelar asignación")
         btn_cancel.clicked.connect(self.reject)
         btns.addStretch()
-        btns.addWidget(btn_ok)
         btns.addWidget(btn_cancel)
+        btns.addWidget(btn_ok)
         layout.addLayout(btns)
 
     def _cargar_tarjetas_libres(self):
@@ -1231,12 +1278,10 @@ class _DialogoRFM(QDialog):
 
         # Header
         hdr = QHBoxLayout()
-        t = QLabel("📊 Segmentación RFM")
-        t.setStyleSheet("font-size:16px;font-weight:bold;")
-        self.cmb_periodo = QComboBox()
-        self.cmb_periodo.addItems(["Últimos 90 días","Últimos 180 días","Últimos 365 días","Todo el tiempo"])
+        t = create_heading(self, "📊 Segmentación RFM")
+        self.cmb_periodo = create_combo(self, ["Últimos 90 días","Últimos 180 días","Últimos 365 días","Todo el tiempo"])
         self.cmb_periodo.currentIndexChanged.connect(self._calcular_rfm)
-        btn_export = QPushButton("📥 Exportar Excel")
+        btn_export = create_primary_button(self, "📥 Exportar Excel", "Exportar análisis RFM a Excel")
         btn_export.clicked.connect(self._exportar)
         hdr.addWidget(t); hdr.addStretch()
         hdr.addWidget(QLabel("Período:")); hdr.addWidget(self.cmb_periodo)
@@ -1249,11 +1294,14 @@ class _DialogoRFM(QDialog):
         seg_w = QWidget(); seg_lay = QHBoxLayout(seg_w)
         self._seg_labels = {}
         for seg, cfg in self.SEGMENTOS.items():
-            card = QFrame(); card.setFrameStyle(QFrame.Box)
-            card.setStyleSheet(f"background:{cfg['color']}22;border:1px solid {cfg['color']};border-radius:6px;padding:4px;")
+            card = create_card(self, padding=Spacing.SM, with_layout=False)
+            card.setFrameStyle(QFrame.Box)
             c_lay = QVBoxLayout(card)
-            lbl_n = QLabel(f"{cfg['icono']} {seg}"); lbl_n.setStyleSheet(f"font-weight:bold;color:{cfg['color']};")
-            lbl_c = QLabel("0"); lbl_c.setStyleSheet("font-size:18px;font-weight:bold;")
+            c_lay.setSpacing(Spacing.XS)
+            c_lay.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
+            lbl_n = QLabel(f"{cfg['icono']} {seg}")
+            lbl_n.setStyleSheet(f"font-weight:bold;color:{cfg['color']};")
+            lbl_c = QLabel("0"); lbl_c.setObjectName("heading")
             lbl_c.setAlignment(Qt.AlignCenter)
             c_lay.addWidget(lbl_n); c_lay.addWidget(lbl_c)
             self._seg_labels[seg] = lbl_c
@@ -1263,9 +1311,7 @@ class _DialogoRFM(QDialog):
 
         # Filter by segment
         flt = QHBoxLayout()
-        self.cmb_seg_filter = QComboBox()
-        self.cmb_seg_filter.addItem("Todos los segmentos")
-        self.cmb_seg_filter.addItems(list(self.SEGMENTOS.keys()))
+        self.cmb_seg_filter = create_combo(self, ["Todos los segmentos"] + list(self.SEGMENTOS.keys()))
         self.cmb_seg_filter.currentIndexChanged.connect(self._filtrar_tabla)
         flt.addWidget(QLabel("Filtrar:")); flt.addWidget(self.cmb_seg_filter); flt.addStretch()
         lay.addLayout(flt)
@@ -1282,11 +1328,11 @@ class _DialogoRFM(QDialog):
         self.tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.setAlternatingRowColors(True)
+        self.tbl.setObjectName("tableView")
         lay.addWidget(self.tbl)
 
         # Footer
-        self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet("color:#666;font-size:11px;")
+        self.lbl_status = create_caption(self, "")
         lay.addWidget(self.lbl_status)
 
     def _dias_periodo(self) -> int:

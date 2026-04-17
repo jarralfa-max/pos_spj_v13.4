@@ -2,9 +2,20 @@ from core.services.auto_audit import audit_write
 
 # modulos/tesoreria.py
 from core.events.event_bus import get_bus
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.spj_styles import spj_btn, apply_btn_styles, apply_object_names
 import logging
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
@@ -80,6 +91,7 @@ class ModuloTesoreria(QWidget):
         
         layout.addWidget(self.tabs)
         self.tabs.currentChanged.connect(self.al_cambiar_pestana)
+        apply_object_names(self)  # Fase 1: design tokens en botones raw
 
     def al_cambiar_pestana(self, index):
         if index == 1: self.cargar_cuentas_pagar()

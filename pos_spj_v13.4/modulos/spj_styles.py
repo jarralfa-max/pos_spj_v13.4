@@ -1,43 +1,40 @@
-# modulos/spj_styles.py — SPJ POS v13.30
+# modulos/spj_styles.py — SPJ POS v13.4
 """
 Sistema de estilos centralizado SPJ.
-Paleta estándar de botones + temas globales aplicados desde configuración.
+Funciones utilitarias para auto-styling y temas globales.
 
-USO BOTONES:
-    from modulos.spj_styles import spj_btn, apply_btn_styles
-    spj_btn(btn, "success")   # verde → guardar, crear
-    spj_btn(btn, "danger")    # rojo → eliminar, cancelar
-    spj_btn(btn, "warning")   # naranja → editar
-    spj_btn(btn, "primary")   # azul → confirmar, cobrar
-    spj_btn(btn, "secondary") # gris → cerrar, volver
-    spj_btn(btn, "info")      # azul claro → ver, buscar
-    spj_btn(btn, "purple")    # morado → reportes, BI
-    spj_btn(btn, "dark")      # oscuro → menú
+NOTA: Los colores ahora están centralizados en design_tokens.py
+Este módulo solo proporciona funciones de utilidad para aplicar estilos.
 
-USO TEMA GLOBAL:
-    from modulos.spj_styles import apply_global_theme
-    apply_global_theme(db_connection)  # Lee tema de BD y aplica QSS
-
-USO AUTO-ESTILIZADO:
-    from modulos.spj_styles import apply_spj_buttons
-    apply_spj_buttons(widget)  # Recorre botones y asigna color por keyword
+USO:
+    from modulos.spj_styles import apply_spj_buttons, apply_global_theme, apply_theme_dialogs
+    
+    # Auto-aplicar estilos a botones por keyword
+    apply_spj_buttons(widget)
+    
+    # Aplicar tema global desde BD
+    apply_global_theme(db_connection)
+    
+    # Aplicar tema a dialogs
+    apply_theme_dialogs(dialog)
 """
 
 from PyQt5.QtWidgets import QPushButton
+from modulos.design_tokens import Colors
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  Paleta oficial SPJ
+#  Mapeo de variantes a colores centralizados (design_tokens.py)
 # ══════════════════════════════════════════════════════════════════════════════
 
 SPJ_COLORS = {
-    "primary":   ("#2E86C1", "#1A5276"),
-    "success":   ("#27ae60", "#1e8449"),
-    "danger":    ("#e74c3c", "#c0392b"),
-    "warning":   ("#e67e22", "#ca6f1e"),
-    "secondary": ("#7f8c8d", "#616a6b"),
-    "info":      ("#3498db", "#2980b9"),
-    "dark":      ("#2c3e50", "#1a252f"),
-    "purple":    ("#8e44ad", "#76369a"),
+    "primary":   (Colors.PRIMARY_BASE, Colors.PRIMARY_HOVER),
+    "success":   (Colors.SUCCESS_BASE, Colors.SUCCESS_HOVER),
+    "danger":    (Colors.DANGER_BASE, Colors.DANGER_HOVER),
+    "warning":   (Colors.WARNING_BASE, Colors.WARNING_HOVER),
+    "secondary": (Colors.NEUTRAL.SLATE_600, Colors.NEUTRAL.SLATE_500),
+    "info":      (Colors.INFO_BASE, Colors.INFO_HOVER),
+    "dark":      (Colors.NEUTRAL.SLATE_800, Colors.NEUTRAL.SLATE_700),
+    "purple":    (Colors.ACCENT_BASE, Colors.ACCENT_HOVER),
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -228,3 +225,151 @@ def apply_global_theme(db_conn=None) -> None:
         load_saved_theme(None)
     except Exception as e:
         _log.debug("apply_global_theme: %s", e)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Tooltips obligatorios (Fase 1 — Plan Maestro SPJ v13.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Mapeo texto → tooltip descriptivo por keyword
+_TOOLTIP_MAP = {
+    "guardar":       "Guardar cambios",
+    "nuevo":         "Crear nuevo registro",
+    "agregar":       "Agregar elemento",
+    "crear":         "Crear nuevo elemento",
+    "confirmar":     "Confirmar operación",
+    "aceptar":       "Aceptar y continuar",
+    "eliminar":      "Eliminar permanentemente",
+    "borrar":        "Borrar registro",
+    "cancelar":      "Cancelar operación",
+    "editar":        "Editar registro",
+    "modificar":     "Modificar datos",
+    "actualizar":    "Actualizar información",
+    "buscar":        "Buscar en catálogo",
+    "filtrar":       "Filtrar resultados",
+    "imprimir":      "Enviar a impresora",
+    "reimprimir":    "Reimprimir último documento",
+    "exportar":      "Exportar a archivo",
+    "reporte":       "Ver reporte",
+    "cerrar":        "Cerrar ventana",
+    "salir":         "Salir del módulo",
+    "cobrar":        "Procesar pago",
+    "nueva venta":   "Iniciar nueva venta",
+    "abrir caja":    "Abrir turno de caja",
+    "corte":         "Generar corte de caja",
+    "generar":       "Generar documento",
+    "enviar":        "Enviar información",
+    "conectar":      "Probar conexión",
+    "probar":        "Probar función",
+    "analizar":      "Analizar datos",
+}
+
+
+def _tooltip_for_text(text: str) -> str:
+    """Determina tooltip a partir del texto del botón."""
+    import re
+    t = re.sub(r'[^\w\s]', ' ', text.lower()).strip()
+    best_kw, best_tip = "", ""
+    for kw, tip in _TOOLTIP_MAP.items():
+        if kw in t and len(kw) > len(best_kw):
+            best_kw, best_tip = kw, tip
+    return best_tip
+
+
+def apply_object_names(widget) -> None:
+    """
+    Recorre todos los QPushButton del widget y asigna objectName según el texto,
+    SOLO si el botón aún no tiene objectName asignado (es idempotente).
+
+    Permite que el QSS global de TEMAS (QPushButton#primaryBtn, etc.) se aplique
+    a botones creados con QPushButton() directo sin usar las factories de ui_components.
+
+    Fase 1 — Plan Maestro: design tokens uniformes en todos los módulos.
+    """
+    from PyQt5.QtWidgets import QPushButton
+    _NAMED = {"primaryBtn", "secondaryBtn", "successBtn", "dangerBtn",
+              "warningBtn", "outlineBtn"}
+    for btn in widget.findChildren(QPushButton):
+        if btn.objectName() in _NAMED:
+            continue  # Ya tiene objectName SPJ — no sobrescribir
+        v = _variant_for_text(btn.text())
+        if v:
+            name_map = {
+                "primary": "primaryBtn", "success": "successBtn",
+                "danger": "dangerBtn", "warning": "warningBtn",
+                "secondary": "secondaryBtn", "info": "primaryBtn",
+                "purple": "outlineBtn",
+            }
+            btn.setObjectName(name_map.get(v, "secondaryBtn"))
+        else:
+            btn.setObjectName("secondaryBtn")  # Fallback seguro para botones sin keyword
+
+
+def apply_spj_tooltips(widget) -> None:
+    """
+    Recorre todos los QPushButton del widget y asigna tooltips descriptivos
+    basados en el texto del botón. Solo asigna si el botón no tiene tooltip.
+
+    Fase 1 — Plan Maestro: tooltips obligatorios en UI.
+    """
+    from PyQt5.QtWidgets import QPushButton
+    for btn in widget.findChildren(QPushButton):
+        if btn.toolTip():
+            continue  # Ya tiene tooltip
+        tip = _tooltip_for_text(btn.text())
+        if tip:
+            btn.setToolTip(tip)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  Scrollbars uniformes (Fase 1 — Plan Maestro SPJ v13.4)
+# ══════════════════════════════════════════════════════════════════════════════
+
+SCROLLBAR_QSS = """
+QScrollBar:vertical {
+    background: #f0f0f0;
+    width: 10px;
+    margin: 0;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical {
+    background: #b0b8c1;
+    min-height: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #0FB9B1;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+    background: none;
+}
+QScrollBar:horizontal {
+    background: #f0f0f0;
+    height: 10px;
+    margin: 0;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal {
+    background: #b0b8c1;
+    min-width: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #0FB9B1;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
+    background: none;
+}
+"""
+
+
+def apply_scrollbars(widget) -> None:
+    """
+    Aplica el estilo uniforme de scrollbars a un widget.
+    Fase 1 — Plan Maestro: scrollbars consistentes en toda la app.
+    """
+    existing = widget.styleSheet() or ""
+    if "QScrollBar" not in existing:
+        widget.setStyleSheet(existing + SCROLLBAR_QSS)

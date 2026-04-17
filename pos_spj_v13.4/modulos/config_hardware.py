@@ -11,6 +11,7 @@ Tabs:
 from __future__ import annotations
 import json
 import logging
+from modulos.design_tokens import Colors, Spacing, Typography
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
@@ -50,22 +51,21 @@ class ModuloConfigHardware(QWidget):
     # ══════════════════════════════════════════════════════════════════════
 
     def _init_ui(self):
-        from modulos.spj_styles import spj_btn
+        from modulos.ui_components import create_primary_button, create_heading_label
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 12, 14, 12)
+        root.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
 
         hdr = QHBoxLayout()
-        lbl = QLabel("🔧 Configuración de Hardware")
-        lbl.setStyleSheet("font-size:18px;font-weight:bold;color:#2c3e50;")
+        lbl = create_heading_label(self, "🔧 Configuración de Hardware")
         hdr.addWidget(lbl); hdr.addStretch()
-        btn_save = QPushButton("💾 Guardar todo")
-        spj_btn(btn_save, "success")
+        btn_save = create_primary_button(self, "💾 Guardar todo", "Guardar toda la configuración de hardware")
         btn_save.clicked.connect(self._guardar_todo)
         hdr.addWidget(btn_save)
         root.addLayout(hdr)
 
         self.tabs = QTabWidget()
+        self.tabs.setObjectName("tabWidget")
         root.addWidget(self.tabs)
 
         self.tabs.addTab(self._tab_bascula(),    "⚖️  Báscula")
@@ -77,23 +77,22 @@ class ModuloConfigHardware(QWidget):
     # ── Tab 1: Báscula ────────────────────────────────────────────────────────
 
     def _tab_bascula(self) -> QWidget:
-        from modulos.spj_styles import spj_btn
-        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(10)
+        from modulos.ui_components import create_success_button, create_input, create_combo
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(Spacing.SM)
 
         grp = QGroupBox("Configuración de báscula serial")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                          "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         form = QFormLayout(grp)
 
         self.chk_bascula = QCheckBox("Habilitar lectura automática de peso")
-        self.cmb_bascula_puerto = QComboBox(); self.cmb_bascula_puerto.addItems(_PORTS)
-        self.cmb_bascula_baud   = QComboBox(); self.cmb_bascula_baud.addItems(_BAUD)
+        self.cmb_bascula_puerto = create_combo(self, _PORTS)
+        self.cmb_bascula_baud   = create_combo(self, _BAUD)
         self.cmb_bascula_baud.setCurrentText("9600")
-        self.cmb_bascula_proto  = QComboBox()
-        self.cmb_bascula_proto.addItems(["Genérico (simple)","Dibal","Mettler-Toledo","CAS","Ohaus"])
+        self.cmb_bascula_proto  = create_combo(self, ["Genérico (simple)","Dibal","Mettler-Toledo","CAS","Ohaus"])
         self.spin_bascula_intervalo = QSpinBox()
         self.spin_bascula_intervalo.setRange(200, 5000); self.spin_bascula_intervalo.setValue(500)
         self.spin_bascula_intervalo.setSuffix(" ms")
+        self.spin_bascula_intervalo.setObjectName("inputField")
 
         form.addRow("", self.chk_bascula)
         form.addRow("Puerto serial:", self.cmb_bascula_puerto)
@@ -104,13 +103,12 @@ class ModuloConfigHardware(QWidget):
 
         # Test area
         grp2 = QGroupBox("Prueba de conexión")
-        grp2.setStyleSheet(grp.styleSheet())
+        grp2.setObjectName("styledGroup")
         hl = QHBoxLayout(grp2)
-        btn_test = QPushButton("🔌 Probar conexión")
-        spj_btn(btn_test, "info")
+        btn_test = create_primary_button(self, "🔌 Probar conexión", "Verificar conexión con la báscula")
         btn_test.clicked.connect(self._test_bascula)
         self.lbl_bascula_status = QLabel("—")
-        self.lbl_bascula_status.setStyleSheet("font-size:13px;padding:4px;")
+        self.lbl_bascula_status.setObjectName("textSecondary")
         hl.addWidget(btn_test); hl.addWidget(self.lbl_bascula_status); hl.addStretch()
         lay.addWidget(grp2)
         lay.addStretch()
@@ -119,17 +117,15 @@ class ModuloConfigHardware(QWidget):
     # ── Tab 2: Impresoras ─────────────────────────────────────────────────────
 
     def _tab_impresoras(self) -> QWidget:
-        from modulos.spj_styles import spj_btn
-        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(10)
+        from modulos.ui_components import create_primary_button, create_input, create_combo
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(Spacing.SM)
 
         # ── Impresora de tickets ─────────────────────────────────────────────
         grp_ticket = QGroupBox("🧾 Impresora de tickets (térmica)")
-        grp_ticket.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                                  "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp_ticket.setObjectName("styledGroup")
         ft = QFormLayout(grp_ticket)
 
-        self.cmb_ticket_tipo = QComboBox()
-        self.cmb_ticket_tipo.addItems([
+        self.cmb_ticket_tipo = create_combo(self, [
             "USB — win32print (Windows)",
             "USB — COM virtual (Adm. dispositivos)",
             "Red — IP:Puerto (TCP/IP)",
@@ -137,10 +133,9 @@ class ModuloConfigHardware(QWidget):
         ])
         self.cmb_ticket_tipo.currentIndexChanged.connect(self._ticket_tipo_changed)
 
-        self.txt_ticket_ubicacion = QLineEdit()
+        self.txt_ticket_ubicacion = create_input(self, "")
         self._ticket_tipo_changed(0)  # set initial placeholder
-        self.cmb_ticket_ancho = QComboBox()
-        self.cmb_ticket_ancho.addItems(["58 mm (32 chars)","80 mm (48 chars)"])
+        self.cmb_ticket_ancho = create_combo(self, ["58 mm (32 chars)","80 mm (48 chars)"])
         self.chk_ticket_corte = QCheckBox("Corte automático al imprimir")
         self.chk_ticket_corte.setChecked(True)
         self.chk_ticket_cajon = QCheckBox("Abrir cajón junto con ticket")
@@ -152,32 +147,29 @@ class ModuloConfigHardware(QWidget):
         ft.addRow("", self.chk_ticket_cajon)
 
         hl_t = QHBoxLayout()
-        btn_test_t = QPushButton("🖨️ Imprimir ticket de prueba")
-        spj_btn(btn_test_t, "info")
+        btn_test_t = create_primary_button(self, "🖨️ Imprimir ticket de prueba", "Imprimir ticket de prueba para verificar configuración")
         btn_test_t.clicked.connect(self._test_ticket)
         self.lbl_ticket_status = QLabel("—")
+        self.lbl_ticket_status.setObjectName("textSecondary")
         hl_t.addWidget(btn_test_t); hl_t.addWidget(self.lbl_ticket_status); hl_t.addStretch()
         ft.addRow("", hl_t)
         lay.addWidget(grp_ticket)
 
         # ── Impresora de etiquetas ────────────────────────────────────────────
         grp_etiq = QGroupBox("🏷️ Impresora de etiquetas (ZPL/EPL)")
-        grp_etiq.setStyleSheet(grp_ticket.styleSheet())
+        grp_etiq.setObjectName("styledGroup")
         fe = QFormLayout(grp_etiq)
 
-        self.cmb_etiq_tipo = QComboBox()
-        self.cmb_etiq_tipo.addItems(["USB","Serial (COM)","Red (IP:Puerto)","Sin impresora de etiquetas"])
-        self.txt_etiq_ubicacion = QLineEdit()
+        self.cmb_etiq_tipo = create_combo(self, ["USB","Serial (COM)","Red (IP:Puerto)","Sin impresora de etiquetas"])
+        self.txt_etiq_ubicacion = create_input(self, "")
         self.txt_etiq_ubicacion.setPlaceholderText("COM4  |  192.168.1.101:9100")
-        self.cmb_etiq_lenguaje = QComboBox()
-        self.cmb_etiq_lenguaje.addItems(["ZPL (Zebra)","EPL (Eltron)","TSPL (TSC)"])
+        self.cmb_etiq_lenguaje = create_combo(self, ["ZPL (Zebra)","EPL (Eltron)","TSPL (TSC)"])
 
         fe.addRow("Tipo conexión:", self.cmb_etiq_tipo)
         fe.addRow("Ubicación:", self.txt_etiq_ubicacion)
         fe.addRow("Lenguaje:", self.cmb_etiq_lenguaje)
 
-        btn_test_e = QPushButton("🏷️ Imprimir etiqueta de prueba")
-        spj_btn(btn_test_e, "info")
+        btn_test_e = create_primary_button(self, "🏷️ Imprimir etiqueta de prueba", "Imprimir etiqueta de prueba")
         btn_test_e.clicked.connect(self._test_etiqueta)
         fe.addRow("", btn_test_e)
         lay.addWidget(grp_etiq)
@@ -187,27 +179,25 @@ class ModuloConfigHardware(QWidget):
     # ── Tab 3: Cajón de dinero ────────────────────────────────────────────────
 
     def _tab_cajon(self) -> QWidget:
-        from modulos.spj_styles import spj_btn
-        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(10)
+        from modulos.ui_components import create_warning_button, create_input, create_combo
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(Spacing.SM)
 
         grp = QGroupBox("Cajón de dinero (ESC/POS)")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                          "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         form = QFormLayout(grp)
 
         self.chk_cajon = QCheckBox("Cajón conectado (abrir automáticamente al cobrar)")
-        self.cmb_cajon_metodo = QComboBox()
-        self.cmb_cajon_metodo.addItems([
+        self.cmb_cajon_metodo = create_combo(self, [
             "Por impresora de tickets (ESC/POS)",
             "Puerto serial directo",
             "Puerto paralelo (LPT)",
         ])
-        self.txt_cajon_cmd = QLineEdit()
+        self.txt_cajon_cmd = create_input(self, "1B 70 00 19 FA")
         self.txt_cajon_cmd.setPlaceholderText("Hex: 1B 70 00 19 FA  (ESC p 0 25 250)")
-        self.txt_cajon_cmd.setText("1B 70 00 19 FA")
         self.spin_cajon_delay = QSpinBox()
         self.spin_cajon_delay.setRange(0, 2000); self.spin_cajon_delay.setValue(100)
         self.spin_cajon_delay.setSuffix(" ms después de cobrar")
+        self.spin_cajon_delay.setObjectName("inputField")
 
         form.addRow("", self.chk_cajon)
         form.addRow("Apertura vía:", self.cmb_cajon_metodo)
@@ -216,12 +206,12 @@ class ModuloConfigHardware(QWidget):
         lay.addWidget(grp)
 
         grp2 = QGroupBox("Prueba")
-        grp2.setStyleSheet(grp.styleSheet())
+        grp2.setObjectName("styledGroup")
         hl = QHBoxLayout(grp2)
-        btn_abrir = QPushButton("💰 Abrir cajón ahora")
-        spj_btn(btn_abrir, "warning")
+        btn_abrir = create_warning_button(self, "💰 Abrir cajón ahora", "Abrir cajón de dinero manualmente")
         btn_abrir.clicked.connect(self._test_cajon)
         self.lbl_cajon_status = QLabel("—")
+        self.lbl_cajon_status.setObjectName("textSecondary")
         hl.addWidget(btn_abrir); hl.addWidget(self.lbl_cajon_status); hl.addStretch()
         lay.addWidget(grp2)
 
@@ -230,7 +220,7 @@ class ModuloConfigHardware(QWidget):
             "El comando ESC/POS estándar funciona con la mayoría de marcas (Epson, Star, Bixolon)."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#fffbea;padding:8px;border-radius:4px;font-size:11px;")
+        info.setObjectName("infoBox")
         lay.addWidget(info)
         lay.addStretch()
         return w
@@ -238,16 +228,14 @@ class ModuloConfigHardware(QWidget):
     # ── Tab 4: Escáner ────────────────────────────────────────────────────────
 
     def _tab_scanner(self) -> QWidget:
-        from modulos.spj_styles import spj_btn
-        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(10)
+        from modulos.ui_components import create_primary_button, create_input, create_combo
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(Spacing.SM)
 
         grp = QGroupBox("Escáner de código de barras / QR")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                          "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         form = QFormLayout(grp)
 
-        self.cmb_scanner_modo = QComboBox()
-        self.cmb_scanner_modo.addItems([
+        self.cmb_scanner_modo = create_combo(self, [
             "HID Teclado (USB Plug & Play — recomendado)",
             "Serial (COM) — escáneres industriales",
             "Cámara web (software)",
@@ -276,13 +264,12 @@ class ModuloConfigHardware(QWidget):
         lay.addWidget(grp)
 
         grp2 = QGroupBox("Prueba — escanea un código aquí")
-        grp2.setStyleSheet(grp.styleSheet())
+        grp2.setObjectName("styledGroup")
         vt = QVBoxLayout(grp2)
-        self.txt_scanner_test = QLineEdit()
+        self.txt_scanner_test = create_input(self, "")
         self.txt_scanner_test.setPlaceholderText("Coloca el cursor aquí y escanea un código...")
-        self.txt_scanner_test.setStyleSheet("font-size:14px;padding:8px;")
         self.lbl_scanner_result = QLabel("—")
-        self.lbl_scanner_result.setStyleSheet("font-size:12px;color:#27ae60;")
+        self.lbl_scanner_result.setObjectName("textSuccess")
         self.txt_scanner_test.textChanged.connect(
             lambda t: self.lbl_scanner_result.setText(f"✅ Código: {t}" if t else "—"))
         vt.addWidget(QLabel("Escanea en el campo:"))
@@ -295,19 +282,18 @@ class ModuloConfigHardware(QWidget):
     # ── Tab 5: Red ────────────────────────────────────────────────────────────
 
     def _tab_red(self) -> QWidget:
-        from modulos.spj_styles import spj_btn
-        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(10)
+        from modulos.ui_components import create_primary_button, create_secondary_button, create_input
+        w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(Spacing.SM)
 
         grp = QGroupBox("Configuración de red del equipo POS")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                          "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         form = QFormLayout(grp)
 
-        self.txt_red_ip      = QLineEdit(); self.txt_red_ip.setPlaceholderText("192.168.1.10")
-        self.txt_red_mascara = QLineEdit(); self.txt_red_mascara.setPlaceholderText("255.255.255.0")
-        self.txt_red_gateway = QLineEdit(); self.txt_red_gateway.setPlaceholderText("192.168.1.1")
-        self.txt_red_dns     = QLineEdit(); self.txt_red_dns.setPlaceholderText("8.8.8.8")
-        self.txt_red_nombre  = QLineEdit(); self.txt_red_nombre.setPlaceholderText("SPJ-POS-01")
+        self.txt_red_ip      = create_input(self, ""); self.txt_red_ip.setPlaceholderText("192.168.1.10")
+        self.txt_red_mascara = create_input(self, ""); self.txt_red_mascara.setPlaceholderText("255.255.255.0")
+        self.txt_red_gateway = create_input(self, ""); self.txt_red_gateway.setPlaceholderText("192.168.1.1")
+        self.txt_red_dns     = create_input(self, ""); self.txt_red_dns.setPlaceholderText("8.8.8.8")
+        self.txt_red_nombre  = create_input(self, ""); self.txt_red_nombre.setPlaceholderText("SPJ-POS-01")
 
         form.addRow("IP del equipo:", self.txt_red_ip)
         form.addRow("Máscara:", self.txt_red_mascara)
@@ -317,15 +303,14 @@ class ModuloConfigHardware(QWidget):
         lay.addWidget(grp)
 
         grp2 = QGroupBox("Diagnóstico de red")
-        grp2.setStyleSheet(grp.styleSheet())
+        grp2.setObjectName("styledGroup")
         hl2 = QHBoxLayout(grp2)
-        btn_ping = QPushButton("📡 Ping al gateway")
-        spj_btn(btn_ping, "info")
+        btn_ping = create_primary_button(self, "📡 Ping al gateway", "Verificar conectividad con el gateway")
         btn_ping.clicked.connect(self._test_ping)
-        btn_info = QPushButton("ℹ️ Ver IP actual")
-        spj_btn(btn_info, "secondary")
+        btn_info = create_secondary_button(self, "ℹ️ Ver IP actual", "Mostrar información de red actual")
         btn_info.clicked.connect(self._ver_ip_actual)
         self.lbl_red_status = QLabel("—")
+        self.lbl_red_status.setObjectName("textSecondary")
         hl2.addWidget(btn_ping); hl2.addWidget(btn_info)
         hl2.addWidget(self.lbl_red_status); hl2.addStretch()
         lay.addWidget(grp2)
@@ -462,13 +447,13 @@ class ModuloConfigHardware(QWidget):
             data = s.read(10)
             s.close()
             self.lbl_bascula_status.setText(f"✅ Puerto {port} OK — {len(data)} bytes recibidos")
-            self.lbl_bascula_status.setStyleSheet("color:#27ae60;font-weight:bold;")
+            self.lbl_bascula_status.setObjectName("textSuccess")
         except ImportError:
             self.lbl_bascula_status.setText("⚠️  pyserial no instalado — pip install pyserial")
-            self.lbl_bascula_status.setStyleSheet("color:#e67e22;")
+            self.lbl_bascula_status.setObjectName("textWarning")
         except Exception as e:
             self.lbl_bascula_status.setText(f"❌ {str(e)[:60]}")
-            self.lbl_bascula_status.setStyleSheet("color:#e74c3c;")
+            self.lbl_bascula_status.setObjectName("textDanger")
 
     def _test_ticket_printer(self):
         """Alias — delegates to _test_ticket."""
@@ -509,7 +494,7 @@ class ModuloConfigHardware(QWidget):
 
         tipo_idx = self.cmb_ticket_tipo.currentIndex()
         self.lbl_ticket_status.setText("Probando…")
-        self.lbl_ticket_status.setStyleSheet("color:#888;")
+        self.lbl_ticket_status.setObjectName("textSecondary")
 
         try:
             # ── Ruta 0: win32print (USB spooler de Windows) ───────────────────
@@ -526,11 +511,11 @@ class ModuloConfigHardware(QWidget):
                     finally:
                         win32print.ClosePrinter(hprinter)
                     self.lbl_ticket_status.setText("✅ Enviado via win32print")
-                    self.lbl_ticket_status.setStyleSheet("color:#27ae60;font-weight:bold;")
+                    self.lbl_ticket_status.setObjectName("textSuccess")
                 except ImportError:
                     self.lbl_ticket_status.setText(
                         "⚠️  pywin32 no instalado — ejecuta: pip install pywin32")
-                    self.lbl_ticket_status.setStyleSheet("color:#e67e22;")
+                    self.lbl_ticket_status.setObjectName("textWarning")
                 return
 
             # ── Ruta 1: USB COM virtual / Serial ─────────────────────────────
@@ -539,7 +524,7 @@ class ModuloConfigHardware(QWidget):
                 with serial.Serial(ubicacion, 9600, timeout=3) as s:
                     s.write(self._escpos_test_bytes())
                 self.lbl_ticket_status.setText(f"✅ Enviado por {ubicacion}")
-                self.lbl_ticket_status.setStyleSheet("color:#27ae60;font-weight:bold;")
+                self.lbl_ticket_status.setObjectName("textSuccess")
                 return
 
             # ── Ruta 2: Red TCP/IP ────────────────────────────────────────────
@@ -553,15 +538,15 @@ class ModuloConfigHardware(QWidget):
                     s.connect((ip.strip(), int(port)))
                     s.sendall(self._escpos_test_bytes())
                 self.lbl_ticket_status.setText(f"✅ Enviado a {ip}:{port}")
-                self.lbl_ticket_status.setStyleSheet("color:#27ae60;font-weight:bold;")
+                self.lbl_ticket_status.setObjectName("textSuccess")
                 return
 
         except ImportError as e:
             self.lbl_ticket_status.setText(f"⚠️  {e}")
-            self.lbl_ticket_status.setStyleSheet("color:#e67e22;")
+            self.lbl_ticket_status.setObjectName("textWarning")
         except Exception as e:
             self.lbl_ticket_status.setText(f"❌ {str(e)[:80]}")
-            self.lbl_ticket_status.setStyleSheet("color:#e74c3c;")
+            self.lbl_ticket_status.setObjectName("textDanger")
 
     def _test_etiqueta(self):
         QMessageBox.information(self, "Prueba etiquetas",
@@ -595,10 +580,10 @@ class ModuloConfigHardware(QWidget):
                 s = serial.Serial(port, 9600, timeout=2)
                 s.write(cmd_bytes); s.close()
                 self.lbl_cajon_status.setText("✅ Comando enviado por serial")
-            self.lbl_cajon_status.setStyleSheet("color:#27ae60;font-weight:bold;")
+            self.lbl_cajon_status.setObjectName("textSuccess")
         except Exception as e:
             self.lbl_cajon_status.setText(f"❌ {str(e)[:60]}")
-            self.lbl_cajon_status.setStyleSheet("color:#e74c3c;")
+            self.lbl_cajon_status.setObjectName("textDanger")
 
     def _test_ping(self):
         gateway = self.txt_red_gateway.text().strip()
@@ -614,13 +599,13 @@ class ModuloConfigHardware(QWidget):
             )
             if result.returncode == 0:
                 self.lbl_red_status.setText(f"✅ {gateway} responde")
-                self.lbl_red_status.setStyleSheet("color:#27ae60;font-weight:bold;")
+                self.lbl_red_status.setObjectName("textSuccess")
             else:
                 self.lbl_red_status.setText(f"❌ {gateway} sin respuesta")
-                self.lbl_red_status.setStyleSheet("color:#e74c3c;")
+                self.lbl_red_status.setObjectName("textDanger")
         except Exception as e:
             self.lbl_red_status.setText(f"❌ {str(e)[:50]}")
-            self.lbl_red_status.setStyleSheet("color:#e74c3c;")
+            self.lbl_red_status.setObjectName("textDanger")
 
     def _ver_ip_actual(self):
         try:
@@ -628,6 +613,6 @@ class ModuloConfigHardware(QWidget):
             ip = socket.gethostbyname(socket.gethostname())
             hostname = socket.gethostname()
             self.lbl_red_status.setText(f"IP actual: {ip}  ({hostname})")
-            self.lbl_red_status.setStyleSheet("color:#2c3e50;")
+            self.lbl_red_status.setObjectName("textPrimary")
         except Exception as e:
             self.lbl_red_status.setText(f"Error: {e}")

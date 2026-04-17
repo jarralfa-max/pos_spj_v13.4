@@ -6,7 +6,7 @@ Soporta Rasa, cotizaciones, número por sucursal.
 """
 from __future__ import annotations
 from core.services.auto_audit import audit_write
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.spj_styles import spj_btn, apply_btn_styles, apply_object_names
 import logging
 from modulos.spj_phone_widget import PhoneWidget
 from PyQt5.QtWidgets import (
@@ -195,6 +195,7 @@ class ModuloWhatsApp(QWidget):
         lmt.addWidget(btn_refresh_m)
         lmt.addStretch()
         self._cargar_metricas()
+        apply_object_names(self)
 
     # ── Números por sucursal ──────────────────────────────────────────────
 

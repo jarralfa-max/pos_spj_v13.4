@@ -16,6 +16,8 @@ from datetime import date
 
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_heading, apply_tooltip
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
@@ -185,10 +187,8 @@ class ModuloProveedores(QWidget):
         # Header
         hdr = QHBoxLayout()
         titulo = QLabel("🏭 Proveedores")
-        titulo.setStyleSheet("font-size:17px;font-weight:bold;")
-        btn_nuevo = QPushButton("➕ Nuevo Proveedor")
-        btn_nuevo.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;")
+        titulo.setObjectName("heading")
+        btn_nuevo = create_success_button(self, "➕ Nuevo Proveedor", "Crear nuevo proveedor")
         btn_nuevo.clicked.connect(self._nuevo)
         hdr.addWidget(titulo); hdr.addStretch(); hdr.addWidget(btn_nuevo)
         lay.addLayout(hdr)

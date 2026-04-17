@@ -21,14 +21,14 @@ DEFAULT_TOGGLES = {
     "printing_enabled":              True,
     "loyalty_enabled":               True,
     "finance_enabled":               True,
-    "treasury_central_enabled":      False,   # CAPEX — Fase 3
+    "treasury_central_enabled":      True,    # CAPEX — Fase 3 (visible por defecto)
     "alerts_enabled":                True,
-    "decisions_enabled":             False,   # Fase 5
+    "decisions_enabled":             True,    # Fase 5 (visible por defecto)
     "forecasting_enabled":           True,
     "simulation_enabled":            False,   # Fase 7
     "ai_enabled":                    False,   # Fase 8
     "franchise_mode_enabled":        False,   # Fase 10
-    "whatsapp_integration_enabled":  False,
+    "whatsapp_integration_enabled":  True,    # visible por defecto (Fase 0 whitelist)
     "whatsapp_advanced_enabled":     False,   # FASE WA — Orchestrator + OC auto
     "reminder_engine_enabled":       False,   # FASE WA — ReminderEngine
     "rrhh_enabled":                  True,    # FASE RRHH — HRRuleEngine

@@ -13,6 +13,8 @@ Campos en la etiqueta:
 """
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input, create_combo, apply_tooltip
 import logging
 import os
 from datetime import date, timedelta
@@ -238,7 +240,7 @@ class ModuloEtiquetas(QWidget):
         lay.setContentsMargins(12, 10, 12, 10)
 
         titulo = QLabel("🏷️ Diseño e Impresión de Etiquetas")
-        titulo.setStyleSheet("font-size:17px;font-weight:bold;color:#2C3E50;")
+        titulo.setObjectName("heading")
         lay.addWidget(titulo)
 
         splitter = QSplitter(Qt.Horizontal)
@@ -250,11 +252,7 @@ class ModuloEtiquetas(QWidget):
         ll = QVBoxLayout(left); ll.setSpacing(6)
 
         tabs = QTabWidget()
-        tabs.setStyleSheet("""
-            QTabWidget::pane { border:1px solid #ddd; border-radius:4px; background:white; }
-            QTabBar::tab { padding:6px 14px; font-size:12px; }
-            QTabBar::tab:selected { background:#3498db; color:white; font-weight:bold; border-radius:3px 3px 0 0; }
-        """)
+        tabs.setObjectName("tabWidget")
 
         # ── Tab 1: Producto ──────────────────────────────────────────────
         tab_prod = QWidget()
@@ -263,9 +261,7 @@ class ModuloEtiquetas(QWidget):
         # Búsqueda con autocompletado (reemplaza ComboBox)
         self.txt_buscar_producto = QLineEdit()
         self.txt_buscar_producto.setPlaceholderText("🔍 Buscar producto por nombre o código...")
-        self.txt_buscar_producto.setStyleSheet(
-            "padding:8px 12px; border:2px solid #3498db; border-radius:6px; "
-            "font-size:13px; background:white;")
+        self.txt_buscar_producto.setObjectName("inputField")
 
         self._completer_model = QStringListModel()
         self._completer = QCompleter()
@@ -283,14 +279,14 @@ class ModuloEtiquetas(QWidget):
         self.spin_precio = QDoubleSpinBox()
         self.spin_precio.setRange(0, 99999); self.spin_precio.setDecimals(2)
         self.spin_precio.setPrefix("$ ")
-        self.spin_precio.setStyleSheet("padding:4px;")
+        self.spin_precio.setObjectName("inputField")
         self.spin_precio.valueChanged.connect(self._actualizar_preview)
         pf.addRow("Precio:", self.spin_precio)
 
         # Unidad de medida (reemplaza peso fijo)
         self.cmb_unidad = QComboBox()
         self.cmb_unidad.addItems(["kg", "g", "pz", "lt", "ml", "m", "cm", "oz", "lb"])
-        self.cmb_unidad.setStyleSheet("padding:4px;")
+        self.cmb_unidad.setObjectName("inputField")
         self.cmb_unidad.currentIndexChanged.connect(self._on_unidad_change)
         pf.addRow("Unidad:", self.cmb_unidad)
 
@@ -298,7 +294,7 @@ class ModuloEtiquetas(QWidget):
         self.spin_cantidad = QDoubleSpinBox()
         self.spin_cantidad.setRange(0.001, 99999); self.spin_cantidad.setDecimals(3)
         self.spin_cantidad.setValue(1.0)
-        self.spin_cantidad.setStyleSheet("padding:4px;")
+        self.spin_cantidad.setObjectName("inputField")
         self.spin_cantidad.valueChanged.connect(self._actualizar_preview)
         self.lbl_cantidad = QLabel("Cantidad:")
         pf.addRow(self.lbl_cantidad, self.spin_cantidad)
@@ -393,17 +389,15 @@ class ModuloEtiquetas(QWidget):
         ll.addWidget(grp_imp)
 
         btn_row = QHBoxLayout()
-        btn_pdf = QPushButton("📄 PDF")
-        btn_pdf.setStyleSheet("padding:8px 12px;border-radius:4px;")
+        btn_pdf = create_secondary_button(self, "📄 PDF", "Guardar etiqueta como PDF")
         btn_pdf.clicked.connect(self._guardar_pdf)
-        btn_test = QPushButton("🧪 Muestra")
-        btn_test.setStyleSheet(
-            "background:#8e44ad;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        
+        btn_test = create_primary_button(self, "🧪 Muestra", "Imprimir etiqueta de prueba")
         btn_test.clicked.connect(self._imprimir_muestra)
-        btn_imp = QPushButton("🖨️ Imprimir")
-        btn_imp.setStyleSheet(
-            "background:#2980b9;color:white;font-weight:bold;padding:8px 16px;border-radius:4px;")
+        
+        btn_imp = create_success_button(self, "🖨️ Imprimir", "Enviar a impresora de etiquetas")
         btn_imp.clicked.connect(self._imprimir)
+        
         btn_row.addWidget(btn_pdf); btn_row.addWidget(btn_test); btn_row.addWidget(btn_imp)
         ll.addLayout(btn_row)
         ll.addStretch()
@@ -414,7 +408,7 @@ class ModuloEtiquetas(QWidget):
         # ══════════════════════════════════════════════════════════════════
         right = QWidget(); rl = QVBoxLayout(right)
         lbl_prev = QLabel("Vista previa de etiqueta:")
-        lbl_prev.setStyleSheet("font-weight:bold;color:#555;")
+        lbl_prev.setObjectName("subheading")
         rl.addWidget(lbl_prev)
         self.preview = EtiquetaPreview()
         rl.addWidget(self.preview, 0, Qt.AlignHCenter | Qt.AlignTop)

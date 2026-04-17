@@ -11,15 +11,15 @@ logger = logging.getLogger("spj.theme_engine")
 
 # Mapa: nombres spec → nombres en TEMAS existentes
 _THEME_ALIASES = {
-    "SPJ_DARK":           "Oscuro Moderno",
-    "SPJ_LIGHT":          "Claro Elegante",
-    "SPJ_BLUE_PRO":       "Azul Profesional",
-    "SPJ_GREEN_ELEGANT":  "Verde Naturaleza",
-    "SPJ_PURPLE_PREMIUM": "Púrpura Creativo",
+    "SPJ_DARK":          "Oscuro",
+    "SPJ_LIGHT":         "Claro",
+    "Dark":              "Oscuro",
+    "Light":             "Claro",
+    "Oscuro Moderno":    "Oscuro",  # Alias para compatibilidad con versiones anteriores
 }
 
 # Nombre por defecto
-_DEFAULT_THEME = "Oscuro Moderno"
+_DEFAULT_THEME = "Oscuro"
 _current_theme = _DEFAULT_THEME
 
 
@@ -34,12 +34,8 @@ def _get_temas() -> dict:
 
 
 def get_available_themes() -> list:
-    """Retorna nombres de temas disponibles (spec + legacy)."""
-    temas = _get_temas()
-    result = list(_THEME_ALIASES.keys()) + [
-        t for t in temas.keys() if t not in _THEME_ALIASES.values()
-    ]
-    return result
+    """Retorna nombres de temas disponibles (solo Claro/Oscuro)."""
+    return ["Claro", "Oscuro"]
 
 
 def get_qss(theme_name: str) -> str:
@@ -117,8 +113,8 @@ def _persist_theme(theme_name: str) -> None:
         from core.db.connection import get_connection
         conn = get_connection()
         conn.execute(
-            "INSERT OR REPLACE INTO configuraciones (clave, valor, descripcion) VALUES (?,?,?)",
-            ("tema", theme_name, "Tema de la interfaz")
+            "INSERT OR REPLACE INTO configuraciones (clave, valor) VALUES (?,?)",
+            ("tema", theme_name)
         )
         conn.commit()
     except Exception as e:
@@ -134,7 +130,7 @@ class ThemeEngine:
         self.conexion = conexion
 
     def obtener_temas_disponibles(self) -> list:
-        return list(_get_temas().keys())
+        return ["Claro", "Oscuro"]
 
     def obtener_estilo_tema(self, nombre: str) -> str:
         return get_qss(nombre)

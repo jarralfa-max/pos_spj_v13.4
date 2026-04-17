@@ -59,16 +59,20 @@ def _bootstrap_db(db_path: str) -> None:
 
     # Fallback interno: migrar + validar sin depender del módulo scripts
     import sqlite3
-    from core.db.connection import verificar_tablas
+    from core.db.connection import migrate_db, verificar_tablas
 
     conn = sqlite3.connect(db_path)
     try:
         migrator.up(conn)
+        migrate_db(conn)
         verificar_tablas(conn)
     finally:
         conn.close()
 
 DB_PATH = "spj_pos_database.db"
+# Align connection pool to same DB as bootstrap — prevents "no such table" on fresh start
+from core.db.connection import set_db_path as _set_db_path
+_set_db_path(os.path.abspath(DB_PATH))
 _LOCAL_SERVER = None
 
 def _instancia_unica(app) -> bool:
@@ -163,9 +167,10 @@ def inicializar_sistema():
 
     try:
         import sqlite3
-        from core.db.connection import verificar_tablas
+        from core.db.connection import migrate_db, verificar_tablas
         conn = sqlite3.connect(DB_PATH)
         migrator.up(conn)
+        migrate_db(conn)
         verificar_tablas(conn)
         conn.close()
         logger.info("✅ Migraciones OK")

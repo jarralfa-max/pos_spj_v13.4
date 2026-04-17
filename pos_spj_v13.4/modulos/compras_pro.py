@@ -9,7 +9,12 @@ Compras a Proveedores.
 """
 from __future__ import annotations
 
-from modulos.spj_styles import spj_btn
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_danger_button, create_input, create_combo, create_card,
+    create_heading, create_subheading, create_caption, apply_tooltip
+)
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
 from PyQt5.QtWidgets import (
@@ -95,15 +100,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # ── Encabezado del documento ──────────────────────────────────────────
         grp_doc = QGroupBox("📄 Datos del Documento")
-        grp_doc.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                               "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp_doc.setObjectName("styledGroup")
         form = QFormLayout(grp_doc)
 
-        self.cmb_proveedor = QComboBox()
-        self.cmb_proveedor.setMinimumWidth(260)
-        spj_btn_style = ("QComboBox{padding:5px 8px;border:1px solid #ced4da;"
-                          "border-radius:4px;}")
-        self.cmb_proveedor.setStyleSheet(spj_btn_style)
+        self.cmb_proveedor = create_combo(self, min_width=260)
 
         self.txt_factura = QLineEdit()
         self.txt_factura.setPlaceholderText("Ej. FAC-001 / REM-00129 (opcional)")
@@ -132,8 +132,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # ── Carrito editable ──────────────────────────────────────────────────
         grp_cart = QGroupBox("🛒 Carrito de compra  "
                              "(doble clic = editar · clic derecho = opciones)")
-        grp_cart.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                                "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp_cart.setObjectName("styledGroup")
         cart_lay = QVBoxLayout(grp_cart)
 
         self.tabla = QTableWidget()
@@ -151,34 +150,32 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.tabla.doubleClicked.connect(self._editar_fila)
         self.tabla.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tabla.customContextMenuRequested.connect(self._menu_fila)
+        self.tabla.setObjectName("tableView")
         cart_lay.addWidget(self.tabla)
 
         # Toolbar del carrito
         cart_tb = QHBoxLayout()
-        btn_clear = QPushButton("🗑 Limpiar carrito")
-        spj_btn(btn_clear, "danger", "sm")
+        btn_clear = create_danger_button(self, "🗑 Limpiar carrito", "Vaciar carrito de compras")
         btn_clear.clicked.connect(self._limpiar_carrito)
         cart_tb.addWidget(btn_clear)
         cart_tb.addStretch()
 
         self.lbl_total = QLabel("Total: $0.00")
-        self.lbl_total.setStyleSheet(
-            "font-size:18px;font-weight:bold;color:#e74c3c;padding:4px;")
+        self.lbl_total.setObjectName("heading")
         cart_tb.addWidget(self.lbl_total)
         cart_lay.addLayout(cart_tb)
         lay.addWidget(grp_cart)
 
         # ── Footer: forma de pago + procesar ─────────────────────────────────
         footer = QHBoxLayout()
-        self.cmb_pago = QComboBox()
+        self.cmb_pago = create_combo(self)
         self.cmb_pago.addItems([
             "CONTADO (Efectivo)", "CREDITO (Cuentas por Pagar)",
             "TRANSFERENCIA", "CHEQUE",
         ])
-        self.cmb_pago.setStyleSheet("padding:8px;font-weight:bold;")
 
-        btn_proc = QPushButton("📥 PROCESAR COMPRA E INGRESAR AL INVENTARIO")
-        spj_btn(btn_proc, "success", "lg")
+        btn_proc = create_success_button(self, "📥 PROCESAR COMPRA E INGRESAR AL INVENTARIO", 
+                                         "Procionar compra y actualizar inventario")
         btn_proc.clicked.connect(self._procesar_compra)
 
         footer.addWidget(QLabel("Pago:"))
@@ -387,11 +384,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.tabla.setItem(row, col, it)
 
             # Delete button in last column
-            btn_del = QPushButton("✕")
-            btn_del.setFixedWidth(30)
-            btn_del.setStyleSheet(
-                "QPushButton{background:#e74c3c;color:white;border-radius:3px;"
-                "font-weight:bold;} QPushButton:hover{background:#c0392b;}")
+            btn_del = create_danger_button(self, "✕", "Eliminar producto del carrito")
+            btn_del.setFixedWidth(36)
             btn_del.clicked.connect(lambda _, r=row: self._eliminar_fila(r))
             self.tabla.setCellWidget(row, 5, btn_del)
             total += item['subtotal']
@@ -566,11 +560,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(browser)
 
         btn_row = QHBoxLayout()
-        btn_cancel = QPushButton("✕ Cancelar")
-        btn_cancel.setStyleSheet("padding:8px 16px;")
-        btn_ok = QPushButton("✅ Confirmar y Procesar")
-        btn_ok.setStyleSheet("background:#27ae60;color:white;font-weight:bold;"
-                              "padding:8px 20px;border-radius:4px;")
+        btn_cancel = create_secondary_button(self, "✕ Cancelar", "Cancelar y cerrar")
+        btn_ok = create_success_button(self, "✅ Confirmar y Procesar", "Confirmar edición de compra")
         btn_cancel.clicked.connect(dlg.reject)
         btn_ok.clicked.connect(dlg.accept)
         btn_row.addWidget(btn_cancel); btn_row.addStretch(); btn_row.addWidget(btn_ok)
@@ -653,8 +644,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Toolbar
         hdr = QHBoxLayout()
-        lbl = QLabel("Historial de Compras a Proveedores")
-        lbl.setStyleSheet("font-size:13px;font-weight:bold;color:#2c3e50;")
+        lbl = create_subheading(self, "Historial de Compras a Proveedores")
         hdr.addWidget(lbl)
         hdr.addStretch()
 
@@ -664,8 +654,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_desde.setCalendarPopup(True)
         self._hist_hasta = QDateEdit(QDate.currentDate())
         self._hist_hasta.setCalendarPopup(True)
-        btn_ref = QPushButton("🔄 Actualizar")
-        btn_ref.setStyleSheet("background:#2E86C1;color:white;padding:4px 12px;border-radius:4px;")
+        btn_ref = create_primary_button(self, "🔄 Actualizar", "Actualizar historial de compras")
         btn_ref.clicked.connect(self._cargar_historial_compras)
         hdr.addWidget(QLabel("Desde:"))
         hdr.addWidget(self._hist_desde)
@@ -686,16 +675,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._tbl_hist.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_hist.setAlternatingRowColors(True)
         self._tbl_hist.verticalHeader().setVisible(False)
+        self._tbl_hist.setObjectName("tableView")
         lay.addWidget(self._tbl_hist)
 
         # KPI bar
         kpi_row = QHBoxLayout()
         self.lbl_hist_total_compras = QLabel("Total período: $0.00")
-        self.lbl_hist_total_compras.setStyleSheet(
-            "padding:5px 10px;background:#eafaf1;border-radius:4px;font-weight:bold;")
+        self.lbl_hist_total_compras.setObjectName("badgeSuccess")
         self.lbl_hist_num_compras = QLabel("0 compras")
-        self.lbl_hist_num_compras.setStyleSheet(
-            "padding:5px 10px;background:#ebf5fb;border-radius:4px;")
+        self.lbl_hist_num_compras.setObjectName("badgeInfo")
         kpi_row.addWidget(self.lbl_hist_total_compras)
         kpi_row.addWidget(self.lbl_hist_num_compras)
         kpi_row.addStretch()
@@ -739,8 +727,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
             # Detail button
             compra_id = r[6]
-            btn_det = QPushButton("🔍 Ver detalle")
-            btn_det.setStyleSheet("font-size:11px;padding:2px 6px;")
+            btn_det = create_secondary_button(self, "🔍 Ver detalle", "Ver detalles de esta compra")
             btn_det.clicked.connect(lambda _, cid=compra_id: self._ver_detalle_compra(cid))
             self._tbl_hist.setCellWidget(ri, 6, btn_det)
 
@@ -779,10 +766,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             lay_d.addWidget(browser)
 
             btn_row = QHBoxLayout()
-            btn_print = QPushButton("🖨️ Imprimir")
-            btn_print.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;padding:7px 16px;border-radius:4px;")
-            btn_close2 = QPushButton("Cerrar")
-            btn_close2.setStyleSheet("padding:7px 16px;")
+            btn_print = create_primary_button(self, "🖨️ Imprimir", "Imprimir comprobante de compra")
+            btn_close2 = create_secondary_button(self, "Cerrar", "Cerrar vista previa")
 
             def _do_print2():
                 printer = QPrinter(QPrinter.HighResolution)

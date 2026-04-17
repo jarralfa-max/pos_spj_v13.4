@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, create_input, create_combo, create_card, apply_tooltip
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
@@ -18,8 +20,8 @@ logger = logging.getLogger("spj.delivery")
 
 ESTADOS = ["pendiente","asignado","en_camino","entregado","cancelado"]
 ESTADO_COLOR = {
-    "pendiente": "#F59E0B","asignado":"#3B82F6","en_camino":"#8B5CF6",
-    "entregado":"#10B981","cancelado":"#EF4444"
+    "pendiente": Colors.WARNING_BASE,"asignado":Colors.PRIMARY_BASE,"en_camino":Colors.ACCENT_BASE,
+    "entregado":Colors.SUCCESS_BASE,"cancelado":Colors.DANGER_BASE
 }
 
 class AsignarDriverDialog(QDialog):
@@ -98,39 +100,60 @@ class TarjetaPedido(QFrame):
         super().__init__(parent)
         self.pedido = pedido
         self.setFrameShape(QFrame.StyledPanel)
-        color = ESTADO_COLOR.get(pedido.get("estado","pendiente"), "#6B7280")
-        self.setStyleSheet(f"QFrame{{border-left:4px solid {color};border-radius:6px;background:#2D3748;padding:4px;margin:3px;}}")
+        color = ESTADO_COLOR.get(pedido.get("estado","pendiente"), Colors.TEXT_SECONDARY)
+        self.setObjectName("cardPedido")
+        # Estilo dinámico solo para borde de estado y fondo
+        self.setStyleSheet(f"""
+            QFrame#cardPedido {{
+                border-left: 4px solid {color};
+                border-radius: {Borders.RADIUS_MD};
+                background: {Colors.CARD_DARK if hasattr(Colors, 'CARD_DARK') else Colors.NEUTRAL_800};
+                padding: {Spacing.SM};
+                margin: {Spacing.XS};
+            }}
+        """)
         layout = QHBoxLayout(self)
         info = QVBoxLayout()
+        
         titulo = QLabel(f"<b>#{pedido.get('id','')}  {pedido.get('direccion','Sin dirección')[:40]}</b>")
-        titulo.setStyleSheet("color:#E2E8F0;font-size:12px;")
+        titulo.setObjectName("subheading")
+        
         cliente = QLabel(f"Cliente: {pedido.get('cliente_nombre','N/A')}  |  Tel: {pedido.get('cliente_tel','')}")
-        cliente.setStyleSheet("color:#A0AEC0;font-size:10px;")
+        cliente.setObjectName("caption")
+        
         driver_txt = f"Repartidor: {pedido.get('driver_nombre','Sin asignar')}"
-        driver_lbl = QLabel(driver_txt); driver_lbl.setStyleSheet("color:#90CDF4;font-size:10px;")
+        driver_lbl = QLabel(driver_txt)
+        driver_lbl.setObjectName("textMuted")
+        
         estado_lbl = QLabel(pedido.get("estado","").upper())
-        estado_lbl.setStyleSheet(f"color:{color};font-weight:bold;font-size:10px;")
-        info.addWidget(titulo); info.addWidget(cliente)
-        info.addWidget(driver_lbl); info.addWidget(estado_lbl)
+        estado_lbl.setObjectName("badge")
+        estado_lbl.setStyleSheet(f"color: {color}; font-weight: bold;")
+        
+        info.addWidget(titulo)
+        info.addWidget(cliente)
+        info.addWidget(driver_lbl)
+        info.addWidget(estado_lbl)
         layout.addLayout(info, 1)
         btns = QVBoxLayout()
         estado = pedido.get("estado","pendiente")
         if estado == "pendiente":
-            btn = QPushButton("Asignar"); btn.setFixedWidth(90)
+            btn = create_primary_button(self, "Asignar", "Asignar repartidor al pedido")
+            btn.setFixedWidth(90)
             btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"asignar"))
             btns.addWidget(btn)
         if estado == "asignado":
-            btn = QPushButton("En Camino"); btn.setFixedWidth(90)
+            btn = create_primary_button(self, "En Camino", "Marcar pedido como en camino")
+            btn.setFixedWidth(90)
             btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"en_camino"))
             btns.addWidget(btn)
         if estado == "en_camino":
-            btn = QPushButton("Entregado"); btn.setFixedWidth(90)
-            btn.setStyleSheet("background:#10B981;color:white;")
+            btn = create_success_button(self, "Entregado", "Confirmar entrega del pedido")
+            btn.setFixedWidth(90)
             btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"entregado"))
             btns.addWidget(btn)
         if estado not in ("entregado","cancelado"):
-            btn_cancel = QPushButton("Cancelar"); btn_cancel.setFixedWidth(90)
-            btn_cancel.setStyleSheet("background:#EF4444;color:white;")
+            btn_cancel = create_danger_button(self, "Cancelar", "Cancelar pedido de delivery")
+            btn_cancel.setFixedWidth(90)
             btn_cancel.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"cancelado"))
             btns.addWidget(btn_cancel)
         layout.addLayout(btns)
@@ -201,24 +224,17 @@ class ModuloDelivery(QWidget, RefreshMixin):
         layout = QVBoxLayout(self)
         # Header
         header = QHBoxLayout()
-        title = QLabel("🚚 Módulo Delivery"); title.setStyleSheet("font-size:18px;font-weight:bold;color:#E2E8F0;")
-        btn_nuevo = QPushButton("+ Nuevo Pedido"); btn_nuevo.setStyleSheet("background:#3B82F6;color:white;padding:7px 16px;border-radius:6px;font-weight:bold;")
+        title = QLabel("🚚 Módulo Delivery"); title.setObjectName("heading")
+        btn_nuevo = create_success_button(self, "+ Nuevo Pedido", "Crear nuevo pedido de delivery")
         btn_nuevo.clicked.connect(self.nuevo_pedido)
-        btn_driver = QPushButton("Gestionar Repartidores"); btn_driver.setStyleSheet("background:#6B7280;color:white;padding:7px 16px;border-radius:6px;")
+        btn_driver = create_secondary_button(self, "Gestionar Repartidores", "Administrar repartidores disponibles")
         btn_driver.clicked.connect(self.gestionar_drivers)
         # v13.30: Corte de caja por repartidor
-        btn_corte = QPushButton("💰 Corte Repartidor")
-        btn_corte.setStyleSheet("background:#F59E0B;color:black;padding:7px 16px;border-radius:6px;font-weight:bold;")
-        btn_corte.setToolTip("Corte de caja: cuánto efectivo debe entregar cada repartidor")
-        btn_corte.clicked.connect(self._corte_repartidor)
-        btn_hist = QPushButton("📋 Historial")
-        btn_hist.setStyleSheet("background:#374151;color:white;padding:7px 12px;border-radius:6px;")
-        btn_hist.setToolTip("Historial de cortes y entregas")
+        btn_corte = create_warning_button(self, "💰 Corte Repartidor", "Corte de caja: cuánto efectivo debe entregar cada repartidor")
+        btn_hist = create_secondary_button(self, "📋 Historial", "Historial de cortes y entregas")
         btn_hist.clicked.connect(self._historial_cortes)
 
-        self.btn_auto_assign = QPushButton("🤖 Auto-Asignar")
-        self.btn_auto_assign.setStyleSheet("background:#8B5CF6;color:white;padding:7px 16px;border-radius:6px;font-weight:bold;")
-        self.btn_auto_assign.setToolTip("Asigna automáticamente todos los pedidos pendientes al repartidor disponible más cercano")
+        self.btn_auto_assign = create_primary_button(self, "🤖 Auto-Asignar", "Asigna automáticamente todos los pedidos pendientes al repartidor disponible más cercano")
         self.btn_auto_assign.clicked.connect(self._auto_asignar_todos)
         # Configurable: se deshabilita si feature_flag 'delivery_auto_asign' está off
         try:
@@ -226,7 +242,8 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self.btn_auto_assign.setVisible(habilitado)
         except Exception:
             pass
-        btn_refresh = QPushButton("🔄 Actualizar"); btn_refresh.clicked.connect(self.cargar_pedidos)
+        btn_refresh = create_secondary_button(self, "🔄 Actualizar", "Recargar lista de pedidos")
+        btn_refresh.clicked.connect(self.cargar_pedidos)
         header.addWidget(title); header.addStretch()
         header.addWidget(btn_nuevo); header.addWidget(btn_driver)
         header.addWidget(btn_corte); header.addWidget(btn_hist)
@@ -235,13 +252,12 @@ class ModuloDelivery(QWidget, RefreshMixin):
         # Filtro de estado
         filtro_layout = QHBoxLayout()
         filtro_layout.addWidget(QLabel("Filtrar:"))
-        self.combo_filtro = QComboBox()
-        self.combo_filtro.addItems(["Todos","pendiente","asignado","en_camino","entregado","cancelado"])
+        self.combo_filtro = create_combo(self, ["Todos","pendiente","asignado","en_camino","entregado","cancelado"], "Seleccionar estado para filtrar")
         self.combo_filtro.currentTextChanged.connect(self.cargar_pedidos)
         filtro_layout.addWidget(self.combo_filtro); filtro_layout.addStretch()
         # Stats
         self.lbl_stats = QLabel()
-        self.lbl_stats.setStyleSheet("color:#A0AEC0;font-size:11px;")
+        self.lbl_stats.setObjectName("caption")
         filtro_layout.addWidget(self.lbl_stats)
         layout.addLayout(filtro_layout)
         # Kanban board
@@ -252,7 +268,8 @@ class ModuloDelivery(QWidget, RefreshMixin):
             col_layout = QVBoxLayout(col_widget)
             color = ESTADO_COLOR[estado]
             titulo = QLabel(estado.upper().replace("_"," "))
-            titulo.setStyleSheet(f"color:{color};font-weight:bold;font-size:12px;padding:6px;border-bottom:2px solid {color};")
+            titulo.setObjectName("subheading")
+            titulo.setStyleSheet(f"color: {color}; font-weight: bold; padding: {Spacing.SM}; border-bottom: 2px solid {color};")
             col_layout.addWidget(titulo)
             scroll_content = QWidget()
             self.columnas[estado] = QVBoxLayout(scroll_content)
@@ -263,10 +280,9 @@ class ModuloDelivery(QWidget, RefreshMixin):
         layout.addWidget(splitter)
 
         # ── Botón de mapa de repartidores ─────────────────────────────────
-        btn_mapa = QPushButton("🗺️ Ver Mapa de Repartidores")
-        btn_mapa.setStyleSheet(
-            "background:#10B981;color:white;padding:8px 16px;"
-            "border-radius:6px;font-weight:bold;margin-top:6px;")
+        btn_mapa = create_success_button(self, "🗺️ Ver Mapa de Repartidores", "Ver ubicación de repartidores en tiempo real")
+        btn_mapa.setObjectName("btnMapa")
+        btn_mapa.setStyleSheet(f"margin-top: {Spacing.SM};")
         btn_mapa.clicked.connect(self._abrir_mapa)
         layout.addWidget(btn_mapa)
 
@@ -320,7 +336,7 @@ if(drivers.length===0){{
             lbl = QLabel(
                 "⚠️ PyQtWebEngine no instalado.\n\n"
                 "Para ver el mapa instala:\n  pip install PyQtWebEngine")
-            lbl.setStyleSheet("font-size:13px;padding:20px;")
+            lbl.setObjectName("caption")
             lay.addWidget(lbl)
 
         dlg.exec_()
@@ -614,7 +630,7 @@ if(drivers.length===0){{
 
         # Tabla de entregas pendientes de corte
         lbl_info = QLabel("Entregas completadas sin corte:")
-        lbl_info.setStyleSheet("font-weight:bold;margin-top:8px;")
+        lbl_info.setObjectName("subheading")
         lay.addWidget(lbl_info)
 
         tbl = QTableWidget()
@@ -624,17 +640,30 @@ if(drivers.length===0){{
         tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
         hh = tbl.horizontalHeader()
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        tbl.setObjectName("tableView")
         lay.addWidget(tbl)
 
         # Resumen financiero
         grp_resumen = QGroupBox("Resumen del turno")
-        grp_resumen.setStyleSheet("QGroupBox{font-weight:bold;}")
+        grp_resumen.setObjectName("styledGroup")
         rf = QFormLayout(grp_resumen)
         lbl_entregas = QLabel("0")
-        lbl_efectivo = QLabel("$0.00"); lbl_efectivo.setStyleSheet("font-size:16px;font-weight:bold;color:#c0392b;")
+        lbl_entregas.setObjectName("textPrimary")
+        
+        lbl_efectivo = QLabel("$0.00")
+        lbl_efectivo.setObjectName("textDanger")
+        lbl_efectivo.setStyleSheet(f"font-size: {Typography.LG}; font-weight: bold;")
+        
         lbl_tarjeta  = QLabel("$0.00")
+        lbl_tarjeta.setObjectName("textPrimary")
+        
         lbl_transfer = QLabel("$0.00")
-        lbl_total    = QLabel("$0.00"); lbl_total.setStyleSheet("font-size:16px;font-weight:bold;")
+        lbl_transfer.setObjectName("textPrimary")
+        
+        lbl_total    = QLabel("$0.00")
+        lbl_total.setObjectName("heading")
+        lbl_total.setStyleSheet(f"font-weight: bold;")
+        
         rf.addRow("Entregas:", lbl_entregas)
         rf.addRow("Efectivo cobrado:", lbl_efectivo)
         rf.addRow("Tarjeta:", lbl_tarjeta)
@@ -644,13 +673,17 @@ if(drivers.length===0){{
         # Efectivo que entrega el repartidor
         spin_entregado = QDoubleSpinBox()
         spin_entregado.setRange(0, 99999); spin_entregado.setDecimals(2)
-        spin_entregado.setPrefix("$ "); spin_entregado.setStyleSheet("font-size:14px;")
+        spin_entregado.setPrefix("$ ")
+        spin_entregado.setObjectName("inputField")
         rf.addRow("Efectivo entregado:", spin_entregado)
+        
         lbl_diferencia = QLabel("$0.00")
-        lbl_diferencia.setStyleSheet("font-size:14px;font-weight:bold;")
+        lbl_diferencia.setObjectName("textPrimary")
+        lbl_diferencia.setStyleSheet(f"font-weight: bold;")
         rf.addRow("Diferencia:", lbl_diferencia)
         txt_notas_corte = QLineEdit()
         txt_notas_corte.setPlaceholderText("Notas del corte (opcional)")
+        txt_notas_corte.setObjectName("inputField")
         rf.addRow("Notas:", txt_notas_corte)
         lay.addWidget(grp_resumen)
 
@@ -724,12 +757,13 @@ if(drivers.length===0){{
             esperado = _data["efectivo"]
             diff = entregado - esperado
             lbl_diferencia.setText(f"${diff:.2f}")
+            # Mantener solo el color dinámico, eliminar tamaño de fuente hardcodeado
             if abs(diff) < 0.01:
-                lbl_diferencia.setStyleSheet("font-size:14px;font-weight:bold;color:#27ae60;")
+                lbl_diferencia.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; font-weight: bold;")
             elif diff < 0:
-                lbl_diferencia.setStyleSheet("font-size:14px;font-weight:bold;color:#e74c3c;")
+                lbl_diferencia.setStyleSheet(f"color: {Colors.DANGER_BASE}; font-weight: bold;")
             else:
-                lbl_diferencia.setStyleSheet("font-size:14px;font-weight:bold;color:#f39c12;")
+                lbl_diferencia.setStyleSheet(f"color: {Colors.WARNING_BASE}; font-weight: bold;")
 
         cmb_driver.currentIndexChanged.connect(lambda: _cargar_entregas())
         spin_entregado.valueChanged.connect(lambda: _actualizar_diferencia())
@@ -738,9 +772,9 @@ if(drivers.length===0){{
 
         # Botones
         btns = QDialogButtonBox()
-        btn_registrar = QPushButton("✅ Registrar Corte")
-        btn_registrar.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;padding:10px 24px;border-radius:5px;")
+        btn_registrar = create_success_button(dlg, "✅ Registrar Corte", "Registrar corte de caja del repartidor")
+        btn_registrar.setObjectName("btnRegistrarCorte")
+        # Eliminar estilos hardcodeados - usar clases CSS del sistema
         btns.addButton(btn_registrar, QDialogButtonBox.AcceptRole)
         btns.addButton("Cancelar", QDialogButtonBox.RejectRole)
         btns.rejected.connect(dlg.reject)
@@ -930,10 +964,11 @@ class GestorDriversDialog(QDialog):
 
         # Botones
         btn_row = QHBoxLayout()
-        self.btn_add    = QPushButton("➕ Agregar");  self.btn_add.setStyleSheet("background:#27ae60;color:white;padding:7px 16px;")
-        self.btn_edit   = QPushButton("✏️ Guardar edición"); self.btn_edit.setStyleSheet("background:#f39c12;color:white;padding:7px 16px;"); self.btn_edit.setEnabled(False)
-        self.btn_delete = QPushButton("🗑️ Eliminar"); self.btn_delete.setStyleSheet("background:#e74c3c;color:white;padding:7px 16px;"); self.btn_delete.setEnabled(False)
-        btn_cerrar      = QPushButton("Cerrar");      btn_cerrar.clicked.connect(self.accept)
+        self.btn_add    = create_success_button(self, "➕ Agregar", "Agregar nuevo repartidor")
+        self.btn_edit   = create_warning_button(self, "✏️ Guardar edición", "Guardar cambios del repartidor seleccionado"); self.btn_edit.setEnabled(False)
+        self.btn_delete = create_danger_button(self, "🗑️ Eliminar", "Eliminar repartidor seleccionado"); self.btn_delete.setEnabled(False)
+        btn_cerrar      = create_secondary_button(self, "Cerrar", "Cerrar ventana")
+        btn_cerrar.clicked.connect(self.accept)
         btn_row.addWidget(self.btn_add); btn_row.addWidget(self.btn_edit)
         btn_row.addWidget(self.btn_delete); btn_row.addStretch(); btn_row.addWidget(btn_cerrar)
         lay.addLayout(btn_row)
@@ -1036,4 +1071,3 @@ class GestorDriversDialog(QDialog):
         self.cmb_activo.setCurrentIndex(0)
         self.btn_edit.setEnabled(False); self.btn_delete.setEnabled(False)
         self.tabla.clearSelection()
-

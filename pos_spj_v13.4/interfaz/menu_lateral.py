@@ -16,11 +16,11 @@ MODULOS = [
     "caja",
     "tesoreria",
     "finanzas",
+    "contabilidad",
     "rrhh",
     "activos",
     "merma",
     "produccion",
-    "recetas",
     "transferencias",
     "delivery",
     "whatsapp",
@@ -31,7 +31,70 @@ MODULOS = [
     "hardware",
     "configuracion",
     "modulos_config",
+    "decisiones",
 ]
+
+# Módulos que SIEMPRE deben ser visibles sin importar los toggles de ModuleConfig
+# (Fase 0 whitelist — Plan Maestro SPJ v13.4)
+WHITELIST_SIEMPRE_VISIBLE = {
+    "TESORERIA",
+    "FINANZAS",
+    "ACTIVOS",
+    "PLANEACION_COMPRAS",
+    "WHATSAPP",
+    "DECISIONES",
+    "CONFIG_SEGURIDAD",
+    "INTELIGENCIA_BI",
+}
+
+_SIDEBAR_DARK_QSS = """
+    QFrame#MenuLateral {
+        background-color: #020617;
+        color: #E2E8F0;
+        border-right: 1px solid #1E293B;
+    }
+    QFrame#MenuLateral QScrollArea {
+        border: none;
+        background-color: transparent;
+    }
+    QFrame#MenuLateral QWidget#ContenedorBotones {
+        background-color: transparent;
+    }
+    QFrame#MenuLateral QLabel.SeccionHeader {
+        color: #64748B;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding-left: 15px;
+        margin-top: 20px;
+        margin-bottom: 8px;
+        letter-spacing: 0.5px;
+    }
+    QFrame#MenuLateral QPushButton {
+        background-color: transparent;
+        color: #94A3B8;
+        text-align: left;
+        padding: 12px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        border: none;
+        border-radius: 8px;
+        margin: 2px 8px;
+    }
+    QFrame#MenuLateral QPushButton:hover {
+        background-color: #1E293B;
+        color: #E2E8F0;
+    }
+    QFrame#MenuLateral QPushButton:pressed {
+        background-color: #2563EB;
+        color: #FFFFFF;
+    }
+    QFrame#MenuLateral QPushButton:checked {
+        background-color: #2563EB;
+        color: #FFFFFF;
+        font-weight: 600;
+    }
+"""
 
 class MenuLateral(QFrame):
     # Señal maestra que avisa a la ventana principal a qué módulo queremos ir
@@ -41,51 +104,17 @@ class MenuLateral(QFrame):
         super().__init__(parent)
         self.setObjectName("MenuLateral")
         self.setFixedWidth(240) # Lo hicimos un poco más ancho para que quepan los nombres largos
-        
-        # Estilos base del panel lateral
-        self.setStyleSheet("""
-            QFrame#MenuLateral {
-                background-color: #1E272E;
-                color: white;
-            }
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-            QWidget#ContenedorBotones {
-                background-color: transparent;
-            }
-            QLabel.SeccionHeader {
-                color: #808E9B;
-                font-size: 11px;
-                font-weight: bold;
-                text-transform: uppercase;
-                padding-left: 15px;
-                margin-top: 15px;
-                margin-bottom: 5px;
-            }
-            QPushButton {
-                background-color: transparent;
-                color: #D2DAE2;
-                text-align: left;
-                padding: 10px 15px;
-                font-size: 13px;
-                border: none;
-                border-radius: 4px;
-                margin: 0px 5px;
-            }
-            QPushButton:hover {
-                background-color: #34495E;
-                color: white;
-            }
-            QPushButton:pressed {
-                background-color: #0FB9B1;
-                color: white;
-            }
-        """)
+        self.enforce_dark_mode()
         self._permisos = set()
         self._rol = ""
         self._configurar_ui()
+
+    def enforce_dark_mode(self) -> None:
+        """
+        Sidebar SIEMPRE oscuro por diseño global.
+        Se puede invocar tras aplicar tema global para re-afirmar su skin.
+        """
+        self.setStyleSheet(_SIDEBAR_DARK_QSS)
 
     def _configurar_ui(self):
         # Layout principal del Frame
@@ -97,9 +126,9 @@ class MenuLateral(QFrame):
         # 1. ZONA DEL LOGO Y NOMBRE DE LA EMPRESA
         # ==========================================
         zona_logo = QFrame()
-        zona_logo.setStyleSheet("background-color: #1E272E;")
+        zona_logo.setStyleSheet("background-color: #020617; border-bottom: 1px solid #1E293B;")
         layout_logo = QVBoxLayout(zona_logo)
-        layout_logo.setContentsMargins(10, 20, 10, 20)
+        layout_logo.setContentsMargins(10, 24, 10, 24)
         layout_logo.setAlignment(Qt.AlignCenter)
 
         self.lbl_logo = QLabel()
@@ -110,13 +139,13 @@ class MenuLateral(QFrame):
             self.lbl_logo.setPixmap(pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         else:
             self.lbl_logo.setText("🏢\nSPJ POS")
-            self.lbl_logo.setStyleSheet("font-size: 24px; font-weight: bold; color: white;")
+            self.lbl_logo.setStyleSheet("font-size: 28px; font-weight: 700; color: #FFFFFF;")
             
         layout_logo.addWidget(self.lbl_logo)
         
         lbl_version = QLabel("Enterprise Edition v13.4")
         lbl_version.setAlignment(Qt.AlignCenter)
-        lbl_version.setStyleSheet("color: #0FB9B1; font-size: 10px; font-weight: bold;")
+        lbl_version.setStyleSheet("color: #2563EB; font-size: 11px; font-weight: 600; letter-spacing: 0.5px;")
         layout_logo.addWidget(lbl_version)
         
         layout_principal.addWidget(zona_logo)
@@ -156,7 +185,6 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_header("Producción"))
         layout_botones.addWidget(self._crear_boton("🔪 Procesamiento Cárnico", "PRODUCCION"))
         layout_botones.addWidget(self._crear_boton("🏷️ Etiquetas", "ETIQUETAS"))
-        layout_botones.addWidget(self._crear_boton("📖 Recetas Industriales", "RECETAS"))
         layout_botones.addWidget(self._crear_boton("📈 Planeación de Compras", "PLANEACION_COMPRAS"))
 
         # --- SECCIÓN: ADMINISTRACIÓN ---
@@ -169,11 +197,13 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_boton("💳 Tarjetas Fidelidad", "TARJETAS_FIDELIDAD"))
         layout_botones.addWidget(self._crear_boton("📈 Inteligencia (BI)", "INTELIGENCIA_BI"))
         layout_botones.addWidget(self._crear_boton("📱 Pedidos WhatsApp", "WHATSAPP"))
+        layout_botones.addWidget(self._crear_boton("🧠 Decisiones / BI Pro", "DECISIONES"))
 
-        # --- SECCIÓN: CONFIGURACIÓN ---
+        # --- SECCIÓN: SISTEMA ---
         layout_botones.addWidget(self._crear_header("Sistema"))
         layout_botones.addWidget(self._crear_boton("🎨 Diseñador Tickets", "DISEÑADOR_TICKETS"))
         layout_botones.addWidget(self._crear_boton("🖨️ Hardware", "CONFIG_HARDWARE"))
+        layout_botones.addWidget(self._crear_boton("🔌 Configuración Módulos", "CONFIG_MODULOS"))
         layout_botones.addWidget(self._crear_boton("🛡️ Configuración", "CONFIG_SEGURIDAD"))
 
         # Espaciador para empujar los botones hacia arriba dentro del scroll
@@ -188,15 +218,12 @@ class MenuLateral(QFrame):
         # 3. ZONA INFERIOR (CERRAR SESIÓN)
         # ==========================================
         zona_inferior = QFrame()
-        zona_inferior.setStyleSheet("background-color: #1E272E;")
+        zona_inferior.setStyleSheet("background-color: #020617; border-top: 1px solid #1E293B;")
         layout_inferior = QVBoxLayout(zona_inferior)
-        layout_inferior.setContentsMargins(5, 10, 5, 10)
+        layout_inferior.setContentsMargins(8, 12, 8, 12)
         
         btn_logout = self._crear_boton("🚪 Cerrar Sesión", "LOGOUT")
-        btn_logout.setStyleSheet(
-            "color: #FF4757; font-weight: bold; background-color: transparent;"
-            "text-align: left; padding: 10px 15px; border: none; border-radius: 4px;"
-            "margin: 0px 5px;")
+        # El hover se maneja por el estilo global del sidebar
         layout_inferior.addWidget(btn_logout)
         
         layout_principal.addWidget(zona_inferior)
@@ -262,6 +289,10 @@ class MenuLateral(QFrame):
         for btn in self.findChildren(_QPB):
             codigo = btn.property("modulo_codigo")
             if not codigo or codigo == "LOGOUT":
+                continue
+            # Módulos en whitelist SIEMPRE visibles (Fase 0 — Plan Maestro)
+            if codigo in WHITELIST_SIEMPRE_VISIBLE:
+                btn.setVisible(True)
                 continue
             toggle_key = TOGGLE_MAP.get(codigo)
             if toggle_key is not None:

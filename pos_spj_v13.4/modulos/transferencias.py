@@ -15,7 +15,8 @@
 from __future__ import annotations
 from core.events.event_bus import get_bus
 from modulos.spj_styles import spj_btn, apply_btn_styles
-
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_danger_button, create_input, create_combo, create_card, apply_tooltip
 import logging
 from typing import Dict, List, Optional
 
@@ -151,14 +152,14 @@ class ModuloTransferencias(ModuloBase):
 
     def _init_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 12, 16, 12); root.setSpacing(10)
+        root.setContentsMargins(16, 12, 16, 12); root.setSpacing(Spacing.MD)
 
         hdr = QHBoxLayout()
         title = QLabel("Transferencias entre Sucursales")
         f = title.font(); f.setPointSize(15); f.setBold(True); title.setFont(f)
-        title.setObjectName("tituloPrincipal"); hdr.addWidget(title); hdr.addStretch()
+        title.setObjectName("heading"); hdr.addWidget(title); hdr.addStretch()
         self._lbl_suc = QLabel()
-        self._lbl_suc.setStyleSheet("color:#7f8c8d;"); hdr.addWidget(self._lbl_suc)
+        self._lbl_suc.setObjectName("textSecondary"); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
         # ── Pestañas principales ──────────────────────────────────────────────
@@ -190,17 +191,14 @@ class ModuloTransferencias(ModuloBase):
 
         # Filter bar
         fb = QHBoxLayout()
-        self._filter_status = QComboBox()
-        self._filter_status.addItems(["Todos", "DISPATCHED", "RECEIVED", "CANCELLED", "PENDING"])
+        self._filter_status = create_combo(self, ["Todos", "DISPATCHED", "RECEIVED", "CANCELLED", "PENDING"])
         self._filter_status.currentIndexChanged.connect(lambda _: self._load_transfers())
         fb.addWidget(QLabel("Estado:")); fb.addWidget(self._filter_status)
-        self._filter_search = QLineEdit()
-        self._filter_search.setPlaceholderText("Buscar por ID o sucursal…")
+        self._filter_search = create_input(self, "Buscar por ID o sucursal…")
         self._filter_search.textChanged.connect(lambda _: self._load_transfers())
         fb.addWidget(QLabel("Buscar:")); fb.addWidget(self._filter_search)
         fb.addStretch()
-        btn_nueva = QPushButton("📤 Nueva Transferencia")
-        btn_nueva.setStyleSheet(f"background:{_C3};color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nueva = create_primary_button(self, "📤 Nueva Transferencia", "Crear nueva transferencia de stock")
         btn_nueva.clicked.connect(self._nueva_transferencia)
         fb.addWidget(btn_nueva)
         root.addLayout(fb)
@@ -225,24 +223,22 @@ class ModuloTransferencias(ModuloBase):
 
         # Action buttons
         ab = QHBoxLayout()
-        self._btn_recv   = QPushButton("📥 Recepcionar")
-        self._btn_detail = QPushButton("🔍 Ver Detalle")
-        self._btn_cancel = QPushButton("❌ Cancelar")
+        self._btn_recv   = create_success_button(self, "📥 Recepcionar", "Confirmar recepción de transferencia")
+        self._btn_detail = create_secondary_button(self, "🔍 Ver Detalle", "Ver detalles de la transferencia")
+        self._btn_cancel = create_danger_button(self, "❌ Cancelar", "Cancelar transferencia pendiente")
         for b in (self._btn_recv, self._btn_detail, self._btn_cancel):
             b.setEnabled(False); ab.addWidget(b)
         ab.addStretch()
         self._btn_recv.clicked.connect(self._recepcionar)
         self._btn_detail.clicked.connect(self._ver_detalle)
         self._btn_cancel.clicked.connect(self._cancelar)
-        self._btn_recv.setStyleSheet(f"background:{_C4};color:white;font-weight:bold;padding:5px 10px;")
         root.addLayout(ab)
 
     def _make_kpi(self, title: str, value: str, color: str) -> QFrame:
-        card = QFrame()
-        card.setStyleSheet(f"QFrame{{background:white;border:none;border-left:4px solid {color};border-radius:6px;}}")
+        card = create_card(self, padding=Spacing.SM, with_layout=False)
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed); card.setFixedHeight(72)
         lay = QVBoxLayout(card); lay.setContentsMargins(10, 6, 10, 6)
-        lt = QLabel(title); lt.setStyleSheet("color:#7f8c8d;font-size:11px;")
+        lt = QLabel(title); lt.setObjectName("caption")
         lv = QLabel(value); lv.setStyleSheet(f"color:{color};font-size:18px;font-weight:bold;")
         lay.addWidget(lt); lay.addWidget(lv); card._val_label = lv; return card
 
@@ -414,7 +410,8 @@ class ModuloTransferencias(ModuloBase):
         lay.setContentsMargins(0, 8, 0, 0); lay.setSpacing(10)
 
         # ── Header con descripción del método ────────────────────────────────
-        info_box = QFrame()
+        # CORRECCIÓN: Usar create_card en lugar de QFrame() directo para consistencia
+        info_box = create_card(self, padding=Spacing.SM, with_layout=False)
         info_box.setStyleSheet(
             "QFrame{background:#eaf4fb;border:none;border-left:4px solid #3498db;"
             "border-radius:4px;padding:6px;}"

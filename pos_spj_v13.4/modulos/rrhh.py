@@ -4,7 +4,20 @@ import logging
 from core.events.event_bus import get_bus
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from PyQt5.QtWidgets import *
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_warning_button, create_accent_button, create_input, create_heading, create_subheading, apply_tooltip, create_card
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QIcon
 from datetime import datetime, timedelta
@@ -165,29 +178,29 @@ class ModuloRRHH(QWidget):
     # PANTALLA DE BLOQUEO DE SEGURIDAD
     # =========================================================
     def _crear_pantalla_bloqueo(self):
-        panel = QWidget()
-        panel.setStyleSheet("background:#2c3e50;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        panel = create_card(self, padding=Spacing.LG, with_layout=False)
+        
         layout = QVBoxLayout(panel)
         
         lbl_icono = QLabel("🔒")
         lbl_icono.setAlignment(Qt.AlignCenter)
-        lbl_icono.setStyleSheet("font-size: 72px;")
+        lbl_icono.setStyleSheet(f"font-size: {Typography.SIZE_XXL};")
         
-        lbl_titulo = QLabel("Área Restringida: Recursos Humanos y Nómina")
+        lbl_titulo = create_heading(self, "Área Restringida: Recursos Humanos y Nómina")
         lbl_titulo.setAlignment(Qt.AlignCenter)
-        lbl_titulo.setStyleSheet("font-size: 24px; font-weight: bold;")
         
         self.txt_password = QLineEdit()
         self.txt_password.setEchoMode(QLineEdit.Password)
         self.txt_password.setPlaceholderText("Ingrese NIP o Contraseña Maestra...")
-        self.txt_password.setStyleSheet("padding: 15px; font-size: 18px; border-radius: 5px; color: black; background: white;")
+        self.txt_password.setObjectName("inputField")  # Usar clase CSS estándar
+        self.txt_password.setStyleSheet(f"padding: {Spacing.LG}; font-size: {Typography.SIZE_LG};")  # Solo tamaño específico
         self.txt_password.setFixedWidth(300)
         self.txt_password.returnPressed.connect(self.intentar_desbloqueo)
+        apply_tooltip(self.txt_password, "Ingrese su contraseña para acceder al módulo de RRHH")
         
-        btn_desbloquear = QPushButton("Desbloquear Módulo")
-        btn_desbloquear.setStyleSheet("background-color: #27ae60; padding: 15px; font-size: 16px; font-weight: bold; border-radius: 5px;")
+        btn_desbloquear = create_success_button(self, "Desbloquear Módulo", "Acceder al módulo restringido de RRHH")
         btn_desbloquear.setFixedWidth(300)
-        btn_desbloquear.clicked.connect(self.intentar_desbloqueo)
+        btn_desbloquear.setStyleSheet(f"padding: {Spacing.LG}; font-size: {Typography.SIZE_LG}; font-weight: bold;")  # Solo tamaño específico
         
         layout.addStretch()
         layout.addWidget(lbl_icono)
@@ -281,14 +294,13 @@ class ModuloRRHH(QWidget):
         info = QLabel("Define los roles de turno: Mañana, Tarde, Noche, etc. "
                       "Cada rol tiene horario y color para el calendario.")
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#f0f4ff;padding:6px;border-radius:5px;font-size:11px;")
+        info.setObjectName("caption")  # Usar clase CSS para texto secundario
+        info.setStyleSheet(f"background: {Colors.INFO_BG}; padding: {Spacing.SM}; border-radius: {Borders.RADIUS_SM}; font-size: {Typography.SIZE_XS};")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("➕ Nuevo rol de turno")
-        btn_add.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;")
-        btn_del = QPushButton("🗑️ Eliminar")
-        btn_del.setStyleSheet("background:#e74c3c;color:white;padding:7px 16px;")
+        btn_add = create_success_button(self, "➕ Nuevo rol de turno", "Agregar un nuevo rol de turno")
+        btn_del = create_danger_button(self, "🗑️ Eliminar", "Eliminar rol de turno seleccionado")
         btn_row.addWidget(btn_add); btn_row.addWidget(btn_del); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -331,12 +343,14 @@ class ModuloRRHH(QWidget):
         dlg = QDialog(self); dlg.setWindowTitle("Nuevo Rol de Turno")
         dlg.setMinimumWidth(360)
         lay = QVBoxLayout(dlg); form = QFormLayout()
-        txt_nombre = QLineEdit(); txt_nombre.setPlaceholderText("Ej: Turno Mañana")
-        te_inicio  = QTimeEdit(QTime(8,0)); te_inicio.setDisplayFormat("HH:mm")
-        te_fin     = QTimeEdit(QTime(16,0)); te_fin.setDisplayFormat("HH:mm")
-        self._rol_color = "#3498db"
+        txt_nombre = create_input(self, "Ej: Turno Mañana", "Nombre del rol de turno")
+        te_inicio  = QTimeEdit(QTime(8,0)); te_inicio.setDisplayFormat("HH:mm"); te_inicio.setObjectName("inputField")
+        te_fin     = QTimeEdit(QTime(16,0)); te_fin.setDisplayFormat("HH:mm"); te_fin.setObjectName("inputField")
+        self._rol_color = Colors.PRIMARY_BASE
         btn_color = QPushButton("🎨 Color"); 
+        btn_color.setObjectName("secondaryBtn")
         btn_color.setStyleSheet(f"background:{self._rol_color};color:white;")
+        apply_tooltip(btn_color, "Seleccionar color para identificar el turno en el calendario")
         def pick_color():
             from PyQt5.QtWidgets import QColorDialog
             c = QColorDialog.getColor()
@@ -393,7 +407,8 @@ class ModuloRRHH(QWidget):
             lay.addWidget(self._turnos_widget)
         except Exception as e:
             lbl = QLabel(f"Error cargando módulo de turnos:\n{e}")
-            lbl.setStyleSheet("color:#e74c3c;font-size:13px;padding:20px;")
+            lbl.setObjectName("dangerText")  # Usar clase CSS para texto de error
+            lbl.setStyleSheet(f"font-size: {Typography.SIZE_SM}; padding: {Spacing.LG};")
             lay.addWidget(lbl)
 
     def _on_rrhh_tab_change(self, idx):
@@ -413,11 +428,11 @@ class ModuloRRHH(QWidget):
         
         # Barra de herramientas
         toolbar = QHBoxLayout()
-        btn_nuevo = QPushButton("➕ Contratar / Nuevo Empleado")
-        btn_nuevo.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_nuevo = create_success_button(self, "➕ Contratar / Nuevo Empleado", "Registrar nuevo empleado en el sistema")
         btn_nuevo.clicked.connect(self.abrir_nuevo_empleado)
         
         btn_refrescar = QPushButton("🔄 Refrescar")
+        btn_refrescar.setObjectName("secondaryBtn")
         btn_refrescar.clicked.connect(self.cargar_tabla_empleados)
         
         toolbar.addWidget(btn_nuevo)
@@ -456,13 +471,13 @@ class ModuloRRHH(QWidget):
                 
                 # Botón Editar
                 btn_editar = QPushButton("✏️ Editar")
-                btn_editar.setStyleSheet("background:#e67e22;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+                btn_editar.setObjectName("warningBtn")  # Naranja para edición
                 btn_editar.clicked.connect(lambda _, eid=emp['id']: self.abrir_editar_empleado(eid))
+                apply_tooltip(btn_editar, f"Editar datos de {nombre_completo}")
                 self.tabla_emp.setCellWidget(row_idx, 5, btn_editar)
                 
                 # Botón Eliminar (Dar de Baja)
-                btn_baja = QPushButton("❌ Dar de Baja")
-                btn_baja.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+                btn_baja = create_danger_button(self, "❌ Dar de Baja", f"Dar de baja a {nombre_completo}")
                 btn_baja.clicked.connect(lambda _, eid=emp['id'], nom=nombre_completo: self.dar_baja_empleado(eid, nom))
                 self.tabla_emp.setCellWidget(row_idx, 6, btn_baja)
                 
@@ -517,8 +532,9 @@ class ModuloRRHH(QWidget):
         # Filtros de Nómina
         filtros = QHBoxLayout()
         self.cmb_empleado = QComboBox()
-        btn_calcular = QPushButton("🧮 Calcular Nómina del Periodo")
-        btn_calcular.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        self.cmb_empleado.setObjectName("inputField")
+        
+        btn_calcular = create_success_button(self, "🧮 Calcular Nómina del Periodo", "Calcular la nómina completa del periodo seleccionado")
         btn_calcular.clicked.connect(self.ejecutar_calculo_nomina)
         
         filtros.addWidget(QLabel("Seleccionar Empleado:"))
@@ -528,13 +544,15 @@ class ModuloRRHH(QWidget):
         
         # Panel de Resultados (Recibo Visual)
         self.panel_recibo = QGroupBox("Resumen de Nómina")
+        self.panel_recibo.setObjectName("styledGroup")
         recibo_layout = QFormLayout(self.panel_recibo)
         
         self.lbl_nom_empleado = QLabel("-")
         self.lbl_dias = QLabel("0")
         self.lbl_horas = QLabel("0.0")
         self.lbl_total_pago = QLabel("$0.00")
-        self.lbl_total_pago.setStyleSheet("font-size: 24px; font-weight: bold; color: #27ae60;")
+        self.lbl_total_pago.setObjectName("textSuccess")
+        self.lbl_total_pago.setStyleSheet(f"font-size: {Typography.SIZE_XXL}; font-weight: bold;")
         
         recibo_layout.addRow("Nombre Completo:", self.lbl_nom_empleado)
         recibo_layout.addRow("Días Asistidos:", self.lbl_dias)
@@ -545,12 +563,13 @@ class ModuloRRHH(QWidget):
         # Botones de Acción Final
         acciones = QHBoxLayout()
         self.cmb_metodo_pago = QComboBox()
+        self.cmb_metodo_pago.setObjectName("inputField")
         self.cmb_metodo_pago.addItems(["Transferencia", "Efectivo (De Caja)"])
         
-        self.btn_pagar = QPushButton("💸 APROBAR PAGO Y ENVIAR WHATSAPP")
-        self.btn_pagar.setStyleSheet("background-color: #27ae60; color: white; padding: 15px; font-weight: bold;")
+        self.btn_pagar = create_success_button(self, "💸 APROBAR PAGO Y ENVIAR WHATSAPP", "Aprobar el pago y enviar comprobante por WhatsApp")
         self.btn_pagar.clicked.connect(self.aprobar_y_pagar)
         self.btn_pagar.setEnabled(False)
+        self.btn_pagar.setStyleSheet(f"padding: {Spacing.LG}; font-weight: bold;")
         
         acciones.addWidget(QLabel("Método de Pago:"))
         acciones.addWidget(self.cmb_metodo_pago)
@@ -639,15 +658,22 @@ class ModuloRRHH(QWidget):
         # Controles
         ctrl = QHBoxLayout()
         self.cmb_asist_empleado = QComboBox(); self.cmb_asist_empleado.setMinimumWidth(200)
+        self.cmb_asist_empleado.setObjectName("inputField")
+        
         self.date_asist_desde   = QDateEdit(QDate.currentDate().addDays(-30))
         self.date_asist_desde.setCalendarPopup(True)
+        self.date_asist_desde.setObjectName("inputField")
+        
         self.date_asist_hasta   = QDateEdit(QDate.currentDate())
         self.date_asist_hasta.setCalendarPopup(True)
-        btn_buscar = QPushButton("🔍 Buscar")
+        self.date_asist_hasta.setObjectName("inputField")
+        
+        btn_buscar = create_primary_button(self, "🔍 Buscar", "Buscar asistencias en el rango de fechas")
         btn_buscar.clicked.connect(self._cargar_asistencias)
-        btn_registro = QPushButton("✅ Registrar entrada/salida")
-        btn_registro.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        
+        btn_registro = create_success_button(self, "✅ Registrar entrada/salida", "Registrar asistencia del empleado seleccionado")
         btn_registro.clicked.connect(self._registrar_asistencia)
+        
         ctrl.addWidget(QLabel("Empleado:")); ctrl.addWidget(self.cmb_asist_empleado)
         ctrl.addWidget(QLabel("Desde:")); ctrl.addWidget(self.date_asist_desde)
         ctrl.addWidget(QLabel("Hasta:")); ctrl.addWidget(self.date_asist_hasta)
@@ -663,11 +689,13 @@ class ModuloRRHH(QWidget):
         self.tbl_asist.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_asist.verticalHeader().setVisible(False)
         self.tbl_asist.setAlternatingRowColors(True)
+        self.tbl_asist.setObjectName("tableView")
         lay.addWidget(self.tbl_asist)
 
         # Summary
         self.lbl_asist_resumen = QLabel("")
-        self.lbl_asist_resumen.setStyleSheet("color:#666;font-size:11px;padding:4px;")
+        self.lbl_asist_resumen.setObjectName("caption")
+        self.lbl_asist_resumen.setStyleSheet(f"color: {Colors.TEXT_SECONDARY}; font-size: {Typography.SIZE_XS}; padding: {Spacing.XS};")
         lay.addWidget(self.lbl_asist_resumen)
         self._cargar_combo_asistencias()
 
@@ -730,6 +758,7 @@ class ModuloRRHH(QWidget):
         dlg = QDialog(self); dlg.setWindowTitle("Registro Asistencia"); dlg.setMinimumWidth(340)
         lay = QVBoxLayout(dlg); form = QFormLayout()
         cmb_emp = QComboBox()
+        cmb_emp.setObjectName("inputField")
         try:
             rows = self.container.db.execute(
                 "SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal WHERE activo=1 ORDER BY nombre"
@@ -738,8 +767,11 @@ class ModuloRRHH(QWidget):
         except Exception: pass
         form.addRow("Empleado:", cmb_emp)
         lbl_status = QLabel(""); form.addRow("Estado:", lbl_status)
+        lbl_status.setObjectName("caption")
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Ok).setObjectName("primaryBtn")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
 
@@ -753,13 +785,13 @@ class ModuloRRHH(QWidget):
             ).fetchone()
             if not row:
                 lbl_status.setText("Sin registro hoy — se registrará ENTRADA")
-                lbl_status.setStyleSheet("color:#27ae60;font-weight:bold;")
+                lbl_status.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; font-weight: bold;")
             elif row[0] and not row[1]:
                 lbl_status.setText(f"Entrada: {row[0]} — se registrará SALIDA")
-                lbl_status.setStyleSheet("color:#e67e22;font-weight:bold;")
+                lbl_status.setStyleSheet(f"color: {Colors.WARNING_BASE}; font-weight: bold;")
             else:
                 lbl_status.setText(f"Jornada completa: {row[0]}-{row[1]}")
-                lbl_status.setStyleSheet("color:#7f8c8d;")
+                lbl_status.setStyleSheet(f"color: {Colors.TEXT_MUTED};")
         cmb_emp.currentIndexChanged.connect(_update_status)
         _update_status()
 
@@ -870,10 +902,9 @@ class ModuloRRHH(QWidget):
         from PyQt5.QtCore import Qt
         lay = QVBoxLayout(self.tab_vacaciones)
         hdr = QHBoxLayout()
-        hdr.addWidget(QLabel("Registro de vacaciones y permisos"))
+        hdr.addWidget(create_heading(self, "Registro de vacaciones y permisos"))
         hdr.addStretch()
-        btn_nuevo = QPushButton("➕ Registrar vacaciones")
-        btn_nuevo.setStyleSheet("background:#3498db;color:white;padding:7px 16px;border-radius:5px;")
+        btn_nuevo = create_primary_button(self, "➕ Registrar vacaciones", "Agregar nuevo registro de vacaciones o permiso")
         btn_nuevo.clicked.connect(self._registrar_vacaciones)
         hdr.addWidget(btn_nuevo)
         lay.addLayout(hdr)
@@ -886,16 +917,15 @@ class ModuloRRHH(QWidget):
         self.tbl_vac.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_vac.verticalHeader().setVisible(False)
         self.tbl_vac.setAlternatingRowColors(True)
+        self.tbl_vac.setObjectName("tableView")
         lay.addWidget(self.tbl_vac)
         self._cargar_vacaciones()
 
         # Approval buttons
         from PyQt5.QtWidgets import QHBoxLayout
         btn_ap_lay = QHBoxLayout()
-        btn_aprobar  = QPushButton("✅ Aprobar")
-        btn_rechazar = QPushButton("❌ Rechazar")
-        btn_aprobar.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
-        btn_rechazar.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
+        btn_aprobar  = create_success_button(self, "✅ Aprobar", "Aprobar solicitud de vacaciones seleccionada")
+        btn_rechazar = create_danger_button(self, "❌ Rechazar", "Rechazar solicitud de vacaciones seleccionada")
         btn_aprobar.clicked.connect(lambda: self._cambiar_estado_vac("aprobado"))
         btn_rechazar.clicked.connect(lambda: self._cambiar_estado_vac("rechazado"))
         btn_ap_lay.addWidget(btn_aprobar); btn_ap_lay.addWidget(btn_rechazar); btn_ap_lay.addStretch()
@@ -909,14 +939,11 @@ class ModuloRRHH(QWidget):
         lay = QVBoxLayout(self.tab_puestos)
 
         hdr = QHBoxLayout()
-        hdr.addWidget(QLabel("Catálogo de puestos de trabajo"))
+        hdr.addWidget(create_heading(self, "Catálogo de puestos de trabajo"))
         hdr.addStretch()
-        btn_nuevo  = QPushButton("➕ Nuevo puesto")
-        btn_editar = QPushButton("✏️ Editar")
-        btn_borrar = QPushButton("🗑️ Eliminar")
-        btn_nuevo.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
-        btn_editar.setStyleSheet("background:#f39c12;color:white;padding:5px 12px;")
-        btn_borrar.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
+        btn_nuevo  = create_success_button(self, "➕ Nuevo puesto", "Crear nuevo puesto de trabajo")
+        btn_editar = create_warning_button(self, "✏️ Editar", "Editar puesto seleccionado")
+        btn_borrar = create_danger_button(self, "🗑️ Eliminar", "Eliminar puesto seleccionado")
         hdr.addWidget(btn_nuevo); hdr.addWidget(btn_editar); hdr.addWidget(btn_borrar)
         lay.addLayout(hdr)
 
@@ -926,6 +953,7 @@ class ModuloRRHH(QWidget):
         self.tbl_puestos.setColumnHidden(0, True)
         self.tbl_puestos.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_puestos.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tbl_puestos.setObjectName("tableView")
         lay.addWidget(self.tbl_puestos)
 
         def _cargar():
@@ -1101,10 +1129,9 @@ class ModuloRRHH(QWidget):
         from PyQt5.QtCore import Qt
         lay = QVBoxLayout(self.tab_evaluaciones)
         hdr = QHBoxLayout()
-        hdr.addWidget(QLabel("Evaluaciones de desempeño del personal"))
+        hdr.addWidget(create_heading(self, "Evaluaciones de desempeño del personal"))
         hdr.addStretch()
-        btn_nuevo = QPushButton("➕ Nueva evaluación")
-        btn_nuevo.setStyleSheet("background:#9b59b6;color:white;padding:7px 16px;border-radius:5px;")
+        btn_nuevo = create_accent_button(self, "➕ Nueva evaluación", "Crear nueva evaluación de desempeño")
         btn_nuevo.clicked.connect(self._nueva_evaluacion)
         hdr.addWidget(btn_nuevo)
         lay.addLayout(hdr)
@@ -1117,6 +1144,7 @@ class ModuloRRHH(QWidget):
         self.tbl_eval_rrhh.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_eval_rrhh.verticalHeader().setVisible(False)
         self.tbl_eval_rrhh.setAlternatingRowColors(True)
+        self.tbl_eval_rrhh.setObjectName("tableView")
         lay.addWidget(self.tbl_eval_rrhh)
         self._cargar_evaluaciones_rrhh()
 
@@ -1299,10 +1327,7 @@ class ModuloRRHH(QWidget):
         lay.setSpacing(10)
 
         # ── Encabezado ────────────────────────────────────────────────────────
-        lbl_titulo = QLabel("⚖️ Reglas Laborales — NOM-035 / LFT México")
-        lbl_titulo.setStyleSheet(
-            "font-size:16px;font-weight:bold;color:#2c3e50;padding:4px 0;"
-        )
+        lbl_titulo = create_subheading(self, "⚖️ Reglas Laborales — NOM-035 / LFT México")
         lay.addWidget(lbl_titulo)
 
         lbl_desc = QLabel(
@@ -1310,16 +1335,12 @@ class ModuloRRHH(QWidget):
             "automáticas para detectar violaciones laborales en tiempo real."
         )
         lbl_desc.setWordWrap(True)
-        lbl_desc.setStyleSheet("color:#555;font-size:11px;margin-bottom:6px;")
+        lbl_desc.setObjectName("caption")
         lay.addWidget(lbl_desc)
 
         # ── Parámetros configurables ──────────────────────────────────────────
         grp_params = QGroupBox("Parámetros de jornada (Art. LFT)")
-        grp_params.setStyleSheet(
-            "QGroupBox{font-weight:bold;border:1px solid #bdc3c7;"
-            "border-radius:6px;margin-top:6px;padding-top:8px;}"
-            "QGroupBox::title{subcontrol-origin:margin;left:8px;}"
-        )
+        grp_params.setObjectName("styledGroup")
         form = QFormLayout(grp_params)
         form.setLabelAlignment(Qt.AlignRight)
         form.setSpacing(8)
@@ -1357,25 +1378,13 @@ class ModuloRRHH(QWidget):
         # ── Botones de acción ─────────────────────────────────────────────────
         row_btns = QHBoxLayout()
 
-        btn_guardar = QPushButton("💾 Guardar parámetros")
-        btn_guardar.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;"
-            "padding:8px 20px;border-radius:4px;"
-        )
+        btn_guardar = create_success_button(self, "💾 Guardar parámetros", "Guardar configuración de reglas laborales")
         btn_guardar.clicked.connect(self._guardar_reglas_laborales)
 
-        btn_auditar = QPushButton("🔍 Ejecutar auditoría ahora")
-        btn_auditar.setStyleSheet(
-            "background:#2980b9;color:white;font-weight:bold;"
-            "padding:8px 20px;border-radius:4px;"
-        )
+        btn_auditar = create_primary_button(self, "🔍 Ejecutar auditoría ahora", "Ejecutar auditoría de cumplimiento laboral")
         btn_auditar.clicked.connect(self._ejecutar_auditoria_hr)
 
-        btn_nomina = QPushButton("💰 Verificar nóminas vencidas")
-        btn_nomina.setStyleSheet(
-            "background:#8e44ad;color:white;font-weight:bold;"
-            "padding:8px 20px;border-radius:4px;"
-        )
+        btn_nomina = create_accent_button(self, "💰 Verificar nóminas vencidas", "Revisar nóminas pendientes de pago")
         btn_nomina.clicked.connect(self._verificar_nomina_hr)
 
         row_btns.addWidget(btn_guardar)
@@ -1386,20 +1395,13 @@ class ModuloRRHH(QWidget):
 
         # ── Panel de resultados ───────────────────────────────────────────────
         grp_resultado = QGroupBox("Resultado de auditoría")
-        grp_resultado.setStyleSheet(
-            "QGroupBox{font-weight:bold;border:1px solid #bdc3c7;"
-            "border-radius:6px;margin-top:6px;padding-top:8px;}"
-            "QGroupBox::title{subcontrol-origin:margin;left:8px;}"
-        )
+        grp_resultado.setObjectName("styledGroup")
         lay_res = QVBoxLayout(grp_resultado)
 
         self._txt_resultado_hr = QTextEdit()
         self._txt_resultado_hr.setReadOnly(True)
         self._txt_resultado_hr.setMinimumHeight(200)
-        self._txt_resultado_hr.setStyleSheet(
-            "font-family:Consolas,monospace;font-size:12px;"
-            "background:#f8f9fa;border:none;"
-        )
+        self._txt_resultado_hr.setObjectName("inputField")
         self._txt_resultado_hr.setPlaceholderText(
             "Presiona 'Ejecutar auditoría' para ver violaciones laborales, "
             "descansos sugeridos y estado de cobertura..."

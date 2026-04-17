@@ -2,6 +2,8 @@
 # modulos/activos.py
 from core.services.auto_audit import audit_write
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_danger_button, create_success_button, create_secondary_button, create_card, apply_tooltip
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, 
                              QLabel, QLineEdit, QPushButton, QTableWidget, QTabWidget, 
                              QTableWidgetItem, QHeaderView, QMessageBox, 
@@ -251,7 +253,8 @@ class DialogoPagoMantenimiento(QDialog):
         
         lbl_info = QLabel("El mantenimiento ha concluido. Registre el costo final para la Tesorería.")
         lbl_info.setWordWrap(True)
-        lbl_info.setStyleSheet("color: #2c3e50; font-weight: bold; margin-bottom: 10px;")
+        # Tooltip: Explica el propósito del mensaje
+        apply_tooltip(lbl_info, "Información sobre el cierre del mantenimiento")
         layout.addRow(lbl_info)
         
         self.txt_tecnico = QLineEdit()
@@ -265,7 +268,7 @@ class DialogoPagoMantenimiento(QDialog):
         self.cmb_metodo = QComboBox()
         # 🚀 OPCIONES FINANCIERAS: Las que no son crédito se van a OPEX (Caja), Crédito se va a Cuentas por Pagar
         self.cmb_metodo.addItems(["Transferencia", "Efectivo (De Caja)", "Tarjeta", "CREDITO (Pagar después)"])
-        self.cmb_metodo.setStyleSheet("font-weight: bold;")
+        apply_tooltip(self.cmb_metodo, "Seleccione el método de pago para registrar en tesorería")
         
         layout.addRow("Técnico Final:", self.txt_tecnico)
         layout.addRow("Costo Total Factura:", self.spin_costo)
@@ -390,23 +393,24 @@ class ModuloActivos(ModuloBase):
         layout = QVBoxLayout(self)
         
         titulo = QLabel("🚜 Gestión Empresarial de Activos y Mantenimiento")
-        titulo.setStyleSheet("font-size: 24px; font-weight: bold; color: #2c3e50; margin: 10px;")
+        titulo.setObjectName("heading")
+        apply_tooltip(titulo, "Módulo completo de gestión de activos fijos y mantenimientos")
         layout.addWidget(titulo)
 
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #bdc3c7; border-radius: 4px; }
-            QTabBar::tab { padding: 10px 20px; font-weight: bold; }
-        """)
+        self.tabs.setObjectName("tabWidget")
         
         self.tab_activos = QWidget()
         self.tab_mantenimiento = QWidget()
-        
+        self.tab_depreciacion = QWidget()
+
         self.tabs.addTab(self.tab_activos, "📋 Inventario de Equipos")
         self.tabs.addTab(self.tab_mantenimiento, "🔧 Agenda y Ordenes de Servicio")
-        
+        self.tabs.addTab(self.tab_depreciacion, "📊 Depreciación Acumulada")
+
         self.setup_activos()
         self.setup_mantenimiento()
+        self.setup_depreciacion()
         
         layout.addWidget(self.tabs)
 
@@ -416,14 +420,15 @@ class ModuloActivos(ModuloBase):
         # Controles superiores
         controles = QHBoxLayout()
         btn_nuevo = QPushButton("➕ Nuevo Equipo")
-        btn_nuevo.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_nuevo = create_success_button(self, btn_nuevo, "Crear un nuevo activo fijo")
         btn_nuevo.clicked.connect(self.agregar_activo)
         
         btn_refrescar = QPushButton("🔄 Refrescar")
+        btn_refrescar = create_secondary_button(self, btn_refrescar, "Actualizar lista de activos")
         btn_refrescar.clicked.connect(self.cargar_activos)
         
         btn_pdf = QPushButton("📄 Exportar PDF")
-        btn_pdf.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_pdf = create_danger_button(self, btn_pdf, "Generar reporte PDF del inventario")
         btn_pdf.clicked.connect(self.exportar_pdf_activos)
         
         controles.addWidget(btn_nuevo)
@@ -536,14 +541,15 @@ class ModuloActivos(ModuloBase):
         
         controles = QHBoxLayout()
         btn_nuevo = QPushButton("📅 Agendar Mantenimiento")
-        btn_nuevo.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_nuevo = create_primary_button(self, btn_nuevo, "Programar nuevo mantenimiento preventivo o correctivo")
         btn_nuevo.clicked.connect(self.agregar_mantenimiento)
         
         btn_refrescar = QPushButton("🔄 Refrescar")
+        btn_refrescar = create_secondary_button(self, btn_refrescar, "Actualizar agenda de mantenimientos")
         btn_refrescar.clicked.connect(self.cargar_mantenimientos)
         
         btn_pdf = QPushButton("📄 Exportar Agenda")
-        btn_pdf.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_pdf = create_danger_button(self, btn_pdf, "Generar reporte PDF de la agenda")
         btn_pdf.clicked.connect(self.exportar_pdf_mantenimientos)
         
         controles.addWidget(btn_nuevo)
@@ -563,6 +569,73 @@ class ModuloActivos(ModuloBase):
         layout.addWidget(self.tabla_mant)
         
         self.cargar_mantenimientos()
+
+    # ── Tab 3: Depreciación Acumulada ─────────────────────────────────────
+
+    def setup_depreciacion(self):
+        """Reporte de depreciación acumulada por activo y periodo (tabla depreciacion_acumulada)."""
+        layout = QVBoxLayout(self.tab_depreciacion)
+
+        controles = QHBoxLayout()
+        btn_actualizar = QPushButton("📊 Cargar Reporte")
+        btn_actualizar = create_secondary_button(self, btn_actualizar,
+                                                 "Cargar datos de depreciación acumulada")
+        btn_actualizar.clicked.connect(self.cargar_depreciacion)
+        controles.addWidget(btn_actualizar)
+        controles.addStretch()
+        layout.addLayout(controles)
+
+        info = QLabel(
+            "Depreciación en línea recta NIF B-2. "
+            "Los montos se registran mensualmente via accrual_depreciacion_mensual()."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("color:#555; font-size:11px; background:#fffbea; padding:5px; border-radius:4px;")
+        layout.addWidget(info)
+
+        self.tabla_dep = QTableWidget()
+        self.tabla_dep.setColumnCount(6)
+        self.tabla_dep.setHorizontalHeaderLabels([
+            "Activo ID", "Nombre Activo", "Periodo", "Cargo Mes $",
+            "Acumulado $", "Registrado"
+        ])
+        hh = self.tabla_dep.horizontalHeader()
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        self.tabla_dep.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_dep.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_dep.setAlternatingRowColors(True)
+        layout.addWidget(self.tabla_dep)
+
+        self.cargar_depreciacion()
+
+    def cargar_depreciacion(self):
+        """Carga datos de depreciacion_acumulada con JOIN a activos."""
+        self.tabla_dep.setRowCount(0)
+        try:
+            rows = self.conexion.execute("""
+                SELECT da.activo_id,
+                       COALESCE(a.nombre, '—') AS nombre,
+                       da.periodo,
+                       da.monto_mes,
+                       da.acumulado,
+                       da.created_at
+                FROM depreciacion_acumulada da
+                LEFT JOIN activos a ON a.id = da.activo_id
+                ORDER BY da.periodo DESC, a.nombre ASC
+                LIMIT 500
+            """).fetchall()
+        except Exception:
+            rows = []
+        for i, r in enumerate(rows):
+            self.tabla_dep.insertRow(i)
+            vals = [str(r[0]), str(r[1]), str(r[2]),
+                    f"${float(r[3] or 0):,.2f}",
+                    f"${float(r[4] or 0):,.2f}",
+                    str(r[5] or "")[:16]]
+            for j, v in enumerate(vals):
+                item = QTableWidgetItem(v)
+                item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                self.tabla_dep.setItem(i, j, item)
 
     def cargar_mantenimientos(self):
         self.tabla_mant.setRowCount(0)
@@ -600,16 +673,18 @@ class ModuloActivos(ModuloBase):
                 
                 if mant['estado'] == 'pendiente':
                     btn_completar = QPushButton("✅ Pagar y Finalizar")
-                    btn_completar.setStyleSheet("background-color: #27ae60; color: white;")
+                    btn_completar = create_success_button(self, btn_completar, "Registrar pago y cerrar orden de mantenimiento")
                     btn_completar.clicked.connect(lambda _, id=mant['id'], eq=mant['activo_nombre']: self.marcar_completado_enterprise(id, eq))
                     lay.addWidget(btn_completar)
                     
                     btn_del = QPushButton("❌")
+                    apply_tooltip(btn_del, "Eliminar esta orden de mantenimiento")
+                    btn_del.setObjectName("dangerBtn")
                     btn_del.clicked.connect(lambda _, id=mant['id']: self.eliminar_mantenimiento(id))
                     lay.addWidget(btn_del)
                 else:
                     lbl = QLabel(f"Pagado: ${mant['costo']:,.2f}")
-                    lbl.setStyleSheet("color: green; font-weight: bold;")
+                    lbl.setObjectName("textSuccess")
                     lay.addWidget(lbl)
                     
                 self.tabla_mant.setCellWidget(i, 7, acciones)

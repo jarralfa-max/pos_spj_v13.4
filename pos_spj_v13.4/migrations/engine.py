@@ -49,6 +49,11 @@ MIGRATIONS = [
     ("053",  "migrations.standalone.053_meat_production_tables"),  # v13.4: tablas cárnicas huérfanas de 032
     ("054",  "migrations.standalone.054_sync_improvements_orphan"),  # v13.4: columnas sync huérfanas de 048
     ("055",  "migrations.standalone.055_inventario_compat"),  # v13.4: compat tabla/vista inventario
+    ("056",  "migrations.standalone.056_print_job_log"),      # v13.4: bitácora de impresión Fase 1
+    ("057",  "migrations.standalone.057_loyalty_ledger_unificado"),  # v13.4: ledger unificado fidelización Fase 2
+    ("058",  "migrations.standalone.058_scan_event_log"),    # v13.4: auditoría de escaneos Fase 2
+    ("059",  "migrations.standalone.059_plan_cuentas"),      # v13.4: plan de cuentas SAT NIF Fase 3
+    ("060",  "migrations.standalone.060_depreciacion_acumulada"),  # v13.4: depreciación acumulada Fase 3
 ]
 
 def _ensure_tracking_table(conn):

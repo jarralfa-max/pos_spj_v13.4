@@ -1,7 +1,20 @@
 
 # modulos/reportes_bi_v2.py
+from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button, 
+    create_secondary_button, create_input, create_combo, create_card,
+    create_heading, create_subheading, create_caption, apply_tooltip
+)
 from modulos.spj_styles import spj_btn, apply_btn_styles
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QTableWidget, QTableWidgetItem,
+    QHeaderView, QGridLayout, QGroupBox, QFrame, QSplitter, QTabWidget,
+    QAbstractItemView, QDialog, QCheckBox, QListWidget, QListWidgetItem,
+    QSizePolicy, QAction, QMenu, QToolBar, QStatusBar, QProgressBar,
+    QScrollArea, QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox
+)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
@@ -36,31 +49,22 @@ class ModuloReportesBIv2(QWidget):
         # --- HEADER Y FILTROS ---
         header_layout = QHBoxLayout()
         
-        lbl_titulo = QLabel("📈 Inteligencia Comercial (Dashboard)")
-        lbl_titulo.setStyleSheet("font-size: 22px; font-weight: bold; color: #2c3e50;")
+        lbl_titulo = create_heading(self, "📈 Inteligencia Comercial (Dashboard)")
         header_layout.addWidget(lbl_titulo)
         
         header_layout.addStretch()
         
-        self.cmb_rango = QComboBox()
-        self.cmb_rango.addItems(["Hoy", "Esta Semana", "Este Mes"])
-        self.cmb_rango.setStyleSheet("padding: 5px; font-size: 14px;")
+        self.cmb_rango = create_combo(self, ["Hoy", "Esta Semana", "Este Mes"])
         self.cmb_rango.currentTextChanged.connect(self.cargar_dashboard)
         
-        self.btn_actualizar = QPushButton("🔄 Refrescar")
+        self.btn_actualizar = create_secondary_button(self, "🔄 Refrescar", "Actualizar datos del dashboard")
         self.btn_actualizar.clicked.connect(self.cargar_dashboard)
 
-        btn_excel = QPushButton("📊 Excel")
-        btn_excel.setStyleSheet(
-            "background:#27ae60;color:white;font-weight:bold;padding:5px 12px;border-radius:3px;")
+        btn_excel = create_success_button(self, "📊 Excel", "Exportar dashboard a Excel (.xlsx)")
         btn_excel.clicked.connect(lambda: self._exportar("excel"))
-        btn_excel.setToolTip("Exportar dashboard a Excel (.xlsx)")
 
-        btn_pdf = QPushButton("📄 PDF")
-        btn_pdf.setStyleSheet(
-            "background:#e74c3c;color:white;font-weight:bold;padding:5px 12px;border-radius:3px;")
+        btn_pdf = create_danger_button(self, "📄 PDF", "Exportar dashboard a PDF")
         btn_pdf.clicked.connect(lambda: self._exportar("pdf"))
-        btn_pdf.setToolTip("Exportar dashboard a PDF")
 
         header_layout.addWidget(QLabel("Período:"))
         header_layout.addWidget(self.cmb_rango)
@@ -85,9 +89,8 @@ class ModuloReportesBIv2(QWidget):
         
         layout_principal.addLayout(kpi_layout)
 
-        self.lbl_comparativa = QLabel("")
+        self.lbl_comparativa = create_caption(self, "")
         self.lbl_comparativa.setAlignment(Qt.AlignCenter)
-        self.lbl_comparativa.setStyleSheet("font-size:12px;padding:3px;")
         self.lbl_comparativa.hide()
         layout_principal.addWidget(self.lbl_comparativa)
 
@@ -112,21 +115,22 @@ class ModuloReportesBIv2(QWidget):
 
         # ── Rentabilidad por producto (tab adicional) ─────────────────────────
         self._build_rentabilidad_section(layout_principal)
+        self._build_cajeros_section(layout_principal)
+        self._build_forecast_section(layout_principal)
+        self._build_decision_engine_section(layout_principal)
+        self._build_franchise_section(layout_principal)
 
     def _build_rentabilidad_section(self, parent_layout):
         """Tabla de rentabilidad por producto: margen, rotación, contribución."""
         from PyQt5.QtWidgets import QGroupBox
         grp = QGroupBox("💰 Rentabilidad por Producto (Margen Bruto)")
-        grp.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                          "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp.setObjectName("styledGroup")
         lay = QVBoxLayout(grp)
 
         toolbar = QHBoxLayout()
-        btn_rent = QPushButton("📊 Calcular Rentabilidad")
-        btn_rent.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;"
-                               "padding:6px 14px;border-radius:4px;")
+        btn_rent = create_primary_button(self, "📊 Calcular Rentabilidad", "Calcular rentabilidad por producto")
         btn_rent.clicked.connect(self._cargar_rentabilidad)
-        btn_export = QPushButton("📥 Exportar CSV")
+        btn_export = create_secondary_button(self, "📥 Exportar CSV", "Exportar reporte a CSV")
         btn_export.clicked.connect(self._exportar_rentabilidad_csv)
         toolbar.addWidget(btn_rent); toolbar.addWidget(btn_export); toolbar.addStretch()
         lay.addLayout(toolbar)
@@ -147,6 +151,320 @@ class ModuloReportesBIv2(QWidget):
 
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
+
+    # ── Rendimiento Cajeros: ranking por frecuencia y volumen ─────────────────
+
+    def _build_cajeros_section(self, parent_layout):
+        """Ranking de cajeros por # transacciones, volumen y ticket prom. Fase 2."""
+        grp = QGroupBox("📊 Rendimiento de Cajeros")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_caj = create_primary_button(self, "📋 Cargar Ranking Cajeros",
+                                        "Calcular ranking de cajeros por transacciones y volumen")
+        btn_caj.clicked.connect(self._cargar_cajeros)
+        toolbar.addWidget(btn_caj)
+        toolbar.addStretch()
+        self._lbl_caj_estado = QLabel("Haz clic para ver el rendimiento de cajeros del mes.")
+        self._lbl_caj_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_caj_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_caj = QTableWidget()
+        self._tbl_caj.setColumnCount(6)
+        self._tbl_caj.setHorizontalHeaderLabels([
+            "Cajero", "# Ventas", "Total $", "Ticket Prom $", "Descuentos $", "Días Activo"
+        ])
+        hh = self._tbl_caj.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_caj.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_caj.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_caj.setAlternatingRowColors(True)
+        self._tbl_caj.setMaximumHeight(240)
+        lay.addWidget(self._tbl_caj)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_cajeros(self):
+        """Carga ranking de cajeros via BIService.ranking_cajeros()."""
+        self._tbl_caj.setRowCount(0)
+        try:
+            bi_svc = getattr(self.container, "bi_service", None)
+            if bi_svc is None:
+                self._lbl_caj_estado.setText("BIService no disponible.")
+                return
+            rango = self.cmb_rango.currentText()
+            rango_key = "hoy" if "hoy" in rango.lower() else \
+                        "semana" if "semana" in rango.lower() else "mes"
+            rows = bi_svc.ranking_cajeros(self.sucursal_id, rango_key)
+            self._lbl_caj_estado.setText(f"{len(rows)} cajeros encontrados.")
+            for i, r in enumerate(rows):
+                self._tbl_caj.insertRow(i)
+                vals = [
+                    str(r.get("cajero", "(sin usuario)")),
+                    str(r.get("num_ventas", 0)),
+                    f"${float(r.get('total_ventas', 0)):,.2f}",
+                    f"${float(r.get('ticket_promedio', 0)):,.2f}",
+                    f"${float(r.get('total_descuentos', 0)):,.2f}",
+                    str(r.get("dias_activo", 0)),
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if i == 0:  # Top cajero destacado
+                        item.setForeground(
+                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#27ae60'))
+                    self._tbl_caj.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_caj_estado.setText(f"Error: {exc}")
+
+    # ── ActionableForecast: plan de compras y riesgos ─────────────────────────
+
+    def _build_forecast_section(self, parent_layout):
+        """Plan de compras semanal + análisis de riesgos de inventario. Fase 5."""
+        grp = QGroupBox("🔮 Forecast & Abastecimiento (ActionableForecast)")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_compras = create_primary_button(self, "🛒 Plan Compras Semanal",
+                                            "Generar plan de compras basado en demanda histórica")
+        btn_compras.clicked.connect(self._cargar_plan_compras)
+        btn_riesgos = create_secondary_button(self, "⚠️ Análisis de Riesgos",
+                                              "Detectar productos con riesgo de desabasto")
+        btn_riesgos.clicked.connect(self._cargar_riesgos_inventario)
+        toolbar.addWidget(btn_compras)
+        toolbar.addWidget(btn_riesgos)
+        toolbar.addStretch()
+        self._lbl_fc_estado = QLabel("Selecciona una acción para generar el forecast.")
+        self._lbl_fc_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_fc_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_fc = QTableWidget()
+        self._tbl_fc.setColumnCount(6)
+        self._tbl_fc.setHorizontalHeaderLabels([
+            "Producto", "Stock Actual", "Demanda/día", "Días Stock",
+            "Comprar", "Costo Estimado $"
+        ])
+        hh = self._tbl_fc.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_fc.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_fc.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_fc.setAlternatingRowColors(True)
+        self._tbl_fc.setMaximumHeight(240)
+        lay.addWidget(self._tbl_fc)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_plan_compras(self):
+        """Carga el plan de compras via ActionableForecastService.plan_compras_semanal()."""
+        self._tbl_fc.setRowCount(0)
+        self._tbl_fc.setHorizontalHeaderLabels([
+            "Producto", "Stock Actual", "Demanda/día", "Días Stock",
+            "Comprar", "Costo Estimado $"
+        ])
+        try:
+            svc = getattr(self.container, "actionable_forecast", None)
+            if svc is None:
+                self._lbl_fc_estado.setText("ActionableForecastService no disponible.")
+                return
+            rows = svc.plan_compras_semanal(sucursal_id=self.sucursal_id)
+            self._lbl_fc_estado.setText(f"{len(rows)} productos en plan de compras.")
+            for i, r in enumerate(rows):
+                self._tbl_fc.insertRow(i)
+                prioridad = r.get("prioridad", "")
+                vals = [
+                    str(r.get("producto", "")),
+                    f"{float(r.get('stock_actual', 0)):.2f}",
+                    f"{float(r.get('demanda_diaria', 0)):.2f}",
+                    f"{float(r.get('dias_stock', 0)):.1f}",
+                    f"{float(r.get('comprar_kg', r.get('cantidad_comprar', 0))):.2f}",
+                    f"${float(r.get('costo_est', r.get('costo_estimado', 0))):,.2f}",
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if prioridad == "alta" and j == 0:
+                        item.setForeground(
+                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                    self._tbl_fc.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_fc_estado.setText(f"Error: {exc}")
+
+    def _cargar_riesgos_inventario(self):
+        """Carga riesgos de inventario via ActionableForecastService.analisis_riesgos()."""
+        self._tbl_fc.setRowCount(0)
+        self._tbl_fc.setHorizontalHeaderLabels([
+            "Tipo Riesgo", "Producto", "Días Stock", "Stock Actual",
+            "Prioridad", "Acción Sugerida"
+        ])
+        try:
+            svc = getattr(self.container, "actionable_forecast", None)
+            if svc is None:
+                self._lbl_fc_estado.setText("ActionableForecastService no disponible.")
+                return
+            rows = svc.analisis_riesgos(sucursal_id=self.sucursal_id)
+            self._lbl_fc_estado.setText(f"{len(rows)} riesgos detectados.")
+            for i, r in enumerate(rows):
+                self._tbl_fc.insertRow(i)
+                vals = [
+                    str(r.get("tipo", "")),
+                    str(r.get("producto", "")),
+                    f"{float(r.get('dias_stock', 0)):.1f}",
+                    f"{float(r.get('stock_actual', 0)):.2f}",
+                    str(r.get("prioridad", "")),
+                    str(r.get("accion", r.get("accion_sugerida", "")))[:60],
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(v)
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if r.get("prioridad") == "crítica":
+                        item.setForeground(
+                            __import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                    self._tbl_fc.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_fc_estado.setText(f"Error: {exc}")
+
+    # ── DecisionEngine: sugerencias accionables ───────────────────────────────
+
+    def _build_decision_engine_section(self, parent_layout):
+        """Panel de sugerencias del DecisionEngine (FASE 5 — solo lectura)."""
+        grp = QGroupBox("🤖 Sugerencias Accionables (DecisionEngine)")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_gen = create_primary_button(self, "🔍 Generar Sugerencias",
+                                        "Analizar datos y generar sugerencias accionables")
+        btn_gen.clicked.connect(self._cargar_decision_engine)
+        toolbar.addWidget(btn_gen)
+        toolbar.addStretch()
+        self._lbl_de_estado = QLabel("Haz clic en 'Generar Sugerencias' para analizar.")
+        self._lbl_de_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_de_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_de = QTableWidget()
+        self._tbl_de.setColumnCount(5)
+        self._tbl_de.setHorizontalHeaderLabels([
+            "Prioridad", "Tipo", "Sugerencia", "Impacto Estimado", "Acción Propuesta"
+        ])
+        hh = self._tbl_de.horizontalHeader()
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self._tbl_de.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_de.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_de.setAlternatingRowColors(True)
+        self._tbl_de.setMaximumHeight(280)
+        lay.addWidget(self._tbl_de)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_decision_engine(self):
+        """Invoca DecisionEngine.generar_sugerencias() y muestra los resultados."""
+        self._tbl_de.setRowCount(0)
+        try:
+            engine = getattr(self.container, "decision_engine", None)
+            if engine is None:
+                self._lbl_de_estado.setText("DecisionEngine no disponible en este contenedor.")
+                return
+            sugs = engine.generar_sugerencias(sucursal_id=self.sucursal_id)
+            self._lbl_de_estado.setText(
+                f"{len(sugs)} sugerencias generadas — solo lectura, no se ejecuta nada."
+            )
+            for i, s in enumerate(sugs):
+                self._tbl_de.insertRow(i)
+                accion = s.get("accion_propuesta", {})
+                accion_txt = accion.get("descripcion", str(accion)) if isinstance(accion, dict) else str(accion)
+                vals = [
+                    s.get("prioridad", ""),
+                    s.get("tipo", ""),
+                    s.get("titulo", "") + (" — " + s.get("detalle", "") if s.get("detalle") else ""),
+                    s.get("impacto_estimado", ""),
+                    accion_txt[:80],
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(str(v))
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_de.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_de_estado.setText(f"Error: {exc}")
+
+    # ── FranchiseManager: ranking multi-sucursal ──────────────────────────────
+
+    def _build_franchise_section(self, parent_layout):
+        """Ranking de sucursales via FranchiseManager (Fase 6 — multi-franquicia)."""
+        grp = QGroupBox("🏪 Ranking de Sucursales (FranchiseManager)")
+        grp.setStyleSheet(
+            "QGroupBox { font-weight:bold; border:1px solid #dee2e6;"
+            " border-radius:6px; margin-top:10px; padding-top:8px; }"
+        )
+        lay = QVBoxLayout(grp)
+
+        toolbar = QHBoxLayout()
+        btn_rank = create_primary_button(self, "🏆 Calcular Ranking",
+                                         "Calcular ranking de sucursales por ventas y rentabilidad")
+        btn_rank.clicked.connect(self._cargar_franchise_ranking)
+        toolbar.addWidget(btn_rank)
+        toolbar.addStretch()
+        self._lbl_fm_estado = QLabel("Haz clic en 'Calcular Ranking' para comparar sucursales.")
+        self._lbl_fm_estado.setStyleSheet("color:#888; font-size:11px;")
+        toolbar.addWidget(self._lbl_fm_estado)
+        lay.addLayout(toolbar)
+
+        self._tbl_fm = QTableWidget()
+        self._tbl_fm.setColumnCount(6)
+        self._tbl_fm.setHorizontalHeaderLabels([
+            "Sucursal", "Ventas $", "# Transacciones", "Ticket Prom $",
+            "Margen Bruto %", "Rank"
+        ])
+        hh = self._tbl_fm.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_fm.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_fm.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_fm.setAlternatingRowColors(True)
+        self._tbl_fm.setMaximumHeight(220)
+        lay.addWidget(self._tbl_fm)
+
+        parent_layout.addWidget(grp)
+
+    def _cargar_franchise_ranking(self):
+        """Carga ranking de sucursales via FranchiseManager."""
+        self._tbl_fm.setRowCount(0)
+        try:
+            fm = getattr(self.container, "franchise_manager", None)
+            if fm is None:
+                self._lbl_fm_estado.setText("FranchiseManager no disponible.")
+                return
+            rows = fm.ranking_sucursales()
+            self._lbl_fm_estado.setText(f"{len(rows)} sucursales analizadas.")
+            for i, r in enumerate(rows):
+                self._tbl_fm.insertRow(i)
+                vals = [
+                    str(r.get("nombre", r.get("sucursal_id", ""))),
+                    f"${float(r.get('total_ventas', 0)):,.2f}",
+                    str(r.get("num_transacciones", 0)),
+                    f"${float(r.get('ticket_promedio', 0)):,.2f}",
+                    f"{float(r.get('margen_bruto_pct', 0)):.1f}%",
+                    str(r.get("rank", i + 1)),
+                ]
+                for j, v in enumerate(vals):
+                    item = QTableWidgetItem(str(v))
+                    item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_fm.setItem(i, j, item)
+        except Exception as exc:
+            self._lbl_fm_estado.setText(f"Error: {exc}")
 
     def _cargar_rentabilidad(self):
         """Carga el reporte de rentabilidad por producto para el período activo."""
@@ -231,31 +549,26 @@ class ModuloReportesBIv2(QWidget):
 
     def _crear_tarjeta_kpi(self, titulo, valor_inicial):
         """Crea una tarjeta visual estilizada para los indicadores."""
-        tarjeta = QFrame()
-        tarjeta.setStyleSheet("""
-            QFrame { background-color: #ffffff; border-radius: 8px; border: 1px solid #e0e0e0; }
-            QLabel { background-color: transparent; border: none; }
-        """)
+        # CORRECCIÓN: with_layout=False para evitar conflicto de layouts
+        tarjeta = create_card(self, with_layout=False)
         layout = QVBoxLayout(tarjeta)
-        
-        lbl_titulo = QLabel(titulo)
-        lbl_titulo.setStyleSheet("color: #7f8c8d; font-size: 14px; font-weight: bold;")
+
+        lbl_titulo = create_caption(self, titulo)
         lbl_titulo.setAlignment(Qt.AlignCenter)
-        
-        lbl_valor = QLabel(valor_inicial)
-        lbl_valor.setStyleSheet("color: #2980b9; font-size: 24px; font-weight: bold;")
+
+        lbl_valor = create_subheading(self, valor_inicial)
+        lbl_valor.setObjectName("textPrimary")  # Color azul primario
         lbl_valor.setAlignment(Qt.AlignCenter)
-        
+
         layout.addWidget(lbl_titulo)
         layout.addWidget(lbl_valor)
         tarjeta._lbl_valor = lbl_valor   # keep reference on the frame
         return tarjeta
-
     def _crear_tabla_ranking(self, titulo, headers):
         """Crea un panel con una tabla limpia para los rankings.
         Returns the QGroupBox (parent kept alive) with _tabla attribute."""
         grupo = QGroupBox(titulo)
-        grupo.setStyleSheet("font-weight: bold; font-size: 14px; margin-top: 10px;")
+        grupo.setObjectName("styledGroup")
         layout = QVBoxLayout(grupo)
         
         tabla = QTableWidget()
@@ -264,7 +577,7 @@ class ModuloReportesBIv2(QWidget):
         tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         tabla.verticalHeader().setVisible(False)
         tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        tabla.setStyleSheet("font-weight: normal; font-size: 12px;")
+        tabla.setObjectName("tableView")
         
         layout.addWidget(tabla)
         grupo._tabla = tabla   # keep strong reference on the container

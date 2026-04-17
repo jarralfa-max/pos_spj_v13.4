@@ -45,6 +45,17 @@ def mem_db():
             usuario TEXT, venta_id INTEGER, forma_pago TEXT,
             fecha DATETIME DEFAULT (datetime('now'))
         );
+        CREATE TABLE inventario_actual (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER NOT NULL,
+            sucursal_id INTEGER DEFAULT 1,
+            cantidad REAL DEFAULT 0,
+            costo_promedio REAL DEFAULT 0,
+            ultima_actualizacion DATETIME DEFAULT (datetime('now')),
+            UNIQUE(producto_id, sucursal_id)
+        );
+        INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad)
+            SELECT id, 1, existencia FROM productos;
         CREATE TABLE clientes (
             id INTEGER PRIMARY KEY, nombre TEXT, puntos INTEGER DEFAULT 0, activo INTEGER DEFAULT 1
         );

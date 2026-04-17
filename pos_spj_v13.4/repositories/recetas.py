@@ -280,8 +280,13 @@ class RecetaRepository:
         _add('created_at',       now)
         _add('validates_at',     now)         # columna opcional (legacy)
         # Columnas de referencia al producto base (detectadas dinámicamente)
+        # FASE 0: Forzar piece_product_id = base_product_id para evitar IntegrityError
+        _add('piece_product_id', base_product_id)
         _add('product_id',       base_product_id)
         _add('base_product_id',  base_product_id)
+        # piece_product_id: NOT NULL — usar base_product_id como valor por defecto
+        # evita IntegrityError cuando el llamador no provee este campo (Fase 0 hotfix)
+        _add('piece_product_id', base_product_id)
 
         if not columns:
             raise RecetaError("No se encontraron columnas válidas en product_recipes")
@@ -324,7 +329,7 @@ class RecetaRepository:
 
             self._rebuild_dependency_graph(receta_id, base_product_id, component_ids)
 
-        EventBus.publish(RECETA_CREADA, {
+        EventBus().publish(RECETA_CREADA, {
             "receta_id": receta_id,
             "base_product_id": base_product_id
         })
@@ -391,7 +396,7 @@ class RecetaRepository:
 
             self._rebuild_dependency_graph(receta_id, base_product_id, component_ids)
 
-        EventBus.publish(RECETA_ACTUALIZADA, {
+        EventBus().publish(RECETA_ACTUALIZADA, {
             "receta_id": receta_id,
             "base_product_id": base_product_id
         })

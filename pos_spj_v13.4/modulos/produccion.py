@@ -17,6 +17,12 @@ from __future__ import annotations
 from core.events.event_bus import get_bus
 from core.services.auto_audit import audit_write
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_input, create_combo, create_card,
+    create_heading, create_subheading, create_caption, apply_tooltip
+)
 
 import logging
 from datetime import datetime
@@ -28,7 +34,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QDoubleSpinBox, QTableWidget, QTableWidgetItem,
     QAbstractItemView, QHeaderView, QGroupBox, QSplitter,
     QMessageBox, QTextEdit, QLineEdit, QTabWidget, QFrame,
-    QScrollArea, QProgressBar
+    QScrollArea, QProgressBar, QDialog, QFormLayout, QCheckBox
 )
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QFont
@@ -44,11 +50,9 @@ from core.services.recipe_engine import (
 )
 
 logger = logging.getLogger("spj.ui.produccion")
-
-_DARK  = "#1a252f"
-_BLUE  = "#2980b9"
-_GREEN = "#27ae60"
 _RED   = "#e74c3c"
+_BLUE  = "#2563EB"
+_GREEN = "#16A34A"
 _GOLD  = "#f39c12"
 _GRAY  = "#7f8c8d"
 
@@ -167,10 +171,9 @@ class ModuloProduccion(ModuloBase):
         # Header
         hdr = QHBoxLayout()
         ttl = QLabel("🔪 Procesamiento Cárnico")
-        f = ttl.font(); f.setPointSize(15); f.setBold(True); ttl.setFont(f)
-        ttl.setObjectName("tituloPrincipal")
+        ttl.setObjectName("heading")
         self._lbl_suc = QLabel()
-        self._lbl_suc.setStyleSheet(f"color:{_GRAY};")
+        self._lbl_suc.setObjectName("textSecondary")
         hdr.addWidget(ttl); hdr.addStretch(); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
@@ -204,11 +207,11 @@ class ModuloProduccion(ModuloBase):
 
         # Info receta
         self._lbl_tipo = QLabel()
-        self._lbl_tipo.setStyleSheet("font-weight:bold; padding:4px; border-radius:4px;")
+        self._lbl_tipo.setObjectName("badge")
         fl.addWidget(self._lbl_tipo)
 
         self._lbl_base = QLabel()
-        self._lbl_base.setStyleSheet(f"color:{_GRAY}; font-size:12px;")
+        self._lbl_base.setObjectName("caption")
         fl.addWidget(self._lbl_base)
 
         # Cantidad base
@@ -221,7 +224,7 @@ class ModuloProduccion(ModuloBase):
         self._spin_cant.setSingleStep(0.5)
         self._spin_cant.valueChanged.connect(self._on_cant_changed)
         self._lbl_unidad = QLabel("kg")
-        self._lbl_unidad.setStyleSheet(f"color:{_GRAY};")
+        self._lbl_unidad.setObjectName("textSecondary")
         qty_row.addWidget(self._spin_cant)
         qty_row.addWidget(self._lbl_unidad)
         qty_row.addStretch()
@@ -239,21 +242,16 @@ class ModuloProduccion(ModuloBase):
         self._grp_stock = QGroupBox("Stock disponible")
         sl = QVBoxLayout(self._grp_stock)
         self._lbl_stock = QLabel("—")
-        self._lbl_stock.setStyleSheet("font-size:14px; font-weight:bold;")
+        self._lbl_stock.setObjectName("subheading")
         sl.addWidget(self._lbl_stock)
         fl.addWidget(self._grp_stock)
 
         # Botones
-        btn_preview = QPushButton("🔍 Vista Previa")
-        btn_preview.setStyleSheet(f"background:{_BLUE};color:white;font-weight:bold;padding:8px;border-radius:4px;")
+        btn_preview = create_primary_button(self, "🔍 Vista Previa", "Ver movimientos antes de ejecutar producción")
         btn_preview.clicked.connect(self._preview)
         fl.addWidget(btn_preview)
 
-        self._btn_ejecutar = QPushButton("▶ EJECUTAR PRODUCCIÓN")
-        self._btn_ejecutar.setStyleSheet(
-            f"background:{_GREEN};color:white;font-size:14px;font-weight:bold;"
-            f"padding:10px;border-radius:4px;"
-        )
+        self._btn_ejecutar = create_success_button(self, "▶ EJECUTAR PRODUCCIÓN", "Ejecutar producción con validación de stock")
         self._btn_ejecutar.clicked.connect(self._ejecutar)
         fl.addWidget(self._btn_ejecutar)
 
@@ -280,7 +278,7 @@ class ModuloProduccion(ModuloBase):
 
         # Resumen
         self._lbl_resumen = QLabel()
-        self._lbl_resumen.setStyleSheet("font-weight:bold; padding:4px;")
+        self._lbl_resumen.setObjectName("subheading")
         rl.addWidget(self._lbl_resumen)
 
         sp.addWidget(right)
@@ -343,7 +341,7 @@ class ModuloProduccion(ModuloBase):
             hdr3.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         rl.addWidget(self._tbl_det)
         self._lbl_det_info = QLabel()
-        self._lbl_det_info.setStyleSheet(f"color:{_GRAY}; font-size:12px;")
+        self._lbl_det_info.setObjectName("caption")
         rl.addWidget(self._lbl_det_info)
         sp.addWidget(right)
         sp.setSizes([480, 340])
@@ -372,7 +370,7 @@ class ModuloProduccion(ModuloBase):
         lay.addWidget(grp_in)
 
         btn_row = QHBoxLayout()
-        btn_proc = QPushButton("⚙️ Procesar lote cárnico"); btn_proc.setStyleSheet("background:#c0392b;color:white;font-weight:bold;padding:7px;")
+        btn_proc = create_danger_button(self, "⚙️ Procesar lote cárnico", "Procesar lote de producción cárnica con cálculo de merma")
         btn_row.addWidget(btn_proc); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -518,19 +516,17 @@ class ModuloProduccion(ModuloBase):
         info = QLabel("Gestión de recetas para producción y despiece cárnico. "
                        "Cada receta define insumos, rendimientos y subproductos.")
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#f0f4ff;padding:5px;border-radius:5px;font-size:11px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         # Botones principales
         btn_row = QHBoxLayout()
-        btn_nueva = QPushButton("➕ Nueva receta")
-        btn_nueva.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:5px 12px;border-radius:4px;")
-        btn_editar = QPushButton("✏️ Editar receta")
-        btn_editar.setStyleSheet("background:#e67e22;color:white;font-weight:bold;padding:5px 12px;border-radius:4px;")
+        btn_nueva = create_success_button(self, "➕ Nueva receta", "Crear nueva receta de producción")
+        btn_editar = create_secondary_button(self, "✏️ Editar receta", "Editar receta seleccionada")
         btn_ver = QPushButton("👁️ Ver detalle")
-        btn_desact = QPushButton("🗑️ Desactivar")
-        btn_desact.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:5px 12px;border-radius:4px;")
+        btn_desact = create_danger_button(self, "🗑️ Desactivar", "Desactivar receta seleccionada")
         btn_refresh = QPushButton("🔄")
+        apply_tooltip(btn_refresh, "Actualizar lista de recetas")
         btn_row.addWidget(btn_nueva); btn_row.addWidget(btn_editar)
         btn_row.addWidget(btn_ver); btn_row.addWidget(btn_desact)
         btn_row.addStretch(); btn_row.addWidget(btn_refresh)
@@ -593,13 +589,12 @@ class ModuloProduccion(ModuloBase):
                 self._rec_tabla.setItem(i, j, QTableWidgetItem(v))
 
     def _receta_nueva(self):
-        """Abre DialogoReceta de recetas.py para crear receta completa."""
+        """Abre DialogoReceta (integrado en este módulo) para crear receta completa."""
         conn = self._conexion if hasattr(self, '_conexion') else (
             self.conexion if hasattr(self, 'conexion') else None)
         if not conn:
             return
         try:
-            from modulos.recetas import DialogoReceta
             from repositories.recetas import RecetaRepository
             repo = RecetaRepository(conn)
             productos = conn.execute(
@@ -610,13 +605,11 @@ class ModuloProduccion(ModuloBase):
             dlg = DialogoReceta(repo, prods, usuario, parent=self)
             if dlg.exec_() == dlg.Accepted:
                 self._cargar_lista_recetas()
-        except ImportError:
-            self._nueva_receta_simple()
         except Exception as e:
             QMessageBox.warning(self, "Error", f"No se pudo abrir editor de recetas:\n{e}")
 
     def _receta_editar(self):
-        """Abre DialogoReceta para editar la receta seleccionada."""
+        """Abre DialogoReceta (integrado en este módulo) para editar la receta seleccionada."""
         row = self._rec_tabla.currentRow()
         if row < 0:
             QMessageBox.information(self, "Aviso", "Selecciona una receta.")
@@ -627,7 +620,6 @@ class ModuloProduccion(ModuloBase):
         if not conn:
             return
         try:
-            from modulos.recetas import DialogoReceta
             from repositories.recetas import RecetaRepository
             repo = RecetaRepository(conn)
             productos = conn.execute(
@@ -647,9 +639,6 @@ class ModuloProduccion(ModuloBase):
                                 componentes=componentes, parent=self)
             if dlg.exec_() == dlg.Accepted:
                 self._cargar_lista_recetas()
-        except ImportError:
-            QMessageBox.warning(self, "Aviso",
-                "Editor de recetas no disponible. Verifica el módulo recetas.py.")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"No se pudo abrir editor:\n{e}")
 
@@ -806,12 +795,8 @@ class ModuloProduccion(ModuloBase):
             self._lbl_stock.setText("—")
             return
         tipo = r.get("tipo_receta", "")
-        color = TIPO_COLOR.get(tipo, _GRAY)
         self._lbl_tipo.setText(TIPO_LABELS.get(tipo, tipo))
-        self._lbl_tipo.setStyleSheet(
-            f"font-weight:bold;padding:4px;border-radius:4px;"
-            f"background:{color};color:white;"
-        )
+        self._lbl_tipo.setObjectName("badge")
         peso = r.get("peso_promedio_kg") or 1.0
         unidad = r.get("unidad_base") or r.get("prod_unidad") or "kg"
         self._lbl_base.setText(
@@ -840,11 +825,12 @@ class ModuloProduccion(ModuloBase):
             cant = self._spin_cant.value()
             unidad = r.get("unidad_base") or "kg"
             ok = stock >= cant
-            color = _GREEN if ok else _RED
             self._lbl_stock.setText(f"{stock:.3f} {unidad}")
-            self._lbl_stock.setStyleSheet(
-                f"font-size:14px;font-weight:bold;color:{color};"
-            )
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_stock.setObjectName("textSuccess" if ok else "textDanger")
+            # Forzar actualización de estilo
+            self._lbl_stock.style().unpolish(self._lbl_stock)
+            self._lbl_stock.style().polish(self._lbl_stock)
         except Exception as exc:
             logger.warning("update_stock_label: %s", exc)
             self._lbl_stock.setText("?")
@@ -922,14 +908,20 @@ class ModuloProduccion(ModuloBase):
             self._lbl_resumen.setText(
                 f"❌ STOCK INSUFICIENTE | Consumo: {total_out:.3f} | Generado: {total_in:.3f}"
             )
-            self._lbl_resumen.setStyleSheet(f"color:{_RED};font-weight:bold;")
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_resumen.setObjectName("textDanger")
+            self._lbl_resumen.style().unpolish(self._lbl_resumen)
+            self._lbl_resumen.style().polish(self._lbl_resumen)
             self._btn_ejecutar.setEnabled(False)
         else:
             self._lbl_resumen.setText(
                 f"✅ OK | Consumo: {total_out:.3f} | Generado: {total_in:.3f} | "
                 f"Movimientos: {len(movs)}"
             )
-            self._lbl_resumen.setStyleSheet(f"color:{_GREEN};font-weight:bold;")
+            # Usar objectName para estilos dinámicos en lugar de setStyleSheet
+            self._lbl_resumen.setObjectName("textSuccess")
+            self._lbl_resumen.style().unpolish(self._lbl_resumen)
+            self._lbl_resumen.style().polish(self._lbl_resumen)
             self._btn_ejecutar.setEnabled(True)
 
     # ── Ejecutar ──────────────────────────────────────────────────────────────
@@ -1114,3 +1106,255 @@ class ModuloProduccion(ModuloBase):
         self._lbl_det_info.setText(
             f"Total generado: {total_in:.3f} | Total consumido: {total_out:.3f}"
         )
+class DialogoReceta(QDialog):
+
+    def __init__(
+        self,
+        repo: RecetaRepository,
+        productos: List[Dict],
+        usuario: str,
+        receta_data: Optional[Dict] = None,
+        componentes: Optional[List[Dict]] = None,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self._repo        = repo
+        self._productos   = productos
+        self._usuario     = usuario
+        self._data        = receta_data
+        self._componentes = componentes or []
+        self._comp_rows: List[Dict] = []  # working copy
+        self.setWindowTitle("Nueva Receta" if not receta_data else "Editar Receta")
+        self.setMinimumWidth(700); self.setMinimumHeight(550)
+        self._build_ui()
+        if receta_data:
+            self._load()
+
+    def _build_ui(self) -> None:
+        lay = QVBoxLayout(self)
+
+        # Header form
+        fl = QFormLayout()
+        self._e_nombre = QLineEdit()
+        self._e_nombre.setPlaceholderText("Nombre de la receta…")
+        self._combo_base = QComboBox()
+        self._combo_base.addItem("— Seleccionar producto base —", None)
+        for p in self._productos:
+            self._combo_base.addItem(
+                f"{p['nombre']} [{p.get('unidad','kg')}]", p["id"]
+            )
+        fl.addRow("Nombre Receta*:", self._e_nombre)
+        fl.addRow("Producto Base*:", self._combo_base)
+        lay.addLayout(fl)
+
+        # Components table
+        grp = QGroupBox("Componentes (suma rendimiento + merma ≤ 100%)")
+        gl = QVBoxLayout(grp)
+
+        self._tbl_comp = QTableWidget()
+        self._tbl_comp.setColumnCount(6)
+        self._tbl_comp.setHorizontalHeaderLabels(
+            ["Componente", "Rendimiento %", "Merma %", "Total %", "Tolerancia %", "Descripción"]
+        )
+        self._tbl_comp.verticalHeader().setVisible(False)
+        self._tbl_comp.setAlternatingRowColors(True)
+        hdr = self._tbl_comp.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.Stretch)
+        for i in (1, 2, 3, 4, 5): hdr.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        gl.addWidget(self._tbl_comp)
+
+        # Add component form
+        add_row = QHBoxLayout()
+        self._combo_comp = QComboBox()
+        self._combo_comp.addItem("— Componente —", None)
+        for p in self._productos:
+            self._combo_comp.addItem(f"{p['nombre']}", p["id"])
+        self._spin_rend  = QDoubleSpinBox(); self._spin_rend.setRange(0, 100); self._spin_rend.setDecimals(3); self._spin_rend.setSuffix(" %")
+        self._spin_merma = QDoubleSpinBox(); self._spin_merma.setRange(0, 100); self._spin_merma.setDecimals(3); self._spin_merma.setSuffix(" %")
+        self._e_desc     = QLineEdit(); self._e_desc.setPlaceholderText("Descripción (opcional)")
+        btn_add = create_primary_button(self, "➕ Agregar", "Agregar componente a la receta")
+        btn_add.clicked.connect(self._add_component)
+        btn_del = create_secondary_button(self, "🗑 Quitar Sel.", "Quitar componente seleccionado")
+        btn_del.clicked.connect(self._remove_component)
+        self._spin_tolerancia = QDoubleSpinBox()
+        self._spin_tolerancia.setRange(0.1, 20.0); self._spin_tolerancia.setDecimals(1)
+        self._spin_tolerancia.setSuffix(" %"); self._spin_tolerancia.setValue(2.0)
+        self._spin_tolerancia.setToolTip(
+            "Error relativo permitido.\n"
+            "Si la producción real difiere más de este % del teórico,\n"
+            "se registra como variación en el historial.")
+        for w, lbl in [(self._combo_comp,"Comp:"), (QLabel("Rend:"), None),
+                       (self._spin_rend,None), (QLabel("Merma:"),None),
+                       (self._spin_merma,None), (QLabel("Toler:"),None),
+                       (self._spin_tolerancia,None), (self._e_desc,None),
+                       (btn_add,None), (btn_del,None)]:
+            if lbl is not None: add_row.addWidget(QLabel(lbl))
+            add_row.addWidget(w)
+        gl.addLayout(add_row)
+
+        # Totals
+        self._lbl_totales = QLabel("Suma: 0.00%")
+        self._lbl_totales.setObjectName("subheading")
+        gl.addWidget(self._lbl_totales)
+        lay.addWidget(grp)
+
+        # Buttons
+        bl = QHBoxLayout()
+        btn_ok = create_success_button(self, "💾 Guardar Receta", "Guardar receta de producción")
+        btn_ok.clicked.connect(self._guardar)
+        btn_no = create_secondary_button(self, "Cancelar", "Cancelar y cerrar")
+        btn_no.clicked.connect(self.reject)
+        bl.addStretch(); bl.addWidget(btn_ok); bl.addWidget(btn_no)
+        lay.addLayout(bl)
+
+    def _load(self) -> None:
+        d = self._data
+        self._e_nombre.setText(d.get("nombre_receta", ""))
+        idx = self._combo_base.findData(d.get("base_product_id"))
+        if idx >= 0: self._combo_base.setCurrentIndex(idx)
+        self._comp_rows = []
+        for c in self._componentes:
+            self._comp_rows.append({
+                "component_product_id": c.get("component_product_id"),
+                "component_nombre":     c.get("component_nombre", "?"),
+                "rendimiento_pct":      float(c.get("rendimiento_pct", 0)),
+                "merma_pct":            float(c.get("merma_pct", 0)),
+                "tolerancia_pct":       float(c.get("tolerancia_pct", 2.0)),
+                "descripcion":          c.get("descripcion", ""),
+                "orden":                c.get("orden", 0),
+            })
+        self._refresh_comp_table()
+
+    def _add_component(self) -> None:
+        comp_id = self._combo_comp.currentData()
+        if not comp_id:
+            QMessageBox.warning(self, "Validación", "Seleccione un componente."); return
+        rend  = self._spin_rend.value()
+        merma = self._spin_merma.value()
+        if rend + merma <= 0:
+            QMessageBox.warning(self, "Validación",
+                                "Rendimiento + Merma debe ser mayor a 0%."); return
+        base_id = self._combo_base.currentData()
+        if comp_id == base_id:
+            QMessageBox.warning(self, "Auto-referencia",
+                                "Un componente no puede ser el mismo producto base."); return
+        # Check duplicate
+        if any(r["component_product_id"] == comp_id for r in self._comp_rows):
+            QMessageBox.warning(self, "Duplicado",
+                                "Este componente ya está en la receta."); return
+        comp_nombre = self._combo_comp.currentText()
+        tolerancia = self._spin_tolerancia.value() if hasattr(self, '_spin_tolerancia') else 2.0
+        self._comp_rows.append({
+            "component_product_id": comp_id,
+            "component_nombre":     comp_nombre,
+            "rendimiento_pct":      rend,
+            "merma_pct":            merma,
+            "tolerancia_pct":       tolerancia,
+            "descripcion":          self._e_desc.text().strip(),
+            "orden":                len(self._comp_rows),
+        })
+        self._refresh_comp_table()
+
+    def _remove_component(self) -> None:
+        row = self._tbl_comp.currentRow()
+        if row < 0: return
+        self._comp_rows.pop(row)
+        self._refresh_comp_table()
+
+    def _refresh_comp_table(self) -> None:
+        self._tbl_comp.setRowCount(len(self._comp_rows))
+        total_rend = Decimal("0"); total_merma = Decimal("0")
+        for ri, r in enumerate(self._comp_rows):
+            rend  = Decimal(str(r["rendimiento_pct"]))
+            merma = Decimal(str(r["merma_pct"]))
+            total_rend  += rend; total_merma += merma
+            fila_total = float(rend + merma)
+            tolerancia = float(r.get("tolerancia_pct", 2.0))
+            vals = [
+                r.get("component_nombre", "?"),
+                f"{float(rend):.3f}%",
+                f"{float(merma):.3f}%",
+                f"{fila_total:.3f}%",
+                f"± {tolerancia:.1f}%",
+                r.get("descripcion", ""),
+            ]
+            for ci, v in enumerate(vals):
+                it = QTableWidgetItem(v); it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                if ci in (1, 2, 3, 4): it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._tbl_comp.setItem(ri, ci, it)
+        grand = float(total_rend + total_merma)
+        ok = grand <= 100.01
+        icon  = "✅" if ok else "❌ EXCEDE 100%"
+        self._lbl_totales.setText(
+            f"{icon}  Rendimiento total: {float(total_rend):.3f}%  |  "
+            f"Merma total: {float(total_merma):.3f}%  |  "
+            f"Suma: {grand:.3f}%"
+        )
+        # Usar objectName para estilos dinámicos en lugar de setStyleSheet.
+        self._lbl_totales.setObjectName("textSuccess" if ok else "textDanger")
+        # Forzar actualización de estilo
+        self._lbl_totales.style().unpolish(self._lbl_totales)
+        self._lbl_totales.style().polish(self._lbl_totales)
+
+    def _guardar(self) -> None:
+        nombre = self._e_nombre.text().strip()
+        if not nombre:
+            QMessageBox.warning(self, "Validación", "Nombre de receta obligatorio."); return
+        base_id = self._combo_base.currentData()
+        if not base_id:
+            QMessageBox.warning(self, "Validación", "Seleccione producto base."); return
+        if not self._comp_rows:
+            QMessageBox.warning(self, "Validación", "Agregue al menos un componente."); return
+
+        # Pre-validate totals client-side
+        total = sum(
+            Decimal(str(c["rendimiento_pct"])) + Decimal(str(c["merma_pct"]))
+            for c in self._comp_rows
+        )
+        if total > Decimal("100.01"):
+            QMessageBox.warning(
+                self, "Error de Porcentaje",
+                f"La suma total ({float(total):.3f}%) excede el 100%.\n"
+                "Ajuste los porcentajes antes de guardar."
+            ); return
+
+        components = [
+            {
+                "component_product_id": c["component_product_id"],
+                "rendimiento_pct":      c["rendimiento_pct"],
+                "merma_pct":            c["merma_pct"],
+                "descripcion":          c.get("descripcion", ""),
+                "orden":                c.get("orden", i),
+            }
+            for i, c in enumerate(self._comp_rows)
+        ]
+
+        try:
+            if self._data:
+                self._repo.update(self._data["id"], nombre, components, self._usuario)
+                QMessageBox.information(self, "Éxito", "Receta actualizada correctamente.")
+            else:
+                rid = self._repo.create(
+                    nombre=nombre,
+                    base_product_id=base_id,
+                    components=components,
+                    usuario=self._usuario,
+                )
+                QMessageBox.information(self, "Éxito", f"Receta #{rid} creada correctamente.")
+            self.accept()
+        except RecetaCyclicError:
+            QMessageBox.warning(self, "Dependencia Cíclica",
+                                "Esta configuración crea una dependencia circular entre productos.")
+        except RecetaSelfReferenceError:
+            QMessageBox.warning(self, "Auto-referencia",
+                                "Un componente no puede ser el mismo producto base.")
+        except RecetaPercentageError as exc:
+            QMessageBox.warning(self, "Error de Porcentaje", str(exc))
+        except RecetaDuplicadaError:
+            QMessageBox.warning(self, "Receta Duplicada",
+                                "Ya existe una receta activa para este producto base.")
+        except RecetaError as exc:
+            QMessageBox.warning(self, "Error en Receta", str(exc))
+        except Exception as exc:
+            logger.exception("guardar_receta")
+            QMessageBox.critical(self, "Error Inesperado", str(exc))

@@ -14,10 +14,12 @@ class LoyaltyService:
     """Servicio central de fidelización. Delega a GrowthEngine."""
 
     def __init__(self, db_conn, sucursal_id: int = 1,
-                 module_config=None, whatsapp_service=None):
+                 module_config=None, whatsapp_service=None,
+                 finance_service=None):
         self.db = db_conn
         self.sucursal_id = sucursal_id
         self._module_config = module_config
+        self._finance = finance_service
         self._engine = None
         self._bus = None
         self._init_engine(whatsapp_service)
@@ -71,6 +73,15 @@ class LoyaltyService:
                 self._registrar_pasivo(estrellas, venta_id, "acreditar")
                 self._publish_puntos(cliente_id, estrellas,
                                      resultado.get("saldo_actual", 0), venta_id)
+                # Ledger unificado Fase 2
+                self.registrar_en_ledger(
+                    cliente_id=cliente_id,
+                    tipo="acumulacion",
+                    puntos=estrellas,
+                    referencia=str(venta_id),
+                    descripcion=f"Acumulación venta #{venta_id}",
+                    usuario=cajero,
+                )
             return resultado
         except Exception as e:
             logger.error("acreditar_venta: %s", e)
@@ -162,6 +173,33 @@ class LoyaltyService:
             canjeadas = resultado.get("estrellas_canjeadas", 0)
             if canjeadas > 0:
                 self._registrar_pasivo(-canjeadas, venta_id, "canje")
+                # Ledger unificado Fase 2
+                self.registrar_en_ledger(
+                    cliente_id=cliente_id,
+                    tipo="canje",
+                    puntos=-canjeadas,
+                    referencia=str(venta_id),
+                    descripcion=f"Canje venta #{venta_id}",
+                    usuario=str(cajero_id),
+                )
+                # Asiento contable (CLAUDE.md regla 8: todo impacto financiero)
+                if self._finance:
+                    try:
+                        valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
+                        monto = canjeadas * valor
+                        self._finance.registrar_asiento(
+                            debe="215.1-pasivo-fidelizacion",
+                            haber="401.1-descuento-clientes",
+                            concepto=f"Canje estrellas venta #{venta_id}",
+                            monto=monto,
+                            modulo="loyalty",
+                            referencia_id=venta_id,
+                            usuario_id=cajero_id,
+                            sucursal_id=self.sucursal_id,
+                            evento="LOYALTY_CANJE",
+                        )
+                    except Exception as exc:
+                        logger.debug("loyalty registrar_asiento: %s", exc)
         return resultado
 
     # ── Consultas ─────────────────────────────────────────────────────────────
@@ -219,6 +257,101 @@ class LoyaltyService:
                 pass
         except Exception:
             pass
+
+    # ── Ledger unificado (Fase 2 — Plan Maestro SPJ v13.4) ───────────────────
+
+    def registrar_en_ledger(self, cliente_id: int, tipo: str,
+                             puntos: int, referencia: str = "",
+                             descripcion: str = "", usuario: str = "",
+                             monto_equiv: float = 0.0) -> bool:
+        """
+        Registra un movimiento en loyalty_ledger (tabla unificada Fase 2).
+        tipo: 'acumulacion' | 'canje' | 'reversa' | 'ajuste'
+        puntos: positivo para acumulacion/ajuste, negativo para canje/reversa.
+        """
+        try:
+            saldo_actual = self.saldo(cliente_id)
+            saldo_post = saldo_actual + puntos
+            if monto_equiv == 0.0 and puntos != 0:
+                try:
+                    valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
+                    monto_equiv = abs(puntos) * valor
+                except Exception:
+                    pass
+            self.db.execute("""
+                INSERT INTO loyalty_ledger
+                    (cliente_id, tipo, puntos, monto_equiv, saldo_post,
+                     referencia, descripcion, sucursal_id, usuario)
+                VALUES (?,?,?,?,?,?,?,?,?)
+            """, (
+                cliente_id, tipo, puntos, monto_equiv, saldo_post,
+                str(referencia), descripcion, self.sucursal_id, usuario,
+            ))
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+            return True
+        except Exception as exc:
+            logger.debug("registrar_en_ledger: %s", exc)
+            return False
+
+    def reversar_canje(self, cliente_id: int, puntos_canjeados: int,
+                       referencia: str = "", usuario: str = "") -> Dict:
+        """
+        Reversa un canje de puntos: devuelve puntos al cliente y
+        registra el movimiento como 'reversa' en loyalty_ledger y pasivo.
+        Fase 2 — Plan Maestro SPJ v13.4.
+        """
+        if not self.enabled or puntos_canjeados <= 0 or not cliente_id:
+            return {"ok": False, "error": "Parámetros inválidos"}
+        try:
+            # Devolver puntos al cliente
+            self.db.execute(
+                "UPDATE clientes SET puntos = COALESCE(puntos, 0) + ? WHERE id = ?",
+                (puntos_canjeados, cliente_id))
+            # Registrar en ledger unificado (reversa = +puntos devueltos)
+            self.registrar_en_ledger(
+                cliente_id=cliente_id,
+                tipo="reversa",
+                puntos=puntos_canjeados,
+                referencia=referencia,
+                descripcion=f"Reversa de canje — ref:{referencia}",
+                usuario=usuario,
+            )
+            # Ajustar pasivo financiero
+            self._registrar_pasivo(puntos_canjeados, referencia, "reversa")
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+            nuevo_saldo = self.saldo(cliente_id)
+            logger.info("Reversa canje cliente=%d puntos=%d ref=%s",
+                        cliente_id, puntos_canjeados, referencia)
+            return {
+                "ok": True,
+                "puntos_devueltos": puntos_canjeados,
+                "saldo_nuevo": nuevo_saldo,
+            }
+        except Exception as exc:
+            logger.error("reversar_canje: %s", exc)
+            return {"ok": False, "error": str(exc)}
+
+    def get_ledger_cliente(self, cliente_id: int, limit: int = 50) -> list:
+        """Retorna los últimos movimientos del loyalty_ledger para un cliente."""
+        try:
+            rows = self.db.execute("""
+                SELECT tipo, puntos, monto_equiv, saldo_post,
+                       referencia, descripcion, created_at
+                FROM loyalty_ledger
+                WHERE cliente_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (cliente_id, limit)).fetchall()
+            return [dict(r) for r in rows]
+        except Exception as exc:
+            logger.debug("get_ledger_cliente: %s", exc)
+            return []
 
     def _get_cajero_id(self, nombre: str) -> int:
         try:

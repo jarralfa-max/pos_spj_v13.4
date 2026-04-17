@@ -4,7 +4,7 @@ UI del Growth Engine: configurar metas comunitarias, misiones,
 moneda expirable, y ver métricas de pasivo financiero.
 """
 from __future__ import annotations
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.spj_styles import spj_btn, apply_btn_styles, apply_object_names
 import logging
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -54,6 +54,7 @@ class ModuloGrowthEngine(QWidget):
         tabs.addTab(self._build_tab_config(),   "⚙️ Configuración")
         tabs.addTab(self._build_tab_finanzas(), "💰 Pasivo Financiero")
         tabs.addTab(self._build_tab_clientes(), "👥 Consulta Cliente")
+        apply_object_names(self)
 
     # ── Tab 1: Metas comunitarias ─────────────────────────────────────────
 

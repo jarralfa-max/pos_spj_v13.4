@@ -1,48 +1,57 @@
-<<<<<<< HEAD
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# IDEs
-.idea/
-.vscode/
-*.swp
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# SQLite
-*.db-shm
-*.db-wal
-=======
-# Base de datos
-*.db
-*.db-shm
-*.db-wal
-
-# Logs
-logs/
-*.log
-
-# Backups
-backups/
-
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 
-# Entorno virtual
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Dependencies
 .venv/
->>>>>>> 88c42a0 (Cambios locales antes de actualizar)
+venv/
+node_modules/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# MyPy
+.mypy_cache/
+
+# PyTest
+.pytest_cache/
+
+# -----------------------------
+# Archivos generados (IMPORTANTE)
+# -----------------------------
+
+# PDFs generados
+*.pdf
+
+# Imágenes generadas
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Carpetas específicas del sistema
+pos_spj_v13.4/TICKETS/
+pos_spj_v13.4/imagenes_productos/

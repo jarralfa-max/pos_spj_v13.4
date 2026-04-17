@@ -9,7 +9,8 @@ import logging
 from typing import Dict, List, Optional
 
 from modulos.spj_phone_widget import PhoneWidget
-from modulos.spj_styles import spj_btn, apply_btn_styles
+from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_card, create_input, create_combo, apply_tooltip, create_heading, create_subheading
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
@@ -99,16 +100,16 @@ class ModuloCotizaciones(ModuloBase):
         f = lbl.font(); f.setPointSize(15); f.setBold(True); lbl.setFont(f)
         hdr.addWidget(lbl); hdr.addStretch()
         self._lbl_suc = QLabel()
-        self._lbl_suc.setStyleSheet("color:#888;")
+        self._lbl_suc.setObjectName("textSecondary")
         hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
         # KPI row
         kpi_row = QHBoxLayout()
-        self._kpi_pend  = self._kpi("Pendientes",   "0", _C_AZUL)
-        self._kpi_aprob = self._kpi("Aprobadas",    "0", _C_VERDE)
-        self._kpi_venc  = self._kpi("Vencidas hoy", "0", _C_ROJO)
-        self._kpi_conv  = self._kpi("Convertidas",  "0", "#8e44ad")
+        self._kpi_pend  = self._kpi("Pendientes",   "0", Colors.PRIMARY_BASE)
+        self._kpi_aprob = self._kpi("Aprobadas",    "0", Colors.SUCCESS_BASE)
+        self._kpi_venc  = self._kpi("Vencidas hoy", "0", Colors.DANGER_BASE)
+        self._kpi_conv  = self._kpi("Convertidas",  "0", Colors.ACCENT_BASE)
         for k in (self._kpi_pend, self._kpi_aprob, self._kpi_venc, self._kpi_conv):
             kpi_row.addWidget(k)
         root.addLayout(kpi_row)
@@ -125,9 +126,7 @@ class ModuloCotizaciones(ModuloBase):
         self._txt_buscar.textChanged.connect(lambda _: self._cargar_lista())
         fb.addWidget(QLabel("Buscar:")); fb.addWidget(self._txt_buscar)
         fb.addStretch()
-        btn_nueva = QPushButton("➕ Nueva Cotización")
-        btn_nueva.setStyleSheet(
-            f"background:{_C_AZUL};color:white;font-weight:bold;padding:6px 14px;border-radius:4px;")
+        btn_nueva = create_primary_button(self, "➕ Nueva Cotización", "Crear una nueva cotización o presupuesto")
         btn_nueva.clicked.connect(self._nueva_cotizacion)
         btn_vencer = QPushButton("⏰ Vencer expiradas")
         btn_vencer.setToolTip("Marca como vencidas las cotizaciones cuya fecha límite ya pasó")
@@ -165,10 +164,11 @@ class ModuloCotizaciones(ModuloBase):
             b.setEnabled(False)
             ab.addWidget(b)
         ab.addStretch()
-        self._btn_aprobar.setStyleSheet(
-            f"background:{_C_VERDE};color:white;font-weight:bold;padding:5px 12px;")
-        self._btn_convertir.setStyleSheet(
-            f"background:#8e44ad;color:white;font-weight:bold;padding:5px 12px;")
+        self._btn_aprobar = create_success_button(self, "✓ Aprobar", "Aprobar esta cotización")
+        self._btn_rechazar = create_danger_button(self, "✗ Rechazar", "Rechazar esta cotización")
+        self._btn_convertir = create_primary_button(self, "➤ Convertir a Venta", "Convertir cotización aprobada en venta")
+        self._btn_detalle.setObjectName("secondaryBtn")
+        self._btn_imprimir.setObjectName("secondaryBtn")
         self._btn_aprobar.clicked.connect(self._aprobar)
         self._btn_rechazar.clicked.connect(self._rechazar)
         self._btn_convertir.clicked.connect(self._convertir_en_venta)
@@ -177,14 +177,24 @@ class ModuloCotizaciones(ModuloBase):
         root.addLayout(ab)
 
     def _kpi(self, titulo: str, valor: str, color: str) -> QFrame:
-        card = QFrame()
-        card.setStyleSheet(
-            f"QFrame{{background:white;border:none;"
-            f"border-left:4px solid {color};border-radius:6px;}}")
+        """
+        Crea una tarjeta KPI para mostrar métricas.
+        
+        Args:
+            titulo: Título del KPI
+            valor: Valor a mostrar
+            color: Color del texto del valor
+        
+        Returns:
+            QFrame configurado como tarjeta KPI
+        """
+        # CORRECCIÓN: Usar create_card con with_layout=False para evitar conflicto de layouts
+        card = create_card(self, padding=Spacing.SM, with_layout=False)
+        card.setObjectName("statCard")
         card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         card.setFixedHeight(68)
         lay = QVBoxLayout(card); lay.setContentsMargins(10, 4, 10, 4)
-        lt = QLabel(titulo); lt.setStyleSheet("color:#888;font-size:11px;")
+        lt = QLabel(titulo); lt.setObjectName("caption")
         lv = QLabel(valor)
         lv.setStyleSheet(f"color:{color};font-size:18px;font-weight:bold;")
         lay.addWidget(lt); lay.addWidget(lv)
@@ -539,10 +549,9 @@ class DialogoNuevaCotizacion(QDialog):
         self._spin_qty   = QDoubleSpinBox(); self._spin_qty.setRange(0.001, 99999); self._spin_qty.setDecimals(3)
         self._spin_precio = QDoubleSpinBox(); self._spin_precio.setRange(0, 999999); self._spin_precio.setDecimals(2)
         self._spin_precio.setPrefix("$")
-        btn_add = QPushButton("➕ Agregar")
-        btn_add.setStyleSheet(f"background:{_C_AZUL};color:white;padding:4px 10px;border-radius:3px;")
+        btn_add = create_primary_button(self, "➕ Agregar", "Agregar producto a la cotización")
         btn_add.clicked.connect(self._agregar_item)
-        btn_rm  = QPushButton("🗑 Quitar")
+        btn_rm  = create_secondary_button(self, "🗑 Quitar", "Quitar producto seleccionado")
         btn_rm.clicked.connect(self._quitar_item)
         for w in (QLabel("Producto:"), self._cmb_prod, QLabel("Cant:"),
                   self._spin_qty, QLabel("Precio:"), self._spin_precio, btn_add, btn_rm):
@@ -552,15 +561,15 @@ class DialogoNuevaCotizacion(QDialog):
 
         # Total
         self._lbl_total = QLabel("Total estimado: $0.00")
-        self._lbl_total.setStyleSheet("font-size:14px;font-weight:bold;")
+        self._lbl_total.setObjectName("subheading")
         lay.addWidget(self._lbl_total)
 
         # Botones
         bl = QHBoxLayout()
-        btn_ok = QPushButton("📋 Crear Cotización")
-        btn_ok.setStyleSheet(f"background:{_C_VERDE};color:white;font-weight:bold;padding:7px 16px;border-radius:4px;")
+        btn_ok = create_success_button(self, "📋 Crear Cotización", "Crear nueva cotización con los productos agregados")
         btn_ok.clicked.connect(self._crear)
-        btn_no = QPushButton("Cancelar"); btn_no.clicked.connect(self.reject)
+        btn_no = create_secondary_button(self, "Cancelar", "Cerrar sin crear cotización")
+        btn_no.clicked.connect(self.reject)
         bl.addStretch(); bl.addWidget(btn_ok); bl.addWidget(btn_no)
         lay.addLayout(bl)
 

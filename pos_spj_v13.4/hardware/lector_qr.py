@@ -38,6 +38,7 @@ class LectorQR(QObject):
     qr_fidelidad   = pyqtSignal(str)
     qr_delivery    = pyqtSignal(str)
     barcode_simple = pyqtSignal(str)         # código EAN/UPC
+    qr_desconocido = pyqtSignal(str)         # QR sin prefijo SPJ (flujo legacy)
 
     _TIMEOUT_MS   = 120    # chars del lector en < 120ms
     _MIN_LEN      = 4
@@ -97,13 +98,19 @@ class LectorQR(QObject):
             self.qr_delivery.emit(uuid_qr)
         else:
             self.barcode_simple.emit(raw)
+            self.qr_desconocido.emit(raw)
 
     def _parsear(self, raw: str) -> tuple:
+        # Normalizar: eliminar espacios y comparar prefijo en mayúsculas
+        # para tolerancia a lectores que envíen minúsculas o espacios extra.
+        cleaned = raw.strip()
+        upper = cleaned.upper()
         for prefijo, tipo in PREFIJOS_QR.items():
-            if raw.startswith(prefijo + ":"):
-                uuid_qr = raw[len(prefijo) + 1:]
+            needle = prefijo + ":"
+            if upper.startswith(needle):
+                uuid_qr = cleaned[len(needle):]
                 return tipo, uuid_qr
-        return "barcode", raw
+        return "barcode", cleaned
 
     def simular_lectura(self, codigo: str):
         """Para pruebas: simula una lectura de QR."""

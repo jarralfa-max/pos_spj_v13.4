@@ -1,13 +1,33 @@
 
-# modulos/configuraciones.py
-from modulos.spj_styles import spj_btn, apply_btn_styles
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+# modulos/configuracion.py
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
+    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
+    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
+    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
+    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
+    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
+    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
+    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
+    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea,
+    QListWidgetItem as QListWidgetItemAlias
+)
+from PyQt5.QtCore import Qt, QTimer, QUrl, QPropertyAnimation, QRect, QSize, pyqtSignal, QThread
+from PyQt5.QtGui import QPixmap, QColor, QIcon, QFont, QPalette, QBrush, QPainter, QPen, QLinearGradient, QCursor
 import sqlite3
 from .base import ModuloBase
 import os
 import json
+
+# Design System Imports
+from modulos.design_tokens import Colors, Spacing, Typography, Shadows
+from modulos.ui_components import (
+    create_primary_button, create_secondary_button, create_success_button, 
+    create_danger_button, create_input_field, create_card,
+    create_heading, create_subheading, apply_tooltip
+)
+
 try:
     import bcrypt
 except ImportError:
@@ -123,24 +143,10 @@ class ModuloConfiguracion(ModuloBase):
 
         content_splitter = QSplitter(Qt.Horizontal)
 
-        # Sidebar de categorías
+        # Sidebar de categorías (SIEMPRE OSCURO - estilo del sistema)
         self._nav_list = QListWidget()
         self._nav_list.setFixedWidth(200)
-        self._nav_list.setStyleSheet("""
-            QListWidget {
-                background:#2c3e50; border:none;
-                color:white; font-size:12px;
-            }
-            QListWidget::item {
-                padding:10px 14px; border-bottom:1px solid #34495e;
-            }
-            QListWidget::item:selected {
-                background:#3498db; color:white; font-weight:bold;
-            }
-            QListWidget::item:hover:!selected {
-                background:#34495e;
-            }
-        """)
+        self._nav_list.setObjectName("sidebarNav")  # Usar clase CSS en lugar de inline
         self._nav_list.currentRowChanged.connect(self._on_nav_changed)
 
         # Stack de páginas
@@ -220,30 +226,30 @@ class ModuloConfiguracion(ModuloBase):
 
         # Grupo de Apariencia — v13.30: solo toggle dark mode
         grupo_apariencia = QGroupBox("Apariencia")
-        grupo_apariencia.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_apariencia.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_apariencia = QFormLayout()
         
         self.chk_dark_mode = QCheckBox("🌙 Modo Oscuro")
         self.chk_dark_mode.setToolTip("Activa el tema oscuro para toda la interfaz")
-        self.chk_dark_mode.setStyleSheet("font-size:13px;padding:4px;")
+        self.chk_dark_mode.setObjectName("checkboxStandard")  # Clase CSS
         self.chk_dark_mode.stateChanged.connect(self._toggle_dark_mode)
         layout_apariencia.addRow("", self.chk_dark_mode)
         grupo_apariencia.setLayout(layout_apariencia)
 
         # Grupo de Impuestos
         grupo_impuestos = QGroupBox("Configuración Fiscal")
-        grupo_impuestos.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_impuestos.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_impuestos = QFormLayout()
         
         self.spin_impuesto = QDoubleSpinBox()
         self.spin_impuesto.setRange(0.0, 100.0)
         self.spin_impuesto.setSuffix(" %")
         self.spin_impuesto.setDecimals(2)
+        self.spin_impuesto.setObjectName("inputField")  # Clase CSS para inputs
         self.spin_impuesto.setToolTip("Impuesto por defecto aplicado a las ventas")
         
-        btn_guardar_impuesto = QPushButton("Guardar Impuesto")
+        btn_guardar_impuesto = create_primary_button(self, "Guardar Impuesto", "Guardar configuración de impuesto")
         btn_guardar_impuesto.setIcon(self.obtener_icono("save.png"))
-        btn_guardar_impuesto.clicked.connect(self.guardar_impuesto)
         
         layout_impuestos.addRow("IVA por defecto:", self.spin_impuesto)
         layout_impuestos.addRow("", btn_guardar_impuesto)
@@ -251,15 +257,15 @@ class ModuloConfiguracion(ModuloBase):
 
         # Grupo de Seguridad
         grupo_seguridad = QGroupBox("Seguridad")
-        grupo_seguridad.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_seguridad.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_seguridad = QVBoxLayout()
         
         self.chk_requerir_admin = QCheckBox("Requerir autorización de administrador para acciones críticas")
         self.chk_requerir_admin.setToolTip("Activar para requerir permisos de administrador en operaciones sensibles")
+        self.chk_requerir_admin.setObjectName("checkboxStandard")  # Clase CSS
         
-        btn_guardar_seguridad = QPushButton("Guardar Configuración de Seguridad")
+        btn_guardar_seguridad = create_primary_button(self, "Guardar Configuración de Seguridad", "Guardar configuración de seguridad")
         btn_guardar_seguridad.setIcon(self.obtener_icono("security.png"))
-        btn_guardar_seguridad.clicked.connect(self.guardar_seguridad)
         
         layout_seguridad.addWidget(self.chk_requerir_admin)
         layout_seguridad.addWidget(btn_guardar_seguridad, 0, Qt.AlignLeft)
@@ -342,48 +348,35 @@ class ModuloConfiguracion(ModuloBase):
 
         # Información del programa actual
         grupo_info = QGroupBox("Información del Programa Actual")
-        grupo_info.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_info.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_info = QVBoxLayout()
         
         self.lbl_info_programa = QLabel()
         self.lbl_info_programa.setWordWrap(True)
-        self.lbl_info_programa.setStyleSheet("""
-            QLabel {
-                background-color: #f0f0f0;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                padding: 10px;
-                margin: 5px;
-            }
-        """)
+        self.lbl_info_programa.setObjectName("infoCard")  # Clase CSS para cards informativas
         layout_info.addWidget(self.lbl_info_programa)
         grupo_info.setLayout(layout_info)
 
         # Configuración del programa
         grupo_config = QGroupBox("Configuración del Programa de Fidelidad")
-        grupo_config.setStyleSheet("QGroupBox { font-weight: bold; }")
+        grupo_config.setObjectName("configGroup")  # Clase CSS para GroupBox
         layout_config = QFormLayout()
         layout_config.setLabelAlignment(Qt.AlignRight)
         
-        self.edit_nombre_programa = QLineEdit()
-        self.edit_nombre_programa.setPlaceholderText("Ej: Programa de Puntos MiTienda")
-        self.edit_nombre_programa.setToolTip("Nombre del programa de fidelidad")
+        self.edit_nombre_programa = create_input_field(self, "Ej: Programa de Puntos MiTienda", "Nombre del programa de fidelidad")
         
         self.spin_puntos_por_peso = QDoubleSpinBox()
         self.spin_puntos_por_peso.setRange(0.01, 100.0)
         self.spin_puntos_por_peso.setValue(1.0)
         self.spin_puntos_por_peso.setSuffix(" puntos por $")
+        self.spin_puntos_por_peso.setObjectName("inputField")  # Clase CSS
         self.spin_puntos_por_peso.setToolTip("Puntos ganados por cada peso gastado")
         
-        self.edit_niveles = QLineEdit()
-        self.edit_niveles.setPlaceholderText("Ej: Bronce,Plata,Oro,Diamante")
-        self.edit_niveles.setToolTip("Niveles del programa separados por comas")
+        self.edit_niveles = create_input_field(self, "Ej: Bronce,Plata,Oro,Diamante", "Niveles del programa separados por comas")
         
-        self.edit_requisitos = QLineEdit()
-        self.edit_requisitos.setPlaceholderText("Ej: 0,1000,5000,10000")
-        self.edit_requisitos.setToolTip("Puntos requeridos para cada nivel")
+        self.edit_requisitos = create_input_field(self, "Ej: 0,1000,5000,10000", "Puntos requeridos para cada nivel")
         
-        self.edit_descuentos = QLineEdit()
+        self.edit_descuentos = create_input_field(self, "Ej: 5,10,15,20", "Descuentos porcentuales por nivel")
         self.edit_descuentos.setPlaceholderText("Ej: 0,5,10,15")
         self.edit_descuentos.setToolTip("Porcentaje de descuento para cada nivel")
         
@@ -962,14 +955,12 @@ class ModuloConfiguracion(ModuloBase):
             "El cierre mensual consolida las ventas, compras y mermas del período "
             "y bloquea esos registros para que no puedan modificarse retroactivamente.")
         info.setWordWrap(True)
-        info.setStyleSheet("background:#eaf4ff;padding:10px;border-radius:6px;"
-                           "color:#2c3e50;font-size:12px;")
+        info.setObjectName("infoBox")
         lay.addWidget(info)
 
         # ── Ejecutar cierre ───────────────────────────────────────────────────
         grp_exec = QGroupBox("Ejecutar Cierre del Mes")
-        grp_exec.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                               "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp_exec.setObjectName("styledGroup")
         exec_lay = QHBoxLayout(grp_exec)
 
         lbl_periodo = QLabel("Mes a cerrar:")
@@ -977,10 +968,10 @@ class ModuloConfiguracion(ModuloBase):
         self._dte_cierre.setDate(QDate.currentDate().addMonths(-1))
         self._dte_cierre.setDisplayFormat("yyyy-MM")
         self._dte_cierre.setCalendarPopup(True)
+        self._dte_cierre.setObjectName("inputField")
 
         btn_cerrar = QPushButton("🔒 Ejecutar Cierre Mensual")
-        btn_cerrar.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;"
-                                 "padding:8px 18px;border-radius:5px;")
+        btn_cerrar = create_danger_button(self, btn_cerrar.text(), "Ejecutar cierre mensual de forma irreversible")
         btn_cerrar.clicked.connect(self._ejecutar_cierre_mensual)
 
         self._lbl_cierre_status = QLabel("")
@@ -993,8 +984,7 @@ class ModuloConfiguracion(ModuloBase):
 
         # ── Historial de cierres ──────────────────────────────────────────────
         grp_hist = QGroupBox("Historial de Cierres")
-        grp_hist.setStyleSheet("QGroupBox{font-weight:bold;border:1px solid #dee2e6;"
-                               "border-radius:6px;margin-top:8px;padding-top:8px;}")
+        grp_hist.setObjectName("styledGroup")
         hist_lay = QVBoxLayout(grp_hist)
 
         self._tbl_cierres = QTableWidget()
@@ -1083,7 +1073,7 @@ class ModuloConfiguracion(ModuloBase):
 
             self._lbl_cierre_status.setText(
                 f"✅ {periodo} cerrado — Ventas ${total_ventas:,.2f}")
-            self._lbl_cierre_status.setStyleSheet("color:green;font-weight:bold;")
+            self._lbl_cierre_status.setObjectName("textSuccess")
             self._cargar_historial_cierres()
             from PyQt5.QtWidgets import QMessageBox as _QMB
             _QMB.information(self, "Cierre ejecutado",
@@ -1095,7 +1085,7 @@ class ModuloConfiguracion(ModuloBase):
             from PyQt5.QtWidgets import QMessageBox as _QMB
             _QMB.critical(self, "Error", str(e))
             self._lbl_cierre_status.setText(f"❌ {e}")
-            self._lbl_cierre_status.setStyleSheet("color:red;")
+            self._lbl_cierre_status.setObjectName("textDanger")
 
     def _cargar_historial_cierres(self) -> None:
         """Loads the cierre_mensual history table."""
@@ -1448,7 +1438,7 @@ class ModuloConfiguracion(ModuloBase):
         # Info
         info = QLabel("💡 Los cajeros solo verán sus ventas. El administrador puede ver todas las sucursales en Reportes.")
         info.setWordWrap(True)
-        info.setStyleSheet("color: #666; font-style: italic; padding: 4px;")
+        info.setObjectName("caption")
         layout.addWidget(info)
 
         return tab
@@ -1547,7 +1537,7 @@ class ModuloConfiguracion(ModuloBase):
             "Agrega uno por sucursal cuando lo necesites."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#666; font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         # ── Tabla de números configurados ─────────────────────────────────────
@@ -1567,20 +1557,29 @@ class ModuloConfiguracion(ModuloBase):
 
         # ── Formulario agregar/editar ──────────────────────────────────────────
         form_grp = QGroupBox("Agregar / Editar número")
+        form_grp.setObjectName("styledGroup")
         form = QFormLayout(form_grp)
 
         self._wa_txt_nombre = QLineEdit(); self._wa_txt_nombre.setPlaceholderText("Ej: Principal, RRHH")
+        self._wa_txt_nombre.setObjectName("inputField")
         self._wa_cmb_canal  = QComboBox()
         self._wa_cmb_canal.addItems(["todos", "clientes", "rrhh", "alertas"])
+        self._wa_cmb_canal.setObjectName("inputField")
         self._wa_cmb_prov   = QComboBox()
         self._wa_cmb_prov.addItems(["meta", "twilio", "mock"])
+        self._wa_cmb_prov.setObjectName("inputField")
         self._wa_txt_numero = QLineEdit(); self._wa_txt_numero.setPlaceholderText("+521234567890")
+        self._wa_txt_numero.setObjectName("inputField")
         self._wa_txt_meta_token = QLineEdit(); self._wa_txt_meta_token.setPlaceholderText("Meta Cloud API token")
         self._wa_txt_meta_token.setEchoMode(QLineEdit.Password)
+        self._wa_txt_meta_token.setObjectName("inputField")
         self._wa_txt_phone_id   = QLineEdit(); self._wa_txt_phone_id.setPlaceholderText("Meta Phone ID")
+        self._wa_txt_phone_id.setObjectName("inputField")
         self._wa_txt_twilio_sid = QLineEdit(); self._wa_txt_twilio_sid.setPlaceholderText("Twilio Account SID")
+        self._wa_txt_twilio_sid.setObjectName("inputField")
         self._wa_txt_twilio_tok = QLineEdit(); self._wa_txt_twilio_tok.setPlaceholderText("Twilio Auth Token")
         self._wa_txt_twilio_tok.setEchoMode(QLineEdit.Password)
+        self._wa_txt_twilio_tok.setObjectName("inputField")
         self._wa_chk_activo = QCheckBox("Activo"); self._wa_chk_activo.setChecked(True)
 
         form.addRow("Nombre*:",        self._wa_txt_nombre)
@@ -1595,11 +1594,13 @@ class ModuloConfiguracion(ModuloBase):
 
         btns = QHBoxLayout()
         btn_guardar_wa = QPushButton("💾 Guardar")
-        btn_guardar_wa.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_guardar_wa = create_success_button(self, btn_guardar_wa.text(), "Guardar configuración de WhatsApp")
         btn_guardar_wa.clicked.connect(self._guardar_numero_wa)
         btn_del_wa = QPushButton("🗑 Desactivar")
+        btn_del_wa = create_secondary_button(self, btn_del_wa.text(), "Desactivar número seleccionado")
         btn_del_wa.clicked.connect(self._desactivar_numero_wa)
         btn_test_wa = QPushButton("🧪 Probar envío")
+        btn_test_wa = create_primary_button(self, btn_test_wa.text(), "Enviar mensaje de prueba")
         btn_test_wa.clicked.connect(self._probar_wa)
         btns.addStretch(); btns.addWidget(btn_test_wa)
         btns.addWidget(btn_del_wa); btns.addWidget(btn_guardar_wa)
@@ -1702,7 +1703,7 @@ class ModuloConfiguracion(ModuloBase):
             "El widget de comisión se muestra automáticamente en el POS cuando está activo."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#666;font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         # Tabla de comisiones
@@ -1733,7 +1734,8 @@ class ModuloConfiguracion(ModuloBase):
         form.addRow("", self._com_chk_activo)
         btn_row = QHBoxLayout()
         btn_save = QPushButton("💾 Guardar")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;")
+        btn_save.setObjectName("successBtn")
+        apply_tooltip(btn_save, "Guardar configuración de comisión")
         btn_save.clicked.connect(self._guardar_comision)
         btn_row.addStretch(); btn_row.addWidget(btn_save)
         form.addRow("", btn_row)
@@ -1821,7 +1823,7 @@ class ModuloConfiguracion(ModuloBase):
             "con teléfono registrado cuando inicie la promoción."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#666;font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         # Tabla de reglas
@@ -1871,7 +1873,8 @@ class ModuloConfiguracion(ModuloBase):
 
         btn_row = QHBoxLayout()
         btn_save = QPushButton("💾 Guardar regla")
-        btn_save.setStyleSheet("background:#e67e22;color:white;font-weight:bold;padding:7px 16px;")
+        btn_save.setObjectName("warningBtn")
+        apply_tooltip(btn_save, "Guardar regla de Happy Hour")
         btn_save.clicked.connect(self._guardar_happy_hour)
         btn_enviar = QPushButton("📣 Enviar promo ahora")
         btn_enviar.setToolTip("Envía el mensaje de la regla seleccionada a todos los clientes con teléfono")
@@ -2032,12 +2035,13 @@ class ModuloConfiguracion(ModuloBase):
             "⚠️ Esta configuración determina la sucursal para TODA esta terminal.\n"
             "Inventario, ventas y caja se filtrarán por esta sucursal.")
         lbl_info_suc.setWordWrap(True)
-        lbl_info_suc.setStyleSheet("font-size:10px;color:#e67e22;")
+        lbl_info_suc.setObjectName("textWarning")
         f4.addRow("", lbl_info_suc)
         lay.addWidget(grp4)
 
         btn_save = QPushButton("💾 Guardar datos de empresa")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_save.setObjectName("successBtn")
+        apply_tooltip(btn_save, "Guardar configuración de empresa")
         btn_save.clicked.connect(self._guardar_empresa)
         lay.addWidget(btn_save, 0, Qt.AlignRight)
         lay.addStretch()
@@ -2172,8 +2176,8 @@ class ModuloConfiguracion(ModuloBase):
         form = QFormLayout(grp)
 
         self.ap_combo_tema = QComboBox()
-        self.ap_combo_tema.addItems(["Light", "Dark", "Green Elegant", "Blue", "Purple"])
-        self.ap_combo_tema.setToolTip("Paleta de colores del sistema")
+        self.ap_combo_tema.addItems(["Claro", "Oscuro"])
+        self.ap_combo_tema.setToolTip("Tema de colores del sistema\nClaro: fondo blanco, texto oscuro\nOscuro: fondo oscuro, texto claro")
 
         self.ap_combo_densidad = QComboBox()
         self.ap_combo_densidad.addItems(["Compact", "Normal", "Comfortable"])
@@ -2194,14 +2198,15 @@ class ModuloConfiguracion(ModuloBase):
         lay.addWidget(grp)
 
         info = QLabel("Los cambios se aplican en tiempo real sin necesidad de reiniciar.")
-        info.setStyleSheet("color:#27ae60;font-size:11px;font-style:italic;")
+        info.setObjectName("textSuccess")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
         btn_preview = QPushButton("👁 Vista previa")
         btn_preview.clicked.connect(self._previsualizar_tema)
         btn_apply = QPushButton("✅ Aplicar ahora")
-        btn_apply.setStyleSheet("background:#3498db;color:white;font-weight:bold;padding:8px 18px;border-radius:5px;")
+        btn_apply.setObjectName("primaryBtn")
+        apply_tooltip(btn_apply, "Aplicar configuración de apariencia")
         btn_apply.clicked.connect(self._aplicar_apariencia)
         btn_row.addWidget(btn_preview); btn_row.addStretch(); btn_row.addWidget(btn_apply)
         lay.addLayout(btn_row)
@@ -2210,50 +2215,84 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_apariencia(self):
         try:
+            # Cargar tema desde BD (clave='tema') para sincronización global
+            from core.db.connection import get_connection
+            conn = get_connection()
+            row = conn.execute(
+                "SELECT valor FROM configuraciones WHERE clave='tema'"
+            ).fetchone()
+            tema_guardado = row[0] if row else 'Oscuro'
+            
+            # Normalizar a nombres válidos: Light/Dark → Claro/Oscuro
+            tema_normalizado = 'Oscuro' if 'dark' in tema_guardado.lower() or tema_guardado == 'Oscuro' else 'Claro'
+            
+            densidad = 'Normal'
+            fuente = 12
+            iconos = 24
+            
+            # Intentar cargar prefs adicionales de ThemeService si existe
             ts = getattr(self.container, 'theme_service', None) if hasattr(self, 'container') else None
-            prefs = ts.get_user_preferences() if ts else {}
-            tema     = prefs.get('theme', 'Light')
-            densidad = prefs.get('density', 'Normal')
-            fuente   = int(prefs.get('font_size', 12))
-            iconos   = int(prefs.get('icon_size', 24))
-            idx = self.ap_combo_tema.findText(tema)
-            if idx >= 0: self.ap_combo_tema.setCurrentIndex(idx)
+            if ts:
+                prefs = ts.get_user_preferences()
+                densidad = prefs.get('density', 'Normal')
+                fuente = int(prefs.get('font_size', 12))
+                iconos = int(prefs.get('icon_size', 24))
+            
+            # Solo mostrar opciones Claro/Oscuro en el combo
+            idx = self.ap_combo_tema.findText(tema_normalizado)
+            if idx >= 0: 
+                self.ap_combo_tema.setCurrentIndex(idx)
+            else:
+                # Si el tema guardado no existe, usar Oscuro por defecto
+                self.ap_combo_tema.setCurrentIndex(0)
+                
             idx2 = self.ap_combo_densidad.findText(densidad)
             if idx2 >= 0: self.ap_combo_densidad.setCurrentIndex(idx2)
             self.ap_spin_fuente.setValue(fuente)
             self.ap_spin_iconos.setValue(iconos)
-        except Exception:
+        except Exception as e:
+            logging.getLogger("spj.config").debug("Error cargando apariencia: %s", e)
             pass
 
     def _previsualizar_tema(self):
         self._aplicar_apariencia(save=False)
 
     def _aplicar_apariencia(self, save=True):
-        # [spj-dedup removed local QMessageBox import]
-        tema     = self.ap_combo_tema.currentText()
+        from PyQt5.QtWidgets import QApplication, QMessageBox
+        # Solo permitir temas Claro u Oscuro
+        tema_raw = self.ap_combo_tema.currentText()
+        tema = 'Oscuro' if 'dark' in tema_raw.lower() or tema_raw == 'Oscuro' else 'Claro'
+        
         densidad = self.ap_combo_densidad.currentText()
         fuente   = str(self.ap_spin_fuente.value())
         iconos   = str(self.ap_spin_iconos.value())
+        
         try:
+            # 1. Guardar en BD (clave='tema') para persistencia global
+            from core.db.connection import get_connection
+            conn = get_connection()
+            conn.execute(
+                "INSERT OR REPLACE INTO configuraciones (clave, valor) VALUES ('tema', ?)",
+                (tema,)
+            )
+            conn.commit()
+            
+            # 2. Aplicar tema usando theme_engine (fuente única de verdad: config.TEMAS)
+            from ui.themes.theme_engine import apply_theme
+            app = QApplication.instance()
+            apply_theme(app, tema)
+            
+            # 3. Guardar prefs adicionales en ThemeService si existe
             ts = getattr(self.container, 'theme_service', None) if hasattr(self, 'container') else None
-            if ts:
-                if save:
-                    ts.save_preferences(tema, densidad, fuente, iconos)
-                ts.apply_to_app(QApplication.instance())
-                if save:
-                    QMessageBox.information(self, "✅ Aplicado",
-                        f"Tema '{tema}' | Densidad '{densidad}' aplicados.")
-            else:
-                # Fallback: guardar directo en configuraciones
-                for clave, valor in [('ui_theme', tema), ('ui_density', densidad),
-                                      ('ui_font_size', fuente), ('ui_icon_size', iconos)]:
-                    self.conexion.execute(
-                        "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)",
-                        (clave, valor))
-                self.conexion.commit()
+            if ts and save:
+                ts.save_preferences(tema, densidad, fuente, iconos)
+            
+            if save:
+                QMessageBox.information(self, "✅ Aplicado",
+                    f"Tema '{tema}' aplicado correctamente.\nLos cambios son inmediatos.")
         except Exception as e:
-        # [spj-dedup removed local QMessageBox import]
-            QMessageBox.warning(self, "Aviso", f"No se pudo aplicar el tema:\n{e}")
+            logging.getLogger("spj.config").error("Error aplicando tema: %s", e)
+            QMessageBox.warning(self, "Error", f"No se pudo aplicar el tema:\n{e}")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: 📧 Email / SMTP
@@ -2289,7 +2328,8 @@ class ModuloConfiguracion(ModuloBase):
         btn_test = QPushButton("📧 Enviar correo de prueba")
         btn_test.clicked.connect(self._test_smtp)
         btn_save = QPushButton("💾 Guardar")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_save.setObjectName("successBtn")
+        apply_tooltip(btn_save, "Guardar configuración SMTP")
         btn_save.clicked.connect(self._guardar_smtp)
         btn_row.addWidget(btn_test); btn_row.addStretch(); btn_row.addWidget(btn_save)
         lay.addLayout(btn_row)
@@ -2380,7 +2420,8 @@ class ModuloConfiguracion(ModuloBase):
             "Configura tus credenciales de Mercado Pago para recibir pagos con link.\n"
             "Obtén el Access Token en: https://www.mercadopago.com.mx/developers/panel"
         )
-        info.setWordWrap(True); info.setStyleSheet("color:#666;font-size:11px;padding:4px;")
+        info.setWordWrap(True)
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         grp = QGroupBox("Credenciales API")
@@ -2408,13 +2449,14 @@ class ModuloConfiguracion(ModuloBase):
         btn_verify = QPushButton("🔍 Verificar token")
         btn_verify.clicked.connect(self._verificar_mp_token)
         btn_save = QPushButton("💾 Guardar")
-        btn_save.setStyleSheet("background:#009ee3;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_save.setObjectName("accentBtn")
+        apply_tooltip(btn_save, "Guardar credenciales de Mercado Pago")
         btn_save.clicked.connect(self._guardar_mp)
         btn_row.addWidget(btn_verify); btn_row.addStretch(); btn_row.addWidget(btn_save)
         lay.addLayout(btn_row)
 
         self.mp_status_lbl = QLabel("")
-        self.mp_status_lbl.setStyleSheet("font-size:12px;padding:4px;")
+        self.mp_status_lbl.setObjectName("caption")
         lay.addWidget(self.mp_status_lbl)
         lay.addStretch()
         self._cargar_mp()
@@ -2455,7 +2497,7 @@ class ModuloConfiguracion(ModuloBase):
         token = self.mp_token.text().strip()
         if not token:
             self.mp_status_lbl.setText("❌ Ingresa el Access Token primero.")
-            self.mp_status_lbl.setStyleSheet("color:#e74c3c;font-size:12px;")
+            self.mp_status_lbl.setObjectName("textDanger")
             return
         self.mp_status_lbl.setText("⏳ Verificando...")
         try:
@@ -2468,13 +2510,13 @@ class ModuloConfiguracion(ModuloBase):
             data = json.loads(resp.read())
             if isinstance(data, list) and len(data) > 0:
                 self.mp_status_lbl.setText(f"✅ Token válido — {len(data)} métodos de pago disponibles.")
-                self.mp_status_lbl.setStyleSheet("color:#27ae60;font-size:12px;")
+                self.mp_status_lbl.setObjectName("textSuccess")
             else:
                 self.mp_status_lbl.setText("⚠️ Respuesta inesperada del servidor.")
-                self.mp_status_lbl.setStyleSheet("color:#f39c12;font-size:12px;")
+                self.mp_status_lbl.setObjectName("textWarning")
         except Exception as e:
             self.mp_status_lbl.setText(f"❌ Error: {str(e)[:80]}")
-            self.mp_status_lbl.setStyleSheet("color:#e74c3c;font-size:12px;")
+            self.mp_status_lbl.setObjectName("textDanger")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: 👤 Usuarios y Roles — versión embebida en config
@@ -2498,7 +2540,8 @@ class ModuloConfiguracion(ModuloBase):
         suc_hdr.addWidget(QLabel("Sucursales del sistema con horarios de atención"))
         suc_hdr.addStretch()
         btn_new_suc = QPushButton("➕ Nueva sucursal")
-        btn_new_suc.setStyleSheet("background:#27ae60;color:white;padding:7px 16px;border-radius:5px;")
+        btn_new_suc.setObjectName("successBtn")
+        apply_tooltip(btn_new_suc, "Crear nueva sucursal")
         btn_new_suc.clicked.connect(self._nueva_sucursal_v13)
         suc_hdr.addWidget(btn_new_suc)
         suc_lay.addLayout(suc_hdr)
@@ -2522,7 +2565,8 @@ class ModuloConfiguracion(ModuloBase):
         usr_hdr.addWidget(QLabel("Usuarios del sistema vinculados a empleados RRHH"))
         usr_hdr.addStretch()
         btn_new_usr = QPushButton("➕ Nuevo usuario")
-        btn_new_usr.setStyleSheet("background:#3498db;color:white;padding:7px 16px;border-radius:5px;")
+        btn_new_usr.setObjectName("primaryBtn")
+        apply_tooltip(btn_new_usr, "Crear nuevo usuario")
         btn_new_usr.clicked.connect(self._nuevo_usuario_v13)
         usr_hdr.addWidget(btn_new_usr)
         usr_lay.addLayout(usr_hdr)
@@ -2757,7 +2801,7 @@ class ModuloConfiguracion(ModuloBase):
         chk_activo   = QCheckBox("Activo"); chk_activo.setChecked(True)
         cmb_empleado = QComboBox(); cmb_empleado.addItem("(ninguno)", None)
         lbl_emp_hint = QLabel("Vincula este usuario a un empleado de RRHH")
-        lbl_emp_hint.setStyleSheet("color:#666;font-size:10px;")
+        lbl_emp_hint.setObjectName("caption")
 
         # Fill roles and sucursales
         try:
@@ -2897,7 +2941,8 @@ class ModuloConfiguracion(ModuloBase):
                 self._tbl_roles_v13.setItem(ri, ci, it)
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
             btn_perm = QPushButton("🔑 Permisos")
-            btn_perm.setStyleSheet("font-size:11px;padding:2px 6px;")
+            btn_perm.setObjectName("secondaryBtn")
+            apply_tooltip(btn_perm, f"Editar permisos del rol {r[1]}")
             btn_perm.clicked.connect(
                 lambda _, rid=r[0], rnom=r[1]: self._editar_permisos_rol(rid, rnom))
             bl.addWidget(btn_perm)
