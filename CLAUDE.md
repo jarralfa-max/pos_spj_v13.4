@@ -201,7 +201,6 @@ pos_spj_v13.4/
     └── erp/bridge.py          # Puente ERP ↔ WhatsApp
 ```
 
-
 ### Arquitectura OBJETIVO (ERP - FASE 3):
 ```
 pos_spj_v13.4/
