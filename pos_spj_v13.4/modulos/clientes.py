@@ -323,7 +323,8 @@ class ModuloClientes(ModuloBase):
 
     def nuevo_cliente(self):
         """Abre el diálogo para crear un nuevo cliente."""
-        dialogo = DialogoCliente(self.conexion, self)
+        _uc = getattr(self.container, 'uc_cliente', None) if self.container else None
+        dialogo = DialogoCliente(self.conexion, self, uc_cliente=_uc)
         if dialogo.exec_() == QDialog.Accepted:
             self.cargar_clientes()
             # NOTIFICAR EVENTO
@@ -350,7 +351,8 @@ class ModuloClientes(ModuloBase):
                 columnas = [description[0] for description in cursor.description]
                 cliente_dict = dict(zip(columnas, cliente_data))
                 
-                dialogo = DialogoCliente(self.conexion, self, cliente_dict)
+                _uc = getattr(self.container, 'uc_cliente', None) if self.container else None
+                dialogo = DialogoCliente(self.conexion, self, cliente_dict, uc_cliente=_uc)
                 if dialogo.exec_() == QDialog.Accepted:
                     self.cargar_clientes()
                     # NOTIFICAR EVENTO
@@ -541,10 +543,11 @@ class ModuloClientes(ModuloBase):
 
 
 class DialogoCliente(QDialog):
-    def __init__(self, conexion, parent=None, cliente_data=None):
+    def __init__(self, conexion, parent=None, cliente_data=None, uc_cliente=None):
         super().__init__(parent)
         self.conexion = conexion
         self.cliente_data = cliente_data
+        self.uc_cliente = uc_cliente  # v13.5: UC opcional para delegación
         self.setWindowTitle("Nuevo Cliente" if not cliente_data else "Editar Cliente")
         self.setFixedSize(400, 500)
         self.init_ui()
@@ -660,6 +663,38 @@ class DialogoCliente(QDialog):
         """Guarda el cliente en la base de datos."""
         if not self.validar_formulario():
             return
+
+        # v13.5: Delegar al UC cuando está disponible
+        if self.uc_cliente:
+            try:
+                from core.use_cases.cliente import DatosCliente
+                nombre = self.edit_nombre.text().strip()
+                apellido = self.edit_apellido.text().strip() or ""
+                telefono = self.edit_telefono.get_e164().strip() if hasattr(self.edit_telefono, 'get_e164') else self.edit_telefono.text().strip()
+                limite_credito = self.edit_limite_credito.value()
+                datos = DatosCliente(
+                    nombre=f"{nombre} {apellido}".strip(),
+                    telefono=telefono,
+                    allows_credit=(limite_credito > 0),
+                    credit_limit=limite_credito,
+                )
+                if self.cliente_data:
+                    campos = {
+                        'nombre': nombre, 'apellido': apellido, 'telefono': telefono,
+                        'limite_credito': limite_credito, 'saldo': self.edit_saldo.value(),
+                        'activo': 1 if self.chk_activo.isChecked() else 0,
+                    }
+                    result = self.uc_cliente.actualizar_cliente(self.cliente_data['id'], campos, "sistema")
+                else:
+                    result = self.uc_cliente.crear_cliente(datos, 1, "sistema")
+                if result.ok:
+                    QMessageBox.information(self, "Éxito", result.mensaje or "Guardado correctamente.")
+                    self.accept()
+                else:
+                    QMessageBox.critical(self, "Error", result.error)
+                return
+            except Exception as _e:
+                pass  # fallback al SQL directo si el UC falla
 
         try:
             cursor = self.conexion.cursor()

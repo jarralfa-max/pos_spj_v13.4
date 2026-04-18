@@ -201,7 +201,7 @@ pos_spj_v13.4/
     └── erp/bridge.py          # Puente ERP ↔ WhatsApp
 ```
 ###
-### Arquitectura OBJETIVO (ERP - FASE 3):
+### Arquitectura OBJETIVO:
 ```
 pos_spj_v13.4/
 ├── domain/                    # NEW - Lógica pura de negocio
@@ -295,4 +295,70 @@ python scripts/verify_tables.py --db pos_spj.db
 
 # Bootstrap DB desde cero
 python scripts/bootstrap_db.py --db /tmp/test.db
+```
+
+---
+
+## 🟡 FASE 2 — BENCHMARK ERP (Referencia)
+
+Brechas identificadas contra ERP enterprise (SAP S/4HANA, NetSuite, Odoo):
+
+| Capacidad | SAP/NetSuite | pos_spj v13.5 | Brecha | Fase |
+|-----------|-------------|---------------|--------|------|
+| Contabilidad doble entrada | ✅ | ✅ (v13.5) | Cerrada | B |
+| Use Case layer completo | ✅ | ⚠️ Parcial | UI aún con SQL | F3/F4 |
+| Multi-sucursal | ✅ | ✅ | Cerrada | — |
+| WhatsApp integrado | ✅ | ✅ (v13.5) | Cerrada | F5 |
+| Nómina con IMSS + asiento | ✅ | ✅ (v13.5) | Cerrada | B |
+| API REST externa | ✅ | ❌ | Pendiente | F6 |
+| Reportes financieros avanzados | ✅ | ⚠️ Básico | Pendiente | F6 |
+| Domain layer puro | ✅ | ❌ | Pendiente | F3 |
+| Cola de mensajes (retries) | ✅ | ❌ | Pendiente | F6 |
+
+---
+
+## 🔴 FASE 1 — Módulos con SQL embebido detectados (Auditoría)
+
+Prioridad de extracción para Fase 3/4:
+
+| Módulo UI | UC disponible | Estado |
+|-----------|--------------|--------|
+| `modulos/ventas.py` | `use_cases/venta.py` | ⚠️ Parcial — UC existe, UI no delega |
+| `modulos/clientes.py` | `use_cases/cliente.py` | ⚠️ Parcial — UC v13.5 listo |
+| `modulos/compras.py` | `use_cases/compra.py` | ⚠️ Parcial — UC v13.5 listo |
+| `modulos/inventario.py` | Pendiente | 🔴 Sin UC |
+| `modulos/produccion.py` | Pendiente | 🔴 Sin UC |
+| `modulos/rrhh.py` | `use_cases/nomina.py` | ⚠️ Parcial — UC v13.5 listo |
+| `modulos/finanzas.py` | Pendiente | 🔴 Sin UC |
+
+---
+
+## 🧪 Tests v13.5 (575+ pasando)
+
+```bash
+# Todos los tests
+cd pos_spj_v13.4 && python -m pytest tests/ -v
+
+# Solo WhatsApp (78 tests)
+python -m pytest tests/test_wa_*.py -v
+
+# Solo Use Cases (26 tests)
+python -m pytest tests/test_uc_*.py -v
+
+# Solo EventBus
+python -m pytest tests/test_event_bus*.py -v
+
+# Sintaxis global
+python -c "
+import ast, os
+errors = []
+for root, _, files in os.walk('pos_spj_v13.4'):
+    if '.venv' in root or '.git' in root: continue
+    for f in files:
+        if not f.endswith('.py'): continue
+        path = os.path.join(root, f)
+        try: ast.parse(open(path).read())
+        except SyntaxError as e: errors.append(f'{path}: {e}')
+print('\n'.join(errors) if errors else 'SIN errores de sintaxis')
+"
 ```
