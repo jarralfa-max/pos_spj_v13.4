@@ -705,5 +705,5 @@ class DialogoDetalleCotizacion(QDialog):
                 if ci > 0: t.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 tbl.setItem(ri, ci, t)
         gl.addWidget(tbl); lay.addWidget(grp)
-        btn = QPushButton("Cerrar"); btn.clicked.connect(self.accept)
+        btn = QPushButton("Cerrar"); btn.setObjectName("secondaryBtn"); btn.clicked.connect(self.accept)
         lay.addWidget(btn)

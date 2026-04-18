@@ -732,8 +732,8 @@ class DialogoNuevaTransferencia(QDialog):
 
         bl = QHBoxLayout()
         btn_ok = QPushButton("📤 Despachar Transferencia"); btn_ok.clicked.connect(self._despachar)
-        btn_ok.setStyleSheet(f"background:{_C4};color:white;font-weight:bold;padding:6px 14px;border-radius:4px;")
-        btn_no = QPushButton("Cancelar"); btn_no.clicked.connect(self.reject)
+        btn_ok.setObjectName("primaryBtn")
+        btn_no = QPushButton("Cancelar"); btn_no.setObjectName("secondaryBtn"); btn_no.clicked.connect(self.reject)
         bl.addStretch(); bl.addWidget(btn_ok); bl.addWidget(btn_no)
         lay.addLayout(bl)
 
@@ -907,8 +907,8 @@ class DialogoRecepcion(QDialog):
 
         bl = QHBoxLayout()
         btn_ok = QPushButton("✅ Confirmar Recepción"); btn_ok.clicked.connect(self._confirmar)
-        btn_ok.setStyleSheet(f"background:{_C4};color:white;font-weight:bold;padding:6px 14px;border-radius:4px;")
-        btn_no = QPushButton("Cancelar"); btn_no.clicked.connect(self.reject)
+        btn_ok.setObjectName("successBtn")
+        btn_no = QPushButton("Cancelar"); btn_no.setObjectName("secondaryBtn"); btn_no.clicked.connect(self.reject)
         bl.addStretch(); bl.addWidget(btn_ok); bl.addWidget(btn_no)
         lay.addLayout(bl)
 
@@ -1027,5 +1027,5 @@ class DialogoDetalleTransfer(QDialog):
                 tbl.setItem(ri, ci, it)
         gl.addWidget(tbl); lay.addWidget(grp)
 
-        btn_close = QPushButton("Cerrar"); btn_close.clicked.connect(self.accept)
+        btn_close = QPushButton("Cerrar"); btn_close.setObjectName("secondaryBtn"); btn_close.clicked.connect(self.accept)
         lay.addWidget(btn_close)

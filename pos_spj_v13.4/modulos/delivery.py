@@ -917,6 +917,7 @@ if(drivers.length===0){{
             lay.addWidget(QLabel(f"Error cargando historial: {e}"))
 
         btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.setObjectName("secondaryBtn")
         btn_cerrar.clicked.connect(dlg.accept)
         lay.addWidget(btn_cerrar)
         dlg.exec_()

@@ -89,7 +89,9 @@ class ModuloClientes(ModuloBase):
         toolbar = QHBoxLayout()
         self.busqueda_cliente = QLineEdit()
         self.busqueda_cliente.setPlaceholderText("Buscar por nombre, teléfono, ID o código QR...")
+        self.busqueda_cliente.setObjectName("inputField")
         self.btn_buscar_cliente = QPushButton()
+        self.btn_buscar_cliente.setObjectName("secondaryBtn")
         self.btn_buscar_cliente.setIcon(self.obtener_icono("search.png"))
         self.btn_buscar_cliente.setToolTip("Buscar Cliente")
         
@@ -98,6 +100,7 @@ class ModuloClientes(ModuloBase):
         self.combo_filtro.setCurrentText("Activos")
         
         self.btn_nuevo_cliente = QPushButton("Nuevo Cliente")
+        self.btn_nuevo_cliente.setObjectName("primaryBtn")
         self.btn_nuevo_cliente.setIcon(self.obtener_icono("add.png"))
         
         toolbar.addWidget(QLabel("Buscar:"))
@@ -124,23 +127,27 @@ class ModuloClientes(ModuloBase):
         # --- Barra de estado/botones de acción ---
         acciones_layout = QHBoxLayout()
         self.btn_editar_cliente = QPushButton("Editar")
+        self.btn_editar_cliente.setObjectName("secondaryBtn")
         self.btn_editar_cliente.setIcon(self.obtener_icono("edit.png"))
         self.btn_editar_cliente.setEnabled(False)
-        
+
         self.btn_eliminar_cliente = QPushButton("Eliminar")
+        self.btn_eliminar_cliente.setObjectName("dangerBtn")
         self.btn_eliminar_cliente.setIcon(self.obtener_icono("delete.png"))
         self.btn_eliminar_cliente.setEnabled(False)
-        
+
         self.btn_ver_historial = QPushButton("Historial")
+        self.btn_ver_historial.setObjectName("secondaryBtn")
         self.btn_ver_historial.setIcon(self.obtener_icono("history.png"))
         self.btn_ver_historial.setEnabled(False)
-        
+
         self.btn_asignar_tarjeta = QPushButton("Asignar Tarjeta")
+        self.btn_asignar_tarjeta.setObjectName("secondaryBtn")
         self.btn_asignar_tarjeta.setIcon(self.obtener_icono("card.png"))
         self.btn_asignar_tarjeta.setEnabled(False)
 
-        # v9: Botón ver tarjetas y gestión completa
         self.btn_ver_tarjetas = QPushButton("💳 Tarjetas")
+        self.btn_ver_tarjetas.setObjectName("secondaryBtn")
         self.btn_ver_tarjetas.setEnabled(False)
         
         acciones_layout.addWidget(self.btn_editar_cliente)
@@ -1104,7 +1111,9 @@ class _DialogoTarjetasCliente(QDialog):
 
         btn_row = QHBoxLayout()
         self.btn_bloquear  = QPushButton("🔒 Bloquear")
+        self.btn_bloquear.setObjectName("dangerBtn")
         self.btn_liberar   = QPushButton("🔓 Liberar")
+        self.btn_liberar.setObjectName("successBtn")
         self.btn_bloquear.clicked.connect(self._bloquear_tarjeta)
         self.btn_liberar.clicked.connect(self._liberar_tarjeta)
         btn_row.addStretch()
@@ -1135,6 +1144,7 @@ class _DialogoTarjetasCliente(QDialog):
         layout.addWidget(tabs)
 
         btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.setObjectName("secondaryBtn")
         btn_cerrar.clicked.connect(self.accept)
         layout.addWidget(btn_cerrar)
 

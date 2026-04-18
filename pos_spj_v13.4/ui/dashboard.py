@@ -89,16 +89,16 @@ class KPICard(QFrame):
         self.setFrameStyle(QFrame.StyledPanel)
         self.setCursor(Qt.PointingHandCursor)
         # Card con fondo neutro y borde sutil - solo el icono tiene color
-        self.setStyleSheet(f"""
-            KPICard {{
-                background: var(--bg-card);
+        self.setStyleSheet("""
+            KPICard {
+                background: #1E293B;
                 border-radius: 8px;
-                border: 1px solid var(--border);
-            }}
-            KPICard:hover {{
-                background: var(--bg-hover);
-                border-color: var(--border-active);
-            }}
+                border: 1px solid #334155;
+            }
+            KPICard:hover {
+                background: #263548;
+                border-color: #2563EB;
+            }
         """)
         self._current_color = _color
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -125,7 +125,7 @@ class KPICard(QFrame):
 
         self.lbl_valor = QLabel(valor)
         self.lbl_valor.setStyleSheet(
-            "color: var(--text-primary); font-size: 22px; font-weight: 700; background: transparent;")
+            "color: #F1F5F9; font-size: 22px; font-weight: 700; background: transparent;")
         lyt.addWidget(self.lbl_valor)
 
         lbl_titulo = QLabel(titulo)
@@ -309,7 +309,7 @@ class Dashboard(QWidget):
 
     def _setup_ui(self):
         self.setObjectName("Dashboard")
-        self.setStyleSheet("QWidget#Dashboard { background: #F0F4F8; }")
+        # No hardcoded background — global QSS (dark: #0F172A, light: #F8FAFC) controls it
 
         root = QVBoxLayout(self)
         root.setSpacing(8)  # Reducido de 16 a 8
@@ -523,8 +523,8 @@ class Dashboard(QWidget):
             if not rows:
                 lbl = QLabel("✅ Sin pedidos pendientes")
                 lbl.setStyleSheet(
-                    "color:#7F8C8D;font-size:13px;padding:12px;"
-                    "background:white;border-radius:8px;")
+                    "color:#94A3B8;font-size:13px;padding:12px;"
+                    "background:#1E293B;border-radius:8px;")
                 self._lyt_wa.insertWidget(0, lbl)
                 return
             for i, r in enumerate(rows):

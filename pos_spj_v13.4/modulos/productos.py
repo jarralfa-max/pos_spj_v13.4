@@ -163,8 +163,14 @@ class DialogoProducto(QDialog):
         # Remove default button so Enter doesn't auto-accept (prevents scanner auto-save)
         save_btn = btn_box.button(QDialogButtonBox.Save)
         if save_btn:
+            save_btn.setText("Guardar")
+            save_btn.setObjectName("primaryBtn")
             save_btn.setDefault(False)
             save_btn.setAutoDefault(False)
+        cancel_btn = btn_box.button(QDialogButtonBox.Cancel)
+        if cancel_btn:
+            cancel_btn.setText("Cancelar")
+            cancel_btn.setObjectName("secondaryBtn")
         btn_box.accepted.connect(self.guardar_producto)
         btn_box.rejected.connect(self.reject)
         layout_principal.addWidget(btn_box)
@@ -1098,6 +1104,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             lay.addWidget(tbl)
 
         btn_cerrar = QPushButton("Cerrar")
+        btn_cerrar.setObjectName("secondaryBtn")
         btn_cerrar.clicked.connect(dlg.accept)
         lay.addWidget(btn_cerrar)
         dlg.exec_()

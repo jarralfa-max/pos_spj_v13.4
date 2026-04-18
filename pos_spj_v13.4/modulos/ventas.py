@@ -254,8 +254,8 @@ class DialogoSuspender(QDialog):
         btn_layout = QHBoxLayout()
         btn_cancelar = QPushButton("Cancelar")
         btn_aceptar = QPushButton("Suspender Venta")
-        btn_cancelar.setProperty("class", "cancel-button")
-        btn_aceptar.setProperty("class", "accept-button")
+        btn_cancelar.setObjectName("secondaryBtn")
+        btn_aceptar.setObjectName("primaryBtn")
         
         btn_layout.addWidget(btn_cancelar)
         btn_layout.addWidget(btn_aceptar)

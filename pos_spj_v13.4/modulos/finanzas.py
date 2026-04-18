@@ -2118,6 +2118,8 @@ class _DialogoCompraInventariable(QDialog):
         botones = QHBoxLayout()
         self.btn_guardar  = QPushButton("💾 Registrar Compra")
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_guardar.setObjectName("primaryBtn")
+        self.btn_cancelar.setObjectName("secondaryBtn")
         self.btn_guardar.clicked.connect(self._guardar)
         self.btn_cancelar.clicked.connect(self.reject)
         botones.addStretch()
@@ -2314,6 +2316,8 @@ class DialogoGasto(QDialog):
         btn_layout = QHBoxLayout()
         self.btn_guardar = QPushButton("Guardar")
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_guardar.setObjectName("primaryBtn")
+        self.btn_cancelar.setObjectName("secondaryBtn")
         btn_layout.addWidget(self.btn_guardar)
         btn_layout.addWidget(self.btn_cancelar)
 
@@ -2324,7 +2328,7 @@ class DialogoGasto(QDialog):
         # Conexiones
         self.btn_guardar.clicked.connect(self.guardar)
         self.btn_cancelar.clicked.connect(self.reject)
-        
+
         # Inicializar estado de widgets
         self.on_estado_changed(self.combo_estado.currentText())
 
@@ -2498,6 +2502,8 @@ class DialogoEmpleado(QDialog):
         btn_layout = QHBoxLayout()
         self.btn_guardar = QPushButton("Guardar")
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_guardar.setObjectName("primaryBtn")
+        self.btn_cancelar.setObjectName("secondaryBtn")
         btn_layout.addWidget(self.btn_guardar)
         btn_layout.addWidget(self.btn_cancelar)
 
