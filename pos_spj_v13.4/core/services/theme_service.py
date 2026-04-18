@@ -39,6 +39,11 @@ class ThemeService:
                     "INSERT INTO configuraciones(clave,valor) VALUES(?,?) "
                     "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
                     (k, str(v)))
+            # Also keep legacy 'tema' key in sync so apply_global_theme() / _cargar_tema_inicial() can read it
+            self.db.execute(
+                "INSERT INTO configuraciones(clave,valor) VALUES(?,?) "
+                "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
+                ('tema', theme))
             try: self.db.commit()
             except Exception: pass
         except Exception as e:
