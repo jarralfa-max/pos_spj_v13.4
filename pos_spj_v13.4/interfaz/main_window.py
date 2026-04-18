@@ -248,10 +248,9 @@ class DialogoLogin(QDialog):
         self.lbl_logo = QLabel()
         self.lbl_logo.setAlignment(Qt.AlignCenter)
         self.lbl_logo.setObjectName("loginLogo")
-        self.lbl_logo.setMinimumHeight(100)  # Espacio mínimo aumentado para evitar cortes
-        self.lbl_logo.setMaximumHeight(140)  # Límite máximo para no ocupar toda la pantalla
-        self.lbl_logo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.lbl_logo.setScaledContents(False)  # Importante: no distorsionar
+        self.lbl_logo.setFixedHeight(120)
+        self.lbl_logo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.lbl_logo.setScaledContents(False)
         
         try:
             from PyQt5.QtGui import QPixmap as _QP
@@ -263,7 +262,7 @@ class DialogoLogin(QDialog):
                     _pix = _QP(_r[0])
                     if not _pix.isNull():
                         # Escalar manteniendo aspecto, tamaño máximo 140x140 para mejor visibilidad completa
-                        _scaled = _pix.scaled(140, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        _scaled = _pix.scaled(110, 110, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         self.lbl_logo.setPixmap(_scaled)
                         self.lbl_logo.setAlignment(Qt.AlignCenter)
                     else:
@@ -274,7 +273,7 @@ class DialogoLogin(QDialog):
                 raise Exception()
         except Exception:
             self.lbl_logo.setText("🏢")
-            self.lbl_logo.setStyleSheet("font-size: 64px; background-color: transparent; min-height: 100px;")
+            self.lbl_logo.setStyleSheet("font-size: 48px; background-color: transparent;")
             self.lbl_logo.setAlignment(Qt.AlignCenter)
 
         layout.addWidget(self.lbl_logo)

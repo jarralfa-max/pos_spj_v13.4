@@ -335,9 +335,9 @@ class ModuloFinanzas(ModuloBase):
         self.tabs.addTab(self._tab_cxc(),         "💰 C×Cobrar")
         self.tabs.addTab(self._tab_proveedores(),  "🏢 Proveedores")
         self.tabs.addTab(self._tab_gastos(),       "📋 Gastos")
-        self.tabs.addTab(self._tab_rrhh_redirect(), "👥 RRHH")
-        self.tabs.addTab(self._tab_activos_redirect(), "🏗 Activos")
-        self.tabs.addTab(self._tab_compras_redirect(), "🛒 Compras")
+        self.tabs.addTab(_tab_rrhh_redirect(self),     "👥 RRHH")
+        self.tabs.addTab(_tab_activos_redirect(self),  "🏗 Activos")
+        self.tabs.addTab(_tab_compras_redirect(self),  "🛒 Compras")
         root.addWidget(self.tabs)
 
     # ═══════════════════════════════════════════════════════════════════════
