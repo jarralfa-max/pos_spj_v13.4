@@ -213,7 +213,7 @@ class DialogoLogin(QDialog):
         self._sucursal_instalacion = self._leer_sucursal_instalacion()
 
         self.setWindowTitle("SPJ POS — Iniciar Sesión")
-        self.setFixedSize(340, 280)
+        self.setFixedSize(340, 450)
         
         # Usar objectName para que el tema global aplique estilos consistentes
         self.setObjectName("loginDialog")
@@ -248,10 +248,10 @@ class DialogoLogin(QDialog):
         self.lbl_logo = QLabel()
         self.lbl_logo.setAlignment(Qt.AlignCenter)
         self.lbl_logo.setObjectName("loginLogo")
-        self.lbl_logo.setFixedHeight(120)
+        self.lbl_logo.setFixedHeight(90)
         self.lbl_logo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.lbl_logo.setScaledContents(False)
-        
+
         try:
             from PyQt5.QtGui import QPixmap as _QP
             import os
@@ -261,8 +261,7 @@ class DialogoLogin(QDialog):
                 if _r and _r[0] and os.path.exists(_r[0]):
                     _pix = _QP(_r[0])
                     if not _pix.isNull():
-                        # Escalar manteniendo aspecto, tamaño máximo 140x140 para mejor visibilidad completa
-                        _scaled = _pix.scaled(110, 110, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        _scaled = _pix.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         self.lbl_logo.setPixmap(_scaled)
                         self.lbl_logo.setAlignment(Qt.AlignCenter)
                     else:
@@ -273,7 +272,7 @@ class DialogoLogin(QDialog):
                 raise Exception()
         except Exception:
             self.lbl_logo.setText("🏢")
-            self.lbl_logo.setStyleSheet("font-size: 48px; background-color: transparent;")
+            self.lbl_logo.setStyleSheet("font-size: 40px; background-color: transparent;")
             self.lbl_logo.setAlignment(Qt.AlignCenter)
 
         layout.addWidget(self.lbl_logo)

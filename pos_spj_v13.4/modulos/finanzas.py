@@ -122,49 +122,49 @@ def _btn(label, color=Colors.PRIMARY_BASE, parent=None):
     return b
 
 
-    def _tab_rrhh_redirect(self):
-        """Tab que linkea al módulo RRHH dedicado."""
-        w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
-        lbl = create_heading(self, "👥 Módulo RRHH")
-        lbl.setAlignment(Qt.AlignCenter)
-        desc = create_subheading(self, "El módulo de Recursos Humanos ahora tiene su propio panel.\n\nAccede desde el menú lateral → RRHH")
-        desc.setAlignment(Qt.AlignCenter)
-        try:
-            btn = create_primary_button(self, "Ir a RRHH →", "Navegar al módulo de Recursos Humanos")
-            btn.clicked.connect(lambda: self.parent().mostrar_modulo("rrhh") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
-            layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
-        except Exception:
-            layout.addWidget(lbl); layout.addWidget(desc)
-        layout.addStretch()
-        return w
+def _tab_rrhh_redirect(self):
+    """Tab que linkea al módulo RRHH dedicado."""
+    w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
+    lbl = create_heading(self, "👥 Módulo RRHH")
+    lbl.setAlignment(Qt.AlignCenter)
+    desc = create_subheading(self, "El módulo de Recursos Humanos ahora tiene su propio panel.\n\nAccede desde el menú lateral → RRHH")
+    desc.setAlignment(Qt.AlignCenter)
+    try:
+        btn = create_primary_button(self, "Ir a RRHH →", "Navegar al módulo de Recursos Humanos")
+        btn.clicked.connect(lambda: self.parent().mostrar_modulo("rrhh") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
+        layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
+    except Exception:
+        layout.addWidget(lbl); layout.addWidget(desc)
+    layout.addStretch()
+    return w
 
-    def _tab_activos_redirect(self):
-        w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
-        lbl = create_heading(self, "🏭 Módulo Activos Fijos")
-        lbl.setAlignment(Qt.AlignCenter)
-        desc = create_subheading(self, "El módulo de Activos Fijos ahora tiene su propio panel.\n\nAccede desde el menú lateral → ACTIVOS")
-        desc.setAlignment(Qt.AlignCenter)
-        try:
-            btn = create_warning_button(self, "Ir a Activos →", "Navegar al módulo de Activos Fijos")
-            btn.clicked.connect(lambda: self.parent().mostrar_modulo("activos") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
-            layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
-        except Exception:
-            layout.addWidget(lbl); layout.addWidget(desc)
-        layout.addStretch()
-        return w
+def _tab_activos_redirect(self):
+    w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
+    lbl = create_heading(self, "🏭 Módulo Activos Fijos")
+    lbl.setAlignment(Qt.AlignCenter)
+    desc = create_subheading(self, "El módulo de Activos Fijos ahora tiene su propio panel.\n\nAccede desde el menú lateral → ACTIVOS")
+    desc.setAlignment(Qt.AlignCenter)
+    try:
+        btn = create_warning_button(self, "Ir a Activos →", "Navegar al módulo de Activos Fijos")
+        btn.clicked.connect(lambda: self.parent().mostrar_modulo("activos") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
+        layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
+    except Exception:
+        layout.addWidget(lbl); layout.addWidget(desc)
+    layout.addStretch()
+    return w
 
-    def _tab_compras_redirect(self):
-        w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
-        lbl = create_heading(self, "🛒 Sistema de Compras Pro")
-        lbl.setAlignment(Qt.AlignCenter)
-        desc = create_subheading(self, "El sistema de Compras ahora tiene su propio panel completo.\n\nAccede desde el menú lateral → COMPRAS PRO")
-        desc.setAlignment(Qt.AlignCenter)
-        try:
-            btn = create_success_button(self, "Ir a Compras Pro →", "Navegar al módulo de Compras Pro")
-            btn.clicked.connect(lambda: self.parent().mostrar_modulo("compras_pro") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
-            layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
-        except Exception:
-            layout.addWidget(lbl); layout.addWidget(desc)
+def _tab_compras_redirect(self):
+    w = QWidget(); layout = QVBoxLayout(w); layout.addStretch()
+    lbl = create_heading(self, "🛒 Sistema de Compras Pro")
+    lbl.setAlignment(Qt.AlignCenter)
+    desc = create_subheading(self, "El sistema de Compras ahora tiene su propio panel completo.\n\nAccede desde el menú lateral → COMPRAS PRO")
+    desc.setAlignment(Qt.AlignCenter)
+    try:
+        btn = create_success_button(self, "Ir a Compras Pro →", "Navegar al módulo de Compras Pro")
+        btn.clicked.connect(lambda: self.parent().mostrar_modulo("compras_pro") if self.parent() and hasattr(self.parent(),"mostrar_modulo") else None)
+        layout.addWidget(lbl); layout.addSpacing(Spacing.MD); layout.addWidget(desc); layout.addSpacing(Spacing.LG); layout.addWidget(btn, 0, Qt.AlignCenter)
+    except Exception:
+        layout.addWidget(lbl); layout.addWidget(desc)
         layout.addStretch()
         return w
 

@@ -482,8 +482,8 @@ def create_heading(parent=None, text: str = "") -> QLabel:
         parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_900};
-        font-size: {Typography.SIZE_XXL};
+        color: {Colors.NEUTRAL.DARK_TEXT};
+        font-size: {Typography.SIZE_XL};
         font-weight: {Typography.WEIGHT_BOLD};
     """)
     return label
@@ -504,8 +504,8 @@ def create_subheading(parent=None, text: str = "") -> QLabel:
         parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_700};
-        font-size: {Typography.SIZE_LG};
+        color: {Colors.NEUTRAL.DARK_TEXT_SEC};
+        font-size: {Typography.SIZE_MD};
         font-weight: {Typography.WEIGHT_SEMIBOLD};
     """)
     return label
@@ -618,7 +618,7 @@ def create_table(parent, show_grid: bool = False, alternating_colors: bool = Tru
     
     # Header vertical oculto por defecto
     table.verticalHeader().setVisible(False)
-    table.verticalHeader().setDefaultSectionSize(Spacing.BTN_HEIGHT_MIN + 8)  # Altura de fila consistente
+    table.verticalHeader().setDefaultSectionSize(32)
     
     # Scrollbars
     table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)

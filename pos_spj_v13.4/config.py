@@ -51,7 +51,7 @@ TEMAS = {
         }
 
         QLabel#loginLogo {
-            padding: 10px;
+            padding: 4px;
             background-color: transparent;
         }
 
