@@ -20,12 +20,12 @@ USO:
     
     # Tipografía
     Typography.FONT_FAMILY   # 'Segoe UI', 'Inter', 'Roboto'
-    Typography.SIZE_XS       # 11px
-    Typography.SIZE_SM       # 13px
-    Typography.SIZE_MD       # 14px
-    Typography.SIZE_LG       # 16px
-    Typography.SIZE_XL       # 20px
-    Typography.SIZE_XXL      # 24px
+    Typography.SIZE_XS       # 10px
+    Typography.SIZE_SM       # 11px
+    Typography.SIZE_MD       # 12px
+    Typography.SIZE_LG       # 13px
+    Typography.SIZE_XL       # 14px
+    Typography.SIZE_XXL      # 16px
     
     # Bordes
     Borders.RADIUS_SM        # 4px
@@ -202,11 +202,11 @@ class Spacing:
     XXL = 32  # 32px - sección
     XXXL = 48 # 48px - separación grande
     
-    # Para padding de botones (height 36-40px)
-    BTN_PADDING_X = 12
-    BTN_PADDING_Y = 6
-    BTN_HEIGHT_MIN = 36
-    BTN_HEIGHT_MAX = 40
+    # Para padding de botones (height 22-26px)
+    BTN_PADDING_X = 8
+    BTN_PADDING_Y = 3
+    BTN_HEIGHT_MIN = 22
+    BTN_HEIGHT_MAX = 26
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -218,12 +218,12 @@ class Typography:
     FONT_FAMILY = "'Segoe UI', 'Inter', 'Roboto', sans-serif"
     
     # Tamaños
-    SIZE_XS = "11px"   # Captions, labels secundarios
-    SIZE_SM = "13px"   # Botones, inputs, texto pequeño
-    SIZE_MD = "14px"   # Texto base
-    SIZE_LG = "16px"   # Subtítulos, labels importantes
-    SIZE_XL = "20px"   # Títulos de sección
-    SIZE_XXL = "24px"  # Títulos principales
+    SIZE_XS = "10px"   # Captions, labels secundarios
+    SIZE_SM = "11px"   # Botones, inputs, texto pequeño
+    SIZE_MD = "12px"   # Texto base
+    SIZE_LG = "13px"   # Subtítulos, labels importantes
+    SIZE_XL = "14px"   # Títulos de sección
+    SIZE_XXL = "16px"  # Títulos principales
     
     # Pesos
     WEIGHT_NORMAL = 400
@@ -353,7 +353,7 @@ class Icons:
 class ComponentStyles:
     """Estilos predefinidos para componentes comunes."""
     
-    # Botón estándar (36-40px height)
+    # Botón estándar (22-26px height)
     BTN_HEIGHT = f"{Spacing.BTN_HEIGHT_MIN}px"
     BTN_PADDING = f"{Spacing.BTN_PADDING_Y}px {Spacing.BTN_PADDING_X}px"
     BTN_RADIUS = f"{Borders.RADIUS_LG}px"

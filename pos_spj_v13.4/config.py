@@ -41,7 +41,7 @@ TEMAS = {
             background-color: #0F172A;
             color: #F1F5F9;
             font-family: 'Segoe UI', 'Inter', 'Roboto', sans-serif;
-            font-size: 13px;
+            font-size: 11px;
         }
         
         QDialog#loginDialog {
@@ -56,14 +56,14 @@ TEMAS = {
         }
 
         QLabel#loginTitle {
-            font-size: 24px;
+            font-size: 16px;
             font-weight: 700;
             color: #F1F5F9;
             margin-bottom: 5px;
         }
 
         QLabel#loginSucursal {
-            font-size: 13px;
+            font-size: 11px;
             color: #94A3B8;
         }
 
@@ -76,13 +76,13 @@ TEMAS = {
         }
 
         QLineEdit#inputField {
-            padding: 10px 14px;
+            padding: 5px 8px;
             border: 1px solid #334155;
             border-radius: 8px;
             background-color: #1E293B;
             color: #F1F5F9;
-            font-size: 14px;
-            min-height: 40px;
+            font-size: 12px;
+            min-height: 28px;
         }
 
         QLineEdit#inputField:focus {
@@ -100,8 +100,8 @@ TEMAS = {
             color: #F1F5F9;
             border: 1px solid #334155;
             border-radius: 6px;
-            padding: 6px 10px;
-            font-size: 12px;
+            padding: 3px 6px;
+            font-size: 10px;
             font-weight: 500;
         }
 
@@ -111,11 +111,11 @@ TEMAS = {
                 stop:0 #2563EB, stop:1 #1D4ED8);
             color: #FFFFFF;
             border: 1px solid #3B82F6;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 5px;
+            padding: 3px 8px;
             font-weight: 600;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 11px;
+            min-height: 22px;
         }
         QPushButton#primaryBtn:hover, QPushButton[variant="primary"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -133,11 +133,11 @@ TEMAS = {
                 stop:0 #334155, stop:1 #1E293B);
             color: #F1F5F9;
             border: 1px solid #475569;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 5px;
+            padding: 3px 8px;
             font-weight: 600;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 11px;
+            min-height: 22px;
         }
         QPushButton#secondaryBtn:hover, QPushButton[variant="secondary"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -151,11 +151,11 @@ TEMAS = {
                 stop:0 #16A34A, stop:1 #15803D);
             color: #FFFFFF;
             border: 1px solid #22C55E;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 5px;
+            padding: 3px 8px;
             font-weight: 600;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 11px;
+            min-height: 22px;
         }
         QPushButton#successBtn:hover, QPushButton[variant="success"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -169,11 +169,11 @@ TEMAS = {
                 stop:0 #DC2626, stop:1 #B91C1C);
             color: #FFFFFF;
             border: 1px solid #EF4444;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 5px;
+            padding: 3px 8px;
             font-weight: 600;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 11px;
+            min-height: 22px;
         }
         QPushButton#dangerBtn:hover, QPushButton[variant="danger"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -187,11 +187,11 @@ TEMAS = {
                 stop:0 #D97706, stop:1 #B45309);
             color: #FFFFFF;
             border: 1px solid #F59E0B;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 5px;
+            padding: 3px 8px;
             font-weight: 600;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 11px;
+            min-height: 22px;
         }
         QPushButton#warningBtn:hover, QPushButton[variant="warning"]:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -204,11 +204,11 @@ TEMAS = {
             background: transparent;
             color: #2563EB;
             border: 2px solid #2563EB;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 5px;
+            padding: 3px 8px;
             font-weight: 600;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 11px;
+            min-height: 22px;
         }
         QPushButton#outlineBtn:hover, QPushButton[variant="outline"]:hover {
             background: rgba(37, 99, 235, 0.1);
@@ -222,12 +222,12 @@ TEMAS = {
                 stop:0 #334155, stop:1 #1E293B);
             color: #F1F5F9;
             border: 1px solid #475569;
-            border-radius: 8px;
-            padding: 5px 10px;
+            border-radius: 5px;
+            padding: 2px 6px;
             font-weight: 600;
-            font-size: 12px;
-            min-height: 32px;
-            max-height: 36px;
+            font-size: 10px;
+            min-height: 20px;
+            max-height: 22px;
         }
         QPushButton:hover {
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -247,14 +247,14 @@ TEMAS = {
         /* ===== SCROLLBARS ===== */
         QScrollBar:vertical {
             background-color: #0F172A;
-            width: 12px;
-            border-radius: 6px;
+            width: 7px;
+            border-radius: 4px;
             margin: 2px;
         }
         QScrollBar::handle:vertical {
             background-color: #334155;
-            border-radius: 6px;
-            min-height: 30px;
+            border-radius: 4px;
+            min-height: 18px;
         }
         QScrollBar::handle:vertical:hover {
             background-color: #475569;
@@ -264,14 +264,14 @@ TEMAS = {
         }
         QScrollBar:horizontal {
             background-color: #0F172A;
-            height: 12px;
-            border-radius: 6px;
+            height: 7px;
+            border-radius: 4px;
             margin: 2px;
         }
         QScrollBar::handle:horizontal {
             background-color: #334155;
-            border-radius: 6px;
-            min-width: 30px;
+            border-radius: 4px;
+            min-width: 18px;
         }
         QScrollBar::handle:horizontal:hover {
             background-color: #475569;
@@ -288,9 +288,9 @@ TEMAS = {
             color: #94A3B8;
             border: 1px solid transparent;
             border-bottom: none;
-            padding: 6px 12px;
+            padding: 3px 8px;
             margin-right: 2px;
-            border-radius: 8px 8px 0 0;
+            border-radius: 5px 5px 0 0;
             font-weight: 500;
         }
         QTabBar::tab:selected {
@@ -310,11 +310,11 @@ TEMAS = {
             background-color: #1E293B;
             color: #F1F5F9;
             border: 1px solid #334155;
-            border-radius: 8px;
-            padding: 6px 12px;
+            border-radius: 5px;
+            padding: 3px 7px;
             selection-background-color: #2563EB;
-            font-size: 13px;
-            min-height: 36px;
+            font-size: 11px;
+            min-height: 22px;
         }
         QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, 
         QSpinBox:focus, QDoubleSpinBox:focus {
@@ -331,9 +331,9 @@ TEMAS = {
             background-color: #1E293B;
             color: #F1F5F9;
             border: 1px solid #334155;
-            border-radius: 8px;
-            padding: 6px 12px;
-            min-height: 36px;
+            border-radius: 5px;
+            padding: 3px 7px;
+            min-height: 22px;
         }
         QComboBox:hover {
             border: 1px solid #475569;
@@ -343,27 +343,27 @@ TEMAS = {
         }
         QComboBox::drop-down {
             border: none;
-            width: 30px;
-            border-radius: 0 8px 8px 0;
+            width: 20px;
+            border-radius: 0 5px 5px 0;
         }
         QComboBox::down-arrow {
             image: none;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-top: 6px solid #94A3B8;
-            margin-right: 10px;
+            border-left: 3px solid transparent;
+            border-right: 3px solid transparent;
+            border-top: 4px solid #94A3B8;
+            margin-right: 6px;
         }
         QComboBox QAbstractItemView {
             background-color: #1E293B;
             color: #F1F5F9;
             border: 1px solid #334155;
             selection-background-color: #2563EB;
-            border-radius: 8px;
-            padding: 4px;
+            border-radius: 5px;
+            padding: 2px;
         }
         QComboBox QAbstractItemView::item {
-            min-height: 36px;
-            padding: 6px 12px;
+            min-height: 22px;
+            padding: 3px 7px;
             border-radius: 4px;
         }
         QComboBox QAbstractItemView::item:hover {
@@ -399,12 +399,12 @@ TEMAS = {
             border: none;
             border-bottom: 2px solid #475569;
             font-weight: 600;
-            padding: 6px 10px;
+            padding: 3px 6px;
             text-transform: uppercase;
-            font-size: 11px;
+            font-size: 10px;
             letter-spacing: 0.5px;
-            min-height: 32px;
-            max-height: 32px;
+            min-height: 20px;
+            max-height: 20px;
         }
         QHeaderView::section:hover {
             background-color: #475569;
@@ -413,17 +413,17 @@ TEMAS = {
         /* ===== GRUPOS ===== */
         QGroupBox {
             border: 1px solid #334155;
-            border-radius: 12px;
-            margin-top: 16px;
-            padding-top: 16px;
+            border-radius: 6px;
+            margin-top: 8px;
+            padding-top: 8px;
             background-color: #1E293B;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 11px;
         }
         QGroupBox::title {
             subcontrol-origin: margin;
-            left: 16px;
-            padding: 0 12px;
+            left: 8px;
+            padding: 0 6px;
             color: #60A5FA;
             background-color: #1E293B;
         }
@@ -432,8 +432,8 @@ TEMAS = {
         QFrame#card, QFrame[variant="card"] {
             background-color: #1E293B;
             border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 16px;
+            border-radius: 6px;
+            padding: 8px;
         }
         QFrame#cardHover:hover, QFrame[variant="card-hover"]:hover {
             background-color: #334155;
@@ -442,30 +442,30 @@ TEMAS = {
 
         /* ===== LABELS ===== */
         QLabel#heading {
-            font-size: 24px;
+            font-size: 14px;
             font-weight: 700;
             color: #F1F5F9;
         }
         QLabel#subheading {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
             color: #94A3B8;
         }
         QLabel#caption {
-            font-size: 12px;
+            font-size: 10px;
             color: #64748B;
         }
 
         /* ===== CHECKBOX ===== */
         QCheckBox {
             color: #F1F5F9;
-            spacing: 10px;
-            font-size: 13px;
+            spacing: 6px;
+            font-size: 11px;
         }
         QCheckBox::indicator {
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
             border: 2px solid #475569;
             background-color: #1E293B;
         }
@@ -480,13 +480,13 @@ TEMAS = {
         /* ===== RADIO BUTTON ===== */
         QRadioButton {
             color: #F1F5F9;
-            spacing: 10px;
-            font-size: 13px;
+            spacing: 6px;
+            font-size: 11px;
         }
         QRadioButton::indicator {
-            width: 20px;
-            height: 20px;
-            border-radius: 10px;
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
             border: 2px solid #475569;
             background-color: #1E293B;
         }
