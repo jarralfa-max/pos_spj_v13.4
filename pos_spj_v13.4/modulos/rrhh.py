@@ -592,11 +592,15 @@ class ModuloRRHH(QWidget):
     def ejecutar_calculo_nomina(self):
         empleado_id = self.cmb_empleado.currentData()
         if not empleado_id: return
-        
+
         # Calcular periodo (Ejemplo: Últimos 7 días)
         fin = datetime.now()
         inicio = fin - timedelta(days=7)
-        
+        # v13.5: Guardar datos para uso en aprobar_y_pagar con UC
+        self._nomina_empleado_id = empleado_id
+        self._nomina_inicio = inicio.strftime("%Y-%m-%d")
+        self._nomina_fin = fin.strftime("%Y-%m-%d")
+
         try:
             # 🚀 LLAMADA ENTERPRISE: El servicio calcula las horas y el dinero
             if hasattr(self.container, 'rrhh_service'):
@@ -619,12 +623,38 @@ class ModuloRRHH(QWidget):
 
     def aprobar_y_pagar(self):
         if not self.nomina_actual: return
-        
+
         metodo = self.cmb_metodo_pago.currentText()
         msg = (f"¿Aprobar el pago de ${self.nomina_actual['neto_a_pagar']:,.2f} a {self.nomina_actual['nombre_completo']}?\n\n"
                f"Esto restará el dinero contablemente de los OPEX y enviará el recibo por WhatsApp.")
-               
+
         if QMessageBox.question(self, "Confirmar Pago", msg) == QMessageBox.Yes:
+            # v13.5: Usar UC si está disponible (registra asientos contables)
+            _uc = getattr(self.container, 'uc_nomina', None)
+            if _uc and getattr(self, '_nomina_empleado_id', None):
+                try:
+                    from core.use_cases.nomina import SolicitudNomina
+                    sol = SolicitudNomina(
+                        empleado_id=self._nomina_empleado_id,
+                        fecha_inicio=self._nomina_inicio,
+                        fecha_fin=self._nomina_fin,
+                        metodo_pago=metodo,
+                    )
+                    result = _uc.ejecutar(sol, getattr(self, 'sucursal_id', 1), self.usuario_actual)
+                    if result.ok:
+                        QMessageBox.information(self, "Nómina Procesada",
+                            f"✅ Pago registrado con asiento contable.\n"
+                            f"Neto: ${result.neto_a_pagar:,.2f}")
+                        self.nomina_actual = None
+                        self.lbl_nom_empleado.setText("-")
+                        self.lbl_total_pago.setText("$0.00")
+                        self.btn_pagar.setEnabled(False)
+                        return
+                    else:
+                        QMessageBox.critical(self, "Error UC", result.error)
+                        return
+                except Exception:
+                    pass  # fallback al rrhh_service directo
             try:
                 # 🚀 LLAMADA ENTERPRISE: Registra el OPEX, genera PDF y envía WhatsApp
                 mensaje_exito = self.container.rrhh_service.procesar_pago_nomina(
