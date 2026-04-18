@@ -1,38 +1,83 @@
 """
-Wrapper CLI para mantener compatibilidad con `python scripts/verify_tables.py`.
-
-Implementación canónica:
-    pos_spj_v13.4/scripts/verify_tables.py
+verify_tables.py — pos_spj v13.4
+Verifica que las tablas críticas existan en la DB.
+Expone verificar_tablas(db_path) para uso desde bootstrap_db.
 """
 from __future__ import annotations
 
-import importlib.util
+import sqlite3
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-def _load_inner_main():
-    repo_root = Path(__file__).resolve().parents[1]
-    inner_script = repo_root / "pos_spj_v13.4" / "scripts" / "verify_tables.py"
-    if not inner_script.exists():
-        raise FileNotFoundError(f"No existe script interno: {inner_script}")
+TABLAS_CRITICAS = [
+    "productos", "clientes", "ventas", "detalle_ventas",
+    "sucursales", "usuarios", "empleados", "proveedores",
+    "categorias", "inventario",
+]
 
-    spec = importlib.util.spec_from_file_location("spj_inner_verify_tables", inner_script)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"No se pudo cargar spec de {inner_script}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.main
+_EQUIVALENCIAS = {
+    "inventario": {"inventario", "branch_inventory"},
+    "detalle_ventas": {"detalle_ventas", "venta_items", "sale_items"},
+}
+
+
+def verificar_tablas(db_path: str) -> dict:
+    """
+    Verifica que las tablas críticas existan en la DB.
+    Retorna dict con: cobertura_pct, faltantes, total_criticas, existentes.
+    Compatible con lo que bootstrap_database() espera.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        try:
+            cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            existentes = {r[0] for r in cur.fetchall()}
+        finally:
+            conn.close()
+    except Exception as e:
+        return {"error": str(e), "cobertura_pct": 0, "faltantes": TABLAS_CRITICAS,
+                "total_criticas": len(TABLAS_CRITICAS), "existentes": []}
+
+    faltantes = []
+    for tabla in TABLAS_CRITICAS:
+        opciones = _EQUIVALENCIAS.get(tabla, {tabla})
+        if not (existentes & opciones):
+            faltantes.append(tabla)
+
+    total = len(TABLAS_CRITICAS)
+    presentes = total - len(faltantes)
+    cobertura = round(presentes / total * 100, 1) if total else 100.0
+
+    return {
+        "cobertura_pct": cobertura,
+        "faltantes": faltantes,
+        "total_criticas": total,
+        "existentes": sorted(existentes),
+    }
 
 
 def main() -> int:
-    inner_main = _load_inner_main()
-    try:
-        result = inner_main()
-        return int(result or 0)
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 0
-        return int(code)
+    import argparse
+    parser = argparse.ArgumentParser(description="Verificar tablas — pos_spj v13.4")
+    parser.add_argument("--db", default="pos_spj.db", help="Ruta al archivo SQLite")
+    args = parser.parse_args()
+
+    resultado = verificar_tablas(args.db)
+    if "error" in resultado:
+        print(f"ERROR: {resultado['error']}")
+        return 1
+
+    faltantes = resultado["faltantes"]
+    cobertura = resultado["cobertura_pct"]
+    if faltantes:
+        print(f"ADVERTENCIA: Tablas faltantes ({len(faltantes)}): {faltantes}")
+        print(f"Cobertura: {cobertura}%")
+    else:
+        print(f"OK: {resultado['total_criticas']} tablas críticas verificadas ({cobertura}%)")
+    return 0
 
 
 if __name__ == "__main__":

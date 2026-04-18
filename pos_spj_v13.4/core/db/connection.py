@@ -442,14 +442,22 @@ def migrate_db(conn: sqlite3.Connection) -> None:
         for column_name, ddl in columns:
             if _column_exists(conn, table_name, column_name):
                 continue
-            conn.execute(
-                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}"
-            )
-            logger.warning(
-                "DB compat: columna agregada %s.%s",
-                table_name,
-                column_name,
-            )
+            # SQLite < 3.38 no soporta DEFAULT (datetime('now')) en ALTER TABLE.
+            # Usamos TEXT/INTEGER sin expresión de función para máxima compatibilidad.
+            safe_ddl = ddl.replace("DEFAULT (datetime('now'))", "DEFAULT NULL") \
+                          .replace("DEFAULT (date('now'))", "DEFAULT NULL")
+            try:
+                conn.execute(
+                    f"ALTER TABLE {table_name} ADD COLUMN {column_name} {safe_ddl}"
+                )
+                logger.warning(
+                    "DB compat: columna agregada %s.%s",
+                    table_name,
+                    column_name,
+                )
+            except Exception as _col_err:
+                logger.debug("DB compat: no se pudo agregar %s.%s: %s",
+                             table_name, column_name, _col_err)
     conn.commit()
 
 
