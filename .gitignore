@@ -55,3 +55,8 @@ htmlcov/
 # Carpetas específicas del sistema
 pos_spj_v13.4/TICKETS/
 pos_spj_v13.4/imagenes_productos/
+
+# SQLite databases (generated at runtime)
+*.db
+*.sqlite
+*.sqlite3
