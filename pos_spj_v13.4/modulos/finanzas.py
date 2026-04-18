@@ -511,15 +511,15 @@ class ModuloFinanzas(ModuloBase):
 
         # Filtros
         fh = QHBoxLayout()
-        self.combo_filtro_estado = QComboBox()
-        self.combo_filtro_estado.addItems(
+        self._combo_gastos_estado = QComboBox()
+        self._combo_gastos_estado.addItems(
             ["Todos","Pendientes","Pagados","Recurrentes"]
         )
-        self.combo_filtro_estado.currentIndexChanged.connect(self.filtrar_gastos)
+        self._combo_gastos_estado.currentIndexChanged.connect(self.filtrar_gastos)
         self._gastos_buscar = QLineEdit()
         self._gastos_buscar.setPlaceholderText("Buscar gasto…")
         self._gastos_buscar.returnPressed.connect(self.filtrar_gastos)
-        fh.addWidget(QLabel("Estado:")); fh.addWidget(self.combo_filtro_estado)
+        fh.addWidget(QLabel("Estado:")); fh.addWidget(self._combo_gastos_estado)
         fh.addWidget(self._gastos_buscar)
         bt_buscar = _btn("🔍", _NAVY); bt_buscar.setFixedWidth(32)
         bt_buscar.clicked.connect(self.filtrar_gastos)
@@ -574,7 +574,6 @@ class ModuloFinanzas(ModuloBase):
         w = QWidget(); root = QVBoxLayout(w)
 
         fh = QHBoxLayout()
-        self.combo_filtro_estado = QComboBox() if not hasattr(self, 'combo_filtro_estado') else self.combo_filtro_estado
         self._combo_filtro_personal = QComboBox()
         self._combo_filtro_personal.addItems(["Todos","Activos","Inactivos"])
         self._combo_filtro_personal.currentIndexChanged.connect(self.cargar_personal)

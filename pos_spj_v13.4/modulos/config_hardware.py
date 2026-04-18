@@ -77,7 +77,7 @@ class ModuloConfigHardware(QWidget):
     # ── Tab 1: Báscula ────────────────────────────────────────────────────────
 
     def _tab_bascula(self) -> QWidget:
-        from modulos.ui_components import create_success_button, create_input, create_combo
+        from modulos.ui_components import create_primary_button, create_success_button, create_input, create_combo
         w = QWidget(); lay = QVBoxLayout(w); lay.setSpacing(Spacing.SM)
 
         grp = QGroupBox("Configuración de báscula serial")

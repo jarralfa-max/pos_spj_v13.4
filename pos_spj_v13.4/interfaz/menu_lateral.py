@@ -60,7 +60,7 @@ _SIDEBAR_DARK_QSS = """
     QFrame#MenuLateral QWidget#ContenedorBotones {
         background-color: transparent;
     }
-    QFrame#MenuLateral QLabel.SeccionHeader {
+    QFrame#MenuLateral QLabel[class="SeccionHeader"] {
         color: #64748B;
         font-size: 11px;
         font-weight: 700;
@@ -93,6 +93,25 @@ _SIDEBAR_DARK_QSS = """
         background-color: #2563EB;
         color: #FFFFFF;
         font-weight: 600;
+    }
+    QFrame#MenuLateral QScrollBar:vertical {
+        background-color: #020617;
+        width: 6px;
+        margin: 0;
+        border: none;
+    }
+    QFrame#MenuLateral QScrollBar::handle:vertical {
+        background-color: #334155;
+        border-radius: 3px;
+        min-height: 20px;
+    }
+    QFrame#MenuLateral QScrollBar::handle:vertical:hover {
+        background-color: #475569;
+    }
+    QFrame#MenuLateral QScrollBar::add-line:vertical,
+    QFrame#MenuLateral QScrollBar::sub-line:vertical {
+        height: 0;
+        background: none;
     }
 """
 

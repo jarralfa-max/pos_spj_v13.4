@@ -867,10 +867,11 @@ class MainWindow(QMainWindow):
                 font_size="12", icon_size="24",
             )
             qss = theme_svc.generate_qss()
-            QApplication.instance().setStyleSheet(qss)
-            # Sidebar siempre oscuro (regla de diseño)
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(0, lambda: QApplication.instance().setStyleSheet(qss))
+            # Sidebar siempre oscuro (regla de diseño) — run after stylesheet is applied
             if hasattr(self, "menu") and hasattr(self.menu, "enforce_dark_mode"):
-                self.menu.enforce_dark_mode()
+                QTimer.singleShot(10, self.menu.enforce_dark_mode)
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("_aplicar_tema: %s", e)
