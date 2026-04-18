@@ -131,7 +131,7 @@ pos_spj_v13.4/
 1. **AUDITAR:** Identificar lógica de negocio vs UI
 2. **TESTEAR:** Crear tests que capturen comportamiento actual
 3. **EXTRAER:** Mover lógica a `domain/` o `application/`
-4. **REEMPLAZAR:** UI llama a application layer
+4. **REEMPLAZAR:** UI llama a application 
 5. **VALIDAR:** Tests deben pasar igual que antes
 6. **LIMPIAR:** Eliminar código duplicado/muerto
 7. **DOCUMENTAR:** Actualizar `MIGRATION_LOG.md`
