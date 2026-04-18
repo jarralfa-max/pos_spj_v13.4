@@ -20,7 +20,7 @@ import os
 from contextlib import contextmanager
 from typing import Optional
 
-logger = logging.getLogger("spj.db")
+logger = logging.getLogger("spj.connection")
 
 # ─────────────────────────────────────────────────────────────
 # CONFIGURACIÓN
