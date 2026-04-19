@@ -408,8 +408,8 @@ class DialogoPago(QDialog):
         btn_layout = QHBoxLayout()
         self.btn_cancelar = QPushButton("❌ Cancelar")
         self.btn_aceptar = QPushButton("✅ Confirmar Pago")
-        self.btn_cancelar.setProperty("class", "payment-cancel-button")
-        self.btn_aceptar.setProperty("class", "payment-accept-button")
+        self.btn_cancelar.setObjectName("dangerBtn")
+        self.btn_aceptar.setObjectName("successBtn")
         
         btn_layout.addWidget(self.btn_cancelar)
         btn_layout.addWidget(self.btn_aceptar)
@@ -622,7 +622,10 @@ class DialogoAgregarCliente(QDialog):
         layout.addStretch(1)
         
         btn_layout = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        btn_layout.setProperty("class", "client-dialog-buttons")
+        btn_layout.button(QDialogButtonBox.Ok).setText("Aceptar")
+        btn_layout.button(QDialogButtonBox.Ok).setObjectName("successBtn")
+        btn_layout.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btn_layout.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btn_layout.accepted.connect(self.validar_y_aceptar)
         btn_layout.rejected.connect(self.reject)
         
@@ -697,6 +700,7 @@ class _DialogoAsignarTarjeta(QDialog):
         self.txt_buscar_cliente = QLineEdit()
         self.txt_buscar_cliente.setPlaceholderText("Nombre o teléfono…")
         self.btn_buscar_c = QPushButton("Buscar")
+        self.btn_buscar_c.setObjectName("primaryBtn")
         self.btn_buscar_c.clicked.connect(self._buscar_cliente_existente)
         lay_a.addWidget(self.txt_buscar_cliente)
         lay_a.addWidget(self.btn_buscar_c)
@@ -707,6 +711,7 @@ class _DialogoAsignarTarjeta(QDialog):
         layout.addWidget(self.lbl_cliente_encontrado)
 
         self.btn_asignar_existente = QPushButton("✅ Asignar a este cliente")
+        self.btn_asignar_existente.setObjectName("successBtn")
         self.btn_asignar_existente.setEnabled(False)
         self.btn_asignar_existente.clicked.connect(self._asignar_existente)
         layout.addWidget(self.btn_asignar_existente)
@@ -726,10 +731,12 @@ class _DialogoAsignarTarjeta(QDialog):
         layout.addWidget(grp_b)
 
         self.btn_crear_rapido = QPushButton("➕ Crear y asignar")
+        self.btn_crear_rapido.setObjectName("successBtn")
         self.btn_crear_rapido.clicked.connect(self._crear_y_asignar)
         layout.addWidget(self.btn_crear_rapido)
 
         self.btn_cancelar = QPushButton("✖ Cancelar (continuar sin tarjeta)")
+        self.btn_cancelar.setObjectName("secondaryBtn")
         self.btn_cancelar.clicked.connect(self.reject)
         layout.addWidget(self.btn_cancelar)
 
@@ -997,11 +1004,11 @@ class ModuloVentas(ModuloBase):
         self._filter_busqueda = _ScanContextFilter(self, "producto", self.txt_busqueda)
         self.txt_busqueda.installEventFilter(self._filter_busqueda)
         self.btn_buscar = QPushButton("Buscar")
-        self.btn_buscar.setProperty("class", "search-button")
+        self.btn_buscar.setObjectName("primaryBtn")
         self.btn_limpiar_busqueda = QPushButton("❌")
         self.btn_limpiar_busqueda.setToolTip("Limpiar búsqueda")
         self.btn_limpiar_busqueda.setFixedWidth(40)
-        self.btn_limpiar_busqueda.setProperty("class", "icon-button")
+        self.btn_limpiar_busqueda.setObjectName("secondaryBtn")
         
         busqueda_layout.addWidget(self.txt_busqueda)
         busqueda_layout.addWidget(self.btn_buscar)
@@ -1063,13 +1070,13 @@ class ModuloVentas(ModuloBase):
         self.txt_cliente.installEventFilter(self._filter_cliente)
         self.btn_buscar_cliente = QPushButton("🔍")
         self.btn_buscar_cliente.setFixedWidth(40)
-        self.btn_buscar_cliente.setProperty("class", "icon-button")
+        self.btn_buscar_cliente.setObjectName("primaryBtn")
         self.btn_agregar_cliente = QPushButton("➕")
         self.btn_agregar_cliente.setFixedWidth(40)
-        self.btn_agregar_cliente.setProperty("class", "icon-button")
+        self.btn_agregar_cliente.setObjectName("successBtn")
         self.btn_limpiar_cliente = QPushButton("❌")
         self.btn_limpiar_cliente.setFixedWidth(40)
-        self.btn_limpiar_cliente.setProperty("class", "icon-button")
+        self.btn_limpiar_cliente.setObjectName("secondaryBtn")
         
         busqueda_cliente_layout = QHBoxLayout()
         busqueda_cliente_layout.addWidget(self.txt_cliente)
@@ -1182,12 +1189,12 @@ class ModuloVentas(ModuloBase):
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
-            btn_d.setProperty("class", "btn-outline btn-sm")
+            btn_d.setObjectName("outlineBtn")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
         btn_custom = QPushButton("Custom")
         btn_custom.setToolTip("Descuento personalizado")
-        btn_custom.setProperty("class", "btn-accent btn-sm")
+        btn_custom.setObjectName("warningBtn")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
         desc_lay.addWidget(btn_custom)
         layout_derecho.addWidget(grp_desc)
@@ -2532,7 +2539,7 @@ class ModuloVentas(ModuloBase):
             if desc_pct > 0:
                 btn_desc = QPushButton(f"-{desc_pct:.0f}%")
                 btn_desc.setToolTip("Click para quitar descuento")
-                btn_desc.setProperty("class", "btn-item-discount btn-xs")
+                btn_desc.setObjectName("warningBtn")
                 btn_desc.clicked.connect(
                     lambda _, r=row: self._quitar_descuento_item(r))
                 self.tabla_compra.setCellWidget(row, 3, btn_desc)
@@ -2546,14 +2553,14 @@ class ModuloVentas(ModuloBase):
             btn_modificar = QPushButton("✏️")
             btn_modificar.setToolTip("Modificar cantidad")
             btn_modificar.setFixedSize(28, 28)
-            btn_modificar.setProperty("class", "btn-icon-table")
+            btn_modificar.setObjectName("outlineBtn")
             btn_modificar.clicked.connect(lambda checked, r=row: self.modificar_cantidad_producto(r))
             self.tabla_compra.setCellWidget(row, 5, btn_modificar)
-            
+
             btn_eliminar = QPushButton("❌")
             btn_eliminar.setToolTip("Eliminar producto")
             btn_eliminar.setFixedSize(28, 28)
-            btn_eliminar.setProperty("class", "btn-icon-table btn-danger")
+            btn_eliminar.setObjectName("dangerBtn")
             btn_eliminar.clicked.connect(lambda checked, r=row: self.eliminar_producto_carrito(r))
             self.tabla_compra.setCellWidget(row, 6, btn_eliminar)
             
@@ -3353,6 +3360,10 @@ class ModuloVentas(ModuloBase):
         form.addRow("Uso CFDI:", cmb_uso)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Ok).setText("Aceptar")
+        btns.button(QDialogButtonBox.Ok).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return
