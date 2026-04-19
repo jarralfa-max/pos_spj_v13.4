@@ -715,6 +715,79 @@ TEMAS = {
             border: none;
             padding: 4px;
         }
+
+        /* ===== PRODUCT CARD STATES (ventas.py dynamic) ===== */
+        QFrame[class="product-card"] {
+            background-color: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 8px;
+        }
+        QFrame[class="product-card-selected"] {
+            background-color: #1E3A5F;
+            border: 2px solid #2563EB;
+            border-radius: 8px;
+        }
+        QFrame[class="product-card-hover"] {
+            background-color: #263548;
+            border: 1px solid #475569;
+            border-radius: 8px;
+        }
+
+        /* ===== SCANNER INPUT FEEDBACK ===== */
+        QLineEdit[class="input-scanner-success"] {
+            border: 2px solid #10B981;
+            background-color: rgba(16, 185, 129, 0.08);
+        }
+        QLineEdit[class="input-scanner-primary"] {
+            border: 2px solid #2563EB;
+        }
+        QLineEdit[class="input-scanner-base"] {
+            border: 1px solid #334155;
+        }
+
+        /* ===== PAYMENT / DIALOG LABELS ===== */
+        QLabel[class="payment-total"] {
+            font-size: 22px;
+            font-weight: 700;
+            color: #10B981;
+        }
+        QLabel[class="payment-change"] {
+            font-size: 16px;
+            font-weight: 700;
+            color: #F1F5F9;
+        }
+        QLabel[class="payment-change-negative"] {
+            font-size: 16px;
+            font-weight: 700;
+            color: #EF4444;
+        }
+        QLabel[class="dialog-title"], QLabel[class="payment-title"] {
+            font-size: 14px;
+            font-weight: 700;
+            color: #F1F5F9;
+        }
+
+        /* ===== SEMANTIC TEXT UTILITIES ===== */
+        QLabel[class="text-bold"]    { font-weight: 700; }
+        QLabel[class="text-success"] { color: #10B981; font-weight: 600; }
+        QLabel[class="text-danger"]  { color: #EF4444; font-weight: 600; }
+        QLabel[class="text-warning"] { color: #F59E0B; font-weight: 600; }
+        QLabel[class="text-info"]    { color: #3B82F6; font-weight: 600; }
+
+        /* ===== STATUS LABELS (caja.py) ===== */
+        QLabel[class="status-success"] {
+            background-color: #064E3B;
+            color: #10B981;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-weight: 600;
+        }
+        QLabel[class="status-neutral"] {
+            background-color: #1E293B;
+            color: #94A3B8;
+            border-radius: 4px;
+            padding: 4px 8px;
+        }
     """,
 
     "Claro": """
@@ -1321,6 +1394,79 @@ TEMAS = {
         QDockWidget::close-button, QDockWidget::float-button {
             border: none;
             padding: 4px;
+        }
+
+        /* ===== PRODUCT CARD STATES (ventas.py dynamic) ===== */
+        QFrame[class="product-card"] {
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+        }
+        QFrame[class="product-card-selected"] {
+            background-color: #EFF6FF;
+            border: 2px solid #2563EB;
+            border-radius: 8px;
+        }
+        QFrame[class="product-card-hover"] {
+            background-color: #F8FAFC;
+            border: 1px solid #CBD5E0;
+            border-radius: 8px;
+        }
+
+        /* ===== SCANNER INPUT FEEDBACK ===== */
+        QLineEdit[class="input-scanner-success"] {
+            border: 2px solid #059669;
+            background-color: rgba(5, 150, 105, 0.05);
+        }
+        QLineEdit[class="input-scanner-primary"] {
+            border: 2px solid #2563EB;
+        }
+        QLineEdit[class="input-scanner-base"] {
+            border: 1px solid #CBD5E0;
+        }
+
+        /* ===== PAYMENT / DIALOG LABELS ===== */
+        QLabel[class="payment-total"] {
+            font-size: 22px;
+            font-weight: 700;
+            color: #059669;
+        }
+        QLabel[class="payment-change"] {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0F172A;
+        }
+        QLabel[class="payment-change-negative"] {
+            font-size: 16px;
+            font-weight: 700;
+            color: #DC2626;
+        }
+        QLabel[class="dialog-title"], QLabel[class="payment-title"] {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0F172A;
+        }
+
+        /* ===== SEMANTIC TEXT UTILITIES ===== */
+        QLabel[class="text-bold"]    { font-weight: 700; }
+        QLabel[class="text-success"] { color: #059669; font-weight: 600; }
+        QLabel[class="text-danger"]  { color: #DC2626; font-weight: 600; }
+        QLabel[class="text-warning"] { color: #D97706; font-weight: 600; }
+        QLabel[class="text-info"]    { color: #2563EB; font-weight: 600; }
+
+        /* ===== STATUS LABELS (caja.py) ===== */
+        QLabel[class="status-success"] {
+            background-color: #D1FAE5;
+            color: #065F46;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-weight: 600;
+        }
+        QLabel[class="status-neutral"] {
+            background-color: #F1F5F9;
+            color: #64748B;
+            border-radius: 4px;
+            padding: 4px 8px;
         }
     """
 }

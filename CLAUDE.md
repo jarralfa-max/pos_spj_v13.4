@@ -175,6 +175,17 @@ class VentaWindow(QMainWindow):
 | FASE 6: Integración | ⏳ Pendiente | 0% |
 | FASE 7: Validación | ⏳ Pendiente | 0% |
 
+## 🎨 UI REFACTOR — 6 Fases (v13.4 → v13.5)
+
+| Fase UI | Estado | Descripción |
+|---------|--------|-------------|
+| UI-1: Auditoría | ✅ Completa | 12 críticos, 18 altos, 24 medios identificados |
+| UI-2: Design System | ✅ Completa | create_search_bar, create_action_buttons, create_info_pair + QSS kpiCard/infoValue |
+| UI-3: POS Module | ✅ Completa | ventas.py — 14 setProperty→objectName, 2 QDialogButtonBox español |
+| UI-4: Todos los módulos | ✅ Completa | 21 módulos — ~120 buttons objectName, ~20 QDialogButtonBox español |
+| UI-5: Tema consolidado | ✅ Completa | apply_global_theme sin side-effects, ThemeService fallback clave 'tema' |
+| UI-6: Cleanup final | ✅ Completa | QSS [class=] rules para product-card, scanner, payment, texto y status |
+
 ## Arquitectura del proyecto (ACTUAL → OBJETIVO)
 
 ### Arquitectura ACTUAL (legacy):
