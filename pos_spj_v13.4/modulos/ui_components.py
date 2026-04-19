@@ -254,9 +254,9 @@ def create_labeled_input(parent, label_text: str, placeholder: str = "",
     label.setFont(QFont(Typography.FONT_FAMILY, 12, QFont.Medium))
     if required:
         label.setText(f"{label_text} *")
-        label.setStyleSheet(f"color: {Colors.DANGER.BASE}; font-weight: 600;")
+        label.setObjectName("labelRequired")
     else:
-        label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_700}; font-weight: 500;")
+        label.setObjectName("labelOptional")
     
     # Input
     input_field = create_input_field(container, placeholder, tooltip)
@@ -335,15 +335,7 @@ def create_stat_card(parent, title: str, value: str, icon_path: str = None,
         pixmap = QPixmap(icon_path).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         icon_label.setPixmap(pixmap)
         
-        # Color del ícono según variante
-        color_map = {
-            "primary": Colors.PRIMARY.BASE,
-            "success": Colors.SUCCESS.BASE,
-            "danger": Colors.DANGER.BASE,
-            "warning": Colors.WARNING.BASE,
-        }
-        # Aplicar tinte al ícono (simplificado)
-        icon_label.setStyleSheet(f"background-color: {color_map.get(color_variant, Colors.PRIMARY.BASE)}20; border-radius: 8px;")
+        icon_label.setObjectName(f"statIconBg-{color_variant}")
         
         layout.addWidget(icon_label)
     
@@ -353,12 +345,12 @@ def create_stat_card(parent, title: str, value: str, icon_path: str = None,
     
     # Título
     title_label = QLabel(title)
-    title_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS}; font-weight: 500;")
+    title_label.setObjectName("statTitle")
     text_layout.addWidget(title_label)
-    
+
     # Valor
     value_label = QLabel(value)
-    value_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_900}; font-size: {Typography.SIZE_XL}; font-weight: 700;")
+    value_label.setObjectName("statValue")
     text_layout.addWidget(value_label)
     
     layout.addLayout(text_layout)
@@ -378,29 +370,7 @@ def create_badge(parent, text: str, variant: str = "primary") -> QLabel:
     """
     badge = QLabel(text, parent)
     badge.setAlignment(Qt.AlignCenter)
-    
-    # Colores según variante
-    color_map = {
-        "primary": (Colors.PRIMARY.BASE, Colors.PRIMARY.LIGHT),
-        "success": (Colors.SUCCESS.BASE, Colors.SUCCESS.BG_SOFT),
-        "danger": (Colors.DANGER.BASE, Colors.DANGER.BG_SOFT),
-        "warning": (Colors.WARNING.BASE, Colors.WARNING.BG_SOFT),
-        "info": (Colors.INFO.BASE, Colors.INFO.BG_SOFT),
-        "neutral": (Colors.NEUTRAL.SLATE_600, Colors.NEUTRAL.SLATE_100),
-    }
-    
-    text_color, bg_color = color_map.get(variant, color_map["primary"])
-    
-    badge.setStyleSheet(f"""
-        background-color: {bg_color};
-        color: {text_color};
-        border-radius: {Borders.RADIUS_FULL}px;
-        padding: {Spacing.XS}px {Spacing.SM}px;
-        font-size: {Typography.SIZE_XS};
-        font-weight: 600;
-    """)
-    
-    # Size mínimo
+    badge.setObjectName(f"badge-{variant}")
     badge.setMinimumHeight(16)
     
     return badge
@@ -481,11 +451,7 @@ def create_heading(parent=None, text: str = "") -> QLabel:
     if not isinstance(parent, QWidget):
         parent = None
     label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.DARK_TEXT};
-        font-size: {Typography.SIZE_XL};
-        font-weight: {Typography.WEIGHT_BOLD};
-    """)
+    label.setObjectName("headingLabel")
     return label
 
 
@@ -503,11 +469,7 @@ def create_subheading(parent=None, text: str = "") -> QLabel:
     if not isinstance(parent, QWidget):
         parent = None
     label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.DARK_TEXT_SEC};
-        font-size: {Typography.SIZE_MD};
-        font-weight: {Typography.WEIGHT_SEMIBOLD};
-    """)
+    label.setObjectName("subheadingLabel")
     return label
 
 
@@ -520,10 +482,7 @@ def create_caption(parent=None, text: str = "") -> QLabel:
     if not isinstance(parent, QWidget):
         parent = None
     label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_500};
-        font-size: {Typography.SIZE_XS};
-    """)
+    label.setObjectName("captionLabel")
     return label
 
 
@@ -541,11 +500,7 @@ def create_label(parent, text: str, variant: str = "body") -> QLabel:
         return create_caption(parent, text)
 
     label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_700};
-        font-size: {Typography.SIZE_MD};
-        font-weight: {Typography.WEIGHT_REGULAR};
-    """)
+    label.setObjectName("bodyLabel")
     return label
 
 
@@ -626,46 +581,7 @@ def create_table(parent, show_grid: bool = False, alternating_colors: bool = Tru
     
     # Ajuste automático
     table.setSizeAdjustPolicy(QAbstractItemView.AdjustToContentsOnFirstShow)
-    
-    # Estilo CSS inline para garantizar consistencia
-    table.setStyleSheet(f"""
-        QTableWidget {{
-            background-color: {Colors.NEUTRAL.DARK_CARD};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-            gridline-color: {Colors.NEUTRAL.DARK_BORDER};
-            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-            alternate-background-color: {Colors.NEUTRAL.DARK_BG};
-            border-radius: {Borders.RADIUS_LG}px;
-            font-size: {Typography.SIZE_SM};
-        }}
-        QTableWidget::item {{
-            padding: {Spacing.SM}px {Spacing.MD}px;
-            border-bottom: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-        }}
-        QTableWidget::item:selected {{
-            background-color: {Colors.PRIMARY.BASE};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-        QTableWidget::item:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-        }}
-        QHeaderView::section {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-            border: none;
-            border-bottom: 2px solid {Colors.NEUTRAL.SLATE_600};
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            padding: {Spacing.SM}px {Spacing.MD}px;
-            text-transform: uppercase;
-            font-size: {Typography.SIZE_XS};
-            letter-spacing: 0.5px;
-            min-height: 20px;
-        }}
-        QHeaderView::section:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_600};
-        }}
-    """)
-    
+
     return table
 
 
@@ -711,40 +627,7 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
     btn = QPushButton(text, parent)
     btn.setFixedHeight(18)
     btn.setCursor(Qt.PointingHandCursor)
-    
-    # Mapeo de variantes
-    variant_map = {
-        "primary": "primaryBtn",
-        "secondary": "secondaryBtn",
-        "success": "successBtn",
-        "danger": "dangerBtn",
-        "warning": "warningBtn",
-        "outline": "outlineBtn",
-    }
-    
-    object_name = variant_map.get(variant, "outlineBtn")
-    btn.setObjectName(object_name)
-    
-    # Estilo inline específico para botones de tabla
-    btn.setStyleSheet(f"""
-        QPushButton#{object_name} {{
-            background-color: transparent;
-            border: 1px solid {Colors.NEUTRAL.SLATE_600};
-            border-radius: {Borders.RADIUS_MD}px;
-            padding: {Spacing.XS}px {Spacing.SM}px;
-            font-size: {Typography.SIZE_XS};
-            font-weight: {Typography.WEIGHT_MEDIUM};
-            color: {Colors.NEUTRAL.SLATE_300};
-        }}
-        QPushButton#{object_name}:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-            border-color: {Colors.NEUTRAL.SLATE_500};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-        QPushButton#{object_name}:pressed {{
-            background-color: {Colors.NEUTRAL.SLATE_800};
-        }}
-    """)
+    btn.setObjectName("tableBtn")
     
     if tooltip:
         apply_tooltip(btn, tooltip)

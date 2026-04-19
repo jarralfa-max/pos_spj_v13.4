@@ -788,6 +788,85 @@ TEMAS = {
             border-radius: 4px;
             padding: 4px 8px;
         }
+
+        /* ===== TYPOGRAPHY LABELS (ui_components.py) ===== */
+        QLabel#headingLabel    { color: #F1F5F9; font-size: 14px; font-weight: 700; }
+        QLabel#subheadingLabel { color: #94A3B8; font-size: 12px; font-weight: 600; }
+        QLabel#captionLabel    { color: #64748B; font-size: 10px; }
+        QLabel#bodyLabel       { color: #CBD5E1; font-size: 12px; }
+        QLabel#labelRequired   { color: #EF4444; font-weight: 600; }
+        QLabel#labelOptional   { color: #94A3B8; font-weight: 500; }
+
+        /* ===== STAT CARD LABELS ===== */
+        QLabel#statTitle { color: #64748B; font-size: 10px; font-weight: 500; }
+        QLabel#statValue { color: #F1F5F9; font-size: 14px; font-weight: 700; }
+        QLabel#statIconBg-primary { background-color: rgba(37, 99, 235, 0.12); border-radius: 8px; }
+        QLabel#statIconBg-success { background-color: rgba(22, 163, 74, 0.12); border-radius: 8px; }
+        QLabel#statIconBg-danger  { background-color: rgba(220, 38, 38, 0.12); border-radius: 8px; }
+        QLabel#statIconBg-warning { background-color: rgba(217, 119, 6, 0.12); border-radius: 8px; }
+
+        /* ===== BADGES ===== */
+        QLabel#badge-primary { background-color: rgba(37, 99, 235, 0.15); color: #60A5FA; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-success { background-color: rgba(22, 163, 74, 0.15); color: #4ADE80; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-danger  { background-color: rgba(220, 38, 38, 0.15); color: #F87171; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-warning { background-color: rgba(217, 119, 6, 0.15); color: #FCD34D; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-info    { background-color: rgba(8, 145, 178, 0.15); color: #22D3EE; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-neutral { background-color: #334155; color: #94A3B8; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+
+        /* ===== STANDARD TABLE (ui_components.py) ===== */
+        QTableWidget#standardTable {
+            background-color: #1E293B;
+            color: #F1F5F9;
+            gridline-color: #334155;
+            border: 1px solid #334155;
+            alternate-background-color: #0F172A;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+        QTableWidget#standardTable::item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #334155;
+        }
+        QTableWidget#standardTable::item:selected {
+            background-color: #2563EB;
+            color: #FFFFFF;
+        }
+        QTableWidget#standardTable::item:hover {
+            background-color: #334155;
+        }
+        QTableWidget#standardTable QHeaderView::section {
+            background-color: #334155;
+            color: #F1F5F9;
+            border: none;
+            border-bottom: 2px solid #475569;
+            font-weight: 600;
+            padding: 8px 12px;
+            font-size: 10px;
+            min-height: 20px;
+        }
+        QTableWidget#standardTable QHeaderView::section:hover {
+            background-color: #475569;
+        }
+
+        /* ===== TABLE BUTTONS ===== */
+        QPushButton#tableBtn {
+            background-color: transparent;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 500;
+            color: #CBD5E1;
+            min-height: 18px;
+        }
+        QPushButton#tableBtn:hover {
+            background-color: #334155;
+            border-color: #64748B;
+            color: #F1F5F9;
+        }
+        QPushButton#tableBtn:pressed {
+            background-color: #1E293B;
+        }
     """,
 
     "Claro": """
@@ -1467,6 +1546,85 @@ TEMAS = {
             color: #64748B;
             border-radius: 4px;
             padding: 4px 8px;
+        }
+
+        /* ===== TYPOGRAPHY LABELS (ui_components.py) ===== */
+        QLabel#headingLabel    { color: #0F172A; font-size: 14px; font-weight: 700; }
+        QLabel#subheadingLabel { color: #334155; font-size: 12px; font-weight: 600; }
+        QLabel#captionLabel    { color: #64748B; font-size: 10px; }
+        QLabel#bodyLabel       { color: #475569; font-size: 12px; }
+        QLabel#labelRequired   { color: #DC2626; font-weight: 600; }
+        QLabel#labelOptional   { color: #475569; font-weight: 500; }
+
+        /* ===== STAT CARD LABELS ===== */
+        QLabel#statTitle { color: #64748B; font-size: 10px; font-weight: 500; }
+        QLabel#statValue { color: #0F172A; font-size: 14px; font-weight: 700; }
+        QLabel#statIconBg-primary { background-color: rgba(37, 99, 235, 0.08); border-radius: 8px; }
+        QLabel#statIconBg-success { background-color: rgba(22, 163, 74, 0.08); border-radius: 8px; }
+        QLabel#statIconBg-danger  { background-color: rgba(220, 38, 38, 0.08); border-radius: 8px; }
+        QLabel#statIconBg-warning { background-color: rgba(217, 119, 6, 0.08); border-radius: 8px; }
+
+        /* ===== BADGES ===== */
+        QLabel#badge-primary { background-color: #DBEAFE; color: #2563EB; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-success { background-color: #DCFCE7; color: #16A34A; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-danger  { background-color: #FEE2E2; color: #DC2626; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-warning { background-color: #FEF3C7; color: #D97706; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-info    { background-color: #ECFEFF; color: #0891B2; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+        QLabel#badge-neutral { background-color: #F1F5F9; color: #475569; border-radius: 9999px; padding: 4px 8px; font-size: 10px; font-weight: 600; }
+
+        /* ===== STANDARD TABLE (ui_components.py) ===== */
+        QTableWidget#standardTable {
+            background-color: #FFFFFF;
+            color: #0F172A;
+            gridline-color: #E2E8F0;
+            border: 1px solid #E2E8F0;
+            alternate-background-color: #F8FAFC;
+            border-radius: 8px;
+            font-size: 11px;
+        }
+        QTableWidget#standardTable::item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #E2E8F0;
+        }
+        QTableWidget#standardTable::item:selected {
+            background-color: #2563EB;
+            color: #FFFFFF;
+        }
+        QTableWidget#standardTable::item:hover {
+            background-color: #F1F5F9;
+        }
+        QTableWidget#standardTable QHeaderView::section {
+            background-color: #F1F5F9;
+            color: #0F172A;
+            border: none;
+            border-bottom: 2px solid #E2E8F0;
+            font-weight: 600;
+            padding: 8px 12px;
+            font-size: 10px;
+            min-height: 20px;
+        }
+        QTableWidget#standardTable QHeaderView::section:hover {
+            background-color: #E2E8F0;
+        }
+
+        /* ===== TABLE BUTTONS ===== */
+        QPushButton#tableBtn {
+            background-color: transparent;
+            border: 1px solid #CBD5E0;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 500;
+            color: #475569;
+            min-height: 18px;
+        }
+        QPushButton#tableBtn:hover {
+            background-color: #F1F5F9;
+            border-color: #94A3B8;
+            color: #0F172A;
+        }
+        QPushButton#tableBtn:pressed {
+            background-color: #E2E8F0;
         }
     """
 }
