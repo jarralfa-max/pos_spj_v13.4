@@ -21,6 +21,7 @@ _THEME_ALIASES = {
 # Nombre por defecto
 _DEFAULT_THEME = "Oscuro"
 _current_theme = _DEFAULT_THEME
+_qss_cache: dict = {}  # theme_name → qss string (loaded once per session)
 
 
 def _get_temas() -> dict:
@@ -39,13 +40,17 @@ def get_available_themes() -> list:
 
 
 def get_qss(theme_name: str) -> str:
-    """Retorna el QSS para el tema dado. Acepta nombres spec o nombres legacy."""
-    temas = _get_temas()
+    """Retorna el QSS para el tema dado. Cachea por nombre para evitar re-parseo."""
+    global _qss_cache
     real_name = _THEME_ALIASES.get(theme_name, theme_name)
+    if real_name in _qss_cache:
+        return _qss_cache[real_name]
+    temas = _get_temas()
     qss = temas.get(real_name, "")
     if not qss:
         logger.warning("Tema '%s' no encontrado, usando default", theme_name)
         qss = temas.get(_DEFAULT_THEME, "")
+    _qss_cache[real_name] = qss
     return qss
 
 

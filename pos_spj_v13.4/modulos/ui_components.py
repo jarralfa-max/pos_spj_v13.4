@@ -321,7 +321,7 @@ def create_stat_card(parent, title: str, value: str, icon_path: str = None,
     """
     # CORRECCIÓN CRÍTICA: with_layout=False porque vamos a usar QHBoxLayout personalizado
     card = create_card(parent, padding=Spacing.MD, with_layout=False)
-    card.setFixedHeight(80)  # Height reducido
+    card.setFixedHeight(48)
     
     layout = QHBoxLayout(card)
     layout.setSpacing(Spacing.MD)
@@ -401,7 +401,7 @@ def create_badge(parent, text: str, variant: str = "primary") -> QLabel:
     """)
     
     # Size mínimo
-    badge.setMinimumHeight(24)
+    badge.setMinimumHeight(16)
     
     return badge
 
@@ -482,8 +482,8 @@ def create_heading(parent=None, text: str = "") -> QLabel:
         parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_900};
-        font-size: {Typography.SIZE_XXL};
+        color: {Colors.NEUTRAL.DARK_TEXT};
+        font-size: {Typography.SIZE_XL};
         font-weight: {Typography.WEIGHT_BOLD};
     """)
     return label
@@ -504,8 +504,8 @@ def create_subheading(parent=None, text: str = "") -> QLabel:
         parent = None
     label = QLabel(text, parent)
     label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_700};
-        font-size: {Typography.SIZE_LG};
+        color: {Colors.NEUTRAL.DARK_TEXT_SEC};
+        font-size: {Typography.SIZE_MD};
         font-weight: {Typography.WEIGHT_SEMIBOLD};
     """)
     return label
@@ -618,7 +618,7 @@ def create_table(parent, show_grid: bool = False, alternating_colors: bool = Tru
     
     # Header vertical oculto por defecto
     table.verticalHeader().setVisible(False)
-    table.verticalHeader().setDefaultSectionSize(Spacing.BTN_HEIGHT_MIN + 8)  # Altura de fila consistente
+    table.verticalHeader().setDefaultSectionSize(22)
     
     # Scrollbars
     table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -659,7 +659,7 @@ def create_table(parent, show_grid: bool = False, alternating_colors: bool = Tru
             text-transform: uppercase;
             font-size: {Typography.SIZE_XS};
             letter-spacing: 0.5px;
-            min-height: 40px;
+            min-height: 20px;
         }}
         QHeaderView::section:hover {{
             background-color: {Colors.NEUTRAL.SLATE_600};
@@ -709,7 +709,7 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
         QPushButton compacto estilizado
     """
     btn = QPushButton(text, parent)
-    btn.setFixedHeight(28)  # Más pequeño que el estándar 36px
+    btn.setFixedHeight(18)
     btn.setCursor(Qt.PointingHandCursor)
     
     # Mapeo de variantes

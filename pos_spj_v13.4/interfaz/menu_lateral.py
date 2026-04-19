@@ -129,11 +129,15 @@ class MenuLateral(QFrame):
         self._configurar_ui()
 
     def enforce_dark_mode(self) -> None:
-        """
-        Sidebar SIEMPRE oscuro por diseño global.
-        Se puede invocar tras aplicar tema global para re-afirmar su skin.
-        """
+        """Sidebar SIEMPRE oscuro — re-aplica después de cualquier cambio de tema global."""
         self.setStyleSheet(_SIDEBAR_DARK_QSS)
+        # Forzar color en cada SeccionHeader individualmente para que gane
+        # sobre el QSS de la app (widget-level > app-level en Qt, pero reforzamos)
+        for child in self.findChildren(__import__('PyQt5.QtWidgets', fromlist=['QLabel']).QLabel):
+            if child.property("class") == "SeccionHeader":
+                child.setStyleSheet("color: #64748B; font-size: 11px; font-weight: 700;"
+                                    " padding-left: 15px; margin-top: 20px; margin-bottom: 8px;"
+                                    " background: transparent;")
 
     def _configurar_ui(self):
         # Layout principal del Frame

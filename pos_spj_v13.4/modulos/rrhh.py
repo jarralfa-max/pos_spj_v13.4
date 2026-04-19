@@ -70,6 +70,14 @@ class DialogoEmpleado(QDialog):
         layout.addLayout(form)
         
         btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        save_btn = btn_box.button(QDialogButtonBox.Save)
+        if save_btn:
+            save_btn.setText("Guardar")
+            save_btn.setObjectName("primaryBtn")
+        cancel_btn = btn_box.button(QDialogButtonBox.Cancel)
+        if cancel_btn:
+            cancel_btn.setText("Cancelar")
+            cancel_btn.setObjectName("secondaryBtn")
         btn_box.accepted.connect(self.guardar)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
@@ -364,6 +372,14 @@ class ModuloRRHH(QWidget):
         form.addRow("Color:", btn_color)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        save_b = btns.button(QDialogButtonBox.Save)
+        if save_b:
+            save_b.setText("Guardar")
+            save_b.setObjectName("primaryBtn")
+        cancel_b = btns.button(QDialogButtonBox.Cancel)
+        if cancel_b:
+            cancel_b.setText("Cancelar")
+            cancel_b.setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return
