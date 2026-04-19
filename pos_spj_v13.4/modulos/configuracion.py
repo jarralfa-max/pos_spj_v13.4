@@ -1982,7 +1982,14 @@ class ModuloConfiguracion(ModuloBase):
             QComboBox
         )
         from PyQt5.QtCore import Qt
-        lay = QVBoxLayout(self.tab_empresa)
+        from PyQt5.QtWidgets import QScrollArea as _SA
+        _outer = QVBoxLayout(self.tab_empresa)
+        _outer.setContentsMargins(0, 0, 0, 0)
+        _scroll = _SA(); _scroll.setWidgetResizable(True)
+        _scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        _inner = QWidget(); _scroll.setWidget(_inner)
+        _outer.addWidget(_scroll)
+        lay = QVBoxLayout(_inner)
         lay.setContentsMargins(12,10,12,10); lay.setSpacing(10)
 
         grp1 = QGroupBox("Datos del negocio")
