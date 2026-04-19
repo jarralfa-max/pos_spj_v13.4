@@ -494,6 +494,11 @@ TEMAS = {
             font-size: 10px;
             color: #64748B;
         }
+        QLabel#infoValue {
+            color: #F1F5F9;
+            font-size: 11px;
+            font-weight: 600;
+        }
 
         /* ===== CHECKBOX ===== */
         QCheckBox {
@@ -1101,6 +1106,11 @@ TEMAS = {
         QLabel#caption {
             font-size: 10px;
             color: #94A3B8;
+        }
+        QLabel#infoValue {
+            color: #0F172A;
+            font-size: 11px;
+            font-weight: 600;
         }
 
         /* ===== CHECKBOX ===== */

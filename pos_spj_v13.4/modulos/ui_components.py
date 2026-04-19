@@ -753,6 +753,154 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  SEARCH BAR
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_search_bar(parent=None, placeholder: str = "Buscar...",
+                      btn_text: str = None, tooltip: str = None) -> QWidget:
+    """
+    Crea una barra de búsqueda estandarizada: QLineEdit + botón opcional.
+
+    Returns:
+        QWidget contenedor con `.input` (QLineEdit) y `.btn` (QPushButton|None).
+    """
+    container = QWidget(parent)
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(Spacing.SM)
+
+    inp = QLineEdit(container)
+    inp.setObjectName("standardInput")
+    inp.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
+    inp.setPlaceholderText(placeholder)
+    if tooltip:
+        apply_tooltip(inp, tooltip)
+    layout.addWidget(inp)
+
+    btn = None
+    if btn_text:
+        btn = QPushButton(btn_text, container)
+        btn.setObjectName("primaryBtn")
+        btn.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
+        btn.setCursor(Qt.PointingHandCursor)
+        layout.addWidget(btn)
+
+    container.input = inp
+    container.btn = btn
+    return container
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ACTION BUTTONS ROW
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_action_buttons(actions: dict, parent=None) -> QWidget:
+    """
+    Crea una fila horizontal de botones a partir de un dict.
+
+    Args:
+        actions: {"Guardar": (callback, "success"), "Cancelar": (callback, "secondary"), ...}
+                 O dict simple {"Guardar": callback, ...} — usa variante auto-detectada.
+        parent: Widget padre opcional.
+
+    Returns:
+        QWidget contenedor con los botones en un QHBoxLayout.
+        Los botones están disponibles en container.buttons[label].
+    """
+    container = QWidget(parent)
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(Spacing.SM)
+    layout.addStretch()
+
+    _VARIANT_FACTORY = {
+        "primary":   create_primary_button,
+        "secondary": create_secondary_button,
+        "success":   create_success_button,
+        "danger":    create_danger_button,
+        "warning":   create_warning_button,
+        "outline":   create_outline_button,
+    }
+    # keyword→variant fallback (mirrors spj_styles._KW_MAP)
+    _KW = {"guardar": "success", "nuevo": "success", "agregar": "success",
+           "confirmar": "success", "aceptar": "success", "crear": "success",
+           "eliminar": "danger", "borrar": "danger", "cancelar": "secondary",
+           "cerrar": "secondary", "salir": "secondary",
+           "editar": "warning", "modificar": "warning", "actualizar": "warning",
+           "buscar": "primary", "exportar": "outline", "reporte": "outline"}
+
+    buttons = {}
+    for label, value in actions.items():
+        if isinstance(value, tuple):
+            callback, variant = value[0], value[1] if len(value) > 1 else "primary"
+        else:
+            callback = value
+            t = label.lower()
+            variant = next((v for kw, v in _KW.items() if kw in t), "primary")
+
+        factory = _VARIANT_FACTORY.get(variant, create_primary_button)
+        btn = factory(container, label)
+        if callable(callback):
+            btn.clicked.connect(callback)
+        layout.addWidget(btn)
+        buttons[label] = btn
+
+    container.buttons = buttons
+    return container
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  INFO PAIR (label + value)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def create_info_pair(label_text: str, value_text: str = "",
+                     parent=None, orientation: str = "horizontal") -> QWidget:
+    """
+    Crea un par label/valor estandarizado para formularios e info panels.
+
+    Args:
+        label_text: Texto de la etiqueta descriptiva.
+        value_text: Valor a mostrar (puede actualizarse luego vía .value_label).
+        parent: Widget padre opcional.
+        orientation: "horizontal" (default) o "vertical".
+
+    Returns:
+        QWidget con .label_widget (QLabel) y .value_label (QLabel).
+    """
+    container = QWidget(parent)
+    if orientation == "vertical":
+        layout = QVBoxLayout(container)
+        layout.setSpacing(Spacing.XS)
+    else:
+        layout = QHBoxLayout(container)
+        layout.setSpacing(Spacing.SM)
+    layout.setContentsMargins(0, 0, 0, 0)
+
+    lbl = QLabel(label_text, container)
+    lbl.setStyleSheet(
+        f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
+        f" font-weight: {Typography.WEIGHT_MEDIUM};"
+    )
+
+    val = QLabel(value_text, container)
+    val.setObjectName("infoValue")
+    val.setStyleSheet(
+        f"color: {Colors.NEUTRAL.DARK_TEXT}; font-size: {Typography.SIZE_SM};"
+        f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+    )
+    val.setTextInteractionFlags(Qt.TextSelectableByMouse)
+
+    layout.addWidget(lbl)
+    if orientation == "horizontal":
+        layout.addStretch()
+    layout.addWidget(val)
+
+    container.label_widget = lbl
+    container.value_label = val
+    return container
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  COMPATIBILIDAD DINÁMICA (IMPORTS LEGACY)
 # ═══════════════════════════════════════════════════════════════════════════════
 _LEGACY_WARNED = set()
@@ -795,6 +943,12 @@ def _resolve_legacy_factory(name: str):
         return create_table_button
     if "table" in n:
         return create_table
+    if "search_bar" in n or "search" in n:
+        return create_search_bar
+    if "action_button" in n:
+        return create_action_buttons
+    if "info_pair" in n:
+        return create_info_pair
     return None
 
 
@@ -861,4 +1015,9 @@ __all__ = [
     "create_table",
     "create_table_with_columns",
     "create_table_button",
+
+    # Compuestos (FASE 2)
+    "create_search_bar",
+    "create_action_buttons",
+    "create_info_pair",
 ]
