@@ -129,6 +129,7 @@ class ModuloCotizaciones(ModuloBase):
         btn_nueva = create_primary_button(self, "➕ Nueva Cotización", "Crear una nueva cotización o presupuesto")
         btn_nueva.clicked.connect(self._nueva_cotizacion)
         btn_vencer = QPushButton("⏰ Vencer expiradas")
+        btn_vencer.setObjectName("warningBtn")
         btn_vencer.setToolTip("Marca como vencidas las cotizaciones cuya fecha límite ya pasó")
         btn_vencer.clicked.connect(self._vencer_expiradas)
         fb.addWidget(btn_vencer); fb.addWidget(btn_nueva)
@@ -154,11 +155,11 @@ class ModuloCotizaciones(ModuloBase):
 
         # Botones de acción
         ab = QHBoxLayout()
-        self._btn_aprobar   = QPushButton("✅ Aprobar")
-        self._btn_rechazar  = QPushButton("❌ Rechazar")
-        self._btn_convertir = QPushButton("💰 Convertir en Venta")
-        self._btn_detalle   = QPushButton("🔍 Ver Detalle")
-        self._btn_imprimir  = QPushButton("🖨️ Imprimir / PDF")
+        self._btn_aprobar   = QPushButton("✅ Aprobar");   self._btn_aprobar.setObjectName("successBtn")
+        self._btn_rechazar  = QPushButton("❌ Rechazar");  self._btn_rechazar.setObjectName("dangerBtn")
+        self._btn_convertir = QPushButton("💰 Convertir en Venta"); self._btn_convertir.setObjectName("successBtn")
+        self._btn_detalle   = QPushButton("🔍 Ver Detalle"); self._btn_detalle.setObjectName("primaryBtn")
+        self._btn_imprimir  = QPushButton("🖨️ Imprimir / PDF"); self._btn_imprimir.setObjectName("outlineBtn")
         for b in (self._btn_aprobar, self._btn_rechazar,
                   self._btn_convertir, self._btn_detalle, self._btn_imprimir):
             b.setEnabled(False)

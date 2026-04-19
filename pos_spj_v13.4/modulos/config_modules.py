@@ -95,9 +95,9 @@ class ModuloConfigModulos(QWidget):
         lay.addWidget(self.tbl)
 
         btn_row = QHBoxLayout()
-        btn_all_on  = QPushButton("✅ Activar todos")
+        btn_all_on  = QPushButton("✅ Activar todos"); btn_all_on.setObjectName("successBtn")
         btn_all_on.clicked.connect(lambda: self._toggle_todos(True))
-        btn_all_off = QPushButton("❌ Desactivar todos")
+        btn_all_off = QPushButton("❌ Desactivar todos"); btn_all_off.setObjectName("dangerBtn")
         btn_all_off.clicked.connect(lambda: self._toggle_todos(False))
         btn_row.addWidget(btn_all_on); btn_row.addWidget(btn_all_off); btn_row.addStretch()
         lay.addLayout(btn_row)
@@ -147,11 +147,7 @@ class ModuloConfigModulos(QWidget):
             self.tbl.setItem(ri, 2, it_est)
 
             btn = QPushButton("Desactivar" if activo else "Activar")
-            btn.setStyleSheet(
-                "background:#e74c3c;color:white;padding:3px 8px;border-radius:3px;"
-                if activo else
-                "background:#27ae60;color:white;padding:3px 8px;border-radius:3px;"
-            )
+            btn.setObjectName("dangerBtn" if activo else "successBtn")
             btn.clicked.connect(
                 lambda _, c=codigo, a=activo: self._toggle(c, not a))
             self.tbl.setCellWidget(ri, 3, btn)

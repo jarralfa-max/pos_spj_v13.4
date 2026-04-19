@@ -740,7 +740,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         layout_lista = QVBoxLayout(panel_lista)
         self.lista_recetas = QListWidget()
         layout_lista.addWidget(self.lista_recetas)
-        layout_lista.addWidget(QPushButton("📝 Crear Nueva Receta"))
+        _btn_receta = QPushButton("📝 Crear Nueva Receta"); _btn_receta.setObjectName("successBtn")
+        layout_lista.addWidget(_btn_receta)
         
         panel_detalle = QGroupBox("Configuración de Rendimiento")
         layout_detalle = QVBoxLayout(panel_detalle)

@@ -139,14 +139,10 @@ class RecepcionQRWidget(QWidget):
 
         btns = QHBoxLayout()
         btn_generar = QPushButton("🏷️ Generar y Ver QR")
-        btn_generar.setStyleSheet(
-            f"background:{_C_AZUL};color:white;font-weight:bold;padding:8px 16px;border-radius:4px;"
-        )
+        btn_generar.setObjectName("primaryBtn")
         btn_generar.clicked.connect(self._generar_qr_contenedor)
         btn_imprimir = QPushButton("🖨️ Imprimir Etiqueta")
-        btn_imprimir.setStyleSheet(
-            f"background:{_C_VERDE};color:white;padding:8px 16px;border-radius:4px;"
-        )
+        btn_imprimir.setObjectName("outlineBtn")
         btn_imprimir.clicked.connect(self._imprimir_etiqueta_qr)
         btns.addStretch(); btns.addWidget(btn_generar); btns.addWidget(btn_imprimir)
         lay.addLayout(btns)
@@ -167,9 +163,7 @@ class RecepcionQRWidget(QWidget):
         self._txt_uuid_asignar.setMinimumHeight(32)
         self._txt_uuid_asignar.returnPressed.connect(self._cargar_contenedor)
         btn_cargar = QPushButton("🔍 Cargar")
-        btn_cargar.setStyleSheet(
-            f"background:{_C_AZUL};color:white;font-weight:bold;"
-            "padding:6px 14px;border-radius:4px;")
+        btn_cargar.setObjectName("primaryBtn")
         btn_cargar.clicked.connect(self._cargar_contenedor)
         s1.addWidget(self._txt_uuid_asignar, 1)
         s1.addWidget(btn_cargar)
@@ -230,15 +224,13 @@ class RecepcionQRWidget(QWidget):
         btn_add_item = QPushButton("➕")
         btn_add_item.setToolTip("Agregar producto al contenedor")
         btn_add_item.setFixedSize(36, 30)
-        btn_add_item.setStyleSheet(
-            f"background:{_C_VERDE};color:white;font-weight:bold;border-radius:4px;")
+        btn_add_item.setObjectName("successBtn")
         btn_add_item.clicked.connect(self._agregar_item_asignacion)
 
         btn_rm_item = QPushButton("🗑")
         btn_rm_item.setToolTip("Quitar producto seleccionado")
         btn_rm_item.setFixedSize(36, 30)
-        btn_rm_item.setStyleSheet(
-            f"background:{_C_ROJO};color:white;border-radius:4px;")
+        btn_rm_item.setObjectName("dangerBtn")
         btn_rm_item.clicked.connect(self._quitar_item_asignacion)
 
         add_row.addWidget(self._txt_buscar_prod_asign, 1)
@@ -318,9 +310,7 @@ class RecepcionQRWidget(QWidget):
         # ── Botón guardar ─────────────────────────────────────────────────────
         btn_guardar_asig = QPushButton("💾 Guardar asignación")
         btn_guardar_asig.setMinimumHeight(38)
-        btn_guardar_asig.setStyleSheet(
-            f"background:{_C_VERDE};color:white;font-weight:bold;"
-            "font-size:14px;padding:8px;border-radius:5px;")
+        btn_guardar_asig.setObjectName("successBtn")
         btn_guardar_asig.clicked.connect(self._guardar_asignacion)
         lay.addWidget(btn_guardar_asig)
 
@@ -345,9 +335,7 @@ class RecepcionQRWidget(QWidget):
         self._txt_uuid_recv.setPlaceholderText("Escanea el QR con el lector HID…")
         self._txt_uuid_recv.returnPressed.connect(self._cargar_para_recepcion)
         btn_recv_cargar = QPushButton("🔍 Cargar")
-        btn_recv_cargar.setStyleSheet(
-            f"background:{_C_AZUL};color:white;padding:6px 12px;border-radius:3px;"
-        )
+        btn_recv_cargar.setObjectName("primaryBtn")
         btn_recv_cargar.clicked.connect(self._cargar_para_recepcion)
         scan_lay.addWidget(self._txt_uuid_recv); scan_lay.addWidget(btn_recv_cargar)
         lay.addWidget(scan_grp)
@@ -379,9 +367,7 @@ class RecepcionQRWidget(QWidget):
         lay.addWidget(self._lbl_recv_diff)
 
         btn_confirmar_recv = QPushButton("✅ Confirmar Recepción y Actualizar Inventario")
-        btn_confirmar_recv.setStyleSheet(
-            f"background:{_C_VERDE};color:white;font-weight:bold;padding:8px 14px;border-radius:4px;"
-        )
+        btn_confirmar_recv.setObjectName("successBtn")
         btn_confirmar_recv.clicked.connect(self._confirmar_recepcion)
         lay.addWidget(btn_confirmar_recv)
 
@@ -414,6 +400,7 @@ class RecepcionQRWidget(QWidget):
         hdr.setSectionResizeMode(6, QHeaderView.Stretch)
         lay.addWidget(self._tbl_hist)
         btn_refresh = QPushButton("🔄 Actualizar historial")
+        btn_refresh.setObjectName("warningBtn")
         btn_refresh.clicked.connect(self._cargar_historial)
         lay_rec.addWidget(self._tbl_hist)
         lay_rec.addWidget(btn_refresh)
@@ -426,6 +413,7 @@ class RecepcionQRWidget(QWidget):
         hdr_qr.addWidget(QLabel("<b>Historial de QR generados — reimpresión</b>"))
         hdr_qr.addStretch()
         btn_ref_qr = QPushButton("🔄 Actualizar")
+        btn_ref_qr.setObjectName("warningBtn")
         btn_ref_qr.clicked.connect(self._cargar_historial_qr)
         hdr_qr.addWidget(btn_ref_qr)
         lay_qr.addLayout(hdr_qr)
@@ -1049,8 +1037,7 @@ class RecepcionQRWidget(QWidget):
             self._tbl_qr_hist.setItem(i, 4, QTableWidgetItem(str(r[4])[:16]))
             # Reprint button
             btn_reimp = QPushButton("🖨 Reimprimir QR")
-            btn_reimp.setStyleSheet(
-                f"background:{_C_AZUL};color:white;padding:3px 8px;border-radius:3px;font-size:11px;")
+            btn_reimp.setObjectName("outlineBtn")
             btn_reimp.clicked.connect(lambda _, u=uuid: self._reimprimir_qr(u))
             self._tbl_qr_hist.setCellWidget(i, 5, btn_reimp)
 
@@ -1078,6 +1065,7 @@ class RecepcionQRWidget(QWidget):
                 ll.addWidget(lbl)
                 ll.addWidget(QLabel(f"UUID: {uuid_qr}"))
                 btn_print = QPushButton("🖨 Imprimir etiqueta")
+                btn_print.setObjectName("outlineBtn")
                 btn_print.clicked.connect(dlg.accept)
                 ll.addWidget(btn_print)
                 dlg.exec_()

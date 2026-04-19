@@ -956,6 +956,10 @@ class ModuloLoyaltyCardDesigner(QWidget):
         form.addRow("Cliente:", cmb_cli); form.addRow("Nivel:", cmb_nivel)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Ok).setText("Aceptar")
+        btns.button(QDialogButtonBox.Ok).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return

@@ -76,11 +76,7 @@ class ProductSearchWidget(QWidget):
 
         btn_search = QPushButton("🔍")
         btn_search.setFixedWidth(36)
-        btn_search.setStyleSheet(
-            "QPushButton { background:#2E86C1; color:white; border-radius:5px;"
-            " font-size:14px; padding:6px; }"
-            "QPushButton:hover { background:#1A5276; }"
-        )
+        btn_search.setObjectName("primaryBtn")
         btn_search.clicked.connect(lambda: self._buscar(self.txt_search.text()))
 
         lay.addWidget(self.txt_search, 1)

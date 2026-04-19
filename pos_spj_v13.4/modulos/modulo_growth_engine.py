@@ -69,8 +69,8 @@ class ModuloGrowthEngine(QWidget):
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("➕ Nueva meta"); btn_add.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
-        btn_del = QPushButton("🗑️ Eliminar"); btn_del.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
+        btn_add = QPushButton("➕ Nueva meta"); btn_add.setObjectName("successBtn")
+        btn_del = QPushButton("🗑️ Eliminar"); btn_del.setObjectName("dangerBtn")
         btn_row.addWidget(btn_add); btn_row.addWidget(btn_del); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -123,6 +123,10 @@ class ModuloGrowthEngine(QWidget):
         form.addRow("Descripción:",     txt_desc)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Aceptar")
+        btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return
@@ -165,8 +169,8 @@ class ModuloGrowthEngine(QWidget):
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("➕ Nueva misión"); btn_add.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
-        btn_del = QPushButton("🗑️ Desactivar"); btn_del.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
+        btn_add = QPushButton("➕ Nueva misión"); btn_add.setObjectName("successBtn")
+        btn_del = QPushButton("🗑️ Desactivar"); btn_del.setObjectName("dangerBtn")
         btn_row.addWidget(btn_add); btn_row.addWidget(btn_del); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -212,6 +216,10 @@ class ModuloGrowthEngine(QWidget):
         form.addRow("Premio:", spin_premio)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Aceptar")
+        btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return
@@ -262,7 +270,7 @@ class ModuloGrowthEngine(QWidget):
         lay.addWidget(grp2)
 
         btn_save = QPushButton("💾 Guardar configuración")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;")
+        btn_save.setObjectName("successBtn")
         btn_save.clicked.connect(self._guardar_config)
         lay.addWidget(btn_save); lay.addStretch()
         self._cargar_config()
@@ -315,9 +323,9 @@ class ModuloGrowthEngine(QWidget):
         lay.addWidget(self.lbl_pasivo)
 
         btn_row = QHBoxLayout()
-        btn_calc = QPushButton("🔢 Calcular pasivo actual"); btn_calc.setStyleSheet("background:#3498db;color:white;font-weight:bold;padding:7px 16px;")
+        btn_calc = QPushButton("🔢 Calcular pasivo actual"); btn_calc.setObjectName("primaryBtn")
         btn_calc.clicked.connect(self._calcular_pasivo)
-        btn_exp = QPushButton("🌙 Ejecutar expiración nocturna ahora")
+        btn_exp = QPushButton("🌙 Ejecutar expiración nocturna ahora"); btn_exp.setObjectName("warningBtn")
         btn_exp.clicked.connect(self._ejecutar_expiracion)
         btn_row.addWidget(btn_calc); btn_row.addWidget(btn_exp); btn_row.addStretch()
         lay.addLayout(btn_row); lay.addStretch()
@@ -349,7 +357,7 @@ class ModuloGrowthEngine(QWidget):
         w = QWidget(); lay = QVBoxLayout(w)
         ctrl = QHBoxLayout()
         self.txt_buscar_cli = QLineEdit(); self.txt_buscar_cli.setPlaceholderText("ID de cliente o nombre")
-        btn_buscar = QPushButton("🔍 Consultar"); btn_buscar.clicked.connect(self._consultar_cliente)
+        btn_buscar = QPushButton("🔍 Consultar"); btn_buscar.setObjectName("primaryBtn"); btn_buscar.clicked.connect(self._consultar_cliente)
         ctrl.addWidget(self.txt_buscar_cli,1); ctrl.addWidget(btn_buscar)
         lay.addLayout(ctrl)
 

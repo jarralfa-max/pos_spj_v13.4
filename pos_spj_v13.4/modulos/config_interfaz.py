@@ -71,6 +71,7 @@ class ModuloConfigUI(QWidget):
         form.addRow("Tamaño de Iconos:", self.spin_icon)
         
         btn_aplicar = QPushButton("💾 Guardar y Aplicar Cambios")
+        btn_aplicar.setObjectName("successBtn")
         btn_aplicar.clicked.connect(self.aplicar_cambios)
         form.addRow("", btn_aplicar)
         
@@ -84,9 +85,8 @@ class ModuloConfigUI(QWidget):
         lbl_demo = QLabel("Así se verá tu sistema con esta configuración.")
         txt_demo = QLineEdit()
         txt_demo.setPlaceholderText("Campo de texto de prueba...")
-        btn_demo1 = QPushButton("Botón Principal")
-        btn_demo2 = QPushButton("Botón Peligro")
-        btn_demo2.setProperty("class", "danger") # Dispara la regla QSS .danger
+        btn_demo1 = QPushButton("Botón Principal"); btn_demo1.setObjectName("primaryBtn")
+        btn_demo2 = QPushButton("Botón Peligro");   btn_demo2.setObjectName("dangerBtn")
         
         tabla_demo = QTableWidget(3, 3)
         tabla_demo.setHorizontalHeaderLabels(["Columna 1", "Columna 2", "Columna 3"])
