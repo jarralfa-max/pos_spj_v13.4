@@ -1923,6 +1923,7 @@ class ModuloConfiguracion(ModuloBase):
                 if ci == 0: it.setData(Qt.UserRole, r.get('id'))
                 self._tbl_hh.setItem(ri, ci, it)
             btn_tog = QPushButton("Desactivar" if r.get('activo') else "Activar")
+            btn_tog.setObjectName("dangerBtn")
             btn_tog.clicked.connect(
                 lambda _, rid=r.get('id'), a=r.get('activo'):
                     self._toggle_hh(rid, not a))

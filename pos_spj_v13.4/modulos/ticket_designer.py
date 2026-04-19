@@ -78,6 +78,7 @@ class ModuloTicketDesigner(QWidget):
         
         btn_print = QPushButton("🖨️ Imprimir muestra")
         btn_print = create_secondary_button(self, btn_print, "Imprimir ticket de prueba")
+        btn_print.setObjectName("outlineBtn")
         btn_print.clicked.connect(self._imprimir_muestra)
         
         btn_save_all = QPushButton("💾 Guardar todo")
@@ -134,6 +135,7 @@ class ModuloTicketDesigner(QWidget):
         le.addWidget(self.txt_editor)
         btn_rest = QPushButton("🔄 Restaurar")
         btn_rest = create_secondary_button(self, btn_rest, "Restaurar plantilla por defecto")
+        btn_rest.setObjectName("warningBtn")
         btn_rest.clicked.connect(self.restaurar_defecto)
         le.addWidget(btn_rest)
         splitter.addWidget(grp_ed)
@@ -166,9 +168,11 @@ class ModuloTicketDesigner(QWidget):
         btn_lr = QHBoxLayout()
         btn_logo = QPushButton("📁 Cargar")
         btn_logo = create_primary_button(self, btn_logo, "Cargar imagen del logo")
+        btn_logo.setObjectName("outlineBtn")
         btn_logo.clicked.connect(self._cargar_logo)
         btn_clear = QPushButton("🗑️ Quitar")
         btn_clear = create_secondary_button(self, btn_clear, "Quitar logo actual")
+        btn_clear.setObjectName("dangerBtn")
         btn_clear.clicked.connect(self._quitar_logo)
         btn_lr.addWidget(btn_logo); btn_lr.addWidget(btn_clear)
         fl.addRow("", btn_lr)
