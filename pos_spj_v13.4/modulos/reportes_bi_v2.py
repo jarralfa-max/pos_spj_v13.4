@@ -43,8 +43,17 @@ class ModuloReportesBIv2(QWidget):
         self.cargar_dashboard()
 
     def init_ui(self):
-        layout_principal = QVBoxLayout(self)
-        layout_principal.setSpacing(20)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        inner = QWidget()
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+
+        layout_principal = QVBoxLayout(inner)
+        layout_principal.setSpacing(10)
 
         # --- HEADER Y FILTROS ---
         header_layout = QHBoxLayout()

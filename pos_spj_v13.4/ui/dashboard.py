@@ -88,18 +88,8 @@ class KPICard(QFrame):
 
         self.setFrameStyle(QFrame.StyledPanel)
         self.setCursor(Qt.PointingHandCursor)
-        # Card con fondo neutro y borde sutil - solo el icono tiene color
-        self.setStyleSheet("""
-            KPICard {
-                background: #1E293B;
-                border-radius: 8px;
-                border: 1px solid #334155;
-            }
-            KPICard:hover {
-                background: #263548;
-                border-color: #2563EB;
-            }
-        """)
+        self.setObjectName("kpiCard")
+        self.setProperty("variant", "card")
         self._current_color = _color
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setMinimumHeight(80)  # Reducido de 100 a 80px
@@ -124,8 +114,9 @@ class KPICard(QFrame):
         lyt.addLayout(top)
 
         self.lbl_valor = QLabel(valor)
+        self.lbl_valor.setObjectName("kpiValue")
         self.lbl_valor.setStyleSheet(
-            "color: #F1F5F9; font-size: 22px; font-weight: 700; background: transparent;")
+            "font-size: 18px; font-weight: 700; background: transparent;")
         lyt.addWidget(self.lbl_valor)
 
         lbl_titulo = QLabel(titulo)
