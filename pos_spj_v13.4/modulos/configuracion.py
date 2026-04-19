@@ -1162,7 +1162,7 @@ class ModuloConfiguracion(ModuloBase):
 
     def _toggle_dark_mode(self, state):
         """v13.30: Toggle dark/light mode — solo cambia colores, no tamaños."""
-        tema = "Dark" if state else "Light"
+        tema = "Oscuro" if state else "Claro"
         try:
             self.conexion.execute(
                 "INSERT OR REPLACE INTO configuraciones (clave, valor, descripcion) VALUES (?, ?, ?)",

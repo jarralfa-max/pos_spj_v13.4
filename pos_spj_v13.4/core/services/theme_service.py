@@ -19,15 +19,24 @@ class ThemeService:
         try:
             rows = self.db.execute(
                 "SELECT clave, valor FROM configuraciones "
-                "WHERE clave IN ('ui_theme','ui_density','ui_font_size','ui_icon_size')"
+                "WHERE clave IN ('ui_theme','ui_density','ui_font_size','ui_icon_size','tema')"
             ).fetchall()
+            legacy_tema = None
             for r in rows:
-                prefs[r['clave'].replace('ui_', '')] = r['valor']
+                k = r['clave']
+                if k == 'tema':
+                    legacy_tema = r['valor']
+                else:
+                    prefs[k.replace('ui_', '')] = r['valor']
+            # Fall back to legacy 'tema' key when 'ui_theme' is absent
+            if 'theme' not in {r['clave'].replace('ui_', '') for r in rows if r['clave'] != 'tema'} \
+                    and legacy_tema:
+                prefs['theme'] = legacy_tema
         except Exception:
             pass
         # Normalizar tema a Claro/Oscuro
         tema = prefs.get('theme', 'Oscuro')
-        prefs['theme'] = 'Oscuro' if 'dark' in tema.lower() or tema == 'Oscuro' else 'Claro'
+        prefs['theme'] = 'Oscuro' if 'dark' in tema.lower() or tema in ('Oscuro', 'Dark') else 'Claro'
         return prefs
 
     def save_preferences(self, theme: str, density: str,
