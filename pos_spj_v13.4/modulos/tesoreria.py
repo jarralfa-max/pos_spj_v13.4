@@ -150,9 +150,11 @@ class ModuloTesoreria(QWidget):
         self._txt_desc_capital = QLineEdit()
         self._txt_desc_capital.setPlaceholderText("Descripción (ej: Capital socio A)")
         btn_inyectar = QPushButton("➕ Inyectar Capital")
+        btn_inyectar.setObjectName("successBtn")
         btn_inyectar.setStyleSheet("background:#27ae60;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
         btn_inyectar.clicked.connect(self._on_inyectar_capital)
         btn_retirar = QPushButton("➖ Retirar Capital")
+        btn_retirar.setObjectName("dangerBtn")
         btn_retirar.setStyleSheet("background:#e74c3c;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
         btn_retirar.clicked.connect(self._on_retirar_capital)
 
@@ -277,6 +279,7 @@ class ModuloTesoreria(QWidget):
         self.cmb_metodo_gasto.addItems(["Transferencia", "Efectivo (Caja Chica)", "Tarjeta Corporativa"])
         
         btn_guardar_gasto = QPushButton("💾 Guardar Gasto")
+        btn_guardar_gasto.setObjectName("successBtn")
         btn_guardar_gasto.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
         btn_guardar_gasto.clicked.connect(self.registrar_gasto)
         
@@ -347,6 +350,7 @@ class ModuloTesoreria(QWidget):
                 self.tabla_ap.setItem(row, 5, saldo_item)
                 
                 btn_pagar = QPushButton("💸 Abonar / Liquidar")
+                btn_pagar.setObjectName("successBtn")
                 btn_pagar.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
                 btn_pagar.clicked.connect(lambda _, d=deuda: self.dialogo_abono_ap(d))
                 self.tabla_ap.setCellWidget(row, 6, btn_pagar)
@@ -383,9 +387,9 @@ class ModuloTesoreria(QWidget):
         lay.addWidget(grp)
 
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("➕ Programar gasto"); btn_add.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;")
-        btn_pagar = QPushButton("✅ Marcar como pagado"); btn_pagar.setStyleSheet("background:#27ae60;color:white;padding:7px 16px;")
-        btn_del   = QPushButton("🗑️ Eliminar"); btn_del.setStyleSheet("background:#7f8c8d;color:white;padding:7px 16px;")
+        btn_add = QPushButton("➕ Programar gasto"); btn_add.setObjectName("successBtn"); btn_add.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;")
+        btn_pagar = QPushButton("✅ Marcar como pagado"); btn_pagar.setObjectName("successBtn"); btn_pagar.setStyleSheet("background:#27ae60;color:white;padding:7px 16px;")
+        btn_del   = QPushButton("🗑️ Eliminar"); btn_del.setObjectName("dangerBtn"); btn_del.setStyleSheet("background:#7f8c8d;color:white;padding:7px 16px;")
         btn_row.addWidget(btn_add); btn_row.addWidget(btn_pagar); btn_row.addWidget(btn_del); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -535,9 +539,9 @@ class ModuloTesoreria(QWidget):
         lay.addWidget(info_lbl)
 
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("➕ Agregar gasto fijo"); btn_add.setStyleSheet("background:#e67e22;color:white;font-weight:bold;padding:7px 16px;")
-        btn_tog = QPushButton("⏸️ Pausar/Activar"); btn_tog.setStyleSheet("background:#3498db;color:white;padding:7px 16px;")
-        btn_gen = QPushButton("⚡ Generar vencimientos ahora"); btn_gen.setStyleSheet("background:#9b59b6;color:white;padding:7px 16px;")
+        btn_add = QPushButton("➕ Agregar gasto fijo"); btn_add.setObjectName("successBtn"); btn_add.setStyleSheet("background:#e67e22;color:white;font-weight:bold;padding:7px 16px;")
+        btn_tog = QPushButton("⏸️ Pausar/Activar"); btn_tog.setObjectName("warningBtn"); btn_tog.setStyleSheet("background:#3498db;color:white;padding:7px 16px;")
+        btn_gen = QPushButton("⚡ Generar vencimientos ahora"); btn_gen.setObjectName("primaryBtn"); btn_gen.setStyleSheet("background:#9b59b6;color:white;padding:7px 16px;")
         btn_row.addWidget(btn_add); btn_row.addWidget(btn_tog); btn_row.addWidget(btn_gen); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -596,6 +600,10 @@ class ModuloTesoreria(QWidget):
         form.addRow("Proveedor:",    txt_prov)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Aceptar")
+        btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return
@@ -721,6 +729,7 @@ class ModuloTesoreria(QWidget):
                 self.tabla_ar.setItem(row, 5, saldo_item)
                 
                 btn_cobrar = QPushButton("💰 Recibir Pago")
+                btn_cobrar.setObjectName("successBtn")
                 btn_cobrar.setStyleSheet("background-color: #27ae60; color: white;")
                 btn_cobrar.clicked.connect(lambda _, d=deuda: self.dialogo_abono_ar(d))
                 self.tabla_ar.setCellWidget(row, 6, btn_cobrar)

@@ -289,20 +289,24 @@ class ModuloConfiguracion(ModuloBase):
         toolbar = QHBoxLayout()
         
         self.btn_nuevo_usuario = QPushButton("Nuevo Usuario")
+        self.btn_nuevo_usuario.setObjectName("successBtn")
         self.btn_nuevo_usuario.setIcon(self.obtener_icono("add.png"))
         self.btn_nuevo_usuario.setToolTip("Crear un nuevo usuario")
         
         self.btn_editar_usuario = QPushButton("Editar Usuario")
+        self.btn_editar_usuario.setObjectName("warningBtn")
         self.btn_editar_usuario.setIcon(self.obtener_icono("edit.png"))
         self.btn_editar_usuario.setToolTip("Editar usuario seleccionado")
         self.btn_editar_usuario.setEnabled(False)
         
         self.btn_eliminar_usuario = QPushButton("Eliminar Usuario")
+        self.btn_eliminar_usuario.setObjectName("dangerBtn")
         self.btn_eliminar_usuario.setIcon(self.obtener_icono("delete.png"))
         self.btn_eliminar_usuario.setToolTip("Eliminar usuario seleccionado")
         self.btn_eliminar_usuario.setEnabled(False)
         
         self.btn_actualizar = QPushButton("Actualizar")
+        self.btn_actualizar.setObjectName("warningBtn")
         self.btn_actualizar.setIcon(self.obtener_icono("refresh.png"))
         self.btn_actualizar.setToolTip("Actualizar lista de usuarios")
         
@@ -381,6 +385,7 @@ class ModuloConfiguracion(ModuloBase):
         self.edit_descuentos.setToolTip("Porcentaje de descuento para cada nivel")
         
         btn_guardar_fidelidad = QPushButton("💾 Guardar Configuración de Fidelidad")
+        btn_guardar_fidelidad.setObjectName("successBtn")
         btn_guardar_fidelidad.setIcon(self.obtener_icono("save.png"))
         btn_guardar_fidelidad.clicked.connect(self.guardar_configuraciones_fidelidad)
         
@@ -436,6 +441,7 @@ class ModuloConfiguracion(ModuloBase):
         top.addWidget(self.combo_design_tipo)
         top.addStretch()
         btn_guardar_d = QPushButton("💾 Guardar Diseño")
+        btn_guardar_d.setObjectName("successBtn")
         btn_guardar_d.clicked.connect(self._guardar_diseno_ticket)
         top.addWidget(btn_guardar_d)
         layout.addLayout(top)
@@ -458,6 +464,7 @@ class ModuloConfiguracion(ModuloBase):
         self.lista_elementos_disponibles.addItems(elementos)
         lay_elem.addWidget(self.lista_elementos_disponibles)
         btn_agregar_e = QPushButton("➕ Agregar al diseño")
+        btn_agregar_e.setObjectName("successBtn")
         btn_agregar_e.clicked.connect(self._agregar_elemento_diseno)
         lay_elem.addWidget(btn_agregar_e)
         lay_izq.addWidget(grp_elem)
@@ -468,6 +475,7 @@ class ModuloConfiguracion(ModuloBase):
         self.lista_diseno_actual.setDragDropMode(QListWidget.InternalMove)
         lay_act.addWidget(self.lista_diseno_actual)
         btn_quitar_e = QPushButton("✖ Quitar seleccionado")
+        btn_quitar_e.setObjectName("dangerBtn")
         btn_quitar_e.clicked.connect(self._quitar_elemento_diseno)
         lay_act.addWidget(btn_quitar_e)
         lay_izq.addWidget(grp_actual)
@@ -701,6 +709,7 @@ class ModuloConfiguracion(ModuloBase):
 
         # Botón guardar
         btn_hw = QPushButton("💾 Guardar Configuración Hardware")
+        btn_hw.setObjectName("successBtn")
         btn_hw.clicked.connect(self._guardar_hardware_config)
         layout.addWidget(btn_hw)
         layout.addStretch()
@@ -879,6 +888,7 @@ class ModuloConfiguracion(ModuloBase):
         layout.addWidget(grp_extra)
 
         btn_guardar_lw = QPushButton("💾 Guardar Configuración Fidelidad")
+        btn_guardar_lw.setObjectName("successBtn")
         btn_guardar_lw.clicked.connect(self._guardar_loyalty_weights)
         layout.addWidget(btn_guardar_lw)
         layout.addStretch()
@@ -971,6 +981,7 @@ class ModuloConfiguracion(ModuloBase):
         self._dte_cierre.setObjectName("inputField")
 
         btn_cerrar = QPushButton("🔒 Ejecutar Cierre Mensual")
+        btn_cerrar.setObjectName("dangerBtn")
         btn_cerrar = create_danger_button(self, btn_cerrar.text(), "Ejecutar cierre mensual de forma irreversible")
         btn_cerrar.clicked.connect(self._ejecutar_cierre_mensual)
 
@@ -1399,8 +1410,11 @@ class ModuloConfiguracion(ModuloBase):
         # Toolbar
         toolbar = QHBoxLayout()
         btn_nueva = QPushButton("➕ Nueva Sucursal")
+        btn_nueva.setObjectName("successBtn")
         btn_editar = QPushButton("✏️ Editar")
+        btn_editar.setObjectName("warningBtn")
         btn_eliminar = QPushButton("🗑️ Eliminar")
+        btn_eliminar.setObjectName("dangerBtn")
         self.btn_editar_suc   = btn_editar
         self.btn_eliminar_suc = btn_eliminar
         btn_editar.setEnabled(False)
@@ -1594,12 +1608,15 @@ class ModuloConfiguracion(ModuloBase):
 
         btns = QHBoxLayout()
         btn_guardar_wa = QPushButton("💾 Guardar")
+        btn_guardar_wa.setObjectName("successBtn")
         btn_guardar_wa = create_success_button(self, btn_guardar_wa.text(), "Guardar configuración de WhatsApp")
         btn_guardar_wa.clicked.connect(self._guardar_numero_wa)
         btn_del_wa = QPushButton("🗑 Desactivar")
+        btn_del_wa.setObjectName("dangerBtn")
         btn_del_wa = create_secondary_button(self, btn_del_wa.text(), "Desactivar número seleccionado")
         btn_del_wa.clicked.connect(self._desactivar_numero_wa)
         btn_test_wa = QPushButton("🧪 Probar envío")
+        btn_test_wa.setObjectName("primaryBtn")
         btn_test_wa = create_primary_button(self, btn_test_wa.text(), "Enviar mensaje de prueba")
         btn_test_wa.clicked.connect(self._probar_wa)
         btns.addStretch(); btns.addWidget(btn_test_wa)
@@ -1771,6 +1788,7 @@ class ModuloConfiguracion(ModuloBase):
                 if ci == 0: it.setData(Qt.UserRole, r['usuario'])
                 self._tbl_com.setItem(ri, ci, it)
             btn_tog = QPushButton("Desactivar" if r['activo'] else "Activar")
+            btn_tog.setObjectName("dangerBtn")
             btn_tog.clicked.connect(
                 lambda _, u=r['usuario'], a=r['activo']:
                     self._toggle_comision(u, not a))
@@ -1877,6 +1895,7 @@ class ModuloConfiguracion(ModuloBase):
         apply_tooltip(btn_save, "Guardar regla de Happy Hour")
         btn_save.clicked.connect(self._guardar_happy_hour)
         btn_enviar = QPushButton("📣 Enviar promo ahora")
+        btn_enviar.setObjectName("primaryBtn")
         btn_enviar.setToolTip("Envía el mensaje de la regla seleccionada a todos los clientes con teléfono")
         btn_enviar.clicked.connect(self._enviar_promo_ahora)
         btn_row.addStretch(); btn_row.addWidget(btn_enviar); btn_row.addWidget(btn_save)

@@ -82,6 +82,7 @@ class ModuloWhatsApp(QWidget):
         self.lbl_status.setStyleSheet("color:#aaa;font-size:18px;")
         hdr.addWidget(self.lbl_status); hdr.addStretch()
         btn_test = QPushButton("🔌 Probar conexión")
+        btn_test.setObjectName("primaryBtn")
         btn_test.clicked.connect(self._test_conexion)
         hdr.addWidget(btn_test)
         lay.addLayout(hdr)
@@ -116,9 +117,9 @@ class ModuloWhatsApp(QWidget):
         ln.addWidget(self.tbl_numeros)
 
         btn_row = QHBoxLayout()
-        btn_add_n   = QPushButton("➕ Agregar número"); btn_add_n.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
-        btn_edit_n  = QPushButton("✏️ Editar"); btn_edit_n.setStyleSheet("background:#f39c12;color:white;padding:5px 12px;")
-        btn_del_n   = QPushButton("🗑️ Eliminar"); btn_del_n.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
+        btn_add_n   = QPushButton("➕ Agregar número"); btn_add_n.setObjectName("successBtn"); btn_add_n.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
+        btn_edit_n  = QPushButton("✏️ Editar"); btn_edit_n.setObjectName("warningBtn"); btn_edit_n.setStyleSheet("background:#f39c12;color:white;padding:5px 12px;")
+        btn_del_n   = QPushButton("🗑️ Eliminar"); btn_del_n.setObjectName("dangerBtn"); btn_del_n.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
         btn_row.addWidget(btn_add_n); btn_row.addWidget(btn_edit_n); btn_row.addWidget(btn_del_n); btn_row.addStretch()
         ln.addLayout(btn_row)
         btn_add_n.clicked.connect(self._dialogo_numero)
@@ -158,6 +159,7 @@ class ModuloWhatsApp(QWidget):
         lb.addWidget(grp_msgs)
 
         btn_save_bot = QPushButton("💾 Guardar configuración del bot")
+        btn_save_bot.setObjectName("successBtn")
         btn_save_bot.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;")
         btn_save_bot.clicked.connect(self._guardar_config_bot)
         lb.addWidget(btn_save_bot); lb.addStretch()
@@ -167,8 +169,8 @@ class ModuloWhatsApp(QWidget):
         lh = QVBoxLayout(tab_hist)
         ctrl = QHBoxLayout()
         self.txt_buscar_wa = QLineEdit(); self.txt_buscar_wa.setPlaceholderText("Buscar por número o texto…")
-        btn_buscar = QPushButton("🔍"); btn_buscar.clicked.connect(self._cargar_historial)
-        btn_refresh = QPushButton("🔄"); btn_refresh.clicked.connect(self._cargar_historial)
+        btn_buscar = QPushButton("🔍"); btn_buscar.setObjectName("primaryBtn"); btn_buscar.clicked.connect(self._cargar_historial)
+        btn_refresh = QPushButton("🔄"); btn_refresh.setObjectName("warningBtn"); btn_refresh.clicked.connect(self._cargar_historial)
         ctrl.addWidget(self.txt_buscar_wa, 1); ctrl.addWidget(btn_buscar); ctrl.addWidget(btn_refresh)
         lh.addLayout(ctrl)
         self.tbl_hist = QTableWidget()
@@ -191,6 +193,7 @@ class ModuloWhatsApp(QWidget):
         self.lbl_metrics.setWordWrap(True)
         lmt.addWidget(self.lbl_metrics)
         btn_refresh_m = QPushButton("🔄 Actualizar métricas")
+        btn_refresh_m.setObjectName("warningBtn")
         btn_refresh_m.clicked.connect(self._cargar_metricas)
         lmt.addWidget(btn_refresh_m)
         lmt.addStretch()
@@ -288,6 +291,10 @@ class ModuloWhatsApp(QWidget):
             except Exception: pass
 
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Aceptar")
+        btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != dlg.Accepted: return

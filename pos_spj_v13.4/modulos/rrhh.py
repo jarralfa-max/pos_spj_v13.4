@@ -910,6 +910,10 @@ class ModuloRRHH(QWidget):
         lay.addLayout(form)
 
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Aceptar")
+        btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return
@@ -1033,6 +1037,10 @@ class ModuloRRHH(QWidget):
             form.addRow("Nombre *:", txt_nombre); form.addRow("Descripción:", txt_desc)
             lay2.addLayout(form)
             btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+            btns.button(QDialogButtonBox.Save).setText("Aceptar")
+            btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+            btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+            btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
             btns.accepted.connect(d.accept); btns.rejected.connect(d.reject)
             lay2.addWidget(btns)
             if d.exec_() != QDialog.Accepted: return
@@ -1146,6 +1154,10 @@ class ModuloRRHH(QWidget):
         form.addRow("Estado:", cmb_est)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Aceptar")
+        btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return
@@ -1233,6 +1245,10 @@ class ModuloRRHH(QWidget):
         form.addRow("Calificación (1-10):", spin_cal); form.addRow("Evaluador:", txt_eva)
         lay.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Save).setText("Aceptar")
+        btns.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
         if dlg.exec_() != QDialog.Accepted: return

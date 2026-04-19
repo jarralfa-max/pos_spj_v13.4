@@ -460,6 +460,7 @@ class ModuloTransferencias(ModuloBase):
 
         params_lay.addStretch()
         btn_analizar = QPushButton("🔍 Analizar Ahora")
+        btn_analizar.setObjectName("primaryBtn")
         btn_analizar.setStyleSheet(
             f"background:{_C7};color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
         )
@@ -495,6 +496,7 @@ class ModuloTransferencias(ModuloBase):
         ab.addWidget(self._lbl_sug_count)
         ab.addStretch()
         self._btn_aplicar_sug = QPushButton("📤 Crear Transferencia desde Sugerencia")
+        self._btn_aplicar_sug.setObjectName("successBtn")
         self._btn_aplicar_sug.setEnabled(False)
         self._btn_aplicar_sug.setStyleSheet(
             f"background:{_C4};color:white;font-weight:bold;padding:5px 12px;border-radius:4px;"
@@ -721,9 +723,10 @@ class DialogoNuevaTransferencia(QDialog):
             )
         self._spin_qty = QDoubleSpinBox(); self._spin_qty.setRange(0.001, 999999); self._spin_qty.setDecimals(3)
         btn_add = QPushButton("➕ Agregar")
+        btn_add.setObjectName("successBtn")
         btn_add.setStyleSheet(f"background:{_C3};color:white;padding:4px 10px;border-radius:3px;")
         btn_add.clicked.connect(self._add_item)
-        btn_del = QPushButton("🗑 Quitar"); btn_del.clicked.connect(self._remove_item)
+        btn_del = QPushButton("🗑 Quitar"); btn_del.setObjectName("dangerBtn"); btn_del.clicked.connect(self._remove_item)
         for w in (QLabel("Producto:"), self._combo_prod, QLabel("Cant:"),
                   self._spin_qty, btn_add, btn_del):
             ar.addWidget(w)

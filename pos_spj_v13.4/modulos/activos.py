@@ -163,6 +163,10 @@ class DialogoMantenimiento(QDialog):
         self.cmb_proveedor.setVisible(False)
 
         btn_box = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btn_box.button(QDialogButtonBox.Save).setText("Aceptar")
+        btn_box.button(QDialogButtonBox.Save).setObjectName("successBtn")
+        btn_box.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btn_box.button(QDialogButtonBox.Cancel).setObjectName("secondaryBtn")
         btn_box.accepted.connect(self.guardar)
         btn_box.rejected.connect(self.reject)
         layout.addRow(btn_box)
