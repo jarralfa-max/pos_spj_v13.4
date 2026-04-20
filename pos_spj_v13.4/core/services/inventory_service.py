@@ -15,6 +15,10 @@ class InventoryService:
     def __init__(self, db_conn, inventory_repo):
         self.db = db_conn
         self.repo = inventory_repo
+        logger.warning(
+            "DEPRECATED: InventoryService is deprecated. "
+            "Use core.services.inventory.unified_inventory_service.UnifiedInventoryService instead."
+        )
         
     # ¡BAM! Un muro de seguridad de una sola línea
     @require_permission('adjust_inventory')

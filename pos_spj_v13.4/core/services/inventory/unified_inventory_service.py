@@ -97,3 +97,34 @@ class UnifiedInventoryService:
                 c.execute("UPDATE productos SET existencia=? WHERE id=?", (stock_nuevo, producto_id))
     def validate_stock(self, producto_id, quantity, sucursal_id=None):
         return self.get_stock(producto_id)>=quantity
+
+    def process_movement(self, product_id, quantity, movement_type,
+                         reference=None, metadata=None):
+        """
+        Wrapper público sobre register_movement().
+        Registra el movimiento y emite el evento 'inventory_movement' al EventBus.
+        Non-fatal: el evento nunca cancela la operación de inventario.
+        """
+        if metadata is None:
+            metadata = {}
+        mid = self.register_movement(
+            producto_id=product_id,
+            movement_type=movement_type,
+            quantity=quantity,
+            reference=reference,
+            notas=metadata.get("notas"),
+        )
+        try:
+            from core.events.event_bus import get_bus
+            get_bus().publish("inventory_movement", {
+                "movement_id": mid,
+                "product_id": product_id,
+                "quantity": quantity,
+                "movement_type": movement_type,
+                "reference": reference,
+                "sucursal_id": self.sucursal_id,
+                "metadata": metadata,
+            })
+        except Exception as _e:
+            logger.warning("process_movement event non-fatal: %s", _e)
+        return mid

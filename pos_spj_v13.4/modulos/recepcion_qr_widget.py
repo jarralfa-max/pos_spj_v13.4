@@ -700,10 +700,8 @@ class RecepcionQRWidget(QWidget):
         monto_pagado = float(datos_extra.get("monto_pagado", 0))
         monto_total  = float(datos_extra.get("monto_total", 0))
 
-        import uuid as _u2
-        _sp_qr = f"qr_{_u2.uuid4().hex[:8]}"
-        self.conexion.execute(f"SAVEPOINT {_sp_qr}")
-        try:
+        from core.db.connection import transaction as _tx_qr
+        with _tx_qr(self.conexion):
             # 1. Recepción cabecera
             cur = self.conexion.execute("""
                 INSERT INTO recepciones
@@ -783,35 +781,28 @@ class RecepcionQRWidget(QWidget):
                 """, (self.sucursal_id, uuid_qr))
             except Exception: pass
 
-            self.conexion.execute(f"RELEASE SAVEPOINT {_sp_qr}")
-
-            # Actualizar inventario via ApplicationService
-            _app = getattr(self.container, 'app_service', None) if self.container else None
-            for item in items:
-                try:
-                    pid = item.get("product_id", item.get("producto_id", 0))
-                    qty = float(item.get("cantidad", 0))
-                    costo = float(item.get("costo_unitario", 0))
-                    if _app and pid and qty > 0:
-                        _app.registrar_compra(
-                            producto_id=pid, cantidad=qty,
-                            costo_unitario=costo,
-                            usuario=getattr(self, 'usuario', ''),
-                            sucursal_id=self.sucursal_id)
-                    elif pid and qty > 0:
-                        self.conexion.execute(
-                            "UPDATE productos SET existencia = existencia + ?, "
-                            "precio_compra = CASE WHEN ? > 0 THEN ? ELSE precio_compra END "
-                            "WHERE id = ?",
-                            (qty, costo, costo, pid))
-                except Exception as _ue:
-                    import logging as _lg
-                    _lg.getLogger(__name__).error("QR existencia update: %s", _ue)
-
-        except Exception:
-            try: self.conexion.execute(f"ROLLBACK TO SAVEPOINT {_sp_qr}")
-            except Exception: pass
-            raise
+        # Actualizar inventario via ApplicationService (post-commit)
+        _app = getattr(self.container, 'app_service', None) if self.container else None
+        for item in items:
+            try:
+                pid = item.get("product_id", item.get("producto_id", 0))
+                qty = float(item.get("cantidad", 0))
+                costo = float(item.get("costo_unitario", 0))
+                if _app and pid and qty > 0:
+                    _app.registrar_compra(
+                        producto_id=pid, cantidad=qty,
+                        costo_unitario=costo,
+                        usuario=getattr(self, 'usuario', ''),
+                        sucursal_id=self.sucursal_id)
+                elif pid and qty > 0:
+                    self.conexion.execute(
+                        "UPDATE productos SET existencia = existencia + ?, "
+                        "precio_compra = CASE WHEN ? > 0 THEN ? ELSE precio_compra END "
+                        "WHERE id = ?",
+                        (qty, costo, costo, pid))
+            except Exception as _ue:
+                import logging as _lg
+                _lg.getLogger(__name__).error("QR existencia update: %s", _ue)
 
     def _guardar_asignacion(self) -> None:
         """Guarda la asignación de productos + pago al contenedor."""
