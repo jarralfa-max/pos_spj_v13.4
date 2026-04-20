@@ -95,8 +95,7 @@ class ModuloMerma(QWidget):
         hdr.addStretch()
         # Resumen financiero del día
         self.lbl_resumen = QLabel()
-        self.lbl_resumen.setObjectName("caption")
-        self.lbl_resumen.setStyleSheet(f"color: {Colors.DANGER_BASE}; font-weight: bold;")
+        self.lbl_resumen.setProperty("class", "text-danger")
         hdr.addWidget(self.lbl_resumen)
         lay.addLayout(hdr)
 
@@ -146,14 +145,13 @@ class ModuloMerma(QWidget):
         self.spin_cantidad = QDoubleSpinBox()
         self.spin_cantidad.setRange(0.001, 99999)
         self.spin_cantidad.setDecimals(3)
-        self.spin_cantidad.setStyleSheet(f"padding: {Spacing.XS}; font-size: {Typography.SIZE_SM};")
+        self.spin_cantidad.setObjectName("standardInput")
         self.spin_cantidad.valueChanged.connect(self._actualizar_valor_perdida)
         form.addRow("Cantidad:", self.spin_cantidad)
 
         # ── Valor estimado de pérdida (protección financiera) ─────────────
         self.lbl_valor_perdida = QLabel("$0.00")
-        self.lbl_valor_perdida.setObjectName("heading")
-        self.lbl_valor_perdida.setStyleSheet(f"color: {Colors.DANGER_BASE};")
+        self.lbl_valor_perdida.setProperty("class", "text-danger")
         form.addRow("Valor pérdida:", self.lbl_valor_perdida)
 
         # ── Motivo ────────────────────────────────────────────────────────
@@ -217,8 +215,7 @@ class ModuloMerma(QWidget):
 
         # Totales
         self.lbl_total_hist = QLabel()
-        self.lbl_total_hist.setObjectName("caption")
-        self.lbl_total_hist.setStyleSheet(f"font-weight: bold; color: {Colors.DANGER_BASE};")
+        self.lbl_total_hist.setProperty("class", "text-danger")
         lay.addWidget(self.lbl_total_hist)
 
     # ── Productos y autocompletado ────────────────────────────────────────────
@@ -259,12 +256,12 @@ class ModuloMerma(QWidget):
             # Estilo dinámico según el monto (protección financiera visual)
             if valor >= UMBRAL_VALOR_ALTO:
                 self.lbl_valor_perdida.setStyleSheet(
-                    f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.TEXT_INVERTED}; "
-                    f"background-color: {Colors.DANGER_BASE}; padding: {Spacing.XS} {Spacing.SM}; border-radius: {Borders.RADIUS_MD};")
+                    f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.NEUTRAL.WHITE}; "
+                    f"background-color: {Colors.DANGER_BASE}; padding: {Spacing.XS}px {Spacing.SM}px; border-radius: {Borders.RADIUS_MD}px;")
             else:
                 self.lbl_valor_perdida.setStyleSheet(
                     f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.DANGER_BASE}; "
-                    f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER_BG}; border-radius: {Borders.RADIUS_MD};")
+                    f"padding: {Spacing.XS}px {Spacing.SM}px; background-color: {Colors.DANGER.BG_SOFT}; border-radius: {Borders.RADIUS_MD}px;")
         else:
             self.lbl_valor_perdida.setText("$0.00")
 

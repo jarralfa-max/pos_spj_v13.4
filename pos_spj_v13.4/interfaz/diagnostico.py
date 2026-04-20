@@ -45,25 +45,14 @@ class DiagnosticoSistema(QDialog):
         # Encabezado
         lbl_titulo = QLabel("🔍 Diagnóstico del Sistema SPJ POS")
         lbl_titulo.setFont(QFont("Segoe UI", 16, QFont.Bold))
-        lbl_titulo.setStyleSheet("color: #2c3e50; padding: 10px;")
+        lbl_titulo.setObjectName("headingLabel")
         layout_principal.addWidget(lbl_titulo)
         
         # Barra de progreso
         self.barra_progreso = QProgressBar()
         self.barra_progreso.setRange(0, 100)
         self.barra_progreso.setValue(0)
-        self.barra_progreso.setStyleSheet("""
-            QProgressBar {
-                border: 2px solid #bdc3c7;
-                border-radius: 5px;
-                background: #ecf0f1;
-                height: 20px;
-            }
-            QProgressBar::chunk {
-                background: #3498db;
-                border-radius: 5px;
-            }
-        """)
+        self.barra_progreso.setObjectName("standardProgressBar")
         layout_principal.addWidget(self.barra_progreso)
         
         # Estado general

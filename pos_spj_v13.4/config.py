@@ -867,6 +867,49 @@ TEMAS = {
         QPushButton#tableBtn:pressed {
             background-color: #1E293B;
         }
+
+        /* ===== QR PREVIEW PLACEHOLDER ===== */
+        QLabel#qrPreviewEmpty {
+            border: 2px dashed #475569;
+            background-color: #1E293B;
+            color: #64748B;
+            font-size: 13px;
+        }
+        QLabel#selectionChip {
+            color: #60A5FA;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #475569;
+            min-width: 120px;
+        }
+
+        /* ===== PAGE HEADINGS ===== */
+        QLabel#pageHeading { font-size: 18px; font-weight: 700; color: #F1F5F9; }
+
+        /* ===== INFO BOXES ===== */
+        QLabel#infoBoxWarning {
+            color: #94A3B8;
+            background-color: #1E293B;
+            padding: 6px;
+            border-radius: 5px;
+            font-size: 11px;
+            border-left: 3px solid #D97706;
+        }
+        QLabel#infoBoxInfo {
+            color: #94A3B8;
+            background-color: #1E2D40;
+            padding: 7px 16px;
+            border-radius: 5px;
+            font-size: 11px;
+            border-left: 3px solid #2563EB;
+        }
+        QLabel#infoContent { font-size: 13px; padding: 8px 12px; color: #CBD5E1; }
+
+        /* ===== SESSION BAR STATES (main_window.py) ===== */
+        QLabel#sessionBarAdmin   { background: #1a252f; color: #EF4444; font-size: 11px; padding: 0 12px; font-weight: 700; }
+        QLabel#sessionBarManager { background: #1a252f; color: #F59E0B; font-size: 11px; padding: 0 12px; font-weight: 700; }
+        QLabel#sessionBarDefault { background: #2C3E50; color: #ecf0f1; font-size: 11px; padding: 0 12px; }
     """,
 
     "Claro": """
@@ -1626,6 +1669,49 @@ TEMAS = {
         QPushButton#tableBtn:pressed {
             background-color: #E2E8F0;
         }
+
+        /* ===== QR PREVIEW PLACEHOLDER ===== */
+        QLabel#qrPreviewEmpty {
+            border: 2px dashed #CBD5E0;
+            background-color: #F8FAFC;
+            color: #94A3B8;
+            font-size: 13px;
+        }
+        QLabel#selectionChip {
+            color: #2563EB;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid #94A3B8;
+            min-width: 120px;
+        }
+
+        /* ===== PAGE HEADINGS ===== */
+        QLabel#pageHeading { font-size: 18px; font-weight: 700; color: #0F172A; }
+
+        /* ===== INFO BOXES ===== */
+        QLabel#infoBoxWarning {
+            color: #64748B;
+            background-color: #FFFBEA;
+            padding: 6px;
+            border-radius: 5px;
+            font-size: 11px;
+            border-left: 3px solid #D97706;
+        }
+        QLabel#infoBoxInfo {
+            color: #64748B;
+            background-color: #F0F4FF;
+            padding: 7px 16px;
+            border-radius: 5px;
+            font-size: 11px;
+            border-left: 3px solid #2563EB;
+        }
+        QLabel#infoContent { font-size: 13px; padding: 8px 12px; color: #334155; }
+
+        /* ===== SESSION BAR STATES (main_window.py) ===== */
+        QLabel#sessionBarAdmin   { background: #1a252f; color: #DC2626; font-size: 11px; padding: 0 12px; font-weight: 700; }
+        QLabel#sessionBarManager { background: #1a252f; color: #D97706; font-size: 11px; padding: 0 12px; font-weight: 700; }
+        QLabel#sessionBarDefault { background: #2C3E50; color: #ecf0f1; font-size: 11px; padding: 0 12px; }
     """
 }
 

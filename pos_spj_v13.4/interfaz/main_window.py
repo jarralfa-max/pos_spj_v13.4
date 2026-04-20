@@ -437,8 +437,7 @@ class MainWindow(QMainWindow):
         # v13.4: Barra de sesión (📍 Sucursal — 👤 Usuario — Rol)
         self._session_bar = QLabel("  Esperando inicio de sesión...")
         self._session_bar.setFixedHeight(28)
-        self._session_bar.setStyleSheet(
-            "background:#2C3E50; color:#ecf0f1; font-size:11px; padding:0 12px;")
+        self._session_bar.setObjectName("sessionBarDefault")
         main_lay.addWidget(self._session_bar)
 
         self._construir_todas_las_pantallas()
@@ -516,10 +515,10 @@ class MainWindow(QMainWindow):
         w = QWidget()
         lay = QVBoxLayout(w); lay.setAlignment(Qt.AlignCenter)
         lbl_t = QLabel(titulo)
-        lbl_t.setStyleSheet("font-size:22px; font-weight:bold;")
+        lbl_t.setObjectName("pageHeading")
         lbl_t.setAlignment(Qt.AlignCenter)
         lbl_d = QLabel(descripcion)
-        lbl_d.setStyleSheet("font-size:13px; color:#E74C3C;")
+        lbl_d.setProperty("class", "text-danger")
         lbl_d.setAlignment(Qt.AlignCenter)
         lay.addWidget(lbl_t); lay.addWidget(lbl_d)
         self.indices_pantallas[codigo] = self.stack.addWidget(w)
@@ -530,10 +529,10 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(w); lay.setAlignment(Qt.AlignCenter); lay.setSpacing(20)
         self.lbl_saludo = QLabel("¡Bienvenido al sistema SPJ POS!")
         self.lbl_saludo.setAlignment(Qt.AlignCenter)
-        self.lbl_saludo.setStyleSheet("font-size:24px; font-weight:bold;")
+        self.lbl_saludo.setObjectName("pageHeading")
         lbl_sub = QLabel("Enterprise Edition · Selecciona un módulo en el menú lateral")
         lbl_sub.setAlignment(Qt.AlignCenter)
-        lbl_sub.setStyleSheet("font-size:13px; opacity:0.7;")
+        lbl_sub.setObjectName("captionLabel")
         lay.addWidget(self.lbl_saludo); lay.addWidget(lbl_sub)
         return w
 
@@ -579,16 +578,13 @@ class MainWindow(QMainWindow):
                 f"Sucursal ID: {sucursal_id}")
             # Color según rol
             if rol in ('admin', 'superadmin'):
-                self._session_bar.setStyleSheet(
-                    "background:#1a252f; color:#e74c3c; font-size:11px; "
-                    "padding:0 12px; font-weight:bold;")
+                self._session_bar.setObjectName("sessionBarAdmin")
             elif rol in ('gerente', 'gerente_rh'):
-                self._session_bar.setStyleSheet(
-                    "background:#1a252f; color:#f39c12; font-size:11px; "
-                    "padding:0 12px; font-weight:bold;")
+                self._session_bar.setObjectName("sessionBarManager")
             else:
-                self._session_bar.setStyleSheet(
-                    "background:#2C3E50; color:#ecf0f1; font-size:11px; padding:0 12px;")
+                self._session_bar.setObjectName("sessionBarDefault")
+            self._session_bar.style().unpolish(self._session_bar)
+            self._session_bar.style().polish(self._session_bar)
 
         # Filtrar menú según rol (RBAC)
         try:
@@ -831,8 +827,9 @@ class MainWindow(QMainWindow):
             # Resetear barra de sesión
             if hasattr(self, '_session_bar'):
                 self._session_bar.setText("  Esperando inicio de sesión...")
-                self._session_bar.setStyleSheet(
-                    "background:#2C3E50; color:#ecf0f1; font-size:11px; padding:0 12px;")
+                self._session_bar.setObjectName("sessionBarDefault")
+                self._session_bar.style().unpolish(self._session_bar)
+                self._session_bar.style().polish(self._session_bar)
             self.mostrar_login()
         elif modulo in self.indices_pantallas:
             # v13.4: Verificar permisos antes de navegar al módulo
@@ -933,14 +930,14 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(dlg)
 
         txt = QLineEdit(); txt.setPlaceholderText("Buscar producto, cliente o folio de venta…")
-        txt.setStyleSheet("font-size:14px;padding:8px;")
+        txt.setObjectName("standardInput")
         lay.addWidget(txt)
 
         lst = QListWidget(); lst.setMaximumHeight(280)
         lay.addWidget(lst)
 
         lbl_hint = QLabel("↑↓ navegar   Enter: ir al módulo   Esc: cerrar")
-        lbl_hint.setStyleSheet("color:#999;font-size:11px;")
+        lbl_hint.setObjectName("captionLabel")
         lay.addWidget(lbl_hint)
 
         def buscar(texto):

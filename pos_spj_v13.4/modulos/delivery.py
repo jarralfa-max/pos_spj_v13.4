@@ -290,7 +290,6 @@ class ModuloDelivery(QWidget, RefreshMixin):
         # ── Botón de mapa de repartidores ─────────────────────────────────
         btn_mapa = create_success_button(self, "🗺️ Ver Mapa de Repartidores", "Ver ubicación de repartidores en tiempo real")
         btn_mapa.setObjectName("btnMapa")
-        btn_mapa.setStyleSheet(f"margin-top: {Spacing.SM};")
         btn_mapa.clicked.connect(self._abrir_mapa)
         layout.addWidget(btn_mapa)
 
@@ -663,18 +662,16 @@ if(drivers.length===0){{
         lbl_entregas.setObjectName("textPrimary")
         
         lbl_efectivo = QLabel("$0.00")
-        lbl_efectivo.setObjectName("textDanger")
-        lbl_efectivo.setStyleSheet(f"font-size: {Typography.LG}; font-weight: bold;")
-        
+        lbl_efectivo.setProperty("class", "text-danger")
+
         lbl_tarjeta  = QLabel("$0.00")
-        lbl_tarjeta.setObjectName("textPrimary")
-        
+        lbl_tarjeta.setObjectName("bodyLabel")
+
         lbl_transfer = QLabel("$0.00")
-        lbl_transfer.setObjectName("textPrimary")
-        
+        lbl_transfer.setObjectName("bodyLabel")
+
         lbl_total    = QLabel("$0.00")
-        lbl_total.setObjectName("heading")
-        lbl_total.setStyleSheet(f"font-weight: bold;")
+        lbl_total.setObjectName("headingLabel")
         
         rf.addRow("Entregas:", lbl_entregas)
         rf.addRow("Efectivo cobrado:", lbl_efectivo)
@@ -690,8 +687,7 @@ if(drivers.length===0){{
         rf.addRow("Efectivo entregado:", spin_entregado)
         
         lbl_diferencia = QLabel("$0.00")
-        lbl_diferencia.setObjectName("textPrimary")
-        lbl_diferencia.setStyleSheet(f"font-weight: bold;")
+        lbl_diferencia.setObjectName("bodyLabel")
         rf.addRow("Diferencia:", lbl_diferencia)
         txt_notas_corte = QLineEdit()
         txt_notas_corte.setPlaceholderText("Notas del corte (opcional)")
@@ -771,11 +767,14 @@ if(drivers.length===0){{
             lbl_diferencia.setText(f"${diff:.2f}")
             # Mantener solo el color dinámico, eliminar tamaño de fuente hardcodeado
             if abs(diff) < 0.01:
-                lbl_diferencia.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; font-weight: bold;")
+                cls = "text-success"
             elif diff < 0:
-                lbl_diferencia.setStyleSheet(f"color: {Colors.DANGER_BASE}; font-weight: bold;")
+                cls = "text-danger"
             else:
-                lbl_diferencia.setStyleSheet(f"color: {Colors.WARNING_BASE}; font-weight: bold;")
+                cls = "text-warning"
+            lbl_diferencia.setProperty("class", cls)
+            lbl_diferencia.style().unpolish(lbl_diferencia)
+            lbl_diferencia.style().polish(lbl_diferencia)
 
         cmb_driver.currentIndexChanged.connect(lambda: _cargar_entregas())
         spin_entregado.valueChanged.connect(lambda: _actualizar_diferencia())

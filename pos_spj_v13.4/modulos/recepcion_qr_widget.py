@@ -113,7 +113,7 @@ class RecepcionQRWidget(QWidget):
             "solo reemplázalo si se daña."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(f"color:{_C_GRIS}; font-size:12px;")
+        info.setObjectName("captionLabel")
         lay.addWidget(info)
 
         form = QFormLayout()
@@ -132,9 +132,7 @@ class RecepcionQRWidget(QWidget):
         self._lbl_qr_preview = QLabel("Vista previa del QR aparecerá aquí")
         self._lbl_qr_preview.setAlignment(Qt.AlignCenter)
         self._lbl_qr_preview.setFixedHeight(200)
-        self._lbl_qr_preview.setStyleSheet(
-            "border:2px dashed #ccc; background:#f9f9f9; color:#aaa; font-size:13px;"
-        )
+        self._lbl_qr_preview.setObjectName("qrPreviewEmpty")
         lay.addWidget(self._lbl_qr_preview)
 
         btns = QHBoxLayout()
@@ -171,7 +169,7 @@ class RecepcionQRWidget(QWidget):
 
         # Info del contenedor cargado
         self._lbl_cont_info = QLabel("Sin contenedor cargado")
-        self._lbl_cont_info.setStyleSheet(f"color:{_C_GRIS};padding:2px 8px;font-style:italic;")
+        self._lbl_cont_info.setObjectName("captionLabel")
         lay.addWidget(self._lbl_cont_info)
 
         # ── Step 2: Proveedor ─────────────────────────────────────────────────
@@ -182,9 +180,7 @@ class RecepcionQRWidget(QWidget):
         self._txt_buscar_proveedor.setMinimumHeight(30)
         self._txt_buscar_proveedor.textChanged.connect(self._buscar_proveedor_asignar)
         self._lbl_proveedor_sel = QLabel("Ninguno")
-        self._lbl_proveedor_sel.setStyleSheet(
-            f"color:{_C_AZUL};font-weight:bold;padding:4px 10px;"
-            "border-radius:4px;border:1px solid gray;min-width:120px;")
+        self._lbl_proveedor_sel.setObjectName("selectionChip")
         self._proveedor_asignar_id = 0
         s2.addWidget(self._txt_buscar_proveedor, 1)
         s2.addWidget(self._lbl_proveedor_sel)
@@ -208,7 +204,7 @@ class RecepcionQRWidget(QWidget):
         self._txt_buscar_prod_asign.setMinimumHeight(30)
         self._txt_buscar_prod_asign.textChanged.connect(self._buscar_producto_asignar)
         self._lbl_prod_asign_sel = QLabel("")
-        self._lbl_prod_asign_sel.setStyleSheet(f"color:{_C_AZUL};font-size:11px;")
+        self._lbl_prod_asign_sel.setObjectName("captionLabel")
         self._prod_asignar_id = 0
 
         self._spin_qty_asign = QDoubleSpinBox()
@@ -280,7 +276,7 @@ class RecepcionQRWidget(QWidget):
         self._txt_referencia = QLineEdit()
         self._txt_referencia.setPlaceholderText("No. cheque / referencia (opcional)")
         self._lbl_saldo = QLabel("Saldo pendiente: $0.00")
-        self._lbl_saldo.setStyleSheet(f"color:{_C_ROJO};font-weight:bold;")
+        self._lbl_saldo.setProperty("class", "text-danger")
         self._cmb_sucursal_destino = QComboBox()
         self._cargar_sucursales_combo_recepcion()
         self._txt_notas_asign = QTextEdit()
@@ -326,7 +322,7 @@ class RecepcionQRWidget(QWidget):
             "El sistema actualiza inventario, lotes FIFO y trazabilidad."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(f"color:{_C_GRIS}; font-size:12px;")
+        info.setObjectName("captionLabel")
         lay.addWidget(info)
 
         scan_grp = QGroupBox("Escanear QR del contenedor recibido")
@@ -341,7 +337,7 @@ class RecepcionQRWidget(QWidget):
         lay.addWidget(scan_grp)
 
         self._lbl_recv_info = QLabel("Sin contenedor cargado")
-        self._lbl_recv_info.setStyleSheet(f"color:{_C_GRIS}; padding:4px;")
+        self._lbl_recv_info.setObjectName("captionLabel")
         lay.addWidget(self._lbl_recv_info)
 
         self._tbl_recv = QTableWidget()
@@ -363,7 +359,7 @@ class RecepcionQRWidget(QWidget):
         lay.addLayout(recv_form)
 
         self._lbl_recv_diff = QLabel("Diferencia total: 0.000")
-        self._lbl_recv_diff.setStyleSheet("font-weight:bold; font-size:13px;")
+        self._lbl_recv_diff.setObjectName("infoContent")
         lay.addWidget(self._lbl_recv_diff)
 
         btn_confirmar_recv = QPushButton("✅ Confirmar Recepción y Actualizar Inventario")
@@ -537,14 +533,18 @@ class RecepcionQRWidget(QWidget):
                     f"✅ Contenedor: {uuid_qr} | "
                     f"Viaje #{row.get('datos_extra','{}')}"
                 )
-                self._lbl_cont_info.setStyleSheet(f"color:{_C_VERDE}; padding:4px;")
+                self._lbl_cont_info.setProperty("class", "text-success")
+                self._lbl_cont_info.style().unpolish(self._lbl_cont_info)
+                self._lbl_cont_info.style().polish(self._lbl_cont_info)
             else:
                 # Contenedor nuevo o nunca registrado
                 self._contenedor_activo = {"uuid_qr": uuid_qr, "es_nuevo": True}
                 self._lbl_cont_info.setText(
                     f"🆕 QR nuevo (no asignado antes): {uuid_qr}"
                 )
-                self._lbl_cont_info.setStyleSheet(f"color:{_C_NARAN}; padding:4px;")
+                self._lbl_cont_info.setProperty("class", "text-warning")
+                self._lbl_cont_info.style().unpolish(self._lbl_cont_info)
+                self._lbl_cont_info.style().polish(self._lbl_cont_info)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -571,7 +571,9 @@ class RecepcionQRWidget(QWidget):
                 f"📦 UUID: {uuid_qr} | Proveedor: {row.get('proveedor_nombre','—')} | "
                 f"Items: {len(items)}"
             )
-            self._lbl_recv_info.setStyleSheet(f"color:{_C_AZUL}; padding:4px; font-weight:bold;")
+            self._lbl_recv_info.setProperty("class", "text-info")
+            self._lbl_recv_info.style().unpolish(self._lbl_recv_info)
+            self._lbl_recv_info.style().polish(self._lbl_recv_info)
             self._poblar_tabla_recepcion(items)
             self._contenedor_activo = row
         except Exception as e:
@@ -625,9 +627,11 @@ class RecepcionQRWidget(QWidget):
             diff_item.setForeground(
                 QColor(_C_ROJO if diff < -0.001 else _C_VERDE if diff > 0.001 else "#333")
             )
-        color = _C_ROJO if total_diff > 0.01 else _C_VERDE
         self._lbl_recv_diff.setText(f"Diferencia total: {total_diff:.3f}")
-        self._lbl_recv_diff.setStyleSheet(f"font-weight:bold;font-size:13px;color:{color};")
+        diff_cls = "text-danger" if total_diff > 0.01 else "text-success"
+        self._lbl_recv_diff.setProperty("class", diff_cls)
+        self._lbl_recv_diff.style().unpolish(self._lbl_recv_diff)
+        self._lbl_recv_diff.style().polish(self._lbl_recv_diff)
 
     def _confirmar_recepcion(self) -> None:
         """Confirma la recepción: actualiza inventario, lotes y trazabilidad."""

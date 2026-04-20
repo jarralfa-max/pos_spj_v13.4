@@ -43,7 +43,7 @@ class ModuloGrowthEngine(QWidget):
         lay.setContentsMargins(14, 12, 14, 12)
         hdr = QHBoxLayout()
         t = QLabel("🚀 Growth Engine — Programa de Fidelidad")
-        t.setStyleSheet("font-size:18px;font-weight:bold;")
+        t.setObjectName("pageHeading")
         hdr.addWidget(t); hdr.addStretch()
         lay.addLayout(hdr)
 
@@ -65,7 +65,7 @@ class ModuloGrowthEngine(QWidget):
             "cuando las ventas ya superaron el umbral de rentabilidad."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#fffbea;padding:6px;border-radius:5px;font-size:11px;")
+        info.setObjectName("infoBoxWarning")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
@@ -165,7 +165,7 @@ class ModuloGrowthEngine(QWidget):
             "las N compras en la ventana de días, el progreso se reinicia."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#fffbea;padding:6px;border-radius:5px;font-size:11px;")
+        info.setObjectName("infoBoxWarning")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
@@ -314,11 +314,11 @@ class ModuloGrowthEngine(QWidget):
             "L = Σ(Estrellas_vigentes × Costo_real × Tasa_de_redención_histórica)"
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#f0f4ff;padding:7px 16px;border-radius:5px;font-size:11px;")
+        info.setObjectName("infoBoxInfo")
         lay.addWidget(info)
 
         self.lbl_pasivo = QLabel("Presiona 'Calcular' para ver el pasivo actual")
-        self.lbl_pasivo.setStyleSheet("font-size:14px;padding:12px;")
+        self.lbl_pasivo.setObjectName("infoContent")
         self.lbl_pasivo.setWordWrap(True)
         lay.addWidget(self.lbl_pasivo)
 
@@ -362,7 +362,7 @@ class ModuloGrowthEngine(QWidget):
         lay.addLayout(ctrl)
 
         self.lbl_cli_info = QLabel("")
-        self.lbl_cli_info.setStyleSheet("font-size:13px;padding:8px;")
+        self.lbl_cli_info.setObjectName("infoContent")
         self.lbl_cli_info.setWordWrap(True)
         lay.addWidget(self.lbl_cli_info)
 
