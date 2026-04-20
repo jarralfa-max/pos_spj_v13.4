@@ -99,30 +99,98 @@ class UnifiedInventoryService:
         return self.get_stock(producto_id)>=quantity
 
     def process_movement(self, product_id, quantity, movement_type,
-                         reference=None, metadata=None):
+                         reference=None, metadata=None,
+                         branch_id=None, operation_id=None,
+                         reference_id=None, reference_type=None,
+                         batch_id=None, conn=None, **_extra):
         """
-        Wrapper público sobre register_movement().
-        Registra el movimiento y emite el evento 'inventory_movement' al EventBus.
-        Non-fatal: el evento nunca cancela la operación de inventario.
+        Wrapper universal de movimientos de inventario.
+
+        API nueva:  process_movement(product_id=x, quantity=1.5, movement_type="purchase")
+        API legacy: process_movement(product_id=x, branch_id=b, quantity=-1.5,
+                                     movement_type="VENTA", operation_id=op, conn=c)
+
+        quantity : positivo = entrada, negativo = salida.
+        conn     : si se provee, ejecuta en esa conexión (transacción del caller).
+        Non-fatal para el evento EventBus — nunca cancela la escritura a DB.
         """
         if metadata is None:
             metadata = {}
-        mid = self.register_movement(
-            producto_id=product_id,
-            movement_type=movement_type,
-            quantity=quantity,
-            reference=reference,
-            notas=metadata.get("notas"),
-        )
+
+        delta = float(quantity)
+        qty_abs = abs(delta)
+        sucursal_id = branch_id if branch_id is not None else self.sucursal_id
+        ref = reference or reference_id
+
+        _TIPO_MAP = {
+            "purchase": "ENTRADA", "sale": "SALIDA", "adjustment": "AJUSTE",
+            "waste": "MERMA", "production": "PRODUCCION", "return": "DEVOLUCION",
+            "transfer": "TRASPASO",
+            "TRANSFER_IN": "ENTRADA",    "TRANSFER_OUT": "SALIDA",
+            "TRANSFER_DISPATCH": "SALIDA", "TRANSFER_RECEIVE": "ENTRADA",
+            "VENTA": "SALIDA",           "SALE_CANCEL": "ENTRADA",
+            "PRODUCCION_CONSUMO": "SALIDA", "PRODUCCION_GENERACION": "ENTRADA",
+        }
+        tipo_col = _TIPO_MAP.get(movement_type, "ENTRADA" if delta >= 0 else "SALIDA")
+
+        _mid_holder = [None]
+
+        def _write(c):
+            row = c.execute(
+                "SELECT existencia, nombre FROM productos WHERE id=?", (product_id,)
+            ).fetchone()
+            if not row:
+                raise InventoryError(f"Producto {product_id} no existe")
+            stock_ant = float(row[0] or 0)
+            nombre = row[1]
+            stock_nuevo = round(stock_ant + delta, 4)
+            if stock_nuevo < -1e-6:
+                raise StockInsuficienteError(nombre, stock_ant, qty_abs)
+            stock_nuevo = max(0.0, stock_nuevo)
+
+            _mid_holder[0] = c.execute("""
+                INSERT INTO movimientos_inventario
+                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
+                     existencia_anterior, existencia_nueva,
+                     descripcion, referencia, usuario, sucursal_id, fecha)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            """, (
+                str(uuid.uuid4()), product_id, tipo_col, movement_type, qty_abs,
+                stock_ant, stock_nuevo,
+                metadata.get("notas") or movement_type,
+                str(ref) if ref else None,
+                self.usuario, sucursal_id,
+            )).lastrowid
+
+            c.execute(
+                "UPDATE productos SET existencia=? WHERE id=?",
+                (stock_nuevo, product_id)
+            )
+            c.execute("""
+                INSERT INTO inventario_actual
+                    (producto_id, sucursal_id, cantidad, costo_promedio)
+                VALUES (?,?,?,0)
+                ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                    cantidad=excluded.cantidad,
+                    ultima_actualizacion=datetime('now')
+            """, (product_id, sucursal_id, stock_nuevo))
+
+        if conn is not None:
+            _write(conn)
+        else:
+            with transaction(self.conn) as c:
+                _write(c)
+
+        mid = _mid_holder[0]
         try:
             from core.events.event_bus import get_bus
             get_bus().publish("inventory_movement", {
                 "movement_id": mid,
                 "product_id": product_id,
-                "quantity": quantity,
+                "quantity": delta,
                 "movement_type": movement_type,
-                "reference": reference,
-                "sucursal_id": self.sucursal_id,
+                "reference": str(ref) if ref else None,
+                "sucursal_id": sucursal_id,
                 "metadata": metadata,
             })
         except Exception as _e:
