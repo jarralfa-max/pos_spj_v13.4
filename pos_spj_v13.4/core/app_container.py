@@ -415,6 +415,32 @@ class AppContainer:
             sucursal_id=self.sucursal_id
         )
 
+        # ── ERP FASE 3: AccountingEngine ─────────────────────────────────────
+        try:
+            from core.services.finance.accounting_engine import AccountingEngine
+            self.accounting_engine = AccountingEngine(self.finance_service)
+            self.accounting_engine.wire()
+        except Exception as _ae:
+            self.accounting_engine = None
+            logger.debug("AccountingEngine: %s", _ae)
+
+        # ── ERP FASE 4: UnifiedThirdPartyService ─────────────────────────────
+        try:
+            from core.services.finance.third_party_service import UnifiedThirdPartyService
+            self.third_party_service = UnifiedThirdPartyService(self.finance_service)
+        except Exception as _tp:
+            self.third_party_service = None
+            logger.debug("ThirdPartyService: %s", _tp)
+
+        # ── ERP FASE 5: AnalyticsEngine ──────────────────────────────────────
+        try:
+            from core.services.analytics.analytics_engine import AnalyticsEngine
+            self.analytics_engine = AnalyticsEngine(self.db)
+            self.analytics_engine.wire()
+        except Exception as _anae:
+            self.analytics_engine = None
+            logger.debug("AnalyticsEngine: %s", _anae)
+
         # Wire kitchen printer and comisiones to sales_service
         try:
             self.sales_service._hw_svc = self.hardware_service

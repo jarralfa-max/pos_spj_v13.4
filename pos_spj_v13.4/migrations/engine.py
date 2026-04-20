@@ -54,6 +54,10 @@ MIGRATIONS = [
     ("058",  "migrations.standalone.058_scan_event_log"),    # v13.4: auditoría de escaneos Fase 2
     ("059",  "migrations.standalone.059_plan_cuentas"),      # v13.4: plan de cuentas SAT NIF Fase 3
     ("060",  "migrations.standalone.060_depreciacion_acumulada"),  # v13.4: depreciación acumulada Fase 3
+    # ERP evolution — additive, non-breaking
+    ("061",  "migrations.standalone.061_fix_finanzas_schema"),   # ERP FASE 1: columnas finanzas hotfix
+    ("062",  "migrations.standalone.062_bi_analytics_tables"),   # ERP FASE 5: tablas BI analytics
+    ("063",  "migrations.standalone.063_audit_log_table"),       # ERP FASE 7: audit_log (inglés)
 ]
 
 def _ensure_tracking_table(conn):

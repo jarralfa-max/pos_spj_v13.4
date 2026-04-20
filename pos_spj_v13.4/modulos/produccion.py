@@ -87,16 +87,9 @@ class _DBWrapperProd:
     from contextlib import contextmanager
     @contextmanager
     def transaction(self, name=""):
-        import uuid as _u
-        sp = f"sp_{_u.uuid4().hex[:8]}"
-        self.conn.execute(f"SAVEPOINT {sp}")
-        try:
+        from core.db.connection import transaction as _canonical_tx
+        with _canonical_tx(self.conn):
             yield self
-            self.conn.execute(f"RELEASE SAVEPOINT {sp}")
-        except Exception:
-            try: self.conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-            except Exception: pass
-            raise
 
 
 class ModuloProduccion(ModuloBase):
