@@ -248,6 +248,11 @@ class ModuloFinanzas(ModuloBase):
         self.sucursal_id     = 1
         self.sucursal_nombre = "Principal"
         self._svc = FinanceService(self.conexion)
+        # Defensive init: widgets created inside _init_ui(); guards prevent
+        # AttributeError if a tab fails to build before a timer/signal fires.
+        self.tabla_personal = None
+        self.tbl_nomina     = None
+        self._act_tipo_f    = None
         self._init_ui()
         try:
             EventBus().subscribe("VENTA_COMPLETADA",
@@ -1023,6 +1028,8 @@ class ModuloFinanzas(ModuloBase):
             logger.error("load_gastos: %s", exc)
 
     def _load_personal(self):
+        if self.tabla_personal is None:
+            return
         estado_text = getattr(self, '_combo_filtro_personal',
                               None) and self._combo_filtro_personal.currentText()
         activo = None
@@ -1053,6 +1060,8 @@ class ModuloFinanzas(ModuloBase):
         self._load_nomina()
 
     def _load_nomina(self, emp_id=None):
+        if self.tbl_nomina is None:
+            return
         try:
             df, dt = self._dates()
             rows = self._svc.get_nomina_pagos(
@@ -1078,6 +1087,8 @@ class ModuloFinanzas(ModuloBase):
             logger.error("load_nomina: %s", exc)
 
     def _load_activos(self):
+        if self._act_tipo_f is None:
+            return
         tipo_f = self._act_tipo_f.currentText()
         tipo_f = None if tipo_f == "Todos" else tipo_f
         try:
