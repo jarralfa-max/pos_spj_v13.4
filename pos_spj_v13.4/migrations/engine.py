@@ -59,6 +59,7 @@ MIGRATIONS = [
     ("062",  "migrations.standalone.062_bi_analytics_tables"),   # ERP FASE 5: tablas BI analytics
     ("063",  "migrations.standalone.063_audit_log_table"),       # ERP FASE 7: audit_log (inglés)
     ("064",  "migrations.standalone.064_fix_missing_columns"),   # Hotfix: columnas faltantes producción
+    ("065",  "migrations.standalone.065_performance_indexes_views"),  # ERP FASE 8: índices + vistas BI
 ]
 
 def _ensure_tracking_table(conn):

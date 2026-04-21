@@ -441,6 +441,14 @@ class AppContainer:
             self.analytics_engine = None
             logger.debug("AnalyticsEngine: %s", _anae)
 
+        # ── ERP FASE 8: FiscalEngine ─────────────────────────────────────────
+        try:
+            from core.services.finance.fiscal_engine import FiscalEngine
+            self.fiscal_engine = FiscalEngine(self.db)
+        except Exception as _fe:
+            self.fiscal_engine = None
+            logger.debug("FiscalEngine: %s", _fe)
+
         # Wire kitchen printer and comisiones to sales_service
         try:
             self.sales_service._hw_svc = self.hardware_service
