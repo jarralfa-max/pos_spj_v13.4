@@ -449,6 +449,13 @@ class AppContainer:
             self.fiscal_engine = None
             logger.debug("FiscalEngine: %s", _fe)
 
+        # Bridge AnalyticsEngine → BIService so bi_service.forecast() etc. work
+        try:
+            if self.analytics_engine is not None:
+                self.bi_service.set_analytics_engine(self.analytics_engine)
+        except Exception:
+            pass
+
         # Wire kitchen printer and comisiones to sales_service
         try:
             self.sales_service._hw_svc = self.hardware_service

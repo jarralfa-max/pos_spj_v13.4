@@ -195,3 +195,52 @@ class BIService:
         else:
             self._cache.clear()
             self._cache_ts.clear()
+
+    # ── AnalyticsEngine delegation (ERP FASE 8) ──────────────────────────────
+
+    def set_analytics_engine(self, engine) -> None:
+        """Inject AnalyticsEngine for enhanced BI queries. Called by AppContainer."""
+        self._analytics_engine = engine
+
+    def sales_metrics(self, fecha: str, sucursal_id: int = 1) -> dict:
+        """Delegate to AnalyticsEngine.sales_metrics if available."""
+        ae = getattr(self, "_analytics_engine", None)
+        if ae:
+            try:
+                return ae.sales_metrics(fecha, sucursal_id)
+            except Exception as e:
+                logger.warning("BIService.sales_metrics via AE: %s", e)
+        return {"fecha": fecha, "sucursal_id": sucursal_id,
+                "total_ventas": 0.0, "num_transacciones": 0, "promedio_ticket": 0.0}
+
+    def product_profitability(
+        self, fecha_ini: str, fecha_fin: str, sucursal_id: int = 1, limit: int = 20
+    ) -> list:
+        """Delegate to AnalyticsEngine.product_profitability if available."""
+        ae = getattr(self, "_analytics_engine", None)
+        if ae:
+            try:
+                return ae.product_profitability(fecha_ini, fecha_fin, sucursal_id, limit)
+            except Exception as e:
+                logger.warning("BIService.product_profitability via AE: %s", e)
+        return []
+
+    def forecast(self, sucursal_id: int = 1, dias: int = 7) -> list:
+        """Delegate to AnalyticsEngine.forecast if available."""
+        ae = getattr(self, "_analytics_engine", None)
+        if ae:
+            try:
+                return ae.forecast(sucursal_id, dias)
+            except Exception as e:
+                logger.warning("BIService.forecast via AE: %s", e)
+        return []
+
+    def inventory_intelligence(self, sucursal_id: int = 1, top: int = 10) -> dict:
+        """Delegate to AnalyticsEngine.inventory_intelligence if available."""
+        ae = getattr(self, "_analytics_engine", None)
+        if ae:
+            try:
+                return ae.inventory_intelligence(sucursal_id, top)
+            except Exception as e:
+                logger.warning("BIService.inventory_intelligence via AE: %s", e)
+        return {"low_stock": [], "slow_movers": [], "top_consumed": []}

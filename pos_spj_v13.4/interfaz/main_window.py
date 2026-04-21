@@ -143,6 +143,12 @@ except Exception as e:
     logger.error("Error cargando ModuloReportesBIv2: %s", e)
 
 try:
+    from modulos.dashboard_gerencial import DashboardGerencial
+except Exception as e:
+    DashboardGerencial = None
+    logger.error("Error cargando DashboardGerencial: %s", e)
+
+try:
     from modulos.planeacion_compras import ModuloPlaneacionCompras
 except Exception as e:
     ModuloPlaneacionCompras = None
@@ -482,6 +488,7 @@ class MainWindow(QMainWindow):
         self._conectar("GROWTH_ENGINE",      ModuloFidelidadConfig,  "⭐ Fidelización")
         self._conectar("TARJETAS_FIDELIDAD", ModuloTarjetas,         "💳 Tarjetas Fidelidad")
         self._conectar("INTELIGENCIA_BI",    ModuloReportesBIv2,     "📈 Inteligencia BI")
+        self._conectar("DASHBOARD_GERENCIAL", DashboardGerencial,   "🏢 Dashboard Gerencial")
         self._conectar("WHATSAPP",           ModuloWhatsApp,         "📱 Pedidos WhatsApp")
         self._conectar("DECISIONES",         ModuloDecisiones,       "🧠 Decisiones / BI Pro")
 
