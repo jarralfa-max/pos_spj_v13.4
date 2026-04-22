@@ -297,3 +297,256 @@ class AnalyticsEngine:
         except Exception as e:
             logger.warning("forecast non-fatal: %s", e)
             return []
+
+    # ── Unified BI Dashboard API (consolida BIService + BIRepository) ────────
+
+    def get_dashboard_data(self, branch_id: int, rango: str = 'hoy') -> dict:
+        """
+        Construye el paquete completo de datos para el Dashboard.
+        Unifica: BIService.get_dashboard_data() + BIRepository queries.
+        Cache strategy:
+          - 'hoy'   → usa ventas_diarias (agregados) + caché 60s en memoria
+          - 'semana'/'mes' → caché 5 min (datos históricos no cambian frecuente)
+        """
+        import time
+        from datetime import datetime, timedelta
+
+        # ── Caché en memoria ──────────────────────────────────────────────
+        cache_key = f"{branch_id}:{rango}"
+        ttl = 60 if rango == 'hoy' else 300
+        now = time.monotonic()
+        if cache_key in self._cache:
+            if now - self._cache_ts.get(cache_key, 0) < ttl:
+                logger.debug("BI cache HIT: %s", cache_key)
+                return self._cache[cache_key]
+
+        # ── Calcular fechas ───────────────────────────────────────────────
+        hoy = datetime.now()
+        if rango == 'hoy':
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'semana':
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'mes':
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+
+        # ── Intentar leer desde ventas_diarias (tabla de agregados) ──────
+        try:
+            if rango == 'hoy':
+                row = self._db.execute("""
+                    SELECT COALESCE(SUM(total_ventas),0),
+                           COALESCE(SUM(num_transacciones),0),
+                           COALESCE(AVG(promedio_ticket),0),
+                           COALESCE(SUM(clientes_nuevos),0)
+                    FROM bi_sales_daily
+                    WHERE fecha=? AND sucursal_id=?
+                """, (fecha_inicio, branch_id)).fetchone()
+                if row and float(row[0]) > 0:
+                    kpis_fast = {
+                        'ingresos_totales': float(row[0]),
+                        'total_tickets':    int(row[1]),
+                        'ticket_promedio':  float(row[2]),
+                        'clientes_unicos':  int(row[3]) if row[3] else 0,
+                    }
+                    dashboard = {
+                        'periodo':            f"{fecha_inicio} al {fecha_fin}",
+                        'fuente':             'bi_sales_daily',
+                        'kpis': {
+                            'ingresos':         kpis_fast['ingresos_totales'],
+                            'tickets':          kpis_fast['total_tickets'],
+                            'ticket_promedio':  kpis_fast['ticket_promedio'],
+                            'clientes_unicos':  kpis_fast['clientes_unicos'],
+                        },
+                        'ventas_por_hora':      self.get_ventas_por_hora(
+                            branch_id, fecha_inicio, fecha_fin),
+                        'top_productos':        self.get_ranking_productos(
+                            branch_id, fecha_inicio, fecha_fin, limite=5, orden='DESC'),
+                        'productos_lentos':     self.get_ranking_productos(
+                            branch_id, fecha_inicio, fecha_fin, limite=5, orden='ASC'),
+                        'clientes_recurrentes': self.get_clientes_recurrentes(
+                            branch_id, fecha_inicio, fecha_fin),
+                    }
+                    self._cache[cache_key] = dashboard
+                    self._cache_ts[cache_key] = now
+                    logger.debug("BI desde bi_sales_daily: %s", cache_key)
+                    return dashboard
+        except Exception as e:
+            logger.debug("bi_sales_daily no disponible, calculando en tiempo real: %s", e)
+
+        # ── Fallback: calcular desde ventas (tiempo real) ─────────────────
+        try:
+            kpis = self._get_kpis_generales(branch_id, fecha_inicio, fecha_fin)
+            dashboard = {
+                'periodo': f"{fecha_inicio} al {fecha_fin}",
+                'fuente':  'tiempo_real',
+                'kpis': {
+                    'ingresos':         kpis.get('ingresos_totales') or 0.0,
+                    'tickets':          kpis.get('total_tickets') or 0,
+                    'ticket_promedio':  kpis.get('ticket_promedio') or 0.0,
+                    'clientes_unicos':  kpis.get('clientes_unicos') or 0,
+                },
+                'ventas_por_hora':      self.get_ventas_por_hora(
+                    branch_id, fecha_inicio, fecha_fin),
+                'top_productos':        self.get_ranking_productos(
+                    branch_id, fecha_inicio, fecha_fin, limite=5, orden='DESC'),
+                'productos_lentos':     self.get_ranking_productos(
+                    branch_id, fecha_inicio, fecha_fin, limite=5, orden='ASC'),
+                'clientes_recurrentes': self.get_clientes_recurrentes(
+                    branch_id, fecha_inicio, fecha_fin),
+            }
+            # Comparativa vs período anterior
+            try:
+                dashboard['comparativa'] = self._get_comparativa(branch_id, rango)
+            except Exception:
+                dashboard['comparativa'] = {}
+
+            self._cache[cache_key] = dashboard
+            self._cache_ts[cache_key] = now
+            return dashboard
+        except Exception as e:
+            logger.error("Fallo al generar Dashboard BI para sucursal %d: %s", branch_id, e)
+            raise RuntimeError("No se pudo generar el reporte analítico.")
+
+    _cache: dict = {}
+    _cache_ts: dict = {}
+
+    def _get_kpis_generales(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str) -> dict:
+        """Obtiene Total de Ventas, Ticket Promedio y Cantidad de Clientes."""
+        query = """
+            SELECT 
+                COUNT(id) as total_tickets,
+                SUM(total) as ingresos_totales,
+                AVG(total) as ticket_promedio,
+                COUNT(DISTINCT cliente_id) as clientes_unicos
+            FROM ventas 
+            WHERE sucursal_id = ? AND estado = 'completada'
+            AND date(fecha) BETWEEN date(?) AND date(?)
+        """
+        row = self._db.execute(query, (sucursal_id, fecha_inicio, fecha_fin)).fetchone()
+        return dict(row) if row else {'total_tickets': 0, 'ingresos_totales': 0, 'ticket_promedio': 0, 'clientes_unicos': 0}
+
+    def get_ventas_por_hora(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str) -> list:
+        """Agrupa las ventas según la hora del día para detectar 'Horas Pico'."""
+        query = """
+            SELECT 
+                strftime('%H', fecha) as hora,
+                COUNT(id) as cantidad_ventas,
+                SUM(total) as ingresos
+            FROM ventas
+            WHERE sucursal_id = ? AND estado = 'completada'
+            AND date(fecha) BETWEEN date(?) AND date(?)
+            GROUP BY hora
+            ORDER BY hora ASC
+        """
+        return [dict(row) for row in self._db.execute(query, (sucursal_id, fecha_inicio, fecha_fin)).fetchall()]
+
+    def get_ranking_productos(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str, limite: int = 10, orden: str = 'DESC') -> list:
+        """
+        Obtiene los productos Más Vendidos (DESC) o los Lentos/Menos Vendidos (ASC).
+        """
+        query = f"""
+            SELECT 
+                p.nombre,
+                SUM(d.cantidad) as cantidad_vendida,
+                SUM(d.subtotal) as ingresos_generados
+            FROM detalles_venta d
+            JOIN ventas v ON d.venta_id = v.id
+            JOIN productos p ON d.producto_id = p.id
+            WHERE v.sucursal_id = ? AND v.estado = 'completada'
+            AND date(v.fecha) BETWEEN date(?) AND date(?)
+            GROUP BY p.id, p.nombre
+            ORDER BY cantidad_vendida {orden}
+            LIMIT ?
+        """
+        return [dict(row) for row in self._db.execute(query, (sucursal_id, fecha_inicio, fecha_fin, limite)).fetchall()]
+
+    def get_clientes_recurrentes(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str) -> list:
+        """Identifica a los VIPs: Clientes que más veces han comprado y más han gastado."""
+        query = """
+            SELECT 
+                c.nombre,
+                COUNT(v.id) as visitas,
+                SUM(v.total) as valor_vida
+            FROM ventas v
+            JOIN clientes c ON v.cliente_id = c.id
+            WHERE v.sucursal_id = ? AND v.estado = 'completada' AND c.nombre != 'Público General'
+            AND date(v.fecha) BETWEEN date(?) AND date(?)
+            GROUP BY c.id, c.nombre
+            ORDER BY valor_vida DESC
+            LIMIT 10
+        """
+        return [dict(row) for row in self._db.execute(query, (sucursal_id, fecha_inicio, fecha_fin)).fetchall()]
+
+    def get_ranking_cajeros(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str, limite: int = 20) -> list:
+        """
+        Ranking de cajeros por número de transacciones, volumen y ticket promedio.
+        """
+        query = """
+            SELECT
+                COALESCE(usuario, '(sin usuario)') AS cajero,
+                COUNT(id)          AS num_ventas,
+                SUM(total)         AS total_ventas,
+                AVG(total)         AS ticket_promedio,
+                SUM(descuento)     AS total_descuentos,
+                COUNT(DISTINCT DATE(fecha)) AS dias_activo
+            FROM ventas
+            WHERE sucursal_id = ?
+              AND estado = 'completada'
+              AND date(fecha) BETWEEN date(?) AND date(?)
+            GROUP BY usuario
+            ORDER BY num_ventas DESC
+            LIMIT ?
+        """
+        return [dict(row) for row in self._db.execute(
+            query, (sucursal_id, fecha_inicio, fecha_fin, limite)).fetchall()]
+
+    def get_scan_telemetria(self, sucursal_id: int, fecha_inicio: str, fecha_fin: str) -> list:
+        """
+        Resumen de eventos de escaneo por tipo y acción.
+        """
+        try:
+            query = """
+                SELECT tipo, accion, COUNT(*) AS total
+                FROM scan_event_log
+                WHERE sucursal_id = ?
+                  AND date(created_at) BETWEEN date(?) AND date(?)
+                GROUP BY tipo, accion
+                ORDER BY total DESC
+            """
+            return [dict(row) for row in self._db.execute(
+                query, (sucursal_id, fecha_inicio, fecha_fin)).fetchall()]
+        except Exception:
+            return []
+
+    def _get_comparativa(self, sucursal_id: int, rango: str) -> dict:
+        """KPIs del período anterior: hoy→ayer, semana→semana pasada, mes→mes pasado."""
+        from datetime import date, timedelta
+        hoy = date.today()
+        if rango == 'hoy':
+            fi = ff = (hoy - timedelta(days=1)).isoformat()
+        elif rango == 'semana':
+            ff = (hoy - timedelta(days=7)).isoformat()
+            fi = (hoy - timedelta(days=14)).isoformat()
+        else:
+            ff = (hoy - timedelta(days=30)).isoformat()
+            fi = (hoy - timedelta(days=60)).isoformat()
+        kpis = self._get_kpis_generales(sucursal_id, fi, ff)
+        return {
+            'ingresos':    float(kpis.get('ingresos_totales') or 0),
+            'num_ventas':  int(kpis.get('total_tickets') or 0),
+            'ticket_prom': float(kpis.get('ticket_promedio') or 0),
+            'periodo':     f"{fi} → {ff}",
+        }
+
+    def invalidar_cache(self, branch_id: int = None) -> None:
+        """Invalida el caché tras una venta (llamado desde EventBus)."""
+        if branch_id:
+            key = f"{branch_id}:hoy"
+            self._cache.pop(key, None)
+            self._cache_ts.pop(key, None)
+        else:
+            self._cache.clear()
+            self._cache_ts.clear()

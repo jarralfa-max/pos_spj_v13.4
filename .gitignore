@@ -1,62 +1,57 @@
+```
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-
-# Dependencies
-.venv/
+.Python
+env/
 venv/
-node_modules/
-
-# Build artifacts
-dist/
-build/
-target/
-
-# Coverage
+.venv/
+.ENV
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
 .coverage
-coverage/
-htmlcov/
-
-# MyPy
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
 .mypy_cache/
 
-# PyTest
-.pytest_cache/
+# Compiled and build artifacts
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.out
 
-# -----------------------------
-# Archivos generados (IMPORTANTE)
-# -----------------------------
+# Dependencies
+node_modules/
+target/
+.gradle/
+build/
+dist/
 
-# PDFs generados
-*.pdf
+# Environment variables
+.env
+.env.local
+.env.*
 
-# Imágenes generadas
-*.png
-*.jpg
-*.jpeg
-*.webp
+# Editors and IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
 
-# Carpetas específicas del sistema
-pos_spj_v13.4/TICKETS/
-pos_spj_v13.4/imagenes_productos/
-
-# SQLite databases (generated at runtime)
-*.db
-*.sqlite
-*.sqlite3
+# OS generated files
+.DS_Store
+Thumbs.db
+```

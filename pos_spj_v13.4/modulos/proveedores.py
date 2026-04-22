@@ -1,15 +1,16 @@
-# modulos/proveedores.py — SPJ POS v13
+# modulos/proveedores.py — SPJ POS v13.4
 """
-Módulo de gestión de proveedores.
+Módulo de gestión de proveedores — UI DELGADA.
 
-Funciones:
-  - CRUD completo de proveedores
-  - Historial de precios por producto/proveedor
-  - Evaluación básica (puntualidad, calidad, precio)
-  - Directorio con contactos y condiciones de pago
+TODA la lógica de negocio está en:
+  core/services/finance/third_party_service.py
+
+Este módulo solo:
+  - Renderiza UI
+  - Consume servicios
+  - Maneja eventos de usuario
 """
 from __future__ import annotations
-from core.services.auto_audit import audit_write
 from core.events.event_bus import get_bus
 import logging
 from datetime import date
@@ -34,11 +35,11 @@ logger = logging.getLogger("spj.proveedores")
 # ── Diálogo editar/crear proveedor ─────────────────────────────────────────
 
 class DialogoProveedor(QDialog):
-    """Dialogo para crear/editar proveedores. v13.2"""
+    """Dialogo para crear/editar proveedores. v13.4 - UI Delgada"""
 
-    def __init__(self, db, proveedor_id=None, parent=None):
+    def __init__(self, third_party_service, proveedor_id=None, parent=None):
         super().__init__(parent)
-        self.db           = db
+        self._tps = third_party_service
         self.proveedor_id = proveedor_id
         self.setWindowTitle("Editar Proveedor" if proveedor_id else "Nuevo Proveedor")
         self.setMinimumWidth(460)
@@ -84,35 +85,24 @@ class DialogoProveedor(QDialog):
 
     def _cargar(self):
         try:
-            cols = {r[1] for r in self.db.execute("PRAGMA table_info(proveedores)").fetchall()}
-            cat_col  = "categoria," if "categoria" in cols else ""
-            nota_col = "notas"      if "notas"     in cols else "NULL"
-            row = self.db.execute(
-                f"SELECT nombre,rfc,telefono,email,contacto,{cat_col}"
-                f"direccion,condiciones_pago,limite_credito,banco,{nota_col} "
-                f"FROM proveedores WHERE id=?", (self.proveedor_id,)
-            ).fetchone()
-            if not row: return
-            i = 0
-            self.txt_nombre.setText(str(row[i] or "")); i+=1
-            self.txt_rfc.setText(str(row[i] or "")); i+=1
-            self.txt_telefono.set_phone(str(row[i] or "")); i+=1
-            self.txt_email.setText(str(row[i] or "")); i+=1
-            self.txt_contacto.setText(str(row[i] or "")); i+=1
-            if cat_col:
-                idx = self.cmb_categoria.findText(str(row[i] or "Productos"))
-                if idx >= 0: self.cmb_categoria.setCurrentIndex(idx)
-                i+=1
-            self.txt_direccion.setPlainText(str(row[i] or "")); i+=1
-            self.spin_dias.setValue(int(row[i] or 0)); i+=1
-            self.spin_limite.setValue(float(row[i] or 0)); i+=1
-            self.txt_banco.setText(str(row[i] or "")); i+=1
-            self.txt_notas.setPlainText(str(row[i] or ""))
-        except Exception:
-            pass
+            prov = self._tps.get_proveedor(self.proveedor_id)
+            if not prov: return
+            self.txt_nombre.setText(prov.get("nombre", ""))
+            self.txt_rfc.setText(prov.get("rfc", ""))
+            self.txt_telefono.set_phone(prov.get("telefono", ""))
+            self.txt_email.setText(prov.get("email", ""))
+            self.txt_contacto.setText(prov.get("contacto", ""))
+            idx = self.cmb_categoria.findText(prov.get("categoria", "Productos"))
+            if idx >= 0: self.cmb_categoria.setCurrentIndex(idx)
+            self.txt_direccion.setPlainText(prov.get("direccion", ""))
+            self.spin_dias.setValue(int(prov.get("condiciones_pago", 0) or 0))
+            self.spin_limite.setValue(float(prov.get("limite_credito", 0) or 0))
+            self.txt_banco.setText(prov.get("banco", ""))
+            self.txt_notas.setPlainText(prov.get("notas", ""))
+        except Exception as e:
+            logger.warning("_cargar error: %s", e)
 
     def _guardar(self):
-        # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
         import re as _re
         nombre = self.txt_nombre.text().strip()
         if not nombre:
@@ -123,52 +113,38 @@ class DialogoProveedor(QDialog):
             QMessageBox.warning(self, "Telefono invalido",
                 "Formato: +codigopais+numero sin espacios\nEj: +5215512345678")
             return
-        # ensure columns exist
-        for col_def in ["categoria TEXT DEFAULT 'Productos'", "notas TEXT"]:
-            try: self.db.execute(f"ALTER TABLE proveedores ADD COLUMN {col_def}")
-            except Exception: pass
-        try: self.db.commit()
-        except Exception: pass
-        datos = (
-            nombre,
-            self.txt_rfc.text().strip(),
-            tel,
-            self.txt_email.text().strip(),
-            self.txt_contacto.text().strip(),
-            self.cmb_categoria.currentText(),
-            self.txt_direccion.toPlainText().strip(),
-            self.spin_dias.value(),
-            self.spin_limite.value(),
-            self.txt_banco.text().strip(),
-            self.txt_notas.toPlainText().strip(),
-        )
+        
+        datos = {
+            "nombre": nombre,
+            "rfc": self.txt_rfc.text().strip(),
+            "telefono": tel,
+            "email": self.txt_email.text().strip(),
+            "contacto": self.txt_contacto.text().strip(),
+            "categoria": self.cmb_categoria.currentText(),
+            "direccion": self.txt_direccion.toPlainText().strip(),
+            "condiciones_pago": self.spin_dias.value(),
+            "limite_credito": self.spin_limite.value(),
+            "banco": self.txt_banco.text().strip(),
+            "notas": self.txt_notas.toPlainText().strip(),
+        }
         try:
             if self.proveedor_id:
-                self.db.execute("""UPDATE proveedores
-                    SET nombre=?,rfc=?,telefono=?,email=?,contacto=?,
-                        categoria=?,direccion=?,condiciones_pago=?,
-                        limite_credito=?,banco=?,notas=?,activo=1
-                    WHERE id=?""", datos + (self.proveedor_id,))
+                self._tps.update_proveedor(self.proveedor_id, datos)
             else:
-                self.db.execute("""INSERT INTO proveedores
-                    (nombre,rfc,telefono,email,contacto,categoria,
-                     direccion,condiciones_pago,limite_credito,banco,notas,activo)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,1)""", datos)
-            try: self.db.commit()
-            except Exception: pass
-            try:
-                get_bus().publish("PROVEEDOR_CREADO", {"event_type": "PROVEEDOR_CREADO"})
-            except Exception: pass
+                self._tps.create_proveedor(datos)
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Error al guardar", str(e))
 
 class ModuloProveedores(QWidget):
+    """Módulo de Proveedores — UI DELGADA. Consume UnifiedThirdPartyService."""
 
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container = container
-        self.db = container.db
+        self._tps = getattr(container, 'third_party_service', None)
+        if not self._tps:
+            logger.warning("third_party_service no disponible en container")
         self.usuario_actual = ""
         self._build_ui()
         self._cargar_tabla()
@@ -261,7 +237,10 @@ class ModuloProveedores(QWidget):
     # ── Acciones ───────────────────────────────────────────────────────────
 
     def _nuevo(self):
-        dlg = DialogoProveedor(self.db, parent=self)
+        if not self._tps:
+            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
+            return
+        dlg = DialogoProveedor(self._tps, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self._cargar_tabla()
             self._cargar_combo_proveedores()
@@ -274,7 +253,10 @@ class ModuloProveedores(QWidget):
         from PyQt5.QtCore import Qt as _Qt
         proveedor_id = pid.data(_Qt.UserRole)
         if not proveedor_id: return
-        dlg = DialogoProveedor(self.db, proveedor_id, self)
+        if not self._tps:
+            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
+            return
+        dlg = DialogoProveedor(self._tps, proveedor_id, self)
         if dlg.exec_() == QDialog.Accepted:
             self._cargar_tabla()
 
@@ -284,12 +266,11 @@ class ModuloProveedores(QWidget):
             f"¿Eliminar a '{nombre}'?\nEsta acción no se puede deshacer.",
             QMessageBox.Yes | QMessageBox.No)
         if resp != QMessageBox.Yes: return
+        if not self._tps:
+            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
+            return
         try:
-            # Soft-delete (marcar inactivo)
-            self.db.execute(
-                "UPDATE proveedores SET activo=0 WHERE id=?", (proveedor_id,))
-            try: self.db.commit()
-            except Exception: pass
+            self._tps.delete_proveedor(proveedor_id, soft=True)
             self._cargar_tabla()
             self._cargar_combo_proveedores()
         except Exception as e:
@@ -298,33 +279,26 @@ class ModuloProveedores(QWidget):
     # ── Datos ──────────────────────────────────────────────────────────────
 
     def _cargar_tabla(self):
+        if not self._tps:
+            self.tbl.setRowCount(0)
+            return
         try:
-            rows = self.db.execute("""
-                SELECT p.id, p.nombre, p.telefono, p.email, p.contacto,
-                       COALESCE(p.condiciones_pago,0) as condiciones_pago,
-                       COALESCE(SUM(ap.balance),0) as saldo_pendiente
-                FROM proveedores p
-                LEFT JOIN accounts_payable ap ON ap.supplier_id=p.id
-                  AND ap.status='pendiente'
-                WHERE p.activo=1
-                GROUP BY p.id
-                ORDER BY p.nombre
-                LIMIT 300
-            """).fetchall()
-        except Exception:
-            try:
-                rows = self.db.execute(
-                    "SELECT id,nombre,telefono,email,contacto,COALESCE(condiciones_pago,0),0 "
-                    "FROM proveedores WHERE activo=1 ORDER BY nombre LIMIT 300"
-                ).fetchall()
-            except Exception as e:
-                logger.warning("_cargar_tabla: %s", e); rows = []
+            rows = self._tps.get_all_proveedores(activo=True, limit=300)
+        except Exception as e:
+            logger.warning("_cargar_tabla: %s", e)
+            rows = []
 
         self.tbl.setRowCount(len(rows))
         for ri, r in enumerate(rows):
-            pid, nombre = r[0], r[1]
-            vals = [nombre, r[2] or "", r[3] or "", r[4] or "",
-                    f"{int(r[5] or 0)} días", f"${float(r[6] or 0):,.2f}"]
+            pid, nombre = r.get('id'), r.get('nombre', '')
+            vals = [
+                nombre, 
+                r.get('telefono', ''), 
+                r.get('email', ''), 
+                r.get('contacto', ''),
+                f"{int(r.get('condiciones_pago', 0) or 0)} días", 
+                f"${float(r.get('saldo_pendiente', 0) or 0):,.2f}"
+            ]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(str(v))
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -350,7 +324,10 @@ class ModuloProveedores(QWidget):
             self.tbl.setCellWidget(ri, 6, btn_w)
 
     def _editar_por_id(self, proveedor_id: int):
-        dlg = DialogoProveedor(self.db, proveedor_id, self)
+        if not self._tps:
+            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
+            return
+        dlg = DialogoProveedor(self._tps, proveedor_id, self)
         if dlg.exec_() == QDialog.Accepted:
             self._cargar_tabla()
 
@@ -364,39 +341,38 @@ class ModuloProveedores(QWidget):
             self.tbl.setRowHidden(i, not visible)
 
     def _cargar_combo_proveedores(self):
+        if not self._tps:
+            return
         try:
-            rows = self.db.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = self._tps.get_all_proveedores(activo=True, limit=500)
             self.cmb_proveedor_hist.blockSignals(True)
             self.cmb_proveedor_hist.clear()
             for r in rows:
-                self.cmb_proveedor_hist.addItem(r[1], r[0])
+                self.cmb_proveedor_hist.addItem(r.get('nombre', ''), r.get('id'))
             self.cmb_proveedor_hist.blockSignals(False)
             self._cargar_historial_precios()
         except Exception as e:
             logger.debug("_cargar_combo: %s", e)
 
     def _cargar_historial_precios(self):
+        if not self._tps:
+            self.tbl_hist.setRowCount(0)
+            return
         pid = self.cmb_proveedor_hist.currentData()
         if not pid: return
         try:
-            rows = self.db.execute("""
-                SELECT pr.nombre, dc.precio_unitario, dc.cantidad,
-                       c.fecha, c.id
-                FROM detalles_compra dc
-                JOIN productos pr ON pr.id = dc.producto_id
-                JOIN compras c ON c.id = dc.compra_id
-                WHERE c.proveedor_id=?
-                ORDER BY c.fecha DESC
-                LIMIT 200
-            """, (pid,)).fetchall()
+            rows = self._tps.get_historial_precios(proveedor_id=pid, limit=200)
         except Exception:
             rows = []
         self.tbl_hist.setRowCount(len(rows))
         for ri, r in enumerate(rows):
-            vals = [r[0], f"${float(r[1]):.4f}", f"{float(r[2]):.2f}",
-                    str(r[3])[:10], f"#{r[4]}"]
+            vals = [
+                r.get('producto', ''), 
+                f"${float(r.get('precio', 0)):.4f}", 
+                f"{float(r.get('cantidad', 0)):.2f}",
+                str(r.get('fecha', ''))[:10], 
+                f"#{r.get('compra_id', '')}"
+            ]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -405,33 +381,27 @@ class ModuloProveedores(QWidget):
                 self.tbl_hist.setItem(ri, ci, it)
 
     def _cargar_evaluacion(self):
+        if not self._tps:
+            self.tbl_eval.setRowCount(0)
+            return
         try:
-            rows = self.db.execute("""
-                SELECT p.nombre,
-                       COUNT(c.id) as num_compras,
-                       COALESCE(SUM(c.total),0) as total_comprado,
-                       MAX(c.fecha) as ultima,
-                       COALESCE(SUM(ap.balance),0) as saldo_pend
-                FROM proveedores p
-                LEFT JOIN compras c ON c.proveedor_id=p.id
-                LEFT JOIN accounts_payable ap
-                    ON ap.supplier_id=p.id AND ap.status='pendiente'
-                WHERE p.activo=1
-                GROUP BY p.id
-                ORDER BY total_comprado DESC
-                LIMIT 100
-            """).fetchall()
+            rows = self._tps.get_evaluacion_proveedores(limit=100)
         except Exception as e:
-            logger.warning("_cargar_eval: %s", e); rows = []
+            logger.warning("_cargar_eval: %s", e)
+            rows = []
 
         self.tbl_eval.setRowCount(len(rows))
         for ri, r in enumerate(rows):
-            saldo = float(r[4] or 0)
-            estado = "⚠️ Saldo pendiente" if saldo > 0 else "✅ Al corriente"
-            vals = [r[0], str(int(r[1] or 0)),
-                    f"${float(r[2] or 0):,.2f}",
-                    str(r[3] or "—")[:10],
-                    f"${saldo:,.2f}", estado]
+            saldo = float(r.get("saldo_pendiente", 0) or 0)
+            estado = r.get("estado", "✅ Al corriente")
+            vals = [
+                r.get("nombre", ""), 
+                str(int(r.get("num_compras", 0) or 0)),
+                f"${float(r.get('total_comprado', 0) or 0):,.2f}",
+                str(r.get("ultima_compra", "") or "—")[:10],
+                f"${saldo:,.2f}", 
+                estado
+            ]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)

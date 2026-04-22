@@ -34,7 +34,7 @@ def _db_with_treasury_capital():
 
 
 def _make_treasury_svc(conn):
-    from core.services.treasury_service import TreasuryService
+    from core.services.finance.treasury_service import TreasuryService
     svc = TreasuryService.__new__(TreasuryService)
     svc.db = conn
     svc._module_config = None
@@ -42,7 +42,7 @@ def _make_treasury_svc(conn):
 
 
 def _make_capital_account(conn):
-    from core.services.treasury_service import CapitalAccount
+    from core.services.finance.treasury_service import CapitalAccount
     tsvc = _make_treasury_svc(conn)
     return CapitalAccount(tsvc), tsvc
 
