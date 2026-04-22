@@ -475,15 +475,17 @@ class MainWindow(QMainWindow):
         self._conectar("PLANEACION_COMPRAS", ModuloPlaneacionCompras, "📈 Planeación de Compras")
 
         # ── Administración ───────────────────────────────────────────────────
-        self._conectar("TESORERIA",      ModuloTesoreria,      "🏦 Tesorería")
-        self._conectar("FINANZAS",       ModuloFinanzas,       "📊 Finanzas")
-        self._conectar("ACTIVOS",        ModuloActivos,        "🏗️ Activos")
-        self._conectar("RRHH",           ModuloRRHH,           "👔 Recursos Humanos")
-        self._conectar("GROWTH_ENGINE",      ModuloFidelidadConfig,  "⭐ Fidelización")
-        self._conectar("TARJETAS_FIDELIDAD", ModuloTarjetas,         "💳 Tarjetas Fidelidad")
-        self._conectar("INTELIGENCIA_BI",    ModuloReportesBIv2,     "📈 Inteligencia BI")
-        self._conectar("WHATSAPP",           ModuloWhatsApp,         "📱 Pedidos WhatsApp")
-        self._conectar("DECISIONES",         ModuloDecisiones,       "🧠 Decisiones / BI Pro")
+        # FINANZAS UNIFICADAS: Unifica Tesorería, Finanzas y Proveedores en un solo módulo UI
+        # Todos consumen core/services/finance/* (single source of truth)
+        self._conectar("FINANZAS_UNIFICADAS", ModuloFinanzas, "💰 Finanzas Unificadas")
+        self._conectar("ACTIVOS",             ModuloActivos,        "🏗️ Activos")
+        self._conectar("RRHH",                ModuloRRHH,           "👔 Recursos Humanos")
+        self._conectar("GROWTH_ENGINE",       ModuloFidelidadConfig,  "⭐ Fidelización")
+        self._conectar("TARJETAS_FIDELIDAD",  ModuloTarjetas,         "💳 Tarjetas Fidelidad")
+        # INTELIGENCIA DE NEGOCIOS UNIFICADA: Unifica BI, BI Pro, Decisiones y Planeación
+        # Todos consumen core/services/analytics/analytics_engine.py
+        self._conectar("INTELIGENCIA_BI",     ModuloReportesBIv2,     "📈 Inteligencia de Negocios")
+        self._conectar("WHATSAPP",            ModuloWhatsApp,         "📱 Pedidos WhatsApp")
 
         # ── Sistema ──────────────────────────────────────────────────────────
         self._conectar("DISEÑADOR_TICKETS", ModuloTicketDesigner, "🎨 Diseñador Tickets")

@@ -14,8 +14,7 @@ MODULOS = [
     "clientes",
     "proveedores",
     "caja",
-    "tesoreria",
-    "finanzas",
+    "finanzas_unificadas",  # UNIFICADO: Incluye Tesorería, Finanzas y Proveedores
     "contabilidad",
     "rrhh",
     "activos",
@@ -31,20 +30,18 @@ MODULOS = [
     "hardware",
     "configuracion",
     "modulos_config",
-    "decisiones",
+    "inteligencia_bi",  # UNIFICADO: Incluye BI, BI Pro, Decisiones y Planeación
 ]
 
 # Módulos que SIEMPRE deben ser visibles sin importar los toggles de ModuleConfig
 # (Fase 0 whitelist — Plan Maestro SPJ v13.4)
 WHITELIST_SIEMPRE_VISIBLE = {
-    "TESORERIA",
-    "FINANZAS",
+    "FINANZAS_UNIFICADAS",  # UNIFICADO: Reemplaza TESORERIA + FINANZAS + PROVEEDORES
     "ACTIVOS",
     "PLANEACION_COMPRAS",
     "WHATSAPP",
-    "DECISIONES",
+    "INTELIGENCIA_BI",  # UNIFICADO: Reemplaza DECISIONES + BI_PRO + INTELIGENCIA_BI
     "CONFIG_SEGURIDAD",
-    "INTELIGENCIA_BI",
 }
 
 _SIDEBAR_DARK_QSS = """
@@ -212,15 +209,17 @@ class MenuLateral(QFrame):
 
         # --- SECCIÓN: ADMINISTRACIÓN ---
         layout_botones.addWidget(self._crear_header("Administración"))
-        layout_botones.addWidget(self._crear_boton("🏦 Tesorería", "TESORERIA"))
-        layout_botones.addWidget(self._crear_boton("📊 Finanzas", "FINANZAS"))
+        # FINANZAS UNIFICADAS: Incluye Tesorería, Contabilidad y Gestión de Proveedores
+        # Todos consumen core/services/finance/* (single source of truth)
+        layout_botones.addWidget(self._crear_boton("💰 Finanzas Unificadas", "FINANZAS_UNIFICADAS"))
         layout_botones.addWidget(self._crear_boton("🏗️ Activos", "ACTIVOS"))
         layout_botones.addWidget(self._crear_boton("👔 Recursos Humanos", "RRHH"))
         layout_botones.addWidget(self._crear_boton("⭐ Fidelización", "GROWTH_ENGINE"))
         layout_botones.addWidget(self._crear_boton("💳 Tarjetas Fidelidad", "TARJETAS_FIDELIDAD"))
-        layout_botones.addWidget(self._crear_boton("📈 Inteligencia (BI)", "INTELIGENCIA_BI"))
+        # INTELIGENCIA DE NEGOCIOS UNIFICADA: Incluye BI, BI Pro, Decisiones y Planeación
+        # Todos consumen core/services/analytics/analytics_engine.py
+        layout_botones.addWidget(self._crear_boton("📈 Inteligencia de Negocios", "INTELIGENCIA_BI"))
         layout_botones.addWidget(self._crear_boton("📱 Pedidos WhatsApp", "WHATSAPP"))
-        layout_botones.addWidget(self._crear_boton("🧠 Decisiones / BI Pro", "DECISIONES"))
 
         # --- SECCIÓN: SISTEMA ---
         layout_botones.addWidget(self._crear_header("Sistema"))
@@ -267,7 +266,7 @@ class MenuLateral(QFrame):
 
         # Módulos restringidos por rol
         SOLO_ADMIN_GERENTE = {
-            "TESORERIA", "RRHH", "ACTIVOS", "CONFIG_SEGURIDAD",
+            "FINANZAS_UNIFICADAS", "RRHH", "ACTIVOS", "CONFIG_SEGURIDAD",
             "CONFIG_MODULOS", "CONFIG_HARDWARE",
         }
         SOLO_ADMIN = {"CONFIG_SEGURIDAD", "CONFIG_MODULOS"}
@@ -297,15 +296,15 @@ class MenuLateral(QFrame):
           forecasting_enabled     → PLANEACION_COMPRAS
           whatsapp_integration_enabled → WHATSAPP
           rrhh_enabled            → RRHH
-          treasury_central_enabled → TESORERIA
+          finance_enabled         → FINANZAS_UNIFICADAS (reemplaza treasury_central_enabled)
         """
         # Mapeo: código de botón → clave de toggle en module_config
         TOGGLE_MAP = {
             "PLANEACION_COMPRAS": "forecasting_enabled",
             "WHATSAPP":           "whatsapp_integration_enabled",
             "RRHH":               "rrhh_enabled",
-            "TESORERIA":          "treasury_central_enabled",
-            "INTELIGENCIA_BI":    "finance_enabled",
+            "FINANZAS_UNIFICADAS": "finance_enabled",
+            "INTELIGENCIA_BI":    "analytics_enabled",
         }
 
         from PyQt5.QtWidgets import QPushButton as _QPB

@@ -1,18 +1,10 @@
 ```
-# Python
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Testing
-.pytest_cache/
-.coverage
-coverage/
-htmlcov/
-
-# Local config files
-.env
-.env.local
-*.env.*
+# Logs
+*.log
 ```
