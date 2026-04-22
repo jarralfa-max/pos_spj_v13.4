@@ -48,7 +48,7 @@ def _db_with_ventas(rows):
 class TestGetRankingCajeros:
 
     def _repo(self, conn):
-        from repositories.bi_repository import BIRepository
+        # from repositories.bi_repository import BIRepository  # ELIMINADO en v13.4
         r = BIRepository.__new__(BIRepository)
         r.db = conn
         return r
@@ -127,7 +127,7 @@ class TestGetRankingCajeros:
 class TestBIServiceRankingCajeros:
 
     def _svc(self, repo_mock):
-        from core.services.bi_service import BIService
+        # from core.services.bi_service import BIService  # ELIMINADO en v13.4
         svc = BIService.__new__(BIService)
         svc.repo = repo_mock
         svc.feature_flag_service = MagicMock()
@@ -181,7 +181,7 @@ class TestGetScanTelemetria:
                  r.get('accion', 'producto_agregado'), r.get('created_at', '2026-04-15'))
             )
         conn.commit()
-        from repositories.bi_repository import BIRepository
+        # from repositories.bi_repository import BIRepository  # ELIMINADO en v13.4
         repo = BIRepository.__new__(BIRepository)
         repo.db = conn
         return repo
@@ -207,7 +207,7 @@ class TestGetScanTelemetria:
     def test_tabla_inexistente_retorna_lista_vacia(self):
         """Si scan_event_log no existe, retorna [] sin levantar excepción."""
         conn = _mem_db()  # sin tabla scan_event_log
-        from repositories.bi_repository import BIRepository
+        # from repositories.bi_repository import BIRepository  # ELIMINADO en v13.4
         repo = BIRepository.__new__(BIRepository)
         repo.db = conn
         result = repo.get_scan_telemetria(1, '2026-01-01', '2026-12-31')
