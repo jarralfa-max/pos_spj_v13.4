@@ -1,57 +1,46 @@
 ```
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-.ENV
-.python-version
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.pytest_cache/
-.mypy_cache/
-
-# Compiled and build artifacts
-*.o
-*.obj
+*.py[cod]
+*$py.class
 *.so
-*.a
-*.dll
-*.exe
-*.out
-
-# Dependencies
-node_modules/
-target/
-.gradle/
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Environment variables
+# Environment
 .env
 .env.local
 .env.*
+.venv/
+venv/
+ENV/
 
-# Editors and IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
 
-# OS generated files
-.DS_Store
-Thumbs.db
+# Logs
+*.log
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
 ```
