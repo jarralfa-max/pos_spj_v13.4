@@ -83,15 +83,18 @@ class PhoneWidget(QWidget):
                 default_idx = self.cmb_code.count() - 1
         self.cmb_code.setCurrentIndex(default_idx)
 
-        # Campo de número (solo dígitos y guiones)
+        # Campo de número (solo dígitos - 10 dígitos estrictos para México)
         self.txt_number = QLineEdit()
-        self.txt_number.setPlaceholderText("Número sin código de país")
+        self.txt_number.setPlaceholderText("5512345678 (10 dígitos)")
+        self.txt_number.setToolTip("Captura solo los 10 dígitos del número. El código +52 se agrega automáticamente.")
         # v13.30: Sin colores hardcoded — hereda del tema global
         self.txt_number.setStyleSheet(
             "QLineEdit { padding:4px 8px; border-radius:4px; }"
         )
-        validator = QRegExpValidator(QRegExp(r"[\d\s\-\(\)]{0,20}"))
+        # VALIDACIÓN ESTRICTA: Solo 10 dígitos para números de México (+52)
+        validator = QRegExpValidator(QRegExp(r"\d{10}"))
         self.txt_number.setValidator(validator)
+        self.txt_number.setMaxLength(10)
 
         lay.addWidget(self.cmb_code)
         lay.addWidget(self.txt_number, 1)
@@ -213,6 +216,6 @@ class PhoneWidget(QWidget):
         self.txt_number.setObjectName(name + "_number")
 
     def is_valid(self) -> bool:
-        """True si el número tiene al menos 7 dígitos."""
+        """True si el número tiene exactamente 10 dígitos (formato México +52)."""
         digits = "".join(c for c in self.get_number() if c.isdigit())
-        return len(digits) >= 7
+        return len(digits) == 10

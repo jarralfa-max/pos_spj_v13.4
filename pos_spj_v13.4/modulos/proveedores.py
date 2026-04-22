@@ -55,8 +55,8 @@ class DialogoProveedor(QDialog):
         self.txt_nombre   = QLineEdit(); self.txt_nombre.setPlaceholderText("Razon social o nombre")
         self.txt_rfc      = QLineEdit(); self.txt_rfc.setPlaceholderText("RFC o NIT")
         self.txt_telefono = PhoneWidget()
-        self.txt_telefono.setPlaceholderText("+52 ej: +5215512345678")
-        self.txt_telefono.setToolTip("Formato WhatsApp: +codigopais+numero sin espacios")
+        self.txt_telefono.setPlaceholderText("5512345678 (10 dígitos)")
+        self.txt_telefono.setToolTip("Captura solo los 10 dígitos. El código +52 se agrega automáticamente.")
         self.txt_email    = QLineEdit(); self.txt_email.setPlaceholderText("correo@proveedor.com")
         self.txt_contacto = QLineEdit(); self.txt_contacto.setPlaceholderText("Nombre del contacto")
         self.cmb_categoria = QComboBox()
@@ -109,9 +109,9 @@ class DialogoProveedor(QDialog):
             QMessageBox.warning(self, "Aviso", "El nombre es obligatorio.")
             return
         tel = self.txt_telefono.get_e164().strip().replace(" ","")
-        if tel and not _re.match(r"^\+\d{7,15}$", tel):
+        if tel and not _re.match(r"^\+\d{12}$", tel):  # +52 + 10 dígitos = 12 caracteres totales
             QMessageBox.warning(self, "Telefono invalido",
-                "Formato: +codigopais+numero sin espacios\nEj: +5215512345678")
+                "Formato requerido: +52 + 10 dígitos (ej: +525512345678)")
             return
         
         datos = {

@@ -12,7 +12,7 @@ MODULOS = [
     "inventario",
     "productos",
     "clientes",
-    "proveedores",
+    # "proveedores",  # ELIMINADO: Ahora integrado en FINANZAS_UNIFICADAS
     "caja",
     "finanzas_unificadas",  # UNIFICADO: Incluye Tesorería, Finanzas y Proveedores
     "contabilidad",
@@ -199,7 +199,7 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_boton("🛵 Delivery", "DELIVERY"))
         layout_botones.addWidget(self._crear_boton("🛒 Compras", "COMPRAS"))
         layout_botones.addWidget(self._crear_boton("📋 Cotizaciones", "COTIZACIONES"))
-        layout_botones.addWidget(self._crear_boton("🏭 Proveedores", "PROVEEDORES"))
+        # ELIMINADO: Botón "Proveedores" — ahora integrado en FINANZAS_UNIFICADAS
 
         # --- SECCIÓN: PRODUCCIÓN ---
         layout_botones.addWidget(self._crear_header("Producción"))
