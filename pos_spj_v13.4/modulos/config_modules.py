@@ -25,7 +25,7 @@ MODULOS_SISTEMA = [
     ("COMPRAS",          "🛒 Compras a Prov.",       True),
     ("COTIZACIONES",     "📋 Cotizaciones",          True),
     ("MERMA",            "🗑️ Merma",                True),
-    ("PROVEEDORES",      "🏭 Proveedores",           True),
+    # ("PROVEEDORES",      "🏭 Proveedores",           True),  # ELIMINADO: Integrado en FINANZAS_UNIFICADAS
     ("ETIQUETAS",        "🏷️ Etiquetas",            True),
     ("CUENTAS_XC_XP",   "⚖️ CxC y CxP",            True),
     ("TESORERIA",        "🏦 Tesorería",             True),

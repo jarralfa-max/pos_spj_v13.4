@@ -74,11 +74,9 @@ except Exception as e:
     ModuloMerma = None
     logger.error("Error cargando ModuloMerma: %s", e)
 
-try:
-    from modulos.proveedores import ModuloProveedores
-except Exception as e:
-    ModuloProveedores = None
-    logger.error("Error cargando ModuloProveedores: %s", e)
+# ELIMINADO: Módulo Proveedores independiente — ahora integrado en FINANZAS_UNIFICADAS
+# La gestión de proveedores se accede desde la pestaña "Proveedores" dentro de Finanzas Unificadas
+ModuloProveedores = None
 
 try:
     from modulos.etiquetas import ModuloEtiquetas
@@ -467,7 +465,7 @@ class MainWindow(QMainWindow):
         self._conectar("DELIVERY",       ModuloDelivery,       "🛵 Delivery")
         self._conectar("COMPRAS",        ModuloComprasPro,     "🛒 Compras")
         self._conectar("COTIZACIONES",   ModuloCotizaciones,   "📋 Cotizaciones")
-        self._conectar("PROVEEDORES",    ModuloProveedores,    "🏭 Proveedores")
+        # ELIMINADO: _conectar("PROVEEDORES", ...) — módulo integrado en FINANZAS_UNIFICADAS
 
         # ── Producción ───────────────────────────────────────────────────────
         self._conectar("PRODUCCION",       ModuloProduccion,       "🔪 Procesamiento Cárnico")
