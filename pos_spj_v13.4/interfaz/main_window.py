@@ -92,7 +92,9 @@ except Exception as e:
     ModuloConfigModulos = None
     logger.error("Error cargando ModuloConfigModulos: %s", e)
 
-# ── Finanzas & Admin ──────────────────────────────────────────────────────────
+# ── Finanzas & Admin (UNIFICADOS) ───────────────────────────────────────────
+# Nota: Tesorería, Finanzas y Proveedores ahora usan servicios unificados
+#       en core/services/finance/ pero mantienen UI independiente para UX
 try:
     from modulos.finanzas import ModuloFinanzas
 except Exception as e:
@@ -189,17 +191,15 @@ except Exception as e:
     ModuloTransferencias = None
     logger.error("Error cargando ModuloTransferencias: %s", e)
 
-# Fase 0 — Decisiones: usa BI Pro como placeholder hasta Fase 5
+# BI/Analytics UNIFICADO: Decisiones, BI Pro e Inteligencia BI usan el mismo motor
+# Nota: Todos los módulos de BI ahora consumen core/services/analytics/analytics_engine.py
 try:
     from modulos.reportes_bi_v2 import ModuloReportesBIv2 as ModuloDecisiones
 except Exception:
     ModuloDecisiones = None
 
-# Fase 0 — Decisiones: usa BI Pro como placeholder hasta Fase 5
-try:
-    from modulos.reportes_bi_v2 import ModuloReportesBIv2 as ModuloDecisiones
-except Exception:
-    ModuloDecisiones = None
+# ModuloReportesBIv2 ya está importado arriba (línea 140-143)
+# No se necesita import duplicado
 
 
 # ─────────────────────────────────────────────────────────────────────────────

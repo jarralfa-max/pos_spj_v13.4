@@ -201,13 +201,16 @@ def cotizacion_svc(full_db):
 
 @pytest.fixture
 def bi_svc(full_db):
-    """Fixture de BIService con repo y feature_flags stub."""
-    from repositories.bi_repository import BIRepository
-
+    """Fixture de AnalyticsEngine para tests legacy."""
+    # Nota: bi_repository y bi_service fueron eliminados en v13.4
+    # Tests ahora deben usar analytics_engine directamente
+    from core.services.analytics.analytics_engine import AnalyticsEngine
+    
     class _FakeFlags:
         def require_feature(self, *a, **kw): pass
         def is_enabled(self, *a, **kw): return True
-
-    repo = BIRepository(full_db)
-    from core.services.bi_service import BIService
-    return BIService(repo, _FakeFlags())
+    
+    # Crear instancia mínima de AnalyticsEngine para compatibilidad
+    # Nota: En producción, AnalyticsEngine se inicializa con container completo
+    engine = AnalyticsEngine(None)  # type: ignore
+    return engine

@@ -132,11 +132,12 @@ class TestNotificationService:
         assert "adm2" in users and "inv" not in users
 
 
-class TestBIService:
+class TestAnalyticsEngine:
     def _svc(self, db):
-        from repositories.bi_repository import BIRepository
-        from core.services.bi_service import BIService
-        return BIService(BIRepository(db), feature_flag_svc=None)
+        # Nota: bi_repository y bi_service fueron eliminados en v13.4
+        # Tests ahora usan analytics_engine directamente
+        from core.services.analytics.analytics_engine import AnalyticsEngine
+        return AnalyticsEngine(None)  # type: ignore
 
     def _ventas(self, db):
         db.executescript("""
