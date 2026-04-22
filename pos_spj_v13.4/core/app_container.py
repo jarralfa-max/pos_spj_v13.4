@@ -14,7 +14,8 @@ from repositories.sales_repository import SalesRepository
 from repositories.purchase_repository import PurchaseRepository
 # Si tienes estos, descoméntalos; si no, coméntalos para que no den error:
 from repositories.promotion_repository import PromotionRepository
-from repositories.bi_repository import BIRepository
+# [REFACTOR FASE 2] BIRepository eliminado - toda la lógica migrada a AnalyticsEngine
+# from repositories.bi_repository import BIRepository
 from repositories.sync_repository import SyncRepository
 
 # --- IMPORTACIONES DE SERVICIOS (CAPAS 2 Y 3) ---
@@ -50,7 +51,8 @@ class BIServiceWrapper:
     se completa la migración total.
     """
     def __init__(self, bi_repo, feature_flag_service, analytics_engine):
-        self.repo = bi_repo
+        # [REFACTOR FASE 2] bi_repo ya no se usa - toda la lógica está en analytics_engine
+        # self.repo = bi_repo  # Comentado para eliminar dependencia
         self.feature_flag_service = feature_flag_service
         self.analytics = analytics_engine
         self._cache = {}
@@ -187,7 +189,8 @@ class AppContainer:
         
         # Opcionales (depende de qué tan avanzados vayan tus módulos)
         self.promo_repo = PromotionRepository(self.db)
-        self.bi_repo = BIRepository(self.db)
+        # [REFACTOR FASE 2] BIRepository eliminado - toda la lógica migrada a AnalyticsEngine
+        # self.bi_repo = BIRepository(self.db)
         self.sync_repo = SyncRepository(self.db)
         from repositories.cliente_repository import ClienteRepository
         self.cliente_repo = ClienteRepository(self.db)
@@ -331,8 +334,9 @@ class AppContainer:
         )
 
         # [REFACTOR FASE 2] BI unificado → analytics_engine
+        # BIServiceWrapper ahora usa directamente AnalyticsEngine sin bi_repo
         from core.services.analytics.analytics_engine import AnalyticsEngine
-        self.bi_service = BIServiceWrapper(self.bi_repo, self.feature_flag_service, AnalyticsEngine(self.db))
+        self.bi_service = BIServiceWrapper(None, self.feature_flag_service, AnalyticsEngine(self.db))
 
         from core.services.theme_service import ThemeService
         self.theme_service = ThemeService(self.db)
