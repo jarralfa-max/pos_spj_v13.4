@@ -405,113 +405,65 @@ class ModuloTesoreria(QWidget):
         self._cargar_gastos_futuros()
 
     def _ensure_gastos_tables(self):
-        try:
-            self.conexion.executescript("""
-                CREATE TABLE IF NOT EXISTS gastos_futuros (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id INTEGER DEFAULT 1,
-                    concepto   TEXT NOT NULL,
-                    categoria  TEXT,
-                    monto      REAL NOT NULL,
-                    fecha_prog DATE NOT NULL,
-                    estado     TEXT DEFAULT 'pendiente',
-                    notas      TEXT,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS gastos_fijos (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id INTEGER DEFAULT 1,
-                    concepto    TEXT NOT NULL,
-                    categoria   TEXT,
-                    monto       REAL NOT NULL,
-                    dia_del_mes INTEGER DEFAULT 1,
-                    frecuencia  TEXT DEFAULT 'mensual',
-                    proveedor   TEXT,
-                    activo      INTEGER DEFAULT 1,
-                    proximo_venc DATE,
-                    notas       TEXT
-                );
-            """)
-            try: self.conexion.commit()
-            except Exception: pass
-            try: get_bus().publish("MOVIMIENTO_FINANCIERO", {"event_type": "MOVIMIENTO_FINANCIERO"})
-            except Exception: pass
-            except Exception: pass
-        except Exception: pass
+        """Asegura que las tablas de gastos futuros y fijos existan."""
+        self.container.treasury_service.ensure_gastos_tables()
 
     def _cargar_gastos_futuros(self):
+        """Carga gastos futuros desde el servicio."""
         from PyQt5.QtWidgets import QTableWidgetItem
         from PyQt5.QtGui import QColor
         try:
-            rows = self.conexion.execute("""
-                SELECT id, concepto, COALESCE(categoria,''), monto,
-                       fecha_prog, COALESCE(estado,'pendiente')
-                FROM gastos_futuros
-                WHERE sucursal_id=? AND estado != 'eliminado'
-                ORDER BY fecha_prog
-            """, (self.sucursal_id,)).fetchall()
-        except Exception: rows = []
+            rows = self.container.treasury_service.get_gastos_futuros(self.sucursal_id)
+        except Exception: 
+            rows = []
         self.tabla_gf.setRowCount(0)
         from datetime import date
         hoy = date.today().isoformat()
         for i, r in enumerate(rows):
             self.tabla_gf.insertRow(i)
-            vals = [str(r[0]), r[1], r[2], f"${r[3]:,.2f}", str(r[4]), r[5]]
+            vals = [str(r['id']), r['concepto'], r['categoria'], f"${r['monto']:,.2f}", str(r['fecha_prog']), r['estado']]
             for j, v in enumerate(vals):
                 it = QTableWidgetItem(v)
-                if r[5] == 'pagado': it.setForeground(QColor("#27ae60"))
-                elif str(r[4]) < hoy and r[5] == 'pendiente':
+                if r['estado'] == 'pagado': it.setForeground(QColor("#27ae60"))
+                elif str(r['fecha_prog']) < hoy and r['estado'] == 'pendiente':
                     it.setForeground(QColor("#e74c3c"))  # vencido
                 self.tabla_gf.setItem(i, j, it)
 
     def _programar_gasto_futuro(self):
-        # [spj-dedup removed local QMessageBox import]
+        """Programa un gasto futuro usando el servicio."""
         concepto = self.gf_concepto.text().strip()
         if not concepto:
             QMessageBox.warning(self, "Aviso", "El concepto es obligatorio."); return
         try:
-            self.conexion.execute("""
-                INSERT INTO gastos_futuros
-                (sucursal_id, concepto, categoria, monto, fecha_prog, notas)
-                VALUES(?,?,?,?,?,?)""",
-                (self.sucursal_id, concepto, self.gf_categoria.currentText(),
-                 self.gf_monto.value(),
-                 self.gf_fecha.date().toString("yyyy-MM-dd"),
-                 self.gf_notas.toPlainText().strip()))
-            try: self.conexion.commit()
-            except Exception: pass
-            try:
-                audit_write(getattr(self,'container',None), modulo="TESORERIA",
-                    accion="GASTO_FUTURO", entidad="gastos_futuros",
-                    usuario=getattr(self,'usuario_actual','Sistema'),
-                    sucursal_id=getattr(self,'sucursal_id',1),
-                    detalles=f"Concepto: {concepto}, Monto: ${self.gf_monto.value():.2f}")
-            except Exception: pass
+            self.container.treasury_service.programar_gasto_futuro(
+                concepto=concepto,
+                categoria=self.gf_categoria.currentText(),
+                monto=self.gf_monto.value(),
+                fecha_prog=self.gf_fecha.date().toString("yyyy-MM-dd"),
+                notas=self.gf_notas.toPlainText().strip(),
+                sucursal_id=self.sucursal_id
+            )
             self.gf_concepto.clear(); self.gf_notas.clear()
             self._cargar_gastos_futuros()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
     def _marcar_gasto_pagado(self):
-        # [spj-dedup removed local QMessageBox import]
+        """Marca un gasto futuro como pagado."""
         row = self.tabla_gf.currentRow()
         if row < 0: return
         gid = int(self.tabla_gf.item(row, 0).text())
-        self.conexion.execute("UPDATE gastos_futuros SET estado='pagado' WHERE id=?", (gid,))
-        try: self.conexion.commit()
-        except Exception: pass
+        self.container.treasury_service.marcar_gasto_pagado(gid)
         self._cargar_gastos_futuros()
 
     def _eliminar_gasto_futuro(self):
-        # [spj-dedup removed local QMessageBox import]
+        """Elimina (soft delete) un gasto futuro."""
         row = self.tabla_gf.currentRow()
         if row < 0: return
         gid = int(self.tabla_gf.item(row, 0).text())
         if QMessageBox.question(self,"Confirmar","¿Eliminar este gasto programado?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
-        self.conexion.execute("UPDATE gastos_futuros SET estado='eliminado' WHERE id=?", (gid,))
-        try: self.conexion.commit()
-        except Exception: pass
+        self.container.treasury_service.eliminar_gasto_futuro(gid)
         self._cargar_gastos_futuros()
 
     # ══════════════════════════════════════════════════════════════════════
@@ -556,26 +508,25 @@ class ModuloTesoreria(QWidget):
         self._cargar_gastos_fijos()
 
     def _cargar_gastos_fijos(self):
+        """Carga gastos fijos desde el servicio."""
         from PyQt5.QtWidgets import QTableWidgetItem
         from PyQt5.QtGui import QColor
         try:
-            rows = self.conexion.execute("""
-                SELECT id, concepto, COALESCE(categoria,''), monto,
-                       COALESCE(frecuencia,'mensual'), COALESCE(dia_del_mes,1), activo
-                FROM gastos_fijos WHERE sucursal_id=? ORDER BY activo DESC, concepto
-            """, (self.sucursal_id,)).fetchall()
-        except Exception: rows = []
+            rows = self.container.treasury_service.get_gastos_fijos_con_estado(self.sucursal_id)
+        except Exception: 
+            rows = []
         self.tabla_fijos.setRowCount(0)
         for i, r in enumerate(rows):
             self.tabla_fijos.insertRow(i)
-            estado = "✅ Activo" if r[6] else "⏸️ Pausado"
-            vals = [str(r[0]), r[1], r[2], f"${r[3]:,.2f}", r[4], f"Día {r[5]}", estado]
+            estado = "✅ Activo" if r['activo'] else "⏸️ Pausado"
+            vals = [str(r['id']), r['concepto'], r['categoria'], f"${r['monto']:,.2f}", r['frecuencia'], f"Día {r['dia_del_mes']}", estado]
             for j, v in enumerate(vals):
                 it = QTableWidgetItem(v)
-                if not r[6]: it.setForeground(QColor("#aaa"))
+                if not r['activo']: it.setForeground(QColor("#aaa"))
                 self.tabla_fijos.setItem(i, j, it)
 
     def _nuevo_gasto_fijo(self):
+        """Crea un nuevo gasto fijo usando el servicio."""
         from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout,
             QVBoxLayout, QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox, QMessageBox)
         dlg = QDialog(self); dlg.setWindowTitle("Nuevo gasto fijo"); dlg.setMinimumWidth(360)
@@ -602,69 +553,31 @@ class ModuloTesoreria(QWidget):
         concepto = txt_concepto.text().strip()
         if not concepto: return
         try:
-            self.conexion.execute("""
-                INSERT INTO gastos_fijos
-                (sucursal_id,concepto,categoria,monto,frecuencia,dia_del_mes,proveedor,activo)
-                VALUES(?,?,?,?,?,?,?,1)""",
-                (self.sucursal_id, concepto, cmb_categoria.currentText(),
-                 spin_monto.value(), cmb_frec.currentText(),
-                 spin_dia.value(), txt_prov.text().strip()))
-            try: self.conexion.commit()
-            except Exception: pass
+            self.container.treasury_service.crear_gasto_fijo(
+                concepto=concepto,
+                categoria=cmb_categoria.currentText(),
+                monto=spin_monto.value(),
+                frecuencia=cmb_frec.currentText(),
+                dia_del_mes=spin_dia.value(),
+                proveedor=txt_prov.text().strip(),
+                sucursal_id=self.sucursal_id
+            )
             self._cargar_gastos_fijos()
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
 
     def _toggle_gasto_fijo(self):
+        """Activa o pausa un gasto fijo."""
         row = self.tabla_fijos.currentRow()
         if row < 0: return
         fid = int(self.tabla_fijos.item(row,0).text())
-        self.conexion.execute(
-            "UPDATE gastos_fijos SET activo = CASE WHEN activo=1 THEN 0 ELSE 1 END WHERE id=?",
-            (fid,))
-        try: self.conexion.commit()
-        except Exception: pass
+        self.container.treasury_service.toggle_gasto_fijo(fid)
         self._cargar_gastos_fijos()
 
     def _generar_vencimientos(self):
-        """Genera gastos futuros para todos los fijos activos con vencimiento próximo."""
-        # [spj-dedup removed local QMessageBox import]
-        from datetime import date
-        hoy = date.today()
+        """Genera gastos futuros para gastos fijos activos con vencimiento próximo."""
         try:
-            fijos = self.conexion.execute("""
-                SELECT id, concepto, categoria, monto, frecuencia, dia_del_mes
-                FROM gastos_fijos WHERE activo=1 AND sucursal_id=?
-            """, (self.sucursal_id,)).fetchall()
-            creados = 0
-            for f in fijos:
-                fid, concepto, cat, monto, frec, dia = f
-                # Calcular próxima fecha
-                if frec == "mensual":
-                    mes = hoy.month + 1 if hoy.day > dia else hoy.month
-                    anio = hoy.year + (1 if mes > 12 else 0)
-                    mes = mes % 12 or 12
-                    prox = date(anio, mes, min(dia, 28))
-                elif frec == "quincenal":
-                    prox = date(hoy.year, hoy.month, 15) if hoy.day < 15 else                            date(hoy.year if hoy.month < 12 else hoy.year+1,
-                                hoy.month+1 if hoy.month < 12 else 1, 1)
-                else:
-                    from datetime import timedelta
-                    prox = hoy + timedelta(days=7)
-                # Only create if not already exists for this date
-                exists = self.conexion.execute(
-                    "SELECT id FROM gastos_futuros WHERE sucursal_id=? AND concepto=? AND fecha_prog=?",
-                    (self.sucursal_id, concepto, prox.isoformat())
-                ).fetchone()
-                if not exists:
-                    self.conexion.execute("""
-                        INSERT INTO gastos_futuros
-                        (sucursal_id, concepto, categoria, monto, fecha_prog)
-                        VALUES(?,?,?,?,?)""",
-                        (self.sucursal_id, concepto, cat, monto, prox.isoformat()))
-                    creados += 1
-            try: self.conexion.commit()
-            except Exception: pass
+            creados = self.container.treasury_service.generar_vencimientos_gastos_fijos(self.sucursal_id)
             self._cargar_gastos_futuros()
             QMessageBox.information(self,"✅",f"{creados} vencimientos generados en Gastos Futuros.")
         except Exception as e:

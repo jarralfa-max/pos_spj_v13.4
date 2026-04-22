@@ -40,6 +40,116 @@ from core.services.purchase_service import PurchaseService
 
 logger = logging.getLogger(__name__)
 
+
+class BIServiceWrapper:
+    """
+    [REFACTOR FASE 2] Wrapper de compatibilidad para BI unificado.
+    
+    Centraliza toda la lógica BI en AnalyticsEngine.
+    Este wrapper mantiene compatibilidad con código legacy mientras
+    se completa la migración total.
+    """
+    def __init__(self, bi_repo, feature_flag_service, analytics_engine):
+        self.repo = bi_repo
+        self.feature_flag_service = feature_flag_service
+        self.analytics = analytics_engine
+        self._cache = {}
+        self._cache_ts = {}
+        self.CACHE_TTL_SECONDS = 60
+
+    def get_dashboard_data(self, branch_id: int, rango: str = 'hoy') -> dict:
+        """Obtiene datos del dashboard usando AnalyticsEngine."""
+        import time
+        from datetime import datetime, timedelta
+        
+        cache_key = f"{branch_id}:{rango}"
+        ttl = 60 if rango == 'hoy' else 300
+        now = time.monotonic()
+        
+        if cache_key in self._cache:
+            if now - self._cache_ts.get(cache_key, 0) < ttl:
+                return self._cache[cache_key]
+
+        hoy = datetime.now()
+        if rango == 'hoy':
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'semana':
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+
+        # Usar AnalyticsEngine para métricas
+        metrics = self.analytics.sales_metrics(fecha_fin, branch_id)
+        
+        kpis = self.repo.get_kpis_generales(branch_id, fecha_inicio, fecha_fin)
+        dashboard = {
+            'periodo': f"{fecha_inicio} al {fecha_fin}",
+            'fuente': 'analytics_engine',
+            'kpis': {
+                'ingresos': float(kpis.get('ingresos_totales') or 0),
+                'tickets': int(kpis.get('total_tickets') or 0),
+                'ticket_promedio': float(kpis.get('ticket_promedio') or 0),
+                'clientes_unicos': int(kpis.get('clientes_unicos') or 0),
+            },
+            'ventas_por_hora': self.repo.get_ventas_por_hora(branch_id, fecha_inicio, fecha_fin),
+            'top_productos': self.repo.get_ranking_productos(branch_id, fecha_inicio, fecha_fin, limite=5, orden='DESC'),
+            'productos_lentos': self.repo.get_ranking_productos(branch_id, fecha_inicio, fecha_fin, limite=5, orden='ASC'),
+            'clientes_recurrentes': self.repo.get_clientes_recurrentes(branch_id, fecha_inicio, fecha_fin),
+        }
+        
+        try:
+            dashboard['comparativa'] = self._get_comparativa(branch_id, rango)
+        except Exception:
+            dashboard['comparativa'] = {}
+
+        self._cache[cache_key] = dashboard
+        self._cache_ts[cache_key] = now
+        return dashboard
+
+    def _get_comparativa(self, sucursal_id: int, rango: str) -> dict:
+        from datetime import date, timedelta
+        hoy = date.today()
+        if rango == 'hoy':
+            fi = ff = (hoy - timedelta(days=1)).isoformat()
+        elif rango == 'semana':
+            ff = (hoy - timedelta(days=7)).isoformat()
+            fi = (hoy - timedelta(days=14)).isoformat()
+        else:
+            ff = (hoy - timedelta(days=30)).isoformat()
+            fi = (hoy - timedelta(days=60)).isoformat()
+        kpis = self.repo.get_kpis_generales(sucursal_id, fi, ff)
+        return {
+            'ingresos': float(kpis.get('ingresos_totales') or 0),
+            'num_ventas': int(kpis.get('total_tickets') or 0),
+            'ticket_prom': float(kpis.get('ticket_promedio') or 0),
+            'periodo': f"{fi} → {ff}",
+        }
+
+    def ranking_cajeros(self, sucursal_id: int, rango: str = 'mes') -> list:
+        from datetime import datetime, timedelta
+        hoy = datetime.now()
+        if rango == 'hoy':
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif rango == 'semana':
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        return self.repo.get_ranking_cajeros(sucursal_id, fecha_inicio, fecha_fin)
+
+    def invalidar_cache(self, branch_id: int = None) -> None:
+        if branch_id:
+            key = f"{branch_id}:hoy"
+            self._cache.pop(key, None)
+            self._cache_ts.pop(key, None)
+        else:
+            self._cache.clear()
+            self._cache_ts.clear()
+
+
 class AppContainer:
     """
     Contenedor de Inyección de Dependencias (Enterprise Architecture).
@@ -201,7 +311,8 @@ class AppContainer:
         self.module_config = ModuleConfig(self.db)
 
         # v13.4 Fase 3: TreasuryService (Tesorería Central / CAPEX)
-        from core.services.treasury_service import TreasuryService
+        # [REFACTOR FASE 1] Movido a core/services/finance/treasury_service.py
+        from core.services.finance.treasury_service import TreasuryService
         self.treasury_service = TreasuryService(self.db, self.module_config)
 
         from core.services.hr_rule_engine import HRRuleEngine
@@ -219,8 +330,9 @@ class AppContainer:
             hr_rule_engine=self.hr_rule_engine,
         )
 
-        from core.services.bi_service import BIService
-        self.bi_service = BIService(self.bi_repo, self.feature_flag_service)
+        # [REFACTOR FASE 2] BI unificado → analytics_engine
+        from core.services.analytics.analytics_engine import AnalyticsEngine
+        self.bi_service = BIServiceWrapper(self.bi_repo, self.feature_flag_service, AnalyticsEngine(self.db))
 
         from core.services.theme_service import ThemeService
         self.theme_service = ThemeService(self.db)
@@ -427,7 +539,7 @@ class AppContainer:
         # ── ERP FASE 4: UnifiedThirdPartyService ─────────────────────────────
         try:
             from core.services.finance.third_party_service import UnifiedThirdPartyService
-            self.third_party_service = UnifiedThirdPartyService(self.finance_service)
+            self.third_party_service = UnifiedThirdPartyService(self.db, self.finance_service)
         except Exception as _tp:
             self.third_party_service = None
             logger.debug("ThirdPartyService: %s", _tp)

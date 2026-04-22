@@ -78,6 +78,19 @@ class TreasuryService:
                     sucursal_id INTEGER DEFAULT 0,
                     activo INTEGER DEFAULT 1
                 );
+                CREATE TABLE IF NOT EXISTS gastos_futuros (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sucursal_id INTEGER DEFAULT 1,
+                    concepto   TEXT NOT NULL,
+                    categoria  TEXT,
+                    monto      REAL NOT NULL,
+                    fecha_prog DATE NOT NULL,
+                    estado     TEXT DEFAULT 'pendiente',
+                    notas      TEXT,
+                    created_at DATETIME DEFAULT (datetime('now'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_gf_estado ON gastos_futuros(estado);
+                CREATE INDEX IF NOT EXISTS idx_gf_fecha ON gastos_futuros(fecha_prog);
             """)
         except Exception as e:
             logger.debug("_ensure_tables: %s", e)
@@ -398,7 +411,133 @@ class TreasuryService:
                         "FROM treasury_gastos_fijos WHERE activo=1")
 
     # ══════════════════════════════════════════════════════════════════════════
-    #  Desglose por sucursal
+    #  Gastos Futuros — Programación de gastos
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def get_gastos_futuros(self, sucursal_id: int = 1) -> List[Dict]:
+        """Obtiene todos los gastos futuros pendientes o pagados."""
+        try:
+            rows = self.db.execute(
+                "SELECT id, concepto, categoria, monto, fecha_prog, estado, notas "
+                "FROM gastos_futuros WHERE sucursal_id=? AND estado != 'eliminado' "
+                "ORDER BY fecha_prog").fetchall()
+            return [{"id": r[0], "concepto": r[1], "categoria": r[2],
+                     "monto": r[3], "fecha_prog": r[4], "estado": r[5], "notas": r[6]}
+                    for r in rows]
+        except Exception:
+            return []
+
+    def programar_gasto_futuro(self, concepto: str, categoria: str,
+                                monto: float, fecha_prog: str,
+                                notas: str = "", sucursal_id: int = 1) -> int:
+        """Programa un gasto futuro."""
+        cur = self.db.execute(
+            "INSERT INTO gastos_futuros(sucursal_id, concepto, categoria, monto, fecha_prog, notas) "
+            "VALUES(?,?,?,?,?,?)",
+            (sucursal_id, concepto, categoria, monto, fecha_prog, notas))
+        self.db.commit()
+        return cur.lastrowid
+
+    def marcar_gasto_pagado(self, gasto_id: int) -> bool:
+        """Marca un gasto futuro como pagado."""
+        try:
+            self.db.execute("UPDATE gastos_futuros SET estado='pagado' WHERE id=?", (gasto_id,))
+            self.db.commit()
+            return True
+        except Exception:
+            return False
+
+    def eliminar_gasto_futuro(self, gasto_id: int) -> bool:
+        """Marca un gasto futuro como eliminado (soft delete)."""
+        try:
+            self.db.execute("UPDATE gastos_futuros SET estado='eliminado' WHERE id=?", (gasto_id,))
+            self.db.commit()
+            return True
+        except Exception:
+            return False
+
+    def generar_vencimientos_gastos_fijos(self, sucursal_id: int = 1) -> int:
+        """Genera gastos futuros para gastos fijos activos con vencimiento próximo."""
+        from datetime import date, timedelta
+        hoy = date.today()
+        creados = 0
+        
+        fijos = self.db.execute("""
+            SELECT id, concepto, categoria, monto, frecuencia, dia_del_mes
+            FROM gastos_fijos WHERE activo=1 AND sucursal_id=?
+        """, (sucursal_id,)).fetchall()
+        
+        for f in fijos:
+            fid, concepto, cat, monto, frec, dia = f
+            
+            # Calcular próxima fecha
+            if frec == "mensual":
+                mes = hoy.month + 1 if hoy.day > dia else hoy.month
+                anio = hoy.year + (1 if mes > 12 else 0)
+                mes = mes % 12 or 12
+                prox = date(anio, mes, min(dia, 28))
+            elif frec == "quincenal":
+                prox = date(hoy.year, hoy.month, 15) if hoy.day < 15 else \
+                       date(hoy.year if hoy.month < 12 else hoy.year+1,
+                           hoy.month+1 if hoy.month < 12 else 1, 1)
+            else:
+                prox = hoy + timedelta(days=7)
+            
+            # Only create if not already exists for this date
+            exists = self.db.execute(
+                "SELECT id FROM gastos_futuros WHERE sucursal_id=? AND concepto=? AND fecha_prog=?",
+                (sucursal_id, concepto, prox.isoformat())
+            ).fetchone()
+            
+            if not exists:
+                self.db.execute("""
+                    INSERT INTO gastos_futuros
+                    (sucursal_id, concepto, categoria, monto, fecha_prog)
+                    VALUES(?,?,?,?,?)""",
+                    (sucursal_id, concepto, cat, monto, prox.isoformat()))
+                creados += 1
+        
+        self.db.commit()
+        return creados
+
+    def get_gastos_fijos_con_estado(self, sucursal_id: int = 1) -> List[Dict]:
+        """Obtiene gastos fijos con su estado actual."""
+        try:
+            rows = self.db.execute("""
+                SELECT id, concepto, categoria, monto, frecuencia, dia_del_mes, activo
+                FROM gastos_fijos WHERE sucursal_id=? ORDER BY activo DESC, concepto
+            """, (sucursal_id,)).fetchall()
+            return [{"id": r[0], "concepto": r[1], "categoria": r[2],
+                     "monto": r[3], "frecuencia": r[4], "dia_del_mes": r[5], "activo": bool(r[6])}
+                    for r in rows]
+        except Exception:
+            return []
+
+    def crear_gasto_fijo(self, concepto: str, categoria: str, monto: float,
+                         frecuencia: str, dia_del_mes: int,
+                         proveedor: str = "", sucursal_id: int = 1) -> int:
+        """Crea un nuevo gasto fijo recurrente."""
+        cur = self.db.execute("""
+            INSERT INTO gastos_fijos
+            (sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor, activo)
+            VALUES(?,?,?,?,?,?,?,1)""",
+            (sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor))
+        self.db.commit()
+        return cur.lastrowid
+
+    def toggle_gasto_fijo(self, gasto_fijo_id: int) -> bool:
+        """Activa o pausa un gasto fijo."""
+        try:
+            self.db.execute(
+                "UPDATE gastos_fijos SET activo = CASE WHEN activo=1 THEN 0 ELSE 1 END WHERE id=?",
+                (gasto_fijo_id,))
+            self.db.commit()
+            return True
+        except Exception:
+            return False
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  Gastos operativos (usado por modulos/tesoreria.py)
     # ══════════════════════════════════════════════════════════════════════════
 
     def kpis_por_sucursal(self, df: str = "", dt: str = "") -> List[Dict]:
@@ -407,6 +546,14 @@ class TreasuryService:
         return [{**self.kpis_financieros(df, dt, r[0]),
                  "sucursal_id": r[0], "sucursal": r[1]}
                 for r in (rows or [])]
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  Operaciones UI — Tesorería módulo helper methods
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def ensure_gastos_tables(self):
+        """Asegura que las tablas de gastos futuros y fijos existan."""
+        self._ensure_tables()
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Gastos operativos (usado por modulos/tesoreria.py)

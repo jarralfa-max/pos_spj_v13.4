@@ -1148,31 +1148,23 @@ class ModuloFinanzas(ModuloBase):
 
     def _load_compras_inv(self):
         try:
-            rows = self.conexion.execute("""
-                SELECT ci.id, COALESCE(p.nombre,'?') AS producto,
-                       ci.proveedor, ci.volumen, ci.unidad, ci.costo_unitario,
-                       ci.costo_total, ci.monto_pagado, ci.saldo_pendiente,
-                       ci.estado, ci.fecha
-                FROM compras_inventariables ci
-                LEFT JOIN productos p ON p.id = ci.producto_id
-                ORDER BY ci.fecha DESC LIMIT 200
-            """).fetchall()
+            rows = self._svc.get_compras_inventariables(limit=200)
             self.tbl_compras_inv.setRowCount(len(rows))
             for ri, r in enumerate(rows):
-                sp = float(r[8] or 0)
+                sp = float(r.get('saldo_pendiente') or 0)
                 sc = _RED if sp > 0 else _TEAL
                 cells = [
-                    _it(str(r[0])),
-                    _it(str(r[1])),
-                    _it(str(r[2] or "")),
-                    _it(f"{float(r[3] or 0):,.3f}", _R),
-                    _it(str(r[4] or "")),
-                    _it(f"${float(r[5] or 0):,.4f}", _R),
-                    _it(f"${float(r[6] or 0):,.2f}", _R),
-                    _it(f"${float(r[7] or 0):,.2f}", _R, _GREEN),
+                    _it(str(r.get('id', ''))),
+                    _it(str(r.get('producto', ''))),
+                    _it(str(r.get('proveedor') or "")),
+                    _it(f"{float(r.get('volumen') or 0):,.3f}", _R),
+                    _it(str(r.get('unidad') or "")),
+                    _it(f"${float(r.get('costo_unitario') or 0):,.4f}", _R),
+                    _it(f"${float(r.get('costo_total') or 0):,.2f}", _R),
+                    _it(f"${float(r.get('monto_pagado') or 0):,.2f}", _R, _GREEN),
                     _it(f"${sp:,.2f}", _R, sc, bold=sp > 0),
-                    _it(str(r[9] or "")),
-                    _it(str(r[10] or "")[:16]),
+                    _it(str(r.get('estado') or "")),
+                    _it(str(r.get('fecha') or "")[:16]),
                 ]
                 for ci, it in enumerate(cells):
                     self.tbl_compras_inv.setItem(ri, ci, it)
@@ -1213,7 +1205,7 @@ class ModuloFinanzas(ModuloBase):
     # ═══════════════════════════════════════════════════════════════════════
 
     def _nueva_cxp(self):
-        dlg = _DlgNuevaCXP(self.conexion, self.usuario_actual, self)
+        dlg = _DlgNuevaCXP(self._svc, self.usuario_actual, self)
         if dlg.exec_() == QDialog.Accepted:
             d = dlg.data()
             try:
@@ -1269,7 +1261,7 @@ class ModuloFinanzas(ModuloBase):
     # ═══════════════════════════════════════════════════════════════════════
 
     def _nueva_cxc(self):
-        dlg = _DlgNuevaCXC(self.conexion, self.usuario_actual, self)
+        dlg = _DlgNuevaCXC(self._svc, self.usuario_actual, self)
         if dlg.exec_() == QDialog.Accepted:
             d = dlg.data()
             try:
@@ -1354,12 +1346,9 @@ class ModuloFinanzas(ModuloBase):
             return
         gid = self.tabla_gastos.item(row, 0).text()
         try:
-            cur = self.conexion.execute("SELECT * FROM gastos WHERE id=?", (gid,))
-            row_data = cur.fetchone()
-            if row_data:
-                cols = [d[0] for d in cur.description]
-                gdata = dict(zip(cols, row_data))
-                dlg = DialogoGasto(self.conexion, self.usuario_actual, self, gdata)
+            gdata = self._svc.get_expense(int(gid))
+            if gdata:
+                dlg = DialogoGasto(self._svc.db, self.usuario_actual, self, gdata)
                 if dlg.exec_() == QDialog.Accepted:
                     self.filtrar_gastos()
         except Exception as exc:
@@ -1375,10 +1364,7 @@ class ModuloFinanzas(ModuloBase):
             QMessageBox.Yes | QMessageBox.No
         ) == QMessageBox.Yes:
             try:
-                self.conexion.execute(
-                    "UPDATE gastos SET activo=0 WHERE id=?", (gid,)
-                )
-                self.conexion.commit()
+                self._svc.delete_expense(int(gid))
                 try:
                     _ctr = getattr(self,"container",None)
                     if _ctr: audit_write(_ctr,modulo="FINANZAS",accion="REGISTRO_FINANCIERO",entidad="finanzas",usuario=getattr(self,"usuario_actual","Sistema"),detalles="Registro financiero guardado",sucursal_id=getattr(self,"sucursal_id",1))
@@ -1404,12 +1390,7 @@ class ModuloFinanzas(ModuloBase):
         if dlg.exec_() == QDialog.Accepted:
             abono, _ = dlg.values()
             try:
-                nuevo_pagado = pagado + abono
-                nuevo_estado = "pagado" if nuevo_pagado >= monto else "parcial"
-                self.conexion.execute("""
-                    UPDATE gastos SET monto_pagado=?, estado=? WHERE id=?
-                """, (nuevo_pagado, nuevo_estado, gid))
-                self.conexion.commit()
+                result = self._svc.apply_expense_payment(int(gid), abono)
                 self.filtrar_gastos()
             except Exception as exc:
                 QMessageBox.critical(self, "Error", str(exc))
@@ -1478,11 +1459,9 @@ class ModuloFinanzas(ModuloBase):
             return
         eid = self.tabla_personal.item(row, 0).data(Qt.UserRole)
         try:
-            cur = self.conexion.execute("SELECT * FROM personal WHERE id=?", (eid,))
-            data = cur.fetchone()
+            data = self._svc.get_employee(eid)
             if data:
-                cols = [d[0] for d in cur.description]
-                dlg = DialogoEmpleado(self.conexion, self, dict(zip(cols, data)))
+                dlg = DialogoEmpleado(self._svc.db, self, data)
                 if dlg.exec_() == QDialog.Accepted:
                     self._load_personal()
         except Exception as exc:
@@ -1497,10 +1476,7 @@ class ModuloFinanzas(ModuloBase):
             QMessageBox.Yes | QMessageBox.No
         ) == QMessageBox.Yes:
             try:
-                self.conexion.execute(
-                    "UPDATE personal SET activo=0 WHERE id=?", (eid,)
-                )
-                self.conexion.commit()
+                self._svc.deactivate_employee(eid)
                 self._load_personal()
             except Exception as exc:
                 QMessageBox.critical(self, "Error", str(exc))
@@ -1657,22 +1633,21 @@ class _DlgAbono(QDialog):
 
 
 class _DlgNuevaCXP(QDialog):
-    def __init__(self, conexion, usuario, parent=None):
+    def __init__(self, finance_service, usuario, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Nueva Cuenta por Pagar")
         self.setMinimumWidth(420)
         self.setModal(True)
         self._usuario = usuario
+        self._svc = finance_service
         lay = QVBoxLayout(self)
         form = QFormLayout()
         self._combo_sup = QComboBox()
         self._combo_sup.addItem("— Sin proveedor —", None)
         try:
-            rows = conexion.execute(
-                "SELECT id, nombre FROM suppliers WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for r in rows:
-                self._combo_sup.addItem(r[1], r[0])
+            suppliers = self._svc.get_suppliers(active_only=True)
+            for s in suppliers:
+                self._combo_sup.addItem(s.get('nombre', 'Sin nombre'), s.get('id'))
         except Exception:
             pass
         form.addRow("Proveedor:", self._combo_sup)
@@ -1709,23 +1684,24 @@ class _DlgNuevaCXP(QDialog):
 
 
 class _DlgNuevaCXC(QDialog):
-    def __init__(self, conexion, usuario, parent=None):
+    def __init__(self, finance_service, usuario, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Nueva Cuenta por Cobrar")
         self.setMinimumWidth(420)
         self.setModal(True)
         self._usuario = usuario
+        self._svc = finance_service
         lay = QVBoxLayout(self)
         form = QFormLayout()
         self._combo_cli = QComboBox()
         self._combo_cli.addItem("— Sin cliente —", None)
         try:
-            rows = conexion.execute(
+            rows = self._svc.db.fetchall(
                 "SELECT id, nombre||' '||COALESCE(apellido_paterno,'') "
                 "FROM clientes WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            )
             for r in rows:
-                self._combo_cli.addItem(r[1].strip(), r[0])
+                self._combo_cli.addItem(str(r[1]).strip(), r[0])
         except Exception:
             pass
         form.addRow("Cliente:", self._combo_cli)
@@ -1897,21 +1873,20 @@ class _DlgActivo(QDialog):
 
 
 class _DlgMantenimiento(QDialog):
-    def __init__(self, conexion, asset_id, parent=None):
+    def __init__(self, finance_service, asset_id, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Registro de Mantenimiento")
         self.setMinimumWidth(420)
         self.setModal(True)
+        self._svc = finance_service
         lay = QVBoxLayout(self)
         form = QFormLayout()
 
         self._combo_act = QComboBox()
         try:
-            rows = conexion.execute(
-                "SELECT id, nombre FROM assets WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for r in rows:
-                self._combo_act.addItem(f"{r[1]}", r[0])
+            assets = self._svc.get_assets(active_only=True)
+            for a in assets:
+                self._combo_act.addItem(a.get('nombre', 'Sin nombre'), a.get('id'))
             if asset_id:
                 idx = self._combo_act.findData(asset_id)
                 if idx >= 0: self._combo_act.setCurrentIndex(idx)
@@ -2033,9 +2008,10 @@ class _DialogoCompraInventariable(QDialog):
     Al aceptar: crea registro en gastos + compras_inventariables
     """
 
-    def __init__(self, conexion, usuario, parent=None):
+    def __init__(self, finance_service, third_party_service, usuario, parent=None):
         super().__init__(parent)
-        self.conexion  = conexion
+        self._fs = finance_service
+        self._tps = third_party_service
         self.usuario   = usuario
         self.compra_id = None
         self.setWindowTitle("Nueva Compra de Inventario")
@@ -2054,9 +2030,7 @@ class _DialogoCompraInventariable(QDialog):
         self.combo_producto = QComboBox()
         self.combo_producto.setEditable(False)  # no popup list
         try:
-            prods = self.conexion.execute(
-                "SELECT id, nombre, unidad FROM productos WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            prods = self._fs.get_products_list()
             for pid, nombre, unidad in prods:
                 self.combo_producto.addItem(f"{nombre} ({unidad})", pid)
         except Exception:
@@ -2173,63 +2147,52 @@ class _DialogoCompraInventariable(QDialog):
             from datetime import datetime as _dt
             hoy = _dt.now().strftime("%Y-%m-%d")
 
-            # Crear gasto
-            prod_row = self.conexion.execute(
-                "SELECT nombre FROM productos WHERE id=?", (producto_id,)
-            ).fetchone()
-            prod_nombre = prod_row[0] if prod_row else "Producto"
+            # Obtener nombre del producto
+            prod_nombre = "Producto"
+            try:
+                prods = self._fs.get_products_list()
+                for pid, nombre, _ in prods:
+                    if pid == producto_id:
+                        prod_nombre = nombre
+                        break
+            except Exception:
+                pass
 
-            cur_g = self.conexion.execute(
-                """
-                INSERT INTO gastos
-                    (fecha, categoria, concepto, monto, monto_pagado,
-                     metodo_pago, estado, proveedor_id, usuario, activo)
-                VALUES (?,?,?,?,?,'{}',?,NULL,?,1)
-                """.replace("'{}'", f"'{forma_pago}'"),
-                (
-                    hoy, "Compra Inventario",
-                    f"Compra {prod_nombre} — {volumen}{unidad} @ ${costo_unit}/{unidad}",
-                    costo_total, monto_pagado, estado,
-                    self.usuario or "admin",
-                )
+            # Crear gasto usando el servicio
+            concepto = f"Compra {prod_nombre} — {volumen}{unidad} @ ${costo_unit}/{unidad}"
+            
+            # Registrar en compras_inventariables usando el servicio
+            self.compra_id = self._fs.create_compra_inventariable(
+                producto_id=producto_id,
+                proveedor=proveedor,
+                volumen=volumen,
+                unidad=unidad,
+                costo_unitario=costo_unit,
+                costo_total=costo_total,
+                forma_pago=forma_pago,
+                es_credito=es_credito,
+                monto_pagado=monto_pagado,
+                saldo_pendiente=saldo,
+                fecha_vencimiento=vence,
+                estado=estado,
+                notas=notas,
+                usuario=self.usuario or "admin",
+                categoria="Compra Inventario",
+                concepto=concepto
             )
-            gasto_id = cur_g.lastrowid
-
-            # Registrar en compras_inventariables
-            ci_uuid = _uuid.uuid4().hex
-            cur_ci = self.conexion.execute(
-                """
-                INSERT INTO compras_inventariables
-                    (uuid, gasto_id, producto_id, proveedor,
-                     volumen, unidad, costo_unitario, costo_total,
-                     forma_pago, es_credito, monto_pagado, saldo_pendiente,
-                     fecha_vencimiento, estado, notas,
-                     sucursal_id, usuario, fecha)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
-                """,
-                (
-                    ci_uuid, gasto_id, producto_id, proveedor,
-                    volumen, unidad, costo_unit, costo_total,
-                    forma_pago, es_credito, monto_pagado, saldo,
-                    vence, estado, notas,
-                    1, self.usuario or "admin",
-                )
-            )
-            self.compra_id = cur_ci.lastrowid
-
-            self.conexion.commit()
+            
             self.accept()
 
         except Exception as exc:
-            self.conexion.rollback()
             QMessageBox.critical(self, "Error", f"No se pudo registrar: {exc}")
 
 
 # --- Diálogo para Crear/Editar Gasto ---
 class DialogoGasto(QDialog):
-    def __init__(self, conexion, usuario_actual, parent=None, gasto_data=None):
+    def __init__(self, finance_service, third_party_service, usuario_actual, parent=None, gasto_data=None):
         super().__init__(parent)
-        self.conexion = conexion
+        self._fs = finance_service
+        self._tps = third_party_service
         self.usuario_actual = usuario_actual
         self.gasto_data = gasto_data # None para nuevo, dict para editar
         self.setWindowTitle("Nuevo Gasto" if not gasto_data else "Editar Gasto")
@@ -2291,15 +2254,13 @@ class DialogoGasto(QDialog):
             proveedor_id = self.gasto_data.get('proveedor_id')
             if proveedor_id:
                 try:
-                    cursor = self.conexion.cursor()
-                    cursor.execute("SELECT nombre FROM proveedores WHERE id = ?", (proveedor_id,))
-                    proveedor = cursor.fetchone()
-                    if proveedor:
-                        nombre_proveedor = proveedor[0]
+                    prov = self._tps.get_proveedor(proveedor_id)
+                    if prov:
+                        nombre_proveedor = prov.get('nombre', '')
                         if self.edit_proveedor.findText(nombre_proveedor) == -1:
                             self.edit_proveedor.addItem(nombre_proveedor)
                         self.edit_proveedor.setCurrentText(nombre_proveedor)
-                except sqlite3.Error:
+                except Exception:
                     pass # Si hay error, dejar el combo vacío
             
             self.spin_monto.setValue(self.gasto_data.get('monto', 0.0))
@@ -2346,25 +2307,21 @@ class DialogoGasto(QDialog):
     def cargar_categorias(self):
         """Carga las categorías existentes en el combo box."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT DISTINCT categoria FROM gastos WHERE categoria IS NOT NULL")
-            categorias = cursor.fetchall()
+            categorias = self._fs.get_expense_categories()
             self.edit_categoria.addItem("") # Opción vacía
             for cat in categorias:
-                self.edit_categoria.addItem(cat[0])
-        except sqlite3.Error:
+                self.edit_categoria.addItem(cat)
+        except Exception:
             pass # Si hay error, el combo queda vacío excepto la opción por defecto
 
     def cargar_proveedores(self):
         """Carga los proveedores existentes en el combo box."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT nombre FROM proveedores ORDER BY nombre")
-            proveedores = cursor.fetchall()
+            proveedores = self._tps.get_all_proveedores()
             self.edit_proveedor.addItem("") # Opción vacía
             for prov in proveedores:
-                self.edit_proveedor.addItem(prov[0])
-        except sqlite3.Error:
+                self.edit_proveedor.addItem(prov['nombre'])
+        except Exception:
             pass # Si hay error, el combo queda vacío excepto la opción por defecto
 
     def on_estado_changed(self, estado):
@@ -2399,8 +2356,6 @@ class DialogoGasto(QDialog):
             return
 
         try:
-            cursor = self.conexion.cursor()
-            
             fecha = self.date_fecha.date().toString("yyyy-MM-dd")
             categoria = self.edit_categoria.currentText().strip()
             nombre_proveedor = self.edit_proveedor.currentText().strip() or None
@@ -2411,58 +2366,42 @@ class DialogoGasto(QDialog):
             metodo_pago = self.edit_metodo_pago.currentText()
             usuario = self.usuario_actual
             
-            # Obtener ID del proveedor si se proporcionó nombre
+            # Obtener o crear proveedor usando el servicio
             proveedor_id = None
             if nombre_proveedor:
-                cursor.execute("SELECT id FROM proveedores WHERE nombre = ?", (nombre_proveedor,))
-                prov = cursor.fetchone()
-                if prov:
-                    proveedor_id = prov[0]
-                else:
-                    # Crear nuevo proveedor si no existe
-                    cursor.execute("INSERT INTO proveedores (nombre) VALUES (?)", (nombre_proveedor,))
-                    proveedor_id = cursor.lastrowid
+                proveedor_id = self._tps.create_supplier_if_not_exists(nombre_proveedor)
 
+            # Preparar datos para el servicio
+            gasto_data = {
+                'fecha': fecha,
+                'categoria': categoria,
+                'proveedor_id': proveedor_id,
+                'monto': monto,
+                'monto_pagado': monto_pagado,
+                'estado': estado,
+                'descripcion': descripcion,
+                'metodo_pago': metodo_pago
+            }
+            
             # CORRECCIÓN: Usar self.gasto_data en lugar de self.gasto
             if self.gasto_data:  # Editar
-                id_gasto = self.gasto_data['id']
-                
-                cursor.execute("""
-                    UPDATE gastos 
-                    SET fecha = ?, categoria = ?, proveedor_id = ?, monto = ?, 
-                        monto_pagado = ?, estado = ?, descripcion = ?, metodo_pago = ?
-                    WHERE id = ?
-                """, (fecha, categoria, proveedor_id, monto, monto_pagado, estado, descripcion, metodo_pago, id_gasto))
-                
-                self.conexion.commit()
+                gasto_data['id'] = self.gasto_data['id']
+                expense_id = self._fs.upsert_expense(gasto_data)
                 QMessageBox.information(self, "Éxito", "Gasto actualizado correctamente.")
                 self.accept()
             else:  # Nuevo
-                cursor.execute("""
-                    INSERT INTO gastos (fecha, categoria, proveedor_id, monto, 
-                                        monto_pagado, estado, descripcion, usuario, metodo_pago)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (fecha, categoria, proveedor_id, monto, monto_pagado, estado, descripcion, usuario, metodo_pago))
-                
-                self.conexion.commit()
+                expense_id = self._fs.upsert_expense(gasto_data)
                 QMessageBox.information(self, "Éxito", "Gasto creado correctamente.")
                 self.accept()
 
-        except sqlite3.IntegrityError as e:
-            self.conexion.rollback()
-            QMessageBox.warning(self, "Error", f"Error de integridad: {str(e)}")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error en la base de datos: {str(e)}")
         except Exception as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error inesperado: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error: {str(e)}")
 
 # --- Diálogo para Crear/Editar Empleado ---
 class DialogoEmpleado(QDialog):
-    def __init__(self, conexion, parent=None, empleado_data=None):
+    def __init__(self, finance_service, parent=None, empleado_data=None):
         super().__init__(parent)
-        self.conexion = conexion
+        self._fs = finance_service
         self.empleado_data = empleado_data # None para nuevo, dict para editar
         self.setWindowTitle("Nuevo Empleado" if not empleado_data else "Editar Empleado")
         self.setFixedSize(400, 350)
@@ -2542,8 +2481,6 @@ class DialogoEmpleado(QDialog):
             return
 
         try:
-            cursor = self.conexion.cursor()
-            
             nombre = self.edit_nombre.text().strip()
             apellidos = self.edit_apellidos.text().strip() or None
             puesto = self.edit_puesto.text().strip() or None
@@ -2551,38 +2488,28 @@ class DialogoEmpleado(QDialog):
             fecha_ingreso = self.date_fecha_ingreso.date().toString("yyyy-MM-dd")
             activo = 1 if self.chk_activo.isChecked() else 0
 
+            # Preparar datos para el servicio
+            empleado_data = {
+                'nombre': nombre,
+                'apellidos': apellidos,
+                'puesto': puesto,
+                'salario': salario,
+                'fecha_ingreso': fecha_ingreso,
+                'activo': activo
+            }
+
             # CORRECCIÓN: Usar self.empleado_data en lugar de self.empleado
             if self.empleado_data:  # Editar
-                id_empleado = self.empleado_data['id']
-                
-                cursor.execute("""
-                    UPDATE personal 
-                    SET nombre = ?, apellidos = ?, puesto = ?, salario = ?, 
-                        fecha_ingreso = ?, activo = ?
-                    WHERE id = ?
-                """, (nombre, apellidos, puesto, salario, fecha_ingreso, activo, id_empleado))
-                
-                self.conexion.commit()
+                empleado_data['id'] = self.empleado_data['id']
+                employee_id = self._fs.upsert_employee(empleado_data)
                 QMessageBox.information(self, "Éxito", "Empleado actualizado correctamente.")
                 self.accept()
             else:  # Nuevo
-                cursor.execute("""
-                    INSERT INTO personal (nombre, apellidos, puesto, salario, fecha_ingreso, activo)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (nombre, apellidos, puesto, salario, fecha_ingreso, activo))
-                
-                self.conexion.commit()
+                employee_id = self._fs.upsert_employee(empleado_data)
                 QMessageBox.information(self, "Éxito", "Empleado creado correctamente.")
                 self.accept()
 
-        except sqlite3.IntegrityError as e:
-            self.conexion.rollback()
-            QMessageBox.warning(self, "Error", f"Error de integridad: {str(e)}")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error en la base de datos: {str(e)}")
         except Exception as e:
-            self.conexion.rollback()
-            QMessageBox.critical(self, "Error", f"Error inesperado: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error: {str(e)}")
 
     

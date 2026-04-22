@@ -199,17 +199,29 @@ class ModuloReportesBIv2(QWidget):
         parent_layout.addWidget(grp)
 
     def _cargar_cajeros(self):
-        """Carga ranking de cajeros via BIService.ranking_cajeros()."""
+        """Carga ranking de cajeros via AnalyticsEngine.get_ranking_cajeros() (BI unificado)."""
         self._tbl_caj.setRowCount(0)
         try:
-            bi_svc = getattr(self.container, "bi_service", None)
-            if bi_svc is None:
-                self._lbl_caj_estado.setText("BIService no disponible.")
+            # ✅ FASE 2: Migrado de bi_service a analytics_engine (motor BI unificado)
+            analytics = getattr(self.container, 'analytics_engine', None) or getattr(self.container, 'bi_service', None)
+            if analytics is None:
+                self._lbl_caj_estado.setText("AnalyticsEngine no disponible.")
                 return
             rango = self.cmb_rango.currentText()
             rango_key = "hoy" if "hoy" in rango.lower() else \
                         "semana" if "semana" in rango.lower() else "mes"
-            rows = bi_svc.ranking_cajeros(self.sucursal_id, rango_key)
+            # Calcular fechas para el ranking
+            from datetime import datetime, timedelta
+            hoy = datetime.now()
+            if rango_key == 'hoy':
+                fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+            elif rango_key == 'semana':
+                fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+                fecha_fin = hoy.strftime('%Y-%m-%d')
+            else:  # mes
+                fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+                fecha_fin = hoy.strftime('%Y-%m-%d')
+            rows = analytics.get_ranking_cajeros(self.sucursal_id, fecha_inicio, fecha_fin, limite=20)
             self._lbl_caj_estado.setText(f"{len(rows)} cajeros encontrados.")
             for i, r in enumerate(rows):
                 self._tbl_caj.insertRow(i)
@@ -476,29 +488,42 @@ class ModuloReportesBIv2(QWidget):
             self._lbl_fm_estado.setText(f"Error: {exc}")
 
     def _cargar_rentabilidad(self):
-        """Carga el reporte de rentabilidad por producto para el período activo."""
+        """Carga el reporte de rentabilidad por producto para el período activo (BI unificado)."""
         self._tbl_rent.setRowCount(0)
         rango = self.cmb_rango.currentText()
-        filtro_fecha = {
-            "Hoy":          "DATE(v.fecha)=DATE('now')",
-            "Esta Semana":  "v.fecha >= DATE('now','weekday 0','-7 days')",
-            "Este Mes":     "strftime('%Y-%m',v.fecha)=strftime('%Y-%m','now')",
-        }.get(rango, "DATE(v.fecha)=DATE('now')")
+        
+        # Calcular fechas según el rango seleccionado
+        from datetime import datetime, timedelta
+        hoy = datetime.now()
+        if "hoy" in rango.lower():
+            fecha_inicio = fecha_fin = hoy.strftime('%Y-%m-%d')
+        elif "semana" in rango.lower():
+            fecha_inicio = (hoy - timedelta(days=hoy.weekday())).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        else:  # mes
+            fecha_inicio = hoy.replace(day=1).strftime('%Y-%m-%d')
+            fecha_fin = hoy.strftime('%Y-%m-%d')
+        
         try:
-            rows = self.container.db.execute(f"""
-                SELECT p.nombre, p.categoria,
-                       SUM(vd.cantidad) as unidades,
-                       SUM(vd.cantidad * vd.precio_unitario) as ingresos,
-                       SUM(vd.cantidad * COALESCE(p.precio_compra,0)) as costo_total
-                FROM ventas v
-                JOIN detalles_venta vd ON vd.venta_id=v.id
-                JOIN productos p ON p.id=vd.producto_id
-                WHERE v.estado='completada' AND {filtro_fecha}
-                GROUP BY p.id, p.nombre, p.categoria
-                ORDER BY (SUM(vd.cantidad * vd.precio_unitario) -
-                          SUM(vd.cantidad * COALESCE(p.precio_compra,0))) DESC
-                LIMIT 50
-            """).fetchall()
+            # ✅ FASE 2: Usar AnalyticsEngine para rentabilidad de productos
+            analytics = getattr(self.container, 'analytics_engine', None)
+            if not analytics:
+                raise RuntimeError("AnalyticsEngine no disponible")
+            
+            # Usar método del servicio unificado
+            rows_raw = analytics.product_profitability(fecha_inicio, fecha_fin, self.sucursal_id, limit=50)
+            # Convertir al formato esperado por la UI
+            rows = []
+            for r in rows_raw:
+                # Necesitamos obtener nombre y categoría del producto
+                prod_info = self._get_producto_info(r['producto_id'])
+                rows.append((
+                    prod_info.get('nombre', f"Prod {r['producto_id']}"),
+                    prod_info.get('categoria', ''),
+                    0,  # unidades (no disponible en esta vista)
+                    r['ingresos'],
+                    r['costo']
+                ))
         except Exception as e:
             return
 
@@ -533,6 +558,17 @@ class ModuloReportesBIv2(QWidget):
             item_pct.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor(color))
             self._tbl_rent.setItem(i, 6, item_pct)
             self._tbl_rent.setItem(i, 7, QTableWidgetItem(abc))
+
+    def _get_producto_info(self, producto_id: int) -> dict:
+        """Obtiene información básica de un producto (nombre, categoría) via AnalyticsEngine."""
+        analytics = getattr(self.container, 'analytics_engine', None)
+        if analytics and hasattr(analytics, 'get_product_info'):
+            try:
+                return analytics.get_product_info(producto_id)
+            except Exception:
+                pass
+        # Fallback mínimo sin SQL directo: retornar datos básicos
+        return {'nombre': f'Prod {producto_id}', 'categoria': ''}
 
     def _exportar_rentabilidad_csv(self):
         """Exporta la tabla de rentabilidad a CSV."""
@@ -612,7 +648,11 @@ class ModuloReportesBIv2(QWidget):
         try:
             from core.services.export_service import ExportService
             svc  = ExportService(self.container.db)
-            data = self.container.bi_service.get_dashboard_data(
+            # ✅ FASE 2: Migrado de bi_service a analytics_engine (motor BI unificado)
+            analytics = getattr(self.container, 'analytics_engine', None) or getattr(self.container, 'bi_service', None)
+            if not analytics:
+                raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
+            data = analytics.get_dashboard_data(
                 self.sucursal_id,
                 rango.lower().split(" ")[-1]
             )
@@ -658,12 +698,15 @@ class ModuloReportesBIv2(QWidget):
             QMessageBox.critical(self, "Error al exportar", str(e))
 
     def cargar_dashboard(self):
-        """Pide los datos al BIService y actualiza la UI."""
+        """Pide los datos al AnalyticsEngine (BI unificado) y actualiza la UI."""
         rango_str = self.cmb_rango.currentText().lower().split(' ')[-1] # 'hoy', 'semana', 'mes'
         
         try:
-            # 🚀 LLAMADA ENTERPRISE: Un solo viaje al backend
-            data = self.container.bi_service.get_dashboard_data(self.sucursal_id, rango_str)
+            # 🚀 FASE 2: Migrado de bi_service a analytics_engine (motor BI unificado)
+            analytics = getattr(self.container, 'analytics_engine', None) or getattr(self.container, 'bi_service', None)
+            if not analytics:
+                raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
+            data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
             
             # 1. Actualizar KPIs
             self.lbl_kpi_ingresos._lbl_valor.setText(f"${data['kpis']['ingresos']:,.2f}")
