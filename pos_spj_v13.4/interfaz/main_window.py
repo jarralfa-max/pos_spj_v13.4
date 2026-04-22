@@ -94,16 +94,13 @@ except Exception as e:
 # Nota: Tesorería, Finanzas y Proveedores ahora usan servicios unificados
 #       en core/services/finance/ pero mantienen UI independiente para UX
 try:
-    from modulos.finanzas import ModuloFinanzas
+    from modulos.finanzas_unificadas import ModuloFinanzasUnificadas as ModuloFinanzas
 except Exception as e:
     ModuloFinanzas = None
     logger.error("Error cargando ModuloFinanzas: %s", e)
 
-try:
-    from modulos.tesoreria import ModuloTesoreria
-except Exception as e:
-    ModuloTesoreria = None
-    logger.error("Error cargando ModuloTesoreria: %s", e)
+# ELIMINADO: Módulo Tesorería independiente — ahora integrado en FINANZAS_UNIFICADAS
+ModuloTesoreria = None
 
 try:
     from modulos.rrhh import ModuloRRHH
