@@ -366,6 +366,7 @@ class ModuloFinanzasUnificadas(QWidget):
         self._analytics = getattr(container, "analytics_engine", None)
         self._tabs = None
         self._setup_ui()
+        self._wire_live_refresh()
         
     def set_sucursal(self, sucursal_id: int, nombre: str = ""):
         self.sucursal_id = sucursal_id
@@ -373,6 +374,20 @@ class ModuloFinanzasUnificadas(QWidget):
     
     def set_usuario_actual(self, usuario: str, rol: str = ""):
         self.usuario_actual = usuario
+
+    def _wire_live_refresh(self):
+        """Refresca tablas de finanzas en caliente sin reiniciar la app."""
+        try:
+            from core.events.event_bus import get_bus
+            bus = get_bus()
+            bus.subscribe("PROVEEDOR_CREADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_creado")
+            bus.subscribe("PROVEEDOR_ACTUALIZADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_act")
+            bus.subscribe("PROVEEDOR_ELIMINADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_del")
+            bus.subscribe("CXP_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_pagar), label="fin.ui.cxp_creada")
+            bus.subscribe("CXC_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cxc_creada")
+            bus.subscribe("CLIENTE_CREADO", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cliente_creado")
+        except Exception:
+            pass
     
     def _setup_ui(self):
         """Configura la interfaz con pestañas unificadas."""
