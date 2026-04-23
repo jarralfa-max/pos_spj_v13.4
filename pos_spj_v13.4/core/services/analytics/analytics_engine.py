@@ -178,11 +178,24 @@ class AnalyticsEngine:
             pass
         # Fallback: compute from detalles_venta + productos
         try:
+            prod_cols = set()
+            try:
+                prod_cols = {r[1] for r in self._db.execute("PRAGMA table_info(productos)").fetchall()}
+            except Exception:
+                prod_cols = set()
+            if "costo" in prod_cols:
+                costo_expr = "COALESCE(p.costo, 0)"
+            elif "precio_compra" in prod_cols:
+                costo_expr = "COALESCE(p.precio_compra, 0)"
+            elif "costo_promedio" in prod_cols:
+                costo_expr = "COALESCE(p.costo_promedio, 0)"
+            else:
+                costo_expr = "0"
             rows2 = self._db.execute("""
                 SELECT dv.producto_id,
                        SUM(dv.subtotal) AS ingresos,
-                       SUM(dv.cantidad * COALESCE(p.costo,0)) AS costo,
-                       SUM(dv.subtotal - dv.cantidad * COALESCE(p.costo,0)) AS margen
+                       SUM(dv.cantidad * {costo_expr}) AS costo,
+                       SUM(dv.subtotal - dv.cantidad * {costo_expr}) AS margen
                 FROM detalles_venta dv
                 JOIN ventas v ON v.id = dv.venta_id
                 LEFT JOIN productos p ON p.id = dv.producto_id
@@ -192,7 +205,7 @@ class AnalyticsEngine:
                 GROUP BY dv.producto_id
                 ORDER BY margen DESC
                 LIMIT ?
-            """, (fecha_ini[:10], fecha_fin[:10], sucursal_id, limit)).fetchall()
+            """.format(costo_expr=costo_expr), (fecha_ini[:10], fecha_fin[:10], sucursal_id, limit)).fetchall()
             return [
                 {"producto_id": r[0], "ingresos": float(r[1] or 0),
                  "costo": float(r[2] or 0), "margen": float(r[3] or 0),
