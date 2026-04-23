@@ -87,6 +87,9 @@ class HealthHandler(BaseHTTPRequestHandler):
             ventas = q("SELECT COUNT(*) FROM ventas WHERE DATE(fecha)=DATE('now') AND estado='completada'")
             total  = float(q("SELECT COALESCE(SUM(total),0) FROM ventas WHERE DATE(fecha)=DATE('now') AND estado='completada'"))
             bajo   = q("SELECT COUNT(*) FROM productos WHERE existencia<=stock_minimo AND activo=1")
+            outbox_pending = q("SELECT COUNT(*) FROM event_outbox WHERE status='PENDING'")
+            outbox_error = q("SELECT COUNT(*) FROM event_outbox WHERE status='ERROR'")
+            wa_auth_denied = q("SELECT COUNT(*) FROM audit_logs WHERE accion LIKE 'WEBAPP_AUTH_DENIED_%'")
             up     = int(time.time()-_start_time)
             body   = (
                 "# HELP spj_ventas_hoy Ventas completadas hoy\n"
@@ -95,6 +98,12 @@ class HealthHandler(BaseHTTPRequestHandler):
                 f"spj_total_mxn {total:.2f}\n"
                 "# HELP spj_stock_bajo Productos stock bajo minimo\n"
                 f"spj_stock_bajo {bajo}\n"
+                "# HELP spj_outbox_pending Eventos pendientes en outbox\n"
+                f"spj_outbox_pending {outbox_pending}\n"
+                "# HELP spj_outbox_error Eventos con error en outbox\n"
+                f"spj_outbox_error {outbox_error}\n"
+                "# HELP spj_webapp_auth_denied_hoy Rechazos auth webapp hoy\n"
+                f"spj_webapp_auth_denied_hoy {wa_auth_denied}\n"
                 "# HELP spj_uptime_seconds Tiempo de operacion\n"
                 f"spj_uptime_seconds {up}\n"
             ).encode()

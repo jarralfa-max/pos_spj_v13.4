@@ -8,9 +8,42 @@ from __future__ import annotations
 import json, os, threading, logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
+import sqlite3
 
 logger = logging.getLogger("spj.webapp")
 _DB_PATH = "data/spj.db"
+_CORS_ORIGIN = os.getenv("SPJ_WEBAPP_CORS_ORIGIN", "http://localhost")
+
+
+def _record_security_event(action: str, detail: str = "", ip: str = "") -> None:
+    """
+    Registra eventos de seguridad de WebApp (best-effort).
+    No bloquea la operación principal si falla.
+    """
+    try:
+        conn = sqlite3.connect(_DB_PATH)
+        conn.execute(
+            """
+            INSERT INTO audit_logs
+            (usuario, accion, modulo, entidad, entidad_id, valor_antes, valor_despues, sucursal_id, detalles)
+            VALUES (?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                "webapp",
+                action,
+                "WEBAPP",
+                "AUTH",
+                ip or "0.0.0.0",
+                "{}",
+                "{}",
+                1,
+                detail or "",
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug("No se pudo registrar evento de seguridad WebApp: %s", e)
 
 
 class WebAppHandler(BaseHTTPRequestHandler):
@@ -30,11 +63,18 @@ class WebAppHandler(BaseHTTPRequestHandler):
                 with open(fname, "rb") as f: body = f.read()
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
-                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Origin", _CORS_ORIGIN)
                 self.end_headers()
                 self.wfile.write(body)
             except FileNotFoundError:
                 self.send_response(404); self.end_headers()
+        elif path.startswith("/api/") and not self._check_auth():
+            _record_security_event(
+                "WEBAPP_AUTH_DENIED_GET",
+                detail=f"Ruta: {path}",
+                ip=(self.client_address[0] if self.client_address else ""),
+            )
+            self._json(401, {"ok": False, "error": "No autorizado"})
         elif path == "/api/productos":
             self._json(200, self._get_productos())
         elif path == "/api/sucursales":
@@ -47,14 +87,20 @@ class WebAppHandler(BaseHTTPRequestHandler):
             self.send_response(404); self.end_headers()
 
     def _check_auth(self) -> bool:
-        """Check X-API-Token header. Skip if no token configured (dev mode)."""
+        """Check X-API-Token header."""
         expected = self._get_config("webapp_api_token", "")
         if not expected:
-            return True  # dev mode — no token configured
+            logger.error("WebApp API sin token configurado; acceso denegado.")
+            return False
         return self.headers.get("X-API-Token", "") == expected
 
     def do_POST(self):
         if not self._check_auth():
+            _record_security_event(
+                "WEBAPP_AUTH_DENIED_POST",
+                detail=f"Ruta: {self.path}",
+                ip=(self.client_address[0] if self.client_address else ""),
+            )
             self._json(401, {"ok": False, "error": "No autorizado"})
             return
         length = int(self.headers.get("Content-Length", 0))
@@ -71,9 +117,9 @@ class WebAppHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", _CORS_ORIGIN)
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Token")
         self.end_headers()
 
     def _get_productos(self) -> list:
@@ -170,13 +216,14 @@ class WebAppHandler(BaseHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False, default=str).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Origin", _CORS_ORIGIN)
         self.end_headers()
         self.wfile.write(body)
 
 
 def start_webapp_server(port: int = 8769, db_path: str = "data/spj.db"):
-    global _DB_PATH; _DB_PATH = _DB_PATH
+    global _DB_PATH
+    _DB_PATH = db_path
     server = HTTPServer(("0.0.0.0", port), WebAppHandler)
     t = threading.Thread(target=server.serve_forever,
                          daemon=True, name="WebAppServer")

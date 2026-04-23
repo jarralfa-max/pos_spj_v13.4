@@ -49,12 +49,26 @@ class AuthService:
     MAX_INTENTOS = 5
     BLOQUEO_MINUTOS = 15
 
+    def _user_column(self) -> str:
+        """Detecta columna de usuario para compatibilidad (usuario/username)."""
+        try:
+            cols = self.repo.db.execute("PRAGMA table_info(usuarios)").fetchall()
+            names = {c[1] for c in cols}
+            if "usuario" in names:
+                return "usuario"
+            if "username" in names:
+                return "username"
+        except Exception:
+            pass
+        return "usuario"
+
     def _check_lockout(self, username: str) -> None:
         """Lanza excepción si el usuario está bloqueado por intentos fallidos."""
         try:
-            row = self.auth_repo.db.execute(
-                """SELECT intentos_fallidos, bloqueado_hasta
-                   FROM usuarios WHERE username=?""", (username,)
+            user_col = self._user_column()
+            row = self.repo.db.execute(
+                f"""SELECT intentos_fallidos, bloqueado_hasta
+                   FROM usuarios WHERE {user_col}=?""", (username,)
             ).fetchone()
             if not row:
                 return
@@ -67,10 +81,10 @@ class AuthService:
                         f"Usuario bloqueado por {mins} min. Demasiados intentos fallidos.")
                 else:
                     # Desbloquear si ya pasó el tiempo
-                    self.auth_repo.db.execute(
-                        "UPDATE usuarios SET intentos_fallidos=0, bloqueado_hasta=NULL WHERE username=?",
+                    self.repo.db.execute(
+                        f"UPDATE usuarios SET intentos_fallidos=0, bloqueado_hasta=NULL WHERE {user_col}=?",
                         (username,))
-                    try: self.auth_repo.db.commit()
+                    try: self.repo.db.commit()
                     except Exception: pass
         except PermissionError:
             raise
@@ -80,8 +94,9 @@ class AuthService:
     def _register_failed_attempt(self, username: str) -> None:
         """Registra intento fallido y bloquea si supera el máximo."""
         try:
+            user_col = self._user_column()
             from datetime import datetime, timedelta
-            self.auth_repo.db.execute("""
+            self.repo.db.execute(f"""
                 UPDATE usuarios
                 SET intentos_fallidos = COALESCE(intentos_fallidos, 0) + 1,
                     bloqueado_hasta = CASE
@@ -89,9 +104,9 @@ class AuthService:
                         THEN datetime('now', '+' || ? || ' minutes')
                         ELSE bloqueado_hasta
                     END
-                WHERE username=?
+                WHERE {user_col}=?
             """, (self.MAX_INTENTOS, self.BLOQUEO_MINUTOS, username))
-            try: self.auth_repo.db.commit()
+            try: self.repo.db.commit()
             except Exception: pass
         except Exception:
             pass
@@ -99,10 +114,11 @@ class AuthService:
     def _reset_failed_attempts(self, username: str) -> None:
         """Resetea contador tras login exitoso."""
         try:
-            self.auth_repo.db.execute(
-                "UPDATE usuarios SET intentos_fallidos=0, bloqueado_hasta=NULL WHERE username=?",
+            user_col = self._user_column()
+            self.repo.db.execute(
+                f"UPDATE usuarios SET intentos_fallidos=0, bloqueado_hasta=NULL WHERE {user_col}=?",
                 (username,))
-            try: self.auth_repo.db.commit()
+            try: self.repo.db.commit()
             except Exception: pass
         except Exception:
             pass
@@ -114,6 +130,9 @@ class AuthService:
         """
         if not username or not plain_password:
             raise PermissionError("Debe ingresar usuario y contraseña.")
+
+        # Bloqueo preventivo por intentos fallidos
+        self._check_lockout(username)
 
         user_data = self.repo.get_user_by_username(username)
         
@@ -129,20 +148,21 @@ class AuthService:
         db_pass = user_data['password_hash']
         is_valid = False
 
-        # 1. VERIFICACIÓN: Acepta texto plano (legacy) o Bcrypt
-        if db_pass == plain_password:
+        # 1. VERIFICACIÓN: soporta formatos legacy y modernos.
+        is_plain_legacy = (db_pass == plain_password)
+        is_sha_legacy = (_sha256(plain_password) == db_pass)
+        if is_plain_legacy:
             is_valid = True
-            logger.info("Usuario %s autenticado vía texto plano (Legacy). Se recomienda migrar a bcrypt.", username)
-            # *Opcional*: Aquí podrías llamar a una función para auto-migrar su contraseña a bcrypt silenciosamente.
+            logger.warning("Usuario %s autenticado vía texto plano (legacy).", username)
         else:
             try:
-                # Comparamos el hash con la contraseña en texto plano
                 if _check_password(plain_password, db_pass):
                     is_valid = True
             except ValueError:
-                pass # Si db_pass no es un hash de bcrypt válido, ignoramos y falla
+                pass
 
         if not is_valid:
+            self._register_failed_attempt(username)
             self.audit_service.log_change(
                 usuario=username, accion="LOGIN_FAILED", modulo="AUTH", entidad="USUARIO",
                 entidad_id=str(user_data['id']), before_state={}, after_state={}, sucursal_id=user_data['sucursal_id'],
@@ -150,7 +170,21 @@ class AuthService:
             )
             raise PermissionError("Contraseña incorrecta.")
 
+        # 1.1 Auto-migración transparente a hash fuerte si venía en formato legacy
+        if is_plain_legacy or is_sha_legacy:
+            try:
+                new_hash = _hash_password(plain_password)
+                if self.repo.migrate_password_hash(user_data['id'], new_hash):
+                    self.audit_service.log_change(
+                        usuario=username, accion="PASSWORD_REHASHED", modulo="AUTH", entidad="USUARIO",
+                        entidad_id=str(user_data['id']), before_state={}, after_state={}, sucursal_id=user_data['sucursal_id'],
+                        detalles="Hash de contraseña migrado automáticamente a formato fuerte."
+                    )
+            except Exception as e:
+                logger.warning("No se pudo migrar hash de %s: %s", username, e)
+
         # 2. ÉXITO: Cargar permisos RBAC en caché para este usuario/sucursal
+        self._reset_failed_attempts(username)
         self.security_service.clear_cache()
         try:
             self.security_service.load_permissions(

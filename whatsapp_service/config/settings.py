@@ -9,7 +9,7 @@ from pathlib import Path
 WA_API_VERSION = os.getenv("WA_API_VERSION", "v21.0")
 WA_PHONE_NUMBER_ID = os.getenv("WA_PHONE_NUMBER_ID")
 WA_ACCESS_TOKEN = os.getenv("WA_ACCESS_TOKEN")
-WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN", "spj_pos_webhook_2025")
+WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN")
 WA_API_URL = f"https://graph.facebook.com/{WA_API_VERSION}/{WA_PHONE_NUMBER_ID}/messages"
 
 # ── ERP Connection ────────────────────────────────────────────────────────────

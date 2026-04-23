@@ -13,6 +13,16 @@ class AuthRepository:
     def __init__(self, db_conn):
         self.db = db_conn
 
+    def _detect_password_column(self) -> str:
+        """Detecta la columna de contraseña por compatibilidad legacy."""
+        cursor = self.db.cursor()
+        cursor.execute("PRAGMA table_info(usuarios)")
+        columnas = [col[1] for col in cursor.fetchall()]
+        for nombre in ["password_hash", "contrasena", "password", "clave"]:
+            if nombre in columnas:
+                return nombre
+        return "contrasena"
+
     def get_user_by_username(self, username: str) -> dict:
         """
         Busca un usuario activo. Retorna datos + nombre de sucursal.
@@ -22,12 +32,7 @@ class AuthRepository:
             cursor = self.db.cursor()
             cursor.execute("PRAGMA table_info(usuarios)")
             columnas = [col[1] for col in cursor.fetchall()]
-
-            col_pass = "contrasena"
-            for nombre in ["contrasena", "password", "password_hash", "clave"]:
-                if nombre in columnas:
-                    col_pass = nombre
-                    break
+            col_pass = self._detect_password_column()
 
             # v13.30: JOIN con sucursales para obtener nombre
             has_suc = "sucursal_id" in columnas
@@ -58,6 +63,7 @@ class AuthRepository:
                 'nombre': row['nombre'],
                 'sucursal_id': row['sucursal_id'] if has_suc else 1,
                 'sucursal_nombre': row['sucursal_nombre'] if has_suc else 'Principal',
+                'password_column': col_pass,
             }
 
             # v13.30: Cargar sucursales disponibles para este usuario
@@ -69,6 +75,25 @@ class AuthRepository:
         except Exception as e:
             logger.error(f"Error consultando usuario {username}: {str(e)}")
             raise RuntimeError("Error de base de datos al consultar el usuario.")
+
+    def migrate_password_hash(self, user_id: int, new_hash: str) -> bool:
+        """
+        Migra hash de contraseña a formato fuerte (bcrypt).
+        """
+        try:
+            col_pass = self._detect_password_column()
+            self.db.execute(
+                f"UPDATE usuarios SET {col_pass}=? WHERE id=?",
+                (new_hash, int(user_id)),
+            )
+            try:
+                self.db.commit()
+            except Exception:
+                pass
+            return True
+        except Exception as e:
+            logger.warning("No se pudo migrar password_hash usuario %s: %s", user_id, e)
+            return False
 
     def _get_sucursales_usuario(self, user_id: int, rol: str, default_suc: int) -> list:
         """

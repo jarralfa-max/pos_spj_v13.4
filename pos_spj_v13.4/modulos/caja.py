@@ -92,6 +92,7 @@ class DialogoCorteZCiego(QDialog):
 
         self._btn_back = create_secondary_button(self, "◀ Anterior", "Volver al paso anterior")
         self._btn_back.setEnabled(False)
+        self._btn_back.clicked.connect(self._prev_page)
 
         self._btn_next = create_primary_button(self, "Siguiente ▶", "Continuar al siguiente paso del corte")
         self._btn_next.clicked.connect(self._next_page)
@@ -207,13 +208,7 @@ class DialogoCorteZCiego(QDialog):
             self._stack.setCurrentIndex(1)
             self._btn_back.setEnabled(True)
             self._btn_next.setText("✅ CONFIRMAR CORTE")
-            self._btn_next = create_success_button(self, "✅ CONFIRMAR CORTE", "Confirmar el corte de caja y revelar resultados")
-            self._btn_next.clicked.connect(self._next_page)
-            # Reemplazar el botón en el layout
-            nav_layout = self._btn_next.parent().layout() if self._btn_next.parent() else None
-            if nav_layout:
-                # El botón ya está en el layout, solo actualizar referencia
-                pass
+            self._btn_next.setToolTip("Confirmar el corte de caja y revelar resultados")
 
         elif cur == 1:
             # Paso 2 → 3: execute corte and reveal result
@@ -224,8 +219,8 @@ class DialogoCorteZCiego(QDialog):
         if cur == 1:
             self._stack.setCurrentIndex(0)
             self._btn_back.setEnabled(False)
-            self._btn_next = create_primary_button(self, "Siguiente ▶", "Continuar al siguiente paso")
-            self._btn_next.clicked.connect(self._next_page)
+            self._btn_next.setText("Siguiente ▶")
+            self._btn_next.setToolTip("Continuar al siguiente paso")
 
     def _ejecutar_corte(self):
         """Llama al servicio, luego revela el resultado."""

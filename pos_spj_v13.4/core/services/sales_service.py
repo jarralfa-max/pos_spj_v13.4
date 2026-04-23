@@ -44,6 +44,25 @@ class SalesService:
         self.config_service = config_service
         self.feature_flag_service = feature_flag_service
 
+    def _generate_unique_sale_folio(self) -> str:
+        """
+        Genera folio único auditable para ventas.
+        Formato: VYYYYMMDDHHMMSSffffff-XXXX
+        """
+        base = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        for _ in range(5):
+            folio = f"V{base}-{uuid.uuid4().hex[:4].upper()}"
+            try:
+                row = self.db.execute(
+                    "SELECT 1 FROM ventas WHERE folio=? LIMIT 1", (folio,)
+                ).fetchone()
+                if not row:
+                    return folio
+            except Exception:
+                # Si no se puede validar unicidad por esquema/tabla, retornar igual
+                return folio
+        return f"V{base}-{uuid.uuid4().hex[:8].upper()}"
+
     def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str, 
                      amount_paid: float, client_id: int = None, client_phone: str = None, 
                      client_level: str = 'bronce', discount: float = 0.0, notes: str = "") -> tuple:
@@ -292,6 +311,26 @@ class SalesService:
             # Notificar al EventBus (async_ para no bloquear al cajero)
             try:
                 from core.events.event_bus import get_bus, VENTA_COMPLETADA
+                from core.events.outbox import enqueue_event
+                event_payload = {
+                    "venta_id":   sale_id,
+                    "folio":      folio,
+                    "branch_id":  branch_id,
+                    "total":      total_a_pagar,
+                    "usuario":    user,
+                    "cliente_id": client_id,
+                }
+                # Fase 2: persistir evento en outbox antes del dispatch in-memory
+                try:
+                    enqueue_event(
+                        self.db,
+                        event_type=VENTA_COMPLETADA,
+                        payload=event_payload,
+                        aggregate_type="venta",
+                        aggregate_id=sale_id,
+                    )
+                except Exception as _outbox_err:
+                    logger.warning("Outbox persist failed (venta %s): %s", sale_id, _outbox_err)
                 get_bus().publish(VENTA_COMPLETADA, {
                     "venta_id":   sale_id,
                     "folio":      folio,
@@ -573,10 +612,8 @@ class SalesService:
         subtotal = round(sum(float(i["qty"]) * float(i["unit_price"]) for i in items_payload), 2)
         total = round(max(subtotal - float(discount or 0), 0.0), 2)
         if payment_method.lower() not in {"tarjeta", "credito"}:
-            # Compat legacy: solo bloquear cuando el efectivo ni siquiera cubre
-            # una unidad base del carrito.
-            min_requerido = max([float(i["unit_price"]) for i in items_payload] or [0.0])
-            if amount_paid < min_requerido:
+            # Hardening Fase 0: efectivo debe cubrir el total neto de la venta.
+            if float(amount_paid or 0) < total:
                 raise PagoInsuficienteError("El monto pagado es menor al total.")
 
         try:
@@ -586,7 +623,7 @@ class SalesService:
                 if existencia < float(i["qty"]):
                     raise StockError(f"Stock insuficiente para producto {i['product_id']}")
 
-            folio = f"V{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+            folio = self._generate_unique_sale_folio()
             cambio = round(max(float(amount_paid or 0) - total, 0.0), 2)
             cur = self.db.execute(
                 """
