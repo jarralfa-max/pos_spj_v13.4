@@ -15,8 +15,8 @@ def _leer_menu_lateral():
 def test_modulos_contiene_whitelist():
     """MODULOS en menu_lateral.py incluye los módulos críticos del Plan Maestro."""
     src = _leer_menu_lateral()
-    criticos = ["tesoreria", "finanzas", "activos", "whatsapp",
-                "configuracion", "decisiones"]
+    criticos = ["finanzas_unificadas", "activos", "whatsapp",
+                "configuracion", "inteligencia_bi"]
     for m in criticos:
         assert f'"{m}"' in src or f"'{m}'" in src, \
             f"'{m}' no está en MODULOS de menu_lateral.py"
@@ -28,8 +28,8 @@ def test_whitelist_siempre_visible_definida():
     assert "WHITELIST_SIEMPRE_VISIBLE" in src, \
         "WHITELIST_SIEMPRE_VISIBLE no está definida en menu_lateral.py"
     requeridos = [
-        "TESORERIA", "FINANZAS", "ACTIVOS",
-        "PLANEACION_COMPRAS", "WHATSAPP", "DECISIONES", "CONFIG_SEGURIDAD",
+        "FINANZAS_UNIFICADAS", "ACTIVOS",
+        "PLANEACION_COMPRAS", "WHATSAPP", "INTELIGENCIA_BI", "CONFIG_SEGURIDAD",
     ]
     for codigo in requeridos:
         assert f'"{codigo}"' in src or f"'{codigo}'" in src, \
@@ -67,17 +67,17 @@ def test_module_config_sin_db_usa_defaults():
     assert cfg.is_enabled("decisions_enabled") is True
 
 
-def test_menu_lateral_py_tiene_boton_decisiones():
-    """El menú lateral declara el botón DECISIONES."""
+def test_menu_lateral_py_tiene_boton_inteligencia_bi():
+    """El menú lateral declara el botón único de BI."""
     import ast
     src = open("interfaz/menu_lateral.py").read()
-    assert "DECISIONES" in src, "El código DECISIONES no está en menu_lateral.py"
+    assert "INTELIGENCIA_BI" in src, "El código INTELIGENCIA_BI no está en menu_lateral.py"
 
 
-def test_main_window_py_wire_decisiones():
-    """main_window.py tiene wiring para DECISIONES."""
+def test_main_window_py_wire_inteligencia_bi():
+    """main_window.py tiene wiring para INTELIGENCIA_BI."""
     src = open("interfaz/main_window.py").read()
-    assert "DECISIONES" in src, "DECISIONES no está wired en main_window.py"
+    assert "INTELIGENCIA_BI" in src, "INTELIGENCIA_BI no está wired en main_window.py"
 
 
 def test_menu_lateral_sidebar_siempre_oscuro():

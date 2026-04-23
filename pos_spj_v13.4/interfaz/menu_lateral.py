@@ -30,7 +30,7 @@ MODULOS = [
     "hardware",
     "configuracion",
     "modulos_config",
-    "inteligencia_bi",  # UNIFICADO: Incluye BI, BI Pro, Decisiones y Planeación
+    "inteligencia_bi",  # UNIFICADO: Incluye BI, BI Pro y Decisiones
 ]
 
 # Módulos que SIEMPRE deben ser visibles sin importar los toggles de ModuleConfig
@@ -211,7 +211,7 @@ class MenuLateral(QFrame):
         layout_botones.addWidget(self._crear_header("Administración"))
         # FINANZAS UNIFICADAS: Incluye Tesorería, Contabilidad y Gestión de Proveedores
         # Todos consumen core/services/finance/* (single source of truth)
-        layout_botones.addWidget(self._crear_boton("💰 Finanzas Unificadas", "FINANZAS_UNIFICADAS"))
+        layout_botones.addWidget(self._crear_boton("💰 Finanzas", "FINANZAS_UNIFICADAS"))
         layout_botones.addWidget(self._crear_boton("🏗️ Activos", "ACTIVOS"))
         layout_botones.addWidget(self._crear_boton("👔 Recursos Humanos", "RRHH"))
         layout_botones.addWidget(self._crear_boton("⭐ Fidelización", "GROWTH_ENGINE"))
