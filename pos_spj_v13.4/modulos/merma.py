@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QDoubleSpinBox,
     QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QGroupBox, QDateEdit, QMessageBox,
-    QCompleter, QTabWidget, QFrame, QSpinBox,
+    QCompleter, QTabWidget, QFrame, QSpinBox, QInputDialog,
 )
 
 logger = logging.getLogger("spj.modulo.merma")
@@ -331,6 +331,36 @@ class ModuloMerma(QWidget):
                 "¿Confirmar el registro?",
                 QMessageBox.Yes | QMessageBox.No)
             if resp != QMessageBox.Yes:
+                return
+            # Fase 3: aprobación dual para mermas de alto impacto
+            pin, ok_pin = QInputDialog.getText(
+                self,
+                "Autorización requerida",
+                "Ingresa PIN de gerente/admin para autorizar la merma:",
+                QLineEdit.Password,
+            )
+            if not ok_pin or not pin:
+                QMessageBox.warning(self, "Autorización", "Operación cancelada: PIN requerido.")
+                return
+            try:
+                from core.services.discount_guard import DiscountGuard
+                guard = DiscountGuard(self.container.db)
+                if not guard.solicitar_pin_gerente(self.container.db, pin):
+                    QMessageBox.critical(self, "Autorización rechazada",
+                                         "PIN inválido o sin permisos de gerente/admin.")
+                    try:
+                        from core.services.auto_audit import audit_write
+                        audit_write(
+                            self.container, modulo="MERMA", accion="MERMA_DENEGADA_PIN",
+                            entidad="mermas", entidad_id="",
+                            usuario=self.usuario, sucursal_id=self.sucursal_id,
+                            detalles=f"Intento de merma alta sin PIN válido. Producto={nombre} Valor={valor_perdida:.2f}",
+                        )
+                    except Exception:
+                        pass
+                    return
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"No se pudo validar PIN: {e}")
                 return
 
         try:

@@ -3529,21 +3529,25 @@ class ModuloVentas(ModuloBase):
                 return
             try:
                 from core.services.sales_reversal_service import SalesReversalService
-                SalesReversalService(self.container.db).cancel_sale(vid, self.usuario_actual)
-            except Exception:
-                try:
-                    self.container.db.execute(
-                        "UPDATE ventas SET estado='cancelada',notas=? WHERE id=?",
-                        (f"Cancelada: {motivo}", vid))
-                    try: self.container.db.commit()
-                    except Exception: pass
-                    try:
-                        _uid = getattr(self,"usuario_actual",None) or getattr(self,"usuario","Sistema")
-                        _ctr = getattr(self,"container",None)
-                        if _ctr: audit_write(_ctr,modulo="VENTAS",accion="VENTA_CANCELADA",entidad="ventas",usuario=_uid,detalles="Venta cancelada",sucursal_id=getattr(self,"sucursal_id",1))
-                    except Exception: pass
-                except Exception as e:
-                    QMessageBox.critical(dlg, "Error", str(e)); return
+                branch_id = int(getattr(self, "sucursal_id", 1) or 1)
+                usuario = (getattr(self, "usuario_actual", "") or getattr(self, "usuario", "") or "").strip()
+                if not usuario:
+                    raise ValueError("Usuario no identificado para cancelar venta.")
+                SalesReversalService(self.container.db, branch_id=branch_id).cancel_sale(
+                    vid, usuario
+                )
+            except Exception as e:
+                # Hardening Fase 0:
+                # ❌ Nunca caer a UPDATE directo de estado (rompe reversa contable/inventario).
+                # ✔  Fallar explícitamente para preservar integridad.
+                QMessageBox.critical(
+                    dlg,
+                    "Error de cancelación",
+                    ("No se pudo cancelar con reversa segura.\n"
+                     "La venta NO fue alterada.\n\n"
+                     f"Detalle: {e}")
+                )
+                return
             QMessageBox.information(dlg, "✅ Éxito", "Venta cancelada correctamente.")
             dlg.accept()
 

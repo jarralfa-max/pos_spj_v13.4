@@ -235,7 +235,9 @@ class DialogoLogin(QDialog):
         self.lbl_logo = QLabel()
         self.lbl_logo.setAlignment(Qt.AlignCenter)
         self.lbl_logo.setObjectName("loginLogo")
-        self.lbl_logo.setFixedHeight(90)
+        # Fase 0 hardening UI login: evitar recorte del logo en DPI altos.
+        self.lbl_logo.setMinimumHeight(100)
+        self.lbl_logo.setFixedHeight(120)
         self.lbl_logo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.lbl_logo.setScaledContents(False)
 
@@ -248,7 +250,7 @@ class DialogoLogin(QDialog):
                 if _r and _r[0] and os.path.exists(_r[0]):
                     _pix = _QP(_r[0])
                     if not _pix.isNull():
-                        _scaled = _pix.scaled(80, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        _scaled = _pix.scaled(140, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         self.lbl_logo.setPixmap(_scaled)
                         self.lbl_logo.setAlignment(Qt.AlignCenter)
                     else:

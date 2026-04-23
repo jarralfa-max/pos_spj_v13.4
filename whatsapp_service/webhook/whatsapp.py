@@ -5,6 +5,7 @@ POST /webhook → Recepción de mensajes
 """
 from __future__ import annotations
 import logging
+import hmac
 from fastapi import APIRouter, Request, Query, Response
 
 from models.message import IncomingMessage
@@ -35,7 +36,11 @@ async def verify_webhook(
 ):
     """Verificación del webhook por Meta."""
     from config.settings import WA_VERIFY_TOKEN
-    if mode == "subscribe" and token == WA_VERIFY_TOKEN:
+    if not WA_VERIFY_TOKEN:
+        logger.error("WA_VERIFY_TOKEN no configurado; verificación rechazada.")
+        return Response(status_code=503)
+    token_ok = bool(token) and hmac.compare_digest(str(token), str(WA_VERIFY_TOKEN))
+    if mode == "subscribe" and token_ok:
         logger.info("Webhook verificado exitosamente")
         return Response(content=challenge, media_type="text/plain")
     logger.warning("Verificación fallida: token=%s", token)

@@ -5,8 +5,10 @@ Wrappea la conexión SQLite y expone insert_audit_log()
 que es lo que AuditService espera.
 """
 import logging
+import os
 
 logger = logging.getLogger("spj.audit_repo")
+_STRICT_AUDIT = os.getenv("SPJ_AUDIT_STRICT", "0") == "1"
 
 
 class AuditRepository:
@@ -27,7 +29,7 @@ class AuditRepository:
         sucursal_id: int = 1,
         detalles: str = "",
     ) -> None:
-        """Inserta un registro en audit_logs. Falla silenciosamente."""
+        """Inserta un registro en audit_logs."""
         try:
             self.db.execute(
                 """INSERT INTO audit_logs
@@ -42,4 +44,6 @@ class AuditRepository:
             except Exception:
                 pass
         except Exception as e:
-            logger.debug("audit insert_audit_log: %s", e)
+            logger.error("audit insert_audit_log failed: %s", e)
+            if _STRICT_AUDIT:
+                raise

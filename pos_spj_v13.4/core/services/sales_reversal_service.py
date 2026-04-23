@@ -126,14 +126,16 @@ class SalesReversalService:
         ✔ La auditoría puede reconstruir el estado exacto en cualquier punto del tiempo
     """
 
-    def __init__(self, db, branch_id: int):
+    def __init__(self, db, branch_id: int = 1):
         """
         db        — sqlite3.Connection o DatabaseWrapper
         branch_id — sucursal activa
         """
         from core.db.connection import wrap
-        self.db = wrap(db)
-        self.branch_id = branch_id
+        # Compatibilidad con wrappers legacy que exponen .conn (tests/legacy adapters)
+        raw_conn = getattr(db, "conn", db)
+        self.db = wrap(raw_conn)
+        self.branch_id = int(branch_id or 1)
 
     # ── Helpers internos ─────────────────────────────────────────────────────
 
