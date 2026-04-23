@@ -32,8 +32,11 @@ class UnifiedThirdPartyService:
     @staticmethod
     def _to_dicts(cursor, rows) -> List[Dict[str, Any]]:
         """Convierte filas sqlite (tuplas) a lista de dicts usando cursor.description."""
-        cols = [d[0] for d in (cursor.description or [])]
+        cols = [d[0] for d in (getattr(cursor, "description", None) or [])]
         if not cols:
+            # Fallback defensivo: sqlite.Row ya es indexable por clave.
+            if rows and hasattr(rows[0], "keys"):
+                return [dict(r) for r in rows]
             return []
         return [dict(zip(cols, r)) for r in rows]
 
