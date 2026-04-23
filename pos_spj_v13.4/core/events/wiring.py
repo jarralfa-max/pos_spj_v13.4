@@ -508,10 +508,10 @@ def _wire_wa_events(bus, container) -> None:
                 container.db.commit()
             except Exception:
                 pass
-            # Invalidar caché BI
-            bi = getattr(container, "bi_service", None)
-            if bi:
-                getattr(bi, "invalidar_cache", lambda *a: None)(
+            # Invalidar caché BI (motor único: analytics_engine)
+            analytics = getattr(container, "analytics_engine", None)
+            if analytics:
+                getattr(analytics, "invalidar_cache", lambda *a: None)(
                     data.get("sucursal_id", 1))
         except Exception as e:
             logger.debug("on_sale_created: %s", e)
