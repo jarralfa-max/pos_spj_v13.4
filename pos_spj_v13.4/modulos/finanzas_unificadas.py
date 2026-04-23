@@ -367,7 +367,6 @@ class ModuloFinanzasUnificadas(QWidget):
         self._tabs = None
         self._setup_ui()
         self._wire_live_refresh()
-        self._wire_kpi_auto_refresh()
         
     def set_sucursal(self, sucursal_id: int, nombre: str = ""):
         self.sucursal_id = sucursal_id
@@ -387,24 +386,6 @@ class ModuloFinanzasUnificadas(QWidget):
             bus.subscribe("CXP_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_pagar), label="fin.ui.cxp_creada")
             bus.subscribe("CXC_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cxc_creada")
             bus.subscribe("CLIENTE_CREADO", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cliente_creado")
-            bus.subscribe("VENTA_COMPLETADA", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.venta")
-            bus.subscribe("MOVIMIENTO_FINANCIERO", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.mov")
-            bus.subscribe("CXP_CREADA", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.cxp")
-            bus.subscribe("CXC_CREADA", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.cxc")
-        except Exception:
-            pass
-
-    def _wire_kpi_auto_refresh(self):
-        """Auto-refresh de KPIs para mantener dashboard actualizado sin navegación."""
-        self._kpi_timer = QTimer(self)
-        self._kpi_timer.setInterval(15000)  # 15s
-        self._kpi_timer.timeout.connect(self._refresh_kpis_if_dashboard_visible)
-        self._kpi_timer.start()
-
-    def _refresh_kpis_if_dashboard_visible(self):
-        try:
-            if self._tabs and self._tabs.currentIndex() == 0:
-                self._cargar_dashboard_financiero()
         except Exception:
             pass
     
@@ -538,17 +519,10 @@ class ModuloFinanzasUnificadas(QWidget):
             total_eg = float(eg.get("total_egresos", 0))
             self._kpi_labels["flujo_caja"].setText(f"${(total_ventas - total_eg):,.2f}")
             self._kpi_labels["ingresos_egresos"].setText(f"${total_ventas:,.2f} / ${total_eg:,.2f}")
-            cxp = float(kpis.get("cxp_pendiente", kpis.get("cxp_total", 0)) or 0)
-            cxc = float(kpis.get("cxc_pendiente", kpis.get("cxc_total", 0)) or 0)
-            self._kpi_labels["cxp_aging"].setText(f"${cxp:,.2f}")
-            self._kpi_labels["cxc_aging"].setText(f"${cxc:,.2f}")
-            # Liquidez aproximada: capital disponible / pasivos corrientes CxP
-            capital_disp = float(kpis.get("capital_disponible", 0) or 0)
-            liquidez = (capital_disp / cxp) if cxp > 0 else 0.0
-            self._kpi_labels["liquidez"].setText(f"{liquidez:.2f}")
-            self._kpi_labels["margen_operativo"].setText(
-                f"{float(kpis.get('margen_neto_pct', kpis.get('margen_operativo_pct', 0)) or 0):.1f}%"
-            )
+            self._kpi_labels["cxp_aging"].setText(f"${float(kpis.get('cxp_total', 0)):,.2f}")
+            self._kpi_labels["cxc_aging"].setText(f"${float(kpis.get('cxc_total', 0)):,.2f}")
+            self._kpi_labels["liquidez"].setText(f"{float(kpis.get('liquidez', 0)):.2f}")
+            self._kpi_labels["margen_operativo"].setText(f"{float(kpis.get('margen_operativo_pct', 0)):.1f}%")
         except Exception as e:
             logger.warning("_cargar_dashboard_financiero: %s", e)
     
@@ -1050,11 +1024,6 @@ class ModuloFinanzasUnificadas(QWidget):
                 self.container.db.commit()
             except Exception:
                 pass
-        try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("CXP_CREADA", {"sucursal_id": self.sucursal_id})
-        except Exception:
-            pass
         self._cargar_cuentas_pagar()
 
     def _dialogo_nueva_cxc(self):
@@ -1104,11 +1073,6 @@ class ModuloFinanzasUnificadas(QWidget):
                 self.container.db.commit()
             except Exception:
                 pass
-        try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("CXC_CREADA", {"sucursal_id": self.sucursal_id})
-        except Exception:
-            pass
         self._cargar_cuentas_cobrar()
 
     def _dialogo_nuevo_cliente(self):
@@ -1125,77 +1089,19 @@ class ModuloFinanzasUnificadas(QWidget):
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         if dlg.exec_() != QDialog.Accepted:
             return
-        nombre_val = self._safe_text(nombre).strip()
-        telefono_val = self._safe_text(tel).strip()
-        email_val = self._safe_text(email).strip()
-        if not nombre_val:
+        if not nombre.text().strip():
             QMessageBox.warning(self, "Aviso", "El nombre del cliente es obligatorio.")
             return
-        try:
-            self._insertar_cliente_seguro(
-                nombre=nombre_val,
-                telefono=telefono_val,
-                email=email_val,
-            )
-        except Exception as e:
-            QMessageBox.critical(self, "Error al guardar cliente", str(e))
-            return
+        self.container.db.execute(
+            "INSERT INTO clientes(nombre, telefono, email, activo, sucursal_id, fecha_registro) "
+            "VALUES (?,?,?,?,?,datetime('now'))",
+            (nombre.text().strip(), tel.text().strip(), email.text().strip(), 1, self.sucursal_id or 1)
+        )
         try:
             self.container.db.commit()
         except Exception:
             pass
-        try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("CLIENTE_CREADO", {"sucursal_id": self.sucursal_id})
-        except Exception:
-            pass
         self._cargar_cuentas_cobrar()
-
-    @staticmethod
-    def _safe_text(widget_or_value) -> str:
-        """Extrae texto de QLineEdit/QComboBox o valor plano sin romper por tipo."""
-        if hasattr(widget_or_value, "text"):
-            try:
-                return widget_or_value.text()
-            except Exception:
-                pass
-        if hasattr(widget_or_value, "currentText"):
-            try:
-                return widget_or_value.currentText()
-            except Exception:
-                pass
-        return "" if widget_or_value is None else str(widget_or_value)
-
-    def _insertar_cliente_seguro(self, nombre: str, telefono: str = "", email: str = "") -> None:
-        """Inserta cliente tolerando drift de esquema entre instalaciones."""
-        db = self.container.db
-        cols = [r[1] for r in db.execute("PRAGMA table_info(clientes)").fetchall()]
-        if not cols:
-            raise RuntimeError("Tabla clientes no disponible")
-
-        data = {"nombre": nombre}
-        if "telefono" in cols:
-            data["telefono"] = telefono
-        if "email" in cols:
-            data["email"] = email
-        if "activo" in cols:
-            data["activo"] = 1
-        if "sucursal_id" in cols:
-            data["sucursal_id"] = self.sucursal_id or 1
-
-        # Columnas de fecha opcionales (usar SQL datetime para compatibilidad)
-        fecha_col = "fecha_registro" if "fecha_registro" in cols else ("fecha_alta" if "fecha_alta" in cols else None)
-        if fecha_col:
-            col_names = list(data.keys()) + [fecha_col]
-            placeholders = ",".join(["?"] * len(data)) + ",datetime('now')"
-            sql = f"INSERT INTO clientes({','.join(col_names)}) VALUES ({placeholders})"
-            db.execute(sql, tuple(data.values()))
-            return
-
-        col_names = list(data.keys())
-        placeholders = ",".join(["?"] * len(col_names))
-        sql = f"INSERT INTO clientes({','.join(col_names)}) VALUES ({placeholders})"
-        db.execute(sql, tuple(data.values()))
 
     def _listar_clientes(self):
         if not hasattr(self.container, "db"):
@@ -1203,13 +1109,7 @@ class ModuloFinanzasUnificadas(QWidget):
         rows = self.container.db.execute(
             "SELECT id, nombre FROM clientes WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 500"
         ).fetchall()
-        out = []
-        for r in rows:
-            if hasattr(r, "keys"):
-                out.append({"id": r["id"], "nombre": r["nombre"]})
-            else:
-                out.append({"id": r[0], "nombre": r[1]})
-        return out
+        return [{"id": r[0], "nombre": r[1]} for r in rows]
     
     # ──────────────────────────────────────────────────────────────────────────
     #  MÉTODOS DE GASTOS OPERATIVOS

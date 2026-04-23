@@ -13,16 +13,3 @@ def test_finanzas_unificadas_suscribe_eventos_kpi():
     assert '"VENTA_COMPLETADA"' in src
     assert '"MOVIMIENTO_FINANCIERO"' in src
     assert 'self._cargar_dashboard_financiero' in src
-
-
-def test_finanzas_dashboard_usa_claves_reales_tesoreria():
-    src = Path('modulos/finanzas_unificadas.py').read_text(encoding='utf-8')
-    assert "cxp_pendiente" in src
-    assert "cxc_pendiente" in src
-    assert "margen_neto_pct" in src
-
-
-def test_finanzas_safe_text_helper_presente():
-    src = Path('modulos/finanzas_unificadas.py').read_text(encoding='utf-8')
-    assert "def _safe_text" in src
-    assert "currentText" in src
