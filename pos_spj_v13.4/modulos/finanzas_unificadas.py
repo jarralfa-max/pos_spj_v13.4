@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QProgressDialog, QSplashScreen, QSystemTrayIcon, QStyleFactory,
     QApplication, QSizePolicy, QStackedWidget, QGridLayout
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QDate
 from PyQt5.QtGui import QFont, QPixmap
 
 logger = logging.getLogger("spj.finanzas_unificadas")
@@ -362,6 +362,7 @@ class ModuloFinanzasUnificadas(QWidget):
         self.usuario_actual = ""
         self._ts = getattr(container, 'treasury_service', None)
         self._tps = getattr(container, 'third_party_service', None)
+        self._fs = getattr(container, 'finance_service', None)
         self._analytics = getattr(container, "analytics_engine", None)
         self._tabs = None
         self._setup_ui()
@@ -623,6 +624,14 @@ class ModuloFinanzasUnificadas(QWidget):
         lbl = QLabel("Facturas y deudas pendientes con proveedores")
         lbl.setStyleSheet("color: gray;")
         layout.addWidget(lbl)
+
+        top = QHBoxLayout()
+        btn_nuevo_cxp = QPushButton("➕ Nueva CxP")
+        btn_nuevo_cxp.setStyleSheet("background:#2563EB;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxp.clicked.connect(self._dialogo_nueva_cxp)
+        top.addWidget(btn_nuevo_cxp)
+        top.addStretch()
+        layout.addLayout(top)
         
         # Filtro por nombre
         self._txt_filtro_cxp = QLineEdit()
@@ -650,6 +659,18 @@ class ModuloFinanzasUnificadas(QWidget):
         lbl = QLabel("Dinero pendiente de cobro a clientes")
         lbl.setStyleSheet("color: gray;")
         layout.addWidget(lbl)
+
+        top = QHBoxLayout()
+        btn_nuevo_cliente = QPushButton("👤 Nuevo cliente")
+        btn_nuevo_cliente.setStyleSheet("background:#475569;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cliente.clicked.connect(self._dialogo_nuevo_cliente)
+        btn_nuevo_cxc = QPushButton("➕ Nueva CxC")
+        btn_nuevo_cxc.setStyleSheet("background:#16A34A;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxc.clicked.connect(self._dialogo_nueva_cxc)
+        top.addWidget(btn_nuevo_cliente)
+        top.addWidget(btn_nuevo_cxc)
+        top.addStretch()
+        layout.addLayout(top)
         
         # Filtro por nombre
         self._txt_filtro_cxc = QLineEdit()
@@ -939,6 +960,98 @@ class ModuloFinanzasUnificadas(QWidget):
         dlg = DialogoAbono(deuda, tipo="cobrar", treasury_service=self._ts, usuario=self.usuario_actual, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self._cargar_cuentas_cobrar()
+
+    def _dialogo_nueva_cxp(self):
+        if not self._fs:
+            QMessageBox.warning(self, "Error", "FinanceService no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva Cuenta por Pagar")
+        lay = QFormLayout(dlg)
+        cmb = QComboBox()
+        for p in (self._tps.get_all_proveedores(activo=True, limit=500) if self._tps else []):
+            cmb.addItem(p.get("nombre", "—"), p.get("id"))
+        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
+        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
+        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(30))
+        lay.addRow("Proveedor:", cmb); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        self._fs.crear_cxp(
+            supplier_id=cmb.currentData(),
+            concepto=txt.text().strip() or "Cuenta por pagar",
+            amount=float(monto.value()),
+            due_date=due.date().toString("yyyy-MM-dd"),
+            usuario=self.usuario_actual or "Sistema",
+        )
+        self._cargar_cuentas_pagar()
+
+    def _dialogo_nueva_cxc(self):
+        if not self._fs:
+            QMessageBox.warning(self, "Error", "FinanceService no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva Cuenta por Cobrar")
+        lay = QFormLayout(dlg)
+        cmb = QComboBox()
+        for c in self._listar_clientes():
+            cmb.addItem(c.get("nombre", "—"), c.get("id"))
+        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
+        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
+        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(15))
+        lay.addRow("Cliente:", cmb); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        self._fs.crear_cxc(
+            cliente_id=cmb.currentData(),
+            concepto=txt.text().strip() or "Cuenta por cobrar",
+            amount=float(monto.value()),
+            due_date=due.date().toString("yyyy-MM-dd"),
+            usuario=self.usuario_actual or "Sistema",
+        )
+        self._cargar_cuentas_cobrar()
+
+    def _dialogo_nuevo_cliente(self):
+        if not hasattr(self.container, "db"):
+            QMessageBox.warning(self, "Error", "DB no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nuevo Cliente")
+        lay = QFormLayout(dlg)
+        nombre = QLineEdit(); tel = QLineEdit(); email = QLineEdit()
+        lay.addRow("Nombre:", nombre); lay.addRow("Teléfono:", tel); lay.addRow("Email:", email)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        if not nombre.text().strip():
+            QMessageBox.warning(self, "Aviso", "El nombre del cliente es obligatorio.")
+            return
+        self.container.db.execute(
+            "INSERT INTO clientes(nombre, telefono, email, activo, sucursal_id, fecha_registro) "
+            "VALUES (?,?,?,?,?,datetime('now'))",
+            (nombre.text().strip(), tel.text().strip(), email.text().strip(), 1, self.sucursal_id or 1)
+        )
+        try:
+            self.container.db.commit()
+        except Exception:
+            pass
+        self._cargar_cuentas_cobrar()
+
+    def _listar_clientes(self):
+        if not hasattr(self.container, "db"):
+            return []
+        rows = self.container.db.execute(
+            "SELECT id, nombre FROM clientes WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 500"
+        ).fetchall()
+        return [{"id": r[0], "nombre": r[1]} for r in rows]
     
     # ──────────────────────────────────────────────────────────────────────────
     #  MÉTODOS DE GASTOS OPERATIVOS

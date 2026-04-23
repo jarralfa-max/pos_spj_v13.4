@@ -182,7 +182,7 @@ class TransferRepository:
                     item.get("notes", ""),
                 ))
 
-        EventBus.publish(TRANSFER_DISPATCHED, {
+        EventBus().publish(TRANSFER_DISPATCHED, {
             "transfer_id": transfer_id,
             "origin_branch_id": origin_branch_id,
             "dest_branch_id": dest_branch_id,
@@ -290,7 +290,7 @@ class TransferRepository:
             "items": result_items,
         }
 
-        EventBus.publish(TRANSFER_RECEIVED, {
+        EventBus().publish(TRANSFER_RECEIVED, {
             "transfer_id": transfer_id,
             "dest_branch_id": dest_branch_id,
             "total_difference": total_difference,
@@ -333,4 +333,4 @@ class TransferRepository:
                 WHERE id = ?
             """, (reason, cancelled_by, cancelled_by, transfer_id))
 
-        EventBus.publish(TRANSFER_CANCELLED, {"transfer_id": transfer_id})
+        EventBus().publish(TRANSFER_CANCELLED, {"transfer_id": transfer_id})
