@@ -27,8 +27,8 @@ MODULOS_SISTEMA = [
     ("MERMA",            "🗑️ Merma",                True),
     # ("PROVEEDORES",      "🏭 Proveedores",           True),  # ELIMINADO: Integrado en FINANZAS_UNIFICADAS
     ("ETIQUETAS",        "🏷️ Etiquetas",            True),
+    ("FINANZAS_UNIFICADAS", "💰 Finanzas",          True),
     ("CUENTAS_XC_XP",   "⚖️ CxC y CxP",            True),
-    ("TESORERIA",        "🏦 Tesorería",             True),
     ("RRHH",             "👔 Recursos Humanos",      True),
     ("ACTIVOS",          "🏢 Activos Fijos",         True),
     ("TARJETAS_FIDELIDAD","💳 Tarjetas Fidelidad",  True),

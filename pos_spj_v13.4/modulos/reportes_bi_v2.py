@@ -202,8 +202,8 @@ class ModuloReportesBIv2(QWidget):
         """Carga ranking de cajeros via AnalyticsEngine.get_ranking_cajeros() (BI unificado)."""
         self._tbl_caj.setRowCount(0)
         try:
-            # ✅ FASE 2: Migrado de bi_service a analytics_engine (motor BI unificado)
-            analytics = getattr(self.container, 'analytics_engine', None) or getattr(self.container, 'bi_service', None)
+            # BI unificado: fuente única analytics_engine
+            analytics = getattr(self.container, 'analytics_engine', None)
             if analytics is None:
                 self._lbl_caj_estado.setText("AnalyticsEngine no disponible.")
                 return
@@ -648,8 +648,8 @@ class ModuloReportesBIv2(QWidget):
         try:
             from core.services.export_service import ExportService
             svc  = ExportService(self.container.db)
-            # ✅ FASE 2: Migrado de bi_service a analytics_engine (motor BI unificado)
-            analytics = getattr(self.container, 'analytics_engine', None) or getattr(self.container, 'bi_service', None)
+            # BI unificado: fuente única analytics_engine
+            analytics = getattr(self.container, 'analytics_engine', None)
             if not analytics:
                 raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
             data = analytics.get_dashboard_data(
@@ -702,8 +702,8 @@ class ModuloReportesBIv2(QWidget):
         rango_str = self.cmb_rango.currentText().lower().split(' ')[-1] # 'hoy', 'semana', 'mes'
         
         try:
-            # 🚀 FASE 2: Migrado de bi_service a analytics_engine (motor BI unificado)
-            analytics = getattr(self.container, 'analytics_engine', None) or getattr(self.container, 'bi_service', None)
+            # BI unificado: fuente única analytics_engine
+            analytics = getattr(self.container, 'analytics_engine', None)
             if not analytics:
                 raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
             data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
