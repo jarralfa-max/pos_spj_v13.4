@@ -1024,11 +1024,6 @@ class ModuloFinanzasUnificadas(QWidget):
                 self.container.db.commit()
             except Exception:
                 pass
-        try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("CXP_CREADA", {"sucursal_id": self.sucursal_id})
-        except Exception:
-            pass
         self._cargar_cuentas_pagar()
 
     def _dialogo_nueva_cxc(self):
@@ -1078,11 +1073,6 @@ class ModuloFinanzasUnificadas(QWidget):
                 self.container.db.commit()
             except Exception:
                 pass
-        try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("CXC_CREADA", {"sucursal_id": self.sucursal_id})
-        except Exception:
-            pass
         self._cargar_cuentas_cobrar()
 
     def _dialogo_nuevo_cliente(self):
@@ -1109,11 +1099,6 @@ class ModuloFinanzasUnificadas(QWidget):
         )
         try:
             self.container.db.commit()
-        except Exception:
-            pass
-        try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("CLIENTE_CREADO", {"sucursal_id": self.sucursal_id})
         except Exception:
             pass
         self._cargar_cuentas_cobrar()
