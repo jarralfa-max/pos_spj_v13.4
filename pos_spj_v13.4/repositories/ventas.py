@@ -227,7 +227,7 @@ class VentaRepository:
             "operation_id": operation_id,
         }
 
-        EventBus.publish(VENTA_COMPLETADA, {
+        EventBus().publish(VENTA_COMPLETADA, {
             "venta_id": venta_id,
             "folio": folio,
             "branch_id": branch_id,

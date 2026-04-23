@@ -186,15 +186,7 @@ except Exception as e:
     ModuloTransferencias = None
     logger.error("Error cargando ModuloTransferencias: %s", e)
 
-# BI/Analytics UNIFICADO: Decisiones, BI Pro e Inteligencia BI usan el mismo motor
-# Nota: Todos los módulos de BI ahora consumen core/services/analytics/analytics_engine.py
-try:
-    from modulos.reportes_bi_v2 import ModuloReportesBIv2 as ModuloDecisiones
-except Exception:
-    ModuloDecisiones = None
-
-# ModuloReportesBIv2 ya está importado arriba (línea 140-143)
-# No se necesita import duplicado
+# BI/Analytics UNIFICADO: único módulo visible = INTELIGENCIA_BI
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -472,7 +464,7 @@ class MainWindow(QMainWindow):
         # ── Administración ───────────────────────────────────────────────────
         # FINANZAS UNIFICADAS: Unifica Tesorería, Finanzas y Proveedores en un solo módulo UI
         # Todos consumen core/services/finance/* (single source of truth)
-        self._conectar("FINANZAS_UNIFICADAS", ModuloFinanzas, "💰 Finanzas Unificadas")
+        self._conectar("FINANZAS_UNIFICADAS", ModuloFinanzas, "💰 Finanzas")
         self._conectar("ACTIVOS",             ModuloActivos,        "🏗️ Activos")
         self._conectar("RRHH",                ModuloRRHH,           "👔 Recursos Humanos")
         self._conectar("GROWTH_ENGINE",       ModuloFidelidadConfig,  "⭐ Fidelización")

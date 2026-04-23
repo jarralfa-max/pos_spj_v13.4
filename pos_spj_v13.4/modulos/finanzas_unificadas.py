@@ -5,7 +5,7 @@
 
 import logging
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from PyQt5.QtWidgets import (
@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QProgressDialog, QSplashScreen, QSystemTrayIcon, QStyleFactory,
     QApplication, QSizePolicy, QStackedWidget, QGridLayout
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QDate
 from PyQt5.QtGui import QFont, QPixmap
 
 logger = logging.getLogger("spj.finanzas_unificadas")
@@ -355,14 +355,19 @@ class ModuloFinanzasUnificadas(QWidget):
     - core/services/finance/third_party_service.py
     """
     
-    def __init__(self, container):
-        super().__init__()
+    def __init__(self, container, parent=None):
+        super().__init__(parent)
         self.container = container
         self.sucursal_id = 1
         self.usuario_actual = ""
         self._ts = getattr(container, 'treasury_service', None)
         self._tps = getattr(container, 'third_party_service', None)
+        self._fs = getattr(container, 'finance_service', None)
+        self._analytics = getattr(container, "analytics_engine", None)
+        self._tabs = None
         self._setup_ui()
+        self._wire_live_refresh()
+        self._wire_kpi_auto_refresh()
         
     def set_sucursal(self, sucursal_id: int, nombre: str = ""):
         self.sucursal_id = sucursal_id
@@ -370,16 +375,50 @@ class ModuloFinanzasUnificadas(QWidget):
     
     def set_usuario_actual(self, usuario: str, rol: str = ""):
         self.usuario_actual = usuario
+
+    def _wire_live_refresh(self):
+        """Refresca tablas de finanzas en caliente sin reiniciar la app."""
+        try:
+            from core.events.event_bus import get_bus
+            bus = get_bus()
+            bus.subscribe("PROVEEDOR_CREADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_creado")
+            bus.subscribe("PROVEEDOR_ACTUALIZADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_act")
+            bus.subscribe("PROVEEDOR_ELIMINADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_del")
+            bus.subscribe("CXP_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_pagar), label="fin.ui.cxp_creada")
+            bus.subscribe("CXC_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cxc_creada")
+            bus.subscribe("CLIENTE_CREADO", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cliente_creado")
+            bus.subscribe("VENTA_COMPLETADA", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.venta")
+            bus.subscribe("MOVIMIENTO_FINANCIERO", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.mov")
+            bus.subscribe("CXP_CREADA", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.cxp")
+            bus.subscribe("CXC_CREADA", lambda _: QTimer.singleShot(0, self._cargar_dashboard_financiero), label="fin.ui.kpi.cxc")
+        except Exception:
+            pass
+
+    def _wire_kpi_auto_refresh(self):
+        """Auto-refresh de KPIs para mantener dashboard actualizado sin navegación."""
+        self._kpi_timer = QTimer(self)
+        self._kpi_timer.setInterval(15000)  # 15s
+        self._kpi_timer.timeout.connect(self._refresh_kpis_if_dashboard_visible)
+        self._kpi_timer.start()
+
+    def _refresh_kpis_if_dashboard_visible(self):
+        try:
+            if self._tabs and self._tabs.currentIndex() == 0:
+                self._cargar_dashboard_financiero()
+        except Exception:
+            pass
     
     def _setup_ui(self):
         """Configura la interfaz con pestañas unificadas."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         
         # Crear widget de pestañas principal
         tabs = QTabWidget()
+        self._tabs = tabs
         tabs.setObjectName("finanzasTabs")
+        tabs.setAccessibleName("Módulo Finanzas")
         tabs.setDocumentMode(True)
         
         # Estilizar pestañas
@@ -406,6 +445,10 @@ class ModuloFinanzasUnificadas(QWidget):
             }
         """)
         
+        # Pestaña 0: Dashboard financiero
+        tab_dashboard = self._crear_pestaña_dashboard()
+        tabs.addTab(tab_dashboard, "📊 Dashboard")
+
         # Pestaña 1: Tesorería (incluye CAPEX, CxP, CxC)
         tab_tesoreria = self._crear_pestaña_tesoreria()
         tabs.addTab(tab_tesoreria, "💰 Tesorería")
@@ -425,19 +468,82 @@ class ModuloFinanzasUnificadas(QWidget):
     
     def _on_tab_changed(self, index):
         """Carga datos según la pestaña activa."""
-        if index == 0:  # Tesorería
+        if index == 0:  # Dashboard
+            self._cargar_dashboard_financiero()
+        elif index == 1:  # Tesorería
             self._cargar_capex()
             self._cargar_cuentas_pagar()
             self._cargar_cuentas_cobrar()
-        elif index == 2:  # Proveedores
+        elif index == 3:  # Proveedores
             self._cargar_proveedores()
     
     def _cargar_datos_actuales(self):
         """Refresca todos los datos."""
+        self._cargar_dashboard_financiero()
         self._cargar_capex()
         self._cargar_cuentas_pagar()
         self._cargar_cuentas_cobrar()
         self._cargar_proveedores()
+
+    def set_active_submodule(self, name: str) -> None:
+        """Selecciona un submódulo interno (compatibilidad con wrappers legacy)."""
+        if not self._tabs:
+            return
+        index_by_name = {
+            "dashboard": 0,
+            "tesoreria": 1,
+            "finanzas": 2,
+            "proveedores": 3,
+        }
+        idx = index_by_name.get((name or "").lower())
+        if idx is not None:
+            self._tabs.setCurrentIndex(idx)
+
+    def _crear_pestaña_dashboard(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        grp = QGroupBox("KPIs Financieros")
+        g = QGridLayout(grp)
+        self._kpi_labels = {}
+        kpis = [
+            ("flujo_caja", "Flujo de caja"),
+            ("ingresos_egresos", "Ingresos vs egresos"),
+            ("cxp_aging", "Cuentas por pagar (aging)"),
+            ("cxc_aging", "Cuentas por cobrar (aging)"),
+            ("liquidez", "Liquidez"),
+            ("margen_operativo", "Margen operativo"),
+        ]
+        for i, (key, title) in enumerate(kpis):
+            row, col = divmod(i, 2)
+            cell = QGroupBox(title)
+            cell_l = QVBoxLayout(cell)
+            lbl = QLabel("—")
+            lbl.setStyleSheet("font-size:20px;font-weight:bold;color:#2563EB;")
+            cell_l.addWidget(lbl, 0, Qt.AlignCenter)
+            self._kpi_labels[key] = lbl
+            g.addWidget(cell, row, col)
+        layout.addWidget(grp)
+        layout.addStretch()
+        return widget
+
+    def _cargar_dashboard_financiero(self):
+        if not getattr(self, "_kpi_labels", None):
+            return
+        try:
+            hoy = date.today().isoformat()
+            sales = self._analytics.sales_metrics(hoy, self.sucursal_id) if self._analytics else {}
+            total_ventas = float(sales.get("total_ventas", 0))
+            kpis = self._ts.kpis_financieros() if self._ts else {}
+            eg = (kpis.get("egresos") or {})
+            total_eg = float(eg.get("total_egresos", 0))
+            self._kpi_labels["flujo_caja"].setText(f"${(total_ventas - total_eg):,.2f}")
+            self._kpi_labels["ingresos_egresos"].setText(f"${total_ventas:,.2f} / ${total_eg:,.2f}")
+            self._kpi_labels["cxp_aging"].setText(f"${float(kpis.get('cxp_total', 0)):,.2f}")
+            self._kpi_labels["cxc_aging"].setText(f"${float(kpis.get('cxc_total', 0)):,.2f}")
+            self._kpi_labels["liquidez"].setText(f"{float(kpis.get('liquidez', 0)):.2f}")
+            self._kpi_labels["margen_operativo"].setText(f"{float(kpis.get('margen_operativo_pct', 0)):.1f}%")
+        except Exception as e:
+            logger.warning("_cargar_dashboard_financiero: %s", e)
     
     # ──────────────────────────────────────────────────────────────────────────
     #  PESTAÑA 1: TESORERÍA (CAPEX, CxP, CxC)
@@ -552,6 +658,14 @@ class ModuloFinanzasUnificadas(QWidget):
         lbl = QLabel("Facturas y deudas pendientes con proveedores")
         lbl.setStyleSheet("color: gray;")
         layout.addWidget(lbl)
+
+        top = QHBoxLayout()
+        btn_nuevo_cxp = QPushButton("➕ Nueva CxP")
+        btn_nuevo_cxp.setStyleSheet("background:#2563EB;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxp.clicked.connect(self._dialogo_nueva_cxp)
+        top.addWidget(btn_nuevo_cxp)
+        top.addStretch()
+        layout.addLayout(top)
         
         # Filtro por nombre
         self._txt_filtro_cxp = QLineEdit()
@@ -579,6 +693,18 @@ class ModuloFinanzasUnificadas(QWidget):
         lbl = QLabel("Dinero pendiente de cobro a clientes")
         lbl.setStyleSheet("color: gray;")
         layout.addWidget(lbl)
+
+        top = QHBoxLayout()
+        btn_nuevo_cliente = QPushButton("👤 Nuevo cliente")
+        btn_nuevo_cliente.setStyleSheet("background:#475569;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cliente.clicked.connect(self._dialogo_nuevo_cliente)
+        btn_nuevo_cxc = QPushButton("➕ Nueva CxC")
+        btn_nuevo_cxc.setStyleSheet("background:#16A34A;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxc.clicked.connect(self._dialogo_nueva_cxc)
+        top.addWidget(btn_nuevo_cliente)
+        top.addWidget(btn_nuevo_cxc)
+        top.addStretch()
+        layout.addLayout(top)
         
         # Filtro por nombre
         self._txt_filtro_cxc = QLineEdit()
@@ -780,6 +906,8 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             deudas = self._ts.get_cuentas_por_pagar(self.sucursal_id)
+            if not deudas and self.sucursal_id:
+                deudas = self._ts.get_cuentas_por_pagar(0)
             self._tabla_cxp.setRowCount(len(deudas))
             for row, deuda in enumerate(deudas):
                 self._tabla_cxp.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
@@ -828,6 +956,8 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             deudas = self._ts.get_cuentas_por_cobrar(self.sucursal_id)
+            if not deudas and self.sucursal_id:
+                deudas = self._ts.get_cuentas_por_cobrar(0)
             self._tabla_cxc.setRowCount(len(deudas))
             for row, deuda in enumerate(deudas):
                 self._tabla_cxc.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
@@ -864,6 +994,197 @@ class ModuloFinanzasUnificadas(QWidget):
         dlg = DialogoAbono(deuda, tipo="cobrar", treasury_service=self._ts, usuario=self.usuario_actual, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self._cargar_cuentas_cobrar()
+
+    def _dialogo_nueva_cxp(self):
+        if not self._fs and not hasattr(self.container, "db"):
+            QMessageBox.warning(self, "Error", "Servicios financieros no disponibles.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva Cuenta por Pagar")
+        lay = QFormLayout(dlg)
+        cmb = QComboBox()
+        for p in (self._tps.get_all_proveedores(activo=True, limit=500) if self._tps else []):
+            cmb.addItem(p.get("nombre", "—"), p.get("id"))
+        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
+        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
+        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(30))
+        lay.addRow("Proveedor:", cmb); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        try:
+            if self._fs and hasattr(self._fs, "crear_cxp"):
+                self._fs.crear_cxp(
+                    supplier_id=cmb.currentData(),
+                    concepto=txt.text().strip() or "Cuenta por pagar",
+                    amount=float(monto.value()),
+                    due_date=due.date().toString("yyyy-MM-dd"),
+                    usuario=self.usuario_actual or "Sistema",
+                )
+            else:
+                raise RuntimeError("FinanceService.crear_cxp no disponible")
+        except Exception:
+            # Fallback schema-agnóstico para instalaciones con drift
+            self.container.db.execute(
+                "INSERT INTO accounts_payable(supplier_id, folio, concepto, amount, balance, due_date, status) "
+                "VALUES (?,?,?,?,?,?,'pendiente')",
+                (
+                    cmb.currentData(),
+                    f"CXP-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                    txt.text().strip() or "Cuenta por pagar",
+                    float(monto.value()),
+                    float(monto.value()),
+                    due.date().toString("yyyy-MM-dd"),
+                ),
+            )
+            try:
+                self.container.db.commit()
+            except Exception:
+                pass
+        try:
+            from core.events.event_bus import get_bus
+            get_bus().publish("CXP_CREADA", {"sucursal_id": self.sucursal_id})
+        except Exception:
+            pass
+        self._cargar_cuentas_pagar()
+
+    def _dialogo_nueva_cxc(self):
+        if not self._fs and not hasattr(self.container, "db"):
+            QMessageBox.warning(self, "Error", "Servicios financieros no disponibles.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva Cuenta por Cobrar")
+        lay = QFormLayout(dlg)
+        cmb = QComboBox()
+        for c in self._listar_clientes():
+            cmb.addItem(c.get("nombre", "—"), c.get("id"))
+        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
+        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
+        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(15))
+        lay.addRow("Cliente:", cmb); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        try:
+            if self._fs and hasattr(self._fs, "crear_cxc"):
+                self._fs.crear_cxc(
+                    cliente_id=cmb.currentData(),
+                    concepto=txt.text().strip() or "Cuenta por cobrar",
+                    amount=float(monto.value()),
+                    due_date=due.date().toString("yyyy-MM-dd"),
+                    usuario=self.usuario_actual or "Sistema",
+                )
+            else:
+                raise RuntimeError("FinanceService.crear_cxc no disponible")
+        except Exception:
+            self.container.db.execute(
+                "INSERT INTO accounts_receivable(cliente_id, folio, concepto, amount, balance, due_date, status) "
+                "VALUES (?,?,?,?,?,?,'pendiente')",
+                (
+                    cmb.currentData(),
+                    f"CXC-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                    txt.text().strip() or "Cuenta por cobrar",
+                    float(monto.value()),
+                    float(monto.value()),
+                    due.date().toString("yyyy-MM-dd"),
+                ),
+            )
+            try:
+                self.container.db.commit()
+            except Exception:
+                pass
+        try:
+            from core.events.event_bus import get_bus
+            get_bus().publish("CXC_CREADA", {"sucursal_id": self.sucursal_id})
+        except Exception:
+            pass
+        self._cargar_cuentas_cobrar()
+
+    def _dialogo_nuevo_cliente(self):
+        if not hasattr(self.container, "db"):
+            QMessageBox.warning(self, "Error", "DB no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nuevo Cliente")
+        lay = QFormLayout(dlg)
+        nombre = QLineEdit(); tel = QLineEdit(); email = QLineEdit()
+        lay.addRow("Nombre:", nombre); lay.addRow("Teléfono:", tel); lay.addRow("Email:", email)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        if not nombre.text().strip():
+            QMessageBox.warning(self, "Aviso", "El nombre del cliente es obligatorio.")
+            return
+        try:
+            self._insertar_cliente_seguro(
+                nombre=nombre.text().strip(),
+                telefono=tel.text().strip(),
+                email=email.text().strip(),
+            )
+        except Exception as e:
+            QMessageBox.critical(self, "Error al guardar cliente", str(e))
+            return
+        try:
+            self.container.db.commit()
+        except Exception:
+            pass
+        try:
+            from core.events.event_bus import get_bus
+            get_bus().publish("CLIENTE_CREADO", {"sucursal_id": self.sucursal_id})
+        except Exception:
+            pass
+        self._cargar_cuentas_cobrar()
+
+    def _insertar_cliente_seguro(self, nombre: str, telefono: str = "", email: str = "") -> None:
+        """Inserta cliente tolerando drift de esquema entre instalaciones."""
+        db = self.container.db
+        cols = [r[1] for r in db.execute("PRAGMA table_info(clientes)").fetchall()]
+        if not cols:
+            raise RuntimeError("Tabla clientes no disponible")
+
+        data = {"nombre": nombre}
+        if "telefono" in cols:
+            data["telefono"] = telefono
+        if "email" in cols:
+            data["email"] = email
+        if "activo" in cols:
+            data["activo"] = 1
+        if "sucursal_id" in cols:
+            data["sucursal_id"] = self.sucursal_id or 1
+
+        # Columnas de fecha opcionales (usar SQL datetime para compatibilidad)
+        fecha_col = "fecha_registro" if "fecha_registro" in cols else ("fecha_alta" if "fecha_alta" in cols else None)
+        if fecha_col:
+            col_names = list(data.keys()) + [fecha_col]
+            placeholders = ",".join(["?"] * len(data)) + ",datetime('now')"
+            sql = f"INSERT INTO clientes({','.join(col_names)}) VALUES ({placeholders})"
+            db.execute(sql, tuple(data.values()))
+            return
+
+        col_names = list(data.keys())
+        placeholders = ",".join(["?"] * len(col_names))
+        sql = f"INSERT INTO clientes({','.join(col_names)}) VALUES ({placeholders})"
+        db.execute(sql, tuple(data.values()))
+
+    def _listar_clientes(self):
+        if not hasattr(self.container, "db"):
+            return []
+        rows = self.container.db.execute(
+            "SELECT id, nombre FROM clientes WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 500"
+        ).fetchall()
+        out = []
+        for r in rows:
+            if hasattr(r, "keys"):
+                out.append({"id": r["id"], "nombre": r["nombre"]})
+            else:
+                out.append({"id": r[0], "nombre": r[1]})
+        return out
     
     # ──────────────────────────────────────────────────────────────────────────
     #  MÉTODOS DE GASTOS OPERATIVOS
@@ -911,6 +1232,24 @@ class ModuloFinanzasUnificadas(QWidget):
         except Exception as e:
             logger.warning("_cargar_proveedores: %s", e)
             rows = []
+
+        # fallback defensivo para no bloquear la UX si falla el servicio unificado
+        if not rows and hasattr(self.container, "db"):
+            try:
+                cur = self.container.db.execute(
+                    "SELECT id,nombre,telefono,email,contacto,"
+                    "COALESCE(condiciones_pago,0) FROM proveedores "
+                    "WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 300"
+                )
+                rows = [
+                    {
+                        "id": r[0], "nombre": r[1], "telefono": r[2], "email": r[3],
+                        "contacto": r[4], "condiciones_pago": r[5], "saldo_pendiente": 0.0
+                    }
+                    for r in cur.fetchall()
+                ]
+            except Exception as e:
+                logger.warning("_cargar_proveedores fallback: %s", e)
         
         self._tabla_proveedores.setRowCount(len(rows))
         for ri, r in enumerate(rows):
