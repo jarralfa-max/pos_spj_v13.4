@@ -29,6 +29,14 @@ class UnifiedThirdPartyService:
         self._db = db_conn
         self._fs = finance_service
 
+    @staticmethod
+    def _to_dicts(cursor, rows) -> List[Dict[str, Any]]:
+        """Convierte filas sqlite (tuplas) a lista de dicts usando cursor.description."""
+        cols = [d[0] for d in (cursor.description or [])]
+        if not cols:
+            return []
+        return [dict(zip(cols, r)) for r in rows]
+
     # ══════════════════════════════════════════════════════════════════════════
     #  PROVEEDORES — CRUD
     # ══════════════════════════════════════════════════════════════════════════
@@ -48,13 +56,14 @@ class UnifiedThirdPartyService:
     def get_proveedor(self, proveedor_id: int) -> Optional[Dict[str, Any]]:
         """Obtiene un proveedor por ID."""
         try:
-            row = self._db.execute("""
+            cur = self._db.execute("""
                 SELECT id, nombre, rfc, telefono, email, contacto, categoria,
                        direccion, condiciones_pago, limite_credito, banco, notas, activo
                 FROM proveedores WHERE id = ?
-            """, (proveedor_id,)).fetchone()
+            """, (proveedor_id,))
+            row = cur.fetchone()
             if row:
-                cols = [d[0] for d in self._db.description]
+                cols = [d[0] for d in (cur.description or [])]
                 return dict(zip(cols, row))
         except Exception as e:
             logger.warning("get_proveedor failed: %s", e)
@@ -74,8 +83,9 @@ class UnifiedThirdPartyService:
                 ORDER BY p.nombre
                 LIMIT ?
             """
-            rows = self._db.execute(sql, (1 if activo else 0, limit)).fetchall()
-            return [dict(zip([d[0] for d in self._db.description], r)) for r in rows]
+            cur = self._db.execute(sql, (1 if activo else 0, limit))
+            rows = cur.fetchall()
+            return self._to_dicts(cur, rows)
         except Exception as e:
             logger.warning("get_all_proveedores failed: %s", e)
             return []
@@ -186,7 +196,7 @@ class UnifiedThirdPartyService:
         """Busca proveedores por nombre, RFC o contacto."""
         try:
             q = f"%{query}%"
-            rows = self._db.execute("""
+            cur = self._db.execute("""
                 SELECT id, nombre, telefono, email, contacto, categoria
                 FROM proveedores
                 WHERE activo = 1 AND (
@@ -194,8 +204,9 @@ class UnifiedThirdPartyService:
                 )
                 ORDER BY nombre
                 LIMIT ?
-            """, (q, q, q, q, limit)).fetchall()
-            return [dict(zip([d[0] for d in self._db.description], r)) for r in rows]
+            """, (q, q, q, q, limit))
+            rows = cur.fetchall()
+            return self._to_dicts(cur, rows)
         except Exception as e:
             logger.warning("search_proveedores failed: %s", e)
             return []
@@ -207,7 +218,7 @@ class UnifiedThirdPartyService:
     def get_historial_precios(self, proveedor_id: int, limit: int = 200) -> List[Dict[str, Any]]:
         """Obtiene historial de precios comprados a un proveedor."""
         try:
-            rows = self._db.execute("""
+            cur = self._db.execute("""
                 SELECT pr.nombre AS producto, dc.precio_unitario AS precio,
                        dc.cantidad AS cantidad, c.fecha AS fecha, c.id AS compra_id
                 FROM detalles_compra dc
@@ -216,8 +227,9 @@ class UnifiedThirdPartyService:
                 WHERE c.proveedor_id = ?
                 ORDER BY c.fecha DESC
                 LIMIT ?
-            """, (proveedor_id, limit)).fetchall()
-            return [dict(zip([d[0] for d in self._db.description], r)) for r in rows]
+            """, (proveedor_id, limit))
+            rows = cur.fetchall()
+            return self._to_dicts(cur, rows)
         except Exception as e:
             logger.warning("get_historial_precios failed: %s", e)
             return []
@@ -235,7 +247,7 @@ class UnifiedThirdPartyService:
         - Saldo pendiente
         """
         try:
-            rows = self._db.execute("""
+            cur = self._db.execute("""
                 SELECT p.nombre,
                        COUNT(c.id) AS num_compras,
                        COALESCE(SUM(c.total), 0) AS total_comprado,
@@ -248,11 +260,12 @@ class UnifiedThirdPartyService:
                 GROUP BY p.id
                 ORDER BY total_comprado DESC
                 LIMIT ?
-            """, (limit,)).fetchall()
+            """, (limit,))
+            rows = cur.fetchall()
             
             result = []
             for r in rows:
-                d = dict(zip([d[0] for d in self._db.description], r))
+                d = dict(zip([d[0] for d in (cur.description or [])], r))
                 saldo = float(d.get("saldo_pendiente", 0) or 0)
                 d["estado"] = "⚠️ Saldo pendiente" if saldo > 0 else "✅ Al corriente"
                 d["saldo_pendiente"] = saldo

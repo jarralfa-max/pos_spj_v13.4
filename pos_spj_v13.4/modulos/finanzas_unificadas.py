@@ -355,13 +355,15 @@ class ModuloFinanzasUnificadas(QWidget):
     - core/services/finance/third_party_service.py
     """
     
-    def __init__(self, container):
-        super().__init__()
+    def __init__(self, container, parent=None):
+        super().__init__(parent)
         self.container = container
         self.sucursal_id = 1
         self.usuario_actual = ""
         self._ts = getattr(container, 'treasury_service', None)
         self._tps = getattr(container, 'third_party_service', None)
+        self._analytics = getattr(container, "analytics_engine", None)
+        self._tabs = None
         self._setup_ui()
         
     def set_sucursal(self, sucursal_id: int, nombre: str = ""):
@@ -374,12 +376,14 @@ class ModuloFinanzasUnificadas(QWidget):
     def _setup_ui(self):
         """Configura la interfaz con pestañas unificadas."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         
         # Crear widget de pestañas principal
         tabs = QTabWidget()
+        self._tabs = tabs
         tabs.setObjectName("finanzasTabs")
+        tabs.setAccessibleName("Módulo Finanzas")
         tabs.setDocumentMode(True)
         
         # Estilizar pestañas
@@ -406,6 +410,10 @@ class ModuloFinanzasUnificadas(QWidget):
             }
         """)
         
+        # Pestaña 0: Dashboard financiero
+        tab_dashboard = self._crear_pestaña_dashboard()
+        tabs.addTab(tab_dashboard, "📊 Dashboard")
+
         # Pestaña 1: Tesorería (incluye CAPEX, CxP, CxC)
         tab_tesoreria = self._crear_pestaña_tesoreria()
         tabs.addTab(tab_tesoreria, "💰 Tesorería")
@@ -425,19 +433,82 @@ class ModuloFinanzasUnificadas(QWidget):
     
     def _on_tab_changed(self, index):
         """Carga datos según la pestaña activa."""
-        if index == 0:  # Tesorería
+        if index == 0:  # Dashboard
+            self._cargar_dashboard_financiero()
+        elif index == 1:  # Tesorería
             self._cargar_capex()
             self._cargar_cuentas_pagar()
             self._cargar_cuentas_cobrar()
-        elif index == 2:  # Proveedores
+        elif index == 3:  # Proveedores
             self._cargar_proveedores()
     
     def _cargar_datos_actuales(self):
         """Refresca todos los datos."""
+        self._cargar_dashboard_financiero()
         self._cargar_capex()
         self._cargar_cuentas_pagar()
         self._cargar_cuentas_cobrar()
         self._cargar_proveedores()
+
+    def set_active_submodule(self, name: str) -> None:
+        """Selecciona un submódulo interno (compatibilidad con wrappers legacy)."""
+        if not self._tabs:
+            return
+        index_by_name = {
+            "dashboard": 0,
+            "tesoreria": 1,
+            "finanzas": 2,
+            "proveedores": 3,
+        }
+        idx = index_by_name.get((name or "").lower())
+        if idx is not None:
+            self._tabs.setCurrentIndex(idx)
+
+    def _crear_pestaña_dashboard(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        grp = QGroupBox("KPIs Financieros")
+        g = QGridLayout(grp)
+        self._kpi_labels = {}
+        kpis = [
+            ("flujo_caja", "Flujo de caja"),
+            ("ingresos_egresos", "Ingresos vs egresos"),
+            ("cxp_aging", "Cuentas por pagar (aging)"),
+            ("cxc_aging", "Cuentas por cobrar (aging)"),
+            ("liquidez", "Liquidez"),
+            ("margen_operativo", "Margen operativo"),
+        ]
+        for i, (key, title) in enumerate(kpis):
+            row, col = divmod(i, 2)
+            cell = QGroupBox(title)
+            cell_l = QVBoxLayout(cell)
+            lbl = QLabel("—")
+            lbl.setStyleSheet("font-size:20px;font-weight:bold;color:#2563EB;")
+            cell_l.addWidget(lbl, 0, Qt.AlignCenter)
+            self._kpi_labels[key] = lbl
+            g.addWidget(cell, row, col)
+        layout.addWidget(grp)
+        layout.addStretch()
+        return widget
+
+    def _cargar_dashboard_financiero(self):
+        if not getattr(self, "_kpi_labels", None):
+            return
+        try:
+            hoy = date.today().isoformat()
+            sales = self._analytics.sales_metrics(hoy, self.sucursal_id) if self._analytics else {}
+            total_ventas = float(sales.get("total_ventas", 0))
+            kpis = self._ts.kpis_financieros() if self._ts else {}
+            eg = (kpis.get("egresos") or {})
+            total_eg = float(eg.get("total_egresos", 0))
+            self._kpi_labels["flujo_caja"].setText(f"${(total_ventas - total_eg):,.2f}")
+            self._kpi_labels["ingresos_egresos"].setText(f"${total_ventas:,.2f} / ${total_eg:,.2f}")
+            self._kpi_labels["cxp_aging"].setText(f"${float(kpis.get('cxp_total', 0)):,.2f}")
+            self._kpi_labels["cxc_aging"].setText(f"${float(kpis.get('cxc_total', 0)):,.2f}")
+            self._kpi_labels["liquidez"].setText(f"{float(kpis.get('liquidez', 0)):.2f}")
+            self._kpi_labels["margen_operativo"].setText(f"{float(kpis.get('margen_operativo_pct', 0)):.1f}%")
+        except Exception as e:
+            logger.warning("_cargar_dashboard_financiero: %s", e)
     
     # ──────────────────────────────────────────────────────────────────────────
     #  PESTAÑA 1: TESORERÍA (CAPEX, CxP, CxC)
@@ -780,6 +851,8 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             deudas = self._ts.get_cuentas_por_pagar(self.sucursal_id)
+            if not deudas and self.sucursal_id:
+                deudas = self._ts.get_cuentas_por_pagar(0)
             self._tabla_cxp.setRowCount(len(deudas))
             for row, deuda in enumerate(deudas):
                 self._tabla_cxp.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
@@ -828,6 +901,8 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             deudas = self._ts.get_cuentas_por_cobrar(self.sucursal_id)
+            if not deudas and self.sucursal_id:
+                deudas = self._ts.get_cuentas_por_cobrar(0)
             self._tabla_cxc.setRowCount(len(deudas))
             for row, deuda in enumerate(deudas):
                 self._tabla_cxc.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
@@ -911,6 +986,24 @@ class ModuloFinanzasUnificadas(QWidget):
         except Exception as e:
             logger.warning("_cargar_proveedores: %s", e)
             rows = []
+
+        # fallback defensivo para no bloquear la UX si falla el servicio unificado
+        if not rows and hasattr(self.container, "db"):
+            try:
+                cur = self.container.db.execute(
+                    "SELECT id,nombre,telefono,email,contacto,"
+                    "COALESCE(condiciones_pago,0) FROM proveedores "
+                    "WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 300"
+                )
+                rows = [
+                    {
+                        "id": r[0], "nombre": r[1], "telefono": r[2], "email": r[3],
+                        "contacto": r[4], "condiciones_pago": r[5], "saldo_pendiente": 0.0
+                    }
+                    for r in cur.fetchall()
+                ]
+            except Exception as e:
+                logger.warning("_cargar_proveedores fallback: %s", e)
         
         self._tabla_proveedores.setRowCount(len(rows))
         for ri, r in enumerate(rows):
