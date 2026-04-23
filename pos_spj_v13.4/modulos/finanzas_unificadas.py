@@ -376,13 +376,14 @@ class ModuloFinanzasUnificadas(QWidget):
     def _setup_ui(self):
         """Configura la interfaz con pestañas unificadas."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
         
         # Crear widget de pestañas principal
         tabs = QTabWidget()
         self._tabs = tabs
         tabs.setObjectName("finanzasTabs")
+        tabs.setAccessibleName("Módulo Finanzas")
         tabs.setDocumentMode(True)
         
         # Estilizar pestañas
@@ -850,6 +851,8 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             deudas = self._ts.get_cuentas_por_pagar(self.sucursal_id)
+            if not deudas and self.sucursal_id:
+                deudas = self._ts.get_cuentas_por_pagar(0)
             self._tabla_cxp.setRowCount(len(deudas))
             for row, deuda in enumerate(deudas):
                 self._tabla_cxp.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
@@ -898,6 +901,8 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             deudas = self._ts.get_cuentas_por_cobrar(self.sucursal_id)
+            if not deudas and self.sucursal_id:
+                deudas = self._ts.get_cuentas_por_cobrar(0)
             self._tabla_cxc.setRowCount(len(deudas))
             for row, deuda in enumerate(deudas):
                 self._tabla_cxc.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
@@ -981,6 +986,24 @@ class ModuloFinanzasUnificadas(QWidget):
         except Exception as e:
             logger.warning("_cargar_proveedores: %s", e)
             rows = []
+
+        # fallback defensivo para no bloquear la UX si falla el servicio unificado
+        if not rows and hasattr(self.container, "db"):
+            try:
+                cur = self.container.db.execute(
+                    "SELECT id,nombre,telefono,email,contacto,"
+                    "COALESCE(condiciones_pago,0) FROM proveedores "
+                    "WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 300"
+                )
+                rows = [
+                    {
+                        "id": r[0], "nombre": r[1], "telefono": r[2], "email": r[3],
+                        "contacto": r[4], "condiciones_pago": r[5], "saldo_pendiente": 0.0
+                    }
+                    for r in cur.fetchall()
+                ]
+            except Exception as e:
+                logger.warning("_cargar_proveedores fallback: %s", e)
         
         self._tabla_proveedores.setRowCount(len(rows))
         for ri, r in enumerate(rows):
