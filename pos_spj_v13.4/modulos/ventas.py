@@ -3,7 +3,10 @@
 
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_warning_button, apply_tooltip
+)
 import logging
 import os
 import sqlite3
@@ -1233,6 +1236,21 @@ class ModuloVentas(ModuloBase):
         splitter.addWidget(panel_derecho)
         splitter.setSizes([600, 500])
         main_layout.addWidget(splitter)
+        self._normalizar_botones_principales()
+
+    def _normalizar_botones_principales(self):
+        """
+        Evita que botones del módulo ventas se estiren al ancho completo
+        en layouts verticales (feedback UX de pantallas saturadas).
+        """
+        for btn in self.findChildren(QPushButton):
+            # Preservar icon-buttons compactos ya configurados en 40px.
+            if btn.minimumWidth() and btn.minimumWidth() <= 45:
+                continue
+            if btn.maximumWidth() == 16777215:
+                btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            if btn.minimumHeight() < 32:
+                btn.setMinimumHeight(32)
 
     def limpiar_busqueda_productos(self):
         self.txt_busqueda.clear()

@@ -150,6 +150,14 @@ def inicializar_sistema():
     except Exception as _te:
         logger.warning("Tema no aplicado al arranque: %s", _te)
 
+    # Normalización global de botones en TODOS los diálogos (evita full-width).
+    try:
+        from modulos.ui_components import install_dialog_button_normalizer
+        install_dialog_button_normalizer(app)
+        logger.info("✅ Normalizador global de diálogos activo")
+    except Exception as _dn:
+        logger.warning("Normalizador de diálogos no aplicado: %s", _dn)
+
     if not _instancia_unica(app):
         QMessageBox.information(None, "Ya está ejecutándose",
             "SPJ POS ya está abierto en esta computadora.")
