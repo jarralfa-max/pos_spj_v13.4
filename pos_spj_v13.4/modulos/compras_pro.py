@@ -21,11 +21,11 @@ from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
-    QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox,
+    QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QInputDialog, QTabWidget, QMenu, QAction, QSizePolicy,
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QStringListModel
 from PyQt5.QtGui import QCursor
 from datetime import datetime
 import logging
@@ -95,6 +95,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._build_tab_historial(tab_hist)
 
         self._tabs.currentChanged.connect(self._on_tab_change)
+        self._normalizar_botones_ui()
+
+    def _normalizar_botones_ui(self) -> None:
+        """Evita botones full-width y desalineados en el módulo de compras."""
+        for btn in self.findChildren(QPushButton):
+            if btn.minimumWidth() and btn.minimumWidth() <= 40:
+                continue
+            btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            if btn.minimumHeight() < 32:
+                btn.setMinimumHeight(32)
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
         lay = QVBoxLayout(parent)
@@ -105,7 +115,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         grp_doc.setObjectName("styledGroup")
         form = QFormLayout(grp_doc)
 
-        self.cmb_proveedor = create_combo(self, min_width=260)
+        self._proveedor_id_selected = None
+        self._proveedores_cache = []
+        self.txt_proveedor = QLineEdit()
+        self.txt_proveedor.setPlaceholderText("Buscar proveedor…")
+        self.txt_proveedor.setMinimumWidth(320)
+        self._prov_model = QStringListModel(self)
+        self._prov_completer = QCompleter(self._prov_model, self)
+        self._prov_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._prov_completer.setFilterMode(Qt.MatchContains)
+        self.txt_proveedor.setCompleter(self._prov_completer)
+        self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
 
         self.txt_factura = QLineEdit()
         self.txt_factura.setPlaceholderText("Ej. FAC-001 / REM-00129 (opcional)")
@@ -116,7 +136,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             "Sucursal a la que ingresará el inventario de esta compra")
         self._cargar_sucursales_compra()
 
-        form.addRow("Proveedor:*", self.cmb_proveedor)
+        form.addRow("Proveedor:*", self.txt_proveedor)
         form.addRow("No. Factura/Remisión:", self.txt_factura)
         form.addRow("Sucursal destino:*", self.cmb_sucursal_destino)
         lay.addWidget(grp_doc)
@@ -279,21 +299,32 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def cargar_proveedores(self) -> None:
         try:
-            prev = self.cmb_proveedor.currentData()
-            self.cmb_proveedor.clear()
+            prev_id = self._proveedor_id_selected
             rows = self.container.db.execute(
                 "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
             ).fetchall()
-            for r in rows:
-                self.cmb_proveedor.addItem(r['nombre'], r['id'])
-            # Restore selection
-            if prev:
-                for i in range(self.cmb_proveedor.count()):
-                    if self.cmb_proveedor.itemData(i) == prev:
-                        self.cmb_proveedor.setCurrentIndex(i)
+            self._proveedores_cache = [
+                {"id": r['id'], "nombre": r['nombre']}
+                for r in rows
+            ]
+            self._prov_model.setStringList([p["nombre"] for p in self._proveedores_cache])
+            if prev_id:
+                for p in self._proveedores_cache:
+                    if p["id"] == prev_id:
+                        self.txt_proveedor.setText(p["nombre"])
+                        self._proveedor_id_selected = prev_id
                         break
         except Exception as e:
             logger.debug("cargar_proveedores: %s", e)
+
+    def _resolver_proveedor_desde_texto(self) -> None:
+        txt = (self.txt_proveedor.text() or "").strip().lower()
+        self._proveedor_id_selected = None
+        for p in self._proveedores_cache:
+            if p["nombre"].strip().lower() == txt:
+                self._proveedor_id_selected = p["id"]
+                self.txt_proveedor.setText(p["nombre"])
+                return
 
     # ── Cart management ───────────────────────────────────────────────────────
     def _agregar_producto(self, prod: dict) -> None:
@@ -472,12 +503,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not self.carrito_compra:
             QMessageBox.warning(self, "Aviso", "El carrito está vacío.")
             return
-        if self.cmb_proveedor.currentIndex() < 0:
-            QMessageBox.warning(self, "Aviso", "Selecciona un proveedor.")
+        self._resolver_proveedor_desde_texto()
+        if not self._proveedor_id_selected:
+            QMessageBox.warning(self, "Aviso", "Selecciona un proveedor válido de la lista sugerida.")
             return
 
-        proveedor_id  = self.cmb_proveedor.currentData()
-        proveedor_nom = self.cmb_proveedor.currentText()
+        proveedor_id  = self._proveedor_id_selected
+        proveedor_nom = self.txt_proveedor.text().strip()
         doc_ref = self.txt_factura.text().strip() or "Sin Ref"
         pago    = ("CREDITO" if "CREDITO" in self.cmb_pago.currentText()
                    else self.cmb_pago.currentText().split()[0])
