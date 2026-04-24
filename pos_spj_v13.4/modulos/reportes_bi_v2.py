@@ -13,7 +13,8 @@ from PyQt5.QtWidgets import (
     QHeaderView, QGridLayout, QGroupBox, QFrame, QSplitter, QTabWidget,
     QAbstractItemView, QDialog, QCheckBox, QListWidget, QListWidgetItem,
     QSizePolicy, QAction, QMenu, QToolBar, QStatusBar, QProgressBar,
-    QScrollArea, QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox
+    QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox,
+    QFileDialog
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
@@ -45,15 +46,9 @@ class ModuloReportesBIv2(QWidget):
     def init_ui(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        inner = QWidget()
-        scroll.setWidget(inner)
-        outer.addWidget(scroll)
-
-        layout_principal = QVBoxLayout(inner)
+        layout_principal = QVBoxLayout()
         layout_principal.setSpacing(10)
+        outer.addLayout(layout_principal)
 
         # --- HEADER Y FILTROS ---
         header_layout = QHBoxLayout()
@@ -83,51 +78,118 @@ class ModuloReportesBIv2(QWidget):
         
         layout_principal.addLayout(header_layout)
 
-        # --- FILA 1: KPIs (TARJETAS) ---
+        self.tabs_bi = QTabWidget()
+        self.tabs_bi.setDocumentMode(True)
+        layout_principal.addWidget(self.tabs_bi)
+
+        self._build_tab_resumen()
+        self._build_tab_rankings()
+        self._build_tab_rentabilidad()
+        self._build_tab_cajeros()
+        self._build_tab_forecast()
+        self._build_tab_decision_engine()
+        self._build_tab_franchise()
+
+    def _crear_tab_contenedor(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+        return tab, layout
+
+    def _build_tab_resumen(self):
+        tab, layout = self._crear_tab_contenedor()
+
         kpi_layout = QHBoxLayout()
-        
         self.lbl_kpi_ingresos = self._crear_tarjeta_kpi("💵 Ingresos Totales", "$0.00")
         self.lbl_kpi_ticket = self._crear_tarjeta_kpi("🧾 Ticket Promedio", "$0.00")
         self.lbl_kpi_ventas = self._crear_tarjeta_kpi("🛒 Num. Ventas", "0")
         self.lbl_kpi_clientes = self._crear_tarjeta_kpi("👥 Clientes Únicos", "0")
-        
         kpi_layout.addWidget(self.lbl_kpi_ingresos)
         kpi_layout.addWidget(self.lbl_kpi_ticket)
         kpi_layout.addWidget(self.lbl_kpi_ventas)
         kpi_layout.addWidget(self.lbl_kpi_clientes)
-        
-        layout_principal.addLayout(kpi_layout)
+        layout.addLayout(kpi_layout)
 
         self.lbl_comparativa = create_caption(self, "")
         self.lbl_comparativa.setAlignment(Qt.AlignCenter)
         self.lbl_comparativa.hide()
-        layout_principal.addWidget(self.lbl_comparativa)
+        layout.addWidget(self.lbl_comparativa)
 
-        # --- FILA 2: TABLAS DE RANKING ---
+        self._lbl_resumen_alertas = QLabel("Alertas: esperando actualización de datos.")
+        self._lbl_resumen_alertas.setStyleSheet("color:#6c757d;")
+        layout.addWidget(self._lbl_resumen_alertas)
+
+        accesos = QGroupBox("Acceso rápido")
+        accesos_lay = QHBoxLayout(accesos)
+        for idx, texto in [
+            (1, "Ventas / Rankings"),
+            (2, "Rentabilidad"),
+            (3, "Cajeros"),
+            (4, "Forecast"),
+            (5, "Sugerencias"),
+            (6, "Sucursales"),
+        ]:
+            btn = create_secondary_button(self, texto, f"Ir a {texto}")
+            btn.clicked.connect(lambda _, i=idx: self.tabs_bi.setCurrentIndex(i))
+            accesos_lay.addWidget(btn)
+        layout.addWidget(accesos)
+        layout.addStretch()
+        self.tabs_bi.addTab(tab, "Resumen Ejecutivo")
+
+    def _build_tab_rankings(self):
+        tab, layout = self._crear_tab_contenedor()
+        toolbar = QHBoxLayout()
+        btn_ref_rank = create_primary_button(self, "🔄 Actualizar", "Actualizar rankings")
+        btn_ref_rank.clicked.connect(self.cargar_dashboard)
+        btn_export_rank = create_secondary_button(self, "📊 Exportar", "Exportar rankings a Excel")
+        btn_export_rank.clicked.connect(lambda: self._exportar("excel"))
+        self._lbl_rankings_estado = QLabel("Sin datos cargados.")
+        self._lbl_rankings_estado.setStyleSheet("color:#6c757d; font-size:11px;")
+        toolbar.addWidget(btn_ref_rank)
+        toolbar.addWidget(btn_export_rank)
+        toolbar.addStretch()
+        toolbar.addWidget(self._lbl_rankings_estado)
+        layout.addLayout(toolbar)
+
         self._tabs_rankings = QTabWidget()
         self._tabs_rankings.setDocumentMode(True)
-
-        # Productos Estrella
         self._grp_top = self._crear_tabla_ranking("⭐ Productos Más Vendidos", ["Producto", "Cant.", "Ingresos"])
         self.tabla_top = self._grp_top._tabla
-        # Productos Lentos
         self._grp_lentos = self._crear_tabla_ranking("🐢 Productos Lentos", ["Producto", "Cant.", "Ingresos"])
         self.tabla_lentos = self._grp_lentos._tabla
-        # Clientes VIP
         self._grp_vips = self._crear_tabla_ranking("👑 Clientes Recurrentes (VIP)", ["Cliente", "Visitas", "Gasto Total"])
         self.tabla_vips = self._grp_vips._tabla
-
         self._tabs_rankings.addTab(self._grp_top, "Más vendidos")
         self._tabs_rankings.addTab(self._grp_lentos, "Lentos")
         self._tabs_rankings.addTab(self._grp_vips, "Clientes VIP")
-        layout_principal.addWidget(self._tabs_rankings)
+        layout.addWidget(self._tabs_rankings)
+        self.tabs_bi.addTab(tab, "Ventas / Rankings")
 
-        # ── Rentabilidad por producto (tab adicional) ─────────────────────────
-        self._build_rentabilidad_section(layout_principal)
-        self._build_cajeros_section(layout_principal)
-        self._build_forecast_section(layout_principal)
-        self._build_decision_engine_section(layout_principal)
-        self._build_franchise_section(layout_principal)
+    def _build_tab_rentabilidad(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_rentabilidad_section(layout)
+        self.tabs_bi.addTab(tab, "Rentabilidad")
+
+    def _build_tab_cajeros(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_cajeros_section(layout)
+        self.tabs_bi.addTab(tab, "Cajeros")
+
+    def _build_tab_forecast(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_forecast_section(layout)
+        self.tabs_bi.addTab(tab, "Forecast / Planeación")
+
+    def _build_tab_decision_engine(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_decision_engine_section(layout)
+        self.tabs_bi.addTab(tab, "Sugerencias")
+
+    def _build_tab_franchise(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_franchise_section(layout)
+        self.tabs_bi.addTab(tab, "Sucursales / Franquicias")
 
     def _build_rentabilidad_section(self, parent_layout):
         """Tabla de rentabilidad por producto: margen, rotación, contribución."""
@@ -153,10 +215,15 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_rent.setEditTriggers(QTableWidget.NoEditTriggers)
         self._tbl_rent.setSelectionBehavior(QTableWidget.SelectRows)
         self._tbl_rent.setAlternatingRowColors(True)
+        self._tbl_rent.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_rent.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         hh = self._tbl_rent.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        self._tbl_rent.setMaximumHeight(240)
+        self._tbl_rent.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_rent)
+        self._lbl_rent_estado = QLabel("Calculando rentabilidad…")
+        self._lbl_rent_estado.setStyleSheet("color:#6c757d; font-size:11px;")
+        lay.addWidget(self._lbl_rent_estado)
 
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
@@ -193,7 +260,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_caj.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_caj.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_caj.setAlternatingRowColors(True)
-        self._tbl_caj.setMaximumHeight(240)
+        self._tbl_caj.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_caj.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_caj.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_caj)
 
         parent_layout.addWidget(grp)
@@ -280,7 +349,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_fc.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_fc.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_fc.setAlternatingRowColors(True)
-        self._tbl_fc.setMaximumHeight(240)
+        self._tbl_fc.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fc.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fc.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_fc)
 
         parent_layout.addWidget(grp)
@@ -387,7 +458,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_de.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_de.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_de.setAlternatingRowColors(True)
-        self._tbl_de.setMaximumHeight(280)
+        self._tbl_de.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_de.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_de.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_de)
 
         parent_layout.addWidget(grp)
@@ -455,7 +528,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_fm.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_fm.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_fm.setAlternatingRowColors(True)
-        self._tbl_fm.setMaximumHeight(220)
+        self._tbl_fm.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fm.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fm.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_fm)
 
         parent_layout.addWidget(grp)
@@ -525,6 +600,11 @@ class ModuloReportesBIv2(QWidget):
                     r['costo']
                 ))
         except Exception as e:
+            self._lbl_rent_estado.setText(f"Error al cargar rentabilidad: {e}")
+            return
+
+        if not rows:
+            self._lbl_rent_estado.setText("Sin datos de rentabilidad para el período seleccionado.")
             return
 
         total_margen = sum((float(r[3] or 0) - float(r[4] or 0)) for r in rows)
@@ -558,6 +638,7 @@ class ModuloReportesBIv2(QWidget):
             item_pct.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor(color))
             self._tbl_rent.setItem(i, 6, item_pct)
             self._tbl_rent.setItem(i, 7, QTableWidgetItem(abc))
+        self._lbl_rent_estado.setText(f"{len(rows)} productos analizados.")
 
     def _get_producto_info(self, producto_id: int) -> dict:
         """Obtiene información básica de un producto (nombre, categoría) via AnalyticsEngine."""
@@ -622,6 +703,11 @@ class ModuloReportesBIv2(QWidget):
         tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         tabla.verticalHeader().setVisible(False)
         tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        tabla.setAlternatingRowColors(True)
+        tabla.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        tabla.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         tabla.setObjectName("tableView")
         
         layout.addWidget(tabla)
@@ -735,14 +821,37 @@ class ModuloReportesBIv2(QWidget):
             
             # 4. Llenar Tabla Clientes VIP
             self._llenar_tabla(self.tabla_vips, data['clientes_recurrentes'], ['nombre', 'visitas', 'valor_vida'])
+            top_n = len(data.get('top_productos', []))
+            lentos_n = len(data.get('productos_lentos', []))
+            vip_n = len(data.get('clientes_recurrentes', []))
+            self._lbl_rankings_estado.setText(
+                f"Top: {top_n} | Lentos: {lentos_n} | VIP: {vip_n}"
+            )
+            alertas = []
+            if lentos_n > 0:
+                alertas.append(f"{lentos_n} productos lentos")
+            if top_n == 0:
+                alertas.append("sin productos más vendidos")
+            self._lbl_resumen_alertas.setText(
+                "Alertas: " + (", ".join(alertas) if alertas else "sin alertas relevantes.")
+            )
 
         except PermissionError as e:
             # Si el Feature Flag 'bi_v2' está apagado
             QMessageBox.warning(self, "Módulo Inactivo", str(e))
+            self._lbl_rankings_estado.setText(f"Módulo inactivo: {e}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+            self._lbl_rankings_estado.setText(f"Error al cargar rankings: {e}")
+            self._lbl_resumen_alertas.setText(f"Alertas: error al cargar datos ({e}).")
 
     def _llenar_tabla(self, tabla: QTableWidget, datos: list, llaves: list):
+        if not datos:
+            tabla.setRowCount(1)
+            tabla.setItem(0, 0, QTableWidgetItem("Sin datos para el período seleccionado."))
+            for col in range(1, tabla.columnCount()):
+                tabla.setItem(0, col, QTableWidgetItem(""))
+            return
         tabla.setRowCount(len(datos))
         for row, item in enumerate(datos):
             for col, llave in enumerate(llaves):
