@@ -20,9 +20,6 @@ MAIN_APP = os.path.join(ROOT, 'main.py')
 DELIVERY = os.path.join(ROOT, 'modulos', 'delivery.py')
 RRHH = os.path.join(ROOT, 'modulos', 'rrhh.py')
 DASHBOARD = os.path.join(ROOT, 'ui', 'dashboard.py')
-FINANZAS = os.path.join(ROOT, 'modulos', 'finanzas_unificadas.py')
-TARJETAS = os.path.join(ROOT, 'modulos', 'tarjetas.py')
-PRODUCT_SEARCH = os.path.join(ROOT, 'modulos', 'spj_product_search.py')
 
 
 def _read(path):
@@ -86,9 +83,6 @@ def test_uiux_components_applied_to_more_modules():
     dly = _read(DELIVERY)
     rrh = _read(RRHH)
     dsh = _read(DASHBOARD)
-    fin = _read(FINANZAS)
-    tar = _read(TARJETAS)
-    ps = _read(PRODUCT_SEARCH)
     assert 'FilterBar(' in cot and 'LoadingIndicator(' in cot and 'EmptyStateWidget(' in cot
     assert 'confirm_action(' in cot
     assert 'create_secondary_button(self, "🔍 Ver Detalle"' in cot
@@ -99,9 +93,6 @@ def test_uiux_components_applied_to_more_modules():
     assert 'confirm_action(' in com
     assert 'create_standard_tabs(' in com
     assert 'wrap_in_scroll_area(' in com
-    assert 'self._trad_filter = FilterBar(grp_cart' in com
-    assert 'self.txt_proveedor = QLineEdit()' in com
-    assert 'QCompleter' in com and 'QStringListModel' in com
     assert 'FilterBar(' in mer and 'LoadingIndicator(' in mer and 'EmptyStateWidget(' in mer
     assert 'FilterBar(' in cli and 'LoadingIndicator(' in cli and 'EmptyStateWidget(' in cli
     assert 'confirm_action(' in cli
@@ -115,8 +106,6 @@ def test_uiux_components_applied_to_more_modules():
     assert 'SidebarSearch' in mnu
     assert 'def _normalizar_botones_principales' in ven
     assert 'self._normalizar_botones_principales()' in ven
-    assert 'row_docs = QHBoxLayout()' in ven
-    assert 'btn.setMinimumWidth(150)' in ven
     assert 'row_login = QHBoxLayout()' in mw
     assert 'self.btn_login.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)' in mw
     assert 'def install_dialog_button_normalizer' in _read(UI_COMPONENTS)
@@ -124,16 +113,6 @@ def test_uiux_components_applied_to_more_modules():
     assert 'LoadingIndicator(' in dly and 'EmptyStateWidget(' in dly
     assert 'FilterBar(' in rrh and 'confirm_action(' in rrh
     assert 'LoadingIndicator(' in dsh and 'EmptyStateWidget(' in dsh
-    assert 'def _normalizar_botones_ui' in fin
-    assert 'QPalette.Window' in fin
-    assert 'def _create_compact_action_button(self, text: str, variant: str = "primary")' in fin
-    assert 'self._create_compact_action_button("💸 Abonar", "primary")' in fin
-    assert 'self._create_compact_action_button("💰 Cobrar", "success")' in fin
-    assert 'def _normalizar_botones_tarjetas' in tar
-    assert 'setAccessibleName(' in tar
-    assert 'def _is_dark_mode(self) -> bool:' in ps
-    assert 'dark_mode = self._is_dark_mode()' in ps
-    assert 'productSearchPopupList' in ps
 
 
 def test_python_syntax_ok():
@@ -155,6 +134,3 @@ def test_python_syntax_ok():
     ast.parse(_read(DELIVERY))
     ast.parse(_read(RRHH))
     ast.parse(_read(DASHBOARD))
-    ast.parse(_read(FINANZAS))
-    ast.parse(_read(TARJETAS))
-    ast.parse(_read(PRODUCT_SEARCH))

@@ -150,6 +150,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         self._buscador.producto_seleccionado.connect(self._agregar_producto)
         lay.addWidget(self._buscador)
+        self._trad_filter = FilterBar(self, placeholder="Filtrar carrito por nombre de producto…")
+        self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
+        lay.addWidget(self._trad_filter)
 
         # ── Carrito editable ──────────────────────────────────────────────────
         grp_cart = QGroupBox("🛒 Carrito de compra  "
@@ -173,9 +176,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.tabla.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tabla.customContextMenuRequested.connect(self._menu_fila)
         self.tabla.setObjectName("tableView")
-        self._trad_filter = FilterBar(grp_cart, placeholder="Filtrar carrito por nombre de producto…")
-        self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
-        cart_lay.addWidget(self._trad_filter)
         self._cart_loading = LoadingIndicator("Actualizando carrito…", self)
         self._cart_loading.hide()
         cart_lay.addWidget(self._cart_loading)
