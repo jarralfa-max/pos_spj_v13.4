@@ -13,7 +13,9 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
     create_danger_button, create_input, create_combo, create_card,
-    create_heading, create_subheading, create_caption, apply_tooltip
+    create_heading, create_subheading, create_caption, apply_tooltip,
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
+    create_standard_tabs, wrap_in_scroll_area
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
@@ -77,7 +79,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         root.setContentsMargins(10, 8, 10, 8)
 
         # Tabs: Tradicional | QR
-        self._tabs = QTabWidget()
+        self._tabs = create_standard_tabs(self)
         root.addWidget(self._tabs)
 
         tab_trad = QWidget()
@@ -128,6 +130,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         self._buscador.producto_seleccionado.connect(self._agregar_producto)
         lay.addWidget(self._buscador)
+        self._trad_filter = FilterBar(self, placeholder="Filtrar carrito por nombre de producto…")
+        self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
+        lay.addWidget(self._trad_filter)
 
         # ── Carrito editable ──────────────────────────────────────────────────
         grp_cart = QGroupBox("🛒 Carrito de compra  "
@@ -151,7 +156,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.tabla.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tabla.customContextMenuRequested.connect(self._menu_fila)
         self.tabla.setObjectName("tableView")
+        self._cart_loading = LoadingIndicator("Actualizando carrito…", self)
+        self._cart_loading.hide()
+        cart_lay.addWidget(self._cart_loading)
         cart_lay.addWidget(self.tabla)
+        self._cart_empty = EmptyStateWidget(
+            "Carrito vacío",
+            "Agrega productos o ajusta el filtro del carrito.",
+            "🧺",
+            self,
+        )
+        self._cart_empty.hide()
+        cart_lay.addWidget(self._cart_empty)
 
         # Toolbar del carrito
         cart_tb = QHBoxLayout()
@@ -188,14 +204,53 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         from PyQt5.QtWidgets import QVBoxLayout
         from modulos.recepcion_qr_widget import RecepcionQRWidget
         lay = QVBoxLayout(parent)
-        lay.setContentsMargins(0, 0, 0, 0)
-        self._recv_qr = RecepcionQRWidget(
-            conexion=self.container.db,
-            sucursal_id=self.sucursal_id,
-            usuario=self.usuario_actual or "Sistema",
-            parent=parent,
+        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(8)
+
+        hdr = QHBoxLayout()
+        hdr.addWidget(create_subheading(self, "Recepción con QR / Asignar compra"))
+        hdr.addStretch()
+        btn_reload = create_secondary_button(self, "🔄 Recargar", "Recargar pestaña de recepción QR")
+        hdr.addWidget(btn_reload)
+        lay.addLayout(hdr)
+
+        info = create_caption(
+            self,
+            "Escanea QR de recepción, valida diferencias y confirma ingreso al inventario.",
         )
-        lay.addWidget(self._recv_qr)
+        lay.addWidget(info)
+        self._qr_loading = LoadingIndicator("Cargando recepción con QR…", self)
+        lay.addWidget(self._qr_loading)
+        self._qr_empty = EmptyStateWidget(
+            "Recepción QR no disponible",
+            "No fue posible inicializar el widget de recepción en este momento.",
+            "📦",
+            self,
+        )
+        self._qr_empty.hide()
+        lay.addWidget(self._qr_empty)
+
+        try:
+            self._recv_qr = RecepcionQRWidget(
+                conexion=self.container.db,
+                sucursal_id=self.sucursal_id,
+                usuario=self.usuario_actual or "Sistema",
+                parent=parent,
+            )
+            lay.addWidget(wrap_in_scroll_area(self._recv_qr, self), 1)
+            self._qr_empty.hide()
+            self._qr_loading.hide()
+            def _reload_qr():
+                if hasattr(self._recv_qr, "_recargar_listas"):
+                    try:
+                        self._recv_qr._recargar_listas()
+                    except Exception:
+                        pass
+            btn_reload.clicked.connect(_reload_qr)
+        except Exception as e:
+            logger.debug("_build_tab_qr: %s", e)
+            self._qr_empty.show()
+            self._qr_loading.hide()
 
     # ── Providers ────────────────────────────────────────────────────────────
     def _cargar_sucursales_compra(self) -> None:
@@ -249,11 +304,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Check if already in cart → offer to update quantity instead
         for i, item in enumerate(self.carrito_compra):
             if item['producto_id'] == prod['id']:
-                resp = QMessageBox.question(
-                    self, "Producto ya en carrito",
+                if confirm_action(
+                    self,
+                    "Producto ya en carrito",
                     f"'{nombre}' ya está en el carrito.\n¿Agregar más cantidad?",
-                    QMessageBox.Yes | QMessageBox.No)
-                if resp == QMessageBox.Yes:
+                    "Agregar",
+                    "Cancelar",
+                ):
                     extra, ok = QInputDialog.getDouble(
                         self, "Cantidad adicional",
                         f"¿Cuántas unidades adicionales de '{nombre}'?",
@@ -290,8 +347,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 msg = (f"VARIACION DE PRECIO: {nombre}\n"
                        f"Anterior: ${costo_hist:.2f}  Nuevo: ${costo:.2f}\n"
                        f"{dir_txt} {variacion:.1f}% — ¿Confirmar?")
-                if QMessageBox.question(self, "Alerta de Precio", msg,
-                                        QMessageBox.Yes | QMessageBox.No) == QMessageBox.No:
+                if not confirm_action(self, "Alerta de Precio", msg, "Confirmar", "Cancelar"):
                     return
                 try:
                     audit_write(self.container, modulo="COMPRAS",
@@ -360,16 +416,25 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _limpiar_carrito(self) -> None:
         if not self.carrito_compra:
             return
-        if QMessageBox.question(self, "Limpiar", "¿Limpiar todo el carrito?",
-                                QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
+        if confirm_action(self, "Limpiar", "¿Limpiar todo el carrito?",
+                          "Limpiar", "Cancelar"):
             self.carrito_compra.clear()
             self._refresh_tabla()
 
     def _refresh_tabla(self) -> None:
         """Reconstruye la tabla del carrito con botones de eliminar por fila."""
+        if hasattr(self, "_cart_loading"):
+            self._cart_loading.show()
         self.tabla.setRowCount(0)
         total = 0.0
-        for row, item in enumerate(self.carrito_compra):
+        filtro = ""
+        if hasattr(self, "_trad_filter"):
+            filtro = self._trad_filter.values().get("search", "").lower().strip()
+        visible_rows = 0
+        for orig_row, item in enumerate(self.carrito_compra):
+            if filtro and filtro not in item['nombre'].lower():
+                continue
+            row = visible_rows
             self.tabla.insertRow(row)
             vals = [
                 str(item['producto_id']),
@@ -386,11 +451,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             # Delete button in last column
             btn_del = create_danger_button(self, "✕", "Eliminar producto del carrito")
             btn_del.setFixedWidth(36)
-            btn_del.clicked.connect(lambda _, r=row: self._eliminar_fila(r))
+            btn_del.clicked.connect(lambda _, r=orig_row: self._eliminar_fila(r))
             self.tabla.setCellWidget(row, 5, btn_del)
             total += item['subtotal']
+            visible_rows += 1
 
         self.lbl_total.setText(f"Total: ${total:,.2f}")
+        if hasattr(self, "_cart_empty"):
+            self._cart_empty.setVisible(visible_rows == 0)
+        if hasattr(self, "_cart_loading"):
+            self._cart_loading.hide()
 
     def _eliminar_fila(self, row: int) -> None:
         if 0 <= row < len(self.carrito_compra):
@@ -663,6 +733,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hdr.addWidget(btn_ref)
         lay.addLayout(hdr)
 
+        self._hist_filter = FilterBar(
+            self,
+            placeholder="Buscar folio, proveedor o usuario…",
+            combo_filters={"estado": ["completada", "credito", "cancelada"]},
+        )
+        self._hist_filter.filters_changed.connect(lambda _v: self._cargar_historial_compras())
+        lay.addWidget(self._hist_filter)
+        self._hist_loading = LoadingIndicator("Cargando historial de compras…", self)
+        self._hist_loading.hide()
+        lay.addWidget(self._hist_loading)
+
         # Table
         self._tbl_hist = QTableWidget()
         self._tbl_hist.setColumnCount(7)
@@ -677,6 +758,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._tbl_hist.verticalHeader().setVisible(False)
         self._tbl_hist.setObjectName("tableView")
         lay.addWidget(self._tbl_hist)
+        self._hist_empty = EmptyStateWidget(
+            "Sin compras",
+            "No se encontraron compras para el rango y filtros seleccionados.",
+            "📭",
+            self,
+        )
+        self._hist_empty.hide()
+        lay.addWidget(self._hist_empty)
 
         # KPI bar
         kpi_row = QHBoxLayout()
@@ -694,45 +783,64 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_tbl_hist'):
             return
         self._tbl_hist.setRowCount(0)
+        if hasattr(self, "_hist_loading"):
+            self._hist_loading.show()
         try:
-            desde = self._hist_desde.date().toString("yyyy-MM-dd")
-            hasta = self._hist_hasta.date().toString("yyyy-MM-dd") + " 23:59:59"
-            rows = self.container.db.execute("""
-                SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
-                       c.usuario, c.total, c.estado, c.id
-                FROM compras c
-                LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
-                ORDER BY c.fecha DESC LIMIT 200
-            """, (self.sucursal_id, desde, hasta)).fetchall()
-        except Exception as e:
-            rows = []
-            logger.debug("_cargar_historial_compras: %s", e)
+            try:
+                desde = self._hist_desde.date().toString("yyyy-MM-dd")
+                hasta = self._hist_hasta.date().toString("yyyy-MM-dd") + " 23:59:59"
+                rows = self.container.db.execute("""
+                    SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
+                           c.usuario, c.total, c.estado, c.id
+                    FROM compras c
+                    LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                    WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
+                    ORDER BY c.fecha DESC LIMIT 200
+                """, (self.sucursal_id, desde, hasta)).fetchall()
+            except Exception as e:
+                rows = []
+                logger.debug("_cargar_historial_compras: %s", e)
 
-        total_periodo = 0.0
-        for ri, r in enumerate(rows):
-            self._tbl_hist.insertRow(ri)
-            vals = [
-                str(r[0] or ""), str(r[1] or "")[:16],
-                str(r[2] or ""), str(r[3] or ""),
-                f"${float(r[4] or 0):,.2f}", str(r[5] or ""),
-            ]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(v)
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if str(r[5]) == "credito":
-                    it.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
-                self._tbl_hist.setItem(ri, ci, it)
-            total_periodo += float(r[4] or 0)
+            filtros = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
+            estado = (filtros.get("estado") or "").strip().lower()
+            search = (filtros.get("search") or "").strip().lower()
+            if estado:
+                rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
+            if search:
+                rows = [r for r in rows if
+                        search in str(r[0] or "").lower() or
+                        search in str(r[2] or "").lower() or
+                        search in str(r[3] or "").lower()]
 
-            # Detail button
-            compra_id = r[6]
-            btn_det = create_secondary_button(self, "🔍 Ver detalle", "Ver detalles de esta compra")
-            btn_det.clicked.connect(lambda _, cid=compra_id: self._ver_detalle_compra(cid))
-            self._tbl_hist.setCellWidget(ri, 6, btn_det)
+            total_periodo = 0.0
+            for ri, r in enumerate(rows):
+                self._tbl_hist.insertRow(ri)
+                vals = [
+                    str(r[0] or ""), str(r[1] or "")[:16],
+                    str(r[2] or ""), str(r[3] or ""),
+                    f"${float(r[4] or 0):,.2f}", str(r[5] or ""),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if str(r[5]) == "credito":
+                        it.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                    self._tbl_hist.setItem(ri, ci, it)
+                total_periodo += float(r[4] or 0)
 
-        self.lbl_hist_total_compras.setText(f"Total período: ${total_periodo:,.2f}")
-        self.lbl_hist_num_compras.setText(f"{len(rows)} compra(s)")
+                # Detail button
+                compra_id = r[6]
+                btn_det = create_secondary_button(self, "🔍 Ver detalle", "Ver detalles de esta compra")
+                btn_det.clicked.connect(lambda _, cid=compra_id: self._ver_detalle_compra(cid))
+                self._tbl_hist.setCellWidget(ri, 6, btn_det)
+
+            self.lbl_hist_total_compras.setText(f"Total período: ${total_periodo:,.2f}")
+            self.lbl_hist_num_compras.setText(f"{len(rows)} compra(s)")
+            if hasattr(self, "_hist_empty"):
+                self._hist_empty.setVisible(len(rows) == 0)
+        finally:
+            if hasattr(self, "_hist_loading"):
+                self._hist_loading.hide()
 
     def _ver_detalle_compra(self, compra_id: int) -> None:
         """Muestra el detalle completo de una compra con opción de reimprimir."""

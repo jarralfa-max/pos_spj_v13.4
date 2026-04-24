@@ -24,6 +24,7 @@ from core.db.connection import get_connection
 
 # Importar design tokens para consistencia
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
+from modulos.ui_components import LoadingIndicator, EmptyStateWidget
 
 logger = logging.getLogger("spj.ui.dashboard")
 
@@ -359,6 +360,17 @@ class Dashboard(QWidget):
         self._lyt_wa.addStretch()
         self._scroll_wa.setWidget(self._container_wa)
         left.addWidget(self._scroll_wa)
+        self._loading_wa = LoadingIndicator("Cargando pedidos WA…", self)
+        self._loading_wa.hide()
+        left.addWidget(self._loading_wa)
+        self._empty_wa = EmptyStateWidget(
+            "Sin pedidos pendientes",
+            "No hay pedidos de WhatsApp en cola.",
+            "✅",
+            self,
+        )
+        self._empty_wa.hide()
+        left.addWidget(self._empty_wa)
 
         # Accesos rápidos
         lbl_acc = QLabel("⚡ Acceso rápido")
@@ -400,6 +412,17 @@ class Dashboard(QWidget):
         self._lyt_alertas.addStretch()
         self._scroll_alertas.setWidget(self._container_alertas)
         right.addWidget(self._scroll_alertas)
+        self._loading_alertas = LoadingIndicator("Cargando alertas…", self)
+        self._loading_alertas.hide()
+        right.addWidget(self._loading_alertas)
+        self._empty_alertas = EmptyStateWidget(
+            "Sin alertas",
+            "No hay alertas pendientes por revisar.",
+            "🔕",
+            self,
+        )
+        self._empty_alertas.hide()
+        right.addWidget(self._empty_alertas)
 
         lbl_reps = QLabel("🚚 Repartidores activos")
         lbl_reps.setObjectName("sectionLabelBold")
@@ -496,6 +519,7 @@ class Dashboard(QWidget):
         except Exception: pass
 
     def _actualizar_pedidos_wa(self):
+        self._loading_wa.show()
         # Limpiar
         while self._lyt_wa.count() > 1:
             item = self._lyt_wa.takeAt(0)
@@ -517,15 +541,21 @@ class Dashboard(QWidget):
                     "color:#94A3B8;font-size:13px;padding:12px;"
                     "background:#1E293B;border-radius:8px;")
                 self._lyt_wa.insertWidget(0, lbl)
+                self._empty_wa.show()
                 return
             for i, r in enumerate(rows):
                 card = PedidoWAItem(dict(r))
                 card.ver_pedido.connect(self._on_ver_pedido)
                 self._lyt_wa.insertWidget(i, card)
+            self._empty_wa.hide()
         except Exception as e:
             logger.debug("pedidos_wa: %s", e)
+            self._empty_wa.show()
+        finally:
+            self._loading_wa.hide()
 
     def _actualizar_alertas(self):
+        self._loading_alertas.show()
         while self._lyt_alertas.count() > 1:
             item = self._lyt_alertas.takeAt(0)
             if item.widget(): item.widget().deleteLater()
@@ -558,9 +588,13 @@ class Dashboard(QWidget):
                 alertas.append((r[0], t))
         except Exception: pass
         if not alertas:
-            alertas.append(("Sin alertas pendientes", "success"))
+            self._empty_alertas.show()
+            self._loading_alertas.hide()
+            return
+        self._empty_alertas.hide()
         for i, (texto, tipo) in enumerate(alertas):
             self._lyt_alertas.insertWidget(i, AlertaItem(texto, tipo))
+        self._loading_alertas.hide()
 
     def _actualizar_repartidores(self):
         try:

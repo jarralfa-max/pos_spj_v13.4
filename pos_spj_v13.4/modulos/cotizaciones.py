@@ -10,7 +10,12 @@ from typing import Dict, List, Optional
 
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_card, create_input, create_combo, apply_tooltip, create_heading, create_subheading
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_card, create_input, create_combo,
+    apply_tooltip, create_heading, create_subheading,
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action
+)
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QTableWidget, QTableWidgetItem, QAbstractItemView,
@@ -116,15 +121,13 @@ class ModuloCotizaciones(ModuloBase):
 
         # Filtros + botón nueva
         fb = QHBoxLayout()
-        self._cmb_estado = QComboBox()
-        self._cmb_estado.addItems(
-            ["Todos", "pendiente", "aprobada", "rechazada", "vencida", "convertida"])
-        self._cmb_estado.currentIndexChanged.connect(lambda _: self._cargar_lista())
-        fb.addWidget(QLabel("Estado:")); fb.addWidget(self._cmb_estado)
-        self._txt_buscar = QLineEdit()
-        self._txt_buscar.setPlaceholderText("Buscar cliente o folio…")
-        self._txt_buscar.textChanged.connect(lambda _: self._cargar_lista())
-        fb.addWidget(QLabel("Buscar:")); fb.addWidget(self._txt_buscar)
+        self._filter_bar = FilterBar(
+            self,
+            placeholder="Buscar cliente o folio…",
+            combo_filters={"estado": ["pendiente", "aprobada", "rechazada", "vencida", "convertida"]},
+        )
+        self._filter_bar.filters_changed.connect(lambda _: self._cargar_lista())
+        fb.addWidget(self._filter_bar, 1)
         fb.addStretch()
         btn_nueva = create_primary_button(self, "➕ Nueva Cotización", "Crear una nueva cotización o presupuesto")
         btn_nueva.clicked.connect(self._nueva_cotizacion)
@@ -133,6 +136,10 @@ class ModuloCotizaciones(ModuloBase):
         btn_vencer.clicked.connect(self._vencer_expiradas)
         fb.addWidget(btn_vencer); fb.addWidget(btn_nueva)
         root.addLayout(fb)
+
+        self._loading = LoadingIndicator("Cargando cotizaciones…", self)
+        self._loading.hide()
+        root.addWidget(self._loading)
 
         # Tabla principal
         self._tbl = QTableWidget()
@@ -151,24 +158,29 @@ class ModuloCotizaciones(ModuloBase):
         self._tbl.itemSelectionChanged.connect(self._on_sel)
         self._tbl.itemDoubleClicked.connect(lambda _: self._ver_detalle())
         root.addWidget(self._tbl)
+        self._empty_state = EmptyStateWidget(
+            "Sin cotizaciones",
+            "No se encontraron cotizaciones para los filtros seleccionados.",
+            "📭",
+            self,
+        )
+        self._empty_state.hide()
+        root.addWidget(self._empty_state)
 
         # Botones de acción
         ab = QHBoxLayout()
-        self._btn_aprobar   = QPushButton("✅ Aprobar")
-        self._btn_rechazar  = QPushButton("❌ Rechazar")
-        self._btn_convertir = QPushButton("💰 Convertir en Venta")
-        self._btn_detalle   = QPushButton("🔍 Ver Detalle")
-        self._btn_imprimir  = QPushButton("🖨️ Imprimir / PDF")
+        self._btn_aprobar = create_success_button(self, "✓ Aprobar", "Aprobar esta cotización")
+        self._btn_rechazar = create_danger_button(self, "✗ Rechazar", "Rechazar esta cotización")
+        self._btn_convertir = create_primary_button(self, "➤ Convertir a Venta", "Convertir cotización aprobada en venta")
+        self._btn_detalle = create_secondary_button(self, "🔍 Ver Detalle", "Ver detalle de la cotización")
+        self._btn_imprimir = create_secondary_button(self, "🖨️ Imprimir / PDF", "Imprimir o exportar cotización")
+        self._btn_detalle.setObjectName("secondaryBtn")
+        self._btn_imprimir.setObjectName("secondaryBtn")
         for b in (self._btn_aprobar, self._btn_rechazar,
                   self._btn_convertir, self._btn_detalle, self._btn_imprimir):
             b.setEnabled(False)
             ab.addWidget(b)
         ab.addStretch()
-        self._btn_aprobar = create_success_button(self, "✓ Aprobar", "Aprobar esta cotización")
-        self._btn_rechazar = create_danger_button(self, "✗ Rechazar", "Rechazar esta cotización")
-        self._btn_convertir = create_primary_button(self, "➤ Convertir a Venta", "Convertir cotización aprobada en venta")
-        self._btn_detalle.setObjectName("secondaryBtn")
-        self._btn_imprimir.setObjectName("secondaryBtn")
         self._btn_aprobar.clicked.connect(self._aprobar)
         self._btn_rechazar.clicked.connect(self._rechazar)
         self._btn_convertir.clicked.connect(self._convertir_en_venta)
@@ -205,58 +217,67 @@ class ModuloCotizaciones(ModuloBase):
 
     def _cargar_lista(self) -> None:
         if not self._svc:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
             return
-        estado = self._cmb_estado.currentText()
-        buscar = self._txt_buscar.text().strip().lower()
-        estado = None if estado == "Todos" else estado
+        self._loading.show()
         try:
-            rows = self._svc.get_cotizaciones(estado=estado, limit=200)
-        except Exception as e:
-            logger.error("get_cotizaciones: %s", e)
-            rows = []
+            filtros = self._filter_bar.values() if hasattr(self, "_filter_bar") else {}
+            estado = filtros.get("estado", "Todos") or "Todos"
+            buscar = filtros.get("search", "").strip().lower()
+            estado = None if estado == "Todos" else estado
+            try:
+                rows = self._svc.get_cotizaciones(estado=estado, limit=200)
+            except Exception as e:
+                logger.error("get_cotizaciones: %s", e)
+                rows = []
 
-        if buscar:
-            rows = [r for r in rows if
-                    buscar in str(r.get("folio", "")).lower() or
-                    buscar in str(r.get("cliente_nombre", "")).lower()]
+            if buscar:
+                rows = [r for r in rows if
+                        buscar in str(r.get("folio", "")).lower() or
+                        buscar in str(r.get("cliente_nombre", "")).lower()]
 
-        # KPIs
-        conteos = {"pendiente": 0, "aprobada": 0, "vencida": 0, "convertida": 0}
-        for r in (self._svc.get_cotizaciones(limit=500) or []):
-            est = r.get("estado", "")
-            if est in conteos:
-                conteos[est] += 1
-        self._kpi_pend._val.setText(str(conteos["pendiente"]))
-        self._kpi_aprob._val.setText(str(conteos["aprobada"]))
-        self._kpi_venc._val.setText(str(conteos["vencida"]))
-        self._kpi_conv._val.setText(str(conteos["convertida"]))
+            # KPIs
+            conteos = {"pendiente": 0, "aprobada": 0, "vencida": 0, "convertida": 0}
+            for r in (self._svc.get_cotizaciones(limit=500) or []):
+                est = r.get("estado", "")
+                if est in conteos:
+                    conteos[est] += 1
+            self._kpi_pend._val.setText(str(conteos["pendiente"]))
+            self._kpi_aprob._val.setText(str(conteos["aprobada"]))
+            self._kpi_venc._val.setText(str(conteos["vencida"]))
+            self._kpi_conv._val.setText(str(conteos["convertida"]))
 
-        # Tabla
-        self._tbl.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            estado_r = r.get("estado", "")
-            color    = _STATUS_COLOR.get(estado_r, "#333")
-            vals = [
-                r.get("folio", ""),
-                r.get("cliente_nombre", "—"),
-                f"${float(r.get('total', 0)):.2f}",
-                estado_r,
-                f"{r.get('vigencia_dias', 7)} días",
-                str(r.get("fecha_vencimiento", ""))[:10],
-                r.get("usuario", ""),
-                str(r.get("fecha", ""))[:16],
-            ]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(str(v))
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci == 0:
-                    it.setData(Qt.UserRole, r.get("id"))
-                if ci == 3:
-                    it.setForeground(QColor(color))
-                    it.setTextAlignment(Qt.AlignCenter)
-                if ci == 2:
-                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self._tbl.setItem(ri, ci, it)
+            # Tabla
+            self._tbl.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                estado_r = r.get("estado", "")
+                color    = _STATUS_COLOR.get(estado_r, "#333")
+                vals = [
+                    r.get("folio", ""),
+                    r.get("cliente_nombre", "—"),
+                    f"${float(r.get('total', 0)):.2f}",
+                    estado_r,
+                    f"{r.get('vigencia_dias', 7)} días",
+                    str(r.get("fecha_vencimiento", ""))[:10],
+                    r.get("usuario", ""),
+                    str(r.get("fecha", ""))[:16],
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(str(v))
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci == 0:
+                        it.setData(Qt.UserRole, r.get("id"))
+                    if ci == 3:
+                        it.setForeground(QColor(color))
+                        it.setTextAlignment(Qt.AlignCenter)
+                    if ci == 2:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self._tbl.setItem(ri, ci, it)
+            if hasattr(self, "_empty_state"):
+                self._empty_state.setVisible(len(rows) == 0)
+        finally:
+            self._loading.hide()
 
     def _on_sel(self) -> None:
         row = self._tbl.currentRow()
@@ -289,6 +310,13 @@ class ModuloCotizaciones(ModuloBase):
         cid = self._get_sel_id()
         if not cid:
             return
+        if not confirm_action(
+            self, "Aprobar cotización",
+            "¿Aprobar esta cotización y habilitar su conversión en venta?",
+            confirm_text="Aprobar",
+            cancel_text="Cancelar",
+        ):
+            return
         try:
             self.conexion.execute(
                 "UPDATE cotizaciones SET estado='aprobada' WHERE id=?", (cid,))
@@ -305,11 +333,12 @@ class ModuloCotizaciones(ModuloBase):
         cid = self._get_sel_id()
         if not cid:
             return
-        motivo, ok = QLineEdit.getText if False else ("", True)
-        if QMessageBox.question(
-            self, "Rechazar", "¿Rechazar esta cotización?",
-            QMessageBox.Yes | QMessageBox.No
-        ) != QMessageBox.Yes:
+        if not confirm_action(
+            self, "Rechazar cotización",
+            "¿Rechazar esta cotización? Esta acción no elimina trazabilidad.",
+            confirm_text="Rechazar",
+            cancel_text="Cancelar",
+        ):
             return
         try:
             self.conexion.execute(
@@ -323,12 +352,12 @@ class ModuloCotizaciones(ModuloBase):
         cid = self._get_sel_id()
         if not cid or not self._svc:
             return
-        if QMessageBox.question(
-            self, "Convertir en Venta",
-            "Esta acción crea una venta a partir de la cotización aprobada.\n"
-            "¿Continuar?",
-            QMessageBox.Yes | QMessageBox.No
-        ) != QMessageBox.Yes:
+        if not confirm_action(
+            self, "Convertir en venta",
+            "Esta acción crea una venta a partir de la cotización aprobada.\n¿Continuar?",
+            confirm_text="Convertir",
+            cancel_text="Cancelar",
+        ):
             return
         try:
             venta_id = self._svc.convertir_en_venta(cid)

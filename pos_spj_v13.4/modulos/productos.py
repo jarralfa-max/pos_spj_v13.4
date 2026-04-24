@@ -5,7 +5,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button, 
     create_secondary_button, create_input_field, create_input, create_combo,
-    create_heading, create_subheading, create_caption, apply_tooltip
+    create_heading, create_subheading, create_caption, apply_tooltip,
+    LoadingIndicator, EmptyStateWidget
 )
 import os
 import shutil
@@ -529,6 +530,9 @@ class ModuloProductos(QWidget, RefreshMixin):
         filtros_layout.addWidget(btn_historial_precio)
         filtros_layout.addWidget(btn_importar)
         layout.addLayout(filtros_layout)
+        self._loading_catalogo = LoadingIndicator("Cargando catálogo de productos…", self)
+        self._loading_catalogo.hide()
+        layout.addWidget(self._loading_catalogo)
 
         # v13.30: Contador de resultados
         self.lbl_conteo = create_caption(self, "")
@@ -545,6 +549,14 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.tabla_productos.setAlternatingRowColors(True)
         self.tabla_productos.verticalHeader().setVisible(False)
         layout.addWidget(self.tabla_productos)
+        self._empty_catalogo = EmptyStateWidget(
+            "Sin productos",
+            "No se encontraron productos para la búsqueda/filtros actuales.",
+            "📭",
+            self,
+        )
+        self._empty_catalogo.hide()
+        layout.addWidget(self._empty_catalogo)
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh catalog on product or purchase events."""
@@ -552,6 +564,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         except Exception: pass
 
     def cargar_catalogo(self):
+        if hasattr(self, "_loading_catalogo"):
+            self._loading_catalogo.show()
         # Ensure codigo_barras column exists on any existing DB
         try:
             db = self.container.db if hasattr(self.container, 'db') else self.conexion
@@ -678,9 +692,16 @@ class ModuloProductos(QWidget, RefreshMixin):
                 activos = sum(1 for r in rows if int(r['activo'] if 'activo' in r.keys() else 1))
                 self.lbl_conteo.setText(
                     f"Mostrando {total} productos ({activos} activos, {total - activos} eliminados)")
+            if hasattr(self, "_empty_catalogo"):
+                self._empty_catalogo.setVisible(len(rows) == 0)
 
         except Exception as e:
             logger.error(f"Error cargando catálogo: {e}")
+            if hasattr(self, "_empty_catalogo"):
+                self._empty_catalogo.setVisible(True)
+        finally:
+            if hasattr(self, "_loading_catalogo"):
+                self._loading_catalogo.hide()
 
     def abrir_nuevo_producto(self):
         # v13.30: Verificar permiso
