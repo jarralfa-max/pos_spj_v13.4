@@ -4,6 +4,9 @@ from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QPushButton, QLabel,
                              QSpacerItem, QSizePolicy, QScrollArea, QWidget)
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtGui import QPixmap
+import unicodedata
+
+from modulos.ui_components import create_input_field
 
 # Inventario explícito de módulos v13.4 (referencia para wiring UI)
 MODULOS = [
@@ -78,6 +81,14 @@ _SIDEBAR_DARK_QSS = """
         border-radius: 8px;
         margin: 2px 8px;
     }
+    QFrame#MenuLateral QLineEdit#SidebarSearch {
+        background-color: #0F172A;
+        color: #E2E8F0;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 8px 10px;
+        selection-background-color: #2563EB;
+    }
     QFrame#MenuLateral QPushButton:hover {
         background-color: #1E293B;
         color: #E2E8F0;
@@ -123,6 +134,7 @@ class MenuLateral(QFrame):
         self.enforce_dark_mode()
         self._permisos = set()
         self._rol = ""
+        self._menu_buttons = []
         self._configurar_ui()
 
     def enforce_dark_mode(self) -> None:
@@ -182,6 +194,19 @@ class MenuLateral(QFrame):
         layout_botones = QVBoxLayout(contenedor_botones)
         layout_botones.setContentsMargins(0, 0, 0, 0)
         layout_botones.setSpacing(2)
+
+        # Filtro rápido para navegar todos los módulos del menú lateral.
+        self.txt_buscar_modulo = create_input_field(
+            self,
+            placeholder="🔎 Buscar módulo...",
+            fixed_width=206,
+        )
+        self.txt_buscar_modulo.setObjectName("SidebarSearch")
+        self.txt_buscar_modulo.textChanged.connect(self._filtrar_modulos_menu)
+        row_busqueda = QVBoxLayout()
+        row_busqueda.setContentsMargins(12, 10, 12, 8)
+        row_busqueda.addWidget(self.txt_buscar_modulo)
+        layout_botones.addLayout(row_busqueda)
 
         # --- SECCIÓN: OPERACIONES CORE ---
         layout_botones.addWidget(self._crear_header("Operaciones"))
@@ -346,5 +371,26 @@ class MenuLateral(QFrame):
         """Fabrica el botón, lo etiqueta con su código y conecta la señal."""
         btn = QPushButton(texto)
         btn.setProperty("modulo_codigo", codigo_modulo)
+        btn.setProperty("menu_label", texto)
+        btn.setObjectName("SidebarModuleButton")
+        btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        btn.setMinimumHeight(40)
         btn.clicked.connect(lambda _, m=codigo_modulo: self.opcion_seleccionada.emit(m))
+        self._menu_buttons.append(btn)
         return btn
+
+    def _filtrar_modulos_menu(self, text: str) -> None:
+        """Filtra botones de módulos por texto para menús con muchos accesos."""
+        needle = self._normalizar(text)
+        for btn in self._menu_buttons:
+            label = self._normalizar(str(btn.property("menu_label") or ""))
+            codigo = self._normalizar(str(btn.property("modulo_codigo") or ""))
+            visible = (not needle) or (needle in label) or (needle in codigo)
+            btn.setVisible(visible)
+
+    @staticmethod
+    def _normalizar(texto: str) -> str:
+        if not texto:
+            return ""
+        raw = unicodedata.normalize("NFKD", texto)
+        return "".join(c for c in raw if not unicodedata.combining(c)).strip().lower()

@@ -6,7 +6,13 @@ from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_input_field, create_combo, create_card, apply_tooltip, create_heading, create_subheading, create_caption, create_table_with_columns, create_table_button
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button, create_secondary_button,
+    create_input_field, create_combo, create_card, apply_tooltip, create_heading,
+    create_subheading, create_caption, create_table_with_columns, create_table_button,
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action, create_standard_tabs,
+    wrap_in_scroll_area
+)
 from core.events.event_bus import VENTA_COMPLETADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
 from core.services.auto_audit import audit_write
 from core.events.event_bus import get_bus
@@ -51,9 +57,6 @@ class ModuloClientes(ModuloBase):
     def set_usuario_actual(self, usuario, rol):
         """Establece el usuario actual para el módulo"""
         self.usuario_actual = usuario
-
-        try: self._init_refresh(container, ["VENTA_COMPLETADA", "PUNTOS_ACUMULADOS", "NIVEL_CAMBIADO"])
-        except Exception: pass
         self.rol_usuario = rol
         
     def _on_refresh(self, event_type: str, data: dict) -> None:
@@ -87,31 +90,31 @@ class ModuloClientes(ModuloBase):
 
         # --- Barra de herramientas ---
         toolbar = QHBoxLayout()
-        self.busqueda_cliente = QLineEdit()
-        self.busqueda_cliente.setPlaceholderText("Buscar por nombre, teléfono, ID o código QR...")
-        self.busqueda_cliente.setObjectName("inputField")
+        self._filter_bar = FilterBar(
+            self,
+            placeholder="Buscar por nombre, teléfono, ID o código QR...",
+            combo_filters={"estado": ["Activos", "Todos", "Inactivos"]},
+        )
+        self._filter_bar.filters_changed.connect(lambda _v: self.cargar_clientes())
+        self.busqueda_cliente = self._filter_bar.search
+        self.combo_filtro = self._filter_bar._combos.get("estado")
         self.btn_buscar_cliente = QPushButton()
         self.btn_buscar_cliente.setObjectName("secondaryBtn")
         self.btn_buscar_cliente.setIcon(self.obtener_icono("search.png"))
         self.btn_buscar_cliente.setToolTip("Buscar Cliente")
         
-        self.combo_filtro = QComboBox()
-        self.combo_filtro.addItems(["Activos", "Todos", "Inactivos"])
-        self.combo_filtro.setCurrentText("Activos")
-        
         self.btn_nuevo_cliente = QPushButton("Nuevo Cliente")
         self.btn_nuevo_cliente.setObjectName("primaryBtn")
         self.btn_nuevo_cliente.setIcon(self.obtener_icono("add.png"))
         
-        toolbar.addWidget(QLabel("Buscar:"))
-        toolbar.addWidget(self.busqueda_cliente)
+        toolbar.addWidget(self._filter_bar, 1)
         toolbar.addWidget(self.btn_buscar_cliente)
-        toolbar.addSpacing(20)
-        toolbar.addWidget(QLabel("Filtro:"))
-        toolbar.addWidget(self.combo_filtro)
         toolbar.addStretch()
         toolbar.addWidget(self.btn_nuevo_cliente)
         layout.addLayout(toolbar)
+        self._loading = LoadingIndicator("Cargando clientes…", self)
+        self._loading.hide()
+        layout.addWidget(self._loading)
 
         # --- Tabla de Clientes ---
         self.tabla_clientes = create_table_with_columns(
@@ -123,6 +126,14 @@ class ModuloClientes(ModuloBase):
         self.tabla_clientes.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_clientes.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.tabla_clientes)
+        self._empty_state = EmptyStateWidget(
+            "Sin clientes",
+            "No se encontraron clientes para el filtro seleccionado.",
+            "📭",
+            self,
+        )
+        self._empty_state.hide()
+        layout.addWidget(self._empty_state)
 
         # --- Barra de estado/botones de acción ---
         acciones_layout = QHBoxLayout()
@@ -225,30 +236,36 @@ class ModuloClientes(ModuloBase):
 
     def cargar_clientes(self):
         """Carga los clientes en la tabla según el filtro seleccionado."""
+        if hasattr(self, "_loading"):
+            self._loading.show()
         try:
-            cursor = self.conexion.cursor()
-            
-            filtro = self.combo_filtro.currentText()
-            if filtro == "Activos":
-                condicion = "WHERE activo = 1"
-                params = ()
-            elif filtro == "Inactivos":
-                condicion = "WHERE activo = 0"
-                params = ()
-            else:
-                condicion = ""
-                params = ()
+            try:
+                cursor = self.conexion.cursor()
+                
+                filtro = self.combo_filtro.currentText() if self.combo_filtro else "Activos"
+                if filtro == "Activos":
+                    condicion = "WHERE activo = 1"
+                    params = ()
+                elif filtro == "Inactivos":
+                    condicion = "WHERE activo = 0"
+                    params = ()
+                else:
+                    condicion = ""
+                    params = ()
 
-            query = f"""
-                SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, 
-                       COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo
-                FROM clientes
-                {condicion}
-                ORDER BY nombre
-            """
-            
-            cursor.execute(query, params)
-            clientes = cursor.fetchall()
+                query = f"""
+                    SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, 
+                           COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo
+                    FROM clientes
+                    {condicion}
+                    ORDER BY nombre
+                """
+                
+                cursor.execute(query, params)
+                clientes = cursor.fetchall()
+            except sqlite3.Error as e:
+                self.mostrar_mensaje("Error", f"Error al cargar clientes: {str(e)}", QMessageBox.Critical)
+                clientes = []
 
             self.tabla_clientes.setRowCount(len(clientes))
             for row, cliente in enumerate(clientes):
@@ -264,9 +281,11 @@ class ModuloClientes(ModuloBase):
                         self.tabla_clientes.setItem(row, col, item)
                     else:
                         self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-
-        except sqlite3.Error as e:
-            self.mostrar_mensaje("Error", f"Error al cargar clientes: {str(e)}", QMessageBox.Critical)
+            if hasattr(self, "_empty_state"):
+                self._empty_state.setVisible(len(clientes) == 0)
+        finally:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
 
     def buscar_clientes(self):
         """Busca clientes según el texto ingresado."""
@@ -275,6 +294,8 @@ class ModuloClientes(ModuloBase):
             self.cargar_clientes()
             return
 
+        if hasattr(self, "_loading"):
+            self._loading.show()
         try:
             cursor = self.conexion.cursor()
             
@@ -325,8 +346,13 @@ class ModuloClientes(ModuloBase):
                     else:
                         self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
 
+            if hasattr(self, "_empty_state"):
+                self._empty_state.setVisible(len(clientes) == 0)
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error en búsqueda: {str(e)}", QMessageBox.Critical)
+        finally:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
 
     def nuevo_cliente(self):
         """Abre el diálogo para crear un nuevo cliente."""
@@ -387,15 +413,14 @@ class ModuloClientes(ModuloBase):
             id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
             nombre_cliente = self.tabla_clientes.item(fila_seleccionada, 1).text()
             
-            respuesta = self.mostrar_mensaje(
-                "Confirmar Eliminación",
-                f"¿Está seguro que desea desactivar al cliente '{nombre_cliente}'?\n\n"
-                f"Esto lo marcará como inactivo, no se eliminarán los datos permanentemente.",
-                QMessageBox.Question,
-                QMessageBox.Yes | QMessageBox.No
-            )
-            
-            if respuesta == QMessageBox.Yes:
+            if confirm_action(
+                self,
+                "Confirmar Desactivación",
+                f"¿Desactivar al cliente '{nombre_cliente}'?\n"
+                "No se eliminarán datos financieros ni de trazabilidad.",
+                confirm_text="Desactivar",
+                cancel_text="Cancelar",
+            ):
                 cursor = self.conexion.cursor()
                 cursor.execute("UPDATE clientes SET activo = 0, fecha_inactivacion = date('now') WHERE id = ?", (id_cliente,))
                 self.conexion.commit()
@@ -824,7 +849,7 @@ class DialogoHistorialCliente(QDialog):
         layout.addWidget(create_heading(self, f"Historial de {self.nombre_cliente}"))
         layout.addWidget(create_subheading(self, f"ID: {self.id_cliente}"))
         
-        tabs = QTabWidget()
+        tabs = create_standard_tabs(self)
         tabs.setObjectName("historialTabs")
         
         # Pestaña de Compras
@@ -883,7 +908,10 @@ class DialogoHistorialCliente(QDialog):
         # Botón de cierre
         btn_cerrar = create_secondary_button(self, "Cerrar", "Cerrar ventana de historial")
         btn_cerrar.clicked.connect(self.close)
-        layout.addWidget(btn_cerrar)
+        row_cierre = QHBoxLayout()
+        row_cierre.addStretch()
+        row_cierre.addWidget(btn_cerrar)
+        layout.addLayout(row_cierre)
         
         self.setLayout(layout)
         
@@ -1098,17 +1126,16 @@ class _DialogoTarjetasCliente(QDialog):
 
         layout.addWidget(QLabel(f"<b>Cliente:</b> {self.cliente_nombre} (ID: {self.cliente_id})"))
 
-        tabs = QTabWidget()
+        tabs = create_standard_tabs(self)
 
         # Tab 1: Tarjetas actuales
         tab_tarjetas = QWidget()
         lay_t = QVBoxLayout(tab_tarjetas)
         cols_t = ["ID Tarjeta", "Número", "Estado", "Nivel", "Puntos", "Fecha Asignación"]
-        self.tabla_tarjetas = QTableWidget(0, len(cols_t))
-        self.tabla_tarjetas.setHorizontalHeaderLabels(cols_t)
-        self.tabla_tarjetas.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tabla_tarjetas.setEditTriggers(0)  # NoEditTriggers
-        lay_t.addWidget(self.tabla_tarjetas)
+        self.tabla_tarjetas = create_table_with_columns(
+            self, cols_t, show_grid=False, alternating_colors=True
+        )
+        lay_t.addWidget(wrap_in_scroll_area(self.tabla_tarjetas, self))
 
         btn_row = QHBoxLayout()
         self.btn_bloquear  = QPushButton("🔒 Bloquear")
@@ -1127,11 +1154,10 @@ class _DialogoTarjetasCliente(QDialog):
         tab_hist = QWidget()
         lay_h = QVBoxLayout(tab_hist)
         cols_h = ["Acción", "Fecha", "Tarjeta", "Motivo", "Usuario"]
-        self.tabla_historial = QTableWidget(0, len(cols_h))
-        self.tabla_historial.setHorizontalHeaderLabels(cols_h)
-        self.tabla_historial.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tabla_historial.setEditTriggers(0)
-        lay_h.addWidget(self.tabla_historial)
+        self.tabla_historial = create_table_with_columns(
+            self, cols_h, show_grid=False, alternating_colors=True
+        )
+        lay_h.addWidget(wrap_in_scroll_area(self.tabla_historial, self))
         tabs.addTab(tab_hist, "Historial de Asignaciones")
 
         # Tab 3: Score de fidelidad
@@ -1147,7 +1173,10 @@ class _DialogoTarjetasCliente(QDialog):
         btn_cerrar = QPushButton("Cerrar")
         btn_cerrar.setObjectName("secondaryBtn")
         btn_cerrar.clicked.connect(self.accept)
-        layout.addWidget(btn_cerrar)
+        row_cierre = QHBoxLayout()
+        row_cierre.addStretch()
+        row_cierre.addWidget(btn_cerrar)
+        layout.addLayout(row_cierre)
 
     def _cargar_datos(self):
         from PyQt5.QtWidgets import QTableWidgetItem

@@ -9,7 +9,11 @@ Módulo de registro de merma con:
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_secondary_button, create_input, create_combo, create_card, create_heading, create_caption, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_secondary_button, create_input, create_combo,
+    create_card, create_heading, create_caption, apply_tooltip,
+    FilterBar, LoadingIndicator, EmptyStateWidget
+)
 import logging
 import uuid
 from datetime import date, datetime
@@ -197,6 +201,16 @@ class ModuloMerma(QWidget):
         btn_refresh.clicked.connect(self._cargar_historial)
         filt.addWidget(btn_refresh)
         lay.addLayout(filt)
+        self._hist_filter = FilterBar(
+            self,
+            placeholder="Buscar producto, motivo o usuario…",
+            combo_filters={"periodo": ["Hoy", "Última semana", "Último mes", "Todo"]},
+        )
+        self._hist_filter.filters_changed.connect(lambda _v: self._cargar_historial())
+        lay.addWidget(self._hist_filter)
+        self._hist_loading = LoadingIndicator("Cargando historial de merma…", self)
+        self._hist_loading.hide()
+        lay.addWidget(self._hist_loading)
 
         # Tabla con columnas financieras
         self.tbl = QTableWidget()
@@ -214,6 +228,14 @@ class ModuloMerma(QWidget):
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
         hh.setSectionResizeMode(6, QHeaderView.Stretch)
         lay.addWidget(self.tbl, 1)
+        self._hist_empty = EmptyStateWidget(
+            "Sin registros de merma",
+            "No hay registros para el período o filtros seleccionados.",
+            "📭",
+            self,
+        )
+        self._hist_empty.hide()
+        lay.addWidget(self._hist_empty)
 
         # Totales
         self.lbl_total_hist = QLabel()
@@ -439,81 +461,100 @@ class ModuloMerma(QWidget):
     # ── Historial ─────────────────────────────────────────────────────────────
 
     def _cargar_historial(self):
-        periodo = self.cmb_periodo.currentText() if hasattr(self, 'cmb_periodo') else "Hoy"
-        where_fecha = ""
-        if periodo == "Hoy":
-            where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now')"
-        elif periodo == "Última semana":
-            where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now','-7 days')"
-        elif periodo == "Último mes":
-            where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now','-30 days')"
-
+        if hasattr(self, "_hist_loading"):
+            self._hist_loading.show()
         try:
-            rows = self.container.db.execute(f"""
-                SELECT COALESCE(m.fecha, substr(m.created_at,1,10)) as fecha,
-                       p.nombre, m.cantidad, m.unidad,
-                       COALESCE(m.costo_unitario,0), COALESCE(m.valor_perdida,0),
-                       m.motivo, m.usuario, COALESCE(m.notas,'')
-                FROM mermas m
-                JOIN productos p ON p.id = m.producto_id
-                WHERE m.sucursal_id = ? {where_fecha}
-                ORDER BY COALESCE(m.fecha, m.created_at) DESC, m.id DESC
-                LIMIT 500
-            """, (self.sucursal_id,)).fetchall()
-        except Exception as e:
-            logger.debug("_cargar_historial: %s", e)
-            rows = []
+            periodo = self.cmb_periodo.currentText() if hasattr(self, 'cmb_periodo') else "Hoy"
+            if hasattr(self, "_hist_filter"):
+                periodo = self._hist_filter.values().get("periodo") or periodo
+            where_fecha = ""
+            if periodo == "Hoy":
+                where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now')"
+            elif periodo == "Última semana":
+                where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now','-7 days')"
+            elif periodo == "Último mes":
+                where_fecha = "AND COALESCE(m.fecha, m.created_at) >= date('now','-30 days')"
 
-        self.tbl.setRowCount(len(rows))
-        total_valor = 0.0
-        total_cantidad = 0.0
-        for ri, r in enumerate(rows):
-            fecha_str = str(r[0] or "")[:10]
-            nombre = str(r[1] or "")
-            cant = float(r[2] or 0)
-            unidad = str(r[3] or "kg")
-            costo = float(r[4] or 0)
-            valor = float(r[5] or 0)
-            motivo = str(r[6] or "")
-            usuario = str(r[7] or "")
-            notas = str(r[8] or "")
+            try:
+                rows = self.container.db.execute(f"""
+                    SELECT COALESCE(m.fecha, substr(m.created_at,1,10)) as fecha,
+                           p.nombre, m.cantidad, m.unidad,
+                           COALESCE(m.costo_unitario,0), COALESCE(m.valor_perdida,0),
+                           m.motivo, m.usuario, COALESCE(m.notas,'')
+                    FROM mermas m
+                    JOIN productos p ON p.id = m.producto_id
+                    WHERE m.sucursal_id = ? {where_fecha}
+                    ORDER BY COALESCE(m.fecha, m.created_at) DESC, m.id DESC
+                    LIMIT 500
+                """, (self.sucursal_id,)).fetchall()
+            except Exception as e:
+                logger.debug("_cargar_historial: %s", e)
+                rows = []
 
-            vals = [
-                fecha_str, nombre, f"{cant:.3f}", unidad,
-                f"${costo:.2f}", f"${valor:.2f}",
-                motivo, usuario, notas
-            ]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(v)
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci in (2, 4, 5):
-                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                if ci == 5 and valor >= UMBRAL_VALOR_ALTO:
-                    it.setForeground(QColor("#e74c3c"))
-                    it.setFont(QFont("Arial", -1, QFont.Bold))
-                self.tbl.setItem(ri, ci, it)
+            search = ""
+            if hasattr(self, "_hist_filter"):
+                search = (self._hist_filter.values().get("search") or "").strip().lower()
+            if search:
+                rows = [r for r in rows if
+                        search in str(r[1] or "").lower() or
+                        search in str(r[6] or "").lower() or
+                        search in str(r[7] or "").lower()]
 
-            total_valor += valor
-            total_cantidad += cant
+            self.tbl.setRowCount(len(rows))
+            total_valor = 0.0
+            total_cantidad = 0.0
+            for ri, r in enumerate(rows):
+                fecha_str = str(r[0] or "")[:10]
+                nombre = str(r[1] or "")
+                cant = float(r[2] or 0)
+                unidad = str(r[3] or "kg")
+                costo = float(r[4] or 0)
+                valor = float(r[5] or 0)
+                motivo = str(r[6] or "")
+                usuario = str(r[7] or "")
+                notas = str(r[8] or "")
 
-        # Actualizar resúmenes
-        n_registros = len(rows)
-        if hasattr(self, 'lbl_total_hist'):
-            self.lbl_total_hist.setText(
-                f"Total período: {n_registros} registros  |  "
-                f"Cantidad: {total_cantidad:.3f}  |  "
-                f"Valor pérdida: ${total_valor:.2f}")
+                vals = [
+                    fecha_str, nombre, f"{cant:.3f}", unidad,
+                    f"${costo:.2f}", f"${valor:.2f}",
+                    motivo, usuario, notas
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci in (2, 4, 5):
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    if ci == 5 and valor >= UMBRAL_VALOR_ALTO:
+                        it.setForeground(QColor("#e74c3c"))
+                        it.setFont(QFont("Arial", -1, QFont.Bold))
+                    self.tbl.setItem(ri, ci, it)
 
-        # Resumen del día en header
-        try:
-            hoy_row = self.container.db.execute("""
-                SELECT COUNT(*), COALESCE(SUM(COALESCE(valor_perdida,0)),0)
-                FROM mermas
-                WHERE sucursal_id=? AND COALESCE(fecha, substr(created_at,1,10)) = date('now')
-            """, (self.sucursal_id,)).fetchone()
-            n_hoy = int(hoy_row[0]) if hoy_row else 0
-            v_hoy = float(hoy_row[1]) if hoy_row else 0.0
-            self.lbl_resumen.setText(
-                f"Hoy: {n_hoy} mermas  —  Pérdida: ${v_hoy:.2f}")
-        except Exception:
-            self.lbl_resumen.setText("Hoy: —")
+                total_valor += valor
+                total_cantidad += cant
+
+            # Actualizar resúmenes
+            n_registros = len(rows)
+            if hasattr(self, 'lbl_total_hist'):
+                self.lbl_total_hist.setText(
+                    f"Total período: {n_registros} registros  |  "
+                    f"Cantidad: {total_cantidad:.3f}  |  "
+                    f"Valor pérdida: ${total_valor:.2f}")
+            if hasattr(self, "_hist_empty"):
+                self._hist_empty.setVisible(n_registros == 0)
+
+            # Resumen del día en header
+            try:
+                hoy_row = self.container.db.execute("""
+                    SELECT COUNT(*), COALESCE(SUM(COALESCE(valor_perdida,0)),0)
+                    FROM mermas
+                    WHERE sucursal_id=? AND COALESCE(fecha, substr(created_at,1,10)) = date('now')
+                """, (self.sucursal_id,)).fetchone()
+                n_hoy = int(hoy_row[0]) if hoy_row else 0
+                v_hoy = float(hoy_row[1]) if hoy_row else 0.0
+                self.lbl_resumen.setText(
+                    f"Hoy: {n_hoy} mermas  —  Pérdida: ${v_hoy:.2f}")
+            except Exception:
+                self.lbl_resumen.setText("Hoy: —")
+        finally:
+            if hasattr(self, "_hist_loading"):
+                self._hist_loading.hide()

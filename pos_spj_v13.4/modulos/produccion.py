@@ -21,7 +21,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_input, create_combo, create_card,
-    create_heading, create_subheading, create_caption, apply_tooltip
+    create_heading, create_subheading, create_caption, apply_tooltip,
+    FilterBar, LoadingIndicator, EmptyStateWidget
 )
 
 import logging
@@ -287,16 +288,18 @@ class ModuloProduccion(ModuloBase):
 
         # Filtros
         fh = QHBoxLayout()
-        fh.addWidget(QLabel("Buscar:"))
-        self._search_hist = QLineEdit()
-        self._search_hist.setPlaceholderText("Receta o usuario…")
-        self._search_hist.textChanged.connect(self._load_historial)
-        fh.addWidget(self._search_hist)
+        self._hist_filter = FilterBar(self, placeholder="Receta, usuario o producto base…")
+        self._hist_filter.filters_changed.connect(lambda _v: self._load_historial())
+        self._search_hist = self._hist_filter.search
+        fh.addWidget(self._hist_filter, 1)
         btn_ref = QPushButton("🔄 Actualizar")
         btn_ref.clicked.connect(self._load_historial)
         fh.addWidget(btn_ref)
         fh.addStretch()
         lay.addLayout(fh)
+        self._hist_loading = LoadingIndicator("Cargando historial de producción…", self)
+        self._hist_loading.hide()
+        lay.addWidget(self._hist_loading)
 
         sp = QSplitter(Qt.Horizontal)
 
@@ -316,6 +319,13 @@ class ModuloProduccion(ModuloBase):
             hdr2.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         self._tbl_hist.itemSelectionChanged.connect(self._on_hist_sel)
         sp.addWidget(self._tbl_hist)
+        self._hist_empty = EmptyStateWidget(
+            "Sin producciones",
+            "No hay registros de producción para el filtro aplicado.",
+            "📭",
+            self,
+        )
+        self._hist_empty.hide()
 
         # Detalle
         right = QGroupBox("Detalle de Producción")
@@ -340,6 +350,7 @@ class ModuloProduccion(ModuloBase):
         sp.setSizes([480, 340])
 
         lay.addWidget(sp)
+        lay.addWidget(self._hist_empty)
         return w
 
     # ── Datos ─────────────────────────────────────────────────────────────────
@@ -1038,50 +1049,58 @@ class ModuloProduccion(ModuloBase):
     # ── Historial ─────────────────────────────────────────────────────────────
 
     def _load_historial(self) -> None:
+        if hasattr(self, "_hist_loading"):
+            self._hist_loading.show()
         search = (self._search_hist.text() if hasattr(self, "_search_hist") else "").strip().lower()
         try:
-            rows = self._engine.get_historial(
-                sucursal_id=self.sucursal_id if self.sucursal_id != 1 else None,
-                limit=200,
-            )
-        except Exception as exc:
-            logger.warning("load_historial: %s", exc)
-            rows = []
+            try:
+                rows = self._engine.get_historial(
+                    sucursal_id=self.sucursal_id if self.sucursal_id != 1 else None,
+                    limit=200,
+                )
+            except Exception as exc:
+                logger.warning("load_historial: %s", exc)
+                rows = []
 
-        if search:
-            rows = [r for r in rows
-                    if search in r.get("receta_nombre", "").lower()
-                    or search in r.get("usuario", "").lower()
-                    or search in r.get("producto_base_nombre", "").lower()]
+            if search:
+                rows = [r for r in rows
+                        if search in r.get("receta_nombre", "").lower()
+                        or search in r.get("usuario", "").lower()
+                        or search in r.get("producto_base_nombre", "").lower()]
 
-        self._tbl_hist.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            tipo = r.get("tipo_receta", "")
-            tipo_color = TIPO_COLOR.get(tipo, _GRAY)
-            fecha_str = r.get("fecha", "")
-            if fecha_str and "T" in fecha_str:
-                fecha_str = fecha_str.replace("T", " ")[:19]
+            self._tbl_hist.setRowCount(len(rows))
+            if hasattr(self, "_hist_empty"):
+                self._hist_empty.setVisible(len(rows) == 0)
+            for ri, r in enumerate(rows):
+                tipo = r.get("tipo_receta", "")
+                tipo_color = TIPO_COLOR.get(tipo, _GRAY)
+                fecha_str = r.get("fecha", "")
+                if fecha_str and "T" in fecha_str:
+                    fecha_str = fecha_str.replace("T", " ")[:19]
 
-            vals = [
-                str(r.get("id", "")),
-                fecha_str,
-                r.get("receta_nombre", "—"),
-                TIPO_LABELS.get(tipo, tipo),
-                r.get("producto_base_nombre", "—"),
-                f"{float(r.get('cantidad_base', 0)):.3f}",
-                r.get("usuario", "—"),
-            ]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(str(v))
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci == 3:
-                    it.setForeground(QColor(tipo_color))
-                if ci == 5:
-                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                # Guardar produccion_id en col 0
-                if ci == 0:
-                    it.setData(Qt.UserRole, r.get("id"))
-                self._tbl_hist.setItem(ri, ci, it)
+                vals = [
+                    str(r.get("id", "")),
+                    fecha_str,
+                    r.get("receta_nombre", "—"),
+                    TIPO_LABELS.get(tipo, tipo),
+                    r.get("producto_base_nombre", "—"),
+                    f"{float(r.get('cantidad_base', 0)):.3f}",
+                    r.get("usuario", "—"),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(str(v))
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci == 3:
+                        it.setForeground(QColor(tipo_color))
+                    if ci == 5:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    # Guardar produccion_id en col 0
+                    if ci == 0:
+                        it.setData(Qt.UserRole, r.get("id"))
+                    self._tbl_hist.setItem(ri, ci, it)
+        finally:
+            if hasattr(self, "_hist_loading"):
+                self._hist_loading.hide()
 
     def _on_hist_sel(self) -> None:
         row = self._tbl_hist.currentRow()

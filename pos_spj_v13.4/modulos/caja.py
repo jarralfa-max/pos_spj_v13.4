@@ -4,7 +4,7 @@ from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_danger_button,
     create_success_button, create_card, create_input_field,
     create_heading, create_subheading, apply_tooltip, create_caption,
-    create_table_with_columns, create_table_button, create_label
+    create_table_with_columns, create_table_button, create_label, confirm_action
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA
@@ -212,6 +212,14 @@ class DialogoCorteZCiego(QDialog):
 
         elif cur == 1:
             # Paso 2 → 3: execute corte and reveal result
+            if not confirm_action(
+                self,
+                "Confirmar Corte Z",
+                "¿Confirmas el total físico capturado para ejecutar el corte?",
+                confirm_text="Sí, ejecutar",
+                cancel_text="Revisar",
+            ):
+                return
             self._ejecutar_corte()
 
     def _prev_page(self):

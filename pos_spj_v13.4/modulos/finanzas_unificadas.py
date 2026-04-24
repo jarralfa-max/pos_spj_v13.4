@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (
     QApplication, QSizePolicy, QStackedWidget, QGridLayout
 )
 from PyQt5.QtCore import Qt, QTimer, QDate
-from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtGui import QFont, QPixmap, QPalette
 
 logger = logging.getLogger("spj.finanzas_unificadas")
 
@@ -467,6 +467,35 @@ class ModuloFinanzasUnificadas(QWidget):
         
         # Conectar cambio de pestaña para cargar datos
         tabs.currentChanged.connect(self._on_tab_changed)
+        self._normalizar_botones_ui()
+
+    def _normalizar_botones_ui(self):
+        """Evita botones full-width y mejora alineación visual general."""
+        is_light = self.palette().color(QPalette.Window).lightness() >= 160
+        for btn in self.findChildren(QPushButton):
+            # Mantener icon-buttons compactos de tablas.
+            if btn.maximumWidth() <= 36 or (btn.minimumWidth() and btn.minimumWidth() <= 36):
+                continue
+            btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            if btn.minimumHeight() < 30:
+                btn.setMinimumHeight(30)
+            if is_light:
+                txt = (btn.text() or "").lower()
+                if any(k in txt for k in ("eliminar", "baja", "cancelar", "retirar")):
+                    btn.setObjectName("dangerBtn")
+                elif any(k in txt for k in ("guardar", "nuevo", "inyectar", "cobrar", "pagar")):
+                    btn.setObjectName("primaryBtn")
+                else:
+                    btn.setObjectName("secondaryBtn")
+                # Evitar estilos hardcodeados oscuros en tema claro.
+                btn.setStyleSheet("")
+
+        if is_light:
+            for tbl in self.findChildren(QTableWidget):
+                tbl.setStyleSheet(
+                    "QTableWidget{background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;}"
+                    "QHeaderView::section{background:#E2E8F0;color:#334155;font-weight:600;}"
+                )
     
     def _on_tab_changed(self, index):
         """Carga datos según la pestaña activa."""
@@ -939,8 +968,7 @@ class ModuloFinanzasUnificadas(QWidget):
                 saldo_item.setFont(QFont("Arial", 10, QFont.Bold))
                 self._tabla_cxp.setItem(row, 5, saldo_item)
                 
-                btn_pagar = QPushButton("💸 Abonar")
-                btn_pagar.setStyleSheet("background:#2E86C1;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+                btn_pagar = self._create_compact_action_button("💸 Abonar", "primary")
                 btn_pagar.clicked.connect(lambda _, d=deuda: self._dialogo_abono_cxp(d))
                 self._tabla_cxp.setCellWidget(row, 6, btn_pagar)
         except Exception as e:
@@ -989,12 +1017,43 @@ class ModuloFinanzasUnificadas(QWidget):
                 saldo_item.setFont(QFont("Arial", 10, QFont.Bold))
                 self._tabla_cxc.setItem(row, 5, saldo_item)
                 
-                btn_cobrar = QPushButton("💰 Cobrar")
-                btn_cobrar.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+                btn_cobrar = self._create_compact_action_button("💰 Cobrar", "success")
                 btn_cobrar.clicked.connect(lambda _, d=deuda: self._dialogo_abono_cxc(d))
                 self._tabla_cxc.setCellWidget(row, 6, btn_cobrar)
         except Exception as e:
             logger.error(f"Error cargando CxC: {e}")
+
+    def _create_compact_action_button(self, text: str, variant: str = "primary") -> QPushButton:
+        """
+        Botón compacto para acciones por fila en tablas (mismo estándar visual
+        de módulos como Productos y Clientes).
+        """
+        btn = QPushButton(text)
+        btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn.setMinimumHeight(30)
+        btn.setMinimumWidth(98)
+        btn.setMaximumWidth(126)
+        btn.setCursor(Qt.PointingHandCursor)
+
+        is_light = self.palette().color(QPalette.Window).lightness() >= 160
+        if is_light:
+            btn.setStyleSheet("")
+            btn.setObjectName("primaryBtn" if variant == "primary" else "successBtn")
+            return btn
+
+        if variant == "success":
+            btn.setStyleSheet(
+                "QPushButton{background:#27ae60;color:white;font-weight:600;"
+                "padding:5px 10px;border-radius:5px;}"
+                "QPushButton:hover{background:#219150;}"
+            )
+        else:
+            btn.setStyleSheet(
+                "QPushButton{background:#2E86C1;color:white;font-weight:600;"
+                "padding:5px 10px;border-radius:5px;}"
+                "QPushButton:hover{background:#1f6fa5;}"
+            )
+        return btn
     
     def _filtrar_cxc(self):
         """Filtra la tabla de CxC por nombre de cliente."""

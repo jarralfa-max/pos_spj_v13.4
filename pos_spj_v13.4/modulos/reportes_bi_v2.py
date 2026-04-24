@@ -2,9 +2,10 @@
 # modulos/reportes_bi_v2.py
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
-    create_primary_button, create_success_button, create_danger_button, 
+    create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_input, create_combo, create_card,
-    create_heading, create_subheading, create_caption, apply_tooltip
+    create_heading, create_subheading, create_caption, apply_tooltip,
+    FilterBar, EmptyStateWidget, LoadingIndicator, DataTableWithFilters, confirm_action
 )
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from PyQt5.QtWidgets import (
@@ -13,7 +14,8 @@ from PyQt5.QtWidgets import (
     QHeaderView, QGridLayout, QGroupBox, QFrame, QSplitter, QTabWidget,
     QAbstractItemView, QDialog, QCheckBox, QListWidget, QListWidgetItem,
     QSizePolicy, QAction, QMenu, QToolBar, QStatusBar, QProgressBar,
-    QScrollArea, QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox
+    QCompleter, QDateEdit, QSpinBox, QDoubleSpinBox,
+    QFileDialog
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
@@ -27,33 +29,26 @@ class ModuloReportesBIv2(QWidget):
         super().__init__(parent)
         self.container = container
         self.sucursal_id = 1
+        self._last_data = {}
         self.init_ui()
+        self._wire_business_events()
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         """Recibe el usuario activo al cambiar de sesión."""
         self.usuario_actual = usuario
         self.rol_actual = rol
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
-        """Recibe la sucursal activa."""
-        self.sucursal_id = sucursal_id
-
-    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
+    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = ""):
+        """Recibe la sucursal activa y refresca dashboard."""
         self.sucursal_id = sucursal_id
         self.cargar_dashboard()
 
     def init_ui(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        inner = QWidget()
-        scroll.setWidget(inner)
-        outer.addWidget(scroll)
-
-        layout_principal = QVBoxLayout(inner)
+        layout_principal = QVBoxLayout()
         layout_principal.setSpacing(10)
+        outer.addLayout(layout_principal)
 
         # --- HEADER Y FILTROS ---
         header_layout = QHBoxLayout()
@@ -83,51 +78,156 @@ class ModuloReportesBIv2(QWidget):
         
         layout_principal.addLayout(header_layout)
 
-        # --- FILA 1: KPIs (TARJETAS) ---
+        self.filter_bar = FilterBar(
+            self,
+            placeholder="Buscar producto, cliente o cajero…",
+            combo_filters={"vista": ["Resumen", "Rankings", "Rentabilidad", "Cajeros"]}
+        )
+        self.filter_bar.filters_changed.connect(self._on_global_filters_changed)
+        layout_principal.addWidget(self.filter_bar)
+
+        self.loading_dashboard = LoadingIndicator("Actualizando dashboard BI…", self)
+        self.loading_dashboard.hide()
+        layout_principal.addWidget(self.loading_dashboard)
+
+        self.tabs_bi = QTabWidget()
+        self.tabs_bi.setDocumentMode(True)
+        layout_principal.addWidget(self.tabs_bi)
+
+        self._build_tab_resumen()
+        self._build_tab_visual_dashboard()
+        self._build_tab_rankings()
+        self._build_tab_rentabilidad()
+        self._build_tab_cajeros()
+        self._build_tab_forecast()
+        self._build_tab_decision_engine()
+        self._build_tab_franchise()
+
+    def _crear_tab_contenedor(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+        return tab, layout
+
+    def _build_tab_resumen(self):
+        tab, layout = self._crear_tab_contenedor()
+
         kpi_layout = QHBoxLayout()
-        
         self.lbl_kpi_ingresos = self._crear_tarjeta_kpi("💵 Ingresos Totales", "$0.00")
         self.lbl_kpi_ticket = self._crear_tarjeta_kpi("🧾 Ticket Promedio", "$0.00")
         self.lbl_kpi_ventas = self._crear_tarjeta_kpi("🛒 Num. Ventas", "0")
         self.lbl_kpi_clientes = self._crear_tarjeta_kpi("👥 Clientes Únicos", "0")
-        
         kpi_layout.addWidget(self.lbl_kpi_ingresos)
         kpi_layout.addWidget(self.lbl_kpi_ticket)
         kpi_layout.addWidget(self.lbl_kpi_ventas)
         kpi_layout.addWidget(self.lbl_kpi_clientes)
-        
-        layout_principal.addLayout(kpi_layout)
+        layout.addLayout(kpi_layout)
 
         self.lbl_comparativa = create_caption(self, "")
         self.lbl_comparativa.setAlignment(Qt.AlignCenter)
         self.lbl_comparativa.hide()
-        layout_principal.addWidget(self.lbl_comparativa)
+        layout.addWidget(self.lbl_comparativa)
 
-        # --- FILA 2: TABLAS DE RANKING ---
+        self._lbl_resumen_alertas = QLabel("Alertas: esperando actualización de datos.")
+        self._lbl_resumen_alertas.setStyleSheet("color:#6c757d;")
+        layout.addWidget(self._lbl_resumen_alertas)
+
+        accesos = QGroupBox("Acceso rápido")
+        accesos_lay = QHBoxLayout(accesos)
+        for idx, texto in [
+            (2, "Ventas / Rankings"),
+            (3, "Rentabilidad"),
+            (4, "Cajeros"),
+            (5, "Forecast"),
+            (6, "Sugerencias"),
+            (7, "Sucursales"),
+        ]:
+            btn = create_secondary_button(self, texto, f"Ir a {texto}")
+            btn.clicked.connect(lambda _, i=idx: self.tabs_bi.setCurrentIndex(i))
+            accesos_lay.addWidget(btn)
+        layout.addWidget(accesos)
+        layout.addStretch()
+        self.tabs_bi.addTab(tab, "Resumen Ejecutivo")
+
+    def _build_tab_visual_dashboard(self):
+        """Dashboard visual moderno con QWebEngineView + Apache ECharts."""
+        tab, layout = self._crear_tab_contenedor()
+
+        self._chart_empty = EmptyStateWidget(
+            "Sin datos para graficar",
+            "No hay movimientos suficientes para construir el dashboard visual.",
+            "📉",
+            self,
+        )
+        self._chart_empty.hide()
+
+        try:
+            from PyQt5.QtWebEngineWidgets import QWebEngineView
+            self._chart_view = QWebEngineView(self)
+            layout.addWidget(self._chart_view, 1)
+            layout.addWidget(self._chart_empty)
+        except Exception:
+            self._chart_view = None
+            fallback = QLabel("QWebEngine no disponible en este entorno.\nSe mostrará solo KPI tabular.")
+            fallback.setStyleSheet("color:#6c757d; padding:12px;")
+            fallback.setAlignment(Qt.AlignCenter)
+            layout.addWidget(fallback)
+        self.tabs_bi.addTab(tab, "Dashboard Visual")
+
+    def _build_tab_rankings(self):
+        tab, layout = self._crear_tab_contenedor()
+        toolbar = QHBoxLayout()
+        btn_ref_rank = create_primary_button(self, "🔄 Actualizar", "Actualizar rankings")
+        btn_ref_rank.clicked.connect(self.cargar_dashboard)
+        btn_export_rank = create_secondary_button(self, "📊 Exportar", "Exportar rankings a Excel")
+        btn_export_rank.clicked.connect(lambda: self._exportar("excel"))
+        self._lbl_rankings_estado = QLabel("Sin datos cargados.")
+        self._lbl_rankings_estado.setStyleSheet("color:#6c757d; font-size:11px;")
+        toolbar.addWidget(btn_ref_rank)
+        toolbar.addWidget(btn_export_rank)
+        toolbar.addStretch()
+        toolbar.addWidget(self._lbl_rankings_estado)
+        layout.addLayout(toolbar)
+
         self._tabs_rankings = QTabWidget()
         self._tabs_rankings.setDocumentMode(True)
-
-        # Productos Estrella
         self._grp_top = self._crear_tabla_ranking("⭐ Productos Más Vendidos", ["Producto", "Cant.", "Ingresos"])
-        self.tabla_top = self._grp_top._tabla
-        # Productos Lentos
+        self.tabla_top = self._grp_top._tabla.table
         self._grp_lentos = self._crear_tabla_ranking("🐢 Productos Lentos", ["Producto", "Cant.", "Ingresos"])
-        self.tabla_lentos = self._grp_lentos._tabla
-        # Clientes VIP
+        self.tabla_lentos = self._grp_lentos._tabla.table
         self._grp_vips = self._crear_tabla_ranking("👑 Clientes Recurrentes (VIP)", ["Cliente", "Visitas", "Gasto Total"])
-        self.tabla_vips = self._grp_vips._tabla
-
+        self.tabla_vips = self._grp_vips._tabla.table
         self._tabs_rankings.addTab(self._grp_top, "Más vendidos")
         self._tabs_rankings.addTab(self._grp_lentos, "Lentos")
         self._tabs_rankings.addTab(self._grp_vips, "Clientes VIP")
-        layout_principal.addWidget(self._tabs_rankings)
+        layout.addWidget(self._tabs_rankings)
+        self.tabs_bi.addTab(tab, "Ventas / Rankings")
 
-        # ── Rentabilidad por producto (tab adicional) ─────────────────────────
-        self._build_rentabilidad_section(layout_principal)
-        self._build_cajeros_section(layout_principal)
-        self._build_forecast_section(layout_principal)
-        self._build_decision_engine_section(layout_principal)
-        self._build_franchise_section(layout_principal)
+    def _build_tab_rentabilidad(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_rentabilidad_section(layout)
+        self.tabs_bi.addTab(tab, "Rentabilidad")
+
+    def _build_tab_cajeros(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_cajeros_section(layout)
+        self.tabs_bi.addTab(tab, "Cajeros")
+
+    def _build_tab_forecast(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_forecast_section(layout)
+        self.tabs_bi.addTab(tab, "Forecast / Planeación")
+
+    def _build_tab_decision_engine(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_decision_engine_section(layout)
+        self.tabs_bi.addTab(tab, "Sugerencias")
+
+    def _build_tab_franchise(self):
+        tab, layout = self._crear_tab_contenedor()
+        self._build_franchise_section(layout)
+        self.tabs_bi.addTab(tab, "Sucursales / Franquicias")
 
     def _build_rentabilidad_section(self, parent_layout):
         """Tabla de rentabilidad por producto: margen, rotación, contribución."""
@@ -153,10 +253,15 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_rent.setEditTriggers(QTableWidget.NoEditTriggers)
         self._tbl_rent.setSelectionBehavior(QTableWidget.SelectRows)
         self._tbl_rent.setAlternatingRowColors(True)
+        self._tbl_rent.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_rent.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         hh = self._tbl_rent.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        self._tbl_rent.setMaximumHeight(240)
+        self._tbl_rent.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_rent)
+        self._lbl_rent_estado = QLabel("Calculando rentabilidad…")
+        self._lbl_rent_estado.setStyleSheet("color:#6c757d; font-size:11px;")
+        lay.addWidget(self._lbl_rent_estado)
 
         parent_layout.addWidget(grp)
         self._cargar_rentabilidad()
@@ -193,7 +298,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_caj.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_caj.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_caj.setAlternatingRowColors(True)
-        self._tbl_caj.setMaximumHeight(240)
+        self._tbl_caj.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_caj.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_caj.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_caj)
 
         parent_layout.addWidget(grp)
@@ -280,7 +387,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_fc.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_fc.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_fc.setAlternatingRowColors(True)
-        self._tbl_fc.setMaximumHeight(240)
+        self._tbl_fc.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fc.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fc.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_fc)
 
         parent_layout.addWidget(grp)
@@ -387,7 +496,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_de.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_de.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_de.setAlternatingRowColors(True)
-        self._tbl_de.setMaximumHeight(280)
+        self._tbl_de.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_de.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_de.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_de)
 
         parent_layout.addWidget(grp)
@@ -455,7 +566,9 @@ class ModuloReportesBIv2(QWidget):
         self._tbl_fm.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_fm.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_fm.setAlternatingRowColors(True)
-        self._tbl_fm.setMaximumHeight(220)
+        self._tbl_fm.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fm.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self._tbl_fm.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         lay.addWidget(self._tbl_fm)
 
         parent_layout.addWidget(grp)
@@ -525,6 +638,11 @@ class ModuloReportesBIv2(QWidget):
                     r['costo']
                 ))
         except Exception as e:
+            self._lbl_rent_estado.setText(f"Error al cargar rentabilidad: {e}")
+            return
+
+        if not rows:
+            self._lbl_rent_estado.setText("Sin datos de rentabilidad para el período seleccionado.")
             return
 
         total_margen = sum((float(r[3] or 0) - float(r[4] or 0)) for r in rows)
@@ -558,6 +676,7 @@ class ModuloReportesBIv2(QWidget):
             item_pct.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor(color))
             self._tbl_rent.setItem(i, 6, item_pct)
             self._tbl_rent.setItem(i, 7, QTableWidgetItem(abc))
+        self._lbl_rent_estado.setText(f"{len(rows)} productos analizados.")
 
     def _get_producto_info(self, producto_id: int) -> dict:
         """Obtiene información básica de un producto (nombre, categoría) via AnalyticsEngine."""
@@ -610,23 +729,42 @@ class ModuloReportesBIv2(QWidget):
         tarjeta._lbl_valor = lbl_valor   # keep reference on the frame
         return tarjeta
     def _crear_tabla_ranking(self, titulo, headers):
-        """Crea un panel con una tabla limpia para los rankings.
-        Returns the QGroupBox (parent kept alive) with _tabla attribute."""
+        """Crea un panel con tabla reusable y filtros de búsqueda."""
         grupo = QGroupBox(titulo)
         grupo.setObjectName("styledGroup")
         layout = QVBoxLayout(grupo)
-        
-        tabla = QTableWidget()
-        tabla.setColumnCount(len(headers))
-        tabla.setHorizontalHeaderLabels(headers)
-        tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        tabla.verticalHeader().setVisible(False)
-        tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        tabla.setObjectName("tableView")
-        
+
+        tabla = DataTableWithFilters(headers=headers, parent=grupo)
+        tabla.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        tabla.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         layout.addWidget(tabla)
-        grupo._tabla = tabla   # keep strong reference on the container
-        return grupo           # return the container, not the tabla
+        grupo._tabla = tabla
+        return grupo
+
+    def _on_global_filters_changed(self, payload: dict) -> None:
+        search = (payload or {}).get("search", "").strip().lower()
+        wrappers = [self._grp_top._tabla, self._grp_lentos._tabla, self._grp_vips._tabla]
+        for wrapper in wrappers:
+            wrapper.filter_bar.search.blockSignals(True)
+            wrapper.filter_bar.search.setText(search)
+            wrapper.filter_bar.search.blockSignals(False)
+            wrapper._apply_filter({"search": search})
+        self._lbl_rankings_estado.setText(
+            "Sin filtros globales activos." if not search else f"Filtro activo: '{search}'"
+        )
+
+    def _wire_business_events(self) -> None:
+        """Refresco reactivo ante eventos de negocio del ERP."""
+        try:
+            from core.events.event_bus import get_bus
+            from PyQt5.QtCore import QTimer as _QT
+            bus = get_bus()
+            for evt in ("venta_confirmada", "stock_actualizado", "pago_registrado"):
+                bus.subscribe(evt, lambda _p, _self=self: _QT.singleShot(0, _self.cargar_dashboard),
+                              label=f"bi_v2.refresh.{evt}")
+        except Exception:
+            pass
 
     def _exportar(self, formato: str) -> None:
         """Exporta el dashboard actual a PDF o Excel via ExportService."""
@@ -643,6 +781,14 @@ class ModuloReportesBIv2(QWidget):
             f"{'Excel (*.xlsx)' if formato == 'excel' else 'PDF (*.pdf)'}"
         )
         if not ruta:
+            return
+        if not confirm_action(
+            self,
+            "Confirmar exportación",
+            f"¿Deseas exportar el dashboard en formato {ext.upper()}?",
+            confirm_text="Sí, exportar",
+            cancel_text="Cancelar",
+        ):
             return
 
         try:
@@ -700,6 +846,7 @@ class ModuloReportesBIv2(QWidget):
     def cargar_dashboard(self):
         """Pide los datos al AnalyticsEngine (BI unificado) y actualiza la UI."""
         rango_str = self.cmb_rango.currentText().lower().split(' ')[-1] # 'hoy', 'semana', 'mes'
+        self.loading_dashboard.setVisible(True)
         
         try:
             # BI unificado: fuente única analytics_engine
@@ -707,6 +854,7 @@ class ModuloReportesBIv2(QWidget):
             if not analytics:
                 raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
             data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
+            self._last_data = data
             
             # 1. Actualizar KPIs
             self.lbl_kpi_ingresos._lbl_valor.setText(f"${data['kpis']['ingresos']:,.2f}")
@@ -735,20 +883,90 @@ class ModuloReportesBIv2(QWidget):
             
             # 4. Llenar Tabla Clientes VIP
             self._llenar_tabla(self.tabla_vips, data['clientes_recurrentes'], ['nombre', 'visitas', 'valor_vida'])
+            top_n = len(data.get('top_productos', []))
+            lentos_n = len(data.get('productos_lentos', []))
+            vip_n = len(data.get('clientes_recurrentes', []))
+            self._lbl_rankings_estado.setText(
+                f"Top: {top_n} | Lentos: {lentos_n} | VIP: {vip_n}"
+            )
+            alertas = []
+            if lentos_n > 0:
+                alertas.append(f"{lentos_n} productos lentos")
+            if top_n == 0:
+                alertas.append("sin productos más vendidos")
+            self._lbl_resumen_alertas.setText(
+                "Alertas: " + (", ".join(alertas) if alertas else "sin alertas relevantes.")
+            )
+            self._render_echarts_dashboard(data)
 
         except PermissionError as e:
             # Si el Feature Flag 'bi_v2' está apagado
             QMessageBox.warning(self, "Módulo Inactivo", str(e))
+            self._lbl_rankings_estado.setText(f"Módulo inactivo: {e}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(self, "Error", f"No se pudo actualizar el dashboard BI.\nDetalle: {e}")
+            self._lbl_rankings_estado.setText(f"Error al cargar rankings: {e}")
+            self._lbl_resumen_alertas.setText(f"Alertas: error al cargar datos ({e}).")
+        finally:
+            self.loading_dashboard.setVisible(False)
+
+    def _render_echarts_dashboard(self, data: dict) -> None:
+        """Renderiza un mini dashboard con ECharts dentro de QWebEngineView."""
+        if not getattr(self, "_chart_view", None):
+            return
+        top = data.get('top_productos', [])
+        if not top:
+            self._chart_empty.show()
+            self._chart_view.hide()
+            return
+        labels = [str(i.get('nombre', 'N/A')) for i in top[:8]]
+        values = [float(i.get('ingresos_generados', 0) or 0) for i in top[:8]]
+        self._chart_empty.hide()
+        self._chart_view.show()
+        html = f"""
+        <html><head><meta charset='utf-8'>
+        <script src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'></script>
+        <style>html,body,#c{{height:100%;margin:0;background:#0b1220;color:#e2e8f0;font-family:Inter,Arial;}}</style>
+        </head><body><div id='c'></div>
+        <script>
+        const labels = {labels};
+        const values = {values};
+        if (window.echarts) {{
+          const chart = echarts.init(document.getElementById('c'));
+          const option = {{
+            title: {{text: 'Top productos por ingresos', left: 'center', textStyle: {{color:'#e2e8f0'}}}},
+            tooltip: {{trigger: 'axis'}},
+            xAxis: {{type: 'category', data: labels, axisLabel: {{color:'#94a3b8', rotate:20}}}},
+            yAxis: {{type: 'value', axisLabel: {{color:'#94a3b8'}}}},
+            series: [{{type: 'bar', data: values, itemStyle: {{color:'#3b82f6'}}, barMaxWidth: 38}}]
+          }};
+          chart.setOption(option);
+        }} else {{
+          const c = document.getElementById('c');
+          const rows = labels.map((name, i) => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #1f2937;padding:8px 4px;"><span>${{name}}</span><b>$${{Number(values[i]||0).toFixed(2)}}</b></div>`).join('');
+          c.innerHTML = `<div style="padding:14px;"><h3 style="margin:0 0 8px 0;">Top productos por ingresos</h3><div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">Modo fallback (ECharts no disponible)</div>${{rows}}</div>`;
+        }}
+        </script></body></html>
+        """
+        self._chart_view.setHtml(html)
 
     def _llenar_tabla(self, tabla: QTableWidget, datos: list, llaves: list):
+        if not datos:
+            tabla.setRowCount(1)
+            tabla.setItem(0, 0, QTableWidgetItem("Sin datos para el período seleccionado."))
+            for col in range(1, tabla.columnCount()):
+                tabla.setItem(0, col, QTableWidgetItem(""))
+            if hasattr(tabla.parent(), "empty_state"):
+                tabla.parent().empty_state.show()
+            return
         tabla.setRowCount(len(datos))
+        if hasattr(tabla.parent(), "empty_state"):
+            tabla.parent().empty_state.hide()
         for row, item in enumerate(datos):
             for col, llave in enumerate(llaves):
                 valor = item.get(llave, '')
                 # Dar formato de moneda si es dinero
-                if isinstance(valor, float) and 'ingresos' in llave or 'valor' in llave:
+                if isinstance(valor, (float, int)) and ('ingresos' in llave or 'valor' in llave):
                     txt = f"${valor:,.2f}"
                 else:
                     txt = str(valor)

@@ -16,7 +16,11 @@ from __future__ import annotations
 from core.events.event_bus import get_bus
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_danger_button, create_input, create_combo, create_card, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_danger_button, create_input, create_combo, create_card, apply_tooltip,
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action
+)
 import logging
 from typing import Dict, List, Optional
 
@@ -191,17 +195,22 @@ class ModuloTransferencias(ModuloBase):
 
         # Filter bar
         fb = QHBoxLayout()
-        self._filter_status = create_combo(self, ["Todos", "DISPATCHED", "RECEIVED", "CANCELLED", "PENDING"])
-        self._filter_status.currentIndexChanged.connect(lambda _: self._load_transfers())
-        fb.addWidget(QLabel("Estado:")); fb.addWidget(self._filter_status)
-        self._filter_search = create_input(self, "Buscar por ID o sucursal…")
-        self._filter_search.textChanged.connect(lambda _: self._load_transfers())
-        fb.addWidget(QLabel("Buscar:")); fb.addWidget(self._filter_search)
+        self._filter_bar = FilterBar(
+            self,
+            placeholder="Buscar por ID o sucursal…",
+            combo_filters={"estado": ["DISPATCHED", "RECEIVED", "CANCELLED", "PENDING"]},
+        )
+        self._filter_bar.filters_changed.connect(lambda _v: self._load_transfers())
+        fb.addWidget(self._filter_bar, 1)
         fb.addStretch()
         btn_nueva = create_primary_button(self, "📤 Nueva Transferencia", "Crear nueva transferencia de stock")
         btn_nueva.clicked.connect(self._nueva_transferencia)
         fb.addWidget(btn_nueva)
         root.addLayout(fb)
+
+        self._loading = LoadingIndicator("Cargando transferencias…", self)
+        self._loading.hide()
+        root.addWidget(self._loading)
 
         # Main table
         self._tbl = QTableWidget()
@@ -220,6 +229,14 @@ class ModuloTransferencias(ModuloBase):
         hdr_.setSectionResizeMode(0, QHeaderView.Stretch)
         self._tbl.itemSelectionChanged.connect(self._on_sel_changed)
         root.addWidget(self._tbl)
+        self._empty_state = EmptyStateWidget(
+            "Sin transferencias",
+            "No hay transferencias para los filtros actuales.",
+            "📭",
+            self,
+        )
+        self._empty_state.hide()
+        root.addWidget(self._empty_state)
 
         # Action buttons
         ab = QHBoxLayout()
@@ -251,68 +268,76 @@ class ModuloTransferencias(ModuloBase):
 
     def _load_transfers(self, *args):
         """Carga las transferencias desde la base de datos con blindaje de errores."""
-        # 1. Obtener filtros de forma segura (con hasattr por si la UI aún no carga)
-        status_filter = self.cmb_status.currentData() if hasattr(self, 'cmb_status') else None
-        
-        # ¡CORRECCIÓN! Capturar el texto de búsqueda antes de usarlo
-        search = self.txt_busqueda.text().strip() if hasattr(self, 'txt_busqueda') else ""
-        
-        # 2. Consultar al Repositorio
+        if hasattr(self, "_loading"):
+            self._loading.show()
         try:
-            rows = self._repo.get_all(
-                branch_id=self.sucursal_id if self.sucursal_id else None,
-                status=status_filter,
-            )
-        except Exception as exc:
-            logger.exception("Error al cargar transferencias: %s", exc)
-            rows = []
+            # 1. Obtener filtros de forma segura (con hasattr por si la UI aún no carga)
+            filtros = self._filter_bar.values() if hasattr(self, "_filter_bar") else {}
+            status_filter = filtros.get("estado", "")
+            status_filter = status_filter or None
+            search = (filtros.get("search", "") or "").strip()
 
-        # 3. Aplicar Búsqueda Textual Local
-        if search:
-            s = search.lower()
-            rows = [r for r in rows if
-                    s in str(r.get("id","")).lower() or
-                    s in str(r.get("origin_name","")).lower() or
-                    s in str(r.get("dest_name","")).lower()]
+            # 2. Consultar al Repositorio
+            try:
+                rows = self._repo.get_all(
+                    branch_id=self.sucursal_id if self.sucursal_id else None,
+                    status=status_filter,
+                )
+            except Exception as exc:
+                logger.exception("Error al cargar transferencias: %s", exc)
+                rows = []
 
-        # 4. Volcar datos a la Tabla
-        if not hasattr(self, '_tbl'):
-            return # Seguridad por si la tabla no existe aún
+            # 3. Aplicar Búsqueda Textual Local
+            if search:
+                s = search.lower()
+                rows = [r for r in rows if
+                        s in str(r.get("id","")).lower() or
+                        s in str(r.get("origin_name","")).lower() or
+                        s in str(r.get("dest_name","")).lower()]
 
-        self._tbl.setRowCount(len(rows))
-        pend = rec = can = 0
-        
-        for ri, r in enumerate(rows):
-            st = r.get("status", "")
-            if st == "DISPATCHED": pend += 1
-            elif st == "RECEIVED": rec += 1
-            elif st == "CANCELLED": can += 1
-            
-            vals = [
-                str(r.get("id", ""))[:8] + "…" if len(str(r.get("id",""))) > 8 else str(r.get("id","")),
-                r.get("origin_name", str(r.get("branch_origin_id","?"))),
-                r.get("dest_name",   str(r.get("branch_dest_id","?"))),
-                st,
-                r.get("delivered_by", "—") or "—",
-                r.get("received_by",  "—") or "—",
-                str(r.get("created_at",""))[:16],
-                str(r.get("received_at",""))[:16] if r.get("received_at") else "—",
-                f"{float(r.get('difference_kg',0)):.3f} kg",
-            ]
-            
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(str(v))
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci == 3: # Columna de Estado
-                    it.setForeground(QColor(_STATUS_COLORS.get(st, "#000")))
-                    it.setTextAlignment(Qt.AlignCenter)
-                self._tbl.setItem(ri, ci, it)
+            # 4. Volcar datos a la Tabla
+            if not hasattr(self, '_tbl'):
+                return # Seguridad por si la tabla no existe aún
 
-        # 5. Actualizar los KPI (Indicadores Superiores) de forma segura
-        if hasattr(self, '_kpi_pend'): self._kpi_pend._val_label.setText(str(pend))
-        if hasattr(self, '_kpi_rec'): self._kpi_rec._val_label.setText(str(rec))
-        if hasattr(self, '_kpi_can'): self._kpi_can._val_label.setText(str(can))
-        if hasattr(self, '_lbl_suc'): self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
+            self._tbl.setRowCount(len(rows))
+            if hasattr(self, "_empty_state"):
+                self._empty_state.setVisible(len(rows) == 0)
+            pend = rec = can = 0
+
+            for ri, r in enumerate(rows):
+                st = r.get("status", "")
+                if st == "DISPATCHED": pend += 1
+                elif st == "RECEIVED": rec += 1
+                elif st == "CANCELLED": can += 1
+
+                vals = [
+                    str(r.get("id", ""))[:8] + "…" if len(str(r.get("id",""))) > 8 else str(r.get("id","")),
+                    r.get("origin_name", str(r.get("branch_origin_id","?"))),
+                    r.get("dest_name",   str(r.get("branch_dest_id","?"))),
+                    st,
+                    r.get("delivered_by", "—") or "—",
+                    r.get("received_by",  "—") or "—",
+                    str(r.get("created_at",""))[:16],
+                    str(r.get("received_at",""))[:16] if r.get("received_at") else "—",
+                    f"{float(r.get('difference_kg',0)):.3f} kg",
+                ]
+
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(str(v))
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci == 3: # Columna de Estado
+                        it.setForeground(QColor(_STATUS_COLORS.get(st, "#000")))
+                        it.setTextAlignment(Qt.AlignCenter)
+                    self._tbl.setItem(ri, ci, it)
+
+            # 5. Actualizar los KPI (Indicadores Superiores) de forma segura
+            if hasattr(self, '_kpi_pend'): self._kpi_pend._val_label.setText(str(pend))
+            if hasattr(self, '_kpi_rec'): self._kpi_rec._val_label.setText(str(rec))
+            if hasattr(self, '_kpi_can'): self._kpi_can._val_label.setText(str(can))
+            if hasattr(self, '_lbl_suc'): self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
+        finally:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
         
     def _on_sel_changed(self) -> None:
         row = self._tbl.currentRow()
@@ -385,12 +410,12 @@ class ModuloTransferencias(ModuloBase):
     def _cancelar(self) -> None:
         tid = self._get_selected_id()
         if not tid: return
-        motivo, ok = "", True
-        if QMessageBox.question(
+        if not confirm_action(
             self, "Confirmar Cancelación",
             "¿Cancelar esta transferencia? Se restaurará el stock en origen.",
-            QMessageBox.Yes | QMessageBox.No
-        ) != QMessageBox.Yes:
+            confirm_text="Cancelar transferencia",
+            cancel_text="Volver",
+        ):
             return
         try:
             self._repo.cancel(tid, self.usuario_actual)
