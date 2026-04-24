@@ -29,6 +29,7 @@ from PyQt5.QtWidgets import (
     QScrollArea, QFrame, QCompleter, QTabWidget
 )
 from PyQt5.QtCore import QDate, QStringListModel
+from core.events.event_bus import get_bus, AJUSTE_INVENTARIO, VENTA_COMPLETADA
 
 logger = logging.getLogger("spj.etiquetas")
 
@@ -228,12 +229,26 @@ class ModuloEtiquetas(QWidget):
         self._build_ui()
         self._cargar_config()
         self._cargar_productos()
+        try:
+            bus = get_bus()
+            bus.subscribe(AJUSTE_INVENTARIO, self._on_stock_actualizado, label="etiquetas.stock.ajuste")
+            bus.subscribe(VENTA_COMPLETADA, self._on_stock_actualizado, label="etiquetas.stock.venta")
+        except Exception as exc:
+            logger.debug("No se pudo suscribir a eventos de stock: %s", exc)
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         self.usuario = usuario
 
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
+
+    def _on_stock_actualizado(self, _payload: dict):
+        """Refresca catálogo y vista previa cuando cambia inventario sin reiniciar app."""
+        try:
+            self._cargar_productos()
+            self._actualizar_preview()
+        except Exception as exc:
+            logger.debug("refresh etiquetas por stock: %s", exc)
 
     def _build_ui(self):
         lay = QVBoxLayout(self)

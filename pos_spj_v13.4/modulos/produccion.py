@@ -546,23 +546,30 @@ class ModuloProduccion(ModuloBase):
 
     def _cargar_lista_recetas(self):
         from PyQt5.QtWidgets import QTableWidgetItem
+        conn = self._conexion if hasattr(self, '_conexion') else (
+            self.conexion if hasattr(self, 'conexion') else None)
+        if not conn:
+            return
         try:
-            conn = self._conexion if hasattr(self, '_conexion') else (
-                self.conexion if hasattr(self, 'conexion') else None)
-            if not conn:
-                return
+            # Fuente canónica (v13.4): product_recipes + product_recipe_components
             rows = conn.execute("""
-                SELECT r.id, r.nombre,
-                       COALESCE(p.nombre, ''),
-                       COALESCE(r.rendimiento_esperado_pct, 0),
-                       (SELECT COUNT(*) FROM recipe_components WHERE recipe_id=r.id)
-                FROM recetas r
-                LEFT JOIN productos p ON p.id = r.producto_id
-                WHERE COALESCE(r.is_active, 1) = 1
-                ORDER BY r.nombre LIMIT 200
+                SELECT r.id,
+                       COALESCE(r.nombre_receta, r.nombre, '') as nombre,
+                       COALESCE(p.nombre, '') as producto_base,
+                       COALESCE(r.total_rendimiento, r.rendimiento_esperado_pct, 0) as rendimiento,
+                       (
+                        SELECT COUNT(*)
+                        FROM product_recipe_components rc
+                        WHERE rc.recipe_id = r.id
+                       ) as componentes
+                FROM product_recipes r
+                LEFT JOIN productos p ON p.id = COALESCE(r.product_id, r.base_product_id)
+                WHERE COALESCE(r.is_active, r.activa, 1) = 1
+                ORDER BY nombre LIMIT 200
             """).fetchall()
         except Exception:
             try:
+                # Fallback legacy: recetas + recipe_components
                 rows = conn.execute("""
                     SELECT r.id, r.nombre,
                            COALESCE(p.nombre, ''),
@@ -575,11 +582,35 @@ class ModuloProduccion(ModuloBase):
             except Exception:
                 rows = []
         self._rec_tabla.setRowCount(0)
+        if not rows:
+            self._rec_tabla.setRowCount(1)
+            self._rec_tabla.setSpan(0, 0, 1, self._rec_tabla.columnCount())
+            self._rec_tabla.setItem(0, 0, QTableWidgetItem("No hay recetas activas registradas."))
+            return
         for i, r in enumerate(rows):
             self._rec_tabla.insertRow(i)
             vals = [str(r[0]), r[1], r[2], f"{r[3]:.1f}%", str(r[4])]
             for j, v in enumerate(vals):
                 self._rec_tabla.setItem(i, j, QTableWidgetItem(v))
+
+    def _pr_columns(self) -> set:
+        conn = self._conexion if hasattr(self, '_conexion') else (
+            self.conexion if hasattr(self, 'conexion') else None)
+        if not conn:
+            return set()
+        try:
+            rows = conn.execute("PRAGMA table_info(product_recipes)").fetchall()
+            return {r[1] for r in rows}
+        except Exception:
+            return set()
+
+    def _pr_product_expr(self) -> str:
+        cols = self._pr_columns()
+        if "product_id" in cols:
+            return "r.product_id"
+        if "base_product_id" in cols:
+            return "r.base_product_id"
+        return "NULL"
 
     def _receta_nueva(self):
         """Abre DialogoReceta (integrado en este módulo) para crear receta completa."""
@@ -621,10 +652,10 @@ class ModuloProduccion(ModuloBase):
             prods = [{'id': p[0], 'nombre': p[1], 'unidad': p[2] or 'kg'} for p in productos]
             usuario = getattr(self, 'usuario_actual', 'Sistema') or 'Sistema'
             # Cargar datos de receta existente
-            receta_row = conn.execute("SELECT * FROM recetas WHERE id=?", (rid,)).fetchone()
+            receta_row = conn.execute("SELECT * FROM product_recipes WHERE id=?", (rid,)).fetchone()
             receta_data = dict(receta_row) if receta_row else None
             comps = conn.execute(
-                "SELECT * FROM recipe_components WHERE recipe_id=?", (rid,)
+                "SELECT * FROM product_recipe_components WHERE recipe_id=?", (rid,)
             ).fetchall()
             componentes = [dict(c) for c in comps] if comps else []
             dlg = DialogoReceta(repo, prods, usuario,
@@ -653,7 +684,7 @@ class ModuloProduccion(ModuloBase):
         if not conn:
             return
         try:
-            conn.execute("UPDATE recetas SET is_active=0 WHERE id=?", (rid,))
+            conn.execute("UPDATE product_recipes SET is_active=0 WHERE id=?", (rid,))
             try:
                 conn.commit()
             except Exception:
@@ -698,7 +729,7 @@ class ModuloProduccion(ModuloBase):
             return
         try:
             conn.execute(
-                "INSERT INTO recetas(nombre, producto_id, rendimiento_esperado_pct) VALUES(?,?,?)",
+                "INSERT INTO product_recipes(nombre_receta, product_id, total_rendimiento, is_active) VALUES(?,?,?,1)",
                 (nombre, cmb_producto.currentData(), spin_rend.value()))
             try:
                 conn.commit()
@@ -740,15 +771,20 @@ class ModuloProduccion(ModuloBase):
 
     def _load_recetas(self) -> None:
         try:
+            product_expr = self._pr_product_expr()
             rows = self.conexion.fetchall("""
-                SELECT r.id, r.nombre, r.tipo_receta, r.producto_base_id,
-                       r.peso_promedio_kg, r.unidad_base,
+                SELECT r.id,
+                       COALESCE(r.nombre_receta, r.nombre, '') AS nombre,
+                       COALESCE(r.tipo_receta, 'produccion') AS tipo_receta,
+                       {product_expr} AS producto_base_id,
+                       COALESCE(r.peso_promedio_kg, 1.0) AS peso_promedio_kg,
+                       COALESCE(r.unidad_base, p.unidad, 'kg') AS unidad_base,
                        p.nombre AS prod_nombre, p.unidad AS prod_unidad
-                FROM recetas r
-                LEFT JOIN productos p ON p.id = r.producto_base_id
-                WHERE r.activo = 1
-                ORDER BY r.tipo_receta, r.nombre
-            """)
+                FROM product_recipes r
+                LEFT JOIN productos p ON p.id = {product_expr}
+                WHERE COALESCE(r.is_active, r.activa, 1) = 1
+                ORDER BY tipo_receta, nombre
+            """.format(product_expr=product_expr))
             self._recetas_cache = [dict(r) for r in rows]
         except Exception as exc:
             logger.warning("load_recetas: %s", exc)
