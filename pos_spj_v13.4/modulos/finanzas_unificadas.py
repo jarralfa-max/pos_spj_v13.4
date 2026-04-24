@@ -1079,22 +1079,28 @@ class ModuloFinanzasUnificadas(QWidget):
         dlg = QDialog(self)
         dlg.setWindowTitle("Nueva Cuenta por Pagar")
         lay = QFormLayout(dlg)
-        cmb = QComboBox()
-        for p in (self._tps.get_all_proveedores(activo=True, limit=500) if self._tps else []):
-            cmb.addItem(p.get("nombre", "—"), p.get("id"))
+        proveedores = self._tps.get_all_proveedores(activo=True, limit=500) if self._tps else []
+        txt_proveedor, selected_supplier_id = self._build_autocomplete_selector(
+            [{"id": p.get("id"), "label": p.get("nombre", "—")} for p in proveedores],
+            placeholder="Buscar proveedor por nombre…"
+        )
         txt = QLineEdit(); txt.setPlaceholderText("Concepto")
         monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
         due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(30))
-        lay.addRow("Proveedor:", cmb); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        lay.addRow("Proveedor:", txt_proveedor); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         lay.addRow(btns)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         if dlg.exec_() != QDialog.Accepted:
             return
+        supplier_id = selected_supplier_id.get("id")
+        if not supplier_id:
+            QMessageBox.warning(self, "Validación", "Seleccione un proveedor válido desde la búsqueda.")
+            return
         try:
             if self._fs and hasattr(self._fs, "crear_cxp"):
                 self._fs.crear_cxp(
-                    supplier_id=cmb.currentData(),
+                    supplier_id=supplier_id,
                     concepto=txt.text().strip() or "Cuenta por pagar",
                     amount=float(monto.value()),
                     due_date=due.date().toString("yyyy-MM-dd"),
@@ -1108,7 +1114,7 @@ class ModuloFinanzasUnificadas(QWidget):
                 "INSERT INTO accounts_payable(supplier_id, folio, concepto, amount, balance, due_date, status) "
                 "VALUES (?,?,?,?,?,?,'pendiente')",
                 (
-                    cmb.currentData(),
+                    supplier_id,
                     f"CXP-{datetime.now().strftime('%Y%m%d%H%M%S')}",
                     txt.text().strip() or "Cuenta por pagar",
                     float(monto.value()),
@@ -1129,22 +1135,59 @@ class ModuloFinanzasUnificadas(QWidget):
         dlg = QDialog(self)
         dlg.setWindowTitle("Nueva Cuenta por Cobrar")
         lay = QFormLayout(dlg)
-        cmb = QComboBox()
-        for c in self._listar_clientes():
-            cmb.addItem(c.get("nombre", "—"), c.get("id"))
+        clientes = self._listar_clientes()
+        txt_cliente, selected_cliente_id = self._build_autocomplete_selector(
+            [{"id": c.get("id"), "label": c.get("nombre", "—")} for c in clientes],
+            placeholder="Buscar cliente por nombre…"
+        )
         txt = QLineEdit(); txt.setPlaceholderText("Concepto")
         monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
         due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(15))
-        lay.addRow("Cliente:", cmb); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        lay.addRow("Cliente:", txt_cliente); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         lay.addRow(btns)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         if dlg.exec_() != QDialog.Accepted:
             return
+        cliente_id = selected_cliente_id.get("id")
+        if not cliente_id:
+            QMessageBox.warning(self, "Validación", "Seleccione un cliente válido desde la búsqueda.")
+            return
+
+        # Validar límite de crédito antes de crear CxC
+        try:
+            row_cli = self.container.db.execute(
+                "SELECT COALESCE(saldo,0), COALESCE(limite_credito,0), COALESCE(nombre,'') FROM clientes WHERE id=?",
+                (cliente_id,)
+            ).fetchone()
+            saldo_actual = float(row_cli[0] or 0) if row_cli else 0.0
+            limite = float(row_cli[1] or 0) if row_cli else 0.0
+            nombre_cli = str(row_cli[2] or "") if row_cli else ""
+            monto_nuevo = float(monto.value())
+            if limite <= 0:
+                QMessageBox.warning(
+                    self, "Límite de crédito",
+                    f"El cliente '{nombre_cli or cliente_id}' no tiene límite de crédito configurado."
+                )
+                return
+            if saldo_actual + monto_nuevo > limite + 0.01:
+                disponible = max(0.0, limite - saldo_actual)
+                QMessageBox.warning(
+                    self, "Límite excedido",
+                    f"Saldo actual: ${saldo_actual:,.2f}\n"
+                    f"Límite: ${limite:,.2f}\n"
+                    f"Disponible: ${disponible:,.2f}\n\n"
+                    f"La nueva CxC (${monto_nuevo:,.2f}) excede el límite."
+                )
+                return
+        except Exception as exc:
+            logger.warning("validación límite crédito CxC falló: %s", exc)
+            QMessageBox.warning(self, "Validación", "No fue posible validar el límite de crédito del cliente.")
+            return
         try:
             if self._fs and hasattr(self._fs, "crear_cxc"):
                 self._fs.crear_cxc(
-                    cliente_id=cmb.currentData(),
+                    cliente_id=cliente_id,
                     concepto=txt.text().strip() or "Cuenta por cobrar",
                     amount=float(monto.value()),
                     due_date=due.date().toString("yyyy-MM-dd"),
@@ -1157,7 +1200,7 @@ class ModuloFinanzasUnificadas(QWidget):
                 "INSERT INTO accounts_receivable(cliente_id, folio, concepto, amount, balance, due_date, status) "
                 "VALUES (?,?,?,?,?,?,'pendiente')",
                 (
-                    cmb.currentData(),
+                    cliente_id,
                     f"CXC-{datetime.now().strftime('%Y%m%d%H%M%S')}",
                     txt.text().strip() or "Cuenta por cobrar",
                     float(monto.value()),
@@ -1206,6 +1249,36 @@ class ModuloFinanzasUnificadas(QWidget):
             "SELECT id, nombre FROM clientes WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 500"
         ).fetchall()
         return [{"id": r[0], "nombre": r[1]} for r in rows]
+
+    def _build_autocomplete_selector(self, items: List[Dict[str, Any]], placeholder: str = ""):
+        """
+        Crea selector por barra de búsqueda + autocompletar.
+        Retorna (QLineEdit, selected_ref_dict) donde selected_ref_dict['id'] guarda el seleccionado.
+        """
+        txt = QLineEdit()
+        txt.setPlaceholderText(placeholder or "Buscar…")
+        selected_ref: Dict[str, Any] = {"id": None}
+        if not items:
+            return txt, selected_ref
+
+        options = [f"{it.get('id')} - {it.get('label','')}" for it in items]
+        index_map = {opt: int(it.get("id")) for opt, it in zip(options, items)}
+        completer = QCompleter(options)
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        txt.setCompleter(completer)
+
+        def _on_activate(text: str):
+            selected_ref["id"] = index_map.get(text)
+            txt.setText(text)
+
+        completer.activated[str].connect(_on_activate)
+
+        def _sync_manual():
+            selected_ref["id"] = index_map.get(txt.text().strip())
+
+        txt.editingFinished.connect(_sync_manual)
+        return txt, selected_ref
     
     # ──────────────────────────────────────────────────────────────────────────
     #  MÉTODOS DE GASTOS OPERATIVOS

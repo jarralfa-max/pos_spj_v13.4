@@ -78,8 +78,8 @@ def test_create_receta_sin_piece_product_id_no_falla(recetas_db):
         nombre="Despiece pollo",
         base_product_id=1,
         components=[
-            {"component_product_id": 2, "rendimiento_pct": 30, "merma_pct": 5},
-            {"component_product_id": 3, "rendimiento_pct": 25, "merma_pct": 5},
+            {"component_product_id": 2, "rendimiento_pct": 50, "merma_pct": 0},
+            {"component_product_id": 3, "rendimiento_pct": 50, "merma_pct": 0},
         ],
         usuario="test",
     )
@@ -99,7 +99,7 @@ def test_create_receta_piece_product_id_persisted(recetas_db):
         nombre="Receta prueba",
         base_product_id=1,
         components=[
-            {"component_product_id": 2, "rendimiento_pct": 50, "merma_pct": 5},
+            {"component_product_id": 2, "rendimiento_pct": 100, "merma_pct": 0},
         ],
         usuario="test",
     )
@@ -118,13 +118,26 @@ def test_create_dos_recetas_distintos_productos(recetas_db):
     r1 = repo.create(
         nombre="Receta A",
         base_product_id=1,
-        components=[{"component_product_id": 2, "rendimiento_pct": 40, "merma_pct": 5}],
+        components=[{"component_product_id": 2, "rendimiento_pct": 100, "merma_pct": 0}],
         usuario="test",
     )
     r2 = repo.create(
         nombre="Receta B",
         base_product_id=2,
-        components=[{"component_product_id": 3, "rendimiento_pct": 40, "merma_pct": 5}],
+        components=[{"component_product_id": 3, "rendimiento_pct": 100, "merma_pct": 0}],
         usuario="test",
     )
     assert r1 != r2
+
+
+def test_create_receta_rechaza_total_distinto_a_100(recetas_db):
+    from repositories.recetas import RecetaRepository, RecetaPercentageError
+
+    repo = RecetaRepository(recetas_db)
+    with pytest.raises(RecetaPercentageError):
+        repo.create(
+            nombre="Receta inválida",
+            base_product_id=1,
+            components=[{"component_product_id": 2, "rendimiento_pct": 80, "merma_pct": 0}],
+            usuario="test",
+        )

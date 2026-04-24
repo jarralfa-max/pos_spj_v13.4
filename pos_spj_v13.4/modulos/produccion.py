@@ -1196,7 +1196,7 @@ class DialogoReceta(QDialog):
         lay.addLayout(fl)
 
         # Components table
-        grp = QGroupBox("Componentes (suma rendimiento + merma ≤ 100%)")
+        grp = QGroupBox("Componentes (suma rendimiento debe ser 100% exacto)")
         gl = QVBoxLayout(grp)
 
         self._tbl_comp = QTableWidget()
@@ -1331,8 +1331,8 @@ class DialogoReceta(QDialog):
                 if ci in (1, 2, 3, 4): it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self._tbl_comp.setItem(ri, ci, it)
         grand = float(total_rend + total_merma)
-        ok = grand <= 100.01
-        icon  = "✅" if ok else "❌ EXCEDE 100%"
+        ok = abs(grand - 100.0) <= 0.01
+        icon  = "✅" if ok else "❌ DEBE SER 100%"
         self._lbl_totales.setText(
             f"{icon}  Rendimiento total: {float(total_rend):.3f}%  |  "
             f"Merma total: {float(total_merma):.3f}%  |  "
@@ -1359,10 +1359,10 @@ class DialogoReceta(QDialog):
             Decimal(str(c["rendimiento_pct"])) + Decimal(str(c["merma_pct"]))
             for c in self._comp_rows
         )
-        if total > Decimal("100.01"):
+        if abs(total - Decimal("100.00")) > Decimal("0.01"):
             QMessageBox.warning(
                 self, "Error de Porcentaje",
-                f"La suma total ({float(total):.3f}%) excede el 100%.\n"
+                f"La suma total ({float(total):.3f}%) debe ser exactamente 100%.\n"
                 "Ajuste los porcentajes antes de guardar."
             ); return
 
