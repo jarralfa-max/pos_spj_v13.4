@@ -710,7 +710,8 @@ class DialogoCliente(QDialog):
             apellido = self.edit_apellido.text().strip() or None
             telefono = self.edit_telefono.get_e164().strip() or None
             puntos = self.edit_puntos.value()
-            nivel = self.edit_nivel.text().strip() or None
+            # QComboBox no expone .text(); usar currentText para evitar fallos al guardar
+            nivel = self.edit_nivel.currentText().strip() or None
             descuento = self.edit_descuento.value()
             saldo = self.edit_saldo.value()
             limite_credito = self.edit_limite_credito.value()

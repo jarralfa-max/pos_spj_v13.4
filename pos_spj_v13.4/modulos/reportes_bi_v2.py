@@ -104,8 +104,9 @@ class ModuloReportesBIv2(QWidget):
         layout_principal.addWidget(self.lbl_comparativa)
 
         # --- FILA 2: TABLAS DE RANKING ---
-        tablas_layout = QHBoxLayout()
-        
+        self._tabs_rankings = QTabWidget()
+        self._tabs_rankings.setDocumentMode(True)
+
         # Productos Estrella
         self._grp_top = self._crear_tabla_ranking("⭐ Productos Más Vendidos", ["Producto", "Cant.", "Ingresos"])
         self.tabla_top = self._grp_top._tabla
@@ -116,11 +117,10 @@ class ModuloReportesBIv2(QWidget):
         self._grp_vips = self._crear_tabla_ranking("👑 Clientes Recurrentes (VIP)", ["Cliente", "Visitas", "Gasto Total"])
         self.tabla_vips = self._grp_vips._tabla
 
-        tablas_layout.addWidget(self.tabla_top)
-        tablas_layout.addWidget(self.tabla_lentos)
-        tablas_layout.addWidget(self.tabla_vips)
-        
-        layout_principal.addLayout(tablas_layout)
+        self._tabs_rankings.addTab(self._grp_top, "Más vendidos")
+        self._tabs_rankings.addTab(self._grp_lentos, "Lentos")
+        self._tabs_rankings.addTab(self._grp_vips, "Clientes VIP")
+        layout_principal.addWidget(self._tabs_rankings)
 
         # ── Rentabilidad por producto (tab adicional) ─────────────────────────
         self._build_rentabilidad_section(layout_principal)

@@ -21,6 +21,7 @@ from typing import List, Dict, Any, Optional
 
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
+from core.services.stock_reservation_service import StockReservationService
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QMessageBox, QHBoxLayout,
@@ -833,6 +834,8 @@ class ModuloVentas(ModuloBase):
         
         self.sucursal_id     = 1
         self.sucursal_nombre = "Principal"
+        self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
+        self._reserva_activa_id: Optional[int] = None
 
         self._theme_initialized = False
         self.gestor_temas = GestorTemas(self.conexion)
@@ -896,6 +899,7 @@ class ModuloVentas(ModuloBase):
     def set_sucursal(self, sucursal_id: int, sucursal_nombre: str):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
+        self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
         if hasattr(self, "lbl_estado_terminal"):
             self.lbl_estado_terminal.setText(f"Terminal: ❌ No disponible  |  🏪 {sucursal_nombre}")
         # v13.4: Recargar productos con stock de la sucursal correcta
@@ -2592,17 +2596,9 @@ class ModuloVentas(ModuloBase):
                 self.actualizar_tabla_compra()
 
     def obtener_stock_producto(self, producto_id: int) -> float:
-        """v13.4: Lee stock de branch_inventory para la sucursal activa."""
+        """Stock disponible = físico - reservado activo."""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute(
-                "SELECT COALESCE(bi.quantity, p.existencia, 0) "
-                "FROM productos p "
-                "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
-                "WHERE p.id=?",
-                (self.sucursal_id, producto_id))
-            resultado = cursor.fetchone()
-            return float(resultado[0]) if resultado else 0.0
+            return float(self._stock_reservas.stock_disponible(producto_id))
         except Exception:
             return 0.0
 
@@ -2771,13 +2767,30 @@ class ModuloVentas(ModuloBase):
             else: return
         else:
             nombre_venta = f"Venta - {self.cliente_actual['nombre']}"
+
+        # Reservar stock disponible para evitar sobreventa entre terminales
+        try:
+            reserva_id = self._stock_reservas.reservar(
+                f"SUSP-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                self.compra_actual,
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Stock insuficiente", str(exc))
+            return
             
         venta_id = f"venta_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.ventas_en_espera[venta_id] = {
             'nombre': nombre_venta, 'cliente': self.cliente_actual,
             'compra': self.compra_actual.copy(), 'totales': self.totales.copy(),
-            'timestamp': datetime.now()
+            'timestamp': datetime.now(),
+            'reserva_id': reserva_id,
         }
+        try:
+            from core.events.event_bus import get_bus
+            get_bus().publish("venta_suspendida", {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
+            get_bus().publish("stock_reservado", {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
+        except Exception:
+            pass
         self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
         self.mostrar_mensaje("Éxito", f"Venta '{nombre_venta}' suspendida.")
         self.cancelar_venta(silent=True)
@@ -2801,6 +2814,7 @@ class ModuloVentas(ModuloBase):
             venta_data = self.ventas_en_espera.pop(venta_id)
             self.cancelar_venta(silent=True)
             self.compra_actual = venta_data['compra'].copy()
+            self._reserva_activa_id = venta_data.get('reserva_id')
             self.cliente_actual = venta_data['cliente']
             self.totales = venta_data['totales'].copy()
             self.actualizar_tabla_compra()
@@ -3082,6 +3096,30 @@ class ModuloVentas(ModuloBase):
 
             QMessageBox.information(self, "Venta Exitosa",
                 f"¡Venta #{folio} completada!\nTotal: ${self.totales['total_final']:.2f}")
+            if self._reserva_activa_id:
+                self._stock_reservas.liberar(self._reserva_activa_id, motivo="confirmada")
+                try:
+                    from core.events.event_bus import get_bus
+                    get_bus().publish("venta_confirmada", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
+                    get_bus().publish("stock_descontado", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
+                except Exception:
+                    pass
+                self._reserva_activa_id = None
+            # Publicar actualización de stock para etiquetas/inventario sin reiniciar
+            try:
+                from core.events.event_bus import get_bus, AJUSTE_INVENTARIO
+                get_bus().publish(AJUSTE_INVENTARIO, {
+                    "event_type": "stock_actualizado",
+                    "motivo": "venta_confirmada",
+                    "sucursal_id": self.sucursal_id,
+                    "folio": folio,
+                })
+                get_bus().publish("stock_actualizado", {
+                    "sucursal_id": self.sucursal_id,
+                    "folio": folio,
+                })
+            except Exception:
+                pass
             self.cancelar_venta(silent=True)
             self._actualizar_comision_turno()
             self._tiempo_inicio_venta = None  # reset timer
@@ -3315,6 +3353,15 @@ class ModuloVentas(ModuloBase):
             if respuesta == QMessageBox.No: return
                 
         self.compra_actual.clear()
+        if self._reserva_activa_id:
+            try:
+                self._stock_reservas.liberar(self._reserva_activa_id, motivo="cancelada")
+                from core.events.event_bus import get_bus
+                get_bus().publish("venta_suspendida_cancelada", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
+                get_bus().publish("stock_reserva_liberada", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
+            except Exception:
+                pass
+            self._reserva_activa_id = None
         self.limpiar_seleccion_producto()
         self.limpiar_cliente()
         self.actualizar_tabla_compra()

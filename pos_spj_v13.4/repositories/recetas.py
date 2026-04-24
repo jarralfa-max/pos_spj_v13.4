@@ -190,7 +190,7 @@ class RecetaRepository:
 
     def validate_percentages(self, components: List[Dict]) -> None:
         """Validates sum(rendimiento_pct + merma_pct) <= 100.00 per component,
-        and total rendimiento does not exceed 100%."""
+        and total receta sea exactamente 100% (± tolerancia)."""
         total = Decimal("0")
         for comp in components:
             rend = Decimal(str(comp.get("rendimiento_pct", 0)))
@@ -207,6 +207,10 @@ class RecetaRepository:
         if total > MAX_TOTAL + TOLERANCE:
             raise RecetaPercentageError(
                 f"TOTAL_RENDIMIENTO_EXCEEDS_100: {total}"
+            )
+        if abs(total - MAX_TOTAL) > TOLERANCE:
+            raise RecetaPercentageError(
+                f"TOTAL_RENDIMIENTO_MUST_BE_100: {total}"
             )
 
     def check_unique_base_product(self, base_product_id: int,
@@ -227,10 +231,17 @@ class RecetaRepository:
             )
 
     def validate_component_products_exist(self, component_ids: List[int]) -> None:
+        prod_cols = self._get_table_columns('productos')
+        active_col = "is_active" if "is_active" in prod_cols else ("activo" if "activo" in prod_cols else None)
         for cid in component_ids:
-            row = self.db.execute(
-                "SELECT id FROM productos WHERE id = ? AND is_active = 1", (cid,)
-            ).fetchone()
+            if active_col:
+                row = self.db.execute(
+                    f"SELECT id FROM productos WHERE id = ? AND COALESCE({active_col},1)=1", (cid,)
+                ).fetchone()
+            else:
+                row = self.db.execute(
+                    "SELECT id FROM productos WHERE id = ?", (cid,)
+                ).fetchone()
             if not row:
                 raise RecetaError(f"COMPONENT_NOT_FOUND: {cid}")
 
