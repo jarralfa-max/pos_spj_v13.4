@@ -3,7 +3,10 @@
 
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_warning_button, apply_tooltip
+)
 import logging
 import os
 import sqlite3
@@ -1001,6 +1004,7 @@ class ModuloVentas(ModuloBase):
         self._filter_busqueda = _ScanContextFilter(self, "producto", self.txt_busqueda)
         self.txt_busqueda.installEventFilter(self._filter_busqueda)
         self.btn_buscar = QPushButton("Buscar")
+        self.btn_buscar.setMinimumWidth(72)
         self.btn_buscar.setProperty("class", "search-button")
         self.btn_limpiar_busqueda = QPushButton("❌")
         self.btn_limpiar_busqueda.setToolTip("Limpiar búsqueda")
@@ -1043,7 +1047,7 @@ class ModuloVentas(ModuloBase):
         
         # --- PANEL DERECHO (Carrito y Acciones) ---
         panel_derecho = QWidget()
-        panel_derecho.setMinimumWidth(420)
+        panel_derecho.setMinimumWidth(460)
         layout_derecho = QVBoxLayout(panel_derecho)
         layout_derecho.setSpacing(8)
         layout_derecho.setContentsMargins(5, 5, 5, 5)
@@ -1066,13 +1070,13 @@ class ModuloVentas(ModuloBase):
         self._filter_cliente = _ScanContextFilter(self, "cliente", self.txt_cliente)
         self.txt_cliente.installEventFilter(self._filter_cliente)
         self.btn_buscar_cliente = QPushButton("🔍")
-        self.btn_buscar_cliente.setFixedWidth(40)
+        self.btn_buscar_cliente.setFixedSize(36, 32)
         self.btn_buscar_cliente.setProperty("class", "icon-button")
         self.btn_agregar_cliente = QPushButton("➕")
-        self.btn_agregar_cliente.setFixedWidth(40)
+        self.btn_agregar_cliente.setFixedSize(36, 32)
         self.btn_agregar_cliente.setProperty("class", "icon-button")
         self.btn_limpiar_cliente = QPushButton("❌")
-        self.btn_limpiar_cliente.setFixedWidth(40)
+        self.btn_limpiar_cliente.setFixedSize(36, 32)
         self.btn_limpiar_cliente.setProperty("class", "icon-button")
         
         busqueda_cliente_layout = QHBoxLayout()
@@ -1185,11 +1189,13 @@ class ModuloVentas(ModuloBase):
         desc_lay.setContentsMargins(6, 4, 6, 4)
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
+            btn_d.setMinimumWidth(56)
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
             btn_d.setProperty("class", "btn-outline btn-sm")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
         btn_custom = QPushButton("Custom")
+        btn_custom.setMinimumWidth(62)
         btn_custom.setToolTip("Descuento personalizado")
         btn_custom.setProperty("class", "btn-accent btn-sm")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
@@ -1199,12 +1205,15 @@ class ModuloVentas(ModuloBase):
         self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta")
         self.btn_factura.setEnabled(False)
         self.btn_factura.clicked.connect(self._generar_factura)
-        layout_derecho.addWidget(self.btn_factura)
-
         self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimprimir", "Reimprimir el ticket de la última venta")
         self.btn_reimprimir.setEnabled(False)
         self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
-        layout_derecho.addWidget(self.btn_reimprimir)
+        row_docs = QHBoxLayout()
+        row_docs.setSpacing(8)
+        row_docs.addWidget(self.btn_factura)
+        row_docs.addWidget(self.btn_reimprimir)
+        row_docs.addStretch()
+        layout_derecho.addLayout(row_docs)
 
         self._banner_sin_impresora = QLabel(
             "⚠️  Sin impresora configurada — los tickets se guardarán en PDF (carpeta TICKETS/)")
@@ -1220,6 +1229,8 @@ class ModuloVentas(ModuloBase):
         
         self.btn_devolucion = create_secondary_button(self, "↩ Devolución", "Cancelar o devolver una venta anterior (requiere permiso)")
         self.btn_devolucion.setEnabled(False)   # se activa tras login con permiso
+        for btn in (self.btn_cobrar, self.btn_suspender, self.btn_reanudar, self.btn_cancelar, self.btn_devolucion):
+            btn.setMinimumWidth(150)
 
         acciones_layout.addWidget(self.btn_cobrar, 0, 0, 1, 2)
         acciones_layout.addWidget(self.btn_suspender, 1, 0)
@@ -1233,6 +1244,21 @@ class ModuloVentas(ModuloBase):
         splitter.addWidget(panel_derecho)
         splitter.setSizes([600, 500])
         main_layout.addWidget(splitter)
+        self._normalizar_botones_principales()
+
+    def _normalizar_botones_principales(self):
+        """
+        Evita que botones del módulo ventas se estiren al ancho completo
+        en layouts verticales (feedback UX de pantallas saturadas).
+        """
+        for btn in self.findChildren(QPushButton):
+            # Preservar icon-buttons compactos ya configurados en 40px.
+            if btn.minimumWidth() and btn.minimumWidth() <= 45:
+                continue
+            if btn.maximumWidth() == 16777215:
+                btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            if btn.minimumHeight() < 32:
+                btn.setMinimumHeight(32)
 
     def limpiar_busqueda_productos(self):
         self.txt_busqueda.clear()

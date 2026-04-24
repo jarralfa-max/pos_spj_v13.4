@@ -2,7 +2,10 @@
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography
-from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input_field, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_input_field, apply_tooltip, FilterBar, LoadingIndicator, EmptyStateWidget
+)
 import logging
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO, AJUSTE_INVENTARIO, COMPRA_REGISTRADA
@@ -46,9 +49,9 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         # Search + actions
         ctrl = QHBoxLayout()
         ctrl.setSpacing(Spacing.SM)
-        self.txt_buscar = create_input_field(self, "Buscar producto…")
-        self.txt_buscar.textChanged.connect(self.cargar_datos)
-        ctrl.addWidget(self.txt_buscar, 1)
+        self._filter_bar = FilterBar(self, placeholder="Buscar producto o categoría…")
+        self._filter_bar.filters_changed.connect(lambda _v: self.cargar_datos())
+        ctrl.addWidget(self._filter_bar, 1)
         
         btn_ref = QPushButton("🔄")
         btn_ref.setFixedWidth(36)
@@ -70,6 +73,9 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         ctrl.addWidget(btn_exp_csv)
         ctrl.addWidget(btn_exp_xls)
         lay.addLayout(ctrl)
+        self._loading = LoadingIndicator("Cargando inventario…", self)
+        self._loading.hide()
+        lay.addWidget(self._loading)
 
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(5)
@@ -82,6 +88,14 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla.setObjectName("tableView")
         lay.addWidget(self.tabla)
+        self._empty_state = EmptyStateWidget(
+            "Sin productos",
+            "No se encontraron productos para los filtros seleccionados.",
+            "📭",
+            self,
+        )
+        self._empty_state.hide()
+        lay.addWidget(self._empty_state)
 
         self.lbl_total = QLabel("")
         self.lbl_total.setObjectName("caption")
@@ -95,34 +109,44 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         except Exception: pass
 
     def cargar_datos(self):
-        buscar = self.txt_buscar.text().strip() if hasattr(self,"txt_buscar") else ""
-        self.tabla.setRowCount(0)
+        if hasattr(self, "_loading"):
+            self._loading.show()
         try:
-            db = self.container.db
-            q = ("SELECT p.id, p.nombre, COALESCE(p.categoria,''), "
-                 "COALESCE(bi.quantity, p.existencia, 0), COALESCE(p.unidad,'pza') "
-                 "FROM productos p "
-                 "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
-                 "WHERE p.activo=1")
-            params = [self.sucursal_id]
-            if buscar:
-                q += " AND (p.nombre LIKE ? OR p.categoria LIKE ?)"
-                params += [f"%{buscar}%", f"%{buscar}%"]
-            q += " ORDER BY p.nombre"
-            rows = db.execute(q, params).fetchall()
-        except Exception as e:
-            logger.warning("cargar inventario: %s", e)
-            rows = []
-        for i, r in enumerate(rows):
-            self.tabla.insertRow(i)
-            for j, v in enumerate(r):
-                it = QTableWidgetItem(f"{float(v):.3f}" if j == 3 else str(v) if v else "")
-                if j == 3:
-                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    if float(v) <= 0:
-                        it.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
-                self.tabla.setItem(i, j, it)
-        self.lbl_total.setText(f"{len(rows)} productos")
+            buscar = ""
+            if hasattr(self, "_filter_bar"):
+                buscar = self._filter_bar.values().get("search", "").strip()
+            self.tabla.setRowCount(0)
+            try:
+                db = self.container.db
+                q = ("SELECT p.id, p.nombre, COALESCE(p.categoria,''), "
+                     "COALESCE(bi.quantity, p.existencia, 0), COALESCE(p.unidad,'pza') "
+                     "FROM productos p "
+                     "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
+                     "WHERE p.activo=1")
+                params = [self.sucursal_id]
+                if buscar:
+                    q += " AND (p.nombre LIKE ? OR p.categoria LIKE ?)"
+                    params += [f"%{buscar}%", f"%{buscar}%"]
+                q += " ORDER BY p.nombre"
+                rows = db.execute(q, params).fetchall()
+            except Exception as e:
+                logger.warning("cargar inventario: %s", e)
+                rows = []
+            for i, r in enumerate(rows):
+                self.tabla.insertRow(i)
+                for j, v in enumerate(r):
+                    it = QTableWidgetItem(f"{float(v):.3f}" if j == 3 else str(v) if v else "")
+                    if j == 3:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                        if float(v) <= 0:
+                            it.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                    self.tabla.setItem(i, j, it)
+            self.lbl_total.setText(f"{len(rows)} productos")
+            if hasattr(self, "_empty_state"):
+                self._empty_state.setVisible(len(rows) == 0)
+        finally:
+            if hasattr(self, "_loading"):
+                self._loading.hide()
 
     def abrir_dialogo_ajuste(self):
         # v13.30: Verificar permiso

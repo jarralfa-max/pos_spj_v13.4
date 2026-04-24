@@ -29,9 +29,9 @@ from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QFrame, QLabel, QVBoxLayout, 
     QHBoxLayout, QWidget, QToolTip, QGraphicsDropShadowEffect,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QComboBox
+    QComboBox, QProgressBar, QMessageBox, QTabWidget, QScrollArea, QSizePolicy, QDialog
 )
-from PyQt5.QtCore import Qt, QPoint, QTimer, QSize
+from PyQt5.QtCore import Qt, QPoint, QTimer, QSize, pyqtSignal, QObject, QEvent
 from PyQt5.QtGui import QFont, QPalette, QColor
 import logging
 
@@ -40,6 +40,81 @@ from modulos.design_tokens import (
 )
 
 logger = logging.getLogger("spj.ui_components")
+_DIALOG_NORMALIZER = None
+
+
+_GLOBAL_THEME_QSS = {
+    "oscuro": f"""
+        QWidget {{
+            background-color: {Colors.NEUTRAL.DARK_BG};
+            color: {Colors.NEUTRAL.DARK_TEXT};
+        }}
+        QFrame, QGroupBox {{
+            background-color: {Colors.NEUTRAL.DARK_CARD};
+            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
+            border-radius: {Borders.RADIUS_LG}px;
+        }}
+        QPushButton#primaryBtn, QPushButton#successBtn, QPushButton#dangerBtn,
+        QPushButton#secondaryBtn, QPushButton#warningBtn, QPushButton#outlineBtn {{
+            min-height: {Spacing.BTN_HEIGHT_MIN}px;
+            border-radius: {Borders.RADIUS_MD}px;
+            padding: 6px 12px;
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
+        }}
+        QTabWidget::pane {{
+            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
+            border-radius: {Borders.RADIUS_LG}px;
+            top: -1px;
+        }}
+        QTabBar::tab {{
+            background: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.SLATE_200};
+            padding: 8px 14px;
+            margin-right: 4px;
+            border-top-left-radius: {Borders.RADIUS_MD}px;
+            border-top-right-radius: {Borders.RADIUS_MD}px;
+        }}
+        QTabBar::tab:selected {{
+            background: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+        }}
+    """,
+    "claro": f"""
+        QWidget {{
+            background-color: #F8FAFC;
+            color: #0F172A;
+        }}
+        QFrame, QGroupBox {{
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: {Borders.RADIUS_LG}px;
+        }}
+        QPushButton#primaryBtn, QPushButton#successBtn, QPushButton#dangerBtn,
+        QPushButton#secondaryBtn, QPushButton#warningBtn, QPushButton#outlineBtn {{
+            min-height: {Spacing.BTN_HEIGHT_MIN}px;
+            border-radius: {Borders.RADIUS_MD}px;
+            padding: 6px 12px;
+            font-weight: {Typography.WEIGHT_SEMIBOLD};
+        }}
+        QTabWidget::pane {{
+            border: 1px solid #CBD5E1;
+            border-radius: {Borders.RADIUS_LG}px;
+            top: -1px;
+        }}
+        QTabBar::tab {{
+            background: #E2E8F0;
+            color: #334155;
+            padding: 8px 14px;
+            margin-right: 4px;
+            border-top-left-radius: {Borders.RADIUS_MD}px;
+            border-top-right-radius: {Borders.RADIUS_MD}px;
+        }}
+        QTabBar::tab:selected {{
+            background: #2563EB;
+            color: #FFFFFF;
+        }}
+    """,
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -50,6 +125,8 @@ def _configure_button(btn: QPushButton, variant: str = "primary") -> QPushButton
     """Configura un botón con estilos estándar según variante."""
     btn.setFixedHeight(Spacing.BTN_HEIGHT_MIN)
     btn.setCursor(Qt.PointingHandCursor)
+    # Evitar botones que se expanden a todo el ancho en layouts verticales.
+    btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
     
     # Asignar objectName para usar estilos CSS globales de config.py
     variant_map = {
@@ -623,6 +700,8 @@ def create_table(parent, show_grid: bool = False, alternating_colors: bool = Tru
     # Scrollbars
     table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+    table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
     
     # Ajuste automático
     table.setSizeAdjustPolicy(QAbstractItemView.AdjustToContentsOnFirstShow)
@@ -687,7 +766,88 @@ def create_table_with_columns(parent, columns: list,
     table = create_table(parent, show_grid, alternating_colors)
     table.setColumnCount(len(columns))
     table.setHorizontalHeaderLabels(columns)
+    table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
     return table
+
+
+def create_standard_tabs(parent=None) -> QTabWidget:
+    """Crea tabs estandarizados para dividir pantallas cargadas."""
+    tabs = QTabWidget(parent)
+    tabs.setObjectName("standardTabs")
+    tabs.setUsesScrollButtons(True)
+    tabs.setDocumentMode(True)
+    tabs.setElideMode(Qt.ElideRight)
+    return tabs
+
+
+def wrap_in_scroll_area(widget: QWidget, parent=None) -> QScrollArea:
+    """Envuelve un widget en QScrollArea para formularios/tablas extensas."""
+    area = QScrollArea(parent)
+    area.setWidgetResizable(True)
+    area.setFrameShape(QFrame.NoFrame)
+    area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    area.setWidget(widget)
+    return area
+
+
+def get_global_theme_qss(theme: str = "oscuro") -> str:
+    """Retorna QSS global base para tema claro/oscuro."""
+    key = (theme or "oscuro").strip().lower()
+    return _GLOBAL_THEME_QSS.get(key, _GLOBAL_THEME_QSS["oscuro"])
+
+
+def apply_global_theme(app_or_widget, theme: str = "oscuro") -> bool:
+    """Aplica el tema global base a QApplication y opcionalmente a un widget."""
+    qss = get_global_theme_qss(theme)
+    if not qss:
+        return False
+    try:
+        from PyQt5.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(qss)
+        if app_or_widget is not None and hasattr(app_or_widget, "setStyleSheet"):
+            app_or_widget.setStyleSheet(qss)
+        return True
+    except Exception:
+        return False
+
+
+class _DialogButtonNormalizer(QObject):
+    """Normaliza políticas de tamaño de botones al mostrarse cualquier diálogo."""
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QDialog) and event.type() == QEvent.Show:
+            try:
+                for btn in obj.findChildren(QPushButton):
+                    if btn.minimumWidth() and btn.minimumWidth() <= 45:
+                        continue
+                    btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+                    if btn.minimumHeight() < 32:
+                        btn.setMinimumHeight(32)
+            except Exception:
+                pass
+        return super().eventFilter(obj, event)
+
+
+def install_dialog_button_normalizer(app=None) -> bool:
+    """
+    Instala un event filter global para evitar botones full-width en QDialog
+    de todos los módulos sin tocar cada diálogo individual.
+    """
+    global _DIALOG_NORMALIZER
+    try:
+        from PyQt5.QtWidgets import QApplication
+        target = app or QApplication.instance()
+        if target is None:
+            return False
+        if _DIALOG_NORMALIZER is None:
+            _DIALOG_NORMALIZER = _DialogButtonNormalizer(target)
+            target.installEventFilter(_DIALOG_NORMALIZER)
+        return True
+    except Exception:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -711,6 +871,7 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
     btn = QPushButton(text, parent)
     btn.setFixedHeight(18)
     btn.setCursor(Qt.PointingHandCursor)
+    btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
     
     # Mapeo de variantes
     variant_map = {
@@ -750,6 +911,184 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
         apply_tooltip(btn, tooltip)
     
     return btn
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  COMPONENTES AVANZADOS (UI/UX POS)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class EmptyStateWidget(QFrame):
+    """Estado vacío reutilizable para tablas, listas y dashboards."""
+
+    def __init__(self, title: str = "Sin información", message: str = "No hay datos para mostrar.",
+                 icon: str = "📭", parent=None):
+        super().__init__(parent)
+        self.setObjectName("emptyState")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(20, 24, 20, 24)
+        lay.setSpacing(6)
+
+        lbl_icon = QLabel(icon)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet("font-size: 26px;")
+
+        self.lbl_title = QLabel(title)
+        self.lbl_title.setAlignment(Qt.AlignCenter)
+        self.lbl_title.setStyleSheet("font-weight: 700; font-size: 14px;")
+
+        self.lbl_message = QLabel(message)
+        self.lbl_message.setWordWrap(True)
+        self.lbl_message.setAlignment(Qt.AlignCenter)
+        self.lbl_message.setStyleSheet("color: #64748B; font-size: 12px;")
+
+        lay.addWidget(lbl_icon)
+        lay.addWidget(self.lbl_title)
+        lay.addWidget(self.lbl_message)
+
+
+class LoadingIndicator(QFrame):
+    """Indicador de carga liviano para operaciones de refresh en dashboards."""
+
+    def __init__(self, message: str = "Cargando…", parent=None):
+        super().__init__(parent)
+        self.setObjectName("loadingIndicator")
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(8)
+
+        self.progress = QProgressBar(self)
+        self.progress.setRange(0, 0)
+        self.progress.setFixedWidth(140)
+        self.progress.setTextVisible(False)
+
+        self.lbl = QLabel(message)
+        self.lbl.setStyleSheet("color: #64748B; font-size: 12px;")
+
+        lay.addWidget(self.progress)
+        lay.addWidget(self.lbl)
+        lay.addStretch()
+
+    def set_message(self, message: str) -> None:
+        self.lbl.setText(message)
+
+
+class FilterBar(QFrame):
+    """Barra de filtros reutilizable: búsqueda + filtros rápidos + limpiar."""
+
+    filters_changed = pyqtSignal(dict)
+
+    def __init__(self, parent=None, placeholder: str = "Buscar…", combo_filters: dict | None = None):
+        super().__init__(parent)
+        self.setObjectName("filterBar")
+        self._combos = {}
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(8)
+
+        self.search = create_input_field(self, placeholder=placeholder)
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._emit_filters)
+        lay.addWidget(self.search, 2)
+
+        for key, options in (combo_filters or {}).items():
+            cmb = create_combo(self, items=["Todos"] + list(options))
+            cmb.currentTextChanged.connect(self._emit_filters)
+            cmb.setMinimumWidth(140)
+            self._combos[key] = cmb
+            lay.addWidget(cmb, 1)
+
+        self.btn_clear = create_outline_button(self, "Limpiar")
+        self.btn_clear.clicked.connect(self.clear)
+        lay.addWidget(self.btn_clear)
+
+    def clear(self) -> None:
+        self.search.clear()
+        for cmb in self._combos.values():
+            cmb.setCurrentIndex(0)
+        self._emit_filters()
+
+    def values(self) -> dict:
+        payload = {"search": self.search.text().strip()}
+        for key, cmb in self._combos.items():
+            value = cmb.currentText().strip()
+            payload[key] = "" if value.lower() == "todos" else value
+        return payload
+
+    def _emit_filters(self, *_args) -> None:
+        self.filters_changed.emit(self.values())
+
+
+def confirm_action(parent, title: str, message: str,
+                   confirm_text: str = "Confirmar", cancel_text: str = "Cancelar") -> bool:
+    """Diálogo estándar para acciones críticas (no destructivas irreversibles)."""
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Warning)
+    box.setWindowTitle(title)
+    box.setText(message)
+    box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+    yes_btn = box.button(QMessageBox.Yes)
+    no_btn = box.button(QMessageBox.No)
+    if yes_btn:
+        yes_btn.setText(confirm_text)
+    if no_btn:
+        no_btn.setText(cancel_text)
+    return box.exec_() == QMessageBox.Yes
+
+
+class DataTableWithFilters(QWidget):
+    """Tabla reutilizable con barra de filtros, loading y estado vacío."""
+
+    def __init__(self, headers: list[str], parent=None):
+        super().__init__(parent)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(6)
+
+        self.filter_bar = FilterBar(self, placeholder="Filtrar en tabla…")
+        lay.addWidget(self.filter_bar)
+
+        self.loading = LoadingIndicator("Cargando tabla…", self)
+        self.loading.hide()
+        lay.addWidget(self.loading)
+
+        self.table = QTableWidget(self)
+        self.table.setColumnCount(len(headers))
+        self.table.setHorizontalHeaderLabels(headers)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setAlternatingRowColors(True)
+        self.table.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        lay.addWidget(self.table, 1)
+
+        self.empty_state = EmptyStateWidget("Sin resultados", "Ajusta los filtros para continuar.", "🔎", self)
+        self.empty_state.hide()
+        lay.addWidget(self.empty_state)
+
+        self.filter_bar.filters_changed.connect(self._apply_filter)
+
+    def set_loading(self, loading: bool, message: str = "Cargando tabla…") -> None:
+        self.loading.set_message(message)
+        self.loading.setVisible(loading)
+
+    def _apply_filter(self, payload: dict) -> None:
+        search = (payload or {}).get("search", "").lower().strip()
+        visible_rows = 0
+        for row in range(self.table.rowCount()):
+            visible = True
+            if search:
+                row_text = " | ".join(
+                    (self.table.item(row, col).text() if self.table.item(row, col) else "")
+                    for col in range(self.table.columnCount())
+                ).lower()
+                visible = search in row_text
+            self.table.setRowHidden(row, not visible)
+            if visible:
+                visible_rows += 1
+        self.empty_state.setVisible(self.table.rowCount() == 0 or visible_rows == 0)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -827,38 +1166,42 @@ __all__ = [
     "create_accent_button",
     "create_outline_button",
     "create_icon_button",
-    
     # Inputs
     "create_input_field",
-    "create_input",  # Alias para compatibilidad
-    "create_combo",  # Nuevo
+    "create_input",
+    "create_combo",
     "create_labeled_input",
-    
     # Cards
     "create_card",
     "create_stat_card",
-    
     # Badges
     "create_badge",
-    
     # Tooltips
     "apply_tooltip",
-    
     # Separadores
     "create_divider",
-    
     # Labels
     "create_heading",
     "create_heading_label",
     "create_subheading",
     "create_caption",
     "create_label",
-    
     # Contenedores
     "create_section_container",
-    
-    # Tablas (NUEVO)
+    # Tablas
     "create_table",
     "create_table_with_columns",
     "create_table_button",
+    "create_standard_tabs",
+    "wrap_in_scroll_area",
+    # Componentes avanzados
+    "EmptyStateWidget",
+    "LoadingIndicator",
+    "FilterBar",
+    "DataTableWithFilters",
+    "confirm_action",
+    # Tema global
+    "get_global_theme_qss",
+    "apply_global_theme",
+    "install_dialog_button_normalizer",
 ]

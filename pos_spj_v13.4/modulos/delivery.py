@@ -5,7 +5,11 @@ import logging
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_secondary_button, create_warning_button, create_input, create_combo, create_card, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_warning_button, create_input, create_combo,
+    create_card, apply_tooltip, LoadingIndicator, EmptyStateWidget
+)
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
@@ -260,6 +264,17 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self.lbl_stats.setObjectName("caption")
         filtro_layout.addWidget(self.lbl_stats)
         layout.addLayout(filtro_layout)
+        self._loading = LoadingIndicator("Cargando pedidos delivery…", self)
+        self._loading.hide()
+        layout.addWidget(self._loading)
+        self._empty = EmptyStateWidget(
+            "Sin pedidos",
+            "No hay pedidos de delivery para el filtro seleccionado.",
+            "🛵",
+            self,
+        )
+        self._empty.hide()
+        layout.addWidget(self._empty)
         # Kanban board
         splitter = QSplitter(Qt.Horizontal)
         self.columnas = {}
@@ -452,6 +467,8 @@ if(drivers.length===0){{
         except Exception: pass
     def cargar_pedidos(self):
         filtro = self.combo_filtro.currentText()
+        self._loading.show()
+        visibles = 0
         # Clear kanban columns
         for estado, col_layout in self.columnas.items():
             while col_layout.count() > 1:
@@ -472,10 +489,15 @@ if(drivers.length===0){{
                     card = TarjetaPedido(p)
                     card.accion_requerida.connect(self.ejecutar_accion)
                     self.columnas[estado].insertWidget(self.columnas[estado].count()-1, card)
+                    visibles += 1
             stats = "  ".join(f"{ESTADO_COLOR.get(e,'#FFF')} {e}:{n}" for e,n in counts.items() if n>0)
             self.lbl_stats.setText(f"Pedidos activos: {sum(counts.get(e,0) for e in ['pendiente','asignado','en_camino'])}")
+            self._empty.setVisible(visibles == 0)
         except Exception as e:
             logger.error("cargar_pedidos: %s", e)
+            self._empty.setVisible(True)
+        finally:
+            self._loading.hide()
 
     def ejecutar_accion(self, pedido_id: int, accion: str):
         try:

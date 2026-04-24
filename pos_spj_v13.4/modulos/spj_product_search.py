@@ -56,31 +56,55 @@ class ProductSearchWidget(QWidget):
     def set_db(self, db) -> None:
         self.db = db
 
+    def _is_dark_mode(self) -> bool:
+        """Detección robusta de tema oscuro para popups flotantes."""
+        app = QApplication.instance()
+        app_qss = app.styleSheet().lower() if app and hasattr(app, "styleSheet") else ""
+        dark_hints = ("0f172a", "1e293b", "#111827", "dark")
+        if any(h in app_qss for h in dark_hints):
+            return True
+        return self.palette().color(self.backgroundRole()).lightness() < 128
+
     # ── UI ────────────────────────────────────────────────────────────────────
 
     def _build_ui(self, placeholder: str) -> None:
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
+        dark_mode = self._is_dark_mode()
 
         self.txt_search = QLineEdit()
         self.txt_search.setPlaceholderText(placeholder)
-        self.txt_search.setStyleSheet(
-            "QLineEdit { padding:6px 10px; border:1px solid #ced4da;"
-            " border-radius:5px; font-size:13px; }"
-            "QLineEdit:focus { border-color:#2E86C1; }"
-        )
+        if dark_mode:
+            self.txt_search.setStyleSheet(
+                "QLineEdit { padding:6px 10px; border:1px solid #334155;"
+                " background:#0F172A; color:#E2E8F0; border-radius:6px; font-size:13px; }"
+                "QLineEdit:focus { border-color:#2563EB; }"
+            )
+        else:
+            self.txt_search.setStyleSheet(
+                "QLineEdit { padding:6px 10px; border:1px solid #ced4da;"
+                " border-radius:5px; font-size:13px; }"
+                "QLineEdit:focus { border-color:#2E86C1; }"
+            )
         self.txt_search.textChanged.connect(self._on_text_changed)
         self.txt_search.returnPressed.connect(self._on_enter)
         self.txt_search.installEventFilter(self)   # for scanner detection
 
         btn_search = QPushButton("🔍")
         btn_search.setFixedWidth(36)
-        btn_search.setStyleSheet(
-            "QPushButton { background:#2E86C1; color:white; border-radius:5px;"
-            " font-size:14px; padding:6px; }"
-            "QPushButton:hover { background:#1A5276; }"
-        )
+        if dark_mode:
+            btn_search.setStyleSheet(
+                "QPushButton { background:#1E293B; color:#E2E8F0; border:1px solid #334155; border-radius:6px;"
+                " font-size:14px; padding:6px; }"
+                "QPushButton:hover { background:#334155; }"
+            )
+        else:
+            btn_search.setStyleSheet(
+                "QPushButton { background:#2E86C1; color:white; border-radius:5px;"
+                " font-size:14px; padding:6px; }"
+                "QPushButton:hover { background:#1A5276; }"
+            )
         btn_search.clicked.connect(lambda: self._buscar(self.txt_search.text()))
 
         lay.addWidget(self.txt_search, 1)
@@ -88,20 +112,37 @@ class ProductSearchWidget(QWidget):
 
         # Popup de resultados (flotante)
         self._popup = QFrame(self.window(), Qt.Popup | Qt.FramelessWindowHint)
-        self._popup.setStyleSheet(
-            "QFrame { background:white; border:1px solid #2E86C1;"
-            " border-radius:6px; }"
-        )
+        if dark_mode:
+            self._popup.setObjectName("productSearchPopup")
+            self._popup.setAttribute(Qt.WA_StyledBackground, True)
+            self._popup.setStyleSheet(
+                "QFrame#productSearchPopup { background:#0F172A; border:1px solid #334155; border-radius:8px; }"
+            )
+        else:
+            self._popup.setStyleSheet(
+                "QFrame { background:white; border:1px solid #2E86C1;"
+                " border-radius:6px; }"
+            )
         self._popup_lay = QVBoxLayout(self._popup)
         self._popup_lay.setContentsMargins(4, 4, 4, 4)
         self._popup_lay.setSpacing(2)
         self._popup_list = QListWidget()
-        self._popup_list.setStyleSheet(
-            "QListWidget { border:none; }"
-            "QListWidget::item { padding:6px 10px; }"
-            "QListWidget::item:hover { background:#EBF5FB; }"
-            "QListWidget::item:selected { background:#2E86C1; color:white; }"
-        )
+        if dark_mode:
+            self._popup_list.setObjectName("productSearchPopupList")
+            self._popup_list.setStyleSheet(
+                "QListWidget#productSearchPopupList, QListView#productSearchPopupList, "
+                "QListWidget#productSearchPopupList::viewport { border:none; background:#0F172A; color:#E2E8F0; }"
+                "QListWidget#productSearchPopupList::item { padding:6px 10px; color:#E2E8F0; background:#0F172A; }"
+                "QListWidget#productSearchPopupList::item:hover { background:#1E293B; }"
+                "QListWidget#productSearchPopupList::item:selected { background:#2563EB; color:#FFFFFF; }"
+            )
+        else:
+            self._popup_list.setStyleSheet(
+                "QListWidget { border:none; }"
+                "QListWidget::item { padding:6px 10px; }"
+                "QListWidget::item:hover { background:#EBF5FB; }"
+                "QListWidget::item:selected { background:#2E86C1; color:white; }"
+            )
         self._popup_list.itemClicked.connect(self._on_item_click)
         self._popup_list.setMaximumHeight(280)
         self._popup_lay.addWidget(self._popup_list)

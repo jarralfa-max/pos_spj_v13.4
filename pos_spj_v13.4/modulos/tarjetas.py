@@ -9,7 +9,7 @@ Muestra el módulo completo LoyaltyCardDesigner que incluye:
   📦 Historial Lotes
 """
 from __future__ import annotations
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
 from modulos.spj_styles import spj_btn
 
 class ModuloTarjetas(QWidget):
@@ -44,7 +44,24 @@ class ModuloTarjetas(QWidget):
                 parent=self
             )
             lay.addWidget(self._inner)
+            self._normalizar_botones_tarjetas()
         except Exception as e:
             lbl = QLabel(f"Error cargando diseñador de tarjetas:\n{e}")
             lbl.setStyleSheet("color:#e74c3c; font-size:13px; padding:20px;")
             lay.addWidget(lbl)
+
+    def _normalizar_botones_tarjetas(self) -> None:
+        """
+        Asegura que botones sin texto tengan nombre/tooltip accesible.
+        Evita controles anónimos en el módulo de tarjetas.
+        """
+        if not self._inner:
+            return
+        for btn in self._inner.findChildren(QPushButton):
+            txt = (btn.text() or "").strip()
+            tip = (btn.toolTip() or "").strip()
+            if not txt:
+                if not tip:
+                    tip = "Acción de tarjeta"
+                    btn.setToolTip(tip)
+                btn.setAccessibleName(tip)

@@ -2,9 +2,10 @@
 # modulos/reportes_bi_v2.py
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
-    create_primary_button, create_success_button, create_danger_button, 
+    create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_input, create_combo, create_card,
-    create_heading, create_subheading, create_caption, apply_tooltip
+    create_heading, create_subheading, create_caption, apply_tooltip,
+    FilterBar, EmptyStateWidget, LoadingIndicator, DataTableWithFilters, confirm_action
 )
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from PyQt5.QtWidgets import (
@@ -28,18 +29,17 @@ class ModuloReportesBIv2(QWidget):
         super().__init__(parent)
         self.container = container
         self.sucursal_id = 1
+        self._last_data = {}
         self.init_ui()
+        self._wire_business_events()
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         """Recibe el usuario activo al cambiar de sesión."""
         self.usuario_actual = usuario
         self.rol_actual = rol
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
-        """Recibe la sucursal activa."""
-        self.sucursal_id = sucursal_id
-
-    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
+    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = ""):
+        """Recibe la sucursal activa y refresca dashboard."""
         self.sucursal_id = sucursal_id
         self.cargar_dashboard()
 
@@ -78,11 +78,24 @@ class ModuloReportesBIv2(QWidget):
         
         layout_principal.addLayout(header_layout)
 
+        self.filter_bar = FilterBar(
+            self,
+            placeholder="Buscar producto, cliente o cajero…",
+            combo_filters={"vista": ["Resumen", "Rankings", "Rentabilidad", "Cajeros"]}
+        )
+        self.filter_bar.filters_changed.connect(self._on_global_filters_changed)
+        layout_principal.addWidget(self.filter_bar)
+
+        self.loading_dashboard = LoadingIndicator("Actualizando dashboard BI…", self)
+        self.loading_dashboard.hide()
+        layout_principal.addWidget(self.loading_dashboard)
+
         self.tabs_bi = QTabWidget()
         self.tabs_bi.setDocumentMode(True)
         layout_principal.addWidget(self.tabs_bi)
 
         self._build_tab_resumen()
+        self._build_tab_visual_dashboard()
         self._build_tab_rankings()
         self._build_tab_rentabilidad()
         self._build_tab_cajeros()
@@ -123,12 +136,12 @@ class ModuloReportesBIv2(QWidget):
         accesos = QGroupBox("Acceso rápido")
         accesos_lay = QHBoxLayout(accesos)
         for idx, texto in [
-            (1, "Ventas / Rankings"),
-            (2, "Rentabilidad"),
-            (3, "Cajeros"),
-            (4, "Forecast"),
-            (5, "Sugerencias"),
-            (6, "Sucursales"),
+            (2, "Ventas / Rankings"),
+            (3, "Rentabilidad"),
+            (4, "Cajeros"),
+            (5, "Forecast"),
+            (6, "Sugerencias"),
+            (7, "Sucursales"),
         ]:
             btn = create_secondary_button(self, texto, f"Ir a {texto}")
             btn.clicked.connect(lambda _, i=idx: self.tabs_bi.setCurrentIndex(i))
@@ -136,6 +149,31 @@ class ModuloReportesBIv2(QWidget):
         layout.addWidget(accesos)
         layout.addStretch()
         self.tabs_bi.addTab(tab, "Resumen Ejecutivo")
+
+    def _build_tab_visual_dashboard(self):
+        """Dashboard visual moderno con QWebEngineView + Apache ECharts."""
+        tab, layout = self._crear_tab_contenedor()
+
+        self._chart_empty = EmptyStateWidget(
+            "Sin datos para graficar",
+            "No hay movimientos suficientes para construir el dashboard visual.",
+            "📉",
+            self,
+        )
+        self._chart_empty.hide()
+
+        try:
+            from PyQt5.QtWebEngineWidgets import QWebEngineView
+            self._chart_view = QWebEngineView(self)
+            layout.addWidget(self._chart_view, 1)
+            layout.addWidget(self._chart_empty)
+        except Exception:
+            self._chart_view = None
+            fallback = QLabel("QWebEngine no disponible en este entorno.\nSe mostrará solo KPI tabular.")
+            fallback.setStyleSheet("color:#6c757d; padding:12px;")
+            fallback.setAlignment(Qt.AlignCenter)
+            layout.addWidget(fallback)
+        self.tabs_bi.addTab(tab, "Dashboard Visual")
 
     def _build_tab_rankings(self):
         tab, layout = self._crear_tab_contenedor()
@@ -155,11 +193,11 @@ class ModuloReportesBIv2(QWidget):
         self._tabs_rankings = QTabWidget()
         self._tabs_rankings.setDocumentMode(True)
         self._grp_top = self._crear_tabla_ranking("⭐ Productos Más Vendidos", ["Producto", "Cant.", "Ingresos"])
-        self.tabla_top = self._grp_top._tabla
+        self.tabla_top = self._grp_top._tabla.table
         self._grp_lentos = self._crear_tabla_ranking("🐢 Productos Lentos", ["Producto", "Cant.", "Ingresos"])
-        self.tabla_lentos = self._grp_lentos._tabla
+        self.tabla_lentos = self._grp_lentos._tabla.table
         self._grp_vips = self._crear_tabla_ranking("👑 Clientes Recurrentes (VIP)", ["Cliente", "Visitas", "Gasto Total"])
-        self.tabla_vips = self._grp_vips._tabla
+        self.tabla_vips = self._grp_vips._tabla.table
         self._tabs_rankings.addTab(self._grp_top, "Más vendidos")
         self._tabs_rankings.addTab(self._grp_lentos, "Lentos")
         self._tabs_rankings.addTab(self._grp_vips, "Clientes VIP")
@@ -691,28 +729,42 @@ class ModuloReportesBIv2(QWidget):
         tarjeta._lbl_valor = lbl_valor   # keep reference on the frame
         return tarjeta
     def _crear_tabla_ranking(self, titulo, headers):
-        """Crea un panel con una tabla limpia para los rankings.
-        Returns the QGroupBox (parent kept alive) with _tabla attribute."""
+        """Crea un panel con tabla reusable y filtros de búsqueda."""
         grupo = QGroupBox(titulo)
         grupo.setObjectName("styledGroup")
         layout = QVBoxLayout(grupo)
-        
-        tabla = QTableWidget()
-        tabla.setColumnCount(len(headers))
-        tabla.setHorizontalHeaderLabels(headers)
-        tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        tabla.verticalHeader().setVisible(False)
-        tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
-        tabla.setAlternatingRowColors(True)
-        tabla.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        tabla.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        tabla.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        tabla.setObjectName("tableView")
-        
+
+        tabla = DataTableWithFilters(headers=headers, parent=grupo)
+        tabla.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        tabla.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
         layout.addWidget(tabla)
-        grupo._tabla = tabla   # keep strong reference on the container
-        return grupo           # return the container, not the tabla
+        grupo._tabla = tabla
+        return grupo
+
+    def _on_global_filters_changed(self, payload: dict) -> None:
+        search = (payload or {}).get("search", "").strip().lower()
+        wrappers = [self._grp_top._tabla, self._grp_lentos._tabla, self._grp_vips._tabla]
+        for wrapper in wrappers:
+            wrapper.filter_bar.search.blockSignals(True)
+            wrapper.filter_bar.search.setText(search)
+            wrapper.filter_bar.search.blockSignals(False)
+            wrapper._apply_filter({"search": search})
+        self._lbl_rankings_estado.setText(
+            "Sin filtros globales activos." if not search else f"Filtro activo: '{search}'"
+        )
+
+    def _wire_business_events(self) -> None:
+        """Refresco reactivo ante eventos de negocio del ERP."""
+        try:
+            from core.events.event_bus import get_bus
+            from PyQt5.QtCore import QTimer as _QT
+            bus = get_bus()
+            for evt in ("venta_confirmada", "stock_actualizado", "pago_registrado"):
+                bus.subscribe(evt, lambda _p, _self=self: _QT.singleShot(0, _self.cargar_dashboard),
+                              label=f"bi_v2.refresh.{evt}")
+        except Exception:
+            pass
 
     def _exportar(self, formato: str) -> None:
         """Exporta el dashboard actual a PDF o Excel via ExportService."""
@@ -729,6 +781,14 @@ class ModuloReportesBIv2(QWidget):
             f"{'Excel (*.xlsx)' if formato == 'excel' else 'PDF (*.pdf)'}"
         )
         if not ruta:
+            return
+        if not confirm_action(
+            self,
+            "Confirmar exportación",
+            f"¿Deseas exportar el dashboard en formato {ext.upper()}?",
+            confirm_text="Sí, exportar",
+            cancel_text="Cancelar",
+        ):
             return
 
         try:
@@ -786,6 +846,7 @@ class ModuloReportesBIv2(QWidget):
     def cargar_dashboard(self):
         """Pide los datos al AnalyticsEngine (BI unificado) y actualiza la UI."""
         rango_str = self.cmb_rango.currentText().lower().split(' ')[-1] # 'hoy', 'semana', 'mes'
+        self.loading_dashboard.setVisible(True)
         
         try:
             # BI unificado: fuente única analytics_engine
@@ -793,6 +854,7 @@ class ModuloReportesBIv2(QWidget):
             if not analytics:
                 raise RuntimeError("AnalyticsEngine no disponible en el contenedor")
             data = analytics.get_dashboard_data(self.sucursal_id, rango_str)
+            self._last_data = data
             
             # 1. Actualizar KPIs
             self.lbl_kpi_ingresos._lbl_valor.setText(f"${data['kpis']['ingresos']:,.2f}")
@@ -835,15 +897,58 @@ class ModuloReportesBIv2(QWidget):
             self._lbl_resumen_alertas.setText(
                 "Alertas: " + (", ".join(alertas) if alertas else "sin alertas relevantes.")
             )
+            self._render_echarts_dashboard(data)
 
         except PermissionError as e:
             # Si el Feature Flag 'bi_v2' está apagado
             QMessageBox.warning(self, "Módulo Inactivo", str(e))
             self._lbl_rankings_estado.setText(f"Módulo inactivo: {e}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(self, "Error", f"No se pudo actualizar el dashboard BI.\nDetalle: {e}")
             self._lbl_rankings_estado.setText(f"Error al cargar rankings: {e}")
             self._lbl_resumen_alertas.setText(f"Alertas: error al cargar datos ({e}).")
+        finally:
+            self.loading_dashboard.setVisible(False)
+
+    def _render_echarts_dashboard(self, data: dict) -> None:
+        """Renderiza un mini dashboard con ECharts dentro de QWebEngineView."""
+        if not getattr(self, "_chart_view", None):
+            return
+        top = data.get('top_productos', [])
+        if not top:
+            self._chart_empty.show()
+            self._chart_view.hide()
+            return
+        labels = [str(i.get('nombre', 'N/A')) for i in top[:8]]
+        values = [float(i.get('ingresos_generados', 0) or 0) for i in top[:8]]
+        self._chart_empty.hide()
+        self._chart_view.show()
+        html = f"""
+        <html><head><meta charset='utf-8'>
+        <script src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js'></script>
+        <style>html,body,#c{{height:100%;margin:0;background:#0b1220;color:#e2e8f0;font-family:Inter,Arial;}}</style>
+        </head><body><div id='c'></div>
+        <script>
+        const labels = {labels};
+        const values = {values};
+        if (window.echarts) {{
+          const chart = echarts.init(document.getElementById('c'));
+          const option = {{
+            title: {{text: 'Top productos por ingresos', left: 'center', textStyle: {{color:'#e2e8f0'}}}},
+            tooltip: {{trigger: 'axis'}},
+            xAxis: {{type: 'category', data: labels, axisLabel: {{color:'#94a3b8', rotate:20}}}},
+            yAxis: {{type: 'value', axisLabel: {{color:'#94a3b8'}}}},
+            series: [{{type: 'bar', data: values, itemStyle: {{color:'#3b82f6'}}, barMaxWidth: 38}}]
+          }};
+          chart.setOption(option);
+        }} else {{
+          const c = document.getElementById('c');
+          const rows = labels.map((name, i) => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid #1f2937;padding:8px 4px;"><span>${{name}}</span><b>$${{Number(values[i]||0).toFixed(2)}}</b></div>`).join('');
+          c.innerHTML = `<div style="padding:14px;"><h3 style="margin:0 0 8px 0;">Top productos por ingresos</h3><div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">Modo fallback (ECharts no disponible)</div>${{rows}}</div>`;
+        }}
+        </script></body></html>
+        """
+        self._chart_view.setHtml(html)
 
     def _llenar_tabla(self, tabla: QTableWidget, datos: list, llaves: list):
         if not datos:
@@ -851,13 +956,17 @@ class ModuloReportesBIv2(QWidget):
             tabla.setItem(0, 0, QTableWidgetItem("Sin datos para el período seleccionado."))
             for col in range(1, tabla.columnCount()):
                 tabla.setItem(0, col, QTableWidgetItem(""))
+            if hasattr(tabla.parent(), "empty_state"):
+                tabla.parent().empty_state.show()
             return
         tabla.setRowCount(len(datos))
+        if hasattr(tabla.parent(), "empty_state"):
+            tabla.parent().empty_state.hide()
         for row, item in enumerate(datos):
             for col, llave in enumerate(llaves):
                 valor = item.get(llave, '')
                 # Dar formato de moneda si es dinero
-                if isinstance(valor, float) and 'ingresos' in llave or 'valor' in llave:
+                if isinstance(valor, (float, int)) and ('ingresos' in llave or 'valor' in llave):
                     txt = f"${valor:,.2f}"
                 else:
                     txt = str(valor)

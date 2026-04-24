@@ -5,7 +5,12 @@ from core.events.event_bus import get_bus
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_danger_button, create_warning_button, create_accent_button, create_input, create_heading, create_subheading, apply_tooltip, create_card
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_danger_button,
+    create_warning_button, create_accent_button, create_input, create_heading,
+    create_subheading, apply_tooltip, create_card, FilterBar, LoadingIndicator,
+    EmptyStateWidget, confirm_action
+)
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
@@ -455,6 +460,12 @@ class ModuloRRHH(QWidget):
         toolbar.addWidget(btn_refrescar)
         toolbar.addStretch()
         layout.addLayout(toolbar)
+        self._filter_emp = FilterBar(self.tab_empleados, placeholder="Buscar por nombre, puesto o teléfono…")
+        self._filter_emp.filters_changed.connect(lambda _p: self.cargar_tabla_empleados())
+        layout.addWidget(self._filter_emp)
+        self._loading_emp = LoadingIndicator("Cargando empleados…", self.tab_empleados)
+        self._loading_emp.hide()
+        layout.addWidget(self._loading_emp)
         
         # Tabla de Empleados
         self.tabla_emp = QTableWidget()
@@ -464,20 +475,34 @@ class ModuloRRHH(QWidget):
         self.tabla_emp.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_emp.setSelectionBehavior(QAbstractItemView.SelectRows)
         layout.addWidget(self.tabla_emp)
+        self._empty_emp = EmptyStateWidget(
+            "Sin empleados",
+            "No se encontraron empleados para el filtro aplicado.",
+            "👔",
+            self.tab_empleados,
+        )
+        self._empty_emp.hide()
+        layout.addWidget(self._empty_emp)
         
         self.cargar_tabla_empleados()
 
     def cargar_tabla_empleados(self):
         self.tabla_emp.setRowCount(0)
+        self._loading_emp.show()
         try:
             cursor = self.container.db.cursor()
             # Solo mostramos a los empleados activos
             rows = cursor.execute("SELECT * FROM personal WHERE activo = 1 ORDER BY nombre LIMIT 500").fetchall()
+            filtro = self._filter_emp.values().get("search", "").lower().strip() if hasattr(self, "_filter_emp") else ""
             
-            for row_idx, emp in enumerate(rows):
-                self.tabla_emp.insertRow(row_idx)
-                
+            row_idx = 0
+            for emp in rows:
                 nombre_completo = f"{emp['nombre']} {emp['apellidos'] or ''}".strip()
+                if filtro:
+                    blob = f"{nombre_completo} {emp['puesto'] or ''} {emp['telefono'] or ''}".lower()
+                    if filtro not in blob:
+                        continue
+                self.tabla_emp.insertRow(row_idx)
                 
                 self.tabla_emp.setItem(row_idx, 0, QTableWidgetItem(str(emp['id'])))
                 self.tabla_emp.setItem(row_idx, 1, QTableWidgetItem(nombre_completo))
@@ -496,9 +521,13 @@ class ModuloRRHH(QWidget):
                 btn_baja = create_danger_button(self, "❌ Dar de Baja", f"Dar de baja a {nombre_completo}")
                 btn_baja.clicked.connect(lambda _, eid=emp['id'], nom=nombre_completo: self.dar_baja_empleado(eid, nom))
                 self.tabla_emp.setCellWidget(row_idx, 6, btn_baja)
+                row_idx += 1
                 
         except Exception as e:
             logger.error(f"Error cargando personal: {e}")
+        finally:
+            self._loading_emp.hide()
+            self._empty_emp.setVisible(self.tabla_emp.rowCount() == 0)
 
     def abrir_nuevo_empleado(self):
         dlg = DialogoEmpleado(self.container.db, parent=self)
@@ -514,14 +543,14 @@ class ModuloRRHH(QWidget):
 
     def dar_baja_empleado(self, empleado_id, nombre):
         """SOFT DELETE: No lo borramos, solo lo marcamos como inactivo."""
-        resp = QMessageBox.question(
-            self, "Confirmar Baja", 
+        if confirm_action(
+            self,
+            "Confirmar Baja",
             f"¿Está seguro de dar de baja a '{nombre}'?\n\n"
             f"El empleado ya no aparecerá en los cálculos de nómina, pero su historial de pagos se conservará.",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        
-        if resp == QMessageBox.Yes:
+            "Dar de baja",
+            "Cancelar",
+        ):
             try:
                 cursor = self.container.db.cursor()
                 cursor.execute("UPDATE personal SET activo = 0 WHERE id = ?", (empleado_id,))
