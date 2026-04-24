@@ -155,7 +155,9 @@ class ModuloPlaneacionCompras(QWidget):
 
     def ejecutar_pronostico(self):
         producto_id = self.cmb_producto.currentData()
-        if not producto_id: return
+        if not producto_id:
+            QMessageBox.information(self, "Sin producto", "Selecciona un producto para generar la gráfica.")
+            return
 
         try:
             # 🚀 MAGIA ENTERPRISE: El servicio de IA hace los cálculos de Pandas y Statsmodels
@@ -168,8 +170,10 @@ class ModuloPlaneacionCompras(QWidget):
                     stock_seguridad=self.spin_seguridad.value()
                 )
                 
+                if not resultado:
+                    raise ValueError("No hay datos suficientes para calcular pronóstico.")
                 self.dibujar_grafica(resultado)
-                self.actualizar_recomendacion(resultado['metricas'])
+                self.actualizar_recomendacion(resultado.get('metricas', {}))
             else:
                 QMessageBox.warning(self, "Servicio Inactivo", "El motor de pronósticos no está disponible.")
 
@@ -195,6 +199,15 @@ class ModuloPlaneacionCompras(QWidget):
         x_pred = data['pronostico_fechas']
         y_pred = data['pronostico_valores']
 
+        if not x_hist and not x_pred:
+            ax.text(
+                0.5, 0.5, "No hay información suficiente para graficar.",
+                ha='center', va='center', transform=ax.transAxes
+            )
+            ax.set_axis_off()
+            self.canvas.draw()
+            return
+
         # Dibujar
         ax.plot(x_hist, y_hist, label='Ventas Históricas', color='#2980b9', marker='o')
         
@@ -218,10 +231,12 @@ class ModuloPlaneacionCompras(QWidget):
 
     def actualizar_recomendacion(self, metricas: dict):
         """Actualiza el panel lateral con la decisión del algoritmo."""
-        self.lbl_stock_actual.setText(f"Stock Actual en Bodega: <b>{metricas['stock_actual']:.2f}</b>")
-        self.lbl_venta_proyectada.setText(f"Demanda Proyectada ({self.spin_pronostico.value()} días): <b>{metricas['venta_proyectada']:.2f}</b>")
+        stock_actual = float(metricas.get('stock_actual', 0) or 0)
+        venta_proyectada = float(metricas.get('venta_proyectada', 0) or 0)
+        compra = float(metricas.get('compra_recomendada', 0) or 0)
+        self.lbl_stock_actual.setText(f"Stock Actual en Bodega: <b>{stock_actual:.2f}</b>")
+        self.lbl_venta_proyectada.setText(f"Demanda Proyectada ({self.spin_pronostico.value()} días): <b>{venta_proyectada:.2f}</b>")
         
-        compra = metricas['compra_recomendada']
         self.lbl_recomendacion.setText(f"COMPRAR:\n{compra:.2f}")
         
         # Actualizar color dinámicamente según el resultado usando objectName en lugar de setStyleSheet

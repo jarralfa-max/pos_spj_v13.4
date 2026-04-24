@@ -91,6 +91,32 @@ class TreasuryService:
                 );
                 CREATE INDEX IF NOT EXISTS idx_gf_estado ON gastos_futuros(estado);
                 CREATE INDEX IF NOT EXISTS idx_gf_fecha ON gastos_futuros(fecha_prog);
+                CREATE TABLE IF NOT EXISTS pagos_cobros (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    folio TEXT UNIQUE,
+                    tipo_operacion TEXT NOT NULL,
+                    tercero_id INTEGER,
+                    tercero_tipo TEXT NOT NULL,
+                    monto_total REAL NOT NULL,
+                    forma_pago TEXT DEFAULT 'efectivo',
+                    cuenta_origen TEXT DEFAULT '',
+                    fecha TEXT DEFAULT (datetime('now')),
+                    usuario_id TEXT DEFAULT '',
+                    estado TEXT DEFAULT 'aplicado',
+                    referencia TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now'))
+                );
+                CREATE TABLE IF NOT EXISTS pagos_cobros_aplicaciones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pago_cobro_id INTEGER NOT NULL,
+                    documento_id INTEGER NOT NULL,
+                    tipo_documento TEXT NOT NULL,
+                    monto_aplicado REAL NOT NULL,
+                    saldo_anterior_documento REAL NOT NULL,
+                    saldo_posterior_documento REAL NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now'))
+                );
             """)
         except Exception as e:
             logger.debug("_ensure_tables: %s", e)
@@ -582,17 +608,18 @@ class TreasuryService:
             sp = [sucursal_id] if sucursal_id else []
             rows = self.db.execute(f"""
                 SELECT ap.id, ap.fecha, COALESCE(ap.folio,'') as folio,
+                       ap.supplier_id,
                        COALESCE(s.nombre, 'Varios') as proveedor,
                        ap.concepto, ap.balance as saldo,
                        ap.amount as monto_original, ap.status
                 FROM accounts_payable ap
                 LEFT JOIN proveedores s ON s.id = ap.supplier_id
                 WHERE ap.status IN ('pendiente','parcial'){sf}
-                ORDER BY ap.fecha DESC
+                ORDER BY COALESCE(ap.due_date, ap.fecha) ASC, ap.fecha ASC
             """, sp).fetchall()
-            return [{"id": r[0], "fecha": r[1], "folio": r[2],
-                     "proveedor": r[3], "concepto": r[4], "saldo": float(r[5]),
-                     "monto_original": float(r[6]), "status": r[7]}
+            return [{"id": r[0], "fecha": r[1], "folio": r[2], "proveedor_id": r[3],
+                     "proveedor": r[4], "concepto": r[5], "saldo": float(r[6]),
+                     "monto_original": float(r[7]), "status": r[8]}
                     for r in rows]
         except Exception:
             return []
@@ -632,17 +659,18 @@ class TreasuryService:
             sp = [sucursal_id] if sucursal_id else []
             rows = self.db.execute(f"""
                 SELECT ar.id, ar.fecha, COALESCE(ar.folio,'') as folio,
+                       ar.cliente_id,
                        COALESCE(c.nombre, 'Público') as cliente,
                        ar.concepto, ar.balance as saldo,
                        ar.amount as monto_original, ar.status
                 FROM accounts_receivable ar
                 LEFT JOIN clientes c ON c.id = ar.cliente_id
                 WHERE ar.status IN ('pendiente','parcial'){sf}
-                ORDER BY ar.fecha DESC
+                ORDER BY COALESCE(ar.due_date, ar.fecha) ASC, ar.fecha ASC
             """, sp).fetchall()
-            return [{"id": r[0], "fecha": r[1], "folio": r[2],
-                     "cliente": r[3], "concepto": r[4], "saldo": float(r[5]),
-                     "monto_original": float(r[6]), "status": r[7]}
+            return [{"id": r[0], "fecha": r[1], "folio": r[2], "cliente_id": r[3],
+                     "cliente": r[4], "concepto": r[5], "saldo": float(r[6]),
+                     "monto_original": float(r[7]), "status": r[8]}
                     for r in rows]
         except Exception:
             return []
@@ -670,6 +698,144 @@ class TreasuryService:
             self.db.commit()
         except Exception:
             pass
+
+    def aplicar_pago_global(self, tercero_tipo: str, monto_total: float,
+                            metodo: str = "efectivo", usuario: str = "",
+                            tercero_id: int | None = None) -> Dict[str, Any]:
+        """
+        Aplica un pago/cobro global a N documentos pendientes, priorizando vencimiento.
+        tercero_tipo: 'proveedor' (CXP) | 'cliente' (CXC)
+        """
+        if monto_total <= 0:
+            raise ValueError("El monto global debe ser mayor que 0.")
+        is_cxp = tercero_tipo == "proveedor"
+        if not is_cxp and tercero_tipo != "cliente":
+            raise ValueError("tercero_tipo inválido. Usa proveedor|cliente.")
+
+        docs = self.get_cuentas_por_pagar(0) if is_cxp else self.get_cuentas_por_cobrar(0)
+        if tercero_id:
+            key = "proveedor_id" if is_cxp else "cliente_id"
+            docs = [d for d in docs if int(d.get(key) or 0) == int(tercero_id)]
+        if not docs:
+            return {"aplicado": 0.0, "pendiente": float(monto_total), "aplicaciones": 0}
+
+        restante = float(monto_total)
+        aplicaciones: List[Dict[str, Any]] = []
+        folio = f"{'PG' if is_cxp else 'CG'}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        cur = self.db.execute(
+            "INSERT INTO pagos_cobros(folio,tipo_operacion,tercero_id,tercero_tipo,monto_total,forma_pago,usuario_id,estado) "
+            "VALUES(?,?,?,?,?,?,?,?)",
+            (
+                folio,
+                "pago_proveedor" if is_cxp else "cobro_cliente",
+                tercero_id,
+                tercero_tipo,
+                monto_total,
+                metodo,
+                usuario,
+                "aplicado",
+            ),
+        )
+        pago_cobro_id = cur.lastrowid
+
+        for d in docs:
+            if restante <= 0.0001:
+                break
+            saldo = float(d.get("saldo", 0) or 0)
+            if saldo <= 0:
+                continue
+            aplicado = min(restante, saldo)
+            if is_cxp:
+                self.abonar_cuenta_por_pagar(int(d["id"]), aplicado, metodo=metodo, usuario=usuario)
+            else:
+                self.abonar_cuenta_por_cobrar(int(d["id"]), aplicado, metodo=metodo, usuario=usuario)
+            restante -= aplicado
+            self.db.execute(
+                "INSERT INTO pagos_cobros_aplicaciones(pago_cobro_id,documento_id,tipo_documento,monto_aplicado,saldo_anterior_documento,saldo_posterior_documento) "
+                "VALUES(?,?,?,?,?,?)",
+                (
+                    pago_cobro_id,
+                    int(d["id"]),
+                    "accounts_payable" if is_cxp else "accounts_receivable",
+                    aplicado,
+                    saldo,
+                    max(0.0, saldo - aplicado),
+                ),
+            )
+            aplicaciones.append({"documento_id": int(d["id"]), "monto_aplicado": aplicado})
+
+        if restante > 0.0001:
+            # Anticipo / saldo a favor auditable
+            self.db.execute(
+                "UPDATE pagos_cobros SET referencia=?, updated_at=datetime('now') WHERE id=?",
+                (f"Saldo a favor: {restante:.2f}", pago_cobro_id),
+            )
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+        return {
+            "folio": folio,
+            "aplicado": round(float(monto_total) - restante, 2),
+            "pendiente": round(restante, 2),
+            "aplicaciones": len(aplicaciones),
+            "detalle": aplicaciones,
+        }
+
+    def cancelar_pago_cobro(self, pago_cobro_id: int, motivo: str = "", usuario: str = "") -> bool:
+        """
+        Cancela un pago/cobro global vía reversa controlada (no delete destructivo).
+        """
+        row = self.db.execute(
+            "SELECT id,tipo_operacion,estado,monto_total FROM pagos_cobros WHERE id=?",
+            (pago_cobro_id,),
+        ).fetchone()
+        if not row:
+            raise ValueError(f"Pago/cobro #{pago_cobro_id} no existe.")
+        if str(row[2]) == "cancelado":
+            return True
+
+        tipo_operacion = str(row[1] or "")
+        apps = self.db.execute(
+            "SELECT documento_id,tipo_documento,monto_aplicado FROM pagos_cobros_aplicaciones WHERE pago_cobro_id=?",
+            (pago_cobro_id,),
+        ).fetchall()
+        for a in apps:
+            documento_id = int(a[0])
+            monto = float(a[2] or 0)
+            if monto <= 0:
+                continue
+            if tipo_operacion == "pago_proveedor":
+                r = self.db.execute("SELECT balance FROM accounts_payable WHERE id=?", (documento_id,)).fetchone()
+                if r:
+                    nuevo = float(r[0] or 0) + monto
+                    self.db.execute(
+                        "UPDATE accounts_payable SET balance=?, status='parcial' WHERE id=?",
+                        (nuevo, documento_id),
+                    )
+            elif tipo_operacion == "cobro_cliente":
+                r = self.db.execute("SELECT balance FROM accounts_receivable WHERE id=?", (documento_id,)).fetchone()
+                if r:
+                    nuevo = float(r[0] or 0) + monto
+                    self.db.execute(
+                        "UPDATE accounts_receivable SET balance=?, status='parcial' WHERE id=?",
+                        (nuevo, documento_id),
+                    )
+
+        self.db.execute(
+            "UPDATE pagos_cobros SET estado='cancelado', referencia=?, updated_at=datetime('now') WHERE id=?",
+            (f"Reversa: {motivo}".strip(), pago_cobro_id),
+        )
+        total = float(row[3] or 0)
+        if tipo_operacion == "pago_proveedor":
+            self.registrar_ingreso("cxp:reversa", f"Reversa pago global #{pago_cobro_id}", total, usuario=usuario)
+        elif tipo_operacion == "cobro_cliente":
+            self.registrar_egreso("cxc:reversa", f"Reversa cobro global #{pago_cobro_id}", total, usuario=usuario)
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+        return True
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Balance General y Estado de Resultados (Fase 3 — Plan Maestro SPJ v13.4)

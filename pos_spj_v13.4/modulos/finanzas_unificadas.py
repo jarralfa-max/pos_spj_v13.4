@@ -367,6 +367,7 @@ class ModuloFinanzasUnificadas(QWidget):
         self._tabs = None
         self._setup_ui()
         self._wire_live_refresh()
+        self._wire_kpi_auto_refresh()
         
     def set_sucursal(self, sucursal_id: int, nombre: str = ""):
         self.sucursal_id = sucursal_id
@@ -388,6 +389,26 @@ class ModuloFinanzasUnificadas(QWidget):
             bus.subscribe("CLIENTE_CREADO", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cliente_creado")
         except Exception:
             pass
+
+    def _wire_kpi_auto_refresh(self):
+        """Suscribe eventos de negocio para refrescar KPIs del dashboard."""
+        try:
+            self._kpi_timer = QTimer(self)
+            self._kpi_timer.setInterval(15000)
+            self._kpi_timer.timeout.connect(self._refresh_kpis_if_dashboard_visible)
+            self._kpi_timer.start()
+            from core.events.event_bus import get_bus
+            bus = get_bus()
+            for evt in ("VENTA_COMPLETADA", "MOVIMIENTO_FINANCIERO", "CXP_CREADA", "CXC_CREADA", "AJUSTE_INVENTARIO"):
+                bus.subscribe(evt, lambda _d: QTimer.singleShot(0, self._cargar_dashboard_financiero), label=f"fin.ui.kpi.{evt.lower()}")
+        except Exception:
+            pass
+
+    def _refresh_kpis_if_dashboard_visible(self):
+        """Evita trabajo innecesario cuando la pestaña dashboard no está visible."""
+        if self._tabs and self._tabs.currentIndex() != 0:
+            return
+        self._cargar_dashboard_financiero()
     
     def _setup_ui(self):
         """Configura la interfaz con pestañas unificadas."""
@@ -519,8 +540,8 @@ class ModuloFinanzasUnificadas(QWidget):
             total_eg = float(eg.get("total_egresos", 0))
             self._kpi_labels["flujo_caja"].setText(f"${(total_ventas - total_eg):,.2f}")
             self._kpi_labels["ingresos_egresos"].setText(f"${total_ventas:,.2f} / ${total_eg:,.2f}")
-            self._kpi_labels["cxp_aging"].setText(f"${float(kpis.get('cxp_total', 0)):,.2f}")
-            self._kpi_labels["cxc_aging"].setText(f"${float(kpis.get('cxc_total', 0)):,.2f}")
+            self._kpi_labels["cxp_aging"].setText(f"${float(kpis.get('cxp_pendiente', 0) or 0):,.2f}")
+            self._kpi_labels["cxc_aging"].setText(f"${float(kpis.get('cxc_pendiente', 0) or 0):,.2f}")
             self._kpi_labels["liquidez"].setText(f"{float(kpis.get('liquidez', 0)):.2f}")
             self._kpi_labels["margen_operativo"].setText(f"{float(kpis.get('margen_operativo_pct', 0)):.1f}%")
         except Exception as e:
@@ -645,6 +666,9 @@ class ModuloFinanzasUnificadas(QWidget):
         btn_nuevo_cxp.setStyleSheet("background:#2563EB;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
         btn_nuevo_cxp.clicked.connect(self._dialogo_nueva_cxp)
         top.addWidget(btn_nuevo_cxp)
+        btn_pago_global = QPushButton("💳 Pago global")
+        btn_pago_global.clicked.connect(self._dialogo_pago_global_cxp)
+        top.addWidget(btn_pago_global)
         top.addStretch()
         layout.addLayout(top)
         
@@ -684,6 +708,9 @@ class ModuloFinanzasUnificadas(QWidget):
         btn_nuevo_cxc.clicked.connect(self._dialogo_nueva_cxc)
         top.addWidget(btn_nuevo_cliente)
         top.addWidget(btn_nuevo_cxc)
+        btn_cobro_global = QPushButton("💰 Cobro global")
+        btn_cobro_global.clicked.connect(self._dialogo_cobro_global_cxc)
+        top.addWidget(btn_cobro_global)
         top.addStretch()
         layout.addLayout(top)
         
@@ -792,6 +819,16 @@ class ModuloFinanzasUnificadas(QWidget):
         self._tabla_proveedores.verticalHeader().setVisible(False)
         self._tabla_proveedores.doubleClicked.connect(self._editar_proveedor_seleccionado)
         layout.addWidget(self._tabla_proveedores)
+
+        detail = QGroupBox("Detalle de proveedor seleccionado")
+        dl = QVBoxLayout(detail)
+        self._lbl_proveedor_detalle = QLabel("Selecciona un proveedor para ver sus datos.")
+        self._lbl_proveedor_resumen = QLabel("Resumen de cuentas pendientes: $0.00")
+        self._lbl_proveedor_resumen.setStyleSheet("font-weight:bold;")
+        dl.addWidget(self._lbl_proveedor_detalle)
+        dl.addWidget(self._lbl_proveedor_resumen)
+        layout.addWidget(detail)
+        self._tabla_proveedores.itemSelectionChanged.connect(self._on_proveedor_selected)
         
         return widget
     
@@ -1222,6 +1259,85 @@ class ModuloFinanzasUnificadas(QWidget):
             con = (self._tabla_proveedores.item(i, 3) or QTableWidgetItem()).text().lower()
             visible = not txt or txt in nom or txt in tel or txt in con
             self._tabla_proveedores.setRowHidden(i, not visible)
+
+    def _on_proveedor_selected(self):
+        row = self._tabla_proveedores.currentRow()
+        if row < 0:
+            self._lbl_proveedor_detalle.setText("Selecciona un proveedor para ver sus datos.")
+            self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: $0.00")
+            return
+        it = self._tabla_proveedores.item(row, 0)
+        proveedor_id = it.data(Qt.UserRole) if it else None
+        if not proveedor_id:
+            self._lbl_proveedor_detalle.setText("Proveedor no identificado.")
+            self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: $0.00")
+            return
+        try:
+            prov = self._tps.get_proveedor(int(proveedor_id)) if self._tps else None
+            if prov:
+                self._lbl_proveedor_detalle.setText(
+                    f"Nombre: {prov.get('nombre','-')} | RFC: {prov.get('rfc','-')} | "
+                    f"Tel: {prov.get('telefono','-')} | Email: {prov.get('email','-')}"
+                )
+            else:
+                self._lbl_proveedor_detalle.setText("No se encontraron datos generales del proveedor.")
+            deudas = [d for d in (self._ts.get_cuentas_por_pagar(0) if self._ts else [])
+                      if int(d.get("proveedor_id") or 0) == int(proveedor_id)]
+            saldo = sum(float(d.get("saldo", 0) or 0) for d in deudas)
+            if saldo <= 0:
+                self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: Sin cuentas pendientes.")
+            else:
+                self._lbl_proveedor_resumen.setText(
+                    f"Resumen de cuentas pendientes: ${saldo:,.2f} en {len(deudas)} documento(s)."
+                )
+        except Exception as exc:
+            logger.warning("_on_proveedor_selected: %s", exc)
+            self._lbl_proveedor_detalle.setText("No fue posible cargar el detalle del proveedor.")
+            self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: $0.00")
+
+    def _dialogo_pago_global_cxp(self):
+        if not self._ts:
+            return
+        proveedores = self._tps.get_all_proveedores(activo=True, limit=500) if self._tps else []
+        if not proveedores:
+            QMessageBox.information(self, "Sin proveedores", "No hay proveedores activos para aplicar pago global.")
+            return
+        nombres = [f"{p.get('id')} - {p.get('nombre','')}" for p in proveedores]
+        seleccionado, ok_sel = QInputDialog.getItem(self, "Proveedor", "Selecciona proveedor:", nombres, 0, False)
+        if not ok_sel:
+            return
+        tercero_id = int(str(seleccionado).split(" - ", 1)[0])
+        monto, ok = QInputDialog.getDouble(self, "Pago global CxP", "Monto total a aplicar:", 0.0, 0.0, 999999999.0, 2)
+        if not ok or monto <= 0:
+            return
+        metodo, ok2 = QInputDialog.getItem(self, "Método", "Forma de pago:", ["Transferencia", "Efectivo", "Cheque"], 0, False)
+        if not ok2:
+            return
+        self._ts.aplicar_pago_global("proveedor", monto, metodo=metodo, usuario=self.usuario_actual, tercero_id=tercero_id)
+        self._cargar_cuentas_pagar()
+        self._cargar_dashboard_financiero()
+
+    def _dialogo_cobro_global_cxc(self):
+        if not self._ts:
+            return
+        clientes = self._listar_clientes()
+        if not clientes:
+            QMessageBox.information(self, "Sin clientes", "No hay clientes activos para aplicar cobro global.")
+            return
+        nombres = [f"{c.get('id')} - {c.get('nombre','')}" for c in clientes]
+        seleccionado, ok_sel = QInputDialog.getItem(self, "Cliente", "Selecciona cliente:", nombres, 0, False)
+        if not ok_sel:
+            return
+        tercero_id = int(str(seleccionado).split(" - ", 1)[0])
+        monto, ok = QInputDialog.getDouble(self, "Cobro global CxC", "Monto total a aplicar:", 0.0, 0.0, 999999999.0, 2)
+        if not ok or monto <= 0:
+            return
+        metodo, ok2 = QInputDialog.getItem(self, "Método", "Forma de cobro:", ["Efectivo", "Transferencia", "Tarjeta"], 0, False)
+        if not ok2:
+            return
+        self._ts.aplicar_pago_global("cliente", monto, metodo=metodo, usuario=self.usuario_actual, tercero_id=tercero_id)
+        self._cargar_cuentas_cobrar()
+        self._cargar_dashboard_financiero()
     
     def _nuevo_proveedor(self):
         """Abre diálogo para crear nuevo proveedor."""
