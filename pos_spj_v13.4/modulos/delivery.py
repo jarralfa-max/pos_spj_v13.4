@@ -15,16 +15,17 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
     QTableWidgetItem, QComboBox, QLineEdit, QGroupBox, QFormLayout,
     QMessageBox, QHeaderView, QSplitter, QTextEdit, QDialog, QDialogButtonBox,
-    QSpinBox, QDoubleSpinBox, QFrame
+    QSpinBox, QDoubleSpinBox, QFrame, QListWidget, QListWidgetItem
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
+from core.services.delivery_service import DeliveryService
 logger = logging.getLogger("spj.delivery")
 
-ESTADOS = ["pendiente","asignado","en_camino","entregado","cancelado"]
+ESTADOS = ["pendiente","preparacion","en_ruta","entregado","cancelado"]
 ESTADO_COLOR = {
-    "pendiente": Colors.WARNING_BASE,"asignado":Colors.PRIMARY_BASE,"en_camino":Colors.ACCENT_BASE,
+    "pendiente": Colors.WARNING_BASE,"preparacion":Colors.PRIMARY_BASE,"en_ruta":Colors.ACCENT_BASE,
     "entregado":Colors.SUCCESS_BASE,"cancelado":Colors.DANGER_BASE
 }
 
@@ -70,30 +71,57 @@ class AsignarDriverDialog(QDialog):
         }
 
 class NuevoPedidoDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, delivery_service: DeliveryService, parent=None):
         super().__init__(parent)
+        self.delivery_service = delivery_service
+        self._selected_coords = None
         self.setWindowTitle("Nuevo Pedido Delivery")
         self.setMinimumWidth(500)
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self.txt_cliente = QLineEdit(); self.txt_cliente.setPlaceholderText("Buscar cliente...")
-        self.txt_direccion = QTextEdit(); self.txt_direccion.setMaximumHeight(80)
+        self.txt_direccion = QLineEdit(); self.txt_direccion.setPlaceholderText("Escribe dirección (mín. 4 caracteres)")
+        self.lst_sugerencias = QListWidget()
+        self.lst_sugerencias.setMaximumHeight(130)
+        self.lst_sugerencias.hide()
         self.txt_notas = QLineEdit(); self.txt_notas.setPlaceholderText("Notas del pedido")
         self.combo_sucursal = QComboBox()
         self.combo_sucursal.addItems(["Sucursal Principal","Sucursal 2","Sucursal 3"])
         form.addRow("Cliente:", self.txt_cliente)
         form.addRow("Dirección:", self.txt_direccion)
+        form.addRow("Sugerencias:", self.lst_sugerencias)
         form.addRow("Notas:", self.txt_notas)
         form.addRow("Sucursal:", self.combo_sucursal)
         layout.addLayout(form)
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(self.accept); btns.rejected.connect(self.reject)
         layout.addWidget(btns)
+        self.txt_direccion.textChanged.connect(self._buscar_sugerencias)
+        self.lst_sugerencias.itemClicked.connect(self._tomar_sugerencia)
+
+    def _buscar_sugerencias(self, text: str):
+        self.lst_sugerencias.clear()
+        self._selected_coords = None
+        if len(text.strip()) < 4:
+            self.lst_sugerencias.hide()
+            return
+        for item in self.delivery_service.autocomplete_address(text):
+            w = QListWidgetItem(item.get("label", ""))
+            w.setData(Qt.UserRole, item)
+            self.lst_sugerencias.addItem(w)
+        self.lst_sugerencias.setVisible(self.lst_sugerencias.count() > 0)
+
+    def _tomar_sugerencia(self, item: QListWidgetItem):
+        data = item.data(Qt.UserRole) or {}
+        self.txt_direccion.setText(data.get("label", ""))
+        self._selected_coords = data
+        self.lst_sugerencias.hide()
 
     def get_data(self):
         return {
             "cliente": self.txt_cliente.text().strip(),
-            "direccion": self.txt_direccion.toPlainText().strip(),
+            "direccion": self.txt_direccion.text().strip(),
+            "coords": self._selected_coords,
             "notas": self.txt_notas.text().strip(),
             "sucursal_id": self.combo_sucursal.currentIndex() + 1
         }
@@ -145,12 +173,12 @@ class TarjetaPedido(QFrame):
             btn.setFixedWidth(90)
             btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"asignar"))
             btns.addWidget(btn)
-        if estado == "asignado":
-            btn = create_primary_button(self, "En Camino", "Marcar pedido como en camino")
+        if estado == "preparacion":
+            btn = create_primary_button(self, "En Ruta", "Marcar pedido como en ruta")
             btn.setFixedWidth(90)
-            btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"en_camino"))
+            btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"en_ruta"))
             btns.addWidget(btn)
-        if estado == "en_camino":
+        if estado == "en_ruta":
             btn = create_success_button(self, "Entregado", "Confirmar entrega del pedido")
             btn.setFixedWidth(90)
             btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"entregado"))
@@ -173,6 +201,8 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self.container = None
             self.conexion  = conexion_o_container
         self.usuario = usuario
+        self.delivery_service = DeliveryService(self.conexion)
+        self._pedidos_cache = []
         self._init_ui()
         self._init_tables()
         # EventBus: recarga reactiva al completar/modificar pedido
@@ -256,7 +286,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         # Filtro de estado
         filtro_layout = QHBoxLayout()
         filtro_layout.addWidget(QLabel("Filtrar:"))
-        self.combo_filtro = create_combo(self, ["Todos","pendiente","asignado","en_camino","entregado","cancelado"], "Seleccionar estado para filtrar")
+        self.combo_filtro = create_combo(self, ["Todos","pendiente","preparacion","en_ruta","entregado","cancelado"], "Seleccionar estado para filtrar")
         self.combo_filtro.currentTextChanged.connect(self.cargar_pedidos)
         filtro_layout.addWidget(self.combo_filtro); filtro_layout.addStretch()
         # Stats
@@ -278,7 +308,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         # Kanban board
         splitter = QSplitter(Qt.Horizontal)
         self.columnas = {}
-        for estado in ["pendiente","asignado","en_camino","entregado"]:
+        for estado in ["pendiente","preparacion","en_ruta","entregado"]:
             col_widget = QWidget()
             col_layout = QVBoxLayout(col_widget)
             color = ESTADO_COLOR[estado]
@@ -312,7 +342,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         try:
             from PyQt5.QtWebEngineWidgets import QWebEngineView
             view = QWebEngineView()
-            # Build drivers data
+            # Build drivers data + pedidos geolocalizados
             try:
                 rows = self.conexion.execute(
                     "SELECT c.nombre, dl.lat, dl.lng, dl.actualizado "
@@ -324,6 +354,18 @@ class ModuloDelivery(QWidget, RefreshMixin):
                                    "lng": float(r[2] or -89.623)} for r in rows])
             except Exception:
                 drivers_js = "[]"
+            pedidos_js = str([
+                {
+                    "id": p.get("id"),
+                    "cliente": p.get("cliente_nombre", ""),
+                    "direccion": p.get("direccion", ""),
+                    "estado": p.get("estado", "pendiente"),
+                    "lat": float(p.get("lat") or 20.967),
+                    "lng": float(p.get("lng") or -89.623),
+                }
+                for p in (self._pedidos_cache or [])
+                if p.get("lat") is not None and p.get("lng") is not None
+            ])
 
             html = f"""<!DOCTYPE html><html><head>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -334,10 +376,15 @@ var map = L.map('map').setView([20.967, -89.623], 13);
 L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',
     {{attribution:'© OpenStreetMap'}}).addTo(map);
 var drivers = {drivers_js};
+var pedidos = {pedidos_js};
 var icon = L.icon({{iconUrl:'https://cdn-icons-png.flaticon.com/32/3050/3050553.png',iconSize:[32,32]}});
 drivers.forEach(function(d){{
     L.marker([d.lat,d.lng],{{icon:icon}}).addTo(map)
      .bindPopup('<b>' + d.name + '</b>').openPopup();
+}});
+pedidos.forEach(function(p){{
+    L.circleMarker([p.lat,p.lng],{{radius:8,color:'#ef4444'}}).addTo(map)
+      .bindPopup('Pedido #' + p.id + '<br/>' + p.estado + '<br/>' + p.cliente + '<br/>' + p.direccion);
 }});
 if(drivers.length===0){{
     L.marker([20.967,-89.623]).addTo(map)
@@ -475,11 +522,9 @@ if(drivers.length===0){{
                 item = col_layout.takeAt(0)
                 if item.widget(): item.widget().deleteLater()
         try:
-            sql = """SELECT d.*, dr.nombre as driver_nombre
-                     FROM delivery_orders d
-                     LEFT JOIN drivers dr ON dr.id = d.driver_id
-                     ORDER BY d.fecha_solicitud DESC LIMIT 100"""
-            pedidos = [dict(r) for r in self.conexion.execute(sql).fetchall()]
+            filtro_repo = None if filtro == "Todos" else filtro
+            pedidos = self.delivery_service.list_orders(filtro_repo)
+            self._pedidos_cache = pedidos
             counts = {e:0 for e in ESTADOS}
             for p in pedidos:
                 estado = p.get("estado","pendiente")
@@ -491,7 +536,7 @@ if(drivers.length===0){{
                     self.columnas[estado].insertWidget(self.columnas[estado].count()-1, card)
                     visibles += 1
             stats = "  ".join(f"{ESTADO_COLOR.get(e,'#FFF')} {e}:{n}" for e,n in counts.items() if n>0)
-            self.lbl_stats.setText(f"Pedidos activos: {sum(counts.get(e,0) for e in ['pendiente','asignado','en_camino'])}")
+            self.lbl_stats.setText(f"Pedidos activos: {sum(counts.get(e,0) for e in ['pendiente','preparacion','en_ruta'])}")
             self._empty.setVisible(visibles == 0)
         except Exception as e:
             logger.error("cargar_pedidos: %s", e)
@@ -508,11 +553,10 @@ if(drivers.length===0){{
                 if not data["driver_id"]:
                     QMessageBox.warning(self,"Sin repartidor","Primero registra repartidores."); return
                 self.conexion.execute(
-                    "UPDATE delivery_orders SET estado='asignado',driver_id=?,tiempo_estimado=?,notas=?,fecha_asignacion=datetime('now') WHERE id=?",
+                    "UPDATE delivery_orders SET estado='preparacion',driver_id=?,tiempo_estimado=?,notas=?,fecha_asignacion=datetime('now') WHERE id=?",
                     (data["driver_id"],data["tiempo"],data["notas"],pedido_id))
-                # WhatsApp
-                self._notificar_whatsapp(pedido_id, "asignado", data)
-            elif accion in ("en_camino","entregado","cancelado"):
+                self.delivery_service.update_status(pedido_id, "preparacion", usuario=self.usuario)
+            elif accion in ("en_ruta","entregado","cancelado"):
                 fecha_col = "fecha_entrega" if accion == "entregado" else "fecha_asignacion"
                 
                 # If delivered, capture payment method and amount
@@ -571,8 +615,12 @@ if(drivers.length===0){{
                         )
                     except Exception: pass
                 
-                if accion in ("en_camino","entregado"):
-                    self._notificar_whatsapp(pedido_id, accion, {})
+                self.delivery_service.update_status(
+                    pedido_id,
+                    accion,
+                    usuario=self.usuario,
+                    responsable=(self.usuario if accion == "entregado" else ""),
+                )
             try: self.conexion.commit()
             except Exception: pass
             self.cargar_pedidos()
@@ -595,7 +643,7 @@ if(drivers.length===0){{
             if not row or not row[1]: return
             from integrations.whatsapp_service import WhatsAppService
             wa = WhatsAppService(self.conexion)
-            if accion == "en_camino":
+            if accion == "en_ruta":
                 dr = data.get("repartidor","Repartidor")
                 wa.notificar_delivery_en_camino(row[1],row[0],str(pedido_id),dr,data.get("tiempo",30))
             elif accion == "entregado":
@@ -604,17 +652,19 @@ if(drivers.length===0){{
             logger.debug("WA notify: %s", e)
 
     def nuevo_pedido(self):
-        dlg = NuevoPedidoDialog(self)
+        dlg = NuevoPedidoDialog(self.delivery_service, self)
         if dlg.exec_() != QDialog.Accepted: return
         data = dlg.get_data()
         if not data["direccion"]:
             QMessageBox.warning(self,"Dirección requerida","Ingresa la dirección de entrega."); return
         try:
-            self.conexion.execute(
-                "INSERT INTO delivery_orders(cliente_nombre,direccion,notas,sucursal_id) VALUES(?,?,?,?)",
-                (data["cliente"],data["direccion"],data["notas"],data["sucursal_id"]))
-            try: self.conexion.commit()
-            except Exception: pass
+            self.delivery_service.create_order({
+                "cliente_nombre": data["cliente"],
+                "direccion": data["direccion"],
+                "coords": data.get("coords"),
+                "notas": data["notas"],
+                "sucursal_id": data["sucursal_id"],
+            }, usuario=self.usuario)
             self.cargar_pedidos()
             QMessageBox.information(self,"Pedido creado","Pedido de delivery creado exitosamente.")
         except Exception as e:
