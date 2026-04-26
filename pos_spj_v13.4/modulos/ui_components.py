@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QComboBox, QProgressBar, QMessageBox, QTabWidget, QScrollArea, QSizePolicy, QDialog
 )
-from PyQt5.QtCore import Qt, QPoint, QTimer, QSize, pyqtSignal, QObject, QEvent
+from PyQt5.QtCore import Qt, QPoint, QTimer, QSize, pyqtSignal, QObject, QEvent, QPropertyAnimation, QEasingCurve, QRect
 from PyQt5.QtGui import QFont, QPalette, QColor
 import logging
 
@@ -41,80 +41,6 @@ from modulos.design_tokens import (
 
 logger = logging.getLogger("spj.ui_components")
 _DIALOG_NORMALIZER = None
-
-
-_GLOBAL_THEME_QSS = {
-    "oscuro": f"""
-        QWidget {{
-            background-color: {Colors.NEUTRAL.DARK_BG};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-        }}
-        QFrame, QGroupBox {{
-            background-color: {Colors.NEUTRAL.DARK_CARD};
-            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-            border-radius: {Borders.RADIUS_LG}px;
-        }}
-        QPushButton#primaryBtn, QPushButton#successBtn, QPushButton#dangerBtn,
-        QPushButton#secondaryBtn, QPushButton#warningBtn, QPushButton#outlineBtn {{
-            min-height: {Spacing.BTN_HEIGHT_MIN}px;
-            border-radius: {Borders.RADIUS_MD}px;
-            padding: 6px 12px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-        }}
-        QTabWidget::pane {{
-            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-            border-radius: {Borders.RADIUS_LG}px;
-            top: -1px;
-        }}
-        QTabBar::tab {{
-            background: {Colors.NEUTRAL.SLATE_700};
-            color: {Colors.NEUTRAL.SLATE_200};
-            padding: 8px 14px;
-            margin-right: 4px;
-            border-top-left-radius: {Borders.RADIUS_MD}px;
-            border-top-right-radius: {Borders.RADIUS_MD}px;
-        }}
-        QTabBar::tab:selected {{
-            background: {Colors.PRIMARY.BASE};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-    """,
-    "claro": f"""
-        QWidget {{
-            background-color: #F8FAFC;
-            color: #0F172A;
-        }}
-        QFrame, QGroupBox {{
-            background-color: #FFFFFF;
-            border: 1px solid #E2E8F0;
-            border-radius: {Borders.RADIUS_LG}px;
-        }}
-        QPushButton#primaryBtn, QPushButton#successBtn, QPushButton#dangerBtn,
-        QPushButton#secondaryBtn, QPushButton#warningBtn, QPushButton#outlineBtn {{
-            min-height: {Spacing.BTN_HEIGHT_MIN}px;
-            border-radius: {Borders.RADIUS_MD}px;
-            padding: 6px 12px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-        }}
-        QTabWidget::pane {{
-            border: 1px solid #CBD5E1;
-            border-radius: {Borders.RADIUS_LG}px;
-            top: -1px;
-        }}
-        QTabBar::tab {{
-            background: #E2E8F0;
-            color: #334155;
-            padding: 8px 14px;
-            margin-right: 4px;
-            border-top-left-radius: {Borders.RADIUS_MD}px;
-            border-top-right-radius: {Borders.RADIUS_MD}px;
-        }}
-        QTabBar::tab:selected {{
-            background: #2563EB;
-            color: #FFFFFF;
-        }}
-    """,
-}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -380,68 +306,189 @@ def create_card(parent, padding: int = Spacing.LG, with_layout: bool = True,
     return card
 
 
-def create_stat_card(parent, title: str, value: str, icon_path: str = None,
-                     color_variant: str = "primary") -> QFrame:
+_VARIANT_COLOR = {
+    "primary": (Colors.PRIMARY.BASE, "primary"),
+    "success": (Colors.SUCCESS.BASE, "success"),
+    "danger":  (Colors.DANGER.BASE,  "danger"),
+    "warning": (Colors.WARNING.BASE, "warning"),
+    "info":    (Colors.INFO.BASE,    "info"),
+    "accent":  (Colors.ACCENT.BASE,  "accent"),
+}
+
+
+def create_stat_card(
+    parent,
+    title: str,
+    value: str,
+    icon_path: str = None,
+    color_variant: str = "primary",
+    *,
+    delta_pct: float | None = None,
+    delta_label: str = "vs ayer",
+    icon_emoji: str = "",
+    subtitle: str = "",
+) -> QFrame:
     """
-    Crea una card de estadística para dashboards.
-    Fondo neutro con indicador de color en ícono/borde.
-    
+    KPI card moderno para dashboards.
+
+    Layout: barra de acento superior + label uppercase + valor grande +
+    delta opcional (↑/↓ con %) + ícono (emoji o pixmap).
+
     Args:
-        parent: Widget padre
-        title: Título de la estadística
-        value: Valor a mostrar
-        icon_path: Ruta al ícono (opcional)
-        color_variant: Variante de color (primary, success, danger, warning)
-    
+        parent:         Widget padre.
+        title:          Etiqueta superior (uppercase auto).
+        value:          Valor principal (string ya formateado).
+        icon_path:      Ruta a icono PNG/SVG (opcional).
+        color_variant:  primary | success | danger | warning | info | accent.
+        delta_pct:      % de cambio vs periodo anterior (opcional, None = sin delta).
+        delta_label:    Texto que acompaña al delta. Default: "vs ayer".
+        icon_emoji:     Emoji decorativo en lugar de pixmap (ej. "💵").
+        subtitle:       Línea gris secundaria bajo el valor.
+
     Returns:
-        QFrame configurado como stat card
+        QFrame con objectName="kpiCard" — estiliza desde config.TEMAS.
     """
-    # CORRECCIÓN CRÍTICA: with_layout=False porque vamos a usar QHBoxLayout personalizado
-    card = create_card(parent, padding=Spacing.MD, with_layout=False)
-    card.setFixedHeight(48)
-    
-    layout = QHBoxLayout(card)
-    layout.setSpacing(Spacing.MD)
-    
-    # Ícono (si existe)
-    if icon_path:
+    accent_color, variant_name = _VARIANT_COLOR.get(
+        color_variant, _VARIANT_COLOR["primary"]
+    )
+
+    card = QFrame(parent)
+    card.setObjectName("kpiCard")
+    card.setProperty("variant", variant_name)
+    card.setMinimumHeight(96)
+    card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    # Sombra suave (Drop shadow effect)
+    shadow = QGraphicsDropShadowEffect(card)
+    shadow.setBlurRadius(16)
+    shadow.setOffset(0, 2)
+    shadow.setColor(QColor(0, 0, 0, 32))
+    card.setGraphicsEffect(shadow)
+
+    outer = QVBoxLayout(card)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(0)
+
+    # Barra de acento superior (3px)
+    accent_bar = QFrame(card)
+    accent_bar.setObjectName("kpiAccentBar")
+    accent_bar.setFixedHeight(3)
+    accent_bar.setStyleSheet(
+        f"background-color: {accent_color}; border-top-left-radius: {Borders.RADIUS_LG}px;"
+        f" border-top-right-radius: {Borders.RADIUS_LG}px;"
+    )
+    outer.addWidget(accent_bar)
+
+    body = QHBoxLayout()
+    body.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
+    body.setSpacing(Spacing.MD)
+    outer.addLayout(body)
+
+    # Columna texto (label + value + subtitle/delta)
+    text_col = QVBoxLayout()
+    text_col.setSpacing(2)
+
+    lbl_title = QLabel(title.upper(), card)
+    lbl_title.setObjectName("kpiLabel")
+    lbl_title.setStyleSheet(
+        f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
+        f" font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.05em;"
+        f" background: transparent; border: none;"
+    )
+    text_col.addWidget(lbl_title)
+
+    lbl_value = QLabel(str(value), card)
+    lbl_value.setObjectName("kpiValue")
+    lbl_value.setStyleSheet(
+        f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
+        f" letter-spacing: -0.02em; background: transparent; border: none;"
+    )
+    text_col.addWidget(lbl_value)
+
+    if delta_pct is not None:
+        if delta_pct > 0:
+            arrow, color, bg = "↑", Colors.SUCCESS.BASE, Colors.SUCCESS.BG_SOFT
+        elif delta_pct < 0:
+            arrow, color, bg = "↓", Colors.DANGER.BASE, Colors.DANGER.BG_SOFT
+        else:
+            arrow, color, bg = "→", Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100
+
+        delta_text = f"{arrow} {abs(delta_pct):.1f}%  {delta_label}"
+        lbl_delta = QLabel(delta_text, card)
+        lbl_delta.setObjectName("kpiDelta")
+        lbl_delta.setStyleSheet(
+            f"color: {color}; background-color: {bg}; font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" border-radius: {Borders.RADIUS_FULL}px; padding: 2px 8px;"
+            f" border: none;"
+        )
+        lbl_delta.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        text_col.addWidget(lbl_delta, alignment=Qt.AlignLeft)
+    elif subtitle:
+        lbl_sub = QLabel(subtitle, card)
+        lbl_sub.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_400}; font-size: {Typography.SIZE_XS};"
+            f" background: transparent; border: none;"
+        )
+        text_col.addWidget(lbl_sub)
+
+    body.addLayout(text_col, 1)
+
+    # Ícono (emoji o pixmap)
+    if icon_emoji:
+        lbl_icon = QLabel(icon_emoji, card)
+        lbl_icon.setStyleSheet(
+            f"font-size: 28px; background-color: {accent_color}1F;"
+            f" border-radius: {Borders.RADIUS_LG}px; padding: 6px; border: none;"
+        )
+        lbl_icon.setFixedSize(44, 44)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+    elif icon_path:
         from PyQt5.QtGui import QPixmap
-        
-        icon_label = QLabel()
-        icon_label.setFixedSize(40, 40)
-        pixmap = QPixmap(icon_path).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        icon_label.setPixmap(pixmap)
-        
-        # Color del ícono según variante
-        color_map = {
-            "primary": Colors.PRIMARY.BASE,
-            "success": Colors.SUCCESS.BASE,
-            "danger": Colors.DANGER.BASE,
-            "warning": Colors.WARNING.BASE,
-        }
-        # Aplicar tinte al ícono (simplificado)
-        icon_label.setStyleSheet(f"background-color: {color_map.get(color_variant, Colors.PRIMARY.BASE)}20; border-radius: 8px;")
-        
-        layout.addWidget(icon_label)
-    
-    # Texto
-    text_layout = QVBoxLayout()
-    text_layout.setSpacing(Spacing.XS)
-    
-    # Título
-    title_label = QLabel(title)
-    title_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS}; font-weight: 500;")
-    text_layout.addWidget(title_label)
-    
-    # Valor
-    value_label = QLabel(value)
-    value_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_900}; font-size: {Typography.SIZE_XL}; font-weight: 700;")
-    text_layout.addWidget(value_label)
-    
-    layout.addLayout(text_layout)
-    layout.addStretch()
-    
+        lbl_icon = QLabel(card)
+        lbl_icon.setFixedSize(44, 44)
+        pixmap = QPixmap(icon_path).scaled(
+            22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        lbl_icon.setPixmap(pixmap)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet(
+            f"background-color: {accent_color}1F;"
+            f" border-radius: {Borders.RADIUS_LG}px; border: none;"
+        )
+        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+
     return card
+
+
+def create_kpi_card(
+    parent,
+    label: str,
+    value: str,
+    *,
+    delta_pct: float | None = None,
+    delta_label: str = "vs ayer",
+    icon: str = "",
+    variant: str = "primary",
+    subtitle: str = "",
+) -> QFrame:
+    """
+    Alias semántico de create_stat_card con argumentos kw-only para
+    APIs nuevas. Retrocompatibilidad: create_stat_card sigue funcionando.
+
+    Ejemplo:
+        kpi = create_kpi_card(self, "Ventas hoy", "$ 12,450",
+                              delta_pct=8.3, icon="💵", variant="primary")
+    """
+    return create_stat_card(
+        parent, label, value,
+        color_variant=variant,
+        delta_pct=delta_pct,
+        delta_label=delta_label,
+        icon_emoji=icon,
+        subtitle=subtitle,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -549,21 +596,40 @@ def create_divider(parent, orientation: str = "horizontal") -> QFrame:
 #  LABELS CON JERARQUÍA
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_heading(parent=None, text: str = "") -> QLabel:
-    """Crea un label de título principal (24px bold)."""
+def _label_with_role(parent, text: str, object_name: str,
+                     font_size: str, font_weight: int) -> QLabel:
+    """
+    Crea un QLabel con tipografía inline (size + weight) y objectName
+    para que el COLOR sea controlado por el QSS del tema (theme-aware).
+
+    Esto reemplaza el patrón anterior de hardcodear color inline, que
+    rompía el contraste en cuanto se cambiaba de tema.
+    """
     if isinstance(parent, str) and not text:
         parent, text = None, parent
     if text is None:
         text = ""
     if not isinstance(parent, QWidget):
         parent = None
+
     label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.DARK_TEXT};
-        font-size: {Typography.SIZE_XL};
-        font-weight: {Typography.WEIGHT_BOLD};
-    """)
+    label.setObjectName(object_name)
+    # Solo propiedades theme-invariant. El color lo pone el QSS global.
+    label.setStyleSheet(
+        f"font-size: {font_size}; font-weight: {font_weight};"
+        f" background: transparent; border: none;"
+    )
     return label
+
+
+def create_heading(parent=None, text: str = "") -> QLabel:
+    """Crea un label de título principal (theme-aware)."""
+    return _label_with_role(
+        parent, text,
+        object_name="h1Label",
+        font_size=Typography.SIZE_XL,
+        font_weight=Typography.WEIGHT_BOLD,
+    )
 
 
 def create_heading_label(parent=None, text: str = "") -> QLabel:
@@ -572,36 +638,23 @@ def create_heading_label(parent=None, text: str = "") -> QLabel:
 
 
 def create_subheading(parent=None, text: str = "") -> QLabel:
-    """Crea un label de subtítulo (16px semibold)."""
-    if isinstance(parent, str) and not text:
-        parent, text = None, parent
-    if text is None:
-        text = ""
-    if not isinstance(parent, QWidget):
-        parent = None
-    label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.DARK_TEXT_SEC};
-        font-size: {Typography.SIZE_MD};
-        font-weight: {Typography.WEIGHT_SEMIBOLD};
-    """)
-    return label
+    """Crea un label de subtítulo (theme-aware)."""
+    return _label_with_role(
+        parent, text,
+        object_name="h2Label",
+        font_size=Typography.SIZE_MD,
+        font_weight=Typography.WEIGHT_SEMIBOLD,
+    )
 
 
 def create_caption(parent=None, text: str = "") -> QLabel:
-    """Crea un label de caption/texto secundario (11px)."""
-    if isinstance(parent, str) and not text:
-        parent, text = None, parent
-    if text is None:
-        text = ""
-    if not isinstance(parent, QWidget):
-        parent = None
-    label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_500};
-        font-size: {Typography.SIZE_XS};
-    """)
-    return label
+    """Crea un label de caption/texto secundario (theme-aware)."""
+    return _label_with_role(
+        parent, text,
+        object_name="captionLabel",
+        font_size=Typography.SIZE_XS,
+        font_weight=Typography.WEIGHT_NORMAL,
+    )
 
 
 def create_label(parent, text: str, variant: str = "body") -> QLabel:
@@ -617,13 +670,12 @@ def create_label(parent, text: str, variant: str = "body") -> QLabel:
     if v == "caption":
         return create_caption(parent, text)
 
-    label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_700};
-        font-size: {Typography.SIZE_MD};
-        font-weight: {Typography.WEIGHT_REGULAR};
-    """)
-    return label
+    return _label_with_role(
+        parent, text,
+        object_name="bodyLabel",
+        font_size=Typography.SIZE_MD,
+        font_weight=Typography.WEIGHT_NORMAL,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -705,46 +757,11 @@ def create_table(parent, show_grid: bool = False, alternating_colors: bool = Tru
     
     # Ajuste automático
     table.setSizeAdjustPolicy(QAbstractItemView.AdjustToContentsOnFirstShow)
-    
-    # Estilo CSS inline para garantizar consistencia
-    table.setStyleSheet(f"""
-        QTableWidget {{
-            background-color: {Colors.NEUTRAL.DARK_CARD};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-            gridline-color: {Colors.NEUTRAL.DARK_BORDER};
-            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-            alternate-background-color: {Colors.NEUTRAL.DARK_BG};
-            border-radius: {Borders.RADIUS_LG}px;
-            font-size: {Typography.SIZE_SM};
-        }}
-        QTableWidget::item {{
-            padding: {Spacing.SM}px {Spacing.MD}px;
-            border-bottom: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-        }}
-        QTableWidget::item:selected {{
-            background-color: {Colors.PRIMARY.BASE};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-        QTableWidget::item:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-        }}
-        QHeaderView::section {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-            border: none;
-            border-bottom: 2px solid {Colors.NEUTRAL.SLATE_600};
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            padding: {Spacing.SM}px {Spacing.MD}px;
-            text-transform: uppercase;
-            font-size: {Typography.SIZE_XS};
-            letter-spacing: 0.5px;
-            min-height: 20px;
-        }}
-        QHeaderView::section:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_600};
-        }}
-    """)
-    
+
+    # NOTA: el QSS global de config.TEMAS estiliza QTableWidget#standardTable
+    # para ambos temas (Claro/Oscuro). Anteriormente este factory aplicaba un
+    # QSS inline forzado-oscuro que rompía el tema claro. Removido.
+
     return table
 
 
@@ -791,27 +808,19 @@ def wrap_in_scroll_area(widget: QWidget, parent=None) -> QScrollArea:
     return area
 
 
-def get_global_theme_qss(theme: str = "oscuro") -> str:
-    """Retorna QSS global base para tema claro/oscuro."""
-    key = (theme or "oscuro").strip().lower()
-    return _GLOBAL_THEME_QSS.get(key, _GLOBAL_THEME_QSS["oscuro"])
+def apply_global_theme(db_conn=None) -> None:
+    """
+    Aplica el tema global del POS (Claro/Oscuro según configuración persistida).
 
-
-def apply_global_theme(app_or_widget, theme: str = "oscuro") -> bool:
-    """Aplica el tema global base a QApplication y opcionalmente a un widget."""
-    qss = get_global_theme_qss(theme)
-    if not qss:
-        return False
+    Wrapper delgado de modulos.spj_styles.apply_global_theme — la lógica real
+    vive ahí. Se conserva aquí solo como punto de entrada ergonómico para
+    quien ya importa desde modulos.ui_components.
+    """
     try:
-        from PyQt5.QtWidgets import QApplication
-        app = QApplication.instance()
-        if app is not None:
-            app.setStyleSheet(qss)
-        if app_or_widget is not None and hasattr(app_or_widget, "setStyleSheet"):
-            app_or_widget.setStyleSheet(qss)
-        return True
-    except Exception:
-        return False
+        from modulos.spj_styles import apply_global_theme as _impl
+        _impl(db_conn)
+    except Exception as e:
+        logger.debug("apply_global_theme wrapper: %s", e)
 
 
 class _DialogButtonNormalizer(QObject):
@@ -885,31 +894,14 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
     
     object_name = variant_map.get(variant, "outlineBtn")
     btn.setObjectName(object_name)
-    
-    # Estilo inline específico para botones de tabla
-    btn.setStyleSheet(f"""
-        QPushButton#{object_name} {{
-            background-color: transparent;
-            border: 1px solid {Colors.NEUTRAL.SLATE_600};
-            border-radius: {Borders.RADIUS_MD}px;
-            padding: {Spacing.XS}px {Spacing.SM}px;
-            font-size: {Typography.SIZE_XS};
-            font-weight: {Typography.WEIGHT_MEDIUM};
-            color: {Colors.NEUTRAL.SLATE_300};
-        }}
-        QPushButton#{object_name}:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-            border-color: {Colors.NEUTRAL.SLATE_500};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-        QPushButton#{object_name}:pressed {{
-            background-color: {Colors.NEUTRAL.SLATE_800};
-        }}
-    """)
-    
+
+    # NOTA: el QSS global de config.TEMAS estiliza estos object names para
+    # ambos temas. Anteriormente había un setStyleSheet inline tema-oscuro
+    # que rompía el tema claro y duplicaba la lógica del builder.
+
     if tooltip:
         apply_tooltip(btn, tooltip)
-    
+
     return btn
 
 
@@ -918,8 +910,105 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+class PageHeader(QFrame):
+    """
+    Header reutilizable para cada vista/módulo.
+
+    Reemplaza el patrón repetido en 20+ módulos:
+        header_layout = QHBoxLayout()
+        lbl_titulo = create_heading(self, "📊 Título")
+        header_layout.addWidget(lbl_titulo)
+        header_layout.addStretch()
+        header_layout.addWidget(btn1); header_layout.addWidget(btn2)
+
+    Por:
+        header = PageHeader(self, title="📊 Título", subtitle="Descripción corta")
+        header.add_action(btn1)
+        header.add_action(btn2)
+        layout.addWidget(header)
+
+    Estilo theme-aware vía objectNames #pageHeader, #pageTitle, #pageSubtitle
+    (definidos en qss_builder._block_page_header).
+    """
+
+    def __init__(self, parent=None, title: str = "", subtitle: str = "",
+                 with_separator: bool = True):
+        super().__init__(parent)
+        self.setObjectName("pageHeader")
+
+        # Si no hay separador inferior, dejar al QSS sin border-bottom.
+        if not with_separator:
+            self.setProperty("noSeparator", True)
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 12)
+        outer.setSpacing(Spacing.MD)
+
+        # Columna izquierda: título + subtítulo
+        left = QVBoxLayout()
+        left.setSpacing(2)
+        left.setContentsMargins(0, 0, 0, 0)
+
+        self.title_label = QLabel(title, self)
+        self.title_label.setObjectName("pageTitle")
+        self.title_label.setStyleSheet(
+            f"font-size: 18px; font-weight: {Typography.WEIGHT_BOLD};"
+            f" background: transparent; border: none;"
+        )
+        left.addWidget(self.title_label)
+
+        self.subtitle_label = QLabel(subtitle, self)
+        self.subtitle_label.setObjectName("pageSubtitle")
+        self.subtitle_label.setStyleSheet(
+            f"font-size: {Typography.SIZE_SM};"
+            f" background: transparent; border: none;"
+        )
+        self.subtitle_label.setVisible(bool(subtitle))
+        left.addWidget(self.subtitle_label)
+
+        outer.addLayout(left, 1)
+
+        # Slot de acciones (botones a la derecha)
+        self._actions_layout = QHBoxLayout()
+        self._actions_layout.setSpacing(Spacing.SM)
+        self._actions_layout.setContentsMargins(0, 0, 0, 0)
+        outer.addLayout(self._actions_layout, 0)
+
+    # ── API pública ────────────────────────────────────────────────────────
+    def set_title(self, text: str) -> None:
+        self.title_label.setText(text)
+
+    def set_subtitle(self, text: str) -> None:
+        self.subtitle_label.setText(text)
+        self.subtitle_label.setVisible(bool(text))
+
+    def add_action(self, widget: QWidget) -> QWidget:
+        """Añade un botón/widget al área de acciones derecha."""
+        self._actions_layout.addWidget(widget)
+        return widget
+
+    def add_separator(self) -> None:
+        """Añade separador vertical entre grupos de acciones."""
+        sep = QFrame(self)
+        sep.setFrameShape(QFrame.VLine)
+        sep.setFixedWidth(1)
+        sep.setStyleSheet("background: transparent;")
+        self._actions_layout.addWidget(sep)
+
+    def clear_actions(self) -> None:
+        while self._actions_layout.count():
+            item = self._actions_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+
+
 class EmptyStateWidget(QFrame):
-    """Estado vacío reutilizable para tablas, listas y dashboards."""
+    """Estado vacío reutilizable para tablas, listas y dashboards.
+
+    Los colores los maneja el QSS global (#emptyState y #emptyStateMessage)
+    para mantener contraste en ambos temas.
+    """
 
     def __init__(self, title: str = "Sin información", message: str = "No hay datos para mostrar.",
                  icon: str = "📭", parent=None):
@@ -931,16 +1020,25 @@ class EmptyStateWidget(QFrame):
 
         lbl_icon = QLabel(icon)
         lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet("font-size: 26px;")
+        lbl_icon.setObjectName("emptyStateIcon")
+        lbl_icon.setStyleSheet("font-size: 26px; background: transparent; border: none;")
 
         self.lbl_title = QLabel(title)
         self.lbl_title.setAlignment(Qt.AlignCenter)
-        self.lbl_title.setStyleSheet("font-weight: 700; font-size: 14px;")
+        self.lbl_title.setObjectName("emptyStateTitle")
+        self.lbl_title.setStyleSheet(
+            f"font-weight: {Typography.WEIGHT_BOLD}; font-size: {Typography.SIZE_LG};"
+            f" background: transparent; border: none;"
+        )
 
         self.lbl_message = QLabel(message)
         self.lbl_message.setWordWrap(True)
         self.lbl_message.setAlignment(Qt.AlignCenter)
-        self.lbl_message.setStyleSheet("color: #64748B; font-size: 12px;")
+        self.lbl_message.setObjectName("emptyStateMessage")
+        # Color theme-aware via QSS, solo size inline aquí.
+        self.lbl_message.setStyleSheet(
+            f"font-size: {Typography.SIZE_MD}; background: transparent; border: none;"
+        )
 
         lay.addWidget(lbl_icon)
         lay.addWidget(self.lbl_title)
@@ -948,7 +1046,10 @@ class EmptyStateWidget(QFrame):
 
 
 class LoadingIndicator(QFrame):
-    """Indicador de carga liviano para operaciones de refresh en dashboards."""
+    """Indicador de carga liviano para operaciones de refresh en dashboards.
+
+    Color theme-aware via QSS (#loadingIndicator).
+    """
 
     def __init__(self, message: str = "Cargando…", parent=None):
         super().__init__(parent)
@@ -963,7 +1064,10 @@ class LoadingIndicator(QFrame):
         self.progress.setTextVisible(False)
 
         self.lbl = QLabel(message)
-        self.lbl.setStyleSheet("color: #64748B; font-size: 12px;")
+        self.lbl.setObjectName("loadingMessage")
+        self.lbl.setStyleSheet(
+            f"font-size: {Typography.SIZE_MD}; background: transparent; border: none;"
+        )
 
         lay.addWidget(self.progress)
         lay.addWidget(self.lbl)
@@ -1092,6 +1196,263 @@ class DataTableWithFilters(QWidget):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  TOAST NOTIFICATIONS (no-modal, auto-dismiss)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_TOAST_VARIANTS = {
+    "success": ("✓", Colors.SUCCESS.BASE),
+    "danger":  ("✕", Colors.DANGER.BASE),
+    "warning": ("⚠", Colors.WARNING.BASE),
+    "info":    ("ℹ", Colors.INFO.BASE),
+}
+
+
+class Toast(QFrame):
+    """
+    Notificación no-modal con auto-dismiss y animación de entrada.
+
+    Reemplaza QMessageBox para feedback transitorio (guardado exitoso,
+    error de red, etc.). Aparece en la esquina inferior derecha del
+    widget de referencia (típicamente la ventana principal) y se apila
+    si hay varios toasts activos.
+
+    USO RÁPIDO:
+        Toast.success(parent, "Guardado", "Cliente actualizado")
+        Toast.danger(parent, "Error", "No se pudo guardar")
+        Toast.warning(parent, "Atención", "Stock bajo en chuletas")
+        Toast.info(parent, "Info", "Sincronización en progreso")
+
+    Ciclo de vida:
+        1. Constructor crea el widget y se registra en ToastManager.
+        2. show_animated() lo muestra con slide-in desde la derecha.
+        3. QTimer dispara dismiss() después de duration_ms.
+        4. dismiss() corre fade-out y deletea el widget al terminar.
+    """
+
+    closed = pyqtSignal(object)  # emite self al cerrarse
+
+    def __init__(self, parent: QWidget, title: str, message: str = "",
+                 variant: str = "info", duration_ms: int = 4000):
+        super().__init__(parent)
+        self.setObjectName("toast")
+        self.setProperty("variant", variant)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+
+        # Sin marco; el QSS define el fondo y las sombras.
+        self.setFixedWidth(320)
+        self.setMinimumHeight(56)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        # Sombra suave
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(20)
+        shadow.setOffset(0, 4)
+        shadow.setColor(QColor(0, 0, 0, 60))
+        self.setGraphicsEffect(shadow)
+
+        icon_char, accent = _TOAST_VARIANTS.get(variant, _TOAST_VARIANTS["info"])
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(12, 10, 8, 10)
+        outer.setSpacing(10)
+
+        # Ícono circular con tinte
+        lbl_icon = QLabel(icon_char, self)
+        lbl_icon.setFixedSize(24, 24)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet(
+            f"background-color: {accent}; color: white;"
+            f" border-radius: 12px; font-weight: 700; font-size: 14px;"
+        )
+        outer.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+
+        # Cuerpo: título + mensaje
+        body = QVBoxLayout()
+        body.setSpacing(2)
+        body.setContentsMargins(0, 0, 0, 0)
+
+        self.lbl_title = QLabel(title, self)
+        self.lbl_title.setObjectName("toastTitle")
+        self.lbl_title.setStyleSheet(
+            f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" font-size: {Typography.SIZE_MD};"
+            f" background: transparent; border: none;"
+        )
+        body.addWidget(self.lbl_title)
+
+        self.lbl_message = QLabel(message, self)
+        self.lbl_message.setObjectName("toastMessage")
+        self.lbl_message.setWordWrap(True)
+        self.lbl_message.setStyleSheet(
+            f"font-size: {Typography.SIZE_SM};"
+            f" background: transparent; border: none;"
+        )
+        self.lbl_message.setVisible(bool(message))
+        body.addWidget(self.lbl_message)
+
+        outer.addLayout(body, 1)
+
+        # Botón cerrar
+        btn_close = QPushButton("×", self)
+        btn_close.setObjectName("toastClose")
+        btn_close.setCursor(Qt.PointingHandCursor)
+        btn_close.setFixedSize(20, 20)
+        btn_close.setStyleSheet(
+            f"QPushButton#toastClose {{ border: none; background: transparent;"
+            f" font-size: 18px; font-weight: 700; }}"
+            f"QPushButton#toastClose:hover {{ color: {Colors.DANGER.BASE}; }}"
+        )
+        btn_close.clicked.connect(self.dismiss)
+        outer.addWidget(btn_close, 0, alignment=Qt.AlignTop)
+
+        # Timer auto-dismiss
+        self._duration_ms = max(0, int(duration_ms))
+        self._dismiss_timer = QTimer(self)
+        self._dismiss_timer.setSingleShot(True)
+        self._dismiss_timer.timeout.connect(self.dismiss)
+
+        # Animación de entrada (se inicia con show_animated)
+        self._anim_in: QPropertyAnimation | None = None
+        self._anim_out: QPropertyAnimation | None = None
+
+    # ── API pública ────────────────────────────────────────────────────────
+    def show_animated(self, target_pos: QPoint) -> None:
+        """Muestra el toast con slide-in desde la derecha hasta target_pos."""
+        start_pos = QPoint(target_pos.x() + 60, target_pos.y())
+        self.move(start_pos)
+        self.show()
+        self.raise_()
+
+        self._anim_in = QPropertyAnimation(self, b"pos", self)
+        self._anim_in.setDuration(220)
+        self._anim_in.setStartValue(start_pos)
+        self._anim_in.setEndValue(target_pos)
+        self._anim_in.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim_in.start()
+
+        if self._duration_ms > 0:
+            self._dismiss_timer.start(self._duration_ms)
+
+    def dismiss(self) -> None:
+        """Cierra el toast con fade-out y notifica al manager."""
+        self._dismiss_timer.stop()
+        if self._anim_out is not None:  # ya en proceso
+            return
+
+        self._anim_out = QPropertyAnimation(self, b"windowOpacity", self)
+        self._anim_out.setDuration(180)
+        self._anim_out.setStartValue(1.0)
+        self._anim_out.setEndValue(0.0)
+        self._anim_out.setEasingCurve(QEasingCurve.InCubic)
+        self._anim_out.finished.connect(self._on_fadeout_done)
+        self._anim_out.start()
+
+    def _on_fadeout_done(self) -> None:
+        try:
+            self.closed.emit(self)
+        finally:
+            self.close()
+
+    # ── Constructores rápidos ──────────────────────────────────────────────
+    @classmethod
+    def success(cls, parent, title: str, message: str = "", duration_ms: int = 4000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "success", duration_ms)
+
+    @classmethod
+    def danger(cls, parent, title: str, message: str = "", duration_ms: int = 6000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "danger", duration_ms)
+
+    @classmethod
+    def warning(cls, parent, title: str, message: str = "", duration_ms: int = 5000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "warning", duration_ms)
+
+    @classmethod
+    def info(cls, parent, title: str, message: str = "", duration_ms: int = 4000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "info", duration_ms)
+
+
+class _ToastManager:
+    """
+    Gestor singleton (level módulo) que apila los toasts activos en la
+    esquina inferior derecha del widget de referencia.
+
+    Reposiciona los toasts cuando uno se cierra o uno nuevo aparece,
+    para que la pila se compacte hacia abajo sin huecos.
+    """
+
+    _MARGIN = 16   # margen del borde de la ventana
+    _GAP    = 8    # separación entre toasts apilados
+    _MAX    = 5    # máximo simultáneo (los excedentes se descartan)
+
+    # toasts activos: {top_window: [Toast, ...]}
+    _stacks: dict[int, list[Toast]] = {}
+
+    @classmethod
+    def show(cls, parent: QWidget, title: str, message: str,
+             variant: str, duration_ms: int) -> Toast:
+        anchor = cls._anchor_window(parent)
+        if anchor is None:
+            # Sin ventana visible: crear toast huérfano (no se mostrará).
+            return Toast(parent, title, message, variant, duration_ms)
+
+        key = id(anchor)
+        stack = cls._stacks.setdefault(key, [])
+
+        # Limitar concurrencia: el toast más viejo se descarta sincrónicamente
+        # del stack para mantener el invariante len(stack) <= _MAX. La animación
+        # de fade-out se dispara aparte; cuando termina, _on_toast_closed se
+        # llama pero ya no está en stack, así que es no-op.
+        while len(stack) >= cls._MAX:
+            oldest = stack.pop(0)
+            oldest.dismiss()
+
+        toast = Toast(anchor, title, message, variant, duration_ms)
+        toast.closed.connect(lambda t, k=key: cls._on_toast_closed(k, t))
+        stack.append(toast)
+        cls._reposition(anchor, stack, animate_new=toast)
+        return toast
+
+    @classmethod
+    def _anchor_window(cls, widget: QWidget) -> QWidget | None:
+        """Encuentra la ventana top-level donde anclar los toasts."""
+        if widget is None:
+            return None
+        w = widget.window() if hasattr(widget, "window") else None
+        return w if w is not None and w.isVisible() else widget
+
+    @classmethod
+    def _reposition(cls, anchor: QWidget, stack: list[Toast],
+                    animate_new: Toast | None = None) -> None:
+        if anchor is None:
+            return
+        rect = anchor.rect()
+        x_right = rect.right() - cls._MARGIN
+        y_bottom = rect.bottom() - cls._MARGIN
+
+        # Mapear a coordenadas globales si los toasts no son hijos directos.
+        # Aquí sí lo son (parent=anchor), trabajamos en coords locales.
+        for toast in reversed(stack):  # más reciente abajo
+            target = QPoint(x_right - toast.width(), y_bottom - toast.height())
+            if toast is animate_new:
+                toast.show_animated(target)
+            else:
+                toast.move(target)
+            y_bottom -= toast.height() + cls._GAP
+
+    @classmethod
+    def _on_toast_closed(cls, key: int, toast: Toast) -> None:
+        stack = cls._stacks.get(key)
+        if stack and toast in stack:
+            stack.remove(toast)
+            anchor = toast.parent()
+            if isinstance(anchor, QWidget):
+                cls._reposition(anchor, stack)
+            if not stack:
+                cls._stacks.pop(key, None)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  COMPATIBILIDAD DINÁMICA (IMPORTS LEGACY)
 # ═══════════════════════════════════════════════════════════════════════════════
 _LEGACY_WARNED = set()
@@ -1174,6 +1535,7 @@ __all__ = [
     # Cards
     "create_card",
     "create_stat_card",
+    "create_kpi_card",
     # Badges
     "create_badge",
     # Tooltips
@@ -1195,13 +1557,14 @@ __all__ = [
     "create_standard_tabs",
     "wrap_in_scroll_area",
     # Componentes avanzados
+    "PageHeader",
+    "Toast",
     "EmptyStateWidget",
     "LoadingIndicator",
     "FilterBar",
     "DataTableWithFilters",
     "confirm_action",
     # Tema global
-    "get_global_theme_qss",
     "apply_global_theme",
     "install_dialog_button_normalizer",
 ]

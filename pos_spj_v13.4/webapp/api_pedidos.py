@@ -1,11 +1,31 @@
 
-# webapp/api_pedidos.py — SPJ POS v11
+# webapp/api_pedidos.py — SPJ POS v13.4
 """
-API REST para la WebApp móvil de compras remotas por QR.
+API REST para la WebApp móvil + Dashboard Web.
 Puerto 8769. Sirve los archivos estáticos y expone los endpoints.
+
+Endpoints estáticos:
+    /                         → webapp/index.html  (nueva UI web)
+    /index.html               → webapp/index.html
+    /static/css/*             → webapp/static/css/*
+    /static/js/*              → webapp/static/js/*
+    /scanner_qr.js            → webapp/scanner_qr.js  (legacy)
+    /carrito.js               → webapp/carrito.js     (legacy)
+
+Endpoints API:
+    GET  /api/productos
+    GET  /api/sucursales
+    GET  /api/qr?uuid=...
+    POST /api/pedido
+    POST /api/carrito/calcular
+    GET  /api/dashboard/kpis
+    GET  /api/dashboard/ventas-chart
+    GET  /api/dashboard/productos-top
+    GET  /api/dashboard/inventario
+    GET  /api/dashboard/alertas
 """
 from __future__ import annotations
-import json, os, threading, logging
+import json, os, mimetypes, threading, logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 import sqlite3
@@ -49,39 +69,106 @@ def _record_security_event(action: str, detail: str = "", ip: str = "") -> None:
 class WebAppHandler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
+    # ── Base dir para archivos estáticos ──────────────────────────────────
+    _WEBAPP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    # Tipos MIME adicionales para archivos web
+    _EXTRA_MIME = {
+        ".css":  "text/css; charset=utf-8",
+        ".js":   "application/javascript; charset=utf-8",
+        ".html": "text/html; charset=utf-8",
+        ".json": "application/json",
+        ".svg":  "image/svg+xml",
+        ".ico":  "image/x-icon",
+        ".png":  "image/png",
+        ".woff2": "font/woff2",
+    }
+
+    def _serve_static(self, rel_path: str) -> bool:
+        """
+        Sirve un archivo estático desde _WEBAPP_DIR.
+        Retorna True si se sirvió, False si no se encontró.
+        """
+        abs_path = os.path.normpath(os.path.join(self._WEBAPP_DIR, rel_path))
+        # Seguridad: no salir del directorio webapp
+        if not abs_path.startswith(self._WEBAPP_DIR):
+            self.send_response(403); self.end_headers()
+            return True
+        if not os.path.isfile(abs_path):
+            return False
+        ext = os.path.splitext(abs_path)[1].lower()
+        ctype = self._EXTRA_MIME.get(ext) or mimetypes.guess_type(abs_path)[0] or "application/octet-stream"
+        try:
+            with open(abs_path, "rb") as f:
+                body = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Access-Control-Allow-Origin", _CORS_ORIGIN)
+            self.send_header("Cache-Control", "public, max-age=300")
+            self.end_headers()
+            self.wfile.write(body)
+            return True
+        except OSError:
+            return False
+
     def do_GET(self):
-        path = self.path.split("?")[0].rstrip("/") or "/"
-        static_files = {
-            "/":              ("webapp/index.html", "text/html; charset=utf-8"),
-            "/index.html":    ("webapp/index.html", "text/html; charset=utf-8"),
-            "/scanner_qr.js": ("webapp/scanner_qr.js", "application/javascript"),
-            "/carrito.js":    ("webapp/carrito.js", "application/javascript"),
-        }
-        if path in static_files:
-            fname, ctype = static_files[path]
-            try:
-                with open(fname, "rb") as f: body = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Access-Control-Allow-Origin", _CORS_ORIGIN)
-                self.end_headers()
-                self.wfile.write(body)
-            except FileNotFoundError:
+        parsed   = urlparse(self.path)
+        path     = parsed.path.rstrip("/") or "/"
+        qs       = parse_qs(parsed.query)
+
+        # ── Archivos estáticos de la nueva UI ──────────────────────────────
+        if path in ("/", "/index.html"):
+            self._serve_static("index.html")
+            return
+
+        # /static/css/* y /static/js/*
+        if path.startswith("/static/"):
+            rel = path.lstrip("/")  # static/css/tokens.css
+            if not self._serve_static(rel):
                 self.send_response(404); self.end_headers()
-        elif path.startswith("/api/") and not self._check_auth():
+            return
+
+        # Archivos legacy
+        _legacy = {
+            "/scanner_qr.js": "scanner_qr.js",
+            "/carrito.js":    "carrito.js",
+        }
+        if path in _legacy:
+            if not self._serve_static(_legacy[path]):
+                self.send_response(404); self.end_headers()
+            return
+
+        # ── Endpoints API — requieren auth ─────────────────────────────────
+        if path.startswith("/api/") and not self._check_auth():
             _record_security_event(
                 "WEBAPP_AUTH_DENIED_GET",
                 detail=f"Ruta: {path}",
                 ip=(self.client_address[0] if self.client_address else ""),
             )
             self._json(401, {"ok": False, "error": "No autorizado"})
-        elif path == "/api/productos":
+            return
+
+        # Dashboard endpoints
+        if path.startswith("/api/dashboard/"):
+            try:
+                from webapp.api_dashboard import DASHBOARD_ROUTES
+                handler = DASHBOARD_ROUTES.get(path)
+                if handler:
+                    params = {k: v[0] for k, v in qs.items()}
+                    self._json(200, handler(params))
+                else:
+                    self._json(404, {"ok": False, "error": "Endpoint no encontrado"})
+            except Exception as e:
+                logger.error("dashboard handler error: %s", e)
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/productos":
             self._json(200, self._get_productos())
         elif path == "/api/sucursales":
             self._json(200, self._get_sucursales())
         elif path == "/api/qr":
-            params = parse_qs(urlparse(self.path).query)
-            uuid_qr = params.get("uuid", [""])[0]
+            uuid_qr = qs.get("uuid", [""])[0]
             self._json(200, self._get_qr_info(uuid_qr))
         else:
             self.send_response(404); self.end_headers()

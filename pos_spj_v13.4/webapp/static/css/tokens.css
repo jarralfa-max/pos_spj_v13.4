@@ -1,0 +1,148 @@
+/*
+ * tokens.css — SPJ POS Web UI
+ * CSS Custom Properties espejados de modulos/design_tokens.py
+ * Esta es la fuente única de verdad para el sistema web.
+ * NO hardcodear colores fuera de este archivo.
+ */
+
+:root {
+  /* ── Colores Primarios (azul) ────────────────────────────────────────────── */
+  --color-primary:        #2563EB;
+  --color-primary-hover:  #1D4ED8;
+  --color-primary-active: #1E40AF;
+  --color-primary-light:  #DBEAFE;
+  --color-primary-dark:   #1D4ED8;
+  --color-primary-glow:   rgba(37, 99, 235, 0.35);
+
+  /* ── Éxito (verde) ───────────────────────────────────────────────────────── */
+  --color-success:        #16A34A;
+  --color-success-hover:  #15803D;
+  --color-success-active: #166534;
+  --color-success-soft:   #DCFCE7;
+  --color-success-border: #22C55E;
+  --color-success-glow:   rgba(22, 163, 74, 0.35);
+
+  /* ── Peligro / Error (rojo) ──────────────────────────────────────────────── */
+  --color-danger:         #DC2626;
+  --color-danger-hover:   #B91C1C;
+  --color-danger-active:  #991B1B;
+  --color-danger-soft:    #FEE2E2;
+  --color-danger-border:  #EF4444;
+  --color-danger-glow:    rgba(220, 38, 38, 0.35);
+
+  /* ── Advertencia (ámbar) ─────────────────────────────────────────────────── */
+  --color-warning:        #D97706;
+  --color-warning-hover:  #B45309;
+  --color-warning-active: #92400E;
+  --color-warning-soft:   #FEF3C7;
+  --color-warning-border: #F59E0B;
+  --color-warning-glow:   rgba(217, 119, 6, 0.35);
+
+  /* ── Info (cyan) ─────────────────────────────────────────────────────────── */
+  --color-info:           #0891B2;
+  --color-info-hover:     #0E7490;
+  --color-info-active:    #155E75;
+  --color-info-soft:      #ECFEFF;
+  --color-info-border:    #06B6D4;
+
+  /* ── Acento (violeta) ────────────────────────────────────────────────────── */
+  --color-accent:         #7C3AED;
+  --color-accent-hover:   #6D28D9;
+  --color-accent-soft:    #F5F3FF;
+
+  /* ── Sidebar (SIEMPRE OSCURO) ────────────────────────────────────────────── */
+  --sidebar-bg:           #020617;
+  --sidebar-hover:        #1E293B;
+  --sidebar-active:       #2563EB;
+  --sidebar-text:         #E2E8F0;
+  --sidebar-icon:         #94A3B8;
+  --sidebar-border:       #1E293B;
+  --sidebar-width:        240px;
+  --sidebar-width-collapsed: 60px;
+
+  /* ── Neutros (escala Slate) ──────────────────────────────────────────────── */
+  --neutral-white:   #FFFFFF;
+  --neutral-50:      #F8FAFC;
+  --neutral-100:     #F1F5F9;
+  --neutral-200:     #E2E8F0;
+  --neutral-300:     #CBD5E1;
+  --neutral-400:     #94A3B8;
+  --neutral-500:     #64748B;
+  --neutral-600:     #475569;
+  --neutral-700:     #334155;
+  --neutral-800:     #1E293B;
+  --neutral-900:     #0F172A;
+  --neutral-950:     #020617;
+
+  /* ── Tipografía ──────────────────────────────────────────────────────────── */
+  --font-family:     'Inter', 'Segoe UI', 'Roboto', system-ui, sans-serif;
+  --font-mono:       'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --text-xs:   10px;
+  --text-sm:   11px;
+  --text-base: 12px;
+  --text-md:   13px;
+  --text-lg:   14px;
+  --text-xl:   16px;
+  --text-2xl:  20px;
+  --text-3xl:  24px;
+
+  --font-normal:   400;
+  --font-medium:   500;
+  --font-semibold: 600;
+  --font-bold:     700;
+
+  --leading-tight:   1.25;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.75;
+
+  /* ── Espaciado (sistema 4px base) ────────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── Bordes ──────────────────────────────────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-2xl:  16px;
+  --radius-full: 9999px;
+
+  --border-thin:   1px;
+  --border-normal: 2px;
+
+  /* ── Sombras ─────────────────────────────────────────────────────────────── */
+  --shadow-sm:  0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md:  0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-lg:  0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
+  --shadow-xl:  0 20px 25px rgba(0,0,0,0.1), 0 10px 10px rgba(0,0,0,0.04);
+
+  /* ── Transiciones ────────────────────────────────────────────────────────── */
+  --transition-fast:   150ms ease-out;
+  --transition-normal: 200ms ease-out;
+  --transition-slow:   300ms ease-out;
+
+  /* ── Z-Index ─────────────────────────────────────────────────────────────── */
+  --z-dropdown:  10;
+  --z-sticky:    20;
+  --z-backdrop:  30;
+  --z-modal:     40;
+  --z-tooltip:   60;
+  --z-toast:     70;
+
+  /* ── Componentes ─────────────────────────────────────────────────────────── */
+  --btn-height-sm:  28px;
+  --btn-height-md:  34px;
+  --btn-height-lg:  40px;
+  --input-height:   34px;
+  --header-height:  56px;
+  --topbar-height:  56px;
+}
