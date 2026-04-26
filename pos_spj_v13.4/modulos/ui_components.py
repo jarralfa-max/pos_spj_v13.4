@@ -910,6 +910,99 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+class PageHeader(QFrame):
+    """
+    Header reutilizable para cada vista/módulo.
+
+    Reemplaza el patrón repetido en 20+ módulos:
+        header_layout = QHBoxLayout()
+        lbl_titulo = create_heading(self, "📊 Título")
+        header_layout.addWidget(lbl_titulo)
+        header_layout.addStretch()
+        header_layout.addWidget(btn1); header_layout.addWidget(btn2)
+
+    Por:
+        header = PageHeader(self, title="📊 Título", subtitle="Descripción corta")
+        header.add_action(btn1)
+        header.add_action(btn2)
+        layout.addWidget(header)
+
+    Estilo theme-aware vía objectNames #pageHeader, #pageTitle, #pageSubtitle
+    (definidos en qss_builder._block_page_header).
+    """
+
+    def __init__(self, parent=None, title: str = "", subtitle: str = "",
+                 with_separator: bool = True):
+        super().__init__(parent)
+        self.setObjectName("pageHeader")
+
+        # Si no hay separador inferior, dejar al QSS sin border-bottom.
+        if not with_separator:
+            self.setProperty("noSeparator", True)
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 12)
+        outer.setSpacing(Spacing.MD)
+
+        # Columna izquierda: título + subtítulo
+        left = QVBoxLayout()
+        left.setSpacing(2)
+        left.setContentsMargins(0, 0, 0, 0)
+
+        self.title_label = QLabel(title, self)
+        self.title_label.setObjectName("pageTitle")
+        self.title_label.setStyleSheet(
+            f"font-size: 18px; font-weight: {Typography.WEIGHT_BOLD};"
+            f" background: transparent; border: none;"
+        )
+        left.addWidget(self.title_label)
+
+        self.subtitle_label = QLabel(subtitle, self)
+        self.subtitle_label.setObjectName("pageSubtitle")
+        self.subtitle_label.setStyleSheet(
+            f"font-size: {Typography.SIZE_SM};"
+            f" background: transparent; border: none;"
+        )
+        self.subtitle_label.setVisible(bool(subtitle))
+        left.addWidget(self.subtitle_label)
+
+        outer.addLayout(left, 1)
+
+        # Slot de acciones (botones a la derecha)
+        self._actions_layout = QHBoxLayout()
+        self._actions_layout.setSpacing(Spacing.SM)
+        self._actions_layout.setContentsMargins(0, 0, 0, 0)
+        outer.addLayout(self._actions_layout, 0)
+
+    # ── API pública ────────────────────────────────────────────────────────
+    def set_title(self, text: str) -> None:
+        self.title_label.setText(text)
+
+    def set_subtitle(self, text: str) -> None:
+        self.subtitle_label.setText(text)
+        self.subtitle_label.setVisible(bool(text))
+
+    def add_action(self, widget: QWidget) -> QWidget:
+        """Añade un botón/widget al área de acciones derecha."""
+        self._actions_layout.addWidget(widget)
+        return widget
+
+    def add_separator(self) -> None:
+        """Añade separador vertical entre grupos de acciones."""
+        sep = QFrame(self)
+        sep.setFrameShape(QFrame.VLine)
+        sep.setFixedWidth(1)
+        sep.setStyleSheet("background: transparent;")
+        self._actions_layout.addWidget(sep)
+
+    def clear_actions(self) -> None:
+        while self._actions_layout.count():
+            item = self._actions_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+
+
 class EmptyStateWidget(QFrame):
     """Estado vacío reutilizable para tablas, listas y dashboards.
 
@@ -1207,6 +1300,7 @@ __all__ = [
     "create_standard_tabs",
     "wrap_in_scroll_area",
     # Componentes avanzados
+    "PageHeader",
     "EmptyStateWidget",
     "LoadingIndicator",
     "FilterBar",
