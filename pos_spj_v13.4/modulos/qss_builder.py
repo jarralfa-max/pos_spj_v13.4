@@ -1308,9 +1308,105 @@ _TPL_CLARO = f"""
 
 
 
+# ─── Bloques modernos generados desde design_tokens (KPI cards, page header) ──
+#  Estos bloques se concatenan al final de cada tema. Usan SOLO tokens —
+#  ningún hex literal — para que los cambios en design_tokens.Colors
+#  propaguen automáticamente a todos los componentes nuevos.
+
+def _block_kpi_card(*, bg: str, border: str, hover_bg: str, text: str, muted: str) -> str:
+    """Genera el QSS del componente KPI card (#kpiCard) para el tema dado."""
+    return f"""
+        /* ===== KPI CARD (modernos, ui_components.create_kpi_card) ===== */
+        QFrame#kpiCard {{
+            background-color: {bg};
+            border: 1px solid {border};
+            border-radius: 12px;
+        }}
+        QFrame#kpiCard:hover {{
+            background-color: {hover_bg};
+            border-color: {Colors.PRIMARY.BASE};
+        }}
+        QFrame#kpiCard QLabel {{
+            background-color: transparent;
+            border: none;
+        }}
+        QFrame#kpiCard QLabel#kpiValue {{
+            color: {text};
+        }}
+        QFrame#kpiCard QLabel#kpiLabel {{
+            color: {muted};
+        }}
+        QFrame#kpiAccentBar {{
+            border: none;
+        }}
+    """
+
+
+def _block_page_header(*, text: str, muted: str, border: str) -> str:
+    """Genera el QSS para PageHeader (#pageHeader, #pageTitle, #pageSubtitle)."""
+    return f"""
+        /* ===== PAGE HEADER (modernos, ui_components.PageHeader) ===== */
+        QFrame#pageHeader {{
+            background-color: transparent;
+            border: none;
+            border-bottom: 1px solid {border};
+        }}
+        QLabel#pageTitle {{
+            color: {text};
+            font-size: 18px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#pageSubtitle {{
+            color: {muted};
+            font-size: 12px;
+            background: transparent;
+            border: none;
+        }}
+    """
+
+
+def _modern_blocks(theme: str) -> str:
+    """Concatena todos los bloques modernos para el tema dado."""
+    if theme == "Oscuro":
+        return (
+            _block_kpi_card(
+                bg=Colors.NEUTRAL.SLATE_800,
+                border=Colors.NEUTRAL.SLATE_700,
+                hover_bg=Colors.NEUTRAL.SLATE_700,
+                text=Colors.NEUTRAL.SLATE_50,
+                muted=Colors.NEUTRAL.SLATE_400,
+            )
+            + _block_page_header(
+                text=Colors.NEUTRAL.SLATE_50,
+                muted=Colors.NEUTRAL.SLATE_400,
+                border=Colors.NEUTRAL.SLATE_700,
+            )
+        )
+    # Claro
+    return (
+        _block_kpi_card(
+            bg=Colors.NEUTRAL.WHITE,
+            border=Colors.NEUTRAL.SLATE_200,
+            hover_bg=Colors.NEUTRAL.SLATE_50,
+            text=Colors.NEUTRAL.SLATE_900,
+            muted=Colors.NEUTRAL.SLATE_500,
+        )
+        + _block_page_header(
+            text=Colors.NEUTRAL.SLATE_900,
+            muted=Colors.NEUTRAL.SLATE_500,
+            border=Colors.NEUTRAL.SLATE_200,
+        )
+    )
+
+
 def build_themes() -> dict[str, str]:
     """Retorna {"Oscuro": qss_oscuro, "Claro": qss_claro}."""
-    return {"Oscuro": _TPL_OSCURO, "Claro": _TPL_CLARO}
+    return {
+        "Oscuro": _TPL_OSCURO + _modern_blocks("Oscuro"),
+        "Claro":  _TPL_CLARO  + _modern_blocks("Claro"),
+    }
 
 
 # ─── TODO: extender design_tokens.Colors con estos alias para

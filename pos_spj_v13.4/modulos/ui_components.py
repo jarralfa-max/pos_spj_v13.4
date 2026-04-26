@@ -43,80 +43,6 @@ logger = logging.getLogger("spj.ui_components")
 _DIALOG_NORMALIZER = None
 
 
-_GLOBAL_THEME_QSS = {
-    "oscuro": f"""
-        QWidget {{
-            background-color: {Colors.NEUTRAL.DARK_BG};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-        }}
-        QFrame, QGroupBox {{
-            background-color: {Colors.NEUTRAL.DARK_CARD};
-            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-            border-radius: {Borders.RADIUS_LG}px;
-        }}
-        QPushButton#primaryBtn, QPushButton#successBtn, QPushButton#dangerBtn,
-        QPushButton#secondaryBtn, QPushButton#warningBtn, QPushButton#outlineBtn {{
-            min-height: {Spacing.BTN_HEIGHT_MIN}px;
-            border-radius: {Borders.RADIUS_MD}px;
-            padding: 6px 12px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-        }}
-        QTabWidget::pane {{
-            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-            border-radius: {Borders.RADIUS_LG}px;
-            top: -1px;
-        }}
-        QTabBar::tab {{
-            background: {Colors.NEUTRAL.SLATE_700};
-            color: {Colors.NEUTRAL.SLATE_200};
-            padding: 8px 14px;
-            margin-right: 4px;
-            border-top-left-radius: {Borders.RADIUS_MD}px;
-            border-top-right-radius: {Borders.RADIUS_MD}px;
-        }}
-        QTabBar::tab:selected {{
-            background: {Colors.PRIMARY.BASE};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-    """,
-    "claro": f"""
-        QWidget {{
-            background-color: #F8FAFC;
-            color: #0F172A;
-        }}
-        QFrame, QGroupBox {{
-            background-color: #FFFFFF;
-            border: 1px solid #E2E8F0;
-            border-radius: {Borders.RADIUS_LG}px;
-        }}
-        QPushButton#primaryBtn, QPushButton#successBtn, QPushButton#dangerBtn,
-        QPushButton#secondaryBtn, QPushButton#warningBtn, QPushButton#outlineBtn {{
-            min-height: {Spacing.BTN_HEIGHT_MIN}px;
-            border-radius: {Borders.RADIUS_MD}px;
-            padding: 6px 12px;
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-        }}
-        QTabWidget::pane {{
-            border: 1px solid #CBD5E1;
-            border-radius: {Borders.RADIUS_LG}px;
-            top: -1px;
-        }}
-        QTabBar::tab {{
-            background: #E2E8F0;
-            color: #334155;
-            padding: 8px 14px;
-            margin-right: 4px;
-            border-top-left-radius: {Borders.RADIUS_MD}px;
-            border-top-right-radius: {Borders.RADIUS_MD}px;
-        }}
-        QTabBar::tab:selected {{
-            background: #2563EB;
-            color: #FFFFFF;
-        }}
-    """,
-}
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 #  BOTONES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -380,68 +306,189 @@ def create_card(parent, padding: int = Spacing.LG, with_layout: bool = True,
     return card
 
 
-def create_stat_card(parent, title: str, value: str, icon_path: str = None,
-                     color_variant: str = "primary") -> QFrame:
+_VARIANT_COLOR = {
+    "primary": (Colors.PRIMARY.BASE, "primary"),
+    "success": (Colors.SUCCESS.BASE, "success"),
+    "danger":  (Colors.DANGER.BASE,  "danger"),
+    "warning": (Colors.WARNING.BASE, "warning"),
+    "info":    (Colors.INFO.BASE,    "info"),
+    "accent":  (Colors.ACCENT.BASE,  "accent"),
+}
+
+
+def create_stat_card(
+    parent,
+    title: str,
+    value: str,
+    icon_path: str = None,
+    color_variant: str = "primary",
+    *,
+    delta_pct: float | None = None,
+    delta_label: str = "vs ayer",
+    icon_emoji: str = "",
+    subtitle: str = "",
+) -> QFrame:
     """
-    Crea una card de estadística para dashboards.
-    Fondo neutro con indicador de color en ícono/borde.
-    
+    KPI card moderno para dashboards.
+
+    Layout: barra de acento superior + label uppercase + valor grande +
+    delta opcional (↑/↓ con %) + ícono (emoji o pixmap).
+
     Args:
-        parent: Widget padre
-        title: Título de la estadística
-        value: Valor a mostrar
-        icon_path: Ruta al ícono (opcional)
-        color_variant: Variante de color (primary, success, danger, warning)
-    
+        parent:         Widget padre.
+        title:          Etiqueta superior (uppercase auto).
+        value:          Valor principal (string ya formateado).
+        icon_path:      Ruta a icono PNG/SVG (opcional).
+        color_variant:  primary | success | danger | warning | info | accent.
+        delta_pct:      % de cambio vs periodo anterior (opcional, None = sin delta).
+        delta_label:    Texto que acompaña al delta. Default: "vs ayer".
+        icon_emoji:     Emoji decorativo en lugar de pixmap (ej. "💵").
+        subtitle:       Línea gris secundaria bajo el valor.
+
     Returns:
-        QFrame configurado como stat card
+        QFrame con objectName="kpiCard" — estiliza desde config.TEMAS.
     """
-    # CORRECCIÓN CRÍTICA: with_layout=False porque vamos a usar QHBoxLayout personalizado
-    card = create_card(parent, padding=Spacing.MD, with_layout=False)
-    card.setFixedHeight(48)
-    
-    layout = QHBoxLayout(card)
-    layout.setSpacing(Spacing.MD)
-    
-    # Ícono (si existe)
-    if icon_path:
+    accent_color, variant_name = _VARIANT_COLOR.get(
+        color_variant, _VARIANT_COLOR["primary"]
+    )
+
+    card = QFrame(parent)
+    card.setObjectName("kpiCard")
+    card.setProperty("variant", variant_name)
+    card.setMinimumHeight(96)
+    card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    # Sombra suave (Drop shadow effect)
+    shadow = QGraphicsDropShadowEffect(card)
+    shadow.setBlurRadius(16)
+    shadow.setOffset(0, 2)
+    shadow.setColor(QColor(0, 0, 0, 32))
+    card.setGraphicsEffect(shadow)
+
+    outer = QVBoxLayout(card)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(0)
+
+    # Barra de acento superior (3px)
+    accent_bar = QFrame(card)
+    accent_bar.setObjectName("kpiAccentBar")
+    accent_bar.setFixedHeight(3)
+    accent_bar.setStyleSheet(
+        f"background-color: {accent_color}; border-top-left-radius: {Borders.RADIUS_LG}px;"
+        f" border-top-right-radius: {Borders.RADIUS_LG}px;"
+    )
+    outer.addWidget(accent_bar)
+
+    body = QHBoxLayout()
+    body.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
+    body.setSpacing(Spacing.MD)
+    outer.addLayout(body)
+
+    # Columna texto (label + value + subtitle/delta)
+    text_col = QVBoxLayout()
+    text_col.setSpacing(2)
+
+    lbl_title = QLabel(title.upper(), card)
+    lbl_title.setObjectName("kpiLabel")
+    lbl_title.setStyleSheet(
+        f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
+        f" font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.05em;"
+        f" background: transparent; border: none;"
+    )
+    text_col.addWidget(lbl_title)
+
+    lbl_value = QLabel(str(value), card)
+    lbl_value.setObjectName("kpiValue")
+    lbl_value.setStyleSheet(
+        f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
+        f" letter-spacing: -0.02em; background: transparent; border: none;"
+    )
+    text_col.addWidget(lbl_value)
+
+    if delta_pct is not None:
+        if delta_pct > 0:
+            arrow, color, bg = "↑", Colors.SUCCESS.BASE, Colors.SUCCESS.BG_SOFT
+        elif delta_pct < 0:
+            arrow, color, bg = "↓", Colors.DANGER.BASE, Colors.DANGER.BG_SOFT
+        else:
+            arrow, color, bg = "→", Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100
+
+        delta_text = f"{arrow} {abs(delta_pct):.1f}%  {delta_label}"
+        lbl_delta = QLabel(delta_text, card)
+        lbl_delta.setObjectName("kpiDelta")
+        lbl_delta.setStyleSheet(
+            f"color: {color}; background-color: {bg}; font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" border-radius: {Borders.RADIUS_FULL}px; padding: 2px 8px;"
+            f" border: none;"
+        )
+        lbl_delta.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        text_col.addWidget(lbl_delta, alignment=Qt.AlignLeft)
+    elif subtitle:
+        lbl_sub = QLabel(subtitle, card)
+        lbl_sub.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_400}; font-size: {Typography.SIZE_XS};"
+            f" background: transparent; border: none;"
+        )
+        text_col.addWidget(lbl_sub)
+
+    body.addLayout(text_col, 1)
+
+    # Ícono (emoji o pixmap)
+    if icon_emoji:
+        lbl_icon = QLabel(icon_emoji, card)
+        lbl_icon.setStyleSheet(
+            f"font-size: 28px; background-color: {accent_color}1F;"
+            f" border-radius: {Borders.RADIUS_LG}px; padding: 6px; border: none;"
+        )
+        lbl_icon.setFixedSize(44, 44)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+    elif icon_path:
         from PyQt5.QtGui import QPixmap
-        
-        icon_label = QLabel()
-        icon_label.setFixedSize(40, 40)
-        pixmap = QPixmap(icon_path).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        icon_label.setPixmap(pixmap)
-        
-        # Color del ícono según variante
-        color_map = {
-            "primary": Colors.PRIMARY.BASE,
-            "success": Colors.SUCCESS.BASE,
-            "danger": Colors.DANGER.BASE,
-            "warning": Colors.WARNING.BASE,
-        }
-        # Aplicar tinte al ícono (simplificado)
-        icon_label.setStyleSheet(f"background-color: {color_map.get(color_variant, Colors.PRIMARY.BASE)}20; border-radius: 8px;")
-        
-        layout.addWidget(icon_label)
-    
-    # Texto
-    text_layout = QVBoxLayout()
-    text_layout.setSpacing(Spacing.XS)
-    
-    # Título
-    title_label = QLabel(title)
-    title_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS}; font-weight: 500;")
-    text_layout.addWidget(title_label)
-    
-    # Valor
-    value_label = QLabel(value)
-    value_label.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_900}; font-size: {Typography.SIZE_XL}; font-weight: 700;")
-    text_layout.addWidget(value_label)
-    
-    layout.addLayout(text_layout)
-    layout.addStretch()
-    
+        lbl_icon = QLabel(card)
+        lbl_icon.setFixedSize(44, 44)
+        pixmap = QPixmap(icon_path).scaled(
+            22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        lbl_icon.setPixmap(pixmap)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet(
+            f"background-color: {accent_color}1F;"
+            f" border-radius: {Borders.RADIUS_LG}px; border: none;"
+        )
+        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+
     return card
+
+
+def create_kpi_card(
+    parent,
+    label: str,
+    value: str,
+    *,
+    delta_pct: float | None = None,
+    delta_label: str = "vs ayer",
+    icon: str = "",
+    variant: str = "primary",
+    subtitle: str = "",
+) -> QFrame:
+    """
+    Alias semántico de create_stat_card con argumentos kw-only para
+    APIs nuevas. Retrocompatibilidad: create_stat_card sigue funcionando.
+
+    Ejemplo:
+        kpi = create_kpi_card(self, "Ventas hoy", "$ 12,450",
+                              delta_pct=8.3, icon="💵", variant="primary")
+    """
+    return create_stat_card(
+        parent, label, value,
+        color_variant=variant,
+        delta_pct=delta_pct,
+        delta_label=delta_label,
+        icon_emoji=icon,
+        subtitle=subtitle,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -705,46 +752,11 @@ def create_table(parent, show_grid: bool = False, alternating_colors: bool = Tru
     
     # Ajuste automático
     table.setSizeAdjustPolicy(QAbstractItemView.AdjustToContentsOnFirstShow)
-    
-    # Estilo CSS inline para garantizar consistencia
-    table.setStyleSheet(f"""
-        QTableWidget {{
-            background-color: {Colors.NEUTRAL.DARK_CARD};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-            gridline-color: {Colors.NEUTRAL.DARK_BORDER};
-            border: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-            alternate-background-color: {Colors.NEUTRAL.DARK_BG};
-            border-radius: {Borders.RADIUS_LG}px;
-            font-size: {Typography.SIZE_SM};
-        }}
-        QTableWidget::item {{
-            padding: {Spacing.SM}px {Spacing.MD}px;
-            border-bottom: 1px solid {Colors.NEUTRAL.DARK_BORDER};
-        }}
-        QTableWidget::item:selected {{
-            background-color: {Colors.PRIMARY.BASE};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-        QTableWidget::item:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-        }}
-        QHeaderView::section {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-            color: {Colors.NEUTRAL.DARK_TEXT};
-            border: none;
-            border-bottom: 2px solid {Colors.NEUTRAL.SLATE_600};
-            font-weight: {Typography.WEIGHT_SEMIBOLD};
-            padding: {Spacing.SM}px {Spacing.MD}px;
-            text-transform: uppercase;
-            font-size: {Typography.SIZE_XS};
-            letter-spacing: 0.5px;
-            min-height: 20px;
-        }}
-        QHeaderView::section:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_600};
-        }}
-    """)
-    
+
+    # NOTA: el QSS global de config.TEMAS estiliza QTableWidget#standardTable
+    # para ambos temas (Claro/Oscuro). Anteriormente este factory aplicaba un
+    # QSS inline forzado-oscuro que rompía el tema claro. Removido.
+
     return table
 
 
@@ -791,27 +803,19 @@ def wrap_in_scroll_area(widget: QWidget, parent=None) -> QScrollArea:
     return area
 
 
-def get_global_theme_qss(theme: str = "oscuro") -> str:
-    """Retorna QSS global base para tema claro/oscuro."""
-    key = (theme or "oscuro").strip().lower()
-    return _GLOBAL_THEME_QSS.get(key, _GLOBAL_THEME_QSS["oscuro"])
+def apply_global_theme(db_conn=None) -> None:
+    """
+    Aplica el tema global del POS (Claro/Oscuro según configuración persistida).
 
-
-def apply_global_theme(app_or_widget, theme: str = "oscuro") -> bool:
-    """Aplica el tema global base a QApplication y opcionalmente a un widget."""
-    qss = get_global_theme_qss(theme)
-    if not qss:
-        return False
+    Wrapper delgado de modulos.spj_styles.apply_global_theme — la lógica real
+    vive ahí. Se conserva aquí solo como punto de entrada ergonómico para
+    quien ya importa desde modulos.ui_components.
+    """
     try:
-        from PyQt5.QtWidgets import QApplication
-        app = QApplication.instance()
-        if app is not None:
-            app.setStyleSheet(qss)
-        if app_or_widget is not None and hasattr(app_or_widget, "setStyleSheet"):
-            app_or_widget.setStyleSheet(qss)
-        return True
-    except Exception:
-        return False
+        from modulos.spj_styles import apply_global_theme as _impl
+        _impl(db_conn)
+    except Exception as e:
+        logger.debug("apply_global_theme wrapper: %s", e)
 
 
 class _DialogButtonNormalizer(QObject):
@@ -885,31 +889,14 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
     
     object_name = variant_map.get(variant, "outlineBtn")
     btn.setObjectName(object_name)
-    
-    # Estilo inline específico para botones de tabla
-    btn.setStyleSheet(f"""
-        QPushButton#{object_name} {{
-            background-color: transparent;
-            border: 1px solid {Colors.NEUTRAL.SLATE_600};
-            border-radius: {Borders.RADIUS_MD}px;
-            padding: {Spacing.XS}px {Spacing.SM}px;
-            font-size: {Typography.SIZE_XS};
-            font-weight: {Typography.WEIGHT_MEDIUM};
-            color: {Colors.NEUTRAL.SLATE_300};
-        }}
-        QPushButton#{object_name}:hover {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-            border-color: {Colors.NEUTRAL.SLATE_500};
-            color: {Colors.NEUTRAL.WHITE};
-        }}
-        QPushButton#{object_name}:pressed {{
-            background-color: {Colors.NEUTRAL.SLATE_800};
-        }}
-    """)
-    
+
+    # NOTA: el QSS global de config.TEMAS estiliza estos object names para
+    # ambos temas. Anteriormente había un setStyleSheet inline tema-oscuro
+    # que rompía el tema claro y duplicaba la lógica del builder.
+
     if tooltip:
         apply_tooltip(btn, tooltip)
-    
+
     return btn
 
 
@@ -1174,6 +1161,7 @@ __all__ = [
     # Cards
     "create_card",
     "create_stat_card",
+    "create_kpi_card",
     # Badges
     "create_badge",
     # Tooltips
@@ -1201,7 +1189,6 @@ __all__ = [
     "DataTableWithFilters",
     "confirm_action",
     # Tema global
-    "get_global_theme_qss",
     "apply_global_theme",
     "install_dialog_button_normalizer",
 ]
