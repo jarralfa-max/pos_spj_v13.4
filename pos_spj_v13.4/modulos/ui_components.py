@@ -596,21 +596,40 @@ def create_divider(parent, orientation: str = "horizontal") -> QFrame:
 #  LABELS CON JERARQUÍA
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_heading(parent=None, text: str = "") -> QLabel:
-    """Crea un label de título principal (24px bold)."""
+def _label_with_role(parent, text: str, object_name: str,
+                     font_size: str, font_weight: int) -> QLabel:
+    """
+    Crea un QLabel con tipografía inline (size + weight) y objectName
+    para que el COLOR sea controlado por el QSS del tema (theme-aware).
+
+    Esto reemplaza el patrón anterior de hardcodear color inline, que
+    rompía el contraste en cuanto se cambiaba de tema.
+    """
     if isinstance(parent, str) and not text:
         parent, text = None, parent
     if text is None:
         text = ""
     if not isinstance(parent, QWidget):
         parent = None
+
     label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.DARK_TEXT};
-        font-size: {Typography.SIZE_XL};
-        font-weight: {Typography.WEIGHT_BOLD};
-    """)
+    label.setObjectName(object_name)
+    # Solo propiedades theme-invariant. El color lo pone el QSS global.
+    label.setStyleSheet(
+        f"font-size: {font_size}; font-weight: {font_weight};"
+        f" background: transparent; border: none;"
+    )
     return label
+
+
+def create_heading(parent=None, text: str = "") -> QLabel:
+    """Crea un label de título principal (theme-aware)."""
+    return _label_with_role(
+        parent, text,
+        object_name="h1Label",
+        font_size=Typography.SIZE_XL,
+        font_weight=Typography.WEIGHT_BOLD,
+    )
 
 
 def create_heading_label(parent=None, text: str = "") -> QLabel:
@@ -619,36 +638,23 @@ def create_heading_label(parent=None, text: str = "") -> QLabel:
 
 
 def create_subheading(parent=None, text: str = "") -> QLabel:
-    """Crea un label de subtítulo (16px semibold)."""
-    if isinstance(parent, str) and not text:
-        parent, text = None, parent
-    if text is None:
-        text = ""
-    if not isinstance(parent, QWidget):
-        parent = None
-    label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.DARK_TEXT_SEC};
-        font-size: {Typography.SIZE_MD};
-        font-weight: {Typography.WEIGHT_SEMIBOLD};
-    """)
-    return label
+    """Crea un label de subtítulo (theme-aware)."""
+    return _label_with_role(
+        parent, text,
+        object_name="h2Label",
+        font_size=Typography.SIZE_MD,
+        font_weight=Typography.WEIGHT_SEMIBOLD,
+    )
 
 
 def create_caption(parent=None, text: str = "") -> QLabel:
-    """Crea un label de caption/texto secundario (11px)."""
-    if isinstance(parent, str) and not text:
-        parent, text = None, parent
-    if text is None:
-        text = ""
-    if not isinstance(parent, QWidget):
-        parent = None
-    label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_500};
-        font-size: {Typography.SIZE_XS};
-    """)
-    return label
+    """Crea un label de caption/texto secundario (theme-aware)."""
+    return _label_with_role(
+        parent, text,
+        object_name="captionLabel",
+        font_size=Typography.SIZE_XS,
+        font_weight=Typography.WEIGHT_NORMAL,
+    )
 
 
 def create_label(parent, text: str, variant: str = "body") -> QLabel:
@@ -664,13 +670,12 @@ def create_label(parent, text: str, variant: str = "body") -> QLabel:
     if v == "caption":
         return create_caption(parent, text)
 
-    label = QLabel(text, parent)
-    label.setStyleSheet(f"""
-        color: {Colors.NEUTRAL.SLATE_700};
-        font-size: {Typography.SIZE_MD};
-        font-weight: {Typography.WEIGHT_REGULAR};
-    """)
-    return label
+    return _label_with_role(
+        parent, text,
+        object_name="bodyLabel",
+        font_size=Typography.SIZE_MD,
+        font_weight=Typography.WEIGHT_NORMAL,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -906,7 +911,11 @@ def create_table_button(parent, text: str, tooltip: str, variant: str = "outline
 
 
 class EmptyStateWidget(QFrame):
-    """Estado vacío reutilizable para tablas, listas y dashboards."""
+    """Estado vacío reutilizable para tablas, listas y dashboards.
+
+    Los colores los maneja el QSS global (#emptyState y #emptyStateMessage)
+    para mantener contraste en ambos temas.
+    """
 
     def __init__(self, title: str = "Sin información", message: str = "No hay datos para mostrar.",
                  icon: str = "📭", parent=None):
@@ -918,16 +927,25 @@ class EmptyStateWidget(QFrame):
 
         lbl_icon = QLabel(icon)
         lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet("font-size: 26px;")
+        lbl_icon.setObjectName("emptyStateIcon")
+        lbl_icon.setStyleSheet("font-size: 26px; background: transparent; border: none;")
 
         self.lbl_title = QLabel(title)
         self.lbl_title.setAlignment(Qt.AlignCenter)
-        self.lbl_title.setStyleSheet("font-weight: 700; font-size: 14px;")
+        self.lbl_title.setObjectName("emptyStateTitle")
+        self.lbl_title.setStyleSheet(
+            f"font-weight: {Typography.WEIGHT_BOLD}; font-size: {Typography.SIZE_LG};"
+            f" background: transparent; border: none;"
+        )
 
         self.lbl_message = QLabel(message)
         self.lbl_message.setWordWrap(True)
         self.lbl_message.setAlignment(Qt.AlignCenter)
-        self.lbl_message.setStyleSheet("color: #64748B; font-size: 12px;")
+        self.lbl_message.setObjectName("emptyStateMessage")
+        # Color theme-aware via QSS, solo size inline aquí.
+        self.lbl_message.setStyleSheet(
+            f"font-size: {Typography.SIZE_MD}; background: transparent; border: none;"
+        )
 
         lay.addWidget(lbl_icon)
         lay.addWidget(self.lbl_title)
@@ -935,7 +953,10 @@ class EmptyStateWidget(QFrame):
 
 
 class LoadingIndicator(QFrame):
-    """Indicador de carga liviano para operaciones de refresh en dashboards."""
+    """Indicador de carga liviano para operaciones de refresh en dashboards.
+
+    Color theme-aware via QSS (#loadingIndicator).
+    """
 
     def __init__(self, message: str = "Cargando…", parent=None):
         super().__init__(parent)
@@ -950,7 +971,10 @@ class LoadingIndicator(QFrame):
         self.progress.setTextVisible(False)
 
         self.lbl = QLabel(message)
-        self.lbl.setStyleSheet("color: #64748B; font-size: 12px;")
+        self.lbl.setObjectName("loadingMessage")
+        self.lbl.setStyleSheet(
+            f"font-size: {Typography.SIZE_MD}; background: transparent; border: none;"
+        )
 
         lay.addWidget(self.progress)
         lay.addWidget(self.lbl)

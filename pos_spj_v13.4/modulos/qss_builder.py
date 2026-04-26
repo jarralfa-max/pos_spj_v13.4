@@ -1367,6 +1367,43 @@ def _block_page_header(*, text: str, muted: str, border: str) -> str:
     """
 
 
+def _block_typography(*, primary: str, secondary: str, muted: str) -> str:
+    """
+    Color theme-aware para los object names de los helpers create_heading,
+    create_subheading, create_caption, create_label.
+
+    Las propiedades font-size/font-weight las pone Python inline porque
+    no varían entre temas; aquí solo controlamos COLOR.
+    """
+    return f"""
+        /* ===== TIPOGRAFÍA SEMÁNTICA (theme-aware via objectName) ===== */
+        QLabel#h1Label       {{ color: {primary}; }}
+        QLabel#h2Label       {{ color: {secondary}; }}
+        QLabel#bodyLabel     {{ color: {primary}; }}
+        QLabel#captionLabel  {{ color: {muted}; }}
+    """
+
+
+def _block_empty_loading(*, surface: str, border: str, text: str, muted: str) -> str:
+    """QSS para EmptyStateWidget y LoadingIndicator (theme-aware)."""
+    return f"""
+        /* ===== EMPTY STATE & LOADING INDICATOR ===== */
+        QFrame#emptyState {{
+            background-color: {surface};
+            border: 1px dashed {border};
+            border-radius: 8px;
+        }}
+        QLabel#emptyStateTitle    {{ color: {text}; }}
+        QLabel#emptyStateMessage  {{ color: {muted}; }}
+        QFrame#loadingIndicator {{
+            background-color: {surface};
+            border: 1px solid {border};
+            border-radius: 8px;
+        }}
+        QLabel#loadingMessage     {{ color: {muted}; }}
+    """
+
+
 def _modern_blocks(theme: str) -> str:
     """Concatena todos los bloques modernos para el tema dado."""
     if theme == "Oscuro":
@@ -1383,6 +1420,17 @@ def _modern_blocks(theme: str) -> str:
                 muted=Colors.NEUTRAL.SLATE_400,
                 border=Colors.NEUTRAL.SLATE_700,
             )
+            + _block_typography(
+                primary=Colors.NEUTRAL.SLATE_50,
+                secondary=Colors.NEUTRAL.SLATE_300,
+                muted=Colors.NEUTRAL.SLATE_400,
+            )
+            + _block_empty_loading(
+                surface=Colors.NEUTRAL.SLATE_800,
+                border=Colors.NEUTRAL.SLATE_700,
+                text=Colors.NEUTRAL.SLATE_50,
+                muted=Colors.NEUTRAL.SLATE_400,
+            )
         )
     # Claro
     return (
@@ -1397,6 +1445,17 @@ def _modern_blocks(theme: str) -> str:
             text=Colors.NEUTRAL.SLATE_900,
             muted=Colors.NEUTRAL.SLATE_500,
             border=Colors.NEUTRAL.SLATE_200,
+        )
+        + _block_typography(
+            primary=Colors.NEUTRAL.SLATE_900,
+            secondary=Colors.NEUTRAL.SLATE_700,
+            muted=Colors.NEUTRAL.SLATE_500,
+        )
+        + _block_empty_loading(
+            surface=Colors.NEUTRAL.WHITE,
+            border=Colors.NEUTRAL.SLATE_200,
+            text=Colors.NEUTRAL.SLATE_900,
+            muted=Colors.NEUTRAL.SLATE_500,
         )
     )
 
