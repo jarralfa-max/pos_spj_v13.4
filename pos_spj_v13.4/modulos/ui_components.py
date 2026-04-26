@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QComboBox, QProgressBar, QMessageBox, QTabWidget, QScrollArea, QSizePolicy, QDialog
 )
-from PyQt5.QtCore import Qt, QPoint, QTimer, QSize, pyqtSignal, QObject, QEvent
+from PyQt5.QtCore import Qt, QPoint, QTimer, QSize, pyqtSignal, QObject, QEvent, QPropertyAnimation, QEasingCurve, QRect
 from PyQt5.QtGui import QFont, QPalette, QColor
 import logging
 
@@ -1196,6 +1196,263 @@ class DataTableWithFilters(QWidget):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  TOAST NOTIFICATIONS (no-modal, auto-dismiss)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_TOAST_VARIANTS = {
+    "success": ("✓", Colors.SUCCESS.BASE),
+    "danger":  ("✕", Colors.DANGER.BASE),
+    "warning": ("⚠", Colors.WARNING.BASE),
+    "info":    ("ℹ", Colors.INFO.BASE),
+}
+
+
+class Toast(QFrame):
+    """
+    Notificación no-modal con auto-dismiss y animación de entrada.
+
+    Reemplaza QMessageBox para feedback transitorio (guardado exitoso,
+    error de red, etc.). Aparece en la esquina inferior derecha del
+    widget de referencia (típicamente la ventana principal) y se apila
+    si hay varios toasts activos.
+
+    USO RÁPIDO:
+        Toast.success(parent, "Guardado", "Cliente actualizado")
+        Toast.danger(parent, "Error", "No se pudo guardar")
+        Toast.warning(parent, "Atención", "Stock bajo en chuletas")
+        Toast.info(parent, "Info", "Sincronización en progreso")
+
+    Ciclo de vida:
+        1. Constructor crea el widget y se registra en ToastManager.
+        2. show_animated() lo muestra con slide-in desde la derecha.
+        3. QTimer dispara dismiss() después de duration_ms.
+        4. dismiss() corre fade-out y deletea el widget al terminar.
+    """
+
+    closed = pyqtSignal(object)  # emite self al cerrarse
+
+    def __init__(self, parent: QWidget, title: str, message: str = "",
+                 variant: str = "info", duration_ms: int = 4000):
+        super().__init__(parent)
+        self.setObjectName("toast")
+        self.setProperty("variant", variant)
+        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+
+        # Sin marco; el QSS define el fondo y las sombras.
+        self.setFixedWidth(320)
+        self.setMinimumHeight(56)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        # Sombra suave
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(20)
+        shadow.setOffset(0, 4)
+        shadow.setColor(QColor(0, 0, 0, 60))
+        self.setGraphicsEffect(shadow)
+
+        icon_char, accent = _TOAST_VARIANTS.get(variant, _TOAST_VARIANTS["info"])
+
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(12, 10, 8, 10)
+        outer.setSpacing(10)
+
+        # Ícono circular con tinte
+        lbl_icon = QLabel(icon_char, self)
+        lbl_icon.setFixedSize(24, 24)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet(
+            f"background-color: {accent}; color: white;"
+            f" border-radius: 12px; font-weight: 700; font-size: 14px;"
+        )
+        outer.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+
+        # Cuerpo: título + mensaje
+        body = QVBoxLayout()
+        body.setSpacing(2)
+        body.setContentsMargins(0, 0, 0, 0)
+
+        self.lbl_title = QLabel(title, self)
+        self.lbl_title.setObjectName("toastTitle")
+        self.lbl_title.setStyleSheet(
+            f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" font-size: {Typography.SIZE_MD};"
+            f" background: transparent; border: none;"
+        )
+        body.addWidget(self.lbl_title)
+
+        self.lbl_message = QLabel(message, self)
+        self.lbl_message.setObjectName("toastMessage")
+        self.lbl_message.setWordWrap(True)
+        self.lbl_message.setStyleSheet(
+            f"font-size: {Typography.SIZE_SM};"
+            f" background: transparent; border: none;"
+        )
+        self.lbl_message.setVisible(bool(message))
+        body.addWidget(self.lbl_message)
+
+        outer.addLayout(body, 1)
+
+        # Botón cerrar
+        btn_close = QPushButton("×", self)
+        btn_close.setObjectName("toastClose")
+        btn_close.setCursor(Qt.PointingHandCursor)
+        btn_close.setFixedSize(20, 20)
+        btn_close.setStyleSheet(
+            f"QPushButton#toastClose {{ border: none; background: transparent;"
+            f" font-size: 18px; font-weight: 700; }}"
+            f"QPushButton#toastClose:hover {{ color: {Colors.DANGER.BASE}; }}"
+        )
+        btn_close.clicked.connect(self.dismiss)
+        outer.addWidget(btn_close, 0, alignment=Qt.AlignTop)
+
+        # Timer auto-dismiss
+        self._duration_ms = max(0, int(duration_ms))
+        self._dismiss_timer = QTimer(self)
+        self._dismiss_timer.setSingleShot(True)
+        self._dismiss_timer.timeout.connect(self.dismiss)
+
+        # Animación de entrada (se inicia con show_animated)
+        self._anim_in: QPropertyAnimation | None = None
+        self._anim_out: QPropertyAnimation | None = None
+
+    # ── API pública ────────────────────────────────────────────────────────
+    def show_animated(self, target_pos: QPoint) -> None:
+        """Muestra el toast con slide-in desde la derecha hasta target_pos."""
+        start_pos = QPoint(target_pos.x() + 60, target_pos.y())
+        self.move(start_pos)
+        self.show()
+        self.raise_()
+
+        self._anim_in = QPropertyAnimation(self, b"pos", self)
+        self._anim_in.setDuration(220)
+        self._anim_in.setStartValue(start_pos)
+        self._anim_in.setEndValue(target_pos)
+        self._anim_in.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim_in.start()
+
+        if self._duration_ms > 0:
+            self._dismiss_timer.start(self._duration_ms)
+
+    def dismiss(self) -> None:
+        """Cierra el toast con fade-out y notifica al manager."""
+        self._dismiss_timer.stop()
+        if self._anim_out is not None:  # ya en proceso
+            return
+
+        self._anim_out = QPropertyAnimation(self, b"windowOpacity", self)
+        self._anim_out.setDuration(180)
+        self._anim_out.setStartValue(1.0)
+        self._anim_out.setEndValue(0.0)
+        self._anim_out.setEasingCurve(QEasingCurve.InCubic)
+        self._anim_out.finished.connect(self._on_fadeout_done)
+        self._anim_out.start()
+
+    def _on_fadeout_done(self) -> None:
+        try:
+            self.closed.emit(self)
+        finally:
+            self.close()
+
+    # ── Constructores rápidos ──────────────────────────────────────────────
+    @classmethod
+    def success(cls, parent, title: str, message: str = "", duration_ms: int = 4000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "success", duration_ms)
+
+    @classmethod
+    def danger(cls, parent, title: str, message: str = "", duration_ms: int = 6000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "danger", duration_ms)
+
+    @classmethod
+    def warning(cls, parent, title: str, message: str = "", duration_ms: int = 5000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "warning", duration_ms)
+
+    @classmethod
+    def info(cls, parent, title: str, message: str = "", duration_ms: int = 4000) -> "Toast":
+        return _ToastManager.show(parent, title, message, "info", duration_ms)
+
+
+class _ToastManager:
+    """
+    Gestor singleton (level módulo) que apila los toasts activos en la
+    esquina inferior derecha del widget de referencia.
+
+    Reposiciona los toasts cuando uno se cierra o uno nuevo aparece,
+    para que la pila se compacte hacia abajo sin huecos.
+    """
+
+    _MARGIN = 16   # margen del borde de la ventana
+    _GAP    = 8    # separación entre toasts apilados
+    _MAX    = 5    # máximo simultáneo (los excedentes se descartan)
+
+    # toasts activos: {top_window: [Toast, ...]}
+    _stacks: dict[int, list[Toast]] = {}
+
+    @classmethod
+    def show(cls, parent: QWidget, title: str, message: str,
+             variant: str, duration_ms: int) -> Toast:
+        anchor = cls._anchor_window(parent)
+        if anchor is None:
+            # Sin ventana visible: crear toast huérfano (no se mostrará).
+            return Toast(parent, title, message, variant, duration_ms)
+
+        key = id(anchor)
+        stack = cls._stacks.setdefault(key, [])
+
+        # Limitar concurrencia: el toast más viejo se descarta sincrónicamente
+        # del stack para mantener el invariante len(stack) <= _MAX. La animación
+        # de fade-out se dispara aparte; cuando termina, _on_toast_closed se
+        # llama pero ya no está en stack, así que es no-op.
+        while len(stack) >= cls._MAX:
+            oldest = stack.pop(0)
+            oldest.dismiss()
+
+        toast = Toast(anchor, title, message, variant, duration_ms)
+        toast.closed.connect(lambda t, k=key: cls._on_toast_closed(k, t))
+        stack.append(toast)
+        cls._reposition(anchor, stack, animate_new=toast)
+        return toast
+
+    @classmethod
+    def _anchor_window(cls, widget: QWidget) -> QWidget | None:
+        """Encuentra la ventana top-level donde anclar los toasts."""
+        if widget is None:
+            return None
+        w = widget.window() if hasattr(widget, "window") else None
+        return w if w is not None and w.isVisible() else widget
+
+    @classmethod
+    def _reposition(cls, anchor: QWidget, stack: list[Toast],
+                    animate_new: Toast | None = None) -> None:
+        if anchor is None:
+            return
+        rect = anchor.rect()
+        x_right = rect.right() - cls._MARGIN
+        y_bottom = rect.bottom() - cls._MARGIN
+
+        # Mapear a coordenadas globales si los toasts no son hijos directos.
+        # Aquí sí lo son (parent=anchor), trabajamos en coords locales.
+        for toast in reversed(stack):  # más reciente abajo
+            target = QPoint(x_right - toast.width(), y_bottom - toast.height())
+            if toast is animate_new:
+                toast.show_animated(target)
+            else:
+                toast.move(target)
+            y_bottom -= toast.height() + cls._GAP
+
+    @classmethod
+    def _on_toast_closed(cls, key: int, toast: Toast) -> None:
+        stack = cls._stacks.get(key)
+        if stack and toast in stack:
+            stack.remove(toast)
+            anchor = toast.parent()
+            if isinstance(anchor, QWidget):
+                cls._reposition(anchor, stack)
+            if not stack:
+                cls._stacks.pop(key, None)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  COMPATIBILIDAD DINÁMICA (IMPORTS LEGACY)
 # ═══════════════════════════════════════════════════════════════════════════════
 _LEGACY_WARNED = set()
@@ -1301,6 +1558,7 @@ __all__ = [
     "wrap_in_scroll_area",
     # Componentes avanzados
     "PageHeader",
+    "Toast",
     "EmptyStateWidget",
     "LoadingIndicator",
     "FilterBar",

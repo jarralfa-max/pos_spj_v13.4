@@ -1404,6 +1404,25 @@ def _block_empty_loading(*, surface: str, border: str, text: str, muted: str) ->
     """
 
 
+def _block_toast(*, surface: str, border: str, text: str, muted: str) -> str:
+    """QSS para Toast notifications (theme-aware)."""
+    return f"""
+        /* ===== TOAST NOTIFICATIONS ===== */
+        QFrame#toast {{
+            background-color: {surface};
+            border: 1px solid {border};
+            border-radius: 10px;
+        }}
+        QLabel#toastTitle   {{ color: {text}; }}
+        QLabel#toastMessage {{ color: {muted}; }}
+        QPushButton#toastClose {{
+            color: {muted};
+            background: transparent;
+            border: none;
+        }}
+    """
+
+
 def _modern_blocks(theme: str) -> str:
     """Concatena todos los bloques modernos para el tema dado."""
     if theme == "Oscuro":
@@ -1431,6 +1450,12 @@ def _modern_blocks(theme: str) -> str:
                 text=Colors.NEUTRAL.SLATE_50,
                 muted=Colors.NEUTRAL.SLATE_400,
             )
+            + _block_toast(
+                surface=Colors.NEUTRAL.SLATE_800,
+                border=Colors.NEUTRAL.SLATE_700,
+                text=Colors.NEUTRAL.SLATE_50,
+                muted=Colors.NEUTRAL.SLATE_400,
+            )
         )
     # Claro
     return (
@@ -1452,6 +1477,12 @@ def _modern_blocks(theme: str) -> str:
             muted=Colors.NEUTRAL.SLATE_500,
         )
         + _block_empty_loading(
+            surface=Colors.NEUTRAL.WHITE,
+            border=Colors.NEUTRAL.SLATE_200,
+            text=Colors.NEUTRAL.SLATE_900,
+            muted=Colors.NEUTRAL.SLATE_500,
+        )
+        + _block_toast(
             surface=Colors.NEUTRAL.WHITE,
             border=Colors.NEUTRAL.SLATE_200,
             text=Colors.NEUTRAL.SLATE_900,
