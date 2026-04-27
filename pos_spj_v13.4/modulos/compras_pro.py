@@ -15,7 +15,8 @@ from modulos.ui_components import (
     create_danger_button, create_input, create_combo, create_card,
     create_heading, create_subheading, create_caption, apply_tooltip,
     FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
-    create_standard_tabs, wrap_in_scroll_area
+    create_standard_tabs, wrap_in_scroll_area,
+    PageHeader, Toast,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
@@ -594,10 +595,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             except Exception:
                 pass
 
-            msg_ok = f"Compra registrada.\nFolio: {folio}"
+            detail = f"Folio: {folio}"
             if recetas_procesadas:
-                msg_ok += f"\n\n✅ Recetas procesadas: {', '.join(recetas_procesadas)}"
-            QMessageBox.information(self, "✅ Éxito", msg_ok)
+                detail += f" · Recetas: {', '.join(recetas_procesadas)}"
+            Toast.success(self, "✅ Compra registrada", detail)
 
             # Clear UI
             self.carrito_compra.clear()

@@ -14,7 +14,8 @@ from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_card, create_input, create_combo,
     apply_tooltip, create_heading, create_subheading,
-    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
+    PageHeader, Toast,
 )
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -324,7 +325,7 @@ class ModuloCotizaciones(ModuloBase):
             try:
                 get_bus().publish("COTIZACION_ACTUALIZADA", {"event_type": "COTIZACION_ACTUALIZADA"})
             except Exception: pass
-            QMessageBox.information(self, "✅", "Cotización aprobada.")
+            Toast.success(self, "Cotización aprobada", "Estado actualizado correctamente.")
             self._cargar_lista()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -371,9 +372,7 @@ class ModuloCotizaciones(ModuloBase):
                     detalles=f"Cotizacion {cid} convertida en venta {venta_id}"
                 )
             except Exception: pass
-            QMessageBox.information(
-                self, "✅ Convertida",
-                f"Venta #{venta_id} creada correctamente.")
+            Toast.success(self, "✅ Convertida", f"Venta #{venta_id} creada correctamente.")
             self._cargar_lista()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -406,7 +405,7 @@ class ModuloCotizaciones(ModuloBase):
             if not ruta:
                 return
             self._generar_pdf_cotizacion(cid, ruta)
-            QMessageBox.information(self, "✅", f"PDF guardado:\n{ruta}")
+            Toast.success(self, "PDF guardado", ruta)
             if os.name == "nt":
                 os.startfile(ruta)
         except Exception as e:
@@ -418,7 +417,8 @@ class ModuloCotizaciones(ModuloBase):
         from PyQt5.QtCore import Qt
         row = self.tabla_cotizaciones.currentRow() if hasattr(self,'tabla_cotizaciones') else -1
         if row < 0:
-            QMessageBox.information(self, "Aviso", "Selecciona una cotizacion primero."); return
+            Toast.info(self, "Aviso", "Selecciona una cotización primero.")
+            return
         try:
             it = self.tabla_cotizaciones.item(row, 0)
             if not it: return
@@ -453,7 +453,7 @@ class ModuloCotizaciones(ModuloBase):
             if not wa:
                 QMessageBox.warning(self,"WhatsApp","Servicio WA no configurado."); return
             wa.send_message(phone_number=telefono, message=msg)
-            QMessageBox.information(self,"Enviado",f"Cotizacion {folio} enviada a {nombre_cli}.")
+            Toast.success(self, "Enviado", f"Cotización {folio} enviada a {nombre_cli}.")
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
 

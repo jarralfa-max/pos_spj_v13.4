@@ -2,7 +2,11 @@
 # modulos/planeacion_compras.py
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_heading, create_subheading, create_card, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_heading, create_subheading, create_card, apply_tooltip,
+    PageHeader, Toast,
+)
 import sys
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -156,7 +160,7 @@ class ModuloPlaneacionCompras(QWidget):
     def ejecutar_pronostico(self):
         producto_id = self.cmb_producto.currentData()
         if not producto_id:
-            QMessageBox.information(self, "Sin producto", "Selecciona un producto para generar la gráfica.")
+            Toast.info(self, "Sin producto", "Selecciona un producto para generar la gráfica.")
             return
 
         try:
@@ -254,7 +258,10 @@ class ModuloPlaneacionCompras(QWidget):
         """Crea un puente entre la predicción y la acción real de comprar."""
         compra_texto = self.lbl_recomendacion.text().replace("COMPRAR:\n", "")
         if "SUFICIENTE" in compra_texto:
-            QMessageBox.information(self, "Aviso", "No necesitas comprar este producto actualmente.")
+            Toast.info(self, "Aviso", "No necesitas comprar este producto actualmente.")
             return
-            
-        QMessageBox.information(self, "Redirección", f"En un flujo completo, esto enviaría {compra_texto} de {self.cmb_producto.currentText()} directamente al Módulo de Compras (compras_pro.py).")
+
+        Toast.info(
+            self, "Redirección",
+            f"Enviaría {compra_texto} de {self.cmb_producto.currentText()} a Compras.",
+        )

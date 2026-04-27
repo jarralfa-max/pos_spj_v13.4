@@ -23,6 +23,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, QDate
 from PyQt5.QtGui import QFont, QPixmap, QPalette
 
+from modulos.ui_components import PageHeader, Toast
+
 logger = logging.getLogger("spj.finanzas_unificadas")
 
 
@@ -321,17 +323,17 @@ class DialogoAbono(QDialog):
                 self.ts.abonar_cuenta_por_pagar(
                     self.deuda['id'], monto, metodo, self.usuario
                 )
-                QMessageBox.information(
-                    self, "Éxito",
-                    f"Abono de ${monto:,.2f} registrado correctamente."
+                Toast.success(
+                    self.parent() or self, "Abono registrado",
+                    f"Abono de ${monto:,.2f} registrado correctamente.",
                 )
             else:
                 self.ts.abonar_cuenta_por_cobrar(
                     self.deuda['id'], monto, metodo, self.usuario
                 )
-                QMessageBox.information(
-                    self, "Éxito",
-                    f"Pago de ${monto:,.2f} registrado correctamente."
+                Toast.success(
+                    self.parent() or self, "Pago registrado",
+                    f"Pago de ${monto:,.2f} registrado correctamente.",
                 )
             self.monto_aplicado = monto
             self.accept()
@@ -914,7 +916,7 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             self._ts.inyectar_capital(monto, desc, self.usuario_actual)
-            QMessageBox.information(self, "Éxito", f"Capital inyectado: ${monto:,.2f}")
+            Toast.success(self, "Capital inyectado", f"${monto:,.2f}")
             self._spin_capital.setValue(0)
             self._txt_desc_capital.clear()
             self._cargar_capex()
@@ -935,7 +937,7 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             self._ts.retirar_capital(monto, desc, self.usuario_actual)
-            QMessageBox.information(self, "Éxito", f"Capital retirado: ${monto:,.2f}")
+            Toast.success(self, "Capital retirado", f"${monto:,.2f}")
             self._spin_capital.setValue(0)
             self._txt_desc_capital.clear()
             self._cargar_capex()
@@ -1306,7 +1308,7 @@ class ModuloFinanzasUnificadas(QWidget):
                 usuario=self.usuario_actual,
                 sucursal_id=self.sucursal_id
             )
-            QMessageBox.information(self, "Éxito", "Gasto registrado en la contabilidad.")
+            Toast.success(self, "Gasto registrado", "Asentado en contabilidad.")
             self.txt_concepto_gasto.clear()
             self.txt_monto_gasto.setValue(0.1)
         except Exception as e:

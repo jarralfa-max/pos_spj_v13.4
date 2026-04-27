@@ -14,7 +14,11 @@ Campos en la etiqueta:
 from __future__ import annotations
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_success_button, create_secondary_button, create_input, create_combo, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_input, create_combo, apply_tooltip,
+    PageHeader, Toast,
+)
 import logging
 import os
 from datetime import date, timedelta
@@ -629,8 +633,7 @@ class ModuloEtiquetas(QWidget):
                 comandos = gen.etiqueta_producto(lote_data)
                 raw = comandos.encode("utf-8") if isinstance(comandos, str) else comandos
                 self._send_to_printer(raw, cfg)
-                QMessageBox.information(self, "✅ Muestra",
-                    f"Etiqueta de prueba enviada a: {cfg.get('ubicacion','impresora')}")
+                Toast.success(self, "✅ Muestra enviada", cfg.get('ubicacion','impresora'))
                 return
             except Exception as e:
                 logger.warning("_imprimir_muestra HW: %s", e)
@@ -680,8 +683,10 @@ class ModuloEtiquetas(QWidget):
                 comandos = gen.etiqueta_producto(lote_data)
                 raw = comandos.encode("utf-8") if isinstance(comandos, str) else comandos
                 self._send_to_printer(raw, cfg)
-            QMessageBox.information(self, "✅ Impreso",
-                f"{copias} etiqueta(s) enviadas a: {cfg.get('ubicacion','impresora')}")
+            Toast.success(
+                self, "✅ Impreso",
+                f"{copias} etiqueta(s) enviadas a {cfg.get('ubicacion','impresora')}",
+            )
         except Exception as e:
             logger.warning("_imprimir: %s", e)
             QMessageBox.warning(self, "⚠️ Error de impresora",
@@ -743,7 +748,6 @@ class ModuloEtiquetas(QWidget):
                     pass
                 c.showPage()
             c.save()
-            QMessageBox.information(self, "✅ PDF guardado",
-                f"Etiquetas guardadas en:\n{os.path.basename(ruta)}")
+            Toast.success(self, "✅ PDF guardado", os.path.basename(ruta))
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

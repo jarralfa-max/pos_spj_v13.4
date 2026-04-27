@@ -12,7 +12,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_input, create_combo,
     create_card, create_heading, create_caption, apply_tooltip,
-    FilterBar, LoadingIndicator, EmptyStateWidget
+    FilterBar, LoadingIndicator, EmptyStateWidget,
+    PageHeader, Toast,
 )
 import logging
 import uuid
@@ -438,12 +439,10 @@ class ModuloMerma(QWidget):
             except Exception:
                 pass
 
-            # Mensaje de éxito
-            QMessageBox.information(
+            Toast.success(
                 self, "✅ Merma registrada",
-                f"Registrado: {cantidad:.3f} {unidad} de '{nombre}'\n"
-                f"Valor pérdida: ${valor_perdida:.2f}\n"
-                f"Motivo: {motivo}")
+                f"{cantidad:.3f} {unidad} '{nombre}' · ${valor_perdida:.2f} · {motivo}",
+            )
 
             # Limpiar form
             self.txt_producto.clear()

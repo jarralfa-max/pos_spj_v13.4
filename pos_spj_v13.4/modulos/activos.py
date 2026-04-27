@@ -3,7 +3,11 @@
 from core.services.auto_audit import audit_write
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_primary_button, create_danger_button, create_success_button, create_secondary_button, create_card, apply_tooltip
+from modulos.ui_components import (
+    create_primary_button, create_danger_button, create_success_button,
+    create_secondary_button, create_card, apply_tooltip,
+    PageHeader, Toast,
+)
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, 
                              QLabel, QLineEdit, QPushButton, QTableWidget, QTabWidget, 
                              QTableWidgetItem, QHeaderView, QMessageBox, 
@@ -505,8 +509,7 @@ class ModuloActivos(ModuloBase):
 
     def imprimir_etiqueta(self, codigo, nombre):
         """Simula o ejecuta la impresión de una etiqueta ZPL/ESC-POS del equipo."""
-        QMessageBox.information(self, "Impresión de Etiquetas", 
-            f"Se ha enviado a la impresora de etiquetas:\n\n[|||||||||||||||||]\n{codigo}\n{nombre}")
+        Toast.info(self, "Etiqueta enviada", f"{codigo} · {nombre}")
 
     def agregar_activo(self):
         dialogo = DialogoActivo(self.conexion, self)
@@ -532,7 +535,7 @@ class ModuloActivos(ModuloBase):
                 cursor.execute("UPDATE activos SET estado = 'baja' WHERE id=?", (activo_id,))
                 self.conexion.commit()
                 self.cargar_activos()
-                QMessageBox.information(self, "Éxito", "Equipo dado de baja correctamente.")
+                Toast.success(self, "Equipo dado de baja", "El activo se marcó como baja correctamente.")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo dar de baja: {e}")
 
@@ -724,7 +727,7 @@ class ModuloActivos(ModuloBase):
                         usuario=self.usuario_actual,
                         sucursal_id=self.sucursal_id
                     )
-                    QMessageBox.information(self, "Orden Completada", "Mantenimiento pagado y registrado en la Tesorería.")
+                    Toast.success(self, "Orden completada", "Mantenimiento pagado y registrado en Tesorería.")
                     self.cargar_mantenimientos()
                 else:
                     # Fallback si aún no inyectas el servicio
@@ -769,7 +772,7 @@ class ModuloActivos(ModuloBase):
                 
             nombre_archivo = f"reportes/Activos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             pdf.output(nombre_archivo)
-            QMessageBox.information(self, "Éxito", f"Reporte exportado a:\n{nombre_archivo}")
+            Toast.success(self, "Reporte exportado", nombre_archivo)
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo generar el PDF:\n{e}")
@@ -814,7 +817,7 @@ class ModuloActivos(ModuloBase):
                 
             nombre_archivo = f"reportes/Mantenimientos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             pdf.output(nombre_archivo)
-            QMessageBox.information(self, "Éxito", f"Reporte exportado a:\n{nombre_archivo}")
+            Toast.success(self, "Reporte exportado", nombre_archivo)
             
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo generar el PDF:\n{e}")

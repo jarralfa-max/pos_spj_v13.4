@@ -9,7 +9,8 @@ from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_warning_button, create_accent_button, create_input, create_heading,
     create_subheading, apply_tooltip, create_card, FilterBar, LoadingIndicator,
-    EmptyStateWidget, confirm_action
+    EmptyStateWidget, confirm_action,
+    PageHeader, Toast,
 )
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -563,7 +564,7 @@ class ModuloRRHH(QWidget):
                         modulo="RRHH", entidad="personal", entidad_id=str(empleado_id)
                     )
                 
-                QMessageBox.information(self, "Baja Exitosa", "El empleado ha sido dado de baja.")
+                Toast.success(self, "Baja exitosa", "El empleado fue dado de baja.")
                 self.cargar_tabla_empleados()
                 self.cargar_lista_empleados() # Actualiza el combobox de la pestaña de nómina
                 
@@ -687,9 +688,10 @@ class ModuloRRHH(QWidget):
                     )
                     result = _uc.ejecutar(sol, getattr(self, 'sucursal_id', 1), self.usuario_actual)
                     if result.ok:
-                        QMessageBox.information(self, "Nómina Procesada",
-                            f"✅ Pago registrado con asiento contable.\n"
-                            f"Neto: ${result.neto_a_pagar:,.2f}")
+                        Toast.success(
+                            self, "Nómina procesada",
+                            f"Neto: ${result.neto_a_pagar:,.2f} · asiento contable registrado.",
+                        )
                         self.nomina_actual = None
                         self.lbl_nom_empleado.setText("-")
                         self.lbl_total_pago.setText("$0.00")
@@ -709,7 +711,7 @@ class ModuloRRHH(QWidget):
                     admin_user=self.usuario_actual
                 )
                 
-                QMessageBox.information(self, "Nómina Procesada", mensaje_exito)
+                Toast.success(self, "Nómina procesada", mensaje_exito)
                 
                 # Resetear interfaz
                 self.nomina_actual = None
@@ -897,7 +899,8 @@ class ModuloRRHH(QWidget):
                     (hora, round(horas,2), row[0]))
                 msg = f"✅ Salida registrada: {hora} ({horas:.1f}h)"
             else:
-                QMessageBox.information(self,"Info","Jornada ya completa para hoy."); return
+                Toast.info(self, "Jornada completa", "Jornada ya completa para hoy.")
+                return
             try: self.container.db.commit()
             except Exception: pass
             try: get_bus().publish("EMPLEADO_ACTUALIZADO", {"event_type": "EMPLEADO_ACTUALIZADO"})

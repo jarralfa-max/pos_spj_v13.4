@@ -19,7 +19,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
     create_danger_button, create_input, create_combo, create_card, apply_tooltip,
-    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
+    PageHeader, Toast,
 )
 import logging
 from typing import Dict, List, Optional
@@ -419,7 +420,7 @@ class ModuloTransferencias(ModuloBase):
             return
         try:
             self._repo.cancel(tid, self.usuario_actual)
-            QMessageBox.information(self, "Éxito", "Transferencia cancelada. Stock restaurado.")
+            Toast.success(self, "Transferencia cancelada", "Stock restaurado.")
             self._refresh_all()
         except TransferAlreadyReceivedError:
             QMessageBox.warning(self, "Error",
@@ -827,9 +828,11 @@ class DialogoNuevaTransferencia(QDialog):
                 destination_type=self._combo_dest_type.currentText(),
                 observations=self._e_obs.toPlainText().strip(),
             )
-            QMessageBox.information(self, "Éxito",
-                                    f"Transferencia {str(transfer_id)[:8]}… despachada.\n"
-                                    "En espera de recepción en sucursal destino.")
+            Toast.success(
+                self.parent() or self,
+                f"Transferencia {str(transfer_id)[:8]}… despachada",
+                "En espera de recepción en sucursal destino.",
+            )
             self.accept()
         except TransferStockError as exc:
             QMessageBox.warning(self, "Stock Insuficiente", str(exc))
@@ -986,12 +989,8 @@ class DialogoRecepcion(QDialog):
                 observations=observations,
             )
             diff = result.get("total_difference", 0)
-            msg = f"Recepción confirmada.\n"
-            if diff > 0.001:
-                msg += f"Diferencia registrada: {diff:.3f} kg"
-            else:
-                msg += "Sin diferencias."
-            QMessageBox.information(self, "Éxito", msg)
+            detail = f"Diferencia registrada: {diff:.3f} kg" if diff > 0.001 else "Sin diferencias."
+            Toast.success(self.parent() or self, "Recepción confirmada", detail)
             self.accept()
         except TransferAlreadyReceivedError:
             QMessageBox.warning(self, "Error", "Esta transferencia ya fue recibida.")
