@@ -839,6 +839,15 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass  # Si falla el check, permitir (compat)
             self.stack.setCurrentIndex(self.indices_pantallas[modulo])
+            # Sincroniza el indicador del sidebar para flujos programáticos
+            # (atajos, menú superior, dashboard.abrir_modulo, etc.). El clic
+            # directo en el sidebar ya marca por su cuenta — esta llamada
+            # adicional es idempotente.
+            if hasattr(self, "menu") and hasattr(self.menu, "set_modulo_activo"):
+                try:
+                    self.menu.set_modulo_activo(modulo)
+                except Exception:
+                    pass
         else:
             QMessageBox.information(
                 self, "Módulo no disponible",

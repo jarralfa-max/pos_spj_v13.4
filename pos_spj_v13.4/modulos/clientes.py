@@ -11,7 +11,7 @@ from modulos.ui_components import (
     create_input_field, create_combo, create_card, apply_tooltip, create_heading,
     create_subheading, create_caption, create_table_with_columns, create_table_button,
     FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action, create_standard_tabs,
-    wrap_in_scroll_area
+    wrap_in_scroll_area, PageHeader, Toast,
 )
 from core.events.event_bus import VENTA_COMPLETADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO
 from core.services.auto_audit import audit_write
@@ -72,21 +72,13 @@ class ModuloClientes(ModuloBase):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # --- Encabezado ---
-        header_layout = QHBoxLayout()
-        if os.path.exists("logo.png"):
-            logo_label = QLabel()
-            pixmap = QPixmap("logo.png")
-            if not pixmap.isNull():
-                pixmap = pixmap.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                logo_label.setPixmap(pixmap)
-            header_layout.addWidget(logo_label)
-
-        title = QLabel("Gestión de Clientes")
-        title.setObjectName("tituloPrincipal")
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        layout.addLayout(header_layout)
+        # --- Encabezado (PageHeader) ---
+        self.page_header = PageHeader(
+            self,
+            title="👥 Gestión de Clientes",
+            subtitle="Cartera, fidelización y segmentación",
+        )
+        layout.addWidget(self.page_header)
 
         # --- Barra de herramientas ---
         toolbar = QHBoxLayout()
@@ -720,7 +712,7 @@ class DialogoCliente(QDialog):
                 else:
                     result = self.uc_cliente.crear_cliente(datos, 1, "sistema")
                 if result.ok:
-                    QMessageBox.information(self, "Éxito", result.mensaje or "Guardado correctamente.")
+                    Toast.success(self, "Éxito", result.mensaje or "Guardado correctamente.")
                     self.accept()
                 else:
                     QMessageBox.critical(self, "Error", result.error)
@@ -780,7 +772,7 @@ class DialogoCliente(QDialog):
                 self.conexion.commit()
                 try: get_bus().publish("CLIENTE_ACTUALIZADO", {"event_type": "CLIENTE_ACTUALIZADO"})
                 except Exception: pass
-                QMessageBox.information(self, "Éxito", "Cliente actualizado correctamente.")
+                Toast.success(self, "Éxito", "Cliente actualizado correctamente.")
                 self.accept()
             else:  # Nuevo
                 cursor.execute("""
@@ -816,7 +808,7 @@ class DialogoCliente(QDialog):
                         pass
                 
                 self.conexion.commit()
-                QMessageBox.information(self, "Éxito", f"Cliente creado correctamente con ID: {id_cliente}")
+                Toast.success(self, "Cliente creado", f"ID: {id_cliente}")
                 self.accept()
 
         except sqlite3.IntegrityError as e:
@@ -1264,7 +1256,7 @@ class _DialogoTarjetasCliente(QDialog):
             res = eng.bloquear_tarjeta(tid, motivo.strip())
             if res.exito:
                 self._cargar_datos()
-                QMessageBox.information(self, "Bloqueada", f"Tarjeta {num} bloqueada.")
+                Toast.info(self, "Tarjeta bloqueada", f"Tarjeta {num} bloqueada.")
             else:
                 QMessageBox.warning(self, "Error", res.mensaje)
         except Exception as exc:
@@ -1287,7 +1279,7 @@ class _DialogoTarjetasCliente(QDialog):
             result = eng.liberar_tarjeta(tid, motivo="liberacion_manual")
             if result.exito:
                 self._cargar_datos()
-                QMessageBox.information(self, "Liberada", f"Tarjeta {num} liberada.")
+                Toast.info(self, "Tarjeta liberada", f"Tarjeta {num} liberada.")
             else:
                 QMessageBox.warning(self, "Error", result.mensaje)
         except Exception as exc:
@@ -1577,6 +1569,6 @@ class _DialogoRFM(QDialog):
                         f.write(f"{d['nombre']},{d['telefono']},{d['ultima']},"
                                 f"{d['dias_r']},{d['freq']},{d['monto']:.2f},"
                                 f"{d['r']},{d['f']},{d['m']},{d['segmento']}\n")
-            QMessageBox.information(self, "✅", f"Exportado: {ruta}")
+            Toast.success(self, "Exportado", f"Archivo: {ruta}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
