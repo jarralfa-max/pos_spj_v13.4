@@ -23,7 +23,11 @@ from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QColor, QFont
 import logging
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
-from modulos.ui_components import create_heading, create_primary_button, create_success_button, create_danger_button, create_secondary_button, apply_tooltip
+from modulos.ui_components import (
+    create_heading, create_primary_button, create_success_button,
+    create_danger_button, create_secondary_button, apply_tooltip,
+    PageHeader, Toast,
+)
 
 logger = logging.getLogger("spj.fidelidad_unified")
 
@@ -166,7 +170,7 @@ class ModuloFidelidadConfig(QWidget):
                     "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k, v))
             try: db.commit()
             except: pass
-            QMessageBox.information(self, "✅", "Configuración de referidos guardada.")
+            Toast.success(self, "Configuración guardada", "Programa de referidos actualizado.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -259,7 +263,7 @@ class ModuloFidelidadConfig(QWidget):
                     "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k, v))
             try: db.commit()
             except: pass
-            QMessageBox.information(self, "✅", "Configuración de cumpleaños guardada.")
+            Toast.success(self, "Configuración guardada", "Programa de cumpleaños actualizado.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -296,9 +300,10 @@ class ModuloFidelidadConfig(QWidget):
             logger.debug("_cargar_cumples: %s", e)
 
     def _enviar_cumples(self):
-        QMessageBox.information(self, "📱 Enviar",
-            "Se enviarían las felicitaciones vía WhatsApp.\n"
-            "(Requiere módulo WhatsApp configurado)")
+        Toast.info(
+            self, "📱 Enviar felicitaciones",
+            "Requiere módulo WhatsApp configurado.",
+        )
 
     # ── Tab: Retención / Clientes en Riesgo ───────────────────────────────────
 

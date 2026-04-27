@@ -23,9 +23,10 @@ import json
 # Design System Imports
 from modulos.design_tokens import Colors, Spacing, Typography, Shadows
 from modulos.ui_components import (
-    create_primary_button, create_secondary_button, create_success_button, 
+    create_primary_button, create_secondary_button, create_success_button,
     create_danger_button, create_input_field, create_card,
-    create_heading, create_subheading, apply_tooltip
+    create_heading, create_subheading, apply_tooltip,
+    PageHeader, Toast,
 )
 
 try:
@@ -553,7 +554,7 @@ class ModuloConfiguracion(ModuloBase):
                     (tipo, "Default", elementos_json)
                 )
             self.conexion.commit()
-            QMessageBox.information(self, "Diseño", f"Diseño de {tipo} guardado.")
+            Toast.success(self, "Diseño guardado", f"Diseño de {tipo} guardado.")
         except Exception as exc:
         # [spj-dedup removed local QMessageBox import]
             QMessageBox.critical(self, "Error", str(exc))
@@ -784,8 +785,7 @@ class ModuloConfiguracion(ModuloBase):
                     (hab, cfg, tipo)
                 )
             self.conexion.commit()
-            QMessageBox.information(self, "Hardware",
-                "Configuración de hardware guardada correctamente.")
+            Toast.success(self, "Hardware", "Configuración guardada correctamente.")
         except Exception as exc:
         # [spj-dedup removed local QMessageBox import]
             QMessageBox.critical(self, "Error", str(exc))
@@ -933,8 +933,7 @@ class ModuloConfiguracion(ModuloBase):
                     (clave, valor)
                 )
             self.conexion.commit()
-            QMessageBox.information(self, "Fidelidad",
-                "Configuración de fidelidad guardada correctamente.")
+            Toast.success(self, "Fidelidad", "Configuración guardada correctamente.")
         except Exception as exc:
         # [spj-dedup removed local QMessageBox import]
             QMessageBox.critical(self, "Error", str(exc))
@@ -1472,7 +1471,7 @@ class ModuloConfiguracion(ModuloBase):
         dlg = DialogoSucursalEdit(self.conexion, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self.cargar_sucursales()
-            QMessageBox.information(self, "Éxito", "Sucursal creada correctamente.")
+            Toast.success(self, "Sucursal creada", "La sucursal se creó correctamente.")
 
     def editar_sucursal(self):
         fila = self.tabla_sucursales.currentRow()
@@ -1488,7 +1487,7 @@ class ModuloConfiguracion(ModuloBase):
         dlg = DialogoSucursalEdit(self.conexion, sucursal_data=data, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self.cargar_sucursales()
-            QMessageBox.information(self, "Éxito", "Sucursal actualizada.")
+            Toast.success(self, "Sucursal actualizada", "Cambios guardados correctamente.")
 
     def eliminar_sucursal(self):
         fila = self.tabla_sucursales.currentRow()

@@ -8,7 +8,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_warning_button, create_input, create_combo,
-    create_card, apply_tooltip, LoadingIndicator, EmptyStateWidget
+    create_card, apply_tooltip, LoadingIndicator, EmptyStateWidget,
+    PageHeader, Toast,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
@@ -414,18 +415,17 @@ if(drivers.length===0){{
                 (self.sucursal_id,)
             ).fetchall()
             if not pendientes:
-                # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Auto-Asignación",
-                    "No hay pedidos pendientes sin repartidor.")
+                Toast.info(self, "Auto-Asignación", "No hay pedidos pendientes sin repartidor.")
                 return
             asignados = 0
             for row in pendientes:
                 rep_id = asign.asignar_automatico(row[0])
                 if rep_id:
                     asignados += 1
-            # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.information(self, "✅ Auto-Asignación",
-                f"{asignados}/{len(pendientes)} pedidos asignados automáticamente.")
+            Toast.success(
+                self, "✅ Auto-Asignación",
+                f"{asignados}/{len(pendientes)} pedidos asignados.",
+            )
             self.cargar_pedidos()
         except Exception as e:
             # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
@@ -666,7 +666,7 @@ if(drivers.length===0){{
                 "sucursal_id": data["sucursal_id"],
             }, usuario=self.usuario)
             self.cargar_pedidos()
-            QMessageBox.information(self,"Pedido creado","Pedido de delivery creado exitosamente.")
+            Toast.success(self, "Pedido creado", "Pedido de delivery creado exitosamente.")
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
 

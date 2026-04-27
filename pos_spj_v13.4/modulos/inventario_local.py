@@ -4,7 +4,8 @@ from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
-    create_input_field, apply_tooltip, FilterBar, LoadingIndicator, EmptyStateWidget
+    create_input_field, apply_tooltip, FilterBar, LoadingIndicator, EmptyStateWidget,
+    PageHeader, Toast,
 )
 import logging
 from modulos.spj_refresh_mixin import RefreshMixin
@@ -40,11 +41,22 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def init_ui(self):
         lay = QVBoxLayout(self)
-        lay.setSpacing(Spacing.MD)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
 
-        self.lbl_titulo = QLabel("📦 Inventario Local")
-        self.lbl_titulo.setObjectName("heading")
-        lay.addWidget(self.lbl_titulo)
+        self._page_header = PageHeader(
+            self,
+            title="📦 Inventario Local",
+            subtitle="Stock por sucursal, ajustes y exportaciones",
+        )
+        lay.addWidget(self._page_header)
+
+        body = QWidget(self)
+        body_lay = QVBoxLayout(body)
+        body_lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
+        body_lay.setSpacing(Spacing.MD)
+        lay.addWidget(body, 1)
+        lay = body_lay  # subsequent additions land in the body
 
         # Search + actions
         ctrl = QHBoxLayout()
@@ -179,7 +191,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 inv = self.container.inventory_service
                 inv.execute_manual_adjustment(prod_id, self.sucursal_id,
                                                nuevo, self.usuario_actual, motivo)
-            QMessageBox.information(self,"✅","Inventario ajustado correctamente.")
+            Toast.success(self, "Inventario ajustado", "El ajuste se guardó correctamente.")
             self.cargar_datos()
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
@@ -201,7 +213,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 with open(path,'w',newline='',encoding='utf-8') as f:
                     w = csv.writer(f)
                     w.writerow(headers); w.writerows(rows)
-                QMessageBox.information(self,"✅",f"Exportado: {path}")
+                Toast.success(self, "Exportado", path)
             except Exception as e:
                 QMessageBox.critical(self,"Error",str(e))
         else:
@@ -213,13 +225,13 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 ws.append(headers)
                 for r in rows: ws.append(r)
                 wb.save(path)
-                QMessageBox.information(self,"✅",f"Exportado: {path}")
+                Toast.success(self, "Exportado", path)
             except ImportError:
                 # Fallback to CSV if openpyxl not installed
                 path2 = path.replace('.xlsx','.csv')
                 import csv
                 with open(path2,'w',newline='',encoding='utf-8') as f:
                     csv.writer(f).writerows([headers]+rows)
-                QMessageBox.information(self,"✅",f"openpyxl no instalado — guardado como CSV:\n{path2}")
+                Toast.info(self, "Guardado como CSV", f"openpyxl no instalado — {path2}")
             except Exception as e:
                 QMessageBox.critical(self,"Error",str(e))

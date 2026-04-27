@@ -3,10 +3,10 @@
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
-    create_primary_button, create_success_button, create_danger_button, 
+    create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_input_field, create_input, create_combo,
     create_heading, create_subheading, create_caption, apply_tooltip,
-    LoadingIndicator, EmptyStateWidget
+    LoadingIndicator, EmptyStateWidget, PageHeader, Toast,
 )
 import os
 import shutil
@@ -454,9 +454,15 @@ class ModuloProductos(QWidget, RefreshMixin):
 
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
-        
-        self.lbl_titulo = create_heading(self, "🥩 Centro de Productos y Procesamiento Cárnico")
-        layout_principal.addWidget(self.lbl_titulo)
+        layout_principal.setContentsMargins(0, 0, 0, 0)
+        layout_principal.setSpacing(0)
+
+        self._page_header = PageHeader(
+            self,
+            title="🥩 Centro de Productos",
+            subtitle="Catálogo, procesamiento cárnico y activación por sucursal",
+        )
+        layout_principal.addWidget(self._page_header)
         
         # --- PESTAÑAS DEL MÓDULO ---
         self.tabs = QTabWidget()
@@ -746,7 +752,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 if hasattr(self.container, 'db'): self.container.db.commit()
                 else: self.conexion.commit()
                 
-                QMessageBox.information(self, "Éxito", "Producto eliminado correctamente.")
+                Toast.success(self, "Producto eliminado", "El producto se eliminó correctamente.")
                 self.cargar_catalogo()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo eliminar: {e}")
@@ -845,7 +851,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 resultado = self.container.production_service.execute_production(
                     recipe_id=receta_id, input_qty=peso_entrada, branch_id=self.sucursal_id, user_id=self.usuario_actual
                 )
-                QMessageBox.information(self, "Despiece Completado", f"Producción exitosa. Lote: {resultado.get('folio', 'N/A')}")
+                Toast.success(self, "Despiece completado", f"Lote: {resultado.get('folio', 'N/A')}")
                 self.txt_peso_entrada.setValue(0)
             else:
                 QMessageBox.warning(self, "Aviso", "ProductionService no está conectado aún.")
@@ -1035,7 +1041,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                     updated_at=datetime('now')
             """, (branch_id, product_id, activo, precio_local, stock_min))
             self.conexion.commit()
-            QMessageBox.information(self, "Guardado", "Configuración actualizada.")
+            Toast.success(self, "Guardado", "Configuración actualizada.")
             self._cargar_tabla_branch_products()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -1053,8 +1059,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         # Obtener producto seleccionado de la tabla
         tabla = self.tab_catalogo.findChild(QTableWidget)
         if not tabla or tabla.currentRow() < 0:
-            QMessageBox.information(self, "Aviso",
-                "Selecciona un producto en la tabla primero."); return
+            Toast.info(self, "Aviso", "Selecciona un producto en la tabla primero.")
+            return
 
         item_id = tabla.item(tabla.currentRow(), 0)
         if not item_id: return
@@ -1182,7 +1188,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             rows = list(ws.iter_rows(min_row=2, values_only=True))
             total = len(rows)
             if total == 0:
-                QMessageBox.information(self, "Sin datos", "El archivo no tiene filas de datos.")
+                Toast.info(self, "Sin datos", "El archivo no tiene filas de datos.")
                 return
 
             prog = QProgressDialog(f"Importando {total} productos…", "Cancelar", 0, total, self)
@@ -1239,11 +1245,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             self.container.db.commit()
             prog.setValue(total)
 
-            QMessageBox.information(
-                self, "✅ Importación completa",
-                f"Productos nuevos: {nuevos}\n"
-                f"Actualizados:     {actualizados}\n"
-                f"Con errores:      {errores}")
+            Toast.success(
+                self,
+                "✅ Importación completa",
+                f"Nuevos: {nuevos} · Actualizados: {actualizados} · Errores: {errores}",
+            )
             self.cargar_catalogo()
 
         except Exception as e:
@@ -1313,8 +1319,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 db.commit()
             except Exception:
                 pass
-            QMessageBox.information(self, "✅ Restaurado",
-                f"Producto '{nombre}' restaurado correctamente.")
+            Toast.success(self, "✅ Restaurado", f"Producto '{nombre}' restaurado correctamente.")
             self.cargar_catalogo()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

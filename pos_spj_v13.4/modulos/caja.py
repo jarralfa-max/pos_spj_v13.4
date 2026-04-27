@@ -4,7 +4,8 @@ from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_danger_button,
     create_success_button, create_card, create_input_field,
     create_heading, create_subheading, apply_tooltip, create_caption,
-    create_table_with_columns, create_table_button, create_label, confirm_action
+    create_table_with_columns, create_table_button, create_label, confirm_action,
+    PageHeader, Toast,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA
@@ -506,7 +507,7 @@ class ModuloCaja(QWidget, RefreshMixin):
             try:
                 # 🚀 LLAMADA ENTERPRISE: Abrir turno
                 self.container.finance_service.abrir_turno(self.sucursal_id, self.usuario_actual, fondo)
-                QMessageBox.information(self, "Éxito", f"Turno abierto exitosamente con ${fondo:.2f}")
+                Toast.success(self, "Turno abierto", f"Fondo inicial: ${fondo:.2f}")
                 
                 # Intentamos abrir el cajón físico para que guarden el fondo
                 if hasattr(self.container, 'hardware_service'):
@@ -540,7 +541,7 @@ class ModuloCaja(QWidget, RefreshMixin):
                 self.turno_actual, self.sucursal_id, self.usuario_actual, tipo, monto, concepto
             )
             
-            QMessageBox.information(self, "Éxito", f"{tipo} registrado correctamente.")
+            Toast.success(self, "Movimiento registrado", f"{tipo} registrado correctamente.")
             # Refresh movimientos tab
             try: self._cargar_movimientos_turno()
             except Exception: pass
@@ -747,7 +748,7 @@ class ModuloCaja(QWidget, RefreshMixin):
                     printer.setOutputFileName(path)
                     doc = QTextDocument(); doc.setHtml(html)
                     doc.print_(printer)
-                    QMessageBox.information(dlg, "Guardado", f"PDF guardado:\n{path}")
+                    Toast.success(self, "PDF guardado", path)
 
             btn_print.clicked.connect(_do_print)
             btn_pdf.clicked.connect(_save_pdf)
