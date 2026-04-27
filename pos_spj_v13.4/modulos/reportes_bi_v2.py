@@ -5,7 +5,8 @@ from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_input, create_combo, create_card,
     create_heading, create_subheading, create_caption, apply_tooltip,
-    FilterBar, EmptyStateWidget, LoadingIndicator, DataTableWithFilters, confirm_action
+    FilterBar, EmptyStateWidget, LoadingIndicator, DataTableWithFilters, confirm_action,
+    PageHeader, Toast,
 )
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from PyQt5.QtWidgets import (
@@ -50,33 +51,34 @@ class ModuloReportesBIv2(QWidget):
         layout_principal.setSpacing(10)
         outer.addLayout(layout_principal)
 
-        # --- HEADER Y FILTROS ---
-        header_layout = QHBoxLayout()
-        
-        lbl_titulo = create_heading(self, "📈 Inteligencia Comercial (Dashboard)")
-        header_layout.addWidget(lbl_titulo)
-        
-        header_layout.addStretch()
-        
+        # --- HEADER (PageHeader: título + subtítulo + acciones) ---
+        self.page_header = PageHeader(
+            self,
+            title="📈 Inteligencia Comercial",
+            subtitle="Dashboard ejecutivo de BI",
+        )
+
+        # Período
         self.cmb_rango = create_combo(self, ["Hoy", "Esta Semana", "Este Mes"])
         self.cmb_rango.currentTextChanged.connect(self.cargar_dashboard)
-        
+        self.page_header.add_action(QLabel("Período:"))
+        self.page_header.add_action(self.cmb_rango)
+
+        # Refrescar
         self.btn_actualizar = create_secondary_button(self, "🔄 Refrescar", "Actualizar datos del dashboard")
         self.btn_actualizar.clicked.connect(self.cargar_dashboard)
+        self.page_header.add_action(self.btn_actualizar)
 
+        # Exportar
         btn_excel = create_success_button(self, "📊 Excel", "Exportar dashboard a Excel (.xlsx)")
         btn_excel.clicked.connect(lambda: self._exportar("excel"))
+        self.page_header.add_action(btn_excel)
 
         btn_pdf = create_danger_button(self, "📄 PDF", "Exportar dashboard a PDF")
         btn_pdf.clicked.connect(lambda: self._exportar("pdf"))
+        self.page_header.add_action(btn_pdf)
 
-        header_layout.addWidget(QLabel("Período:"))
-        header_layout.addWidget(self.cmb_rango)
-        header_layout.addWidget(self.btn_actualizar)
-        header_layout.addWidget(btn_excel)
-        header_layout.addWidget(btn_pdf)
-        
-        layout_principal.addLayout(header_layout)
+        layout_principal.addWidget(self.page_header)
 
         self.filter_bar = FilterBar(
             self,
@@ -707,7 +709,7 @@ class ModuloReportesBIv2(QWidget):
                         self._tbl_rent.item(row, col).text() if self._tbl_rent.item(row, col) else ""
                         for col in range(self._tbl_rent.columnCount())
                     ])
-            QMessageBox.information(self, "Exportado", f"CSV guardado:\n{path}")
+            Toast.success(self, "Exportado", f"CSV guardado:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -835,10 +837,7 @@ class ModuloReportesBIv2(QWidget):
                         "WHERE DATE(fecha)=DATE('now') ORDER BY fecha DESC LIMIT 500",
                         (), fmt="pdf", filepath=ruta
                     )
-            QMessageBox.information(
-                self, "✅ Exportado",
-                f"Archivo guardado en:\n{ruta}"
-            )
+            Toast.success(self, "Exportado", f"Archivo guardado en:\n{ruta}")
             os.startfile(ruta) if os.name == "nt" else None
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))
