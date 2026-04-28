@@ -1250,12 +1250,17 @@ class ModuloVentas(ModuloBase):
         self.btn_devolucion = create_secondary_button(self, "↩ Devolución", "Cancelar o devolver una venta anterior (requiere permiso)")
         self.btn_devolucion.setEnabled(False)   # se activa tras login con permiso
 
-        # Buttons expand to fill columns evenly — no empty spaces in the grid.
+        # Buttons fill the entire QGroupBox width and have prominent height.
+        # Override the fixed-height set by _configure_button so the row can grow,
+        # and tag with 'fill_parent' to skip _normalizar_botones_principales.
         for btn in (self.btn_cobrar, self.btn_suspender, self.btn_reanudar, self.btn_cancelar, self.btn_devolucion):
-            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            btn.setProperty("fill_parent", True)
+            btn.setMinimumHeight(0)
+            btn.setMaximumHeight(16777215)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             btn.setMinimumHeight(40)
         # Primary action gets visual prominence
-        self.btn_cobrar.setMinimumHeight(48)
+        self.btn_cobrar.setMinimumHeight(52)
 
         acciones_layout.addWidget(self.btn_cobrar,    0, 0, 1, 2)
         acciones_layout.addWidget(self.btn_suspender, 1, 0)
@@ -1273,10 +1278,13 @@ class ModuloVentas(ModuloBase):
 
     def _normalizar_botones_principales(self):
         """
-        Evita que botones del módulo ventas se estiren al ancho completo
-        en layouts verticales (feedback UX de pantallas saturadas).
+        Evita que botones se estiren al ancho completo en layouts verticales.
+        Excluye botones marcados con la propiedad 'fill_parent' para que las
+        acciones primarias (cobrar, suspender, etc.) llenen su QGroupBox.
         """
         for btn in self.findChildren(QPushButton):
+            if btn.property("fill_parent"):
+                continue
             # Preservar icon-buttons compactos ya configurados en 40px.
             if btn.minimumWidth() and btn.minimumWidth() <= 45:
                 continue

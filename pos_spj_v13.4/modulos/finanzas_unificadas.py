@@ -418,36 +418,13 @@ class ModuloFinanzasUnificadas(QWidget):
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
         
-        # Crear widget de pestañas principal
+        # Crear widget de pestañas principal — los colores vienen del QSS
+        # global construido en modulos/qss_builder.py (Oscuro y Claro).
         tabs = QTabWidget()
         self._tabs = tabs
         tabs.setObjectName("finanzasTabs")
         tabs.setAccessibleName("Módulo Finanzas")
-        tabs.setDocumentMode(True)
-        
-        # Estilizar pestañas
-        tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: none;
-                background-color: transparent;
-            }
-            QTabBar::tab {
-                background-color: #1E293B;
-                color: #94A3B8;
-                padding: 12px 24px;
-                margin-right: 2px;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-                font-weight: 500;
-            }
-            QTabBar::tab:selected {
-                background-color: #2563EB;
-                color: #FFFFFF;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #334155;
-            }
-        """)
+        tabs.setDocumentMode(False)
         
         # Pestaña 0: Dashboard financiero
         tab_dashboard = self._crear_pestaña_dashboard()
