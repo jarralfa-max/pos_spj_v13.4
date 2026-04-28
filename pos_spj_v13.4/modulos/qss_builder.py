@@ -206,18 +206,20 @@ _TPL_OSCURO = f"""
             color: {Colors.PRIMARY.HOVER};
         }}
 
-        /* ===== BOTONES GENÉRICOS (fallback) ===== */
+        /* ===== BOTONES GENÉRICOS (fallback) =====
+           Solo aplica a QPushButton SIN objectName/variant. Los rangos de
+           altura se omiten para que cada botón pueda crecer según su layout
+           (ej. botones de "Acciones" en Ventas que llenan el QGroupBox). */
         QPushButton {{
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                 stop:0 {Colors.NEUTRAL.SLATE_700}, stop:1 {Colors.NEUTRAL.SLATE_800});
             color: {Colors.NEUTRAL.SLATE_100};
             border: 1px solid {Colors.NEUTRAL.SLATE_600};
             border-radius: 5px;
-            padding: 2px 6px;
+            padding: 4px 8px;
             font-weight: 600;
             font-size: 10px;
-            min-height: 20px;
-            max-height: 22px;
+            min-height: 22px;
         }}
         QPushButton:hover {{
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -272,27 +274,38 @@ _TPL_OSCURO = f"""
             border: 1px solid {Colors.NEUTRAL.SLATE_700};
             border-radius: 8px;
             background-color: {Colors.NEUTRAL.SLATE_800};
+            top: -1px;
+        }}
+        QTabBar {{
+            qproperty-drawBase: 0;
+            background: transparent;
         }}
         QTabBar::tab {{
-            background-color: {Colors.NEUTRAL.SLATE_800};
-            color: {Colors.NEUTRAL.SLATE_400};
-            border: 1px solid transparent;
-            border-bottom: none;
-            padding: 3px 8px;
-            margin-right: 2px;
-            border-radius: 5px 5px 0 0;
-            font-weight: 500;
-        }}
-        QTabBar::tab:selected {{
-            background-color: {Colors.NEUTRAL.SLATE_700};
-            color: {Colors.NEUTRAL.SLATE_100};
+            background-color: {Colors.NEUTRAL.SLATE_900};
+            color: {Colors.NEUTRAL.SLATE_300};
             border: 1px solid {Colors.NEUTRAL.SLATE_700};
             border-bottom: none;
+            padding: 6px 14px;
+            margin-right: 3px;
+            border-radius: 6px 6px 0 0;
             font-weight: 600;
+            min-width: 90px;
+        }}
+        QTabBar::tab:selected {{
+            background-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+            border: 1px solid {Colors.PRIMARY.DARK};
+            border-bottom: 2px solid {Colors.PRIMARY.HOVER};
+            font-weight: 700;
         }}
         QTabBar::tab:hover:!selected {{
-            background-color: #283548;
+            background-color: {Colors.NEUTRAL.SLATE_700};
             color: {Colors.NEUTRAL.SLATE_100};
+            border: 1px solid {Colors.NEUTRAL.SLATE_600};
+        }}
+        QTabBar::tab:disabled {{
+            color: {Colors.NEUTRAL.SLATE_500};
+            background-color: {Colors.NEUTRAL.SLATE_800};
         }}
 
         /* ===== INPUTS ===== */
@@ -718,6 +731,56 @@ _TPL_CLARO = f"""
             font-size: 11px;
         }}
 
+        QDialog#loginDialog {{
+            background-color: {Colors.NEUTRAL.WHITE};
+            color: {Colors.NEUTRAL.SLATE_900};
+            border-radius: 12px;
+        }}
+
+        QLabel#loginLogo {{
+            padding: 4px;
+            background-color: transparent;
+        }}
+
+        QLabel#loginTitle {{
+            font-size: 16px;
+            font-weight: 700;
+            color: {Colors.NEUTRAL.SLATE_900};
+            margin-bottom: 5px;
+        }}
+
+        QLabel#loginSucursal {{
+            font-size: 11px;
+            color: {Colors.NEUTRAL.SLATE_500};
+        }}
+
+        QLabel#errorMsg {{
+            color: {Colors.DANGER.BASE};
+            font-weight: bold;
+            padding: 5px;
+            background-color: {Colors.DANGER.BG_SOFT};
+            border-radius: 6px;
+        }}
+
+        QLineEdit#inputField {{
+            padding: 5px 8px;
+            border: 1px solid {Colors.NEUTRAL.SLATE_300};
+            border-radius: 8px;
+            background-color: {Colors.NEUTRAL.WHITE};
+            color: {Colors.NEUTRAL.SLATE_900};
+            font-size: 12px;
+            min-height: 28px;
+        }}
+
+        QLineEdit#inputField:focus {{
+            border: 2px solid {Colors.PRIMARY.BASE};
+            background-color: {Colors.NEUTRAL.SLATE_50};
+        }}
+
+        QLineEdit#inputField::placeholder {{
+            color: {Colors.NEUTRAL.SLATE_400};
+        }}
+
         /* ===== TOOLTIPS ===== */
         QToolTip {{
             background-color: {Colors.NEUTRAL.WHITE};
@@ -905,27 +968,38 @@ _TPL_CLARO = f"""
             border: 1px solid {Colors.NEUTRAL.SLATE_200};
             border-radius: 8px;
             background-color: {Colors.NEUTRAL.WHITE};
+            top: -1px;
+        }}
+        QTabBar {{
+            qproperty-drawBase: 0;
+            background: transparent;
         }}
         QTabBar::tab {{
-            background-color: {Colors.NEUTRAL.SLATE_100};
-            color: {Colors.NEUTRAL.SLATE_500};
-            border: 1px solid transparent;
+            background-color: {Colors.NEUTRAL.SLATE_200};
+            color: {Colors.NEUTRAL.SLATE_600};
+            border: 1px solid {Colors.NEUTRAL.SLATE_300};
             border-bottom: none;
-            padding: 3px 8px;
-            margin-right: 2px;
-            border-radius: 5px 5px 0 0;
-            font-weight: 500;
+            padding: 6px 14px;
+            margin-right: 3px;
+            border-radius: 6px 6px 0 0;
+            font-weight: 600;
+            min-width: 90px;
         }}
         QTabBar::tab:selected {{
-            background-color: {Colors.NEUTRAL.WHITE};
-            color: {Colors.NEUTRAL.SLATE_900};
-            border: 1px solid {Colors.NEUTRAL.SLATE_200};
-            border-bottom: none;
-            font-weight: 600;
+            background-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+            border: 1px solid {Colors.PRIMARY.DARK};
+            border-bottom: 2px solid {Colors.PRIMARY.HOVER};
+            font-weight: 700;
         }}
         QTabBar::tab:hover:!selected {{
-            background-color: {Colors.NEUTRAL.SLATE_200};
-            color: {Colors.NEUTRAL.SLATE_700};
+            background-color: {Colors.NEUTRAL.SLATE_300};
+            color: {Colors.NEUTRAL.SLATE_900};
+            border: 1px solid {Colors.NEUTRAL.SLATE_400};
+        }}
+        QTabBar::tab:disabled {{
+            color: {Colors.NEUTRAL.SLATE_400};
+            background-color: {Colors.NEUTRAL.SLATE_100};
         }}
 
         /* ===== INPUTS ===== */
@@ -993,6 +1067,28 @@ _TPL_CLARO = f"""
         }}
         QComboBox QAbstractItemView::item:selected {{
             background-color: {Colors.PRIMARY.BASE};
+        }}
+
+        /* ===== AUTOCOMPLETE POPUP (QCompleter) ===== */
+        QListView {{
+            background-color: {Colors.NEUTRAL.WHITE};
+            color: {Colors.NEUTRAL.SLATE_900};
+            border: 1px solid {Colors.NEUTRAL.SLATE_200};
+            border-radius: 5px;
+            outline: none;
+            font-size: 11px;
+        }}
+        QListView::item {{
+            padding: 3px 8px;
+            min-height: 22px;
+        }}
+        QListView::item:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_100};
+            color: {Colors.NEUTRAL.SLATE_900};
+        }}
+        QListView::item:selected {{
+            background-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
         }}
 
         /* ===== TABLAS ===== */
@@ -1205,6 +1301,14 @@ _TPL_CLARO = f"""
         }}
         QTreeWidget::item:selected {{
             background-color: {Colors.PRIMARY.BASE};
+        }}
+        QTreeWidget::branch:has-children:!has-siblings:closed,
+        QTreeWidget::branch:closed:has-children:has-siblings {{
+            border-image: none;
+        }}
+        QTreeWidget::branch:open:has-children:!has-siblings,
+        QTreeWidget::branch:open:has-children:has-siblings {{
+            border-image: none;
         }}
 
         /* ===== MENU BAR ===== */
