@@ -4,7 +4,7 @@ from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
-    create_secondary_button, create_input_field, create_input, create_combo,
+    create_secondary_button, create_table_button, create_input_field, create_input, create_combo,
     create_heading, create_subheading, create_caption, apply_tooltip,
     LoadingIndicator, EmptyStateWidget, PageHeader, Toast,
 )
@@ -664,28 +664,27 @@ class ModuloProductos(QWidget, RefreshMixin):
                 _cell = _QW(); _lay = _HL(_cell)
                 _lay.setContentsMargins(2, 2, 2, 2); _lay.setSpacing(2)
 
-                btn_editar = create_secondary_button(self, "✏️", "Editar producto")
-                btn_editar.setFixedWidth(30)
+                btn_editar = create_table_button(self, "✏️", "Editar producto", "outline")
+                btn_editar.setFixedSize(28, 26)
                 btn_editar.clicked.connect(lambda _, pid=prod_id: self.abrir_editar_producto(pid))
                 _lay.addWidget(btn_editar)
 
                 if activo:
                     # Producto activo: ocultar + eliminar
-                    btn_toggle = create_secondary_button(self, "🙈", "Ocultar del POS")
-                    btn_toggle.setFixedWidth(30)
+                    btn_toggle = create_table_button(self, "🙈", "Ocultar del POS", "warning")
+                    btn_toggle.setFixedSize(28, 26)
                     btn_toggle.clicked.connect(
                         lambda _, pid=prod_id, a=activo: self._toggle_activo(pid, a))
                     _lay.addWidget(btn_toggle)
 
-                    btn_del = create_danger_button(self, "🗑️", "Eliminar (soft delete)")
-                    btn_del.setFixedWidth(30)
+                    btn_del = create_table_button(self, "🗑️", "Eliminar (soft delete)", "danger")
+                    btn_del.setFixedSize(28, 26)
                     btn_del.clicked.connect(
                         lambda _, pid=prod_id, nom=row_data['nombre']: self.eliminar_producto(pid, nom))
                     _lay.addWidget(btn_del)
                 else:
-                    # v13.30: Producto eliminado: botón RESTAURAR
-                    btn_restaurar = create_success_button(self, "♻️", "Restaurar producto")
-                    btn_restaurar.setFixedWidth(30)
+                    btn_restaurar = create_table_button(self, "♻️", "Restaurar producto", "success")
+                    btn_restaurar.setFixedSize(28, 26)
                     btn_restaurar.clicked.connect(
                         lambda _, pid=prod_id, nom=row_data['nombre']: self._restaurar_producto(pid, nom))
                     _lay.addWidget(btn_restaurar)

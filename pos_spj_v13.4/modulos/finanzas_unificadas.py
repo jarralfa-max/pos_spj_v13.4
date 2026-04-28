@@ -449,8 +449,7 @@ class ModuloFinanzasUnificadas(QWidget):
         self._normalizar_botones_ui()
 
     def _normalizar_botones_ui(self):
-        """Evita botones full-width y mejora alineación visual general."""
-        is_light = self.palette().color(QPalette.Window).lightness() >= 160
+        """Evita botones full-width; delega colores al QSS global del tema."""
         for btn in self.findChildren(QPushButton):
             # Mantener icon-buttons compactos de tablas.
             if btn.maximumWidth() <= 36 or (btn.minimumWidth() and btn.minimumWidth() <= 36):
@@ -458,7 +457,9 @@ class ModuloFinanzasUnificadas(QWidget):
             btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 30:
                 btn.setMinimumHeight(30)
-            if is_light:
+            # Asignar objectName si aún no tiene uno definido, para que el QSS
+            # global lo estilice correctamente en cualquier tema (claro/oscuro).
+            if not btn.objectName() or btn.objectName() == btn.__class__.__name__:
                 txt = (btn.text() or "").lower()
                 if any(k in txt for k in ("eliminar", "baja", "cancelar", "retirar")):
                     btn.setObjectName("dangerBtn")
@@ -466,15 +467,11 @@ class ModuloFinanzasUnificadas(QWidget):
                     btn.setObjectName("primaryBtn")
                 else:
                     btn.setObjectName("secondaryBtn")
-                # Evitar estilos hardcodeados oscuros en tema claro.
+            # Limpiar cualquier estilo inline hardcodeado que anule el tema global.
+            if btn.styleSheet():
                 btn.setStyleSheet("")
-
-        if is_light:
-            for tbl in self.findChildren(QTableWidget):
-                tbl.setStyleSheet(
-                    "QTableWidget{background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;}"
-                    "QHeaderView::section{background:#E2E8F0;color:#334155;font-weight:600;}"
-                )
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
     
     def _on_tab_changed(self, index):
         """Carga datos según la pestaña activa."""
@@ -528,7 +525,7 @@ class ModuloFinanzasUnificadas(QWidget):
             cell = QGroupBox(title)
             cell_l = QVBoxLayout(cell)
             lbl = QLabel("—")
-            lbl.setStyleSheet("font-size:20px;font-weight:bold;color:#2563EB;")
+            lbl.setObjectName("kpiValue")
             cell_l.addWidget(lbl, 0, Qt.AlignCenter)
             self._kpi_labels[key] = lbl
             g.addWidget(cell, row, col)
@@ -592,13 +589,13 @@ class ModuloFinanzasUnificadas(QWidget):
         r_lay = QHBoxLayout(grp_resumen)
         
         self._lbl_capital_invertido = QLabel("$0.00")
-        self._lbl_capital_invertido.setStyleSheet("font-size:22px;font-weight:bold;color:#27ae60;")
+        self._lbl_capital_invertido.setObjectName("kpiValue")
         self._lbl_capital_disponible = QLabel("$0.00")
-        self._lbl_capital_disponible.setStyleSheet("font-size:22px;font-weight:bold;color:#2980b9;")
+        self._lbl_capital_disponible.setObjectName("kpiValue")
         self._lbl_roi = QLabel("0%")
-        self._lbl_roi.setStyleSheet("font-size:18px;font-weight:bold;color:#8e44ad;")
+        self._lbl_roi.setObjectName("kpiValue")
         self._lbl_salud = QLabel("")
-        self._lbl_salud.setStyleSheet("font-size:14px;font-weight:bold;")
+        self._lbl_salud.setObjectName("subheading")
         
         for lbl_title, lbl_val in [
             ("Capital Invertido", self._lbl_capital_invertido),
@@ -608,7 +605,7 @@ class ModuloFinanzasUnificadas(QWidget):
         ]:
             col = QVBoxLayout()
             t = QLabel(lbl_title)
-            t.setStyleSheet("font-size:11px;color:#7f8c8d;")
+            t.setObjectName("caption")
             t.setAlignment(Qt.AlignCenter)
             lbl_val.setAlignment(Qt.AlignCenter)
             col.addWidget(t)
@@ -631,11 +628,13 @@ class ModuloFinanzasUnificadas(QWidget):
         self._txt_desc_capital.setPlaceholderText("Descripción (ej: Capital socio A)")
         
         btn_inyectar = QPushButton("➕ Inyectar Capital")
-        btn_inyectar.setStyleSheet("background:#27ae60;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
+        btn_inyectar.setObjectName("successBtn")
+        btn_inyectar.setCursor(Qt.PointingHandCursor)
         btn_inyectar.clicked.connect(self._on_inyectar_capital)
-        
+
         btn_retirar = QPushButton("➖ Retirar Capital")
-        btn_retirar.setStyleSheet("background:#e74c3c;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
+        btn_retirar.setObjectName("dangerBtn")
+        btn_retirar.setCursor(Qt.PointingHandCursor)
         btn_retirar.clicked.connect(self._on_retirar_capital)
         
         c_lay.addWidget(QLabel("Monto:"))
@@ -666,12 +665,13 @@ class ModuloFinanzasUnificadas(QWidget):
         layout = QVBoxLayout(widget)
         
         lbl = QLabel("Facturas y deudas pendientes con proveedores")
-        lbl.setStyleSheet("color: gray;")
+        lbl.setObjectName("caption")
         layout.addWidget(lbl)
 
         top = QHBoxLayout()
         btn_nuevo_cxp = QPushButton("➕ Nueva CxP")
-        btn_nuevo_cxp.setStyleSheet("background:#2563EB;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxp.setObjectName("primaryBtn")
+        btn_nuevo_cxp.setCursor(Qt.PointingHandCursor)
         btn_nuevo_cxp.clicked.connect(self._dialogo_nueva_cxp)
         top.addWidget(btn_nuevo_cxp)
         btn_pago_global = QPushButton("💳 Pago global")
@@ -704,15 +704,17 @@ class ModuloFinanzasUnificadas(QWidget):
         layout = QVBoxLayout(widget)
         
         lbl = QLabel("Dinero pendiente de cobro a clientes")
-        lbl.setStyleSheet("color: gray;")
+        lbl.setObjectName("caption")
         layout.addWidget(lbl)
 
         top = QHBoxLayout()
         btn_nuevo_cliente = QPushButton("👤 Nuevo cliente")
-        btn_nuevo_cliente.setStyleSheet("background:#475569;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cliente.setObjectName("secondaryBtn")
+        btn_nuevo_cliente.setCursor(Qt.PointingHandCursor)
         btn_nuevo_cliente.clicked.connect(self._dialogo_nuevo_cliente)
         btn_nuevo_cxc = QPushButton("➕ Nueva CxC")
-        btn_nuevo_cxc.setStyleSheet("background:#16A34A;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxc.setObjectName("successBtn")
+        btn_nuevo_cxc.setCursor(Qt.PointingHandCursor)
         btn_nuevo_cxc.clicked.connect(self._dialogo_nueva_cxc)
         top.addWidget(btn_nuevo_cliente)
         top.addWidget(btn_nuevo_cxc)
@@ -771,7 +773,8 @@ class ModuloFinanzasUnificadas(QWidget):
         ])
         
         btn_guardar = QPushButton("💾 Guardar Gasto")
-        btn_guardar.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_guardar.setObjectName("dangerBtn")
+        btn_guardar.setCursor(Qt.PointingHandCursor)
         btn_guardar.clicked.connect(self._registrar_gasto)
         
         form_layout.addRow("Categoría:", self.cmb_categoria_gasto)
@@ -796,9 +799,10 @@ class ModuloFinanzasUnificadas(QWidget):
         # Header con botón nuevo
         hdr = QHBoxLayout()
         titulo = QLabel("🏭 Directorio de Proveedores")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setObjectName("heading")
         btn_nuevo = QPushButton("➕ Nuevo Proveedor")
-        btn_nuevo.setStyleSheet("background:#27ae60;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
+        btn_nuevo.setObjectName("successBtn")
+        btn_nuevo.setCursor(Qt.PointingHandCursor)
         btn_nuevo.clicked.connect(self._nuevo_proveedor)
         hdr.addWidget(titulo)
         hdr.addStretch()
@@ -1003,35 +1007,22 @@ class ModuloFinanzasUnificadas(QWidget):
             logger.error(f"Error cargando CxC: {e}")
 
     def _create_compact_action_button(self, text: str, variant: str = "primary") -> QPushButton:
-        """
-        Botón compacto para acciones por fila en tablas (mismo estándar visual
-        de módulos como Productos y Clientes).
-        """
+        """Botón compacto para acciones por fila en tablas — usa objectName para herencia de tema."""
+        variant_map = {
+            "primary": "primaryBtn",
+            "success": "successBtn",
+            "danger": "dangerBtn",
+            "warning": "warningBtn",
+            "outline": "outlineBtn",
+            "secondary": "secondaryBtn",
+        }
         btn = QPushButton(text)
+        btn.setFixedHeight(26)
+        btn.setMinimumWidth(80)
+        btn.setMaximumWidth(110)
         btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        btn.setMinimumHeight(30)
-        btn.setMinimumWidth(98)
-        btn.setMaximumWidth(126)
         btn.setCursor(Qt.PointingHandCursor)
-
-        is_light = self.palette().color(QPalette.Window).lightness() >= 160
-        if is_light:
-            btn.setStyleSheet("")
-            btn.setObjectName("primaryBtn" if variant == "primary" else "successBtn")
-            return btn
-
-        if variant == "success":
-            btn.setStyleSheet(
-                "QPushButton{background:#27ae60;color:white;font-weight:600;"
-                "padding:5px 10px;border-radius:5px;}"
-                "QPushButton:hover{background:#219150;}"
-            )
-        else:
-            btn.setStyleSheet(
-                "QPushButton{background:#2E86C1;color:white;font-weight:600;"
-                "padding:5px 10px;border-radius:5px;}"
-                "QPushButton:hover{background:#1f6fa5;}"
-            )
+        btn.setObjectName(variant_map.get(variant, "primaryBtn"))
         return btn
     
     def _filtrar_cxc(self):
@@ -1349,12 +1340,16 @@ class ModuloFinanzasUnificadas(QWidget):
             
             btn_ed = QPushButton("✏️")
             btn_ed.setFixedSize(28, 26)
+            btn_ed.setObjectName("outlineBtn")
             btn_ed.setToolTip("Editar")
+            btn_ed.setCursor(Qt.PointingHandCursor)
             btn_ed.clicked.connect(lambda _, pid=pid: self._editar_por_id(pid))
-            
+
             btn_del = QPushButton("🗑️")
             btn_del.setFixedSize(28, 26)
+            btn_del.setObjectName("dangerBtn")
             btn_del.setToolTip("Eliminar")
+            btn_del.setCursor(Qt.PointingHandCursor)
             btn_del.clicked.connect(lambda _, pid=pid, nom=nombre: self._eliminar_proveedor(pid, nom))
             
             btn_lay.addWidget(btn_ed)

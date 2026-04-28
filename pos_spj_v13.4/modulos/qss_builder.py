@@ -713,6 +713,33 @@ _TPL_OSCURO = f"""
             border: none;
             padding: 4px;
         }}
+
+        /* ===== FOCUS RINGS ===== */
+        QPushButton:focus {{
+            outline: none;
+        }}
+
+        /* ===== BUSCADOR DE PRODUCTOS (ProductSearchWidget) ===== */
+        QFrame#productSearchPopup {{
+            background-color: {Colors.NEUTRAL.SLATE_800};
+            border: 1px solid {Colors.NEUTRAL.SLATE_600};
+            border-radius: 8px;
+        }}
+        QListWidget#productSearchPopupList {{
+            background-color: {Colors.NEUTRAL.SLATE_800};
+            color: {Colors.NEUTRAL.SLATE_100};
+            border: none;
+        }}
+        QListWidget#productSearchPopupList::item {{
+            padding: 6px 10px;
+        }}
+        QListWidget#productSearchPopupList::item:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_700};
+        }}
+        QListWidget#productSearchPopupList::item:selected {{
+            background-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+        }}
     """
 
 
@@ -1407,6 +1434,33 @@ _TPL_CLARO = f"""
         QDockWidget::close-button, QDockWidget::float-button {{
             border: none;
             padding: 4px;
+        }}
+
+        /* ===== FOCUS RINGS ===== */
+        QPushButton:focus {{
+            outline: none;
+        }}
+
+        /* ===== BUSCADOR DE PRODUCTOS (ProductSearchWidget) ===== */
+        QFrame#productSearchPopup {{
+            background-color: {Colors.NEUTRAL.WHITE};
+            border: 1px solid {Colors.NEUTRAL.SLATE_300};
+            border-radius: 8px;
+        }}
+        QListWidget#productSearchPopupList {{
+            background-color: {Colors.NEUTRAL.WHITE};
+            color: {Colors.NEUTRAL.SLATE_900};
+            border: none;
+        }}
+        QListWidget#productSearchPopupList::item {{
+            padding: 6px 10px;
+        }}
+        QListWidget#productSearchPopupList::item:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_100};
+        }}
+        QListWidget#productSearchPopupList::item:selected {{
+            background-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
         }}
     """
 
