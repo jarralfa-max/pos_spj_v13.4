@@ -123,6 +123,11 @@ def _build_sidebar_qss() -> str:
             background-color: {s.ACTIVE};
             color: {n.WHITE};
             font-weight: {Typography.WEIGHT_SEMIBOLD};
+            border: none;
+        }}
+        QFrame#MenuLateral QPushButton:focus {{
+            outline: none;
+            border: none;
         }}
         QFrame#MenuLateral QScrollBar:vertical {{
             background-color: {s.BG};

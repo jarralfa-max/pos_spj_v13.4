@@ -130,7 +130,7 @@ class ModuloClientes(ModuloBase):
         # --- Barra de estado/botones de acción ---
         acciones_layout = QHBoxLayout()
         self.btn_editar_cliente = QPushButton("Editar")
-        self.btn_editar_cliente.setObjectName("secondaryBtn")
+        self.btn_editar_cliente.setObjectName("outlineBtn")
         self.btn_editar_cliente.setIcon(self.obtener_icono("edit.png"))
         self.btn_editar_cliente.setEnabled(False)
 
