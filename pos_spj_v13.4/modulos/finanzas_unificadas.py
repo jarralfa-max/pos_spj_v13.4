@@ -417,7 +417,20 @@ class ModuloFinanzasUnificadas(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
-        
+
+        # ── PageHeader ────────────────────────────────────────────────────────
+        from modulos.ui_components import PageHeader as _PH
+        _header = _PH(
+            self,
+            title="💰 Finanzas Unificadas",
+            subtitle="Tesorería · Contabilidad · Proveedores — fuente única de verdad",
+        )
+        layout.addWidget(_header)
+
+        # ── Barra de KPIs financieros ─────────────────────────────────────────
+        self._fin_kpi_bar = self._crear_fin_kpi_bar()
+        layout.addWidget(self._fin_kpi_bar)
+
         # Crear widget de pestañas principal — los colores vienen del QSS
         # global construido en modulos/qss_builder.py (Oscuro y Claro).
         tabs = QTabWidget()
@@ -447,6 +460,61 @@ class ModuloFinanzasUnificadas(QWidget):
         # Conectar cambio de pestaña para cargar datos
         tabs.currentChanged.connect(self._on_tab_changed)
         self._normalizar_botones_ui()
+
+    def _crear_fin_kpi_bar(self) -> 'QFrame':
+        """Barra horizontal con KPIs financieros clave."""
+        from PyQt5.QtWidgets import QFrame as _QF, QHBoxLayout as _QH, QVBoxLayout as _QV, QLabel as _QL
+        bar = _QF()
+        bar.setObjectName("finKpiBar")
+        bar.setStyleSheet(
+            f"QFrame#finKpiBar {{ background:{Colors.NEUTRAL.DARK_CARD if hasattr(Colors.NEUTRAL,'DARK_CARD') else '#1E293B'};"
+            f" border-radius:8px; border:1px solid {Colors.NEUTRAL.DARK_BORDER if hasattr(Colors.NEUTRAL,'DARK_BORDER') else '#334155'}; }}"
+        )
+        bar.setFixedHeight(70)
+        lay = _QH(bar)
+        lay.setContentsMargins(20, 8, 20, 8)
+        lay.setSpacing(0)
+
+        # Intentar cargar datos reales
+        kpis = [
+            ("CxC Pendiente", "$0",    Colors.WARNING_BASE),
+            ("CxP Pendiente", "$0",    Colors.DANGER_BASE),
+            ("Saldo Tesorería","$0",   Colors.SUCCESS_BASE),
+            ("Flujo del mes",  "$0",   Colors.PRIMARY_BASE),
+        ]
+        try:
+            db = self.conexion if hasattr(self, 'conexion') else None
+            if db:
+                r = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_cobrar WHERE estado='pendiente'").fetchone()
+                kpis[0] = ("CxC Pendiente", f"${float(r[0]):,.0f}", Colors.WARNING_BASE)
+                r2 = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_pagar WHERE estado='pendiente'").fetchone()
+                kpis[1] = ("CxP Pendiente", f"${float(r2[0]):,.0f}", Colors.DANGER_BASE)
+                r3 = db.execute("SELECT COALESCE(SUM(saldo),0) FROM cuentas_bancarias WHERE activa=1").fetchone()
+                kpis[2] = ("Saldo Tesorería", f"${float(r3[0]):,.0f}", Colors.SUCCESS_BASE)
+        except Exception:
+            pass
+
+        for i, (label, valor, color) in enumerate(kpis):
+            if i > 0:
+                sep = _QF()
+                sep.setFrameShape(_QF.VLine)
+                sep.setFixedWidth(1)
+                sep.setStyleSheet(f"background:{Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; border:none;")
+                lay.addWidget(sep)
+                lay.addSpacing(20)
+            col = _QV()
+            col.setSpacing(2)
+            lbl_v = _QL(valor)
+            lbl_v.setStyleSheet(f"color:{color}; font-size:18px; font-weight:700; background:transparent;")
+            lbl_l = _QL(label.upper())
+            lbl_l.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500}; font-size:9px; font-weight:700; letter-spacing:0.5px; background:transparent;")
+            col.addWidget(lbl_v)
+            col.addWidget(lbl_l)
+            lay.addLayout(col)
+            if i < len(kpis) - 1:
+                lay.addSpacing(20)
+        lay.addStretch()
+        return bar
 
     def _normalizar_botones_ui(self):
         """Evita botones full-width; delega colores al QSS global del tema."""

@@ -53,8 +53,43 @@ class ModuloClientes(ModuloBase):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
 
-        
-    def set_usuario_actual(self, usuario, rol):
+    def _crear_stats_clientes(self) -> 'QFrame':
+        """Barra de KPIs: total clientes, activos, con tarjeta, puntos distribuidos."""
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+        bar = _F(); bar.setObjectName("statsBarCli")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet(
+            "QFrame#statsBarCli { background:#1E293B; border-radius:8px;"
+            " border:1px solid #334155; }"
+        )
+        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+
+        kpis = [("Total Clientes","—",_C.PRIMARY_BASE),("Activos","—",_C.SUCCESS_BASE),
+                ("Con Tarjeta","—",_C.INFO_BASE),("Puntos Totales","—",_C.WARNING_BASE)]
+        try:
+            db = self.conexion
+            r = db.execute("SELECT COUNT(*), SUM(CASE WHEN activo=1 THEN 1 ELSE 0 END) FROM clientes").fetchone()
+            kpis[0] = ("Total Clientes", str(r[0] or 0), _C.PRIMARY_BASE)
+            kpis[1] = ("Activos", str(r[1] or 0), _C.SUCCESS_BASE)
+            r2 = db.execute("SELECT COUNT(*) FROM clientes WHERE codigo_qr IS NOT NULL AND activo=1").fetchone()
+            kpis[2] = ("Con Tarjeta", str(r2[0] or 0), _C.INFO_BASE)
+            r3 = db.execute("SELECT COALESCE(SUM(puntos),0) FROM clientes WHERE activo=1").fetchone()
+            kpis[3] = ("Puntos Totales", f"{int(r3[0] or 0):,}", _C.WARNING_BASE)
+        except Exception: pass
+
+        for i, (lbl, val, col) in enumerate(kpis):
+            if i > 0:
+                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155; border:none;")
+                lay.addWidget(s); lay.addSpacing(20)
+            c = _V(); c.setSpacing(1)
+            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l = _L(lbl.upper()); l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v); c.addWidget(l); lay.addLayout(c)
+            if i < 3: lay.addSpacing(20)
+        lay.addStretch()
+        return bar
         """Establece el usuario actual para el módulo"""
         self.usuario_actual = usuario
         self.rol_usuario = rol
@@ -79,6 +114,9 @@ class ModuloClientes(ModuloBase):
             subtitle="Cartera, fidelización y segmentación",
         )
         layout.addWidget(self.page_header)
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        layout.addWidget(self._crear_stats_clientes())
 
         # --- Barra de herramientas ---
         toolbar = QHBoxLayout()

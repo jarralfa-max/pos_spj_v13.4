@@ -452,6 +452,46 @@ class ModuloProductos(QWidget, RefreshMixin):
     def set_usuario_actual(self, usuario: str, rol: str):
         self.usuario_actual = usuario
 
+    def _crear_stats_productos(self) -> 'QFrame':
+        """Barra de KPIs rápidos: total productos, activos, stock bajo, categorías."""
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        bar = _F(); bar.setObjectName("statsBar")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet(
+            f"QFrame#statsBar {{ background:{Colors.NEUTRAL.DARK_CARD if hasattr(Colors.NEUTRAL,'DARK_CARD') else '#1E293B'};"
+            f" border-radius:8px; border:1px solid {Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; }}"
+        )
+        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+
+        kpis = [("Total Productos","—",Colors.PRIMARY_BASE),("Activos","—",Colors.SUCCESS_BASE),
+                ("Stock bajo","—",Colors.WARNING_BASE),("Categorías","—",Colors.INFO_BASE)]
+        self._stats_prod_labels = {}
+        try:
+            db = self.conexion
+            r = db.execute("SELECT COUNT(*), SUM(CASE WHEN activo=1 THEN 1 ELSE 0 END) FROM productos").fetchone()
+            kpis[0] = ("Total Productos", str(r[0] or 0), Colors.PRIMARY_BASE)
+            kpis[1] = ("Activos", str(r[1] or 0), Colors.SUCCESS_BASE)
+            r2 = db.execute("SELECT COUNT(*) FROM productos WHERE existencia<=COALESCE(stock_minimo,5) AND activo=1").fetchone()
+            kpis[2] = ("Stock bajo", str(r2[0] or 0), Colors.WARNING_BASE)
+            r3 = db.execute("SELECT COUNT(DISTINCT categoria) FROM productos WHERE activo=1").fetchone()
+            kpis[3] = ("Categorías", str(r3[0] or 0), Colors.INFO_BASE)
+        except Exception: pass
+
+        for i, (lbl, val, col) in enumerate(kpis):
+            if i > 0:
+                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
+                s.setStyleSheet(f"background:{Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; border:none;")
+                lay.addWidget(s); lay.addSpacing(20)
+            c = _V(); c.setSpacing(1)
+            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l = _L(lbl.upper()); l.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v); c.addWidget(l)
+            self._stats_prod_labels[lbl] = v
+            lay.addLayout(c)
+            if i < 3: lay.addSpacing(20)
+        lay.addStretch()
+        return bar
+
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
         layout_principal.setContentsMargins(0, 0, 0, 0)
@@ -463,6 +503,10 @@ class ModuloProductos(QWidget, RefreshMixin):
             subtitle="Catálogo, procesamiento cárnico y activación por sucursal",
         )
         layout_principal.addWidget(self._page_header)
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        self._stats_productos = self._crear_stats_productos()
+        layout_principal.addWidget(self._stats_productos)
         
         # --- PESTAÑAS DEL MÓDULO ---
         self.tabs = QTabWidget()

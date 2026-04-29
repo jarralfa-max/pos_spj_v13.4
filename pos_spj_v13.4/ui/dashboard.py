@@ -360,6 +360,81 @@ class PedidoWAItem(QFrame):
         lyt.addWidget(btn)
 
 
+class MiniGraficaVentas(QWidget):
+    """
+    Gráfica de barras mini — ventas últimos 7 días.
+    Pintada con QPainter; sin dependencias externas.
+    Barra de hoy en azul primario; resto en azul semitransparente.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._datos: list = []          # [(etiqueta, valor_float), ...]
+        self.setMinimumHeight(130)
+        self.setMaximumHeight(150)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setToolTip("Ventas de los últimos 7 días")
+
+    def set_datos(self, datos: list) -> None:
+        """datos: [(etiqueta_str, valor_float), ...]"""
+        self._datos = datos
+        self.update()
+
+    def paintEvent(self, event):
+        from PyQt5.QtGui import (QPainter, QBrush, QPen,
+                                 QLinearGradient, QFont as _QF)
+        if not self._datos:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        W, H = self.width(), self.height()
+        PAD_L, PAD_R, PAD_T, PAD_B = 6, 6, 20, 22
+        chart_h = H - PAD_T - PAD_B
+
+        values = [d[1] for d in self._datos]
+        max_v = max(values) if max(values) > 0 else 1
+        n = len(self._datos)
+        bar_w = (W - PAD_L - PAD_R) / (n * 1.5)
+        gap = bar_w * 0.5
+
+        BLUE      = QColor(37, 99, 235)
+        BLUE_SOFT = QColor(59, 130, 246, 80)
+        TEXT_DIM  = QColor(148, 163, 184)
+        TEXT_LT   = QColor(226, 232, 240)
+
+        for i, (label, val) in enumerate(self._datos):
+            is_today = (i == n - 1)
+            bar_h = max(int((val / max_v) * chart_h), 3)
+            x = int(PAD_L + i * (bar_w + gap))
+            y = H - PAD_B - bar_h
+
+            # Gradiente por barra
+            grad = QLinearGradient(x, y, x, H - PAD_B)
+            top_color = QColor(BLUE) if is_today else QColor(BLUE_SOFT)
+            bot_color = QColor(top_color); bot_color.setAlpha(20)
+            grad.setColorAt(0, top_color)
+            grad.setColorAt(1, bot_color)
+
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(grad))
+            p.drawRoundedRect(x, y, int(bar_w), bar_h, 3, 3)
+
+            # Valor encima de la barra
+            if val > 0:
+                val_str = f"${val/1000:.1f}k" if val >= 1000 else f"${val:.0f}"
+                p.setPen(QPen(TEXT_LT if is_today else TEXT_DIM))
+                p.setFont(_QF("Segoe UI", 7, 700 if is_today else 400))
+                p.drawText(x, y - 14, int(bar_w), 14, Qt.AlignCenter, val_str)
+
+            # Etiqueta del día
+            p.setPen(QPen(BLUE if is_today else TEXT_DIM))
+            p.setFont(_QF("Segoe UI", 8, 700 if is_today else 400))
+            p.drawText(x, H - PAD_B + 4, int(bar_w), 16,
+                       Qt.AlignCenter, label)
+
+        p.end()
+
+
 class Dashboard(QWidget):
     """Dashboard principal con KPIs, alertas y cola de pedidos."""
 
@@ -459,6 +534,13 @@ class Dashboard(QWidget):
             kpi_grid.setColumnStretch(col, 1)
         left.addLayout(kpi_grid)
 
+        # ── Gráfica ventas 7 días ─────────────────────────────────────────
+        lbl_grafica = QLabel("📈 Ventas últimos 7 días")
+        lbl_grafica.setObjectName("sectionLabel")
+        left.addWidget(lbl_grafica)
+        self._grafica = MiniGraficaVentas(self)
+        left.addWidget(self._grafica)
+
         # Cola pedidos WA
         lbl_wa = QLabel("📲 Pedidos WhatsApp pendientes")
         lbl_wa.setObjectName("sectionLabel")
@@ -555,9 +637,41 @@ class Dashboard(QWidget):
     def actualizar(self):
         self.lbl_hora.setText(datetime.now().strftime("%d/%m/%Y %H:%M"))
         self._actualizar_kpis()
+        self._actualizar_grafica()
         self._actualizar_pedidos_wa()
         self._actualizar_alertas()
         self._actualizar_repartidores()
+
+    def _actualizar_grafica(self) -> None:
+        """Carga ventas de los últimos 7 días y actualiza la MiniGraficaVentas."""
+        DIAS_ES = ["L","M","X","J","V","S","D"]
+        datos = []
+        try:
+            rows = self.conn.execute("""
+                SELECT DATE('now', printf('-%d days', 6-seq)) AS dia,
+                       COALESCE(SUM(v.total), 0) AS total
+                FROM (SELECT 0 AS seq UNION SELECT 1 UNION SELECT 2
+                      UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) d
+                LEFT JOIN ventas v
+                    ON DATE(v.fecha) = DATE('now', printf('-%d days', 6-d.seq))
+                   AND v.estado = 'completada'
+                GROUP BY dia
+                ORDER BY dia
+            """).fetchall()
+            for row in rows:
+                try:
+                    from datetime import date as _date
+                    import datetime as _dt
+                    d = _dt.date.fromisoformat(row[0])
+                    etiqueta = DIAS_ES[d.weekday()]
+                except Exception:
+                    etiqueta = "?"
+                datos.append((etiqueta, float(row[1])))
+        except Exception as e:
+            logger.debug("_actualizar_grafica: %s", e)
+            # Fallback: 7 ceros para no crashear
+            datos = [(d, 0.0) for d in DIAS_ES]
+        self._grafica.set_datos(datos)
 
     def _actualizar_kpis(self):
         # ── Ventas del día ────────────────────────────────────────────────────

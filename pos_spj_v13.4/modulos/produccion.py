@@ -171,8 +171,49 @@ class ModuloProduccion(ModuloBase):
         hdr.addWidget(ttl); hdr.addStretch(); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        root.addWidget(self._crear_stats_produccion())
+
         # Tabs
         self._tabs = QTabWidget()
+
+    def _crear_stats_produccion(self) -> 'QFrame':
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+        bar=_F();bar.setObjectName("statsBarProd")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet("QFrame#statsBarProd{background:#1E293B;border-radius:8px;border:1px solid #334155;}")
+        lay=_H(bar);lay.setContentsMargins(20,8,20,8);lay.setSpacing(0)
+        kpis=[("Producciones hoy","—",_C.PRIMARY_BASE),("Kg procesados","—",_C.SUCCESS_BASE),
+              ("Merma del día","—",_C.WARNING_BASE),("Rendimiento","—",_C.SUCCESS_BASE),
+              ("Lotes activos","—",_C.INFO_BASE)]
+        try:
+            db=self.container.db if hasattr(self,'container') else None
+            if db:
+                r=db.execute("SELECT COUNT(*),COALESCE(SUM(cantidad_producida),0) FROM producciones WHERE DATE(fecha)=DATE('now')").fetchone()
+                kpis[0]=("Producciones hoy",str(r[0] or 0),_C.PRIMARY_BASE)
+                kpis[1]=("Kg procesados",f"{float(r[1] or 0):.1f} kg",_C.SUCCESS_BASE)
+                r2=db.execute("SELECT COALESCE(SUM(merma),0) FROM producciones WHERE DATE(fecha)=DATE('now')").fetchone()
+                merma=float(r2[0] or 0)
+                total=float(r[1] or 1)
+                rend=round((1-merma/total)*100,1) if total>0 else 0
+                kpis[2]=("Merma del día",f"{merma:.1f} kg",_C.WARNING_BASE)
+                kpis[3]=("Rendimiento",f"{rend}%",_C.SUCCESS_BASE if rend>=90 else _C.WARNING_BASE)
+                r3=db.execute("SELECT COUNT(*) FROM lotes WHERE estado='activo'").fetchone()
+                kpis[4]=("Lotes activos",str(r3[0] or 0),_C.INFO_BASE)
+        except Exception: pass
+        for i,(lbl,val,col) in enumerate(kpis):
+            if i>0:
+                s=_F();s.setFrameShape(_F.VLine);s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155;border:none;")
+                lay.addWidget(s);lay.addSpacing(20)
+            c=_V();c.setSpacing(1)
+            v=_L(val);v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l=_L(lbl.upper());l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v);c.addWidget(l);lay.addLayout(c)
+            if i<4:lay.addSpacing(20)
+        lay.addStretch()
+        return bar
         self._tabs.addTab(self._build_tab_produccion(), "🏭 Ejecutar Producción")
         self._tabs.addTab(self._build_tab_historial(),  "📋 Historial")
         self._tabs.addTab(self._build_tab_carnica(),    "🥩 Cárnica / Lotes")
