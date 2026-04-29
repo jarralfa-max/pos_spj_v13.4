@@ -167,6 +167,43 @@ class ModuloRRHH(QWidget):
     def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
         self.sucursal_id = sucursal_id
 
+    def _crear_stats_rrhh(self) -> 'QFrame':
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+        bar=_F();bar.setObjectName("statsBarRRHH")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet("QFrame#statsBarRRHH{background:#1E293B;border-radius:8px;border:1px solid #334155;margin:0 12px 4px 12px;}")
+        lay=_H(bar);lay.setContentsMargins(20,8,20,8);lay.setSpacing(0)
+        kpis=[("Empleados activos","—",_C.PRIMARY_BASE),("En turno ahora","—",_C.SUCCESS_BASE),
+              ("Nómina del mes","—",_C.WARNING_BASE),("Ausencias hoy","—",_C.DANGER_BASE),
+              ("Vacaciones","—",_C.INFO_BASE)]
+        try:
+            db=self.db if hasattr(self,'db') else getattr(self,'conexion',None)
+            if db:
+                r=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1").fetchone()
+                kpis[0]=("Empleados activos",str(r[0] or 0),_C.PRIMARY_BASE)
+                r2=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1 AND en_turno=1").fetchone()
+                kpis[1]=("En turno ahora",str(r2[0] or 0),_C.SUCCESS_BASE)
+                r3=db.execute("SELECT COALESCE(SUM(salario),0) FROM personal WHERE activo=1").fetchone()
+                kpis[2]=("Nómina del mes",f"${float(r3[0] or 0):,.0f}",_C.WARNING_BASE)
+                r4=db.execute("SELECT COUNT(*) FROM asistencias WHERE DATE(fecha)=DATE('now') AND tipo='ausencia'").fetchone()
+                kpis[3]=("Ausencias hoy",str(r4[0] or 0),_C.DANGER_BASE)
+                r5=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1 AND en_vacaciones=1").fetchone()
+                kpis[4]=("Vacaciones",str(r5[0] or 0),_C.INFO_BASE)
+        except Exception: pass
+        for i,(lbl,val,col) in enumerate(kpis):
+            if i>0:
+                s=_F();s.setFrameShape(_F.VLine);s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155;border:none;")
+                lay.addWidget(s);lay.addSpacing(20)
+            c=_V();c.setSpacing(1)
+            v=_L(val);v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l=_L(lbl.upper());l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v);c.addWidget(l);lay.addLayout(c)
+            if i<4:lay.addSpacing(20)
+        lay.addStretch()
+        return bar
+
     def set_usuario_actual(self, usuario: str, rol: str):
         self.usuario_actual = usuario
         # Auto-desbloquear si el rol es 'admin' o 'gerente_rh'
@@ -176,6 +213,17 @@ class ModuloRRHH(QWidget):
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
         layout_principal.setContentsMargins(0, 0, 0, 0)
+
+        # ── PageHeader ────────────────────────────────────────────────────────
+        from modulos.ui_components import PageHeader as _PH
+        _ph = _PH(self,
+            title="👔 Recursos Humanos",
+            subtitle="Personal · Nómina · Turnos · Asistencia",
+        )
+        layout_principal.addWidget(_ph)
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        layout_principal.addWidget(self._crear_stats_rrhh())
         
         # 🛡️ PANTALLAS: Bloqueo y Dashboard
         self.stack = QStackedWidget()
