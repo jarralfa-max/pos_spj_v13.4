@@ -151,7 +151,7 @@ class ERPBridge:
 
         for it in items:
             self.db.execute("""
-                INSERT INTO detalle_ventas (venta_id, producto_id, nombre,
+                INSERT INTO detalles_venta (venta_id, producto_id, nombre,
                     cantidad, precio_unitario, subtotal)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (venta_id, it["producto_id"], it["nombre"],
@@ -175,7 +175,7 @@ class ERPBridge:
         items = self.db.execute("""
             SELECT producto_id, nombre, cantidad,
                    precio_unitario, COALESCE(unidad, 'kg') as unidad
-            FROM detalle_ventas WHERE venta_id=?
+            FROM detalles_venta WHERE venta_id=?
         """, (row["id"],)).fetchall()
 
         return {
@@ -298,7 +298,7 @@ class ERPBridge:
 
         for it in items:
             self.db.execute("""
-                INSERT INTO detalle_ventas (venta_id, producto_id, nombre,
+                INSERT INTO detalles_venta (venta_id, producto_id, nombre,
                     cantidad, precio_unitario, subtotal)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (venta_id, it["producto_id"], it["nombre"],

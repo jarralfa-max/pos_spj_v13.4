@@ -21,6 +21,13 @@ TABLAS_SINCRONIZABLES = [
     "productos", "clientes", "ventas", "detalles_venta",
     "movimientos_inventario", "movimientos_caja",
     "ordenes_compra", "delivery_orders",
+    # Tablas añadidas en Fase B — necesarias para consistencia multi-sucursal
+    "mermas",
+    "transferencias",
+    "production_batches",
+    "production_batch_outputs",
+    "branch_inventory",
+    "inventario_actual",
 ]
 
 

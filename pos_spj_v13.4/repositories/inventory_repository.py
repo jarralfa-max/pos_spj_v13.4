@@ -114,8 +114,16 @@ class InventoryRepository:
                    ultima_actualizacion = datetime('now')
         """, (product_id, branch_id, new_qty, new_avg_cost))
 
+        # Sync branch_inventory (leída por POS para validación de stock en tiempo real)
+        self.db.execute("""
+            INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
+            VALUES (?, ?, ?, datetime('now'))
+            ON CONFLICT(product_id, branch_id) DO UPDATE SET
+                quantity   = excluded.quantity,
+                updated_at = excluded.updated_at
+        """, (product_id, branch_id, new_qty))
+
         # Sync productos.existencia = sum across all branches
-        # This is what POS, search, and all modules read for stock levels
         self.db.execute("""
             UPDATE productos
             SET existencia   = (SELECT COALESCE(SUM(cantidad),0)

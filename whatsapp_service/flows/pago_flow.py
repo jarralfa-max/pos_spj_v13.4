@@ -75,10 +75,23 @@ class PagoFlow(BaseFlow):
             return ""
         try:
             import httpx
+            from datetime import datetime, timezone, timedelta
+
             total = ctx.total_pedido()
+
+            # external_reference = venta_id:phone para identificar inequívocamente
+            # el pedido en el webhook (un mismo cliente puede tener varios pedidos abiertos)
+            venta_id = getattr(ctx, 'last_venta_id', None)
+            ext_ref = f"{venta_id}:{ctx.phone}" if venta_id else ctx.phone
+
+            # El link expira en 24 horas para evitar pagos de links abandonados
+            expiration = (
+                datetime.now(timezone.utc) + timedelta(hours=24)
+            ).strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+
             payload = {
                 "items": [{
-                    "title": f"Pedido SPJ POS",
+                    "title": "Pedido SPJ POS",
                     "quantity": 1,
                     "unit_price": total,
                     "currency_id": "MXN",
@@ -88,7 +101,9 @@ class PagoFlow(BaseFlow):
                     "failure": "https://spjpos.com/pago/error",
                 },
                 "auto_return": "approved",
-                "external_reference": ctx.phone,
+                "external_reference": ext_ref,
+                "expiration_date_to": expiration,
+                "expires": True,
             }
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
