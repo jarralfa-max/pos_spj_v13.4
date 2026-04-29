@@ -553,30 +553,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 notes=doc_ref,
             )
 
-            # ── Actualización de existencia via ApplicationService ──────────
-            app_svc = getattr(self.container, 'app_service', None)
-            for _item in items_svc:
-                try:
-                    if app_svc:
-                        app_svc.registrar_compra(
-                            producto_id=_item['product_id'],
-                            cantidad=_item['qty'],
-                            costo_unitario=_item['unit_cost'],
-                            usuario=self.usuario_actual,
-                            referencia=doc_ref,
-                            sucursal_id=branch_dest,
-                            proveedor_id=proveedor_id)
-                    else:
-                        self.container.db.execute(
-                            "UPDATE productos SET existencia = existencia + ?, "
-                            "precio_compra = ? WHERE id = ?",
-                            (_item['qty'], _item['unit_cost'], _item['product_id'])
-                        )
-                except Exception as _e:
-                    import logging as _lg
-                    _lg.getLogger(__name__).error(
-                        "Direct stock update failed prod=%s: %s",
-                        _item['product_id'], _e)
+            # Stock already updated by PurchaseService.register_purchase() via
+            # inventory_service.add_stock() — no duplicate update needed here.
 
             # Process recipes for purchased items
             recetas_procesadas = []

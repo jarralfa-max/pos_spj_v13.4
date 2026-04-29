@@ -508,6 +508,11 @@ class AppContainer:
             self.growth_engine = None
             logger.warning("GrowthEngine no inicializado: %s", _ge)
 
+        # Backfill growth_engine reference into SalesService (initialized earlier)
+        if self.growth_engine is not None and hasattr(self, 'sales_service') \
+                and self.sales_service is not None:
+            self.sales_service.growth_engine = self.growth_engine
+
         # ── DiscountGuard (motor financiero de descuentos) ────────────
         try:
             from core.services.discount_guard import DiscountGuard
