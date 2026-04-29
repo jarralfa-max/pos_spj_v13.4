@@ -157,10 +157,15 @@ class MenuLateral(QFrame):
     # Señal maestra que avisa a la ventana principal a qué módulo queremos ir
     opcion_seleccionada = pyqtSignal(str)
 
+    # Anchos del sidebar
+    EXPANDED_WIDTH  = 240
+    COLLAPSED_WIDTH = 56
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("MenuLateral")
-        self.setFixedWidth(240) # Lo hicimos un poco más ancho para que quepan los nombres largos
+        self._collapsed = False
+        self.setFixedWidth(self.EXPANDED_WIDTH)
         self.enforce_dark_mode()
         self._permisos = set()
         self._rol = ""
@@ -217,15 +222,38 @@ class MenuLateral(QFrame):
 
         layout_logo.addWidget(self.lbl_logo)
 
-        lbl_version = QLabel("Enterprise Edition v13.4")
-        lbl_version.setAlignment(Qt.AlignCenter)
-        lbl_version.setStyleSheet(
+        # ── Botón colapsar/expandir ───────────────────────────────────────────
+        self._btn_toggle = QPushButton("‹")
+        self._btn_toggle.setFixedSize(28, 28)
+        self._btn_toggle.setObjectName("SidebarToggleBtn")
+        self._btn_toggle.setCursor(Qt.PointingHandCursor)
+        self._btn_toggle.setToolTip("Colapsar / expandir menú")
+        self._btn_toggle.setStyleSheet(f"""
+            QPushButton {{
+                background: {Colors.SIDEBAR.HOVER};
+                color: {Colors.SIDEBAR.TEXT};
+                border: 1px solid {Colors.SIDEBAR.BORDER};
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background: {Colors.PRIMARY.BASE};
+                color: white;
+            }}
+        """)
+        self._btn_toggle.clicked.connect(self.toggle_collapse)
+        layout_logo.addWidget(self._btn_toggle)
+
+        self._lbl_version = QLabel("Enterprise Edition v13.4")
+        self._lbl_version.setAlignment(Qt.AlignCenter)
+        self._lbl_version.setStyleSheet(
             f"color: {Colors.PRIMARY.BASE};"
             f" font-size: {Typography.SIZE_SM};"
             f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
             f" letter-spacing: 0.5px;"
         )
-        layout_logo.addWidget(lbl_version)
+        layout_logo.addWidget(self._lbl_version)
         
         layout_principal.addWidget(zona_logo)
 
@@ -488,3 +516,88 @@ class MenuLateral(QFrame):
             return ""
         raw = unicodedata.normalize("NFKD", texto)
         return "".join(c for c in raw if not unicodedata.combining(c)).strip().lower()
+
+    # ── Colapsar / Expandir ───────────────────────────────────────────────────
+    def toggle_collapse(self) -> None:
+        """Alterna entre sidebar expandido (240px) y colapsado (56px, sólo íconos)."""
+        self._collapsed = not self._collapsed
+        target_w = self.COLLAPSED_WIDTH if self._collapsed else self.EXPANDED_WIDTH
+
+        # Animación suave de ancho usando QPropertyAnimation
+        from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
+        anim = QPropertyAnimation(self, b"minimumWidth", self)
+        anim.setDuration(200)
+        anim.setStartValue(self.width())
+        anim.setEndValue(target_w)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim2 = QPropertyAnimation(self, b"maximumWidth", self)
+        anim2.setDuration(200)
+        anim2.setStartValue(self.width())
+        anim2.setEndValue(target_w)
+        anim2.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start(QPropertyAnimation.DeleteWhenStopped)
+        anim2.start(QPropertyAnimation.DeleteWhenStopped)
+
+        # Actualizar icono del botón toggle
+        self._btn_toggle.setText("›" if self._collapsed else "‹")
+        self._btn_toggle.setToolTip("Expandir menú" if self._collapsed else "Colapsar menú")
+
+        # Ocultar/mostrar elementos según estado
+        self._aplicar_modo_colapso(self._collapsed)
+
+    def _aplicar_modo_colapso(self, collapsed: bool) -> None:
+        """
+        Muestra/oculta texto de botones y elementos del sidebar según estado colapsado.
+        Cuando está colapsado sólo se muestra el ícono (primer carácter emoji/unicode).
+        """
+        # Barra de búsqueda
+        if hasattr(self, 'txt_buscar_modulo'):
+            self.txt_buscar_modulo.setVisible(not collapsed)
+
+        # Labels de sección (SeccionHeader)
+        from PyQt5.QtWidgets import QLabel as _QLabel
+        for child in self.findChildren(_QLabel):
+            if child.property("class") == "SeccionHeader":
+                child.setVisible(not collapsed)
+
+        # Label versión
+        if hasattr(self, '_lbl_version'):
+            self._lbl_version.setVisible(not collapsed)
+
+        # Botones de módulo: texto completo ↔ sólo ícono
+        for btn in self._menu_buttons:
+            full_label = btn.property("menu_label") or ""
+            if collapsed:
+                # Extraer primer "token" visual (emoji o primeros 2 chars)
+                icon_char = self._extraer_icono(full_label)
+                btn.setText(icon_char)
+                btn.setToolTip(full_label)          # tooltip completo al colapsar
+                btn.setStyleSheet(
+                    "text-align: center; padding: 8px 0; font-size: 18px;"
+                )
+            else:
+                btn.setText(full_label)
+                btn.setToolTip("")
+                btn.setStyleSheet("")               # devuelve al QSS global
+
+        # Re-aplicar QSS oscuro sobre todo
+        self.enforce_dark_mode()
+
+    @staticmethod
+    def _extraer_icono(texto: str) -> str:
+        """
+        Extrae el primer carácter visual del label del botón.
+        Para emojis (>0xFFFF) devuelve los primeros 2 code points.
+        Para texto plano devuelve las primeras 2 letras en mayúsculas.
+        """
+        if not texto:
+            return "?"
+        # Si el primer carácter es emoji (fuera del BMP) tomar 2 code points por seguridad
+        first = texto[0]
+        if ord(first) > 0x2000:   # zona de símbolos/emojis
+            return texto[:2].strip()
+        # Texto plano: iniciales
+        partes = texto.split()
+        if len(partes) >= 2:
+            return (partes[0][0] + partes[1][0]).upper()
+        return texto[:2].upper()
