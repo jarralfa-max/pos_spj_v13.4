@@ -569,34 +569,92 @@ class SalesService:
                 raise StockError(str(exc)) from exc
             raise VentaError(str(exc)) from exc
 
-    def anular_venta(self, venta_id, motivo=""):
-        """Compatibilidad legacy para cancelación total de venta."""
+    def anular_venta(self, venta_id, motivo="", usuario_id=None):
+        """Cancela una venta: revierte stock en las 3 tablas y genera asiento contable."""
+        import uuid as _uuid
         from core.services.sales.unified_sales_service import VentaError
         try:
             row = self.db.execute(
-                "SELECT id, estado FROM ventas WHERE id=?",
+                "SELECT id, folio, total, sucursal_id, estado FROM ventas WHERE id=?",
                 (int(venta_id),)
             ).fetchone()
             if not row:
                 raise VentaError(f"VENTA_NO_ENCONTRADA: id={venta_id}")
-            if str(row["estado"]).lower() == "cancelada":
+            if str(row["estado"]).lower() in ("cancelada", "anulada"):
                 raise VentaError(f"VENTA_YA_CANCELADA: id={venta_id}")
+
+            folio = row["folio"] or str(venta_id)
+            total = float(row["total"] or 0)
+            sucursal_id = int(row["sucursal_id"] or 1)
 
             detalles = self.db.execute(
                 "SELECT producto_id, cantidad FROM detalles_venta WHERE venta_id=?",
                 (int(venta_id),)
             ).fetchall()
-            for d in detalles:
+
+            with self.db.transaction("ANULAR_VENTA"):
+                for d in detalles:
+                    pid = int(d["producto_id"])
+                    qty = float(d["cantidad"] or 0)
+
+                    # 1. Tabla global
+                    self.db.execute(
+                        "UPDATE productos SET existencia = COALESCE(existencia,0) + ? WHERE id=?",
+                        (qty, pid)
+                    )
+                    # 2. inventario_actual (por sucursal)
+                    self.db.execute("""
+                        INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(producto_id, sucursal_id)
+                        DO UPDATE SET cantidad = cantidad + excluded.cantidad,
+                                      ultima_actualizacion = datetime('now')
+                    """, (pid, sucursal_id, qty))
+                    # 3. branch_inventory (tabla leída por POS para validación)
+                    self.db.execute("""
+                        INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
+                        VALUES (?, ?, ?, datetime('now'))
+                        ON CONFLICT(product_id, branch_id)
+                        DO UPDATE SET quantity = quantity + excluded.quantity,
+                                      updated_at = excluded.updated_at
+                    """, (pid, sucursal_id, qty))
+                    # 4. Movimiento de auditoría
+                    self.db.execute("""
+                        INSERT INTO movimientos_inventario
+                            (uuid, producto_id, tipo, tipo_movimiento, cantidad,
+                             descripcion, referencia, usuario, sucursal_id)
+                        VALUES (?, ?, 'entrada', 'DEVOLUCION_ANULACION', ?, ?, ?, ?, ?)
+                    """, (str(_uuid.uuid4()), pid, qty,
+                          f"Anulación venta {folio}: {motivo}",
+                          folio,
+                          str(usuario_id or "sistema"),
+                          sucursal_id))
+
+                # 5. Marcar venta como cancelada
                 self.db.execute(
-                    "UPDATE productos SET existencia = COALESCE(existencia,0) + ? WHERE id=?",
-                    (float(d["cantidad"] or 0), int(d["producto_id"]))
+                    "UPDATE ventas SET estado='cancelada', notas=? WHERE id=?",
+                    (motivo, int(venta_id))
                 )
 
-            self.db.execute(
-                "UPDATE ventas SET estado='cancelada' WHERE id=?",
-                (int(venta_id),)
-            )
-            self.db.commit()
+                # 6. Asiento contable (debe=ventas ↔ haber=inventario)
+                if self.finance_service and total > 0:
+                    try:
+                        self.finance_service.registrar_asiento(
+                            debe="ventas",
+                            haber="inventario",
+                            concepto=f"Anulación venta {folio}: {motivo}",
+                            monto=total,
+                            modulo="VENTAS",
+                            referencia_id=int(venta_id),
+                            usuario_id=usuario_id,
+                            sucursal_id=sucursal_id,
+                            evento="VENTA_ANULADA",
+                        )
+                    except Exception as _fe:
+                        import logging as _log
+                        _log.getLogger(__name__).error(
+                            "anular_venta asiento falló venta_id=%s: %s", venta_id, _fe)
+
         except VentaError:
             raise
         except Exception as exc:

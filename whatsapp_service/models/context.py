@@ -87,6 +87,9 @@ class ConversationContext:
     # Temporal: producto seleccionado esperando cantidad
     _producto_temp: Optional[Dict] = field(default_factory=lambda: None)
 
+    # Pedido confirmado (venta registrada en ERP)
+    last_venta_id: Optional[int] = None   # ID de la venta para pagos/webhook MP
+
     # Control
     failed_intents: int = 0
     last_activity: datetime = field(default_factory=datetime.now)

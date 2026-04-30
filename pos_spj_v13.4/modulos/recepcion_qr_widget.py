@@ -781,28 +781,8 @@ class RecepcionQRWidget(QWidget):
                 """, (self.sucursal_id, uuid_qr))
             except Exception: pass
 
-        # Actualizar inventario via ApplicationService (post-commit)
-        _app = getattr(self.container, 'app_service', None) if self.container else None
-        for item in items:
-            try:
-                pid = item.get("product_id", item.get("producto_id", 0))
-                qty = float(item.get("cantidad", 0))
-                costo = float(item.get("costo_unitario", 0))
-                if _app and pid and qty > 0:
-                    _app.registrar_compra(
-                        producto_id=pid, cantidad=qty,
-                        costo_unitario=costo,
-                        usuario=getattr(self, 'usuario', ''),
-                        sucursal_id=self.sucursal_id)
-                elif pid and qty > 0:
-                    self.conexion.execute(
-                        "UPDATE productos SET existencia = existencia + ?, "
-                        "precio_compra = CASE WHEN ? > 0 THEN ? ELSE precio_compra END "
-                        "WHERE id = ?",
-                        (qty, costo, costo, pid))
-            except Exception as _ue:
-                import logging as _lg
-                _lg.getLogger(__name__).error("QR existencia update: %s", _ue)
+        # Stock already updated inside the transaction above (inventario_actual UPSERT
+        # + productos.existencia sync via SUM). No post-commit update needed.
 
     def _guardar_asignacion(self) -> None:
         """Guarda la asignación de productos + pago al contenedor."""

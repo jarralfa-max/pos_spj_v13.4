@@ -44,8 +44,6 @@ class ERPApplicationService:
         self.treasury = treasury_service
         self.loyalty = loyalty_service
         self.sucursal_id = sucursal_id
-        # inventory_service.add_stock() tiene bug de schema —
-        # usamos escritura directa con transacciones hasta que se corrija
         self._inv_svc = inventory_service
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -67,7 +65,6 @@ class ERPApplicationService:
         ref = referencia or f"COMPRA-{op_id}"
 
         try:
-            # Siempre usar ruta directa con transacciones (inventory_service tiene bug de schema)
             self._entrada_directa(producto_id, cantidad, costo_unitario,
                                    "COMPRA", ref, usuario, sid)
 
@@ -200,7 +197,7 @@ class ERPApplicationService:
     # ══════════════════════════════════════════════════════════════════════════
 
     def _entrada_directa(self, prod_id, qty, costo, tipo, ref, usuario, sid):
-        """Fallback: escribe directo con transacción si no hay inventory_service."""
+        """Registra entrada: actualiza movimientos + las 3 tablas de stock."""
         with transaction(self.db) as c:
             c.execute("""
                 INSERT INTO movimientos_inventario
@@ -210,14 +207,39 @@ class ERPApplicationService:
                 VALUES (?,?,'ENTRADA',?,?,?,?,?,?,?,?,datetime('now'))
             """, (str(uuid.uuid4()), prod_id, tipo, qty,
                   costo, round(qty * costo, 2), tipo, ref, usuario, sid))
-            c.execute(
-                "UPDATE productos SET existencia = existencia + ?, "
-                "precio_compra = CASE WHEN ? > 0 THEN ? ELSE precio_compra END "
-                "WHERE id = ?",
-                (qty, costo, costo, prod_id))
+            # inventario_actual (por sucursal) — costo promedio ponderado
+            c.execute("""
+                INSERT INTO inventario_actual
+                    (producto_id, sucursal_id, cantidad, costo_promedio)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                    costo_promedio = CASE WHEN cantidad + excluded.cantidad > 0
+                        THEN (cantidad * costo_promedio
+                              + excluded.cantidad * excluded.costo_promedio)
+                             / (cantidad + excluded.cantidad)
+                        ELSE excluded.costo_promedio END,
+                    cantidad             = cantidad + excluded.cantidad,
+                    ultima_actualizacion = datetime('now')
+            """, (prod_id, sid, qty, costo))
+            # branch_inventory (leída por POS para validación de stock)
+            c.execute("""
+                INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
+                VALUES (?, ?, ?, datetime('now'))
+                ON CONFLICT(product_id, branch_id) DO UPDATE SET
+                    quantity   = quantity + excluded.quantity,
+                    updated_at = excluded.updated_at
+            """, (prod_id, sid, qty))
+            # productos.existencia = suma global de todas las sucursales
+            c.execute("""
+                UPDATE productos
+                SET existencia    = (SELECT COALESCE(SUM(cantidad),0)
+                                     FROM inventario_actual WHERE producto_id = ?),
+                    precio_compra = CASE WHEN ? > 0 THEN ? ELSE precio_compra END
+                WHERE id = ?
+            """, (prod_id, costo, costo, prod_id))
 
     def _salida_directa(self, prod_id, qty, tipo, ref, usuario, sid):
-        """Fallback: descuenta directo con transacción."""
+        """Registra salida: actualiza movimientos + las 3 tablas de stock."""
         with transaction(self.db) as c:
             c.execute("""
                 INSERT INTO movimientos_inventario
@@ -225,9 +247,29 @@ class ERPApplicationService:
                      descripcion, referencia, usuario, sucursal_id, fecha)
                 VALUES (?,?,'SALIDA',?,?,?,?,?,?,datetime('now'))
             """, (str(uuid.uuid4()), prod_id, tipo, qty, tipo, ref, usuario, sid))
-            c.execute(
-                "UPDATE productos SET existencia = MAX(0, existencia - ?) WHERE id = ?",
-                (qty, prod_id))
+            # inventario_actual
+            c.execute("""
+                INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
+                VALUES (?, ?, ?)
+                ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                    cantidad             = MAX(0, cantidad - excluded.cantidad),
+                    ultima_actualizacion = datetime('now')
+            """, (prod_id, sid, qty))
+            # branch_inventory
+            c.execute("""
+                INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
+                VALUES (?, ?, 0, datetime('now'))
+                ON CONFLICT(product_id, branch_id) DO UPDATE SET
+                    quantity   = MAX(0, quantity - ?),
+                    updated_at = datetime('now')
+            """, (prod_id, sid, qty))
+            # productos.existencia = suma global
+            c.execute("""
+                UPDATE productos
+                SET existencia = (SELECT COALESCE(SUM(cantidad),0)
+                                  FROM inventario_actual WHERE producto_id = ?)
+                WHERE id = ?
+            """, (prod_id, prod_id))
 
     def _get_costo_producto(self, producto_id: int) -> float:
         try:

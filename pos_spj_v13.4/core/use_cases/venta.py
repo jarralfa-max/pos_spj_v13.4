@@ -309,6 +309,34 @@ class ProcesarVentaUC:
                 logger.warning("Validar stock producto=%s: %s", item.producto_id, e)
         return None
 
+    def validar_precios_bajo_costo(
+        self, items: List[ItemCarrito]
+    ) -> List[dict]:
+        """
+        Detecta ítems con precio de venta por debajo del costo.
+        Retorna lista de dicts con {nombre, precio_venta, costo, perdida}.
+        La UI puede usar esto para advertir al usuario sin bloquear la venta.
+        """
+        alertas = []
+        for item in items:
+            try:
+                row = self._sales.db.execute(
+                    "SELECT COALESCE(precio_compra, 0) FROM productos WHERE id=?",
+                    (item.producto_id,)
+                ).fetchone()
+                costo = float(row[0]) if row and row[0] else 0.0
+                if costo > 0 and item.precio_unit < costo:
+                    alertas.append({
+                        "nombre":       item.nombre,
+                        "precio_venta": item.precio_unit,
+                        "costo":        costo,
+                        "perdida":      round(costo - item.precio_unit, 4),
+                    })
+            except Exception as e:
+                logger.warning("validar_precios_bajo_costo prod=%s: %s",
+                               item.producto_id, e)
+        return alertas
+
 
 # ── Helpers privados ──────────────────────────────────────────────────────────
 

@@ -60,6 +60,7 @@ MIGRATIONS = [
     ("063",  "migrations.standalone.063_audit_log_table"),       # ERP FASE 7: audit_log (inglés)
     ("064",  "migrations.standalone.064_fix_missing_columns"),   # Hotfix: columnas faltantes producción
     ("065",  "migrations.standalone.065_performance_indexes_views"),  # ERP FASE 8: índices + vistas BI
+    ("066",  "migrations.standalone.066_unificar_esquema_recetas"),  # Fase E: bridge legacy recetas ↔ product_recipes
 ]
 
 def _ensure_tracking_table(conn):

@@ -1257,7 +1257,9 @@ class FinanceService:
                                 ensure_ascii=False),
                 )
             )
-            self.db.commit()
+            # No commit aquí — el llamador es responsable de commitar.
+            # Un commit prematuro rompería SAVEPOINTs activos del llamador
+            # (anular_venta, close_batch, etc.).
             return cur.lastrowid or 0
         except Exception as _e:
             import logging as _lg

@@ -106,10 +106,8 @@ class RecipeEngine:
         suc_id = sucursal_id or self.branch_id
 
         with self.db.transaction("RECIPE_PRODUCCION"):
-            conn = self.db.conn
-
             # 1. Cargar receta
-            receta = conn.execute(
+            receta = self.db.execute(
                 "SELECT * FROM product_recipes WHERE id = ? AND is_active = 1",
                 (receta_id,)
             ).fetchone()
@@ -120,12 +118,12 @@ class RecipeEngine:
             prod_base_id = receta.get("base_product_id") or receta.get("product_id")
             peso_prom = float(receta.get("peso_promedio_kg") or 1.0)
 
-            prod_base_row = conn.execute(
+            prod_base_row = self.db.execute(
                 "SELECT nombre, unidad FROM productos WHERE id = ?", (prod_base_id,)
             ).fetchone()
             prod_base_nombre = prod_base_row["nombre"] if prod_base_row else f"#{prod_base_id}"
 
-            componentes_db = conn.execute("""
+            componentes_db = self.db.execute("""
                 SELECT rc.*,
                        rc.component_product_id AS producto_id,
                        p.nombre AS prod_nombre,
@@ -142,14 +140,16 @@ class RecipeEngine:
                 raise RecipeEngineError(f"RECETA_SIN_COMPONENTES: id={receta_id}")
 
             # 2. Idempotencia
-            dup = conn.execute(
+            dup = self.db.execute(
                 "SELECT id FROM producciones WHERE operation_id = ?", (op_id,)
             ).fetchone()
             if dup:
                 raise ProduccionDuplicadaError(f"PRODUCCION_DUPLICADA: op={op_id}")
 
             # 3. Calcular movimientos
-            movimientos = self._calcular_movimientos(tipo, receta, componentes_db, cantidad_base, peso_prom)
+            movimientos = self._calcular_movimientos(
+                tipo, receta, componentes_db, cantidad_base, peso_prom,
+                prod_base_id, prod_base_nombre)
 
             # 3b. Aplicar mediciones reales + validar tolerancia de error relativo
             if mediciones_reales:
@@ -204,7 +204,7 @@ class RecipeEngine:
                 receta.get("unidad_base", "kg"),
                 usuario, suc_id, notas or "", op_id,
             ))
-            produccion_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            produccion_id = self.db.execute("SELECT last_insert_rowid()").fetchone()[0]
 
             # 6. Ejecutar movimientos
             componentes_resultado = []
@@ -220,11 +220,11 @@ class RecipeEngine:
                     operation_id=f"{op_id}_{mov['product_id']}",
                     reference_id=produccion_id,
                     reference_type="PRODUCCION",
-                    conn=conn,
+                    conn=self.db,
                 )
 
                 tipo_det = "entrada" if mov["delta"] > 0 else "salida"
-                conn.execute("""
+                self.db.execute("""
                     INSERT INTO produccion_detalle (
                         produccion_id, producto_resultante_id,
                         cantidad_generada, unidad, rendimiento_aplicado, tipo
@@ -235,7 +235,7 @@ class RecipeEngine:
                     mov.get("rendimiento", 0.0), tipo_det,
                 ))
 
-                self._registrar_movimiento_legacy(conn, mov, produccion_id, usuario, suc_id)
+                self._registrar_movimiento_legacy(self.db, mov, produccion_id, usuario, suc_id)
 
                 if mov["delta"] > 0:
                     total_generado += mov["delta"]
@@ -253,20 +253,19 @@ class RecipeEngine:
 
             # 7. Update real unit cost for each generated subproduct
             if tipo == "subproducto" and total_consumido > 0:
-                costo_row = conn.execute(
+                costo_row = self.db.execute(
                     "SELECT COALESCE(precio_compra,0) FROM productos WHERE id=?",
                     (prod_base_id,)).fetchone()
                 costo_base_total = float(costo_row[0] if costo_row else 0) * float(cantidad_base)
                 if costo_base_total > 0:
                     for mov in movimientos:
                         if mov["delta"] > 0 and mov["delta"] > 0.001:
-                            # Cost proportional to actual yield
                             costo_unit = round(
                                 (costo_base_total * (mov["delta"] / total_generado)) / mov["delta"], 4
                             ) if total_generado > 0 else 0
                             if costo_unit > 0:
                                 try:
-                                    conn.execute(
+                                    self.db.execute(
                                         "UPDATE productos SET precio_compra=? WHERE id=?",
                                         (costo_unit, mov["product_id"]))
                                 except Exception as _ce:
@@ -293,7 +292,8 @@ class RecipeEngine:
             total_consumido=total_consumido,
         )
 
-    def _calcular_movimientos(self, tipo, receta, componentes, cantidad_base, peso_prom):
+    def _calcular_movimientos(self, tipo, receta, componentes, cantidad_base, peso_prom,
+                              prod_base_id=None, prod_base_nombre=""):
         movimientos = []
 
         if tipo == "subproducto":
@@ -417,9 +417,17 @@ class RecipeEngine:
             WHERE rc.recipe_id = ?
             ORDER BY rc.orden, rc.id
         """, (receta_id,))
+        # Obtener datos del producto base para pasarlos al helper
+        _base_id = receta.get("output_product_id") or receta.get("producto_base_id")
+        _base_row = self.db.fetchone(
+            "SELECT nombre FROM productos WHERE id=?", (_base_id,)
+        ) if _base_id else None
+        _base_nombre = _base_row["nombre"] if _base_row else f"#{_base_id}"
+
         return self._calcular_movimientos(
             receta["tipo_receta"], receta, [dict(r) for r in comps],
-            cantidad_base, float(receta.get("peso_promedio_kg") or 1.0)
+            cantidad_base, float(receta.get("peso_promedio_kg") or 1.0),
+            _base_id, _base_nombre,
         )
 
     def get_historial(self, sucursal_id=None, receta_id=None, limit=100):

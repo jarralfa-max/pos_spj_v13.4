@@ -289,6 +289,11 @@ class DatabaseWrapper:
     def in_transaction(self):
         return self._conn.in_transaction
 
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """Exposes the raw sqlite3.Connection for code that needs it directly."""
+        return self._conn
+
     def __getattr__(self, name: str):
         return getattr(self._conn, name)
 
