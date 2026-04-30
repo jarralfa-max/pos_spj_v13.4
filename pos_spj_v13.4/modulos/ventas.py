@@ -2998,30 +2998,31 @@ class ModuloVentas(ModuloBase):
                 for item in self.compra_actual
             ]
 
-            # ── Guardrail: detectar ítems por debajo del costo ──────────────
+            # ── Guardrail: detectar ítems por debajo del costo (delegado al UC) ─
             try:
-                items_bajo_costo = []
-                for item in self.compra_actual:
-                    costo_row = self.container.db.execute(
-                        "SELECT precio_compra FROM productos WHERE id=?",
-                        (item['id'],)
-                    ).fetchone()
-                    costo = float(costo_row[0]) if costo_row and costo_row[0] else 0
-                    if costo > 0 and float(item['precio_unitario']) < costo:
-                        items_bajo_costo.append(
-                            f"• {item['nombre']}: ${item['precio_unitario']:.2f} "
-                            f"(costo ${costo:.2f})"
+                _uc_check = getattr(self.container, 'uc_venta', None)
+                if _uc_check:
+                    from core.use_cases.venta import ItemCarrito as _IC
+                    _ic_items = [_IC(
+                        producto_id=it['id'], cantidad=float(it['cantidad']),
+                        precio_unit=float(it['precio_unitario']),
+                        nombre=it.get('nombre', ''),
+                    ) for it in self.compra_actual]
+                    alertas = _uc_check.validar_precios_bajo_costo(_ic_items)
+                    if alertas:
+                        lines = [
+                            f"• {a['nombre']}: ${a['precio_venta']:.2f} (costo ${a['costo']:.2f})"
+                            for a in alertas
+                        ]
+                        resp = QMessageBox.warning(
+                            self, "⚠️ Venta por debajo del costo",
+                            "Los siguientes productos se venden con pérdida:\n\n"
+                            + "\n".join(lines)
+                            + "\n\n¿Continuar de todas formas?",
+                            QMessageBox.Yes | QMessageBox.No
                         )
-                if items_bajo_costo:
-                    resp = QMessageBox.warning(
-                        self, "⚠️ Venta por debajo del costo",
-                        "Los siguientes productos se venden con pérdida:\n\n"
-                        + "\n".join(items_bajo_costo)
-                        + "\n\n¿Continuar de todas formas?",
-                        QMessageBox.Yes | QMessageBox.No
-                    )
-                    if resp != QMessageBox.Yes:
-                        return
+                        if resp != QMessageBox.Yes:
+                            return
             except Exception:
                 pass  # No bloquea la venta si la validación falla
 
