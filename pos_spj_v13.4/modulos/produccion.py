@@ -781,11 +781,16 @@ class ModuloProduccion(ModuloBase):
 
 
     def _load_recetas(self) -> None:
+        # Guard: _combo_receta may not exist if _init_ui() failed or if an
+        # EventBus event fires before construction completes.
+        if not hasattr(self, '_combo_receta'):
+            return
+
         try:
             product_expr = self._pr_product_expr()
             rows = self.conexion.fetchall("""
                 SELECT r.id,
-                       COALESCE(r.nombre_receta, r.nombre, '') AS nombre,
+                       COALESCE(r.nombre_receta, '') AS nombre,
                        COALESCE(r.tipo_receta, 'produccion') AS tipo_receta,
                        {product_expr} AS producto_base_id,
                        COALESCE(r.peso_promedio_kg, 1.0) AS peso_promedio_kg,
@@ -819,6 +824,8 @@ class ModuloProduccion(ModuloBase):
         self._on_receta_changed()
 
     def _get_receta_actual(self) -> Optional[Dict]:
+        if not hasattr(self, '_combo_receta'):
+            return None
         rid = self._combo_receta.currentData()
         if not rid:
             return None

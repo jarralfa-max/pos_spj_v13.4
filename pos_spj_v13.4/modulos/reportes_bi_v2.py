@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 # modulos/reportes_bi_v2.py
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
