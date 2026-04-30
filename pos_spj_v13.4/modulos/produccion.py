@@ -118,6 +118,7 @@ class ModuloProduccion(ModuloBase):
         self._db_wrapped     = self.conexion
         self._engine         = RecipeEngine(self._db_wrapped, branch_id=1)
         self._recetas_cache: List[Dict] = []
+        self._ui_ready = False
         self._init_ui()
         self._subscribe_events()
         QTimer.singleShot(0, self._refresh_all)
@@ -151,6 +152,8 @@ class ModuloProduccion(ModuloBase):
         QTimer.singleShot(0, self._refresh_all)
 
     def _refresh_all(self) -> None:
+        if not getattr(self, '_ui_ready', False):
+            return
         self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
         self._load_recetas()
         self._load_historial()
@@ -178,6 +181,7 @@ class ModuloProduccion(ModuloBase):
         self._tabs.addTab(self._build_tab_carnica(),    "🥩 Cárnica / Lotes")
         self._tabs.addTab(self._build_tab_recetas(),    "📋 Recetas")
         root.addWidget(self._tabs)
+        self._ui_ready = True
 
     # ── TAB: Ejecutar Producción ──────────────────────────────────────────────
 
