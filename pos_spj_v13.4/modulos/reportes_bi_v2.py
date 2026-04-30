@@ -48,7 +48,7 @@ class ModuloReportesBIv2(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         layout_principal = QVBoxLayout()
-        layout_principal.setSpacing(10)
+        layout_principal.setSpacing(16)
         outer.addLayout(layout_principal)
 
         # --- HEADER (PageHeader: título + subtítulo + acciones) ---
@@ -83,61 +83,10 @@ class ModuloReportesBIv2(QWidget):
         # ── KPI cards con sparklines ──────────────────────────────────────────
         layout_principal.addWidget(self._crear_kpi_bar_bi())
 
-        self.filter_bar = FilterBar(
-
-    def _crear_kpi_bar_bi(self) -> 'QFrame':
-        """Barra de 4 KPI cards con valores reales del período actual."""
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        from modulos.design_tokens import Colors as _C
-        bar=_F();bar.setObjectName("biKpiBar")
-        bar.setFixedHeight(72)
-        bar.setStyleSheet("QFrame#biKpiBar{background:transparent;}")
-        lay=_H(bar);lay.setContentsMargins(0,0,0,0);lay.setSpacing(8)
-        kpis=[("Ventas del período","—",_C.SUCCESS_BASE,"↑ cargando..."),
-              ("Ticket promedio","—",_C.PRIMARY_BASE,""),
-              ("Margen bruto","—",_C.WARNING_BASE,""),
-              ("Clientes únicos","—",_C.ACCENT_BASE,"")]
-        try:
-            db=self.conexion if hasattr(self,'conexion') else None
-            if db:
-                r=db.execute("SELECT COALESCE(SUM(total),0),COUNT(*),COUNT(DISTINCT cliente_id) FROM ventas WHERE DATE(fecha)=DATE('now') AND estado='completada'").fetchone()
-                ventas=float(r[0] or 0); tickets=int(r[1] or 1); cli=int(r[2] or 0)
-                prom=ventas/tickets if tickets>0 else 0
-                kpis[0]=("Ventas del período",f"${ventas:,.0f}",_C.SUCCESS_BASE,"↑ hoy")
-                kpis[1]=("Ticket promedio",f"${prom:,.0f}",_C.PRIMARY_BASE,"")
-                kpis[3]=("Clientes únicos",str(cli),_C.ACCENT_BASE,"")
-                r2=db.execute("SELECT COALESCE(SUM(vd.cantidad*vd.precio_unitario),0),COALESCE(SUM(vd.cantidad*COALESCE(p.precio_compra,0)),0) FROM ventas v JOIN detalles_venta vd ON vd.venta_id=v.id JOIN productos p ON p.id=vd.producto_id WHERE DATE(v.fecha)=DATE('now') AND v.estado='completada'").fetchone()
-                ing=float(r2[0] or 0); cos=float(r2[1] or 0)
-                mg=((ing-cos)/ing*100) if ing>0 else 0
-                kpis[2]=("Margen bruto",f"{mg:.1f}%",_C.SUCCESS_BASE if mg>=25 else _C.WARNING_BASE,"")
-        except Exception: pass
-        for lbl,val,col,sub in kpis:
-            card=_F(); card.setObjectName("biKpiCard")
-            card.setStyleSheet(f"QFrame#biKpiCard{{background:#1E293B;border-radius:8px;border:1px solid #334155;border-top:3px solid {col};}}")
-            cl=_V(card);cl.setContentsMargins(14,8,14,8);cl.setSpacing(2)
-            vl=_L(val);vl.setStyleSheet(f"color:{col};font-size:20px;font-weight:700;background:transparent;")
-            ll=_L(lbl.upper());ll.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
-            sl=_L(sub);sl.setStyleSheet(f"color:{col};font-size:9px;background:transparent;")
-            cl.addWidget(vl);cl.addWidget(ll)
-            if sub:cl.addWidget(sl)
-            lay.addWidget(card,1)
-        return bar
-            self,
-            placeholder="Buscar producto, cliente o cajero…",
-            combo_filters={"vista": ["Resumen", "Rankings", "Rentabilidad", "Cajeros"]}
-        )
-        self.filter_bar.filters_changed.connect(self._on_global_filters_changed)
-        layout_principal.addWidget(self.filter_bar)
-
-        self.loading_dashboard = LoadingIndicator("Actualizando dashboard BI…", self)
-        self.loading_dashboard.hide()
-        layout_principal.addWidget(self.loading_dashboard)
-
         self.tabs_bi = QTabWidget()
         self.tabs_bi.setDocumentMode(True)
         layout_principal.addWidget(self.tabs_bi)
 
-        self._build_tab_resumen()
         self._build_tab_visual_dashboard()
         self._build_tab_rankings()
         self._build_tab_rentabilidad()
@@ -146,52 +95,119 @@ class ModuloReportesBIv2(QWidget):
         self._build_tab_decision_engine()
         self._build_tab_franchise()
 
+    def _crear_kpi_bar_bi(self) -> 'QFrame':
+        """Barra de 4 KPI cards con valores reales del período actual."""
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+
+        bar = _F()
+        bar.setObjectName("biKpiBar")
+        bar.setFixedHeight(72)
+        bar.setStyleSheet("QFrame#biKpiBar{background:transparent;}")
+
+        lay = _H(bar)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+
+        kpis = [
+            ("Ventas del período", "—", _C.SUCCESS_BASE, "↑ cargando..."),
+            ("Ticket promedio", "—", _C.PRIMARY_BASE, ""),
+            ("Margen bruto", "—", _C.WARNING_BASE, ""),
+            ("Clientes únicos", "—", _C.ACCENT_BASE, "")
+        ]
+
+        try:
+            db = self.conexion if hasattr(self, 'conexion') else None
+            if db:
+                r = db.execute("""
+                    SELECT 
+                        COALESCE(SUM(total),0),
+                        COUNT(*),
+                        COUNT(DISTINCT cliente_id) 
+                    FROM ventas 
+                    WHERE DATE(fecha)=DATE('now') 
+                    AND estado='completada'
+                """).fetchone()
+
+                ventas = float(r[0] or 0)
+                tickets = int(r[1] or 1)
+                cli = int(r[2] or 0)
+
+                prom = ventas / tickets if tickets > 0 else 0
+
+                kpis[0] = ("Ventas del período", f"${ventas:,.0f}", _C.SUCCESS_BASE, "↑ hoy")
+                kpis[1] = ("Ticket promedio", f"${prom:,.0f}", _C.PRIMARY_BASE, "")
+                kpis[3] = ("Clientes únicos", str(cli), _C.ACCENT_BASE, "")
+
+                r2 = db.execute("""
+                    SELECT 
+                        COALESCE(SUM(vd.cantidad*vd.precio_unitario),0),
+                        COALESCE(SUM(vd.cantidad*COALESCE(p.precio_compra,0)),0)
+                    FROM ventas v
+                    JOIN detalles_venta vd ON vd.venta_id = v.id
+                    JOIN productos p ON p.id = vd.producto_id
+                    WHERE DATE(v.fecha)=DATE('now') 
+                    AND v.estado='completada'
+                """).fetchone()
+
+                ing = float(r2[0] or 0)
+                cos = float(r2[1] or 0)
+
+                mg = ((ing - cos) / ing * 100) if ing > 0 else 0
+
+                kpis[2] = (
+                    "Margen bruto",
+                    f"{mg:.1f}%",
+                    _C.SUCCESS_BASE if mg >= 25 else _C.WARNING_BASE,
+                    ""
+                )
+
+        except Exception:
+            pass
+
+        for lbl, val, col, sub in kpis:
+            card = _F()
+            card.setObjectName("biKpiCard")
+            card.setStyleSheet(
+                f"QFrame#biKpiCard{{background:#1E293B;border-radius:8px;"
+                f"border:1px solid #334155;border-top:3px solid {col};}}"
+            )
+
+            cl = _V(card)
+            cl.setContentsMargins(14, 8, 14, 8)
+            cl.setSpacing(2)
+
+            vl = _L(val)
+            vl.setStyleSheet(
+                f"color:{col};font-size:20px;font-weight:700;background:transparent;"
+            )
+
+            ll = _L(lbl.upper())
+            ll.setStyleSheet(
+                "color:#64748B;font-size:9px;font-weight:700;"
+                "letter-spacing:0.5px;background:transparent;"
+            )
+
+            cl.addWidget(vl)
+            cl.addWidget(ll)
+
+            if sub:
+                sl = _L(sub)
+                sl.setStyleSheet(
+                    f"color:{col};font-size:9px;background:transparent;"
+                )
+                cl.addWidget(sl)
+
+            lay.addWidget(card, 1)
+
+        return bar
+
     def _crear_tab_contenedor(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         return tab, layout
-
-    def _build_tab_resumen(self):
-        tab, layout = self._crear_tab_contenedor()
-
-        kpi_layout = QHBoxLayout()
-        self.lbl_kpi_ingresos = self._crear_tarjeta_kpi("💵 Ingresos Totales", "$0.00")
-        self.lbl_kpi_ticket = self._crear_tarjeta_kpi("🧾 Ticket Promedio", "$0.00")
-        self.lbl_kpi_ventas = self._crear_tarjeta_kpi("🛒 Num. Ventas", "0")
-        self.lbl_kpi_clientes = self._crear_tarjeta_kpi("👥 Clientes Únicos", "0")
-        kpi_layout.addWidget(self.lbl_kpi_ingresos)
-        kpi_layout.addWidget(self.lbl_kpi_ticket)
-        kpi_layout.addWidget(self.lbl_kpi_ventas)
-        kpi_layout.addWidget(self.lbl_kpi_clientes)
-        layout.addLayout(kpi_layout)
-
-        self.lbl_comparativa = create_caption(self, "")
-        self.lbl_comparativa.setAlignment(Qt.AlignCenter)
-        self.lbl_comparativa.hide()
-        layout.addWidget(self.lbl_comparativa)
-
-        self._lbl_resumen_alertas = QLabel("Alertas: esperando actualización de datos.")
-        self._lbl_resumen_alertas.setStyleSheet("color:#6c757d;")
-        layout.addWidget(self._lbl_resumen_alertas)
-
-        accesos = QGroupBox("Acceso rápido")
-        accesos_lay = QHBoxLayout(accesos)
-        for idx, texto in [
-            (2, "Ventas / Rankings"),
-            (3, "Rentabilidad"),
-            (4, "Cajeros"),
-            (5, "Forecast"),
-            (6, "Sugerencias"),
-            (7, "Sucursales"),
-        ]:
-            btn = create_secondary_button(self, texto, f"Ir a {texto}")
-            btn.clicked.connect(lambda _, i=idx: self.tabs_bi.setCurrentIndex(i))
-            accesos_lay.addWidget(btn)
-        layout.addWidget(accesos)
-        layout.addStretch()
-        self.tabs_bi.addTab(tab, "Resumen Ejecutivo")
 
     def _build_tab_visual_dashboard(self):
         """Dashboard visual moderno con QWebEngineView + Apache ECharts."""
