@@ -956,8 +956,6 @@ class ModuloProduccion(ModuloBase):
     # ── Data loading ───────────────────────────────────────────────────────────
 
     def _load_recetas(self) -> None:
-        if not hasattr(self, '_combo_receta'):
-            return
         try:
             product_expr = self._pr_product_expr()
             rows = self.conexion.fetchall("""
