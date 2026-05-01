@@ -205,14 +205,43 @@ class ProductCard(QFrame):
         self.is_selected = selected
         if selected:
             self.setProperty("class", "product-card-selected")
+            # Glow azul persistente al estar seleccionado
+            self.shadow_effect.setBlurRadius(20)
+            self.shadow_effect.setColor(QColor(37, 99, 235, 70))
+            self.shadow_effect.setXOffset(0)
+            self.shadow_effect.setYOffset(3)
+            # Indicador ✓ en esquina superior derecha
+            if not hasattr(self, '_lbl_check'):
+                from PyQt5.QtWidgets import QLabel as _QL
+                self._lbl_check = _QL("✓", self)
+                self._lbl_check.setFixedSize(18, 18)
+                self._lbl_check.setAlignment(Qt.AlignCenter)
+                self._lbl_check.setStyleSheet(
+                    "background:#2563EB; color:white; border-radius:9px;"
+                    " font-size:11px; font-weight:bold;"
+                )
+            self._lbl_check.move(self.width() - 22, 4)
+            self._lbl_check.show()
+            self._lbl_check.raise_()
         else:
             self.setProperty("class", "product-card")
+            self.update_shadow_color()
+            self.shadow_effect.setBlurRadius(15)
+            self.shadow_effect.setXOffset(2)
+            self.shadow_effect.setYOffset(2)
+            if hasattr(self, '_lbl_check'):
+                self._lbl_check.hide()
         self.style().unpolish(self)
         self.style().polish(self)
         
     def enterEvent(self, event):
         self._is_hovering = True
         self.animate_size(self.zoom_size)
+        # Glow azul en hover
+        self.shadow_effect.setBlurRadius(28)
+        self.shadow_effect.setColor(QColor(37, 99, 235, 90))   # blue glow
+        self.shadow_effect.setXOffset(0)
+        self.shadow_effect.setYOffset(4)
         self.setProperty("class", "product-card-hover")
         self.style().unpolish(self)
         self.style().polish(self)
@@ -221,16 +250,47 @@ class ProductCard(QFrame):
     def leaveEvent(self, event):
         self._is_hovering = False
         self.animate_size(self.original_size)
+        # Restaurar sombra original
+        self.update_shadow_color()
+        self.shadow_effect.setBlurRadius(15)
+        self.shadow_effect.setXOffset(2)
+        self.shadow_effect.setYOffset(2)
         if self.is_selected:
             self.setProperty("class", "product-card-selected")
+            # Mantener glow azul suave si está seleccionado
+            self.shadow_effect.setBlurRadius(20)
+            self.shadow_effect.setColor(QColor(37, 99, 235, 70))
         else:
             self.setProperty("class", "product-card")
         self.style().unpolish(self)
         self.style().polish(self)
         super().leaveEvent(event)
         
-    def animate_size(self, new_size):
-        self.setFixedSize(new_size)
+    def animate_size(self, target_size: QSize):
+        """Animación suave de zoom con interpolación ease-out (~60 fps)."""
+        if not hasattr(self, '_anim_timer'):
+            self._anim_timer = QTimer(self)
+            self._anim_timer.timeout.connect(self._step_zoom)
+        self._anim_timer.stop()
+        cur = self.size()
+        self._zoom_sw = cur.width()
+        self._zoom_sh = cur.height()
+        self._zoom_tw = target_size.width()
+        self._zoom_th = target_size.height()
+        self._zoom_step = 0
+        self._zoom_steps = 10          # ≈160 ms a 60 fps
+        self._anim_timer.start(16)     # 16 ms ≈ 60 fps
+
+    def _step_zoom(self):
+        self._zoom_step += 1
+        t = self._zoom_step / self._zoom_steps
+        t = 1 - (1 - t) ** 2          # ease-out cuadrático
+        w = int(self._zoom_sw + (self._zoom_tw - self._zoom_sw) * t)
+        h = int(self._zoom_sh + (self._zoom_th - self._zoom_sh) * t)
+        self.setFixedSize(w, h)
+        if self._zoom_step >= self._zoom_steps:
+            self._anim_timer.stop()
+            self.setFixedSize(self._zoom_tw, self._zoom_th)
 
 # ==============================================================================
 # 2. DIÁLOGO PARA SUSPENDER VENTA

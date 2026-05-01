@@ -1,0 +1,620 @@
+{"ts": "2026-04-24T15:47:58.166784", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 538}
+{"ts": "2026-04-24T15:47:58.288381", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (11.69s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:47:58.364720", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.08s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:47:58.607270", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:47:58.682808", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:47:58.692146", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:48:00.132154", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:48:07.566678", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T15:48:07.567096", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (9.20s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:48:08.441701", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.87s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:48:13.015671", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (4.57s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:48:13.336644", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.32s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:48:13.463500", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:48:13.470530", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:49:16.081820", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (1.79s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:49:16.092592", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:50:16.343618", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.05s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:50:16.359170", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:51:16.370523", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:51:16.371135", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:52:16.383394", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:52:16.384074", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:53:16.422769", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:53:16.424707", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:53:16.425086", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:53:16.436878", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:53:16.466011", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T15:53:16.466947", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:53:16.467210", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:53:16.467371", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:54:16.468249", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:54:16.468547", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:55:16.481579", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:55:16.482188", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:56:16.502725", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:56:16.503098", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:57:16.520047", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:57:16.520648", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:58:16.545043", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:58:16.546218", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:58:16.547021", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:58:16.548949", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T15:58:16.556280", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T15:58:16.556687", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:58:16.557329", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:58:16.557850", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:58:16.559970", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:59:16.574902", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T15:59:16.581673", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:00:16.579942", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:00:16.580552", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:01:16.596707", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:01:16.597297", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:02:16.605200", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:02:16.605786", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:03:16.639698", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:03:16.640756", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:03:16.641556", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:03:16.644078", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:03:16.652578", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:03:16.653186", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:03:16.653924", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:03:16.654405", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:04:16.654912", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:04:16.655536", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:05:16.667073", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:05:16.667670", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:06:16.685999", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:06:16.686659", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:07:16.696970", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:07:16.697562", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:08:16.723796", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:08:16.724779", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:08:16.725629", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:08:16.727105", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:08:16.734815", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:08:16.735281", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:08:16.736413", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:08:16.736903", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:08:16.737260", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:09:16.749150", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:09:16.749743", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:10:16.762989", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:10:16.763584", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:11:16.773472", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:11:16.774056", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:12:16.799229", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:12:16.799835", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:13:16.818281", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:13:16.819510", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:13:16.820318", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:13:16.822081", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:13:16.828821", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:13:16.829242", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:13:16.830402", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:13:16.830886", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:14:16.842094", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:14:16.842699", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:15:16.861731", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:15:16.862016", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:16:16.889258", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:16:16.889607", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:17:16.906992", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:17:16.907281", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:18:16.946826", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:18:16.948510", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:18:16.948975", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:18:16.949340", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:18:16.951552", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:18:16.956005", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:18:16.956225", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:18:16.956469", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:18:16.956632", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:18:16.957041", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:19:16.962887", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:19:16.963473", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:20:16.986758", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:20:16.987043", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:20:24.608023", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 232}
+{"ts": "2026-04-24T16:20:24.650410", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-04-24T16:20:24.874450", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 234}
+{"ts": "2026-04-24T16:27:15.372040", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 83}
+{"ts": "2026-04-24T16:27:16.175793", "level": "WARNING", "logger": "spj.inventory_engine", "msg": "DEPRECATED: inventory_engine shim. Import directly from core.services.inventory.unified_inventory_service.", "module": "inventory_engine", "line": 10}
+{"ts": "2026-04-24T16:27:25.588739", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 137}
+{"ts": "2026-04-24T16:27:25.588947", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 138}
+{"ts": "2026-04-24T16:27:25.589053", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 139}
+{"ts": "2026-04-24T16:27:25.802227", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 87}
+{"ts": "2026-04-24T16:27:25.802453", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 149}
+{"ts": "2026-04-24T16:27:25.803066", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 157}
+{"ts": "2026-04-24T16:27:25.965919", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 104}
+{"ts": "2026-04-24T16:27:25.977090", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-04-24T16:27:26.001964", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-04-24T16:27:26.012710", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 172}
+{"ts": "2026-04-24T16:27:26.022434", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 143}
+{"ts": "2026-04-24T16:27:26.028127", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 186}
+{"ts": "2026-04-24T16:27:26.031787", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 58}
+{"ts": "2026-04-24T16:27:26.041385", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 30 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-04-24T16:27:26.044516", "level": "WARNING", "logger": "core.services.inventory_service", "msg": "DEPRECATED: InventoryService is deprecated. Use core.services.inventory.unified_inventory_service.UnifiedInventoryService instead.", "module": "inventory_service", "line": 18}
+{"ts": "2026-04-24T16:27:26.048118", "level": "INFO", "logger": "spj.loyalty", "msg": "LoyaltyService: GrowthEngine conectado (suc=1)", "module": "loyalty_service", "line": 41}
+{"ts": "2026-04-24T16:27:26.095585", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-04-24T16:27:26.156726", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 226}
+{"ts": "2026-04-24T16:27:26.457132", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 17 eventos activos", "module": "wiring", "line": 60}
+{"ts": "2026-04-24T16:27:26.462967", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-04-24T16:27:26.470117", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-04-24T16:27:26.476894", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 138}
+{"ts": "2026-04-24T16:27:26.486428", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.486713", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.486826", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.486921", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487014", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487102", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487189", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487288", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487374", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487465", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487553", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487763", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487862", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.487948", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.488032", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T16:27:26.489246", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-04-24T16:27:26.492347", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 519}
+{"ts": "2026-04-24T16:27:26.496496", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 200}
+{"ts": "2026-04-24T16:27:26.523662", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 538}
+{"ts": "2026-04-24T16:27:26.523844", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.03s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.524241", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.525259", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:27:26.526324", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:27:26.526706", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:27:26.528104", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:27:26.533122", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:27:26.533339", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.533466", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.533920", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.534466", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.534685", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.534964", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.536011", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.536173", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:27:26.547858", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 393}
+{"ts": "2026-04-24T16:27:34.819511", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:27:35.172418", "level": "INFO", "logger": "spj.ui.recepcion_qr", "msg": "LectorQR activado en RecepcionQRWidget.", "module": "recepcion_qr_widget", "line": 459}
+{"ts": "2026-04-24T16:27:36.022181", "level": "INFO", "logger": "spj.ui.recepcion_qr", "msg": "LectorQR activado en RecepcionQRWidget.", "module": "recepcion_qr_widget", "line": 459}
+{"ts": "2026-04-24T16:27:50.148442", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:27:51.309603", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:27:51.310223", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:27:52.275369", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:27:52.276420", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:27:52.692012", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 216}
+{"ts": "2026-04-24T16:27:53.098908", "level": "WARNING", "logger": "spj.ui.produccion", "msg": "load_recetas: no such column: r.nombre", "module": "produccion", "line": 801}
+{"ts": "2026-04-24T16:28:13.620864", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-04-24T16:28:14.584266", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal Principal [1]", "module": "session_context", "line": 100}
+{"ts": "2026-04-24T16:28:14.609674", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 913}
+{"ts": "2026-04-24T16:28:14.790665", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: Principal (1)", "module": "session_context", "line": 110}
+{"ts": "2026-04-24T16:28:14.790923", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 1 (Principal)", "module": "app_container", "line": 862}
+{"ts": "2026-04-24T16:28:26.551986", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:28:26.552420", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:29:26.570549", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:29:26.570874", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:30:26.822748", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.12s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:30:27.086979", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:31:27.113608", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:31:27.114627", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:32:27.155214", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:32:27.157823", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:32:27.158871", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:32:27.176712", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:32:27.236007", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:32:27.236960", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.10s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:32:27.237219", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:32:27.237375", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:33:27.257386", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:33:27.257917", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:34:08.775294", "level": "WARNING", "logger": "spj.ui.produccion", "msg": "load_recetas: no such column: r.nombre", "module": "produccion", "line": 801}
+{"ts": "2026-04-24T16:34:27.275100", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:34:27.275566", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:34:28.442918", "level": "INFO", "logger": "spj.session", "msg": "Sesión cerrada: admin", "module": "session_context", "line": 122}
+{"ts": "2026-04-24T16:34:46.528549", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-04-24T16:34:47.293422", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal Principal [1]", "module": "session_context", "line": 100}
+{"ts": "2026-04-24T16:34:47.371151", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 913}
+{"ts": "2026-04-24T16:34:47.666645", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: Principal (1)", "module": "session_context", "line": 110}
+{"ts": "2026-04-24T16:34:47.670939", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 1 (Principal)", "module": "app_container", "line": 862}
+{"ts": "2026-04-24T16:35:27.368770", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.08s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:35:27.369718", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:36:27.395450", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:36:27.396060", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:37:27.410553", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:37:27.411928", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:37:27.412876", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:37:27.415173", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:37:27.426985", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:37:27.427445", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:37:27.428095", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:37:27.428573", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:37:27.429073", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:38:27.436896", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:38:27.437553", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:38:53.685508", "level": "ERROR", "logger": "spj.forecast", "msg": "analisis_demanda: no such column: p.costo", "module": "actionable_forecast", "line": 135}
+{"ts": "2026-04-24T16:38:55.853225", "level": "ERROR", "logger": "spj.forecast", "msg": "analisis_demanda: no such column: p.costo", "module": "actionable_forecast", "line": 135}
+{"ts": "2026-04-24T16:38:57.128720", "level": "ERROR", "logger": "spj.forecast", "msg": "analisis_demanda: no such column: p.costo", "module": "actionable_forecast", "line": 135}
+{"ts": "2026-04-24T16:39:27.456111", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:39:27.456409", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:40:27.479150", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:40:27.479751", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:41:04.307183", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:04.307859", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:06.440090", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:06.440593", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:12.948153", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:12.948586", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:13.944827", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:13.945248", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:15.051447", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:15.052103", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:41:27.495566", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:41:27.496481", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:42:27.513947", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:42:27.514872", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:42:27.515652", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:42:27.517116", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:42:27.529411", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:42:27.529853", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:42:27.530573", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:42:27.531034", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:43:27.557332", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:43:27.557927", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:43:42.403623", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:42.404099", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:44.538308", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:44.538749", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:50.666945", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:50.667421", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:52.182673", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:52.183134", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:53.269400", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:43:53.269872", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T16:44:27.577667", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:44:27.578250", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:45:27.624291", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:45:27.624629", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:46:27.698271", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:46:27.701668", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:47:27.713454", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:47:27.714738", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:47:27.715110", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:47:27.721942", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:47:27.736664", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:47:27.737611", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.03s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:47:27.737867", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:47:27.738026", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:47:27.738712", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:48:27.745862", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:48:27.746140", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:49:27.761679", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:49:27.762004", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:50:27.781836", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:50:27.782441", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:51:27.787306", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:51:27.787898", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:52:27.801075", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:52:27.801549", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:52:27.801853", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:52:27.804870", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:52:27.811003", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:52:27.811218", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:52:27.811475", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:52:27.812857", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:53:27.837913", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:53:27.838516", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:54:27.860718", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:54:27.861037", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:55:27.873450", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:55:27.877252", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:56:27.896261", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:56:27.898153", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:57:27.939990", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.03s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:57:27.942885", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:57:27.943783", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:57:27.944635", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:57:27.947177", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T16:57:27.956012", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T16:57:27.956592", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:57:27.957234", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:57:27.957686", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:57:27.959364", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:58:27.975129", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:58:27.975881", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:59:27.997230", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T16:59:27.997823", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:00:28.010593", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:00:28.010880", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:01:28.018346", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:01:28.018920", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:02:28.038039", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:02:28.038466", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:02:28.039216", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:02:28.039802", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:02:28.044956", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:02:28.045156", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:02:28.045399", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:02:28.045563", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:03:28.069193", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:03:28.071230", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:04:28.091393", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:04:28.092275", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:05:28.099756", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:05:28.100357", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:06:28.123210", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:06:28.123542", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:07:28.143099", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:07:28.144143", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:07:28.144967", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:07:28.147256", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:07:28.153905", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:07:28.154297", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:07:28.154909", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:07:28.155454", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:07:28.155907", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:08:28.165710", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:08:28.166353", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:09:28.195405", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:09:28.196002", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:10:28.206043", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:10:28.206651", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:11:28.216091", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:11:28.216686", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:12:28.240658", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:12:28.241661", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:12:28.242509", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:12:28.243990", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:12:28.249359", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:12:28.249871", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:12:28.250510", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:12:28.250974", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:13:28.275454", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:13:28.275747", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:14:28.301008", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:14:28.301591", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:15:28.320208", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:15:28.320785", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:16:28.341334", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:16:28.341891", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:17:28.355980", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:17:28.357022", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:17:28.359535", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:17:28.361316", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:17:28.368426", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:17:28.368865", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:17:28.369552", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:17:28.370009", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:17:28.370358", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:18:28.387403", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:18:28.387991", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:19:28.403385", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:19:28.403675", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:23:32.883220", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:23:32.883639", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:23:32.883937", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:23:32.884570", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:23:32.890905", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:23:32.891109", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:23:32.891557", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:23:32.891848", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:24:32.918106", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:24:32.919326", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:25:33.102254", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.15s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:25:33.120079", "level": "INFO", "logger": "spj.treasury", "msg": "Capital inyectado: $20000.00", "module": "treasury_service", "line": 138}
+{"ts": "2026-04-24T17:25:33.121221", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:26:33.125376", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:26:33.125968", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:27:33.162499", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 538}
+{"ts": "2026-04-24T17:27:33.163073", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:27:33.168139", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:27:33.173534", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:27:33.186902", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:27:33.190225", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:27:33.190445", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:27:33.191138", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:28:33.208032", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:28:33.209422", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:28:33.209765", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:28:33.213899", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:28:33.225898", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:28:33.226116", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:28:33.226360", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:28:33.226515", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:29:33.247653", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:29:33.248382", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:30:33.271323", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:30:33.271632", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:31:33.289362", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:31:33.289950", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:32:33.316721", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:32:33.317317", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:33:33.322951", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:33:33.329415", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:33:33.330415", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:33:33.332653", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:33:33.339602", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:33:33.340035", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:33:33.340676", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:33:33.341123", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:34:33.347181", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:34:33.347827", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:35:33.367416", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:35:33.368270", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:36:33.379885", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:36:33.380491", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:37:33.402500", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:37:33.403292", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:37:33.403665", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:38:33.432741", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:38:33.434029", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:38:33.434842", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:38:33.436403", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:38:33.445411", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:38:33.445997", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:38:33.446675", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:38:33.447138", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:39:33.450630", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:39:33.450965", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:40:33.452104", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:40:33.452684", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:41:33.483546", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:41:33.483849", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:42:33.500668", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:42:33.501256", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:43:33.514542", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:43:33.515057", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:43:33.515589", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:43:33.517074", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:43:33.523890", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:43:33.524312", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:43:33.524940", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:43:33.525463", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:45:03.524238", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:45:03.524882", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:46:03.551470", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:46:03.552060", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:47:03.577885", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:47:03.578463", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:47:33.579385", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:48:03.595306", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:48:03.595870", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:48:33.613939", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:48:33.615010", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:48:33.615935", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:48:33.618443", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:48:33.626421", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:48:33.626873", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.02s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:49:03.633582", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:49:03.634161", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:50:03.642767", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:50:03.643038", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:51:03.663231", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:51:03.663804", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:52:03.673929", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:52:03.674527", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:53:03.685605", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:53:03.686199", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:53:33.689832", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:53:33.690930", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:53:33.691846", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:53:33.693669", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T17:53:33.701971", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T17:53:33.702441", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:54:03.711126", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T17:54:03.711408", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:19:22.882364", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:19:22.883555", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:19:22.883858", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:19:22.884094", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:19:22.884599", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:19:22.888543", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T18:19:22.888739", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:19:22.889022", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:19:22.889188", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:19:22.889300", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:19:49.922602", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 232}
+{"ts": "2026-04-24T18:19:49.936743", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-04-24T18:19:50.190807", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 242}
+{"ts": "2026-04-24T18:26:26.700375", "level": "INFO", "logger": "spj", "msg": "Logging configurado — dir=logs level=INFO", "module": "logging_setup", "line": 83}
+{"ts": "2026-04-24T18:26:27.620123", "level": "WARNING", "logger": "spj.inventory_engine", "msg": "DEPRECATED: inventory_engine shim. Import directly from core.services.inventory.unified_inventory_service.", "module": "inventory_engine", "line": 10}
+{"ts": "2026-04-24T18:26:45.627714", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 137}
+{"ts": "2026-04-24T18:26:45.628064", "level": "INFO", "logger": "SPJ.Boot", "msg": "  SPJ POS Enterprise v13.4.0", "module": "main", "line": 138}
+{"ts": "2026-04-24T18:26:45.628185", "level": "INFO", "logger": "SPJ.Boot", "msg": "═══════════════════════════════════════════════════════", "module": "main", "line": 139}
+{"ts": "2026-04-24T18:26:46.313723", "level": "INFO", "logger": "spj.theme_engine", "msg": "Tema aplicado globalmente: Dark", "module": "theme_engine", "line": 87}
+{"ts": "2026-04-24T18:26:46.313983", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Tema aplicado al arranque", "module": "main", "line": 149}
+{"ts": "2026-04-24T18:26:46.316520", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Normalizador global de diálogos activo", "module": "main", "line": 157}
+{"ts": "2026-04-24T18:26:47.132188", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Integridad BD OK", "module": "main", "line": 104}
+{"ts": "2026-04-24T18:26:47.176566", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-04-24T18:26:47.256004", "level": "INFO", "logger": "scripts.bootstrap_db", "msg": "DB ya contiene tablas — validando estado: C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db", "module": "bootstrap_db", "line": 75}
+{"ts": "2026-04-24T18:26:47.299063", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Bootstrap DB OK", "module": "main", "line": 172}
+{"ts": "2026-04-24T18:26:47.335547", "level": "INFO", "logger": "spj.migrations", "msg": "Base de datos al día — sin migraciones pendientes.", "module": "engine", "line": 143}
+{"ts": "2026-04-24T18:26:47.553177", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ Migraciones OK", "module": "main", "line": 186}
+{"ts": "2026-04-24T18:26:47.563124", "level": "INFO", "logger": "core.app_container", "msg": "Inicializando AppContainer...", "module": "app_container", "line": 58}
+{"ts": "2026-04-24T18:26:47.579490", "level": "INFO", "logger": "core.services.config_service", "msg": "Configuración cargada: 30 parámetros en memoria.", "module": "config_service", "line": 20}
+{"ts": "2026-04-24T18:26:47.586643", "level": "WARNING", "logger": "core.services.inventory_service", "msg": "DEPRECATED: InventoryService is deprecated. Use core.services.inventory.unified_inventory_service.UnifiedInventoryService instead.", "module": "inventory_service", "line": 18}
+{"ts": "2026-04-24T18:26:47.593990", "level": "INFO", "logger": "spj.loyalty", "msg": "LoyaltyService: GrowthEngine conectado (suc=1)", "module": "loyalty_service", "line": 41}
+{"ts": "2026-04-24T18:26:47.653632", "level": "INFO", "logger": "core.services.hardware_service", "msg": "Configuraciones de hardware cargadas en memoria.", "module": "hardware_service", "line": 29}
+{"ts": "2026-04-24T18:26:48.568781", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión iniciada", "module": "printer_service", "line": 226}
+{"ts": "2026-04-24T18:26:49.341591", "level": "INFO", "logger": "spj.events.wiring", "msg": "EventBus wiring completado — 17 eventos activos", "module": "wiring", "line": 60}
+{"ts": "2026-04-24T18:26:49.347930", "level": "INFO", "logger": "spj.accounting_engine", "msg": "AccountingEngine wired (prio=48)", "module": "accounting_engine", "line": 47}
+{"ts": "2026-04-24T18:26:49.373678", "level": "INFO", "logger": "spj.analytics_engine", "msg": "AnalyticsEngine wired (prio=5)", "module": "analytics_engine", "line": 39}
+{"ts": "2026-04-24T18:26:49.395464", "level": "INFO", "logger": "spj.rbac", "msg": "RBAC inicializado", "module": "rbac", "line": 138}
+{"ts": "2026-04-24T18:26:49.406244", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'conciliacion' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.406460", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'loyalty_snapshot' registrada (intervalo=1800s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.406566", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'forecast' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.406662", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'limpieza_event_log' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.406776", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'alertas_check' registrada (intervalo=300s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.406869", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'depreciacion_activos' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.406956", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'escalacion_pedidos_wa' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407042", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'recordatorios_ordenes' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407127", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'wa_fallidos_check' registrada (intervalo=3600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407219", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'happy_hour_check' registrada (intervalo=60s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407339", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'backup_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407450", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'expiracion_estrellas' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407540", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'mantenimiento_semanal' registrada (intervalo=86400s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407625", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'auto_cierre_turno' registrada (intervalo=600s offpeak=False)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.407708", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler: tarea 'reporte_email_diario' registrada (intervalo=86400s offpeak=True)", "module": "scheduler_service", "line": 100}
+{"ts": "2026-04-24T18:26:49.437948", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService iniciado con 15 tareas.", "module": "scheduler_service", "line": 144}
+{"ts": "2026-04-24T18:26:49.443718", "level": "INFO", "logger": "core.app_container", "msg": "✅ AppContainer inicializado con éxito. Todos los motores en línea.", "module": "app_container", "line": 519}
+{"ts": "2026-04-24T18:26:49.443934", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ AppContainer activo", "module": "main", "line": 200}
+{"ts": "2026-04-24T18:26:49.516383", "level": "INFO", "logger": "spj.distribution_engine", "msg": "Conciliación OK sucursal=1: diff=0.000", "module": "distribution_engine", "line": 538}
+{"ts": "2026-04-24T18:26:49.516581", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'conciliacion' OK (0.08s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.517065", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'loyalty_snapshot' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.518156", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:26:49.519488", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:26:49.520248", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:26:49.521681", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:26:49.526857", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T18:26:49.527082", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.01s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.527206", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'depreciacion_activos' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.527658", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.528771", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'recordatorios_ordenes' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.529028", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'wa_fallidos_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.529256", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.529367", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'mantenimiento_semanal' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.529464", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'auto_cierre_turno' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:26:49.622209", "level": "INFO", "logger": "spj.whatsapp", "msg": "WA webhook puerto 8767", "module": "whatsapp_service", "line": 393}
+{"ts": "2026-04-24T18:27:04.024350", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T18:27:04.451503", "level": "INFO", "logger": "spj.ui.recepcion_qr", "msg": "LectorQR activado en RecepcionQRWidget.", "module": "recepcion_qr_widget", "line": 459}
+{"ts": "2026-04-24T18:27:05.566858", "level": "INFO", "logger": "spj.ui.recepcion_qr", "msg": "LectorQR activado en RecepcionQRWidget.", "module": "recepcion_qr_widget", "line": 459}
+{"ts": "2026-04-24T18:27:19.816413", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T18:27:22.342143", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T18:27:22.342629", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T18:27:24.842787", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T18:27:24.843318", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 890}
+{"ts": "2026-04-24T18:27:25.708458", "level": "INFO", "logger": "SPJ.Boot", "msg": "✅ UI lista", "module": "main", "line": 216}
+{"ts": "2026-04-24T18:27:26.054451", "level": "WARNING", "logger": "spj.ui.produccion", "msg": "load_recetas: no such column: r.nombre", "module": "produccion", "line": 801}
+{"ts": "2026-04-24T18:27:41.920170", "level": "INFO", "logger": "core.services.auth_service", "msg": "Acceso concedido a admin (admin).", "module": "auth_service", "line": 208}
+{"ts": "2026-04-24T18:27:44.407219", "level": "INFO", "logger": "spj.session", "msg": "Sesión iniciada: Administrador Maestro (admin) en sucursal Principal [1]", "module": "session_context", "line": 100}
+{"ts": "2026-04-24T18:27:44.543945", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 913}
+{"ts": "2026-04-24T18:27:44.894508", "level": "INFO", "logger": "spj.session", "msg": "Sucursal cambiada: Principal (1)", "module": "session_context", "line": 110}
+{"ts": "2026-04-24T18:27:44.895391", "level": "INFO", "logger": "core.app_container", "msg": "Sucursal activa: 1 (Principal)", "module": "app_container", "line": 862}
+{"ts": "2026-04-24T18:27:49.547431", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:27:49.547892", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:28:49.552973", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:28:49.553583", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:29:49.580190", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:29:49.580801", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:30:49.596508", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:30:49.596797", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:31:49.624322", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Alas — 0.00 (min: 2.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:31:49.625648", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Papel Bogue — 2.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:31:49.627521", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [stock_bajo]: Stock bajo: Pollo Entero — 0.00 (min: 5.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:31:49.639312", "level": "INFO", "logger": "spj.alertas", "msg": "Alerta [caja_saldo_bajo]: Saldo de caja: $0.00 (umbral: $500.00)", "module": "alertas_service", "line": 133}
+{"ts": "2026-04-24T18:31:49.670677", "level": "INFO", "logger": "spj.alerts", "msg": "AlertEngine: 0 alertas (0 críticas)", "module": "alert_engine", "line": 178}
+{"ts": "2026-04-24T18:31:49.670925", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'alertas_check' OK (0.06s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:31:49.671153", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:31:49.671303", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:32:49.683411", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:32:49.683988", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:33:49.700268", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:33:49.700841", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:34:49.712441", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'escalacion_pedidos_wa' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:34:49.712764", "level": "INFO", "logger": "spj.scheduler", "msg": "Scheduler 'happy_hour_check' OK (0.00s)", "module": "scheduler_service", "line": 196}
+{"ts": "2026-04-24T18:34:52.050250", "level": "INFO", "logger": "spj.printer", "msg": "Cola de impresión detenida (impresos=0, fallos=0)", "module": "printer_service", "line": 232}
+{"ts": "2026-04-24T18:34:52.065234", "level": "INFO", "logger": "spj.scheduler", "msg": "SchedulerService detenido.", "module": "scheduler_service", "line": 150}
+{"ts": "2026-04-24T18:34:52.145368", "level": "INFO", "logger": "SPJ.Boot", "msg": "Sistema cerrado. Código: 0", "module": "main", "line": 242}
