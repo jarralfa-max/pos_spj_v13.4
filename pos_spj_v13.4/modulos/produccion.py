@@ -149,9 +149,10 @@ class ModuloProduccion(ModuloBase):
         self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
         self._load_recetas()
         self._load_historial()
-        # Refrescar también la tabla del tab Recetas si ya fue construida
         if hasattr(self, '_rec_tabla'):
             self._cargar_lista_recetas()
+        if hasattr(self, '_stats_lbl_vals'):
+            self._actualizar_stats_bar()
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -169,6 +170,10 @@ class ModuloProduccion(ModuloBase):
         hdr.addWidget(ttl); hdr.addStretch(); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
+        # Stats bar — KPIs en tiempo real
+        self._stats_bar = self._crear_stats_produccion()
+        root.addWidget(self._stats_bar)
+
         # Tabs
         self._tabs = QTabWidget()
         self._tabs.addTab(self._build_tab_produccion(), "🏭 Ejecutar Producción")
@@ -176,6 +181,180 @@ class ModuloProduccion(ModuloBase):
         self._tabs.addTab(self._build_tab_carnica(),    "🥩 Cárnica / Lotes")
         self._tabs.addTab(self._build_tab_recetas(),    "📋 Recetas")
         root.addWidget(self._tabs)
+
+    def _crear_stats_produccion(self) -> 'QFrame':
+        """
+        Barra de KPIs de producción cárnica.
+        Sigue el estándar visual de finanzas_unificadas._crear_fin_kpi_bar.
+        Sin hardcodeo: usa Colors.NEUTRAL tokens.
+        """
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+
+        N = Colors.NEUTRAL
+        bar = _F()
+        bar.setObjectName("prodStatsBar")
+        bar.setFixedHeight(68)
+        bar.setStyleSheet(
+            f"QFrame#prodStatsBar {{ "
+            f"background:{N.DARK_CARD}; "
+            f"border-radius:8px; "
+            f"border:1px solid {N.DARK_BORDER}; }}"
+        )
+
+        lay = _H(bar)
+        lay.setContentsMargins(Spacing.LG, Spacing.SM, Spacing.LG, Spacing.SM)
+        lay.setSpacing(0)
+
+        # Definición inicial de KPIs (valores placeholder)
+        kpis = [
+            ("producciones_hoy", "Producciones hoy", "—",    Colors.PRIMARY_BASE),
+            ("kg_procesados",    "Kg procesados",    "—",    Colors.SUCCESS_BASE),
+            ("merma_dia",        "Merma del día",    "—",    Colors.WARNING_BASE),
+            ("rendimiento",      "Rendimiento",      "—",    Colors.SUCCESS_BASE),
+            ("lotes_activos",    "Lotes activos",    "—",    Colors.INFO_BASE),
+        ]
+
+        # Guardar referencias a los QLabel de valor para actualizaciones en vivo
+        self._stats_lbl_vals: dict = {}
+
+        for i, (key, label, valor, color) in enumerate(kpis):
+            if i > 0:
+                sep = _F()
+                sep.setFrameShape(_F.VLine)
+                sep.setFixedWidth(1)
+                sep.setStyleSheet(f"background:{N.SLATE_700}; border:none;")
+                lay.addWidget(sep)
+                lay.addSpacing(Spacing.LG)
+
+            col = _V()
+            col.setSpacing(2)
+
+            lbl_v = _L(valor)
+            lbl_v.setStyleSheet(
+                f"color:{color}; font-size:18px; font-weight:700; background:transparent;"
+            )
+            lbl_l = _L(label.upper())
+            lbl_l.setStyleSheet(
+                f"color:{N.SLATE_500}; font-size:9px; font-weight:700; "
+                f"letter-spacing:0.5px; background:transparent;"
+            )
+
+            self._stats_lbl_vals[key] = (lbl_v, color)  # (label_widget, color_ok)
+            col.addWidget(lbl_v)
+            col.addWidget(lbl_l)
+            lay.addLayout(col)
+
+            if i < len(kpis) - 1:
+                lay.addSpacing(Spacing.LG)
+
+        lay.addStretch()
+
+        # Cargar valores reales en diferido para no bloquear arranque
+        QTimer.singleShot(50, self._actualizar_stats_bar)
+        return bar
+
+    def _actualizar_stats_bar(self) -> None:
+        """
+        Actualiza solo los valores de los QLabels de la stats bar.
+        Dos queries: production_batches (nuevo) con fallback a producciones (legacy).
+        No reconstruye el widget — solo actualiza texto y color.
+        """
+        if not hasattr(self, '_stats_lbl_vals'):
+            return
+
+        db = self.conexion
+        if not db:
+            return
+
+        vals: dict = {}
+
+        # ── Fuente primaria: production_batches + production_yield_analysis ──
+        try:
+            r = db.execute("""
+                SELECT COUNT(*),
+                       COALESCE(SUM(pb.source_weight), 0),
+                       COALESCE(SUM(pb.waste_weight),  0),
+                       COALESCE(AVG(pya.real_yield),   0)
+                FROM production_batches pb
+                LEFT JOIN production_yield_analysis pya ON pya.batch_id = pb.id
+                WHERE pb.estado = 'cerrado'
+                  AND DATE(pb.closed_at) = DATE('now')
+            """).fetchone()
+            vals["producciones_hoy"] = int(r[0] or 0)
+            vals["kg_procesados"]    = float(r[1] or 0)
+            vals["merma_dia"]        = float(r[2] or 0)
+            vals["rendimiento"]      = float(r[3] or 0)
+        except Exception:
+            # Fallback legacy: producciones + produccion_detalle
+            try:
+                r = db.execute("""
+                    SELECT COUNT(*), COALESCE(SUM(cantidad_base), 0)
+                    FROM producciones
+                    WHERE estado = 'completada'
+                      AND DATE(fecha) = DATE('now')
+                """).fetchone()
+                vals["producciones_hoy"] = int(r[0] or 0)
+                vals["kg_procesados"]    = float(r[1] or 0)
+
+                r2 = db.execute("""
+                    SELECT COALESCE(SUM(pd.cantidad_generada), 0)
+                    FROM produccion_detalle pd
+                    JOIN producciones p ON p.id = pd.produccion_id
+                    WHERE pd.tipo = 'merma'
+                      AND DATE(p.fecha) = DATE('now')
+                """).fetchone()
+                vals["merma_dia"] = float(r2[0] or 0)
+
+                kg = vals["kg_procesados"]
+                merma = vals["merma_dia"]
+                vals["rendimiento"] = round((1 - merma / kg) * 100, 1) if kg > 0 else 0.0
+            except Exception:
+                pass
+
+        # ── Lotes activos: aplica en ambos esquemas ───────────────────────────
+        try:
+            r3 = db.execute(
+                "SELECT COUNT(*) FROM lotes WHERE estado='activo'"
+            ).fetchone()
+            vals["lotes_activos"] = int(r3[0] or 0)
+        except Exception:
+            vals["lotes_activos"] = 0
+
+        # ── Formatear y actualizar QLabels ───────────────────────────────────
+        kg_p  = vals.get("kg_procesados", 0)
+        merma = vals.get("merma_dia", 0)
+        rend  = vals.get("rendimiento", 0.0)
+
+        formatos = {
+            "producciones_hoy": (
+                str(vals.get("producciones_hoy", 0)),
+                Colors.PRIMARY_BASE,
+            ),
+            "kg_procesados": (
+                f"{kg_p:.1f} kg",
+                Colors.SUCCESS_BASE,
+            ),
+            "merma_dia": (
+                f"{merma:.1f} kg",
+                Colors.DANGER_BASE if merma > 0 else Colors.SUCCESS_BASE,
+            ),
+            "rendimiento": (
+                f"{rend:.1f}%",
+                Colors.SUCCESS_BASE if rend >= 90 else Colors.WARNING_BASE,
+            ),
+            "lotes_activos": (
+                str(vals.get("lotes_activos", 0)),
+                Colors.INFO_BASE,
+            ),
+        }
+
+        for key, (lbl_w, _default_color) in self._stats_lbl_vals.items():
+            if key in formatos:
+                texto, color = formatos[key]
+                lbl_w.setText(texto)
+                lbl_w.setStyleSheet(
+                    f"color:{color}; font-size:18px; font-weight:700; background:transparent;"
+                )
 
     # ── TAB: Ejecutar Producción ──────────────────────────────────────────────
 
