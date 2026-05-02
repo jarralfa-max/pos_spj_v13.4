@@ -51,21 +51,16 @@ from core.services.recipe_engine import (
 )
 
 logger = logging.getLogger("spj.ui.produccion")
-_RED   = "#e74c3c"
-_BLUE  = "#2563EB"
-_GREEN = "#16A34A"
-_GOLD  = "#f39c12"
-_GRAY  = "#7f8c8d"
-
 TIPO_LABELS = {
     "subproducto": "🔪 Despiece / Subproductos",
     "combinacion": "📦 Kit / Paquete / Combo",
     "produccion":  "🍳 Producción / Elaboración",
 }
+# Usar design tokens — sin constantes de color locales
 TIPO_COLOR = {
-    "subproducto": _RED,
-    "combinacion": _BLUE,
-    "produccion":  _GREEN,
+    "subproducto": Colors.DANGER_BASE,
+    "combinacion": Colors.PRIMARY_BASE,
+    "produccion":  Colors.SUCCESS_BASE,
 }
 
 
@@ -154,6 +149,9 @@ class ModuloProduccion(ModuloBase):
         self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
         self._load_recetas()
         self._load_historial()
+        # Refrescar también la tabla del tab Recetas si ya fue construida
+        if hasattr(self, '_rec_tabla'):
+            self._cargar_lista_recetas()
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -557,52 +555,78 @@ class ModuloProduccion(ModuloBase):
 
     def _cargar_lista_recetas(self):
         from PyQt5.QtWidgets import QTableWidgetItem
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
+        conn = self.conexion
         if not conn:
             return
+
+        product_expr = self._pr_product_expr()
+
+        rows = []
         try:
-            # Fuente canónica (v13.4): product_recipes + product_recipe_components
-            rows = conn.execute("""
+            # FIX: no usar r.rendimiento_esperado_pct — no existe en product_recipes
+            rows = conn.execute(f"""
                 SELECT r.id,
-                       COALESCE(r.nombre_receta, r.nombre, '') as nombre,
-                       COALESCE(p.nombre, '') as producto_base,
-                       COALESCE(r.total_rendimiento, r.rendimiento_esperado_pct, 0) as rendimiento,
-                       (
-                        SELECT COUNT(*)
+                       COALESCE(r.nombre_receta, r.nombre, '') AS nombre,
+                       COALESCE(r.tipo_receta, 'subproducto')  AS tipo_receta,
+                       COALESCE(p.nombre, '—')                 AS producto_base,
+                       COALESCE(r.total_rendimiento, 0)        AS rendimiento,
+                       (SELECT COUNT(*)
                         FROM product_recipe_components rc
-                        WHERE rc.recipe_id = r.id
-                       ) as componentes
+                        WHERE rc.recipe_id = r.id)             AS componentes
                 FROM product_recipes r
-                LEFT JOIN productos p ON p.id = COALESCE(r.product_id, r.base_product_id)
+                LEFT JOIN productos p ON p.id = {product_expr}
                 WHERE COALESCE(r.is_active, r.activa, 1) = 1
-                ORDER BY nombre LIMIT 200
+                ORDER BY r.nombre_receta, r.nombre LIMIT 300
             """).fetchall()
-        except Exception:
+        except Exception as _e:
+            logger.warning("_cargar_lista_recetas product_recipes: %s", _e)
+
+        # Fallback a tabla legacy solo si product_recipes devolvió vacío
+        if not rows:
             try:
-                # Fallback legacy: recetas + recipe_components
                 rows = conn.execute("""
-                    SELECT r.id, r.nombre,
-                           COALESCE(p.nombre, ''),
-                           COALESCE(r.rendimiento_esperado_pct, 0),
-                           0
+                    SELECT r.id,
+                           COALESCE(r.nombre, '') AS nombre,
+                           'subproducto'          AS tipo_receta,
+                           COALESCE(p.nombre, '—') AS producto_base,
+                           COALESCE(r.rendimiento_esperado_pct, 0) AS rendimiento,
+                           0 AS componentes
                     FROM recetas r
                     LEFT JOIN productos p ON p.id = r.producto_id
-                    ORDER BY r.nombre LIMIT 200
+                    WHERE COALESCE(r.activo, 1) = 1
+                    ORDER BY r.nombre LIMIT 300
                 """).fetchall()
-            except Exception:
+            except Exception as _e2:
+                logger.warning("_cargar_lista_recetas legacy: %s", _e2)
                 rows = []
+
         self._rec_tabla.setRowCount(0)
         if not rows:
             self._rec_tabla.setRowCount(1)
             self._rec_tabla.setSpan(0, 0, 1, self._rec_tabla.columnCount())
-            self._rec_tabla.setItem(0, 0, QTableWidgetItem("No hay recetas activas registradas."))
+            item = QTableWidgetItem("No hay recetas activas registradas.")
+            item.setForeground(QColor(Colors.TEXT_SECONDARY))
+            self._rec_tabla.setItem(0, 0, item)
             return
+
+        from PyQt5.QtCore import Qt as _Qt
         for i, r in enumerate(rows):
             self._rec_tabla.insertRow(i)
-            vals = [str(r[0]), r[1], r[2], f"{r[3]:.1f}%", str(r[4])]
+            tipo = r[2] if len(r) > 2 else "subproducto"
+            tipo_color = TIPO_COLOR.get(tipo, Colors.TEXT_SECONDARY)
+            vals = [
+                str(r[0]),          # ID (oculto)
+                r[1],               # Nombre
+                r[3],               # Producto base
+                f"{float(r[4]):.1f}%",  # Rendimiento
+                str(r[5]),          # Componentes
+            ]
             for j, v in enumerate(vals):
-                self._rec_tabla.setItem(i, j, QTableWidgetItem(v))
+                it = QTableWidgetItem(v)
+                if j == 1:  # Nombre con color de tipo
+                    it.setForeground(QColor(tipo_color))
+                    it.setFont(QFont("", -1, QFont.Bold))
+                self._rec_tabla.setItem(i, j, it)
 
     def _pr_columns(self) -> set:
         conn = self._conexion if hasattr(self, '_conexion') else (
@@ -917,8 +941,8 @@ class ModuloProduccion(ModuloBase):
                 hay_error = True
 
             tipo_str = "⬇ CONSUMO" if es_salida else "⬆ GENERADO"
-            tipo_color = _RED if es_salida else _GREEN
-            stock_color = _RED if (es_salida and stock_act < abs(delta)) else _GREEN
+            tipo_color = Colors.DANGER_BASE if es_salida else Colors.SUCCESS_BASE
+            stock_color = Colors.DANGER_BASE if (es_salida and stock_act < abs(delta)) else Colors.SUCCESS_BASE
 
             vals = [
                 tipo_str,
@@ -1073,7 +1097,7 @@ class ModuloProduccion(ModuloBase):
                 self._hist_empty.setVisible(len(rows) == 0)
             for ri, r in enumerate(rows):
                 tipo = r.get("tipo_receta", "")
-                tipo_color = TIPO_COLOR.get(tipo, _GRAY)
+                tipo_color = TIPO_COLOR.get(tipo, Colors.TEXT_SECONDARY)
                 fecha_str = r.get("fecha", "")
                 if fecha_str and "T" in fecha_str:
                     fecha_str = fecha_str.replace("T", " ")[:19]
@@ -1127,7 +1151,7 @@ class ModuloProduccion(ModuloBase):
             cant = float(d.get("cantidad_generada", 0))
             rend = float(d.get("rendimiento_aplicado", 0))
             es_entrada = tipo == "entrada"
-            color = _GREEN if es_entrada else _RED
+            color = Colors.SUCCESS_BASE if es_entrada else Colors.DANGER_BASE
 
             vals = [
                 "⬆ GENERADO" if es_entrada else "⬇ CONSUMO",
