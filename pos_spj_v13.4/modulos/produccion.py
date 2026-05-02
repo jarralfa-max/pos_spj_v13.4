@@ -1377,6 +1377,24 @@ class DialogoReceta(QDialog):
             for i, c in enumerate(self._comp_rows)
         ]
 
+        # Pre-validación UI: verificar duplicado ANTES de llamar al repo
+        # Esto evita el crash por doble-excepción que ocurre cuando el import
+        # falla y RecetaCyclicError no está definido al momento de capturar.
+        if not self._data:
+            existente = self._repo.get_for_product(base_id)
+            if existente:
+                resp = QMessageBox.question(
+                    self, "Receta ya existe",
+                    f"El producto ya tiene la receta activa «{existente.get('nombre_receta', '#' + str(existente['id']))}».\n\n"
+                    "¿Desea abrir esa receta para editarla?",
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                if resp == QMessageBox.Yes:
+                    self._data = existente
+                    self._e_nombre.setText(existente.get("nombre_receta", ""))
+                else:
+                    return
+
         try:
             if self._data:
                 self._repo.update(self._data["id"], nombre, components, self._usuario)
@@ -1400,7 +1418,8 @@ class DialogoReceta(QDialog):
             QMessageBox.warning(self, "Error de Porcentaje", str(exc))
         except RecetaDuplicadaError:
             QMessageBox.warning(self, "Receta Duplicada",
-                                "Ya existe una receta activa para este producto base.")
+                                "Ya existe una receta activa para este producto base.\n"
+                                "Cierre este diálogo y use el botón «Editar» sobre la receta existente.")
         except RecetaError as exc:
             QMessageBox.warning(self, "Error en Receta", str(exc))
         except Exception as exc:
