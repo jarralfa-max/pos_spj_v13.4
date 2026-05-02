@@ -134,8 +134,15 @@ class ProductionEngine:
         return datetime.utcnow().isoformat()
 
     def _generar_folio(self, conn) -> str:
-        n = conn.execute("SELECT COUNT(*) FROM production_batches").fetchone()[0]
-        return f"PROD{datetime.now().strftime('%Y%m%d')}-{(n or 0) + 1:04d}"
+        # FIX FALLA-8: usar MAX(id)+1 en vez de COUNT(*) para evitar colisiones
+        # bajo concurrencia (dos lotes simultáneos con mismo COUNT darían el mismo folio)
+        row = conn.execute(
+            "SELECT COALESCE(MAX(CAST(SUBSTR(folio, -4) AS INTEGER)), 0) + 1 "
+            "FROM production_batches WHERE folio LIKE ?",
+            (f"PROD{datetime.now().strftime('%Y%m%d')}%",)
+        ).fetchone()
+        seq = row[0] if row else 1
+        return f"PROD{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
 
     def _get_batch(self, conn, batch_id: str) -> dict:
         row = conn.execute(
@@ -421,14 +428,15 @@ class ProductionEngine:
         op_id = str(uuid.uuid4())
         inv_eng = InventoryEngine(self.db, self.branch_id, closed_by)
 
-        with self.db.transaction("CLOSE_BATCH"):
-            batch = self._get_batch(self.db, batch_id)
+        # FIX BUG-2: exponer conn del context manager para usarlo en todas las operaciones
+        with self.db.transaction("CLOSE_BATCH") as conn:
+            batch = self._get_batch(conn, batch_id)
             if batch["estado"] == "cerrado":
                 raise BatchAlreadyClosedError(f"Lote {batch_id[:8]} ya está cerrado")
             if batch["estado"] == "cancelado":
                 raise BatchAlreadyClosedError(f"Lote {batch_id[:8]} fue cancelado")
 
-            raw_outputs = self._get_outputs(self.db, batch_id)
+            raw_outputs = self._get_outputs(conn, batch_id)
             if not raw_outputs:
                 raise ProductionEngineError("El lote no tiene subproductos. Agregue al menos uno.")
 
@@ -441,7 +449,7 @@ class ProductionEngine:
             exp_usable_pct = 0.0
             exp_waste_pct  = 0.0
             if batch.get("receta_id"):
-                receta = self.db.execute(
+                receta = conn.execute(
                     "SELECT rendimiento_esperado_pct, merma_esperada_pct FROM recetas WHERE id=?",
                     (batch["receta_id"],)
                 ).fetchone()
@@ -491,18 +499,6 @@ class ProductionEngine:
                 reference_id=None, reference_type="PRODUCTION_BATCH",
                 conn=conn,
             )
-            # También registrar en movimientos_inventario legacy
-            conn.execute("""
-                INSERT INTO movimientos_inventario
-                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                     costo_unitario, descripcion, referencia_tipo,
-                     usuario, sucursal_id, fecha)
-                VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
-            """, (str(uuid.uuid4()), src_prod_id, "salida", "PRODUCCION_CONSUMO",
-                  src_weight,
-                  src_cost / src_weight if src_weight else 0,
-                  f"Consumo lote {batch['folio']}", "PRODUCTION_BATCH",
-                  closed_by, bid))
 
             # ── 7. Generar subproductos en inventario ─────────────────────
             output_id_map = {r["product_id"]: r["id"] for r in raw_outputs}
@@ -517,18 +513,6 @@ class ProductionEngine:
                     reference_id=None, reference_type="PRODUCTION_BATCH",
                     conn=conn,
                 )
-                # Legacy movimientos_inventario
-                conn.execute("""
-                    INSERT INTO movimientos_inventario
-                        (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                         costo_unitario, descripcion, referencia_tipo,
-                         usuario, sucursal_id, fecha)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
-                """, (str(uuid.uuid4()), out_yield.product_id, "entrada", "PRODUCCION_GENERACION",
-                      out_yield.real_weight,
-                      out_yield.cost_allocated / out_yield.real_weight if out_yield.real_weight else 0,
-                      f"Generado lote {batch['folio']}", "PRODUCTION_BATCH",
-                      closed_by, bid))
 
             # ── 8. Actualizar production_batches ──────────────────────────
             conn.execute("""
@@ -544,14 +528,14 @@ class ProductionEngine:
             # ── 9. Actualizar production_outputs (costo asignado) ─────────
             for out_yield in yr.outputs:
                 conn.execute("""
-        UPDATE production_outputs SET cost_allocated = ?
+                    UPDATE production_outputs SET cost_allocated = ?
                     WHERE batch_id = ? AND product_id = ?
                 """, (out_yield.cost_allocated, batch_id, out_yield.product_id))
 
             # ── 10. Análisis de rendimiento ───────────────────────────────
             yield_analysis_id = str(uuid.uuid4())
             conn.execute("""
-        INSERT INTO production_yield_analysis
+                INSERT INTO production_yield_analysis
                     (id, batch_id, expected_yield, real_yield,
                      waste_expected, waste_real, alerta_merma)
                 VALUES (?,?,?,?,?,?,?)
@@ -564,7 +548,7 @@ class ProductionEngine:
             alertas = 0
             if yr.alerta_merma:
                 conn.execute("""
-        INSERT INTO production_alerts
+                    INSERT INTO production_alerts
                         (batch_id, tipo, mensaje, valor_esperado, valor_real, varianza)
                     VALUES (?,?,?,?,?,?)
                 """, (batch_id, "MERMA_EXCESIVA",
@@ -572,7 +556,6 @@ class ProductionEngine:
                       exp_waste_pct, yr.waste_pct, yr.waste_pct - exp_waste_pct))
                 alertas += 1
 
-            # Alerta si varianza de rendimiento > 5%
             if abs(yr.variance_pct) > 5.0 and exp_usable_pct > 0:
                 conn.execute("""
                     INSERT INTO production_alerts
@@ -587,12 +570,17 @@ class ProductionEngine:
             allocations = YieldCalculator.allocate_costs(yr.outputs, src_cost)
             allocator = CostAllocator(conn)
             allocator.persist_allocations(batch_id, allocations, output_id_map)
-            # Actualizar costo promedio en productos
             for a in allocations:
                 if a.cost_per_kg > 0:
                     allocator.update_product_average_cost(a.product_id, a.cost_per_kg)
+                    # Actualizar también inventario_actual.costo_promedio
+                    conn.execute("""
+                        UPDATE inventario_actual
+                        SET costo_promedio = ?
+                        WHERE producto_id = ? AND sucursal_id = ?
+                    """, (a.cost_per_kg, a.product_id, bid))
 
-        # Publicar evento (fuera de transacción)
+        # Publicar evento (fuera de transacción — batch["folio"] capturado antes del with)
         self._publicar_evento(batch_id, batch["folio"], bid)
 
         logger.info(

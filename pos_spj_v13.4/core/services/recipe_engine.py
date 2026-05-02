@@ -9,12 +9,19 @@
 #   PRODUCCION:  Descuenta materias primas, genera producto elaborado
 #
 # GARANTÍAS:
-#   ✔ BEGIN IMMEDIATE única transacción
+#   ✔ BEGIN IMMEDIATE única transacción (with self.db.transaction() as conn)
 #   ✔ InventoryEngine.process_movement(conn=conn) sin BEGIN propio
 #   ✔ Registro en movimientos_inventario (legacy) + inventory_movements (Fase 1)
 #   ✔ ROLLBACK total si falla cualquier paso
+#   ✔ Merma registrada como movimiento MERMA explícito
+#   ✔ Sin doble-actualización de existencia (process_movement es la fuente de verdad)
 #
-# Versión: 1.0 — Fase 5
+# FIX v13.5:
+#   - BUG-1: conn no definido → usar `with self.db.transaction() as conn`
+#   - BUG-inv: _get_current_stock inexistente → usar inv.get_stock()
+#   - FALLA-1: merma ignorada → movimiento MERMA_PRODUCCION por componente
+#   - FALLA-2: costo por piezas → costo por kg total
+#   - FALLA-7: doble update existencia → eliminado de _registrar_movimiento_legacy
 from __future__ import annotations
 
 import logging
@@ -58,7 +65,7 @@ class ComponenteResultado:
     cantidad: float
     unidad: str
     rendimiento: float
-    tipo: str  # 'entrada' o 'salida'
+    tipo: str  # 'entrada' | 'salida' | 'merma'
 
 
 @dataclass
@@ -73,6 +80,7 @@ class ProduccionResultDTO:
     componentes: List[ComponenteResultado] = field(default_factory=list)
     total_generado: float = 0.0
     total_consumido: float = 0.0
+    total_merma: float = 0.0
 
 
 class RecipeEngine:
@@ -93,6 +101,8 @@ class RecipeEngine:
         mediciones_reales: Optional[dict] = None,
     ) -> ProduccionResultDTO:
         """
+        Ejecuta una producción completa en una única transacción atómica.
+
         mediciones_reales: {product_id: actual_kg} — pesos reales medidos en báscula.
         Si se provee, se valida la tolerancia por componente y se usa el peso real.
         Si no se provee, se usan los pesos teóricos calculados por la receta.
@@ -105,9 +115,10 @@ class RecipeEngine:
         op_id = operation_id or str(uuid.uuid4())
         suc_id = sucursal_id or self.branch_id
 
-        with self.db.transaction("RECIPE_PRODUCCION"):
+        # FIX BUG-1: exponer conn del context manager para usarlo explícitamente
+        with self.db.transaction("RECIPE_PRODUCCION") as conn:
             # 1. Cargar receta
-            receta = self.db.execute(
+            receta = conn.execute(
                 "SELECT * FROM product_recipes WHERE id = ? AND is_active = 1",
                 (receta_id,)
             ).fetchone()
@@ -118,12 +129,12 @@ class RecipeEngine:
             prod_base_id = receta.get("base_product_id") or receta.get("product_id")
             peso_prom = float(receta.get("peso_promedio_kg") or 1.0)
 
-            prod_base_row = self.db.execute(
+            prod_base_row = conn.execute(
                 "SELECT nombre, unidad FROM productos WHERE id = ?", (prod_base_id,)
             ).fetchone()
             prod_base_nombre = prod_base_row["nombre"] if prod_base_row else f"#{prod_base_id}"
 
-            componentes_db = self.db.execute("""
+            componentes_db = conn.execute("""
                 SELECT rc.*,
                        rc.component_product_id AS producto_id,
                        p.nombre AS prod_nombre,
@@ -140,22 +151,22 @@ class RecipeEngine:
                 raise RecipeEngineError(f"RECETA_SIN_COMPONENTES: id={receta_id}")
 
             # 2. Idempotencia
-            dup = self.db.execute(
+            dup = conn.execute(
                 "SELECT id FROM producciones WHERE operation_id = ?", (op_id,)
             ).fetchone()
             if dup:
                 raise ProduccionDuplicadaError(f"PRODUCCION_DUPLICADA: op={op_id}")
 
-            # 3. Calcular movimientos
+            # 3. Calcular movimientos (incluye movimientos de merma)
             movimientos = self._calcular_movimientos(
                 tipo, receta, componentes_db, cantidad_base, peso_prom,
                 prod_base_id, prod_base_nombre)
 
-            # 3b. Aplicar mediciones reales + validar tolerancia de error relativo
+            # 3b. Aplicar mediciones reales + validar tolerancia
             if mediciones_reales:
                 variaciones = []
                 for mov in movimientos:
-                    if mov["delta"] > 0:  # solo entradas (subproductos generados)
+                    if mov["delta"] > 0 and mov.get("movement_type") == "PRODUCCION_ENTRADA":
                         pid = mov["product_id"]
                         if pid in mediciones_reales:
                             real_kg = float(mediciones_reales[pid])
@@ -176,16 +187,16 @@ class RecipeEngine:
                                 })
                             mov["delta"] = real_kg
                             mov["variacion_kg"] = round(real_kg - teorico_kg, 4)
-                # Store variations in produccion notes
                 if variaciones:
                     import json as _json
                     notas = (notas + " | " if notas else "") + "VARIACIONES: " + _json.dumps(variaciones)
 
             # 4. Validar stock para salidas
+            # FIX BUG-inv: usar get_stock() en vez del inexistente _get_current_stock()
             inv = InventoryEngine(self.db, self.branch_id, usuario)
             for mov in movimientos:
                 if mov["delta"] < 0:
-                    actual = inv._get_current_stock(mov["product_id"], None, self.branch_id, conn)
+                    actual = inv.get_stock(mov["product_id"])
                     necesario = abs(mov["delta"])
                     if actual < necesario - 0.001:
                         raise StockInsuficienteProduccionError(
@@ -204,27 +215,32 @@ class RecipeEngine:
                 receta.get("unidad_base", "kg"),
                 usuario, suc_id, notas or "", op_id,
             ))
-            produccion_id = self.db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            produccion_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
             # 6. Ejecutar movimientos
             componentes_resultado = []
             total_generado = 0.0
             total_consumido = 0.0
+            total_merma = 0.0
 
             for mov in movimientos:
+                mov_type = mov["movement_type"]
+
                 inv.process_movement(
                     product_id=mov["product_id"],
                     branch_id=self.branch_id,
                     quantity=mov["delta"],
-                    movement_type=mov["movement_type"],
-                    operation_id=f"{op_id}_{mov['product_id']}",
+                    movement_type=mov_type,
+                    operation_id=f"{op_id}_{mov['product_id']}_{mov_type}",
                     reference_id=produccion_id,
                     reference_type="PRODUCCION",
-                    conn=self.db,
+                    conn=conn,
                 )
 
-                tipo_det = "entrada" if mov["delta"] > 0 else "salida"
-                self.db.execute("""
+                tipo_det = "entrada" if mov["delta"] > 0 else (
+                    "merma" if mov_type == "MERMA_PRODUCCION" else "salida"
+                )
+                conn.execute("""
                     INSERT INTO produccion_detalle (
                         produccion_id, producto_resultante_id,
                         cantidad_generada, unidad, rendimiento_aplicado, tipo
@@ -235,10 +251,14 @@ class RecipeEngine:
                     mov.get("rendimiento", 0.0), tipo_det,
                 ))
 
-                self._registrar_movimiento_legacy(self.db, mov, produccion_id, usuario, suc_id)
+                # FIX FALLA-7: _registrar_movimiento_legacy ya NO actualiza existencia
+                # (process_movement ya la actualizó arriba — eliminamos la doble escritura)
+                self._registrar_movimiento_legacy_audit_only(conn, mov, produccion_id, usuario, suc_id)
 
                 if mov["delta"] > 0:
                     total_generado += mov["delta"]
+                elif mov_type == "MERMA_PRODUCCION":
+                    total_merma += abs(mov["delta"])
                 else:
                     total_consumido += abs(mov["delta"])
 
@@ -251,30 +271,41 @@ class RecipeEngine:
                     tipo=tipo_det,
                 ))
 
-            # 7. Update real unit cost for each generated subproduct
+            # 7. FIX FALLA-2: Costo real por kg (no por piezas)
+            # costo_base_total = precio_compra_kg × total_kg_entrada
             if tipo == "subproducto" and total_consumido > 0:
-                costo_row = self.db.execute(
-                    "SELECT COALESCE(precio_compra,0) FROM productos WHERE id=?",
+                costo_row = conn.execute(
+                    "SELECT COALESCE(precio_compra, costo, 0) FROM productos WHERE id=?",
                     (prod_base_id,)).fetchone()
-                costo_base_total = float(costo_row[0] if costo_row else 0) * float(cantidad_base)
-                if costo_base_total > 0:
+                costo_por_kg = float(costo_row[0] if costo_row else 0)
+                # total_kg real consumido (ya en kg porque el movimiento de salida usa kg)
+                total_kg_entrada = total_consumido
+                costo_base_total = costo_por_kg * total_kg_entrada
+
+                if costo_base_total > 0 and total_generado > 0:
                     for mov in movimientos:
-                        if mov["delta"] > 0 and mov["delta"] > 0.001:
+                        if mov["delta"] > 0 and mov.get("movement_type") == "PRODUCCION_ENTRADA":
                             costo_unit = round(
                                 (costo_base_total * (mov["delta"] / total_generado)) / mov["delta"], 4
-                            ) if total_generado > 0 else 0
+                            )
                             if costo_unit > 0:
                                 try:
-                                    self.db.execute(
-                                        "UPDATE productos SET precio_compra=? WHERE id=?",
-                                        (costo_unit, mov["product_id"]))
+                                    conn.execute(
+                                        "UPDATE productos SET precio_compra=?, costo=? WHERE id=?",
+                                        (costo_unit, costo_unit, mov["product_id"]))
+                                    # Actualizar costo_promedio en inventario_actual
+                                    conn.execute("""
+                                        UPDATE inventario_actual
+                                        SET costo_promedio = ?
+                                        WHERE producto_id = ? AND sucursal_id = ?
+                                    """, (costo_unit, mov["product_id"], suc_id))
                                 except Exception as _ce:
                                     logger.warning("cost update failed: %s", _ce)
 
         logger.info(
-            "PRODUCCION_OK id=%d receta=%s tipo=%s base=%.4f gen=%.4f cons=%.4f op=%s",
+            "PRODUCCION_OK id=%d receta=%s tipo=%s base=%.4f gen=%.4f cons=%.4f merma=%.4f op=%s",
             produccion_id, _recipe_name(receta), tipo,
-            cantidad_base, total_generado, total_consumido, op_id,
+            cantidad_base, total_generado, total_consumido, total_merma, op_id,
         )
 
         self._publicar_evento(produccion_id, receta, suc_id, movimientos)
@@ -290,6 +321,7 @@ class RecipeEngine:
             componentes=componentes_resultado,
             total_generado=total_generado,
             total_consumido=total_consumido,
+            total_merma=total_merma,
         )
 
     def _calcular_movimientos(self, tipo, receta, componentes, cantidad_base, peso_prom,
@@ -297,20 +329,28 @@ class RecipeEngine:
         movimientos = []
 
         if tipo == "subproducto":
+            # total_kg: la materia prima se pesa en kg
             total_kg = cantidad_base * peso_prom
+
+            # Salida del producto base (en kg reales)
             movimientos.append({
                 "product_id": prod_base_id,
                 "nombre": prod_base_nombre,
-                "delta": -cantidad_base,
-                "unidad": receta.get("unidad_base", "kg"),
+                "delta": -total_kg,
+                "unidad": "kg",
                 "rendimiento": 0.0,
                 "movement_type": "PRODUCCION_SALIDA",
             })
+
+            kg_generados_total = Decimal("0")
             for comp in componentes:
                 rend = float(comp.get("rendimiento_pct") or comp.get("rendimiento_porcentaje") or 0)
                 if rend <= 0:
                     continue
-                kg_gen = float((Decimal(str(total_kg)) * Decimal(str(rend)) / Decimal("100")).quantize(CENTAVO, ROUND_HALF_UP))
+                kg_gen = float(
+                    (Decimal(str(total_kg)) * Decimal(str(rend)) / Decimal("100"))
+                    .quantize(CENTAVO, ROUND_HALF_UP)
+                )
                 if kg_gen > 0:
                     movimientos.append({
                         "product_id": comp["producto_id"],
@@ -320,13 +360,36 @@ class RecipeEngine:
                         "rendimiento": rend,
                         "movement_type": "PRODUCCION_ENTRADA",
                     })
+                    kg_generados_total += Decimal(str(kg_gen))
+
+            # FIX FALLA-1: registrar merma explícita por componente
+            for comp in componentes:
+                merma_pct = float(comp.get("merma_pct") or comp.get("merma_porcentaje") or 0)
+                if merma_pct <= 0:
+                    continue
+                kg_merma = float(
+                    (Decimal(str(total_kg)) * Decimal(str(merma_pct)) / Decimal("100"))
+                    .quantize(CENTAVO, ROUND_HALF_UP)
+                )
+                if kg_merma > 0:
+                    movimientos.append({
+                        "product_id": comp["producto_id"],
+                        "nombre": f"MERMA — {comp['prod_nombre']}",
+                        "delta": -kg_merma,
+                        "unidad": "kg",
+                        "rendimiento": merma_pct,
+                        "movement_type": "MERMA_PRODUCCION",
+                    })
 
         elif tipo == "combinacion":
             for comp in componentes:
                 cant = float(comp.get("cantidad") or 0)
                 if cant <= 0:
                     continue
-                total_comp = float((Decimal(str(cant)) * Decimal(str(cantidad_base))).quantize(CENTAVO, ROUND_HALF_UP))
+                total_comp = float(
+                    (Decimal(str(cant)) * Decimal(str(cantidad_base)))
+                    .quantize(CENTAVO, ROUND_HALF_UP)
+                )
                 movimientos.append({
                     "product_id": comp["producto_id"],
                     "nombre": comp["prod_nombre"],
@@ -336,7 +399,7 @@ class RecipeEngine:
                     "movement_type": "PRODUCCION_SALIDA",
                 })
             movimientos.append({
-                "product_id": receta["producto_base_id"],
+                "product_id": receta.get("producto_base_id") or prod_base_id,
                 "nombre": prod_base_nombre,
                 "delta": +cantidad_base,
                 "unidad": receta.get("unidad_base", "pza"),
@@ -345,11 +408,17 @@ class RecipeEngine:
             })
 
         elif tipo == "produccion":
+            total_mp_in = Decimal("0")
+            merma_kg_total = Decimal("0")
+
             for comp in componentes:
                 cant = float(comp.get("cantidad") or 0)
                 if cant <= 0:
                     continue
-                total_mp = float((Decimal(str(cant)) * Decimal(str(cantidad_base))).quantize(CENTAVO, ROUND_HALF_UP))
+                total_mp = float(
+                    (Decimal(str(cant)) * Decimal(str(cantidad_base)))
+                    .quantize(CENTAVO, ROUND_HALF_UP)
+                )
                 movimientos.append({
                     "product_id": comp["producto_id"],
                     "nombre": comp["prod_nombre"],
@@ -358,47 +427,64 @@ class RecipeEngine:
                     "rendimiento": 0.0,
                     "movement_type": "PRODUCCION_SALIDA",
                 })
-            merma_total = sum(float(c.get("merma_pct") or c.get("merma_porcentaje") or 0) for c in componentes)
-            factor = max(0.0, (100.0 - merma_total) / 100.0)
-            total_mp_in = sum(float(c.get("cantidad") or 0) * cantidad_base for c in componentes)
-            cant_res = float((Decimal(str(total_mp_in)) * Decimal(str(factor))).quantize(CENTAVO, ROUND_HALF_UP))
+                total_mp_in += Decimal(str(total_mp))
+
+                # FIX FALLA-1+9: merma por ingrediente, no global
+                merma_pct = float(comp.get("merma_pct") or comp.get("merma_porcentaje") or 0)
+                if merma_pct > 0:
+                    kg_merma = float(
+                        (Decimal(str(total_mp)) * Decimal(str(merma_pct)) / Decimal("100"))
+                        .quantize(CENTAVO, ROUND_HALF_UP)
+                    )
+                    if kg_merma > 0:
+                        merma_kg_total += Decimal(str(kg_merma))
+                        movimientos.append({
+                            "product_id": comp["producto_id"],
+                            "nombre": f"MERMA — {comp['prod_nombre']}",
+                            "delta": -kg_merma,
+                            "unidad": "kg",
+                            "rendimiento": merma_pct,
+                            "movement_type": "MERMA_PRODUCCION",
+                        })
+
+            cant_res = float((total_mp_in - merma_kg_total).quantize(CENTAVO, ROUND_HALF_UP))
             if cant_res > 0:
+                rendimiento_real = float(
+                    (total_mp_in - merma_kg_total) / total_mp_in * 100
+                ) if total_mp_in > 0 else 0.0
                 movimientos.append({
-                    "product_id": receta["producto_base_id"],
+                    "product_id": receta.get("producto_base_id") or prod_base_id,
                     "nombre": prod_base_nombre,
                     "delta": +cant_res,
                     "unidad": receta.get("unidad_base", "kg"),
-                    "rendimiento": factor * 100.0,
+                    "rendimiento": round(rendimiento_real, 4),
                     "movement_type": "PRODUCCION_ENTRADA",
                 })
 
         return movimientos
 
-    def _registrar_movimiento_legacy(self, conn, mov, produccion_id, usuario, sucursal_id):
+    def _registrar_movimiento_legacy_audit_only(self, conn, mov, produccion_id, usuario, sucursal_id):
+        """
+        FIX FALLA-7: Solo inserta en movimientos_inventario para auditoría.
+        NO actualiza productos.existencia — process_movement ya lo hizo.
+        """
         try:
             tipo_mov = "entrada" if mov["delta"] > 0 else "salida"
-            tipo_desc = "PRODUCCION_ENTRADA" if mov["delta"] > 0 else "PRODUCCION_SALIDA"
-            exist_row = conn.execute("SELECT COALESCE(existencia,0) FROM productos WHERE id=?", (mov["product_id"],)).fetchone()
-            exist_ant = float(exist_row[0]) if exist_row else 0.0
+            tipo_desc = mov.get("movement_type", "PRODUCCION")
             conn.execute("""
-                INSERT INTO movimientos_inventario (
+                INSERT OR IGNORE INTO movimientos_inventario (
                     uuid, producto_id, tipo, tipo_movimiento,
-                    cantidad, existencia_anterior, existencia_nueva,
-                    descripcion, referencia_id, referencia_tipo,
+                    cantidad, descripcion, referencia_id, referencia_tipo,
                     usuario, sucursal_id, fecha
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
             """, (
                 str(uuid.uuid4()), mov["product_id"], tipo_mov, tipo_desc,
-                abs(mov["delta"]), exist_ant, max(0, exist_ant + mov["delta"]),
+                abs(mov["delta"]),
                 f"Produccion #{produccion_id} — {mov['nombre']}",
                 produccion_id, "PRODUCCION", usuario, sucursal_id,
             ))
-            conn.execute(
-                "UPDATE productos SET existencia = MAX(0, existencia + ?) WHERE id = ?",
-                (mov["delta"], mov["product_id"])
-            )
         except Exception as e:
-            logger.warning("movimiento_legacy falló (no crítico): %s", e)
+            logger.warning("movimiento_legacy_audit falló (no crítico): %s", e)
 
     def preview_produccion(self, receta_id: int, cantidad_base: float) -> list:
         receta = self.db.fetchone(
@@ -417,8 +503,7 @@ class RecipeEngine:
             WHERE rc.recipe_id = ?
             ORDER BY rc.orden, rc.id
         """, (receta_id,))
-        # Obtener datos del producto base para pasarlos al helper
-        _base_id = receta.get("output_product_id") or receta.get("producto_base_id")
+        _base_id = receta.get("output_product_id") or receta.get("base_product_id") or receta.get("product_id")
         _base_row = self.db.fetchone(
             "SELECT nombre FROM productos WHERE id=?", (_base_id,)
         ) if _base_id else None
