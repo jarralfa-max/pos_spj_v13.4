@@ -436,6 +436,14 @@ class AppContainer:
             self.third_party_service = None
             logger.debug("ThirdPartyService: %s", _tp)
 
+        # ── ERP FASE 4b: ERPFinancialService (Issue #104) ───────────────────
+        try:
+            from core.services.finance.erp_financial_service import ERPFinancialService
+            self.erp_financial_service = ERPFinancialService(self.db)
+        except Exception as _efs:
+            self.erp_financial_service = None
+            logger.debug("ERPFinancialService: %s", _efs)
+
         # ── ERP FASE 5: AnalyticsEngine ──────────────────────────────────────
         try:
             from core.services.analytics.analytics_engine import AnalyticsEngine

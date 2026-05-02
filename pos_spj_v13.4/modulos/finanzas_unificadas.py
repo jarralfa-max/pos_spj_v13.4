@@ -23,6 +23,21 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, QDate
 from PyQt5.QtGui import QFont, QPixmap, QPalette
 
+try:
+    from modulos.design_tokens import Colors, Spacing, Typography
+except Exception:
+    class Colors:  # noqa: F811
+        class NEUTRAL:
+            SLATE_100 = "#F1F5F9"; SLATE_50 = "#F8FAFC"
+        class DANGER:
+            BASE = "#DC2626"
+        class SUCCESS:
+            BASE = "#16A34A"
+    class Spacing:
+        LG = 16
+    class Typography:
+        SIZE_SM = "11px"
+
 logger = logging.getLogger("spj.finanzas_unificadas")
 
 
@@ -364,6 +379,7 @@ class ModuloFinanzasUnificadas(QWidget):
         self._tps = getattr(container, 'third_party_service', None)
         self._fs = getattr(container, 'finance_service', None)
         self._analytics = getattr(container, "analytics_engine", None)
+        self._erp = getattr(container, "erp_financial_service", None)
         self._tabs = None
         self._setup_ui()
         self._wire_live_refresh()
@@ -462,9 +478,25 @@ class ModuloFinanzasUnificadas(QWidget):
         # Pestaña 3: Proveedores
         tab_proveedores = self._crear_pestaña_proveedores()
         tabs.addTab(tab_proveedores, "🏭 Proveedores")
-        
+
+        # Pestaña 4: Documentos Financieros ERP
+        tab_docs = self._crear_pestaña_documentos()
+        tabs.addTab(tab_docs, "📄 Documentos")
+
+        # Pestaña 5: Pagos y Cobros ERP
+        tab_pc = self._crear_pestaña_pagos_cobros()
+        tabs.addTab(tab_pc, "💳 Pagos/Cobros")
+
+        # Pestaña 6: Ledger / Libro Financiero
+        tab_ledger = self._crear_pestaña_ledger()
+        tabs.addTab(tab_ledger, "📒 Ledger")
+
+        # Pestaña 7: Conciliación
+        tab_concil = self._crear_pestaña_conciliacion()
+        tabs.addTab(tab_concil, "⚖️ Conciliación")
+
         layout.addWidget(tabs)
-        
+
         # Conectar cambio de pestaña para cargar datos
         tabs.currentChanged.connect(self._on_tab_changed)
         self._normalizar_botones_ui()
@@ -499,15 +531,23 @@ class ModuloFinanzasUnificadas(QWidget):
     
     def _on_tab_changed(self, index):
         """Carga datos según la pestaña activa."""
-        if index == 0:  # Dashboard
+        if index == 0:
             self._cargar_dashboard_financiero()
-        elif index == 1:  # Tesorería
+        elif index == 1:
             self._cargar_capex()
             self._cargar_cuentas_pagar()
             self._cargar_cuentas_cobrar()
-        elif index == 3:  # Proveedores
+        elif index == 3:
             self._cargar_proveedores()
-    
+        elif index == 4:
+            self._cargar_documentos_erp()
+        elif index == 5:
+            self._cargar_pagos_cobros_erp()
+        elif index == 6:
+            self._cargar_ledger_erp()
+        elif index == 7:
+            self._cargar_conciliaciones_erp()
+
     def _cargar_datos_actuales(self):
         """Refresca todos los datos."""
         self._cargar_dashboard_financiero()
@@ -1517,6 +1557,396 @@ class ModuloFinanzasUnificadas(QWidget):
         try:
             self._tps.delete_proveedor(proveedor_id, soft=True)
             self._cargar_proveedores()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  PESTAÑA 4: DOCUMENTOS FINANCIEROS ERP
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _crear_pestaña_documentos(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+
+        hdr = QHBoxLayout()
+        lbl = QLabel("📄 Documentos Financieros")
+        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
+        btn_nuevo = QPushButton("➕ Nuevo Documento")
+        btn_nuevo.setStyleSheet(
+            "background:#2563EB;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
+        )
+        btn_nuevo.clicked.connect(self._dialogo_nuevo_documento)
+        hdr.addWidget(lbl); hdr.addStretch(); hdr.addWidget(btn_nuevo)
+        lay.addLayout(hdr)
+
+        filtros = QHBoxLayout()
+        self._cmb_tipo_doc = QComboBox()
+        self._cmb_tipo_doc.addItem("Todos los tipos", "")
+        for t in ["venta", "compra", "devolucion_venta", "devolucion_compra",
+                  "nota_credito", "nota_debito", "merma", "produccion", "ajuste", "anticipo"]:
+            self._cmb_tipo_doc.addItem(t, t)
+        self._cmb_estado_doc = QComboBox()
+        self._cmb_estado_doc.addItem("Todos los estados", "")
+        for s in ["borrador", "confirmado", "parcial", "pagado", "cancelado", "reversado"]:
+            self._cmb_estado_doc.addItem(s, s)
+        btn_filtrar = QPushButton("🔍 Filtrar")
+        btn_filtrar.clicked.connect(self._cargar_documentos_erp)
+        filtros.addWidget(QLabel("Tipo:")); filtros.addWidget(self._cmb_tipo_doc)
+        filtros.addWidget(QLabel("Estado:")); filtros.addWidget(self._cmb_estado_doc)
+        filtros.addWidget(btn_filtrar); filtros.addStretch()
+        lay.addLayout(filtros)
+
+        self._tbl_docs = QTableWidget()
+        self._tbl_docs.setColumnCount(8)
+        self._tbl_docs.setHorizontalHeaderLabels(
+            ["ID", "Folio", "Tipo", "Módulo", "Fecha", "Total", "Saldo", "Estado"]
+        )
+        self._tbl_docs.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._tbl_docs.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_docs.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_docs.setAlternatingRowColors(True)
+        self._tbl_docs.verticalHeader().setVisible(False)
+        lay.addWidget(self._tbl_docs)
+
+        # KPI bar
+        kpi_bar = QHBoxLayout()
+        self._lbl_doc_total_pend = QLabel("CxC pendiente: $0.00")
+        self._lbl_doc_total_pend.setStyleSheet("font-weight:bold;color:#2563EB;")
+        self._lbl_doc_cxp_pend = QLabel("CxP pendiente: $0.00")
+        self._lbl_doc_cxp_pend.setStyleSheet("font-weight:bold;color:#DC2626;")
+        self._lbl_doc_vencidos = QLabel("Vencidos: 0")
+        self._lbl_doc_vencidos.setStyleSheet("font-weight:bold;color:#D97706;")
+        kpi_bar.addWidget(self._lbl_doc_total_pend)
+        kpi_bar.addWidget(QLabel(" | "))
+        kpi_bar.addWidget(self._lbl_doc_cxp_pend)
+        kpi_bar.addWidget(QLabel(" | "))
+        kpi_bar.addWidget(self._lbl_doc_vencidos)
+        kpi_bar.addStretch()
+        lay.addLayout(kpi_bar)
+        return w
+
+    def _cargar_documentos_erp(self):
+        if not self._erp:
+            return
+        try:
+            tipo = self._cmb_tipo_doc.currentData() if hasattr(self, "_cmb_tipo_doc") else None
+            estado = self._cmb_estado_doc.currentData() if hasattr(self, "_cmb_estado_doc") else None
+            docs = self._erp.get_documentos(
+                tipo=tipo or None, estado=estado or None, sucursal_id=self.sucursal_id
+            )
+            self._tbl_docs.setRowCount(len(docs))
+            for ri, d in enumerate(docs):
+                vals = [str(d["id"]), d["folio"], d["tipo_documento"],
+                        d["modulo_origen"], str(d["fecha_emision"])[:10],
+                        f"${float(d['total']):,.2f}", f"${float(d['saldo_pendiente']):,.2f}",
+                        d["estado"]]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci == 7:
+                        color = {"pagado": "#16A34A", "cancelado": "#DC2626",
+                                 "confirmado": "#2563EB", "parcial": "#D97706"}.get(v, "")
+                        if color:
+                            it.setForeground(QFont())
+                            it.setData(Qt.ForegroundRole,
+                                       __import__("PyQt5.QtGui", fromlist=["QColor"]).QColor(color))
+                    self._tbl_docs.setItem(ri, ci, it)
+            kpis = self._erp.kpis_erp(self.sucursal_id)
+            if hasattr(self, "_lbl_doc_total_pend"):
+                self._lbl_doc_total_pend.setText(
+                    f"CxC pendiente: ${kpis.get('cxc_pendiente', 0):,.2f}")
+                self._lbl_doc_cxp_pend.setText(
+                    f"CxP pendiente: ${kpis.get('cxp_pendiente', 0):,.2f}")
+                self._lbl_doc_vencidos.setText(
+                    f"Vencidos: {kpis.get('documentos_vencidos', 0)}")
+        except Exception as e:
+            logger.warning("_cargar_documentos_erp: %s", e)
+
+    def _dialogo_nuevo_documento(self):
+        if not self._erp:
+            QMessageBox.warning(self, "Error", "ERPFinancialService no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nuevo Documento Financiero")
+        lay = QFormLayout(dlg)
+
+        cmb_tipo = QComboBox()
+        for t in ["venta", "compra", "nota_credito", "nota_debito", "ajuste", "anticipo"]:
+            cmb_tipo.addItem(t)
+        txt_modulo = QLineEdit("manual")
+        spin_total = QDoubleSpinBox()
+        spin_total.setRange(0.01, 999999999); spin_total.setPrefix("$")
+        txt_ref = QLineEdit(); txt_ref.setPlaceholderText("Referencia opcional")
+        lay.addRow("Tipo:", cmb_tipo)
+        lay.addRow("Módulo origen:", txt_modulo)
+        lay.addRow("Total:", spin_total)
+        lay.addRow("Referencia:", txt_ref)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        try:
+            doc_id = self._erp.crear_documento(
+                tipo=cmb_tipo.currentText(),
+                total=float(spin_total.value()),
+                modulo_origen=txt_modulo.text().strip() or "manual",
+                sucursal_id=self.sucursal_id,
+            )
+            self._erp.confirmar_documento(doc_id)
+            self._cargar_documentos_erp()
+            QMessageBox.information(self, "Éxito", f"Documento creado (ID: {doc_id})")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  PESTAÑA 5: PAGOS Y COBROS ERP
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _crear_pestaña_pagos_cobros(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+
+        hdr = QHBoxLayout()
+        lbl = QLabel("💳 Pagos y Cobros")
+        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
+        btn_cobrar = QPushButton("💰 Registrar Cobro")
+        btn_cobrar.setStyleSheet(
+            "background:#16A34A;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
+        )
+        btn_cobrar.clicked.connect(lambda: self._dialogo_pago_cobro("cobro_cliente"))
+        btn_pagar = QPushButton("💸 Registrar Pago")
+        btn_pagar.setStyleSheet(
+            "background:#DC2626;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
+        )
+        btn_pagar.clicked.connect(lambda: self._dialogo_pago_cobro("pago_proveedor"))
+        hdr.addWidget(lbl); hdr.addStretch()
+        hdr.addWidget(btn_cobrar); hdr.addWidget(btn_pagar)
+        lay.addLayout(hdr)
+
+        self._tbl_pc = QTableWidget()
+        self._tbl_pc.setColumnCount(7)
+        self._tbl_pc.setHorizontalHeaderLabels(
+            ["ID", "Folio", "Operación", "Monto", "Forma Pago", "Fecha", "Estado"]
+        )
+        self._tbl_pc.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._tbl_pc.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_pc.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_pc.setAlternatingRowColors(True)
+        self._tbl_pc.verticalHeader().setVisible(False)
+        lay.addWidget(self._tbl_pc)
+
+        kpi = QHBoxLayout()
+        self._lbl_flujo_neto = QLabel("Flujo neto mes: $0.00")
+        self._lbl_flujo_neto.setStyleSheet("font-weight:bold;font-size:13px;")
+        kpi.addWidget(self._lbl_flujo_neto); kpi.addStretch()
+        lay.addLayout(kpi)
+        return w
+
+    def _cargar_pagos_cobros_erp(self):
+        if not self._erp:
+            return
+        try:
+            rows = self._erp.get_pagos_cobros(sucursal_id=self.sucursal_id)
+            self._tbl_pc.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                vals = [str(r["id"]), r["folio"], r["tipo_operacion"],
+                        f"${float(r['monto_total']):,.2f}", r["forma_pago"],
+                        str(r["fecha"])[:10], r["estado"]]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_pc.setItem(ri, ci, it)
+            kpis = self._erp.kpis_erp(self.sucursal_id)
+            flujo = kpis.get("flujo_neto", 0)
+            color = "#16A34A" if flujo >= 0 else "#DC2626"
+            if hasattr(self, "_lbl_flujo_neto"):
+                self._lbl_flujo_neto.setText(f"Flujo neto mes: ${flujo:,.2f}")
+                self._lbl_flujo_neto.setStyleSheet(
+                    f"font-weight:bold;font-size:13px;color:{color};"
+                )
+        except Exception as e:
+            logger.warning("_cargar_pagos_cobros_erp: %s", e)
+
+    def _dialogo_pago_cobro(self, tipo_op: str):
+        if not self._erp:
+            QMessageBox.warning(self, "Error", "ERPFinancialService no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Registrar {'Cobro' if 'cobro' in tipo_op else 'Pago'}")
+        lay = QFormLayout(dlg)
+        spin_monto = QDoubleSpinBox()
+        spin_monto.setRange(0.01, 999999999); spin_monto.setPrefix("$")
+        cmb_forma = QComboBox()
+        cmb_forma.addItems(["efectivo", "tarjeta", "transferencia", "credito", "mixto"])
+        txt_obs = QLineEdit(); txt_obs.setPlaceholderText("Observaciones")
+        lay.addRow("Monto:", spin_monto)
+        lay.addRow("Forma de pago:", cmb_forma)
+        lay.addRow("Observaciones:", txt_obs)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        try:
+            pc_id = self._erp.registrar_pago_cobro(
+                tipo=tipo_op,
+                monto=float(spin_monto.value()),
+                forma_pago=cmb_forma.currentText(),
+                sucursal_id=self.sucursal_id,
+                observaciones=txt_obs.text().strip(),
+            )
+            self._erp.registrar_movimiento(
+                tipo="entrada" if "cobro" in tipo_op else "salida",
+                monto=float(spin_monto.value()),
+                origen_modulo="finanzas",
+                origen_id=pc_id,
+                sucursal_id=self.sucursal_id,
+            )
+            self._cargar_pagos_cobros_erp()
+            QMessageBox.information(self, "Éxito", f"Operación registrada (ID: {pc_id})")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  PESTAÑA 6: LEDGER FINANCIERO
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _crear_pestaña_ledger(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+
+        hdr = QHBoxLayout()
+        lbl = QLabel("📒 Ledger / Libro Financiero")
+        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
+        btn_ref = QPushButton("🔄 Actualizar")
+        btn_ref.clicked.connect(self._cargar_ledger_erp)
+        hdr.addWidget(lbl); hdr.addStretch(); hdr.addWidget(btn_ref)
+        lay.addLayout(hdr)
+
+        nota = QLabel("Registro inmutable de todos los eventos financieros. No se edita ni se borra.")
+        nota.setStyleSheet("color:#64748B;font-size:11px;font-style:italic;")
+        lay.addWidget(nota)
+
+        self._tbl_ledger = QTableWidget()
+        self._tbl_ledger.setColumnCount(7)
+        self._tbl_ledger.setHorizontalHeaderLabels(
+            ["ID", "Evento", "Entidad", "Monto", "Módulo", "Timestamp", "Ref."]
+        )
+        self._tbl_ledger.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._tbl_ledger.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_ledger.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_ledger.setAlternatingRowColors(True)
+        self._tbl_ledger.verticalHeader().setVisible(False)
+        lay.addWidget(self._tbl_ledger)
+        return w
+
+    def _cargar_ledger_erp(self):
+        if not self._erp:
+            return
+        try:
+            rows = self._erp.get_ledger(sucursal_id=self.sucursal_id)
+            self._tbl_ledger.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                vals = [str(r["id"]), r["evento"],
+                        f"{r['entidad_tipo'] or ''}:{r['entidad_id'] or ''}",
+                        f"${float(r['monto']):,.2f}", r["modulo_origen"] or "",
+                        str(r["timestamp"])[:19], r["referencia"] or ""]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_ledger.setItem(ri, ci, it)
+        except Exception as e:
+            logger.warning("_cargar_ledger_erp: %s", e)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  PESTAÑA 7: CONCILIACIÓN
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _crear_pestaña_conciliacion(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+
+        hdr = QHBoxLayout()
+        lbl = QLabel("⚖️ Conciliación Financiera")
+        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
+        btn_nueva = QPushButton("➕ Nueva Conciliación")
+        btn_nueva.setStyleSheet(
+            "background:#7C3AED;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
+        )
+        btn_nueva.clicked.connect(self._dialogo_nueva_conciliacion)
+        hdr.addWidget(lbl); hdr.addStretch(); hdr.addWidget(btn_nueva)
+        lay.addLayout(hdr)
+
+        nota = QLabel("Después del cierre no se editan operaciones; sólo reversas controladas.")
+        nota.setStyleSheet("color:#64748B;font-size:11px;font-style:italic;")
+        lay.addWidget(nota)
+
+        self._tbl_concil = QTableWidget()
+        self._tbl_concil.setColumnCount(8)
+        self._tbl_concil.setHorizontalHeaderLabels(
+            ["ID", "Folio", "Cuenta", "Periodo", "Saldo Sistema", "Saldo Real", "Diferencia", "Estado"]
+        )
+        self._tbl_concil.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self._tbl_concil.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_concil.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_concil.setAlternatingRowColors(True)
+        self._tbl_concil.verticalHeader().setVisible(False)
+        lay.addWidget(self._tbl_concil)
+        return w
+
+    def _cargar_conciliaciones_erp(self):
+        if not self._erp:
+            return
+        try:
+            rows = self._erp.get_conciliaciones(sucursal_id=self.sucursal_id)
+            self._tbl_concil.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                vals = [str(r["id"]), r["folio"], str(r["cuenta_financiera_id"] or "—"),
+                        r["periodo"], f"${float(r['saldo_sistema']):,.2f}",
+                        f"${float(r['saldo_real']):,.2f}",
+                        f"${float(r['diferencia']):+,.2f}", r["estado"]]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_concil.setItem(ri, ci, it)
+        except Exception as e:
+            logger.warning("_cargar_conciliaciones_erp: %s", e)
+
+    def _dialogo_nueva_conciliacion(self):
+        if not self._erp:
+            QMessageBox.warning(self, "Error", "ERPFinancialService no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva Conciliación")
+        lay = QFormLayout(dlg)
+        txt_periodo = QLineEdit(date.today().strftime("%Y-%m"))
+        txt_periodo.setPlaceholderText("YYYY-MM")
+        spin_sistema = QDoubleSpinBox()
+        spin_sistema.setRange(-999999999, 999999999); spin_sistema.setPrefix("$")
+        spin_real = QDoubleSpinBox()
+        spin_real.setRange(-999999999, 999999999); spin_real.setPrefix("$")
+        txt_notas = QLineEdit(); txt_notas.setPlaceholderText("Notas")
+        lay.addRow("Periodo:", txt_periodo)
+        lay.addRow("Saldo sistema:", spin_sistema)
+        lay.addRow("Saldo real contado:", spin_real)
+        lay.addRow("Notas:", txt_notas)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        try:
+            self._erp.crear_conciliacion(
+                cuenta_id=1,
+                periodo=txt_periodo.text().strip(),
+                saldo_sistema=float(spin_sistema.value()),
+                saldo_real=float(spin_real.value()),
+                sucursal_id=self.sucursal_id,
+                notas=txt_notas.text().strip(),
+            )
+            self._cargar_conciliaciones_erp()
+            QMessageBox.information(self, "Éxito", "Conciliación registrada.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
