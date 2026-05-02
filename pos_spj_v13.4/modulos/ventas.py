@@ -5,7 +5,8 @@ from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
-    create_secondary_button, create_warning_button, apply_tooltip
+    create_secondary_button, create_warning_button, apply_tooltip,
+    PageHeader, Toast,
 )
 import logging
 import os
@@ -204,14 +205,43 @@ class ProductCard(QFrame):
         self.is_selected = selected
         if selected:
             self.setProperty("class", "product-card-selected")
+            # Glow azul persistente al estar seleccionado
+            self.shadow_effect.setBlurRadius(20)
+            self.shadow_effect.setColor(QColor(37, 99, 235, 70))
+            self.shadow_effect.setXOffset(0)
+            self.shadow_effect.setYOffset(3)
+            # Indicador ✓ en esquina superior derecha
+            if not hasattr(self, '_lbl_check'):
+                from PyQt5.QtWidgets import QLabel as _QL
+                self._lbl_check = _QL("✓", self)
+                self._lbl_check.setFixedSize(18, 18)
+                self._lbl_check.setAlignment(Qt.AlignCenter)
+                self._lbl_check.setStyleSheet(
+                    "background:#2563EB; color:white; border-radius:9px;"
+                    " font-size:11px; font-weight:bold;"
+                )
+            self._lbl_check.move(self.width() - 22, 4)
+            self._lbl_check.show()
+            self._lbl_check.raise_()
         else:
             self.setProperty("class", "product-card")
+            self.update_shadow_color()
+            self.shadow_effect.setBlurRadius(15)
+            self.shadow_effect.setXOffset(2)
+            self.shadow_effect.setYOffset(2)
+            if hasattr(self, '_lbl_check'):
+                self._lbl_check.hide()
         self.style().unpolish(self)
         self.style().polish(self)
         
     def enterEvent(self, event):
         self._is_hovering = True
         self.animate_size(self.zoom_size)
+        # Glow azul en hover
+        self.shadow_effect.setBlurRadius(28)
+        self.shadow_effect.setColor(QColor(37, 99, 235, 90))   # blue glow
+        self.shadow_effect.setXOffset(0)
+        self.shadow_effect.setYOffset(4)
         self.setProperty("class", "product-card-hover")
         self.style().unpolish(self)
         self.style().polish(self)
@@ -220,16 +250,47 @@ class ProductCard(QFrame):
     def leaveEvent(self, event):
         self._is_hovering = False
         self.animate_size(self.original_size)
+        # Restaurar sombra original
+        self.update_shadow_color()
+        self.shadow_effect.setBlurRadius(15)
+        self.shadow_effect.setXOffset(2)
+        self.shadow_effect.setYOffset(2)
         if self.is_selected:
             self.setProperty("class", "product-card-selected")
+            # Mantener glow azul suave si está seleccionado
+            self.shadow_effect.setBlurRadius(20)
+            self.shadow_effect.setColor(QColor(37, 99, 235, 70))
         else:
             self.setProperty("class", "product-card")
         self.style().unpolish(self)
         self.style().polish(self)
         super().leaveEvent(event)
         
-    def animate_size(self, new_size):
-        self.setFixedSize(new_size)
+    def animate_size(self, target_size: QSize):
+        """Animación suave de zoom con interpolación ease-out (~60 fps)."""
+        if not hasattr(self, '_anim_timer'):
+            self._anim_timer = QTimer(self)
+            self._anim_timer.timeout.connect(self._step_zoom)
+        self._anim_timer.stop()
+        cur = self.size()
+        self._zoom_sw = cur.width()
+        self._zoom_sh = cur.height()
+        self._zoom_tw = target_size.width()
+        self._zoom_th = target_size.height()
+        self._zoom_step = 0
+        self._zoom_steps = 10          # ≈160 ms a 60 fps
+        self._anim_timer.start(16)     # 16 ms ≈ 60 fps
+
+    def _step_zoom(self):
+        self._zoom_step += 1
+        t = self._zoom_step / self._zoom_steps
+        t = 1 - (1 - t) ** 2          # ease-out cuadrático
+        w = int(self._zoom_sw + (self._zoom_tw - self._zoom_sw) * t)
+        h = int(self._zoom_sh + (self._zoom_th - self._zoom_sh) * t)
+        self.setFixedSize(w, h)
+        if self._zoom_step >= self._zoom_steps:
+            self._anim_timer.stop()
+            self.setFixedSize(self._zoom_tw, self._zoom_th)
 
 # ==============================================================================
 # 2. DIÁLOGO PARA SUSPENDER VENTA
@@ -972,10 +1033,23 @@ class ModuloVentas(ModuloBase):
 
     def init_ui(self):
         self.setWindowTitle("Punto de Venta - Sistema Avanzado")
-        main_layout = QHBoxLayout(self)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        self._page_header = PageHeader(
+            self,
+            title="🛒 Punto de Venta",
+            subtitle="Carrito, cobro, devoluciones y suspensión",
+        )
+        root_layout.addWidget(self._page_header)
+
+        body = QWidget(self)
+        main_layout = QHBoxLayout(body)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(8)
-        
+        root_layout.addWidget(body, 1)
+
         splitter = QSplitter(Qt.Horizontal)
         splitter.setProperty("class", "main-splitter")
         splitter.setHandleWidth(3)
@@ -1176,26 +1250,30 @@ class ModuloVentas(ModuloBase):
         layout_derecho.addWidget(group_info_venta)
 
         group_acciones = QGroupBox("⚡ Acciones")
-        group_acciones.setMaximumHeight(165)
         group_acciones.setProperty("class", "venta-group")
         acciones_layout = QGridLayout(group_acciones)
-        acciones_layout.setContentsMargins(8, 8, 8, 8)
-        acciones_layout.setVerticalSpacing(4)
+        acciones_layout.setContentsMargins(10, 10, 10, 10)
+        acciones_layout.setHorizontalSpacing(8)
+        acciones_layout.setVerticalSpacing(8)
+        acciones_layout.setColumnStretch(0, 1)
+        acciones_layout.setColumnStretch(1, 1)
         
         # ── Descuentos rápidos ───────────────────────────────────────────
         grp_desc = QGroupBox("⚡ Descuento rápido")
-        grp_desc.setMaximumHeight(55)
         desc_lay = QHBoxLayout(grp_desc)
-        desc_lay.setContentsMargins(6, 4, 6, 4)
+        desc_lay.setContentsMargins(8, 6, 8, 6)
+        desc_lay.setSpacing(6)
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
-            btn_d.setMinimumWidth(56)
+            btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            btn_d.setMinimumHeight(32)
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
             btn_d.setProperty("class", "btn-outline btn-sm")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
         btn_custom = QPushButton("Custom")
-        btn_custom.setMinimumWidth(62)
+        btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        btn_custom.setMinimumHeight(32)
         btn_custom.setToolTip("Descuento personalizado")
         btn_custom.setProperty("class", "btn-accent btn-sm")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
@@ -1208,11 +1286,13 @@ class ModuloVentas(ModuloBase):
         self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimprimir", "Reimprimir el ticket de la última venta")
         self.btn_reimprimir.setEnabled(False)
         self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
+        for _b in (self.btn_factura, self.btn_reimprimir):
+            _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            _b.setMinimumHeight(36)
         row_docs = QHBoxLayout()
         row_docs.setSpacing(8)
         row_docs.addWidget(self.btn_factura)
         row_docs.addWidget(self.btn_reimprimir)
-        row_docs.addStretch()
         layout_derecho.addLayout(row_docs)
 
         self._banner_sin_impresora = QLabel(
@@ -1226,18 +1306,28 @@ class ModuloVentas(ModuloBase):
         self.btn_suspender = create_warning_button(self, "⏸️ Suspender", "Suspender venta actual para atender otra")
         self.btn_reanudar = create_primary_button(self, "▶️ Reanudar (0)", "Reanudar venta suspendida")
         self.btn_cancelar = create_danger_button(self, "❌ Cancelar", "Cancelar venta actual")
-        
+
         self.btn_devolucion = create_secondary_button(self, "↩ Devolución", "Cancelar o devolver una venta anterior (requiere permiso)")
         self.btn_devolucion.setEnabled(False)   # se activa tras login con permiso
-        for btn in (self.btn_cobrar, self.btn_suspender, self.btn_reanudar, self.btn_cancelar, self.btn_devolucion):
-            btn.setMinimumWidth(150)
 
-        acciones_layout.addWidget(self.btn_cobrar, 0, 0, 1, 2)
+        # Buttons fill the entire QGroupBox width and have prominent height.
+        # Override the fixed-height set by _configure_button so the row can grow,
+        # and tag with 'fill_parent' to skip _normalizar_botones_principales.
+        for btn in (self.btn_cobrar, self.btn_suspender, self.btn_reanudar, self.btn_cancelar, self.btn_devolucion):
+            btn.setProperty("fill_parent", True)
+            btn.setMinimumHeight(0)
+            btn.setMaximumHeight(16777215)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            btn.setMinimumHeight(40)
+        # Primary action gets visual prominence
+        self.btn_cobrar.setMinimumHeight(52)
+
+        acciones_layout.addWidget(self.btn_cobrar,    0, 0, 1, 2)
         acciones_layout.addWidget(self.btn_suspender, 1, 0)
-        acciones_layout.addWidget(self.btn_reanudar, 1, 1)
-        acciones_layout.addWidget(self.btn_cancelar, 2, 0)
-        acciones_layout.addWidget(self.btn_devolucion, 2, 1)
-        
+        acciones_layout.addWidget(self.btn_reanudar,  1, 1)
+        acciones_layout.addWidget(self.btn_cancelar,  2, 0)
+        acciones_layout.addWidget(self.btn_devolucion,2, 1)
+
         layout_derecho.addWidget(group_acciones)
         
         splitter.addWidget(panel_izquierdo)
@@ -1248,10 +1338,13 @@ class ModuloVentas(ModuloBase):
 
     def _normalizar_botones_principales(self):
         """
-        Evita que botones del módulo ventas se estiren al ancho completo
-        en layouts verticales (feedback UX de pantallas saturadas).
+        Evita que botones se estiren al ancho completo en layouts verticales.
+        Excluye botones marcados con la propiedad 'fill_parent' para que las
+        acciones primarias (cobrar, suspender, etc.) llenen su QGroupBox.
         """
         for btn in self.findChildren(QPushButton):
+            if btn.property("fill_parent"):
+                continue
             # Preservar icon-buttons compactos ya configurados en 40px.
             if btn.minimumWidth() and btn.minimumWidth() <= 45:
                 continue
@@ -1976,11 +2069,10 @@ class ModuloVentas(ModuloBase):
                         'puntos':   tarjeta_row[8],
                         'saldo':    tarjeta_row[9],
                     }
-                QMessageBox.information(
-                    self, "💳 Tarjeta cargada",
-                    f"Cliente: {cliente_nombre}\n"
-                    f"Tarjeta: {numero}\n"
-                    f"Puntos acumulados: {puntos}"
+                Toast.success(
+                    self,
+                    "💳 Tarjeta cargada",
+                    f"{cliente_nombre} · {numero} · {puntos} pts",
                 )
         except Exception as exc:
             logger.warning("_cargar_tarjeta_desde_scanner: %s", exc)
@@ -2036,7 +2128,7 @@ class ModuloVentas(ModuloBase):
                         }
                         self._actualizar_ui_cliente()
         except ImportError:
-            QMessageBox.information(self, "Tarjeta", "Motor de tarjetas no disponible en esta versión.")
+            Toast.info(self, "Tarjeta", "Motor de tarjetas no disponible en esta versión.")
         except Exception as exc:
             QMessageBox.critical(self, "Error Tarjeta", str(exc))
 
@@ -2056,8 +2148,7 @@ class ModuloVentas(ModuloBase):
             if self.compra_actual:
                 row = len(self.compra_actual) - 1
             else:
-                QMessageBox.information(self, "Aviso",
-                    "Selecciona un ítem del carrito primero.")
+                Toast.info(self, "Aviso", "Selecciona un ítem del carrito primero.")
                 return
         if not (0 <= row < len(self.compra_actual)):
             return
@@ -2109,7 +2200,7 @@ class ModuloVentas(ModuloBase):
         if row < 0 and self.compra_actual:
             row = len(self.compra_actual) - 1
         if row < 0:
-            QMessageBox.information(self, "Aviso", "Selecciona un ítem primero.")
+            Toast.info(self, "Aviso", "Selecciona un ítem primero.")
             return
         pct, ok = QInputDialog.getDouble(
             self, "Descuento personalizado",
@@ -2823,7 +2914,7 @@ class ModuloVentas(ModuloBase):
 
     def mostrar_ventas_espera(self):
         if not self.ventas_en_espera:
-            QMessageBox.information(self, "Ventas en Espera", "No hay ventas suspendidas.")
+            Toast.info(self, "Ventas en Espera", "No hay ventas suspendidas.")
             return
             
         ventas_lista = [f"{v['nombre']} - ${v['totales']['total_final']:.2f}" for v in self.ventas_en_espera.values()]
@@ -2967,30 +3058,31 @@ class ModuloVentas(ModuloBase):
                 for item in self.compra_actual
             ]
 
-            # ── Guardrail: detectar ítems por debajo del costo ──────────────
+            # ── Guardrail: detectar ítems por debajo del costo (delegado al UC) ─
             try:
-                items_bajo_costo = []
-                for item in self.compra_actual:
-                    costo_row = self.container.db.execute(
-                        "SELECT precio_compra FROM productos WHERE id=?",
-                        (item['id'],)
-                    ).fetchone()
-                    costo = float(costo_row[0]) if costo_row and costo_row[0] else 0
-                    if costo > 0 and float(item['precio_unitario']) < costo:
-                        items_bajo_costo.append(
-                            f"• {item['nombre']}: ${item['precio_unitario']:.2f} "
-                            f"(costo ${costo:.2f})"
+                _uc_check = getattr(self.container, 'uc_venta', None)
+                if _uc_check:
+                    from core.use_cases.venta import ItemCarrito as _IC
+                    _ic_items = [_IC(
+                        producto_id=it['id'], cantidad=float(it['cantidad']),
+                        precio_unit=float(it['precio_unitario']),
+                        nombre=it.get('nombre', ''),
+                    ) for it in self.compra_actual]
+                    alertas = _uc_check.validar_precios_bajo_costo(_ic_items)
+                    if alertas:
+                        lines = [
+                            f"• {a['nombre']}: ${a['precio_venta']:.2f} (costo ${a['costo']:.2f})"
+                            for a in alertas
+                        ]
+                        resp = QMessageBox.warning(
+                            self, "⚠️ Venta por debajo del costo",
+                            "Los siguientes productos se venden con pérdida:\n\n"
+                            + "\n".join(lines)
+                            + "\n\n¿Continuar de todas formas?",
+                            QMessageBox.Yes | QMessageBox.No
                         )
-                if items_bajo_costo:
-                    resp = QMessageBox.warning(
-                        self, "⚠️ Venta por debajo del costo",
-                        "Los siguientes productos se venden con pérdida:\n\n"
-                        + "\n".join(items_bajo_costo)
-                        + "\n\n¿Continuar de todas formas?",
-                        QMessageBox.Yes | QMessageBox.No
-                    )
-                    if resp != QMessageBox.Yes:
-                        return
+                        if resp != QMessageBox.Yes:
+                            return
             except Exception:
                 pass  # No bloquea la venta si la validación falla
 
@@ -3120,8 +3212,11 @@ class ModuloVentas(ModuloBase):
             # Print ticket — single consolidated path
             self._imprimir_ticket_consolidado(datos_ticket)
 
-            QMessageBox.information(self, "Venta Exitosa",
-                f"¡Venta #{folio} completada!\nTotal: ${self.totales['total_final']:.2f}")
+            Toast.success(
+                self,
+                f"✅ Venta #{folio} completada",
+                f"Total: ${self.totales['total_final']:.2f}",
+            )
             if self._reserva_activa_id:
                 self._stock_reservas.liberar(self._reserva_activa_id, motivo="confirmada")
                 try:
@@ -3621,7 +3716,7 @@ class ModuloVentas(ModuloBase):
                      f"Detalle: {e}")
                 )
                 return
-            QMessageBox.information(dlg, "✅ Éxito", "Venta cancelada correctamente.")
+            Toast.success(self, "✅ Venta cancelada", "La devolución se aplicó correctamente.")
             dlg.accept()
 
         btn_buscar.clicked.connect(_buscar)

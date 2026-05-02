@@ -52,14 +52,34 @@ class UnifiedInventoryService:
                 stock_ant,stock_nuevo,cost_unit,cost_unit*quantity,
                 notas or movement_type,reference,self.usuario,sid)).lastrowid
             c.execute("UPDATE productos SET existencia=? WHERE id=?",(stock_nuevo,producto_id))
-            # Sync inventario_actual (per-branch cache used by inventory module)
-            c.execute("""
-                INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad, costo_promedio)
-                VALUES (?,?,?,?)
-                ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
-                    cantidad=excluded.cantidad,
-                    ultima_actualizacion=datetime('now')
-            """, (producto_id, sid, stock_nuevo, cost_unit))
+            # Sync inventario_actual con costo promedio ponderado
+            if cost_unit > 0 and delta > 0:
+                _cr = c.execute(
+                    "SELECT COALESCE(costo_promedio,0) FROM inventario_actual "
+                    "WHERE producto_id=? AND sucursal_id=?", (producto_id, sid)
+                ).fetchone()
+                _ca = float(_cr[0]) if _cr else 0.0
+                _cn = round((stock_ant * _ca + quantity * cost_unit) / stock_nuevo, 4) if stock_nuevo > 0 else cost_unit
+            else:
+                _cn = None
+
+            if _cn is not None:
+                c.execute("""
+                    INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad, costo_promedio)
+                    VALUES (?,?,?,?)
+                    ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                        cantidad=excluded.cantidad,
+                        costo_promedio=excluded.costo_promedio,
+                        ultima_actualizacion=datetime('now')
+                """, (producto_id, sid, stock_nuevo, _cn))
+            else:
+                c.execute("""
+                    INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad, costo_promedio)
+                    VALUES (?,?,?,0)
+                    ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                        cantidad=excluded.cantidad,
+                        ultima_actualizacion=datetime('now')
+                """, (producto_id, sid, stock_nuevo))
         return mid
     def adjust_stock(self, producto_id, new_qty, reason="Ajuste", sucursal_id=None):
         """Ajusta el stock al valor exacto new_qty, creando movimiento de ajuste."""
@@ -166,14 +186,43 @@ class UnifiedInventoryService:
                 "UPDATE productos SET existencia=? WHERE id=?",
                 (stock_nuevo, product_id)
             )
-            c.execute("""
-                INSERT INTO inventario_actual
-                    (producto_id, sucursal_id, cantidad, costo_promedio)
-                VALUES (?,?,?,0)
-                ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
-                    cantidad=excluded.cantidad,
-                    ultima_actualizacion=datetime('now')
-            """, (product_id, sucursal_id, stock_nuevo))
+            # FIX FALLA-6: actualizar costo_promedio cuando se provee metadata con unit_cost
+            _unit_cost = float(metadata.get("unit_cost") or metadata.get("costo_unitario") or 0)
+            if _unit_cost > 0 and delta > 0:
+                # Costo promedio ponderado: (stock_ant*costo_ant + qty*costo_nuevo) / stock_nuevo
+                _costo_row = c.execute(
+                    "SELECT COALESCE(costo_promedio, 0) FROM inventario_actual "
+                    "WHERE producto_id=? AND sucursal_id=?", (product_id, sucursal_id)
+                ).fetchone()
+                _costo_ant = float(_costo_row[0]) if _costo_row else 0.0
+                if stock_nuevo > 0:
+                    _costo_nuevo = round(
+                        (stock_ant * _costo_ant + qty_abs * _unit_cost) / stock_nuevo, 4
+                    )
+                else:
+                    _costo_nuevo = _unit_cost
+            else:
+                _costo_nuevo = None  # no cambiar costo si no se provee
+
+            if _costo_nuevo is not None:
+                c.execute("""
+                    INSERT INTO inventario_actual
+                        (producto_id, sucursal_id, cantidad, costo_promedio)
+                    VALUES (?,?,?,?)
+                    ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                        cantidad=excluded.cantidad,
+                        costo_promedio=excluded.costo_promedio,
+                        ultima_actualizacion=datetime('now')
+                """, (product_id, sucursal_id, stock_nuevo, _costo_nuevo))
+            else:
+                c.execute("""
+                    INSERT INTO inventario_actual
+                        (producto_id, sucursal_id, cantidad, costo_promedio)
+                    VALUES (?,?,?,0)
+                    ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
+                        cantidad=excluded.cantidad,
+                        ultima_actualizacion=datetime('now')
+                """, (product_id, sucursal_id, stock_nuevo))
 
         if conn is not None:
             _write(conn)

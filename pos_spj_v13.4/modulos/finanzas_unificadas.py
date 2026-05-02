@@ -23,20 +23,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, QDate
 from PyQt5.QtGui import QFont, QPixmap, QPalette
 
-try:
-    from modulos.design_tokens import Colors, Spacing, Typography
-except Exception:
-    class Colors:  # noqa: F811
-        class NEUTRAL:
-            SLATE_100 = "#F1F5F9"; SLATE_50 = "#F8FAFC"
-        class DANGER:
-            BASE = "#DC2626"
-        class SUCCESS:
-            BASE = "#16A34A"
-    class Spacing:
-        LG = 16
-    class Typography:
-        SIZE_SM = "11px"
+from modulos.ui_components import PageHeader, Toast
 
 logger = logging.getLogger("spj.finanzas_unificadas")
 
@@ -336,17 +323,17 @@ class DialogoAbono(QDialog):
                 self.ts.abonar_cuenta_por_pagar(
                     self.deuda['id'], monto, metodo, self.usuario
                 )
-                QMessageBox.information(
-                    self, "Éxito",
-                    f"Abono de ${monto:,.2f} registrado correctamente."
+                Toast.success(
+                    self.parent() or self, "Abono registrado",
+                    f"Abono de ${monto:,.2f} registrado correctamente.",
                 )
             else:
                 self.ts.abonar_cuenta_por_cobrar(
                     self.deuda['id'], monto, metodo, self.usuario
                 )
-                QMessageBox.information(
-                    self, "Éxito",
-                    f"Pago de ${monto:,.2f} registrado correctamente."
+                Toast.success(
+                    self.parent() or self, "Pago registrado",
+                    f"Pago de ${monto:,.2f} registrado correctamente.",
                 )
             self.monto_aplicado = monto
             self.accept()
@@ -431,37 +418,27 @@ class ModuloFinanzasUnificadas(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
-        
-        # Crear widget de pestañas principal
+
+        # ── PageHeader ────────────────────────────────────────────────────────
+        from modulos.ui_components import PageHeader as _PH
+        _header = _PH(
+            self,
+            title="💰 Finanzas Unificadas",
+            subtitle="Tesorería · Contabilidad · Proveedores — fuente única de verdad",
+        )
+        layout.addWidget(_header)
+
+        # ── Barra de KPIs financieros ─────────────────────────────────────────
+        self._fin_kpi_bar = self._crear_fin_kpi_bar()
+        layout.addWidget(self._fin_kpi_bar)
+
+        # Crear widget de pestañas principal — los colores vienen del QSS
+        # global construido en modulos/qss_builder.py (Oscuro y Claro).
         tabs = QTabWidget()
         self._tabs = tabs
         tabs.setObjectName("finanzasTabs")
         tabs.setAccessibleName("Módulo Finanzas")
-        tabs.setDocumentMode(True)
-        
-        # Estilizar pestañas
-        tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: none;
-                background-color: transparent;
-            }
-            QTabBar::tab {
-                background-color: #1E293B;
-                color: #94A3B8;
-                padding: 12px 24px;
-                margin-right: 2px;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-                font-weight: 500;
-            }
-            QTabBar::tab:selected {
-                background-color: #2563EB;
-                color: #FFFFFF;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #334155;
-            }
-        """)
+        tabs.setDocumentMode(False)
         
         # Pestaña 0: Dashboard financiero
         tab_dashboard = self._crear_pestaña_dashboard()
@@ -501,9 +478,63 @@ class ModuloFinanzasUnificadas(QWidget):
         tabs.currentChanged.connect(self._on_tab_changed)
         self._normalizar_botones_ui()
 
+    def _crear_fin_kpi_bar(self) -> 'QFrame':
+        """Barra horizontal con KPIs financieros clave."""
+        from PyQt5.QtWidgets import QFrame as _QF, QHBoxLayout as _QH, QVBoxLayout as _QV, QLabel as _QL
+        bar = _QF()
+        bar.setObjectName("finKpiBar")
+        bar.setStyleSheet(
+            f"QFrame#finKpiBar {{ background:{Colors.NEUTRAL.DARK_CARD if hasattr(Colors.NEUTRAL,'DARK_CARD') else '#1E293B'};"
+            f" border-radius:8px; border:1px solid {Colors.NEUTRAL.DARK_BORDER if hasattr(Colors.NEUTRAL,'DARK_BORDER') else '#334155'}; }}"
+        )
+        bar.setFixedHeight(70)
+        lay = _QH(bar)
+        lay.setContentsMargins(20, 8, 20, 8)
+        lay.setSpacing(0)
+
+        # Intentar cargar datos reales
+        kpis = [
+            ("CxC Pendiente", "$0",    Colors.WARNING_BASE),
+            ("CxP Pendiente", "$0",    Colors.DANGER_BASE),
+            ("Saldo Tesorería","$0",   Colors.SUCCESS_BASE),
+            ("Flujo del mes",  "$0",   Colors.PRIMARY_BASE),
+        ]
+        try:
+            db = self.conexion if hasattr(self, 'conexion') else None
+            if db:
+                r = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_cobrar WHERE estado='pendiente'").fetchone()
+                kpis[0] = ("CxC Pendiente", f"${float(r[0]):,.0f}", Colors.WARNING_BASE)
+                r2 = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_pagar WHERE estado='pendiente'").fetchone()
+                kpis[1] = ("CxP Pendiente", f"${float(r2[0]):,.0f}", Colors.DANGER_BASE)
+                r3 = db.execute("SELECT COALESCE(SUM(saldo),0) FROM cuentas_bancarias WHERE activa=1").fetchone()
+                kpis[2] = ("Saldo Tesorería", f"${float(r3[0]):,.0f}", Colors.SUCCESS_BASE)
+        except Exception:
+            pass
+
+        for i, (label, valor, color) in enumerate(kpis):
+            if i > 0:
+                sep = _QF()
+                sep.setFrameShape(_QF.VLine)
+                sep.setFixedWidth(1)
+                sep.setStyleSheet(f"background:{Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; border:none;")
+                lay.addWidget(sep)
+                lay.addSpacing(20)
+            col = _QV()
+            col.setSpacing(2)
+            lbl_v = _QL(valor)
+            lbl_v.setStyleSheet(f"color:{color}; font-size:18px; font-weight:700; background:transparent;")
+            lbl_l = _QL(label.upper())
+            lbl_l.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500}; font-size:9px; font-weight:700; letter-spacing:0.5px; background:transparent;")
+            col.addWidget(lbl_v)
+            col.addWidget(lbl_l)
+            lay.addLayout(col)
+            if i < len(kpis) - 1:
+                lay.addSpacing(20)
+        lay.addStretch()
+        return bar
+
     def _normalizar_botones_ui(self):
-        """Evita botones full-width y mejora alineación visual general."""
-        is_light = self.palette().color(QPalette.Window).lightness() >= 160
+        """Evita botones full-width; delega colores al QSS global del tema."""
         for btn in self.findChildren(QPushButton):
             # Mantener icon-buttons compactos de tablas.
             if btn.maximumWidth() <= 36 or (btn.minimumWidth() and btn.minimumWidth() <= 36):
@@ -511,7 +542,9 @@ class ModuloFinanzasUnificadas(QWidget):
             btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 30:
                 btn.setMinimumHeight(30)
-            if is_light:
+            # Asignar objectName si aún no tiene uno definido, para que el QSS
+            # global lo estilice correctamente en cualquier tema (claro/oscuro).
+            if not btn.objectName() or btn.objectName() == btn.__class__.__name__:
                 txt = (btn.text() or "").lower()
                 if any(k in txt for k in ("eliminar", "baja", "cancelar", "retirar")):
                     btn.setObjectName("dangerBtn")
@@ -519,15 +552,11 @@ class ModuloFinanzasUnificadas(QWidget):
                     btn.setObjectName("primaryBtn")
                 else:
                     btn.setObjectName("secondaryBtn")
-                # Evitar estilos hardcodeados oscuros en tema claro.
+            # Limpiar cualquier estilo inline hardcodeado que anule el tema global.
+            if btn.styleSheet():
                 btn.setStyleSheet("")
-
-        if is_light:
-            for tbl in self.findChildren(QTableWidget):
-                tbl.setStyleSheet(
-                    "QTableWidget{background:#FFFFFF;color:#0F172A;border:1px solid #CBD5E1;}"
-                    "QHeaderView::section{background:#E2E8F0;color:#334155;font-weight:600;}"
-                )
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
     
     def _on_tab_changed(self, index):
         """Carga datos según la pestaña activa."""
@@ -589,7 +618,7 @@ class ModuloFinanzasUnificadas(QWidget):
             cell = QGroupBox(title)
             cell_l = QVBoxLayout(cell)
             lbl = QLabel("—")
-            lbl.setStyleSheet("font-size:20px;font-weight:bold;color:#2563EB;")
+            lbl.setObjectName("kpiValue")
             cell_l.addWidget(lbl, 0, Qt.AlignCenter)
             self._kpi_labels[key] = lbl
             g.addWidget(cell, row, col)
@@ -653,13 +682,13 @@ class ModuloFinanzasUnificadas(QWidget):
         r_lay = QHBoxLayout(grp_resumen)
         
         self._lbl_capital_invertido = QLabel("$0.00")
-        self._lbl_capital_invertido.setStyleSheet("font-size:22px;font-weight:bold;color:#27ae60;")
+        self._lbl_capital_invertido.setObjectName("kpiValue")
         self._lbl_capital_disponible = QLabel("$0.00")
-        self._lbl_capital_disponible.setStyleSheet("font-size:22px;font-weight:bold;color:#2980b9;")
+        self._lbl_capital_disponible.setObjectName("kpiValue")
         self._lbl_roi = QLabel("0%")
-        self._lbl_roi.setStyleSheet("font-size:18px;font-weight:bold;color:#8e44ad;")
+        self._lbl_roi.setObjectName("kpiValue")
         self._lbl_salud = QLabel("")
-        self._lbl_salud.setStyleSheet("font-size:14px;font-weight:bold;")
+        self._lbl_salud.setObjectName("subheading")
         
         for lbl_title, lbl_val in [
             ("Capital Invertido", self._lbl_capital_invertido),
@@ -669,7 +698,7 @@ class ModuloFinanzasUnificadas(QWidget):
         ]:
             col = QVBoxLayout()
             t = QLabel(lbl_title)
-            t.setStyleSheet("font-size:11px;color:#7f8c8d;")
+            t.setObjectName("caption")
             t.setAlignment(Qt.AlignCenter)
             lbl_val.setAlignment(Qt.AlignCenter)
             col.addWidget(t)
@@ -692,11 +721,13 @@ class ModuloFinanzasUnificadas(QWidget):
         self._txt_desc_capital.setPlaceholderText("Descripción (ej: Capital socio A)")
         
         btn_inyectar = QPushButton("➕ Inyectar Capital")
-        btn_inyectar.setStyleSheet("background:#27ae60;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
+        btn_inyectar.setObjectName("successBtn")
+        btn_inyectar.setCursor(Qt.PointingHandCursor)
         btn_inyectar.clicked.connect(self._on_inyectar_capital)
-        
+
         btn_retirar = QPushButton("➖ Retirar Capital")
-        btn_retirar.setStyleSheet("background:#e74c3c;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
+        btn_retirar.setObjectName("dangerBtn")
+        btn_retirar.setCursor(Qt.PointingHandCursor)
         btn_retirar.clicked.connect(self._on_retirar_capital)
         
         c_lay.addWidget(QLabel("Monto:"))
@@ -727,12 +758,13 @@ class ModuloFinanzasUnificadas(QWidget):
         layout = QVBoxLayout(widget)
         
         lbl = QLabel("Facturas y deudas pendientes con proveedores")
-        lbl.setStyleSheet("color: gray;")
+        lbl.setObjectName("caption")
         layout.addWidget(lbl)
 
         top = QHBoxLayout()
         btn_nuevo_cxp = QPushButton("➕ Nueva CxP")
-        btn_nuevo_cxp.setStyleSheet("background:#2563EB;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxp.setObjectName("primaryBtn")
+        btn_nuevo_cxp.setCursor(Qt.PointingHandCursor)
         btn_nuevo_cxp.clicked.connect(self._dialogo_nueva_cxp)
         top.addWidget(btn_nuevo_cxp)
         btn_pago_global = QPushButton("💳 Pago global")
@@ -765,15 +797,17 @@ class ModuloFinanzasUnificadas(QWidget):
         layout = QVBoxLayout(widget)
         
         lbl = QLabel("Dinero pendiente de cobro a clientes")
-        lbl.setStyleSheet("color: gray;")
+        lbl.setObjectName("caption")
         layout.addWidget(lbl)
 
         top = QHBoxLayout()
         btn_nuevo_cliente = QPushButton("👤 Nuevo cliente")
-        btn_nuevo_cliente.setStyleSheet("background:#475569;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cliente.setObjectName("secondaryBtn")
+        btn_nuevo_cliente.setCursor(Qt.PointingHandCursor)
         btn_nuevo_cliente.clicked.connect(self._dialogo_nuevo_cliente)
         btn_nuevo_cxc = QPushButton("➕ Nueva CxC")
-        btn_nuevo_cxc.setStyleSheet("background:#16A34A;color:white;font-weight:bold;padding:6px 12px;border-radius:4px;")
+        btn_nuevo_cxc.setObjectName("successBtn")
+        btn_nuevo_cxc.setCursor(Qt.PointingHandCursor)
         btn_nuevo_cxc.clicked.connect(self._dialogo_nueva_cxc)
         top.addWidget(btn_nuevo_cliente)
         top.addWidget(btn_nuevo_cxc)
@@ -832,7 +866,8 @@ class ModuloFinanzasUnificadas(QWidget):
         ])
         
         btn_guardar = QPushButton("💾 Guardar Gasto")
-        btn_guardar.setStyleSheet("background:#e74c3c;color:white;font-weight:bold;padding:7px 16px;border-radius:5px;")
+        btn_guardar.setObjectName("dangerBtn")
+        btn_guardar.setCursor(Qt.PointingHandCursor)
         btn_guardar.clicked.connect(self._registrar_gasto)
         
         form_layout.addRow("Categoría:", self.cmb_categoria_gasto)
@@ -857,9 +892,10 @@ class ModuloFinanzasUnificadas(QWidget):
         # Header con botón nuevo
         hdr = QHBoxLayout()
         titulo = QLabel("🏭 Directorio de Proveedores")
-        titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        titulo.setObjectName("heading")
         btn_nuevo = QPushButton("➕ Nuevo Proveedor")
-        btn_nuevo.setStyleSheet("background:#27ae60;color:white;padding:8px 16px;font-weight:bold;border-radius:4px;")
+        btn_nuevo.setObjectName("successBtn")
+        btn_nuevo.setCursor(Qt.PointingHandCursor)
         btn_nuevo.clicked.connect(self._nuevo_proveedor)
         hdr.addWidget(titulo)
         hdr.addStretch()
@@ -954,7 +990,7 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             self._ts.inyectar_capital(monto, desc, self.usuario_actual)
-            QMessageBox.information(self, "Éxito", f"Capital inyectado: ${monto:,.2f}")
+            Toast.success(self, "Capital inyectado", f"${monto:,.2f}")
             self._spin_capital.setValue(0)
             self._txt_desc_capital.clear()
             self._cargar_capex()
@@ -975,7 +1011,7 @@ class ModuloFinanzasUnificadas(QWidget):
             return
         try:
             self._ts.retirar_capital(monto, desc, self.usuario_actual)
-            QMessageBox.information(self, "Éxito", f"Capital retirado: ${monto:,.2f}")
+            Toast.success(self, "Capital retirado", f"${monto:,.2f}")
             self._spin_capital.setValue(0)
             self._txt_desc_capital.clear()
             self._cargar_capex()
@@ -1064,35 +1100,22 @@ class ModuloFinanzasUnificadas(QWidget):
             logger.error(f"Error cargando CxC: {e}")
 
     def _create_compact_action_button(self, text: str, variant: str = "primary") -> QPushButton:
-        """
-        Botón compacto para acciones por fila en tablas (mismo estándar visual
-        de módulos como Productos y Clientes).
-        """
+        """Botón compacto para acciones por fila en tablas — usa objectName para herencia de tema."""
+        variant_map = {
+            "primary": "primaryBtn",
+            "success": "successBtn",
+            "danger": "dangerBtn",
+            "warning": "warningBtn",
+            "outline": "outlineBtn",
+            "secondary": "secondaryBtn",
+        }
         btn = QPushButton(text)
+        btn.setFixedHeight(26)
+        btn.setMinimumWidth(80)
+        btn.setMaximumWidth(110)
         btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        btn.setMinimumHeight(30)
-        btn.setMinimumWidth(98)
-        btn.setMaximumWidth(126)
         btn.setCursor(Qt.PointingHandCursor)
-
-        is_light = self.palette().color(QPalette.Window).lightness() >= 160
-        if is_light:
-            btn.setStyleSheet("")
-            btn.setObjectName("primaryBtn" if variant == "primary" else "successBtn")
-            return btn
-
-        if variant == "success":
-            btn.setStyleSheet(
-                "QPushButton{background:#27ae60;color:white;font-weight:600;"
-                "padding:5px 10px;border-radius:5px;}"
-                "QPushButton:hover{background:#219150;}"
-            )
-        else:
-            btn.setStyleSheet(
-                "QPushButton{background:#2E86C1;color:white;font-weight:600;"
-                "padding:5px 10px;border-radius:5px;}"
-                "QPushButton:hover{background:#1f6fa5;}"
-            )
+        btn.setObjectName(variant_map.get(variant, "primaryBtn"))
         return btn
     
     def _filtrar_cxc(self):
@@ -1346,7 +1369,7 @@ class ModuloFinanzasUnificadas(QWidget):
                 usuario=self.usuario_actual,
                 sucursal_id=self.sucursal_id
             )
-            QMessageBox.information(self, "Éxito", "Gasto registrado en la contabilidad.")
+            Toast.success(self, "Gasto registrado", "Asentado en contabilidad.")
             self.txt_concepto_gasto.clear()
             self.txt_monto_gasto.setValue(0.1)
         except Exception as e:
@@ -1410,12 +1433,16 @@ class ModuloFinanzasUnificadas(QWidget):
             
             btn_ed = QPushButton("✏️")
             btn_ed.setFixedSize(28, 26)
+            btn_ed.setObjectName("outlineBtn")
             btn_ed.setToolTip("Editar")
+            btn_ed.setCursor(Qt.PointingHandCursor)
             btn_ed.clicked.connect(lambda _, pid=pid: self._editar_por_id(pid))
-            
+
             btn_del = QPushButton("🗑️")
             btn_del.setFixedSize(28, 26)
+            btn_del.setObjectName("dangerBtn")
             btn_del.setToolTip("Eliminar")
+            btn_del.setCursor(Qt.PointingHandCursor)
             btn_del.clicked.connect(lambda _, pid=pid, nom=nombre: self._eliminar_proveedor(pid, nom))
             
             btn_lay.addWidget(btn_ed)

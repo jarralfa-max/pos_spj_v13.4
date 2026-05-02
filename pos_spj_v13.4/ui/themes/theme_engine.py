@@ -56,31 +56,24 @@ def get_qss(theme_name: str) -> str:
 
 def apply_theme(widget, theme_name: str) -> bool:
     """
-    Aplica un tema GLOBALMENTE: primero a QApplication (todos los widgets),
-    después al widget específico si es distinto de la app.
+    Aplica un tema GLOBALMENTE vía QApplication.setStyleSheet.
 
-    Siempre persiste el tema en BD para que sobreviva reinicios.
+    Una sola llamada a app.setStyleSheet re-estiliza todos los widgets.
+    No se aplica al widget individual (doble aplicación no agrega nada
+    y duplica el trabajo de polish en todos los hijos).
     """
     global _current_theme
     qss = get_qss(theme_name)
     if not qss:
         return False
     try:
-        # 1. Aplicar a QApplication para que TODOS los widgets hereden el tema
-        try:
-            from PyQt5.QtWidgets import QApplication
-            app = QApplication.instance()
-            if app is not None:
-                app.setStyleSheet(qss)
-        except Exception:
-            pass
-
-        # 2. Aplicar también al widget específico (refuerzo)
-        if widget is not None:
-            try:
-                widget.setStyleSheet(qss)
-            except Exception:
-                pass
+        from PyQt5.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(qss)
+        elif widget is not None:
+            # Fallback sin QApplication — aplica solo al widget raíz
+            widget.setStyleSheet(qss)
 
         _current_theme = theme_name
         _persist_theme(theme_name)

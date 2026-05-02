@@ -15,7 +15,8 @@ from modulos.ui_components import (
     create_danger_button, create_input, create_combo, create_card,
     create_heading, create_subheading, create_caption, apply_tooltip,
     FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
-    create_standard_tabs, wrap_in_scroll_area
+    create_standard_tabs, wrap_in_scroll_area,
+    PageHeader, Toast,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
@@ -78,6 +79,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         root = QVBoxLayout(self)
         root.setContentsMargins(10, 8, 10, 8)
 
+        # ── PageHeader ────────────────────────────────────────────────────────
+        from modulos.ui_components import PageHeader as _PH
+        root.addWidget(_PH(self,
+            title="🛒 Compras a Proveedores",
+            subtitle="Recepción de mercancía · Actualización de stock · Historial",
+        ))
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        root.addWidget(self._crear_stats_compras())
+
         # Tabs: Tradicional | QR
         self._tabs = create_standard_tabs(self)
         root.addWidget(self._tabs)
@@ -105,6 +116,49 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
+
+    def _crear_stats_compras(self) -> 'QWidget':
+        """Barra de KPIs: compras del mes, proveedores activos, órdenes pendientes, gasto."""
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+        bar = _F(); bar.setObjectName("statsBarCmp")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet(
+            "QFrame#statsBarCmp { background:#1E293B; border-radius:8px;"
+            " border:1px solid #334155; }"
+        )
+        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+
+        kpis = [("Compras este mes","—",_C.PRIMARY_BASE),("Proveedores activos","—",_C.SUCCESS_BASE),
+                ("Órdenes pendientes","—",_C.WARNING_BASE),("Gasto del mes","—",_C.INFO_BASE)]
+        try:
+            db = self.container.db
+            r = db.execute(
+                "SELECT COUNT(*), COALESCE(SUM(total),0) FROM compras "
+                "WHERE DATE(fecha)>=DATE('now','start of month')"
+            ).fetchone()
+            kpis[0] = ("Compras este mes", str(r[0] or 0), _C.PRIMARY_BASE)
+            kpis[3] = ("Gasto del mes", f"${float(r[1] or 0):,.0f}", _C.INFO_BASE)
+            r2 = db.execute("SELECT COUNT(*) FROM proveedores WHERE activo=1").fetchone()
+            kpis[1] = ("Proveedores activos", str(r2[0] or 0), _C.SUCCESS_BASE)
+            r3 = db.execute(
+                "SELECT COUNT(*) FROM ordenes_compra WHERE estado='pendiente'"
+            ).fetchone()
+            kpis[2] = ("Órdenes pendientes", str(r3[0] or 0), _C.WARNING_BASE)
+        except Exception: pass
+
+        for i, (lbl, val, col) in enumerate(kpis):
+            if i > 0:
+                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155; border:none;")
+                lay.addWidget(s); lay.addSpacing(20)
+            c = _V(); c.setSpacing(1)
+            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l = _L(lbl.upper()); l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v); c.addWidget(l); lay.addLayout(c)
+            if i < 3: lay.addSpacing(20)
+        lay.addStretch()
+        return bar
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
         lay = QVBoxLayout(parent)
@@ -552,30 +606,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 notes=doc_ref,
             )
 
-            # ── Actualización de existencia via ApplicationService ──────────
-            app_svc = getattr(self.container, 'app_service', None)
-            for _item in items_svc:
-                try:
-                    if app_svc:
-                        app_svc.registrar_compra(
-                            producto_id=_item['product_id'],
-                            cantidad=_item['qty'],
-                            costo_unitario=_item['unit_cost'],
-                            usuario=self.usuario_actual,
-                            referencia=doc_ref,
-                            sucursal_id=branch_dest,
-                            proveedor_id=proveedor_id)
-                    else:
-                        self.container.db.execute(
-                            "UPDATE productos SET existencia = existencia + ?, "
-                            "precio_compra = ? WHERE id = ?",
-                            (_item['qty'], _item['unit_cost'], _item['product_id'])
-                        )
-                except Exception as _e:
-                    import logging as _lg
-                    _lg.getLogger(__name__).error(
-                        "Direct stock update failed prod=%s: %s",
-                        _item['product_id'], _e)
+            # Stock already updated by PurchaseService.register_purchase() via
+            # inventory_service.add_stock() — no duplicate update needed here.
 
             # Process recipes for purchased items
             recetas_procesadas = []
@@ -594,10 +626,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             except Exception:
                 pass
 
-            msg_ok = f"Compra registrada.\nFolio: {folio}"
+            detail = f"Folio: {folio}"
             if recetas_procesadas:
-                msg_ok += f"\n\n✅ Recetas procesadas: {', '.join(recetas_procesadas)}"
-            QMessageBox.information(self, "✅ Éxito", msg_ok)
+                detail += f" · Recetas: {', '.join(recetas_procesadas)}"
+            Toast.success(self, "✅ Compra registrada", detail)
 
             # Clear UI
             self.carrito_compra.clear()

@@ -1,11 +1,12 @@
-
+# -*- coding: utf-8 -*-
 # modulos/reportes_bi_v2.py
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_input, create_combo, create_card,
     create_heading, create_subheading, create_caption, apply_tooltip,
-    FilterBar, EmptyStateWidget, LoadingIndicator, DataTableWithFilters, confirm_action
+    FilterBar, EmptyStateWidget, LoadingIndicator, DataTableWithFilters, confirm_action,
+    PageHeader, Toast,
 )
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from PyQt5.QtWidgets import (
@@ -47,54 +48,45 @@ class ModuloReportesBIv2(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         layout_principal = QVBoxLayout()
-        layout_principal.setSpacing(10)
+        layout_principal.setSpacing(16)
         outer.addLayout(layout_principal)
 
-        # --- HEADER Y FILTROS ---
-        header_layout = QHBoxLayout()
-        
-        lbl_titulo = create_heading(self, "📈 Inteligencia Comercial (Dashboard)")
-        header_layout.addWidget(lbl_titulo)
-        
-        header_layout.addStretch()
-        
+        # --- HEADER (PageHeader: título + subtítulo + acciones) ---
+        self.page_header = PageHeader(
+            self,
+            title="📈 Inteligencia Comercial",
+            subtitle="Dashboard ejecutivo de BI",
+        )
+
+        # Período
         self.cmb_rango = create_combo(self, ["Hoy", "Esta Semana", "Este Mes"])
         self.cmb_rango.currentTextChanged.connect(self.cargar_dashboard)
-        
+        self.page_header.add_action(QLabel("Período:"))
+        self.page_header.add_action(self.cmb_rango)
+
+        # Refrescar
         self.btn_actualizar = create_secondary_button(self, "🔄 Refrescar", "Actualizar datos del dashboard")
         self.btn_actualizar.clicked.connect(self.cargar_dashboard)
+        self.page_header.add_action(self.btn_actualizar)
 
+        # Exportar
         btn_excel = create_success_button(self, "📊 Excel", "Exportar dashboard a Excel (.xlsx)")
         btn_excel.clicked.connect(lambda: self._exportar("excel"))
+        self.page_header.add_action(btn_excel)
 
         btn_pdf = create_danger_button(self, "📄 PDF", "Exportar dashboard a PDF")
         btn_pdf.clicked.connect(lambda: self._exportar("pdf"))
+        self.page_header.add_action(btn_pdf)
 
-        header_layout.addWidget(QLabel("Período:"))
-        header_layout.addWidget(self.cmb_rango)
-        header_layout.addWidget(self.btn_actualizar)
-        header_layout.addWidget(btn_excel)
-        header_layout.addWidget(btn_pdf)
-        
-        layout_principal.addLayout(header_layout)
+        layout_principal.addWidget(self.page_header)
 
-        self.filter_bar = FilterBar(
-            self,
-            placeholder="Buscar producto, cliente o cajero…",
-            combo_filters={"vista": ["Resumen", "Rankings", "Rentabilidad", "Cajeros"]}
-        )
-        self.filter_bar.filters_changed.connect(self._on_global_filters_changed)
-        layout_principal.addWidget(self.filter_bar)
-
-        self.loading_dashboard = LoadingIndicator("Actualizando dashboard BI…", self)
-        self.loading_dashboard.hide()
-        layout_principal.addWidget(self.loading_dashboard)
+        # ── KPI cards con sparklines ──────────────────────────────────────────
+        layout_principal.addWidget(self._crear_kpi_bar_bi())
 
         self.tabs_bi = QTabWidget()
         self.tabs_bi.setDocumentMode(True)
         layout_principal.addWidget(self.tabs_bi)
 
-        self._build_tab_resumen()
         self._build_tab_visual_dashboard()
         self._build_tab_rankings()
         self._build_tab_rentabilidad()
@@ -103,52 +95,119 @@ class ModuloReportesBIv2(QWidget):
         self._build_tab_decision_engine()
         self._build_tab_franchise()
 
+    def _crear_kpi_bar_bi(self) -> 'QFrame':
+        """Barra de 4 KPI cards con valores reales del período actual."""
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+
+        bar = _F()
+        bar.setObjectName("biKpiBar")
+        bar.setFixedHeight(72)
+        bar.setStyleSheet("QFrame#biKpiBar{background:transparent;}")
+
+        lay = _H(bar)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+
+        kpis = [
+            ("Ventas del período", "—", _C.SUCCESS_BASE, "↑ cargando..."),
+            ("Ticket promedio", "—", _C.PRIMARY_BASE, ""),
+            ("Margen bruto", "—", _C.WARNING_BASE, ""),
+            ("Clientes únicos", "—", _C.ACCENT_BASE, "")
+        ]
+
+        try:
+            db = self.conexion if hasattr(self, 'conexion') else None
+            if db:
+                r = db.execute("""
+                    SELECT 
+                        COALESCE(SUM(total),0),
+                        COUNT(*),
+                        COUNT(DISTINCT cliente_id) 
+                    FROM ventas 
+                    WHERE DATE(fecha)=DATE('now') 
+                    AND estado='completada'
+                """).fetchone()
+
+                ventas = float(r[0] or 0)
+                tickets = int(r[1] or 1)
+                cli = int(r[2] or 0)
+
+                prom = ventas / tickets if tickets > 0 else 0
+
+                kpis[0] = ("Ventas del período", f"${ventas:,.0f}", _C.SUCCESS_BASE, "↑ hoy")
+                kpis[1] = ("Ticket promedio", f"${prom:,.0f}", _C.PRIMARY_BASE, "")
+                kpis[3] = ("Clientes únicos", str(cli), _C.ACCENT_BASE, "")
+
+                r2 = db.execute("""
+                    SELECT 
+                        COALESCE(SUM(vd.cantidad*vd.precio_unitario),0),
+                        COALESCE(SUM(vd.cantidad*COALESCE(p.precio_compra,0)),0)
+                    FROM ventas v
+                    JOIN detalles_venta vd ON vd.venta_id = v.id
+                    JOIN productos p ON p.id = vd.producto_id
+                    WHERE DATE(v.fecha)=DATE('now') 
+                    AND v.estado='completada'
+                """).fetchone()
+
+                ing = float(r2[0] or 0)
+                cos = float(r2[1] or 0)
+
+                mg = ((ing - cos) / ing * 100) if ing > 0 else 0
+
+                kpis[2] = (
+                    "Margen bruto",
+                    f"{mg:.1f}%",
+                    _C.SUCCESS_BASE if mg >= 25 else _C.WARNING_BASE,
+                    ""
+                )
+
+        except Exception:
+            pass
+
+        for lbl, val, col, sub in kpis:
+            card = _F()
+            card.setObjectName("biKpiCard")
+            card.setStyleSheet(
+                f"QFrame#biKpiCard{{background:#1E293B;border-radius:8px;"
+                f"border:1px solid #334155;border-top:3px solid {col};}}"
+            )
+
+            cl = _V(card)
+            cl.setContentsMargins(14, 8, 14, 8)
+            cl.setSpacing(2)
+
+            vl = _L(val)
+            vl.setStyleSheet(
+                f"color:{col};font-size:20px;font-weight:700;background:transparent;"
+            )
+
+            ll = _L(lbl.upper())
+            ll.setStyleSheet(
+                "color:#64748B;font-size:9px;font-weight:700;"
+                "letter-spacing:0.5px;background:transparent;"
+            )
+
+            cl.addWidget(vl)
+            cl.addWidget(ll)
+
+            if sub:
+                sl = _L(sub)
+                sl.setStyleSheet(
+                    f"color:{col};font-size:9px;background:transparent;"
+                )
+                cl.addWidget(sl)
+
+            lay.addWidget(card, 1)
+
+        return bar
+
     def _crear_tab_contenedor(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         return tab, layout
-
-    def _build_tab_resumen(self):
-        tab, layout = self._crear_tab_contenedor()
-
-        kpi_layout = QHBoxLayout()
-        self.lbl_kpi_ingresos = self._crear_tarjeta_kpi("💵 Ingresos Totales", "$0.00")
-        self.lbl_kpi_ticket = self._crear_tarjeta_kpi("🧾 Ticket Promedio", "$0.00")
-        self.lbl_kpi_ventas = self._crear_tarjeta_kpi("🛒 Num. Ventas", "0")
-        self.lbl_kpi_clientes = self._crear_tarjeta_kpi("👥 Clientes Únicos", "0")
-        kpi_layout.addWidget(self.lbl_kpi_ingresos)
-        kpi_layout.addWidget(self.lbl_kpi_ticket)
-        kpi_layout.addWidget(self.lbl_kpi_ventas)
-        kpi_layout.addWidget(self.lbl_kpi_clientes)
-        layout.addLayout(kpi_layout)
-
-        self.lbl_comparativa = create_caption(self, "")
-        self.lbl_comparativa.setAlignment(Qt.AlignCenter)
-        self.lbl_comparativa.hide()
-        layout.addWidget(self.lbl_comparativa)
-
-        self._lbl_resumen_alertas = QLabel("Alertas: esperando actualización de datos.")
-        self._lbl_resumen_alertas.setStyleSheet("color:#6c757d;")
-        layout.addWidget(self._lbl_resumen_alertas)
-
-        accesos = QGroupBox("Acceso rápido")
-        accesos_lay = QHBoxLayout(accesos)
-        for idx, texto in [
-            (2, "Ventas / Rankings"),
-            (3, "Rentabilidad"),
-            (4, "Cajeros"),
-            (5, "Forecast"),
-            (6, "Sugerencias"),
-            (7, "Sucursales"),
-        ]:
-            btn = create_secondary_button(self, texto, f"Ir a {texto}")
-            btn.clicked.connect(lambda _, i=idx: self.tabs_bi.setCurrentIndex(i))
-            accesos_lay.addWidget(btn)
-        layout.addWidget(accesos)
-        layout.addStretch()
-        self.tabs_bi.addTab(tab, "Resumen Ejecutivo")
 
     def _build_tab_visual_dashboard(self):
         """Dashboard visual moderno con QWebEngineView + Apache ECharts."""
@@ -707,7 +766,7 @@ class ModuloReportesBIv2(QWidget):
                         self._tbl_rent.item(row, col).text() if self._tbl_rent.item(row, col) else ""
                         for col in range(self._tbl_rent.columnCount())
                     ])
-            QMessageBox.information(self, "Exportado", f"CSV guardado:\n{path}")
+            Toast.success(self, "Exportado", f"CSV guardado:\n{path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -835,10 +894,7 @@ class ModuloReportesBIv2(QWidget):
                         "WHERE DATE(fecha)=DATE('now') ORDER BY fecha DESC LIMIT 500",
                         (), fmt="pdf", filepath=ruta
                     )
-            QMessageBox.information(
-                self, "✅ Exportado",
-                f"Archivo guardado en:\n{ruta}"
-            )
+            Toast.success(self, "Exportado", f"Archivo guardado en:\n{ruta}")
             os.startfile(ruta) if os.name == "nt" else None
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))

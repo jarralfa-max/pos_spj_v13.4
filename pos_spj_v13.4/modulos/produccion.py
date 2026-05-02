@@ -51,21 +51,16 @@ from core.services.recipe_engine import (
 )
 
 logger = logging.getLogger("spj.ui.produccion")
-_RED   = "#e74c3c"
-_BLUE  = "#2563EB"
-_GREEN = "#16A34A"
-_GOLD  = "#f39c12"
-_GRAY  = "#7f8c8d"
-
 TIPO_LABELS = {
     "subproducto": "🔪 Despiece / Subproductos",
     "combinacion": "📦 Kit / Paquete / Combo",
     "produccion":  "🍳 Producción / Elaboración",
 }
+# Usar design tokens — sin constantes de color locales
 TIPO_COLOR = {
-    "subproducto": _RED,
-    "combinacion": _BLUE,
-    "produccion":  _GREEN,
+    "subproducto": Colors.DANGER_BASE,
+    "combinacion": Colors.PRIMARY_BASE,
+    "produccion":  Colors.SUCCESS_BASE,
 }
 
 
@@ -154,6 +149,10 @@ class ModuloProduccion(ModuloBase):
         self._lbl_suc.setText(f"Sucursal: {self.sucursal_nombre}")
         self._load_recetas()
         self._load_historial()
+        if hasattr(self, '_rec_tabla'):
+            self._cargar_lista_recetas()
+        if hasattr(self, '_stats_lbl_vals'):
+            self._actualizar_stats_bar()
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -171,6 +170,10 @@ class ModuloProduccion(ModuloBase):
         hdr.addWidget(ttl); hdr.addStretch(); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
+        # Stats bar — KPIs en tiempo real
+        self._stats_bar = self._crear_stats_produccion()
+        root.addWidget(self._stats_bar)
+
         # Tabs
         self._tabs = QTabWidget()
         self._tabs.addTab(self._build_tab_produccion(), "🏭 Ejecutar Producción")
@@ -178,6 +181,180 @@ class ModuloProduccion(ModuloBase):
         self._tabs.addTab(self._build_tab_carnica(),    "🥩 Cárnica / Lotes")
         self._tabs.addTab(self._build_tab_recetas(),    "📋 Recetas")
         root.addWidget(self._tabs)
+
+    def _crear_stats_produccion(self) -> 'QFrame':
+        """
+        Barra de KPIs de producción cárnica.
+        Sigue el estándar visual de finanzas_unificadas._crear_fin_kpi_bar.
+        Sin hardcodeo: usa Colors.NEUTRAL tokens.
+        """
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+
+        N = Colors.NEUTRAL
+        bar = _F()
+        bar.setObjectName("prodStatsBar")
+        bar.setFixedHeight(68)
+        bar.setStyleSheet(
+            f"QFrame#prodStatsBar {{ "
+            f"background:{N.DARK_CARD}; "
+            f"border-radius:8px; "
+            f"border:1px solid {N.DARK_BORDER}; }}"
+        )
+
+        lay = _H(bar)
+        lay.setContentsMargins(Spacing.LG, Spacing.SM, Spacing.LG, Spacing.SM)
+        lay.setSpacing(0)
+
+        # Definición inicial de KPIs (valores placeholder)
+        kpis = [
+            ("producciones_hoy", "Producciones hoy", "—",    Colors.PRIMARY_BASE),
+            ("kg_procesados",    "Kg procesados",    "—",    Colors.SUCCESS_BASE),
+            ("merma_dia",        "Merma del día",    "—",    Colors.WARNING_BASE),
+            ("rendimiento",      "Rendimiento",      "—",    Colors.SUCCESS_BASE),
+            ("lotes_activos",    "Lotes activos",    "—",    Colors.INFO_BASE),
+        ]
+
+        # Guardar referencias a los QLabel de valor para actualizaciones en vivo
+        self._stats_lbl_vals: dict = {}
+
+        for i, (key, label, valor, color) in enumerate(kpis):
+            if i > 0:
+                sep = _F()
+                sep.setFrameShape(_F.VLine)
+                sep.setFixedWidth(1)
+                sep.setStyleSheet(f"background:{N.SLATE_700}; border:none;")
+                lay.addWidget(sep)
+                lay.addSpacing(Spacing.LG)
+
+            col = _V()
+            col.setSpacing(2)
+
+            lbl_v = _L(valor)
+            lbl_v.setStyleSheet(
+                f"color:{color}; font-size:18px; font-weight:700; background:transparent;"
+            )
+            lbl_l = _L(label.upper())
+            lbl_l.setStyleSheet(
+                f"color:{N.SLATE_500}; font-size:9px; font-weight:700; "
+                f"letter-spacing:0.5px; background:transparent;"
+            )
+
+            self._stats_lbl_vals[key] = (lbl_v, color)  # (label_widget, color_ok)
+            col.addWidget(lbl_v)
+            col.addWidget(lbl_l)
+            lay.addLayout(col)
+
+            if i < len(kpis) - 1:
+                lay.addSpacing(Spacing.LG)
+
+        lay.addStretch()
+
+        # Cargar valores reales en diferido para no bloquear arranque
+        QTimer.singleShot(50, self._actualizar_stats_bar)
+        return bar
+
+    def _actualizar_stats_bar(self) -> None:
+        """
+        Actualiza solo los valores de los QLabels de la stats bar.
+        Dos queries: production_batches (nuevo) con fallback a producciones (legacy).
+        No reconstruye el widget — solo actualiza texto y color.
+        """
+        if not hasattr(self, '_stats_lbl_vals'):
+            return
+
+        db = self.conexion
+        if not db:
+            return
+
+        vals: dict = {}
+
+        # ── Fuente primaria: production_batches + production_yield_analysis ──
+        try:
+            r = db.execute("""
+                SELECT COUNT(*),
+                       COALESCE(SUM(pb.source_weight), 0),
+                       COALESCE(SUM(pb.waste_weight),  0),
+                       COALESCE(AVG(pya.real_yield),   0)
+                FROM production_batches pb
+                LEFT JOIN production_yield_analysis pya ON pya.batch_id = pb.id
+                WHERE pb.estado = 'cerrado'
+                  AND DATE(pb.closed_at) = DATE('now')
+            """).fetchone()
+            vals["producciones_hoy"] = int(r[0] or 0)
+            vals["kg_procesados"]    = float(r[1] or 0)
+            vals["merma_dia"]        = float(r[2] or 0)
+            vals["rendimiento"]      = float(r[3] or 0)
+        except Exception:
+            # Fallback legacy: producciones + produccion_detalle
+            try:
+                r = db.execute("""
+                    SELECT COUNT(*), COALESCE(SUM(cantidad_base), 0)
+                    FROM producciones
+                    WHERE estado = 'completada'
+                      AND DATE(fecha) = DATE('now')
+                """).fetchone()
+                vals["producciones_hoy"] = int(r[0] or 0)
+                vals["kg_procesados"]    = float(r[1] or 0)
+
+                r2 = db.execute("""
+                    SELECT COALESCE(SUM(pd.cantidad_generada), 0)
+                    FROM produccion_detalle pd
+                    JOIN producciones p ON p.id = pd.produccion_id
+                    WHERE pd.tipo = 'merma'
+                      AND DATE(p.fecha) = DATE('now')
+                """).fetchone()
+                vals["merma_dia"] = float(r2[0] or 0)
+
+                kg = vals["kg_procesados"]
+                merma = vals["merma_dia"]
+                vals["rendimiento"] = round((1 - merma / kg) * 100, 1) if kg > 0 else 0.0
+            except Exception:
+                pass
+
+        # ── Lotes activos: aplica en ambos esquemas ───────────────────────────
+        try:
+            r3 = db.execute(
+                "SELECT COUNT(*) FROM lotes WHERE estado='activo'"
+            ).fetchone()
+            vals["lotes_activos"] = int(r3[0] or 0)
+        except Exception:
+            vals["lotes_activos"] = 0
+
+        # ── Formatear y actualizar QLabels ───────────────────────────────────
+        kg_p  = vals.get("kg_procesados", 0)
+        merma = vals.get("merma_dia", 0)
+        rend  = vals.get("rendimiento", 0.0)
+
+        formatos = {
+            "producciones_hoy": (
+                str(vals.get("producciones_hoy", 0)),
+                Colors.PRIMARY_BASE,
+            ),
+            "kg_procesados": (
+                f"{kg_p:.1f} kg",
+                Colors.SUCCESS_BASE,
+            ),
+            "merma_dia": (
+                f"{merma:.1f} kg",
+                Colors.DANGER_BASE if merma > 0 else Colors.SUCCESS_BASE,
+            ),
+            "rendimiento": (
+                f"{rend:.1f}%",
+                Colors.SUCCESS_BASE if rend >= 90 else Colors.WARNING_BASE,
+            ),
+            "lotes_activos": (
+                str(vals.get("lotes_activos", 0)),
+                Colors.INFO_BASE,
+            ),
+        }
+
+        for key, (lbl_w, _default_color) in self._stats_lbl_vals.items():
+            if key in formatos:
+                texto, color = formatos[key]
+                lbl_w.setText(texto)
+                lbl_w.setStyleSheet(
+                    f"color:{color}; font-size:18px; font-weight:700; background:transparent;"
+                )
 
     # ── TAB: Ejecutar Producción ──────────────────────────────────────────────
 
@@ -557,52 +734,78 @@ class ModuloProduccion(ModuloBase):
 
     def _cargar_lista_recetas(self):
         from PyQt5.QtWidgets import QTableWidgetItem
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
+        conn = self.conexion
         if not conn:
             return
+
+        product_expr = self._pr_product_expr()
+
+        rows = []
         try:
-            # Fuente canónica (v13.4): product_recipes + product_recipe_components
-            rows = conn.execute("""
+            # FIX: no usar r.rendimiento_esperado_pct — no existe en product_recipes
+            rows = conn.execute(f"""
                 SELECT r.id,
-                       COALESCE(r.nombre_receta, r.nombre, '') as nombre,
-                       COALESCE(p.nombre, '') as producto_base,
-                       COALESCE(r.total_rendimiento, r.rendimiento_esperado_pct, 0) as rendimiento,
-                       (
-                        SELECT COUNT(*)
+                       COALESCE(r.nombre_receta, r.nombre, '') AS nombre,
+                       COALESCE(r.tipo_receta, 'subproducto')  AS tipo_receta,
+                       COALESCE(p.nombre, '—')                 AS producto_base,
+                       COALESCE(r.total_rendimiento, 0)        AS rendimiento,
+                       (SELECT COUNT(*)
                         FROM product_recipe_components rc
-                        WHERE rc.recipe_id = r.id
-                       ) as componentes
+                        WHERE rc.recipe_id = r.id)             AS componentes
                 FROM product_recipes r
-                LEFT JOIN productos p ON p.id = COALESCE(r.product_id, r.base_product_id)
+                LEFT JOIN productos p ON p.id = {product_expr}
                 WHERE COALESCE(r.is_active, r.activa, 1) = 1
-                ORDER BY nombre LIMIT 200
+                ORDER BY r.nombre_receta, r.nombre LIMIT 300
             """).fetchall()
-        except Exception:
+        except Exception as _e:
+            logger.warning("_cargar_lista_recetas product_recipes: %s", _e)
+
+        # Fallback a tabla legacy solo si product_recipes devolvió vacío
+        if not rows:
             try:
-                # Fallback legacy: recetas + recipe_components
                 rows = conn.execute("""
-                    SELECT r.id, r.nombre,
-                           COALESCE(p.nombre, ''),
-                           COALESCE(r.rendimiento_esperado_pct, 0),
-                           0
+                    SELECT r.id,
+                           COALESCE(r.nombre, '') AS nombre,
+                           'subproducto'          AS tipo_receta,
+                           COALESCE(p.nombre, '—') AS producto_base,
+                           COALESCE(r.rendimiento_esperado_pct, 0) AS rendimiento,
+                           0 AS componentes
                     FROM recetas r
                     LEFT JOIN productos p ON p.id = r.producto_id
-                    ORDER BY r.nombre LIMIT 200
+                    WHERE COALESCE(r.activo, 1) = 1
+                    ORDER BY r.nombre LIMIT 300
                 """).fetchall()
-            except Exception:
+            except Exception as _e2:
+                logger.warning("_cargar_lista_recetas legacy: %s", _e2)
                 rows = []
+
         self._rec_tabla.setRowCount(0)
         if not rows:
             self._rec_tabla.setRowCount(1)
             self._rec_tabla.setSpan(0, 0, 1, self._rec_tabla.columnCount())
-            self._rec_tabla.setItem(0, 0, QTableWidgetItem("No hay recetas activas registradas."))
+            item = QTableWidgetItem("No hay recetas activas registradas.")
+            item.setForeground(QColor(Colors.TEXT_SECONDARY))
+            self._rec_tabla.setItem(0, 0, item)
             return
+
+        from PyQt5.QtCore import Qt as _Qt
         for i, r in enumerate(rows):
             self._rec_tabla.insertRow(i)
-            vals = [str(r[0]), r[1], r[2], f"{r[3]:.1f}%", str(r[4])]
+            tipo = r[2] if len(r) > 2 else "subproducto"
+            tipo_color = TIPO_COLOR.get(tipo, Colors.TEXT_SECONDARY)
+            vals = [
+                str(r[0]),          # ID (oculto)
+                r[1],               # Nombre
+                r[3],               # Producto base
+                f"{float(r[4]):.1f}%",  # Rendimiento
+                str(r[5]),          # Componentes
+            ]
             for j, v in enumerate(vals):
-                self._rec_tabla.setItem(i, j, QTableWidgetItem(v))
+                it = QTableWidgetItem(v)
+                if j == 1:  # Nombre con color de tipo
+                    it.setForeground(QColor(tipo_color))
+                    it.setFont(QFont("", -1, QFont.Bold))
+                self._rec_tabla.setItem(i, j, it)
 
     def _pr_columns(self) -> set:
         conn = self._conexion if hasattr(self, '_conexion') else (
@@ -917,8 +1120,8 @@ class ModuloProduccion(ModuloBase):
                 hay_error = True
 
             tipo_str = "⬇ CONSUMO" if es_salida else "⬆ GENERADO"
-            tipo_color = _RED if es_salida else _GREEN
-            stock_color = _RED if (es_salida and stock_act < abs(delta)) else _GREEN
+            tipo_color = Colors.DANGER_BASE if es_salida else Colors.SUCCESS_BASE
+            stock_color = Colors.DANGER_BASE if (es_salida and stock_act < abs(delta)) else Colors.SUCCESS_BASE
 
             vals = [
                 tipo_str,
@@ -1073,7 +1276,7 @@ class ModuloProduccion(ModuloBase):
                 self._hist_empty.setVisible(len(rows) == 0)
             for ri, r in enumerate(rows):
                 tipo = r.get("tipo_receta", "")
-                tipo_color = TIPO_COLOR.get(tipo, _GRAY)
+                tipo_color = TIPO_COLOR.get(tipo, Colors.TEXT_SECONDARY)
                 fecha_str = r.get("fecha", "")
                 if fecha_str and "T" in fecha_str:
                     fecha_str = fecha_str.replace("T", " ")[:19]
@@ -1127,7 +1330,7 @@ class ModuloProduccion(ModuloBase):
             cant = float(d.get("cantidad_generada", 0))
             rend = float(d.get("rendimiento_aplicado", 0))
             es_entrada = tipo == "entrada"
-            color = _GREEN if es_entrada else _RED
+            color = Colors.SUCCESS_BASE if es_entrada else Colors.DANGER_BASE
 
             vals = [
                 "⬆ GENERADO" if es_entrada else "⬇ CONSUMO",
@@ -1377,6 +1580,24 @@ class DialogoReceta(QDialog):
             for i, c in enumerate(self._comp_rows)
         ]
 
+        # Pre-validación UI: verificar duplicado ANTES de llamar al repo
+        # Esto evita el crash por doble-excepción que ocurre cuando el import
+        # falla y RecetaCyclicError no está definido al momento de capturar.
+        if not self._data:
+            existente = self._repo.get_for_product(base_id)
+            if existente:
+                resp = QMessageBox.question(
+                    self, "Receta ya existe",
+                    f"El producto ya tiene la receta activa «{existente.get('nombre_receta', '#' + str(existente['id']))}».\n\n"
+                    "¿Desea abrir esa receta para editarla?",
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                if resp == QMessageBox.Yes:
+                    self._data = existente
+                    self._e_nombre.setText(existente.get("nombre_receta", ""))
+                else:
+                    return
+
         try:
             if self._data:
                 self._repo.update(self._data["id"], nombre, components, self._usuario)
@@ -1400,7 +1621,8 @@ class DialogoReceta(QDialog):
             QMessageBox.warning(self, "Error de Porcentaje", str(exc))
         except RecetaDuplicadaError:
             QMessageBox.warning(self, "Receta Duplicada",
-                                "Ya existe una receta activa para este producto base.")
+                                "Ya existe una receta activa para este producto base.\n"
+                                "Cierre este diálogo y use el botón «Editar» sobre la receta existente.")
         except RecetaError as exc:
             QMessageBox.warning(self, "Error en Receta", str(exc))
         except Exception as exc:

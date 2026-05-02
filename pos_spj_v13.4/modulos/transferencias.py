@@ -19,7 +19,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
     create_danger_button, create_input, create_combo, create_card, apply_tooltip,
-    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action
+    FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
+    PageHeader, Toast,
 )
 import logging
 from typing import Dict, List, Optional
@@ -166,8 +167,46 @@ class ModuloTransferencias(ModuloBase):
         self._lbl_suc.setObjectName("textSecondary"); hdr.addWidget(self._lbl_suc)
         root.addLayout(hdr)
 
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        root.addWidget(self._crear_stats_transferencias())
+
         # ── Pestañas principales ──────────────────────────────────────────────
         self._tabs = QTabWidget()
+
+    def _crear_stats_transferencias(self) -> 'QFrame':
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C, Spacing as _S
+        bar=_F();bar.setObjectName("statsBarTrf")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet("QFrame#statsBarTrf{background:#1E293B;border-radius:8px;border:1px solid #334155;}")
+        lay=_H(bar);lay.setContentsMargins(20,8,20,8);lay.setSpacing(0)
+        kpis=[("Pendientes recepción","—",_C.WARNING_BASE),("Recibidas este mes","—",_C.SUCCESS_BASE),
+              ("En tránsito","—",_C.PRIMARY_BASE),("Canceladas","—",_C.DANGER_BASE),
+              ("Tiempo promedio","—",_C.INFO_BASE)]
+        try:
+            db=self.db if hasattr(self,'db') else None
+            if db:
+                r=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='DISPATCHED'").fetchone()
+                kpis[0]=("Pendientes recepción",str(r[0] or 0),_C.WARNING_BASE)
+                r2=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='RECEIVED' AND DATE(fecha)>=DATE('now','start of month')").fetchone()
+                kpis[1]=("Recibidas este mes",str(r2[0] or 0),_C.SUCCESS_BASE)
+                r3=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='PENDING'").fetchone()
+                kpis[2]=("En tránsito",str(r3[0] or 0),_C.PRIMARY_BASE)
+                r4=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='CANCELLED' AND DATE(fecha)>=DATE('now','start of month')").fetchone()
+                kpis[3]=("Canceladas",str(r4[0] or 0),_C.DANGER_BASE)
+        except Exception: pass
+        for i,(lbl,val,col) in enumerate(kpis):
+            if i>0:
+                s=_F();s.setFrameShape(_F.VLine);s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155;border:none;")
+                lay.addWidget(s);lay.addSpacing(20)
+            c=_V();c.setSpacing(1)
+            v=_L(val);v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l=_L(lbl.upper());l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v);c.addWidget(l);lay.addLayout(c)
+            if i<4:lay.addSpacing(20)
+        lay.addStretch()
+        return bar
         self._tab_transfers   = QWidget()
         self._tab_sugerencias = QWidget()
         self._tab_recepcion = QWidget()
@@ -419,7 +458,7 @@ class ModuloTransferencias(ModuloBase):
             return
         try:
             self._repo.cancel(tid, self.usuario_actual)
-            QMessageBox.information(self, "Éxito", "Transferencia cancelada. Stock restaurado.")
+            Toast.success(self, "Transferencia cancelada", "Stock restaurado.")
             self._refresh_all()
         except TransferAlreadyReceivedError:
             QMessageBox.warning(self, "Error",
@@ -827,9 +866,11 @@ class DialogoNuevaTransferencia(QDialog):
                 destination_type=self._combo_dest_type.currentText(),
                 observations=self._e_obs.toPlainText().strip(),
             )
-            QMessageBox.information(self, "Éxito",
-                                    f"Transferencia {str(transfer_id)[:8]}… despachada.\n"
-                                    "En espera de recepción en sucursal destino.")
+            Toast.success(
+                self.parent() or self,
+                f"Transferencia {str(transfer_id)[:8]}… despachada",
+                "En espera de recepción en sucursal destino.",
+            )
             self.accept()
         except TransferStockError as exc:
             QMessageBox.warning(self, "Stock Insuficiente", str(exc))
@@ -986,12 +1027,8 @@ class DialogoRecepcion(QDialog):
                 observations=observations,
             )
             diff = result.get("total_difference", 0)
-            msg = f"Recepción confirmada.\n"
-            if diff > 0.001:
-                msg += f"Diferencia registrada: {diff:.3f} kg"
-            else:
-                msg += "Sin diferencias."
-            QMessageBox.information(self, "Éxito", msg)
+            detail = f"Diferencia registrada: {diff:.3f} kg" if diff > 0.001 else "Sin diferencias."
+            Toast.success(self.parent() or self, "Recepción confirmada", detail)
             self.accept()
         except TransferAlreadyReceivedError:
             QMessageBox.warning(self, "Error", "Esta transferencia ya fue recibida.")

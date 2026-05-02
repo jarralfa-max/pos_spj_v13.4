@@ -3,10 +3,10 @@
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
-    create_primary_button, create_success_button, create_danger_button, 
-    create_secondary_button, create_input_field, create_input, create_combo,
+    create_primary_button, create_success_button, create_danger_button,
+    create_secondary_button, create_table_button, create_input_field, create_input, create_combo,
     create_heading, create_subheading, create_caption, apply_tooltip,
-    LoadingIndicator, EmptyStateWidget
+    LoadingIndicator, EmptyStateWidget, PageHeader, Toast,
 )
 import os
 import shutil
@@ -452,11 +452,61 @@ class ModuloProductos(QWidget, RefreshMixin):
     def set_usuario_actual(self, usuario: str, rol: str):
         self.usuario_actual = usuario
 
+    def _crear_stats_productos(self) -> 'QFrame':
+        """Barra de KPIs rápidos: total productos, activos, stock bajo, categorías."""
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        bar = _F(); bar.setObjectName("statsBar")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet(
+            f"QFrame#statsBar {{ background:{Colors.NEUTRAL.DARK_CARD if hasattr(Colors.NEUTRAL,'DARK_CARD') else '#1E293B'};"
+            f" border-radius:8px; border:1px solid {Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; }}"
+        )
+        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+
+        kpis = [("Total Productos","—",Colors.PRIMARY_BASE),("Activos","—",Colors.SUCCESS_BASE),
+                ("Stock bajo","—",Colors.WARNING_BASE),("Categorías","—",Colors.INFO_BASE)]
+        self._stats_prod_labels = {}
+        try:
+            db = self.conexion
+            r = db.execute("SELECT COUNT(*), SUM(CASE WHEN activo=1 THEN 1 ELSE 0 END) FROM productos").fetchone()
+            kpis[0] = ("Total Productos", str(r[0] or 0), Colors.PRIMARY_BASE)
+            kpis[1] = ("Activos", str(r[1] or 0), Colors.SUCCESS_BASE)
+            r2 = db.execute("SELECT COUNT(*) FROM productos WHERE existencia<=COALESCE(stock_minimo,5) AND activo=1").fetchone()
+            kpis[2] = ("Stock bajo", str(r2[0] or 0), Colors.WARNING_BASE)
+            r3 = db.execute("SELECT COUNT(DISTINCT categoria) FROM productos WHERE activo=1").fetchone()
+            kpis[3] = ("Categorías", str(r3[0] or 0), Colors.INFO_BASE)
+        except Exception: pass
+
+        for i, (lbl, val, col) in enumerate(kpis):
+            if i > 0:
+                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
+                s.setStyleSheet(f"background:{Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; border:none;")
+                lay.addWidget(s); lay.addSpacing(20)
+            c = _V(); c.setSpacing(1)
+            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l = _L(lbl.upper()); l.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v); c.addWidget(l)
+            self._stats_prod_labels[lbl] = v
+            lay.addLayout(c)
+            if i < 3: lay.addSpacing(20)
+        lay.addStretch()
+        return bar
+
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
-        
-        self.lbl_titulo = create_heading(self, "🥩 Centro de Productos y Procesamiento Cárnico")
-        layout_principal.addWidget(self.lbl_titulo)
+        layout_principal.setContentsMargins(0, 0, 0, 0)
+        layout_principal.setSpacing(0)
+
+        self._page_header = PageHeader(
+            self,
+            title="🥩 Centro de Productos",
+            subtitle="Catálogo, procesamiento cárnico y activación por sucursal",
+        )
+        layout_principal.addWidget(self._page_header)
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        self._stats_productos = self._crear_stats_productos()
+        layout_principal.addWidget(self._stats_productos)
         
         # --- PESTAÑAS DEL MÓDULO ---
         self.tabs = QTabWidget()
@@ -658,28 +708,27 @@ class ModuloProductos(QWidget, RefreshMixin):
                 _cell = _QW(); _lay = _HL(_cell)
                 _lay.setContentsMargins(2, 2, 2, 2); _lay.setSpacing(2)
 
-                btn_editar = create_secondary_button(self, "✏️", "Editar producto")
-                btn_editar.setFixedWidth(30)
+                btn_editar = create_table_button(self, "✏️", "Editar producto", "outline")
+                btn_editar.setFixedSize(28, 26)
                 btn_editar.clicked.connect(lambda _, pid=prod_id: self.abrir_editar_producto(pid))
                 _lay.addWidget(btn_editar)
 
                 if activo:
                     # Producto activo: ocultar + eliminar
-                    btn_toggle = create_secondary_button(self, "🙈", "Ocultar del POS")
-                    btn_toggle.setFixedWidth(30)
+                    btn_toggle = create_table_button(self, "🙈", "Ocultar del POS", "warning")
+                    btn_toggle.setFixedSize(28, 26)
                     btn_toggle.clicked.connect(
                         lambda _, pid=prod_id, a=activo: self._toggle_activo(pid, a))
                     _lay.addWidget(btn_toggle)
 
-                    btn_del = create_danger_button(self, "🗑️", "Eliminar (soft delete)")
-                    btn_del.setFixedWidth(30)
+                    btn_del = create_table_button(self, "🗑️", "Eliminar (soft delete)", "danger")
+                    btn_del.setFixedSize(28, 26)
                     btn_del.clicked.connect(
                         lambda _, pid=prod_id, nom=row_data['nombre']: self.eliminar_producto(pid, nom))
                     _lay.addWidget(btn_del)
                 else:
-                    # v13.30: Producto eliminado: botón RESTAURAR
-                    btn_restaurar = create_success_button(self, "♻️", "Restaurar producto")
-                    btn_restaurar.setFixedWidth(30)
+                    btn_restaurar = create_table_button(self, "♻️", "Restaurar producto", "success")
+                    btn_restaurar.setFixedSize(28, 26)
                     btn_restaurar.clicked.connect(
                         lambda _, pid=prod_id, nom=row_data['nombre']: self._restaurar_producto(pid, nom))
                     _lay.addWidget(btn_restaurar)
@@ -746,7 +795,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 if hasattr(self.container, 'db'): self.container.db.commit()
                 else: self.conexion.commit()
                 
-                QMessageBox.information(self, "Éxito", "Producto eliminado correctamente.")
+                Toast.success(self, "Producto eliminado", "El producto se eliminó correctamente.")
                 self.cargar_catalogo()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo eliminar: {e}")
@@ -845,7 +894,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 resultado = self.container.production_service.execute_production(
                     recipe_id=receta_id, input_qty=peso_entrada, branch_id=self.sucursal_id, user_id=self.usuario_actual
                 )
-                QMessageBox.information(self, "Despiece Completado", f"Producción exitosa. Lote: {resultado.get('folio', 'N/A')}")
+                Toast.success(self, "Despiece completado", f"Lote: {resultado.get('folio', 'N/A')}")
                 self.txt_peso_entrada.setValue(0)
             else:
                 QMessageBox.warning(self, "Aviso", "ProductionService no está conectado aún.")
@@ -1035,7 +1084,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                     updated_at=datetime('now')
             """, (branch_id, product_id, activo, precio_local, stock_min))
             self.conexion.commit()
-            QMessageBox.information(self, "Guardado", "Configuración actualizada.")
+            Toast.success(self, "Guardado", "Configuración actualizada.")
             self._cargar_tabla_branch_products()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -1053,8 +1102,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         # Obtener producto seleccionado de la tabla
         tabla = self.tab_catalogo.findChild(QTableWidget)
         if not tabla or tabla.currentRow() < 0:
-            QMessageBox.information(self, "Aviso",
-                "Selecciona un producto en la tabla primero."); return
+            Toast.info(self, "Aviso", "Selecciona un producto en la tabla primero.")
+            return
 
         item_id = tabla.item(tabla.currentRow(), 0)
         if not item_id: return
@@ -1182,7 +1231,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             rows = list(ws.iter_rows(min_row=2, values_only=True))
             total = len(rows)
             if total == 0:
-                QMessageBox.information(self, "Sin datos", "El archivo no tiene filas de datos.")
+                Toast.info(self, "Sin datos", "El archivo no tiene filas de datos.")
                 return
 
             prog = QProgressDialog(f"Importando {total} productos…", "Cancelar", 0, total, self)
@@ -1239,11 +1288,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             self.container.db.commit()
             prog.setValue(total)
 
-            QMessageBox.information(
-                self, "✅ Importación completa",
-                f"Productos nuevos: {nuevos}\n"
-                f"Actualizados:     {actualizados}\n"
-                f"Con errores:      {errores}")
+            Toast.success(
+                self,
+                "✅ Importación completa",
+                f"Nuevos: {nuevos} · Actualizados: {actualizados} · Errores: {errores}",
+            )
             self.cargar_catalogo()
 
         except Exception as e:
@@ -1313,8 +1362,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 db.commit()
             except Exception:
                 pass
-            QMessageBox.information(self, "✅ Restaurado",
-                f"Producto '{nombre}' restaurado correctamente.")
+            Toast.success(self, "✅ Restaurado", f"Producto '{nombre}' restaurado correctamente.")
             self.cargar_catalogo()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

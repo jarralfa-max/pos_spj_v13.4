@@ -8,7 +8,8 @@ from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_warning_button, create_input, create_combo,
-    create_card, apply_tooltip, LoadingIndicator, EmptyStateWidget
+    create_card, apply_tooltip, LoadingIndicator, EmptyStateWidget,
+    PageHeader, Toast,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
@@ -305,7 +306,42 @@ class ModuloDelivery(QWidget, RefreshMixin):
         )
         self._empty.hide()
         layout.addWidget(self._empty)
-        # Kanban board
+
+        # ── Toggle Lista / Kanban ─────────────────────────────────────────
+        self._vista_actual = "lista"
+        toggle_bar = QHBoxLayout()
+        toggle_bar.setSpacing(0)
+
+        self._btn_vista_lista = QPushButton("≡  Lista")
+        self._btn_vista_lista.setFixedHeight(28)
+        self._btn_vista_lista.setCheckable(True)
+        self._btn_vista_lista.setChecked(True)
+        self._btn_vista_lista.setStyleSheet(self._qss_toggle_activo())
+        self._btn_vista_lista.clicked.connect(lambda: self._toggle_vista("lista"))
+
+        self._btn_vista_kanban = QPushButton("⊞  Kanban")
+        self._btn_vista_kanban.setFixedHeight(28)
+        self._btn_vista_kanban.setCheckable(True)
+        self._btn_vista_kanban.setChecked(False)
+        self._btn_vista_kanban.setStyleSheet(self._qss_toggle_inactivo())
+        self._btn_vista_kanban.clicked.connect(lambda: self._toggle_vista("kanban"))
+
+        toggle_bar.addWidget(self._btn_vista_lista)
+        toggle_bar.addWidget(self._btn_vista_kanban)
+        toggle_bar.addStretch()
+        layout.addLayout(toggle_bar)
+
+        # ── Stacked: index 0 = Lista, index 1 = Kanban ────────────────────
+        from PyQt5.QtWidgets import QStackedWidget as _SW
+        self._stack = _SW()
+
+        # — Lista —
+        self._stack.addWidget(self._build_lista_view())
+
+        # — Kanban —
+        kanban_widget = QWidget()
+        kanban_layout = QVBoxLayout(kanban_widget)
+        kanban_layout.setContentsMargins(0, 0, 0, 0)
         splitter = QSplitter(Qt.Horizontal)
         self.columnas = {}
         for estado in ["pendiente","preparacion","en_ruta","entregado"]:
@@ -314,7 +350,9 @@ class ModuloDelivery(QWidget, RefreshMixin):
             color = ESTADO_COLOR[estado]
             titulo = QLabel(estado.upper().replace("_"," "))
             titulo.setObjectName("subheading")
-            titulo.setStyleSheet(f"color: {color}; font-weight: bold; padding: {Spacing.SM}; border-bottom: 2px solid {color};")
+            titulo.setStyleSheet(
+                f"color: {color}; font-weight: bold; padding: {Spacing.SM};"
+                f" border-bottom: 2px solid {color};")
             col_layout.addWidget(titulo)
             scroll_content = QWidget()
             self.columnas[estado] = QVBoxLayout(scroll_content)
@@ -322,7 +360,10 @@ class ModuloDelivery(QWidget, RefreshMixin):
             col_layout.addWidget(scroll_content)
             col_layout.addStretch()
             splitter.addWidget(col_widget)
-        layout.addWidget(splitter)
+        kanban_layout.addWidget(splitter)
+        self._stack.addWidget(kanban_widget)
+
+        layout.addWidget(self._stack, 1)
 
         # ── Botón de mapa de repartidores ─────────────────────────────────
         btn_mapa = create_success_button(self, "🗺️ Ver Mapa de Repartidores", "Ver ubicación de repartidores en tiempo real")
@@ -403,6 +444,264 @@ if(drivers.length===0){{
 
         dlg.exec_()
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # TOGGLE LISTA / KANBAN
+    # ═══════════════════════════════════════════════════════════════════════
+    @staticmethod
+    def _qss_toggle_activo() -> str:
+        return (f"background:{Colors.PRIMARY_BASE}; color:white; border:1px solid {Colors.PRIMARY_BASE};"
+                f" border-radius:5px; padding:3px 14px; font-weight:600; font-size:12px;")
+
+    @staticmethod
+    def _qss_toggle_inactivo() -> str:
+        return (f"background:transparent; color:{Colors.NEUTRAL.SLATE_400};"
+                f" border:1px solid {Colors.NEUTRAL.SLATE_700};"
+                f" border-radius:5px; padding:3px 14px; font-size:12px;")
+
+    def _toggle_vista(self, vista: str) -> None:
+        self._vista_actual = vista
+        self._stack.setCurrentIndex(0 if vista == "lista" else 1)
+        self._btn_vista_lista.setChecked(vista == "lista")
+        self._btn_vista_kanban.setChecked(vista == "kanban")
+        self._btn_vista_lista.setStyleSheet(
+            self._qss_toggle_activo() if vista == "lista" else self._qss_toggle_inactivo())
+        self._btn_vista_kanban.setStyleSheet(
+            self._qss_toggle_activo() if vista == "kanban" else self._qss_toggle_inactivo())
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # VISTA LISTA + PANEL DETALLE
+    # ═══════════════════════════════════════════════════════════════════════
+    def _build_lista_view(self) -> QWidget:
+        """Construye la vista Lista: panel izquierdo (lista) + panel derecho (detalle)."""
+        widget = QWidget()
+        splitter = QSplitter(Qt.Horizontal, widget)
+        outer = QHBoxLayout(widget)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(splitter)
+
+        # ── Panel izquierdo — lista de pedidos ───────────────────────────
+        left = QWidget()
+        left.setMinimumWidth(240)
+        left.setMaximumWidth(280)
+        left_lay = QVBoxLayout(left)
+        left_lay.setContentsMargins(0, 0, 0, 0)
+        left_lay.setSpacing(0)
+
+        self._lst_pedidos = QListWidget()
+        self._lst_pedidos.setObjectName("listaPedidos")
+        self._lst_pedidos.setStyleSheet(f"""
+            QListWidget {{ border:none; background:{Colors.NEUTRAL.DARK_BG}; }}
+            QListWidget::item {{ border-bottom:1px solid {Colors.NEUTRAL.DARK_BORDER};
+                                 padding:0; }}
+            QListWidget::item:selected {{ background:{Colors.NEUTRAL.DARK_CARD}; }}
+            QListWidget::item:hover {{ background:{Colors.NEUTRAL.DARK_CARD}; }}
+        """)
+        self._lst_pedidos.currentRowChanged.connect(self._on_lista_seleccion)
+        left_lay.addWidget(self._lst_pedidos)
+        splitter.addWidget(left)
+
+        # ── Panel derecho — detalle ──────────────────────────────────────
+        self._detalle_widget = QWidget()
+        self._detalle_widget.setStyleSheet(
+            f"background:{Colors.NEUTRAL.DARK_BG};")
+        detalle_lay = QVBoxLayout(self._detalle_widget)
+        detalle_lay.setContentsMargins(16, 12, 16, 12)
+        detalle_lay.setSpacing(10)
+
+        # — Cabecera del pedido —
+        self._det_header = QLabel("Selecciona un pedido")
+        self._det_header.setObjectName("heading")
+        self._det_header.setWordWrap(True)
+        detalle_lay.addWidget(self._det_header)
+
+        self._det_sub = QLabel("")
+        self._det_sub.setObjectName("caption")
+        self._det_sub.setWordWrap(True)
+        detalle_lay.addWidget(self._det_sub)
+
+        # — Productos —
+        grp_items = QGroupBox("Productos del pedido")
+        grp_items_lay = QVBoxLayout(grp_items)
+        self._det_tabla = QTableWidget(0, 4)
+        self._det_tabla.setHorizontalHeaderLabels(["Producto","Cant.","Precio","Total"])
+        self._det_tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._det_tabla.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._det_tabla.setMaximumHeight(140)
+        self._det_tabla.verticalHeader().setVisible(False)
+        grp_items_lay.addWidget(self._det_tabla)
+        detalle_lay.addWidget(grp_items)
+
+        # — Notas —
+        self._det_notas = QLabel("")
+        self._det_notas.setObjectName("textMuted")
+        self._det_notas.setWordWrap(True)
+        detalle_lay.addWidget(self._det_notas)
+
+        # — Total / anticipo —
+        self._det_total = QLabel("")
+        self._det_total.setObjectName("subheading")
+        detalle_lay.addWidget(self._det_total)
+
+        # — Acciones contextuales —
+        self._det_acciones_layout = QHBoxLayout()
+        self._det_acciones_layout.setSpacing(8)
+        detalle_lay.addLayout(self._det_acciones_layout)
+
+        detalle_lay.addStretch()
+        splitter.addWidget(self._detalle_widget)
+        splitter.setSizes([260, 700])
+        return widget
+
+    def _on_lista_seleccion(self, row: int) -> None:
+        """Popula el panel de detalle cuando el usuario selecciona una fila."""
+        if row < 0 or row >= len(self._pedidos_cache):
+            return
+        self._seleccionar_pedido(self._pedidos_cache[row])
+
+    def _seleccionar_pedido(self, pedido: dict) -> None:
+        """Rellena el panel de detalle con los datos del pedido seleccionado."""
+        pid    = pedido.get("id", "")
+        estado = pedido.get("estado", "pendiente")
+        color  = ESTADO_COLOR.get(estado, Colors.TEXT_SECONDARY)
+
+        self._det_header.setText(
+            f"<span style='color:{color};font-weight:bold;'>#{pid}</span>"
+            f"  —  {pedido.get('cliente_nombre','N/A')}"
+        )
+        self._det_sub.setText(
+            f"📍 {pedido.get('direccion','Sin dirección')}  ·  "
+            f"📞 {pedido.get('cliente_tel','')}  ·  "
+            f"🛵 {pedido.get('driver_nombre','Sin repartidor')}"
+        )
+
+        # Cargar ítems desde BD
+        self._det_tabla.setRowCount(0)
+        try:
+            rows = self.conexion.execute(
+                "SELECT producto_nombre, cantidad, precio_unitario, subtotal "
+                "FROM venta_items vi "
+                "JOIN ventas v ON vi.venta_id = v.id "
+                "JOIN delivery_orders d ON d.venta_id = v.id "
+                "WHERE d.id = ? LIMIT 20",
+                (pid,)
+            ).fetchall()
+            for i, r in enumerate(rows):
+                self._det_tabla.insertRow(i)
+                for j, val in enumerate(r):
+                    item = QTableWidgetItem(
+                        f"${val:.2f}" if j in (2,3) else
+                        f"{val:.3f}" if j == 1 else str(val)
+                    )
+                    if j == 3:
+                        item.setForeground(QColor(Colors.SUCCESS_BASE))
+                    self._det_tabla.setItem(i, j, item)
+        except Exception:
+            pass  # Tabla no relacionada — pedido WA sin venta
+
+        notas = pedido.get("notas", "") or ""
+        self._det_notas.setText(f"📝 {notas}" if notas else "Sin notas")
+
+        total = float(pedido.get("total") or 0)
+        costo = float(pedido.get("costo_envio") or 0)
+        self._det_total.setText(
+            f"Total: <b>${total:.2f}</b>  ·  Envío: ${costo:.2f}"
+            f"  ·  <span style='color:{color};'>{estado.upper()}</span>"
+        )
+
+        # Acciones contextuales
+        # Limpiar acciones anteriores
+        while self._det_acciones_layout.count():
+            item = self._det_acciones_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        def _add_btn(label, fn, color_fn):
+            b = color_fn(self, label, "")
+            b.setFixedHeight(32)
+            b.clicked.connect(lambda _, pid=pid, a=label: fn(pid, a))
+            self._det_acciones_layout.addWidget(b)
+
+        if estado == "pendiente":
+            b = create_primary_button(self, "Asignar repartidor", "")
+            b.setFixedHeight(32)
+            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "asignar"))
+            self._det_acciones_layout.addWidget(b)
+
+        if estado == "preparacion":
+            b = create_primary_button(self, "→ En ruta", "")
+            b.setFixedHeight(32)
+            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "en_ruta"))
+            self._det_acciones_layout.addWidget(b)
+
+        if estado == "en_ruta":
+            b = create_success_button(self, "✓ Entregado", "")
+            b.setFixedHeight(32)
+            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "entregado"))
+            self._det_acciones_layout.addWidget(b)
+
+        if estado not in ("entregado", "cancelado"):
+            b = create_danger_button(self, "✕ Cancelar", "")
+            b.setFixedHeight(32)
+            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "cancelado"))
+            self._det_acciones_layout.addWidget(b)
+
+        self._det_acciones_layout.addStretch()
+
+    def _actualizar_lista_view(self, pedidos: list) -> None:
+        """Repopula la QListWidget de la vista lista con los pedidos actuales."""
+        self._lst_pedidos.clear()
+        for pedido in pedidos:
+            estado = pedido.get("estado", "pendiente")
+            color  = ESTADO_COLOR.get(estado, Colors.TEXT_SECONDARY)
+            pid    = pedido.get("id", "")
+            nombre = pedido.get("cliente_nombre", "N/A")
+            total  = float(pedido.get("total") or 0)
+            notas  = (pedido.get("notas") or "")[:30]
+
+            item = QListWidgetItem()
+            item.setData(Qt.UserRole, pedido)
+            item.setSizeHint(__import__('PyQt5.QtCore', fromlist=['QSize']).QSize(240, 68))
+
+            # Widget tarjeta compacta
+            card = QFrame()
+            card.setStyleSheet(
+                f"QFrame {{ border-left:3px solid {color};"
+                f" background:transparent; padding:6px 10px; }}"
+            )
+            card_lay = QVBoxLayout(card)
+            card_lay.setContentsMargins(8, 4, 8, 4)
+            card_lay.setSpacing(2)
+
+            row1 = QHBoxLayout()
+            lbl_id = QLabel(f"<b>#{pid}</b>")
+            lbl_id.setStyleSheet(f"color:{color}; font-size:11px;")
+            lbl_total = QLabel(f"${total:.0f}")
+            lbl_total.setStyleSheet(f"color:{Colors.SUCCESS_BASE}; font-weight:bold; font-size:12px;")
+            row1.addWidget(lbl_id)
+            row1.addStretch()
+            row1.addWidget(lbl_total)
+
+            lbl_nombre = QLabel(nombre)
+            lbl_nombre.setStyleSheet("font-weight:600; font-size:12px;")
+
+            row3 = QHBoxLayout()
+            lbl_notas = QLabel(notas or "Sin notas")
+            lbl_notas.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500}; font-size:10px;")
+            badge = QLabel(estado.upper())
+            badge.setStyleSheet(
+                f"color:{color}; font-size:9px; font-weight:700;"
+                f" border:1px solid {color}; border-radius:4px; padding:1px 5px;")
+            row3.addWidget(lbl_notas)
+            row3.addStretch()
+            row3.addWidget(badge)
+
+            card_lay.addLayout(row1)
+            card_lay.addWidget(lbl_nombre)
+            card_lay.addLayout(row3)
+
+            self._lst_pedidos.addItem(item)
+            self._lst_pedidos.setItemWidget(item, card)
+
     def _auto_asignar_todos(self):
         """Asigna automáticamente todos los pedidos pendientes sin repartidor."""
         try:
@@ -414,18 +713,17 @@ if(drivers.length===0){{
                 (self.sucursal_id,)
             ).fetchall()
             if not pendientes:
-                # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
-                QMessageBox.information(self, "Auto-Asignación",
-                    "No hay pedidos pendientes sin repartidor.")
+                Toast.info(self, "Auto-Asignación", "No hay pedidos pendientes sin repartidor.")
                 return
             asignados = 0
             for row in pendientes:
                 rep_id = asign.asignar_automatico(row[0])
                 if rep_id:
                     asignados += 1
-            # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.information(self, "✅ Auto-Asignación",
-                f"{asignados}/{len(pendientes)} pedidos asignados automáticamente.")
+            Toast.success(
+                self, "✅ Auto-Asignación",
+                f"{asignados}/{len(pendientes)} pedidos asignados.",
+            )
             self.cargar_pedidos()
         except Exception as e:
             # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
@@ -525,6 +823,9 @@ if(drivers.length===0){{
             filtro_repo = None if filtro == "Todos" else filtro
             pedidos = self.delivery_service.list_orders(filtro_repo)
             self._pedidos_cache = pedidos
+            # Actualizar vista lista
+            self._actualizar_lista_view(pedidos if filtro == "Todos" else
+                                        [p for p in pedidos if p.get("estado") == filtro])
             counts = {e:0 for e in ESTADOS}
             for p in pedidos:
                 estado = p.get("estado","pendiente")
@@ -666,7 +967,7 @@ if(drivers.length===0){{
                 "sucursal_id": data["sucursal_id"],
             }, usuario=self.usuario)
             self.cargar_pedidos()
-            QMessageBox.information(self,"Pedido creado","Pedido de delivery creado exitosamente.")
+            Toast.success(self, "Pedido creado", "Pedido de delivery creado exitosamente.")
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
 

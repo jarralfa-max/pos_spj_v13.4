@@ -134,8 +134,15 @@ class ProductionEngine:
         return datetime.utcnow().isoformat()
 
     def _generar_folio(self, conn) -> str:
-        n = conn.execute("SELECT COUNT(*) FROM production_batches").fetchone()[0]
-        return f"PROD{datetime.now().strftime('%Y%m%d')}-{(n or 0) + 1:04d}"
+        # FIX FALLA-8: usar MAX(id)+1 en vez de COUNT(*) para evitar colisiones
+        # bajo concurrencia (dos lotes simultáneos con mismo COUNT darían el mismo folio)
+        row = conn.execute(
+            "SELECT COALESCE(MAX(CAST(SUBSTR(folio, -4) AS INTEGER)), 0) + 1 "
+            "FROM production_batches WHERE folio LIKE ?",
+            (f"PROD{datetime.now().strftime('%Y%m%d')}%",)
+        ).fetchone()
+        seq = row[0] if row else 1
+        return f"PROD{datetime.now().strftime('%Y%m%d')}-{seq:04d}"
 
     def _get_batch(self, conn, batch_id: str) -> dict:
         row = conn.execute(
@@ -204,23 +211,21 @@ class ProductionEngine:
         op_id = operation_id or str(uuid.uuid4())
         batch_id = str(uuid.uuid4())
 
-        conn = self.db.conn
-        folio = self._generar_folio(conn)
+        sp = f"sp_ob_{uuid.uuid4().hex[:8]}"
+        folio = self._generar_folio(self.db)
 
-        conn.execute(f"SAVEPOINT sp_b85df2")
+        self.db.execute(f"SAVEPOINT {sp}")
         try:
-            # Verificar producto fuente existe
-            prod = conn.execute(
+            prod = self.db.execute(
                 "SELECT id, nombre, costo FROM productos WHERE id=? AND activo=1",
                 (product_source_id,)
             ).fetchone()
             if not prod:
                 raise ProductionEngineError(f"Producto fuente {product_source_id} no existe o no activo")
 
-            # Si no se provee costo, usar costo del producto × peso
             costo = source_cost_total if source_cost_total > 0 else float(prod["costo"] or 0) * source_weight
 
-            conn.execute("""
+            self.db.execute("""
                 INSERT INTO production_batches (
                     id, folio, product_source_id, source_weight,
                     processed_weight, waste_weight,
@@ -230,9 +235,9 @@ class ProductionEngine:
                           'abierto',?,datetime('now'),?,?)
             """, (batch_id, folio, product_source_id, source_weight,
                   costo, bid, receta_id, created_by, op_id, notas))
-            conn.execute(f"RELEASE SAVEPOINT sp_b85df2")
+            self.db.execute(f"RELEASE SAVEPOINT {sp}")
         except Exception:
-            try: conn.execute(f"ROLLBACK TO SAVEPOINT sp_b85df2")
+            try: self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             except Exception: pass
             raise
 
@@ -265,15 +270,14 @@ class ProductionEngine:
         if weight < 0:
             raise InvalidWeightError("peso no puede ser negativo")
 
-        conn = self.db.conn
-        conn.execute(f"SAVEPOINT sp_06cfbd")
+        sp = f"sp_ao_{uuid.uuid4().hex[:8]}"
+        self.db.execute(f"SAVEPOINT {sp}")
         try:
-            batch = self._get_batch(conn, batch_id)
+            batch = self._get_batch(self.db, batch_id)
             if batch["estado"] != "abierto":
                 raise BatchAlreadyClosedError(f"Lote {batch_id[:8]} ya está {batch['estado']}")
 
-            # Verificar producto existe
-            prod = conn.execute(
+            prod = self.db.execute(
                 "SELECT id, nombre FROM productos WHERE id=? AND activo=1",
                 (product_id,)
             ).fetchone()
@@ -281,7 +285,7 @@ class ProductionEngine:
                 raise ProductionEngineError(f"Producto {product_id} no existe o no activo")
 
             output_id = str(uuid.uuid4())
-            conn.execute("""
+            self.db.execute("""
                 INSERT INTO production_outputs
                     (id, batch_id, product_id, weight, expected_pct,
                      expected_weight, cost_allocated, is_waste)
@@ -294,15 +298,14 @@ class ProductionEngine:
                   round(float(batch["source_weight"]) * expected_pct / 100, 4),
                   1 if is_waste else 0))
 
-            # Obtener ID real (puede ser el existente en caso de UPDATE)
-            actual_id = conn.execute(
+            actual_id = self.db.execute(
                 "SELECT id FROM production_outputs WHERE batch_id=? AND product_id=?",
                 (batch_id, product_id)
             ).fetchone()[0]
 
-            conn.execute(f"RELEASE SAVEPOINT sp_06cfbd")
+            self.db.execute(f"RELEASE SAVEPOINT {sp}")
         except Exception:
-            try: conn.execute(f"ROLLBACK TO SAVEPOINT sp_06cfbd")
+            try: self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             except Exception: pass
             raise
 
@@ -314,19 +317,19 @@ class ProductionEngine:
 
     def remove_output(self, batch_id: str, product_id: int) -> None:
         """Elimina un subproducto del lote (solo si abierto)."""
-        conn = self.db.conn
-        conn.execute(f"SAVEPOINT sp_0cbb1a")
+        sp = f"sp_ro_{uuid.uuid4().hex[:8]}"
+        self.db.execute(f"SAVEPOINT {sp}")
         try:
-            batch = self._get_batch(conn, batch_id)
+            batch = self._get_batch(self.db, batch_id)
             if batch["estado"] != "abierto":
                 raise BatchAlreadyClosedError("Lote ya cerrado, no se puede modificar")
-            conn.execute(
+            self.db.execute(
                 "DELETE FROM production_outputs WHERE batch_id=? AND product_id=?",
                 (batch_id, product_id)
             )
-            conn.execute(f"RELEASE SAVEPOINT sp_0cbb1a")
+            self.db.execute(f"RELEASE SAVEPOINT {sp}")
         except Exception:
-            try: conn.execute(f"ROLLBACK TO SAVEPOINT sp_0cbb1a")
+            try: self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             except Exception: pass
             raise
 
@@ -339,12 +342,11 @@ class ProductionEngine:
         Carga los subproductos esperados desde la receta del lote.
         Útil para pre-rellenar el formulario de producción.
         """
-        conn = self.db.conn
-        batch = self._get_batch(conn, batch_id)
+        batch = self._get_batch(self.db, batch_id)
         receta_id = batch.get("receta_id")
         if not receta_id:
             return []
-        comps = self._get_receta_componentes(conn, receta_id)
+        comps = self._get_receta_componentes(self.db, receta_id)
         outputs = []
         for c in comps:
             pct = float(c.get("rendimiento_porcentaje", 0) or 0)
@@ -365,15 +367,13 @@ class ProductionEngine:
 
     def preview_batch(self, batch_id: str) -> YieldResult:
         """Calcula rendimiento y costos sin cerrar el lote."""
-        conn = self.db.conn
-        batch = self._get_batch(conn, batch_id)
-        raw_outputs = self._get_outputs(conn, batch_id)
+        batch = self._get_batch(self.db, batch_id)
+        raw_outputs = self._get_outputs(self.db, batch_id)
 
-        # Obtener rendimiento esperado de receta
         exp_usable_pct = 0.0
         exp_waste_pct  = 0.0
         if batch.get("receta_id"):
-            receta = conn.execute(
+            receta = self.db.execute(
                 "SELECT rendimiento_esperado_pct, merma_esperada_pct FROM recetas WHERE id=?",
                 (batch["receta_id"],)
             ).fetchone()
@@ -428,9 +428,8 @@ class ProductionEngine:
         op_id = str(uuid.uuid4())
         inv_eng = InventoryEngine(self.db, self.branch_id, closed_by)
 
-        with self.db.transaction("CLOSE_BATCH"):
-            conn = self.db.conn
-
+        # FIX BUG-2: exponer conn del context manager para usarlo en todas las operaciones
+        with self.db.transaction("CLOSE_BATCH") as conn:
             batch = self._get_batch(conn, batch_id)
             if batch["estado"] == "cerrado":
                 raise BatchAlreadyClosedError(f"Lote {batch_id[:8]} ya está cerrado")
@@ -468,7 +467,6 @@ class ProductionEngine:
                 for r in raw_outputs
             ]
 
-            # ── 3. Validar balance matemático ─────────────────────────────
             ok, msg = YieldCalculator.validate_weight_balance(src_weight, specs)
             if not ok:
                 raise WeightBalanceError(msg)
@@ -501,18 +499,6 @@ class ProductionEngine:
                 reference_id=None, reference_type="PRODUCTION_BATCH",
                 conn=conn,
             )
-            # También registrar en movimientos_inventario legacy
-            conn.execute("""
-                INSERT INTO movimientos_inventario
-                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                     costo_unitario, descripcion, referencia_tipo,
-                     usuario, sucursal_id, fecha)
-                VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
-            """, (str(uuid.uuid4()), src_prod_id, "salida", "PRODUCCION_CONSUMO",
-                  src_weight,
-                  src_cost / src_weight if src_weight else 0,
-                  f"Consumo lote {batch['folio']}", "PRODUCTION_BATCH",
-                  closed_by, bid))
 
             # ── 7. Generar subproductos en inventario ─────────────────────
             output_id_map = {r["product_id"]: r["id"] for r in raw_outputs}
@@ -527,18 +513,6 @@ class ProductionEngine:
                     reference_id=None, reference_type="PRODUCTION_BATCH",
                     conn=conn,
                 )
-                # Legacy movimientos_inventario
-                conn.execute("""
-                    INSERT INTO movimientos_inventario
-                        (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                         costo_unitario, descripcion, referencia_tipo,
-                         usuario, sucursal_id, fecha)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
-                """, (str(uuid.uuid4()), out_yield.product_id, "entrada", "PRODUCCION_GENERACION",
-                      out_yield.real_weight,
-                      out_yield.cost_allocated / out_yield.real_weight if out_yield.real_weight else 0,
-                      f"Generado lote {batch['folio']}", "PRODUCTION_BATCH",
-                      closed_by, bid))
 
             # ── 8. Actualizar production_batches ──────────────────────────
             conn.execute("""
@@ -554,14 +528,14 @@ class ProductionEngine:
             # ── 9. Actualizar production_outputs (costo asignado) ─────────
             for out_yield in yr.outputs:
                 conn.execute("""
-        UPDATE production_outputs SET cost_allocated = ?
+                    UPDATE production_outputs SET cost_allocated = ?
                     WHERE batch_id = ? AND product_id = ?
                 """, (out_yield.cost_allocated, batch_id, out_yield.product_id))
 
             # ── 10. Análisis de rendimiento ───────────────────────────────
             yield_analysis_id = str(uuid.uuid4())
             conn.execute("""
-        INSERT INTO production_yield_analysis
+                INSERT INTO production_yield_analysis
                     (id, batch_id, expected_yield, real_yield,
                      waste_expected, waste_real, alerta_merma)
                 VALUES (?,?,?,?,?,?,?)
@@ -574,7 +548,7 @@ class ProductionEngine:
             alertas = 0
             if yr.alerta_merma:
                 conn.execute("""
-        INSERT INTO production_alerts
+                    INSERT INTO production_alerts
                         (batch_id, tipo, mensaje, valor_esperado, valor_real, varianza)
                     VALUES (?,?,?,?,?,?)
                 """, (batch_id, "MERMA_EXCESIVA",
@@ -582,7 +556,6 @@ class ProductionEngine:
                       exp_waste_pct, yr.waste_pct, yr.waste_pct - exp_waste_pct))
                 alertas += 1
 
-            # Alerta si varianza de rendimiento > 5%
             if abs(yr.variance_pct) > 5.0 and exp_usable_pct > 0:
                 conn.execute("""
                     INSERT INTO production_alerts
@@ -597,12 +570,17 @@ class ProductionEngine:
             allocations = YieldCalculator.allocate_costs(yr.outputs, src_cost)
             allocator = CostAllocator(conn)
             allocator.persist_allocations(batch_id, allocations, output_id_map)
-            # Actualizar costo promedio en productos
             for a in allocations:
                 if a.cost_per_kg > 0:
                     allocator.update_product_average_cost(a.product_id, a.cost_per_kg)
+                    # Actualizar también inventario_actual.costo_promedio
+                    conn.execute("""
+                        UPDATE inventario_actual
+                        SET costo_promedio = ?
+                        WHERE producto_id = ? AND sucursal_id = ?
+                    """, (a.cost_per_kg, a.product_id, bid))
 
-        # Publicar evento (fuera de transacción)
+        # Publicar evento (fuera de transacción — batch["folio"] capturado antes del with)
         self._publicar_evento(batch_id, batch["folio"], bid)
 
         logger.info(
@@ -625,13 +603,13 @@ class ProductionEngine:
 
     def cancel_batch(self, batch_id: str, cancelled_by: str, motivo: str = "") -> None:
         """Cancela un lote si está abierto."""
-        conn = self.db.conn
-        conn.execute(f"SAVEPOINT sp_35582a")
+        sp = f"sp_cb_{uuid.uuid4().hex[:8]}"
+        self.db.execute(f"SAVEPOINT {sp}")
         try:
-            batch = self._get_batch(conn, batch_id)
+            batch = self._get_batch(self.db, batch_id)
             if batch["estado"] == "cerrado":
                 raise BatchAlreadyClosedError("No se puede cancelar un lote ya cerrado")
-            conn.execute("""
+            self.db.execute("""
                 UPDATE production_batches SET
                     estado = 'cancelado',
                     closed_by = ?,
@@ -639,9 +617,9 @@ class ProductionEngine:
                     notas = COALESCE(notas,'') || ' | CANCELADO: ' || ?
                 WHERE id = ?
             """, (cancelled_by, motivo, batch_id))
-            conn.execute(f"RELEASE SAVEPOINT sp_35582a")
+            self.db.execute(f"RELEASE SAVEPOINT {sp}")
         except Exception:
-            try: conn.execute(f"ROLLBACK TO SAVEPOINT sp_35582a")
+            try: self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             except Exception: pass
             raise
         logger.info("Lote cancelado: %s por %s", batch_id[:8], cancelled_by)
@@ -692,18 +670,17 @@ class ProductionEngine:
 
     def get_batch_detail(self, batch_id: str) -> Dict:
         """Detalle completo de un lote con outputs y análisis."""
-        conn = self.db.conn
-        batch = self._get_batch(conn, batch_id)
-        outputs = self._get_outputs(conn, batch_id)
-        yield_analysis = conn.execute(
+        batch = self._get_batch(self.db, batch_id)
+        outputs = self._get_outputs(self.db, batch_id)
+        yield_analysis = self.db.execute(
             "SELECT * FROM production_yield_analysis WHERE batch_id=?",
             (batch_id,)
         ).fetchone()
-        alerts = conn.execute(
+        alerts = self.db.execute(
             "SELECT * FROM production_alerts WHERE batch_id=? ORDER BY created_at",
             (batch_id,)
         ).fetchall()
-        cost_ledger = conn.execute(
+        cost_ledger = self.db.execute(
             "SELECT cl.*, p.nombre AS prod_nombre FROM production_cost_ledger cl "
             "LEFT JOIN productos p ON p.id = cl.product_id WHERE cl.batch_id=?",
             (batch_id,)

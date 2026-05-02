@@ -1,6 +1,10 @@
 
 # core/services/purchase_service.py
 import uuid
+import logging
+
+logger = logging.getLogger("spj.purchase_service")
+
 
 class PurchaseService:
     """
@@ -122,6 +126,17 @@ class PurchaseService:
                     logging.getLogger(__name__).warning("FinanceService compra: %s", _fe)
                     # Non-fatal: inventory already updated, purchase recorded
 
+            # MEJORA: Auto-crear lotes para trazabilidad FIFO
+            # Cada ítem de compra genera un lote independiente con su costo y caducidad
+            self._crear_lotes_compra(
+                compra_id=compra_id,
+                folio=folio,
+                items=items,
+                proveedor_id=provider_id,
+                sucursal_id=branch_id,
+                usuario=user,
+            )
+
             # Release savepoint — all changes persist
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
 
@@ -142,8 +157,71 @@ class PurchaseService:
             return folio
 
         except Exception as e:
-            # 🚨 SI ALGO FALLA (Ej. no hay dinero en caja o falla la base de datos):
-            # Se deshace la compra, se deshace el inventario, no pasó nada.
             try: self.db.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
             except Exception: pass
             raise RuntimeError(f"Error al registrar la compra. Operación cancelada: {str(e)}")
+
+    def _crear_lotes_compra(
+        self, compra_id: int, folio: str, items: list,
+        proveedor_id: int, sucursal_id: int, usuario: str,
+    ) -> None:
+        """
+        MEJORA TRAZABILIDAD: Crea un lote por cada ítem de compra.
+
+        Esto permite:
+        - FIFO real por lote (vender el más antiguo primero)
+        - Costeo por lote (cada lote tiene su propio costo_kg)
+        - Trazabilidad completa: lote compra → lote producción → venta
+        - Alertas de caducidad por lote
+
+        Nota: solo actualiza la tabla `lotes` — NO toca `productos.existencia`
+        porque PurchaseService.add_stock() ya lo hizo.
+        """
+        from datetime import datetime
+
+        for item in items:
+            try:
+                producto_id = item.get("product_id")
+                qty = float(item.get("qty", 0))
+                unit_cost = float(item.get("unit_cost", 0))
+                if not producto_id or qty <= 0:
+                    continue
+
+                numero_lote = f"{folio}-P{producto_id}"
+                fecha_caducidad = item.get("fecha_caducidad")  # opcional
+
+                self.db.execute("""
+                    INSERT OR IGNORE INTO lotes (
+                        uuid, producto_id, numero_lote, proveedor_id,
+                        peso_inicial_kg, peso_actual_kg, costo_kg,
+                        fecha_caducidad, sucursal_id,
+                        temperatura_c, observaciones, estado
+                    ) VALUES (
+                        lower(hex(randomblob(16))),
+                        ?, ?, ?,
+                        ?, ?, ?,
+                        ?, ?,
+                        NULL, ?, 'activo'
+                    )
+                """, (
+                    producto_id, numero_lote, proveedor_id,
+                    qty, qty, unit_cost,
+                    fecha_caducidad, sucursal_id,
+                    f"Compra {folio} - compra_id={compra_id}",
+                ))
+
+                lote_id = self.db.execute(
+                    "SELECT id FROM lotes WHERE numero_lote=? AND producto_id=?",
+                    (numero_lote, producto_id)
+                ).fetchone()
+
+                if lote_id:
+                    self.db.execute("""
+                        INSERT INTO movimientos_lote
+                            (lote_id, tipo, cantidad_kg, referencia, usuario)
+                        VALUES (?, 'recepcion', ?, ?, ?)
+                    """, (lote_id[0], qty, folio, usuario))
+
+            except Exception as _le:
+                # No crítico: la compra ya se guardó, el lote es auditoría adicional
+                logger.warning("Auto-lote compra item=%s: %s", item.get("product_id"), _le)

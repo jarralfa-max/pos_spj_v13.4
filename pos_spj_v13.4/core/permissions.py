@@ -92,8 +92,9 @@ def verificar_permiso(container, codigo_permiso: str,
         return False
 
     except Exception as e:
-        logger.debug("verificar_permiso error: %s", e)
-        return True  # En caso de error, permitir (fail-open por ahora)
+        logger.error("verificar_permiso error inesperado para '%s': %s — denegando acceso",
+                     codigo_permiso, e)
+        return False  # fail-closed: en caso de error, denegar
 
 
 def requiere_permiso(codigo_permiso: str):

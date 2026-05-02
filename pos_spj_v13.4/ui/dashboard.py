@@ -17,6 +17,7 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QFrame, QScrollArea, QSizePolicy,
+    QGraphicsDropShadowEffect,
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QColor
@@ -24,237 +25,414 @@ from core.db.connection import get_connection
 
 # Importar design tokens para consistencia
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
-from modulos.ui_components import LoadingIndicator, EmptyStateWidget
+from modulos.ui_components import (
+    LoadingIndicator, EmptyStateWidget, PageHeader,
+)
 
 logger = logging.getLogger("spj.ui.dashboard")
 
-# Variables CSS para reutilización (design tokens - modo claro por defecto)
-CSS_VARS = """
-    --bg-card: #FFFFFF;
-    --bg-hover: #F8FAFC;
-    --border: #E2E8F0;
-    --border-active: #2563EB;
-    --text-primary: #0F172A;
-    --text-secondary: #64748B;
-    --text-muted: #94A3B8;
-    --primary: #2563EB;
-    --primary-hover: #E600E6;
-    --success: #16A34A;
-    --warning: #D97706;
-    --danger: #DC2626;
-    --bg-danger-soft: #FEF2F2;
-    --bg-warning-soft: #FEF3C7;
-    --bg-success-soft: #DCFCE7;
-    --bg-info-soft: #DBEAFE;
-"""
+
+_VARIANT_ACCENT = {
+    "primary": Colors.PRIMARY.BASE,
+    "success": Colors.SUCCESS.BASE,
+    "danger":  Colors.DANGER.BASE,
+    "warning": Colors.WARNING.BASE,
+    "info":    Colors.INFO.BASE,
+}
 
 
 class KPICard(QFrame):
     """
-    Tarjeta de KPI individual.
-    Diseño optimizado: fondo neutro con indicador de color, no card saturada.
-    Usa variables CSS para consistencia.
+    Tarjeta KPI moderna: accent bar superior, sombra suave, delta opcional.
+
+    Resuelve el color del accent vía KPIColorEngine si se provee metric_key
+    (semáforo dinámico verde/amarillo/rojo según umbrales del negocio); en
+    caso contrario usa el color de la variante.
+
+    Hover y fondo dependen del tema (theme-aware vía objectName "kpiCard"
+    cuyo QSS se define en modulos.qss_builder._block_kpi_card).
+
+    API pública preservada:
+        clicked: pyqtSignal(str)        # emitido en clic
+        set_valor(str)                   # actualiza valor mostrado
+        set_estado(value, prev)          # actualiza color + tendencia desde KPIColorEngine
     """
     clicked = pyqtSignal(str)
 
     def __init__(self, titulo: str, valor: str = "—",
-                 color: str = "",          # deprecated: se ignora si metric_key dado
+                 color: str = "",          # legacy, se ignora si metric_key
                  icono: str = "📊",
                  key: str = "",
-                 metric_key: str = "",     # clave para KPIColorEngine
-                 metric_value: float = 0,  # valor numérico actual
-                 metric_prev: float = 0,   # valor período anterior (para tendencia)
-                 tendencia: str = "",      # override manual de tendencia
+                 metric_key: str = "",
+                 metric_value: float = 0,
+                 metric_prev: float = 0,
+                 tendencia: str = "",
+                 variant: str = "primary",
                  parent=None):
         super().__init__(parent)
         self._key = key
         self._metric_key = metric_key
+        self._variant = variant
 
-        # Resolver color via KPIColorEngine si se provee metric_key
+        accent = self._resolve_accent(metric_key, metric_value, metric_prev, variant)
+        if metric_key and not tendencia:
+            tendencia = self._resolve_tendencia(metric_key, metric_value, metric_prev)
+        self._current_color = accent
+
+        self.setObjectName("kpiCard")
+        self.setProperty("variant", variant)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(96)
+
+        # Sombra
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(16)
+        shadow.setOffset(0, 2)
+        shadow.setColor(QColor(0, 0, 0, 32))
+        self.setGraphicsEffect(shadow)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Accent bar superior
+        self._accent_bar = QFrame(self)
+        self._accent_bar.setFixedHeight(3)
+        self._accent_bar.setStyleSheet(
+            f"background-color: {accent};"
+            f" border-top-left-radius: {Borders.RADIUS_LG}px;"
+            f" border-top-right-radius: {Borders.RADIUS_LG}px;"
+            f" border: none;"
+        )
+        outer.addWidget(self._accent_bar)
+
+        # Cuerpo
+        body = QHBoxLayout()
+        body.setContentsMargins(16, 12, 16, 12)
+        body.setSpacing(8)
+        outer.addLayout(body)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(2)
+
+        lbl_titulo = QLabel(titulo.upper(), self)
+        lbl_titulo.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_500};"
+            f" font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" letter-spacing: 0.05em;"
+            f" background: transparent; border: none;"
+        )
+        text_col.addWidget(lbl_titulo)
+
+        self.lbl_valor = QLabel(valor, self)
+        self.lbl_valor.setObjectName("kpiValue")
+        self.lbl_valor.setStyleSheet(
+            f"font-size: 22px;"
+            f" font-weight: {Typography.WEIGHT_BOLD};"
+            f" letter-spacing: -0.02em;"
+            f" background: transparent; border: none;"
+        )
+        text_col.addWidget(self.lbl_valor)
+
+        # Tendencia: pill con color según signo
+        self.lbl_tendencia = QLabel("", self)
+        self.lbl_tendencia.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self._set_tendencia_text(tendencia)
+        text_col.addWidget(self.lbl_tendencia, alignment=Qt.AlignLeft)
+
+        body.addLayout(text_col, 1)
+
+        # Ícono con tinte
+        lbl_icono = QLabel(icono, self)
+        lbl_icono.setFixedSize(40, 40)
+        lbl_icono.setAlignment(Qt.AlignCenter)
+        lbl_icono.setStyleSheet(
+            f"font-size: 22px;"
+            f" background-color: {accent}1F;"  # alpha 12%
+            f" border-radius: {Borders.RADIUS_LG}px;"
+            f" border: none;"
+        )
+        body.addWidget(lbl_icono, 0, alignment=Qt.AlignTop)
+
+    # ── Helpers de color/tendencia (KPIColorEngine opcional) ──────────────
+    @staticmethod
+    def _resolve_accent(metric_key, metric_value, metric_prev, variant) -> str:
         if metric_key:
             try:
                 from core.services.kpi_color_engine import get_kpi_color_engine
-                _eng = get_kpi_color_engine()
-                cfg = _eng.kpi_config(metric_key, metric_value, metric_prev)
-                _color = cfg["color"]
-                _text_sub = cfg["text_sub_color"]
-                if not tendencia and metric_prev:
-                    tendencia = cfg["tendencia"]
+                cfg = get_kpi_color_engine().kpi_config(metric_key, metric_value, metric_prev)
+                return cfg["color"]
             except Exception:
-                _color = "#2563EB"  # Default azul primario
-                _text_sub = "#64748B"
+                pass
+        return _VARIANT_ACCENT.get(variant, Colors.PRIMARY.BASE)
+
+    @staticmethod
+    def _resolve_tendencia(metric_key, metric_value, metric_prev) -> str:
+        if not metric_prev:
+            return ""
+        try:
+            from core.services.kpi_color_engine import get_kpi_color_engine
+            cfg = get_kpi_color_engine().kpi_config(metric_key, metric_value, metric_prev)
+            return cfg.get("tendencia", "")
+        except Exception:
+            return ""
+
+    def _set_tendencia_text(self, text: str) -> None:
+        """Actualiza la pill de tendencia. Detecta signo desde el texto (+/-/↑/↓)."""
+        if not text:
+            self.lbl_tendencia.setText("")
+            self.lbl_tendencia.setVisible(False)
+            return
+        # Determinar color por signo
+        is_positive = ("↑" in text) or text.lstrip().startswith("+")
+        is_negative = ("↓" in text) or text.lstrip().startswith("-")
+        if is_positive:
+            color, bg = Colors.SUCCESS.BASE, Colors.SUCCESS.BG_SOFT
+        elif is_negative:
+            color, bg = Colors.DANGER.BASE, Colors.DANGER.BG_SOFT
         else:
-            _color = "#2563EB"  # Default azul primario
-            _text_sub = "#64748B"
+            color, bg = Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100
+        self.lbl_tendencia.setText(text)
+        self.lbl_tendencia.setStyleSheet(
+            f"color: {color}; background-color: {bg};"
+            f" font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" border-radius: {Borders.RADIUS_FULL}px;"
+            f" padding: 2px 8px; border: none;"
+        )
+        self.lbl_tendencia.setVisible(True)
 
-        self.setFrameStyle(QFrame.StyledPanel)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setObjectName("kpiCard")
-        self.setProperty("variant", "card")
-        self._current_color = _color
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(80)  # Reducido de 100 a 80px
-
-        lyt = QVBoxLayout(self)
-        lyt.setContentsMargins(12, 8, 12, 8)  # Padding reducido
-
-        top = QHBoxLayout()
-        lbl_icono = QLabel(icono)
-        lbl_icono.setStyleSheet(f"font-size: 20px; background: transparent; color: {_color};")
-        top.addWidget(lbl_icono)
-        top.addStretch()
-        # Tendencia — muestra % de cambio si disponible
-        if tendencia:
-            self.lbl_tendencia = QLabel(tendencia)
-            self.lbl_tendencia.setStyleSheet(
-                f"color: {_text_sub}; font-size: 10px; "
-                "font-weight: 600; background: transparent;")
-            top.addWidget(self.lbl_tendencia)
-        else:
-            self.lbl_tendencia = None
-        lyt.addLayout(top)
-
-        self.lbl_valor = QLabel(valor)
-        self.lbl_valor.setObjectName("kpiValue")
-        self.lbl_valor.setStyleSheet(
-            "font-size: 18px; font-weight: 700; background: transparent;")
-        lyt.addWidget(self.lbl_valor)
-
-        lbl_titulo = QLabel(titulo)
-        lbl_titulo.setStyleSheet(
-            f"color: {_text_sub}; font-size: 11px; background: transparent;")
-        lyt.addWidget(lbl_titulo)
-
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
-        self.sucursal_id = sucursal_id
-        self._nombre_sucursal = nombre
-        if hasattr(self, '_lbl_titulo_dash') and nombre:
-            self._lbl_titulo_dash.setText(f"📈 Dashboard — {nombre}")
-        try: self._refrescar()
-        except Exception: pass
-
-    def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
-        self.usuario_actual = usuario
-        self.rol_actual = rol.lower() if rol else "cajero"
-        # Re-run actualizar to filter by role
-        try: self.actualizar()
-        except Exception: pass
-
-
+    # ── API pública ────────────────────────────────────────────────────────
     def set_valor(self, valor: str):
         self.lbl_valor.setText(valor)
 
     def set_estado(self, metric_value: float, metric_prev: float = 0) -> None:
-        """
-        Actualiza color y tendencia según el nuevo valor.
-        Llama a KPIColorEngine — sin lógica de color aquí.
-        """
+        """Actualiza accent bar + tendencia delegando a KPIColorEngine."""
         if not self._metric_key:
             return
         try:
             from core.services.kpi_color_engine import get_kpi_color_engine
-            _eng = get_kpi_color_engine()
-            cfg = _eng.kpi_config(self._metric_key, metric_value, metric_prev)
+            cfg = get_kpi_color_engine().kpi_config(self._metric_key, metric_value, metric_prev)
             _color = cfg["color"]
-            _text_sub = cfg["text_sub_color"]
-            self.setStyleSheet(f"""
-                KPICard {{ background: {_color}; border-radius: 12px; border: none; }}
-                KPICard:hover {{ background: {_color}dd; }}
-            """)
             self._current_color = _color
-            if self.lbl_tendencia and cfg.get("tendencia"):
-                self.lbl_tendencia.setText(cfg["tendencia"])
-                self.lbl_tendencia.setStyleSheet(
-                    f"color: {_text_sub}; font-size: 10px; "
-                    "font-weight: 600; background: transparent;")
+            self._accent_bar.setStyleSheet(
+                f"background-color: {_color};"
+                f" border-top-left-radius: {Borders.RADIUS_LG}px;"
+                f" border-top-right-radius: {Borders.RADIUS_LG}px;"
+                f" border: none;"
+            )
+            self._set_tendencia_text(cfg.get("tendencia", ""))
         except Exception:
             pass
 
     def mousePressEvent(self, event):
         self.clicked.emit(self._key)
+        super().mousePressEvent(event)
+
+
+_ALERTA_VARIANT = {
+    # tipo: (bg_soft, accent, icon)
+    "danger":  (Colors.DANGER.BG_SOFT,  Colors.DANGER.BASE,  "🔴"),
+    "warning": (Colors.WARNING.BG_SOFT, Colors.WARNING.BASE, "⚠️"),
+    "success": (Colors.SUCCESS.BG_SOFT, Colors.SUCCESS.BASE, "✅"),
+    "info":    (Colors.PRIMARY.LIGHT,   Colors.PRIMARY.BASE, "ℹ️"),
+}
+
+_PEDIDO_BADGE_COLOR = {
+    "nuevo":      Colors.DANGER.BASE,
+    "confirmado": Colors.PRIMARY.BASE,
+    "pesando":    Colors.WARNING.BASE,
+    "listo":      Colors.SUCCESS.BASE,
+}
 
 
 class AlertaItem(QFrame):
-    """Item de alerta en la lista lateral. Usa variables CSS para consistencia."""
+    """Item de alerta con border-left de color según severidad.
+
+    Estilos via tokens; antes usaba var(--xxx) que Qt QSS no soporta y
+    los estilos no se aplicaban (caía a defaults).
+    """
     def __init__(self, texto: str, tipo: str = "info", parent=None):
         super().__init__(parent)
-        colores_bg = {
-            "danger":  "var(--bg-danger-soft)",
-            "warning": "var(--bg-warning-soft)",
-            "success": "var(--bg-success-soft)",
-            "info":    "var(--bg-info-soft)",
-        }
-        colores_border = {
-            "danger":  "var(--danger)",
-            "warning": "var(--warning)",
-            "success": "var(--success)",
-            "info":    "var(--primary)",
-        }
-        iconos = {"danger":"🔴","warning":"⚠️","success":"✅","info":"ℹ️"}
-        self.setStyleSheet(f"""
-            AlertaItem {{
-                background: {colores_bg.get(tipo,'var(--bg-info-soft)')};
-                border-radius: 8px;
-                border-left: 4px solid {colores_border.get(tipo,'var(--primary)')};
-            }}
-        """)
+        bg, accent, icon = _ALERTA_VARIANT.get(tipo, _ALERTA_VARIANT["info"])
+        self.setObjectName("alertaItem")
+        self.setStyleSheet(
+            f"QFrame#alertaItem {{"
+            f"  background: {bg};"
+            f"  border-radius: {Borders.RADIUS_LG}px;"
+            f"  border: 1px solid {accent}33;"  # alpha 20%
+            f"  border-left: 4px solid {accent};"
+            f"}}"
+            f"QFrame#alertaItem QLabel {{"
+            f"  background: transparent; border: none;"
+            f"  color: {Colors.NEUTRAL.SLATE_900};"
+            f"  font-size: {Typography.SIZE_MD};"
+            f"}}"
+        )
         lyt = QHBoxLayout(self)
         lyt.setContentsMargins(10, 8, 10, 8)
-        lbl = QLabel(f"{iconos.get(tipo,'•')} {texto}")
+        lbl = QLabel(f"{icon}  {texto}", self)
         lbl.setWordWrap(True)
-        lbl.setStyleSheet("font-size: 12px; background: transparent;")
         lyt.addWidget(lbl)
 
 
 class PedidoWAItem(QFrame):
-    """Tarjeta de pedido WhatsApp en el dashboard. Usa variables CSS."""
+    """Tarjeta de pedido WhatsApp pendiente.
+
+    Estilos via tokens (antes con var(--xxx) inutilizables en Qt QSS).
+    """
     ver_pedido = pyqtSignal(int)
 
     def __init__(self, pedido: dict, parent=None):
         super().__init__(parent)
         pid = pedido.get("id", 0)
-        self.setStyleSheet("""
-            PedidoWAItem {
-                background: var(--bg-card);
-                border-radius: 8px;
-                border: 1px solid var(--border);
-            }
-            PedidoWAItem:hover { border-color: var(--primary); }
-        """)
+
+        self.setObjectName("pedidoWAItem")
+        self.setStyleSheet(
+            f"QFrame#pedidoWAItem {{"
+            f"  background: {Colors.NEUTRAL.WHITE};"
+            f"  border-radius: {Borders.RADIUS_LG}px;"
+            f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"}}"
+            f"QFrame#pedidoWAItem:hover {{"
+            f"  border-color: {Colors.PRIMARY.BASE};"
+            f"}}"
+            f"QFrame#pedidoWAItem QLabel {{"
+            f"  background: transparent; border: none;"
+            f"  color: {Colors.NEUTRAL.SLATE_900};"
+            f"}}"
+        )
         lyt = QVBoxLayout(self)
         lyt.setContentsMargins(12, 10, 12, 10)
         lyt.setSpacing(4)
 
         top = QHBoxLayout()
-        lbl_id = QLabel(f"📲 Pedido #{pid}")
-        lbl_id.setStyleSheet("font-weight: 700; font-size: 13px;")
+        lbl_id = QLabel(f"📲 Pedido #{pid}", self)
+        lbl_id.setStyleSheet(
+            f"font-weight: {Typography.WEIGHT_BOLD};"
+            f" font-size: {Typography.SIZE_LG};"
+            f" background: transparent; border: none;"
+        )
         top.addWidget(lbl_id)
         top.addStretch()
-        estado = pedido.get("estado","nuevo")
-        colores_estado = {
-            "nuevo": "var(--danger)",
-            "confirmado": "#2563EB",
-            "pesando": "var(--warning)",
-            "listo": "var(--success)"
-        }
-        badge = QLabel(estado.upper())
+
+        estado = pedido.get("estado", "nuevo")
+        badge_color = _PEDIDO_BADGE_COLOR.get(estado, Colors.NEUTRAL.SLATE_500)
+        badge = QLabel(estado.upper(), self)
         badge.setStyleSheet(
-            f"background:{colores_estado.get(estado,'var(--text-muted)')};"
-            "color:white;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:600;")
+            f"background: {badge_color}; color: white;"
+            f" padding: 3px 8px;"
+            f" border-radius: {Borders.RADIUS_MD}px;"
+            f" font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" border: none;"
+        )
         top.addWidget(badge)
         lyt.addLayout(top)
 
-        lyt.addWidget(QLabel(pedido.get("cliente_nombre","—")))
-        lyt.addWidget(QLabel(
-            f"${float(pedido.get('total',0)):.2f} · "
-            f"{pedido.get('tipo_entrega','mostrador')}"))
+        lbl_cliente = QLabel(pedido.get("cliente_nombre", "—"), self)
+        lbl_cliente.setStyleSheet(
+            f"font-size: {Typography.SIZE_MD};"
+            f" color: {Colors.NEUTRAL.SLATE_700};"
+            f" background: transparent; border: none;"
+        )
+        lyt.addWidget(lbl_cliente)
 
-        btn = QPushButton("Ver detalle →")
+        lbl_resumen = QLabel(
+            f"${float(pedido.get('total', 0)):.2f}  ·  "
+            f"{pedido.get('tipo_entrega', 'mostrador')}",
+            self,
+        )
+        lbl_resumen.setStyleSheet(
+            f"font-size: {Typography.SIZE_SM};"
+            f" color: {Colors.NEUTRAL.SLATE_500};"
+            f" background: transparent; border: none;"
+        )
+        lyt.addWidget(lbl_resumen)
+
+        btn = QPushButton("Ver detalle →", self)
         btn.setObjectName("primaryBtn")
         btn.setCursor(Qt.PointingHandCursor)
         btn.setToolTip(f"Ver detalles del pedido #{pid}")
         btn.clicked.connect(lambda: self.ver_pedido.emit(pid))
         lyt.addWidget(btn)
+
+
+class MiniGraficaVentas(QWidget):
+    """
+    Gráfica de barras mini — ventas últimos 7 días.
+    Pintada con QPainter; sin dependencias externas.
+    Barra de hoy en azul primario; resto en azul semitransparente.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._datos: list = []          # [(etiqueta, valor_float), ...]
+        self.setMinimumHeight(130)
+        self.setMaximumHeight(150)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setToolTip("Ventas de los últimos 7 días")
+
+    def set_datos(self, datos: list) -> None:
+        """datos: [(etiqueta_str, valor_float), ...]"""
+        self._datos = datos
+        self.update()
+
+    def paintEvent(self, event):
+        from PyQt5.QtGui import (QPainter, QBrush, QPen,
+                                 QLinearGradient, QFont as _QF)
+        if not self._datos:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        W, H = self.width(), self.height()
+        PAD_L, PAD_R, PAD_T, PAD_B = 6, 6, 20, 22
+        chart_h = H - PAD_T - PAD_B
+
+        values = [d[1] for d in self._datos]
+        max_v = max(values) if max(values) > 0 else 1
+        n = len(self._datos)
+        bar_w = (W - PAD_L - PAD_R) / (n * 1.5)
+        gap = bar_w * 0.5
+
+        BLUE      = QColor(37, 99, 235)
+        BLUE_SOFT = QColor(59, 130, 246, 80)
+        TEXT_DIM  = QColor(148, 163, 184)
+        TEXT_LT   = QColor(226, 232, 240)
+
+        for i, (label, val) in enumerate(self._datos):
+            is_today = (i == n - 1)
+            bar_h = max(int((val / max_v) * chart_h), 3)
+            x = int(PAD_L + i * (bar_w + gap))
+            y = H - PAD_B - bar_h
+
+            # Gradiente por barra
+            grad = QLinearGradient(x, y, x, H - PAD_B)
+            top_color = QColor(BLUE) if is_today else QColor(BLUE_SOFT)
+            bot_color = QColor(top_color); bot_color.setAlpha(20)
+            grad.setColorAt(0, top_color)
+            grad.setColorAt(1, bot_color)
+
+            p.setPen(Qt.NoPen)
+            p.setBrush(QBrush(grad))
+            p.drawRoundedRect(x, y, int(bar_w), bar_h, 3, 3)
+
+            # Valor encima de la barra
+            if val > 0:
+                val_str = f"${val/1000:.1f}k" if val >= 1000 else f"${val:.0f}"
+                p.setPen(QPen(TEXT_LT if is_today else TEXT_DIM))
+                p.setFont(_QF("Segoe UI", 7, 700 if is_today else 400))
+                p.drawText(x, y - 14, int(bar_w), 14, Qt.AlignCenter, val_str)
+
+            # Etiqueta del día
+            p.setPen(QPen(BLUE if is_today else TEXT_DIM))
+            p.setFont(_QF("Segoe UI", 8, 700 if is_today else 400))
+            p.drawText(x, H - PAD_B + 4, int(bar_w), 16,
+                       Qt.AlignCenter, label)
+
+        p.end()
 
 
 class Dashboard(QWidget):
@@ -301,49 +479,67 @@ class Dashboard(QWidget):
 
     def _setup_ui(self):
         self.setObjectName("Dashboard")
-        # No hardcoded background — global QSS (dark: #0F172A, light: #F8FAFC) controls it
+        # Sin background hardcodeado — el QSS global controla colores por tema.
 
         root = QVBoxLayout(self)
-        root.setSpacing(8)  # Reducido de 16 a 8
-        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+        root.setContentsMargins(16, 12, 16, 12)
 
-        # ── Header ──────────────────────────────────────────────────
-        header = QFrame()
-        header.setObjectName("dashboardHeader")
-        header.setFixedHeight(50)  # Reducido de 60 a 50
-        hdr_lyt = QHBoxLayout(header)
-        hdr_lyt.setContentsMargins(16, 0, 16, 0)
-        lbl_titulo = QLabel("📊 Dashboard SPJ POS")
-        lbl_titulo.setObjectName("dashboardTitle")
-        hdr_lyt.addWidget(lbl_titulo)
-        hdr_lyt.addStretch()
-        self.lbl_hora = QLabel()
+        # ── Header (PageHeader reutilizable) ─────────────────────────
+        self._page_header = PageHeader(
+            self,
+            title="📊 Dashboard SPJ POS",
+            subtitle="Resumen operativo en tiempo real",
+            with_separator=True,
+        )
+        self.lbl_hora = QLabel("", self)
         self.lbl_hora.setObjectName("dashboardTime")
-        hdr_lyt.addWidget(self.lbl_hora)
-        root.addWidget(header)
+        self.lbl_hora.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_500};"
+            f" font-size: {Typography.SIZE_SM};"
+            f" background: transparent; border: none;"
+        )
+        self._page_header.add_action(self.lbl_hora)
+        root.addWidget(self._page_header)
 
         # ── Cuerpo ───────────────────────────────────────────────────
         body = QHBoxLayout()
-        body.setContentsMargins(12, 12, 12, 12)  # Padding reducido
+        body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(12)
 
         # Columna izquierda (KPIs + pedidos WA)
         left = QVBoxLayout()
         left.setSpacing(12)
 
-        # KPIs grid
+        # KPIs en grid 4 columnas (4x2 = 8 KPIs)
+        # Cada KPI tiene una metric_key conocida por KPIColorEngine para
+        # resolver el color del semáforo según umbrales del negocio.
         kpi_grid = QGridLayout()
-        kpi_grid.setSpacing(8)  # Reducido de 10 a 8
+        kpi_grid.setSpacing(10)
         self._kpis = {
-            "ventas_hoy":    KPICard("Ventas hoy",    "$0",  "#2563EB", "💰", "ventas"),
-            "tickets_hoy":   KPICard("Tickets",       "0",   "#2563EB", "🧾", "ventas"),
-            "pedidos_wa":    KPICard("Pedidos WA",    "0",   "#2563EB", "📲", "pedidos_whatsapp"),
-            "productos_bajo": KPICard("Stock bajo",   "0",   "#2563EB", "⚠️", "inventario"),
+            "ventas_hoy":    KPICard("Ventas hoy",     "$0",  icono="💰", key="ventas",            metric_key="ventas",           variant="primary"),
+            "tickets_hoy":   KPICard("Tickets",        "0",   icono="🧾", key="ventas",            metric_key="ventas",           variant="success"),
+            "ticket_prom":   KPICard("Ticket promedio","$0",  icono="📊", key="ventas",            metric_key="ticket_promedio",  variant="info"),
+            "clientes_hoy":  KPICard("Clientes hoy",   "0",   icono="👥", key="clientes",          metric_key="clientes",         variant="primary"),
+            "margen_hoy":    KPICard("Margen bruto",   "0%",  icono="📈", key="reportes",          metric_key="margen_bruto",     variant="success"),
+            "vs_ayer":       KPICard("vs Ayer",        "—",   icono="⏱️", key="reportes",          metric_key="ventas",           variant="warning"),
+            "pedidos_wa":    KPICard("Pedidos WA",     "0",   icono="📲", key="pedidos_whatsapp",  metric_key="pedidos_whatsapp", variant="info"),
+            "productos_bajo":KPICard("Stock bajo",     "0",   icono="⚠️",  key="inventario",        metric_key="inventario",       variant="warning"),
         }
-        for i, (key, card) in enumerate(self._kpis.items()):
+        for i, (_key, card) in enumerate(self._kpis.items()):
             card.clicked.connect(self.abrir_modulo)
-            kpi_grid.addWidget(card, i // 2, i % 2)
+            kpi_grid.addWidget(card, i // 4, i % 4)  # 4 columnas
+        # Distribuir las 4 columnas equitativamente
+        for col in range(4):
+            kpi_grid.setColumnStretch(col, 1)
         left.addLayout(kpi_grid)
+
+        # ── Gráfica ventas 7 días ─────────────────────────────────────────
+        lbl_grafica = QLabel("📈 Ventas últimos 7 días")
+        lbl_grafica.setObjectName("sectionLabel")
+        left.addWidget(lbl_grafica)
+        self._grafica = MiniGraficaVentas(self)
+        left.addWidget(self._grafica)
 
         # Cola pedidos WA
         lbl_wa = QLabel("📲 Pedidos WhatsApp pendientes")
@@ -441,9 +637,41 @@ class Dashboard(QWidget):
     def actualizar(self):
         self.lbl_hora.setText(datetime.now().strftime("%d/%m/%Y %H:%M"))
         self._actualizar_kpis()
+        self._actualizar_grafica()
         self._actualizar_pedidos_wa()
         self._actualizar_alertas()
         self._actualizar_repartidores()
+
+    def _actualizar_grafica(self) -> None:
+        """Carga ventas de los últimos 7 días y actualiza la MiniGraficaVentas."""
+        DIAS_ES = ["L","M","X","J","V","S","D"]
+        datos = []
+        try:
+            rows = self.conn.execute("""
+                SELECT DATE('now', printf('-%d days', 6-seq)) AS dia,
+                       COALESCE(SUM(v.total), 0) AS total
+                FROM (SELECT 0 AS seq UNION SELECT 1 UNION SELECT 2
+                      UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) d
+                LEFT JOIN ventas v
+                    ON DATE(v.fecha) = DATE('now', printf('-%d days', 6-d.seq))
+                   AND v.estado = 'completada'
+                GROUP BY dia
+                ORDER BY dia
+            """).fetchall()
+            for row in rows:
+                try:
+                    from datetime import date as _date
+                    import datetime as _dt
+                    d = _dt.date.fromisoformat(row[0])
+                    etiqueta = DIAS_ES[d.weekday()]
+                except Exception:
+                    etiqueta = "?"
+                datos.append((etiqueta, float(row[1])))
+        except Exception as e:
+            logger.debug("_actualizar_grafica: %s", e)
+            # Fallback: 7 ceros para no crashear
+            datos = [(d, 0.0) for d in DIAS_ES]
+        self._grafica.set_datos(datos)
 
     def _actualizar_kpis(self):
         # ── Ventas del día ────────────────────────────────────────────────────
@@ -475,10 +703,9 @@ class Dashboard(QWidget):
             ingresos = float(r[0] or 0)
             costos   = float(r[1] or 0)
             margen   = ((ingresos - costos) / ingresos * 100) if ingresos > 0 else 0
-            color    = "#27AE60" if margen >= 20 else "#E67E22" if margen >= 10 else "#E74C3C"
             self._kpis["margen_hoy"].set_valor(f"{margen:.1f}%")
-            self._kpis["margen_hoy"].setStyleSheet(
-                self._kpis["margen_hoy"].styleSheet().replace("background", f"background"))
+            # set_estado pinta accent bar + tendencia delegando a KPIColorEngine
+            self._kpis["margen_hoy"].set_estado(margen)
         except Exception: pass
 
         # ── Comparativo vs ayer ───────────────────────────────────────────────
@@ -488,9 +715,12 @@ class Dashboard(QWidget):
                 WHERE DATE(fecha)=DATE('now','-1 day') AND estado='completada'""").fetchone()[0])
             if ayer > 0:
                 delta = ((ventas_hoy - ayer) / ayer * 100)
-                sign  = "+" if delta >= 0 else ""
-                color = "#27AE60" if delta >= 0 else "#E74C3C"
+                sign  = "↑ +" if delta >= 0 else "↓ "
                 self._kpis["vs_ayer"].set_valor(f"{sign}{delta:.1f}%")
+                # Pasar el delta a set_estado para que la pill se coloree
+                self._kpis["vs_ayer"].set_estado(ventas_hoy, ayer)
+            else:
+                self._kpis["vs_ayer"].set_valor("—")
         except Exception: pass
 
         # ── Clientes atendidos hoy ────────────────────────────────────────────
@@ -622,8 +852,30 @@ class Dashboard(QWidget):
     def _on_ver_pedido(self, pedido_id: int):
         self.abrir_modulo.emit("pedidos_whatsapp")
 
-    def set_sesion(self, usuario: str, rol: str):
-        pass
+    # ── Estado de sesión (consumido por main_window via hasattr) ───────────
+    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+        """Cambia la sucursal activa y refresca KPIs filtrados."""
+        self.sucursal_id = sucursal_id
+        self._nombre_sucursal = nombre
+        if nombre:
+            self._page_header.set_subtitle(f"Resumen operativo · {nombre}")
+        try:
+            self.actualizar()
+        except Exception as e:
+            logger.debug("set_sucursal refresh: %s", e)
+
+    def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
+        """Almacena el usuario activo (afecta filtrado por rol en KPIs)."""
+        self.usuario_actual = usuario
+        self.rol_actual = rol.lower() if rol else "cajero"
+        try:
+            self.actualizar()
+        except Exception as e:
+            logger.debug("set_usuario_actual refresh: %s", e)
+
+    def set_sesion(self, usuario: str, rol: str) -> None:
+        """Compatibilidad legacy — delega a set_usuario_actual."""
+        self.set_usuario_actual(usuario, rol)
 
 
 class DashboardWidget(Dashboard):

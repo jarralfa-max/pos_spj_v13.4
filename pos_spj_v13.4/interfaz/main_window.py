@@ -200,11 +200,46 @@ class DialogoLogin(QDialog):
         self._sucursal_instalacion = self._leer_sucursal_instalacion()
 
         self.setWindowTitle("SPJ POS — Iniciar Sesión")
-        self.setFixedSize(340, 450)
-        
-        # Usar objectName para que el tema global aplique estilos consistentes
+        self.setFixedSize(380, 500)
         self.setObjectName("loginDialog")
+        # Sin bordes de sistema para look moderno
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self._configurar_ui()
+
+    def paintEvent(self, event):
+        """Fondo oscuro con glow radial azul en la parte superior."""
+        from PyQt5.QtGui import QPainter, QRadialGradient, QColor as _QC, QBrush
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+
+        # Fondo base
+        p.fillRect(self.rect(), _QC("#09090f"))
+
+        # Glow radial centrado en la parte superior
+        W, H = self.width(), self.height()
+        grad = QRadialGradient(W / 2, H * 0.25, W * 0.55)
+        grad.setColorAt(0, _QC(37, 99, 235, 38))   # azul semitransparente
+        grad.setColorAt(1, _QC(9, 9, 15, 0))        # transparente al borde
+        p.fillRect(self.rect(), QBrush(grad))
+
+        # Borde redondeado exterior
+        from PyQt5.QtGui import QPen
+        p.setPen(QPen(_QC("#2a2a4a"), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 14, 14)
+        p.end()
+        super().paintEvent(event)
+
+    def mousePressEvent(self, event):
+        """Permite arrastrar el diálogo (sin barra de título)."""
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPos() - self.frameGeometry().topLeft()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if hasattr(self, '_drag_pos') and event.buttons() & Qt.LeftButton:
+            self.move(event.globalPos() - self._drag_pos)
+        super().mouseMoveEvent(event)
 
     def _leer_sucursal_instalacion(self) -> dict:
         """Lee la sucursal configurada para ESTA instalación."""
@@ -212,12 +247,10 @@ class DialogoLogin(QDialog):
             db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if not db:
                 return {'id': 1, 'nombre': 'Principal'}
-            # Leer sucursal de la instalación (configurada por admin)
             row = db.execute(
                 "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
             ).fetchone()
             suc_id = int(row[0]) if row and row[0] else 1
-            # Obtener nombre
             suc_row = db.execute(
                 "SELECT nombre FROM sucursales WHERE id=?", (suc_id,)
             ).fetchone()
@@ -228,17 +261,43 @@ class DialogoLogin(QDialog):
 
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(0)
+        layout.setContentsMargins(36, 32, 36, 28)
 
-        # Logo empresa - CORREGIDO: Sin cortes, escalado proporcional adecuado y visible completo
+        # ── Barra de título minimalista (cerrar) ─────────────────────────
+        title_bar = QHBoxLayout()
+        title_bar.setContentsMargins(0, 0, 0, 0)
+        lbl_app = QLabel("SPJ POS")
+        lbl_app.setStyleSheet(
+            "color: #475569; font-size: 11px; font-weight: 600;"
+            " background: transparent;")
+        btn_close = QPushButton("✕")
+        btn_close.setFixedSize(24, 24)
+        btn_close.setStyleSheet(
+            "QPushButton { background: transparent; color: #475569;"
+            " border: none; font-size: 13px; border-radius: 12px; }"
+            " QPushButton:hover { background: #dc2626; color: white; }")
+        btn_close.clicked.connect(self.reject)
+        title_bar.addWidget(lbl_app)
+        title_bar.addStretch()
+        title_bar.addWidget(btn_close)
+        layout.addLayout(title_bar)
+        layout.addSpacing(16)
+
+        # ── Logo circular ────────────────────────────────────────────────
+        logo_container = QFrame()
+        logo_container.setFixedSize(80, 80)
+        logo_container.setStyleSheet(
+            "QFrame { border: 2px solid #2563EB; border-radius: 40px;"
+            " background: rgba(37,99,235,0.12); }")
+        logo_lay = QVBoxLayout(logo_container)
+        logo_lay.setContentsMargins(0, 0, 0, 0)
+
         self.lbl_logo = QLabel()
         self.lbl_logo.setAlignment(Qt.AlignCenter)
         self.lbl_logo.setObjectName("loginLogo")
-        # Fase 0 hardening UI login: evitar recorte del logo en DPI altos.
-        self.lbl_logo.setMinimumHeight(100)
-        self.lbl_logo.setFixedHeight(120)
-        self.lbl_logo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.lbl_logo.setFixedSize(76, 76)
+        self.lbl_logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.lbl_logo.setScaledContents(False)
 
         try:
@@ -246,13 +305,15 @@ class DialogoLogin(QDialog):
             import os
             _db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if _db:
-                _r = _db.execute("SELECT valor FROM configuraciones WHERE clave='logo_path'").fetchone()
+                _r = _db.execute(
+                    "SELECT valor FROM configuraciones WHERE clave='logo_path'"
+                ).fetchone()
                 if _r and _r[0] and os.path.exists(_r[0]):
                     _pix = _QP(_r[0])
                     if not _pix.isNull():
-                        _scaled = _pix.scaled(140, 140, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        _scaled = _pix.scaled(
+                            64, 64, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         self.lbl_logo.setPixmap(_scaled)
-                        self.lbl_logo.setAlignment(Qt.AlignCenter)
                     else:
                         raise Exception()
                 else:
@@ -260,87 +321,172 @@ class DialogoLogin(QDialog):
             else:
                 raise Exception()
         except Exception:
-            self.lbl_logo.setText("🏢")
-            self.lbl_logo.setStyleSheet("font-size: 40px; background-color: transparent;")
-            self.lbl_logo.setAlignment(Qt.AlignCenter)
+            self.lbl_logo.setText("SPJ")
+            self.lbl_logo.setStyleSheet(
+                "font-size: 20px; font-weight: 700; color: #ffffff;"
+                " background: transparent; border: none;")
 
-        layout.addWidget(self.lbl_logo)
+        logo_lay.addWidget(self.lbl_logo, alignment=Qt.AlignCenter)
 
-        titulo = QLabel("Iniciar Sesión")
+        logo_row = QHBoxLayout()
+        logo_row.addStretch()
+        logo_row.addWidget(logo_container)
+        logo_row.addStretch()
+        layout.addLayout(logo_row)
+        layout.addSpacing(16)
+
+        # ── Título ───────────────────────────────────────────────────────
+        titulo = QLabel("Iniciar sesión")
         titulo.setObjectName("loginTitle")
         titulo.setAlignment(Qt.AlignCenter)
+        titulo.setStyleSheet(
+            "color: #f1f5f9; font-size: 22px; font-weight: 700;"
+            " background: transparent; border: none; letter-spacing: -0.3px;")
         layout.addWidget(titulo)
+        layout.addSpacing(4)
 
-        # Mostrar sucursal de esta instalación (solo info, no editable)
+        lbl_sub = QLabel("Enterprise Edition · SPJ v13.4")
+        lbl_sub.setAlignment(Qt.AlignCenter)
+        lbl_sub.setStyleSheet(
+            "color: #475569; font-size: 11px; background: transparent; border: none;")
+        layout.addWidget(lbl_sub)
+        layout.addSpacing(12)
+
+        # ── Badge sucursal ───────────────────────────────────────────────
         suc_nombre = self._sucursal_instalacion.get('nombre', 'Principal')
-        lbl_suc = QLabel(f"Sucursal: {suc_nombre}")
+        lbl_suc = QLabel(f"📍  {suc_nombre}")
         lbl_suc.setAlignment(Qt.AlignCenter)
         lbl_suc.setObjectName("loginSucursal")
         lbl_suc.setWordWrap(True)
-        layout.addWidget(lbl_suc)
+        lbl_suc.setStyleSheet(
+            "color: #0891b2; background: rgba(8,145,178,0.12);"
+            " border: 1px solid rgba(8,145,178,0.35);"
+            " border-radius: 10px; font-size: 11px; font-weight: 600;"
+            " padding: 4px 14px;")
+        suc_row = QHBoxLayout()
+        suc_row.addStretch()
+        suc_row.addWidget(lbl_suc)
+        suc_row.addStretch()
+        layout.addLayout(suc_row)
+        layout.addSpacing(20)
 
-        layout.addSpacing(10)  # Espacio extra antes de inputs
+        # ── Inputs ───────────────────────────────────────────────────────
+        _input_qss = (
+            "QLineEdit {"
+            "  background: #1a1a2e; border: 1.5px solid #2a2a4a;"
+            "  border-radius: 8px; color: #e2e8f0;"
+            "  font-size: 13px; padding: 8px 12px;"
+            "}"
+            "QLineEdit:focus {"
+            "  border-color: #2563EB;"
+            "  background: #1e2040;"
+            "}"
+            "QLineEdit::placeholder { color: #475569; }"
+        )
+
+        lbl_u = QLabel("Usuario o PIN")
+        lbl_u.setStyleSheet(
+            "color: #64748b; font-size: 11px; font-weight: 600;"
+            " background: transparent; border: none;")
+        layout.addWidget(lbl_u)
+        layout.addSpacing(4)
 
         self.txt_usuario = QLineEdit()
-        self.txt_usuario.setPlaceholderText("Usuario o PIN")
+        self.txt_usuario.setPlaceholderText("usuario@spj.com  ·  ó PIN numérico")
         self.txt_usuario.setObjectName("inputField")
-        self.txt_usuario.setMinimumHeight(40)
-        
+        self.txt_usuario.setMinimumHeight(42)
+        self.txt_usuario.setStyleSheet(_input_qss)
+        layout.addWidget(self.txt_usuario)
+        layout.addSpacing(12)
+
+        lbl_p = QLabel("Contraseña")
+        lbl_p.setStyleSheet(
+            "color: #64748b; font-size: 11px; font-weight: 600;"
+            " background: transparent; border: none;")
+        layout.addWidget(lbl_p)
+        layout.addSpacing(4)
+
         self.txt_password = QLineEdit()
-        self.txt_password.setPlaceholderText("Contraseña")
+        self.txt_password.setPlaceholderText("••••••••")
         self.txt_password.setEchoMode(QLineEdit.Password)
         self.txt_password.setObjectName("inputField")
-        self.txt_password.setMinimumHeight(40)
+        self.txt_password.setMinimumHeight(42)
+        self.txt_password.setStyleSheet(_input_qss)
         self.txt_password.returnPressed.connect(self.intentar_login)
-        
-        layout.addWidget(self.txt_usuario)
         layout.addWidget(self.txt_password)
+        layout.addSpacing(20)
 
-        layout.addStretch()  # Empuja el botón hacia abajo
-
+        # ── Botón principal ──────────────────────────────────────────────
         self.btn_login = QPushButton("ENTRAR AL SISTEMA")
         self.btn_login.setObjectName("primaryBtn")
         self.btn_login.setCursor(Qt.PointingHandCursor)
-        self.btn_login.setMinimumHeight(45)
-        self.btn_login.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self.btn_login.setMinimumHeight(46)
+        self.btn_login.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_login.setStyleSheet(
+            "QPushButton {"
+            "  background: #2563EB; color: white; border: none;"
+            "  border-radius: 8px; font-size: 13px; font-weight: 700;"
+            "  letter-spacing: 0.5px;"
+            "}"
+            "QPushButton:hover {"
+            "  background: #1d4ed8;"
+            "  box-shadow: 0 0 18px rgba(37,99,235,0.55);"
+            "}"
+            "QPushButton:pressed { background: #1e40af; }"
+            "QPushButton:disabled { background: #1e293b; color: #475569; }"
+        )
         self.btn_login.clicked.connect(self.intentar_login)
-        row_login = QHBoxLayout()
-        row_login.addStretch()
-        row_login.addWidget(self.btn_login)
-        row_login.addStretch()
-        layout.addLayout(row_login)
+        layout.addWidget(self.btn_login)
 
-        # Mensaje de error (oculto por defecto)
+        # ── Error ────────────────────────────────────────────────────────
         self.lbl_error = QLabel("")
         self.lbl_error.setObjectName("errorMsg")
         self.lbl_error.setAlignment(Qt.AlignCenter)
         self.lbl_error.setWordWrap(True)
+        self.lbl_error.setStyleSheet(
+            "color: #ef4444; font-size: 11px; background: transparent;"
+            " border: none; padding: 4px 0;")
         layout.addWidget(self.lbl_error)
+
+        layout.addStretch()
+
+        # ── Footer ───────────────────────────────────────────────────────
+        from datetime import datetime as _dt
+        lbl_ver = QLabel(f"v13.4.0  ·  © {_dt.now().year} SPJ Systems")
+        lbl_ver.setAlignment(Qt.AlignCenter)
+        lbl_ver.setStyleSheet(
+            "color: #334155; font-size: 10px; background: transparent; border: none;")
+        layout.addWidget(lbl_ver)
 
     def intentar_login(self):
         usuario  = self.txt_usuario.text().strip()
         password = self.txt_password.text()
 
         if not usuario or not password:
-            QMessageBox.warning(self, "Aviso", "Por favor ingresa tu usuario y contraseña.")
+            self.lbl_error.setText("⚠️  Por favor ingresa usuario y contraseña.")
             return
+
+        self.btn_login.setEnabled(False)
+        self.btn_login.setText("Verificando...")
 
         try:
             resultado = self.auth_service.authenticate(usuario, password)
             if not resultado:
+                self.lbl_error.setText("❌  Usuario o contraseña incorrectos.")
                 return
 
-            # v13.4: Forzar la sucursal de ESTA instalación (no la del usuario)
-            resultado['sucursal_id'] = self._sucursal_instalacion['id']
+            resultado['sucursal_id']     = self._sucursal_instalacion['id']
             resultado['sucursal_nombre'] = self._sucursal_instalacion['nombre']
-
             self.usuario_autenticado = resultado
             self.accept()
 
         except PermissionError as e:
-            QMessageBox.warning(self, "Acceso Denegado", str(e))
+            self.lbl_error.setText(f"🔒  {str(e)}")
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error al iniciar sesión:\n{str(e)}")
+            self.lbl_error.setText(f"❌  Error al iniciar sesión:\n{str(e)}")
+        finally:
+            self.btn_login.setEnabled(True)
+            self.btn_login.setText("ENTRAR AL SISTEMA")
 
 
 try:
@@ -839,6 +985,15 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass  # Si falla el check, permitir (compat)
             self.stack.setCurrentIndex(self.indices_pantallas[modulo])
+            # Sincroniza el indicador del sidebar para flujos programáticos
+            # (atajos, menú superior, dashboard.abrir_modulo, etc.). El clic
+            # directo en el sidebar ya marca por su cuenta — esta llamada
+            # adicional es idempotente.
+            if hasattr(self, "menu") and hasattr(self.menu, "set_modulo_activo"):
+                try:
+                    self.menu.set_modulo_activo(modulo)
+                except Exception:
+                    pass
         else:
             QMessageBox.information(
                 self, "Módulo no disponible",

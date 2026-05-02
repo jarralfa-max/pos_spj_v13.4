@@ -9,7 +9,8 @@ from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_warning_button, create_accent_button, create_input, create_heading,
     create_subheading, apply_tooltip, create_card, FilterBar, LoadingIndicator,
-    EmptyStateWidget, confirm_action
+    EmptyStateWidget, confirm_action,
+    PageHeader, Toast,
 )
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -166,6 +167,43 @@ class ModuloRRHH(QWidget):
     def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
         self.sucursal_id = sucursal_id
 
+    def _crear_stats_rrhh(self) -> 'QFrame':
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+        bar=_F();bar.setObjectName("statsBarRRHH")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet("QFrame#statsBarRRHH{background:#1E293B;border-radius:8px;border:1px solid #334155;margin:0 12px 4px 12px;}")
+        lay=_H(bar);lay.setContentsMargins(20,8,20,8);lay.setSpacing(0)
+        kpis=[("Empleados activos","—",_C.PRIMARY_BASE),("En turno ahora","—",_C.SUCCESS_BASE),
+              ("Nómina del mes","—",_C.WARNING_BASE),("Ausencias hoy","—",_C.DANGER_BASE),
+              ("Vacaciones","—",_C.INFO_BASE)]
+        try:
+            db=self.db if hasattr(self,'db') else getattr(self,'conexion',None)
+            if db:
+                r=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1").fetchone()
+                kpis[0]=("Empleados activos",str(r[0] or 0),_C.PRIMARY_BASE)
+                r2=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1 AND en_turno=1").fetchone()
+                kpis[1]=("En turno ahora",str(r2[0] or 0),_C.SUCCESS_BASE)
+                r3=db.execute("SELECT COALESCE(SUM(salario),0) FROM personal WHERE activo=1").fetchone()
+                kpis[2]=("Nómina del mes",f"${float(r3[0] or 0):,.0f}",_C.WARNING_BASE)
+                r4=db.execute("SELECT COUNT(*) FROM asistencias WHERE DATE(fecha)=DATE('now') AND tipo='ausencia'").fetchone()
+                kpis[3]=("Ausencias hoy",str(r4[0] or 0),_C.DANGER_BASE)
+                r5=db.execute("SELECT COUNT(*) FROM personal WHERE activo=1 AND en_vacaciones=1").fetchone()
+                kpis[4]=("Vacaciones",str(r5[0] or 0),_C.INFO_BASE)
+        except Exception: pass
+        for i,(lbl,val,col) in enumerate(kpis):
+            if i>0:
+                s=_F();s.setFrameShape(_F.VLine);s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155;border:none;")
+                lay.addWidget(s);lay.addSpacing(20)
+            c=_V();c.setSpacing(1)
+            v=_L(val);v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l=_L(lbl.upper());l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v);c.addWidget(l);lay.addLayout(c)
+            if i<4:lay.addSpacing(20)
+        lay.addStretch()
+        return bar
+
     def set_usuario_actual(self, usuario: str, rol: str):
         self.usuario_actual = usuario
         # Auto-desbloquear si el rol es 'admin' o 'gerente_rh'
@@ -175,6 +213,17 @@ class ModuloRRHH(QWidget):
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
         layout_principal.setContentsMargins(0, 0, 0, 0)
+
+        # ── PageHeader ────────────────────────────────────────────────────────
+        from modulos.ui_components import PageHeader as _PH
+        _ph = _PH(self,
+            title="👔 Recursos Humanos",
+            subtitle="Personal · Nómina · Turnos · Asistencia",
+        )
+        layout_principal.addWidget(_ph)
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        layout_principal.addWidget(self._crear_stats_rrhh())
         
         # 🛡️ PANTALLAS: Bloqueo y Dashboard
         self.stack = QStackedWidget()
@@ -563,7 +612,7 @@ class ModuloRRHH(QWidget):
                         modulo="RRHH", entidad="personal", entidad_id=str(empleado_id)
                     )
                 
-                QMessageBox.information(self, "Baja Exitosa", "El empleado ha sido dado de baja.")
+                Toast.success(self, "Baja exitosa", "El empleado fue dado de baja.")
                 self.cargar_tabla_empleados()
                 self.cargar_lista_empleados() # Actualiza el combobox de la pestaña de nómina
                 
@@ -687,9 +736,10 @@ class ModuloRRHH(QWidget):
                     )
                     result = _uc.ejecutar(sol, getattr(self, 'sucursal_id', 1), self.usuario_actual)
                     if result.ok:
-                        QMessageBox.information(self, "Nómina Procesada",
-                            f"✅ Pago registrado con asiento contable.\n"
-                            f"Neto: ${result.neto_a_pagar:,.2f}")
+                        Toast.success(
+                            self, "Nómina procesada",
+                            f"Neto: ${result.neto_a_pagar:,.2f} · asiento contable registrado.",
+                        )
                         self.nomina_actual = None
                         self.lbl_nom_empleado.setText("-")
                         self.lbl_total_pago.setText("$0.00")
@@ -709,7 +759,7 @@ class ModuloRRHH(QWidget):
                     admin_user=self.usuario_actual
                 )
                 
-                QMessageBox.information(self, "Nómina Procesada", mensaje_exito)
+                Toast.success(self, "Nómina procesada", mensaje_exito)
                 
                 # Resetear interfaz
                 self.nomina_actual = None
@@ -897,7 +947,8 @@ class ModuloRRHH(QWidget):
                     (hora, round(horas,2), row[0]))
                 msg = f"✅ Salida registrada: {hora} ({horas:.1f}h)"
             else:
-                QMessageBox.information(self,"Info","Jornada ya completa para hoy."); return
+                Toast.info(self, "Jornada completa", "Jornada ya completa para hoy.")
+                return
             try: self.container.db.commit()
             except Exception: pass
             try: get_bus().publish("EMPLEADO_ACTUALIZADO", {"event_type": "EMPLEADO_ACTUALIZADO"})

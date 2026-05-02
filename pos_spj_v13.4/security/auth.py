@@ -106,7 +106,7 @@ def verify_password(raw: str, stored: str) -> bool:
         if not HAS_BCRYPT:
             return False
         try:
-            return (__import__("hashlib").sha256(raw.encode()).hexdigest() == stored)
+            return bcrypt.checkpw(raw.encode("utf-8"), stored.encode("utf-8"))
         except Exception:
             return False
     # Legacy texto plano

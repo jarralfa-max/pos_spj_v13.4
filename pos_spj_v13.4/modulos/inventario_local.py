@@ -4,7 +4,8 @@ from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
-    create_input_field, apply_tooltip, FilterBar, LoadingIndicator, EmptyStateWidget
+    create_input_field, apply_tooltip, FilterBar, LoadingIndicator, EmptyStateWidget,
+    PageHeader, Toast,
 )
 import logging
 from modulos.spj_refresh_mixin import RefreshMixin
@@ -33,6 +34,43 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
     def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = ""):
         self.sucursal_id = sucursal_id
         self.lbl_titulo.setText(f"📦 Inventario — {nombre_sucursal}")
+
+    def _crear_stats_inventario(self) -> 'QFrame':
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+        bar = _F(); bar.setObjectName("statsBarInv")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet("QFrame#statsBarInv{background:#1E293B;border-radius:8px;border:1px solid #334155;margin:0 12px 4px 12px;}")
+        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+        kpis=[("Total Productos","—",_C.PRIMARY_BASE),("Valor en stock","—",_C.SUCCESS_BASE),
+              ("Stock bajo mín.","—",_C.WARNING_BASE),("Ajustes hoy","—",_C.INFO_BASE),
+              ("Categorías","—",_C.ACCENT_BASE)]
+        try:
+            db=self.conexion
+            r=db.execute("SELECT COUNT(*),COUNT(DISTINCT categoria) FROM productos WHERE activo=1").fetchone()
+            kpis[0]=("Total Productos",str(r[0] or 0),_C.PRIMARY_BASE)
+            kpis[4]=("Categorías",str(r[1] or 0),_C.ACCENT_BASE)
+            r2=db.execute("SELECT COALESCE(SUM(existencia*precio),0) FROM productos WHERE activo=1").fetchone()
+            kpis[1]=("Valor en stock",f"${float(r2[0] or 0):,.0f}",_C.SUCCESS_BASE)
+            r3=db.execute("SELECT COUNT(*) FROM productos WHERE existencia<=COALESCE(stock_minimo,5) AND activo=1").fetchone()
+            kpis[2]=("Stock bajo mín.",str(r3[0] or 0),_C.WARNING_BASE)
+            r4=db.execute("SELECT COUNT(*) FROM ajustes_inventario WHERE DATE(fecha)=DATE('now')").fetchone()
+            kpis[3]=("Ajustes hoy",str(r4[0] or 0),_C.INFO_BASE)
+        except Exception: pass
+        self._inv_kpi_labels={}
+        for i,(lbl,val,col) in enumerate(kpis):
+            if i>0:
+                s=_F();s.setFrameShape(_F.VLine);s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155;border:none;")
+                lay.addWidget(s);lay.addSpacing(20)
+            c=_V();c.setSpacing(1)
+            v=_L(val);v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l=_L(lbl.upper());l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v);c.addWidget(l);lay.addLayout(c)
+            self._inv_kpi_labels[lbl]=v
+            if i<4:lay.addSpacing(20)
+        lay.addStretch()
+        return bar
         self.cargar_datos()
 
     def set_usuario_actual(self, usuario: str, rol: str = ""):
@@ -40,11 +78,25 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def init_ui(self):
         lay = QVBoxLayout(self)
-        lay.setSpacing(Spacing.MD)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
 
-        self.lbl_titulo = QLabel("📦 Inventario Local")
-        self.lbl_titulo.setObjectName("heading")
-        lay.addWidget(self.lbl_titulo)
+        self._page_header = PageHeader(
+            self,
+            title="📦 Inventario Local",
+            subtitle="Stock por sucursal, ajustes y exportaciones",
+        )
+        lay.addWidget(self._page_header)
+
+        # ── Stats bar ─────────────────────────────────────────────────────────
+        lay.addWidget(self._crear_stats_inventario())
+
+        body = QWidget(self)
+        body_lay = QVBoxLayout(body)
+        body_lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
+        body_lay.setSpacing(Spacing.MD)
+        lay.addWidget(body, 1)
+        lay = body_lay  # subsequent additions land in the body
 
         # Search + actions
         ctrl = QHBoxLayout()
@@ -179,7 +231,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 inv = self.container.inventory_service
                 inv.execute_manual_adjustment(prod_id, self.sucursal_id,
                                                nuevo, self.usuario_actual, motivo)
-            QMessageBox.information(self,"✅","Inventario ajustado correctamente.")
+            Toast.success(self, "Inventario ajustado", "El ajuste se guardó correctamente.")
             self.cargar_datos()
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
@@ -201,7 +253,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 with open(path,'w',newline='',encoding='utf-8') as f:
                     w = csv.writer(f)
                     w.writerow(headers); w.writerows(rows)
-                QMessageBox.information(self,"✅",f"Exportado: {path}")
+                Toast.success(self, "Exportado", path)
             except Exception as e:
                 QMessageBox.critical(self,"Error",str(e))
         else:
@@ -213,13 +265,13 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 ws.append(headers)
                 for r in rows: ws.append(r)
                 wb.save(path)
-                QMessageBox.information(self,"✅",f"Exportado: {path}")
+                Toast.success(self, "Exportado", path)
             except ImportError:
                 # Fallback to CSV if openpyxl not installed
                 path2 = path.replace('.xlsx','.csv')
                 import csv
                 with open(path2,'w',newline='',encoding='utf-8') as f:
                     csv.writer(f).writerows([headers]+rows)
-                QMessageBox.information(self,"✅",f"openpyxl no instalado — guardado como CSV:\n{path2}")
+                Toast.info(self, "Guardado como CSV", f"openpyxl no instalado — {path2}")
             except Exception as e:
                 QMessageBox.critical(self,"Error",str(e))

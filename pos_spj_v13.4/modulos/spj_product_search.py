@@ -37,6 +37,7 @@ class ProductSearchWidget(QWidget):
     - Soporte de scanner HID (detecta entrada rápida de teclado)
     - Popup de resultados con precio y stock
     - Teclas: Enter para seleccionar, Esc para cerrar popup
+    - Estilos heredados del tema global (sin hardcode)
     """
     producto_seleccionado = pyqtSignal(dict)   # emite el producto elegido
 
@@ -45,25 +46,17 @@ class ProductSearchWidget(QWidget):
         super().__init__(parent)
         self.db = db
         self.show_stock = show_stock
-        self._scanner_buffer = ""
         self._scanner_timer  = QTimer(self)
         self._scanner_timer.setSingleShot(True)
         self._scanner_timer.setInterval(80)   # 80ms = scanner timeout
         self._scanner_timer.timeout.connect(self._flush_scanner)
+        self._last_key_ms: float = 0.0   # timestamp of last keystroke (ms)
+        self._inter_key_ms: float = 9999.0  # ms between last two keystrokes
         self._last_results: list = []
         self._build_ui(placeholder)
 
     def set_db(self, db) -> None:
         self.db = db
-
-    def _is_dark_mode(self) -> bool:
-        """Detección robusta de tema oscuro para popups flotantes."""
-        app = QApplication.instance()
-        app_qss = app.styleSheet().lower() if app and hasattr(app, "styleSheet") else ""
-        dark_hints = ("0f172a", "1e293b", "#111827", "dark")
-        if any(h in app_qss for h in dark_hints):
-            return True
-        return self.palette().color(self.backgroundRole()).lightness() < 128
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -71,78 +64,32 @@ class ProductSearchWidget(QWidget):
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
-        dark_mode = self._is_dark_mode()
 
         self.txt_search = QLineEdit()
         self.txt_search.setPlaceholderText(placeholder)
-        if dark_mode:
-            self.txt_search.setStyleSheet(
-                "QLineEdit { padding:6px 10px; border:1px solid #334155;"
-                " background:#0F172A; color:#E2E8F0; border-radius:6px; font-size:13px; }"
-                "QLineEdit:focus { border-color:#2563EB; }"
-            )
-        else:
-            self.txt_search.setStyleSheet(
-                "QLineEdit { padding:6px 10px; border:1px solid #ced4da;"
-                " border-radius:5px; font-size:13px; }"
-                "QLineEdit:focus { border-color:#2E86C1; }"
-            )
+        self.txt_search.setObjectName("inputField")  # usa el QSS global del tema
         self.txt_search.textChanged.connect(self._on_text_changed)
         self.txt_search.returnPressed.connect(self._on_enter)
         self.txt_search.installEventFilter(self)   # for scanner detection
 
         btn_search = QPushButton("🔍")
         btn_search.setFixedWidth(36)
-        if dark_mode:
-            btn_search.setStyleSheet(
-                "QPushButton { background:#1E293B; color:#E2E8F0; border:1px solid #334155; border-radius:6px;"
-                " font-size:14px; padding:6px; }"
-                "QPushButton:hover { background:#334155; }"
-            )
-        else:
-            btn_search.setStyleSheet(
-                "QPushButton { background:#2E86C1; color:white; border-radius:5px;"
-                " font-size:14px; padding:6px; }"
-                "QPushButton:hover { background:#1A5276; }"
-            )
+        btn_search.setObjectName("secondaryBtn")
+        btn_search.setCursor(Qt.PointingHandCursor)
         btn_search.clicked.connect(lambda: self._buscar(self.txt_search.text()))
 
         lay.addWidget(self.txt_search, 1)
         lay.addWidget(btn_search)
 
-        # Popup de resultados (flotante)
+        # Popup de resultados (flotante) — hereda estilos del tema global
         self._popup = QFrame(self.window(), Qt.Popup | Qt.FramelessWindowHint)
-        if dark_mode:
-            self._popup.setObjectName("productSearchPopup")
-            self._popup.setAttribute(Qt.WA_StyledBackground, True)
-            self._popup.setStyleSheet(
-                "QFrame#productSearchPopup { background:#0F172A; border:1px solid #334155; border-radius:8px; }"
-            )
-        else:
-            self._popup.setStyleSheet(
-                "QFrame { background:white; border:1px solid #2E86C1;"
-                " border-radius:6px; }"
-            )
+        self._popup.setObjectName("productSearchPopup")
+        self._popup.setAttribute(Qt.WA_StyledBackground, True)
         self._popup_lay = QVBoxLayout(self._popup)
         self._popup_lay.setContentsMargins(4, 4, 4, 4)
         self._popup_lay.setSpacing(2)
         self._popup_list = QListWidget()
-        if dark_mode:
-            self._popup_list.setObjectName("productSearchPopupList")
-            self._popup_list.setStyleSheet(
-                "QListWidget#productSearchPopupList, QListView#productSearchPopupList, "
-                "QListWidget#productSearchPopupList::viewport { border:none; background:#0F172A; color:#E2E8F0; }"
-                "QListWidget#productSearchPopupList::item { padding:6px 10px; color:#E2E8F0; background:#0F172A; }"
-                "QListWidget#productSearchPopupList::item:hover { background:#1E293B; }"
-                "QListWidget#productSearchPopupList::item:selected { background:#2563EB; color:#FFFFFF; }"
-            )
-        else:
-            self._popup_list.setStyleSheet(
-                "QListWidget { border:none; }"
-                "QListWidget::item { padding:6px 10px; }"
-                "QListWidget::item:hover { background:#EBF5FB; }"
-                "QListWidget::item:selected { background:#2E86C1; color:white; }"
-            )
+        self._popup_list.setObjectName("productSearchPopupList")
         self._popup_list.itemClicked.connect(self._on_item_click)
         self._popup_list.setMaximumHeight(280)
         self._popup_lay.addWidget(self._popup_list)
@@ -151,7 +98,7 @@ class ProductSearchWidget(QWidget):
         # Debounce timer for live search
         self._search_timer = QTimer()
         self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(200)
+        self._search_timer.setInterval(250)
         self._search_timer.timeout.connect(lambda: self._buscar(self.txt_search.text()))
 
     # ── Events ───────────────────────────────────────────────────────────────
@@ -159,6 +106,7 @@ class ProductSearchWidget(QWidget):
     def eventFilter(self, obj, event) -> bool:
         """Detect HID scanner (rapid sequential keystrokes)."""
         from PyQt5.QtCore import QEvent
+        import time
         if obj is self.txt_search and event.type() == QEvent.KeyPress:
             key = event.key()
             if key == Qt.Key_Escape:
@@ -170,7 +118,11 @@ class ProductSearchWidget(QWidget):
                 if text:
                     self._flush_scanner_with(text)
                 return True
-            # Normal keystroke — restart debounce
+            # Track inter-key timing to distinguish scanner (< 50ms) from human typing
+            now_ms = time.monotonic() * 1000
+            self._inter_key_ms = now_ms - self._last_key_ms
+            self._last_key_ms = now_ms
+            # Restart scanner timer on each keystroke
             self._scanner_timer.stop()
             self._scanner_timer.start()
         return super().eventFilter(obj, event)
@@ -189,10 +141,18 @@ class ProductSearchWidget(QWidget):
     # ── Scanner ───────────────────────────────────────────────────────────────
 
     def _flush_scanner(self) -> None:
-        """Called after scanner timeout — treat current text as barcode."""
+        """Called after scanner timeout. Only does exact barcode lookup if typing speed
+        was scanner-like (< 50ms between keys). For normal human typing it falls through
+        to the regular search, preventing single-char field clears."""
         text = self.txt_search.text().strip()
-        if text:
+        if not text:
+            return
+        if self._inter_key_ms < 50:
+            # Scanner input — try exact barcode match first
             self._buscar_exacto(text)
+        else:
+            # Human typing — just show normal search results
+            self._buscar(text)
 
     def _flush_scanner_with(self, text: str) -> None:
         """Immediate barcode search (Enter received)."""

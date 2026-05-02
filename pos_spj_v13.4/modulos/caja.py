@@ -4,7 +4,8 @@ from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_danger_button,
     create_success_button, create_card, create_input_field,
     create_heading, create_subheading, apply_tooltip, create_caption,
-    create_table_with_columns, create_table_button, create_label, confirm_action
+    create_table_with_columns, create_table_button, create_label, confirm_action,
+    PageHeader, Toast,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.events.event_bus import VENTA_COMPLETADA
@@ -343,6 +344,57 @@ class ModuloCaja(QWidget, RefreshMixin):
     def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
         self.sucursal_id = sucursal_id
         self.verificar_estado_caja()
+
+    def _crear_caja_kpi_bar(self) -> 'QFrame':
+        """Barra de KPIs: saldo fondo, ventas del turno, movimientos, cortes del día."""
+        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
+        from modulos.design_tokens import Colors as _C
+        bar = _F(); bar.setObjectName("cajaKpiBar")
+        bar.setFixedHeight(64)
+        bar.setStyleSheet(
+            "QFrame#cajaKpiBar { background:#1E293B; border-radius:8px;"
+            " border:1px solid #334155; margin-bottom:4px; }"
+        )
+        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+
+        kpis = [("Fondo inicial","—",_C.PRIMARY_BASE),("Ventas turno","—",_C.SUCCESS_BASE),
+                ("Movimientos","—",_C.WARNING_BASE),("Cortes hoy","—",_C.INFO_BASE)]
+        try:
+            db = getattr(self, 'conexion', None) or getattr(self, 'db', None)
+            if db:
+                r = db.execute(
+                    "SELECT COALESCE(monto_apertura,0), COALESCE(total_ventas,0) "
+                    "FROM turnos_caja WHERE estado='abierto' "
+                    "ORDER BY fecha_apertura DESC LIMIT 1"
+                ).fetchone()
+                if r:
+                    kpis[0] = ("Fondo inicial", f"${float(r[0]):,.0f}", _C.PRIMARY_BASE)
+                    kpis[1] = ("Ventas turno",  f"${float(r[1]):,.0f}", _C.SUCCESS_BASE)
+                r2 = db.execute(
+                    "SELECT COUNT(*) FROM movimientos_caja "
+                    "WHERE DATE(fecha)=DATE('now')"
+                ).fetchone()
+                kpis[2] = ("Movimientos", str(r2[0] or 0), _C.WARNING_BASE)
+                r3 = db.execute(
+                    "SELECT COUNT(*) FROM cortes_z WHERE DATE(fecha)=DATE('now')"
+                ).fetchone()
+                kpis[3] = ("Cortes hoy", str(r3[0] or 0), _C.INFO_BASE)
+        except Exception: pass
+
+        self._caja_kpi_labels = {}
+        for i, (lbl, val, col) in enumerate(kpis):
+            if i > 0:
+                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
+                s.setStyleSheet("background:#334155; border:none;")
+                lay.addWidget(s); lay.addSpacing(20)
+            c = _V(); c.setSpacing(1)
+            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
+            l = _L(lbl.upper()); l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            c.addWidget(v); c.addWidget(l); lay.addLayout(c)
+            self._caja_kpi_labels[lbl] = v
+            if i < 3: lay.addSpacing(20)
+        lay.addStretch()
+        return bar
         # Build additional tabs (historial + arqueo)
         try:
             self._build_tab_historial()
@@ -361,7 +413,11 @@ class ModuloCaja(QWidget, RefreshMixin):
         self.lbl_titulo = QLabel("💵 Gestión de Caja Registradora")
         self.lbl_titulo.setObjectName("heading")
         layout_principal.addWidget(self.lbl_titulo)
-        
+
+        # ── Barra de KPIs de caja ─────────────────────────────────────────────
+        self._caja_kpi_bar = self._crear_caja_kpi_bar()
+        layout_principal.addWidget(self._caja_kpi_bar)
+
         # --- PANEL DE ESTADO ---
         self.panel_estado = QGroupBox("Estado Actual")
         self.panel_estado.setObjectName("styledGroup")
@@ -506,7 +562,7 @@ class ModuloCaja(QWidget, RefreshMixin):
             try:
                 # 🚀 LLAMADA ENTERPRISE: Abrir turno
                 self.container.finance_service.abrir_turno(self.sucursal_id, self.usuario_actual, fondo)
-                QMessageBox.information(self, "Éxito", f"Turno abierto exitosamente con ${fondo:.2f}")
+                Toast.success(self, "Turno abierto", f"Fondo inicial: ${fondo:.2f}")
                 
                 # Intentamos abrir el cajón físico para que guarden el fondo
                 if hasattr(self.container, 'hardware_service'):
@@ -540,7 +596,7 @@ class ModuloCaja(QWidget, RefreshMixin):
                 self.turno_actual, self.sucursal_id, self.usuario_actual, tipo, monto, concepto
             )
             
-            QMessageBox.information(self, "Éxito", f"{tipo} registrado correctamente.")
+            Toast.success(self, "Movimiento registrado", f"{tipo} registrado correctamente.")
             # Refresh movimientos tab
             try: self._cargar_movimientos_turno()
             except Exception: pass
@@ -747,7 +803,7 @@ class ModuloCaja(QWidget, RefreshMixin):
                     printer.setOutputFileName(path)
                     doc = QTextDocument(); doc.setHtml(html)
                     doc.print_(printer)
-                    QMessageBox.information(dlg, "Guardado", f"PDF guardado:\n{path}")
+                    Toast.success(self, "PDF guardado", path)
 
             btn_print.clicked.connect(_do_print)
             btn_pdf.clicked.connect(_save_pdf)
