@@ -104,11 +104,12 @@ class GestionarProduccionUC:
             return ResultadoProduccion(ok=False, error="Peso debe ser > 0.")
 
         try:
-            result = self._engine.create_batch(
+            # FIX BUG-3: ProductionEngine expone open_batch(), no create_batch()
+            result = self._engine.open_batch(
                 product_source_id=producto_origen_id,
                 source_weight=peso_kg,
                 branch_id=sucursal_id,
-                user=usuario,
+                created_by=usuario,
                 receta_id=receta_id,
             )
             return ResultadoProduccion(
@@ -135,10 +136,10 @@ class GestionarProduccionUC:
         operation_id = str(uuid.uuid4())
 
         try:
+            # FIX BUG-5: close_batch espera `closed_by`, no `user`; no tiene `operation_id`
             result = self._engine.close_batch(
                 batch_id=batch_id,
-                user=usuario,
-                operation_id=operation_id,
+                closed_by=usuario,
             )
         except Exception as e:
             logger.error("cerrar_lote engine: %s", e)
@@ -147,32 +148,27 @@ class GestionarProduccionUC:
         # ── Publicar evento ───────────────────────────────────────────────
         if self._bus:
             try:
-                from core.domain.events import DomainEvent
-
-                event = DomainEvent(
-                    event_type="PRODUCCION_COMPLETADA",
-                    sucursal_id=sucursal_id,
-                    operation_id=operation_id,
-                    usuario=usuario,
-                    data={
-                        "batch_id": batch_id,
-                        "folio": result.folio,
-                        "rendimiento_pct": result.yield_result.yield_pct
-                            if result.yield_result else 0.0,
-                        "movimientos": result.inventory_movements,
-                        "cost_allocations": result.cost_allocations,
-                    },
+                # FIX BUG-4: YieldResult tiene usable_pct, no yield_pct
+                rendimiento_pub = (
+                    result.yield_result.usable_pct
+                    if result.yield_result else 0.0
                 )
-                self._bus.publish(
-                    "PRODUCCION_COMPLETADA",
-                    event.to_dict(),
-                    async_=True,
-                )
+                self._bus.publish("PRODUCCION_COMPLETADA", {
+                    "batch_id": batch_id,
+                    "folio": result.folio,
+                    "rendimiento_pct": rendimiento_pub,
+                    "movimientos": result.inventory_movements,
+                    "cost_allocations": result.cost_allocations,
+                    "sucursal_id": sucursal_id,
+                    "usuario": usuario,
+                    "operation_id": operation_id,
+                })
             except Exception as e:
                 logger.warning("EventBus post-produccion: %s", e)
 
+        # FIX BUG-4: usar usable_pct en lugar del inexistente yield_pct
         rendimiento = (
-            result.yield_result.yield_pct
+            result.yield_result.usable_pct
             if result.yield_result else 0.0
         )
 
