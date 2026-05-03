@@ -18,7 +18,8 @@ class SalesService:
                  finance_service, loyalty_service, promotion_engine, sync_service,
                  ticket_template_engine, whatsapp_service, config_service,
                  feature_flag_service, pricing_service=None,
-                 growth_engine=None, notification_service=None):
+                 growth_engine=None, notification_service=None,
+                 customer_service=None):
         # Inyección de dependencias
         self.db = db_conn
         self.pricing_service = pricing_service
@@ -43,6 +44,7 @@ class SalesService:
         self.whatsapp_service = whatsapp_service
         self.config_service = config_service
         self.feature_flag_service = feature_flag_service
+        self.customer_service = customer_service
 
     def _generate_unique_sale_folio(self) -> str:
         """
@@ -63,9 +65,10 @@ class SalesService:
                 return folio
         return f"V{base}-{uuid.uuid4().hex[:8].upper()}"
 
-    def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str, 
-                     amount_paid: float, client_id: int = None, client_phone: str = None, 
-                     client_level: str = 'bronce', discount: float = 0.0, notes: str = "") -> tuple:
+    def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
+                     amount_paid: float, client_id: int = None, client_phone: str = None,
+                     client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
+                     loyalty_redemption_pts: int = 0) -> tuple:
         """
         Ejecuta la venta completa y devuelve el Folio y el Ticket HTML.
         
@@ -156,6 +159,29 @@ class SalesService:
         # Cálculos finales
         subtotal = sum(item['qty'] * item['unit_price'] for item in carrito_final)
         total_a_pagar = subtotal - discount
+
+        # ── Validación de cliente (si se indicó) ─────────────────────────────
+        if client_id and self.customer_service:
+            customer = self.customer_service.get_customer(client_id)
+            if not customer:
+                raise ValueError(f"Cliente ID {client_id} no encontrado o inactivo.")
+        else:
+            customer = None
+
+        # ── Canje de puntos de lealtad (pre-pago, puro) ──────────────────────
+        loyalty_discount = 0.0
+        if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
+            loyalty_discount = self.loyalty_service.compute_redemption_discount(
+                loyalty_redemption_pts, total_a_pagar
+            )
+            total_a_pagar = round(total_a_pagar - loyalty_discount, 2)
+            discount = round(discount + loyalty_discount, 2)
+
+        # ── Validación de crédito (si aplica) ────────────────────────────────
+        if payment_method == 'Credito' and client_id and self.customer_service:
+            ok, msg = self.customer_service.validate_credit(client_id, total_a_pagar)
+            if not ok:
+                raise ValueError(msg)
 
         # Validamos el pago
         if amount_paid < total_a_pagar and payment_method != 'Credito':
@@ -308,6 +334,34 @@ class SalesService:
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
             logger.info(f"Venta {folio} procesada con éxito. Operación: {operation_id}")
 
+            # ── Post-commit: CxC para ventas a crédito ────────────────────────
+            if payment_method == 'Credito' and client_id and self.customer_service:
+                try:
+                    self.customer_service.register_credit_sale(
+                        cliente_id=client_id,
+                        sale_id=sale_id,
+                        folio=folio,
+                        monto=total_a_pagar,
+                        sucursal_id=branch_id,
+                    )
+                except Exception as _cxc_err:
+                    logger.error("register_credit_sale venta=%s: %s", sale_id, _cxc_err)
+
+            # ── Post-commit: ledger de canje de lealtad ───────────────────────
+            if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
+                try:
+                    self.loyalty_service.registrar_en_ledger(
+                        cliente_id=client_id,
+                        tipo="canje",
+                        puntos=-loyalty_redemption_pts,
+                        referencia=str(sale_id),
+                        descripcion=f"Canje en venta {folio}",
+                        usuario=user,
+                        monto_equiv=loyalty_discount,
+                    )
+                except Exception as _lyl_err:
+                    logger.warning("loyalty ledger canje venta=%s: %s", sale_id, _lyl_err)
+
             # Notificar al EventBus (async_ para no bloquear al cajero)
             try:
                 from core.events.event_bus import get_bus, VENTA_COMPLETADA
@@ -358,14 +412,14 @@ class SalesService:
         # =========================================================
         mensaje_psico = "🐔 ¡Gracias por tu compra!"
         
-        if client_id and total_a_pagar > 0:
+        if client_id and total_a_pagar > 0 and self.loyalty_service:
             try:
-                # Use GrowthEngine if available (prevents double-awarding)
-                # Legacy LoyaltyService only as fallback when GrowthEngine is not wired
+                # GrowthEngine prevents double-awarding when available;
+                # otherwise fall back to process_loyalty_for_sale via LoyaltyService.
                 ge_active = getattr(self, 'growth_engine', None) is not None
-                if not ge_active and self.feature_flag_service.is_enabled('loyalty', branch_id):
+                if not ge_active:
                     lealtad_resultado = self.loyalty_service.process_loyalty_for_sale(
-                        client_id, total_a_pagar, branch_id  # total_a_pagar = net after discounts
+                        client_id, total_a_pagar, branch_id
                     )
                     mensaje_psico = lealtad_resultado.get('mensaje', mensaje_psico)
             except Exception as e:
