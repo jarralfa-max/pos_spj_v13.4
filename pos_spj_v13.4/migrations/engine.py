@@ -61,6 +61,7 @@ MIGRATIONS = [
     ("064",  "migrations.standalone.064_fix_missing_columns"),   # Hotfix: columnas faltantes producción
     ("065",  "migrations.standalone.065_performance_indexes_views"),  # ERP FASE 8: índices + vistas BI
     ("066",  "migrations.standalone.066_unificar_esquema_recetas"),  # Fase E: bridge legacy recetas ↔ product_recipes
+    ("067",  "migrations.standalone.067_fix_branch_inventory_unique"),  # Fix: UNIQUE(product_id, branch_id) en branch_inventory
 ]
 
 def _ensure_tracking_table(conn):

@@ -222,13 +222,19 @@ class ERPApplicationService:
                     ultima_actualizacion = datetime('now')
             """, (prod_id, sid, qty, costo))
             # branch_inventory (leída por POS para validación de stock)
-            c.execute("""
-                INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
-                ON CONFLICT(product_id, branch_id) DO UPDATE SET
-                    quantity   = quantity + excluded.quantity,
-                    updated_at = excluded.updated_at
-            """, (prod_id, sid, qty))
+            # Manual upsert: ON CONFLICT no puede usar UNIQUE(branch_id, product_id, batch_id)
+            # cuando batch_id es NULL (los NULLs son distintos en SQLite UNIQUE).
+            _bi_updated = c.execute("""
+                UPDATE branch_inventory
+                SET quantity = quantity + ?, updated_at = datetime('now')
+                WHERE product_id = ? AND branch_id = ? AND batch_id IS NULL
+            """, (qty, prod_id, sid)).rowcount
+            if not _bi_updated:
+                c.execute("""
+                    INSERT OR IGNORE INTO branch_inventory
+                        (product_id, branch_id, quantity, batch_id, updated_at)
+                    VALUES (?, ?, ?, NULL, datetime('now'))
+                """, (prod_id, sid, qty))
             # productos.existencia = suma global de todas las sucursales
             c.execute("""
                 UPDATE productos
@@ -255,14 +261,18 @@ class ERPApplicationService:
                     cantidad             = MAX(0, cantidad - excluded.cantidad),
                     ultima_actualizacion = datetime('now')
             """, (prod_id, sid, qty))
-            # branch_inventory
-            c.execute("""
-                INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
-                VALUES (?, ?, 0, datetime('now'))
-                ON CONFLICT(product_id, branch_id) DO UPDATE SET
-                    quantity   = MAX(0, quantity - ?),
-                    updated_at = datetime('now')
-            """, (prod_id, sid, qty))
+            # branch_inventory — manual upsert (ver nota en _entrada_directa)
+            _bi_updated = c.execute("""
+                UPDATE branch_inventory
+                SET quantity = MAX(0, quantity - ?), updated_at = datetime('now')
+                WHERE product_id = ? AND branch_id = ? AND batch_id IS NULL
+            """, (qty, prod_id, sid)).rowcount
+            if not _bi_updated:
+                c.execute("""
+                    INSERT OR IGNORE INTO branch_inventory
+                        (product_id, branch_id, quantity, batch_id, updated_at)
+                    VALUES (?, ?, 0, NULL, datetime('now'))
+                """, (prod_id, sid))
             # productos.existencia = suma global
             c.execute("""
                 UPDATE productos
