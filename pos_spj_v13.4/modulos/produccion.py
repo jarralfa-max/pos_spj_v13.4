@@ -56,11 +56,10 @@ TIPO_LABELS = {
     "combinacion": "📦 Kit / Paquete / Combo",
     "produccion":  "🍳 Producción / Elaboración",
 }
-# Usar design tokens — sin constantes de color locales
 TIPO_COLOR = {
-    "subproducto": _RED,
-    "combinacion": _BLUE,
-    "produccion":  _GREEN,
+    "subproducto": Colors.DANGER_BASE,
+    "combinacion": Colors.PRIMARY_BASE,
+    "produccion":  Colors.SUCCESS_BASE,
 }
 
 

@@ -62,6 +62,7 @@ MIGRATIONS = [
     ("065",  "migrations.standalone.065_performance_indexes_views"),  # ERP FASE 8: índices + vistas BI
     ("066",  "migrations.standalone.066_unificar_esquema_recetas"),  # Fase E: bridge legacy recetas ↔ product_recipes
     ("067",  "migrations.standalone.067_meat_erp_improvements"),    # v13.5: trazabilidad lotes, merma_log, campos cárnicos
+    ("068",  "migrations.standalone.068_fix_branch_inventory_unique"),  # Fix: UNIQUE(product_id, branch_id) en branch_inventory
 ]
 
 def _ensure_tracking_table(conn):
