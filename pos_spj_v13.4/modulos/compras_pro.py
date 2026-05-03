@@ -710,8 +710,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             for item in self.carrito_compra:
                 r = self.container.db.execute(
                     """SELECT COUNT(*) as n FROM recetas
-                       WHERE producto_id=? AND activa=1""",
-                    (item['producto_id'],)
+                       WHERE (producto_id=? OR producto_base_id=?)
+                         AND (activa=1 OR activo=1)""",
+                    (item['producto_id'], item['producto_id'])
                 ).fetchone()
                 if r and r['n'] > 0:
                     result.append(item)
@@ -735,16 +736,27 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     )
                     nombres.append(item['nombre'])
                 else:
-                    # Fallback: use canonical product_recipe_components
+                    # Fallback: query receta_componentes (m000 schema), then product_recipe_components
                     receta = self.container.db.execute("""
-                        SELECT rc.component_product_id AS insumo_id,
+                        SELECT rc.producto_id AS insumo_id,
                                COALESCE(rc.cantidad, 0) AS cantidad_insumo,
                                p.nombre AS insumo_nombre
-                        FROM product_recipe_components rc
-                        JOIN product_recipes r ON r.id = rc.recipe_id
-                        JOIN productos p ON p.id = rc.component_product_id
-                        WHERE r.base_product_id=? AND r.is_active=1
-                    """, (item['producto_id'],)).fetchall()
+                        FROM receta_componentes rc
+                        JOIN recetas r ON r.id = rc.receta_id
+                        JOIN productos p ON p.id = rc.producto_id
+                        WHERE (r.producto_base_id=? OR r.producto_id=?)
+                          AND (r.activo=1 OR r.activa=1)
+                    """, (item['producto_id'], item['producto_id'])).fetchall()
+                    if not receta:
+                        receta = self.container.db.execute("""
+                            SELECT rc.component_product_id AS insumo_id,
+                                   COALESCE(rc.cantidad, 0) AS cantidad_insumo,
+                                   p.nombre AS insumo_nombre
+                            FROM product_recipe_components rc
+                            JOIN product_recipes r ON r.id = rc.recipe_id
+                            JOIN productos p ON p.id = rc.component_product_id
+                            WHERE r.base_product_id=? AND r.is_active=1
+                        """, (item['producto_id'],)).fetchall()
                     if receta:
                         _app = getattr(self.container, 'app_service', None)
                         for comp in receta:

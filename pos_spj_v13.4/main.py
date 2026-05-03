@@ -1,6 +1,10 @@
 # main.py — SPJ POS v13
 import sys, os, logging, traceback
 from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtCore import Qt
+
+# Must be set before QApplication is constructed when QtWebEngine is loaded
+QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
 # Asegurar que el directorio del proyecto esté PRIMERO en el path
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))

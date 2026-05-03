@@ -622,10 +622,15 @@ if(drivers.length===0){{
             self._det_acciones_layout.addWidget(b)
 
         if estado == "pendiente":
-            b = create_primary_button(self, "Asignar repartidor", "")
-            b.setFixedHeight(32)
-            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "asignar"))
-            self._det_acciones_layout.addWidget(b)
+            b_prep = create_success_button(self, "▶ Preparar", "")
+            b_prep.setFixedHeight(32)
+            b_prep.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "preparar"))
+            self._det_acciones_layout.addWidget(b_prep)
+
+            b_asig = create_primary_button(self, "Asignar repartidor", "")
+            b_asig.setFixedHeight(32)
+            b_asig.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "asignar"))
+            self._det_acciones_layout.addWidget(b_asig)
 
         if estado == "preparacion":
             b = create_primary_button(self, "→ En ruta", "")
@@ -640,10 +645,20 @@ if(drivers.length===0){{
             self._det_acciones_layout.addWidget(b)
 
         if estado not in ("entregado", "cancelado"):
-            b = create_danger_button(self, "✕ Cancelar", "")
-            b.setFixedHeight(32)
-            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "cancelado"))
-            self._det_acciones_layout.addWidget(b)
+            b_wa = create_secondary_button(self, "📲 Notif. WA", "")
+            b_wa.setFixedHeight(32)
+            b_wa.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "notificar_wa"))
+            self._det_acciones_layout.addWidget(b_wa)
+
+            b_link = create_secondary_button(self, "💳 Link pago", "")
+            b_link.setFixedHeight(32)
+            b_link.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "link_pago"))
+            self._det_acciones_layout.addWidget(b_link)
+
+            b_cancel = create_danger_button(self, "✕ Cancelar", "")
+            b_cancel.setFixedHeight(32)
+            b_cancel.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "cancelado"))
+            self._det_acciones_layout.addWidget(b_cancel)
 
         self._det_acciones_layout.addStretch()
 
@@ -847,7 +862,56 @@ if(drivers.length===0){{
 
     def ejecutar_accion(self, pedido_id: int, accion: str):
         try:
-            if accion == "asignar":
+            if accion == "preparar":
+                self.conexion.execute(
+                    "UPDATE delivery_orders SET estado='preparacion', "
+                    "fecha_actualizacion=datetime('now') WHERE id=?",
+                    (pedido_id,)
+                )
+                self.delivery_service.update_status(
+                    pedido_id, "preparacion", usuario=self.usuario
+                )
+                try: self.conexion.commit()
+                except Exception: pass
+                self.cargar_pedidos()
+                return
+            elif accion == "notificar_wa":
+                row = self.conexion.execute(
+                    "SELECT cliente_nombre, cliente_tel, estado FROM delivery_orders WHERE id=?",
+                    (pedido_id,)
+                ).fetchone()
+                if not row or not row[1]:
+                    QMessageBox.warning(self, "Sin teléfono", "El pedido no tiene teléfono de cliente."); return
+                self._notificar_whatsapp(pedido_id, row[2], {})
+                Toast.success(self, "WhatsApp", f"Notificación enviada a {row[1]}")
+                return
+            elif accion == "link_pago":
+                row = self.conexion.execute(
+                    "SELECT id, folio, total FROM delivery_orders WHERE id=?",
+                    (pedido_id,)
+                ).fetchone()
+                folio = (row[1] or f"DEL-{pedido_id}") if row else f"DEL-{pedido_id}"
+                total = float(row[2] or 0) if row else 0
+                link = f"https://pay.spjpos.mx/delivery/{folio}"
+                from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QDialogButtonBox
+                dlg_link = QDialog(self)
+                dlg_link.setWindowTitle("Link de pago")
+                dlg_link.setMinimumWidth(420)
+                lay_link = QVBoxLayout(dlg_link)
+                lay_link.addWidget(QLabel(f"<b>Pedido #{pedido_id}</b> — Total: ${total:.2f}"))
+                txt_link = QLineEdit(link)
+                txt_link.setReadOnly(True)
+                txt_link.selectAll()
+                lay_link.addWidget(txt_link)
+                bbs = QDialogButtonBox(QDialogButtonBox.Ok)
+                bbs.accepted.connect(dlg_link.accept)
+                lay_link.addWidget(bbs)
+                dlg_link.exec_()
+                from PyQt5.QtWidgets import QApplication as _App
+                _App.clipboard().setText(link)
+                Toast.success(self, "Link copiado", "Link de pago copiado al portapapeles.")
+                return
+            elif accion == "asignar":
                 dlg = AsignarDriverDialog(pedido_id, self)
                 if dlg.exec_() != QDialog.Accepted: return
                 data = dlg.get_data()

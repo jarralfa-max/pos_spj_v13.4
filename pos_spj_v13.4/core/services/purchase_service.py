@@ -121,6 +121,19 @@ class PurchaseService:
                                 amount_paid,
                                 f"Pago compra {folio} — {notes or 'proveedor'}"
                             )
+                        # Double-entry journal — always, regardless of open shift
+                        if hasattr(self.finance_service, 'registrar_asiento'):
+                            self.finance_service.registrar_asiento(
+                                debe="inventario",
+                                haber="caja_efectivo",
+                                concepto=f"Compra contado {folio}",
+                                monto=float(amount_paid),
+                                modulo="compras",
+                                referencia_id=compra_id,
+                                evento="COMPRA_REGISTRADA",
+                                metadata={"folio": folio, "provider_id": provider_id,
+                                          "payment_method": payment_method},
+                            )
                 except Exception as _fe:
                     import logging
                     logging.getLogger(__name__).warning("FinanceService compra: %s", _fe)
