@@ -4,7 +4,7 @@ Guías de desarrollo para Claude Code en este proyecto.
 
 ## 🎯 CONTEXTO: TRANSFORMACIÓN POS → ERP
 
-Este documento establece las reglas para la transformación del sistema POS actual en un **ERP modular, escalable y listo para producción**, siguiendo el pipeline definido en `ERP_TRANSFORMATION_DIAGNOSIS.md`.
+Este documento establece las reglas para la transformación del sistema POS actual en un **ERP modular, escalable y listo para producción**, siguiendo el pipeline definido en `REFACTOR_AGENT.md.
 
 ## Reglas absolutas (no negociables)
 
