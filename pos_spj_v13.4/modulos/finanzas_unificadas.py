@@ -24,6 +24,7 @@ from PyQt5.QtCore import Qt, QTimer, QDate
 from PyQt5.QtGui import QFont, QPixmap, QPalette
 
 from modulos.ui_components import PageHeader, Toast
+from modulos.design_tokens import Colors
 
 logger = logging.getLogger("spj.finanzas_unificadas")
 

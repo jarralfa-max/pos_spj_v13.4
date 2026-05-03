@@ -61,8 +61,11 @@ class DeliveryRepository:
             "lng REAL",
             "responsable_entrega TEXT",
             "usuario TEXT",
+            "fecha DATETIME DEFAULT CURRENT_TIMESTAMP",
             "fecha_actualizacion DATETIME",
             "historial_cambios TEXT",
+            "driver_id INTEGER",
+            "sucursal_id INTEGER DEFAULT 1",
         ):
             try:
                 self.db.execute(f"ALTER TABLE delivery_orders ADD COLUMN {col}")
