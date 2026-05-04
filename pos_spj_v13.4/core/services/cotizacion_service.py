@@ -81,7 +81,7 @@ class CotizacionService:
         ).fetchall()]
 
         from core.use_cases.venta import ProcesarVentaUC, ItemCarrito, DatosPago
-        from core.services.inventory_service import InventoryService
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
         from core.services.sales_service import SalesService
         from repositories.sales_repository import SalesRepository
 

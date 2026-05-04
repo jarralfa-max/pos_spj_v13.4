@@ -199,7 +199,7 @@ class SalesService:
                 notes=notes
             )
 
-            # B. Procesar Carrito e Inventario
+            # B. Procesar Carrito - Guardar detalle de la venta (sin inventario directo)
             for item in carrito_final:
                 # Guardar detalle de la venta
                 self.sales_repo.save_sale_item(
@@ -209,84 +209,7 @@ class SalesService:
                     unit_price=item['unit_price'],
                     subtotal=(item['qty'] * item['unit_price'])
                 )
-
-                # Descuento Inteligente de Inventario
-                if item.get('es_compuesto', 0) == 1:
-                    # Composite product: deduct ingredients using recipe
-                    recipe_items = self.recipe_repo.get_recipe_items_by_product(item['product_id'])
-                    if not recipe_items:
-                        raise ValueError(f"El combo ID {item['product_id']} no tiene receta. "
-                                         f"Crea la receta en el módulo Recetas.")
-
-                    for sub_item in recipe_items:
-                        tipo_receta = sub_item.get('tipo_receta', 'combinacion')
-                        rend_pct    = float(sub_item.get('rendimiento_pct') or 0)
-                        cantidad    = float(sub_item.get('cantidad') or 0)
-
-                        if rend_pct > 0:
-                            # Percentage-based (subproducto type): qty = sale_qty * rendimiento/100
-                            qty_to_deduct = float(item['qty']) * rend_pct / 100.0
-                        elif cantidad > 0:
-                            # Fixed-quantity (combinacion type): qty = cantidad * sale_qty
-                            qty_to_deduct = float(item['qty']) * cantidad
-                        else:
-                            import logging as _lg
-                            _lg.getLogger(__name__).warning(
-                                "Recipe component pid=%s has no qty/rendimiento — skipped",
-                                sub_item['component_product_id'])
-                            continue
-
-                        if qty_to_deduct <= 0:
-                            continue
-
-                        self.inventory_service.deduct_stock(
-                            product_id=sub_item['component_product_id'],
-                            branch_id=branch_id,
-                            qty=round(qty_to_deduct, 4),
-                            operation_id=operation_id,
-                            reference_type="VENTA_COMBO",
-                            reference_id=str(sale_id),
-                            user=user,
-                            notes=f"Consumo receta {folio} ({tipo_receta})"
-                        )
-                else:
-                    # Producto Simple / Por Peso: Descuento directo
-                    self.inventory_service.deduct_stock(
-                        product_id=item['product_id'],
-                        branch_id=branch_id,
-                        qty=item['qty'],
-                        operation_id=operation_id,
-                        reference_type="VENTA",
-                        reference_id=str(sale_id),
-                        user=user,
-                        notes=f"Salida por venta {folio}"
-                    )
-                    # FIFO de lotes/caducidades (falla silenciosamente)
-                    if self._lote_svc:
-                        try:
-                            self._lote_svc.consumir_fifo(
-                                producto_id=item['product_id'],
-                                cantidad=float(item['qty']),
-                                referencia=f"VENTA-{folio}",
-                                usuario=user
-                            )
-                        except Exception as _le:
-                            import logging
-                            logging.getLogger('spj.sales').debug(
-                                "FIFO lotes: %s", _le)
-
-            # C. Automatización Financiera (Ingreso a Caja)
-            if payment_method != "Credito" and total_a_pagar > 0:
-                self.finance_service.register_income(
-                    amount=total_a_pagar,
-                    category="VENTAS_MOSTRADOR",
-                    description=f"Ingreso por venta {folio}",
-                    payment_method=payment_method,
-                    branch_id=branch_id,
-                    user=user,
-                    operation_id=operation_id,
-                    reference_id=sale_id
-                )
+                # Inventario y finanzas se procesan via eventos (handlers)
 
             # D. Sincronización Offline-First (Nube)
             if self.sync_service:
@@ -312,13 +235,17 @@ class SalesService:
             try:
                 from core.events.event_bus import get_bus, VENTA_COMPLETADA
                 from core.events.outbox import enqueue_event
+                # Incluir items en el payload para que los handlers puedan procesar inventario
                 event_payload = {
-                    "venta_id":   sale_id,
-                    "folio":      folio,
-                    "branch_id":  branch_id,
-                    "total":      total_a_pagar,
-                    "usuario":    user,
-                    "cliente_id": client_id,
+                    "venta_id":       sale_id,
+                    "folio":          folio,
+                    "branch_id":      branch_id,
+                    "total":          total_a_pagar,
+                    "usuario":        user,
+                    "cliente_id":     client_id,
+                    "payment_method": payment_method,
+                    "operation_id":   operation_id,
+                    "items":          carrito_final,  # Necesario para handlers de inventario
                 }
                 # Fase 2: persistir evento en outbox antes del dispatch in-memory
                 try:
@@ -331,14 +258,7 @@ class SalesService:
                     )
                 except Exception as _outbox_err:
                     logger.warning("Outbox persist failed (venta %s): %s", sale_id, _outbox_err)
-                get_bus().publish(VENTA_COMPLETADA, {
-                    "venta_id":   sale_id,
-                    "folio":      folio,
-                    "branch_id":  branch_id,
-                    "total":      total_a_pagar,
-                    "usuario":    user,
-                    "cliente_id": client_id,
-                }, async_=True)
+                get_bus().publish(VENTA_COMPLETADA, event_payload, async_=True)
             except Exception as _eb_err:
                 logger.debug("EventBus publish: %s", _eb_err)  # nunca cancela la venta
 

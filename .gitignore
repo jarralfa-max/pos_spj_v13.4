@@ -1,47 +1,42 @@
 ```
-# Python
-__pycache__/
+# Python compiled files
 *.pyc
-*.pyo
-*.pyd
+__pycache__/
 
-# Dependencies
-.venv/
-venv/
-env/
+# Database file
+spj_pos_database.db
+
+# Environment files
 .env
 .env.local
-.env.*
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
+*.env.*
 
 # Logs
 *.log
 
-# Editors
+# Temporary files
+*.tmp
+*.swp
+
+# IDE files
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Coverage
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
 .coverage
 coverage/
 htmlcov/
 
-# OS
-.DS_Store
-Thumbs.db
+# Testing cache
+.pytest_cache/
+.mypy_cache/
 
-# SQLite runtime databases
-*.db
-data/
-*.db-journal
-*.db-wal
-*.db-shm
-*.sqlite
-*.sqlite3
+# Distribution artifacts
+dist/
+build/
+*.egg-info/
 ```

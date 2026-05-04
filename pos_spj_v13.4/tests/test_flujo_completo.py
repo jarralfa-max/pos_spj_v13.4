@@ -88,7 +88,7 @@ def producto(mem_db):
 def uc_venta(mem_db, producto):
     """ProcesarVentaUC listo para usar con servicios mínimos."""
     from core.use_cases.venta import ProcesarVentaUC
-    from core.services.inventory_service import InventoryService
+    from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
     from core.services.sales_service import SalesService
     from repositories.sales_repository import SalesRepository
 
@@ -238,7 +238,7 @@ class TestGestionarInventarioUC:
 
     def _make_uc(self, mem_db):
         from core.use_cases.inventario import GestionarInventarioUC
-        from core.services.inventory_service import InventoryService
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
         inv = InventoryService(mem_db)
         return GestionarInventarioUC(db=mem_db, inventory_service=inv)
 
