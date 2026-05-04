@@ -20,6 +20,10 @@ INVENTORY_MOVEMENT  = "inventory_movement"   # emitido por UnifiedInventoryServi
 PAYMENT_RECEIVED    = "payment_received"     # emitido por UnifiedThirdPartyService.apply_payment()
 EXPENSE_REGISTERED  = "expense_registered"   # emitido al registrar gasto/CXP
 
+# Phase 1: internal sync event — inventory + finance handlers run inside SAVEPOINT.
+# Distinct from VENTA_COMPLETADA (async, post-commit, for downstream consumers).
+SALE_ITEMS_PROCESS  = "sale_items_process"
+
 __all__ = [
     "SALE_CREATED",
     "PURCHASE_CREATED",
@@ -28,4 +32,5 @@ __all__ = [
     "INVENTORY_MOVEMENT",
     "PAYMENT_RECEIVED",
     "EXPENSE_REGISTERED",
+    "SALE_ITEMS_PROCESS",
 ]

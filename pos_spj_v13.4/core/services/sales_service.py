@@ -5,6 +5,9 @@ import uuid
 import logging
 from datetime import datetime
 
+from core.events.domain_events import SALE_ITEMS_PROCESS
+from core.events.event_factory import make_sale_payload
+
 logger = logging.getLogger(__name__)
 
 class SalesService:
@@ -64,6 +67,35 @@ class SalesService:
                 # Si no se puede validar unicidad por esquema/tabla, retornar igual
                 return folio
         return f"V{base}-{uuid.uuid4().hex[:8].upper()}"
+
+    def _validate_stock_pre_sale(self, items: list, branch_id: int) -> None:
+        """
+        Read-only stock guard executed BEFORE opening the SAVEPOINT.
+
+        Raises RuntimeError with a human-readable message if any simple item
+        lacks sufficient stock.  Composite items are skipped here — the
+        SaleInventoryHandler validates each component when it processes the recipe.
+
+        Why before the SAVEPOINT: guarantees a clean raise (no partial DB state)
+        even when SALE_ITEMS_PROCESS handlers run inside the transaction.
+        """
+        if not self.inventory_service or not hasattr(self.inventory_service, "get_stock"):
+            return
+        for item in items:
+            if item.get("es_compuesto", 0) or float(item.get("qty", 0)) <= 0:
+                continue
+            try:
+                available = self.inventory_service.get_stock(item["product_id"], branch_id)
+                needed    = float(item["qty"])
+                if available < needed:
+                    raise RuntimeError(
+                        f"Stock insuficiente para '{item.get('nombre', item.get('name', item['product_id']))}': "
+                        f"disponible {available:.3f}, requerido {needed:.3f}"
+                    )
+            except RuntimeError:
+                raise
+            except Exception:
+                pass  # non-critical pre-check; handler will enforce on deduction
 
     def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
                      amount_paid: float, client_id: int = None, client_phone: str = None,
@@ -204,6 +236,10 @@ class SalesService:
         # =========================================================
         # 2. TRANSACCIÓN CRÍTICA DE BASE DE DATOS
         # =========================================================
+
+        # Pre-SAVEPOINT: read-only stock guard (raises before any DB write)
+        self._validate_stock_pre_sale(carrito_final, branch_id)
+
         _sp = None  # defined before try so except can always reference it
         try:
             import uuid as _uuid_sp
@@ -225,9 +261,8 @@ class SalesService:
                 notes=notes
             )
 
-            # B. Procesar Carrito e Inventario
+            # B. Guardar detalles de línea (sin lógica de inventario)
             for item in carrito_final:
-                # Guardar detalle de la venta
                 self.sales_repo.save_sale_item(
                     sale_id=sale_id,
                     product_id=item['product_id'],
@@ -236,85 +271,43 @@ class SalesService:
                     subtotal=(item['qty'] * item['unit_price'])
                 )
 
-                # Descuento Inteligente de Inventario
-                if item.get('es_compuesto', 0) == 1:
-                    # Composite product: deduct ingredients using recipe
-                    recipe_items = self.recipe_repo.get_recipe_items_by_product(item['product_id'])
-                    if not recipe_items:
-                        raise ValueError(f"El combo ID {item['product_id']} no tiene receta. "
-                                         f"Crea la receta en el módulo Recetas.")
+            # C. Inventario + Finanzas vía evento SALE_ITEMS_PROCESS (sync, dentro del SAVEPOINT).
+            #    SaleInventoryHandler y SaleFinanceHandler están registrados en wiring.py.
+            #    Si no hay handlers activos (tests sin AppContainer), la emisión es no-op.
+            _sale_evt_payload = make_sale_payload(
+                sale_id=sale_id,
+                folio=folio,
+                branch_id=branch_id,
+                total=total_a_pagar,
+                user=user,
+                client_id=client_id,
+                items=carrito_final,
+                payment_method=payment_method,
+                operation_id=operation_id,
+            )
+            try:
+                from core.events.event_bus import get_bus
+                get_bus().publish(SALE_ITEMS_PROCESS, _sale_evt_payload, async_=False)
+            except Exception as _evt_err:
+                logger.error("SALE_ITEMS_PROCESS dispatch failed (venta %s): %s", operation_id, _evt_err)
+                raise  # propagate so SAVEPOINT rolls back
 
-                    for sub_item in recipe_items:
-                        tipo_receta = sub_item.get('tipo_receta', 'combinacion')
-                        rend_pct    = float(sub_item.get('rendimiento_pct') or 0)
-                        cantidad    = float(sub_item.get('cantidad') or 0)
-
-                        if rend_pct > 0:
-                            # Percentage-based (subproducto type): qty = sale_qty * rendimiento/100
-                            qty_to_deduct = float(item['qty']) * rend_pct / 100.0
-                        elif cantidad > 0:
-                            # Fixed-quantity (combinacion type): qty = cantidad * sale_qty
-                            qty_to_deduct = float(item['qty']) * cantidad
-                        else:
-                            import logging as _lg
-                            _lg.getLogger(__name__).warning(
-                                "Recipe component pid=%s has no qty/rendimiento — skipped",
-                                sub_item['component_product_id'])
-                            continue
-
-                        if qty_to_deduct <= 0:
-                            continue
-
-                        self.inventory_service.deduct_stock(
-                            product_id=sub_item['component_product_id'],
-                            branch_id=branch_id,
-                            qty=round(qty_to_deduct, 4),
-                            operation_id=operation_id,
-                            reference_type="VENTA_COMBO",
-                            reference_id=str(sale_id),
-                            user=user,
-                            notes=f"Consumo receta {folio} ({tipo_receta})"
+            # D. LOTE FIFO — batch/expiry tracking (optional, non-critical)
+            if self._lote_svc:
+                for item in carrito_final:
+                    if item.get('es_compuesto', 0):
+                        continue
+                    try:
+                        self._lote_svc.consumir_fifo(
+                            producto_id=item['product_id'],
+                            cantidad=float(item['qty']),
+                            referencia=f"VENTA-{folio}",
+                            usuario=user
                         )
-                else:
-                    # Producto Simple / Por Peso: Descuento directo
-                    self.inventory_service.deduct_stock(
-                        product_id=item['product_id'],
-                        branch_id=branch_id,
-                        qty=item['qty'],
-                        operation_id=operation_id,
-                        reference_type="VENTA",
-                        reference_id=str(sale_id),
-                        user=user,
-                        notes=f"Salida por venta {folio}"
-                    )
-                    # FIFO de lotes/caducidades (falla silenciosamente)
-                    if self._lote_svc:
-                        try:
-                            self._lote_svc.consumir_fifo(
-                                producto_id=item['product_id'],
-                                cantidad=float(item['qty']),
-                                referencia=f"VENTA-{folio}",
-                                usuario=user
-                            )
-                        except Exception as _le:
-                            import logging
-                            logging.getLogger('spj.sales').debug(
-                                "FIFO lotes: %s", _le)
+                    except Exception as _le:
+                        logger.debug("FIFO lotes pid=%s: %s", item['product_id'], _le)
 
-            # C. Automatización Financiera (Ingreso a Caja)
-            if payment_method != "Credito" and total_a_pagar > 0:
-                self.finance_service.register_income(
-                    amount=total_a_pagar,
-                    category="VENTAS_MOSTRADOR",
-                    description=f"Ingreso por venta {folio}",
-                    payment_method=payment_method,
-                    branch_id=branch_id,
-                    user=user,
-                    operation_id=operation_id,
-                    reference_id=sale_id
-                )
-
-            # D. Sincronización Offline-First (Nube)
+            # E. Sincronización Offline-First (Nube)
             if self.sync_service:
                 payload_venta = {
                     "folio": folio, "total": total_a_pagar, 
@@ -366,14 +359,8 @@ class SalesService:
             try:
                 from core.events.event_bus import get_bus, VENTA_COMPLETADA
                 from core.events.outbox import enqueue_event
-                event_payload = {
-                    "venta_id":   sale_id,
-                    "folio":      folio,
-                    "branch_id":  branch_id,
-                    "total":      total_a_pagar,
-                    "usuario":    user,
-                    "cliente_id": client_id,
-                }
+                # Enrich payload with items so downstream handlers (analytics, WA) can use them
+                event_payload = _sale_evt_payload
                 # Fase 2: persistir evento en outbox antes del dispatch in-memory
                 try:
                     enqueue_event(
