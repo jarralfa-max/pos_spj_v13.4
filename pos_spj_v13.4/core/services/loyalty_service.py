@@ -204,6 +204,18 @@ class LoyaltyService:
 
     # ── Consultas ─────────────────────────────────────────────────────────────
 
+    def compute_redemption_discount(self, pts: int, subtotal: float) -> float:
+        """
+        Calcula el descuento monetario por canje de `pts` puntos/estrellas.
+        Cap: máximo 50% del subtotal.
+        Puro (sin efectos secundarios) — seguro para llamar pre-pago.
+        """
+        if pts <= 0 or subtotal <= 0:
+            return 0.0
+        valor_por_estrella = float(self._cfg("loyalty_valor_estrella", "0.10"))
+        descuento = pts * valor_por_estrella
+        return round(min(descuento, subtotal * 0.5), 2)
+
     def saldo(self, cliente_id: int) -> int:
         if not self._engine:
             return 0

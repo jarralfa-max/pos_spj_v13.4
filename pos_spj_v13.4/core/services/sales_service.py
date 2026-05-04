@@ -5,6 +5,9 @@ import uuid
 import logging
 from datetime import datetime
 
+from core.events.domain_events import SALE_ITEMS_PROCESS
+from core.events.event_factory import make_sale_payload
+
 logger = logging.getLogger(__name__)
 
 class SalesService:
@@ -18,7 +21,8 @@ class SalesService:
                  finance_service, loyalty_service, promotion_engine, sync_service,
                  ticket_template_engine, whatsapp_service, config_service,
                  feature_flag_service, pricing_service=None,
-                 growth_engine=None, notification_service=None):
+                 growth_engine=None, notification_service=None,
+                 customer_service=None):
         # Inyección de dependencias
         self.db = db_conn
         self.pricing_service = pricing_service
@@ -43,6 +47,7 @@ class SalesService:
         self.whatsapp_service = whatsapp_service
         self.config_service = config_service
         self.feature_flag_service = feature_flag_service
+        self.customer_service = customer_service
 
     def _generate_unique_sale_folio(self) -> str:
         """
@@ -63,9 +68,39 @@ class SalesService:
                 return folio
         return f"V{base}-{uuid.uuid4().hex[:8].upper()}"
 
-    def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str, 
-                     amount_paid: float, client_id: int = None, client_phone: str = None, 
-                     client_level: str = 'bronce', discount: float = 0.0, notes: str = "") -> tuple:
+    def _validate_stock_pre_sale(self, items: list, branch_id: int) -> None:
+        """
+        Read-only stock guard executed BEFORE opening the SAVEPOINT.
+
+        Raises RuntimeError with a human-readable message if any simple item
+        lacks sufficient stock.  Composite items are skipped here — the
+        SaleInventoryHandler validates each component when it processes the recipe.
+
+        Why before the SAVEPOINT: guarantees a clean raise (no partial DB state)
+        even when SALE_ITEMS_PROCESS handlers run inside the transaction.
+        """
+        if not self.inventory_service or not hasattr(self.inventory_service, "get_stock"):
+            return
+        for item in items:
+            if item.get("es_compuesto", 0) or float(item.get("qty", 0)) <= 0:
+                continue
+            try:
+                available = self.inventory_service.get_stock(item["product_id"], branch_id)
+                needed    = float(item["qty"])
+                if available < needed:
+                    raise RuntimeError(
+                        f"Stock insuficiente para '{item.get('nombre', item.get('name', item['product_id']))}': "
+                        f"disponible {available:.3f}, requerido {needed:.3f}"
+                    )
+            except RuntimeError:
+                raise
+            except Exception:
+                pass  # non-critical pre-check; handler will enforce on deduction
+
+    def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
+                     amount_paid: float, client_id: int = None, client_phone: str = None,
+                     client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
+                     loyalty_redemption_pts: int = 0) -> tuple:
         """
         Ejecuta la venta completa y devuelve el Folio y el Ticket HTML.
         
@@ -157,6 +192,29 @@ class SalesService:
         subtotal = sum(item['qty'] * item['unit_price'] for item in carrito_final)
         total_a_pagar = subtotal - discount
 
+        # ── Validación de cliente (si se indicó) ─────────────────────────────
+        if client_id and self.customer_service:
+            customer = self.customer_service.get_customer(client_id)
+            if not customer:
+                raise ValueError(f"Cliente ID {client_id} no encontrado o inactivo.")
+        else:
+            customer = None
+
+        # ── Canje de puntos de lealtad (pre-pago, puro) ──────────────────────
+        loyalty_discount = 0.0
+        if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
+            loyalty_discount = self.loyalty_service.compute_redemption_discount(
+                loyalty_redemption_pts, total_a_pagar
+            )
+            total_a_pagar = round(total_a_pagar - loyalty_discount, 2)
+            discount = round(discount + loyalty_discount, 2)
+
+        # ── Validación de crédito (si aplica) ────────────────────────────────
+        if payment_method == 'Credito' and client_id and self.customer_service:
+            ok, msg = self.customer_service.validate_credit(client_id, total_a_pagar)
+            if not ok:
+                raise ValueError(msg)
+
         # Validamos el pago
         if amount_paid < total_a_pagar and payment_method != 'Credito':
             raise ValueError(f"El monto pagado (${amount_paid:,.2f}) es menor al total a cobrar (${total_a_pagar:,.2f})")
@@ -178,6 +236,10 @@ class SalesService:
         # =========================================================
         # 2. TRANSACCIÓN CRÍTICA DE BASE DE DATOS
         # =========================================================
+
+        # Pre-SAVEPOINT: read-only stock guard (raises before any DB write)
+        self._validate_stock_pre_sale(carrito_final, branch_id)
+
         _sp = None  # defined before try so except can always reference it
         try:
             import uuid as _uuid_sp
@@ -199,9 +261,8 @@ class SalesService:
                 notes=notes
             )
 
-            # B. Procesar Carrito e Inventario
+            # B. Guardar detalles de línea (sin lógica de inventario)
             for item in carrito_final:
-                # Guardar detalle de la venta
                 self.sales_repo.save_sale_item(
                     sale_id=sale_id,
                     product_id=item['product_id'],
@@ -210,85 +271,43 @@ class SalesService:
                     subtotal=(item['qty'] * item['unit_price'])
                 )
 
-                # Descuento Inteligente de Inventario
-                if item.get('es_compuesto', 0) == 1:
-                    # Composite product: deduct ingredients using recipe
-                    recipe_items = self.recipe_repo.get_recipe_items_by_product(item['product_id'])
-                    if not recipe_items:
-                        raise ValueError(f"El combo ID {item['product_id']} no tiene receta. "
-                                         f"Crea la receta en el módulo Recetas.")
+            # C. Inventario + Finanzas vía evento SALE_ITEMS_PROCESS (sync, dentro del SAVEPOINT).
+            #    SaleInventoryHandler y SaleFinanceHandler están registrados en wiring.py.
+            #    Si no hay handlers activos (tests sin AppContainer), la emisión es no-op.
+            _sale_evt_payload = make_sale_payload(
+                sale_id=sale_id,
+                folio=folio,
+                branch_id=branch_id,
+                total=total_a_pagar,
+                user=user,
+                client_id=client_id,
+                items=carrito_final,
+                payment_method=payment_method,
+                operation_id=operation_id,
+            )
+            try:
+                from core.events.event_bus import get_bus
+                get_bus().publish(SALE_ITEMS_PROCESS, _sale_evt_payload, async_=False)
+            except Exception as _evt_err:
+                logger.error("SALE_ITEMS_PROCESS dispatch failed (venta %s): %s", operation_id, _evt_err)
+                raise  # propagate so SAVEPOINT rolls back
 
-                    for sub_item in recipe_items:
-                        tipo_receta = sub_item.get('tipo_receta', 'combinacion')
-                        rend_pct    = float(sub_item.get('rendimiento_pct') or 0)
-                        cantidad    = float(sub_item.get('cantidad') or 0)
-
-                        if rend_pct > 0:
-                            # Percentage-based (subproducto type): qty = sale_qty * rendimiento/100
-                            qty_to_deduct = float(item['qty']) * rend_pct / 100.0
-                        elif cantidad > 0:
-                            # Fixed-quantity (combinacion type): qty = cantidad * sale_qty
-                            qty_to_deduct = float(item['qty']) * cantidad
-                        else:
-                            import logging as _lg
-                            _lg.getLogger(__name__).warning(
-                                "Recipe component pid=%s has no qty/rendimiento — skipped",
-                                sub_item['component_product_id'])
-                            continue
-
-                        if qty_to_deduct <= 0:
-                            continue
-
-                        self.inventory_service.deduct_stock(
-                            product_id=sub_item['component_product_id'],
-                            branch_id=branch_id,
-                            qty=round(qty_to_deduct, 4),
-                            operation_id=operation_id,
-                            reference_type="VENTA_COMBO",
-                            reference_id=str(sale_id),
-                            user=user,
-                            notes=f"Consumo receta {folio} ({tipo_receta})"
+            # D. LOTE FIFO — batch/expiry tracking (optional, non-critical)
+            if self._lote_svc:
+                for item in carrito_final:
+                    if item.get('es_compuesto', 0):
+                        continue
+                    try:
+                        self._lote_svc.consumir_fifo(
+                            producto_id=item['product_id'],
+                            cantidad=float(item['qty']),
+                            referencia=f"VENTA-{folio}",
+                            usuario=user
                         )
-                else:
-                    # Producto Simple / Por Peso: Descuento directo
-                    self.inventory_service.deduct_stock(
-                        product_id=item['product_id'],
-                        branch_id=branch_id,
-                        qty=item['qty'],
-                        operation_id=operation_id,
-                        reference_type="VENTA",
-                        reference_id=str(sale_id),
-                        user=user,
-                        notes=f"Salida por venta {folio}"
-                    )
-                    # FIFO de lotes/caducidades (falla silenciosamente)
-                    if self._lote_svc:
-                        try:
-                            self._lote_svc.consumir_fifo(
-                                producto_id=item['product_id'],
-                                cantidad=float(item['qty']),
-                                referencia=f"VENTA-{folio}",
-                                usuario=user
-                            )
-                        except Exception as _le:
-                            import logging
-                            logging.getLogger('spj.sales').debug(
-                                "FIFO lotes: %s", _le)
+                    except Exception as _le:
+                        logger.debug("FIFO lotes pid=%s: %s", item['product_id'], _le)
 
-            # C. Automatización Financiera (Ingreso a Caja)
-            if payment_method != "Credito" and total_a_pagar > 0:
-                self.finance_service.register_income(
-                    amount=total_a_pagar,
-                    category="VENTAS_MOSTRADOR",
-                    description=f"Ingreso por venta {folio}",
-                    payment_method=payment_method,
-                    branch_id=branch_id,
-                    user=user,
-                    operation_id=operation_id,
-                    reference_id=sale_id
-                )
-
-            # D. Sincronización Offline-First (Nube)
+            # E. Sincronización Offline-First (Nube)
             if self.sync_service:
                 payload_venta = {
                     "folio": folio, "total": total_a_pagar, 
@@ -308,18 +327,40 @@ class SalesService:
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
             logger.info(f"Venta {folio} procesada con éxito. Operación: {operation_id}")
 
+            # ── Post-commit: CxC para ventas a crédito ────────────────────────
+            if payment_method == 'Credito' and client_id and self.customer_service:
+                try:
+                    self.customer_service.register_credit_sale(
+                        cliente_id=client_id,
+                        sale_id=sale_id,
+                        folio=folio,
+                        monto=total_a_pagar,
+                        sucursal_id=branch_id,
+                    )
+                except Exception as _cxc_err:
+                    logger.error("register_credit_sale venta=%s: %s", sale_id, _cxc_err)
+
+            # ── Post-commit: ledger de canje de lealtad ───────────────────────
+            if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
+                try:
+                    self.loyalty_service.registrar_en_ledger(
+                        cliente_id=client_id,
+                        tipo="canje",
+                        puntos=-loyalty_redemption_pts,
+                        referencia=str(sale_id),
+                        descripcion=f"Canje en venta {folio}",
+                        usuario=user,
+                        monto_equiv=loyalty_discount,
+                    )
+                except Exception as _lyl_err:
+                    logger.warning("loyalty ledger canje venta=%s: %s", sale_id, _lyl_err)
+
             # Notificar al EventBus (async_ para no bloquear al cajero)
             try:
                 from core.events.event_bus import get_bus, VENTA_COMPLETADA
                 from core.events.outbox import enqueue_event
-                event_payload = {
-                    "venta_id":   sale_id,
-                    "folio":      folio,
-                    "branch_id":  branch_id,
-                    "total":      total_a_pagar,
-                    "usuario":    user,
-                    "cliente_id": client_id,
-                }
+                # Enrich payload with items so downstream handlers (analytics, WA) can use them
+                event_payload = _sale_evt_payload
                 # Fase 2: persistir evento en outbox antes del dispatch in-memory
                 try:
                     enqueue_event(
@@ -358,14 +399,14 @@ class SalesService:
         # =========================================================
         mensaje_psico = "🐔 ¡Gracias por tu compra!"
         
-        if client_id and total_a_pagar > 0:
+        if client_id and total_a_pagar > 0 and self.loyalty_service:
             try:
-                # Use GrowthEngine if available (prevents double-awarding)
-                # Legacy LoyaltyService only as fallback when GrowthEngine is not wired
+                # GrowthEngine prevents double-awarding when available;
+                # otherwise fall back to process_loyalty_for_sale via LoyaltyService.
                 ge_active = getattr(self, 'growth_engine', None) is not None
-                if not ge_active and self.feature_flag_service.is_enabled('loyalty', branch_id):
+                if not ge_active:
                     lealtad_resultado = self.loyalty_service.process_loyalty_for_sale(
-                        client_id, total_a_pagar, branch_id  # total_a_pagar = net after discounts
+                        client_id, total_a_pagar, branch_id
                     )
                     mensaje_psico = lealtad_resultado.get('mensaje', mensaje_psico)
             except Exception as e:

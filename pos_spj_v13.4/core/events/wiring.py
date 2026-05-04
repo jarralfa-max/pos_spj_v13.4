@@ -57,38 +57,26 @@ def wire_all(container: "AppContainer") -> None:
     _wire_merma_inventario(bus, container)
     _wire_flujos_criticos(bus, container)
 
+    # Phase 1: SALE_ITEMS_PROCESS — inventory + finance handlers (sync, inside SAVEPOINT)
+    _wire_sale_handlers(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
 
 def _wire_flujos_criticos(bus, container) -> None:
     """
-    Wiring mínimo solicitado por operación:
-      VENTA_COMPLETADA   -> inventory/finance
+    Wiring mínimo para operaciones críticas:
+      SALE_ITEMS_PROCESS -> inventory + finance  (Phase 1 — via SaleInventoryHandler/SaleFinanceHandler)
       COMPRA_REGISTRADA  -> inventory/finance
-      MERMA_REGISTRADA   -> inventory/finance
-    Implementación aditiva y defensiva (no rompe wiring previo).
+      MERMA_REGISTRADA   -> finance
     """
     from core.events.event_bus import (
-        VENTA_COMPLETADA, COMPRA_REGISTRADA, MERMA_CREATED
+        COMPRA_REGISTRADA, MERMA_CREATED
     )
-
-    def _venta_stock(data: dict) -> None:
-        inv = getattr(container, "inventory_service", None)
-        if not inv or not hasattr(inv, "descontar_stock"):
-            return
-        for item in data.get("items", []):
-            try:
-                inv.descontar_stock(
-                    producto_id=item.get("producto_id"),
-                    cantidad=float(item.get("cantidad", 0)),
-                    branch_id=data.get("sucursal_id", 1),
-                    referencia_id=data.get("venta_id", "VENTA"),
-                    usuario=data.get("usuario", "sistema"),
-                    operation_id=data.get("operation_id"),
-                )
-            except Exception:
-                continue
+    # NOTE: VENTA_COMPLETADA → inventory/finance was removed here (Phase 1).
+    # That coupling now lives in SaleInventoryHandler / SaleFinanceHandler
+    # registered by _wire_sale_handlers(), which subscribe to SALE_ITEMS_PROCESS.
 
     def _compra_stock(data: dict) -> None:
         inv = getattr(container, "inventory_service", None)
@@ -134,7 +122,6 @@ def _wire_flujos_criticos(bus, container) -> None:
             metadata={"producto_id": data.get("producto_id")},
         )
 
-    bus.subscribe(VENTA_COMPLETADA, _venta_stock, priority=45, label="venta_stock_critico")
     bus.subscribe(COMPRA_REGISTRADA, _compra_stock, priority=45, label="compra_stock_critico")
     bus.subscribe(COMPRA_REGISTRADA, _compra_egreso, priority=45, label="compra_egreso_critico")
     bus.subscribe(MERMA_CREATED, _merma_perdida, priority=45, label="merma_perdida_critico")
@@ -739,3 +726,45 @@ def _wire_merma_inventario(bus, container) -> None:
 
     bus.subscribe(MERMA_CREATED, _on_merma_inventario,
                   priority=80, label="merma_stock")
+
+
+# ── Phase 1: SALE_ITEMS_PROCESS handlers ─────────────────────────────────────
+
+def _wire_sale_handlers(bus, container) -> None:
+    """
+    Register SaleInventoryHandler and SaleFinanceHandler on SALE_ITEMS_PROCESS.
+
+    Both handlers run synchronously (async_=False) inside the SAVEPOINT opened by
+    SalesService.execute_sale(), so their DB writes are atomic with the sale row.
+
+    Priority order:
+      100 — SaleInventoryHandler: deduct stock (must run before finance)
+       90 — SaleFinanceHandler:   register cash income
+    """
+    from core.events.domain_events import SALE_ITEMS_PROCESS
+    from core.events.handlers.inventory_handler import SaleInventoryHandler
+    from core.events.handlers.finance_handler import SaleFinanceHandler
+
+    inv      = getattr(container, "inventory_service", None)
+    recipes  = getattr(container, "recipe_repo", None)
+    fs       = getattr(container, "finance_service", None)
+
+    if inv:
+        inv_handler = SaleInventoryHandler(inventory_service=inv, recipe_repo=recipes)
+        bus.subscribe(
+            SALE_ITEMS_PROCESS,
+            inv_handler.handle,
+            priority=100,
+            label="sale_inventory_deduct",
+        )
+        logger.debug("Registered SaleInventoryHandler on %s", SALE_ITEMS_PROCESS)
+
+    if fs:
+        fin_handler = SaleFinanceHandler(finance_service=fs)
+        bus.subscribe(
+            SALE_ITEMS_PROCESS,
+            fin_handler.handle,
+            priority=90,
+            label="sale_finance_income",
+        )
+        logger.debug("Registered SaleFinanceHandler on %s", SALE_ITEMS_PROCESS)
