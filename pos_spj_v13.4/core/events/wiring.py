@@ -57,6 +57,10 @@ def wire_all(container: "AppContainer") -> None:
     _wire_merma_inventario(bus, container)
     _wire_flujos_criticos(bus, container)
 
+    # v13.6: EVENTOS CANÓNICOS ERP (Domain-Driven Architecture)
+    _wire_erp_canonical_events(bus, container)
+    _wire_loyalty_events(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -64,7 +68,7 @@ def wire_all(container: "AppContainer") -> None:
 def _wire_flujos_criticos(bus, container) -> None:
     """
     Wiring mínimo solicitado por operación:
-      VENTA_COMPLETADA   -> inventory/finance
+      VENTA_COMPLETADA   -> inventory/finance (via handlers dedicados)
       COMPRA_REGISTRADA  -> inventory/finance
       MERMA_REGISTRADA   -> inventory/finance
     Implementación aditiva y defensiva (no rompe wiring previo).
@@ -72,23 +76,8 @@ def _wire_flujos_criticos(bus, container) -> None:
     from core.events.event_bus import (
         VENTA_COMPLETADA, COMPRA_REGISTRADA, MERMA_CREATED
     )
-
-    def _venta_stock(data: dict) -> None:
-        inv = getattr(container, "inventory_service", None)
-        if not inv or not hasattr(inv, "descontar_stock"):
-            return
-        for item in data.get("items", []):
-            try:
-                inv.descontar_stock(
-                    producto_id=item.get("producto_id"),
-                    cantidad=float(item.get("cantidad", 0)),
-                    branch_id=data.get("sucursal_id", 1),
-                    referencia_id=data.get("venta_id", "VENTA"),
-                    usuario=data.get("usuario", "sistema"),
-                    operation_id=data.get("operation_id"),
-                )
-            except Exception:
-                continue
+    # Nota: VENTA_COMPLETADA ahora usa handlers dedicados en core/events/handlers/
+    # _venta_stock legacy se mantiene para compatibilidad pero puede ser removido
 
     def _compra_stock(data: dict) -> None:
         inv = getattr(container, "inventory_service", None)
@@ -134,7 +123,6 @@ def _wire_flujos_criticos(bus, container) -> None:
             metadata={"producto_id": data.get("producto_id")},
         )
 
-    bus.subscribe(VENTA_COMPLETADA, _venta_stock, priority=45, label="venta_stock_critico")
     bus.subscribe(COMPRA_REGISTRADA, _compra_stock, priority=45, label="compra_stock_critico")
     bus.subscribe(COMPRA_REGISTRADA, _compra_egreso, priority=45, label="compra_egreso_critico")
     bus.subscribe(MERMA_CREATED, _merma_perdida, priority=45, label="merma_perdida_critico")
@@ -144,6 +132,7 @@ def _wire_flujos_criticos(bus, container) -> None:
 
 def _wire_venta(bus, container) -> None:
     from core.events.event_bus import VENTA_COMPLETADA
+    from core.events.handlers import handle_sale_inventory, handle_sale_finance
 
     # Prioridad 100: Sync (CRÍTICO)
     def _sync_venta(data: dict) -> None:
@@ -165,6 +154,34 @@ def _wire_venta(bus, container) -> None:
 
     bus.subscribe(VENTA_COMPLETADA, _sync_venta,
                   priority=100, label="sync_venta")
+
+    # Prioridad 60: Inventario (via handler dedicado - maneja simples y combos)
+    def _inventory_venta(data: dict) -> None:
+        """Delegate to dedicated inventory handler."""
+        inv = getattr(container, "inventory_service", None)
+        if not inv:
+            return
+        try:
+            handle_sale_inventory(data, inv)
+        except Exception as e:
+            logger.error("inventory_venta handler: %s", e)
+
+    bus.subscribe(VENTA_COMPLETADA, _inventory_venta,
+                  priority=60, label="inventory_venta_handler")
+
+    # Prioridad 55: Finanzas (via handler dedicado - cash/card only)
+    def _finance_venta(data: dict) -> None:
+        """Delegate to dedicated finance handler."""
+        fs = getattr(container, "finance_service", None)
+        if not fs:
+            return
+        try:
+            handle_sale_finance(data, fs)
+        except Exception as e:
+            logger.error("finance_venta handler: %s", e)
+
+    bus.subscribe(VENTA_COMPLETADA, _finance_venta,
+                  priority=55, label="finance_venta_handler")
 
     # Prioridad 50: Fidelidad
     def _loyalty_venta(data: dict) -> None:
@@ -262,7 +279,7 @@ def _wire_pedido(bus, container) -> None:
 # ── INVENTARIO ────────────────────────────────────────────────────────────────
 
 def _wire_inventario(bus, container) -> None:
-    from core.events.event_bus import STOCK_BAJO_MINIMO, AJUSTE_INVENTARIO
+    from core.events.event_bus import STOCK_BAJO_MINIMO, AJUSTE_INVENTARIO, TRANSFERENCIA_STOCK
 
     def _on_stock_bajo(data: dict) -> None:
         logger.warning(
@@ -306,6 +323,22 @@ def _wire_inventario(bus, container) -> None:
     bus.subscribe(AJUSTE_INVENTARIO, _sync_ajuste,
                   priority=100, label="sync_ajuste")
 
+    # Handler para transferencias de stock entre sucursales
+    def _handle_transferencia(data: dict) -> None:
+        from core.events.handlers.inventory_handler import handle_stock_transfer
+        inv_svc = getattr(container, "inventory_service", None)
+        if not inv_svc:
+            logger.error("Inventory service not available for transfer")
+            return
+        try:
+            handle_stock_transfer(data, inv_svc)
+        except Exception as e:
+            logger.error("Error in transfer handler: %s", e)
+            raise  # Re-raise to trigger rollback
+
+    bus.subscribe(TRANSFERENCIA_STOCK, _handle_transferencia,
+                  priority=100, label="handle_transferencia")
+
 
 # ── PRODUCCIÓN ────────────────────────────────────────────────────────────────
 
@@ -322,7 +355,7 @@ def _wire_produccion(bus, container) -> None:
                 entidad="production_batches",
                 entidad_id=data.get("batch_id"),
                 payload=data,
-                sucursal_id=data.get("sucursal_id", 1),
+                sucursal_id=data.get("branch_id", 1),
                 usuario=data.get("usuario", "produccion"),
                 operation_id=data.get("operation_id", ""),
             )
@@ -331,6 +364,23 @@ def _wire_produccion(bus, container) -> None:
 
     bus.subscribe(PRODUCCION_COMPLETADA, _sync_produccion,
                   priority=100, label="sync_produccion")
+
+    # Production inventory handler - processes movements via event
+    def _production_inventory_handler(data: dict) -> None:
+        try:
+            inv = getattr(container, "inventory_service", None)
+            if not inv:
+                logger.warning("No inventory service available for production handler")
+                return
+            
+            from core.events.handlers.production_handler import handle_production_completion
+            handle_production_completion(data, inv)
+        except Exception as e:
+            logger.error("Production inventory handler failed: %s", e)
+            raise
+
+    bus.subscribe(PRODUCCION_COMPLETADA, _production_inventory_handler,
+                  priority=90, label="production_inventory")
 
 
 # ── ALERT_CRITICAL ────────────────────────────────────────────────────────────
@@ -643,7 +693,22 @@ def _wire_purchase_inventario(bus, container) -> None:
     Complementa el handler de sync de COMPRA_REGISTRADA ya existente.
     Registra asiento: inventario_almacen (debe) ↔ cuentas_por_pagar (haber).
     """
-    from core.events.event_bus import PURCHASE_CREATED
+    from core.events.event_bus import PURCHASE_CREATED, COMPRA_REGISTRADA
+    from core.events.handlers.purchase_handler import handle_purchase_inventory
+
+    # Handler principal para actualizar inventario desde evento
+    def _on_compra_stock(data: dict) -> None:
+        inv = getattr(container, "inventory_service", None)
+        if not inv:
+            logger.warning("No inventory service available for purchase handler")
+            return
+        try:
+            handle_purchase_inventory(data, inv)
+        except Exception as e:
+            logger.error("Purchase inventory handler failed: %s", e)
+
+    bus.subscribe(COMPRA_REGISTRADA, _on_compra_stock,
+                  priority=90, label="compra_stock_handler")
 
     def _on_compra_inventario(data: dict) -> None:
         try:
@@ -682,6 +747,9 @@ def _wire_venta_financiero(bus, container) -> None:
     VENTA_COMPLETADA → asiento contable de ingreso doble entrada.
     Debita caja_ventas, acredita ventas_contado.
     Solo activo si finance_service.registrar_ingreso está disponible.
+    
+    Nota: Este handler es para el registro contable (ledger).
+    El registro de ingreso a caja lo maneja handle_sale_finance en handlers/finance_handler.py
     """
     from core.events.event_bus import VENTA_COMPLETADA
 
@@ -691,6 +759,13 @@ def _wire_venta_financiero(bus, container) -> None:
             if not fs or not hasattr(fs, "registrar_ingreso"):
                 return
             total = float(data.get("total", 0))
+            payment_method = data.get("payment_method", "")
+            
+            # Skip credit sales - no immediate income for ledger
+            if payment_method == "Credito":
+                logger.debug("Credit sale %s - skipping ledger entry", data.get("venta_id"))
+                return
+                
             if total <= 0:
                 return
             fs.registrar_ingreso(
@@ -700,7 +775,8 @@ def _wire_venta_financiero(bus, container) -> None:
                 usuario_id=data.get("usuario_id"),
                 sucursal_id=data.get("sucursal_id", 1),
                 metadata={"folio": data.get("folio"),
-                          "cliente_id": data.get("cliente_id")},
+                          "cliente_id": data.get("cliente_id"),
+                          "payment_method": payment_method},
             )
         except Exception as e:
             logger.debug("on_venta_ingreso: %s", e)
@@ -739,3 +815,131 @@ def _wire_merma_inventario(bus, container) -> None:
 
     bus.subscribe(MERMA_CREATED, _on_merma_inventario,
                   priority=80, label="merma_stock")
+
+
+# ── v13.6: EVENTOS CANÓNICOS ERP (Domain-Driven) ─────────────────────────────
+
+def _wire_erp_canonical_events(bus, container) -> None:
+    """
+    Wiring para eventos canónicos ERP v13.6:
+    - STOCK_MOVED: Unifica todos los movimientos de inventario
+    - STOCK_LEVEL_CRITICAL: Policy para auto-reorder
+    - RECIPE_DEVIATION_DETECTED: Policy para quality control
+    - QUOTE_EXPIRED: Policy para sales follow-up
+    
+    Estos eventos son complementarios a los legacy y permiten
+    una arquitectura más limpia y escalable.
+    """
+    from core.events.event_bus import (
+        STOCK_MOVED,
+        STOCK_LEVEL_CRITICAL,
+        RECIPE_DEVIATION_DETECTED,
+        QUOTE_EXPIRED,
+    )
+    from core.events.handlers import (
+        handle_stock_level_critical,
+        handle_recipe_deviation,
+        handle_quote_expired,
+    )
+    
+    # Policy: Stock crítico → notificaciones y sugerencias de reorder
+    def _on_stock_level_critical(data: dict) -> None:
+        try:
+            ns = getattr(container, "notification_service", None)
+            ps = getattr(container, "purchase_service", None)
+            handle_stock_level_critical(data, ns, ps)
+        except Exception as e:
+            logger.error("Stock level critical handler failed: %s", e)
+    
+    bus.subscribe(STOCK_LEVEL_CRITICAL, _on_stock_level_critical,
+                  priority=50, label="stock_critical_policy")
+    
+    # Policy: Desviación en producción → quality control
+    def _on_recipe_deviation(data: dict) -> None:
+        try:
+            qs = getattr(container, "quality_service", None)
+            handle_recipe_deviation(data, qs)
+        except Exception as e:
+            logger.error("Recipe deviation handler failed: %s", e)
+    
+    bus.subscribe(RECIPE_DEVIATION_DETECTED, _on_recipe_deviation,
+                  priority=40, label="recipe_deviation_policy")
+    
+    # Policy: Cotización expirada → CRM follow-up
+    def _on_quote_expired(data: dict) -> None:
+        try:
+            crm = getattr(container, "crm_service", None)
+            handle_quote_expired(data, crm)
+        except Exception as e:
+            logger.error("Quote expired handler failed: %s", e)
+    
+    bus.subscribe(QUOTE_EXPIRED, _on_quote_expired,
+                  priority=30, label="quote_expired_policy")
+
+
+# ── v13.6: LOYALTY EVENTS ────────────────────────────────────────────────────
+
+def _wire_loyalty_events(bus, container) -> None:
+    """
+    Wiring explícito para eventos de lealtad:
+    - LOYALTY_POINTS_ACCUMULATED: Puntos ganados por compra
+    - LOYALTY_POINTS_REDEEMED: Puntos redimidos por descuento
+    - CUSTOMER_TIER_CHANGED: Cambio de nivel del cliente
+    
+    Nota: La acumulación ya se maneja en _wire_venta (_loyalty_venta)
+    pero estos eventos permiten handlers dedicados para mayor claridad.
+    """
+    from core.events.event_bus import (
+        LOYALTY_POINTS_ACCUMULATED,
+        LOYALTY_POINTS_REDEEMED,
+        CUSTOMER_TIER_CHANGED,
+    )
+    
+    # Handler para puntos acumulados (complementario al existente)
+    def _on_points_accumulated(data: dict) -> None:
+        try:
+            ls = getattr(container, "loyalty_service", None)
+            if not ls:
+                return
+            
+            customer_id = data.get("customer_id")
+            points = data.get("points", 0)
+            sale_id = data.get("source_sale_id")
+            
+            logger.info("Puntos acumulados: cliente=%s puntos=%s venta=%s",
+                       customer_id, points, sale_id)
+            
+            # Verificar si debe subir de tier
+            if hasattr(ls, 'check_tier_upgrade'):
+                ls.check_tier_upgrade(customer_id)
+                
+        except Exception as e:
+            logger.debug("Points accumulated handler: %s", e)
+    
+    bus.subscribe(LOYALTY_POINTS_ACCUMULATED, _on_points_accumulated,
+                  priority=45, label="loyalty_accumulated_check")
+    
+    # Handler para cambio de tier
+    def _on_tier_changed(data: dict) -> None:
+        try:
+            customer_id = data.get("customer_id")
+            new_tier = data.get("new_tier")
+            old_tier = data.get("old_tier")
+            
+            logger.info("Cambio de tier: cliente=%s de=%s a=%s",
+                       customer_id, old_tier, new_tier)
+            
+            # Notificar al cliente
+            ns = getattr(container, "notification_service", None)
+            if ns and hasattr(ns, 'enviar_email'):
+                ns.enviar_email(
+                    destinatario=customer_id,
+                    asunto=f"¡Felicidades! Ahora eres {new_tier}",
+                    cuerpo=f"Has ascendido de {old_tier} a {new_tier}. Disfruta tus nuevos beneficios."
+                )
+                
+        except Exception as e:
+            logger.debug("Tier changed handler: %s", e)
+    
+    bus.subscribe(CUSTOMER_TIER_CHANGED, _on_tier_changed,
+                  priority=20, label="loyalty_tier_notification")

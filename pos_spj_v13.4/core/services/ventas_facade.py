@@ -22,7 +22,7 @@ class VentasFacade:
     def procesar(self, items, datos_pago, **kw):
         try:
             from core.use_cases.venta import ProcesarVentaUC, ItemCarrito, DatosPago
-            from core.services.inventory_service import InventoryService
+            from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
             inv = InventoryService(self.conn)
             uc  = ProcesarVentaUC(
                 sales_service     = self._make_sales_svc(),
@@ -52,7 +52,7 @@ class VentasFacade:
             if self.on_error: self.on_error(exc)
 
     def verificar_stock(self, producto_id, cantidad):
-        from core.services.inventory_service import InventoryService
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
         return InventoryService(self.conn).get_stock(producto_id)
 
     def buscar_cliente(self, termino):
@@ -66,7 +66,7 @@ class VentasFacade:
     def _make_sales_svc(self):
         from core.services.sales_service import SalesService
         from repositories.sales_repository import SalesRepository
-        from core.services.inventory_service import InventoryService
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
         return SalesService(
             db_conn=self.conn,
             sales_repo=SalesRepository(self.conn),

@@ -26,7 +26,7 @@ from core.services.feature_flag_service import FeatureFlagService
 from core.services.security_service import SecurityService
 from core.services.auth_service import AuthService
 
-from core.services.inventory_service import InventoryService
+from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
 from core.services.finance_service import FinanceService
 from core.services.loyalty_service import LoyaltyService
 from core.services.recipe_engine import RecipeEngine
@@ -119,8 +119,7 @@ class AppContainer:
         ## =========================================================
         # CAPA 3: SERVICIOS DE NEGOCIO (Los motores del ERP)
         # =========================================================
-        self.inventory_service = InventoryService(self.db, self.inventory_repo)
-        self.inventory_service.audit_service = self.audit_service # Inyectar auditoría manualmente
+        self.inventory_service = InventoryService(self.db, self.inventory_repo, audit_service=self.audit_service)
 
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
         self.loyalty_service = LoyaltyService(self.db)  # module_config set below

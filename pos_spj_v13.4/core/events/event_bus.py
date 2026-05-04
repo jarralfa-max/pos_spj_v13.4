@@ -59,6 +59,7 @@ RECEPCION_CONFIRMADA    = "RECEPCION_CONFIRMADA"
 # Logística
 TRASPASO_INICIADO       = "TRASPASO_INICIADO"
 TRASPASO_CONFIRMADO     = "TRASPASO_CONFIRMADO"
+TRANSFERENCIA_STOCK     = "TRANSFERENCIA_STOCK"
 # Producción
 PRODUCCION_COMPLETADA   = "PRODUCCION_COMPLETADA"
 PRODUCCION_INICIADA     = "PRODUCCION_INICIADA"
@@ -141,6 +142,57 @@ CONCILIACION_DIFERENCIA = "CONCILIACION_DIFERENCIA"
 NOMINA_PAGADA           = "NOMINA_PAGADA"       # empleado_id, neto, periodo, sucursal_id
 CLIENTE_REGISTRADO      = CLIENTE_CREADO        # alias v13.5 backward compat
 COMPRA_PROCESADA        = COMPRA_REGISTRADA     # alias v13.5 backward compat
+
+# ── EVENTOS CANÓNICOS ERP (v13.6 - Domain-Driven) ──────────────────────────────
+# Eventos unificados y normalizados según auditoría de arquitectura
+
+# Inventario Unificado
+STOCK_MOVED             = "STOCK_MOVED"         # UNIFICA: AJUSTE_INVENTARIO, PRODUCTO_ACTUALIZADO, etc.
+                                                # payload: {product_id, qty_delta, type: 'in'|'out'|'xfer'|'adjust'|'sale'|'purchase'|'production'|'waste', ref_id, branch_id}
+
+STOCK_LEVEL_CRITICAL    = "STOCK_LEVEL_CRITICAL" # Nuevo: threshold breach para auto-reordering
+                                                # payload: {product_id, current_qty, threshold, branch_id}
+
+# Producción
+PRODUCTION_ORDER_COMPLETED = "PRODUCTION_ORDER_COMPLETED"  # Reemplaza PRODUCCION_COMPLETADA con yield tracking
+                                                # payload: {order_id, recipe_id, expected_yield, actual_yield, ingredients_used[], branch_id}
+
+RECIPE_DEVIATION_DETECTED = "RECIPE_DEVIATION_DETECTED"   # Nuevo: variance alert
+                                                # payload: {order_id, variance_pct, missing_ingredients[], severity}
+
+# Compras
+PURCHASE_ORDER_RECEIVED = "PURCHASE_ORDER_RECEIVED"        # Reemplaza COMPRA_REGISTRADA con recepción formal
+                                                # payload: {po_id, vendor_id, items_received[], discrepancies[], total_cost}
+
+ACCOUNT_PAYABLE_CREATED = "ACCOUNT_PAYABLE_CREATED"        # Nuevo: CxC de compras
+                                                # payload: {cxp_id, vendor_id, po_id, due_date, amount}
+
+# Ventas (alias adicionales para consistencia)
+SALE_CANCELLED          = VENTA_CANCELADA       # alias explícito
+
+# Finanzas
+PAYMENT_REGISTERED      = "PAYMENT_REGISTERED"  # UNIFICA: MOVIMIENTO_FINANCIERO para pagos
+                                                # payload: {transaction_id, amount, method, direction: 'in'|'out', entity_id, entity_type}
+
+ACCOUNT_RECEIVABLE_CREATED = "ACCOUNT_RECEIVABLE_CREATED"  # Nuevo: CxC de ventas crédito
+                                                # payload: {cxc_id, customer_id, sale_id, due_date, amount}
+
+# Lealtad
+LOYALTY_POINTS_ACCUMULATED = "LOYALTY_POINTS_ACCUMULATED"  # Alias explícito para PUNTOS_ACUMULADOS
+LOYALTY_POINTS_REDEEMED    = "LOYALTY_POINTS_REDEEMED"     # Nuevo: redención explícita
+                                                # payload: {customer_id, points, discount_applied, source_sale_id}
+
+CUSTOMER_TIER_CHANGED   = "CUSTOMER_TIER_CHANGED"          # Alias explícito para NIVEL_CAMBIADO
+
+# Residuos/Merma
+WASTE_RECORDED          = "WASTE_RECORDED"      # Alias explícito para MERMA_CREATED con mejor semántica
+
+# Cotizaciones
+QUOTE_CONVERTED         = "QUOTE_CONVERTED"     # Nuevo: quote → sale conversion
+                                                # payload: {quote_id, sale_id, customer_id}
+
+QUOTE_EXPIRED           = "QUOTE_EXPIRED"       # Nuevo: quote expiration for follow-up
+                                                # payload: {quote_id, customer_id, total, days_since_creation}
 
 
 class EventBus:

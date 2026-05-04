@@ -172,14 +172,48 @@ class ProductionEngine:
         """, (receta_id,)).fetchall()
         return [dict(r) for r in rows]
 
-    def _publicar_evento(self, batch_id: str, folio: str, branch_id: int) -> None:
+    def _publicar_evento(self, batch_id: str, folio: str, branch_id: int, 
+                         yield_result=None, src_prod_id: int = None, 
+                         src_weight: float = None, src_cost: float = None) -> None:
         try:
             from core.events.event_bus import get_bus
-            get_bus().publish("PRODUCTION_BATCH_CREATED", {
+            
+            payload = {
                 "batch_id": batch_id,
                 "folio": folio,
                 "branch_id": branch_id,
-            })
+            }
+            
+            # Agregar datos completos de rendimiento si están disponibles
+            if yield_result:
+                payload.update({
+                    "source_product_id": src_prod_id,
+                    "source_weight": src_weight,
+                    "source_cost_total": src_cost,
+                    "usable_weight": yield_result.usable_weight,
+                    "waste_weight": yield_result.waste_weight,
+                    "usable_pct": yield_result.usable_pct,
+                    "waste_pct": yield_result.waste_pct,
+                    "expected_usable_pct": yield_result.expected_usable_pct,
+                    "variance_pct": yield_result.variance_pct,
+                    "efficiency_pct": yield_result.efficiency_pct,
+                    "within_tolerance": yield_result.within_tolerance,
+                    "outputs": [
+                        {
+                            "product_id": o.product_id,
+                            "nombre": o.nombre,
+                            "real_weight": o.real_weight,
+                            "expected_pct": o.expected_pct,
+                            "real_pct": o.real_pct,
+                            "variance_pct": o.variance_pct,
+                            "cost_allocated": o.cost_allocated,
+                            "is_waste": o.is_waste,
+                        }
+                        for o in yield_result.outputs
+                    ]
+                })
+            
+            get_bus().publish("PRODUCCION_COMPLETADA", payload)
         except Exception as exc:
             logger.warning("EventBus PRODUCTION falló (no crítico): %s", exc)
 
@@ -581,7 +615,13 @@ class ProductionEngine:
                     """, (a.cost_per_kg, a.product_id, bid))
 
         # Publicar evento (fuera de transacción — batch["folio"] capturado antes del with)
-        self._publicar_evento(batch_id, batch["folio"], bid)
+        self._publicar_evento(
+            batch_id, batch["folio"], bid,
+            yield_result=yr,
+            src_prod_id=src_prod_id,
+            src_weight=src_weight,
+            src_cost=src_cost
+        )
 
         logger.info(
             "Lote cerrado: %s folio=%s rendimiento=%.2f%% merma=%.2f%% alertas=%d",

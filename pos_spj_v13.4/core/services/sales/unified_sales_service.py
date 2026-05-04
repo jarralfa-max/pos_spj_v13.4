@@ -72,7 +72,7 @@ class UnifiedSalesService:
 
     def procesar_venta(self, items, datos_pago, usuario=None, **kw):
         from core.use_cases.venta import ProcesarVentaUC, ItemCarrito, DatosPago as DP
-        from core.services.inventory_service import InventoryService
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
         usr = usuario or self.usuario
 
         items_uc = [ItemCarrito(
@@ -90,7 +90,7 @@ class UnifiedSalesService:
         )
 
         from core.services.sales_service import SalesService
-        from core.services.inventory_service import InventoryService
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
         from repositories.sales_repository import SalesRepository
         sales_svc = SalesService(
             db_conn=self.conn, sales_repo=SalesRepository(self.conn),

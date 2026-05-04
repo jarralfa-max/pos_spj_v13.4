@@ -105,13 +105,12 @@ def test_forecast_engine_generar_forecast_diario_delegates_to_run():
 
 def _make_inventory_service():
     """Crea un InventoryService con repo mock."""
-    from core.services.inventory_service import InventoryService
+    from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
 
-    mock_repo = MagicMock()
-    mock_repo.get_current_stock.return_value = 100.0
-    mock_repo.get_average_cost.return_value = 10.0
-    mock_service = InventoryService(db_conn=MagicMock(), inventory_repo=mock_repo)
-    return mock_service, mock_repo
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.fetchone.return_value = (100.0,)  # get_stock
+    mock_service = InventoryService(conn=mock_conn)
+    return mock_service, None
 
 
 def test_inventory_descontar_stock_exists_and_callable():

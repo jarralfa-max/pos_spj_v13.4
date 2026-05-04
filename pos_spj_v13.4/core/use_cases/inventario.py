@@ -81,16 +81,13 @@ class GestionarInventarioUC:
         op_id = _gen_op_id()
         try:
             stock_antes = self._inv.get_stock(producto_id, sucursal_id)
-            self._inv.add_stock(
+            self._inv.process_movement(
                 product_id    = producto_id,
-                branch_id     = sucursal_id,
-                qty           = cantidad,
-                unit_cost     = costo_unit,
-                reference_type = "ENTRADA" if not referencia else referencia,
+                quantity      = cantidad,  # positive for inbound
+                movement_type = "purchase",
                 reference_id  = str(proveedor_id or ""),
-                operation_id  = op_id,
-                user          = usuario,
-                notes         = notas,
+                branch_id     = sucursal_id,
+                metadata      = {"unit_cost": costo_unit, "notes": notas}
             )
             stock_nuevo = self._inv.get_stock(producto_id, sucursal_id)
             self._audit("ENTRADA", producto_id, sucursal_id, usuario,
@@ -125,20 +122,22 @@ class GestionarInventarioUC:
             stock_antes = self._inv.get_stock(producto_id, sucursal_id)
             delta = cantidad_nueva - stock_antes
             if delta > 0:
-                self._inv.add_stock(
-                    product_id=producto_id, branch_id=sucursal_id,
-                    qty=delta, unit_cost=0.0,
-                    reference_type="AJUSTE", reference_id="",
-                    operation_id=op_id,
-                    user=usuario, notes=motivo,
+                self._inv.process_movement(
+                    product_id=producto_id,
+                    quantity=delta,  # positive for increase
+                    movement_type="adjustment",
+                    reference_id="",
+                    branch_id=sucursal_id,
+                    metadata={"notes": motivo}
                 )
             elif delta < 0:
-                self._inv.deduct_stock(
-                    product_id=producto_id, branch_id=sucursal_id,
-                    qty=abs(delta),
-                    reference_type="AJUSTE", reference_id="",
-                    operation_id=op_id,
-                    user=usuario, notes=motivo,
+                self._inv.process_movement(
+                    product_id=producto_id,
+                    quantity=-abs(delta),  # negative for decrease
+                    movement_type="adjustment",
+                    reference_id="",
+                    branch_id=sucursal_id,
+                    metadata={"notes": motivo}
                 )
             self._audit("AJUSTE", producto_id, sucursal_id, usuario,
                         str(stock_antes), str(cantidad_nueva), op_id)
@@ -178,37 +177,28 @@ class GestionarInventarioUC:
 
         op_id = _gen_op_id()
         try:
-            # Salida de origen
-            self._inv.deduct_stock(
-                product_id=producto_id, branch_id=sucursal_origen,
-                qty=cantidad,
-                reference_type="TRASPASO_SALIDA",
-                reference_id=str(sucursal_destino),
-                operation_id=op_id,
-                user=usuario, notes=notas,
-            )
-            # Entrada en destino
-            self._inv.add_stock(
-                product_id=producto_id, branch_id=sucursal_destino,
-                qty=cantidad, unit_cost=0.0,
-                reference_type="TRASPASO_ENTRADA",
-                reference_id=str(sucursal_origen),
-                operation_id=op_id,
-                user=usuario, notes=notas,
-            )
-            stock_nuevo = self._inv.get_stock(producto_id, sucursal_destino)
-            self._audit("TRASPASO", producto_id, sucursal_origen, usuario,
-                        f"suc={sucursal_origen} cant={cantidad}",
-                        f"suc_dest={sucursal_destino}", op_id)
-            self._bus_publish("TRASPASO_INICIADO", {
+            # Validar stock en origen antes de publicar evento
+            stock_actual = self._inv.get_stock(producto_id, sucursal_origen)
+            if stock_actual < cantidad:
+                return ResultadoInventario(ok=False, error=f"Stock insuficiente en origen. Actual: {stock_actual}")
+
+            # Publicar evento de transferencia (los movimientos los hace el handler)
+            self._bus_publish("TRANSFERENCIA_STOCK", {
                 "producto_id":      producto_id,
                 "cantidad":         cantidad,
                 "sucursal_origen":  sucursal_origen,
                 "sucursal_destino": sucursal_destino,
                 "usuario":          usuario,
+                "notas":            notas,
                 "op_id":            op_id,
             })
-            return ResultadoInventario(ok=True, operacion_id=op_id, stock_nuevo=stock_nuevo)
+            
+            self._audit("TRASPASO", producto_id, sucursal_origen, usuario,
+                        f"suc={sucursal_origen} cant={cantidad}",
+                        f"suc_dest={sucursal_destino}", op_id)
+            
+            # Retornar éxito (los movimientos se aplican asíncronamente vía event handler)
+            return ResultadoInventario(ok=True, operacion_id=op_id, stock_nuevo=stock_actual - cantidad)
         except Exception as e:
             logger.error("Traspaso prod=%s: %s", producto_id, e)
             return ResultadoInventario(ok=False, error=str(e))

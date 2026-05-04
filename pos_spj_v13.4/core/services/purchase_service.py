@@ -57,37 +57,10 @@ class PurchaseService:
             # Guardar los renglones (productos) de la compra
             self.purchase_repo.save_purchase_items(compra_id, items)
 
-            # 2. AUTOMATIZACIÓN DE INVENTARIO
-            inv_errors = []
-            for item in items:
-                try:
-                    self.inventory_service.add_stock(
-                        product_id=item['product_id'],
-                        branch_id=branch_id,
-                        qty=item['qty'],
-                        unit_cost=item['unit_cost'],
-                        operation_id=operation_id,
-                        reference_type="COMPRA",
-                        reference_id=str(compra_id),
-                        user=user,
-                        notes=f"Entrada por compra {folio}",
-                    )
-                except Exception as _inv_e:
-                    inv_errors.append(
-                        f"{item.get('nombre', item['product_id'])}: {_inv_e}")
-                    import logging as _log
-                    _log.getLogger(__name__).error(
-                        "add_stock FAILED prod=%s compra=%s: %s",
-                        item['product_id'], folio, _inv_e)
-
-            if inv_errors:
-                # Release savepoint so compra is saved but raise to inform UI
-                self.db.execute(f"RELEASE SAVEPOINT {_sp}")
-                raise RuntimeError(
-                    f"Compra {folio} guardada pero el inventario "
-                    f"NO se actualizó para:\n" +
-                    "\n".join(inv_errors))
-
+            # 2. PUBLICAR EVENTO PARA INVENTARIO (Event-driven - no llamar directamente)
+            # El handler se encargará de actualizar el inventario
+            from core.events.event_bus import get_bus, COMPRA_REGISTRADA
+            
             # 3. AUTOMATIZACIÓN FINANCIERA (CAJA Y DEUDAS)
             # Registro financiero — adaptado a los métodos reales de FinanceService
             if self.finance_service:
@@ -150,22 +123,23 @@ class PurchaseService:
                 usuario=user,
             )
 
+            # Publicar evento COMPRA_REGISTRADA para que los handlers actualicen inventario
+            get_bus().publish(COMPRA_REGISTRADA, {
+                "event_type": COMPRA_REGISTRADA,
+                "folio": folio,
+                "compra_id": compra_id,
+                "branch_id": branch_id,
+                "user": user,
+                "total": total_purchase,
+                "items": items,  # Critical: include items for inventory handler
+                "provider_id": provider_id,
+                "operation_id": operation_id,
+            })
+
             # Release savepoint — all changes persist
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
 
-            # Notify EventBus so modules auto-refresh
-            try:
-                from core.events.event_bus import EventBus, get_bus, COMPRA_REGISTRADA
-                get_bus().publish(COMPRA_REGISTRADA, {
-                    "event_type": COMPRA_REGISTRADA,
-                    "folio": folio,
-                    "compra_id": compra_id,
-                    "branch_id": branch_id,
-                    "user": user,
-                    "total": total_purchase,
-                })
-            except Exception:
-                pass
+            # Notify EventBus so modules auto-refresh (legacy call - can be removed later)
 
             return folio
 

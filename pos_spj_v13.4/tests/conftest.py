@@ -86,7 +86,7 @@ def sales_svc(mem_db):
     Anteriormente apuntaba a UnifiedSalesService — clase diferente que producción.
     """
     from core.services.sales_service import SalesService
-    from core.services.inventory_service import InventoryService
+    from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryService
     from core.services.loyalty_service import LoyaltyService
     from repositories.inventory_repository import InventoryRepository
     from repositories.sales_repository import SalesRepository
