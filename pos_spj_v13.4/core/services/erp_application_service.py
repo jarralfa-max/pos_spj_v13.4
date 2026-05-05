@@ -197,89 +197,27 @@ class ERPApplicationService:
     # ══════════════════════════════════════════════════════════════════════════
 
     def _entrada_directa(self, prod_id, qty, costo, tipo, ref, usuario, sid):
-        """Registra entrada: actualiza movimientos + las 3 tablas de stock."""
-        with transaction(self.db) as c:
-            c.execute("""
-                INSERT INTO movimientos_inventario
-                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                     costo_unitario, costo_total, descripcion, referencia,
-                     usuario, sucursal_id, fecha)
-                VALUES (?,?,'ENTRADA',?,?,?,?,?,?,?,?,datetime('now'))
-            """, (str(uuid.uuid4()), prod_id, tipo, qty,
-                  costo, round(qty * costo, 2), tipo, ref, usuario, sid))
-            # inventario_actual (por sucursal) — costo promedio ponderado
-            c.execute("""
-                INSERT INTO inventario_actual
-                    (producto_id, sucursal_id, cantidad, costo_promedio)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
-                    costo_promedio = CASE WHEN cantidad + excluded.cantidad > 0
-                        THEN (cantidad * costo_promedio
-                              + excluded.cantidad * excluded.costo_promedio)
-                             / (cantidad + excluded.cantidad)
-                        ELSE excluded.costo_promedio END,
-                    cantidad             = cantidad + excluded.cantidad,
-                    ultima_actualizacion = datetime('now')
-            """, (prod_id, sid, qty, costo))
-            # branch_inventory (leída por POS para validación de stock)
-            # Manual upsert: ON CONFLICT no puede usar UNIQUE(branch_id, product_id, batch_id)
-            # cuando batch_id es NULL (los NULLs son distintos en SQLite UNIQUE).
-            _bi_updated = c.execute("""
-                UPDATE branch_inventory
-                SET quantity = quantity + ?, updated_at = datetime('now')
-                WHERE product_id = ? AND branch_id = ? AND batch_id IS NULL
-            """, (qty, prod_id, sid)).rowcount
-            if not _bi_updated:
-                c.execute("""
-                    INSERT OR IGNORE INTO branch_inventory
-                        (product_id, branch_id, quantity, batch_id, updated_at)
-                    VALUES (?, ?, ?, NULL, datetime('now'))
-                """, (prod_id, sid, qty))
-            # productos.existencia = suma global de todas las sucursales
-            c.execute("""
-                UPDATE productos
-                SET existencia    = (SELECT COALESCE(SUM(cantidad),0)
-                                     FROM inventario_actual WHERE producto_id = ?),
-                    precio_compra = CASE WHEN ? > 0 THEN ? ELSE precio_compra END
-                WHERE id = ?
-            """, (prod_id, costo, costo, prod_id))
+        """Registra entrada via UnifiedInventoryService (canonical apply_movement)."""
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService
+        UnifiedInventoryService(self.db, sucursal_id=sid, usuario=usuario).process_movement(
+            product_id=prod_id,
+            quantity=qty,
+            movement_type=tipo,
+            reference=ref,
+            metadata={"unit_cost": costo},
+        )
 
     def _salida_directa(self, prod_id, qty, tipo, ref, usuario, sid):
-        """Registra salida: actualiza movimientos + las 3 tablas de stock."""
-        with transaction(self.db) as c:
-            c.execute("""
-                INSERT INTO movimientos_inventario
-                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
-                     descripcion, referencia, usuario, sucursal_id, fecha)
-                VALUES (?,?,'SALIDA',?,?,?,?,?,?,datetime('now'))
-            """, (str(uuid.uuid4()), prod_id, tipo, qty, tipo, ref, usuario, sid))
-            # inventario_actual
-            c.execute("""
-                INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-                VALUES (?, ?, ?)
-                ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
-                    cantidad             = MAX(0, cantidad - excluded.cantidad),
-                    ultima_actualizacion = datetime('now')
-            """, (prod_id, sid, qty))
-            # branch_inventory — manual upsert (ver nota en _entrada_directa)
-            _bi_updated = c.execute("""
-                UPDATE branch_inventory
-                SET quantity = MAX(0, quantity - ?), updated_at = datetime('now')
-                WHERE product_id = ? AND branch_id = ? AND batch_id IS NULL
-            """, (qty, prod_id, sid)).rowcount
-            if not _bi_updated:
-                c.execute("""
-                    INSERT OR IGNORE INTO branch_inventory
-                        (product_id, branch_id, quantity, batch_id, updated_at)
-                    VALUES (?, ?, 0, NULL, datetime('now'))
-                """, (prod_id, sid))
-            # productos.existencia = suma global
-            c.execute("""
-                UPDATE productos
-                SET existencia = (SELECT COALESCE(SUM(cantidad),0)
-                                  FROM inventario_actual WHERE producto_id = ?)
-                WHERE id = ?
-            """, (prod_id, prod_id))
+        """Registra salida via UnifiedInventoryService; caps at available stock (legacy MAX(0,...) behavior)."""
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService, StockInsuficienteError
+        svc = UnifiedInventoryService(self.db, sucursal_id=sid, usuario=usuario)
+        try:
+            svc.process_movement(product_id=prod_id, quantity=-qty, movement_type=tipo, reference=ref)
+        except StockInsuficienteError:
+            row = self.db.execute("SELECT COALESCE(existencia, 0) FROM productos WHERE id=?", (prod_id,)).fetchone()
+            available = float(row[0]) if row else 0.0
+            if available > 1e-9:
+                svc.process_movement(product_id=prod_id, quantity=-available, movement_type=tipo, reference=ref)
 
     def _get_costo_producto(self, producto_id: int) -> float:
         try:
