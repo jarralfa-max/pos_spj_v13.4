@@ -5,6 +5,66 @@ import logging, uuid
 from typing import List
 from core.db.connection import get_connection, transaction
 logger = logging.getLogger("spj.inventory")
+
+
+def _sync_branch_inventory(c, prod_id: int, sid: int, delta: float) -> None:
+    """Sync branch_inventory; handles schemas with or without batch_id column."""
+    if abs(delta) < 1e-9:
+        return
+    if delta > 0:
+        try:
+            updated = c.execute(
+                "UPDATE branch_inventory SET quantity = quantity + ?, updated_at = datetime('now') "
+                "WHERE product_id = ? AND branch_id = ? AND batch_id IS NULL",
+                (delta, prod_id, sid)
+            ).rowcount
+            if not updated:
+                c.execute(
+                    "INSERT OR IGNORE INTO branch_inventory "
+                    "(product_id, branch_id, quantity, batch_id, updated_at) "
+                    "VALUES (?, ?, ?, NULL, datetime('now'))",
+                    (prod_id, sid, delta)
+                )
+        except Exception:
+            try:
+                updated = c.execute(
+                    "UPDATE branch_inventory SET quantity = quantity + ?, updated_at = datetime('now') "
+                    "WHERE product_id = ? AND branch_id = ?",
+                    (delta, prod_id, sid)
+                ).rowcount
+                if not updated:
+                    c.execute(
+                        "INSERT OR IGNORE INTO branch_inventory "
+                        "(product_id, branch_id, quantity, updated_at) "
+                        "VALUES (?, ?, ?, datetime('now'))",
+                        (prod_id, sid, delta)
+                    )
+            except Exception:
+                pass  # branch_inventory table doesn't exist in this schema
+    else:
+        qty = abs(delta)
+        try:
+            updated = c.execute(
+                "UPDATE branch_inventory SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') "
+                "WHERE product_id = ? AND branch_id = ? AND batch_id IS NULL",
+                (qty, prod_id, sid)
+            ).rowcount
+            if not updated:
+                c.execute(
+                    "INSERT OR IGNORE INTO branch_inventory "
+                    "(product_id, branch_id, quantity, batch_id, updated_at) "
+                    "VALUES (?, ?, 0, NULL, datetime('now'))",
+                    (prod_id, sid)
+                )
+        except Exception:
+            try:
+                c.execute(
+                    "UPDATE branch_inventory SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') "
+                    "WHERE product_id = ? AND branch_id = ?",
+                    (qty, prod_id, sid)
+                )
+            except Exception:
+                pass
 MOVEMENT_TYPES = frozenset({"purchase","sale","adjustment","waste","production","return","transfer"})
 class InventoryError(Exception): pass
 class StockInsuficienteError(InventoryError):
@@ -80,6 +140,7 @@ class UnifiedInventoryService:
                         cantidad=excluded.cantidad,
                         ultima_actualizacion=datetime('now')
                 """, (producto_id, sid, stock_nuevo))
+            _sync_branch_inventory(c, producto_id, sid, delta)
         return mid
     def adjust_stock(self, producto_id, new_qty, reason="Ajuste", sucursal_id=None):
         """Ajusta el stock al valor exacto new_qty, creando movimiento de ajuste."""
@@ -223,6 +284,7 @@ class UnifiedInventoryService:
                         cantidad=excluded.cantidad,
                         ultima_actualizacion=datetime('now')
                 """, (product_id, sucursal_id, stock_nuevo))
+            _sync_branch_inventory(c, product_id, sucursal_id, delta)
 
         if conn is not None:
             _write(conn)
@@ -245,3 +307,5 @@ class UnifiedInventoryService:
         except Exception as _e:
             logger.warning("process_movement event non-fatal: %s", _e)
         return mid
+
+    apply_movement = process_movement
