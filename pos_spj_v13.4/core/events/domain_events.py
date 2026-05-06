@@ -24,6 +24,10 @@ EXPENSE_REGISTERED  = "expense_registered"   # emitido al registrar gasto/CXP
 # Distinct from VENTA_COMPLETADA (async, post-commit, for downstream consumers).
 SALE_ITEMS_PROCESS  = "sale_items_process"
 
+# Phase 3: internal sync event — inventory handler runs inside production transaction.
+# Distinct from PRODUCCION_COMPLETADA (async, post-commit, for downstream consumers).
+PRODUCTION_ITEMS_PROCESS = "production_items_process"
+
 __all__ = [
     "SALE_CREATED",
     "PURCHASE_CREATED",
@@ -33,4 +37,5 @@ __all__ = [
     "PAYMENT_RECEIVED",
     "EXPENSE_REGISTERED",
     "SALE_ITEMS_PROCESS",
+    "PRODUCTION_ITEMS_PROCESS",
 ]

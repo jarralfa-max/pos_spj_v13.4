@@ -60,6 +60,9 @@ def wire_all(container: "AppContainer") -> None:
     # Phase 1: SALE_ITEMS_PROCESS — inventory + finance handlers (sync, inside SAVEPOINT)
     _wire_sale_handlers(bus, container)
 
+    # Phase 3: PRODUCTION_ITEMS_PROCESS — inventory handler (sync, inside transaction)
+    _wire_production_items_handlers(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -768,3 +771,32 @@ def _wire_sale_handlers(bus, container) -> None:
             label="sale_finance_income",
         )
         logger.debug("Registered SaleFinanceHandler on %s", SALE_ITEMS_PROCESS)
+
+
+# ── Phase 3: PRODUCTION_ITEMS_PROCESS handler ────────────────────────────────
+
+def _wire_production_items_handlers(bus, container) -> None:
+    """
+    Register ProductionInventoryHandler on PRODUCTION_ITEMS_PROCESS.
+
+    Runs synchronously inside the production SAVEPOINT so inventory mutations
+    are atomic with the production record. Priority=100 — runs first.
+    """
+    from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
+    from core.events.handlers.production_handler import ProductionInventoryHandler
+    from core.services.inventory_engine import InventoryEngine
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_production_items_handlers: no container.db — skipping")
+        return
+
+    inv_eng = InventoryEngine(db, branch_id=1, usuario="produccion")
+    handler = ProductionInventoryHandler(inventory_engine=inv_eng)
+    bus.subscribe(
+        PRODUCTION_ITEMS_PROCESS,
+        handler.handle,
+        priority=100,
+        label="production_inventory_handler",
+    )
+    logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
