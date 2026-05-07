@@ -3,6 +3,12 @@
 from __future__ import annotations
 import logging
 from modulos.spj_phone_widget import PhoneWidget
+
+# ── Address Autocomplete — async infrastructure ───────────────────────────────
+# Prevents the geocoding HTTP call from blocking the Qt main/UI thread.
+
+_addr_cache: dict = {}          # simple bounded dict — LRU-style eviction
+_ADDR_CACHE_MAX: int = 60
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
@@ -18,11 +24,36 @@ from PyQt5.QtWidgets import (
     QMessageBox, QHeaderView, QSplitter, QTextEdit, QDialog, QDialogButtonBox,
     QSpinBox, QDoubleSpinBox, QFrame, QListWidget, QListWidgetItem
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRunnable, QThreadPool, QObject, pyqtSlot
 from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
 from core.services.delivery_service import DeliveryService
 logger = logging.getLogger("spj.delivery")
+
+
+class _AddrSignals(QObject):
+    """Cross-thread signal carrier for address autocomplete results."""
+    results = pyqtSignal(list)
+
+
+class _AddrWorker(QRunnable):
+    """Runs geocoding lookup in the global thread pool (off-UI-thread)."""
+
+    def __init__(self, query: str, geocoding_fn, signals: _AddrSignals):
+        super().__init__()
+        self._query = query
+        self._geocoding_fn = geocoding_fn
+        self._signals = signals
+        self.setAutoDelete(True)
+
+    @pyqtSlot()
+    def run(self) -> None:
+        try:
+            data = self._geocoding_fn(self._query)
+        except Exception:
+            data = []
+        self._signals.results.emit(data[:6])
+
 
 ESTADOS = ["pendiente","preparacion","en_ruta","entregado","cancelado"]
 ESTADO_COLOR = {
@@ -97,16 +128,52 @@ class NuevoPedidoDialog(QDialog):
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(self.accept); btns.rejected.connect(self.reject)
         layout.addWidget(btns)
+        # ── Debounce: 400 ms after typing stops → async worker ───────────────
+        self._pending_query: str = ""
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(400)
+        self._debounce.timeout.connect(self._do_search)
+
         self.txt_direccion.textChanged.connect(self._buscar_sugerencias)
         self.lst_sugerencias.itemClicked.connect(self._tomar_sugerencia)
 
-    def _buscar_sugerencias(self, text: str):
-        self.lst_sugerencias.clear()
+    def _buscar_sugerencias(self, text: str) -> None:
+        """On every keystroke: reset debounce. Network only fires after 400 ms quiet."""
+        self._pending_query = text
         self._selected_coords = None
         if len(text.strip()) < 4:
+            self.lst_sugerencias.clear()
             self.lst_sugerencias.hide()
+            self._debounce.stop()
             return
-        for item in self.delivery_service.autocomplete_address(text):
+        self._debounce.start()   # restarts the 400 ms countdown
+
+    def _do_search(self) -> None:
+        """Fires after debounce delay. Serves from cache or spawns thread-pool worker."""
+        query = self._pending_query
+        if len(query.strip()) < 4:
+            return
+        cached = _addr_cache.get(query)
+        if cached is not None:
+            self._show_addr_results(cached, query)
+            return
+        sigs = _AddrSignals()
+        sigs.results.connect(lambda r, q=query: self._on_worker_results(r, q))
+        worker = _AddrWorker(query, self.delivery_service.autocomplete_address, sigs)
+        QThreadPool.globalInstance().start(worker)
+
+    def _on_worker_results(self, results: list, query: str) -> None:
+        if len(_addr_cache) >= _ADDR_CACHE_MAX:
+            for k in list(_addr_cache)[:10]:
+                del _addr_cache[k]
+        _addr_cache[query] = results
+        if self._pending_query == query:
+            self._show_addr_results(results, query)
+
+    def _show_addr_results(self, results: list, _query: str) -> None:
+        self.lst_sugerencias.clear()
+        for item in results:
             w = QListWidgetItem(item.get("label", ""))
             w.setData(Qt.UserRole, item)
             self.lst_sugerencias.addItem(w)
@@ -169,25 +236,38 @@ class TarjetaPedido(QFrame):
         layout.addLayout(info, 1)
         btns = QVBoxLayout()
         estado = pedido.get("estado","pendiente")
+        pid = self.pedido["id"]
         if estado == "pendiente":
-            btn = create_primary_button(self, "Asignar", "Asignar repartidor al pedido")
-            btn.setFixedWidth(90)
-            btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"asignar"))
-            btns.addWidget(btn)
+            btn_prep = create_success_button(self, "▶ Prep.", "Marcar en preparación")
+            btn_prep.setFixedWidth(90)
+            btn_prep.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "preparar"))
+            btns.addWidget(btn_prep)
+            btn_asig = create_primary_button(self, "Asignar", "Asignar repartidor al pedido")
+            btn_asig.setFixedWidth(90)
+            btn_asig.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "asignar"))
+            btns.addWidget(btn_asig)
         if estado == "preparacion":
             btn = create_primary_button(self, "En Ruta", "Marcar pedido como en ruta")
             btn.setFixedWidth(90)
-            btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"en_ruta"))
+            btn.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "en_ruta"))
             btns.addWidget(btn)
         if estado == "en_ruta":
             btn = create_success_button(self, "Entregado", "Confirmar entrega del pedido")
             btn.setFixedWidth(90)
-            btn.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"entregado"))
+            btn.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "entregado"))
             btns.addWidget(btn)
-        if estado not in ("entregado","cancelado"):
+        if estado not in ("entregado", "cancelado"):
+            btn_wa = create_secondary_button(self, "📲 WA", "Notificar por WhatsApp")
+            btn_wa.setFixedWidth(90)
+            btn_wa.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "notificar_wa"))
+            btns.addWidget(btn_wa)
+            btn_mp = create_secondary_button(self, "💳 MP", "Generar link de pago MercadoPago")
+            btn_mp.setFixedWidth(90)
+            btn_mp.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "link_pago"))
+            btns.addWidget(btn_mp)
             btn_cancel = create_danger_button(self, "Cancelar", "Cancelar pedido de delivery")
             btn_cancel.setFixedWidth(90)
-            btn_cancel.clicked.connect(lambda _, pid=self.pedido["id"]: self.accion_requerida.emit(pid,"cancelado"))
+            btn_cancel.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "cancelado"))
             btns.addWidget(btn_cancel)
         layout.addLayout(btns)
 
@@ -206,12 +286,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self._pedidos_cache = []
         self._init_ui()
         self._init_tables()
-        # EventBus: recarga reactiva al completar/modificar pedido
-        # Timer de 5 min solo como fallback (antes era 30s polling constante)
-        self.refresh_timer = QTimer(self)
-        self.refresh_timer.timeout.connect(self.cargar_pedidos)
-        self.refresh_timer.start(300000)   # 5 min fallback (era 30s)
-
+        # EventBus: reactive reload on pedido events
         try:
             from core.events.event_bus import get_bus
             _bus = get_bus()
@@ -230,10 +305,33 @@ class ModuloDelivery(QWidget, RefreshMixin):
                 except Exception:
                     pass
         except Exception:
-            pass  # EventBus no disponible — fallback al timer
+            pass  # EventBus not available — timers are the fallback
+
+        # 5-min fallback refresh (UI data sync)
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.timeout.connect(self.cargar_pedidos)
+        self.refresh_timer.start(300_000)
+
+        # 2-min background WA pull (off the critical read path)
+        self._wa_pull_timer = QTimer(self)
+        self._wa_pull_timer.timeout.connect(self._pull_wa_orders_bg)
+        self._wa_pull_timer.start(120_000)
 
         self.cargar_pedidos()
 
+
+    def _pull_wa_orders_bg(self) -> None:
+        """Pull pending WhatsApp orders in background and refresh if new data arrives."""
+        if not self.isVisible():
+            return
+        try:
+            before = len(self._pedidos_cache)
+            self.delivery_service.pull_orders_from_whatsapp()
+            after_check = self.delivery_service.list_orders()
+            if len(after_check) != before:
+                self.cargar_pedidos()
+        except Exception as exc:
+            logger.debug("_pull_wa_orders_bg: %s", exc)
 
     # ── Interfaz de sesión — compatible con SessionManager ────────────────
     def set_sesion(self, usuario: str, rol: str) -> None:
@@ -284,17 +382,43 @@ class ModuloDelivery(QWidget, RefreshMixin):
         header.addWidget(btn_corte); header.addWidget(btn_hist)
         header.addWidget(self.btn_auto_assign); header.addWidget(btn_refresh)
         layout.addLayout(header)
-        # Filtro de estado
-        filtro_layout = QHBoxLayout()
-        filtro_layout.addWidget(QLabel("Filtrar:"))
-        self.combo_filtro = create_combo(self, ["Todos","pendiente","preparacion","en_ruta","entregado","cancelado"], "Seleccionar estado para filtrar")
-        self.combo_filtro.currentTextChanged.connect(self.cargar_pedidos)
-        filtro_layout.addWidget(self.combo_filtro); filtro_layout.addStretch()
-        # Stats
+        # ── Quick-filter status tabs (Todos | Nuevos | En proceso | Listos | Entregados) ──
+        self._filter_tab_defs = [
+            ("Todos",      None,           Colors.TEXT_SECONDARY),
+            ("Nuevos",     "pendiente",    Colors.WARNING_BASE),
+            ("En proceso", "preparacion",  Colors.PRIMARY_BASE),
+            ("Listos",     "en_ruta",      Colors.ACCENT_BASE),
+            ("Entregados", "entregado",    Colors.SUCCESS_BASE),
+        ]
+        self._filter_tab_btns: dict = {}
+        tabs_bar = QHBoxLayout()
+        tabs_bar.setSpacing(4)
+        for tab_label, _tab_estado, tab_color in self._filter_tab_defs:
+            tb = QPushButton(tab_label)
+            tb.setCheckable(True)
+            tb.setFixedHeight(28)
+            tb.setStyleSheet(
+                f"QPushButton {{ border:1px solid {tab_color}; border-radius:5px;"
+                f" padding:2px 10px; color:{tab_color}; background:transparent; font-size:11px; }}"
+                f"QPushButton:checked {{ background:{tab_color}; color:#000; font-weight:600; }}"
+            )
+            tb.clicked.connect(lambda _c, lbl=tab_label: self._on_filter_tab(lbl))
+            self._filter_tab_btns[tab_label] = tb
+            tabs_bar.addWidget(tb)
+        self._filter_tab_btns["Todos"].setChecked(True)
+        tabs_bar.addStretch()
         self.lbl_stats = QLabel()
         self.lbl_stats.setObjectName("caption")
-        filtro_layout.addWidget(self.lbl_stats)
-        layout.addLayout(filtro_layout)
+        tabs_bar.addWidget(self.lbl_stats)
+        layout.addLayout(tabs_bar)
+
+        # Hidden combo drives the actual query — tabs sync into it
+        self.combo_filtro = create_combo(
+            self, ["Todos", "pendiente", "preparacion", "en_ruta", "entregado", "cancelado"],
+            "Seleccionar estado para filtrar"
+        )
+        self.combo_filtro.hide()
+        self.combo_filtro.currentTextChanged.connect(self.cargar_pedidos)
         self._loading = LoadingIndicator("Cargando pedidos delivery…", self)
         self._loading.hide()
         layout.addWidget(self._loading)
@@ -468,6 +592,28 @@ if(drivers.length===0){{
         self._btn_vista_kanban.setStyleSheet(
             self._qss_toggle_activo() if vista == "kanban" else self._qss_toggle_inactivo())
 
+    # ── Filter tab helpers ────────────────────────────────────────────────
+    def _on_filter_tab(self, tab_label: str) -> None:
+        for lbl, btn in self._filter_tab_btns.items():
+            btn.setChecked(lbl == tab_label)
+        estado_map = {lbl: e for lbl, e, _ in self._filter_tab_defs}
+        target = estado_map.get(tab_label)
+        target_txt = "Todos" if target is None else target
+        idx = self.combo_filtro.findText(target_txt)
+        if idx >= 0:
+            self.combo_filtro.setCurrentIndex(idx)
+        else:
+            self.cargar_pedidos()
+
+    def _update_filter_tabs(self, counts: dict) -> None:
+        """Refresh badge numbers on tab buttons after each load."""
+        estado_map = {lbl: e for lbl, e, _ in self._filter_tab_defs}
+        total = sum(counts.values())
+        for tab_label, btn in self._filter_tab_btns.items():
+            estado = estado_map.get(tab_label)
+            n = total if estado is None else counts.get(estado, 0)
+            btn.setText(f"{tab_label} ({n})" if n else tab_label)
+
     # ═══════════════════════════════════════════════════════════════════════
     # VISTA LISTA + PANEL DETALLE
     # ═══════════════════════════════════════════════════════════════════════
@@ -537,6 +683,21 @@ if(drivers.length===0){{
         self._det_notas.setWordWrap(True)
         detalle_lay.addWidget(self._det_notas)
 
+        # — Conversación WhatsApp —
+        grp_wa = QGroupBox("Conversación WhatsApp")
+        grp_wa_lay = QVBoxLayout(grp_wa)
+        grp_wa_lay.setContentsMargins(6, 6, 6, 6)
+        self._det_wa_txt = QTextEdit()
+        self._det_wa_txt.setReadOnly(True)
+        self._det_wa_txt.setMaximumHeight(110)
+        self._det_wa_txt.setPlaceholderText("Sin conversación registrada")
+        self._det_wa_txt.setStyleSheet(
+            f"background:#1a1a2e; color:#e2e8f0; font-size:11px;"
+            f" border:none; border-radius:6px;"
+        )
+        grp_wa_lay.addWidget(self._det_wa_txt)
+        detalle_lay.addWidget(grp_wa)
+
         # — Total / anticipo —
         self._det_total = QLabel("")
         self._det_total.setObjectName("subheading")
@@ -600,6 +761,34 @@ if(drivers.length===0){{
 
         notas = pedido.get("notas", "") or ""
         self._det_notas.setText(f"📝 {notas}" if notas else "Sin notas")
+
+        # WA conversation panel
+        self._det_wa_txt.clear()
+        try:
+            wa_rows = self.conexion.execute(
+                "SELECT mensaje, tipo, fecha FROM whatsapp_messages "
+                "WHERE pedido_id=? ORDER BY fecha ASC LIMIT 12",
+                (pid,)
+            ).fetchall()
+            if wa_rows:
+                lines = []
+                for msg_text, msg_tipo, msg_fecha in wa_rows:
+                    is_out = str(msg_tipo or "").lower() in ("enviado", "out", "bot", "sistema")
+                    prefix = "→" if is_out else "←"
+                    hora = str(msg_fecha or "")[-8:][:5]
+                    lines.append(f"[{hora}] {prefix} {msg_text}")
+                self._det_wa_txt.setPlainText("\n".join(lines))
+            else:
+                wa_id = pedido.get("whatsapp_order_id") or ""
+                snippet = notas[:80] if notas else ""
+                if wa_id:
+                    self._det_wa_txt.setPlainText(
+                        f"Pedido WA #{wa_id}\n{snippet}" if snippet else f"Pedido WA #{wa_id}"
+                    )
+                else:
+                    self._det_wa_txt.setPlainText("Sin conversación registrada")
+        except Exception:
+            self._det_wa_txt.setPlainText("Sin conversación disponible")
 
         total = float(pedido.get("total") or 0)
         costo = float(pedido.get("costo_envio") or 0)
@@ -828,7 +1017,8 @@ if(drivers.length===0){{
     def cargar_pedidos(self):
         filtro = self.combo_filtro.currentText()
         self._loading.show()
-        visibles = 0
+        kanban_visibles = 0
+        lista_count = 0
         # Clear kanban columns
         for estado, col_layout in self.columnas.items():
             while col_layout.count() > 1:
@@ -838,22 +1028,30 @@ if(drivers.length===0){{
             filtro_repo = None if filtro == "Todos" else filtro
             pedidos = self.delivery_service.list_orders(filtro_repo)
             self._pedidos_cache = pedidos
-            # Actualizar vista lista
-            self._actualizar_lista_view(pedidos if filtro == "Todos" else
-                                        [p for p in pedidos if p.get("estado") == filtro])
-            counts = {e:0 for e in ESTADOS}
+
+            # Build lista-view items
+            lista_pedidos = pedidos if filtro == "Todos" else [p for p in pedidos if p.get("estado") == filtro]
+            lista_count = len(lista_pedidos)
+            self._actualizar_lista_view(lista_pedidos)
+
+            counts = {e: 0 for e in ESTADOS}
             for p in pedidos:
-                estado = p.get("estado","pendiente")
-                counts[estado] = counts.get(estado,0) + 1
-                if filtro != "Todos" and estado != filtro: continue
+                estado = p.get("estado", "pendiente")
+                counts[estado] = counts.get(estado, 0) + 1
+                if filtro != "Todos" and estado != filtro:
+                    continue
                 if estado in self.columnas:
                     card = TarjetaPedido(p)
                     card.accion_requerida.connect(self.ejecutar_accion)
-                    self.columnas[estado].insertWidget(self.columnas[estado].count()-1, card)
-                    visibles += 1
-            stats = "  ".join(f"{ESTADO_COLOR.get(e,'#FFF')} {e}:{n}" for e,n in counts.items() if n>0)
-            self.lbl_stats.setText(f"Pedidos activos: {sum(counts.get(e,0) for e in ['pendiente','preparacion','en_ruta'])}")
-            self._empty.setVisible(visibles == 0)
+                    self.columnas[estado].insertWidget(self.columnas[estado].count() - 1, card)
+                    kanban_visibles += 1
+
+            self.lbl_stats.setText(
+                f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pendiente', 'preparacion', 'en_ruta'])}"
+            )
+            self._update_filter_tabs(counts)
+            # Empty-state: show only when there are truly 0 orders for the current filter
+            self._empty.setVisible(lista_count == 0)
         except Exception as e:
             logger.error("cargar_pedidos: %s", e)
             self._empty.setVisible(True)
@@ -863,16 +1061,10 @@ if(drivers.length===0){{
     def ejecutar_accion(self, pedido_id: int, accion: str):
         try:
             if accion == "preparar":
-                self.conexion.execute(
-                    "UPDATE delivery_orders SET estado='preparacion', "
-                    "fecha_actualizacion=datetime('now') WHERE id=?",
-                    (pedido_id,)
-                )
+                # Single authoritative write via service (avoids double SQL update)
                 self.delivery_service.update_status(
                     pedido_id, "preparacion", usuario=self.usuario
                 )
-                try: self.conexion.commit()
-                except Exception: pass
                 self.cargar_pedidos()
                 return
             elif accion == "notificar_wa":
