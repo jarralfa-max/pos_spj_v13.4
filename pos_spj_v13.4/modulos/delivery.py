@@ -2,13 +2,28 @@
 # modulos/delivery.py — SPJ POS v7  DELIVERY UI COMPLETO
 from __future__ import annotations
 import logging
+import os
+import uuid
 from modulos.spj_phone_widget import PhoneWidget
 
 # ── Address Autocomplete — async infrastructure ───────────────────────────────
-# Prevents the geocoding HTTP call from blocking the Qt main/UI thread.
+# All geocoding HTTP I/O is moved off the Qt main thread via QRunnable workers.
+# The UI layer only knows about _AddrWorker and _AddrSignals — it has zero
+# knowledge of Mapbox, Nominatim, or any HTTP client.
 
-_addr_cache: dict = {}          # simple bounded dict — LRU-style eviction
-_ADDR_CACHE_MAX: int = 60
+from core.cache.address_cache import AddressCache as _AddressCache
+
+# Module-level shared cache (survives dialog re-opens, persists for session).
+_addr_cache: _AddressCache = _AddressCache(
+    max_size=int(os.environ.get("GEOCODING_CACHE_SIZE", "200")),
+    ttl=int(os.environ.get("GEOCODING_CACHE_TTL", "3600")),
+)
+
+# Minimum characters before firing a geocoding request (per product spec).
+_ADDR_MIN_CHARS: int = int(os.environ.get("DELIVERY_MIN_SEARCH_CHARS", "5"))
+# Debounce interval in ms — configurable via env.
+_ADDR_DEBOUNCE_MS: int = int(os.environ.get("DELIVERY_SEARCH_DEBOUNCE_MS", "400"))
+
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
@@ -22,9 +37,11 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
     QTableWidgetItem, QComboBox, QLineEdit, QGroupBox, QFormLayout,
     QMessageBox, QHeaderView, QSplitter, QTextEdit, QDialog, QDialogButtonBox,
-    QSpinBox, QDoubleSpinBox, QFrame, QListWidget, QListWidgetItem
+    QSpinBox, QDoubleSpinBox, QFrame, QListWidget, QListWidgetItem,
+    QRadioButton, QButtonGroup, QTimeEdit, QDateEdit, QAbstractItemView,
+    QApplication,
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRunnable, QThreadPool, QObject, pyqtSlot
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRunnable, QThreadPool, QObject, pyqtSlot, QTime, QDate
 from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
 from core.services.delivery_service import DeliveryService
@@ -32,27 +49,46 @@ logger = logging.getLogger("spj.delivery")
 
 
 class _AddrSignals(QObject):
-    """Cross-thread signal carrier for address autocomplete results."""
-    results = pyqtSignal(list)
+    """Cross-thread signal carrier for address autocomplete results.
+
+    Carries the request_id so stale results from superseded queries are
+    silently discarded in the UI thread without race conditions.
+    """
+    results = pyqtSignal(list, str)   # (suggestions, request_id)
 
 
 class _AddrWorker(QRunnable):
-    """Runs geocoding lookup in the global thread pool (off-UI-thread)."""
+    """Executes one geocoding call in QThreadPool (off-UI-thread).
 
-    def __init__(self, query: str, geocoding_fn, signals: _AddrSignals):
+    Each worker instance holds a unique request_id. The UI compares this
+    against _pending_request_id; mismatches are dropped, preventing
+    stale-result flicker when the user types faster than the API responds.
+    """
+
+    def __init__(
+        self,
+        query: str,
+        request_id: str,
+        geocoding_fn,
+        signals: _AddrSignals,
+        limit: int = 6,
+    ) -> None:
         super().__init__()
-        self._query = query
+        self._query       = query
+        self._request_id  = request_id
         self._geocoding_fn = geocoding_fn
-        self._signals = signals
+        self._signals     = signals
+        self._limit       = limit
         self.setAutoDelete(True)
 
     @pyqtSlot()
     def run(self) -> None:
         try:
-            data = self._geocoding_fn(self._query)
-        except Exception:
+            data = self._geocoding_fn(self._query) or []
+        except Exception as exc:
+            logger.debug("_AddrWorker error req=%s: %s", self._request_id[:8], exc)
             data = []
-        self._signals.results.emit(data[:6])
+        self._signals.results.emit(data[:self._limit], self._request_id)
 
 
 ESTADOS = ["pendiente","preparacion","en_ruta","entregado","cancelado"]
@@ -103,75 +139,428 @@ class AsignarDriverDialog(QDialog):
         }
 
 class NuevoPedidoDialog(QDialog):
-    def __init__(self, delivery_service: DeliveryService, parent=None):
+    """Diálogo completo para ingresar un pedido delivery manualmente.
+
+    Equivalente a un pedido WhatsApp pero capturado por el operador:
+    cliente (búsqueda en BD), productos con cantidades/precios,
+    forma y condición de entrega (urgente / hora / programado).
+    """
+
+    def __init__(self, delivery_service: DeliveryService, conexion, parent=None):
         super().__init__(parent)
         self.delivery_service = delivery_service
+        self.conexion = conexion
         self._selected_coords = None
-        self.setWindowTitle("Nuevo Pedido Delivery")
-        self.setMinimumWidth(500)
-        layout = QVBoxLayout(self)
-        form = QFormLayout()
-        self.txt_cliente = QLineEdit(); self.txt_cliente.setPlaceholderText("Buscar cliente...")
-        self.txt_direccion = QLineEdit(); self.txt_direccion.setPlaceholderText("Escribe dirección (mín. 4 caracteres)")
+        self._items: list = []          # [{nombre, cantidad, precio, subtotal, unidad, producto_id}]
+        self._cliente_id: int | None = None
+        self._current_prod_data: dict = {}
+
+        self.setWindowTitle("📦 Nuevo Pedido Delivery")
+        self.setMinimumSize(760, 640)
+        self.setWindowModality(Qt.ApplicationModal)
+
+        root = QVBoxLayout(self)
+        root.setSpacing(8)
+        root.setContentsMargins(12, 12, 12, 12)
+
+        # ── SECCIÓN CLIENTE ───────────────────────────────────────────────
+        grp_cl = QGroupBox("👤 Cliente")
+        cl = QHBoxLayout(grp_cl)
+        cl.setSpacing(6)
+        self.txt_buscar_cliente = QLineEdit()
+        self.txt_buscar_cliente.setPlaceholderText("Buscar por nombre o teléfono…")
+        btn_buscar_cl = create_secondary_button(self, "🔍", "Buscar cliente en la base de datos")
+        btn_buscar_cl.setFixedWidth(36)
+        self.txt_nombre_cliente = QLineEdit()
+        self.txt_nombre_cliente.setPlaceholderText("Nombre completo")
+        self.txt_tel_cliente = QLineEdit()
+        self.txt_tel_cliente.setPlaceholderText("+52 55 …")
+        self.txt_tel_cliente.setFixedWidth(140)
+        cl.addWidget(QLabel("Buscar:"))
+        cl.addWidget(self.txt_buscar_cliente, 2)
+        cl.addWidget(btn_buscar_cl)
+        cl.addWidget(QLabel("Nombre:"))
+        cl.addWidget(self.txt_nombre_cliente, 2)
+        cl.addWidget(QLabel("Tel:"))
+        cl.addWidget(self.txt_tel_cliente)
+        root.addWidget(grp_cl)
+
+        btn_buscar_cl.clicked.connect(self._buscar_cliente)
+        self.txt_buscar_cliente.returnPressed.connect(self._buscar_cliente)
+
+        # ── SECCIÓN DIRECCIÓN ──────────────────────────────────────────────
+        grp_dir = QGroupBox("📍 Dirección de entrega")
+        dl = QVBoxLayout(grp_dir)
+        dl.setSpacing(4)
+        self.txt_direccion = QLineEdit()
+        self.txt_direccion.setPlaceholderText("Escribe la dirección (mín. 4 caracteres para autocompletar con OSM)")
         self.lst_sugerencias = QListWidget()
-        self.lst_sugerencias.setMaximumHeight(130)
+        self.lst_sugerencias.setMaximumHeight(80)
         self.lst_sugerencias.hide()
-        self.txt_notas = QLineEdit(); self.txt_notas.setPlaceholderText("Notas del pedido")
+        dl.addWidget(self.txt_direccion)
+        dl.addWidget(self.lst_sugerencias)
+        root.addWidget(grp_dir)
+
+        # ── SECCIÓN PRODUCTOS ──────────────────────────────────────────────
+        grp_prod = QGroupBox("🛒 Productos del pedido")
+        pl = QVBoxLayout(grp_prod)
+        pl.setSpacing(4)
+
+        add_row = QHBoxLayout()
+        self.txt_prod_buscar = QLineEdit()
+        self.txt_prod_buscar.setPlaceholderText("Buscar producto o escribe libremente…")
+        self.spin_cant = QDoubleSpinBox()
+        self.spin_cant.setRange(0.001, 9999)
+        self.spin_cant.setValue(1)
+        self.spin_cant.setDecimals(3)
+        self.spin_cant.setFixedWidth(80)
+        self.cmb_unidad = QComboBox()
+        self.cmb_unidad.addItems(["kg", "g", "u", "pza", "lt", "ml", "lb", "caja", "docena"])
+        self.cmb_unidad.setFixedWidth(68)
+        self.spin_precio = QDoubleSpinBox()
+        self.spin_precio.setRange(0, 999999)
+        self.spin_precio.setDecimals(2)
+        self.spin_precio.setPrefix("$")
+        self.spin_precio.setFixedWidth(100)
+        btn_add_prod = create_success_button(self, "➕ Agregar", "Agregar producto al pedido")
+        btn_add_prod.setFixedWidth(100)
+
+        add_row.addWidget(self.txt_prod_buscar, 3)
+        add_row.addWidget(QLabel("Cant:"))
+        add_row.addWidget(self.spin_cant)
+        add_row.addWidget(self.cmb_unidad)
+        add_row.addWidget(QLabel("Precio:"))
+        add_row.addWidget(self.spin_precio)
+        add_row.addWidget(btn_add_prod)
+        pl.addLayout(add_row)
+
+        # Product search suggestions
+        self.lst_prod_sug = QListWidget()
+        self.lst_prod_sug.setMaximumHeight(72)
+        self.lst_prod_sug.hide()
+        pl.addWidget(self.lst_prod_sug)
+
+        # Items table
+        self.tbl_items = QTableWidget(0, 5)
+        self.tbl_items.setHorizontalHeaderLabels(["Producto", "Cant.", "Unidad", "Precio/u", "Subtotal"])
+        self.tbl_items.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tbl_items.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tbl_items.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tbl_items.setMaximumHeight(120)
+        self.tbl_items.verticalHeader().setVisible(False)
+        pl.addWidget(self.tbl_items)
+
+        items_foot = QHBoxLayout()
+        btn_rm = create_danger_button(self, "✕ Quitar", "Quitar producto seleccionado")
+        btn_rm.setFixedWidth(80)
+        btn_rm.clicked.connect(self._quitar_item)
+        self.lbl_total_prod = QLabel("Total: $0.00")
+        self.lbl_total_prod.setStyleSheet(
+            f"font-size:13px; font-weight:bold; color:{Colors.SUCCESS_BASE};"
+        )
+        items_foot.addWidget(btn_rm)
+        items_foot.addStretch()
+        items_foot.addWidget(self.lbl_total_prod)
+        pl.addLayout(items_foot)
+        root.addWidget(grp_prod)
+
+        # ── CONDICIÓN DE ENTREGA  +  PAGO ─────────────────────────────────
+        mid_row = QHBoxLayout()
+
+        grp_cond = QGroupBox("🕐 Condición de entrega")
+        condl = QVBoxLayout(grp_cond)
+        self.rb_urgente    = QRadioButton("🚨 Urgente (lo antes posible)")
+        self.rb_hora       = QRadioButton("⏰ A una hora específica:")
+        self.rb_programado = QRadioButton("📅 Fecha programada:")
+        self.rb_urgente.setChecked(True)
+        self._bg_cond = QButtonGroup(self)
+        for rb in (self.rb_urgente, self.rb_hora, self.rb_programado):
+            self._bg_cond.addButton(rb)
+        self.time_edit = QTimeEdit(QTime.currentTime().addSecs(3600))
+        self.time_edit.setEnabled(False)
+        self.date_edit = QDateEdit(QDate.currentDate())
+        self.date_edit.setCalendarPopup(True)
+        self.date_edit.setEnabled(False)
+        self.rb_hora.toggled.connect(self.time_edit.setEnabled)
+        self.rb_programado.toggled.connect(self.date_edit.setEnabled)
+        condl.addWidget(self.rb_urgente)
+        hora_row = QHBoxLayout()
+        hora_row.addWidget(self.rb_hora)
+        hora_row.addWidget(self.time_edit)
+        hora_row.addStretch()
+        condl.addLayout(hora_row)
+        prog_row = QHBoxLayout()
+        prog_row.addWidget(self.rb_programado)
+        prog_row.addWidget(self.date_edit)
+        prog_row.addStretch()
+        condl.addLayout(prog_row)
+        condl.addStretch()
+
+        grp_pago = QGroupBox("💳 Forma de pago")
+        pagol = QFormLayout(grp_pago)
+        self.cmb_pago = QComboBox()
+        self.cmb_pago.addItems([
+            "Efectivo al entregar",
+            "Tarjeta al entregar",
+            "Transferencia",
+            "MercadoPago (link)",
+            "Anticipo + saldo",
+            "Ya pagado (online)",
+            "Sin cobro",
+        ])
+        self.spin_anticipo = QDoubleSpinBox()
+        self.spin_anticipo.setRange(0, 999999)
+        self.spin_anticipo.setDecimals(2)
+        self.spin_anticipo.setPrefix("$")
+        self.lbl_saldo = QLabel("Saldo: $0.00")
+        self.lbl_saldo.setStyleSheet(f"color:{Colors.WARNING_BASE}; font-weight:bold;")
+        pagol.addRow("Método:", self.cmb_pago)
+        pagol.addRow("Anticipo:", self.spin_anticipo)
+        pagol.addRow("", self.lbl_saldo)
+
+        mid_row.addWidget(grp_cond, 3)
+        mid_row.addWidget(grp_pago, 2)
+        root.addLayout(mid_row)
+
+        # ── NOTAS + SUCURSAL ─────────────────────────────────────────────
+        extra = QHBoxLayout()
+        self.txt_notas = QLineEdit()
+        self.txt_notas.setPlaceholderText("Notas para el repartidor: referencias, instrucciones especiales…")
         self.combo_sucursal = QComboBox()
-        self.combo_sucursal.addItems(["Sucursal Principal","Sucursal 2","Sucursal 3"])
-        form.addRow("Cliente:", self.txt_cliente)
-        form.addRow("Dirección:", self.txt_direccion)
-        form.addRow("Sugerencias:", self.lst_sugerencias)
-        form.addRow("Notas:", self.txt_notas)
-        form.addRow("Sucursal:", self.combo_sucursal)
-        layout.addLayout(form)
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        btns.accepted.connect(self.accept); btns.rejected.connect(self.reject)
-        layout.addWidget(btns)
-        # ── Debounce: 400 ms after typing stops → async worker ───────────────
+        self.combo_sucursal.addItems(["Sucursal Principal", "Sucursal 2", "Sucursal 3"])
+        extra.addWidget(QLabel("Notas:"))
+        extra.addWidget(self.txt_notas, 3)
+        extra.addWidget(QLabel("Sucursal:"))
+        extra.addWidget(self.combo_sucursal)
+        root.addLayout(extra)
+
+        # ── BOTONES ──────────────────────────────────────────────────────
+        btns_box = QDialogButtonBox()
+        btn_crear = create_success_button(self, "✓ Crear Pedido", "Guardar y enviar el pedido")
+        btn_crear.setMinimumWidth(130)
+        btns_box.addButton(btn_crear, QDialogButtonBox.AcceptRole)
+        btns_box.addButton("Cancelar", QDialogButtonBox.RejectRole)
+        btns_box.rejected.connect(self.reject)
+        btn_crear.clicked.connect(self._validar_y_aceptar)
+        root.addWidget(btns_box)
+
+        # ── WIRING ───────────────────────────────────────────────────────
+        btn_add_prod.clicked.connect(self._agregar_item)
+        self.lst_prod_sug.itemClicked.connect(self._seleccionar_producto)
+        self.spin_anticipo.valueChanged.connect(self._actualizar_saldo)
+
+        # Address debounce + request-ID cancellation
         self._pending_query: str = ""
+        self._pending_request_id: str = ""       # stale results are discarded
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
-        self._debounce.setInterval(400)
+        self._debounce.setInterval(_ADDR_DEBOUNCE_MS)
         self._debounce.timeout.connect(self._do_search)
-
-        self.txt_direccion.textChanged.connect(self._buscar_sugerencias)
+        self.txt_direccion.textChanged.connect(self._on_dir_changed)
         self.lst_sugerencias.itemClicked.connect(self._tomar_sugerencia)
 
-    def _buscar_sugerencias(self, text: str) -> None:
-        """On every keystroke: reset debounce. Network only fires after 400 ms quiet."""
+        # Product debounce
+        self._prod_debounce = QTimer(self)
+        self._prod_debounce.setSingleShot(True)
+        self._prod_debounce.setInterval(300)
+        self._prod_debounce.timeout.connect(self._do_prod_search)
+        self.txt_prod_buscar.textChanged.connect(lambda _: self._prod_debounce.start())
+
+    # ── CLIENT SEARCH ─────────────────────────────────────────────────────
+    def _buscar_cliente(self) -> None:
+        q = self.txt_buscar_cliente.text().strip()
+        if not q:
+            return
+        try:
+            rows = self.conexion.execute(
+                "SELECT id, nombre, COALESCE(telefono,''), COALESCE(direccion,'')"
+                " FROM clientes WHERE (nombre LIKE ? OR telefono LIKE ?) AND activo=1"
+                " ORDER BY nombre LIMIT 12",
+                (f"%{q}%", f"%{q}%"),
+            ).fetchall()
+        except Exception:
+            rows = []
+        if not rows:
+            QMessageBox.information(self, "Sin resultados", f"No se encontró cliente: «{q}»")
+            return
+        if len(rows) == 1:
+            self._set_cliente(*rows[0])
+        else:
+            dlg = QDialog(self)
+            dlg.setWindowTitle("Seleccionar cliente")
+            dlg.setMinimumWidth(420)
+            lay = QVBoxLayout(dlg)
+            lst = QListWidget()
+            for r in rows:
+                wi = QListWidgetItem(f"{r[1]}  |  {r[2]}")
+                wi.setData(Qt.UserRole, r)
+                lst.addItem(wi)
+            lay.addWidget(lst)
+            bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            bb.accepted.connect(dlg.accept)
+            bb.rejected.connect(dlg.reject)
+            lay.addWidget(bb)
+            lst.itemDoubleClicked.connect(lambda _: dlg.accept())
+            if dlg.exec_() == QDialog.Accepted and lst.currentItem():
+                self._set_cliente(*lst.currentItem().data(Qt.UserRole))
+
+    def _set_cliente(self, cid, nombre, telefono, direccion="") -> None:
+        self._cliente_id = cid
+        self.txt_nombre_cliente.setText(nombre)
+        self.txt_tel_cliente.setText(telefono)
+        if direccion and not self.txt_direccion.text().strip():
+            self.txt_direccion.setText(direccion)
+
+    # ── PRODUCT SEARCH ────────────────────────────────────────────────────
+    def _do_prod_search(self) -> None:
+        q = self.txt_prod_buscar.text().strip()
+        if len(q) < 2:
+            self.lst_prod_sug.hide()
+            return
+        try:
+            rows = self.delivery_service.db.execute(
+                "SELECT id, nombre, precio, COALESCE(unidad,'u') FROM productos"
+                " WHERE (nombre LIKE ? OR codigo LIKE ?) AND activo=1"
+                " ORDER BY nombre LIMIT 8",
+                (f"%{q}%", f"%{q}%"),
+            ).fetchall()
+        except Exception:
+            rows = []
+        self.lst_prod_sug.clear()
+        for r in rows:
+            wi = QListWidgetItem(f"{r[1]}  —  ${float(r[2] or 0):.2f} / {r[3]}")
+            wi.setData(Qt.UserRole, {"id": r[0], "nombre": r[1], "precio": float(r[2] or 0), "unidad": r[3]})
+            self.lst_prod_sug.addItem(wi)
+        self.lst_prod_sug.setVisible(self.lst_prod_sug.count() > 0)
+
+    def _seleccionar_producto(self, item: QListWidgetItem) -> None:
+        data = item.data(Qt.UserRole) or {}
+        self.txt_prod_buscar.setText(data.get("nombre", ""))
+        self.spin_precio.setValue(data.get("precio", 0))
+        idx = self.cmb_unidad.findText(data.get("unidad", "u"))
+        if idx >= 0:
+            self.cmb_unidad.setCurrentIndex(idx)
+        self._current_prod_data = data
+        self.lst_prod_sug.hide()
+
+    def _agregar_item(self) -> None:
+        nombre = self.txt_prod_buscar.text().strip()
+        if not nombre:
+            QMessageBox.warning(self, "Producto requerido", "Escribe el nombre del producto.")
+            return
+        cant    = self.spin_cant.value()
+        precio  = self.spin_precio.value()
+        unidad  = self.cmb_unidad.currentText()
+        subtot  = round(cant * precio, 2)
+        self._items.append({
+            "nombre": nombre,
+            "cantidad": cant,
+            "precio": precio,
+            "subtotal": subtot,
+            "unidad": unidad,
+            "producto_id": self._current_prod_data.get("id"),
+        })
+        self._refresh_items_table()
+        self.txt_prod_buscar.clear()
+        self.spin_cant.setValue(1)
+        self.spin_precio.setValue(0)
+        self._current_prod_data = {}
+
+    def _quitar_item(self) -> None:
+        row = self.tbl_items.currentRow()
+        if 0 <= row < len(self._items):
+            self._items.pop(row)
+            self._refresh_items_table()
+
+    def _refresh_items_table(self) -> None:
+        self.tbl_items.setRowCount(0)
+        total = 0.0
+        for i, it in enumerate(self._items):
+            self.tbl_items.insertRow(i)
+            self.tbl_items.setItem(i, 0, QTableWidgetItem(it["nombre"]))
+            self.tbl_items.setItem(i, 1, QTableWidgetItem(f"{it['cantidad']:.3g}"))
+            self.tbl_items.setItem(i, 2, QTableWidgetItem(it["unidad"]))
+            self.tbl_items.setItem(i, 3, QTableWidgetItem(f"${it['precio']:.2f}"))
+            sub = QTableWidgetItem(f"${it['subtotal']:.2f}")
+            sub.setForeground(QColor(Colors.SUCCESS_BASE))
+            self.tbl_items.setItem(i, 4, sub)
+            total += it["subtotal"]
+        self.lbl_total_prod.setText(f"Total: ${total:,.2f}")
+        self._actualizar_saldo()
+
+    def _actualizar_saldo(self) -> None:
+        total = sum(it["subtotal"] for it in self._items)
+        saldo = total - self.spin_anticipo.value()
+        self.lbl_saldo.setText(f"Saldo: ${saldo:,.2f}")
+
+    def _get_condicion(self) -> str:
+        if self.rb_urgente.isChecked():
+            return "URGENTE"
+        if self.rb_hora.isChecked():
+            return f"Entrega a las {self.time_edit.time().toString('HH:mm')}"
+        return f"Programado: {self.date_edit.date().toString('dd/MM/yyyy')}"
+
+    def _validar_y_aceptar(self) -> None:
+        nombre = self.txt_nombre_cliente.text().strip() or self.txt_buscar_cliente.text().strip()
+        if not nombre:
+            QMessageBox.warning(self, "Cliente requerido", "Ingresa o busca el nombre del cliente.")
+            return
+        if not self.txt_direccion.text().strip():
+            QMessageBox.warning(self, "Dirección requerida", "Ingresa la dirección de entrega.")
+            return
+        self.accept()
+
+    # ── ADDRESS AUTOCOMPLETE (async, Mapbox-backed) ───────────────────────
+    def _on_dir_changed(self, text: str) -> None:
         self._pending_query = text
         self._selected_coords = None
-        if len(text.strip()) < 4:
+        if len(text.strip()) < _ADDR_MIN_CHARS:
             self.lst_sugerencias.clear()
             self.lst_sugerencias.hide()
             self._debounce.stop()
             return
-        self._debounce.start()   # restarts the 400 ms countdown
+        self._debounce.start()
 
     def _do_search(self) -> None:
-        """Fires after debounce delay. Serves from cache or spawns thread-pool worker."""
-        query = self._pending_query
-        if len(query.strip()) < 4:
+        q = self._pending_query
+        if len(q.strip()) < _ADDR_MIN_CHARS:
             return
-        cached = _addr_cache.get(query)
+
+        # Cache hit — no worker needed
+        cache_key = f"ac:{q.lower()}:6"
+        cached = _addr_cache.get(cache_key)
         if cached is not None:
-            self._show_addr_results(cached, query)
+            logger.debug("addr cache HIT q=%r", q[:40])
+            self._show_addr_results(cached)
             return
+
+        # Issue async worker with unique request ID
+        req_id = uuid.uuid4().hex
+        self._pending_request_id = req_id
+        logger.debug("addr worker start req=%s q=%r", req_id[:8], q[:40])
+
         sigs = _AddrSignals()
-        sigs.results.connect(lambda r, q=query: self._on_worker_results(r, q))
-        worker = _AddrWorker(query, self.delivery_service.autocomplete_address, sigs)
+        sigs.results.connect(self._on_addr_results)
+        worker = _AddrWorker(
+            query=q,
+            request_id=req_id,
+            geocoding_fn=self.delivery_service.autocomplete_address,
+            signals=sigs,
+            limit=6,
+        )
         QThreadPool.globalInstance().start(worker)
 
-    def _on_worker_results(self, results: list, query: str) -> None:
-        if len(_addr_cache) >= _ADDR_CACHE_MAX:
-            for k in list(_addr_cache)[:10]:
-                del _addr_cache[k]
-        _addr_cache[query] = results
-        if self._pending_query == query:
-            self._show_addr_results(results, query)
+    def _on_addr_results(self, results: list, request_id: str) -> None:
+        # Discard stale responses from superseded keystrokes
+        if request_id != self._pending_request_id:
+            logger.debug("addr stale result discarded req=%s", request_id[:8])
+            return
+        if results:
+            cache_key = f"ac:{self._pending_query.lower()}:6"
+            _addr_cache.put(cache_key, results)
+        self._show_addr_results(results)
 
-    def _show_addr_results(self, results: list, _query: str) -> None:
+    def _show_addr_results(self, results: list) -> None:
         self.lst_sugerencias.clear()
         for item in results:
             w = QListWidgetItem(item.get("label", ""))
@@ -179,19 +568,33 @@ class NuevoPedidoDialog(QDialog):
             self.lst_sugerencias.addItem(w)
         self.lst_sugerencias.setVisible(self.lst_sugerencias.count() > 0)
 
-    def _tomar_sugerencia(self, item: QListWidgetItem):
+    def _tomar_sugerencia(self, item: QListWidgetItem) -> None:
         data = item.data(Qt.UserRole) or {}
         self.txt_direccion.setText(data.get("label", ""))
         self._selected_coords = data
         self.lst_sugerencias.hide()
 
-    def get_data(self):
+    # ── DATA EXTRACTION ───────────────────────────────────────────────────
+    def get_data(self) -> dict:
+        nombre   = self.txt_nombre_cliente.text().strip() or self.txt_buscar_cliente.text().strip()
+        condicion = self._get_condicion()
+        notas    = self.txt_notas.text().strip()
+        if condicion != "URGENTE":
+            notas = f"{condicion}. {notas}".strip(". ")
+        total = sum(it["subtotal"] for it in self._items)
         return {
-            "cliente": self.txt_cliente.text().strip(),
-            "direccion": self.txt_direccion.text().strip(),
-            "coords": self._selected_coords,
-            "notas": self.txt_notas.text().strip(),
-            "sucursal_id": self.combo_sucursal.currentIndex() + 1
+            "cliente_id":    self._cliente_id,
+            "cliente":       nombre,
+            "cliente_tel":   self.txt_tel_cliente.text().strip(),
+            "direccion":     self.txt_direccion.text().strip(),
+            "coords":        self._selected_coords,
+            "items":         list(self._items),
+            "total":         total,
+            "pago_metodo":   self.cmb_pago.currentText(),
+            "anticipo":      self.spin_anticipo.value(),
+            "condicion":     condicion,
+            "notas":         notas,
+            "sucursal_id":   self.combo_sucursal.currentIndex() + 1,
         }
 
 class TarjetaPedido(QFrame):
@@ -206,10 +609,10 @@ class TarjetaPedido(QFrame):
         self.setStyleSheet(f"""
             QFrame#cardPedido {{
                 border-left: 4px solid {color};
-                border-radius: {Borders.RADIUS_MD};
-                background: {Colors.CARD_DARK if hasattr(Colors, 'CARD_DARK') else Colors.NEUTRAL_800};
-                padding: {Spacing.SM};
-                margin: {Spacing.XS};
+                border-radius: {Borders.RADIUS_MD}px;
+                background: {Colors.NEUTRAL.DARK_CARD};
+                padding: {Spacing.SM}px;
+                margin: {Spacing.XS}px;
             }}
         """)
         layout = QHBoxLayout(self)
@@ -382,6 +785,44 @@ class ModuloDelivery(QWidget, RefreshMixin):
         header.addWidget(btn_corte); header.addWidget(btn_hist)
         header.addWidget(self.btn_auto_assign); header.addWidget(btn_refresh)
         layout.addLayout(header)
+
+        # ── KPI Stats bar ─────────────────────────────────────────────────
+        self._kpi: dict = {}
+        kpi_defs = [
+            ("activos",    "🔴 Activos",      Colors.DANGER_BASE),
+            ("nuevos",     "🆕 Nuevos",       Colors.WARNING_BASE),
+            ("cocina",     "👨‍🍳 En Cocina",   Colors.INFO_BASE),
+            ("en_ruta",    "🛵 En Ruta",      Colors.ACCENT_BASE),
+            ("entregados", "✅ Entregados",   Colors.SUCCESS_BASE),
+            ("cobrado",    "💰 Cobrado hoy",  Colors.SUCCESS_BASE),
+        ]
+        kpi_bar = QHBoxLayout()
+        kpi_bar.setSpacing(6)
+        for key, label, kpi_color in kpi_defs:
+            kpi_frame = QFrame()
+            kpi_frame.setStyleSheet(
+                f"QFrame {{ background:{Colors.NEUTRAL.DARK_CARD};"
+                f" border:1px solid {kpi_color}; border-radius:8px; }}"
+            )
+            kpi_fl = QVBoxLayout(kpi_frame)
+            kpi_fl.setContentsMargins(10, 4, 10, 4)
+            kpi_fl.setSpacing(1)
+            kpi_n = QLabel("—")
+            kpi_n.setAlignment(Qt.AlignCenter)
+            kpi_n.setStyleSheet(
+                f"color:{kpi_color}; font-size:17px; font-weight:bold; border:none;"
+            )
+            kpi_l = QLabel(label)
+            kpi_l.setAlignment(Qt.AlignCenter)
+            kpi_l.setStyleSheet(
+                f"color:{Colors.NEUTRAL.SLATE_400}; font-size:9px; border:none;"
+            )
+            kpi_fl.addWidget(kpi_n)
+            kpi_fl.addWidget(kpi_l)
+            self._kpi[key] = kpi_n
+            kpi_bar.addWidget(kpi_frame, 1)
+        layout.addLayout(kpi_bar)
+
         # ── Quick-filter status tabs (Todos | Nuevos | En proceso | Listos | Entregados) ──
         self._filter_tab_defs = [
             ("Todos",      None,           Colors.TEXT_SECONDARY),
@@ -614,6 +1055,28 @@ if(drivers.length===0){{
             n = total if estado is None else counts.get(estado, 0)
             btn.setText(f"{tab_label} ({n})" if n else tab_label)
 
+    def _update_kpi(self, pedidos: list) -> None:
+        """Update KPI stat cards with current counts and financials."""
+        from datetime import date as _date
+        hoy = _date.today().isoformat()
+        activos    = sum(1 for p in pedidos if p.get("estado") in ("pendiente", "preparacion", "en_ruta"))
+        nuevos     = sum(1 for p in pedidos if p.get("estado") == "pendiente")
+        cocina     = sum(1 for p in pedidos if p.get("estado") == "preparacion")
+        en_ruta    = sum(1 for p in pedidos if p.get("estado") == "en_ruta")
+        entregados = sum(1 for p in pedidos if p.get("estado") == "entregado")
+        cobrado    = sum(
+            float(p.get("pago_monto") or p.get("total") or 0)
+            for p in pedidos
+            if p.get("estado") == "entregado"
+            and str(p.get("fecha_actualizacion") or p.get("fecha", "")).startswith(hoy)
+        )
+        self._kpi["activos"].setText(str(activos))
+        self._kpi["nuevos"].setText(str(nuevos))
+        self._kpi["cocina"].setText(str(cocina))
+        self._kpi["en_ruta"].setText(str(en_ruta))
+        self._kpi["entregados"].setText(str(entregados))
+        self._kpi["cobrado"].setText(f"${cobrado:,.0f}")
+
     # ═══════════════════════════════════════════════════════════════════════
     # VISTA LISTA + PANEL DETALLE
     # ═══════════════════════════════════════════════════════════════════════
@@ -692,8 +1155,8 @@ if(drivers.length===0){{
         self._det_wa_txt.setMaximumHeight(110)
         self._det_wa_txt.setPlaceholderText("Sin conversación registrada")
         self._det_wa_txt.setStyleSheet(
-            f"background:#1a1a2e; color:#e2e8f0; font-size:11px;"
-            f" border:none; border-radius:6px;"
+            f"background:{Colors.NEUTRAL.DARK_BG}; color:{Colors.NEUTRAL.DARK_TEXT};"
+            f" font-size:11px; border:none; border-radius:6px;"
         )
         grp_wa_lay.addWidget(self._det_wa_txt)
         detalle_lay.addWidget(grp_wa)
@@ -735,29 +1198,39 @@ if(drivers.length===0){{
             f"🛵 {pedido.get('driver_nombre','Sin repartidor')}"
         )
 
-        # Cargar ítems desde BD
+        # Cargar ítems desde BD: delivery_items primero, luego venta join como fallback
         self._det_tabla.setRowCount(0)
+        rows = []
         try:
             rows = self.conexion.execute(
-                "SELECT producto_nombre, cantidad, precio_unitario, subtotal "
-                "FROM venta_items vi "
-                "JOIN ventas v ON vi.venta_id = v.id "
-                "JOIN delivery_orders d ON d.venta_id = v.id "
-                "WHERE d.id = ? LIMIT 20",
+                "SELECT nombre, cantidad, precio_unitario, subtotal "
+                "FROM delivery_items WHERE delivery_id=? LIMIT 30",
                 (pid,)
             ).fetchall()
-            for i, r in enumerate(rows):
-                self._det_tabla.insertRow(i)
-                for j, val in enumerate(r):
-                    item = QTableWidgetItem(
-                        f"${val:.2f}" if j in (2,3) else
-                        f"{val:.3f}" if j == 1 else str(val)
-                    )
-                    if j == 3:
-                        item.setForeground(QColor(Colors.SUCCESS_BASE))
-                    self._det_tabla.setItem(i, j, item)
         except Exception:
-            pass  # Tabla no relacionada — pedido WA sin venta
+            pass
+        if not rows:
+            try:
+                rows = self.conexion.execute(
+                    "SELECT producto_nombre, cantidad, precio_unitario, subtotal "
+                    "FROM venta_items vi "
+                    "JOIN ventas v ON vi.venta_id = v.id "
+                    "JOIN delivery_orders d ON d.venta_id = v.id "
+                    "WHERE d.id = ? LIMIT 20",
+                    (pid,)
+                ).fetchall()
+            except Exception:
+                pass
+        for i, r in enumerate(rows):
+            self._det_tabla.insertRow(i)
+            for j, val in enumerate(r):
+                cell = QTableWidgetItem(
+                    f"${val:.2f}" if j in (2, 3) else
+                    f"{val:.3g}" if j == 1 else str(val)
+                )
+                if j == 3:
+                    cell.setForeground(QColor(Colors.SUCCESS_BASE))
+                self._det_tabla.setItem(i, j, cell)
 
         notas = pedido.get("notas", "") or ""
         self._det_notas.setText(f"📝 {notas}" if notas else "Sin notas")
@@ -990,6 +1463,16 @@ if(drivers.length===0){{
                 notas            TEXT,
                 fecha            DATETIME DEFAULT (datetime('now'))
             )""",
+            """CREATE TABLE IF NOT EXISTS delivery_items (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                delivery_id      INTEGER NOT NULL,
+                producto_id      INTEGER,
+                nombre           TEXT NOT NULL,
+                cantidad         REAL DEFAULT 1,
+                precio_unitario  REAL DEFAULT 0,
+                subtotal         REAL DEFAULT 0,
+                unidad           TEXT DEFAULT 'u'
+            )""",
         ]
         for sql in tables:
             try:
@@ -1050,6 +1533,7 @@ if(drivers.length===0){{
                 f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pendiente', 'preparacion', 'en_ruta'])}"
             )
             self._update_filter_tabs(counts)
+            self._update_kpi(pedidos)
             # Empty-state: show only when there are truly 0 orders for the current filter
             self._empty.setVisible(lista_count == 0)
         except Exception as e:
@@ -1209,23 +1693,56 @@ if(drivers.length===0){{
             logger.debug("WA notify: %s", e)
 
     def nuevo_pedido(self):
-        dlg = NuevoPedidoDialog(self.delivery_service, self)
-        if dlg.exec_() != QDialog.Accepted: return
+        dlg = NuevoPedidoDialog(self.delivery_service, self.conexion, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
         data = dlg.get_data()
         if not data["direccion"]:
-            QMessageBox.warning(self,"Dirección requerida","Ingresa la dirección de entrega."); return
+            QMessageBox.warning(self, "Dirección requerida", "Ingresa la dirección de entrega.")
+            return
         try:
-            self.delivery_service.create_order({
+            order_id = self.delivery_service.create_order({
+                "cliente_id":    data.get("cliente_id"),
                 "cliente_nombre": data["cliente"],
-                "direccion": data["direccion"],
-                "coords": data.get("coords"),
-                "notas": data["notas"],
-                "sucursal_id": data["sucursal_id"],
+                "cliente_tel":   data.get("cliente_tel", ""),
+                "direccion":     data["direccion"],
+                "coords":        data.get("coords"),
+                "notas":         data.get("notas", ""),
+                "total":         data.get("total", 0),
+                "pago_metodo":   data.get("pago_metodo", ""),
+                "sucursal_id":   data.get("sucursal_id", 1),
             }, usuario=self.usuario)
+
+            # Persist line items to delivery_items
+            items = data.get("items") or []
+            if items and order_id:
+                for it in items:
+                    try:
+                        self.conexion.execute(
+                            "INSERT INTO delivery_items "
+                            "(delivery_id, producto_id, nombre, cantidad, precio_unitario, subtotal, unidad) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (
+                                order_id,
+                                it.get("producto_id"),
+                                it["nombre"],
+                                it["cantidad"],
+                                it["precio"],
+                                it["subtotal"],
+                                it.get("unidad", "u"),
+                            ),
+                        )
+                    except Exception as exc:
+                        logger.debug("delivery_items insert: %s", exc)
+                try:
+                    self.conexion.commit()
+                except Exception:
+                    pass
+
             self.cargar_pedidos()
             Toast.success(self, "Pedido creado", "Pedido de delivery creado exitosamente.")
         except Exception as e:
-            QMessageBox.critical(self,"Error",str(e))
+            QMessageBox.critical(self, "Error", str(e))
 
     def gestionar_drivers(self):
         dlg = GestorDriversDialog(self.conexion, self)
