@@ -98,9 +98,10 @@ ESTADO_COLOR = {
 }
 
 class AsignarDriverDialog(QDialog):
-    def __init__(self, pedido_id, parent=None):
+    def __init__(self, pedido_id, conexion, parent=None):
         super().__init__(parent)
         self.pedido_id = pedido_id
+        self.conexion = conexion
         self.setWindowTitle(f"Asignar Repartidor — Pedido #{pedido_id}")
         self.setMinimumWidth(400)
         layout = QVBoxLayout(self)
@@ -122,8 +123,7 @@ class AsignarDriverDialog(QDialog):
 
     def _cargar_drivers(self):
         try:
-            conn = get_connection()
-            rows = conn.execute("SELECT id, nombre FROM drivers WHERE activo=1 ORDER BY nombre").fetchall()
+            rows = self.conexion.execute("SELECT id, nombre FROM drivers WHERE activo=1 ORDER BY nombre").fetchall()
             for r in rows:
                 self.combo_driver.addItem(r[1], r[0])
             if self.combo_driver.count() == 0:
@@ -508,6 +508,40 @@ class NuevoPedidoDialog(QDialog):
         if not self.txt_direccion.text().strip():
             QMessageBox.warning(self, "Dirección requerida", "Ingresa la dirección de entrega.")
             return
+
+        # Stock pre-flight: warn if any item with producto_id has insufficient available stock
+        sin_stock = []
+        try:
+            from core.services.reservation_service import ReservationService
+            rs = ReservationService()
+            sucursal_id = self.combo_sucursal.currentIndex() + 1
+            for it in self._items:
+                pid = it.get("producto_id")
+                if not pid:
+                    continue
+                available = rs.get_available_stock(
+                    self.conexion, product_id=pid, branch_id=sucursal_id
+                )
+                if available < it["cantidad"]:
+                    sin_stock.append(
+                        f"• {it['nombre']}: solicitado {it['cantidad']:.3g}, disponible {available:.3g}"
+                    )
+        except Exception:
+            pass  # stock check is advisory — never block order creation on service error
+
+        if sin_stock:
+            resp = QMessageBox.question(
+                self,
+                "Stock insuficiente",
+                "Los siguientes productos no tienen suficiente stock:\n\n"
+                + "\n".join(sin_stock)
+                + "\n\n¿Crear el pedido de todas formas?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if resp != QMessageBox.Yes:
+                return
+
         self.accept()
 
     # ── ADDRESS AUTOCOMPLETE (async, Mapbox-backed) ───────────────────────
@@ -610,7 +644,6 @@ class TarjetaPedido(QFrame):
             QFrame#cardPedido {{
                 border-left: 4px solid {color};
                 border-radius: {Borders.RADIUS_MD}px;
-                background: {Colors.NEUTRAL.DARK_CARD};
                 padding: {Spacing.SM}px;
                 margin: {Spacing.XS}px;
             }}
@@ -654,6 +687,10 @@ class TarjetaPedido(QFrame):
             btn.setFixedWidth(90)
             btn.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "en_ruta"))
             btns.addWidget(btn)
+            btn_peso = create_warning_button(self, "⚖️ Ajustar", "Ajustar peso real de ítems variables")
+            btn_peso.setFixedWidth(90)
+            btn_peso.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "ajustar_peso"))
+            btns.addWidget(btn_peso)
         if estado == "en_ruta":
             btn = create_success_button(self, "Entregado", "Confirmar entrega del pedido")
             btn.setFixedWidth(90)
@@ -673,6 +710,226 @@ class TarjetaPedido(QFrame):
             btn_cancel.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "cancelado"))
             btns.addWidget(btn_cancel)
         layout.addLayout(btns)
+
+
+class PesoRealDialog(QDialog):
+    """Professional weight-adjustment dialog for variable-weight delivery items.
+
+    Shown when the operator presses "Preparar" on an order that contains
+    variable-weight items (kg, g, lb …).  The dialog:
+      - lists all variable-weight items with their requested quantity
+      - lets the operator enter the actual prepared weight
+      - shows the diff percentage and new subtotal in real-time
+      - flags tolerance exceeded (>5% by default) in warning orange
+      - confirms before accepting when tolerance is exceeded
+
+    Theme-aware: uses Colors tokens, no hardcoded colours.
+    """
+
+    # Emitted after the user confirms — payload: list of {item_id, prepared_qty, reason}
+    adjustments_confirmed = pyqtSignal(list)
+
+    def __init__(self, items: list, tolerance_pct: float = 5.0, parent=None):
+        """
+        Parameters
+        ----------
+        items:
+            List of dicts from delivery_service.get_order_items() — must contain
+            at minimum: id, nombre, cantidad, precio_unitario, unidad
+        tolerance_pct:
+            Tolerance threshold in % before warning is shown (default 5.0)
+        """
+        super().__init__(parent)
+        self._tolerance_pct = tolerance_pct / 100.0
+        self._items = items
+
+        self.setWindowTitle("⚖️ Ajuste de Peso Real — Preparación")
+        self.setMinimumSize(620, 400)
+        self.setWindowModality(Qt.ApplicationModal)
+
+        root = QVBoxLayout(self)
+        root.setSpacing(10)
+        root.setContentsMargins(14, 14, 14, 14)
+
+        # ── Header ──────────────────────────────────────────────────────────
+        hdr = QLabel("Ingresa el peso real preparado para cada producto:")
+        hdr.setStyleSheet(
+            f"font-size:13px; font-weight:600; color:{Colors.TEXT_PRIMARY};"
+        )
+        root.addWidget(hdr)
+
+        # ── Items table ──────────────────────────────────────────────────────
+        self.tbl = QTableWidget(len(items), 6)
+        self.tbl.setHorizontalHeaderLabels([
+            "Producto", "Solicitado", "Unidad", "Peso real", "Diferencia", "Nuevo subtotal"
+        ])
+        hh = self.tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        for col in range(1, 6):
+            hh.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        self.tbl.verticalHeader().setVisible(False)
+        self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tbl.setSelectionMode(QAbstractItemView.NoSelection)
+        self.tbl.setStyleSheet(
+            "QTableWidget { border:1px solid palette(mid); border-radius:6px; }"
+        )
+
+        self._spin_widgets: list = []  # QDoubleSpinBox per row
+        self._diff_labels:  list = []  # QLabel diff per row
+        self._sub_labels:   list = []  # QLabel subtotal per row
+
+        for row, item in enumerate(items):
+            nombre   = item.get("nombre", "")
+            req_qty  = float(item.get("cantidad") or 0)
+            unit     = item.get("unidad", "kg")
+            price    = float(item.get("precio_unitario") or 0)
+
+            self.tbl.setItem(row, 0, QTableWidgetItem(nombre))
+            self.tbl.setItem(row, 1, QTableWidgetItem(f"{req_qty:.3g}"))
+            self.tbl.setItem(row, 2, QTableWidgetItem(unit))
+
+            spin = QDoubleSpinBox()
+            spin.setRange(0.001, 99999)
+            spin.setDecimals(3)
+            spin.setValue(req_qty)
+            spin.setSuffix(f" {unit}")
+            spin.setStyleSheet(
+                f"border:1px solid {Colors.PRIMARY_BASE}; border-radius:4px; padding:2px;"
+            )
+            self.tbl.setCellWidget(row, 3, spin)
+
+            diff_lbl = QLabel("±0.000")
+            diff_lbl.setAlignment(Qt.AlignCenter)
+            self.tbl.setCellWidget(row, 4, diff_lbl)
+
+            sub_lbl = QLabel(f"${req_qty * price:.2f}")
+            sub_lbl.setAlignment(Qt.AlignCenter)
+            sub_lbl.setStyleSheet(f"color:{Colors.SUCCESS_BASE}; font-weight:bold;")
+            self.tbl.setCellWidget(row, 5, sub_lbl)
+
+            self._spin_widgets.append(spin)
+            self._diff_labels.append(diff_lbl)
+            self._sub_labels.append(sub_lbl)
+
+            # Capture row index for lambda — critical Python closure detail
+            spin.valueChanged.connect(lambda v, r=row: self._on_spin_changed(r))
+
+        root.addWidget(self.tbl)
+
+        # ── Warning label ────────────────────────────────────────────────────
+        self._warn_lbl = QLabel("")
+        self._warn_lbl.setStyleSheet(
+            f"color:{Colors.WARNING_BASE}; font-weight:bold; font-size:11px;"
+        )
+        self._warn_lbl.setWordWrap(True)
+        root.addWidget(self._warn_lbl)
+
+        # ── Reason ───────────────────────────────────────────────────────────
+        reason_row = QHBoxLayout()
+        reason_row.addWidget(QLabel("Motivo del ajuste:"))
+        self.txt_reason = QLineEdit()
+        self.txt_reason.setPlaceholderText(
+            "Ej.: peso en báscula, merma, porción estándar…"
+        )
+        reason_row.addWidget(self.txt_reason, 3)
+        root.addLayout(reason_row)
+
+        # ── Buttons ──────────────────────────────────────────────────────────
+        btn_ok = create_success_button(self, "✓ Confirmar pesos", "")
+        btn_ok.setMinimumWidth(160)
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setFixedWidth(100)
+        btn_cancel.clicked.connect(self.reject)
+        btn_ok.clicked.connect(self._on_confirm)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_ok)
+        root.addLayout(btn_row)
+
+        self._update_all_diffs()
+
+    # ── Slots ──────────────────────────────────────────────────────────────
+
+    def _on_spin_changed(self, row: int) -> None:
+        item      = self._items[row]
+        req_qty   = float(item.get("cantidad") or 0)
+        price     = float(item.get("precio_unitario") or 0)
+        prep_qty  = self._spin_widgets[row].value()
+        unit      = item.get("unidad", "kg")
+
+        diff = prep_qty - req_qty
+        sign = "+" if diff >= 0 else ""
+        self._diff_labels[row].setText(f"{sign}{diff:.3g} {unit}")
+
+        exceeded = req_qty and (abs(diff / req_qty) > self._tolerance_pct)
+        diff_color = Colors.WARNING_BASE if exceeded else Colors.SUCCESS_BASE
+        self._diff_labels[row].setStyleSheet(f"color:{diff_color}; font-weight:bold;")
+        self._sub_labels[row].setText(f"${prep_qty * price:,.2f}")
+
+        self._update_warnings()
+
+    def _update_all_diffs(self) -> None:
+        for row in range(len(self._items)):
+            self._on_spin_changed(row)
+
+    def _update_warnings(self) -> None:
+        warnings = []
+        for row, item in enumerate(self._items):
+            req_qty = float(item.get("cantidad") or 0)
+            if not req_qty:
+                continue
+            prep_qty = self._spin_widgets[row].value()
+            diff_pct = abs((prep_qty - req_qty) / req_qty) * 100
+            if diff_pct > self._tolerance_pct * 100:
+                warnings.append(
+                    f"⚠️ {item.get('nombre','?')}: diferencia {diff_pct:.1f}% "
+                    f"(tolerancia {self._tolerance_pct * 100:.0f}%)"
+                )
+        self._warn_lbl.setText("\n".join(warnings))
+
+    def _on_confirm(self) -> None:
+        exceeded_items = []
+        for row, item in enumerate(self._items):
+            req_qty = float(item.get("cantidad") or 0)
+            if req_qty:
+                prep = self._spin_widgets[row].value()
+                if abs((prep - req_qty) / req_qty) > self._tolerance_pct:
+                    exceeded_items.append(item.get("nombre", f"ítem {row+1}"))
+
+        if exceeded_items:
+            resp = QMessageBox.question(
+                self,
+                "Tolerancia excedida",
+                f"Los siguientes productos exceden la tolerancia del "
+                f"{self._tolerance_pct * 100:.0f}%:\n"
+                + "\n".join(f"  • {n}" for n in exceeded_items)
+                + "\n\n¿Confirmar de todas formas?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if resp != QMessageBox.Yes:
+                return
+
+        self.accept()
+
+    def get_adjustments(self) -> list:
+        """Return list of {item_id, prepared_qty, adjustment_reason}."""
+        reason = self.txt_reason.text().strip()
+        return [
+            {
+                "item_id":          item["id"],
+                "item_name":        item.get("nombre", ""),
+                "prepared_qty":     self._spin_widgets[row].value(),
+                "requested_qty":    float(item.get("cantidad") or 0),
+                "unit_price":       float(item.get("precio_unitario") or 0),
+                "unit":             item.get("unidad", "kg"),
+                "adjustment_reason": reason,
+            }
+            for row, item in enumerate(self._items)
+        ]
+
 
 class ModuloDelivery(QWidget, RefreshMixin):
     def __init__(self, conexion_o_container, usuario="admin", parent=None):
@@ -801,8 +1058,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         for key, label, kpi_color in kpi_defs:
             kpi_frame = QFrame()
             kpi_frame.setStyleSheet(
-                f"QFrame {{ background:{Colors.NEUTRAL.DARK_CARD};"
-                f" border:1px solid {kpi_color}; border-radius:8px; }}"
+                f"QFrame {{ border:1px solid {kpi_color}; border-radius:8px; }}"
             )
             kpi_fl = QVBoxLayout(kpi_frame)
             kpi_fl.setContentsMargins(10, 4, 10, 4)
@@ -1098,12 +1354,11 @@ if(drivers.length===0){{
 
         self._lst_pedidos = QListWidget()
         self._lst_pedidos.setObjectName("listaPedidos")
-        self._lst_pedidos.setStyleSheet(f"""
-            QListWidget {{ border:none; background:{Colors.NEUTRAL.DARK_BG}; }}
-            QListWidget::item {{ border-bottom:1px solid {Colors.NEUTRAL.DARK_BORDER};
-                                 padding:0; }}
-            QListWidget::item:selected {{ background:{Colors.NEUTRAL.DARK_CARD}; }}
-            QListWidget::item:hover {{ background:{Colors.NEUTRAL.DARK_CARD}; }}
+        self._lst_pedidos.setStyleSheet("""
+            QListWidget { border:none; }
+            QListWidget::item { border-bottom:1px solid palette(mid); padding:0; }
+            QListWidget::item:selected { background:palette(highlight); }
+            QListWidget::item:hover { background:palette(midlight); }
         """)
         self._lst_pedidos.currentRowChanged.connect(self._on_lista_seleccion)
         left_lay.addWidget(self._lst_pedidos)
@@ -1111,8 +1366,6 @@ if(drivers.length===0){{
 
         # ── Panel derecho — detalle ──────────────────────────────────────
         self._detalle_widget = QWidget()
-        self._detalle_widget.setStyleSheet(
-            f"background:{Colors.NEUTRAL.DARK_BG};")
         detalle_lay = QVBoxLayout(self._detalle_widget)
         detalle_lay.setContentsMargins(16, 12, 16, 12)
         detalle_lay.setSpacing(10)
@@ -1155,8 +1408,7 @@ if(drivers.length===0){{
         self._det_wa_txt.setMaximumHeight(110)
         self._det_wa_txt.setPlaceholderText("Sin conversación registrada")
         self._det_wa_txt.setStyleSheet(
-            f"background:{Colors.NEUTRAL.DARK_BG}; color:{Colors.NEUTRAL.DARK_TEXT};"
-            f" font-size:11px; border:none; border-radius:6px;"
+            "font-size:11px; border:none; border-radius:6px;"
         )
         grp_wa_lay.addWidget(self._det_wa_txt)
         detalle_lay.addWidget(grp_wa)
@@ -1299,6 +1551,11 @@ if(drivers.length===0){{
             b.setFixedHeight(32)
             b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "en_ruta"))
             self._det_acciones_layout.addWidget(b)
+
+            b_peso = create_warning_button(self, "⚖️ Ajustar pesos", "")
+            b_peso.setFixedHeight(32)
+            b_peso.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "ajustar_peso"))
+            self._det_acciones_layout.addWidget(b_peso)
 
         if estado == "en_ruta":
             b = create_success_button(self, "✓ Entregado", "")
@@ -1545,10 +1802,65 @@ if(drivers.length===0){{
     def ejecutar_accion(self, pedido_id: int, accion: str):
         try:
             if accion == "preparar":
-                # Single authoritative write via service (avoids double SQL update)
+                # Check for variable-weight items before marking as "preparacion"
+                from core.services.reservation_service import ReservationService, VARIABLE_WEIGHT_UNITS
+                items = self.delivery_service.get_order_items(pedido_id)
+                var_items = [
+                    it for it in items
+                    if ReservationService.is_variable_weight(it.get("unidad", ""))
+                ]
+                if var_items:
+                    dlg_peso = PesoRealDialog(var_items, parent=self)
+                    if dlg_peso.exec_() != QDialog.Accepted:
+                        return
+                    adjustments = dlg_peso.get_adjustments()
+                    for adj in adjustments:
+                        try:
+                            self.delivery_service.adjust_item_weight(
+                                order_id=pedido_id,
+                                item_id=adj["item_id"],
+                                prepared_qty=adj["prepared_qty"],
+                                prepared_by=self.usuario,
+                                adjustment_reason=adj.get("adjustment_reason", ""),
+                                unit=adj.get("unit", "kg"),
+                            )
+                        except Exception as exc:
+                            logger.warning("adjust_item_weight item=%s: %s", adj["item_id"], exc)
+                    Toast.success(
+                        self, "Peso registrado",
+                        f"{len(adjustments)} ítem(s) ajustados. Pedido en preparación."
+                    )
+
                 self.delivery_service.update_status(
                     pedido_id, "preparacion", usuario=self.usuario
                 )
+                self.cargar_pedidos()
+                return
+            elif accion == "ajustar_peso":
+                from core.services.reservation_service import ReservationService
+                items = self.delivery_service.get_order_items(pedido_id)
+                var_items = [it for it in items if ReservationService.is_variable_weight(it.get("unidad", ""))]
+                if not var_items:
+                    QMessageBox.information(
+                        self, "Sin ítems de peso variable",
+                        "Este pedido no tiene productos de peso variable.")
+                    return
+                dlg_peso = PesoRealDialog(var_items, parent=self)
+                if dlg_peso.exec_() != QDialog.Accepted:
+                    return
+                for adj in dlg_peso.get_adjustments():
+                    try:
+                        self.delivery_service.adjust_item_weight(
+                            order_id=pedido_id,
+                            item_id=adj["item_id"],
+                            prepared_qty=adj["prepared_qty"],
+                            prepared_by=self.usuario,
+                            adjustment_reason=adj.get("adjustment_reason", ""),
+                            unit=adj.get("unit", "kg"),
+                        )
+                    except Exception as exc:
+                        logger.warning("adjust_item_weight item=%s: %s", adj["item_id"], exc)
+                Toast.success(self, "Peso ajustado", "Pesos actualizados correctamente.")
                 self.cargar_pedidos()
                 return
             elif accion == "notificar_wa":
@@ -1563,39 +1875,64 @@ if(drivers.length===0){{
                 return
             elif accion == "link_pago":
                 row = self.conexion.execute(
-                    "SELECT id, folio, total FROM delivery_orders WHERE id=?",
+                    "SELECT id, folio, total, cliente_tel FROM delivery_orders WHERE id=?",
                     (pedido_id,)
                 ).fetchone()
                 folio = (row[1] or f"DEL-{pedido_id}") if row else f"DEL-{pedido_id}"
                 total = float(row[2] or 0) if row else 0
-                link = f"https://pay.spjpos.mx/delivery/{folio}"
-                from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QDialogButtonBox
+
+                # Try MercadoPago first; fall back to generic URL
+                link = None
+                try:
+                    from services.mercado_pago_service import MercadoPagoService
+                    mp = MercadoPagoService(self.conexion)
+                    link = mp.crear_link(
+                        total=total,
+                        pedido_id=pedido_id,
+                        descripcion=f"Delivery #{folio}",
+                        cliente_email="cliente@spjpos.mx",
+                    )
+                except Exception as exc:
+                    logger.debug("MercadoPago link_pago: %s", exc)
+
+                if not link:
+                    link = f"https://pay.spjpos.mx/delivery/{folio}"
+
                 dlg_link = QDialog(self)
-                dlg_link.setWindowTitle("Link de pago")
-                dlg_link.setMinimumWidth(420)
+                dlg_link.setWindowTitle("💳 Link de pago")
+                dlg_link.setMinimumWidth(480)
                 lay_link = QVBoxLayout(dlg_link)
-                lay_link.addWidget(QLabel(f"<b>Pedido #{pedido_id}</b> — Total: ${total:.2f}"))
+                lay_link.addWidget(
+                    QLabel(f"<b>Pedido #{pedido_id} — {folio}</b><br>Total: <b>${total:,.2f}</b>")
+                )
                 txt_link = QLineEdit(link)
                 txt_link.setReadOnly(True)
                 txt_link.selectAll()
+                txt_link.setStyleSheet(
+                    f"border:1px solid {Colors.PRIMARY_BASE}; border-radius:4px; padding:4px;"
+                )
                 lay_link.addWidget(txt_link)
                 bbs = QDialogButtonBox(QDialogButtonBox.Ok)
                 bbs.accepted.connect(dlg_link.accept)
                 lay_link.addWidget(bbs)
                 dlg_link.exec_()
-                from PyQt5.QtWidgets import QApplication as _App
-                _App.clipboard().setText(link)
+                QApplication.clipboard().setText(link)
                 Toast.success(self, "Link copiado", "Link de pago copiado al portapapeles.")
                 return
             elif accion == "asignar":
-                dlg = AsignarDriverDialog(pedido_id, self)
+                dlg = AsignarDriverDialog(pedido_id, self.conexion, self)
                 if dlg.exec_() != QDialog.Accepted: return
                 data = dlg.get_data()
                 if not data["driver_id"]:
                     QMessageBox.warning(self,"Sin repartidor","Primero registra repartidores."); return
+                # Set driver fields only; update_status handles estado + events + WA
                 self.conexion.execute(
-                    "UPDATE delivery_orders SET estado='preparacion',driver_id=?,tiempo_estimado=?,notas=?,fecha_asignacion=datetime('now') WHERE id=?",
-                    (data["driver_id"],data["tiempo"],data["notas"],pedido_id))
+                    "UPDATE delivery_orders SET driver_id=?,tiempo_estimado=?,fecha_asignacion=datetime('now') WHERE id=?",
+                    (data["driver_id"], data["tiempo"], pedido_id))
+                if data.get("notas"):
+                    self.conexion.execute(
+                        "UPDATE delivery_orders SET notas=? WHERE id=?",
+                        (data["notas"], pedido_id))
                 self.delivery_service.update_status(pedido_id, "preparacion", usuario=self.usuario)
             elif accion in ("en_ruta","entregado","cancelado"):
                 fecha_col = "fecha_entrega" if accion == "entregado" else "fecha_asignacion"

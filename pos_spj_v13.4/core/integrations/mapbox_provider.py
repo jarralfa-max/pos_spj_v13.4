@@ -31,11 +31,44 @@ logger = logging.getLogger("spj.integrations.mapbox")
 
 # ── Configuration (env-driven, never hardcoded in source) ────────────────────
 
-# Set MAPBOX_TOKEN in the environment or in .env.delivery before starting.
-_TOKEN   = os.environ.get("MAPBOX_TOKEN", "")
 _COUNTRY = os.environ.get("MAPBOX_COUNTRY", "mx")
 _LIMIT   = int(os.environ.get("MAPBOX_AUTOCOMPLETE_LIMIT", "5"))
 _TIMEOUT = int(os.environ.get("MAPBOX_TIMEOUT", "5"))
+
+
+def _resolve_token() -> str:
+    """Return MAPBOX_TOKEN from env or from .env.delivery file (lazy load).
+
+    Searches for .env.delivery relative to this file and relative to cwd.
+    Caches the result back into os.environ so subsequent calls are O(1).
+    """
+    token = os.environ.get("MAPBOX_TOKEN", "")
+    if token:
+        return token
+
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "../../../.env.delivery"),
+        os.path.join(os.path.dirname(__file__), "../../.env.delivery"),
+        os.path.join(os.getcwd(), ".env.delivery"),
+    ]
+    for path in candidates:
+        path = os.path.normpath(path)
+        try:
+            with open(path) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, val = line.partition("=")
+                    if key.strip() == "MAPBOX_TOKEN":
+                        val = val.strip().strip('"').strip("'")
+                        if val:
+                            os.environ["MAPBOX_TOKEN"] = val
+                            logger.debug("MAPBOX_TOKEN loaded from %s", path)
+                            return val
+        except (FileNotFoundError, PermissionError):
+            continue
+    return ""
 
 _BASE_URL    = "https://api.mapbox.com/search/geocode/v6"
 _USER_AGENT  = "SPJ-POS-ERP/13.4 (delivery-module)"
@@ -87,16 +120,19 @@ class MapboxAddressProvider(AddressProvider):
 
     def __init__(
         self,
-        token: str = _TOKEN,
+        token: str = "",
         country: str = _COUNTRY,
         limit: int = _LIMIT,
         timeout: int = _TIMEOUT,
         proximity_lng: Optional[float] = None,
         proximity_lat: Optional[float] = None,
     ) -> None:
-        if not token:
-            raise ValueError("MAPBOX_TOKEN is required for MapboxAddressProvider")
-        self._token   = token
+        resolved = token or _resolve_token()
+        if not resolved:
+            raise ValueError(
+                "MAPBOX_TOKEN is required. Set the env var or add it to .env.delivery"
+            )
+        self._token   = resolved
         self._country = country
         self._limit   = min(max(limit, 1), 10)
         self._timeout = timeout

@@ -69,6 +69,9 @@ def wire_all(container: "AppContainer") -> None:
     # Phase 5: TRANSFER_ITEMS_PROCESS — multi-sucursal OUT/IN inventory handler
     _wire_transfer_items_handlers(bus, container)
 
+    # v13.5: Delivery weight adjustments + inventory reservations
+    _wire_delivery_handlers(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -879,3 +882,73 @@ def _wire_transfer_items_handlers(bus, container) -> None:
         label="transfer_inventory_handler",
     )
     logger.debug("Registered TransferInventoryHandler on %s", TRANSFER_ITEMS_PROCESS)
+
+
+def _wire_delivery_handlers(bus, container) -> None:
+    """v13.5: Delivery reservation + weight-adjustment handler chain.
+
+    DELIVERY_ORDER_RESERVED     → DeliveryReserveStockHandler     (priority=100)
+    stock_liberar_solicitado    → DeliveryReservationReleaseHandler (priority=100)
+    DELIVERY_ITEM_WEIGHT_ADJUSTED → DeliveryWeightAdjustmentHandler (priority=100)
+    DELIVERY_ITEM_WEIGHT_ADJUSTED → DeliveryWhatsAppNotificationHandler (priority=10)
+    DELIVERY_TOTAL_UPDATED      → DeliveryPaymentUpdateHandler     (priority=50)
+    """
+    from core.events.event_bus import (
+        DELIVERY_ORDER_RESERVED,
+        DELIVERY_RESERVATION_RELEASED,
+        DELIVERY_ITEM_WEIGHT_ADJUSTED,
+        DELIVERY_TOTAL_UPDATED,
+    )
+    from core.events.handlers.delivery_handler import (
+        DeliveryReserveStockHandler,
+        DeliveryReservationReleaseHandler,
+        DeliveryWeightAdjustmentHandler,
+        DeliveryPaymentUpdateHandler,
+        DeliveryWhatsAppNotificationHandler,
+    )
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_delivery_handlers: no container.db — skipping")
+        return
+
+    reserve_handler   = DeliveryReserveStockHandler(db)
+    release_handler   = DeliveryReservationReleaseHandler(db)
+    weight_handler    = DeliveryWeightAdjustmentHandler(db)
+    payment_handler   = DeliveryPaymentUpdateHandler(db)
+    wa_weight_handler = DeliveryWhatsAppNotificationHandler()
+
+    bus.subscribe(
+        DELIVERY_ORDER_RESERVED,
+        reserve_handler.handle,
+        priority=100,
+        label="delivery_reserve_stock",
+    )
+    # Release reservations when order is cancelled (existing event name)
+    bus.subscribe(
+        "stock_liberar_solicitado",
+        release_handler.handle,
+        priority=100,
+        label="delivery_reservation_release",
+    )
+    bus.subscribe(
+        DELIVERY_ITEM_WEIGHT_ADJUSTED,
+        weight_handler.handle,
+        priority=100,
+        label="delivery_weight_adjustment",
+    )
+    bus.subscribe(
+        DELIVERY_ITEM_WEIGHT_ADJUSTED,
+        wa_weight_handler.handle,
+        priority=10,
+        label="delivery_wa_weight_notify",
+    )
+    bus.subscribe(
+        DELIVERY_TOTAL_UPDATED,
+        payment_handler.handle,
+        priority=50,
+        label="delivery_payment_update",
+    )
+    logger.debug(
+        "Registered delivery handlers: reserve, release, weight, WA-notify, payment-update"
+    )

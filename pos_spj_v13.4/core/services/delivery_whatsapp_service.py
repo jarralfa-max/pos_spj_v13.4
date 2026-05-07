@@ -32,6 +32,41 @@ class DeliveryWhatsAppService:
             logger.warning("notify_status failed (%s): %s", status, exc)
             return False
 
+    def notify_weight_adjustment(
+        self,
+        phone: str,
+        folio: str,
+        requested_qty: float,
+        prepared_qty: float,
+        unit: str,
+        new_total: float,
+        payment_url: str = "",
+    ) -> bool:
+        """Send a weight-adjustment summary to the customer via WhatsApp."""
+        if not phone:
+            return False
+        diff = prepared_qty - requested_qty
+        sign = "+" if diff >= 0 else ""
+        msg = (
+            f"📦 Actualización pedido #{folio}\n"
+            f"Peso solicitado: {requested_qty:.3g} {unit}\n"
+            f"Peso real: {prepared_qty:.3g} {unit}  ({sign}{diff:.3g} {unit})\n"
+            f"Total: ${new_total:,.2f}"
+        )
+        if payment_url:
+            msg += f"\nPago: {payment_url}"
+        msg += "\n🛵 ¡Pronto en camino!"
+        try:
+            ok = bool(self.client.enviar_mensaje(phone, msg))
+            logger.info(
+                "notify_weight_adjustment phone=%s folio=%s ok=%s",
+                phone[-4:], folio, ok,
+            )
+            return ok
+        except Exception as exc:
+            logger.warning("notify_weight_adjustment failed: %s", exc)
+            return False
+
     def pull_orders(self) -> Iterable[Dict]:
         try:
             payload = self.client._get("/api/delivery/orders/pending") or {}
