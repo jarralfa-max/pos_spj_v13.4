@@ -97,6 +97,45 @@ ESTADO_COLOR = {
     "entregado":Colors.SUCCESS_BASE,"cancelado":Colors.DANGER_BASE
 }
 
+# ── Action policy: single source of truth for which buttons appear per state ──
+
+class DeliveryActionPolicy:
+    """Maps delivery states → list of (icon, tooltip, accion, style).
+
+    Used by both TarjetaPedido (kanban) and the detail/list action bar.
+    Never hardcode state logic in widgets — always delegate here.
+    """
+    _ACTIONS = {
+        "pendiente": [
+            ("▶",  "Preparar",            "preparar",     "success"),
+            ("📲", "Notificar por WA",    "notificar_wa", "secondary"),
+            ("✖",  "Cancelar pedido",     "cancelado",    "danger"),
+        ],
+        "preparacion": [
+            ("🛵", "En Ruta",             "en_ruta",      "primary"),
+            ("⚖️", "Ajustar peso",        "ajustar_peso", "warning"),
+            ("👤", "Asignar repartidor",  "asignar",      "primary"),
+            ("🖨️", "Imprimir ticket",     "imprimir",     "secondary"),
+            ("📲", "Notificar por WA",    "notificar_wa", "secondary"),
+            ("💳", "Link de pago",        "link_pago",    "secondary"),
+            ("✖",  "Cancelar pedido",     "cancelado",    "danger"),
+        ],
+        "en_ruta": [
+            ("✅", "Confirmar entrega",   "entregado",    "success"),
+            ("📲", "Notificar por WA",    "notificar_wa", "secondary"),
+        ],
+        "entregado": [
+            ("🖨️", "Imprimir ticket",     "imprimir",     "secondary"),
+        ],
+        "cancelado": [
+            ("♻️", "Reactivar pedido",    "reactivar",    "warning"),
+        ],
+    }
+
+    @classmethod
+    def get_actions(cls, estado: str) -> list:
+        return cls._ACTIONS.get(estado, [])
+
 class AsignarDriverDialog(QDialog):
     def __init__(self, pedido_id, conexion, parent=None):
         super().__init__(parent)
@@ -671,35 +710,29 @@ class TarjetaPedido(QFrame):
         info.addWidget(driver_lbl)
         info.addWidget(estado_lbl)
         layout.addLayout(info, 1)
-        btns = QHBoxLayout()
-        btns.setSpacing(2)
-        btns.setContentsMargins(0, 0, 0, 0)
+        # Vertical action buttons — driven by DeliveryActionPolicy (no hardcoded logic here)
+        btns = QVBoxLayout()
+        btns.setSpacing(3)
+        btns.setContentsMargins(4, 0, 0, 0)
         estado = pedido.get("estado","pendiente")
         pid = self.pedido["id"]
 
-        def _ibtn(icon_text, tooltip, accion, factory=None):
-            b = (factory or create_secondary_button)(self, icon_text, tooltip)
-            b.setFixedSize(32, 28)
-            b.setToolTip(tooltip)
-            b.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, accion))
-            return b
+        _style_factory = {
+            "success":   create_success_button,
+            "primary":   create_primary_button,
+            "warning":   create_warning_button,
+            "danger":    create_danger_button,
+            "secondary": create_secondary_button,
+        }
 
-        if estado == "pendiente":
-            btns.addWidget(_ibtn("▶", "Preparar", "preparar", create_success_button))
-            btns.addWidget(_ibtn("👤", "Asignar repartidor", "asignar", create_primary_button))
-        if estado == "preparacion":
-            btns.addWidget(_ibtn("🛵", "En Ruta", "en_ruta", create_primary_button))
-            btns.addWidget(_ibtn("⚖️", "Ajustar peso", "ajustar_peso", create_warning_button))
-        if estado == "en_ruta":
-            btns.addWidget(_ibtn("✅", "Confirmar entrega", "entregado", create_success_button))
-        if estado == "entregado":
-            btns.addWidget(_ibtn("🖨️", "Imprimir ticket", "imprimir", create_secondary_button))
-        if estado == "cancelado":
-            btns.addWidget(_ibtn("♻️", "Reactivar pedido", "reactivar", create_warning_button))
-        if estado not in ("entregado", "cancelado"):
-            btns.addWidget(_ibtn("📲", "Notificar por WhatsApp", "notificar_wa"))
-            btns.addWidget(_ibtn("💳", "Link de pago MercadoPago", "link_pago"))
-            btns.addWidget(_ibtn("✖", "Cancelar pedido", "cancelado", create_danger_button))
+        for icon_text, tooltip, accion, style in DeliveryActionPolicy.get_actions(estado):
+            factory = _style_factory.get(style, create_secondary_button)
+            b = factory(self, icon_text, tooltip)
+            b.setFixedWidth(36)
+            b.setToolTip(tooltip)
+            b.clicked.connect(lambda _, p=pid, a=accion: self.accion_requerida.emit(p, a))
+            btns.addWidget(b)
+
         btns.addStretch()
         layout.addLayout(btns)
 
@@ -982,6 +1015,20 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self._pedidos_cache = []
         self._init_ui()
         self._init_tables()
+        # Wire toast channel so notification service can show toasts
+        try:
+            from notifications.toast_channel import set_toast_fn
+            _lvl_map = {
+                "info": Toast.info, "success": Toast.success,
+                "warning": Toast.warning, "error": Toast.warning,
+            }
+            set_toast_fn(
+                lambda parent, title, body, level="info":
+                    _lvl_map.get(level, Toast.info)(self, title, body),
+                self,
+            )
+        except Exception:
+            pass
         # EventBus: reactive reload on pedido events
         try:
             from core.events.event_bus import get_bus
@@ -1594,38 +1641,18 @@ if(drivers.length===0){{
             b_asig.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "asignar"))
             self._det_acciones_layout.addWidget(b_asig)
 
-        if estado == "preparacion":
-            b = create_primary_button(self, "→ En ruta", "")
+        # Detail view action buttons — use same policy as kanban (no logic duplication)
+        _style_factory = {
+            "success": create_success_button, "primary": create_primary_button,
+            "warning": create_warning_button, "danger": create_danger_button,
+            "secondary": create_secondary_button,
+        }
+        for icon_text, tooltip, accion, style in DeliveryActionPolicy.get_actions(estado):
+            factory = _style_factory.get(style, create_secondary_button)
+            b = factory(self, f"{icon_text} {tooltip}", tooltip)
             b.setFixedHeight(32)
-            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "en_ruta"))
+            b.clicked.connect(lambda _, p=pid, a=accion: self.ejecutar_accion(p, a))
             self._det_acciones_layout.addWidget(b)
-
-            b_peso = create_warning_button(self, "⚖️ Ajustar pesos", "")
-            b_peso.setFixedHeight(32)
-            b_peso.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "ajustar_peso"))
-            self._det_acciones_layout.addWidget(b_peso)
-
-        if estado == "en_ruta":
-            b = create_success_button(self, "✓ Entregado", "")
-            b.setFixedHeight(32)
-            b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "entregado"))
-            self._det_acciones_layout.addWidget(b)
-
-        if estado not in ("entregado", "cancelado"):
-            b_wa = create_secondary_button(self, "📲 Notif. WA", "")
-            b_wa.setFixedHeight(32)
-            b_wa.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "notificar_wa"))
-            self._det_acciones_layout.addWidget(b_wa)
-
-            b_link = create_secondary_button(self, "💳 Link pago", "")
-            b_link.setFixedHeight(32)
-            b_link.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "link_pago"))
-            self._det_acciones_layout.addWidget(b_link)
-
-            b_cancel = create_danger_button(self, "✕ Cancelar", "")
-            b_cancel.setFixedHeight(32)
-            b_cancel.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "cancelado"))
-            self._det_acciones_layout.addWidget(b_cancel)
 
         self._det_acciones_layout.addStretch()
 
@@ -1875,10 +1902,66 @@ if(drivers.length===0){{
                 self.delivery_service.update_status(pedido_id, "pendiente", usuario=self.usuario)
                 QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
                 return
+            elif accion == "ver_detalle":
+                # Show read-only detail dialog for delivered orders
+                row = self.conexion.execute(
+                    "SELECT * FROM delivery_orders WHERE id=?", (pedido_id,)
+                ).fetchone()
+                if not row:
+                    return
+                from PyQt5.QtWidgets import QTextEdit
+                dlg_det = QDialog(self)
+                dlg_det.setWindowTitle(f"Detalle Pedido #{pedido_id}")
+                dlg_det.setMinimumSize(400, 300)
+                v = QVBoxLayout(dlg_det)
+                txt = QTextEdit()
+                txt.setReadOnly(True)
+                d = dict(row)
+                content = "\n".join(f"{k}: {v2}" for k, v2 in d.items() if v2 is not None)
+                txt.setPlainText(content)
+                v.addWidget(txt)
+                bb = QDialogButtonBox(QDialogButtonBox.Close)
+                bb.rejected.connect(dlg_det.accept)
+                v.addWidget(bb)
+                dlg_det.exec_()
+                return
             elif accion == "preparar":
-                # Check for variable-weight items before marking as "preparacion"
                 from core.services.reservation_service import ReservationService, VARIABLE_WEIGHT_UNITS
                 items = self.delivery_service.get_order_items(pedido_id)
+
+                # Stock gate: must have valid reservation OR sufficient available stock
+                _svc = ReservationService()
+                _sucursal = getattr(self, 'sucursal_id', 1)
+                _reservas = _svc.get_reservations_for_operation(self.conexion, str(pedido_id))
+                _bloqueados = []
+                for _it in items:
+                    _pid = _it.get("producto_id")
+                    if not _pid:
+                        continue
+                    _qty = float(_it.get("cantidad") or 0)
+                    if _qty <= 0:
+                        continue
+                    _res_qty = sum(
+                        float(r.get("reserved_qty", 0)) for r in _reservas
+                        if r.get("product_id") == _pid and not r.get("released")
+                    )
+                    if _res_qty < _qty:
+                        _avail = _svc.get_available_stock(self.conexion, _pid, _sucursal)
+                        if _avail < _qty:
+                            _bloqueados.append(
+                                f"• {_it.get('nombre','Producto')}: "
+                                f"disponible={_avail:.2f}, requerido={_qty:.2f}"
+                            )
+                if _bloqueados:
+                    QMessageBox.critical(
+                        self, "Stock insuficiente",
+                        "No se puede preparar el pedido por stock insuficiente:\n\n"
+                        + "\n".join(_bloqueados)
+                        + "\n\nRevisa el inventario antes de continuar."
+                    )
+                    return
+
+                # Check for variable-weight items before marking as "preparacion"
                 var_items = [
                     it for it in items
                     if ReservationService.is_variable_weight(it.get("unidad", ""))
@@ -2209,7 +2292,7 @@ if(drivers.length===0){{
         
         lbl_efectivo = QLabel("$0.00")
         lbl_efectivo.setObjectName("textDanger")
-        lbl_efectivo.setStyleSheet(f"font-size: {Typography.LG}; font-weight: bold;")
+        lbl_efectivo.setStyleSheet(f"font-size: {Typography.SIZE_LG}; font-weight: bold;")
         
         lbl_tarjeta  = QLabel("$0.00")
         lbl_tarjeta.setObjectName("textPrimary")
@@ -2365,16 +2448,11 @@ if(drivers.length===0){{
                 ))
                 # Marcar entregas como cortadas
                 cut_id = self.conexion.execute("SELECT last_insert_rowid()").fetchone()[0]
-                for oid in _data["order_ids"]:
-                    try:
-                        self.conexion.execute(
-                            "UPDATE delivery_orders SET corte_id=? WHERE id=?",
-                            (cut_id, oid))
-                    except Exception:
-                        pass  # Column might not exist yet
+                # Ensure corte_id column exists before UPDATE
                 try:
                     self.conexion.execute(
                         "ALTER TABLE delivery_orders ADD COLUMN corte_id INTEGER DEFAULT 0")
+                    self.conexion.commit()
                 except Exception:
                     pass
                 for oid in _data["order_ids"]:
@@ -2387,6 +2465,22 @@ if(drivers.length===0){{
 
                 try:
                     self.conexion.commit()
+                except Exception:
+                    pass
+
+                # Publicar evento DRIVER_SETTLEMENT_CREATED
+                try:
+                    from core.events.event_bus import get_bus, DRIVER_SETTLEMENT_CREATED
+                    get_bus().publish(DRIVER_SETTLEMENT_CREATED, {
+                        "cut_id": cut_id,
+                        "driver_id": driver_id,
+                        "driver_nombre": cmb_driver.currentText(),
+                        "efectivo": entregado,
+                        "diferencia": diferencia,
+                        "sucursal_id": getattr(self, 'sucursal_id', 1),
+                        "usuario_corte": getattr(self, 'usuario', 'Sistema'),
+                        "db": self.conexion,
+                    })
                 except Exception:
                     pass
 
@@ -2449,11 +2543,13 @@ if(drivers.length===0){{
 
         try:
             rows = self.conexion.execute("""
-                SELECT id, driver_nombre, fecha, entregas_total,
+                SELECT id, driver_nombre,
+                       COALESCE(fecha, turno_fin, datetime('now')) AS fecha,
+                       entregas_total,
                        efectivo_cobrado, tarjeta_cobrado, transfer_cobrado,
                        efectivo_entregado, diferencia, usuario_corte
                 FROM delivery_driver_cuts
-                ORDER BY fecha DESC LIMIT 100
+                ORDER BY COALESCE(fecha, turno_fin) DESC LIMIT 100
             """).fetchall()
             tbl.setRowCount(len(rows))
             if not rows:

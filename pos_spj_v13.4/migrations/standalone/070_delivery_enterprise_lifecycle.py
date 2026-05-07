@@ -18,6 +18,7 @@ def run(conn) -> None:
         "pago_monto REAL DEFAULT 0",
         "costo_envio REAL DEFAULT 0",
         "weight_adjusted INTEGER DEFAULT 0",
+        "corte_id INTEGER DEFAULT 0",
     ])
 
     # delivery_items: ensure weight-adjustment columns exist
