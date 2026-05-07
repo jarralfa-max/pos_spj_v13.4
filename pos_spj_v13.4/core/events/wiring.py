@@ -65,8 +65,14 @@ def wire_all(container: "AppContainer") -> None:
     # Phase 5: TRANSFER_ITEMS_PROCESS — multi-sucursal OUT/IN inventory handler
     _wire_transfer_items_handlers(bus, container)
 
-    # Phase 6: SALE_CREATED + PURCHASE_CREATED — proper finance handler classes
-    _wire_finance_event_handlers(bus, container)
+    # v13.5: Delivery weight adjustments + inventory reservations
+    _wire_delivery_handlers(bus, container)
+
+    # v13.30: Delivery lifecycle + inventory commit + driver settlement + notifications
+    _wire_delivery_lifecycle_handlers(bus, container)
+    _wire_inventory_commit_handler(bus, container)
+    _wire_driver_settlement_handler(bus, container)
+    _wire_notification_handler(bus, container)
 
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
@@ -808,32 +814,184 @@ def _wire_transfer_items_handlers(bus, container) -> None:
     logger.debug("Registered TransferInventoryHandler on %s", TRANSFER_ITEMS_PROCESS)
 
 
-# ── Phase 6: SALE_CREATED + PURCHASE_CREATED finance handlers ────────────────
+def _wire_delivery_handlers(bus, container) -> None:
+    """v13.5: Delivery reservation + weight-adjustment handler chain.
 
-def _wire_finance_event_handlers(bus, container) -> None:
+    DELIVERY_ORDER_RESERVED     → DeliveryReserveStockHandler     (priority=100)
+    stock_liberar_solicitado    → DeliveryReservationReleaseHandler (priority=100)
+    DELIVERY_ITEM_WEIGHT_ADJUSTED → DeliveryWeightAdjustmentHandler (priority=100)
+    DELIVERY_ITEM_WEIGHT_ADJUSTED → DeliveryWhatsAppNotificationHandler (priority=10)
+    DELIVERY_TOTAL_UPDATED      → DeliveryPaymentUpdateHandler     (priority=50)
     """
-    Phase 6 — Finance reacts to events only.
+    from core.events.event_bus import (
+        DELIVERY_ORDER_RESERVED,
+        DELIVERY_RESERVATION_RELEASED,
+        DELIVERY_ITEM_WEIGHT_ADJUSTED,
+        DELIVERY_TOTAL_UPDATED,
+    )
+    from core.events.handlers.delivery_handler import (
+        DeliveryReserveStockHandler,
+        DeliveryReservationReleaseHandler,
+        DeliveryWeightAdjustmentHandler,
+        DeliveryPaymentUpdateHandler,
+        DeliveryWhatsAppNotificationHandler,
+    )
 
-    Register proper handler classes (no inline lambdas) for post-transaction
-    finance journal entries:
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_delivery_handlers: no container.db — skipping")
+        return
 
-      SALE_CREATED (= VENTA_COMPLETADA) → SaleCreatedFinanceHandler  prio=50
-          Records income entry via finance_service.registrar_ingreso().
+    reserve_handler   = DeliveryReserveStockHandler(db)
+    release_handler   = DeliveryReservationReleaseHandler(db)
+    weight_handler    = DeliveryWeightAdjustmentHandler(db)
+    payment_handler   = DeliveryPaymentUpdateHandler(db)
+    wa_weight_handler = DeliveryWhatsAppNotificationHandler()
 
-      PURCHASE_CREATED (= COMPRA_REGISTRADA) → PurchaseFinanceHandler prio=80
-          Already registered in _wire_purchase_items_handlers() (Phase 4).
+    bus.subscribe(
+        DELIVERY_ORDER_RESERVED,
+        reserve_handler.handle,
+        priority=100,
+        label="delivery_reserve_stock",
+    )
+    # Release reservations when order is cancelled (existing event name)
+    bus.subscribe(
+        "stock_liberar_solicitado",
+        release_handler.handle,
+        priority=100,
+        label="delivery_reservation_release",
+    )
+    bus.subscribe(
+        DELIVERY_ITEM_WEIGHT_ADJUSTED,
+        weight_handler.handle,
+        priority=100,
+        label="delivery_weight_adjustment",
+    )
+    bus.subscribe(
+        DELIVERY_ITEM_WEIGHT_ADJUSTED,
+        wa_weight_handler.handle,
+        priority=10,
+        label="delivery_wa_weight_notify",
+    )
+    bus.subscribe(
+        DELIVERY_TOTAL_UPDATED,
+        payment_handler.handle,
+        priority=50,
+        label="delivery_payment_update",
+    )
+    logger.debug(
+        "Registered delivery handlers: reserve, release, weight, WA-notify, payment-update"
+        # appended below by _wire_delivery_lifecycle_handlers
+    )
+
+
+# ── v13.30: Delivery lifecycle handlers ──────────────────────────────────────
+
+def _wire_delivery_lifecycle_handlers(bus, container) -> None:
+    """Register DeliveryLifecycleAuditHandler on all lifecycle events.
+
+    Priority=30 (audit layer — after business logic at 100/80/50).
+    Events: DELIVERY_ORDER_CREATED, DELIVERY_ORDER_CONFIRMED,
+            DELIVERY_ORDER_PREPARING, DELIVERY_DRIVER_ASSIGNED,
+            DELIVERY_OUT_FOR_DELIVERY, DELIVERY_ORDER_DELIVERED,
+            DELIVERY_ORDER_CANCELLED
     """
-    from core.events.domain_events import SALE_CREATED
-    from core.events.handlers.finance_handler import SaleCreatedFinanceHandler
+    from core.events.event_bus import (
+        DELIVERY_ORDER_CREATED, DELIVERY_ORDER_CONFIRMED, DELIVERY_ORDER_PREPARING,
+        DELIVERY_DRIVER_ASSIGNED, DELIVERY_OUT_FOR_DELIVERY,
+        DELIVERY_ORDER_DELIVERED, DELIVERY_ORDER_CANCELLED,
+    )
+    from core.events.handlers.delivery_handler import DeliveryLifecycleAuditHandler
 
-    fs = getattr(container, "finance_service", None)
-    if fs:
-        sale_created_handler = SaleCreatedFinanceHandler(finance_service=fs)
-        bus.subscribe(
-            SALE_CREATED,
-            sale_created_handler.handle,
-            priority=50,
-            label="sale_created_finance_handler",
-        )
-        logger.debug("Registered SaleCreatedFinanceHandler on %s", SALE_CREATED)
-    # PurchaseFinanceHandler on PURCHASE_CREATED is wired in _wire_purchase_items_handlers().
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_delivery_lifecycle_handlers: no container.db — skipping")
+        return
+
+    handler = DeliveryLifecycleAuditHandler(db)
+
+    lifecycle_events = [
+        (DELIVERY_ORDER_CREATED,    "delivery_audit_created"),
+        (DELIVERY_ORDER_CONFIRMED,  "delivery_audit_confirmed"),
+        (DELIVERY_ORDER_PREPARING,  "delivery_audit_preparing"),
+        (DELIVERY_DRIVER_ASSIGNED,  "delivery_audit_driver_assigned"),
+        (DELIVERY_OUT_FOR_DELIVERY, "delivery_audit_out"),
+        (DELIVERY_ORDER_DELIVERED,  "delivery_audit_delivered"),
+        (DELIVERY_ORDER_CANCELLED,  "delivery_audit_cancelled"),
+    ]
+    for event, label in lifecycle_events:
+        bus.subscribe(event, handler.handle, priority=30, label=label)
+
+    logger.debug("Registered DeliveryLifecycleAuditHandler on %d events", len(lifecycle_events))
+
+
+def _wire_inventory_commit_handler(bus, container) -> None:
+    """Register InventoryCommitHandler on INVENTORY_COMMIT_REQUIRED.
+
+    Priority=100 — must run before any analytics/notification handlers.
+    """
+    from core.events.event_bus import INVENTORY_COMMIT_REQUIRED
+    from core.events.handlers.delivery_handler import InventoryCommitHandler
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_inventory_commit_handler: no container.db — skipping")
+        return
+
+    handler = InventoryCommitHandler(db)
+    bus.subscribe(
+        INVENTORY_COMMIT_REQUIRED,
+        handler.handle,
+        priority=100,
+        label="inventory_commit_delivery",
+    )
+    logger.debug("Registered InventoryCommitHandler on %s", INVENTORY_COMMIT_REQUIRED)
+
+
+def _wire_driver_settlement_handler(bus, container) -> None:
+    """Register DriverSettlementFinanceHandler on DRIVER_SETTLEMENT_CREATED."""
+    from core.events.event_bus import DRIVER_SETTLEMENT_CREATED
+    from core.events.handlers.delivery_handler import DriverSettlementFinanceHandler
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_driver_settlement_handler: no container.db — skipping")
+        return
+
+    handler = DriverSettlementFinanceHandler(db)
+    bus.subscribe(
+        DRIVER_SETTLEMENT_CREATED,
+        handler.handle,
+        priority=50,
+        label="driver_settlement_finance",
+    )
+
+    # Also wire PurchaseSuggestionHandler
+    from core.events.event_bus import PURCHASE_SUGGESTION_CREATED
+    from core.events.handlers.delivery_handler import PurchaseSuggestionHandler
+    ps_handler = PurchaseSuggestionHandler(db)
+    bus.subscribe(
+        PURCHASE_SUGGESTION_CREATED,
+        ps_handler.handle,
+        priority=30,
+        label="purchase_suggestion_log",
+    )
+    logger.debug("Registered DriverSettlementFinanceHandler + PurchaseSuggestionHandler")
+
+
+def _wire_notification_handler(bus, container) -> None:
+    """Register DeliveryNotificationDispatchHandler on CUSTOMER_NOTIFICATION_REQUESTED."""
+    from core.events.event_bus import CUSTOMER_NOTIFICATION_REQUESTED
+    from core.events.handlers.delivery_handler import DeliveryNotificationDispatchHandler
+
+    # Reuse notification_service from container if available
+    notif_svc = getattr(container, "delivery_notification_service", None)
+    handler = DeliveryNotificationDispatchHandler(notification_service=notif_svc)
+    bus.subscribe(
+        CUSTOMER_NOTIFICATION_REQUESTED,
+        handler.handle,
+        priority=10,
+        label="customer_notification_dispatch",
+    )
+    logger.debug("Registered DeliveryNotificationDispatchHandler on %s",
+                 CUSTOMER_NOTIFICATION_REQUESTED)
