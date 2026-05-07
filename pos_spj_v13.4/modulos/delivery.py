@@ -2,13 +2,28 @@
 # modulos/delivery.py — SPJ POS v7  DELIVERY UI COMPLETO
 from __future__ import annotations
 import logging
+import os
+import uuid
 from modulos.spj_phone_widget import PhoneWidget
 
 # ── Address Autocomplete — async infrastructure ───────────────────────────────
-# Prevents the geocoding HTTP call from blocking the Qt main/UI thread.
+# All geocoding HTTP I/O is moved off the Qt main thread via QRunnable workers.
+# The UI layer only knows about _AddrWorker and _AddrSignals — it has zero
+# knowledge of Mapbox, Nominatim, or any HTTP client.
 
-_addr_cache: dict = {}          # simple bounded dict — LRU-style eviction
-_ADDR_CACHE_MAX: int = 60
+from core.cache.address_cache import AddressCache as _AddressCache
+
+# Module-level shared cache (survives dialog re-opens, persists for session).
+_addr_cache: _AddressCache = _AddressCache(
+    max_size=int(os.environ.get("GEOCODING_CACHE_SIZE", "200")),
+    ttl=int(os.environ.get("GEOCODING_CACHE_TTL", "3600")),
+)
+
+# Minimum characters before firing a geocoding request (per product spec).
+_ADDR_MIN_CHARS: int = int(os.environ.get("DELIVERY_MIN_SEARCH_CHARS", "5"))
+# Debounce interval in ms — configurable via env.
+_ADDR_DEBOUNCE_MS: int = int(os.environ.get("DELIVERY_SEARCH_DEBOUNCE_MS", "400"))
+
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
@@ -34,27 +49,46 @@ logger = logging.getLogger("spj.delivery")
 
 
 class _AddrSignals(QObject):
-    """Cross-thread signal carrier for address autocomplete results."""
-    results = pyqtSignal(list)
+    """Cross-thread signal carrier for address autocomplete results.
+
+    Carries the request_id so stale results from superseded queries are
+    silently discarded in the UI thread without race conditions.
+    """
+    results = pyqtSignal(list, str)   # (suggestions, request_id)
 
 
 class _AddrWorker(QRunnable):
-    """Runs geocoding lookup in the global thread pool (off-UI-thread)."""
+    """Executes one geocoding call in QThreadPool (off-UI-thread).
 
-    def __init__(self, query: str, geocoding_fn, signals: _AddrSignals):
+    Each worker instance holds a unique request_id. The UI compares this
+    against _pending_request_id; mismatches are dropped, preventing
+    stale-result flicker when the user types faster than the API responds.
+    """
+
+    def __init__(
+        self,
+        query: str,
+        request_id: str,
+        geocoding_fn,
+        signals: _AddrSignals,
+        limit: int = 6,
+    ) -> None:
         super().__init__()
-        self._query = query
+        self._query       = query
+        self._request_id  = request_id
         self._geocoding_fn = geocoding_fn
-        self._signals = signals
+        self._signals     = signals
+        self._limit       = limit
         self.setAutoDelete(True)
 
     @pyqtSlot()
     def run(self) -> None:
         try:
-            data = self._geocoding_fn(self._query)
-        except Exception:
+            data = self._geocoding_fn(self._query) or []
+        except Exception as exc:
+            logger.debug("_AddrWorker error req=%s: %s", self._request_id[:8], exc)
             data = []
-        self._signals.results.emit(data[:6])
+        self._signals.results.emit(data[:self._limit], self._request_id)
 
 
 ESTADOS = ["pendiente","preparacion","en_ruta","entregado","cancelado"]
@@ -315,11 +349,12 @@ class NuevoPedidoDialog(QDialog):
         self.lst_prod_sug.itemClicked.connect(self._seleccionar_producto)
         self.spin_anticipo.valueChanged.connect(self._actualizar_saldo)
 
-        # Address debounce
+        # Address debounce + request-ID cancellation
         self._pending_query: str = ""
+        self._pending_request_id: str = ""       # stale results are discarded
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
-        self._debounce.setInterval(400)
+        self._debounce.setInterval(_ADDR_DEBOUNCE_MS)
         self._debounce.timeout.connect(self._do_search)
         self.txt_direccion.textChanged.connect(self._on_dir_changed)
         self.lst_sugerencias.itemClicked.connect(self._tomar_sugerencia)
@@ -475,11 +510,11 @@ class NuevoPedidoDialog(QDialog):
             return
         self.accept()
 
-    # ── ADDRESS AUTOCOMPLETE (async) ──────────────────────────────────────
+    # ── ADDRESS AUTOCOMPLETE (async, Mapbox-backed) ───────────────────────
     def _on_dir_changed(self, text: str) -> None:
         self._pending_query = text
         self._selected_coords = None
-        if len(text.strip()) < 4:
+        if len(text.strip()) < _ADDR_MIN_CHARS:
             self.lst_sugerencias.clear()
             self.lst_sugerencias.hide()
             self._debounce.stop()
@@ -488,24 +523,42 @@ class NuevoPedidoDialog(QDialog):
 
     def _do_search(self) -> None:
         q = self._pending_query
-        if len(q.strip()) < 4:
+        if len(q.strip()) < _ADDR_MIN_CHARS:
             return
-        cached = _addr_cache.get(q)
+
+        # Cache hit — no worker needed
+        cache_key = f"ac:{q.lower()}:6"
+        cached = _addr_cache.get(cache_key)
         if cached is not None:
+            logger.debug("addr cache HIT q=%r", q[:40])
             self._show_addr_results(cached)
             return
+
+        # Issue async worker with unique request ID
+        req_id = uuid.uuid4().hex
+        self._pending_request_id = req_id
+        logger.debug("addr worker start req=%s q=%r", req_id[:8], q[:40])
+
         sigs = _AddrSignals()
-        sigs.results.connect(lambda r, _q=q: self._on_addr_results(r, _q))
-        worker = _AddrWorker(q, self.delivery_service.autocomplete_address, sigs)
+        sigs.results.connect(self._on_addr_results)
+        worker = _AddrWorker(
+            query=q,
+            request_id=req_id,
+            geocoding_fn=self.delivery_service.autocomplete_address,
+            signals=sigs,
+            limit=6,
+        )
         QThreadPool.globalInstance().start(worker)
 
-    def _on_addr_results(self, results: list, query: str) -> None:
-        if len(_addr_cache) >= _ADDR_CACHE_MAX:
-            for k in list(_addr_cache)[:10]:
-                del _addr_cache[k]
-        _addr_cache[query] = results
-        if self._pending_query == query:
-            self._show_addr_results(results)
+    def _on_addr_results(self, results: list, request_id: str) -> None:
+        # Discard stale responses from superseded keystrokes
+        if request_id != self._pending_request_id:
+            logger.debug("addr stale result discarded req=%s", request_id[:8])
+            return
+        if results:
+            cache_key = f"ac:{self._pending_query.lower()}:6"
+            _addr_cache.put(cache_key, results)
+        self._show_addr_results(results)
 
     def _show_addr_results(self, results: list) -> None:
         self.lst_sugerencias.clear()
