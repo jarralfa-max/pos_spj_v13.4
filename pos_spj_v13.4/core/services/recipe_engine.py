@@ -302,7 +302,7 @@ class RecipeEngine:
             # costo_base_total = precio_compra_kg × total_kg_entrada
             if tipo == "subproducto" and total_consumido > 0:
                 costo_row = conn.execute(
-                    "SELECT COALESCE(precio_compra, costo, 0) FROM productos WHERE id=?",
+                    "SELECT COALESCE(precio_compra, 0) FROM productos WHERE id=?",
                     (prod_base_id,)).fetchone()
                 costo_por_kg = float(costo_row[0] if costo_row else 0)
                 # total_kg real consumido (ya en kg porque el movimiento de salida usa kg)
@@ -318,8 +318,8 @@ class RecipeEngine:
                             if costo_unit > 0:
                                 try:
                                     conn.execute(
-                                        "UPDATE productos SET precio_compra=?, costo=? WHERE id=?",
-                                        (costo_unit, costo_unit, mov["product_id"]))
+                                        "UPDATE productos SET precio_compra=? WHERE id=?",
+                                        (costo_unit, mov["product_id"]))
                                     # Actualizar costo_promedio en inventario_actual
                                     conn.execute("""
                                         UPDATE inventario_actual

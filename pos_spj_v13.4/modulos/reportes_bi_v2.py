@@ -83,6 +83,11 @@ class ModuloReportesBIv2(QWidget):
         # ── KPI cards con sparklines ──────────────────────────────────────────
         layout_principal.addWidget(self._crear_kpi_bar_bi())
 
+        self.loading_dashboard = QLabel("⏳ Cargando datos…")
+        self.loading_dashboard.setAlignment(Qt.AlignCenter)
+        self.loading_dashboard.setVisible(False)
+        layout_principal.addWidget(self.loading_dashboard)
+
         self.tabs_bi = QTabWidget()
         self.tabs_bi.setDocumentMode(True)
         layout_principal.addWidget(self.tabs_bi)
@@ -165,7 +170,9 @@ class ModuloReportesBIv2(QWidget):
         except Exception:
             pass
 
-        for lbl, val, col, sub in kpis:
+        _kpi_attrs = ['lbl_kpi_ingresos', 'lbl_kpi_ticket', 'lbl_kpi_ventas', 'lbl_kpi_clientes']
+
+        for i, (lbl, val, col, sub) in enumerate(kpis):
             card = _F()
             card.setObjectName("biKpiCard")
             card.setStyleSheet(
@@ -199,6 +206,10 @@ class ModuloReportesBIv2(QWidget):
                 cl.addWidget(sl)
 
             lay.addWidget(card, 1)
+
+            # Save reference so cargar_dashboard() can update the value label
+            import types as _t
+            setattr(self, _kpi_attrs[i], _t.SimpleNamespace(_lbl_valor=vl))
 
         return bar
 
@@ -243,11 +254,14 @@ class ModuloReportesBIv2(QWidget):
         btn_export_rank.clicked.connect(lambda: self._exportar("excel"))
         self._lbl_rankings_estado = QLabel("Sin datos cargados.")
         self._lbl_rankings_estado.setStyleSheet("color:#6c757d; font-size:11px;")
+        self._lbl_resumen_alertas = QLabel("")
+        self._lbl_resumen_alertas.setStyleSheet("color:#b45309; font-size:11px;")
         toolbar.addWidget(btn_ref_rank)
         toolbar.addWidget(btn_export_rank)
         toolbar.addStretch()
         toolbar.addWidget(self._lbl_rankings_estado)
         layout.addLayout(toolbar)
+        layout.addWidget(self._lbl_resumen_alertas)
 
         self._tabs_rankings = QTabWidget()
         self._tabs_rankings.setDocumentMode(True)

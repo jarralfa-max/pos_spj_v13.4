@@ -421,7 +421,9 @@ class SalesService:
                 'cambio': (amount_paid - total_a_pagar) if payment_method == 'Efectivo' else 0,
                 'items': carrito_final
             }
-            template_html = self.config_service.get('ticket_template_html') 
+            template_html = self.config_service.get('ticket_template_html')
+            if not template_html:
+                raise ValueError("ticket_template_html not configured")
             ticket_final_html = self.ticket_template_engine.generar_ticket(
                 template_html, datos_venta, mensaje_psicologico=mensaje_psico
             )

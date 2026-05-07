@@ -157,7 +157,7 @@ class AppContainer:
         
         # Opcionales
         self.promotion_engine = PromotionEngine(self.promo_repo)
-        self.sync_service = SyncService(self.sync_repo)
+        self.sync_service = SyncService(self.db)
         self.purchase_service = PurchaseService(self.db, self.purchase_repo, self.inventory_service, self.finance_service)
 
         # =========================================================
