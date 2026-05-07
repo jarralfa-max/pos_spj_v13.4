@@ -32,6 +32,16 @@ PRODUCTION_ITEMS_PROCESS = "production_items_process"
 # Distinct from COMPRA_REGISTRADA (async, post-commit, for downstream consumers).
 PURCHASE_ITEMS_PROCESS = "purchase_items_process"
 
+# Phase 5: inter-branch transfer events.
+# TRANSFER_CREATED / TRANSFER_COMPLETED alias the existing bus constants so
+# downstream consumers can use ERP-standard names without changing the bus channel.
+from core.events.event_bus import (
+    TRASPASO_INICIADO   as TRANSFER_CREATED,    # "TRASPASO_INICIADO"
+    TRASPASO_CONFIRMADO as TRANSFER_COMPLETED,  # "TRASPASO_CONFIRMADO"
+)
+# Internal sync event — inventory handler runs inside transfer SAVEPOINT.
+TRANSFER_ITEMS_PROCESS = "transfer_items_process"
+
 __all__ = [
     "SALE_CREATED",
     "PURCHASE_CREATED",
@@ -43,4 +53,7 @@ __all__ = [
     "SALE_ITEMS_PROCESS",
     "PRODUCTION_ITEMS_PROCESS",
     "PURCHASE_ITEMS_PROCESS",
+    "TRANSFER_CREATED",
+    "TRANSFER_COMPLETED",
+    "TRANSFER_ITEMS_PROCESS",
 ]

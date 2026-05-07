@@ -20,6 +20,10 @@ TRANSFER_DISPATCHED = "TRASPASO_INICIADO"
 TRANSFER_RECEIVED   = "TRASPASO_CONFIRMADO"
 TRANSFER_CANCELLED  = "TRASPASO_CANCELADO"
 
+# ERP-standard aliases (Phase 5)
+TRANSFER_CREATED   = TRANSFER_DISPATCHED   # "TRASPASO_INICIADO"
+TRANSFER_COMPLETED = TRANSFER_RECEIVED     # "TRASPASO_CONFIRMADO"
+
 MAX_DIFFERENCE_KG = 0.5  # overridden by system_constants
 
 
@@ -130,25 +134,53 @@ class TransferRepository:
         transfer_id = str(uuid.uuid4())
         operation_id = str(uuid.uuid4())
 
-        with self.db.transaction("TRANSFER_DISPATCH"):
+        with self.db.transaction("TRANSFER_DISPATCH") as conn:
 
-            # Validate and deduct stock — EXCLUSIVAMENTE a través de InventoryEngine
+            # Validate quantities
             for item in items:
-                product_id = item["product_id"]
                 qty = float(item.get("quantity_sent", 0))
                 if qty <= 0:
-                    raise TransferError(f"QUANTITY_MUST_BE_POSITIVE: product {product_id}")
+                    raise TransferError(
+                        f"QUANTITY_MUST_BE_POSITIVE: product {item['product_id']}"
+                    )
 
-                # StockInsuficienteError se propaga al caller si no hay stock
-                _engine_dispatch = InventoryEngine(self.db, origin_branch_id, dispatched_by)
-                _engine_dispatch.process_movement(
-                    product_id=product_id,
-                    branch_id=origin_branch_id,
-                    quantity=-qty,
-                    movement_type="TRANSFER_OUT",
-                    operation_id=f"{operation_id}_dispatch_{product_id}",
-                    reference_type="TRANSFER_DISPATCH",
-                )
+            # Build OUT movements for origin branch
+            movements = [
+                {
+                    "product_id":   item["product_id"],
+                    "delta":        -float(item["quantity_sent"]),
+                    "branch_id":    origin_branch_id,
+                    "movement_type":"TRANSFER_OUT",
+                    "operation_id": f"{operation_id}_dispatch_{item['product_id']}",
+                }
+                for item in items
+            ]
+
+            # Apply inventory OUT (event bus or direct fallback)
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import TRANSFER_ITEMS_PROCESS
+            _bus = get_bus()
+            if _bus.handler_count(TRANSFER_ITEMS_PROCESS) > 0:
+                _bus.publish(TRANSFER_ITEMS_PROCESS, {
+                    "conn":           conn,
+                    "transfer_id":    transfer_id,
+                    "operation_id":   operation_id,
+                    "reference_type": "TRANSFER_DISPATCH",
+                    "user":           dispatched_by,
+                    "movements":      movements,
+                })
+            else:
+                for item in items:
+                    # StockInsuficienteError propagates to caller if no stock
+                    _engine = InventoryEngine(self.db, origin_branch_id, dispatched_by)
+                    _engine.process_movement(
+                        product_id     = item["product_id"],
+                        branch_id      = origin_branch_id,
+                        quantity       = -float(item["quantity_sent"]),
+                        movement_type  = "TRANSFER_OUT",
+                        operation_id   = f"{operation_id}_dispatch_{item['product_id']}",
+                        reference_type = "TRANSFER_DISPATCH",
+                    )
 
             # Insert transfer header
             self.db.execute("""
@@ -168,7 +200,7 @@ class TransferRepository:
             # Insert items
             for item in items:
                 self.db.execute("""
-        INSERT INTO transfer_items (
+                    INSERT INTO transfer_items (
                         id, transfer_id, product_id,
                         quantity_sent, unit, batch_id, notes
                     ) VALUES (?,?,?,?,?,?,?)
@@ -182,12 +214,21 @@ class TransferRepository:
                     item.get("notes", ""),
                 ))
 
-        EventBus().publish(TRANSFER_DISPATCHED, {
-            "transfer_id": transfer_id,
+        _dispatch_payload = {
+            "transfer_id":      transfer_id,
             "origin_branch_id": origin_branch_id,
-            "dest_branch_id": dest_branch_id,
-            "item_count": len(items),
-        })
+            "dest_branch_id":   dest_branch_id,
+            "item_count":       len(items),
+            "items": [
+                {
+                    "product_id":    it["product_id"],
+                    "quantity_sent": float(it["quantity_sent"]),
+                }
+                for it in items
+            ],
+        }
+        EventBus().publish(TRANSFER_DISPATCHED, _dispatch_payload)
+        EventBus().publish(TRANSFER_CREATED,    _dispatch_payload)
         return transfer_id
 
     # ── Phase 2: Reception ───────────────────────────────────────────────────
@@ -227,7 +268,9 @@ class TransferRepository:
         total_difference = 0.0
         result_items = []
 
-        with self.db.transaction("TRANSFER_RECEIVE"):
+        with self.db.transaction("TRANSFER_RECEIVE") as conn:
+            # Validate and compute per-item quantities
+            movements = []
             for product_id, sent_item in sent_items.items():
                 qty_sent = float(sent_item["quantity_sent"])
                 qty_recv = received_map.get(product_id, qty_sent)  # default = sent
@@ -243,30 +286,55 @@ class TransferRepository:
                 difference = qty_recv - qty_sent
                 total_difference += abs(difference)
 
-                # Add to destination inventory — EXCLUSIVAMENTE a través de InventoryEngine
-                _engine_receive = InventoryEngine(self.db, dest_branch_id, received_by)
-                _engine_receive.process_movement(
-                    product_id=product_id,
-                    branch_id=dest_branch_id,
-                    quantity=+qty_recv,
-                    movement_type="TRANSFER_IN",
-                    operation_id=f"{transfer_id}_recv_{product_id}",
-                    reference_type="TRANSFER_RECEIVE",
-                )
+                if qty_recv > 0:
+                    movements.append({
+                        "product_id":   product_id,
+                        "delta":        +qty_recv,
+                        "branch_id":    dest_branch_id,
+                        "movement_type":"TRANSFER_IN",
+                        "operation_id": f"{transfer_id}_recv_{product_id}",
+                    })
 
-                # Update transfer item received qty
+                result_items.append({
+                    "product_id":       product_id,
+                    "quantity_sent":    qty_sent,
+                    "quantity_received":qty_recv,
+                    "difference":       difference,
+                })
+
+            # Apply inventory IN to destination (event bus or direct fallback)
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import TRANSFER_ITEMS_PROCESS
+            _bus = get_bus()
+            if _bus.handler_count(TRANSFER_ITEMS_PROCESS) > 0:
+                _bus.publish(TRANSFER_ITEMS_PROCESS, {
+                    "conn":           conn,
+                    "transfer_id":    transfer_id,
+                    "operation_id":   transfer_id,
+                    "reference_type": "TRANSFER_RECEIVE",
+                    "user":           received_by,
+                    "movements":      movements,
+                })
+            else:
+                for mov in movements:
+                    _engine = InventoryEngine(self.db, dest_branch_id, received_by)
+                    _engine.process_movement(
+                        product_id     = mov["product_id"],
+                        branch_id      = dest_branch_id,
+                        quantity       = mov["delta"],
+                        movement_type  = "TRANSFER_IN",
+                        operation_id   = mov["operation_id"],
+                        reference_type = "TRANSFER_RECEIVE",
+                    )
+
+            # Update transfer item received quantities
+            for item_result in result_items:
                 self.db.execute("""
                     UPDATE transfer_items
                     SET quantity_received = ?
                     WHERE transfer_id = ? AND product_id = ?
-                """, (qty_recv, transfer_id, product_id))
-
-                result_items.append({
-                    "product_id": product_id,
-                    "quantity_sent": qty_sent,
-                    "quantity_received": qty_recv,
-                    "difference": difference,
-                })
+                """, (item_result["quantity_received"], transfer_id,
+                      item_result["product_id"]))
 
             # Update transfer header
             self.db.execute("""
@@ -290,11 +358,14 @@ class TransferRepository:
             "items": result_items,
         }
 
-        EventBus().publish(TRANSFER_RECEIVED, {
-            "transfer_id": transfer_id,
-            "dest_branch_id": dest_branch_id,
+        _recv_payload = {
+            "transfer_id":      transfer_id,
+            "dest_branch_id":   dest_branch_id,
             "total_difference": total_difference,
-        })
+            "items":            result_items,
+        }
+        EventBus().publish(TRANSFER_RECEIVED, _recv_payload)
+        EventBus().publish(TRANSFER_COMPLETED, _recv_payload)
         return result
 
     # ── Cancel ───────────────────────────────────────────────────────────────
@@ -312,19 +383,43 @@ class TransferRepository:
 
         cancel_op_id = str(uuid.uuid4())
 
-        with self.db.transaction("TRANSFER_CANCEL"):
-            # Restore stock to origin — EXCLUSIVAMENTE a través de InventoryEngine
-            for item in items:
-                qty = float(item["quantity_sent"])
-                _engine_cancel = InventoryEngine(self.db, origin_branch_id, cancelled_by)
-                _engine_cancel.process_movement(
-                    product_id=item["product_id"],
-                    branch_id=origin_branch_id,
-                    quantity=+qty,
-                    movement_type="TRANSFER_CANCEL",
-                    operation_id=f"{cancel_op_id}_{item['product_id']}",
-                    reference_type="TRANSFER_CANCEL",
-                )
+        with self.db.transaction("TRANSFER_CANCEL") as conn:
+            # Build restore movements — return quantity to origin
+            movements = [
+                {
+                    "product_id":   item["product_id"],
+                    "delta":        +float(item["quantity_sent"]),
+                    "branch_id":    origin_branch_id,
+                    "movement_type":"TRANSFER_CANCEL",
+                    "operation_id": f"{cancel_op_id}_{item['product_id']}",
+                }
+                for item in items
+            ]
+
+            # Restore inventory to origin (event bus or direct fallback)
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import TRANSFER_ITEMS_PROCESS
+            _bus = get_bus()
+            if _bus.handler_count(TRANSFER_ITEMS_PROCESS) > 0:
+                _bus.publish(TRANSFER_ITEMS_PROCESS, {
+                    "conn":           conn,
+                    "transfer_id":    transfer_id,
+                    "operation_id":   cancel_op_id,
+                    "reference_type": "TRANSFER_CANCEL",
+                    "user":           cancelled_by,
+                    "movements":      movements,
+                })
+            else:
+                for item in items:
+                    _engine = InventoryEngine(self.db, origin_branch_id, cancelled_by)
+                    _engine.process_movement(
+                        product_id     = item["product_id"],
+                        branch_id      = origin_branch_id,
+                        quantity       = +float(item["quantity_sent"]),
+                        movement_type  = "TRANSFER_CANCEL",
+                        operation_id   = f"{cancel_op_id}_{item['product_id']}",
+                        reference_type = "TRANSFER_CANCEL",
+                    )
 
             self.db.execute("""
                 UPDATE transfers SET
