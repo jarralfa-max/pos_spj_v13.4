@@ -122,15 +122,15 @@ class DeliveryWeightAdjustmentHandler:
         adj = ReservationService.compute_adjustment(req_qty, prep_qty, unit_price)
 
         try:
-            # Update delivery_items row
+            # Update delivery_items row — write subtotal so the detail panel reflects the new price
             db.execute(
                 """UPDATE delivery_items
-                   SET prepared_qty=?, final_qty=?,
+                   SET prepared_qty=?, final_qty=?, subtotal=?,
                        prepared_by=?, prepared_at=datetime('now'),
                        adjustment_reason=?, tolerance_exceeded=?
                    WHERE id=?""",
                 (
-                    prep_qty, prep_qty,
+                    prep_qty, prep_qty, adj["new_subtotal"],
                     prepared_by, reason,
                     1 if adj["tolerance_exceeded"] else 0,
                     item_id,
@@ -172,8 +172,9 @@ class DeliveryWeightAdjustmentHandler:
             )
 
             # Cascade: publish DELIVERY_TOTAL_UPDATED
-            folio      = old_row[1] if old_row and len(old_row) > 1 else str(order_id)
-            cliente_tel = old_row[2] if old_row and len(old_row) > 2 else ""
+            # Query is SELECT total, cliente_tel, folio — so index 1=cliente_tel, 2=folio
+            cliente_tel = old_row[1] if old_row and len(old_row) > 1 else ""
+            folio       = old_row[2] if old_row and len(old_row) > 2 else str(order_id)
             _publish_safe("DELIVERY_TOTAL_UPDATED", {
                 "order_id": order_id,
                 "old_total": old_total,

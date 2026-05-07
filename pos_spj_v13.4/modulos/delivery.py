@@ -671,45 +671,36 @@ class TarjetaPedido(QFrame):
         info.addWidget(driver_lbl)
         info.addWidget(estado_lbl)
         layout.addLayout(info, 1)
-        btns = QVBoxLayout()
+        btns = QHBoxLayout()
+        btns.setSpacing(2)
+        btns.setContentsMargins(0, 0, 0, 0)
         estado = pedido.get("estado","pendiente")
         pid = self.pedido["id"]
+
+        def _ibtn(icon_text, tooltip, accion, factory=None):
+            b = (factory or create_secondary_button)(self, icon_text, tooltip)
+            b.setFixedSize(32, 28)
+            b.setToolTip(tooltip)
+            b.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, accion))
+            return b
+
         if estado == "pendiente":
-            btn_prep = create_success_button(self, "▶ Prep.", "Marcar en preparación")
-            btn_prep.setFixedWidth(90)
-            btn_prep.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "preparar"))
-            btns.addWidget(btn_prep)
-            btn_asig = create_primary_button(self, "Asignar", "Asignar repartidor al pedido")
-            btn_asig.setFixedWidth(90)
-            btn_asig.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "asignar"))
-            btns.addWidget(btn_asig)
+            btns.addWidget(_ibtn("▶", "Preparar", "preparar", create_success_button))
+            btns.addWidget(_ibtn("👤", "Asignar repartidor", "asignar", create_primary_button))
         if estado == "preparacion":
-            btn = create_primary_button(self, "En Ruta", "Marcar pedido como en ruta")
-            btn.setFixedWidth(90)
-            btn.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "en_ruta"))
-            btns.addWidget(btn)
-            btn_peso = create_warning_button(self, "⚖️ Ajustar", "Ajustar peso real de ítems variables")
-            btn_peso.setFixedWidth(90)
-            btn_peso.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "ajustar_peso"))
-            btns.addWidget(btn_peso)
+            btns.addWidget(_ibtn("🛵", "En Ruta", "en_ruta", create_primary_button))
+            btns.addWidget(_ibtn("⚖️", "Ajustar peso", "ajustar_peso", create_warning_button))
         if estado == "en_ruta":
-            btn = create_success_button(self, "Entregado", "Confirmar entrega del pedido")
-            btn.setFixedWidth(90)
-            btn.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "entregado"))
-            btns.addWidget(btn)
+            btns.addWidget(_ibtn("✅", "Confirmar entrega", "entregado", create_success_button))
+        if estado == "entregado":
+            btns.addWidget(_ibtn("🖨️", "Imprimir ticket", "imprimir", create_secondary_button))
+        if estado == "cancelado":
+            btns.addWidget(_ibtn("♻️", "Reactivar pedido", "reactivar", create_warning_button))
         if estado not in ("entregado", "cancelado"):
-            btn_wa = create_secondary_button(self, "📲 WA", "Notificar por WhatsApp")
-            btn_wa.setFixedWidth(90)
-            btn_wa.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "notificar_wa"))
-            btns.addWidget(btn_wa)
-            btn_mp = create_secondary_button(self, "💳 MP", "Generar link de pago MercadoPago")
-            btn_mp.setFixedWidth(90)
-            btn_mp.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "link_pago"))
-            btns.addWidget(btn_mp)
-            btn_cancel = create_danger_button(self, "Cancelar", "Cancelar pedido de delivery")
-            btn_cancel.setFixedWidth(90)
-            btn_cancel.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "cancelado"))
-            btns.addWidget(btn_cancel)
+            btns.addWidget(_ibtn("📲", "Notificar por WhatsApp", "notificar_wa"))
+            btns.addWidget(_ibtn("💳", "Link de pago MercadoPago", "link_pago"))
+            btns.addWidget(_ibtn("✖", "Cancelar pedido", "cancelado", create_danger_button))
+        btns.addStretch()
         layout.addLayout(btns)
 
 
@@ -1069,6 +1060,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         btn_driver.clicked.connect(self.gestionar_drivers)
         # v13.30: Corte de caja por repartidor
         btn_corte = create_warning_button(self, "💰 Corte Repartidor", "Corte de caja: cuánto efectivo debe entregar cada repartidor")
+        btn_corte.clicked.connect(self._corte_repartidor)
         btn_hist = create_secondary_button(self, "📋 Historial", "Historial de cortes y entregas")
         btn_hist.clicked.connect(self._historial_cortes)
 
@@ -2440,6 +2432,11 @@ if(drivers.length===0){{
                 ORDER BY fecha DESC LIMIT 100
             """).fetchall()
             tbl.setRowCount(len(rows))
+            if not rows:
+                empty = QLabel("No hay cortes registrados aún.")
+                empty.setAlignment(Qt.AlignCenter)
+                empty.setObjectName("textMuted")
+                lay.addWidget(empty)
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
                     val = v

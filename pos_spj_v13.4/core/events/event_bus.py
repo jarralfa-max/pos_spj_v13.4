@@ -144,11 +144,24 @@ COMPRA_PROCESADA        = COMPRA_REGISTRADA     # alias v13.5 backward compat
 
 # Delivery extended — variable-weight & reservations (v13.5)
 # payload shapes documented inline in DeliveryService
-DELIVERY_ORDER_RESERVED     = "DELIVERY_ORDER_RESERVED"       # order_id, items[], branch_id, operation_id
-DELIVERY_RESERVATION_RELEASED = "DELIVERY_RESERVATION_RELEASED"  # order_id, operation_id, released_count
-DELIVERY_ITEM_WEIGHT_ADJUSTED = "DELIVERY_ITEM_WEIGHT_ADJUSTED"  # order_id, item_id, requested_qty, prepared_qty, new_total, cliente_tel, folio
-DELIVERY_TOTAL_UPDATED      = "DELIVERY_TOTAL_UPDATED"        # order_id, old_total, new_total, folio, cliente_tel, cliente_email
-DELIVERY_PAYMENT_UPDATED    = "DELIVERY_PAYMENT_UPDATED"      # order_id, payment_url, preference_id, new_total
+DELIVERY_ORDER_RESERVED       = "DELIVERY_ORDER_RESERVED"         # order_id, items[], branch_id, operation_id
+DELIVERY_RESERVATION_RELEASED = "DELIVERY_RESERVATION_RELEASED"   # order_id, operation_id, released_count
+DELIVERY_ITEM_WEIGHT_ADJUSTED = "DELIVERY_ITEM_WEIGHT_ADJUSTED"   # order_id, item_id, requested_qty, prepared_qty, new_total, cliente_tel, folio
+DELIVERY_TOTAL_UPDATED        = "DELIVERY_TOTAL_UPDATED"          # order_id, old_total, new_total, folio, cliente_tel, cliente_email
+DELIVERY_PAYMENT_UPDATED      = "DELIVERY_PAYMENT_UPDATED"        # order_id, payment_url, preference_id, new_total
+
+# Delivery lifecycle — full flow state machine (v13.30)
+DELIVERY_ORDER_CREATED        = "DELIVERY_ORDER_CREATED"          # order_id, folio, direccion, total, sucursal_id, usuario
+DELIVERY_ORDER_CONFIRMED      = "DELIVERY_ORDER_CONFIRMED"        # order_id, folio, cliente_tel, total
+DELIVERY_ORDER_PREPARING      = "DELIVERY_ORDER_PREPARING"        # order_id, folio, usuario
+DELIVERY_DRIVER_ASSIGNED      = "DELIVERY_DRIVER_ASSIGNED"        # order_id, driver_id, driver_nombre, tiempo_estimado
+DELIVERY_OUT_FOR_DELIVERY     = "DELIVERY_OUT_FOR_DELIVERY"       # order_id, driver_id, folio, cliente_tel
+DELIVERY_ORDER_DELIVERED      = "DELIVERY_ORDER_DELIVERED"        # order_id, folio, driver_id, total, sucursal_id
+DELIVERY_ORDER_CANCELLED      = "DELIVERY_ORDER_CANCELLED"        # order_id, folio, usuario, motivo
+INVENTORY_COMMIT_REQUIRED     = "INVENTORY_COMMIT_REQUIRED"       # order_id, items[], sucursal_id, operation_id
+CUSTOMER_NOTIFICATION_REQUESTED = "CUSTOMER_NOTIFICATION_REQUESTED"  # order_id, canal, template, params, cliente_tel
+DRIVER_SETTLEMENT_CREATED     = "DRIVER_SETTLEMENT_CREATED"       # cut_id, driver_id, driver_nombre, efectivo, diferencia, fecha
+PURCHASE_SUGGESTION_CREATED   = "PURCHASE_SUGGESTION_CREATED"     # producto_id, cantidad_sugerida, motivo, sucursal_id
 
 
 class EventBus:
