@@ -24,7 +24,8 @@ class DeliveryService:
         self.geocoding_service = geocoding_service or GeocodingService()
 
     def list_orders(self, estado: Optional[str] = None) -> List[Dict[str, Any]]:
-        self.pull_orders_from_whatsapp()
+        # WA pull is decoupled from the read path to avoid blocking the UI thread.
+        # Call pull_orders_from_whatsapp() separately (e.g., from a background timer).
         return self.repository.list_orders(estado=estado)
 
     def create_order(self, data: Dict[str, Any], usuario: str = "sistema") -> int:
