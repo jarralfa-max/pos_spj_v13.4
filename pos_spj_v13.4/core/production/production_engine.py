@@ -172,14 +172,59 @@ class ProductionEngine:
         """, (receta_id,)).fetchall()
         return [dict(r) for r in rows]
 
-    def _publicar_evento(self, batch_id: str, folio: str, branch_id: int) -> None:
+    def _publicar_evento(
+        self,
+        batch_id: str,
+        folio: str,
+        branch_id: int,
+        yr: Optional["YieldResult"] = None,
+        src_prod_id: Optional[int] = None,
+        src_weight: float = 0.0,
+        src_cost: float = 0.0,
+        allocations: Optional[list] = None,
+    ) -> None:
         try:
             from core.events.event_bus import get_bus
-            get_bus().publish("PRODUCTION_BATCH_CREATED", {
+            payload: dict = {
                 "batch_id": batch_id,
                 "folio": folio,
                 "branch_id": branch_id,
-            })
+            }
+            if yr is not None:
+                payload["raw_materials"] = [{
+                    "product_id": src_prod_id,
+                    "quantity": src_weight,
+                    "cost": src_cost,
+                }]
+                payload["outputs"] = [
+                    {
+                        "product_id": o.product_id,
+                        "quantity": o.real_weight,
+                        "cost": o.cost_allocated,
+                        "is_waste": o.is_waste,
+                    }
+                    for o in yr.outputs
+                ]
+                payload["yields"] = {
+                    "usable_pct": yr.usable_pct,
+                    "waste_pct": yr.waste_pct,
+                    "variance_pct": yr.variance_pct,
+                    "efficiency_pct": yr.efficiency_pct,
+                    "within_tolerance": yr.within_tolerance,
+                    "alerta_merma": yr.alerta_merma,
+                }
+                payload["costs"] = {
+                    "total": src_cost,
+                    "allocations": [
+                        {
+                            "product_id": a.product_id,
+                            "cost_total": a.cost_total,
+                            "cost_per_kg": a.cost_per_kg,
+                        }
+                        for a in (allocations or [])
+                    ],
+                }
+            get_bus().publish("PRODUCTION_BATCH_CREATED", payload)
         except Exception as exc:
             logger.warning("EventBus PRODUCTION falló (no crítico): %s", exc)
 
@@ -490,29 +535,50 @@ class ProductionEngine:
                         f"diferencia={diferencia_pct:.1f}% > {COST_TOLERANCE_PCT}%"
                     )
 
-            # ── 6. Consumir materia prima ─────────────────────────────────
-            inv_eng.process_movement(
-                product_id=src_prod_id, branch_id=bid,
-                quantity=-src_weight,
-                movement_type="PRODUCCION_CONSUMO",
-                operation_id=f"{op_id}_CONSUMO",
-                reference_id=None, reference_type="PRODUCTION_BATCH",
-                conn=conn,
-            )
-
-            # ── 7. Generar subproductos en inventario ─────────────────────
+            # ── 6. Build inventory movements list ────────────────────────
+            movements = [
+                {
+                    "product_id": src_prod_id,
+                    "delta": -src_weight,
+                    "movement_type": "PRODUCCION_CONSUMO",
+                    "operation_id": f"{op_id}_CONSUMO",
+                },
+                *[
+                    {
+                        "product_id": out.product_id,
+                        "delta": +out.real_weight,
+                        "movement_type": "PRODUCCION_GENERACION",
+                        "operation_id": f"{op_id}_OUT_{out.product_id}",
+                    }
+                    for out in yr.outputs
+                    if out.real_weight > 0
+                ],
+            ]
             output_id_map = {r["product_id"]: r["id"] for r in raw_outputs}
-            for out_yield in yr.outputs:
-                if out_yield.real_weight <= 0:
-                    continue
-                inv_eng.process_movement(
-                    product_id=out_yield.product_id, branch_id=bid,
-                    quantity=+out_yield.real_weight,
-                    movement_type="PRODUCCION_GENERACION",
-                    operation_id=f"{op_id}_OUT_{out_yield.product_id}",
-                    reference_id=None, reference_type="PRODUCTION_BATCH",
-                    conn=conn,
-                )
+
+            # ── 7. Apply inventory movements (event bus or direct fallback) ─
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
+            _bus = get_bus()
+            if _bus.handler_count(PRODUCTION_ITEMS_PROCESS) > 0:
+                _bus.publish(PRODUCTION_ITEMS_PROCESS, {
+                    "conn": conn,
+                    "branch_id": bid,
+                    "operation_id": op_id,
+                    "reference_type": "PRODUCTION_BATCH",
+                    "user": closed_by,
+                    "movements": movements,
+                })
+            else:
+                for _m in movements:
+                    inv_eng.process_movement(
+                        product_id=_m["product_id"], branch_id=bid,
+                        quantity=_m["delta"],
+                        movement_type=_m["movement_type"],
+                        operation_id=_m["operation_id"],
+                        reference_id=None, reference_type="PRODUCTION_BATCH",
+                        conn=conn,
+                    )
 
             # ── 8. Actualizar production_batches ──────────────────────────
             conn.execute("""
@@ -580,8 +646,15 @@ class ProductionEngine:
                         WHERE producto_id = ? AND sucursal_id = ?
                     """, (a.cost_per_kg, a.product_id, bid))
 
-        # Publicar evento (fuera de transacción — batch["folio"] capturado antes del with)
-        self._publicar_evento(batch_id, batch["folio"], bid)
+        # Publicar PRODUCTION_BATCH_CREATED (fuera de transacción) con payload enriquecido
+        self._publicar_evento(
+            batch_id, batch["folio"], bid,
+            yr=yr,
+            src_prod_id=src_prod_id,
+            src_weight=src_weight,
+            src_cost=src_cost,
+            allocations=allocations,
+        )
 
         logger.info(
             "Lote cerrado: %s folio=%s rendimiento=%.2f%% merma=%.2f%% alertas=%d",

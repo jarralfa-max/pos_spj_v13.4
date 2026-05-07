@@ -217,7 +217,48 @@ class RecipeEngine:
             ))
             produccion_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-            # 6. Ejecutar movimientos
+            # 6. Apply inventory movements (event bus or direct fallback)
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
+            _bus = get_bus()
+            _movements_payload = [
+                {
+                    "product_id": mov["product_id"],
+                    "delta": mov["delta"],
+                    "movement_type": mov.get("movement_type", "PRODUCCION"),
+                    "operation_id": (
+                        f"{op_id}_{mov['product_id']}_{mov.get('movement_type','')}"
+                    ),
+                }
+                for mov in movimientos
+                if abs(mov.get("delta", 0)) >= 1e-9
+            ]
+            if _bus.handler_count(PRODUCTION_ITEMS_PROCESS) > 0:
+                _bus.publish(PRODUCTION_ITEMS_PROCESS, {
+                    "conn": conn,
+                    "branch_id": suc_id,
+                    "operation_id": op_id,
+                    "reference_id": produccion_id,
+                    "reference_type": "PRODUCCION",
+                    "user": usuario,
+                    "movements": _movements_payload,
+                })
+            else:
+                for mov in movimientos:
+                    inv.process_movement(
+                        product_id=mov["product_id"],
+                        branch_id=self.branch_id,
+                        quantity=mov["delta"],
+                        movement_type=mov.get("movement_type", "PRODUCCION"),
+                        operation_id=(
+                            f"{op_id}_{mov['product_id']}_{mov.get('movement_type','')}"
+                        ),
+                        reference_id=produccion_id,
+                        reference_type="PRODUCCION",
+                        conn=conn,
+                    )
+
+            # 6b. Audit trail + produccion_detalle (stays after inventory mutations)
             componentes_resultado = []
             total_generado = 0.0
             total_consumido = 0.0
@@ -225,18 +266,6 @@ class RecipeEngine:
 
             for mov in movimientos:
                 mov_type = mov["movement_type"]
-
-                inv.process_movement(
-                    product_id=mov["product_id"],
-                    branch_id=self.branch_id,
-                    quantity=mov["delta"],
-                    movement_type=mov_type,
-                    operation_id=f"{op_id}_{mov['product_id']}_{mov_type}",
-                    reference_id=produccion_id,
-                    reference_type="PRODUCCION",
-                    conn=conn,
-                )
-
                 tipo_det = "entrada" if mov["delta"] > 0 else (
                     "merma" if mov_type == "MERMA_PRODUCCION" else "salida"
                 )
@@ -251,8 +280,6 @@ class RecipeEngine:
                     mov.get("rendimiento", 0.0), tipo_det,
                 ))
 
-                # FIX FALLA-7: _registrar_movimiento_legacy ya NO actualiza existencia
-                # (process_movement ya la actualizó arriba — eliminamos la doble escritura)
                 self._registrar_movimiento_legacy_audit_only(conn, mov, produccion_id, usuario, suc_id)
 
                 if mov["delta"] > 0:
@@ -308,7 +335,12 @@ class RecipeEngine:
             cantidad_base, total_generado, total_consumido, total_merma, op_id,
         )
 
-        self._publicar_evento(produccion_id, receta, suc_id, movimientos)
+        self._publicar_evento(
+            produccion_id, receta, suc_id, movimientos,
+            total_generado=total_generado,
+            total_consumido=total_consumido,
+            total_merma=total_merma,
+        )
 
         return ProduccionResultDTO(
             produccion_id=produccion_id,
@@ -554,15 +586,50 @@ class RecipeEngine:
         """, (produccion_id,))
         return [dict(r) for r in rows]
 
-    def _publicar_evento(self, produccion_id, receta, sucursal_id, movimientos):
+    def _publicar_evento(
+        self,
+        produccion_id,
+        receta,
+        sucursal_id,
+        movimientos,
+        total_generado: float = 0.0,
+        total_consumido: float = 0.0,
+        total_merma: float = 0.0,
+    ):
         try:
             from core.events.event_bus import get_bus
+            raw_materials = [
+                {
+                    "product_id": m["product_id"],
+                    "quantity": abs(m["delta"]),
+                    "type": m.get("movement_type"),
+                }
+                for m in movimientos
+                if m.get("delta", 0) < 0
+                and m.get("movement_type") != "MERMA_PRODUCCION"
+            ]
+            outputs = [
+                {
+                    "product_id": m["product_id"],
+                    "quantity": m["delta"],
+                    "type": m.get("movement_type"),
+                }
+                for m in movimientos
+                if m.get("delta", 0) > 0
+            ]
             get_bus().publish("PRODUCCION_COMPLETADA", {
                 "produccion_id": produccion_id,
                 "receta_id": receta["id"],
                 "receta_nombre": _recipe_name(receta),
                 "sucursal_id": sucursal_id,
-                "movimientos": len(movimientos),
+                "raw_materials": raw_materials,
+                "outputs": outputs,
+                "yields": {
+                    "total_generado": total_generado,
+                    "total_consumido": total_consumido,
+                    "total_merma": total_merma,
+                },
+                "costs": {},
             })
         except Exception as e:
             logger.warning("EventBus PRODUCCION falló (no crítico): %s", e)

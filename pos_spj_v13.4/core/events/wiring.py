@@ -60,6 +60,15 @@ def wire_all(container: "AppContainer") -> None:
     # Phase 1: SALE_ITEMS_PROCESS — inventory + finance handlers (sync, inside SAVEPOINT)
     _wire_sale_handlers(bus, container)
 
+    # Phase 3: PRODUCTION_ITEMS_PROCESS — inventory handler (sync, inside transaction)
+    _wire_production_items_handlers(bus, container)
+
+    # Phase 4: PURCHASE_ITEMS_PROCESS + PURCHASE_CREATED — inventory + finance handlers
+    _wire_purchase_items_handlers(bus, container)
+
+    # Phase 5: TRANSFER_ITEMS_PROCESS — multi-sucursal OUT/IN inventory handler
+    _wire_transfer_items_handlers(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -768,3 +777,105 @@ def _wire_sale_handlers(bus, container) -> None:
             label="sale_finance_income",
         )
         logger.debug("Registered SaleFinanceHandler on %s", SALE_ITEMS_PROCESS)
+
+
+# ── Phase 3: PRODUCTION_ITEMS_PROCESS handler ────────────────────────────────
+
+def _wire_production_items_handlers(bus, container) -> None:
+    """
+    Register ProductionInventoryHandler on PRODUCTION_ITEMS_PROCESS.
+
+    Runs synchronously inside the production SAVEPOINT so inventory mutations
+    are atomic with the production record. Priority=100 — runs first.
+    """
+    from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
+    from core.events.handlers.production_handler import ProductionInventoryHandler
+    from core.services.inventory_engine import InventoryEngine
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_production_items_handlers: no container.db — skipping")
+        return
+
+    inv_eng = InventoryEngine(db, branch_id=1, usuario="produccion")
+    handler = ProductionInventoryHandler(inventory_engine=inv_eng)
+    bus.subscribe(
+        PRODUCTION_ITEMS_PROCESS,
+        handler.handle,
+        priority=100,
+        label="production_inventory_handler",
+    )
+    logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
+
+
+# ── Phase 4: PURCHASE_ITEMS_PROCESS + PURCHASE_CREATED handlers ──────────────
+
+def _wire_purchase_items_handlers(bus, container) -> None:
+    """
+    Register PurchaseInventoryHandler on PURCHASE_ITEMS_PROCESS (sync, inside SAVEPOINT)
+    and PurchaseFinanceHandler on PURCHASE_CREATED (async, post-transaction).
+
+    Priority order:
+      100 — PurchaseInventoryHandler: add stock IN (must run first)
+       80 — PurchaseFinanceHandler:   record cost-of-goods journal entry
+    """
+    from core.events.domain_events import PURCHASE_ITEMS_PROCESS, PURCHASE_CREATED
+    from core.events.handlers.purchase_handler import (
+        PurchaseInventoryHandler,
+        PurchaseFinanceHandler,
+    )
+
+    inv = getattr(container, "inventory_service", None)
+    fs  = getattr(container, "finance_service", None)
+
+    if inv:
+        inv_handler = PurchaseInventoryHandler(inventory_service=inv)
+        bus.subscribe(
+            PURCHASE_ITEMS_PROCESS,
+            inv_handler.handle,
+            priority=100,
+            label="purchase_inventory_handler",
+        )
+        logger.debug("Registered PurchaseInventoryHandler on %s", PURCHASE_ITEMS_PROCESS)
+
+    if fs:
+        fin_handler = PurchaseFinanceHandler(finance_service=fs)
+        bus.subscribe(
+            PURCHASE_CREATED,
+            fin_handler.handle,
+            priority=80,
+            label="purchase_finance_handler",
+        )
+        logger.debug("Registered PurchaseFinanceHandler on %s", PURCHASE_CREATED)
+
+
+# ── Phase 5: TRANSFER_ITEMS_PROCESS handler ───────────────────────────────────
+
+def _wire_transfer_items_handlers(bus, container) -> None:
+    """
+    Register TransferInventoryHandler on TRANSFER_ITEMS_PROCESS.
+
+    Handles multi-sucursal transfers:
+      OUT origin branch  (delta < 0, TRANSFER_OUT / TRANSFER_CANCEL)
+      IN  dest   branch  (delta > 0, TRANSFER_IN)
+
+    Runs synchronously inside the transfer SAVEPOINT at priority=100.
+    """
+    from core.events.domain_events import TRANSFER_ITEMS_PROCESS
+    from core.events.handlers.transfer_handler import TransferInventoryHandler
+    from core.services.inventory_engine import InventoryEngine
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_transfer_items_handlers: no container.db — skipping")
+        return
+
+    inv_eng = InventoryEngine(db, branch_id=1, usuario="transferencia")
+    handler = TransferInventoryHandler(inventory_engine=inv_eng)
+    bus.subscribe(
+        TRANSFER_ITEMS_PROCESS,
+        handler.handle,
+        priority=100,
+        label="transfer_inventory_handler",
+    )
+    logger.debug("Registered TransferInventoryHandler on %s", TRANSFER_ITEMS_PROCESS)
