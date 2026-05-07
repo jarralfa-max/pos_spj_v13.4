@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 from core.events.event_bus import EventBus
-from core.services.inventory_engine import InventoryEngine, StockInsuficienteError
+from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryEngine, StockInsuficienteError
 
 logger = logging.getLogger("spj.repositories.ventas")
 

@@ -717,14 +717,14 @@ def _wire_production_items_handlers(bus, container) -> None:
     """
     from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
     from core.events.handlers.production_handler import ProductionInventoryHandler
-    from core.services.inventory_engine import InventoryEngine
+    from core.services.inventory.unified_inventory_service import UnifiedInventoryService
 
     db = getattr(container, "db", None)
     if not db:
         logger.debug("_wire_production_items_handlers: no container.db — skipping")
         return
 
-    inv_eng = InventoryEngine(db, branch_id=1, usuario="produccion")
+    inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="produccion")
     handler = ProductionInventoryHandler(inventory_engine=inv_eng)
     bus.subscribe(
         PRODUCTION_ITEMS_PROCESS,
@@ -790,14 +790,14 @@ def _wire_transfer_items_handlers(bus, container) -> None:
     """
     from core.events.domain_events import TRANSFER_ITEMS_PROCESS
     from core.events.handlers.transfer_handler import TransferInventoryHandler
-    from core.services.inventory_engine import InventoryEngine
+    from core.services.inventory.unified_inventory_service import UnifiedInventoryService
 
     db = getattr(container, "db", None)
     if not db:
         logger.debug("_wire_transfer_items_handlers: no container.db — skipping")
         return
 
-    inv_eng = InventoryEngine(db, branch_id=1, usuario="transferencia")
+    inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="transferencia")
     handler = TransferInventoryHandler(inventory_engine=inv_eng)
     bus.subscribe(
         TRANSFER_ITEMS_PROCESS,

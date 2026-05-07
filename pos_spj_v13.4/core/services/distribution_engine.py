@@ -131,7 +131,7 @@ class DistributionEngine:
 
         # InventoryEngine maneja FIFO y crea el traspaso
         from core.database import Connection
-        from core.services.inventory_engine import InventoryEngine
+        from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryEngine
 
         inv = InventoryEngine(
             Connection(self.conn),
