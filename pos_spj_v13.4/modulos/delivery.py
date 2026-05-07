@@ -98,9 +98,10 @@ ESTADO_COLOR = {
 }
 
 class AsignarDriverDialog(QDialog):
-    def __init__(self, pedido_id, parent=None):
+    def __init__(self, pedido_id, conexion, parent=None):
         super().__init__(parent)
         self.pedido_id = pedido_id
+        self.conexion = conexion
         self.setWindowTitle(f"Asignar Repartidor — Pedido #{pedido_id}")
         self.setMinimumWidth(400)
         layout = QVBoxLayout(self)
@@ -122,8 +123,7 @@ class AsignarDriverDialog(QDialog):
 
     def _cargar_drivers(self):
         try:
-            conn = get_connection()
-            rows = conn.execute("SELECT id, nombre FROM drivers WHERE activo=1 ORDER BY nombre").fetchall()
+            rows = self.conexion.execute("SELECT id, nombre FROM drivers WHERE activo=1 ORDER BY nombre").fetchall()
             for r in rows:
                 self.combo_driver.addItem(r[1], r[0])
             if self.combo_driver.count() == 0:
@@ -508,6 +508,40 @@ class NuevoPedidoDialog(QDialog):
         if not self.txt_direccion.text().strip():
             QMessageBox.warning(self, "Dirección requerida", "Ingresa la dirección de entrega.")
             return
+
+        # Stock pre-flight: warn if any item with producto_id has insufficient available stock
+        sin_stock = []
+        try:
+            from core.services.reservation_service import ReservationService
+            rs = ReservationService()
+            sucursal_id = self.combo_sucursal.currentIndex() + 1
+            for it in self._items:
+                pid = it.get("producto_id")
+                if not pid:
+                    continue
+                available = rs.get_available_stock(
+                    self.conexion, product_id=pid, branch_id=sucursal_id
+                )
+                if available < it["cantidad"]:
+                    sin_stock.append(
+                        f"• {it['nombre']}: solicitado {it['cantidad']:.3g}, disponible {available:.3g}"
+                    )
+        except Exception:
+            pass  # stock check is advisory — never block order creation on service error
+
+        if sin_stock:
+            resp = QMessageBox.question(
+                self,
+                "Stock insuficiente",
+                "Los siguientes productos no tienen suficiente stock:\n\n"
+                + "\n".join(sin_stock)
+                + "\n\n¿Crear el pedido de todas formas?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if resp != QMessageBox.Yes:
+                return
+
         self.accept()
 
     # ── ADDRESS AUTOCOMPLETE (async, Mapbox-backed) ───────────────────────
@@ -610,7 +644,6 @@ class TarjetaPedido(QFrame):
             QFrame#cardPedido {{
                 border-left: 4px solid {color};
                 border-radius: {Borders.RADIUS_MD}px;
-                background: {Colors.NEUTRAL.DARK_CARD};
                 padding: {Spacing.SM}px;
                 margin: {Spacing.XS}px;
             }}
@@ -654,6 +687,10 @@ class TarjetaPedido(QFrame):
             btn.setFixedWidth(90)
             btn.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "en_ruta"))
             btns.addWidget(btn)
+            btn_peso = create_warning_button(self, "⚖️ Ajustar", "Ajustar peso real de ítems variables")
+            btn_peso.setFixedWidth(90)
+            btn_peso.clicked.connect(lambda _, p=pid: self.accion_requerida.emit(p, "ajustar_peso"))
+            btns.addWidget(btn_peso)
         if estado == "en_ruta":
             btn = create_success_button(self, "Entregado", "Confirmar entrega del pedido")
             btn.setFixedWidth(90)
@@ -734,9 +771,7 @@ class PesoRealDialog(QDialog):
         self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl.setSelectionMode(QAbstractItemView.NoSelection)
         self.tbl.setStyleSheet(
-            f"QTableWidget {{ background:{Colors.NEUTRAL.DARK_CARD}; "
-            f"border:1px solid {Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL, 'SLATE_700') else '#334155'}; "
-            f"border-radius:6px; }}"
+            "QTableWidget { border:1px solid palette(mid); border-radius:6px; }"
         )
 
         self._spin_widgets: list = []  # QDoubleSpinBox per row
@@ -759,8 +794,7 @@ class PesoRealDialog(QDialog):
             spin.setValue(req_qty)
             spin.setSuffix(f" {unit}")
             spin.setStyleSheet(
-                f"background:{Colors.NEUTRAL.DARK_BG}; color:{Colors.NEUTRAL.DARK_TEXT};"
-                f" border:1px solid {Colors.PRIMARY_BASE}; border-radius:4px; padding:2px;"
+                f"border:1px solid {Colors.PRIMARY_BASE}; border-radius:4px; padding:2px;"
             )
             self.tbl.setCellWidget(row, 3, spin)
 
@@ -1024,8 +1058,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         for key, label, kpi_color in kpi_defs:
             kpi_frame = QFrame()
             kpi_frame.setStyleSheet(
-                f"QFrame {{ background:{Colors.NEUTRAL.DARK_CARD};"
-                f" border:1px solid {kpi_color}; border-radius:8px; }}"
+                f"QFrame {{ border:1px solid {kpi_color}; border-radius:8px; }}"
             )
             kpi_fl = QVBoxLayout(kpi_frame)
             kpi_fl.setContentsMargins(10, 4, 10, 4)
@@ -1321,12 +1354,11 @@ if(drivers.length===0){{
 
         self._lst_pedidos = QListWidget()
         self._lst_pedidos.setObjectName("listaPedidos")
-        self._lst_pedidos.setStyleSheet(f"""
-            QListWidget {{ border:none; background:{Colors.NEUTRAL.DARK_BG}; }}
-            QListWidget::item {{ border-bottom:1px solid {Colors.NEUTRAL.DARK_BORDER};
-                                 padding:0; }}
-            QListWidget::item:selected {{ background:{Colors.NEUTRAL.DARK_CARD}; }}
-            QListWidget::item:hover {{ background:{Colors.NEUTRAL.DARK_CARD}; }}
+        self._lst_pedidos.setStyleSheet("""
+            QListWidget { border:none; }
+            QListWidget::item { border-bottom:1px solid palette(mid); padding:0; }
+            QListWidget::item:selected { background:palette(highlight); }
+            QListWidget::item:hover { background:palette(midlight); }
         """)
         self._lst_pedidos.currentRowChanged.connect(self._on_lista_seleccion)
         left_lay.addWidget(self._lst_pedidos)
@@ -1334,8 +1366,6 @@ if(drivers.length===0){{
 
         # ── Panel derecho — detalle ──────────────────────────────────────
         self._detalle_widget = QWidget()
-        self._detalle_widget.setStyleSheet(
-            f"background:{Colors.NEUTRAL.DARK_BG};")
         detalle_lay = QVBoxLayout(self._detalle_widget)
         detalle_lay.setContentsMargins(16, 12, 16, 12)
         detalle_lay.setSpacing(10)
@@ -1378,8 +1408,7 @@ if(drivers.length===0){{
         self._det_wa_txt.setMaximumHeight(110)
         self._det_wa_txt.setPlaceholderText("Sin conversación registrada")
         self._det_wa_txt.setStyleSheet(
-            f"background:{Colors.NEUTRAL.DARK_BG}; color:{Colors.NEUTRAL.DARK_TEXT};"
-            f" font-size:11px; border:none; border-radius:6px;"
+            "font-size:11px; border:none; border-radius:6px;"
         )
         grp_wa_lay.addWidget(self._det_wa_txt)
         detalle_lay.addWidget(grp_wa)
@@ -1522,6 +1551,11 @@ if(drivers.length===0){{
             b.setFixedHeight(32)
             b.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "en_ruta"))
             self._det_acciones_layout.addWidget(b)
+
+            b_peso = create_warning_button(self, "⚖️ Ajustar pesos", "")
+            b_peso.setFixedHeight(32)
+            b_peso.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "ajustar_peso"))
+            self._det_acciones_layout.addWidget(b_peso)
 
         if estado == "en_ruta":
             b = create_success_button(self, "✓ Entregado", "")
@@ -1802,6 +1836,33 @@ if(drivers.length===0){{
                 )
                 self.cargar_pedidos()
                 return
+            elif accion == "ajustar_peso":
+                from core.services.reservation_service import ReservationService
+                items = self.delivery_service.get_order_items(pedido_id)
+                var_items = [it for it in items if ReservationService.is_variable_weight(it.get("unidad", ""))]
+                if not var_items:
+                    QMessageBox.information(
+                        self, "Sin ítems de peso variable",
+                        "Este pedido no tiene productos de peso variable.")
+                    return
+                dlg_peso = PesoRealDialog(var_items, parent=self)
+                if dlg_peso.exec_() != QDialog.Accepted:
+                    return
+                for adj in dlg_peso.get_adjustments():
+                    try:
+                        self.delivery_service.adjust_item_weight(
+                            order_id=pedido_id,
+                            item_id=adj["item_id"],
+                            prepared_qty=adj["prepared_qty"],
+                            prepared_by=self.usuario,
+                            adjustment_reason=adj.get("adjustment_reason", ""),
+                            unit=adj.get("unit", "kg"),
+                        )
+                    except Exception as exc:
+                        logger.warning("adjust_item_weight item=%s: %s", adj["item_id"], exc)
+                Toast.success(self, "Peso ajustado", "Pesos actualizados correctamente.")
+                self.cargar_pedidos()
+                return
             elif accion == "notificar_wa":
                 row = self.conexion.execute(
                     "SELECT cliente_nombre, cliente_tel, estado FROM delivery_orders WHERE id=?",
@@ -1848,8 +1909,7 @@ if(drivers.length===0){{
                 txt_link.setReadOnly(True)
                 txt_link.selectAll()
                 txt_link.setStyleSheet(
-                    f"background:{Colors.NEUTRAL.DARK_BG}; color:{Colors.NEUTRAL.DARK_TEXT};"
-                    f" border:1px solid {Colors.PRIMARY_BASE}; border-radius:4px; padding:4px;"
+                    f"border:1px solid {Colors.PRIMARY_BASE}; border-radius:4px; padding:4px;"
                 )
                 lay_link.addWidget(txt_link)
                 bbs = QDialogButtonBox(QDialogButtonBox.Ok)
@@ -1860,14 +1920,19 @@ if(drivers.length===0){{
                 Toast.success(self, "Link copiado", "Link de pago copiado al portapapeles.")
                 return
             elif accion == "asignar":
-                dlg = AsignarDriverDialog(pedido_id, self)
+                dlg = AsignarDriverDialog(pedido_id, self.conexion, self)
                 if dlg.exec_() != QDialog.Accepted: return
                 data = dlg.get_data()
                 if not data["driver_id"]:
                     QMessageBox.warning(self,"Sin repartidor","Primero registra repartidores."); return
+                # Set driver fields only; update_status handles estado + events + WA
                 self.conexion.execute(
-                    "UPDATE delivery_orders SET estado='preparacion',driver_id=?,tiempo_estimado=?,notas=?,fecha_asignacion=datetime('now') WHERE id=?",
-                    (data["driver_id"],data["tiempo"],data["notas"],pedido_id))
+                    "UPDATE delivery_orders SET driver_id=?,tiempo_estimado=?,fecha_asignacion=datetime('now') WHERE id=?",
+                    (data["driver_id"], data["tiempo"], pedido_id))
+                if data.get("notas"):
+                    self.conexion.execute(
+                        "UPDATE delivery_orders SET notas=? WHERE id=?",
+                        (data["notas"], pedido_id))
                 self.delivery_service.update_status(pedido_id, "preparacion", usuario=self.usuario)
             elif accion in ("en_ruta","entregado","cancelado"):
                 fecha_col = "fecha_entrega" if accion == "entregado" else "fecha_asignacion"
