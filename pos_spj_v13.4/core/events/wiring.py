@@ -69,6 +69,9 @@ def wire_all(container: "AppContainer") -> None:
     # Phase 5: TRANSFER_ITEMS_PROCESS — multi-sucursal OUT/IN inventory handler
     _wire_transfer_items_handlers(bus, container)
 
+    # Phase 6: SALE_CREATED + PURCHASE_CREATED — proper finance handler classes
+    _wire_finance_event_handlers(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -635,74 +638,26 @@ def _wire_merma_financiero(bus, container) -> None:
 
 def _wire_purchase_inventario(bus, container) -> None:
     """
-    PURCHASE_CREATED → incrementa stock + auditoría.
-    Complementa el handler de sync de COMPRA_REGISTRADA ya existente.
-    Registra asiento: inventario_almacen (debe) ↔ cuentas_por_pagar (haber).
+    PURCHASE_CREATED finance asiento — Phase 6: replaced by PurchaseFinanceHandler
+    registered in _wire_purchase_items_handlers() (Phase 4).
+    This function is retained for compatibility but no longer registers a duplicate handler.
     """
-    from core.events.event_bus import PURCHASE_CREATED
-
-    def _on_compra_inventario(data: dict) -> None:
-        try:
-            fs = getattr(container, "finance_service", None)
-            if not fs or not hasattr(fs, "registrar_asiento"):
-                return
-            total = float(data.get("total", data.get("monto", 0)))
-            if total <= 0:
-                return
-            fs.registrar_asiento(
-                debe="inventario_almacen",
-                haber="cuentas_por_pagar",
-                concepto=f"Compra #{data.get('compra_id', '')} — proveedor {data.get('proveedor_id', '')}",
-                monto=total,
-                modulo="compras",
-                referencia_id=data.get("compra_id"),
-                usuario_id=data.get("usuario_id"),
-                sucursal_id=data.get("sucursal_id", 1),
-                evento="COMPRA_REGISTRADA",
-                metadata={
-                    "proveedor_id": data.get("proveedor_id"),
-                    "items": data.get("items", []),
-                },
-            )
-        except Exception as e:
-            logger.debug("on_compra_inventario: %s", e)
-
-    bus.subscribe(PURCHASE_CREATED, _on_compra_inventario,
-                  priority=80, label="compra_ledger")
+    # Direct inline finance mutation removed (Phase 6).
+    # PurchaseFinanceHandler on PURCHASE_CREATED is wired in _wire_purchase_items_handlers().
+    pass
 
 
-# ── v13.4: VENTA_COMPLETADA → asiento ingreso ────────────────────────────────
+# ── v13.4 / Phase 6: VENTA_COMPLETADA → asiento ingreso ─────────────────────
 
 def _wire_venta_financiero(bus, container) -> None:
     """
-    VENTA_COMPLETADA → asiento contable de ingreso doble entrada.
-    Debita caja_ventas, acredita ventas_contado.
-    Solo activo si finance_service.registrar_ingreso está disponible.
+    VENTA_COMPLETADA (= SALE_CREATED) → income journal entry.
+    Phase 6: replaced inline lambda with SaleCreatedFinanceHandler.
+    The actual wiring is done in _wire_finance_event_handlers().
     """
-    from core.events.event_bus import VENTA_COMPLETADA
-
-    def _on_venta_ingreso(data: dict) -> None:
-        try:
-            fs = getattr(container, "finance_service", None)
-            if not fs or not hasattr(fs, "registrar_ingreso"):
-                return
-            total = float(data.get("total", 0))
-            if total <= 0:
-                return
-            fs.registrar_ingreso(
-                concepto=f"Venta #{data.get('folio', data.get('venta_id', ''))}",
-                monto=total,
-                referencia_id=data.get("venta_id"),
-                usuario_id=data.get("usuario_id"),
-                sucursal_id=data.get("sucursal_id", 1),
-                metadata={"folio": data.get("folio"),
-                          "cliente_id": data.get("cliente_id")},
-            )
-        except Exception as e:
-            logger.debug("on_venta_ingreso: %s", e)
-
-    bus.subscribe(VENTA_COMPLETADA, _on_venta_ingreso,
-                  priority=50, label="venta_ledger")
+    # Direct inline finance mutation removed (Phase 6).
+    # SaleCreatedFinanceHandler on SALE_CREATED is wired in _wire_finance_event_handlers().
+    pass
 
 
 # ── v13.4: MERMA_CREATED → ajuste stock físico ───────────────────────────────
@@ -879,3 +834,36 @@ def _wire_transfer_items_handlers(bus, container) -> None:
         label="transfer_inventory_handler",
     )
     logger.debug("Registered TransferInventoryHandler on %s", TRANSFER_ITEMS_PROCESS)
+
+
+# ── Phase 6: SALE_CREATED + PURCHASE_CREATED finance handlers ────────────────
+
+def _wire_finance_event_handlers(bus, container) -> None:
+    """
+    Phase 6 — Finance reacts to events only.
+
+    Register proper handler classes (no inline lambdas) for post-transaction
+    finance journal entries:
+
+      SALE_CREATED (= VENTA_COMPLETADA) → SaleCreatedFinanceHandler  prio=50
+          Records income entry via finance_service.registrar_ingreso().
+          Replaces the inline _on_venta_ingreso lambda from _wire_venta_financiero().
+
+      PURCHASE_CREATED (= COMPRA_REGISTRADA) → PurchaseFinanceHandler prio=80
+          Already registered in _wire_purchase_items_handlers() (Phase 4).
+          _wire_purchase_inventario() inline lambda removed here.
+    """
+    from core.events.domain_events import SALE_CREATED
+    from core.events.handlers.finance_handler import SaleCreatedFinanceHandler
+
+    fs = getattr(container, "finance_service", None)
+    if fs:
+        sale_created_handler = SaleCreatedFinanceHandler(finance_service=fs)
+        bus.subscribe(
+            SALE_CREATED,
+            sale_created_handler.handle,
+            priority=50,
+            label="sale_created_finance_handler",
+        )
+        logger.debug("Registered SaleCreatedFinanceHandler on %s", SALE_CREATED)
+    # PurchaseFinanceHandler on PURCHASE_CREATED is wired in _wire_purchase_items_handlers().
