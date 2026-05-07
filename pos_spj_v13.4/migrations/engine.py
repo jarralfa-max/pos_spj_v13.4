@@ -65,6 +65,7 @@ MIGRATIONS = [
     ("068",  "migrations.standalone.068_fix_branch_inventory_unique"),  # Fix: UNIQUE(product_id, branch_id) en branch_inventory
     ("069",  "migrations.standalone.069_delivery_weight_reservation"),  # v13.5: variable-weight items + reservation columns
     ("070",  "migrations.standalone.070_delivery_enterprise_lifecycle"),  # v13.30: lifecycle columns + driver cuts + indexes
+    ("071",  "migrations.standalone.071_cxp_cxc_payments"),              # Fix: cxp_payments + cxc_payments tables para treasury_service
 ]
 
 def _ensure_tracking_table(conn):

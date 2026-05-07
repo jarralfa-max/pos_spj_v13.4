@@ -5,6 +5,22 @@ documentarse aquí antes del commit.
 
 ---
 
+## 071_cxp_cxc_payments — 2026-05-07
+
+**Motivo:** `treasury_service.abonar_cuenta_por_pagar()` y `abonar_cuenta_por_cobrar()`
+insertaban en `cxp_payments` / `cxc_payments` pero esas tablas nunca fueron creadas por ninguna
+migración previa, causando `sqlite3.OperationalError: no such table: cxp_payments` al registrar
+un pago de cuenta por pagar (flujo "Pago global CXP" en `finanzas_unificadas.py`).
+
+**Tablas nuevas:**
+- `cxp_payments` (id, ap_id → accounts_payable, monto, metodo_pago, usuario, fecha)
+- `cxc_payments` (id, ar_id → accounts_receivable, monto, metodo_pago, usuario, fecha)
+
+**Índices:** `idx_cxp_payments_ap(ap_id)`, `idx_cxc_payments_ar(ar_id)`.
+**Impacto:** Solo aditivo; no modifica tablas existentes.
+
+---
+
 ## 060_depreciacion_acumulada — 2026-04-13
 
 **Motivo:** Fase 3 — acumulado mensual de depreciación por activo y periodo.
