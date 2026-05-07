@@ -482,6 +482,9 @@ class ModuloCaja(QWidget, RefreshMixin):
 
         self._tabs_caja.currentChanged.connect(self._on_tab_change)
 
+        self._build_tab_historial()
+        self._build_tab_arqueo()
+
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh caja state and movimientos on VENTA_COMPLETADA."""
         try:
