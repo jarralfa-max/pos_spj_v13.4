@@ -100,14 +100,27 @@ class PurchaseService:
                     f"NO se actualizó para:\n" +
                     "\n".join(inv_errors))
 
+            # MEJORA: Auto-crear lotes para trazabilidad FIFO
+            self._crear_lotes_compra(
+                compra_id=compra_id,
+                folio=folio,
+                items=items,
+                proveedor_id=provider_id,
+                sucursal_id=branch_id,
+                usuario=user,
+            )
+
+            # Close the SAVEPOINT before any finance calls — finance_service
+            # methods call db.commit() internally which would destroy an open
+            # SAVEPOINT and cause "no such savepoint" on RELEASE.
+            self.db.execute(f"RELEASE SAVEPOINT {_sp}")
+            _sp_released = True
+
             # 3. AUTOMATIZACIÓN FINANCIERA (CAJA Y DEUDAS)
-            # Registro financiero — adaptado a los métodos reales de FinanceService
             if self.finance_service:
                 try:
-                    # Si queda deuda, registrar CxP
                     if amount_paid < total_purchase:
                         deuda = total_purchase - amount_paid
-                        # crear_cxp(provider_id, amount, due_date, notes, purchase_id)
                         if hasattr(self.finance_service, 'crear_cxp'):
                             self.finance_service.crear_cxp(
                                 supplier_id=provider_id,
@@ -119,7 +132,6 @@ class PurchaseService:
                                 usuario=user,
                             )
 
-                    # Si se pagó al contado, registrar salida de caja si hay turno abierto
                     if amount_paid > 0 and payment_method != 'CREDITO':
                         turno = None
                         try:
@@ -133,7 +145,6 @@ class PurchaseService:
                                 amount_paid,
                                 f"Pago compra {folio} — {notes or 'proveedor'}"
                             )
-                        # Double-entry journal — always, regardless of open shift
                         if hasattr(self.finance_service, 'registrar_asiento'):
                             self.finance_service.registrar_asiento(
                                 debe="inventario",
@@ -147,23 +158,7 @@ class PurchaseService:
                                           "payment_method": payment_method},
                             )
                 except Exception as _fe:
-                    import logging
-                    logging.getLogger(__name__).warning("FinanceService compra: %s", _fe)
-                    # Non-fatal: inventory already updated, purchase recorded
-
-            # MEJORA: Auto-crear lotes para trazabilidad FIFO
-            # Cada ítem de compra genera un lote independiente con su costo y caducidad
-            self._crear_lotes_compra(
-                compra_id=compra_id,
-                folio=folio,
-                items=items,
-                proveedor_id=provider_id,
-                sucursal_id=branch_id,
-                usuario=user,
-            )
-
-            self.db.execute(f"RELEASE SAVEPOINT {_sp}")
-            _sp_released = True
+                    logger.warning("FinanceService compra: %s", _fe)
 
             # Notify EventBus — enriched payload includes items for downstream handlers
             try:
