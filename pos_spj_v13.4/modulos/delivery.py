@@ -246,7 +246,8 @@ class NuevoPedidoDialog(QDialog):
         self.tbl_items.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.tbl_items.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_items.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tbl_items.setMaximumHeight(120)
+        self.tbl_items.setMinimumHeight(90)
+        self.tbl_items.setMaximumHeight(180)
         self.tbl_items.verticalHeader().setVisible(False)
         pl.addWidget(self.tbl_items)
 
@@ -758,14 +759,25 @@ class PesoRealDialog(QDialog):
         )
         root.addWidget(hdr)
 
+        # ── Try to load HardwareService for scale reading ────────────────────
+        self._hw_service = None
+        try:
+            from core.services.hardware_service import HardwareService
+            self._hw_service = HardwareService()
+        except Exception:
+            pass
+
         # ── Items table ──────────────────────────────────────────────────────
-        self.tbl = QTableWidget(len(items), 6)
-        self.tbl.setHorizontalHeaderLabels([
-            "Producto", "Solicitado", "Unidad", "Peso real", "Diferencia", "Nuevo subtotal"
-        ])
+        has_scale = self._hw_service is not None
+        n_cols = 7 if has_scale else 6
+        self.tbl = QTableWidget(len(items), n_cols)
+        headers = ["Producto", "Solicitado", "Unidad", "Peso real", "Diferencia", "Nuevo subtotal"]
+        if has_scale:
+            headers.append("📡")
+        self.tbl.setHorizontalHeaderLabels(headers)
         hh = self.tbl.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        for col in range(1, 6):
+        for col in range(1, n_cols):
             hh.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -791,7 +803,14 @@ class PesoRealDialog(QDialog):
             spin = QDoubleSpinBox()
             spin.setRange(0.001, 99999)
             spin.setDecimals(3)
-            spin.setValue(req_qty)
+            # Try to pre-fill from scale on dialog open (single item: auto-read)
+            scale_val = 0.0
+            if has_scale and len(items) == 1:
+                try:
+                    scale_val = self._hw_service.read_scale()
+                except Exception:
+                    pass
+            spin.setValue(scale_val if scale_val > 0 else req_qty)
             spin.setSuffix(f" {unit}")
             spin.setStyleSheet(
                 f"border:1px solid {Colors.PRIMARY_BASE}; border-radius:4px; padding:2px;"
@@ -806,6 +825,14 @@ class PesoRealDialog(QDialog):
             sub_lbl.setAlignment(Qt.AlignCenter)
             sub_lbl.setStyleSheet(f"color:{Colors.SUCCESS_BASE}; font-weight:bold;")
             self.tbl.setCellWidget(row, 5, sub_lbl)
+
+            if has_scale:
+                btn_scale = QPushButton("📡")
+                btn_scale.setToolTip("Leer peso de la báscula")
+                btn_scale.setFixedWidth(34)
+                btn_scale.setStyleSheet("font-size:14px; border:none; padding:2px;")
+                btn_scale.clicked.connect(lambda _, r=row, s=spin: self._leer_bascula(r, s))
+                self.tbl.setCellWidget(row, 6, btn_scale)
 
             self._spin_widgets.append(spin)
             self._diff_labels.append(diff_lbl)
@@ -851,6 +878,24 @@ class PesoRealDialog(QDialog):
         self._update_all_diffs()
 
     # ── Slots ──────────────────────────────────────────────────────────────
+
+    def _leer_bascula(self, row: int, spin: QDoubleSpinBox) -> None:
+        """Lee el peso de la báscula y actualiza el spin de la fila dada."""
+        if self._hw_service is None:
+            return
+        try:
+            peso = self._hw_service.read_scale()
+        except Exception as exc:
+            logger.warning("_leer_bascula: %s", exc)
+            peso = 0.0
+        if peso > 0:
+            spin.setValue(peso)
+        else:
+            QMessageBox.information(
+                self, "Sin lectura",
+                "La báscula no devolvió un peso válido.\n"
+                "Verifica que el producto esté sobre la báscula y que esté encendida."
+            )
 
     def _on_spin_changed(self, row: int) -> None:
         item      = self._items[row]
@@ -1166,8 +1211,11 @@ class ModuloDelivery(QWidget, RefreshMixin):
         splitter = QSplitter(Qt.Horizontal)
         self.columnas = {}
         for estado in ["pendiente","preparacion","en_ruta","entregado"]:
+            from PyQt5.QtWidgets import QScrollArea
             col_widget = QWidget()
             col_layout = QVBoxLayout(col_widget)
+            col_layout.setContentsMargins(0, 0, 0, 0)
+            col_layout.setSpacing(0)
             color = ESTADO_COLOR[estado]
             titulo = QLabel(estado.upper().replace("_"," "))
             titulo.setObjectName("subheading")
@@ -1177,9 +1225,16 @@ class ModuloDelivery(QWidget, RefreshMixin):
             col_layout.addWidget(titulo)
             scroll_content = QWidget()
             self.columnas[estado] = QVBoxLayout(scroll_content)
+            self.columnas[estado].setContentsMargins(4, 4, 4, 4)
+            self.columnas[estado].setSpacing(4)
             self.columnas[estado].addStretch()
-            col_layout.addWidget(scroll_content)
-            col_layout.addStretch()
+            scroll_area = QScrollArea()
+            scroll_area.setWidget(scroll_content)
+            scroll_area.setWidgetResizable(True)
+            scroll_area.setFrameShape(QFrame.NoFrame)
+            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            col_layout.addWidget(scroll_area, 1)
             splitter.addWidget(col_widget)
         kanban_layout.addWidget(splitter)
         self._stack.addWidget(kanban_widget)
@@ -1388,7 +1443,8 @@ if(drivers.length===0){{
         self._det_tabla.setHorizontalHeaderLabels(["Producto","Cant.","Precio","Total"])
         self._det_tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self._det_tabla.setEditTriggers(QTableWidget.NoEditTriggers)
-        self._det_tabla.setMaximumHeight(140)
+        self._det_tabla.setMinimumHeight(80)
+        self._det_tabla.setMaximumHeight(220)
         self._det_tabla.verticalHeader().setVisible(False)
         grp_items_lay.addWidget(self._det_tabla)
         detalle_lay.addWidget(grp_items)
@@ -1754,9 +1810,10 @@ if(drivers.length===0){{
             pass
         try: self.conexion.commit()
         except Exception: pass
-    def cargar_pedidos(self):
+    def cargar_pedidos(self, silent: bool = False):
         filtro = self.combo_filtro.currentText()
-        self._loading.show()
+        if not silent:
+            self._loading.show()
         kanban_visibles = 0
         lista_count = 0
         # Clear kanban columns
@@ -1797,7 +1854,8 @@ if(drivers.length===0){{
             logger.error("cargar_pedidos: %s", e)
             self._empty.setVisible(True)
         finally:
-            self._loading.hide()
+            if not silent:
+                self._loading.hide()
 
     def ejecutar_accion(self, pedido_id: int, accion: str):
         try:
@@ -1834,7 +1892,7 @@ if(drivers.length===0){{
                 self.delivery_service.update_status(
                     pedido_id, "preparacion", usuario=self.usuario
                 )
-                self.cargar_pedidos()
+                QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
                 return
             elif accion == "ajustar_peso":
                 from core.services.reservation_service import ReservationService
@@ -1861,7 +1919,7 @@ if(drivers.length===0){{
                     except Exception as exc:
                         logger.warning("adjust_item_weight item=%s: %s", adj["item_id"], exc)
                 Toast.success(self, "Peso ajustado", "Pesos actualizados correctamente.")
-                self.cargar_pedidos()
+                QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
                 return
             elif accion == "notificar_wa":
                 row = self.conexion.execute(
@@ -2001,7 +2059,7 @@ if(drivers.length===0){{
                 )
             try: self.conexion.commit()
             except Exception: pass
-            self.cargar_pedidos()
+            QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
             # Publicar evento para recarga reactiva en otros módulos
             try:
                 from core.events.event_bus import get_bus

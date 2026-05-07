@@ -71,6 +71,21 @@ class DeliveryRepository:
                 self.db.execute(f"ALTER TABLE delivery_orders ADD COLUMN {col}")
             except Exception:
                 pass
+        # Ensure drivers table exists so LEFT JOIN always has a valid target
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS drivers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                telefono TEXT,
+                vehiculo TEXT,
+                activo INTEGER DEFAULT 1,
+                en_ruta INTEGER DEFAULT 0,
+                sucursal_id INTEGER DEFAULT 1,
+                usuario_id INTEGER
+            )
+            """
+        )
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_delivery_estado ON delivery_orders(estado, fecha)")
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_delivery_wa ON delivery_orders(whatsapp_order_id)")
         try:
@@ -89,9 +104,10 @@ class DeliveryRepository:
 
     def list_orders(self, estado: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
         sql = (
-            "SELECT d.*, v.id as venta_relacionada "
+            "SELECT d.*, v.id as venta_relacionada, dr.nombre AS driver_nombre "
             "FROM delivery_orders d "
             "LEFT JOIN ventas v ON v.id = d.venta_id "
+            "LEFT JOIN drivers dr ON dr.id = d.driver_id "
             "WHERE 1=1 "
         )
         params: List[Any] = []
