@@ -83,6 +83,11 @@ class ModuloReportesBIv2(QWidget):
         # ── KPI cards con sparklines ──────────────────────────────────────────
         layout_principal.addWidget(self._crear_kpi_bar_bi())
 
+        self.loading_dashboard = QLabel("⏳ Cargando datos…")
+        self.loading_dashboard.setAlignment(Qt.AlignCenter)
+        self.loading_dashboard.setVisible(False)
+        layout_principal.addWidget(self.loading_dashboard)
+
         self.tabs_bi = QTabWidget()
         self.tabs_bi.setDocumentMode(True)
         layout_principal.addWidget(self.tabs_bi)
