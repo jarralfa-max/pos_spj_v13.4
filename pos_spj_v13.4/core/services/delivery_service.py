@@ -62,6 +62,18 @@ class DeliveryService:
 
         order = self.repository.get_order(order_id) or {}
         self._safe_wa_notify(order, "pedido_recibido")
+
+        # Lifecycle event for audit + notifications
+        self._publish("DELIVERY_ORDER_CREATED", {
+            "_event_type": "DELIVERY_ORDER_CREATED",
+            "order_id": order_id,
+            "folio": order.get("folio") or data.get("folio") or f"DEL-{order_id}",
+            "direccion": data.get("direccion"),
+            "total": data.get("total", 0),
+            "sucursal_id": data.get("sucursal_id", 1),
+            "usuario": usuario,
+            "db": self.db,
+        })
         return order_id
 
     def update_status(self, order_id: int, status: str, usuario: str, responsable: str = "") -> None:
@@ -70,13 +82,48 @@ class DeliveryService:
 
         self.repository.update_status(order_id, status, usuario=usuario, responsable=responsable)
         order = self.repository.get_order(order_id) or {}
+        folio = order.get("folio") or f"DEL-{order_id}"
+        sucursal_id = int(order.get("sucursal_id") or 1)
+        cliente_tel = order.get("cliente_tel") or ""
+        _base = {
+            "_event_type": f"DELIVERY_ORDER_{status.upper()}",
+            "order_id": order_id,
+            "folio": folio,
+            "usuario": usuario,
+            "sucursal_id": sucursal_id,
+            "total": order.get("total"),
+            "db": self.db,
+        }
 
         if status == "cancelado":
             self._release_stock(order_id)
+            self._publish("DELIVERY_ORDER_CANCELLED", {**_base, "motivo": ""})
+        if status == "preparacion":
+            self._publish("DELIVERY_ORDER_PREPARING", _base)
         if status == "en_ruta":
             self._publish("pedido_en_ruta", {"order_id": order_id})
+            self._publish("DELIVERY_OUT_FOR_DELIVERY", {
+                **_base, "_event_type": "DELIVERY_OUT_FOR_DELIVERY",
+                "driver_id": order.get("driver_id"),
+                "cliente_tel": cliente_tel,
+            })
         if status == "entregado":
             self._publish("pedido_entregado", {"order_id": order_id, "responsable": responsable})
+            self._publish("DELIVERY_ORDER_DELIVERED", {
+                **_base, "_event_type": "DELIVERY_ORDER_DELIVERED",
+                "responsable": responsable,
+                "driver_id": order.get("driver_id"),
+            })
+            # Trigger inventory commit
+            items = self.get_order_items(order_id)
+            self._publish("INVENTORY_COMMIT_REQUIRED", {
+                "order_id": order_id,
+                "operation_id": str(order_id),
+                "items": items,
+                "sucursal_id": sucursal_id,
+                "branch_id": sucursal_id,
+                "db": self.db,
+            })
 
         self._safe_wa_notify(order, status)
         wa_id = order.get("whatsapp_order_id")

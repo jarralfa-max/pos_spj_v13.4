@@ -64,6 +64,7 @@ MIGRATIONS = [
     ("067",  "migrations.standalone.067_meat_erp_improvements"),    # v13.5: trazabilidad lotes, merma_log, campos cárnicos
     ("068",  "migrations.standalone.068_fix_branch_inventory_unique"),  # Fix: UNIQUE(product_id, branch_id) en branch_inventory
     ("069",  "migrations.standalone.069_delivery_weight_reservation"),  # v13.5: variable-weight items + reservation columns
+    ("070",  "migrations.standalone.070_delivery_enterprise_lifecycle"),  # v13.30: lifecycle columns + driver cuts + indexes
 ]
 
 def _ensure_tracking_table(conn):
