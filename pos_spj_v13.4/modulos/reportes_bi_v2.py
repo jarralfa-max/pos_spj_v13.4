@@ -170,9 +170,12 @@ class ModuloReportesBIv2(QWidget):
         except Exception:
             pass
 
-        _kpi_attrs = ['lbl_kpi_ingresos', 'lbl_kpi_ticket', 'lbl_kpi_ventas', 'lbl_kpi_clientes']
+        kpi_self_attrs = [
+            'lbl_kpi_ingresos', 'lbl_kpi_ticket',
+            'lbl_kpi_ventas', 'lbl_kpi_clientes',
+        ]
 
-        for i, (lbl, val, col, sub) in enumerate(kpis):
+        for attr, (lbl, val, col, sub) in zip(kpi_self_attrs, kpis):
             card = _F()
             card.setObjectName("biKpiCard")
             card.setStyleSheet(
@@ -206,10 +209,7 @@ class ModuloReportesBIv2(QWidget):
                 cl.addWidget(sl)
 
             lay.addWidget(card, 1)
-
-            # Save reference so cargar_dashboard() can update the value label
-            import types as _t
-            setattr(self, _kpi_attrs[i], _t.SimpleNamespace(_lbl_valor=vl))
+            setattr(self, attr, vl)
 
         return bar
 
@@ -927,10 +927,10 @@ class ModuloReportesBIv2(QWidget):
             self._last_data = data
             
             # 1. Actualizar KPIs
-            self.lbl_kpi_ingresos._lbl_valor.setText(f"${data['kpis']['ingresos']:,.2f}")
-            self.lbl_kpi_ticket._lbl_valor.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
-            self.lbl_kpi_ventas._lbl_valor.setText(str(data['kpis']['tickets']))
-            self.lbl_kpi_clientes._lbl_valor.setText(str(data['kpis']['clientes_unicos']))
+            self.lbl_kpi_ingresos.setText(f"${data['kpis']['ingresos']:,.2f}")
+            self.lbl_kpi_ticket.setText(f"${data['kpis']['ticket_promedio']:,.2f}")
+            self.lbl_kpi_ventas.setText(str(data['kpis']['tickets']))
+            self.lbl_kpi_clientes.setText(str(data['kpis']['clientes_unicos']))
 
             # Comparativa vs período anterior
             comp = data.get('comparativa', {})

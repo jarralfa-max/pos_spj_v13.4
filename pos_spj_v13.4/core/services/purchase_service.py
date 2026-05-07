@@ -36,8 +36,8 @@ class PurchaseService:
         # Determinamos si se pagó completa o quedó a crédito
         status = "completada" if amount_paid >= total_purchase else "credito"
 
-        import uuid as _uuid2
-        _sp = f"compra_{_uuid2.uuid4().hex[:8]}"
+        _sp = f"compra_{uuid.uuid4().hex[:8]}"
+        _sp_released = False
         try:
             # Use SAVEPOINT (compatible with isolation_level=None / autocommit)
             self.db.execute(f"SAVEPOINT {_sp}")
@@ -93,8 +93,8 @@ class PurchaseService:
                             item['product_id'], folio, _inv_e)
 
             if inv_errors:
-                # Release savepoint so compra is saved but raise to inform UI
                 self.db.execute(f"RELEASE SAVEPOINT {_sp}")
+                _sp_released = True
                 raise RuntimeError(
                     f"Compra {folio} guardada pero el inventario "
                     f"NO se actualizó para:\n" +
@@ -162,8 +162,8 @@ class PurchaseService:
                 usuario=user,
             )
 
-            # Release savepoint — all changes persist
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
+            _sp_released = True
 
             # Notify EventBus — enriched payload includes items for downstream handlers
             try:
@@ -194,8 +194,9 @@ class PurchaseService:
             return folio
 
         except Exception as e:
-            try: self.db.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
-            except Exception: pass
+            if not _sp_released:
+                try: self.db.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+                except Exception: pass
             raise RuntimeError(f"Error al registrar la compra. Operación cancelada: {str(e)}")
 
     def _crear_lotes_compra(
