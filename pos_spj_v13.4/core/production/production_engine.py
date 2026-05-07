@@ -37,7 +37,7 @@ from typing import Dict, List, Optional
 
 from core.production.yield_calculator import YieldCalculator, OutputSpec, YieldResult
 from core.production.cost_allocator import CostAllocator
-from core.services.inventory_engine import InventoryEngine
+from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryEngine
 
 logger = logging.getLogger("spj.production.engine")
 

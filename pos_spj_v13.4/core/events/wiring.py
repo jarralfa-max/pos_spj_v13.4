@@ -48,12 +48,8 @@ def wire_all(container: "AppContainer") -> None:
     # FASE WA: handlers para orquestación WhatsApp ↔ ERP
     _wire_wa_events(bus, container)
 
-    # v13.4: handlers financieros para merma y compras
+    # v13.4: handlers financieros para merma y ajuste stock en merma
     _wire_merma_financiero(bus, container)
-    _wire_purchase_inventario(bus, container)
-
-    # v13.4: asiento ingreso en venta + ajuste stock en merma
-    _wire_venta_financiero(bus, container)
     _wire_merma_inventario(bus, container)
     _wire_flujos_criticos(bus, container)
 
@@ -642,78 +638,6 @@ def _wire_merma_financiero(bus, container) -> None:
                   priority=50, label="merma_ledger")
 
 
-def _wire_purchase_inventario(bus, container) -> None:
-    """
-    PURCHASE_CREATED → incrementa stock + auditoría.
-    Complementa el handler de sync de COMPRA_REGISTRADA ya existente.
-    Registra asiento: inventario_almacen (debe) ↔ cuentas_por_pagar (haber).
-    """
-    from core.events.event_bus import PURCHASE_CREATED
-
-    def _on_compra_inventario(data: dict) -> None:
-        try:
-            fs = getattr(container, "finance_service", None)
-            if not fs or not hasattr(fs, "registrar_asiento"):
-                return
-            total = float(data.get("total", data.get("monto", 0)))
-            if total <= 0:
-                return
-            fs.registrar_asiento(
-                debe="inventario_almacen",
-                haber="cuentas_por_pagar",
-                concepto=f"Compra #{data.get('compra_id', '')} — proveedor {data.get('proveedor_id', '')}",
-                monto=total,
-                modulo="compras",
-                referencia_id=data.get("compra_id"),
-                usuario_id=data.get("usuario_id"),
-                sucursal_id=data.get("sucursal_id", 1),
-                evento="COMPRA_REGISTRADA",
-                metadata={
-                    "proveedor_id": data.get("proveedor_id"),
-                    "items": data.get("items", []),
-                },
-            )
-        except Exception as e:
-            logger.debug("on_compra_inventario: %s", e)
-
-    bus.subscribe(PURCHASE_CREATED, _on_compra_inventario,
-                  priority=80, label="compra_ledger")
-
-
-# ── v13.4: VENTA_COMPLETADA → asiento ingreso ────────────────────────────────
-
-def _wire_venta_financiero(bus, container) -> None:
-    """
-    VENTA_COMPLETADA → asiento contable de ingreso doble entrada.
-    Debita caja_ventas, acredita ventas_contado.
-    Solo activo si finance_service.registrar_ingreso está disponible.
-    """
-    from core.events.event_bus import VENTA_COMPLETADA
-
-    def _on_venta_ingreso(data: dict) -> None:
-        try:
-            fs = getattr(container, "finance_service", None)
-            if not fs or not hasattr(fs, "registrar_ingreso"):
-                return
-            total = float(data.get("total", 0))
-            if total <= 0:
-                return
-            fs.registrar_ingreso(
-                concepto=f"Venta #{data.get('folio', data.get('venta_id', ''))}",
-                monto=total,
-                referencia_id=data.get("venta_id"),
-                usuario_id=data.get("usuario_id"),
-                sucursal_id=data.get("sucursal_id", 1),
-                metadata={"folio": data.get("folio"),
-                          "cliente_id": data.get("cliente_id")},
-            )
-        except Exception as e:
-            logger.debug("on_venta_ingreso: %s", e)
-
-    bus.subscribe(VENTA_COMPLETADA, _on_venta_ingreso,
-                  priority=50, label="venta_ledger")
-
-
 # ── v13.4: MERMA_CREATED → ajuste stock físico ───────────────────────────────
 
 def _wire_merma_inventario(bus, container) -> None:
@@ -799,14 +723,14 @@ def _wire_production_items_handlers(bus, container) -> None:
     """
     from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
     from core.events.handlers.production_handler import ProductionInventoryHandler
-    from core.services.inventory_engine import InventoryEngine
+    from core.services.inventory.unified_inventory_service import UnifiedInventoryService
 
     db = getattr(container, "db", None)
     if not db:
         logger.debug("_wire_production_items_handlers: no container.db — skipping")
         return
 
-    inv_eng = InventoryEngine(db, branch_id=1, usuario="produccion")
+    inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="produccion")
     handler = ProductionInventoryHandler(inventory_engine=inv_eng)
     bus.subscribe(
         PRODUCTION_ITEMS_PROCESS,
@@ -872,14 +796,14 @@ def _wire_transfer_items_handlers(bus, container) -> None:
     """
     from core.events.domain_events import TRANSFER_ITEMS_PROCESS
     from core.events.handlers.transfer_handler import TransferInventoryHandler
-    from core.services.inventory_engine import InventoryEngine
+    from core.services.inventory.unified_inventory_service import UnifiedInventoryService
 
     db = getattr(container, "db", None)
     if not db:
         logger.debug("_wire_transfer_items_handlers: no container.db — skipping")
         return
 
-    inv_eng = InventoryEngine(db, branch_id=1, usuario="transferencia")
+    inv_eng = UnifiedInventoryService(conn=db, sucursal_id=1, usuario="transferencia")
     handler = TransferInventoryHandler(inventory_engine=inv_eng)
     bus.subscribe(
         TRANSFER_ITEMS_PROCESS,

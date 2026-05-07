@@ -183,7 +183,7 @@ class UnifiedInventoryService:
                          reference=None, metadata=None,
                          branch_id=None, operation_id=None,
                          reference_id=None, reference_type=None,
-                         batch_id=None, conn=None, **_extra):
+                         batch_id=None, conn=None, user=None, **_extra):
         """
         Wrapper universal de movimientos de inventario.
 
@@ -193,11 +193,13 @@ class UnifiedInventoryService:
 
         quantity : positivo = entrada, negativo = salida.
         conn     : si se provee, ejecuta en esa conexión (transacción del caller).
+        user     : sobreescribe self.usuario para este movimiento.
         Non-fatal para el evento EventBus — nunca cancela la escritura a DB.
         """
         if metadata is None:
             metadata = {}
 
+        _effective_user = user if user is not None else self.usuario
         delta = float(quantity)
         qty_abs = abs(delta)
         sucursal_id = branch_id if branch_id is not None else self.sucursal_id
@@ -240,7 +242,7 @@ class UnifiedInventoryService:
                 stock_ant, stock_nuevo,
                 metadata.get("notas") or movement_type,
                 str(ref) if ref else None,
-                self.usuario, sucursal_id,
+                _effective_user, sucursal_id,
             )).lastrowid
 
             c.execute(
@@ -309,3 +311,82 @@ class UnifiedInventoryService:
         return mid
 
     apply_movement = process_movement
+
+    # ── Compatibility adapters for legacy InventoryService API ────────────────
+
+    def add_stock(self, product_id: int, branch_id: int, qty: float,
+                  unit_cost: float = 0.0, reference_type: str = "purchase",
+                  reference_id: str = "", operation_id: str = "",
+                  user: str = "sistema", notes: str = "") -> None:
+        """Adapter: maps InventoryService.add_stock() → process_movement()."""
+        self.process_movement(
+            product_id=product_id,
+            quantity=qty,
+            movement_type=reference_type or "purchase",
+            reference=reference_id,
+            metadata={"unit_cost": unit_cost, "notas": notes},
+            branch_id=branch_id,
+            operation_id=operation_id,
+            reference_id=reference_id,
+            reference_type=reference_type,
+            user=user,
+        )
+
+    def deduct_stock(self, product_id: int, branch_id: int, qty: float,
+                     reference_type: str = "sale", reference_id: str = "",
+                     operation_id: str = "", user: str = "sistema",
+                     notes: str = "") -> None:
+        """Adapter: maps InventoryService.deduct_stock() → process_movement()."""
+        self.process_movement(
+            product_id=product_id,
+            quantity=-qty,
+            movement_type=reference_type or "sale",
+            reference=reference_id,
+            metadata={"notas": notes},
+            branch_id=branch_id,
+            operation_id=operation_id,
+            reference_id=reference_id,
+            reference_type=reference_type,
+            user=user,
+        )
+
+    def descontar_stock(self, producto_id: int, cantidad: float,
+                        branch_id: int = 1, referencia_id: str = "EVT",
+                        usuario: str = "sistema", **kwargs) -> None:
+        """Spanish alias: maps descontar_stock → deduct_stock."""
+        self.deduct_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            reference_type="SALE_EVENT", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", ""),
+        )
+
+    def incrementar_stock(self, producto_id: int, cantidad: float,
+                          unit_cost: float = 0.0, branch_id: int = 1,
+                          referencia_id: str = "EVT",
+                          usuario: str = "sistema", **kwargs) -> None:
+        """Spanish alias: maps incrementar_stock → add_stock."""
+        self.add_stock(
+            product_id=producto_id, branch_id=branch_id, qty=cantidad,
+            unit_cost=unit_cost,
+            reference_type="PURCHASE_EVENT", reference_id=str(referencia_id),
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            user=usuario, notes=kwargs.get("notes", ""),
+        )
+
+    def ajustar_merma(self, producto_id: int, cantidad: float,
+                      branch_id: int = 1, referencia_id: str = "MERMA",
+                      usuario: str = "sistema", **kwargs) -> None:
+        """Waste adjustment: maps ajustar_merma → process_movement(waste)."""
+        self.process_movement(
+            product_id=producto_id,
+            quantity=-cantidad,
+            movement_type="waste",
+            reference=str(referencia_id),
+            metadata={"notas": kwargs.get("notes", "merma")},
+            branch_id=branch_id,
+            operation_id=kwargs.get("operation_id", str(producto_id)),
+            reference_id=str(referencia_id),
+            reference_type="WASTE",
+            user=usuario,
+        )

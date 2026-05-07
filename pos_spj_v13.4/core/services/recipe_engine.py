@@ -31,7 +31,7 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional
 
-from core.services.inventory_engine import InventoryEngine, StockInsuficienteError
+from core.services.inventory.unified_inventory_service import UnifiedInventoryService as InventoryEngine, StockInsuficienteError
 
 logger = logging.getLogger("spj.recipe_engine")
 CENTAVO = Decimal("0.001")
