@@ -48,12 +48,8 @@ def wire_all(container: "AppContainer") -> None:
     # FASE WA: handlers para orquestación WhatsApp ↔ ERP
     _wire_wa_events(bus, container)
 
-    # v13.4: handlers financieros para merma y compras
+    # v13.4: handlers financieros para merma y ajuste stock en merma
     _wire_merma_financiero(bus, container)
-    _wire_purchase_inventario(bus, container)
-
-    # v13.4: asiento ingreso en venta + ajuste stock en merma
-    _wire_venta_financiero(bus, container)
     _wire_merma_inventario(bus, container)
     _wire_flujos_criticos(bus, container)
 
@@ -636,30 +632,6 @@ def _wire_merma_financiero(bus, container) -> None:
                   priority=50, label="merma_ledger")
 
 
-def _wire_purchase_inventario(bus, container) -> None:
-    """
-    PURCHASE_CREATED finance asiento — Phase 6: replaced by PurchaseFinanceHandler
-    registered in _wire_purchase_items_handlers() (Phase 4).
-    This function is retained for compatibility but no longer registers a duplicate handler.
-    """
-    # Direct inline finance mutation removed (Phase 6).
-    # PurchaseFinanceHandler on PURCHASE_CREATED is wired in _wire_purchase_items_handlers().
-    pass
-
-
-# ── v13.4 / Phase 6: VENTA_COMPLETADA → asiento ingreso ─────────────────────
-
-def _wire_venta_financiero(bus, container) -> None:
-    """
-    VENTA_COMPLETADA (= SALE_CREATED) → income journal entry.
-    Phase 6: replaced inline lambda with SaleCreatedFinanceHandler.
-    The actual wiring is done in _wire_finance_event_handlers().
-    """
-    # Direct inline finance mutation removed (Phase 6).
-    # SaleCreatedFinanceHandler on SALE_CREATED is wired in _wire_finance_event_handlers().
-    pass
-
-
 # ── v13.4: MERMA_CREATED → ajuste stock físico ───────────────────────────────
 
 def _wire_merma_inventario(bus, container) -> None:
@@ -847,11 +819,9 @@ def _wire_finance_event_handlers(bus, container) -> None:
 
       SALE_CREATED (= VENTA_COMPLETADA) → SaleCreatedFinanceHandler  prio=50
           Records income entry via finance_service.registrar_ingreso().
-          Replaces the inline _on_venta_ingreso lambda from _wire_venta_financiero().
 
       PURCHASE_CREATED (= COMPRA_REGISTRADA) → PurchaseFinanceHandler prio=80
           Already registered in _wire_purchase_items_handlers() (Phase 4).
-          _wire_purchase_inventario() inline lambda removed here.
     """
     from core.events.domain_events import SALE_CREATED
     from core.events.handlers.finance_handler import SaleCreatedFinanceHandler
