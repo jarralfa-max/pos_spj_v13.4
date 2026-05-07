@@ -57,28 +57,40 @@ class PurchaseService:
             # Guardar los renglones (productos) de la compra
             self.purchase_repo.save_purchase_items(compra_id, items)
 
-            # 2. AUTOMATIZACIÓN DE INVENTARIO
+            # 2. AUTOMATIZACIÓN DE INVENTARIO (event bus or direct fallback)
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import PURCHASE_ITEMS_PROCESS
+            _bus = get_bus()
             inv_errors = []
-            for item in items:
-                try:
-                    self.inventory_service.add_stock(
-                        product_id=item['product_id'],
-                        branch_id=branch_id,
-                        qty=item['qty'],
-                        unit_cost=item['unit_cost'],
-                        operation_id=operation_id,
-                        reference_type="COMPRA",
-                        reference_id=str(compra_id),
-                        user=user,
-                        notes=f"Entrada por compra {folio}",
-                    )
-                except Exception as _inv_e:
-                    inv_errors.append(
-                        f"{item.get('nombre', item['product_id'])}: {_inv_e}")
-                    import logging as _log
-                    _log.getLogger(__name__).error(
-                        "add_stock FAILED prod=%s compra=%s: %s",
-                        item['product_id'], folio, _inv_e)
+            if _bus.handler_count(PURCHASE_ITEMS_PROCESS) > 0:
+                _bus.publish(PURCHASE_ITEMS_PROCESS, {
+                    "branch_id":    branch_id,
+                    "operation_id": operation_id,
+                    "compra_id":    compra_id,
+                    "folio":        folio,
+                    "user":         user,
+                    "items":        items,
+                })
+            else:
+                for item in items:
+                    try:
+                        self.inventory_service.add_stock(
+                            product_id     = item['product_id'],
+                            branch_id      = branch_id,
+                            qty            = item['qty'],
+                            unit_cost      = item['unit_cost'],
+                            operation_id   = operation_id,
+                            reference_type = "COMPRA",
+                            reference_id   = str(compra_id),
+                            user           = user,
+                            notes          = f"Entrada por compra {folio}",
+                        )
+                    except Exception as _inv_e:
+                        inv_errors.append(
+                            f"{item.get('nombre', item['product_id'])}: {_inv_e}")
+                        logger.error(
+                            "add_stock FAILED prod=%s compra=%s: %s",
+                            item['product_id'], folio, _inv_e)
 
             if inv_errors:
                 # Release savepoint so compra is saved but raise to inform UI
@@ -153,16 +165,28 @@ class PurchaseService:
             # Release savepoint — all changes persist
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
 
-            # Notify EventBus so modules auto-refresh
+            # Notify EventBus — enriched payload includes items for downstream handlers
             try:
-                from core.events.event_bus import EventBus, get_bus, COMPRA_REGISTRADA
+                from core.events.event_bus import get_bus, COMPRA_REGISTRADA
                 get_bus().publish(COMPRA_REGISTRADA, {
-                    "event_type": COMPRA_REGISTRADA,
-                    "folio": folio,
-                    "compra_id": compra_id,
-                    "branch_id": branch_id,
-                    "user": user,
-                    "total": total_purchase,
+                    "event_type":  COMPRA_REGISTRADA,
+                    "folio":       folio,
+                    "compra_id":   compra_id,
+                    "branch_id":   branch_id,
+                    "sucursal_id": branch_id,
+                    "user":        user,
+                    "usuario":     user,
+                    "total":       total_purchase,
+                    "proveedor_id":provider_id,
+                    "items": [
+                        {
+                            "product_id":  it["product_id"],
+                            "qty":         it["qty"],
+                            "unit_cost":   it["unit_cost"],
+                            "nombre":      it.get("nombre", ""),
+                        }
+                        for it in items
+                    ],
                 })
             except Exception:
                 pass

@@ -28,6 +28,10 @@ SALE_ITEMS_PROCESS  = "sale_items_process"
 # Distinct from PRODUCCION_COMPLETADA (async, post-commit, for downstream consumers).
 PRODUCTION_ITEMS_PROCESS = "production_items_process"
 
+# Phase 4: internal sync event — inventory handler runs inside purchase SAVEPOINT.
+# Distinct from COMPRA_REGISTRADA (async, post-commit, for downstream consumers).
+PURCHASE_ITEMS_PROCESS = "purchase_items_process"
+
 __all__ = [
     "SALE_CREATED",
     "PURCHASE_CREATED",
@@ -38,4 +42,5 @@ __all__ = [
     "EXPENSE_REGISTERED",
     "SALE_ITEMS_PROCESS",
     "PRODUCTION_ITEMS_PROCESS",
+    "PURCHASE_ITEMS_PROCESS",
 ]

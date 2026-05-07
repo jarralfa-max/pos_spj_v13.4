@@ -63,6 +63,9 @@ def wire_all(container: "AppContainer") -> None:
     # Phase 3: PRODUCTION_ITEMS_PROCESS — inventory handler (sync, inside transaction)
     _wire_production_items_handlers(bus, container)
 
+    # Phase 4: PURCHASE_ITEMS_PROCESS + PURCHASE_CREATED — inventory + finance handlers
+    _wire_purchase_items_handlers(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -800,3 +803,44 @@ def _wire_production_items_handlers(bus, container) -> None:
         label="production_inventory_handler",
     )
     logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
+
+
+# ── Phase 4: PURCHASE_ITEMS_PROCESS + PURCHASE_CREATED handlers ──────────────
+
+def _wire_purchase_items_handlers(bus, container) -> None:
+    """
+    Register PurchaseInventoryHandler on PURCHASE_ITEMS_PROCESS (sync, inside SAVEPOINT)
+    and PurchaseFinanceHandler on PURCHASE_CREATED (async, post-transaction).
+
+    Priority order:
+      100 — PurchaseInventoryHandler: add stock IN (must run first)
+       80 — PurchaseFinanceHandler:   record cost-of-goods journal entry
+    """
+    from core.events.domain_events import PURCHASE_ITEMS_PROCESS, PURCHASE_CREATED
+    from core.events.handlers.purchase_handler import (
+        PurchaseInventoryHandler,
+        PurchaseFinanceHandler,
+    )
+
+    inv = getattr(container, "inventory_service", None)
+    fs  = getattr(container, "finance_service", None)
+
+    if inv:
+        inv_handler = PurchaseInventoryHandler(inventory_service=inv)
+        bus.subscribe(
+            PURCHASE_ITEMS_PROCESS,
+            inv_handler.handle,
+            priority=100,
+            label="purchase_inventory_handler",
+        )
+        logger.debug("Registered PurchaseInventoryHandler on %s", PURCHASE_ITEMS_PROCESS)
+
+    if fs:
+        fin_handler = PurchaseFinanceHandler(finance_service=fs)
+        bus.subscribe(
+            PURCHASE_CREATED,
+            fin_handler.handle,
+            priority=80,
+            label="purchase_finance_handler",
+        )
+        logger.debug("Registered PurchaseFinanceHandler on %s", PURCHASE_CREATED)
