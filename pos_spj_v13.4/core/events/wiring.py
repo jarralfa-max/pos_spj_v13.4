@@ -72,6 +72,12 @@ def wire_all(container: "AppContainer") -> None:
     # v13.5: Delivery weight adjustments + inventory reservations
     _wire_delivery_handlers(bus, container)
 
+    # v13.30: Delivery lifecycle + inventory commit + driver settlement + notifications
+    _wire_delivery_lifecycle_handlers(bus, container)
+    _wire_inventory_commit_handler(bus, container)
+    _wire_driver_settlement_handler(bus, container)
+    _wire_notification_handler(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -951,4 +957,117 @@ def _wire_delivery_handlers(bus, container) -> None:
     )
     logger.debug(
         "Registered delivery handlers: reserve, release, weight, WA-notify, payment-update"
+        # appended below by _wire_delivery_lifecycle_handlers
     )
+
+
+# ── v13.30: Delivery lifecycle handlers ──────────────────────────────────────
+
+def _wire_delivery_lifecycle_handlers(bus, container) -> None:
+    """Register DeliveryLifecycleAuditHandler on all lifecycle events.
+
+    Priority=30 (audit layer — after business logic at 100/80/50).
+    Events: DELIVERY_ORDER_CREATED, DELIVERY_ORDER_CONFIRMED,
+            DELIVERY_ORDER_PREPARING, DELIVERY_DRIVER_ASSIGNED,
+            DELIVERY_OUT_FOR_DELIVERY, DELIVERY_ORDER_DELIVERED,
+            DELIVERY_ORDER_CANCELLED
+    """
+    from core.events.event_bus import (
+        DELIVERY_ORDER_CREATED, DELIVERY_ORDER_CONFIRMED, DELIVERY_ORDER_PREPARING,
+        DELIVERY_DRIVER_ASSIGNED, DELIVERY_OUT_FOR_DELIVERY,
+        DELIVERY_ORDER_DELIVERED, DELIVERY_ORDER_CANCELLED,
+    )
+    from core.events.handlers.delivery_handler import DeliveryLifecycleAuditHandler
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_delivery_lifecycle_handlers: no container.db — skipping")
+        return
+
+    handler = DeliveryLifecycleAuditHandler(db)
+
+    lifecycle_events = [
+        (DELIVERY_ORDER_CREATED,    "delivery_audit_created"),
+        (DELIVERY_ORDER_CONFIRMED,  "delivery_audit_confirmed"),
+        (DELIVERY_ORDER_PREPARING,  "delivery_audit_preparing"),
+        (DELIVERY_DRIVER_ASSIGNED,  "delivery_audit_driver_assigned"),
+        (DELIVERY_OUT_FOR_DELIVERY, "delivery_audit_out"),
+        (DELIVERY_ORDER_DELIVERED,  "delivery_audit_delivered"),
+        (DELIVERY_ORDER_CANCELLED,  "delivery_audit_cancelled"),
+    ]
+    for event, label in lifecycle_events:
+        bus.subscribe(event, handler.handle, priority=30, label=label)
+
+    logger.debug("Registered DeliveryLifecycleAuditHandler on %d events", len(lifecycle_events))
+
+
+def _wire_inventory_commit_handler(bus, container) -> None:
+    """Register InventoryCommitHandler on INVENTORY_COMMIT_REQUIRED.
+
+    Priority=100 — must run before any analytics/notification handlers.
+    """
+    from core.events.event_bus import INVENTORY_COMMIT_REQUIRED
+    from core.events.handlers.delivery_handler import InventoryCommitHandler
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_inventory_commit_handler: no container.db — skipping")
+        return
+
+    handler = InventoryCommitHandler(db)
+    bus.subscribe(
+        INVENTORY_COMMIT_REQUIRED,
+        handler.handle,
+        priority=100,
+        label="inventory_commit_delivery",
+    )
+    logger.debug("Registered InventoryCommitHandler on %s", INVENTORY_COMMIT_REQUIRED)
+
+
+def _wire_driver_settlement_handler(bus, container) -> None:
+    """Register DriverSettlementFinanceHandler on DRIVER_SETTLEMENT_CREATED."""
+    from core.events.event_bus import DRIVER_SETTLEMENT_CREATED
+    from core.events.handlers.delivery_handler import DriverSettlementFinanceHandler
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_driver_settlement_handler: no container.db — skipping")
+        return
+
+    handler = DriverSettlementFinanceHandler(db)
+    bus.subscribe(
+        DRIVER_SETTLEMENT_CREATED,
+        handler.handle,
+        priority=50,
+        label="driver_settlement_finance",
+    )
+
+    # Also wire PurchaseSuggestionHandler
+    from core.events.event_bus import PURCHASE_SUGGESTION_CREATED
+    from core.events.handlers.delivery_handler import PurchaseSuggestionHandler
+    ps_handler = PurchaseSuggestionHandler(db)
+    bus.subscribe(
+        PURCHASE_SUGGESTION_CREATED,
+        ps_handler.handle,
+        priority=30,
+        label="purchase_suggestion_log",
+    )
+    logger.debug("Registered DriverSettlementFinanceHandler + PurchaseSuggestionHandler")
+
+
+def _wire_notification_handler(bus, container) -> None:
+    """Register DeliveryNotificationDispatchHandler on CUSTOMER_NOTIFICATION_REQUESTED."""
+    from core.events.event_bus import CUSTOMER_NOTIFICATION_REQUESTED
+    from core.events.handlers.delivery_handler import DeliveryNotificationDispatchHandler
+
+    # Reuse notification_service from container if available
+    notif_svc = getattr(container, "delivery_notification_service", None)
+    handler = DeliveryNotificationDispatchHandler(notification_service=notif_svc)
+    bus.subscribe(
+        CUSTOMER_NOTIFICATION_REQUESTED,
+        handler.handle,
+        priority=10,
+        label="customer_notification_dispatch",
+    )
+    logger.debug("Registered DeliveryNotificationDispatchHandler on %s",
+                 CUSTOMER_NOTIFICATION_REQUESTED)

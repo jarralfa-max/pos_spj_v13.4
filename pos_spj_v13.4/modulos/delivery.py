@@ -1851,7 +1851,31 @@ if(drivers.length===0){{
 
     def ejecutar_accion(self, pedido_id: int, accion: str):
         try:
-            if accion == "preparar":
+            if accion == "imprimir":
+                from core.services.ticket_printer_service import TicketPrinterService
+                printer = TicketPrinterService(self.conexion, preview_mode=True)
+                printer.print_both(pedido_id)
+                return
+            elif accion == "reactivar":
+                row = self.conexion.execute(
+                    "SELECT estado FROM delivery_orders WHERE id=?", (pedido_id,)
+                ).fetchone()
+                if not row:
+                    return
+                if row[0] not in ("entregado", "cancelado"):
+                    QMessageBox.information(self, "Reactivar", "Solo pedidos entregados o cancelados pueden reactivarse.")
+                    return
+                reply = QMessageBox.question(
+                    self, "Reactivar pedido",
+                    f"¿Reactivar pedido #{pedido_id} como 'pendiente'?",
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                if reply != QMessageBox.Yes:
+                    return
+                self.delivery_service.update_status(pedido_id, "pendiente", usuario=self.usuario)
+                QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
+                return
+            elif accion == "preparar":
                 # Check for variable-weight items before marking as "preparacion"
                 from core.services.reservation_service import ReservationService, VARIABLE_WEIGHT_UNITS
                 items = self.delivery_service.get_order_items(pedido_id)
