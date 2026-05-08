@@ -327,18 +327,9 @@ class SalesService:
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
             logger.info(f"Venta {folio} procesada con éxito. Operación: {operation_id}")
 
-            # ── Post-commit: CxC para ventas a crédito ────────────────────────
-            if payment_method == 'Credito' and client_id and self.customer_service:
-                try:
-                    self.customer_service.register_credit_sale(
-                        cliente_id=client_id,
-                        sale_id=sale_id,
-                        folio=folio,
-                        monto=total_a_pagar,
-                        sucursal_id=branch_id,
-                    )
-                except Exception as _cxc_err:
-                    logger.error("register_credit_sale venta=%s: %s", sale_id, _cxc_err)
+            # CxC for credit sales is handled atomically inside the SAVEPOINT by
+            # CreditSaleFinanceHandler (priority=85 on SALE_ITEMS_PROCESS). Calling
+            # register_credit_sale() here would create a duplicate CxC row.
 
             # ── Post-commit: ledger de canje de lealtad ───────────────────────
             if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:

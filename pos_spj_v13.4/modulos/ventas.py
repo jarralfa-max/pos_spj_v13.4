@@ -2960,34 +2960,6 @@ class ModuloVentas(ModuloBase):
         except Exception:
             pass  # If check fails, allow sale (graceful degradation)
 
-        # ── Validar límite de crédito antes de abrir diálogo ──────────────
-        if self.cliente_actual:
-            try:
-                row = self.container.db.execute(
-                    "SELECT COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito FROM clientes WHERE id=?",
-                    (self.cliente_actual['id'],)
-                ).fetchone()
-                if row:
-                    saldo_usado   = float(row[0] or 0)
-                    limite        = float(row[1] or 0)
-                    total_venta   = self.totales.get('total_final', 0)
-                    if limite > 0 and (saldo_usado + total_venta) > limite:
-                        disponible = max(0, limite - saldo_usado)
-                        resp = QMessageBox.question(
-                            self, "⚠️ Límite de crédito",
-                            f"El cliente {self.cliente_actual['nombre']} tiene:\n"
-                            f"  Saldo en uso: ${saldo_usado:.2f}\n"
-                            f"  Límite: ${limite:.2f}\n"
-                            f"  Disponible: ${disponible:.2f}\n\n"
-                            f"Esta venta (${total_venta:.2f}) excede el límite.\n"
-                            "¿Continuar de todas formas?",
-                            QMessageBox.Yes | QMessageBox.No
-                        )
-                        if resp != QMessageBox.Yes:
-                            return
-            except Exception:
-                pass  # Si falla la consulta, continuar normalmente
-
         # ── v13.4 Fase 2: Ofrecer canje de estrellas ──────────────────────
         descuento_canje = 0.0
         total_a_pagar = self.totales['total_final']
@@ -3039,6 +3011,54 @@ class ModuloVentas(ModuloBase):
         dialogo = DialogoPago(total_a_pagar, self)
         if dialogo.exec_() == QDialog.Accepted:
             datos_pago = dialogo.get_datos_pago()
+
+            # ── POST-DIALOG: validate credit only when credit payment chosen ──
+            # This runs AFTER the user selects the payment method, so we only
+            # block credit sales — cash/card/transfer flow through unrestricted.
+            if datos_pago.get('forma_pago') == 'Crédito':
+                if not self.cliente_actual:
+                    QMessageBox.critical(
+                        self, "Cliente requerido",
+                        "Debe seleccionar un cliente para procesar una venta a crédito.\n\n"
+                        "Asigne un cliente y vuelva a intentarlo, o elija otro método de pago."
+                    )
+                    return
+                _ccs = getattr(self.container, 'customer_credit_service', None)
+                _financed = float(datos_pago.get('saldo_credito') or datos_pago.get('total_pagado', 0))
+                if _ccs and _financed > 0:
+                    try:
+                        _ok, _msg = _ccs.validate_credit(self.cliente_actual['id'], _financed)
+                        if not _ok:
+                            QMessageBox.critical(
+                                self, "Crédito insuficiente",
+                                f"{_msg}\n\nLa venta a crédito no puede procesarse.\n"
+                                "Puede elegir otro método de pago."
+                            )
+                            return
+                    except Exception as _cv_e:
+                        logger.warning("validate_credit: %s", _cv_e)
+                elif not _ccs:
+                    # Fallback: direct query with canonical columns
+                    try:
+                        _row = self.container.db.execute(
+                            "SELECT COALESCE(credit_balance,0), COALESCE(credit_limit,0) "
+                            "FROM clientes WHERE id=?",
+                            (self.cliente_actual['id'],)
+                        ).fetchone()
+                        if _row:
+                            _used, _limit = float(_row[0]), float(_row[1])
+                            if _limit > 0 and (_used + _financed) > _limit:
+                                _disp = max(0.0, _limit - _used)
+                                QMessageBox.critical(
+                                    self, "Crédito insuficiente",
+                                    f"Crédito insuficiente para '{self.cliente_actual['nombre']}':\n"
+                                    f"  Disponible: ${_disp:,.2f}  |  Requerido: ${_financed:,.2f}\n\n"
+                                    "Puede elegir otro método de pago."
+                                )
+                                return
+                    except Exception as _fbe:
+                        logger.warning("credit fallback check: %s", _fbe)
+
             datos_pago['descuento_canje'] = descuento_canje
             self.finalizar_venta(datos_pago)
 

@@ -126,6 +126,27 @@ class AppContainer:
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
         self.loyalty_service = LoyaltyService(self.db)  # module_config set below
 
+        # CustomerCreditService — validación de crédito y CxC en ventas
+        from application.services.customer_credit_service import CustomerCreditService
+        self.customer_credit_service = CustomerCreditService(
+            db_conn=self.db,
+            finance_service=self.finance_service,
+        )
+
+        # CreditValidationService — rich pre-authorization (post-dialog, credit only)
+        from application.services.credit_validation_service import CreditValidationService
+        self.credit_validation_service = CreditValidationService(
+            db_conn=self.db,
+            block_on_overdue=False,
+        )
+
+        # AccountsReceivableService — canonical CxC mutation path
+        from application.services.accounts_receivable_service import AccountsReceivableService
+        self.accounts_receivable_service = AccountsReceivableService(
+            db_conn=self.db,
+            finance_service=self.finance_service,
+        )
+
         # Motores de producción — fuente canónica
         self.recipe_engine = RecipeEngine(self.db, branch_id=1)
         self.production_engine = ProductionEngine(self.db, branch_id=1)
@@ -195,6 +216,7 @@ class AppContainer:
             pricing_service=self.pricing_service,
             growth_engine=getattr(self, 'growth_engine', None),
             notification_service=getattr(self, 'notification_service', None),
+            customer_service=self.customer_credit_service,
         )
         
         # ── Servicios adicionales (v12) ───────────────────────────────────

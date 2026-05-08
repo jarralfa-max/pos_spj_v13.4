@@ -105,9 +105,13 @@ class CustomerCreditService:
                    VALUES (?, ?, ?, ?, ?, ?, 'pendiente')""",
                 (cliente_id, sale_id, folio, monto, monto, sucursal_id),
             )
+            # Sync both canonical columns so service layer and legacy UI stay consistent
             self.db.execute(
-                "UPDATE clientes SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id = ?",
-                (monto, cliente_id),
+                "UPDATE clientes "
+                "SET credit_balance = COALESCE(credit_balance, 0) + ?, "
+                "    saldo          = COALESCE(saldo, 0) + ? "
+                "WHERE id = ?",
+                (monto, monto, cliente_id),
             )
 
             # Asiento contable DENTRO de la misma transacción (antes del commit)
