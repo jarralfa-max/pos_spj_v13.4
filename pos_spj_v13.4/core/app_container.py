@@ -169,7 +169,8 @@ class AppContainer:
         from core.db.connection import _DatabaseShim
         _db_shim = _DatabaseShim(self.db_path)
         self.sales_reversal_service = SalesReversalService(
-            db=_db_shim, branch_id=1
+            db=_db_shim, branch_id=1,
+            finance_service=self.finance_service,
         )
 
         from core.services.pricing_service import PricingService
