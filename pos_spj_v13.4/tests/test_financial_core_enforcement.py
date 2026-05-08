@@ -13,8 +13,21 @@ Covers the six critical fixes applied:
 from __future__ import annotations
 
 import sqlite3
+import unittest
 from unittest.mock import MagicMock, call, patch
-import pytest
+
+
+def approx(expected, abs=1e-6):
+    """Minimal pytest.approx replacement for float comparisons."""
+    class _Approx:
+        def __eq__(self, actual):
+            return abs_(actual - expected) <= abs_tol
+        def __repr__(self):
+            return f"approx({expected}, abs={abs_tol})"
+    import builtins
+    abs_ = builtins.abs
+    abs_tol = abs
+    return _Approx()
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -131,7 +144,7 @@ def _mock_finance():
 
 # ── 1. Double GL fix: _compra_egreso removed ─────────────────────────────────
 
-class TestNoPurchaseDoubleGL:
+class TestNoPurchaseDoubleGL(unittest.TestCase):
     """Verify _compra_egreso is no longer wired on COMPRA_REGISTRADA."""
 
     def test_wire_flujos_criticos_has_no_active_subscriptions(self):
@@ -165,9 +178,9 @@ class TestNoPurchaseDoubleGL:
 
 # ── 2. CreditSaleFinanceHandler ───────────────────────────────────────────────
 
-class TestCreditSaleFinanceHandler:
+class TestCreditSaleFinanceHandler(unittest.TestCase):
 
-    def setup_method(self):
+    def setUp(self):
         self.db = _memory_db()
         self.db.execute(
             "INSERT INTO clientes (id, nombre, credit_limit, credit_balance) VALUES (1,'Ana',5000,0)"
@@ -248,7 +261,7 @@ class TestCreditSaleFinanceHandler:
         """Handler re-raises so the SAVEPOINT rolls back."""
         self.fs.registrar_asiento.side_effect = RuntimeError("DB locked")
         handler = self._handler()
-        with pytest.raises(RuntimeError):
+        with self.assertRaises(RuntimeError):
             handler.handle({
                 "payment_method": "Credito",
                 "total": 200.0,
@@ -261,9 +274,9 @@ class TestCreditSaleFinanceHandler:
 
 # ── 3. SaleCancelledFinanceHandler ────────────────────────────────────────────
 
-class TestSaleCancelledFinanceHandler:
+class TestSaleCancelledFinanceHandler(unittest.TestCase):
 
-    def setup_method(self):
+    def setUp(self):
         self.db = _memory_db()
         # Pre-create CxC record for credit sale cancellation test
         self.db.execute(
@@ -332,10 +345,10 @@ class TestSaleCancelledFinanceHandler:
 
 # ── 4. CustomerCreditService atomicity ───────────────────────────────────────
 
-class TestCustomerCreditServiceAtomicity:
+class TestCustomerCreditServiceAtomicity(unittest.TestCase):
     """registrar_asiento must be called BEFORE commit — if it fails, CxC is not persisted."""
 
-    def setup_method(self):
+    def setUp(self):
         self.db = _memory_db()
         self.db.execute(
             "INSERT INTO clientes (id, nombre, credit_balance) VALUES (5,'Carlos',0)"
@@ -398,9 +411,9 @@ class TestCustomerCreditServiceAtomicity:
 
 # ── 5. CierreCajaService corte Z discrepancy asiento ─────────────────────────
 
-class TestCierreCajaDiscrepancyAsiento:
+class TestCierreCajaDiscrepancyAsiento(unittest.TestCase):
 
-    def setup_method(self):
+    def setUp(self):
         self.db = _memory_db()
         # Open a shift
         self.db.execute(
@@ -425,29 +438,29 @@ class TestCierreCajaDiscrepancyAsiento:
         svc = self._svc()
         # Expected: 500 (ventas) + 100 (fondo) = 600; countado 650 → +50 surplus
         result = svc.corte_z(efectivo_contado=650.0)
-        assert result["diferencia"] == pytest.approx(50.0, abs=0.01)
+        assert result["diferencia"] == approx(50.0, abs=0.01)
         self.fs.registrar_asiento.assert_called_once()
         kwargs = self.fs.registrar_asiento.call_args.kwargs
         assert kwargs["debe"] == "110-caja"
         assert kwargs["haber"] == "999-diferencias-caja"
-        assert kwargs["monto"] == pytest.approx(50.0, abs=0.01)
+        assert kwargs["monto"] == approx(50.0, abs=0.01)
         assert kwargs["evento"] == "CORTE_Z"
 
     def test_shortage_posts_asiento(self):
         """Efectivo_contado < expected → faltante → asiento debe=diferencias haber=caja."""
         svc = self._svc()
         result = svc.corte_z(efectivo_contado=580.0)
-        assert result["diferencia"] == pytest.approx(-20.0, abs=0.01)
+        assert result["diferencia"] == approx(-20.0, abs=0.01)
         kwargs = self.fs.registrar_asiento.call_args.kwargs
         assert kwargs["debe"] == "999-diferencias-caja"
         assert kwargs["haber"] == "110-caja"
-        assert kwargs["monto"] == pytest.approx(20.0, abs=0.01)
+        assert kwargs["monto"] == approx(20.0, abs=0.01)
 
     def test_zero_difference_skips_asiento(self):
         """Exact cash count produces no asiento."""
         svc = self._svc()
         result = svc.corte_z(efectivo_contado=600.0)
-        assert result["diferencia"] == pytest.approx(0.0, abs=0.01)
+        assert result["diferencia"] == approx(0.0, abs=0.01)
         self.fs.registrar_asiento.assert_not_called()
 
     def test_corte_z_without_finance_service_does_not_crash(self):
@@ -460,9 +473,9 @@ class TestCierreCajaDiscrepancyAsiento:
 
 # ── 6. AnticipoCotizacionService asiento ─────────────────────────────────────
 
-class TestAnticipoAsiento:
+class TestAnticipoAsiento(unittest.TestCase):
 
-    def setup_method(self):
+    def setUp(self):
         self.db = _memory_db()
         self.db.execute("""
             INSERT INTO ordenes_cotizacion
