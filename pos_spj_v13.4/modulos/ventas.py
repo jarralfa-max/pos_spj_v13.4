@@ -2961,32 +2961,51 @@ class ModuloVentas(ModuloBase):
             pass  # If check fails, allow sale (graceful degradation)
 
         # ── Validar límite de crédito antes de abrir diálogo ──────────────
+        # Delegate to CustomerCreditService when available; fall back to direct
+        # DB query using the canonical columns (credit_balance / credit_limit).
         if self.cliente_actual:
-            try:
-                row = self.container.db.execute(
-                    "SELECT COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito FROM clientes WHERE id=?",
-                    (self.cliente_actual['id'],)
-                ).fetchone()
-                if row:
-                    saldo_usado   = float(row[0] or 0)
-                    limite        = float(row[1] or 0)
-                    total_venta   = self.totales.get('total_final', 0)
-                    if limite > 0 and (saldo_usado + total_venta) > limite:
-                        disponible = max(0, limite - saldo_usado)
-                        resp = QMessageBox.question(
-                            self, "⚠️ Límite de crédito",
-                            f"El cliente {self.cliente_actual['nombre']} tiene:\n"
-                            f"  Saldo en uso: ${saldo_usado:.2f}\n"
-                            f"  Límite: ${limite:.2f}\n"
-                            f"  Disponible: ${disponible:.2f}\n\n"
-                            f"Esta venta (${total_venta:.2f}) excede el límite.\n"
-                            "¿Continuar de todas formas?",
-                            QMessageBox.Yes | QMessageBox.No
+            _ccs = getattr(self.container, 'customer_credit_service', None)
+            _total_venta = self.totales.get('total_final', 0)
+            if _ccs:
+                try:
+                    _ok, _msg = _ccs.validate_credit(
+                        self.cliente_actual['id'], _total_venta
+                    )
+                    if not _ok:
+                        QMessageBox.critical(
+                            self, "Crédito insuficiente",
+                            f"{_msg}\n\nLa venta a crédito no puede procesarse."
                         )
-                        if resp != QMessageBox.Yes:
+                        return
+                except Exception:
+                    pass  # Si el servicio falla, continúa (no bloquea)
+            else:
+                # Fallback: consulta directa con columnas canónicas
+                try:
+                    row = self.container.db.execute(
+                        "SELECT "
+                        "  COALESCE(credit_balance, COALESCE(saldo, 0)) AS saldo_usado, "
+                        "  COALESCE(credit_limit,   COALESCE(limite_credito, 0)) AS limite "
+                        "FROM clientes WHERE id=?",
+                        (self.cliente_actual['id'],)
+                    ).fetchone()
+                    if row:
+                        saldo_usado  = float(row[0] or 0)
+                        limite       = float(row[1] or 0)
+                        if limite > 0 and (saldo_usado + _total_venta) > limite:
+                            disponible = max(0, limite - saldo_usado)
+                            QMessageBox.critical(
+                                self, "Crédito insuficiente",
+                                f"El cliente '{self.cliente_actual['nombre']}' no tiene crédito suficiente.\n\n"
+                                f"  Saldo en uso: ${saldo_usado:.2f}\n"
+                                f"  Límite: ${limite:.2f}\n"
+                                f"  Disponible: ${disponible:.2f}\n"
+                                f"  Esta venta: ${_total_venta:.2f}\n\n"
+                                "La venta a crédito no puede procesarse."
+                            )
                             return
-            except Exception:
-                pass  # Si falla la consulta, continuar normalmente
+                except Exception:
+                    pass  # Si falla la consulta, continuar normalmente
 
         # ── v13.4 Fase 2: Ofrecer canje de estrellas ──────────────────────
         descuento_canje = 0.0

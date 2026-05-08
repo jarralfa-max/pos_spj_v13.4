@@ -132,11 +132,14 @@ class CreditSaleFinanceHandler:
                    VALUES (?, ?, ?, ?, ?, ?, 'pendiente')""",
                 (cliente_id, sale_id, folio, total, total, sucursal_id),
             )
+            # Sync both canonical columns — credit_balance (English service layer)
+            # and saldo (Spanish legacy UI validation) must stay in lockstep.
             self._db.execute(
                 "UPDATE clientes "
-                "SET credit_balance = COALESCE(credit_balance, 0) + ? "
+                "SET credit_balance = COALESCE(credit_balance, 0) + ?, "
+                "    saldo          = COALESCE(saldo, 0) + ? "
                 "WHERE id = ?",
-                (total, cliente_id),
+                (total, total, cliente_id),
             )
 
             if hasattr(self._finance, "registrar_asiento"):

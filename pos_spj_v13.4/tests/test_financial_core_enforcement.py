@@ -56,6 +56,8 @@ def _memory_db() -> sqlite3.Connection:
             activo         INTEGER DEFAULT 1,
             credit_limit   REAL DEFAULT 0,
             credit_balance REAL DEFAULT 0,
+            saldo          REAL DEFAULT 0,
+            limite_credito REAL DEFAULT 0,
             puntos         INTEGER DEFAULT 0,
             allows_credit  INTEGER DEFAULT 0
         );
