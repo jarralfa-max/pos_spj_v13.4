@@ -133,6 +133,20 @@ class AppContainer:
             finance_service=self.finance_service,
         )
 
+        # CreditValidationService — rich pre-authorization (post-dialog, credit only)
+        from application.services.credit_validation_service import CreditValidationService
+        self.credit_validation_service = CreditValidationService(
+            db_conn=self.db,
+            block_on_overdue=False,
+        )
+
+        # AccountsReceivableService — canonical CxC mutation path
+        from application.services.accounts_receivable_service import AccountsReceivableService
+        self.accounts_receivable_service = AccountsReceivableService(
+            db_conn=self.db,
+            finance_service=self.finance_service,
+        )
+
         # Motores de producción — fuente canónica
         self.recipe_engine = RecipeEngine(self.db, branch_id=1)
         self.production_engine = ProductionEngine(self.db, branch_id=1)
