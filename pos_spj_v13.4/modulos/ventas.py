@@ -216,10 +216,7 @@ class ProductCard(QFrame):
                 self._lbl_check = _QL("✓", self)
                 self._lbl_check.setFixedSize(18, 18)
                 self._lbl_check.setAlignment(Qt.AlignCenter)
-                self._lbl_check.setStyleSheet(
-                    "background:#2563EB; color:white; border-radius:9px;"
-                    " font-size:11px; font-weight:bold;"
-                )
+                self._lbl_check.setObjectName("posProductCheckBadge")
             self._lbl_check.move(self.width() - 22, 4)
             self._lbl_check.show()
             self._lbl_check.raise_()
@@ -1037,12 +1034,45 @@ class ModuloVentas(ModuloBase):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        self._page_header = PageHeader(
-            self,
-            title="🛒 Punto de Venta",
-            subtitle="Carrito, cobro, devoluciones y suspensión",
-        )
-        root_layout.addWidget(self._page_header)
+        # ── CASHIER INFO BAR ─────────────────────────────────────────────────
+        cashier_bar = QFrame()
+        cashier_bar.setObjectName("posCashierBar")
+        cashier_bar.setFixedHeight(48)
+        cb_layout = QHBoxLayout(cashier_bar)
+        cb_layout.setContentsMargins(12, 4, 12, 4)
+        cb_layout.setSpacing(10)
+
+        self._lbl_pos_title = QLabel("🛒 Punto de Venta")
+        self._lbl_pos_title.setObjectName("posCashierTitle")
+        cb_layout.addWidget(self._lbl_pos_title)
+
+        self._lbl_cashier_meta = QLabel("")
+        self._lbl_cashier_meta.setObjectName("posCashierMeta")
+        cb_layout.addWidget(self._lbl_cashier_meta)
+        cb_layout.addStretch(1)
+
+        self._lbl_status_badge = QLabel("● Abierto")
+        self._lbl_status_badge.setObjectName("posStatusBadge")
+        cb_layout.addWidget(self._lbl_status_badge)
+
+        cb_layout.addSpacing(8)
+
+        self._btn_bascula_hw = QPushButton("⚖ Báscula")
+        self._btn_bascula_hw.setObjectName("posHWBtn")
+        self._btn_bascula_hw.setToolTip("Estado de la báscula")
+        cb_layout.addWidget(self._btn_bascula_hw)
+
+        self._btn_terminal_hw = QPushButton("💳 Terminal")
+        self._btn_terminal_hw.setObjectName("posHWBtn")
+        self._btn_terminal_hw.setToolTip("Estado de la terminal de pago")
+        cb_layout.addWidget(self._btn_terminal_hw)
+
+        self._btn_corte_z = QPushButton("📋 Corte Z")
+        self._btn_corte_z.setObjectName("posCorteBtn")
+        self._btn_corte_z.setToolTip("Realizar corte de caja (Corte Z)")
+        cb_layout.addWidget(self._btn_corte_z)
+
+        root_layout.addWidget(cashier_bar)
 
         body = QWidget(self)
         main_layout = QHBoxLayout(body)
@@ -1053,52 +1083,71 @@ class ModuloVentas(ModuloBase):
         splitter = QSplitter(Qt.Horizontal)
         splitter.setProperty("class", "main-splitter")
         splitter.setHandleWidth(3)
-        
-        # --- PANEL IZQUIERDO (Productos) ---
+
+        # ── LEFT PANEL: PRODUCTS ─────────────────────────────────────────────
         panel_izquierdo = QWidget()
         layout_izquierdo = QVBoxLayout(panel_izquierdo)
-        layout_izquierdo.setSpacing(8)
+        layout_izquierdo.setSpacing(6)
         layout_izquierdo.setContentsMargins(5, 5, 5, 5)
-        
-        group_busqueda = QGroupBox("🔍 Buscar Producto")
-        group_busqueda.setMaximumHeight(80)
-        group_busqueda.setProperty("class", "search-group")
-        busqueda_layout = QHBoxLayout(group_busqueda)
-        busqueda_layout.setContentsMargins(8, 8, 8, 8)
-        
+
+        # Search row
+        search_row = QFrame()
+        search_row.setObjectName("card")
+        search_layout = QHBoxLayout(search_row)
+        search_layout.setContentsMargins(8, 6, 8, 6)
+        search_layout.setSpacing(6)
+
         self.txt_busqueda = QLineEdit()
         self.txt_busqueda.setPlaceholderText("🔍 Escanear o escribir producto...")
         self.txt_busqueda.setProperty("class", "search-input")
         self.txt_busqueda.setToolTip(
             "Campo activo para PRODUCTOS\n"
             "Cuando este campo tenga foco, el scanner agrega productos al carrito.")
-
-        # Scanner context signals
-        # Use event filter instead of monkey-patching (avoids sipBadCatcherResult)
         self._filter_busqueda = _ScanContextFilter(self, "producto", self.txt_busqueda)
         self.txt_busqueda.installEventFilter(self._filter_busqueda)
+
         self.btn_buscar = QPushButton("Buscar")
         self.btn_buscar.setMinimumWidth(72)
-        self.btn_buscar.setProperty("class", "search-button")
-        self.btn_limpiar_busqueda = QPushButton("❌")
+        self.btn_buscar.setObjectName("primaryBtn")
+        self.btn_limpiar_busqueda = QPushButton("✕")
         self.btn_limpiar_busqueda.setToolTip("Limpiar búsqueda")
-        self.btn_limpiar_busqueda.setFixedWidth(40)
+        self.btn_limpiar_busqueda.setFixedSize(32, 32)
         self.btn_limpiar_busqueda.setProperty("class", "icon-button")
-        
-        busqueda_layout.addWidget(self.txt_busqueda)
-        busqueda_layout.addWidget(self.btn_buscar)
-        busqueda_layout.addWidget(self.btn_limpiar_busqueda)
-        layout_izquierdo.addWidget(group_busqueda)
-        
+
+        search_layout.addWidget(self.txt_busqueda)
+        search_layout.addWidget(self.btn_buscar)
+        search_layout.addWidget(self.btn_limpiar_busqueda)
+        layout_izquierdo.addWidget(search_row)
+
+        # Category tab bar (scrollable)
+        self._category_scroll = QScrollArea()
+        self._category_scroll.setObjectName("posCategoryScroll")
+        self._category_scroll.setWidgetResizable(True)
+        self._category_scroll.setFixedHeight(40)
+        self._category_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._category_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self._category_container = QWidget()
+        self._category_layout = QHBoxLayout(self._category_container)
+        self._category_layout.setContentsMargins(2, 2, 2, 2)
+        self._category_layout.setSpacing(4)
+        self._category_layout.addStretch(1)
+        self._category_scroll.setWidget(self._category_container)
+        self._pos_categoria_activa = ""
+        self._pos_category_buttons = {}
+        layout_izquierdo.addWidget(self._category_scroll)
+
+        # Product grid
         group_productos = QGroupBox("📦 Productos Disponibles")
         group_productos.setProperty("class", "products-group")
         productos_layout = QVBoxLayout(group_productos)
-        
+        productos_layout.setContentsMargins(4, 4, 4, 4)
+
         self.scroll_area_productos = QScrollArea()
         self.scroll_area_productos.setWidgetResizable(True)
         self.scroll_area_productos.setProperty("class", "products-scroll")
         self.scroll_area_productos.setMinimumHeight(300)
-        
+
         self.scroll_content = QWidget()
         self.grid_productos = QGridLayout(self.scroll_content)
         self.grid_productos.setAlignment(Qt.AlignTop | Qt.AlignLeft)
@@ -1106,95 +1155,96 @@ class ModuloVentas(ModuloBase):
         self.grid_productos.setContentsMargins(10, 10, 10, 10)
         self.scroll_area_productos.setWidget(self.scroll_content)
         productos_layout.addWidget(self.scroll_area_productos)
-        
         layout_izquierdo.addWidget(group_productos, 1)
-        
+
         status_layout = QHBoxLayout()
-        self.lbl_estado_bascula = QLabel("Báscula: ❌ No conectada")
+        self.lbl_estado_bascula = QLabel("⚖ Báscula: ❌ No conectada")
         self.lbl_estado_bascula.setProperty("class", "status-label")
-        self.lbl_estado_terminal = QLabel("Terminal: ❌ No disponible")
+        self.lbl_estado_terminal = QLabel("💳 Terminal: ❌ No disponible")
         self.lbl_estado_terminal.setProperty("class", "status-label")
         status_layout.addWidget(self.lbl_estado_bascula)
         status_layout.addWidget(self.lbl_estado_terminal)
         status_layout.addStretch()
         layout_izquierdo.addLayout(status_layout)
-        
-        # --- PANEL DERECHO (Carrito y Acciones) ---
+
+        # ── RIGHT PANEL: CART & CHECKOUT ─────────────────────────────────────
         panel_derecho = QWidget()
         panel_derecho.setMinimumWidth(460)
         layout_derecho = QVBoxLayout(panel_derecho)
-        layout_derecho.setSpacing(8)
+        layout_derecho.setSpacing(6)
         layout_derecho.setContentsMargins(5, 5, 5, 5)
-        
-        group_cliente = QGroupBox("👤 Cliente")
+
+        # CLIENT SECTION
+        group_cliente = QGroupBox("CLIENTE")
         group_cliente.setProperty("class", "client-group")
         cliente_layout = QVBoxLayout(group_cliente)
-        cliente_layout.setContentsMargins(6, 6, 6, 6)
-        cliente_layout.setSpacing(3)
-        
+        cliente_layout.setContentsMargins(8, 6, 8, 6)
+        cliente_layout.setSpacing(4)
+
         self.txt_cliente = QLineEdit()
         self.txt_cliente.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
         self.txt_cliente.setProperty("class", "client-input")
         self.txt_cliente.setToolTip(
             "Campo activo para CLIENTES / TARJETAS\n"
             "Cuando este campo tenga foco, el scanner carga el cliente por tarjeta o ID.")
-
-        # Scanner context signals
-        # Use event filter instead of monkey-patching (avoids sipBadCatcherResult)
         self._filter_cliente = _ScanContextFilter(self, "cliente", self.txt_cliente)
         self.txt_cliente.installEventFilter(self._filter_cliente)
+
         self.btn_buscar_cliente = QPushButton("🔍")
-        self.btn_buscar_cliente.setFixedSize(36, 32)
+        self.btn_buscar_cliente.setFixedSize(32, 28)
         self.btn_buscar_cliente.setProperty("class", "icon-button")
         self.btn_agregar_cliente = QPushButton("➕")
-        self.btn_agregar_cliente.setFixedSize(36, 32)
+        self.btn_agregar_cliente.setFixedSize(32, 28)
         self.btn_agregar_cliente.setProperty("class", "icon-button")
-        self.btn_limpiar_cliente = QPushButton("❌")
-        self.btn_limpiar_cliente.setFixedSize(36, 32)
+        self.btn_limpiar_cliente = QPushButton("✕")
+        self.btn_limpiar_cliente.setFixedSize(32, 28)
         self.btn_limpiar_cliente.setProperty("class", "icon-button")
-        
+
         busqueda_cliente_layout = QHBoxLayout()
+        busqueda_cliente_layout.setSpacing(4)
         busqueda_cliente_layout.addWidget(self.txt_cliente)
         busqueda_cliente_layout.addWidget(self.btn_buscar_cliente)
         busqueda_cliente_layout.addWidget(self.btn_agregar_cliente)
         busqueda_cliente_layout.addWidget(self.btn_limpiar_cliente)
         cliente_layout.addLayout(busqueda_cliente_layout)
-        
+
         self.lbl_nombre_cliente = QLabel("Público General")
-        self.lbl_puntos_cliente = QLabel("Puntos: 0")
-        self.lbl_telefono_cliente = QLabel("Teléfono: -")  
-        self.lbl_email_cliente = QLabel("Email: -")        
-        
+        self.lbl_puntos_cliente = QLabel("+ 0 pts")
+        self.lbl_telefono_cliente = QLabel("Tel: —")
+        self.lbl_email_cliente = QLabel("")  # kept for API compatibility, not shown
+
         self.lbl_nombre_cliente.setProperty("class", "client-info-highlight")
         self.lbl_puntos_cliente.setProperty("class", "client-info-highlight")
         self.lbl_telefono_cliente.setProperty("class", "client-info")
         self.lbl_email_cliente.setProperty("class", "client-info")
-        
-        cliente_info_layout = QHBoxLayout()
-        cliente_info_layout.addWidget(self.lbl_nombre_cliente)
-        cliente_info_layout.addStretch()
-        cliente_info_layout.addWidget(self.lbl_puntos_cliente)
-        cliente_layout.addLayout(cliente_info_layout)
-        
-        cliente_info2_layout = QHBoxLayout()
-        cliente_info2_layout.addWidget(self.lbl_telefono_cliente)
-        cliente_info2_layout.addStretch()
-        cliente_info2_layout.addWidget(self.lbl_email_cliente)
-        cliente_layout.addLayout(cliente_info2_layout)
-        
+
+        cliente_info_row = QHBoxLayout()
+        cliente_info_row.setSpacing(6)
+        cliente_info_row.addWidget(self.lbl_nombre_cliente)
+        _sep1 = QLabel("·")
+        _sep1.setProperty("class", "client-info")
+        cliente_info_row.addWidget(_sep1)
+        cliente_info_row.addWidget(self.lbl_puntos_cliente)
+        _sep2 = QLabel("·")
+        _sep2.setProperty("class", "client-info")
+        cliente_info_row.addWidget(_sep2)
+        cliente_info_row.addWidget(self.lbl_telefono_cliente)
+        cliente_info_row.addStretch(1)
+        cliente_layout.addLayout(cliente_info_row)
         layout_derecho.addWidget(group_cliente)
-        
-        group_carrito = QGroupBox("🛒 Carrito de Compra")
+
+        # CART TABLE
+        group_carrito = QGroupBox("CARRITO DE COMPRA")
         group_carrito.setProperty("class", "venta-group")
         group_carrito.setMinimumHeight(200)
         carrito_layout = QVBoxLayout(group_carrito)
-        carrito_layout.setContentsMargins(5, 5, 5, 5)
+        carrito_layout.setContentsMargins(4, 4, 4, 4)
 
         self.tabla_compra = QTableWidget()
         self.tabla_compra.setProperty("class", "tabla-carrito")
         self.tabla_compra.setColumnCount(7)
         self.tabla_compra.setHorizontalHeaderLabels(
-            ["Producto", "Cant.", "Precio", "Desc%", "Total", "", ""])
+            ["Producto", "Cant.", "Precio", "Desc.", "Total", "", ""])
         self.tabla_compra.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
@@ -1202,84 +1252,113 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.verticalHeader().setDefaultSectionSize(34)
         self.tabla_compra.verticalHeader().setVisible(False)
         self.tabla_compra.setColumnWidth(0, 140)
-        self.tabla_compra.setColumnWidth(1, 45) 
-        self.tabla_compra.setColumnWidth(2, 55) 
+        self.tabla_compra.setColumnWidth(1, 45)
+        self.tabla_compra.setColumnWidth(2, 55)
         self.tabla_compra.setColumnWidth(3, 45)
-        self.tabla_compra.setColumnWidth(4, 60) 
+        self.tabla_compra.setColumnWidth(4, 60)
         self.tabla_compra.setColumnWidth(5, 28)
-        self.tabla_compra.setColumnWidth(6, 28) 
+        self.tabla_compra.setColumnWidth(6, 28)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         carrito_layout.addWidget(self.tabla_compra)
-        
+
         self.lbl_info_carrito = QLabel("")
         self.lbl_info_carrito.setAlignment(Qt.AlignCenter)
         self.lbl_info_carrito.setProperty("class", "info-label")
         carrito_layout.addWidget(self.lbl_info_carrito)
-        
         layout_derecho.addWidget(group_carrito, 1)
-    
-        group_info_venta = QGroupBox("📊 Resumen")
-        group_info_venta.setMaximumHeight(120)
-        group_info_venta.setProperty("class", "venta-group")
-        info_venta_layout = QGridLayout(group_info_venta)
-        info_venta_layout.setContentsMargins(8, 8, 8, 8)
-        
-        self.lbl_peso_bascula = QLabel("Peso: 0.000 kg")
-        self.lbl_total = QLabel("TOTAL: $0.00")
-        self.lbl_puntos_venta = QLabel("Puntos: 0")
-        
-        self.lbl_peso_bascula.setProperty("class", "info-box")
-        self.lbl_total.setProperty("class", "total-box")
-        self.lbl_puntos_venta.setProperty("class", "info-box")
-        
-        self.lbl_peso_bascula.setAlignment(Qt.AlignCenter)
-        self.lbl_total.setAlignment(Qt.AlignCenter)
-        self.lbl_puntos_venta.setAlignment(Qt.AlignCenter)
-        
-        info_venta_layout.addWidget(self.lbl_peso_bascula, 0, 0)
-        info_venta_layout.addWidget(self.lbl_total, 0, 1)
-        info_venta_layout.addWidget(self.lbl_puntos_venta, 1, 0, 1, 2)
 
-        # Widget de comisión del turno (configurable: se muestra si está habilitado)
-        self.lbl_comision_turno = QLabel("💰 Comisión turno: $0.00")
-        self.lbl_comision_turno.setAlignment(Qt.AlignCenter)
-        self.lbl_comision_turno.setProperty("class", "badge-success")
-        self.lbl_comision_turno.setVisible(False)   # se activa si tiene config
-        info_venta_layout.addWidget(self.lbl_comision_turno, 2, 0, 1, 2)
-        
-        layout_derecho.addWidget(group_info_venta)
-
-        group_acciones = QGroupBox("⚡ Acciones")
-        group_acciones.setProperty("class", "venta-group")
-        acciones_layout = QGridLayout(group_acciones)
-        acciones_layout.setContentsMargins(10, 10, 10, 10)
-        acciones_layout.setHorizontalSpacing(8)
-        acciones_layout.setVerticalSpacing(8)
-        acciones_layout.setColumnStretch(0, 1)
-        acciones_layout.setColumnStretch(1, 1)
-        
-        # ── Descuentos rápidos ───────────────────────────────────────────
-        grp_desc = QGroupBox("⚡ Descuento rápido")
-        desc_lay = QHBoxLayout(grp_desc)
-        desc_lay.setContentsMargins(8, 6, 8, 6)
-        desc_lay.setSpacing(6)
+        # QUICK DISCOUNT BUTTONS
+        desc_frame = QFrame()
+        desc_frame.setObjectName("card")
+        desc_lay = QHBoxLayout(desc_frame)
+        desc_lay.setContentsMargins(8, 5, 8, 5)
+        desc_lay.setSpacing(5)
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
             btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            btn_d.setMinimumHeight(32)
+            btn_d.setMinimumHeight(30)
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
-            btn_d.setProperty("class", "btn-outline btn-sm")
+            btn_d.setObjectName("outlineBtn")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
         btn_custom = QPushButton("Custom")
         btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        btn_custom.setMinimumHeight(32)
+        btn_custom.setMinimumHeight(30)
         btn_custom.setToolTip("Descuento personalizado")
-        btn_custom.setProperty("class", "btn-accent btn-sm")
+        btn_custom.setObjectName("accentBtn")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
         desc_lay.addWidget(btn_custom)
-        layout_derecho.addWidget(grp_desc)
+        layout_derecho.addWidget(desc_frame)
 
+        # TOTALS BREAKDOWN CARD
+        totals_card = QFrame()
+        totals_card.setObjectName("posTotalsCard")
+        totals_layout = QVBoxLayout(totals_card)
+        totals_layout.setContentsMargins(12, 8, 12, 8)
+        totals_layout.setSpacing(4)
+
+        row_sub = QHBoxLayout()
+        row_sub.setSpacing(4)
+        lbl_sub_label = QLabel("Subtotal")
+        lbl_sub_label.setObjectName("posTotalsRowLabel")
+        self._lbl_subtotal_val = QLabel("$0.00")
+        self._lbl_subtotal_val.setObjectName("posTotalsRowValue")
+        self._lbl_subtotal_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_sub.addWidget(lbl_sub_label)
+        row_sub.addStretch(1)
+        row_sub.addWidget(self._lbl_subtotal_val)
+        totals_layout.addLayout(row_sub)
+
+        self._row_discount_widget = QWidget()
+        row_disc = QHBoxLayout(self._row_discount_widget)
+        row_disc.setContentsMargins(0, 0, 0, 0)
+        row_disc.setSpacing(4)
+        self._lbl_descuento_label = QLabel("Descuento")
+        self._lbl_descuento_label.setObjectName("posDiscountLabel")
+        self._lbl_descuento_val = QLabel("")
+        self._lbl_descuento_val.setObjectName("posDiscountValue")
+        self._lbl_descuento_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_disc.addWidget(self._lbl_descuento_label)
+        row_disc.addStretch(1)
+        row_disc.addWidget(self._lbl_descuento_val)
+        self._row_discount_widget.setVisible(False)
+        totals_layout.addWidget(self._row_discount_widget)
+
+        divider = QFrame()
+        divider.setObjectName("posTotalsDivider")
+        divider.setFrameShape(QFrame.HLine)
+        divider.setFixedHeight(1)
+        totals_layout.addWidget(divider)
+
+        row_total = QHBoxLayout()
+        row_total.setSpacing(4)
+        lbl_total_label = QLabel("TOTAL")
+        lbl_total_label.setObjectName("posGrandTotalLabel")
+        self.lbl_total = QLabel("$0.00")
+        self.lbl_total.setObjectName("posGrandTotalValue")
+        self.lbl_total.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_total.addWidget(lbl_total_label)
+        row_total.addStretch(1)
+        row_total.addWidget(self.lbl_total)
+        totals_layout.addLayout(row_total)
+
+        metrics_row = QHBoxLayout()
+        metrics_row.setSpacing(12)
+        self.lbl_peso_bascula = QLabel("0.000 kg")
+        self.lbl_puntos_venta = QLabel("+ 0 pts")
+        self.lbl_comision_turno = QLabel("")
+        self.lbl_peso_bascula.setObjectName("posFinancialMetric")
+        self.lbl_puntos_venta.setObjectName("posFinancialMetric")
+        self.lbl_comision_turno.setObjectName("posCommissionBadge")
+        self.lbl_comision_turno.setVisible(False)
+        metrics_row.addWidget(self.lbl_peso_bascula)
+        metrics_row.addWidget(self.lbl_puntos_venta)
+        metrics_row.addStretch(1)
+        metrics_row.addWidget(self.lbl_comision_turno)
+        totals_layout.addLayout(metrics_row)
+        layout_derecho.addWidget(totals_card)
+
+        # FACTURA / REIMPRIMIR BUTTONS
         self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta")
         self.btn_factura.setEnabled(False)
         self.btn_factura.clicked.connect(self._generar_factura)
@@ -1288,9 +1367,9 @@ class ModuloVentas(ModuloBase):
         self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
         for _b in (self.btn_factura, self.btn_reimprimir):
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(36)
+            _b.setMinimumHeight(32)
         row_docs = QHBoxLayout()
-        row_docs.setSpacing(8)
+        row_docs.setSpacing(6)
         row_docs.addWidget(self.btn_factura)
         row_docs.addWidget(self.btn_reimprimir)
         layout_derecho.addLayout(row_docs)
@@ -1302,39 +1381,47 @@ class ModuloVentas(ModuloBase):
         self._banner_sin_impresora.setVisible(False)
         layout_derecho.addWidget(self._banner_sin_impresora)
 
-        self.btn_cobrar = create_success_button(self, "💰 Cobrar", "Procesar el pago de la venta")
-        self.btn_suspender = create_warning_button(self, "⏸️ Suspender", "Suspender venta actual para atender otra")
-        self.btn_reanudar = create_primary_button(self, "▶️ Reanudar (0)", "Reanudar venta suspendida")
-        self.btn_cancelar = create_danger_button(self, "❌ Cancelar", "Cancelar venta actual")
+        # ACTION BUTTONS
+        group_acciones = QGroupBox()
+        group_acciones.setProperty("class", "venta-group")
+        acciones_layout = QGridLayout(group_acciones)
+        acciones_layout.setContentsMargins(8, 8, 8, 8)
+        acciones_layout.setHorizontalSpacing(6)
+        acciones_layout.setVerticalSpacing(6)
+        acciones_layout.setColumnStretch(0, 1)
+        acciones_layout.setColumnStretch(1, 1)
 
-        self.btn_devolucion = create_secondary_button(self, "↩ Devolución", "Cancelar o devolver una venta anterior (requiere permiso)")
-        self.btn_devolucion.setEnabled(False)   # se activa tras login con permiso
+        self.btn_cobrar = create_success_button(self, "💰 COBRAR  $0.00", "Procesar el pago de la venta")
+        self.btn_cobrar.setObjectName("btnCobrarPOS")
+        self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta actual para atender otra")
+        self.btn_reanudar = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida")
+        self.btn_cancelar = create_danger_button(self, "✕ Cancelar", "Cancelar venta actual")
+        self.btn_devolucion = create_secondary_button(
+            self, "↩ Devolución",
+            "Cancelar o devolver una venta anterior (requiere permiso)")
+        self.btn_devolucion.setEnabled(False)
 
-        # Buttons fill the entire QGroupBox width and have prominent height.
-        # Override the fixed-height set by _configure_button so the row can grow,
-        # and tag with 'fill_parent' to skip _normalizar_botones_principales.
-        for btn in (self.btn_cobrar, self.btn_suspender, self.btn_reanudar, self.btn_cancelar, self.btn_devolucion):
+        for btn in (self.btn_cobrar, self.btn_suspender, self.btn_reanudar,
+                    self.btn_cancelar, self.btn_devolucion):
             btn.setProperty("fill_parent", True)
             btn.setMinimumHeight(0)
             btn.setMaximumHeight(16777215)
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             btn.setMinimumHeight(40)
-        # Primary action gets visual prominence
-        self.btn_cobrar.setMinimumHeight(52)
 
-        acciones_layout.addWidget(self.btn_cobrar,    0, 0, 1, 2)
-        acciones_layout.addWidget(self.btn_suspender, 1, 0)
-        acciones_layout.addWidget(self.btn_reanudar,  1, 1)
-        acciones_layout.addWidget(self.btn_cancelar,  2, 0)
-        acciones_layout.addWidget(self.btn_devolucion,2, 1)
-
+        acciones_layout.addWidget(self.btn_cobrar,     0, 0, 1, 2)
+        acciones_layout.addWidget(self.btn_suspender,  1, 0)
+        acciones_layout.addWidget(self.btn_reanudar,   1, 1)
+        acciones_layout.addWidget(self.btn_cancelar,   2, 0)
+        acciones_layout.addWidget(self.btn_devolucion, 2, 1)
         layout_derecho.addWidget(group_acciones)
-        
+
         splitter.addWidget(panel_izquierdo)
         splitter.addWidget(panel_derecho)
         splitter.setSizes([600, 500])
         main_layout.addWidget(splitter)
         self._normalizar_botones_principales()
+        QTimer.singleShot(0, self._cargar_categorias)
 
     def _normalizar_botones_principales(self):
         """
@@ -1345,7 +1432,7 @@ class ModuloVentas(ModuloBase):
         for btn in self.findChildren(QPushButton):
             if btn.property("fill_parent"):
                 continue
-            # Preservar icon-buttons compactos ya configurados en 40px.
+            # Preserve compact icon-buttons already configured at 40px.
             if btn.minimumWidth() and btn.minimumWidth() <= 45:
                 continue
             if btn.maximumWidth() == 16777215:
@@ -1353,24 +1440,84 @@ class ModuloVentas(ModuloBase):
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
 
+    # ── CATEGORY TABS ────────────────────────────────────────────────────────
+
+    def _cargar_categorias(self) -> None:
+        """Load unique product categories from DB and build the tab bar."""
+        categorias = [""]  # "" = Todos
+        try:
+            rows = self.conexion.execute(
+                "SELECT DISTINCT COALESCE(categoria,'') FROM productos "
+                "WHERE COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1 "
+                "AND categoria IS NOT NULL AND categoria != '' "
+                "ORDER BY categoria"
+            ).fetchall()
+            for row in rows:
+                cat = row[0] if not hasattr(row, 'keys') else row['COALESCE(categoria,\'\')']
+                if cat:
+                    categorias.append(cat)
+        except Exception as e:
+            logger.debug("_cargar_categorias: %s", e)
+
+        # Remove all existing buttons (except stretch)
+        while self._category_layout.count() > 1:
+            item = self._category_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.setParent(None)
+        self._pos_category_buttons.clear()
+
+        labels = {cat: ("Todos" if cat == "" else cat) for cat in categorias}
+        for cat in categorias:
+            btn = QPushButton(labels[cat])
+            btn.setObjectName("posCategoryBtn")
+            btn.setCheckable(False)
+            btn.setProperty("active", cat == self._pos_categoria_activa)
+            btn.clicked.connect(lambda checked=False, c=cat: self._filtrar_por_categoria(c))
+            self._category_layout.insertWidget(self._category_layout.count() - 1, btn)
+            self._pos_category_buttons[cat] = btn
+
+    def _filtrar_por_categoria(self, categoria: str) -> None:
+        """Filter the product grid by category. '' means show all."""
+        self._pos_categoria_activa = categoria
+        for cat, btn in self._pos_category_buttons.items():
+            btn.setProperty("active", cat == categoria)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+        filtro_texto = self.txt_busqueda.text().strip()
+        self.cargar_productos_interactivos(filtro_texto, categoria=categoria)
+
+    # ── CASHIER INFO ─────────────────────────────────────────────────────────
+
+    def set_cajero_info(self, caja: str = "", cajero: str = "",
+                        turno: str = "", estado: str = "Abierto") -> None:
+        """Update the cashier info bar (called from main_window after login)."""
+        if not hasattr(self, '_lbl_cashier_meta'):
+            return
+        parts = [p for p in [caja, cajero, turno] if p]
+        self._lbl_cashier_meta.setText("  |  ".join(parts))
+        if hasattr(self, '_lbl_status_badge'):
+            self._lbl_status_badge.setText(f"● {estado}")
+
     def limpiar_busqueda_productos(self):
         self.txt_busqueda.clear()
-        self.cargar_productos_interactivos()
+        cat = getattr(self, '_pos_categoria_activa', '')
+        self.cargar_productos_interactivos(categoria=cat)
 
     def buscar_productos_en_tiempo_real(self, texto: str):
         if len(texto.strip()) >= 2:
-            self.cargar_productos_interactivos(texto.strip())
+            cat = getattr(self, '_pos_categoria_activa', '')
+            self.cargar_productos_interactivos(texto.strip(), categoria=cat)
 
-    def cargar_productos_interactivos(self, filtro: str = ""):
+    def cargar_productos_interactivos(self, filtro: str = "", categoria: str = ""):
         for i in reversed(range(self.grid_productos.count())):
             widget = self.grid_productos.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
-        
+
         try:
             cursor = self.conexion.cursor()
-            # v13.4: Leer stock de branch_inventory para la sucursal activa
-            # COALESCE: branch_inventory.quantity → productos.existencia → 0
+            # v13.4: Read stock from branch_inventory for active branch
             query = """
                 SELECT p.id, p.nombre, p.precio,
                        COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
@@ -1385,11 +1532,14 @@ class ModuloVentas(ModuloBase):
             if filtro:
                 query += " AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ? OR COALESCE(p.codigo_barras,'') = ?)"
                 params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro]
-            
+            if categoria:
+                query += " AND COALESCE(p.categoria,'') = ?"
+                params.append(categoria)
+
             query += " ORDER BY p.nombre"
             cursor.execute(query, params)
             productos = cursor.fetchall()
-            
+
             col_count = 3
             for i, producto in enumerate(productos):
                 producto_data = {
@@ -1405,14 +1555,14 @@ class ModuloVentas(ModuloBase):
                     'es_subproducto': producto[9],
                     'codigo_barras': producto[10]
                 }
-                
+
                 card = ProductCard(producto_data)
                 card.product_selected.connect(self.seleccionar_producto)
-                
+
                 row = i // col_count
                 col = i % col_count
                 self.grid_productos.addWidget(card, row, col)
-                
+
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error al cargar productos: {str(e)}", QMessageBox.Critical)
 
@@ -2727,9 +2877,15 @@ class ModuloVentas(ModuloBase):
             self.mostrar_mensaje("Éxito", f"Producto '{producto}' eliminado del carrito.")
 
     def calcular_totales(self):
+        precio_base = sum(
+            item['cantidad'] * item['precio_unitario']
+            for item in self.compra_actual
+        )
         subtotal = sum(item['total'] for item in self.compra_actual)
+        descuento_total = round(precio_base - subtotal, 2)
+
         # IVA: carnes y alimentos basicos = 0% en Mexico (LIVA Art. 2-A)
-        # Se lee de configuraciones; default 0.0
+        # Read from configuraciones; default 0.0
         try:
             _iva_row = self.container.db.execute(
                 "SELECT valor FROM configuraciones WHERE clave='tasa_iva'"
@@ -2739,16 +2895,46 @@ class ModuloVentas(ModuloBase):
             tasa_iva = 0.0
         impuestos = subtotal * tasa_iva
         total_final = subtotal + impuestos
-        
+
         self.totales = {
             'subtotal': subtotal,
             'impuestos': impuestos,
             'total_final': total_final
         }
-        
-        self.lbl_total.setText(f"TOTAL: ${total_final:.2f}")
+
+        # Update breakdown labels
+        if hasattr(self, '_lbl_subtotal_val'):
+            self._lbl_subtotal_val.setText(f"${precio_base:.2f}")
+        if hasattr(self, '_row_discount_widget'):
+            if descuento_total > 0.001:
+                self._lbl_descuento_val.setText(f"-${descuento_total:.2f}")
+                # Build discount description from discounted items
+                desc_items = [
+                    f"{item['nombre'][:12]} {item['descuento_pct']:.0f}%"
+                    for item in self.compra_actual
+                    if item.get('descuento_pct', 0) > 0
+                ]
+                if desc_items:
+                    self._lbl_descuento_label.setText(
+                        f"Descuento ({', '.join(desc_items[:2])})")
+                else:
+                    self._lbl_descuento_label.setText("Descuento")
+                self._row_discount_widget.setVisible(True)
+            else:
+                self._row_discount_widget.setVisible(False)
+
+        # Grand total label — keep backward-compatible "$X.XX" format
+        self.lbl_total.setText(f"${total_final:.2f}")
+
+        # COBRAR button shows amount
+        if hasattr(self, 'btn_cobrar'):
+            if total_final > 0:
+                self.btn_cobrar.setText(f"💰 COBRAR  ${total_final:.2f}")
+            else:
+                self.btn_cobrar.setText("💰 COBRAR")
+
         puntos_venta = int(total_final)
-        self.lbl_puntos_venta.setText(f"Puntos: {puntos_venta}")
+        self.lbl_puntos_venta.setText(f"+ {puntos_venta} pts")
 
     def buscar_cliente(self):
         termino = self.txt_cliente.text().strip()

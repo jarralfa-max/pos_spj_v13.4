@@ -77,7 +77,7 @@ _TPL_OSCURO = f"""
 
         QLineEdit#inputField:focus {{
             border: 2px solid {Colors.PRIMARY.BASE};
-            background-color: #1E3A5F;
+            background-color: {Colors.NEUTRAL.DARK_INPUT_FOCUS};
         }}
 
         QLineEdit#inputField::placeholder {{
@@ -1581,6 +1581,258 @@ def _block_toast(*, surface: str, border: str, text: str, muted: str) -> str:
     """
 
 
+def _block_pos_module(
+    *,
+    bg: str, card: str, card_hover: str, card_selected: str,
+    border: str, text: str, muted: str,
+    success: str, success_hover: str,
+    danger: str, primary: str,
+    category_active_bg: str, category_active_text: str,
+    cobrar_disabled_bg: str, cobrar_disabled_text: str,
+) -> str:
+    """Genera el QSS para el módulo POS (ventas.py)."""
+    return f"""
+        /* ===== POS: CASHIER INFO BAR ===== */
+        QFrame#posCashierBar {{
+            background-color: {card};
+            border-bottom: 1px solid {border};
+            padding: 4px 12px;
+        }}
+        QLabel#posCashierTitle {{
+            color: {text};
+            font-size: 15px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posCashierMeta {{
+            color: {muted};
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posStatusBadge {{
+            color: {success};
+            background-color: transparent;
+            border: 1px solid {success};
+            border-radius: 9px;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: 700;
+        }}
+        QPushButton#posHWBtn {{
+            background: transparent;
+            color: {muted};
+            border: 1px solid {border};
+            border-radius: 5px;
+            padding: 3px 8px;
+            font-size: 10px;
+            font-weight: 600;
+        }}
+        QPushButton#posHWBtn:hover {{
+            color: {text};
+            border-color: {primary};
+        }}
+        QPushButton#posHWBtnActive {{
+            background: transparent;
+            color: {success};
+            border: 1px solid {success};
+            border-radius: 5px;
+            padding: 3px 8px;
+            font-size: 10px;
+            font-weight: 700;
+        }}
+        QPushButton#posCorteBtn {{
+            background: transparent;
+            color: {danger};
+            border: 1px solid {danger};
+            border-radius: 5px;
+            padding: 3px 8px;
+            font-size: 10px;
+            font-weight: 700;
+        }}
+        QPushButton#posCorteBtn:hover {{
+            background-color: {danger};
+            color: white;
+        }}
+
+        /* ===== POS: CATEGORY TAB BAR ===== */
+        QScrollArea#posCategoryScroll {{
+            border: none;
+            background: transparent;
+            max-height: 40px;
+        }}
+        QScrollArea#posCategoryScroll QWidget {{
+            background: transparent;
+        }}
+        QScrollArea#posCategoryScroll QScrollBar:horizontal {{
+            height: 0px;
+        }}
+        QPushButton#posCategoryBtn {{
+            background: transparent;
+            color: {muted};
+            border: none;
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            min-height: 28px;
+        }}
+        QPushButton#posCategoryBtn:hover {{
+            color: {text};
+            background-color: {card_hover};
+        }}
+        QPushButton#posCategoryBtn[active="true"] {{
+            color: {category_active_text};
+            background-color: {category_active_bg};
+            font-weight: 700;
+        }}
+
+        /* ===== POS: PRODUCT CARDS ===== */
+        QFrame[class="product-card"] {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 10px;
+        }}
+        QFrame[class="product-card-hover"] {{
+            background-color: {card_hover};
+            border: 1px solid {primary};
+            border-radius: 10px;
+        }}
+        QFrame[class="product-card-selected"] {{
+            background-color: {card_selected};
+            border: 2px solid {primary};
+            border-radius: 10px;
+        }}
+        QLabel[class="product-name"] {{
+            font-weight: 600;
+            font-size: 11px;
+            color: {text};
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="product-price"] {{
+            color: {success};
+            font-size: 11px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="product-stock"] {{
+            color: {muted};
+            font-size: 10px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="product-image-placeholder"] {{
+            color: {muted};
+            background: transparent;
+            border: none;
+            font-size: 20px;
+        }}
+        QLabel#posProductCheckBadge {{
+            background-color: {primary};
+            color: white;
+            border-radius: 9px;
+            font-size: 11px;
+            font-weight: 700;
+        }}
+
+        /* ===== POS: TOTALS BREAKDOWN CARD ===== */
+        QFrame#posTotalsCard {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 8px;
+            padding: 2px;
+        }}
+        QLabel#posTotalsRowLabel {{
+            color: {muted};
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posTotalsRowValue {{
+            color: {text};
+            font-size: 11px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posDiscountLabel {{
+            color: {danger};
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posDiscountValue {{
+            color: {danger};
+            font-size: 11px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QFrame#posTotalsDivider {{
+            background-color: {border};
+            max-height: 1px;
+            border: none;
+        }}
+        QLabel#posGrandTotalLabel {{
+            color: {text};
+            font-size: 14px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posGrandTotalValue {{
+            color: {success};
+            font-size: 20px;
+            font-weight: 800;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posFinancialMetric {{
+            color: {muted};
+            font-size: 10px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posCommissionBadge {{
+            color: {success};
+            background: transparent;
+            border: 1px solid {success};
+            border-radius: 6px;
+            padding: 1px 6px;
+            font-size: 10px;
+            font-weight: 600;
+        }}
+
+        /* ===== POS: COBRAR BUTTON ===== */
+        QPushButton#btnCobrarPOS {{
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {success_hover}, stop:1 {success});
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 800;
+            min-height: 56px;
+            letter-spacing: 0.3px;
+        }}
+        QPushButton#btnCobrarPOS:hover {{
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #4ADE80, stop:1 {success_hover});
+        }}
+        QPushButton#btnCobrarPOS:pressed {{
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {success}, stop:1 {Colors.SUCCESS.ACTIVE});
+        }}
+        QPushButton#btnCobrarPOS:disabled {{
+            background-color: {cobrar_disabled_bg};
+            color: {cobrar_disabled_text};
+        }}
+    """
+
+
 def _modern_blocks(theme: str) -> str:
     """Concatena todos los bloques modernos para el tema dado."""
     if theme == "Oscuro":
@@ -1614,6 +1866,23 @@ def _modern_blocks(theme: str) -> str:
                 text=Colors.NEUTRAL.SLATE_50,
                 muted=Colors.NEUTRAL.SLATE_400,
             )
+            + _block_pos_module(
+                bg=Colors.NEUTRAL.SLATE_900,
+                card=Colors.NEUTRAL.SLATE_800,
+                card_hover=Colors.NEUTRAL.SLATE_700,
+                card_selected=Colors.NEUTRAL.DARK_CARD,
+                border=Colors.NEUTRAL.SLATE_700,
+                text=Colors.NEUTRAL.SLATE_50,
+                muted=Colors.NEUTRAL.SLATE_400,
+                success=Colors.SUCCESS.BASE,
+                success_hover=Colors.SUCCESS.HOVER,
+                danger=Colors.DANGER.BASE,
+                primary=Colors.PRIMARY.BASE,
+                category_active_bg=Colors.NEUTRAL.SLATE_700,
+                category_active_text=Colors.NEUTRAL.WHITE,
+                cobrar_disabled_bg=Colors.NEUTRAL.SLATE_700,
+                cobrar_disabled_text=Colors.NEUTRAL.SLATE_500,
+            )
         )
     # Claro
     return (
@@ -1645,6 +1914,23 @@ def _modern_blocks(theme: str) -> str:
             border=Colors.NEUTRAL.SLATE_200,
             text=Colors.NEUTRAL.SLATE_900,
             muted=Colors.NEUTRAL.SLATE_500,
+        )
+        + _block_pos_module(
+            bg=Colors.NEUTRAL.SLATE_50,
+            card=Colors.NEUTRAL.WHITE,
+            card_hover=Colors.NEUTRAL.SLATE_50,
+            card_selected=Colors.PRIMARY.LIGHT,
+            border=Colors.NEUTRAL.SLATE_200,
+            text=Colors.NEUTRAL.SLATE_900,
+            muted=Colors.NEUTRAL.SLATE_500,
+            success=Colors.SUCCESS.BASE,
+            success_hover=Colors.SUCCESS.HOVER,
+            danger=Colors.DANGER.BASE,
+            primary=Colors.PRIMARY.BASE,
+            category_active_bg=Colors.PRIMARY.LIGHT,
+            category_active_text=Colors.PRIMARY.DARK,
+            cobrar_disabled_bg=Colors.NEUTRAL.SLATE_200,
+            cobrar_disabled_text=Colors.NEUTRAL.SLATE_400,
         )
     )
 
