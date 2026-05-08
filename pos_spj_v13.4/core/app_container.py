@@ -207,7 +207,10 @@ class AppContainer:
         # v13.4 Fase 3: TreasuryService (Tesorería Central / CAPEX)
         # [REFACTOR FASE 1] Movido a core/services/finance/treasury_service.py
         from core.services.finance.treasury_service import TreasuryService
-        self.treasury_service = TreasuryService(self.db, self.module_config)
+        self.treasury_service = TreasuryService(
+            self.db, self.module_config,
+            finance_service=self.finance_service,
+        )
 
         from core.services.hr_rule_engine import HRRuleEngine
         self.hr_rule_engine = HRRuleEngine(

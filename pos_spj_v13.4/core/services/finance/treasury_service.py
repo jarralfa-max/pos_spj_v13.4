@@ -26,9 +26,10 @@ logger = logging.getLogger("spj.treasury")
 
 class TreasuryService:
 
-    def __init__(self, db_conn, module_config=None):
+    def __init__(self, db_conn, module_config=None, finance_service=None):
         self.db = db_conn
         self._module_config = module_config
+        self._finance = finance_service
         self._bus = None
         try:
             from core.events.event_bus import get_bus
@@ -596,6 +597,24 @@ class TreasuryService:
         # registrar_egreso ya hace commit y publica MOVIMIENTO_FINANCIERO al EventBus
         self.registrar_egreso("gasto_operativo:" + categoria, concepto, monto,
                               sucursal_id, usuario=usuario)
+        # GL: gasto operativo debe quedar en doble entrada (regla 11)
+        if self._finance and monto > 0:
+            try:
+                cuenta_haber = "112-banco" if metodo_pago in ("transferencia", "banco", "tarjeta") else "110-caja"
+                self._finance.registrar_asiento(
+                    debe        = "6102-gastos-operativos",
+                    haber       = cuenta_haber,
+                    concepto    = concepto or f"Gasto operativo {categoria}",
+                    monto       = float(monto),
+                    modulo      = "tesoreria",
+                    referencia_id = f"opex:{categoria}",
+                    sucursal_id = sucursal_id,
+                    evento      = "GASTO_OPEX",
+                    metadata    = {"categoria": categoria, "metodo_pago": metodo_pago,
+                                   "usuario": usuario},
+                )
+            except Exception as exc:
+                logger.warning("registrar_gasto_opex GL: %s", exc)
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Cuentas por Pagar (CXP) — usado por modulos/tesoreria.py
