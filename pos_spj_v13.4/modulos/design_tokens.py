@@ -130,6 +130,7 @@ class NeutralColors:
     DARK_BORDER: str = "#334155"
     DARK_TEXT: str = "#F1F5F9"
     DARK_TEXT_SEC: str = "#94A3B8"
+    DARK_INPUT_FOCUS: str = "#1E3A5F"   # focus ring azul oscuro en dark mode
 
 
 @dataclass(frozen=True)
