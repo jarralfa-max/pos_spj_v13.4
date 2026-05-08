@@ -18,10 +18,12 @@ logger = logging.getLogger("spj.caja.cierre")
 
 
 class CierreCajaService:
-    def __init__(self, conn=None, sucursal_id: int = 1, usuario: str = "admin"):
-        self.conn        = conn or get_connection()
-        self.sucursal_id = sucursal_id
-        self.usuario     = usuario
+    def __init__(self, conn=None, sucursal_id: int = 1, usuario: str = "admin",
+                 finance_service=None):
+        self.conn            = conn or get_connection()
+        self.sucursal_id     = sucursal_id
+        self.usuario         = usuario
+        self._finance        = finance_service
         self._init_tables()
 
     def _init_tables(self):
@@ -238,6 +240,34 @@ class CierreCajaService:
             resumen["cierre_id"] = cid
             logger.info("Corte Z generado #%d — ventas=%d total=$%.2f diff=$%.2f",
                         cid, resumen["num_ventas"], resumen["total_ventas"], diferencia)
+
+            # Asiento contable para discrepancia de caja (regla 11 CLAUDE.md)
+            if diferencia != 0 and self._finance and hasattr(self._finance, "registrar_asiento"):
+                try:
+                    if diferencia > 0:
+                        # Sobrante: caja tiene más efectivo del esperado
+                        debe, haber = "110-caja", "999-diferencias-caja"
+                    else:
+                        # Faltante: caja tiene menos efectivo del esperado
+                        debe, haber = "999-diferencias-caja", "110-caja"
+                    self._finance.registrar_asiento(
+                        debe          = debe,
+                        haber         = haber,
+                        concepto      = (f"Diferencia Corte Z #{cid} — cajero: {self.usuario} "
+                                         f"({'sobrante' if diferencia > 0 else 'faltante'})"),
+                        monto         = abs(diferencia),
+                        modulo        = "caja",
+                        referencia_id = cid,
+                        sucursal_id   = self.sucursal_id,
+                        evento        = "CORTE_Z",
+                        metadata      = {
+                            "efectivo_contado": efectivo_contado,
+                            "efectivo_esperado": resumen["total_efectivo"] + resumen["fondo_inicial"],
+                            "cajero": self.usuario,
+                        },
+                    )
+                except Exception as exc:
+                    logger.warning("Corte Z asiento diferencia: %s", exc)
         return resumen
 
     def get_historial(self, limit: int = 30) -> list:

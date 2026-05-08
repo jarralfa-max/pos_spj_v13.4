@@ -80,71 +80,29 @@ def wire_all(container: "AppContainer") -> None:
 
 def _wire_flujos_criticos(bus, container) -> None:
     """
-    Wiring mínimo para operaciones críticas:
-      SALE_ITEMS_PROCESS -> inventory + finance  (Phase 1 — via SaleInventoryHandler/SaleFinanceHandler)
-      COMPRA_REGISTRADA  -> inventory/finance
-      MERMA_REGISTRADA   -> finance
+    DEPRECATED HANDLERS REMOVED — 2026-05-08 financial-core audit.
+
+    Previously subscribed:
+      - _compra_stock   on COMPRA_REGISTRADA: caused double inventory-IN because
+        PurchaseInventoryHandler (Phase 4) already handles stock via PURCHASE_ITEMS_PROCESS.
+      - _compra_egreso  on COMPRA_REGISTRADA (= PURCHASE_CREATED alias): caused double
+        GL posting because PurchaseFinanceHandler already posts the asiento via PURCHASE_CREATED.
+      - _merma_perdida  on MERMA_CREATED: caused double GL posting because
+        _wire_merma_financiero already calls registrar_asiento() with explicit debe/haber.
+
+    All three flows are now handled exclusively by their Phase handlers:
+      - Purchase inventory : PurchaseInventoryHandler  (PURCHASE_ITEMS_PROCESS, priority=100)
+      - Purchase GL        : PurchaseFinanceHandler     (PURCHASE_CREATED,       priority=80)
+      - Merma GL           : _wire_merma_financiero     (MERMA_CREATED,          priority=50)
+      - Merma stock        : _wire_merma_inventario     (MERMA_CREATED,          priority=80)
     """
-    from core.events.event_bus import (
-        COMPRA_REGISTRADA, MERMA_CREATED
-    )
-    # NOTE: VENTA_COMPLETADA → inventory/finance was removed here (Phase 1).
-    # That coupling now lives in SaleInventoryHandler / SaleFinanceHandler
-    # registered by _wire_sale_handlers(), which subscribe to SALE_ITEMS_PROCESS.
-
-    def _compra_stock(data: dict) -> None:
-        inv = getattr(container, "inventory_service", None)
-        if not inv or not hasattr(inv, "incrementar_stock"):
-            return
-        for item in data.get("items", []):
-            try:
-                inv.incrementar_stock(
-                    producto_id=item.get("producto_id"),
-                    cantidad=float(item.get("cantidad", 0)),
-                    unit_cost=float(item.get("costo_unitario", item.get("unit_cost", 0))),
-                    branch_id=data.get("sucursal_id", 1),
-                    referencia_id=data.get("compra_id", "COMPRA"),
-                    usuario=data.get("usuario", "sistema"),
-                    operation_id=data.get("operation_id"),
-                )
-            except Exception:
-                continue
-
-    def _compra_egreso(data: dict) -> None:
-        fs = getattr(container, "finance_service", None)
-        if not fs or not hasattr(fs, "registrar_egreso"):
-            return
-        fs.registrar_egreso(
-            concepto=f"Compra #{data.get('compra_id', '')}",
-            monto=float(data.get("total", data.get("monto", 0))),
-            referencia_id=data.get("compra_id"),
-            usuario_id=data.get("usuario_id"),
-            sucursal_id=data.get("sucursal_id", 1),
-            metadata={"proveedor_id": data.get("proveedor_id")},
-        )
-
-    def _merma_perdida(data: dict) -> None:
-        fs = getattr(container, "finance_service", None)
-        if not fs or not hasattr(fs, "registrar_perdida"):
-            return
-        fs.registrar_perdida(
-            concepto=f"Merma #{data.get('merma_id', '')}",
-            monto=float(data.get("valor", data.get("costo", 0))),
-            referencia_id=data.get("merma_id"),
-            usuario_id=data.get("usuario_id"),
-            sucursal_id=data.get("sucursal_id", 1),
-            metadata={"producto_id": data.get("producto_id")},
-        )
-
-    bus.subscribe(COMPRA_REGISTRADA, _compra_stock, priority=45, label="compra_stock_critico")
-    bus.subscribe(COMPRA_REGISTRADA, _compra_egreso, priority=45, label="compra_egreso_critico")
-    bus.subscribe(MERMA_CREATED, _merma_perdida, priority=45, label="merma_perdida_critico")
+    pass  # No active subscriptions — kept as named function for clarity in wire_all()
 
 
 # ── VENTA_COMPLETADA ──────────────────────────────────────────────────────────
 
 def _wire_venta(bus, container) -> None:
-    from core.events.event_bus import VENTA_COMPLETADA
+    from core.events.event_bus import VENTA_COMPLETADA, VENTA_CANCELADA
 
     # Prioridad 100: Sync (CRÍTICO)
     def _sync_venta(data: dict) -> None:
@@ -209,6 +167,16 @@ def _wire_venta(bus, container) -> None:
 
     bus.subscribe(VENTA_COMPLETADA, _audit_venta,
                   priority=30, label="audit_venta")
+
+    # VENTA_CANCELADA → GL reversal (post-commit, async — sale already cancelled)
+    fs = getattr(container, "finance_service", None)
+    db = getattr(container, "db", None)
+    if fs and db:
+        from core.events.handlers.finance_handler import SaleCancelledFinanceHandler
+        cancel_handler = SaleCancelledFinanceHandler(db_conn=db, finance_service=fs)
+        bus.subscribe(VENTA_CANCELADA, cancel_handler.handle,
+                      priority=50, label="sale_cancelled_reversal")
+        logger.debug("Registered SaleCancelledFinanceHandler on %s", VENTA_CANCELADA)
 
 
 # ── PEDIDO_NUEVO ──────────────────────────────────────────────────────────────
@@ -710,6 +678,18 @@ def _wire_sale_handlers(bus, container) -> None:
             label="sale_finance_income",
         )
         logger.debug("Registered SaleFinanceHandler on %s", SALE_ITEMS_PROCESS)
+
+    db = getattr(container, "db", None)
+    if fs and db:
+        from core.events.handlers.finance_handler import CreditSaleFinanceHandler
+        credit_handler = CreditSaleFinanceHandler(db_conn=db, finance_service=fs)
+        bus.subscribe(
+            SALE_ITEMS_PROCESS,
+            credit_handler.handle,
+            priority=85,
+            label="sale_credit_cxc",
+        )
+        logger.debug("Registered CreditSaleFinanceHandler on %s", SALE_ITEMS_PROCESS)
 
 
 # ── Phase 3: PRODUCTION_ITEMS_PROCESS handler ────────────────────────────────

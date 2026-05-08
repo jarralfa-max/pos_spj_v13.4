@@ -90,43 +90,45 @@ class CustomerCreditService:
         sucursal_id: int = 1,
     ) -> None:
         """
-        Registra la deuda en cuentas_por_cobrar y actualiza credit_balance del cliente.
-        Llamado DESPUÉS de que la transacción de venta ha sido confirmada (RELEASE SAVEPOINT).
+        Registra la deuda en cuentas_por_cobrar, actualiza credit_balance y asienta
+        el ledger DENTRO de la misma transacción.
+
+        NOTA: Este método es llamado post-SAVEPOINT para compatibilidad con flujos legacy.
+        Para nuevas ventas a crédito procesadas vía SalesService, CreditSaleFinanceHandler
+        maneja todo dentro del SAVEPOINT de forma atómica.
         """
         try:
-            # Registrar en CxC
             self.db.execute(
-                """INSERT INTO cuentas_por_cobrar
+                """INSERT OR IGNORE INTO cuentas_por_cobrar
                        (cliente_id, venta_id, folio, monto_original, saldo_pendiente,
                         sucursal_id, estado)
                    VALUES (?, ?, ?, ?, ?, ?, 'pendiente')""",
                 (cliente_id, sale_id, folio, monto, monto, sucursal_id),
             )
-            # Incrementar deuda en perfil del cliente
             self.db.execute(
                 "UPDATE clientes SET credit_balance = COALESCE(credit_balance, 0) + ? WHERE id = ?",
                 (monto, cliente_id),
             )
+
+            # Asiento contable DENTRO de la misma transacción (antes del commit)
+            # Garantiza que CxC y GL sean atómicos: si el asiento falla, la CxC no se graba.
+            if self._finance and hasattr(self._finance, "registrar_asiento"):
+                self._finance.registrar_asiento(
+                    debe          = "130.1-cuentas-por-cobrar",
+                    haber         = "401.0-ingresos-ventas",
+                    concepto      = f"Venta a crédito {folio}",
+                    monto         = monto,
+                    modulo        = "ventas",
+                    referencia_id = sale_id,
+                    sucursal_id   = sucursal_id,
+                    evento        = "VENTA_CREDITO",
+                    metadata      = {"cliente_id": cliente_id, "folio": folio},
+                )
+
             try:
                 self.db.commit()
             except Exception:
                 pass
-
-            # Asiento contable doble entrada (CLAUDE.md regla 11)
-            if self._finance and hasattr(self._finance, "registrar_asiento"):
-                try:
-                    self._finance.registrar_asiento(
-                        debe="130.1-cuentas-por-cobrar",
-                        haber="401.0-ingresos-ventas",
-                        concepto=f"Venta a crédito {folio}",
-                        monto=monto,
-                        modulo="ventas",
-                        referencia_id=sale_id,
-                        sucursal_id=sucursal_id,
-                        evento="VENTA_CREDITO",
-                    )
-                except Exception as e:
-                    logger.debug("registrar_asiento CxC: %s", e)
 
             logger.info(
                 "CxC registrada: cliente=%d venta=%d folio=%s monto=%.2f",
@@ -134,6 +136,11 @@ class CustomerCreditService:
             )
         except Exception as e:
             logger.error("register_credit_sale: %s", e)
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            raise
 
     # ── Infraestructura ───────────────────────────────────────────────────────
 

@@ -17,8 +17,9 @@ logger = logging.getLogger("spj.anticipo")
 
 class AnticipoCotizacionService:
 
-    def __init__(self, db_conn):
-        self.db = db_conn
+    def __init__(self, db_conn, finance_service=None):
+        self.db           = db_conn
+        self._finance     = finance_service
         self._config_cache: dict = {}
         self._rules_cache: list = []
         self._cache_ts: float = 0
@@ -244,12 +245,14 @@ class AnticipoCotizacionService:
 
     def registrar_anticipo_pagado(self, numero_orden: str,
                                    monto: float, metodo: str,
-                                   payment_id: str = "") -> None:
+                                   payment_id: str = "",
+                                   sucursal_id: int = 1,
+                                   usuario: str = "sistema") -> None:
         orden = self.get_orden(numero_orden)
         if not orden: return
         nuevo_estado = (
             "en_preparacion"
-            if (orden["anticipo_pagado"] + monto) >= orden["monto_anticipo"] - 0.01
+            if (orden.get("anticipo_pagado", 0) + monto) >= orden["monto_anticipo"] - 0.01
             else "anticipo_pendiente"
         )
         self.db.execute("""
@@ -260,6 +263,31 @@ class AnticipoCotizacionService:
                 estado          = ?
             WHERE numero_orden = ?
         """, (monto, metodo, payment_id, nuevo_estado, numero_orden))
+
+        # Asiento contable doble entrada para anticipo recibido (regla 11 CLAUDE.md)
+        # debe=caja/banco haber=anticipos_de_clientes
+        if self._finance and hasattr(self._finance, "registrar_asiento"):
+            try:
+                cuenta_debe = "110-caja" if metodo == "Efectivo" else "112-banco"
+                self._finance.registrar_asiento(
+                    debe          = cuenta_debe,
+                    haber         = "217-anticipos-de-clientes",
+                    concepto      = f"Anticipo recibido orden {numero_orden} — método {metodo}",
+                    monto         = monto,
+                    modulo        = "cotizaciones",
+                    referencia_id = numero_orden,
+                    sucursal_id   = sucursal_id,
+                    evento        = "ANTICIPO_PAGADO",
+                    metadata      = {
+                        "numero_orden": numero_orden,
+                        "cliente_id":   orden.get("cliente_id"),
+                        "metodo":       metodo,
+                        "payment_id":   payment_id,
+                    },
+                )
+            except Exception as exc:
+                logger.warning("registrar_anticipo_pagado asiento: %s", exc)
+
         try: self.db.commit()
         except Exception: pass
 
