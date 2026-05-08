@@ -1162,35 +1162,28 @@ class ModuloFinanzasUnificadas(QWidget):
         if not supplier_id:
             QMessageBox.warning(self, "Validación", "Seleccione un proveedor válido desde la búsqueda.")
             return
-        try:
-            if self._fs and hasattr(self._fs, "crear_cxp"):
-                self._fs.crear_cxp(
-                    supplier_id=supplier_id,
-                    concepto=txt.text().strip() or "Cuenta por pagar",
-                    amount=float(monto.value()),
-                    due_date=due.date().toString("yyyy-MM-dd"),
-                    usuario=self.usuario_actual or "Sistema",
-                )
-            else:
-                raise RuntimeError("FinanceService.crear_cxp no disponible")
-        except Exception:
-            # Fallback schema-agnóstico para instalaciones con drift
-            self.container.db.execute(
-                "INSERT INTO accounts_payable(supplier_id, folio, concepto, amount, balance, due_date, status) "
-                "VALUES (?,?,?,?,?,?,'pendiente')",
-                (
-                    supplier_id,
-                    f"CXP-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                    txt.text().strip() or "Cuenta por pagar",
-                    float(monto.value()),
-                    float(monto.value()),
-                    due.date().toString("yyyy-MM-dd"),
-                ),
+        if not self._fs or not hasattr(self._fs, "crear_cxp"):
+            QMessageBox.critical(
+                self, "Error de configuración",
+                "FinanceService no disponible. La cuenta por pagar NO puede crearse sin el "
+                "motor financiero centralizado. Contacte al administrador del sistema."
             )
-            try:
-                self.container.db.commit()
-            except Exception:
-                pass
+            return
+        try:
+            self._fs.crear_cxp(
+                supplier_id=supplier_id,
+                concepto=txt.text().strip() or "Cuenta por pagar",
+                amount=float(monto.value()),
+                due_date=due.date().toString("yyyy-MM-dd"),
+                usuario=self.usuario_actual or "Sistema",
+            )
+        except Exception as exc:
+            logger.error("crear_cxp falló: %s", exc)
+            QMessageBox.critical(
+                self, "Error",
+                f"No fue posible registrar la cuenta por pagar:\n{exc}"
+            )
+            return
         self._cargar_cuentas_pagar()
 
     def _dialogo_nueva_cxc(self):
@@ -1249,34 +1242,25 @@ class ModuloFinanzasUnificadas(QWidget):
             logger.warning("validación límite crédito CxC falló: %s", exc)
             QMessageBox.warning(self, "Validación", "No fue posible validar el límite de crédito del cliente.")
             return
-        try:
-            if self._fs and hasattr(self._fs, "crear_cxc"):
-                self._fs.crear_cxc(
-                    cliente_id=cliente_id,
-                    concepto=txt.text().strip() or "Cuenta por cobrar",
-                    amount=float(monto.value()),
-                    due_date=due.date().toString("yyyy-MM-dd"),
-                    usuario=self.usuario_actual or "Sistema",
-                )
-            else:
-                raise RuntimeError("FinanceService.crear_cxc no disponible")
-        except Exception:
-            self.container.db.execute(
-                "INSERT INTO accounts_receivable(cliente_id, folio, concepto, amount, balance, due_date, status) "
-                "VALUES (?,?,?,?,?,?,'pendiente')",
-                (
-                    cliente_id,
-                    f"CXC-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                    txt.text().strip() or "Cuenta por cobrar",
-                    float(monto.value()),
-                    float(monto.value()),
-                    due.date().toString("yyyy-MM-dd"),
-                ),
+        if not self._fs or not hasattr(self._fs, "crear_cxc"):
+            QMessageBox.critical(
+                self,
+                "Error de configuración",
+                "FinanceService no disponible. La cuenta por cobrar NO puede crearse "
+                "sin registro contable de doble entrada. Contacte soporte.",
             )
-            try:
-                self.container.db.commit()
-            except Exception:
-                pass
+            return
+        try:
+            self._fs.crear_cxc(
+                cliente_id=cliente_id,
+                concepto=txt.text().strip() or "Cuenta por cobrar",
+                amount=float(monto.value()),
+                due_date=due.date().toString("yyyy-MM-dd"),
+                usuario=self.usuario_actual or "Sistema",
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No fue posible registrar la cuenta por cobrar: {exc}")
+            return
         self._cargar_cuentas_cobrar()
 
     def _dialogo_nuevo_cliente(self):

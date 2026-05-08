@@ -126,16 +126,18 @@ class SalesReversalService:
         ✔ La auditoría puede reconstruir el estado exacto en cualquier punto del tiempo
     """
 
-    def __init__(self, db, branch_id: int = 1):
+    def __init__(self, db, branch_id: int = 1, finance_service=None):
         """
-        db        — sqlite3.Connection o DatabaseWrapper
-        branch_id — sucursal activa
+        db              — sqlite3.Connection o DatabaseWrapper
+        branch_id       — sucursal activa
+        finance_service — FinanceService para asientos GL (opcional)
         """
         from core.db.connection import wrap
         # Compatibilidad con wrappers legacy que exponen .conn (tests/legacy adapters)
         raw_conn = getattr(db, "conn", db)
         self.db = wrap(raw_conn)
         self.branch_id = int(branch_id or 1)
+        self._finance = finance_service
 
     # ── Helpers internos ─────────────────────────────────────────────────────
 
@@ -333,10 +335,13 @@ class SalesReversalService:
         )
 
         self._fire_event("VENTA_CANCELADA", {
-            "sale_id": sale_id,
-            "folio": venta["folio"],
-            "total": total,
-            "operation_id": operation_id,
+            "sale_id":        sale_id,
+            "folio":          venta["folio"],
+            "total":          total,
+            "operation_id":   operation_id,
+            "payment_method": forma_pago,
+            "cliente_id":     venta.get("cliente_id"),
+            "sucursal_id":    venta.get("sucursal_id", self.branch_id),
         })
 
         return CancelResultDTO(
@@ -509,6 +514,28 @@ class SalesReversalService:
             sale_id, len(refund_ids), total_f, operation_id,
         )
 
+        # GL: reversión de ingreso por devolución (post-commit, non-fatal)
+        if self._finance and total_f > 0:
+            try:
+                cuenta_haber = (
+                    "112-banco" if method in ("Tarjeta", "Transferencia", "Débito")
+                    else "110-caja"
+                )
+                self._finance.registrar_asiento(
+                    debe        = "401.0-ingresos-ventas",
+                    haber       = cuenta_haber,
+                    concepto    = f"Devolución parcial venta #{venta.get('folio', sale_id)}",
+                    monto       = total_f,
+                    modulo      = "ventas",
+                    referencia_id = operation_id,
+                    sucursal_id = venta.get("sucursal_id", self.branch_id),
+                    evento      = "DEVOLUCION_PARCIAL",
+                    metadata    = {"sale_id": sale_id, "metodo": method,
+                                   "items": len(refund_ids)},
+                )
+            except Exception as exc:
+                logger.warning("refund_items GL: %s", exc)
+
         return RefundResultDTO(
             sale_id=sale_id,
             operation_id=operation_id,
@@ -624,6 +651,30 @@ class SalesReversalService:
             "NOTA_CREDITO id=%d credit_note_id=%d amount=%.2f reason=%s op=%s",
             sale_id, credit_note_id, amount, reason[:40], operation_id,
         )
+
+        # GL: nota de crédito reduce ingreso reconocido (post-commit, non-fatal)
+        if self._finance and amount > 0:
+            try:
+                # Efectivo: el dinero sale de caja; Tarjeta: se crea obligación pendiente
+                cuenta_haber = (
+                    "219-notas-de-credito-por-aplicar"
+                    if method not in ("Efectivo",)
+                    else "110-caja"
+                )
+                self._finance.registrar_asiento(
+                    debe        = "401.0-ingresos-ventas",
+                    haber       = cuenta_haber,
+                    concepto    = f"Nota de crédito venta #{venta.get('folio', sale_id)}: {reason[:60]}",
+                    monto       = amount,
+                    modulo      = "ventas",
+                    referencia_id = operation_id,
+                    sucursal_id = venta.get("sucursal_id", self.branch_id),
+                    evento      = "NOTA_CREDITO",
+                    metadata    = {"sale_id": sale_id, "credit_note_id": credit_note_id,
+                                   "metodo": method, "reason": reason[:80]},
+                )
+            except Exception as exc:
+                logger.warning("issue_credit_note GL: %s", exc)
 
         return CreditNoteResultDTO(
             sale_id=sale_id,

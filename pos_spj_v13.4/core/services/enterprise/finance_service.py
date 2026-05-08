@@ -1009,7 +1009,18 @@ class FinanceService:
     # ═════════════════════════════════════════════════════════════════════════
 
     def sync_cxp_from_compras(self) -> int:
-        """Genera CXP desde compras_inventariables con saldo > 0 que no estén ya."""
+        """
+        Genera CXP desde compras_inventariables con saldo > 0 que no estén ya.
+        Toda la sincronización corre dentro de un SAVEPOINT para que un fallo
+        parcial no deje CXPs a medias.
+        """
+        import uuid as _uuid
+        sp = f"sp_sync_cxp_{_uuid.uuid4().hex[:6]}"
+        try:
+            self.db.execute(f"SAVEPOINT {sp}")
+        except Exception:
+            pass
+
         rows = self.db.fetchall("""
             SELECT ci.*, COALESCE(p.nombre, ci.proveedor) AS prod_nombre
             FROM compras_inventariables ci
@@ -1021,26 +1032,45 @@ class FinanceService:
               )
         """)
         count = 0
-        for r in rows:
-            sup = self.db.fetchone(
-                "SELECT id FROM suppliers WHERE nombre=?", (r["proveedor"],)
-            )
-            sup_id = sup["id"] if sup else None
-            self.crear_cxp(
-                supplier_id=sup_id,
-                concepto=f"Compra: {r['prod_nombre']}",
-                amount=float(r["costo_total"] or 0),
-                due_date=r["fecha_vencimiento"],
-                tipo="compra_inventario",
-                referencia=str(r["id"]),
-                ref_type="compra_inv",
-                usuario=r["usuario"] or "Sistema",
-            )
-            count += 1
+        try:
+            for r in rows:
+                sup = self.db.fetchone(
+                    "SELECT id FROM suppliers WHERE nombre=?", (r["proveedor"],)
+                )
+                sup_id = sup["id"] if sup else None
+                self.crear_cxp(
+                    supplier_id=sup_id,
+                    concepto=f"Compra: {r['prod_nombre']}",
+                    amount=float(r["costo_total"] or 0),
+                    due_date=r["fecha_vencimiento"],
+                    tipo="compra_inventario",
+                    referencia=str(r["id"]),
+                    ref_type="compra_inv",
+                    usuario=r["usuario"] or "Sistema",
+                )
+                count += 1
+            self.db.execute(f"RELEASE SAVEPOINT {sp}")
+        except Exception:
+            try:
+                self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+            except Exception:
+                pass
+            raise
         return count
 
     def sync_cxc_from_ventas(self) -> int:
-        """Genera CXC desde ventas a crédito que no estén ya."""
+        """
+        Genera CXC desde ventas a crédito que no estén ya.
+        Toda la sincronización corre dentro de un SAVEPOINT para que un fallo
+        parcial no deje CXCs a medias.
+        """
+        import uuid as _uuid
+        sp = f"sp_sync_cxc_{_uuid.uuid4().hex[:6]}"
+        try:
+            self.db.execute(f"SAVEPOINT {sp}")
+        except Exception:
+            pass
+
         rows = self.db.fetchall("""
             SELECT v.*,
                    COALESCE(c.nombre,'') || ' ' || COALESCE(c.apellido_paterno,'') AS cliente_nombre
@@ -1053,21 +1083,29 @@ class FinanceService:
               )
         """)
         count = 0
-        for r in rows:
-            fecha_val = r["fecha"] if "fecha" in r.keys() else None
-            self.crear_cxc(
-                cliente_id=r["cliente_id"],
-                concepto=f"Venta {r['folio']} — {r['cliente_nombre']}",
-                amount=float(r["total"] or 0),
-                venta_id=r["id"],
-                due_date=(
-                    (datetime.strptime(str(fecha_val)[:10], "%Y-%m-%d") +
-                     timedelta(days=30)).strftime("%Y-%m-%d")
-                    if fecha_val else None
-                ),
-                usuario="Sistema",
-            )
-            count += 1
+        try:
+            for r in rows:
+                fecha_val = r["fecha"] if "fecha" in r.keys() else None
+                self.crear_cxc(
+                    cliente_id=r["cliente_id"],
+                    concepto=f"Venta {r['folio']} — {r['cliente_nombre']}",
+                    amount=float(r["total"] or 0),
+                    venta_id=r["id"],
+                    due_date=(
+                        (datetime.strptime(str(fecha_val)[:10], "%Y-%m-%d") +
+                         timedelta(days=30)).strftime("%Y-%m-%d")
+                        if fecha_val else None
+                    ),
+                    usuario="Sistema",
+                )
+                count += 1
+            self.db.execute(f"RELEASE SAVEPOINT {sp}")
+        except Exception:
+            try:
+                self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+            except Exception:
+                pass
+            raise
         return count
 
     # ── Módulo Caja ───────────────────────────────────────────────────────────

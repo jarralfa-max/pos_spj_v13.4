@@ -696,13 +696,14 @@ def _wire_sale_handlers(bus, container) -> None:
 
 def _wire_production_items_handlers(bus, container) -> None:
     """
-    Register ProductionInventoryHandler on PRODUCTION_ITEMS_PROCESS.
-
-    Runs synchronously inside the production SAVEPOINT so inventory mutations
-    are atomic with the production record. Priority=100 — runs first.
+    Register ProductionInventoryHandler on PRODUCTION_ITEMS_PROCESS (sync, priority=100)
+    and ProductionFinanceHandler on PRODUCCION_COMPLETADA (async, priority=45).
     """
     from core.events.domain_events import PRODUCTION_ITEMS_PROCESS
-    from core.events.handlers.production_handler import ProductionInventoryHandler
+    from core.events.handlers.production_handler import (
+        ProductionInventoryHandler,
+        ProductionFinanceHandler,
+    )
     from core.services.inventory.unified_inventory_service import UnifiedInventoryService
 
     db = getattr(container, "db", None)
@@ -719,6 +720,19 @@ def _wire_production_items_handlers(bus, container) -> None:
         label="production_inventory_handler",
     )
     logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
+
+    # Production GL: PRODUCCION_COMPLETADA → cost-of-production journal entry
+    fs = getattr(container, "finance_service", None)
+    if fs:
+        from core.events.event_bus import PRODUCCION_COMPLETADA
+        fin_handler = ProductionFinanceHandler(finance_service=fs)
+        bus.subscribe(
+            PRODUCCION_COMPLETADA,
+            fin_handler.handle,
+            priority=45,
+            label="production_finance_handler",
+        )
+        logger.debug("Registered ProductionFinanceHandler on %s", PRODUCCION_COMPLETADA)
 
 
 # ── Phase 4: PURCHASE_ITEMS_PROCESS + PURCHASE_CREATED handlers ──────────────

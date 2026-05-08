@@ -82,6 +82,27 @@ class LoyaltyService:
                     descripcion=f"Acumulación venta #{venta_id}",
                     usuario=cajero,
                 )
+                # GL: cada punto emitido crea un pasivo de fidelización (regla 11)
+                if self._finance:
+                    try:
+                        valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
+                        monto = estrellas * valor
+                        if monto > 0:
+                            self._finance.registrar_asiento(
+                                debe        = "6201-descuentos-fidelizacion",
+                                haber       = "215.1-pasivo-fidelizacion",
+                                concepto    = f"Acumulación {estrellas} pts venta #{venta_id}",
+                                monto       = monto,
+                                modulo      = "fidelizacion",
+                                referencia_id = venta_id,
+                                sucursal_id = self.sucursal_id,
+                                evento      = "PUNTOS_ACREDITADOS",
+                                metadata    = {"cliente_id": cliente_id,
+                                               "estrellas": estrellas,
+                                               "cajero": cajero},
+                            )
+                    except Exception as exc:
+                        logger.debug("acreditar_venta GL: %s", exc)
             return resultado
         except Exception as e:
             logger.error("acreditar_venta: %s", e)
