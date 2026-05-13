@@ -1488,8 +1488,10 @@ class ModuloVentas(ModuloBase):
 
         layout_derecho.addWidget(group_utilidad)
 
-        splitter.setStretchFactor(0, 1)   # left (product grid) absorbs all extra width
-        splitter.setStretchFactor(1, 0)   # right (checkout) holds preferred width
+        splitter.addWidget(panel_izquierdo)
+        splitter.addWidget(panel_derecho)
+        splitter.setStretchFactor(0, 1)   # left panel absorbs extra width on maximize
+        splitter.setStretchFactor(1, 0)   # right panel holds preferred width
         splitter.setSizes([620, 460])
         main_layout.addWidget(splitter)
         self._normalizar_botones_principales()
