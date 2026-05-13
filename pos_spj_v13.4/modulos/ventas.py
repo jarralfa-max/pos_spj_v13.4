@@ -1215,15 +1215,15 @@ class ModuloVentas(ModuloBase):
         panel_derecho.setMinimumWidth(380)
         panel_derecho.setMaximumWidth(600)
         layout_derecho = QVBoxLayout(panel_derecho)
-        layout_derecho.setSpacing(6)
-        layout_derecho.setContentsMargins(5, 5, 5, 5)
+        layout_derecho.setSpacing(4)
+        layout_derecho.setContentsMargins(4, 4, 4, 4)
 
         # CLIENT SECTION
         group_cliente = QGroupBox("CLIENTE")
         group_cliente.setProperty("class", "client-group")
         cliente_layout = QVBoxLayout(group_cliente)
-        cliente_layout.setContentsMargins(8, 6, 8, 6)
-        cliente_layout.setSpacing(4)
+        cliente_layout.setContentsMargins(6, 4, 6, 4)
+        cliente_layout.setSpacing(3)
 
         self.txt_cliente = QLineEdit()
         self.txt_cliente.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
@@ -1277,12 +1277,15 @@ class ModuloVentas(ModuloBase):
         cliente_layout.addLayout(cliente_info_row)
         layout_derecho.addWidget(group_cliente)
 
-        # CART TABLE
-        group_carrito = QGroupBox("CARRITO DE COMPRA")
+        # CART TABLE — primary flexible section: absorbs all available vertical space
+        group_carrito = QGroupBox("CARRITO")
         group_carrito.setProperty("class", "venta-group")
-        group_carrito.setMinimumHeight(200)
+        group_carrito.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Guarantee at minimum 4 visible rows (row_height=32 × 4 + header≈26 + padding=8)
+        group_carrito.setMinimumHeight(166)
         carrito_layout = QVBoxLayout(group_carrito)
-        carrito_layout.setContentsMargins(4, 4, 4, 4)
+        carrito_layout.setContentsMargins(3, 2, 3, 3)
+        carrito_layout.setSpacing(2)
 
         self.tabla_compra = QTableWidget()
         self.tabla_compra.setProperty("class", "tabla-carrito")
@@ -1293,7 +1296,7 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.tabla_compra.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.tabla_compra.verticalHeader().setDefaultSectionSize(34)
+        self.tabla_compra.verticalHeader().setDefaultSectionSize(32)
         self.tabla_compra.verticalHeader().setVisible(False)
         self.tabla_compra.setColumnWidth(0, 140)
         self.tabla_compra.setColumnWidth(1, 45)
@@ -1303,32 +1306,40 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setColumnWidth(5, 28)
         self.tabla_compra.setColumnWidth(6, 28)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        carrito_layout.addWidget(self.tabla_compra)
+        # Minimum for 4 rows; table grows with group_carrito stretch
+        self.tabla_compra.setMinimumHeight(4 * 32 + 26)
+        self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        carrito_layout.addWidget(self.tabla_compra, 1)
 
         self.lbl_info_carrito = QLabel("")
         self.lbl_info_carrito.setAlignment(Qt.AlignCenter)
         self.lbl_info_carrito.setProperty("class", "info-label")
         carrito_layout.addWidget(self.lbl_info_carrito)
-        group_carrito.setMaximumHeight(260)
-        layout_derecho.addWidget(group_carrito)
+        # stretch=1: cart is the ONLY section that grows when window is tall/maximized
+        layout_derecho.addWidget(group_carrito, 1)
 
-        # QUICK DISCOUNT BUTTONS
-        desc_frame = QGroupBox("DESCUENTOS")
-        desc_frame.setProperty("class", "discount-group")
+        # QUICK DISCOUNT BUTTONS — compact flat bar (no GroupBox title overhead)
+        desc_frame = QFrame()
+        desc_frame.setObjectName("posCompactBar")
         desc_lay = QHBoxLayout(desc_frame)
-        desc_lay.setContentsMargins(8, 6, 8, 6)
-        desc_lay.setSpacing(5)
+        desc_lay.setContentsMargins(4, 3, 4, 3)
+        desc_lay.setSpacing(4)
+        _lbl_desc = QLabel("Dto:")
+        _lbl_desc.setObjectName("posBarLabel")
+        desc_lay.addWidget(_lbl_desc)
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
             btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            btn_d.setMinimumHeight(30)
+            btn_d.setMinimumHeight(28)
+            btn_d.setMaximumHeight(28)
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
             btn_d.setObjectName("outlineBtn")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
         btn_custom = QPushButton("Custom")
         btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        btn_custom.setMinimumHeight(30)
+        btn_custom.setMinimumHeight(28)
+        btn_custom.setMaximumHeight(28)
         btn_custom.setToolTip("Descuento personalizado")
         btn_custom.setObjectName("accentBtn")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
@@ -1434,11 +1445,11 @@ class ModuloVentas(ModuloBase):
         layout_derecho.addWidget(self._banner_sin_impresora)
 
         # ── PRIMARY TRANSACTION ACTIONS ──────────────────────────────────────
-        group_acciones = QGroupBox("ACCIONES DE VENTA")
+        group_acciones = QGroupBox("COBRAR")
         group_acciones.setProperty("class", "venta-group")
         acciones_layout = QVBoxLayout(group_acciones)
-        acciones_layout.setContentsMargins(8, 10, 8, 8)
-        acciones_layout.setSpacing(5)
+        acciones_layout.setContentsMargins(6, 4, 6, 6)
+        acciones_layout.setSpacing(4)
 
         # PRIMARY: COBRAR — dominant full-width green button
         self.btn_cobrar = create_success_button(self, "💰 COBRAR  $0.00", "Procesar el pago de la venta")
@@ -1466,12 +1477,12 @@ class ModuloVentas(ModuloBase):
 
         layout_derecho.addWidget(group_acciones)
 
-        # ── UTILITY ACTIONS ───────────────────────────────────────────────────
-        group_utilidad = QGroupBox("ACCIONES UTILITARIAS")
-        group_utilidad.setProperty("class", "venta-group")
+        # ── UTILITY ACTIONS — compact flat bar (visually subordinate to checkout) ─
+        group_utilidad = QFrame()
+        group_utilidad.setObjectName("posCompactBar")
         utilidad_layout = QHBoxLayout(group_utilidad)
-        utilidad_layout.setContentsMargins(8, 10, 8, 8)
-        utilidad_layout.setSpacing(5)
+        utilidad_layout.setContentsMargins(4, 3, 4, 3)
+        utilidad_layout.setSpacing(4)
 
         self.btn_devolucion = create_secondary_button(
             self, "↩ Devolución",
@@ -1489,7 +1500,8 @@ class ModuloVentas(ModuloBase):
         for _b in (self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(30)
+            _b.setMinimumHeight(28)
+            _b.setMaximumHeight(28)
         utilidad_layout.addWidget(self.btn_devolucion)
         utilidad_layout.addWidget(self.btn_factura)
         utilidad_layout.addWidget(self.btn_reimprimir)
