@@ -1590,6 +1590,7 @@ def _block_pos_module(
     category_active_bg: str, category_active_text: str,
     cobrar_disabled_bg: str, cobrar_disabled_text: str,
     warning: str, critical: str, out_stock_bg: str,
+    action: str, action_hover: str,
 ) -> str:
     """Genera el QSS para el módulo POS (ventas.py)."""
     return f"""
@@ -1801,6 +1802,64 @@ def _block_pos_module(
             font-weight: 700;
         }}
 
+        /* ===== POS: SECTION HEADERS ===== */
+        QLabel#posSectionHeader {{
+            color: {muted};
+            font-size: 10px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+            padding: 0px;
+        }}
+
+        /* ===== POS: STANDARD ACTION BUTTON (#00755E) ===== */
+        QPushButton#posActionBtn {{
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {action_hover}, stop:1 {action});
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 3px 8px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 22px;
+        }}
+        QPushButton#posActionBtn:hover {{
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #00C49A, stop:1 {action_hover});
+        }}
+        QPushButton#posActionBtn:pressed {{
+            background-color: {action};
+        }}
+        QPushButton#posActionBtn:disabled {{
+            background-color: {cobrar_disabled_bg};
+            color: {cobrar_disabled_text};
+        }}
+
+        /* ===== POS: UTILITY ACTION BUTTON (outline teal) ===== */
+        QPushButton#posUtilBtn {{
+            background: transparent;
+            color: {action};
+            border: 1px solid {action};
+            border-radius: 5px;
+            padding: 3px 8px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 22px;
+        }}
+        QPushButton#posUtilBtn:hover {{
+            background-color: {action};
+            color: white;
+        }}
+        QPushButton#posUtilBtn:pressed {{
+            background-color: {action_hover};
+            color: white;
+        }}
+        QPushButton#posUtilBtn:disabled {{
+            color: {muted};
+            border-color: {border};
+        }}
+
         /* ===== POS: TOTALS BREAKDOWN CARD ===== */
         QFrame#posTotalsCard {{
             background-color: {card};
@@ -1855,9 +1914,11 @@ def _block_pos_module(
         }}
         QLabel#posFinancialMetric {{
             color: {muted};
-            font-size: 10px;
+            font-size: 12px;
+            font-weight: 600;
             background: transparent;
             border: none;
+            padding: 1px 0px;
         }}
         QLabel#posCommissionBadge {{
             color: {success};
@@ -1875,10 +1936,10 @@ def _block_pos_module(
                 stop:0 {success_hover}, stop:1 {success});
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 16px;
+            border-radius: 8px;
+            font-size: 15px;
             font-weight: 800;
-            min-height: 56px;
+            min-height: 44px;
             letter-spacing: 0.3px;
         }}
         QPushButton#btnCobrarPOS:hover {{
@@ -1948,6 +2009,8 @@ def _modern_blocks(theme: str) -> str:
                 warning=Colors.WARNING.BASE,
                 critical=Colors.DANGER.BASE,
                 out_stock_bg=Colors.NEUTRAL.SLATE_900,
+                action=Colors.POS_ACTION_BASE,
+                action_hover=Colors.POS_ACTION_HOVER,
             )
         )
     # Claro
@@ -2000,6 +2063,8 @@ def _modern_blocks(theme: str) -> str:
             warning=Colors.WARNING.BASE,
             critical=Colors.DANGER.BASE,
             out_stock_bg=Colors.NEUTRAL.SLATE_100,
+            action=Colors.POS_ACTION_BASE,
+            action_hover=Colors.POS_ACTION_HOVER,
         )
     )
 

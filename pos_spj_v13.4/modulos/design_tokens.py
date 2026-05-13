@@ -183,6 +183,11 @@ class Colors:
     ACCENT_BASE = "#7C3AED"
     ACCENT_HOVER = "#8B5CF6"
 
+    # Color estándar de acción para botones sin semántica específica
+    POS_ACTION_BASE: str = "#00755E"
+    POS_ACTION_HOVER: str = "#00967A"
+    POS_ACTION_ACTIVE: str = "#005A47"
+
     # Alias legacy de texto (evita crashes por atributos faltantes).
     TEXT_PRIMARY = NeutralColors().SLATE_800
     TEXT_SECONDARY = NeutralColors().SLATE_500

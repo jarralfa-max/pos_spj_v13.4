@@ -1311,10 +1311,10 @@ class ModuloVentas(ModuloBase):
         layout_derecho.addWidget(group_carrito, 1)
 
         # QUICK DISCOUNT BUTTONS
-        desc_frame = QFrame()
-        desc_frame.setObjectName("card")
+        desc_frame = QGroupBox("DESCUENTOS")
+        desc_frame.setProperty("class", "discount-group")
         desc_lay = QHBoxLayout(desc_frame)
-        desc_lay.setContentsMargins(8, 5, 8, 5)
+        desc_lay.setContentsMargins(8, 6, 8, 6)
         desc_lay.setSpacing(5)
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
@@ -1339,6 +1339,10 @@ class ModuloVentas(ModuloBase):
         totals_layout = QVBoxLayout(totals_card)
         totals_layout.setContentsMargins(12, 8, 12, 8)
         totals_layout.setSpacing(4)
+
+        lbl_resumen_header = QLabel("RESUMEN")
+        lbl_resumen_header.setObjectName("posSectionHeader")
+        totals_layout.addWidget(lbl_resumen_header)
 
         row_sub = QHBoxLayout()
         row_sub.setSpacing(4)
@@ -1386,9 +1390,10 @@ class ModuloVentas(ModuloBase):
         totals_layout.addLayout(row_total)
 
         metrics_row = QHBoxLayout()
-        metrics_row.setSpacing(12)
-        self.lbl_peso_bascula = QLabel("0.000 kg")
-        self.lbl_puntos_venta = QLabel("+ 0 pts")
+        metrics_row.setSpacing(16)
+        metrics_row.setContentsMargins(0, 4, 0, 0)
+        self.lbl_peso_bascula = QLabel("⚖ 0.000 kg")
+        self.lbl_puntos_venta = QLabel("★ 0 pts")
         self.lbl_comision_turno = QLabel("")
         self.lbl_peso_bascula.setObjectName("posFinancialMetric")
         self.lbl_puntos_venta.setObjectName("posFinancialMetric")
@@ -1408,12 +1413,11 @@ class ModuloVentas(ModuloBase):
         self._banner_sin_impresora.setVisible(False)
         layout_derecho.addWidget(self._banner_sin_impresora)
 
-        # ── CHECKOUT ACTIONS ─────────────────────────────────────────────────
-        # Hierarchy: COBRAR (dominant) → workflow secondary → post-sale → danger
-        group_acciones = QGroupBox()
+        # ── PRIMARY TRANSACTION ACTIONS ──────────────────────────────────────
+        group_acciones = QGroupBox("ACCIONES DE VENTA")
         group_acciones.setProperty("class", "venta-group")
         acciones_layout = QVBoxLayout(group_acciones)
-        acciones_layout.setContentsMargins(8, 8, 8, 8)
+        acciones_layout.setContentsMargins(8, 10, 8, 8)
         acciones_layout.setSpacing(5)
 
         # PRIMARY: COBRAR — dominant full-width green button
@@ -1421,14 +1425,15 @@ class ModuloVentas(ModuloBase):
         self.btn_cobrar.setObjectName("btnCobrarPOS")
         self.btn_cobrar.setProperty("fill_parent", True)
         self.btn_cobrar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.btn_cobrar.setMinimumHeight(56)
+        self.btn_cobrar.setMinimumHeight(44)
         acciones_layout.addWidget(self.btn_cobrar)
 
-        # SECONDARY: workflow actions — Suspender / Reanudar
+        # WORKFLOW: Suspender / Reanudar
         row_workflow = QHBoxLayout()
         row_workflow.setSpacing(5)
         self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta actual para atender otra")
         self.btn_reanudar  = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida")
+        self.btn_reanudar.setObjectName("posActionBtn")
         for _b in (self.btn_suspender, self.btn_reanudar):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -1437,42 +1442,50 @@ class ModuloVentas(ModuloBase):
         row_workflow.addWidget(self.btn_reanudar)
         acciones_layout.addLayout(row_workflow)
 
-        # SECONDARY: post-sale / returns — Devolución / Factura / Reimprimir
-        row_postsale = QHBoxLayout()
-        row_postsale.setSpacing(5)
+        # DANGER ZONE: visual separator + Cancelar
+        _danger_sep = QFrame()
+        _danger_sep.setFrameShape(QFrame.HLine)
+        _danger_sep.setObjectName("posTotalsDivider")
+        _danger_sep.setFixedHeight(1)
+        acciones_layout.addWidget(_danger_sep)
+
+        self.btn_cancelar = create_danger_button(self, "✕ Cancelar venta", "Cancelar venta actual")
+        self.btn_cancelar.setProperty("fill_parent", True)
+        self.btn_cancelar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_cancelar.setMinimumHeight(32)
+        acciones_layout.addWidget(self.btn_cancelar)
+
+        layout_derecho.addWidget(group_acciones)
+
+        # ── UTILITY ACTIONS ───────────────────────────────────────────────────
+        group_utilidad = QGroupBox("ACCIONES UTILITARIAS")
+        group_utilidad.setProperty("class", "venta-group")
+        utilidad_layout = QHBoxLayout(group_utilidad)
+        utilidad_layout.setContentsMargins(8, 10, 8, 8)
+        utilidad_layout.setSpacing(5)
+
         self.btn_devolucion = create_secondary_button(
             self, "↩ Devolución",
             "Cancelar o devolver una venta anterior (requiere permiso)")
+        self.btn_devolucion.setObjectName("posUtilBtn")
         self.btn_devolucion.setEnabled(False)
         self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta")
+        self.btn_factura.setObjectName("posUtilBtn")
         self.btn_factura.setEnabled(False)
         self.btn_factura.clicked.connect(self._generar_factura)
         self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimpr.", "Reimprimir el ticket de la última venta")
+        self.btn_reimprimir.setObjectName("posUtilBtn")
         self.btn_reimprimir.setEnabled(False)
         self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
         for _b in (self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(32)
-        row_postsale.addWidget(self.btn_devolucion)
-        row_postsale.addWidget(self.btn_factura)
-        row_postsale.addWidget(self.btn_reimprimir)
-        acciones_layout.addLayout(row_postsale)
+            _b.setMinimumHeight(30)
+        utilidad_layout.addWidget(self.btn_devolucion)
+        utilidad_layout.addWidget(self.btn_factura)
+        utilidad_layout.addWidget(self.btn_reimprimir)
 
-        # DANGER ZONE: visual separator + Cancelar
-        danger_sep = QFrame()
-        danger_sep.setFrameShape(QFrame.HLine)
-        danger_sep.setObjectName("posTotalsDivider")
-        danger_sep.setFixedHeight(1)
-        acciones_layout.addWidget(danger_sep)
-
-        self.btn_cancelar = create_danger_button(self, "✕ Cancelar venta", "Cancelar venta actual")
-        self.btn_cancelar.setProperty("fill_parent", True)
-        self.btn_cancelar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.btn_cancelar.setMinimumHeight(34)
-        acciones_layout.addWidget(self.btn_cancelar)
-
-        layout_derecho.addWidget(group_acciones)
+        layout_derecho.addWidget(group_utilidad)
 
         splitter.addWidget(panel_izquierdo)
         splitter.addWidget(panel_derecho)
