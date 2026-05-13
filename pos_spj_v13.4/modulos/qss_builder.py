@@ -1589,6 +1589,7 @@ def _block_pos_module(
     danger: str, primary: str,
     category_active_bg: str, category_active_text: str,
     cobrar_disabled_bg: str, cobrar_disabled_text: str,
+    warning: str, critical: str, out_stock_bg: str,
 ) -> str:
     """Genera el QSS para el módulo POS (ventas.py)."""
     return f"""
@@ -1730,6 +1731,68 @@ def _block_pos_module(
             border: none;
             font-size: 20px;
         }}
+
+        /* ===== POS: PRODUCT CARD — STOCK STATES ===== */
+        QFrame[class="product-card-low-stock"] {{
+            background-color: {card};
+            border: 1.5px solid {warning};
+            border-radius: 10px;
+        }}
+        QFrame[class="product-card-critical-stock"] {{
+            background-color: {card};
+            border: 2px solid {critical};
+            border-radius: 10px;
+        }}
+        QFrame[class="product-card-out-of-stock"] {{
+            background-color: {out_stock_bg};
+            border: 1px solid {critical};
+            border-radius: 10px;
+        }}
+        QLabel[class="product-stock-low"] {{
+            color: {warning};
+            font-size: 10px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="product-stock-critical"] {{
+            color: {critical};
+            font-size: 10px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="product-stock-out"] {{
+            color: {critical};
+            font-size: 10px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="product-name-dimmed"] {{
+            font-weight: 600;
+            font-size: 11px;
+            color: {muted};
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posOutOfStockBadge {{
+            background-color: {critical};
+            color: white;
+            border-radius: 6px;
+            padding: 1px 5px;
+            font-size: 9px;
+            font-weight: 700;
+        }}
+        QLabel#posLowStockBadge {{
+            background-color: {warning};
+            color: white;
+            border-radius: 6px;
+            padding: 1px 5px;
+            font-size: 9px;
+            font-weight: 700;
+        }}
+
         QLabel#posProductCheckBadge {{
             background-color: {primary};
             color: white;
@@ -1882,6 +1945,9 @@ def _modern_blocks(theme: str) -> str:
                 category_active_text=Colors.NEUTRAL.WHITE,
                 cobrar_disabled_bg=Colors.NEUTRAL.SLATE_700,
                 cobrar_disabled_text=Colors.NEUTRAL.SLATE_500,
+                warning=Colors.WARNING.BASE,
+                critical=Colors.DANGER.BASE,
+                out_stock_bg=Colors.NEUTRAL.SLATE_900,
             )
         )
     # Claro
@@ -1931,6 +1997,9 @@ def _modern_blocks(theme: str) -> str:
             category_active_text=Colors.PRIMARY.DARK,
             cobrar_disabled_bg=Colors.NEUTRAL.SLATE_200,
             cobrar_disabled_text=Colors.NEUTRAL.SLATE_400,
+            warning=Colors.WARNING.BASE,
+            critical=Colors.DANGER.BASE,
+            out_stock_bg=Colors.NEUTRAL.SLATE_100,
         )
     )
 

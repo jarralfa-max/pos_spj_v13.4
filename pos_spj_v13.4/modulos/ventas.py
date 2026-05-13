@@ -127,36 +127,79 @@ class ProductCard(QFrame):
         self.setFrameShape(QFrame.StyledPanel)
         self.setFrameShadow(QFrame.Raised)
         
-        self.setProperty("class", "product-card")
-        
+        # Stock state classification
+        existencia = self.producto.get('existencia', 0)
+        stock_minimo = self.producto.get('stock_minimo', 0)
+        if existencia <= 0:
+            self._stock_state = "out-of-stock"
+        elif stock_minimo > 0 and existencia <= stock_minimo:
+            self._stock_state = "critical-stock"
+        elif stock_minimo > 0 and existencia <= stock_minimo * 2:
+            self._stock_state = "low-stock"
+        else:
+            self._stock_state = ""
+
+        base_class = f"product-card-{self._stock_state}" if self._stock_state else "product-card"
+        self.setProperty("class", base_class)
+
+        if self._stock_state == "out-of-stock":
+            self.setCursor(Qt.ForbiddenCursor)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(5)
 
         self.lbl_imagen = QLabel()
         self.lbl_imagen.setAlignment(Qt.AlignCenter)
-        self.lbl_imagen.setFixedSize(140, 120)
+        self.lbl_imagen.setFixedSize(140, 110)
         self.lbl_imagen.setProperty("class", "product-image")
         self._load_image()
-        
+
         self.lbl_nombre = QLabel(self.producto['nombre'])
         self.lbl_nombre.setAlignment(Qt.AlignCenter)
         self.lbl_nombre.setWordWrap(True)
-        self.lbl_nombre.setProperty("class", "product-name")
-        
+        name_class = "product-name-dimmed" if self._stock_state == "out-of-stock" else "product-name"
+        self.lbl_nombre.setProperty("class", name_class)
+
         self.lbl_precio = QLabel(f"${self.producto['precio']:.2f} / {self.producto['unidad']}")
         self.lbl_precio.setAlignment(Qt.AlignCenter)
         self.lbl_precio.setProperty("class", "product-price")
-        
-        existencia = self.producto.get('existencia', 0)
-        self.lbl_stock = QLabel(f"Stock: {existencia:.2f}")
+
+        # Stock label with state-aware text/styling
+        if self._stock_state == "out-of-stock":
+            self.lbl_stock = QLabel("⊘ Agotado")
+            self.lbl_stock.setProperty("class", "product-stock-out")
+        elif self._stock_state == "critical-stock":
+            self.lbl_stock = QLabel(f"⚠ {existencia:.1f}")
+            self.lbl_stock.setProperty("class", "product-stock-critical")
+        elif self._stock_state == "low-stock":
+            self.lbl_stock = QLabel(f"↓ {existencia:.1f}")
+            self.lbl_stock.setProperty("class", "product-stock-low")
+        else:
+            self.lbl_stock = QLabel(f"Stock: {existencia:.2f}")
+            self.lbl_stock.setProperty("class", "product-stock")
         self.lbl_stock.setAlignment(Qt.AlignCenter)
-        self.lbl_stock.setProperty("class", "product-stock")
+
+        # Stock badge overlay (corner, for critical/out states)
+        self._lbl_stock_badge = None
+        if self._stock_state in ("out-of-stock", "critical-stock", "low-stock"):
+            from PyQt5.QtWidgets import QLabel as _QL2
+            self._lbl_stock_badge = _QL2(
+                "AGOTADO" if self._stock_state == "out-of-stock"
+                else ("CRÍTICO" if self._stock_state == "critical-stock" else "BAJO"),
+                self
+            )
+            self._lbl_stock_badge.setFixedHeight(16)
+            self._lbl_stock_badge.setAlignment(Qt.AlignCenter)
+            badge_name = "posOutOfStockBadge" if self._stock_state in ("out-of-stock", "critical-stock") else "posLowStockBadge"
+            self._lbl_stock_badge.setObjectName(badge_name)
 
         layout.addWidget(self.lbl_imagen)
         layout.addWidget(self.lbl_nombre)
         layout.addWidget(self.lbl_precio)
         layout.addWidget(self.lbl_stock)
+        if self._lbl_stock_badge:
+            layout.addWidget(self._lbl_stock_badge)
         layout.addStretch(1)
         
         self.shadow_effect = QGraphicsDropShadowEffect(self)
@@ -221,7 +264,8 @@ class ProductCard(QFrame):
             self._lbl_check.show()
             self._lbl_check.raise_()
         else:
-            self.setProperty("class", "product-card")
+            base_class = f"product-card-{self._stock_state}" if self._stock_state else "product-card"
+            self.setProperty("class", base_class)
             self.update_shadow_color()
             self.shadow_effect.setBlurRadius(15)
             self.shadow_effect.setXOffset(2)
@@ -254,11 +298,11 @@ class ProductCard(QFrame):
         self.shadow_effect.setYOffset(2)
         if self.is_selected:
             self.setProperty("class", "product-card-selected")
-            # Mantener glow azul suave si está seleccionado
             self.shadow_effect.setBlurRadius(20)
             self.shadow_effect.setColor(QColor(37, 99, 235, 70))
         else:
-            self.setProperty("class", "product-card")
+            base_class = f"product-card-{self._stock_state}" if self._stock_state else "product-card"
+            self.setProperty("class", base_class)
         self.style().unpolish(self)
         self.style().polish(self)
         super().leaveEvent(event)
@@ -962,7 +1006,11 @@ class ModuloVentas(ModuloBase):
         self.sucursal_nombre = sucursal_nombre
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
         if hasattr(self, "lbl_estado_terminal"):
-            self.lbl_estado_terminal.setText(f"Terminal: ❌ No disponible  |  🏪 {sucursal_nombre}")
+            status_text = f"Terminal: ❌ No disponible  |  🏪 {sucursal_nombre}"
+            self.lbl_estado_terminal.setText(status_text)
+            if hasattr(self, '_btn_terminal_hw'):
+                self._btn_terminal_hw.setText(f"💳 {sucursal_nombre}")
+                self._btn_terminal_hw.setToolTip(status_text)
         # v13.4: Recargar productos con stock de la sucursal correcta
         try:
             self.cargar_productos_interactivos()
@@ -1070,6 +1118,7 @@ class ModuloVentas(ModuloBase):
         self._btn_corte_z = QPushButton("📋 Corte Z")
         self._btn_corte_z.setObjectName("posCorteBtn")
         self._btn_corte_z.setToolTip("Realizar corte de caja (Corte Z)")
+        self._btn_corte_z.clicked.connect(self._ir_a_caja)
         cb_layout.addWidget(self._btn_corte_z)
 
         root_layout.addWidget(cashier_bar)
@@ -1157,15 +1206,9 @@ class ModuloVentas(ModuloBase):
         productos_layout.addWidget(self.scroll_area_productos)
         layout_izquierdo.addWidget(group_productos, 1)
 
-        status_layout = QHBoxLayout()
+        # API-compat orphaned labels — status is mirrored to HW buttons in header bar
         self.lbl_estado_bascula = QLabel("⚖ Báscula: ❌ No conectada")
-        self.lbl_estado_bascula.setProperty("class", "status-label")
         self.lbl_estado_terminal = QLabel("💳 Terminal: ❌ No disponible")
-        self.lbl_estado_terminal.setProperty("class", "status-label")
-        status_layout.addWidget(self.lbl_estado_bascula)
-        status_layout.addWidget(self.lbl_estado_terminal)
-        status_layout.addStretch()
-        layout_izquierdo.addLayout(status_layout)
 
         # ── RIGHT PANEL: CART & CHECKOUT ─────────────────────────────────────
         panel_derecho = QWidget()
@@ -1358,22 +1401,6 @@ class ModuloVentas(ModuloBase):
         totals_layout.addLayout(metrics_row)
         layout_derecho.addWidget(totals_card)
 
-        # FACTURA / REIMPRIMIR BUTTONS
-        self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta")
-        self.btn_factura.setEnabled(False)
-        self.btn_factura.clicked.connect(self._generar_factura)
-        self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimprimir", "Reimprimir el ticket de la última venta")
-        self.btn_reimprimir.setEnabled(False)
-        self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
-        for _b in (self.btn_factura, self.btn_reimprimir):
-            _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(32)
-        row_docs = QHBoxLayout()
-        row_docs.setSpacing(6)
-        row_docs.addWidget(self.btn_factura)
-        row_docs.addWidget(self.btn_reimprimir)
-        layout_derecho.addLayout(row_docs)
-
         self._banner_sin_impresora = QLabel(
             "⚠️  Sin impresora configurada — los tickets se guardarán en PDF (carpeta TICKETS/)")
         self._banner_sin_impresora.setProperty("class", "banner-warning caption")
@@ -1381,39 +1408,70 @@ class ModuloVentas(ModuloBase):
         self._banner_sin_impresora.setVisible(False)
         layout_derecho.addWidget(self._banner_sin_impresora)
 
-        # ACTION BUTTONS
+        # ── CHECKOUT ACTIONS ─────────────────────────────────────────────────
+        # Hierarchy: COBRAR (dominant) → workflow secondary → post-sale → danger
         group_acciones = QGroupBox()
         group_acciones.setProperty("class", "venta-group")
-        acciones_layout = QGridLayout(group_acciones)
+        acciones_layout = QVBoxLayout(group_acciones)
         acciones_layout.setContentsMargins(8, 8, 8, 8)
-        acciones_layout.setHorizontalSpacing(6)
-        acciones_layout.setVerticalSpacing(6)
-        acciones_layout.setColumnStretch(0, 1)
-        acciones_layout.setColumnStretch(1, 1)
+        acciones_layout.setSpacing(5)
 
+        # PRIMARY: COBRAR — dominant full-width green button
         self.btn_cobrar = create_success_button(self, "💰 COBRAR  $0.00", "Procesar el pago de la venta")
         self.btn_cobrar.setObjectName("btnCobrarPOS")
+        self.btn_cobrar.setProperty("fill_parent", True)
+        self.btn_cobrar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_cobrar.setMinimumHeight(56)
+        acciones_layout.addWidget(self.btn_cobrar)
+
+        # SECONDARY: workflow actions — Suspender / Reanudar
+        row_workflow = QHBoxLayout()
+        row_workflow.setSpacing(5)
         self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta actual para atender otra")
-        self.btn_reanudar = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida")
-        self.btn_cancelar = create_danger_button(self, "✕ Cancelar", "Cancelar venta actual")
+        self.btn_reanudar  = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida")
+        for _b in (self.btn_suspender, self.btn_reanudar):
+            _b.setProperty("fill_parent", True)
+            _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            _b.setMinimumHeight(34)
+        row_workflow.addWidget(self.btn_suspender)
+        row_workflow.addWidget(self.btn_reanudar)
+        acciones_layout.addLayout(row_workflow)
+
+        # SECONDARY: post-sale / returns — Devolución / Factura / Reimprimir
+        row_postsale = QHBoxLayout()
+        row_postsale.setSpacing(5)
         self.btn_devolucion = create_secondary_button(
             self, "↩ Devolución",
             "Cancelar o devolver una venta anterior (requiere permiso)")
         self.btn_devolucion.setEnabled(False)
+        self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta")
+        self.btn_factura.setEnabled(False)
+        self.btn_factura.clicked.connect(self._generar_factura)
+        self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimpr.", "Reimprimir el ticket de la última venta")
+        self.btn_reimprimir.setEnabled(False)
+        self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
+        for _b in (self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
+            _b.setProperty("fill_parent", True)
+            _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            _b.setMinimumHeight(32)
+        row_postsale.addWidget(self.btn_devolucion)
+        row_postsale.addWidget(self.btn_factura)
+        row_postsale.addWidget(self.btn_reimprimir)
+        acciones_layout.addLayout(row_postsale)
 
-        for btn in (self.btn_cobrar, self.btn_suspender, self.btn_reanudar,
-                    self.btn_cancelar, self.btn_devolucion):
-            btn.setProperty("fill_parent", True)
-            btn.setMinimumHeight(0)
-            btn.setMaximumHeight(16777215)
-            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            btn.setMinimumHeight(40)
+        # DANGER ZONE: visual separator + Cancelar
+        danger_sep = QFrame()
+        danger_sep.setFrameShape(QFrame.HLine)
+        danger_sep.setObjectName("posTotalsDivider")
+        danger_sep.setFixedHeight(1)
+        acciones_layout.addWidget(danger_sep)
 
-        acciones_layout.addWidget(self.btn_cobrar,     0, 0, 1, 2)
-        acciones_layout.addWidget(self.btn_suspender,  1, 0)
-        acciones_layout.addWidget(self.btn_reanudar,   1, 1)
-        acciones_layout.addWidget(self.btn_cancelar,   2, 0)
-        acciones_layout.addWidget(self.btn_devolucion, 2, 1)
+        self.btn_cancelar = create_danger_button(self, "✕ Cancelar venta", "Cancelar venta actual")
+        self.btn_cancelar.setProperty("fill_parent", True)
+        self.btn_cancelar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.btn_cancelar.setMinimumHeight(34)
+        acciones_layout.addWidget(self.btn_cancelar)
+
         layout_derecho.addWidget(group_acciones)
 
         splitter.addWidget(panel_izquierdo)
@@ -1439,6 +1497,25 @@ class ModuloVentas(ModuloBase):
                 btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
+
+    # ── NAVIGATION ───────────────────────────────────────────────────────────
+
+    def _ir_a_caja(self):
+        """Navega al módulo de Caja/Cortes Z a través de la ventana principal."""
+        try:
+            top = self.window()
+            if hasattr(top, 'manejar_navegacion'):
+                top.manejar_navegacion("CAJA")
+        except Exception as e:
+            logger.debug("_ir_a_caja: %s", e)
+
+    def _set_bascula_status(self, text: str):
+        """Update status label and mirror abbreviated text to HW button."""
+        self.lbl_estado_bascula.setText(text)
+        if hasattr(self, '_btn_bascula_hw'):
+            short = text.replace("Báscula: ", "⚖ ").replace("Basic: ", "⚖ ")
+            self._btn_bascula_hw.setText(short)
+            self._btn_bascula_hw.setToolTip(text)
 
     # ── CATEGORY TABS ────────────────────────────────────────────────────────
 
@@ -2535,14 +2612,14 @@ class ModuloVentas(ModuloBase):
         # v13.4: Solo conectar báscula si está activa en configuración de hardware
         if not self._hw_bascula_habilitada:
             if hasattr(self, 'lbl_estado_bascula'):
-                self.lbl_estado_bascula.setText("Báscula: ⚪ Desactivada")
+                self._set_bascula_status("Báscula: ⚪ Desactivada")
             if hasattr(self, 'lbl_peso_bascula'):
                 self.lbl_peso_bascula.setText("Peso: —")
             return
-        self.lbl_estado_bascula.setText("Báscula: ⏳ Conectando...")
+        self._set_bascula_status("Báscula: ⏳ Conectando...")
         self.lbl_peso_bascula.setText("Peso: 0.000 kg")
         self.timer_bascula.start()
-        
+
     def leer_peso(self):
         """Lee peso priorizando HAL y mantiene fallback serial legacy."""
         try:
@@ -2554,7 +2631,7 @@ class ModuloVentas(ModuloBase):
                 if peso > 0:
                     self.peso_actual = peso
                     self.lbl_peso_bascula.setText(f"Peso: {peso:.3f} kg")
-                    self.lbl_estado_bascula.setText("Báscula: ✅ Conectada (HAL)")
+                    self._set_bascula_status("Báscula: ✅ Conectada (HAL)")
                     if self.producto_pendiente:
                         self.procesar_peso_para_producto(peso)
                     return
@@ -2565,7 +2642,7 @@ class ModuloVentas(ModuloBase):
         if not self._hw_bascula_habilitada:
             return
         if not HAS_SERIAL_MODULE or serial is None:
-            self.lbl_estado_bascula.setText("Báscula: ⚠️ Serial no disponible")
+            self._set_bascula_status("Báscula: ⚠️ Serial no disponible")
             return
         try:
             if not self.bascula:
@@ -2575,7 +2652,7 @@ class ModuloVentas(ModuloBase):
                 except Exception:
                     baud = 9600
                 self.bascula = serial.Serial(puerto, baud, timeout=0.2)
-                self.lbl_estado_bascula.setText("Báscula: ✅ Conectada")
+                self._set_bascula_status("Báscula: ✅ Conectada")
 
             self.bascula.write(b'P\r\n')
             datos = self.bascula.readline().decode('utf-8', errors='ignore').strip()
@@ -2588,7 +2665,7 @@ class ModuloVentas(ModuloBase):
                     self.procesar_peso_para_producto(peso)
         except Exception as e:
             self.bascula = None
-            self.lbl_estado_bascula.setText("Báscula: ❌ Desconectada")
+            self._set_bascula_status("Báscula: ❌ Desconectada")
                 
     def iniciar_monitoreo_peso(self, producto: Dict[str, Any]):
         # BUG FIX: no iniciar si la báscula está deshabilitada en config hardware
