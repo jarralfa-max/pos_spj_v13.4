@@ -1212,7 +1212,8 @@ class ModuloVentas(ModuloBase):
 
         # ── RIGHT PANEL: CART & CHECKOUT ─────────────────────────────────────
         panel_derecho = QWidget()
-        panel_derecho.setMinimumWidth(460)
+        panel_derecho.setMinimumWidth(380)
+        panel_derecho.setMaximumWidth(600)
         layout_derecho = QVBoxLayout(panel_derecho)
         layout_derecho.setSpacing(6)
         layout_derecho.setContentsMargins(5, 5, 5, 5)
@@ -1487,9 +1488,9 @@ class ModuloVentas(ModuloBase):
 
         layout_derecho.addWidget(group_utilidad)
 
-        splitter.addWidget(panel_izquierdo)
-        splitter.addWidget(panel_derecho)
-        splitter.setSizes([600, 500])
+        splitter.setStretchFactor(0, 1)   # left (product grid) absorbs all extra width
+        splitter.setStretchFactor(1, 0)   # right (checkout) holds preferred width
+        splitter.setSizes([620, 460])
         main_layout.addWidget(splitter)
         self._normalizar_botones_principales()
         QTimer.singleShot(0, self._cargar_categorias)
@@ -1510,6 +1511,26 @@ class ModuloVentas(ModuloBase):
                 btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
+
+    # ── RESPONSIVE LAYOUT ────────────────────────────────────────────────────
+
+    def resizeEvent(self, event):
+        """Debounced grid reflow on window resize / maximize."""
+        super().resizeEvent(event)
+        if not hasattr(self, '_grid_resize_timer'):
+            self._grid_resize_timer = QTimer(self)
+            self._grid_resize_timer.setSingleShot(True)
+            self._grid_resize_timer.timeout.connect(self._recalcular_grid)
+        self._grid_resize_timer.start(150)   # 150 ms debounce — no paint storms
+
+    def _recalcular_grid(self):
+        """Reflow product grid columns after resize without losing filter state."""
+        if not hasattr(self, 'scroll_area_productos'):
+            return
+        filtro = self.txt_busqueda.text().strip() if hasattr(self, 'txt_busqueda') else ''
+        cat = getattr(self, '_pos_categoria_activa', '')
+        self._selected_card = None          # cards rebuilt; reset selection reference
+        self.cargar_productos_interactivos(filtro, categoria=cat)
 
     # ── NAVIGATION ───────────────────────────────────────────────────────────
 
@@ -1630,7 +1651,15 @@ class ModuloVentas(ModuloBase):
             cursor.execute(query, params)
             productos = cursor.fetchall()
 
-            col_count = 3
+            # Responsive column count: fill available viewport width with fixed-width cards
+            _spacing = self.grid_productos.spacing()
+            _card_cell = 160 + _spacing   # card fixed width + one gap
+            _vp_w = self.scroll_area_productos.viewport().width()
+            if _vp_w < 40:
+                # Viewport not yet laid out; approximate from scroll area minus scrollbar
+                _vp_w = max(300, self.scroll_area_productos.width() - 22)
+            col_count = max(2, _vp_w // _card_cell)
+
             for i, producto in enumerate(productos):
                 producto_data = {
                     'id': producto[0],
