@@ -1930,6 +1930,32 @@ def _block_pos_module(
             font-weight: 600;
         }}
 
+        /* ===== POS: INDICATOR CARDS ===== */
+        QFrame#posIndicatorCard {{
+            background: {card};
+            border: 1px solid {border};
+            border-radius: 6px;
+            min-height: 42px;
+        }}
+        QLabel#posIndicatorTitle {{
+            color: {muted};
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            background: transparent;
+            border: none;
+            padding: 0px;
+        }}
+        QLabel#posIndicatorValue {{
+            color: {text};
+            font-size: 12px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+            padding: 0px;
+        }}
+
         /* ===== POS: COBRAR BUTTON ===== */
         QPushButton#btnCobrarPOS {{
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,

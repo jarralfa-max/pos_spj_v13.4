@@ -1212,7 +1212,8 @@ class ModuloVentas(ModuloBase):
 
         # ── RIGHT PANEL: CART & CHECKOUT ─────────────────────────────────────
         panel_derecho = QWidget()
-        panel_derecho.setMinimumWidth(460)
+        panel_derecho.setMinimumWidth(380)
+        panel_derecho.setMaximumWidth(600)
         layout_derecho = QVBoxLayout(panel_derecho)
         layout_derecho.setSpacing(6)
         layout_derecho.setContentsMargins(5, 5, 5, 5)
@@ -1308,7 +1309,8 @@ class ModuloVentas(ModuloBase):
         self.lbl_info_carrito.setAlignment(Qt.AlignCenter)
         self.lbl_info_carrito.setProperty("class", "info-label")
         carrito_layout.addWidget(self.lbl_info_carrito)
-        layout_derecho.addWidget(group_carrito, 1)
+        group_carrito.setMaximumHeight(260)
+        layout_derecho.addWidget(group_carrito)
 
         # QUICK DISCOUNT BUTTONS
         desc_frame = QGroupBox("DESCUENTOS")
@@ -1389,21 +1391,39 @@ class ModuloVentas(ModuloBase):
         row_total.addWidget(self.lbl_total)
         totals_layout.addLayout(row_total)
 
-        metrics_row = QHBoxLayout()
-        metrics_row.setSpacing(16)
-        metrics_row.setContentsMargins(0, 4, 0, 0)
-        self.lbl_peso_bascula = QLabel("⚖ 0.000 kg")
-        self.lbl_puntos_venta = QLabel("★ 0 pts")
-        self.lbl_comision_turno = QLabel("")
-        self.lbl_peso_bascula.setObjectName("posFinancialMetric")
-        self.lbl_puntos_venta.setObjectName("posFinancialMetric")
-        self.lbl_comision_turno.setObjectName("posCommissionBadge")
+        # 3 indicator cards: peso / puntos / comisión
+        indicators_row = QHBoxLayout()
+        indicators_row.setSpacing(6)
+        indicators_row.setContentsMargins(0, 6, 0, 0)
+
+        def _make_indicator(title_text, value_text, object_name):
+            card = QFrame()
+            card.setObjectName("posIndicatorCard")
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            card_lay = QVBoxLayout(card)
+            card_lay.setContentsMargins(6, 4, 6, 4)
+            card_lay.setSpacing(1)
+            lbl_title = QLabel(title_text)
+            lbl_title.setObjectName("posIndicatorTitle")
+            lbl_title.setAlignment(Qt.AlignCenter)
+            lbl_val = QLabel(value_text)
+            lbl_val.setObjectName(object_name)
+            lbl_val.setAlignment(Qt.AlignCenter)
+            card_lay.addWidget(lbl_title)
+            card_lay.addWidget(lbl_val)
+            return card, lbl_val
+
+        card_peso, self.lbl_peso_bascula = _make_indicator("Báscula", "0.000 kg", "posIndicatorValue")
+        card_puntos, self.lbl_puntos_venta = _make_indicator("Puntos", "0 pts", "posIndicatorValue")
+        card_comision, self.lbl_comision_turno = _make_indicator("Comisión", "", "posIndicatorValue")
         self.lbl_comision_turno.setVisible(False)
-        metrics_row.addWidget(self.lbl_peso_bascula)
-        metrics_row.addWidget(self.lbl_puntos_venta)
-        metrics_row.addStretch(1)
-        metrics_row.addWidget(self.lbl_comision_turno)
-        totals_layout.addLayout(metrics_row)
+        card_comision.setVisible(False)
+        self._card_comision = card_comision
+
+        indicators_row.addWidget(card_peso)
+        indicators_row.addWidget(card_puntos)
+        indicators_row.addWidget(card_comision)
+        totals_layout.addLayout(indicators_row)
         layout_derecho.addWidget(totals_card)
 
         self._banner_sin_impresora = QLabel(
@@ -1428,32 +1448,21 @@ class ModuloVentas(ModuloBase):
         self.btn_cobrar.setMinimumHeight(44)
         acciones_layout.addWidget(self.btn_cobrar)
 
-        # WORKFLOW: Suspender / Reanudar
-        row_workflow = QHBoxLayout()
-        row_workflow.setSpacing(5)
+        # SECONDARY: Suspender | Reanudar | Cancelar — one row of three
+        row_secondary = QHBoxLayout()
+        row_secondary.setSpacing(5)
         self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta actual para atender otra")
         self.btn_reanudar  = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida")
         self.btn_reanudar.setObjectName("posActionBtn")
-        for _b in (self.btn_suspender, self.btn_reanudar):
+        self.btn_cancelar  = create_danger_button(self, "✕ Cancelar", "Cancelar venta actual")
+        for _b in (self.btn_suspender, self.btn_reanudar, self.btn_cancelar):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             _b.setMinimumHeight(34)
-        row_workflow.addWidget(self.btn_suspender)
-        row_workflow.addWidget(self.btn_reanudar)
-        acciones_layout.addLayout(row_workflow)
-
-        # DANGER ZONE: visual separator + Cancelar
-        _danger_sep = QFrame()
-        _danger_sep.setFrameShape(QFrame.HLine)
-        _danger_sep.setObjectName("posTotalsDivider")
-        _danger_sep.setFixedHeight(1)
-        acciones_layout.addWidget(_danger_sep)
-
-        self.btn_cancelar = create_danger_button(self, "✕ Cancelar venta", "Cancelar venta actual")
-        self.btn_cancelar.setProperty("fill_parent", True)
-        self.btn_cancelar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.btn_cancelar.setMinimumHeight(32)
-        acciones_layout.addWidget(self.btn_cancelar)
+        row_secondary.addWidget(self.btn_suspender)
+        row_secondary.addWidget(self.btn_reanudar)
+        row_secondary.addWidget(self.btn_cancelar)
+        acciones_layout.addLayout(row_secondary)
 
         layout_derecho.addWidget(group_acciones)
 
@@ -1489,9 +1498,12 @@ class ModuloVentas(ModuloBase):
 
         splitter.addWidget(panel_izquierdo)
         splitter.addWidget(panel_derecho)
-        splitter.setSizes([600, 500])
+        splitter.setStretchFactor(0, 1)   # left panel absorbs extra width on maximize
+        splitter.setStretchFactor(1, 0)   # right panel holds preferred width
+        splitter.setSizes([620, 460])
         main_layout.addWidget(splitter)
         self._normalizar_botones_principales()
+        self._pos_ui_ready = True          # guard for resizeEvent / recalcular_grid
         QTimer.singleShot(0, self._cargar_categorias)
 
     def _normalizar_botones_principales(self):
@@ -1510,6 +1522,34 @@ class ModuloVentas(ModuloBase):
                 btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
+
+    # ── RESPONSIVE LAYOUT ────────────────────────────────────────────────────
+
+    def resizeEvent(self, event):
+        """Debounced grid reflow on window resize / maximize."""
+        super().resizeEvent(event)
+        # Ignore resize events that arrive before init_ui() finishes
+        if not getattr(self, '_pos_ui_ready', False):
+            return
+        if not hasattr(self, '_grid_resize_timer'):
+            self._grid_resize_timer = QTimer(self)
+            self._grid_resize_timer.setSingleShot(True)
+            self._grid_resize_timer.timeout.connect(self._recalcular_grid)
+        self._grid_resize_timer.start(150)   # 150 ms debounce — no paint storms
+
+    def _recalcular_grid(self):
+        """Reflow product grid columns after resize without losing filter state."""
+        if not getattr(self, '_pos_ui_ready', False):
+            return
+        if not hasattr(self, 'scroll_area_productos'):
+            return
+        try:
+            filtro = self.txt_busqueda.text().strip() if hasattr(self, 'txt_busqueda') else ''
+            cat = getattr(self, '_pos_categoria_activa', '')
+            self._selected_card = None  # cards rebuilt; reset selection reference
+            self.cargar_productos_interactivos(filtro, categoria=cat)
+        except RuntimeError:
+            pass
 
     # ── NAVIGATION ───────────────────────────────────────────────────────────
 
@@ -1534,6 +1574,14 @@ class ModuloVentas(ModuloBase):
 
     def _cargar_categorias(self) -> None:
         """Load unique product categories from DB and build the tab bar."""
+        # Guard: layout may be gone if widget is torn down before timer fires
+        try:
+            if not hasattr(self, '_category_layout'):
+                return
+            self._category_layout.count()   # raises RuntimeError if C++ object deleted
+        except RuntimeError:
+            return
+
         categorias = [""]  # "" = Todos
         try:
             rows = self.conexion.execute(
@@ -1630,7 +1678,15 @@ class ModuloVentas(ModuloBase):
             cursor.execute(query, params)
             productos = cursor.fetchall()
 
-            col_count = 3
+            # Responsive column count: fill available viewport width with fixed-width cards
+            _spacing = self.grid_productos.spacing()
+            _card_cell = 160 + _spacing   # card fixed width + one gap
+            _vp_w = self.scroll_area_productos.viewport().width()
+            if _vp_w < 40:
+                # Viewport not yet laid out; approximate from scroll area minus scrollbar
+                _vp_w = max(300, self.scroll_area_productos.width() - 22)
+            col_count = max(2, _vp_w // _card_cell)
+
             for i, producto in enumerate(productos):
                 producto_data = {
                     'id': producto[0],
@@ -2455,18 +2511,24 @@ class ModuloVentas(ModuloBase):
             cs = getattr(self.container, 'comisiones_service', None)
             if not cs:
                 self.lbl_comision_turno.setVisible(False)
+                if hasattr(self, '_card_comision'):
+                    self._card_comision.setVisible(False)
                 return
             usuario = self.obtener_usuario_actual()
             cfg = cs.get_config(usuario)
             if not cfg or not cfg.get('activo'):
                 self.lbl_comision_turno.setVisible(False)
+                if hasattr(self, '_card_comision'):
+                    self._card_comision.setVisible(False)
                 return
             datos = cs.get_comision_turno(usuario)
             monto  = float(datos.get('comision', 0))
             ventas = int(datos.get('ventas', 0))
             self.lbl_comision_turno.setText(
-                f"💰 Comisión turno: ${monto:.2f}  ({ventas} vtas)")
+                f"${monto:.2f}  ({ventas} vtas)")
             self.lbl_comision_turno.setVisible(True)
+            if hasattr(self, '_card_comision'):
+                self._card_comision.setVisible(True)
         except Exception:
             pass
 
