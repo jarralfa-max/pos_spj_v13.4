@@ -1493,6 +1493,7 @@ class ModuloVentas(ModuloBase):
         splitter.setSizes([620, 460])
         main_layout.addWidget(splitter)
         self._normalizar_botones_principales()
+        self._pos_ui_ready = True          # guard for resizeEvent / recalcular_grid
         QTimer.singleShot(0, self._cargar_categorias)
 
     def _normalizar_botones_principales(self):
@@ -1517,6 +1518,9 @@ class ModuloVentas(ModuloBase):
     def resizeEvent(self, event):
         """Debounced grid reflow on window resize / maximize."""
         super().resizeEvent(event)
+        # Ignore resize events that arrive before init_ui() finishes
+        if not getattr(self, '_pos_ui_ready', False):
+            return
         if not hasattr(self, '_grid_resize_timer'):
             self._grid_resize_timer = QTimer(self)
             self._grid_resize_timer.setSingleShot(True)
@@ -1525,12 +1529,17 @@ class ModuloVentas(ModuloBase):
 
     def _recalcular_grid(self):
         """Reflow product grid columns after resize without losing filter state."""
+        if not getattr(self, '_pos_ui_ready', False):
+            return
         if not hasattr(self, 'scroll_area_productos'):
             return
-        filtro = self.txt_busqueda.text().strip() if hasattr(self, 'txt_busqueda') else ''
-        cat = getattr(self, '_pos_categoria_activa', '')
-        self._selected_card = None          # cards rebuilt; reset selection reference
-        self.cargar_productos_interactivos(filtro, categoria=cat)
+        try:
+            filtro = self.txt_busqueda.text().strip() if hasattr(self, 'txt_busqueda') else ''
+            cat = getattr(self, '_pos_categoria_activa', '')
+            self._selected_card = None  # cards rebuilt; reset selection reference
+            self.cargar_productos_interactivos(filtro, categoria=cat)
+        except RuntimeError:
+            pass
 
     # ── NAVIGATION ───────────────────────────────────────────────────────────
 
@@ -1555,6 +1564,14 @@ class ModuloVentas(ModuloBase):
 
     def _cargar_categorias(self) -> None:
         """Load unique product categories from DB and build the tab bar."""
+        # Guard: layout may be gone if widget is torn down before timer fires
+        try:
+            if not hasattr(self, '_category_layout'):
+                return
+            self._category_layout.count()   # raises RuntimeError if C++ object deleted
+        except RuntimeError:
+            return
+
         categorias = [""]  # "" = Todos
         try:
             rows = self.conexion.execute(
