@@ -1247,9 +1247,8 @@ class ModuloVentas(ModuloBase):
         cb_layout.setContentsMargins(12, 4, 12, 4)
         cb_layout.setSpacing(10)
 
-        self._lbl_pos_title = QLabel("")
+        self._lbl_pos_title = QLabel("🛒 Punto de Venta")
         self._lbl_pos_title.setObjectName("posCashierTitle")
-        self._lbl_pos_title.setVisible(False)  # title shown in posPageHeader; kept for API compat
         cb_layout.addWidget(self._lbl_pos_title)
 
         self._lbl_cashier_meta = QLabel("")
@@ -1297,35 +1296,6 @@ class ModuloVentas(ModuloBase):
         layout_izquierdo.setSpacing(6)
         layout_izquierdo.setContentsMargins(5, 5, 5, 5)
 
-        # ── PAGE HEADER (PUNTO DE VENTA) ─────────────────────────────────────
-        page_header = QFrame()
-        page_header.setObjectName("posPageHeader")
-        ph_lay = QHBoxLayout(page_header)
-        ph_lay.setContentsMargins(14, 10, 14, 8)
-        ph_lay.setSpacing(8)
-        _ph_text = QWidget()
-        _ph_text_lay = QVBoxLayout(_ph_text)
-        _ph_text_lay.setContentsMargins(0, 0, 0, 0)
-        _ph_text_lay.setSpacing(2)
-        lbl_ph_title = QLabel("PUNTO DE VENTA")
-        lbl_ph_title.setObjectName("posPageTitle")
-        lbl_ph_subtitle = QLabel("Selecciona o escanea un producto para agregarlo al carrito")
-        lbl_ph_subtitle.setObjectName("posPageSubtitle")
-        _ph_text_lay.addWidget(lbl_ph_title)
-        _ph_text_lay.addWidget(lbl_ph_subtitle)
-        ph_lay.addWidget(_ph_text, 1)
-        # Persistent scanner state badge — ACTIVO / CLIENTE / LIBRE
-        self._lbl_scan_state = QLabel("LIBRE")
-        self._lbl_scan_state.setObjectName("posScanStateWaiting")
-        self._lbl_scan_state.setFixedHeight(22)
-        self._lbl_scan_state.setToolTip(
-            "Estado del scanner.\n"
-            "ACTIVO → El scanner agrega productos al carrito.\n"
-            "CLIENTE → El scanner carga cliente o tarjeta.\n"
-            "LIBRE → Sin campo activo; escritura manual detectada.")
-        ph_lay.addWidget(self._lbl_scan_state)
-        layout_izquierdo.addWidget(page_header)
-
         # ── SEARCH ROW ───────────────────────────────────────────────────────
         search_row = QFrame()
         search_row.setObjectName("posSearchFrame")
@@ -1333,7 +1303,7 @@ class ModuloVentas(ModuloBase):
         search_layout.setContentsMargins(8, 6, 8, 6)
         search_layout.setSpacing(6)
 
-        # Barcode icon button (visual cue — also triggers manual scan dialog)
+        # Barcode icon button (visual cue)
         btn_barcode = QPushButton("▦")
         btn_barcode.setObjectName("posBarcodeBtn")
         btn_barcode.setFixedSize(36, 36)
@@ -1349,7 +1319,7 @@ class ModuloVentas(ModuloBase):
             "Cuando este campo tenga foco, el scanner agrega productos al carrito.")
         self._filter_busqueda = _ScanContextFilter(self, "producto", self.txt_busqueda)
         self.txt_busqueda.installEventFilter(self._filter_busqueda)
-        self._search_frame = search_row   # keep ref for focus highlight
+        self._search_frame = search_row
         search_layout.addWidget(self.txt_busqueda, 1)
 
         self.btn_buscar = QPushButton("Buscar")
@@ -1359,8 +1329,20 @@ class ModuloVentas(ModuloBase):
         self.btn_limpiar_busqueda.setToolTip("Limpiar búsqueda")
         self.btn_limpiar_busqueda.setFixedSize(32, 32)
         self.btn_limpiar_busqueda.setObjectName("deleteBtn")
+
+        # Persistent scanner state badge — ACTIVO / CLIENTE / LIBRE
+        self._lbl_scan_state = QLabel("LIBRE")
+        self._lbl_scan_state.setObjectName("posScanStateWaiting")
+        self._lbl_scan_state.setFixedHeight(22)
+        self._lbl_scan_state.setToolTip(
+            "Estado del scanner.\n"
+            "ACTIVO → El scanner agrega productos al carrito.\n"
+            "CLIENTE → El scanner carga cliente o tarjeta.\n"
+            "LIBRE → Sin campo activo.")
+
         search_layout.addWidget(self.btn_buscar)
         search_layout.addWidget(self.btn_limpiar_busqueda)
+        search_layout.addWidget(self._lbl_scan_state)
         layout_izquierdo.addWidget(search_row)
 
         # Scanner result notification — shown briefly after each scan event
