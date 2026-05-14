@@ -2701,6 +2701,14 @@ class ModuloVentas(ModuloBase):
             self._mostrar_notif_scanner(
                 f"{icon} {nombre} ({nivel}){pts_txt}", "card")
 
+            # Switch to display mode
+            if hasattr(self, '_client_search_row'):
+                self._client_search_row.setVisible(False)
+                self.txt_cliente.setVisible(False)
+                self.txt_cliente.setMaximumHeight(0)
+            if hasattr(self, '_client_display_row'):
+                self._client_display_row.setVisible(True)
+
             # Refresh totals (in case discount rules apply to this client)
             if hasattr(self, '_actualizar_totales'):
                 try: self._actualizar_totales()
@@ -2853,23 +2861,8 @@ class ModuloVentas(ModuloBase):
 
     def _actualizar_ui_cliente(self) -> None:
         if not self.cliente_actual: return
-        nombre = self.cliente_actual.get('nombre', '')
-        if hasattr(self, 'txt_cliente'): self.txt_cliente.setText(nombre)
-        if hasattr(self, 'lbl_nombre_cliente'): self.lbl_nombre_cliente.setText(nombre)
-        if hasattr(self, 'lbl_puntos_cliente'):
-            puntos = self.cliente_actual.get('puntos', 0)
-            self.lbl_puntos_cliente.setText(f"⭐ {puntos} pts")
-        if hasattr(self, '_lbl_loyalty_tier'):
-            nivel = (self.cliente_actual.get('nivel_fidelidad', '')
-                     or self.cliente_actual.get('nivel', ''))
-            if nivel:
-                self._lbl_loyalty_tier.setText(nivel)
-                self._lbl_loyalty_tier.setProperty("tier", nivel)
-                self._lbl_loyalty_tier.style().unpolish(self._lbl_loyalty_tier)
-                self._lbl_loyalty_tier.style().polish(self._lbl_loyalty_tier)
-                self._lbl_loyalty_tier.show()
-            else:
-                self._lbl_loyalty_tier.hide()
+        # Delegate to the canonical update method
+        self.actualizar_info_cliente()
 
     def _descuento_rapido(self, pct: float) -> None:
         """Aplica descuento % al ítem — validado por DiscountGuard financiero."""
@@ -3646,10 +3639,30 @@ class ModuloVentas(ModuloBase):
 
     def actualizar_info_cliente(self):
         if self.cliente_actual:
-            self.lbl_nombre_cliente.setText(f"Nombre: {self.cliente_actual['nombre']}")
-            self.lbl_telefono_cliente.setText(f"Teléfono: {self.cliente_actual['telefono'] or '-'}")
-            self.lbl_email_cliente.setText(f"Email: {self.cliente_actual['email'] or '-'}")
-            self.lbl_puntos_cliente.setText(f"Puntos: {self.cliente_actual['puntos']}")
+            self.lbl_nombre_cliente.setText(self.cliente_actual['nombre'])
+            self.lbl_telefono_cliente.setText(f"Tel: {self.cliente_actual['telefono'] or '—'}")
+            self.lbl_email_cliente.setText(self.cliente_actual.get('email') or '')
+            puntos = self.cliente_actual.get('puntos', 0)
+            self.lbl_puntos_cliente.setText(f"+ {puntos} pts")
+            # Update loyalty tier badge
+            if hasattr(self, '_lbl_loyalty_tier'):
+                nivel = (self.cliente_actual.get('nivel_fidelidad', '')
+                         or self.cliente_actual.get('nivel', ''))
+                if nivel:
+                    self._lbl_loyalty_tier.setText(nivel)
+                    self._lbl_loyalty_tier.setProperty("tier", nivel)
+                    self._lbl_loyalty_tier.style().unpolish(self._lbl_loyalty_tier)
+                    self._lbl_loyalty_tier.style().polish(self._lbl_loyalty_tier)
+                    self._lbl_loyalty_tier.show()
+                else:
+                    self._lbl_loyalty_tier.hide()
+            # Switch to display mode (hide search row, show display row)
+            if hasattr(self, '_client_search_row'):
+                self._client_search_row.setVisible(False)
+                self.txt_cliente.setVisible(False)
+                self.txt_cliente.setMaximumHeight(0)
+            if hasattr(self, '_client_display_row'):
+                self._client_display_row.setVisible(True)
         else:
             self.limpiar_cliente()
 
