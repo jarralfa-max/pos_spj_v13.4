@@ -36,7 +36,7 @@ from PyQt5.QtWidgets import (
     QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
-from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush
+from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush, QPainter
 from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
 
 # Importación de la clase base y utilidades
@@ -108,6 +108,38 @@ class _ScanContextFilter(QObject):
         elif event.type() == QEvent.FocusOut:
             self._module._set_scan_context("auto", None)
         return False  # Never consume the event — always pass through
+
+class _FKeyButton(QPushButton):
+    """QPushButton with an F-key shortcut badge painted inside the button, right side."""
+
+    def __init__(self, text: str = "", fkey: str = "", parent=None):
+        super().__init__(text, parent)
+        self._fkey = fkey
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self._fkey:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        bw, bh = 24, 14
+        margin = 5
+        rx = self.width() - bw - margin
+        ry = (self.height() - bh) // 2
+        badge_rect = QRect(rx, ry, bw, bh)
+        # Badge background — semi-transparent dark pill
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 55))
+        p.drawRoundedRect(badge_rect, 4, 4)
+        # Badge text
+        p.setPen(QColor(255, 255, 255, 200))
+        f = p.font()
+        f.setPointSize(7)
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(badge_rect, Qt.AlignCenter, self._fkey)
+        p.end()
+
 
 class ProductCard(QFrame):
     """Operational retail product card — matches enterprise POS visual design."""
@@ -1758,50 +1790,36 @@ class ModuloVentas(ModuloBase):
         acciones_layout.setContentsMargins(8, 6, 8, 6)
         acciones_layout.setSpacing(5)
 
-        # COBRAR — dominant full-width green button with F9 badge
-        cobrar_wrap = QFrame()
-        cobrar_wrap.setObjectName("posCobrarBtnWrap")
-        _cobrar_lay = QHBoxLayout(cobrar_wrap)
-        _cobrar_lay.setContentsMargins(0, 0, 0, 0)
-        _cobrar_lay.setSpacing(0)
-        self.btn_cobrar = create_success_button(self, "💳  COBRAR  $0.00", "Procesar el pago de la venta (F9)")
+        # COBRAR — dominant full-width green button with F9 badge inside
+        self.btn_cobrar = _FKeyButton("💳  COBRAR  $0.00", "F9", self)
         self.btn_cobrar.setObjectName("btnCobrarPOS")
+        self.btn_cobrar.setProperty("class", "success")
         self.btn_cobrar.setProperty("fill_parent", True)
         self.btn_cobrar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.btn_cobrar.setMinimumHeight(48)
-        _lbl_f9 = QLabel("F9")
-        _lbl_f9.setObjectName("posFKeyBadge")
-        _lbl_f9.setFixedSize(26, 48)
-        _lbl_f9.setAlignment(Qt.AlignCenter)
-        _cobrar_lay.addWidget(self.btn_cobrar, 1)
-        _cobrar_lay.addWidget(_lbl_f9)
-        acciones_layout.addWidget(cobrar_wrap)
+        self.btn_cobrar.setToolTip("Procesar el pago de la venta (F9)")
+        acciones_layout.addWidget(self.btn_cobrar)
 
-        # Row 1: Suspender | Reanudar | Cancelar
+        # Row 1: Suspender | Reanudar | Cancelar (F-key badge inside each button)
         row_secondary = QHBoxLayout()
         row_secondary.setSpacing(4)
-        self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta (F6)")
-        self.btn_reanudar  = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida (F7)")
+        self.btn_suspender = _FKeyButton("⏸ Suspender", "F6", self)
+        self.btn_suspender.setObjectName("warningBtn")
+        self.btn_suspender.setProperty("class", "warning")
+        self.btn_suspender.setToolTip("Suspender venta (F6)")
+        self.btn_reanudar = _FKeyButton("▶ Reanudar (0)", "F7", self)
         self.btn_reanudar.setObjectName("posActionBtn")
-        self.btn_cancelar  = create_danger_button(self, "✕ Cancelar", "Cancelar venta (F8)")
-        for _b, _fk in ((self.btn_suspender, "F6"),
-                        (self.btn_reanudar,  "F7"),
-                        (self.btn_cancelar,  "F8")):
+        self.btn_reanudar.setProperty("class", "primary")
+        self.btn_reanudar.setToolTip("Reanudar venta suspendida (F7)")
+        self.btn_cancelar = _FKeyButton("✕ Cancelar", "F8", self)
+        self.btn_cancelar.setObjectName("dangerBtn")
+        self.btn_cancelar.setProperty("class", "danger")
+        self.btn_cancelar.setToolTip("Cancelar venta (F8)")
+        for _b in (self.btn_suspender, self.btn_reanudar, self.btn_cancelar):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(32)
-            _wrap = QFrame()
-            _wrap.setObjectName("posFKeyBtnWrap")
-            _wl = QVBoxLayout(_wrap)
-            _wl.setContentsMargins(0, 0, 0, 0)
-            _wl.setSpacing(0)
-            _wl.addWidget(_b)
-            _fkl = QLabel(_fk)
-            _fkl.setObjectName("posFKeySubLabel")
-            _fkl.setAlignment(Qt.AlignCenter)
-            _fkl.setFixedHeight(13)
-            _wl.addWidget(_fkl)
-            row_secondary.addWidget(_wrap)
+            _b.setMinimumHeight(34)
+            row_secondary.addWidget(_b)
         acciones_layout.addLayout(row_secondary)
 
         layout_derecho.addWidget(group_acciones)
@@ -1814,38 +1832,26 @@ class ModuloVentas(ModuloBase):
         utilidad_layout.setContentsMargins(8, 4, 8, 4)
         utilidad_layout.setSpacing(4)
 
-        self.btn_devolucion = create_secondary_button(
-            self, "↩ Devolución",
-            "Cancelar o devolver una venta anterior (requiere permiso) — F10")
+        self.btn_devolucion = _FKeyButton("↩ Devolución", "F10", self)
         self.btn_devolucion.setObjectName("posUtilBtn")
         self.btn_devolucion.setEnabled(False)
-        self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta — F11")
+        self.btn_devolucion.setToolTip("Cancelar o devolver una venta anterior (requiere permiso) — F10")
+        self.btn_factura = _FKeyButton("🧾 Factura", "F11", self)
         self.btn_factura.setObjectName("posUtilBtn")
         self.btn_factura.setEnabled(False)
+        self.btn_factura.setToolTip("Generar CFDI de la última venta — F11")
         self.btn_factura.clicked.connect(self._generar_factura)
-        self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimpr.", "Reimprimir el ticket de la última venta — F12")
+        self.btn_reimprimir = _FKeyButton("🖨️ Reimpr.", "F12", self)
         self.btn_reimprimir.setObjectName("posUtilBtn")
         self.btn_reimprimir.setEnabled(False)
+        self.btn_reimprimir.setToolTip("Reimprimir el ticket de la última venta — F12")
         self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
 
-        for _b, _fk in ((self.btn_devolucion, "F10"),
-                        (self.btn_factura, "F11"),
-                        (self.btn_reimprimir, "F12")):
+        for _b in (self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             _b.setMinimumHeight(30)
-            _uw = QFrame()
-            _uw.setObjectName("posFKeyBtnWrap")
-            _ul = QVBoxLayout(_uw)
-            _ul.setContentsMargins(0, 0, 0, 0)
-            _ul.setSpacing(0)
-            _ul.addWidget(_b)
-            _ufkl = QLabel(_fk)
-            _ufkl.setObjectName("posFKeySubLabel")
-            _ufkl.setAlignment(Qt.AlignCenter)
-            _ufkl.setFixedHeight(14)
-            _ul.addWidget(_ufkl)
-            utilidad_layout.addWidget(_uw)
+            utilidad_layout.addWidget(_b)
 
         layout_derecho.addWidget(group_utilidad)
 
