@@ -2592,8 +2592,14 @@ def _block_pos_module(
         /* ===== POS: SEARCH BAR ===== */
         QFrame#posSearchFrame {{
             background-color: {card};
-            border: 1px solid {border};
+            border: 2px solid {border};
             border-radius: 8px;
+        }}
+        QFrame#posSearchFrame:hover {{
+            border-color: {primary};
+        }}
+        QFrame#posSearchFrame[focused="true"] {{
+            border-color: {primary};
         }}
         QPushButton#posBarcodeBtn {{
             background: transparent;
@@ -2626,24 +2632,26 @@ def _block_pos_module(
             border: none;
             border-bottom: 1px solid {border};
         }}
-        QPushButton#posViewToggleActive {{
-            background-color: {primary_soft};
-            border: 1px solid {primary};
-            border-radius: 4px;
-            color: {primary};
-            font-size: 14px;
-            font-weight: 700;
-        }}
-        QPushButton#posViewToggleBtn {{
+        QPushButton#posViewIconBtn {{
             background-color: transparent;
             border: 1px solid {border};
             border-radius: 4px;
             color: {muted};
             font-size: 14px;
         }}
-        QPushButton#posViewToggleBtn:hover {{
-            background-color: {primary_soft};
+        QPushButton#posViewIconBtn:checked {{
+            background-color: {card};
+            border-color: {primary};
             color: {primary};
+        }}
+        QPushButton#posViewIconBtn:hover {{
+            background-color: {primary_soft};
+            border-color: {primary};
+            color: {primary};
+        }}
+        QPushButton#posViewIconBtn:disabled {{
+            color: {border};
+            border-color: {border};
         }}
 
         /* ===== POS: CART HEADER ===== */

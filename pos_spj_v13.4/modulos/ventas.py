@@ -1215,8 +1215,9 @@ class ModuloVentas(ModuloBase):
         cb_layout.setContentsMargins(12, 4, 12, 4)
         cb_layout.setSpacing(10)
 
-        self._lbl_pos_title = QLabel("🛒 Punto de Venta")
+        self._lbl_pos_title = QLabel("")
         self._lbl_pos_title.setObjectName("posCashierTitle")
+        self._lbl_pos_title.setVisible(False)  # title shown in posPageHeader; kept for API compat
         cb_layout.addWidget(self._lbl_pos_title)
 
         self._lbl_cashier_meta = QLabel("")
@@ -1316,6 +1317,7 @@ class ModuloVentas(ModuloBase):
             "Cuando este campo tenga foco, el scanner agrega productos al carrito.")
         self._filter_busqueda = _ScanContextFilter(self, "producto", self.txt_busqueda)
         self.txt_busqueda.installEventFilter(self._filter_busqueda)
+        self._search_frame = search_row   # keep ref for focus highlight
         search_layout.addWidget(self.txt_busqueda, 1)
 
         self.btn_buscar = QPushButton("Buscar")
@@ -1362,16 +1364,16 @@ class ModuloVentas(ModuloBase):
         self._pos_category_buttons = {}
         cat_row_lay.addWidget(self._category_scroll, 1)
 
-        # View toggle buttons — grid / list
+        # View toggle buttons — icon-only, visually distinct from category pills
         self._btn_view_grid = QPushButton("⊞")
-        self._btn_view_grid.setObjectName("posViewToggleActive")
+        self._btn_view_grid.setObjectName("posViewIconBtn")
         self._btn_view_grid.setFixedSize(28, 28)
         self._btn_view_grid.setToolTip("Vista de cuadrícula")
         self._btn_view_grid.setCheckable(True)
         self._btn_view_grid.setChecked(True)
 
         self._btn_view_list = QPushButton("☰")
-        self._btn_view_list.setObjectName("posViewToggleBtn")
+        self._btn_view_list.setObjectName("posViewIconBtn")
         self._btn_view_list.setFixedSize(28, 28)
         self._btn_view_list.setToolTip("Vista de lista (próximamente)")
         self._btn_view_list.setEnabled(False)
@@ -2580,7 +2582,7 @@ class ModuloVentas(ModuloBase):
                 field.setProperty("class", "input-scanner-base")
                 # Restore original placeholder
                 if field is getattr(self, 'txt_busqueda', None):
-                    field.setPlaceholderText("🔍 Escanear o escribir producto...")
+                    field.setPlaceholderText("Escanear código o escribir nombre del producto...")
                 elif field is getattr(self, 'txt_cliente', None):
                     field.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
         
@@ -2598,6 +2600,13 @@ class ModuloVentas(ModuloBase):
                 badge.setObjectName("posScanStateWaiting")
             badge.style().unpolish(badge)
             badge.style().polish(badge)
+
+        # Highlight search frame border when product field is active
+        sf = getattr(self, '_search_frame', None)
+        if sf:
+            sf.setProperty("focused", context == "producto")
+            sf.style().unpolish(sf)
+            sf.style().polish(sf)
 
         # Forzar actualización de estilos
         for field in (getattr(self,'txt_busqueda',None), getattr(self,'txt_cliente',None)):
