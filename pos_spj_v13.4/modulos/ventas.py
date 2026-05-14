@@ -389,43 +389,55 @@ class DialogoPago(QDialog):
     def __init__(self, total_a_pagar: float, parent: QWidget = None,
                  loyalty_balance: Dict = None):
         super().__init__(parent)
-        self.setWindowTitle("Procesar Pago")
+        self.setWindowTitle("Cobrar")
         self.setModal(True)
-        self.setFixedSize(520, 480)
+        self.setMinimumSize(460, 400)
+        self.resize(500, 460)
         self.total_a_pagar = float(total_a_pagar) if total_a_pagar is not None else 0.0
         self.total_original = self.total_a_pagar
         self.efectivo_recibido = 0.0
         self.cambio = 0.0
         self.forma_pago = "Efectivo"
         self.saldo_credito = 0.0
-        # v13.4 Fase 2: Loyalty redemption
         self._loyalty = loyalty_balance or {}
         self.puntos_a_canjear = 0
         self.descuento_puntos = 0.0
         self.init_ui()
         self.conectar_eventos()
-        
+
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        
-        titulo = QLabel("PROCESAR PAGO")
-        titulo.setProperty("class", "payment-title")
-        layout.addWidget(titulo)
-        
-        self.lbl_total = QLabel(f"Total a pagar: ${self.total_a_pagar:.2f}")
-        self.lbl_total.setProperty("class", "payment-total")
+        layout.setSpacing(8)
+        layout.setContentsMargins(16, 14, 16, 14)
+
+        # ── Header: Total prominente ────────────────────────────────────────
+        header = QFrame()
+        header.setObjectName("paymentHeader")
+        hdr_lay = QVBoxLayout(header)
+        hdr_lay.setContentsMargins(12, 10, 12, 10)
+        hdr_lay.setSpacing(2)
+        lbl_caption = QLabel("TOTAL A COBRAR")
+        lbl_caption.setObjectName("paymentCaption")
+        lbl_caption.setAlignment(Qt.AlignCenter)
+        self.lbl_total = QLabel(f"${self.total_a_pagar:.2f}")
+        self.lbl_total.setObjectName("paymentTotalAmount")
         self.lbl_total.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.lbl_total)
-        
+        hdr_lay.addWidget(lbl_caption)
+        hdr_lay.addWidget(self.lbl_total)
+        layout.addWidget(header)
+
+        # ── Form ────────────────────────────────────────────────────────────
         form_layout = QFormLayout()
-        form_layout.setSpacing(10)
-        
+        form_layout.setSpacing(8)
+        form_layout.setContentsMargins(0, 4, 0, 4)
+        form_layout.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
         self.cmb_forma_pago = QComboBox()
         self.cmb_forma_pago.addItems(["Efectivo", "Tarjeta", "Transferencia", "Crédito", "Pago Mixto", "Mercado Pago"])
-        self.cmb_forma_pago.setProperty("class", "payment-combobox")
-        form_layout.addRow("Forma de Pago:", self.cmb_forma_pago)
-        
+        self.cmb_forma_pago.setObjectName("paymentCombo")
+        self.cmb_forma_pago.setMinimumHeight(32)
+        form_layout.addRow("Forma de pago:", self.cmb_forma_pago)
+
         self.txt_recibido = QDoubleSpinBox()
         self.txt_recibido.setRange(0.00, 99999.00)
         self.txt_recibido.setDecimals(2)
@@ -433,13 +445,12 @@ class DialogoPago(QDialog):
         self.txt_recibido.setSingleStep(10.0)
         self.txt_recibido.setPrefix("$ ")
         self.txt_recibido.setMinimumHeight(36)
-        self.txt_recibido.setProperty("class", "payment-spinbox")
-        # v13.4: Select all on click so user can type directly
+        self.txt_recibido.setObjectName("paymentSpinbox")
         self.txt_recibido.lineEdit().setReadOnly(False)
-        form_layout.addRow("💵 Monto Recibido:", self.txt_recibido)
+        form_layout.addRow("Monto recibido:", self.txt_recibido)
         
         self.lbl_cambio = QLabel("Cambio: $0.00")
-        self.lbl_cambio.setProperty("class", "payment-change")
+        self.lbl_cambio.setObjectName("paymentChange")
         form_layout.addRow("", self.lbl_cambio)
 
         # v13.4 Fase 2: Sección de canje de puntos
@@ -510,17 +521,19 @@ class DialogoPago(QDialog):
         
         layout.addLayout(form_layout)
         layout.addStretch(1)
-        
+
         btn_layout = QHBoxLayout()
-        self.btn_cancelar = QPushButton("❌ Cancelar")
-        self.btn_aceptar = QPushButton("✅ Confirmar Pago")
-        self.btn_cancelar.setProperty("class", "payment-cancel-button")
-        self.btn_aceptar.setProperty("class", "payment-accept-button")
-        
+        btn_layout.setSpacing(8)
+        self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_cancelar.setObjectName("paymentCancelBtn")
+        self.btn_cancelar.setMinimumHeight(36)
+        self.btn_aceptar = QPushButton("💰 Confirmar Pago")
+        self.btn_aceptar.setObjectName("paymentConfirmBtn")
+        self.btn_aceptar.setMinimumHeight(40)
         btn_layout.addWidget(self.btn_cancelar)
-        btn_layout.addWidget(self.btn_aceptar)
+        btn_layout.addWidget(self.btn_aceptar, 2)
         layout.addLayout(btn_layout)
-        
+
         self.calcular_cambio()
         
     def conectar_eventos(self):
@@ -945,6 +958,15 @@ class ModuloVentas(ModuloBase):
         self._theme_initialized = False
         self.gestor_temas = GestorTemas(self.conexion)
 
+        # ── Customer autocomplete ─────────────────────────────────────────
+        # Debounce timer: fires 180ms after last keystroke to query DB
+        self._cliente_debounce = QTimer(self)
+        self._cliente_debounce.setSingleShot(True)
+        self._cliente_debounce.setInterval(180)
+        self._cliente_debounce.timeout.connect(self._actualizar_sugerencias_cliente)
+        self._cliente_completer_model = None   # QStringListModel, lazy-init
+        self._cliente_completer = None         # QCompleter, lazy-init
+
         # ── SCANNER listener ──────────────────────────────────────────────
         self._scanner_buffer: str = ""
         self._scanner_timer  = QTimer(self)
@@ -1044,6 +1066,8 @@ class ModuloVentas(ModuloBase):
         self.txt_busqueda.textChanged.connect(self.buscar_productos_en_tiempo_real)
         self.txt_cliente.returnPressed.connect(self.buscar_cliente)
         self.btn_buscar_cliente.clicked.connect(self.buscar_cliente)
+        # Real-time autocomplete: any keystroke (even 1 char) triggers debounced DB search
+        self.txt_cliente.textChanged.connect(self._cliente_textchanged)
         self.btn_agregar_cliente.clicked.connect(self.agregar_cliente)
         self.btn_limpiar_cliente.clicked.connect(self.limpiar_cliente)
         self.btn_cobrar.clicked.connect(self.procesar_pago)
@@ -1215,15 +1239,15 @@ class ModuloVentas(ModuloBase):
         panel_derecho.setMinimumWidth(380)
         panel_derecho.setMaximumWidth(600)
         layout_derecho = QVBoxLayout(panel_derecho)
-        layout_derecho.setSpacing(6)
-        layout_derecho.setContentsMargins(5, 5, 5, 5)
+        layout_derecho.setSpacing(4)
+        layout_derecho.setContentsMargins(4, 4, 4, 4)
 
         # CLIENT SECTION
         group_cliente = QGroupBox("CLIENTE")
         group_cliente.setProperty("class", "client-group")
         cliente_layout = QVBoxLayout(group_cliente)
-        cliente_layout.setContentsMargins(8, 6, 8, 6)
-        cliente_layout.setSpacing(4)
+        cliente_layout.setContentsMargins(6, 4, 6, 4)
+        cliente_layout.setSpacing(3)
 
         self.txt_cliente = QLineEdit()
         self.txt_cliente.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
@@ -1277,12 +1301,17 @@ class ModuloVentas(ModuloBase):
         cliente_layout.addLayout(cliente_info_row)
         layout_derecho.addWidget(group_cliente)
 
-        # CART TABLE
-        group_carrito = QGroupBox("CARRITO DE COMPRA")
+        # CART TABLE — primary flexible section: absorbs all available vertical space
+        group_carrito = QGroupBox("CARRITO")
         group_carrito.setProperty("class", "venta-group")
-        group_carrito.setMinimumHeight(200)
+        group_carrito.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Guarantee at minimum 4 visible rows (row_height=32 × 4 + header≈26 + padding=8)
+        group_carrito.setMinimumHeight(166)
         carrito_layout = QVBoxLayout(group_carrito)
-        carrito_layout.setContentsMargins(4, 4, 4, 4)
+        # Bottom margin 6px so the table's last row border never gets clipped
+        # by the GroupBox frame edge when scrolled to end
+        carrito_layout.setContentsMargins(3, 2, 3, 6)
+        carrito_layout.setSpacing(2)
 
         self.tabla_compra = QTableWidget()
         self.tabla_compra.setProperty("class", "tabla-carrito")
@@ -1293,7 +1322,7 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.tabla_compra.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.tabla_compra.verticalHeader().setDefaultSectionSize(34)
+        self.tabla_compra.verticalHeader().setDefaultSectionSize(32)
         self.tabla_compra.verticalHeader().setVisible(False)
         self.tabla_compra.setColumnWidth(0, 140)
         self.tabla_compra.setColumnWidth(1, 45)
@@ -1303,32 +1332,42 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setColumnWidth(5, 28)
         self.tabla_compra.setColumnWidth(6, 28)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        carrito_layout.addWidget(self.tabla_compra)
+        # Minimum for 4 rows; table grows with group_carrito stretch
+        self.tabla_compra.setMinimumHeight(4 * 32 + 26)
+        self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # NoFrame: removes the 1px frame border that clips the last row when scrolled to end
+        self.tabla_compra.setFrameShape(QFrame.NoFrame)
+        carrito_layout.addWidget(self.tabla_compra, 1)
 
         self.lbl_info_carrito = QLabel("")
         self.lbl_info_carrito.setAlignment(Qt.AlignCenter)
         self.lbl_info_carrito.setProperty("class", "info-label")
         carrito_layout.addWidget(self.lbl_info_carrito)
-        group_carrito.setMaximumHeight(260)
-        layout_derecho.addWidget(group_carrito)
+        # stretch=1: cart is the ONLY section that grows when window is tall/maximized
+        layout_derecho.addWidget(group_carrito, 1)
 
-        # QUICK DISCOUNT BUTTONS
-        desc_frame = QGroupBox("DESCUENTOS")
-        desc_frame.setProperty("class", "discount-group")
+        # QUICK DISCOUNT BUTTONS — compact flat bar (no GroupBox title overhead)
+        desc_frame = QFrame()
+        desc_frame.setObjectName("posCompactBar")
         desc_lay = QHBoxLayout(desc_frame)
-        desc_lay.setContentsMargins(8, 6, 8, 6)
-        desc_lay.setSpacing(5)
+        desc_lay.setContentsMargins(4, 3, 4, 3)
+        desc_lay.setSpacing(4)
+        _lbl_desc = QLabel("Dto:")
+        _lbl_desc.setObjectName("posBarLabel")
+        desc_lay.addWidget(_lbl_desc)
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
             btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            btn_d.setMinimumHeight(30)
+            btn_d.setMinimumHeight(28)
+            btn_d.setMaximumHeight(28)
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
             btn_d.setObjectName("outlineBtn")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
         btn_custom = QPushButton("Custom")
         btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        btn_custom.setMinimumHeight(30)
+        btn_custom.setMinimumHeight(28)
+        btn_custom.setMaximumHeight(28)
         btn_custom.setToolTip("Descuento personalizado")
         btn_custom.setObjectName("accentBtn")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
@@ -1434,11 +1473,11 @@ class ModuloVentas(ModuloBase):
         layout_derecho.addWidget(self._banner_sin_impresora)
 
         # ── PRIMARY TRANSACTION ACTIONS ──────────────────────────────────────
-        group_acciones = QGroupBox("ACCIONES DE VENTA")
+        group_acciones = QGroupBox("COBRAR")
         group_acciones.setProperty("class", "venta-group")
         acciones_layout = QVBoxLayout(group_acciones)
-        acciones_layout.setContentsMargins(8, 10, 8, 8)
-        acciones_layout.setSpacing(5)
+        acciones_layout.setContentsMargins(6, 4, 6, 6)
+        acciones_layout.setSpacing(4)
 
         # PRIMARY: COBRAR — dominant full-width green button
         self.btn_cobrar = create_success_button(self, "💰 COBRAR  $0.00", "Procesar el pago de la venta")
@@ -1466,12 +1505,12 @@ class ModuloVentas(ModuloBase):
 
         layout_derecho.addWidget(group_acciones)
 
-        # ── UTILITY ACTIONS ───────────────────────────────────────────────────
-        group_utilidad = QGroupBox("ACCIONES UTILITARIAS")
-        group_utilidad.setProperty("class", "venta-group")
+        # ── UTILITY ACTIONS — compact flat bar (visually subordinate to checkout) ─
+        group_utilidad = QFrame()
+        group_utilidad.setObjectName("posCompactBar")
         utilidad_layout = QHBoxLayout(group_utilidad)
-        utilidad_layout.setContentsMargins(8, 10, 8, 8)
-        utilidad_layout.setSpacing(5)
+        utilidad_layout.setContentsMargins(4, 3, 4, 3)
+        utilidad_layout.setSpacing(4)
 
         self.btn_devolucion = create_secondary_button(
             self, "↩ Devolución",
@@ -1489,7 +1528,8 @@ class ModuloVentas(ModuloBase):
         for _b in (self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(30)
+            _b.setMinimumHeight(28)
+            _b.setMaximumHeight(28)
         utilidad_layout.addWidget(self.btn_devolucion)
         utilidad_layout.addWidget(self.btn_factura)
         utilidad_layout.addWidget(self.btn_reimprimir)
@@ -2954,10 +2994,11 @@ class ModuloVentas(ModuloBase):
             desc_pct = float(item.get('descuento_pct', 0))
             if desc_pct > 0:
                 btn_desc = QPushButton(f"-{desc_pct:.0f}%")
+                btn_desc.setObjectName("discountBadgeBtn")
                 btn_desc.setToolTip("Click para quitar descuento")
-                btn_desc.setProperty("class", "btn-item-discount btn-xs")
+                # Capture row index at creation time to prevent closure-over-loop
                 btn_desc.clicked.connect(
-                    lambda _, r=row: self._quitar_descuento_item(r))
+                    lambda checked, r=row: self._quitar_descuento_item(r))
                 self.tabla_compra.setCellWidget(row, 3, btn_desc)
             else:
                 self.tabla_compra.setItem(row, 3, QTableWidgetItem(""))
@@ -2985,12 +3026,18 @@ class ModuloVentas(ModuloBase):
         self.lbl_info_carrito.setText(f"{n} producto{'s' if n != 1 else ''}" if n else "")
 
     def _quitar_descuento_item(self, row: int):
-        """v13.4: Quita el descuento de un item del carrito."""
-        if 0 <= row < len(self.compra_actual):
-            item = self.compra_actual[row]
-            item['descuento_pct'] = 0
-            item['total'] = round(item['cantidad'] * item['precio_unitario'], 2)
-            self.actualizar_tabla_compra()
+        """Quita el descuento de un item del carrito y restaura el precio original."""
+        if not (0 <= row < len(self.compra_actual)):
+            return
+        item = self.compra_actual[row]
+        # Restore the original (pre-discount) price that was saved when the discount was applied
+        precio_original = item.get('precio_original', item['precio_unitario'])
+        item['precio_unitario'] = precio_original
+        item['descuento_pct'] = 0
+        item['total'] = round(item['cantidad'] * precio_original, 2)
+        # Defer the table rebuild so the button widget is not destroyed while
+        # its own clicked signal is still being processed by Qt's event loop.
+        QTimer.singleShot(0, self.actualizar_tabla_compra)
 
     def modificar_cantidad_producto(self, row: int):
         if 0 <= row < len(self.compra_actual):
@@ -3025,7 +3072,9 @@ class ModuloVentas(ModuloBase):
         if 0 <= row < len(self.compra_actual):
             producto = self.compra_actual[row]['nombre']
             self.compra_actual.pop(row)
-            self.actualizar_tabla_compra()
+            # Defer table rebuild so the delete button widget is not destroyed while
+            # its own clicked signal is still being dispatched.
+            QTimer.singleShot(0, self.actualizar_tabla_compra)
             self.mostrar_mensaje("Éxito", f"Producto '{producto}' eliminado del carrito.")
 
     def calcular_totales(self):
@@ -3087,6 +3136,58 @@ class ModuloVentas(ModuloBase):
 
         puntos_venta = int(total_final)
         self.lbl_puntos_venta.setText(f"+ {puntos_venta} pts")
+
+    def _cliente_textchanged(self, text: str) -> None:
+        """Debounce handler: restart the 180ms timer on every keystroke."""
+        if text.strip():
+            self._cliente_debounce.start()
+        else:
+            self._cliente_debounce.stop()
+
+    def _actualizar_sugerencias_cliente(self) -> None:
+        """Query DB for matching customers and populate the QCompleter popup."""
+        from PyQt5.QtWidgets import QCompleter
+        from PyQt5.QtCore import QStringListModel
+        texto = self.txt_cliente.text().strip()
+        if not texto:
+            return
+        try:
+            cursor = self.conexion.cursor()
+            cursor.execute(
+                """SELECT nombre, COALESCE(telefono,'') FROM clientes
+                   WHERE (nombre LIKE ? OR telefono LIKE ? OR email LIKE ?
+                          OR codigo_qr LIKE ? OR CAST(id AS TEXT) = ?)
+                   AND activo = 1
+                   ORDER BY nombre LIMIT 12""",
+                (f"%{texto}%", f"%{texto}%", f"%{texto}%", f"%{texto}%", texto)
+            )
+            rows = cursor.fetchall()
+        except Exception:
+            return
+        suggestions = [
+            f"{r[0]}  ·  {r[1]}" if r[1] else r[0]
+            for r in rows
+        ]
+        if self._cliente_completer_model is None:
+            self._cliente_completer_model = QStringListModel(self)
+            self._cliente_completer = QCompleter(self._cliente_completer_model, self)
+            self._cliente_completer.setCaseSensitivity(Qt.CaseInsensitive)
+            self._cliente_completer.setFilterMode(Qt.MatchContains)
+            self._cliente_completer.setCompletionMode(QCompleter.PopupCompletion)
+            self._cliente_completer.setMaxVisibleItems(10)
+            self.txt_cliente.setCompleter(self._cliente_completer)
+            self._cliente_completer.activated.connect(self._seleccionar_cliente_autocomplete)
+        self._cliente_completer_model.setStringList(suggestions)
+        if suggestions:
+            self._cliente_completer.complete()
+
+    def _seleccionar_cliente_autocomplete(self, text: str) -> None:
+        """Called when user picks a suggestion; extract name and run DB lookup."""
+        nombre = text.split("  ·  ")[0].strip()
+        self.txt_cliente.setText(nombre)
+        # Stop the debounce timer so it doesn't re-trigger search
+        self._cliente_debounce.stop()
+        self.buscar_cliente()
 
     def buscar_cliente(self):
         termino = self.txt_cliente.text().strip()
