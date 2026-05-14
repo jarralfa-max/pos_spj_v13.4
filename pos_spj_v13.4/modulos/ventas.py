@@ -1696,19 +1696,30 @@ class ModuloVentas(ModuloBase):
         divider.setFixedHeight(1)
         totals_layout.addWidget(divider)
 
-        # TOTAL row + Puntos a ganar mini-card on the right
+        # TOTAL row: LEFT [⚖ peso] [pts] [comision?] ── stretch ── RIGHT [TOTAL]
         row_total = QHBoxLayout()
-        row_total.setSpacing(8)
-        lbl_total_label = QLabel("TOTAL")
-        lbl_total_label.setObjectName("posGrandTotalLabel")
-        self.lbl_total = QLabel("$0.00")
-        self.lbl_total.setObjectName("posGrandTotalValue")
-        self.lbl_total.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        row_total.addWidget(lbl_total_label)
-        row_total.addStretch(1)
-        row_total.addWidget(self.lbl_total)
+        row_total.setSpacing(6)
 
-        # "Puntos a ganar" mini card — aligned right of total
+        # ── Báscula card (shown only when scale is active) ────────────────
+        card_peso = QFrame()
+        card_peso.setObjectName("posIndicatorCard")
+        card_peso.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        _cp_lay = QVBoxLayout(card_peso)
+        _cp_lay.setContentsMargins(6, 3, 6, 3)
+        _cp_lay.setSpacing(0)
+        _lbl_bsc = QLabel("⚖ Báscula")
+        _lbl_bsc.setObjectName("posIndicatorTitle")
+        _lbl_bsc.setAlignment(Qt.AlignCenter)
+        self.lbl_peso_bascula = QLabel("0.000 kg")
+        self.lbl_peso_bascula.setObjectName("posIndicatorValue")
+        self.lbl_peso_bascula.setAlignment(Qt.AlignCenter)
+        _cp_lay.addWidget(_lbl_bsc)
+        _cp_lay.addWidget(self.lbl_peso_bascula)
+        card_peso.setVisible(False)
+        self._card_peso = card_peso
+        row_total.addWidget(card_peso)
+
+        # ── "Puntos a ganar" mini card ────────────────────────────────────
         _pts_card = QFrame()
         _pts_card.setObjectName("posPtsGainCard")
         _pts_card_lay = QVBoxLayout(_pts_card)
@@ -1723,31 +1734,38 @@ class ModuloVentas(ModuloBase):
         _pts_card_lay.addWidget(_lbl_pts_title)
         _pts_card_lay.addWidget(self.lbl_puntos_venta)
         row_total.addWidget(_pts_card)
-        totals_layout.addLayout(row_total)
 
-        # Báscula indicator (kept for API compat; compact)
-        card_peso = QFrame()
-        card_peso.setObjectName("posIndicatorCard")
-        card_peso.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        _cp_lay = QHBoxLayout(card_peso)
-        _cp_lay.setContentsMargins(6, 3, 6, 3)
-        _cp_lay.setSpacing(4)
-        _lbl_bsc = QLabel("⚖")
-        _lbl_bsc.setObjectName("posIndicatorTitle")
-        self.lbl_peso_bascula = QLabel("0.000 kg")
-        self.lbl_peso_bascula.setObjectName("posIndicatorValue")
-        _cp_lay.addWidget(_lbl_bsc)
-        _cp_lay.addWidget(self.lbl_peso_bascula)
-        card_peso.setVisible(False)   # shown only when scale is active
-        self._card_peso = card_peso
-
-        # Comisión (kept for API compat)
+        # ── Comisión card (shown only when commissions config is active) ──
         card_comision = QFrame()
         card_comision.setObjectName("posIndicatorCard")
         card_comision.setVisible(False)
-        self._card_comision = card_comision
+        _cc_lay = QVBoxLayout(card_comision)
+        _cc_lay.setContentsMargins(6, 3, 6, 3)
+        _cc_lay.setSpacing(0)
+        _lbl_com_title = QLabel("Comisión")
+        _lbl_com_title.setObjectName("posIndicatorTitle")
+        _lbl_com_title.setAlignment(Qt.AlignCenter)
         self.lbl_comision_turno = QLabel("")
-        self.lbl_comision_turno.setVisible(False)
+        self.lbl_comision_turno.setObjectName("posIndicatorValue")
+        self.lbl_comision_turno.setAlignment(Qt.AlignCenter)
+        _cc_lay.addWidget(_lbl_com_title)
+        _cc_lay.addWidget(self.lbl_comision_turno)
+        self._card_comision = card_comision
+        row_total.addWidget(card_comision)
+
+        # ── Stretch pushes TOTAL to the right ────────────────────────────
+        row_total.addStretch(1)
+
+        # ── TOTAL label + value ───────────────────────────────────────────
+        lbl_total_label = QLabel("TOTAL")
+        lbl_total_label.setObjectName("posGrandTotalLabel")
+        self.lbl_total = QLabel("$0.00")
+        self.lbl_total.setObjectName("posGrandTotalValue")
+        self.lbl_total.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_total.addWidget(lbl_total_label)
+        row_total.addSpacing(8)
+        row_total.addWidget(self.lbl_total)
+        totals_layout.addLayout(row_total)
 
         layout_derecho.addWidget(totals_card)
 
