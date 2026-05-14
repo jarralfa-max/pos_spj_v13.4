@@ -2885,6 +2885,34 @@ def _block_pos_module(
     """
 
 
+def _block_stats_bar(*, bg: str, border: str, muted: str) -> str:
+    """QSS para la barra de KPIs del módulo de Compras."""
+    return f"""
+        /* ===== COMPRAS: STATS BAR ===== */
+        QFrame#statsBarCmp {{
+            background-color: {bg};
+            border: 1px solid {border};
+            border-radius: 8px;
+        }}
+        QFrame#statsBarSeparator {{
+            background-color: {border};
+            border: none;
+        }}
+        QLabel#statsKpiCaption {{
+            color: {muted};
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#statsKpiValue {{
+            background: transparent;
+            border: none;
+        }}
+    """
+
+
 def _block_dash_cards(*, bg: str, border: str, hover_bg: str, text: str, muted: str) -> str:
     """QSS para las tarjetas enterprise del dashboard (v13.5)."""
     return f"""
@@ -2940,7 +2968,12 @@ def _modern_blocks(theme: str) -> str:
     """Concatena todos los bloques modernos para el tema dado."""
     if theme == "Oscuro":
         return (
-            _block_dash_cards(
+            _block_stats_bar(
+                bg=Colors.NEUTRAL.SLATE_800,
+                border=Colors.NEUTRAL.SLATE_700,
+                muted=Colors.NEUTRAL.SLATE_400,
+            )
+            + _block_dash_cards(
                 bg=Colors.NEUTRAL.SLATE_800,
                 border=Colors.NEUTRAL.SLATE_700,
                 hover_bg=Colors.NEUTRAL.SLATE_700,
@@ -3004,7 +3037,12 @@ def _modern_blocks(theme: str) -> str:
         )
     # Claro
     return (
-        _block_dash_cards(
+        _block_stats_bar(
+            bg=Colors.NEUTRAL.SLATE_100,
+            border=Colors.NEUTRAL.SLATE_200,
+            muted=Colors.NEUTRAL.SLATE_500,
+        )
+        + _block_dash_cards(
             bg=Colors.NEUTRAL.WHITE,
             border=Colors.NEUTRAL.SLATE_200,
             hover_bg=Colors.NEUTRAL.SLATE_50,
