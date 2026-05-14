@@ -145,9 +145,9 @@ class ProductCard(QFrame):
     """Operational retail product card — matches enterprise POS visual design."""
     product_selected = pyqtSignal(dict)
 
-    CARD_W, CARD_H = 195, 242
-    ZOOM_W, ZOOM_H = 203, 251   # ~4% hover/selected zoom
-    IMG_H = 115
+    CARD_W, CARD_H = 175, 198
+    ZOOM_W, ZOOM_H = 182, 206   # ~4% hover/selected zoom
+    IMG_H = 85
     _ZOOM_STEPS = 6             # frames for the zoom animation
     _ZOOM_INTERVAL_MS = 12      # ms per frame (~80 fps feel)
 
@@ -207,14 +207,14 @@ class ProductCard(QFrame):
         info_widget = QWidget()
         info_widget.setObjectName("posProductInfo")
         info_lay = QVBoxLayout(info_widget)
-        info_lay.setContentsMargins(10, 8, 10, 8)
-        info_lay.setSpacing(3)
+        info_lay.setContentsMargins(8, 6, 8, 6)
+        info_lay.setSpacing(2)
 
         self.lbl_nombre = QLabel(self.producto['nombre'])
         self.lbl_nombre.setWordWrap(True)
         name_class = "product-name-dimmed" if self._stock_state == "out-of-stock" else "product-name"
         self.lbl_nombre.setProperty("class", name_class)
-        self.lbl_nombre.setMaximumHeight(40)   # max 2 lines
+        self.lbl_nombre.setMaximumHeight(34)   # max 2 lines
 
         codigo = (self.producto.get('codigo', '')
                   or self.producto.get('codigo_barras', '')
@@ -2064,7 +2064,7 @@ class ModuloVentas(ModuloBase):
 
             # Responsive column count: fill available viewport width with fixed-width cards
             _spacing = self.grid_productos.spacing()
-            _card_cell = 195 + _spacing   # card fixed width + one gap
+            _card_cell = ProductCard.CARD_W + _spacing   # card fixed width + one gap
             _vp_w = self.scroll_area_productos.viewport().width()
             if _vp_w < 40:
                 # Viewport not yet laid out; approximate from scroll area minus scrollbar
