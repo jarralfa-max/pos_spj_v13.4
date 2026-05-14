@@ -1827,6 +1827,9 @@ def _block_pos_module(
     cobrar_disabled_bg: str, cobrar_disabled_text: str,
     warning: str, critical: str, out_stock_bg: str,
     action: str, action_hover: str,
+    success_soft: str = "#DCFCE7",
+    warning_soft: str = "#FEF3C7",
+    primary_soft: str = "#DBEAFE",
 ) -> str:
     """Genera el QSS para el módulo POS (ventas.py)."""
     return f"""
@@ -2115,7 +2118,6 @@ def _block_pos_module(
         }}
 
         /* ===== POS: COMPACT SECTION GROUP BOXES ===== */
-        /* Override global QGroupBox defaults for the POS right panel */
         QGroupBox[class="venta-group"],
         QGroupBox[class="client-group"],
         QGroupBox[class="discount-group"] {{
@@ -2133,6 +2135,118 @@ def _block_pos_module(
             font-size: 9px;
             font-weight: 700;
             letter-spacing: 0.4px;
+        }}
+        /* Cart QGroupBox — borderless, no title (header shown as separate frame) */
+        QGroupBox#posCartGroup {{
+            border: none;
+            margin-top: 0px;
+            padding-top: 0px;
+            background-color: {bg};
+        }}
+        QGroupBox#posCartGroup::title {{
+            width: 0px; height: 0px;
+        }}
+
+        /* ===== POS: CART TABLE 2-LINE CELLS ===== */
+        QLabel#posCartItemName {{
+            color: {text};
+            font-size: 12px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posCartItemCode {{
+            color: {muted};
+            font-size: 10px;
+            font-weight: 400;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: CLIENT SECTION ===== */
+        QLabel#posClientSectionLabel {{
+            color: {muted};
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posClientName {{
+            color: {text};
+            font-size: 13px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: TOTALS — PUNTOS A GANAR MINI CARD ===== */
+        QFrame#posPtsGainCard {{
+            background-color: {success_soft};
+            border: 1px solid {success};
+            border-radius: 6px;
+        }}
+        QLabel#posPtsGainTitle {{
+            color: {success};
+            font-size: 9px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posPtsGainValue {{
+            color: {success};
+            font-size: 12px;
+            font-weight: 800;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: DISCOUNT BUTTONS BAR ===== */
+        QFrame#posDiscountBar {{
+            background-color: {card};
+            border-top: 1px solid {border};
+            border-bottom: 1px solid {border};
+        }}
+        QPushButton#posDiscountBtn {{
+            background-color: transparent;
+            border: 1px solid {border};
+            border-radius: 5px;
+            color: {text};
+            font-size: 12px;
+            font-weight: 600;
+            min-height: 30px;
+        }}
+        QPushButton#posDiscountBtn:hover {{
+            background-color: {warning_soft};
+            border-color: {warning};
+            color: {warning};
+        }}
+        QPushButton#posDiscountCustomBtn {{
+            background-color: {primary_soft};
+            border: 1px solid {primary};
+            border-radius: 5px;
+            color: {primary};
+            font-size: 11px;
+            font-weight: 600;
+            min-height: 30px;
+        }}
+        QPushButton#posDiscountCustomBtn:hover {{
+            background-color: {primary};
+            color: #FFFFFF;
+        }}
+
+        /* ===== POS: CART DELETE BUTTON ===== */
+        QPushButton#cartDeleteBtn {{
+            background-color: transparent;
+            border: none;
+            color: {muted};
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 4px;
+        }}
+        QPushButton#cartDeleteBtn:hover {{
+            background-color: #FEE2E2;
+            color: #EF4444;
         }}
 
         /* ===== POS: CART TABLE ===== */
@@ -2394,6 +2508,361 @@ def _block_pos_module(
             background-color: {cobrar_disabled_bg};
             color: {cobrar_disabled_text};
         }}
+
+        /* ===== POS: SCANNER INPUT STATES ===== */
+        QLineEdit[class="input-scanner-success"] {{
+            border: 2px solid {success};
+            background-color: {success_soft};
+        }}
+        QLineEdit[class="input-scanner-primary"] {{
+            border: 2px solid {primary};
+            background-color: {primary_soft};
+        }}
+        QLineEdit[class="input-scanner-base"] {{
+            border: 1px solid {border};
+        }}
+
+        /* ===== POS: SCANNER STATE BADGE ===== */
+        QLabel#posScanStateActive {{
+            color: {success};
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border: 1px solid {success};
+            border-radius: 8px;
+            background: {success_soft};
+            letter-spacing: 0.3px;
+        }}
+        QLabel#posScanStatePrimary {{
+            color: {primary};
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border: 1px solid {primary};
+            border-radius: 8px;
+            background: {primary_soft};
+            letter-spacing: 0.3px;
+        }}
+        QLabel#posScanStateWaiting {{
+            color: {muted};
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border: 1px solid {border};
+            border-radius: 8px;
+            background: transparent;
+            letter-spacing: 0.3px;
+        }}
+
+        /* ===== POS: SCANNER NOTIFICATION LABEL ===== */
+        QLabel#posScannerNotif {{
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="badge-scanner-success badge"] {{
+            background-color: {success_soft};
+            color: {success};
+            border: 1px solid {success};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        QLabel[class="badge-scanner-warning badge"] {{
+            background-color: {warning_soft};
+            color: {warning};
+            border: 1px solid {warning};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        QLabel[class="badge-scanner-info badge"] {{
+            background-color: {primary_soft};
+            color: {primary};
+            border: 1px solid {primary};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        QLabel[class="badge-scanner-secondary badge"] {{
+            background-color: {card};
+            color: {muted};
+            border: 1px solid {border};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+
+        /* ===== POS: LOYALTY TIER BADGE ===== */
+        QLabel#posLoyaltyTierBadge {{
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 8px;
+            border: 1px solid {muted};
+            background: transparent;
+            color: {muted};
+            letter-spacing: 0.3px;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Bronce"] {{
+            color: #CD7F32;
+            border-color: #CD7F32;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Plata"] {{
+            color: #9CA3AF;
+            border-color: #9CA3AF;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Oro"] {{
+            color: #D97706;
+            border-color: #D97706;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Platino"] {{
+            color: {primary};
+            border-color: {primary};
+        }}
+
+        /* ===== POS: CART EMPTY STATE ===== */
+        QLabel#posCartEmpty {{
+            color: {muted};
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1.6;
+            background: transparent;
+            border: 2px dashed {border};
+            border-radius: 8px;
+            padding: 24px 16px;
+        }}
+
+        /* ===== POS: AUTH DISCOUNT DIALOG ===== */
+        QFrame#authDialogHeader {{
+            background-color: {warning_soft};
+            border: 1px solid {warning};
+            border-radius: 6px;
+        }}
+        QLabel#authDialogIcon {{
+            font-size: 18px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#authDialogTitle {{
+            color: {warning};
+            font-size: 13px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#authDialogDetail {{
+            color: {text};
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        }}
+        QLineEdit#authDialogInput {{
+            background-color: {card};
+            color: {text};
+            border: 1px solid {border};
+            border-radius: 5px;
+            padding: 5px 8px;
+            font-size: 12px;
+            min-height: 32px;
+        }}
+        QLineEdit#authDialogInput:focus {{
+            border-color: {primary};
+            border-width: 2px;
+        }}
+
+        /* ===== POS: PAGE HEADER (PUNTO DE VENTA) ===== */
+        QFrame#posPageHeader {{
+            background-color: {card};
+            border: none;
+            border-bottom: 1px solid {border};
+        }}
+        QLabel#posPageTitle {{
+            color: {text};
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posPageSubtitle {{
+            color: {muted};
+            font-size: 11px;
+            font-weight: 400;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: SEARCH BAR ===== */
+        QFrame#posSearchFrame {{
+            background-color: {card};
+            border: 2px solid {border};
+            border-radius: 8px;
+        }}
+        QFrame#posSearchFrame:hover {{
+            border-color: {primary};
+        }}
+        QFrame#posSearchFrame[focused="true"] {{
+            border-color: {primary};
+        }}
+        QPushButton#posBarcodeBtn {{
+            background: transparent;
+            border: none;
+            color: {muted};
+            font-size: 18px;
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 0px;
+        }}
+        QPushButton#posBarcodeBtn:hover {{
+            background-color: {primary_soft};
+            color: {primary};
+        }}
+        QLineEdit#posSearchInput {{
+            background-color: transparent;
+            border: none;
+            color: {text};
+            font-size: 13px;
+            padding: 4px 2px;
+        }}
+        QLineEdit#posSearchInput:focus {{
+            border: none;
+            outline: none;
+        }}
+
+        /* ===== POS: CATEGORY ROW ===== */
+        QFrame#posCategoryRow {{
+            background-color: {card};
+            border: none;
+            border-bottom: 1px solid {border};
+        }}
+        QPushButton#posViewIconBtn {{
+            background-color: transparent;
+            border: 1px solid {border};
+            border-radius: 4px;
+            color: {muted};
+            font-size: 14px;
+        }}
+        QPushButton#posViewIconBtn:checked {{
+            background-color: {card};
+            border-color: {primary};
+            color: {primary};
+        }}
+        QPushButton#posViewIconBtn:hover {{
+            background-color: {primary_soft};
+            border-color: {primary};
+            color: {primary};
+        }}
+        QPushButton#posViewIconBtn:disabled {{
+            color: {border};
+            border-color: {border};
+        }}
+
+        /* ===== POS: CART HEADER ===== */
+        QFrame#posCartHeader {{
+            background-color: {card};
+            border: none;
+            border-bottom: 1px solid {border};
+        }}
+        QLabel#posCartHeaderTitle {{
+            color: {text};
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: transparent;
+            border: none;
+        }}
+        QPushButton#posCartIconBtn {{
+            background: transparent;
+            border: none;
+            color: {muted};
+            font-size: 15px;
+            border-radius: 4px;
+            padding: 0px;
+        }}
+        QPushButton#posCartIconBtn:hover {{
+            background-color: {primary_soft};
+            color: {primary};
+        }}
+
+        /* ===== POS: CLIENT SECTION ===== */
+        QGroupBox#posClientFrame {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 6px;
+            margin-top: 0px;
+            padding: 6px 8px;
+        }}
+        QGroupBox#posClientFrame::title {{
+            width: 0px;
+            height: 0px;
+        }}
+        QFrame#posClientDisplayRow {{
+            background: transparent;
+            border: none;
+        }}
+        QFrame#posClientSearchRow {{
+            background: transparent;
+            border: none;
+        }}
+        QPushButton#posClientChangeBtn {{
+            background-color: transparent;
+            border: 1px solid {border};
+            border-radius: 4px;
+            color: {primary};
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+        }}
+        QPushButton#posClientChangeBtn:hover {{
+            background-color: {primary_soft};
+            border-color: {primary};
+        }}
+
+        /* ===== POS: COBRAR FRAME ===== */
+        QFrame#posCobrarFrame {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 8px;
+        }}
+        QFrame#posCobrarBtnWrap {{
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posFKeyBadge {{
+            background-color: {success};
+            color: #FFFFFF;
+            font-size: 10px;
+            font-weight: 800;
+            border-radius: 3px;
+            letter-spacing: 0.3px;
+        }}
+        QFrame#posFKeyBtnWrap {{
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posFKeySubLabel {{
+            color: {muted};
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: UTILITY BAR ===== */
+        QFrame#posUtilBar {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 6px;
+        }}
     """
 
 
@@ -2509,6 +2978,9 @@ def _modern_blocks(theme: str) -> str:
                 out_stock_bg=Colors.NEUTRAL.SLATE_900,
                 action=Colors.POS_ACTION_BASE,
                 action_hover=Colors.POS_ACTION_HOVER,
+                success_soft="#16A34A22",
+                warning_soft="#D9770622",
+                primary_soft="#2563EB22",
             )
         )
     # Claro
