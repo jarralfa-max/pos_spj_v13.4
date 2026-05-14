@@ -25,9 +25,9 @@ from PyQt5.QtWidgets import (
     QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QInputDialog, QTabWidget, QMenu, QAction, QSizePolicy,
-    QDialog, QShortcut,
+    QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog,
 )
-from PyQt5.QtCore import Qt, QTimer, QStringListModel
+from PyQt5.QtCore import Qt, QTimer, QStringListModel, QDate
 from PyQt5.QtGui import QCursor, QColor, QKeySequence
 from datetime import datetime
 import logging
@@ -48,6 +48,9 @@ _PRICE_VARIANCE_THRESHOLD = 20.0
 _HIST_LIMIT = 500
 
 
+_COLOR_PARCIAL  = "#7C3AED"  # purple — no semantic token exists yet
+_COLOR_NEUTRAL  = "#64748B"  # slate-500 for unknown states
+
 _STATUS_CHIP_STYLES: dict[str, tuple[str, str, str]] = {
     # estado_key: (label, bg_color, text_color)
     "completada":  ("✔ Completada",  Colors.SUCCESS_BASE,  "#FFFFFF"),
@@ -55,9 +58,9 @@ _STATUS_CHIP_STYLES: dict[str, tuple[str, str, str]] = {
     "credito":     ("💳 Crédito",    Colors.WARNING_BASE,  "#FFFFFF"),
     "pendiente":   ("⏳ Pendiente",  Colors.INFO_BASE,     "#FFFFFF"),
     "cancelada":   ("✕ Cancelada",  Colors.DANGER_BASE,   "#FFFFFF"),
-    "parcial":     ("▶ Parcial",     "#7C3AED",            "#FFFFFF"),
+    "parcial":     ("▶ Parcial",     _COLOR_PARCIAL,       "#FFFFFF"),
 }
-_STATUS_CHIP_DEFAULT = ("● " , "#64748B", "#FFFFFF")
+_STATUS_CHIP_DEFAULT = ("●",  _COLOR_NEUTRAL, "#FFFFFF")
 
 
 def _make_status_chip(estado: str) -> QLabel:
@@ -462,7 +465,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
     def _build_tab_qr(self, parent: QWidget) -> None:
-        from PyQt5.QtWidgets import QVBoxLayout
         from modulos.recepcion_qr_widget import RecepcionQRWidget
         lay = QVBoxLayout(parent)
         lay.setContentsMargins(8, 8, 8, 8)
@@ -629,10 +631,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _editar_fila(self, index) -> None:
         """Doble clic: edita cantidad y costo del ítem con el dialog compacto."""
-        row = index.row()
-        if row < 0 or row >= len(self.carrito_compra):
+        tbl_row = index.row()
+        id_item = self.tabla.item(tbl_row, 0)
+        cart_idx = id_item.data(Qt.UserRole) if id_item is not None else tbl_row
+        if cart_idx is None or cart_idx < 0 or cart_idx >= len(self.carrito_compra):
             return
-        item = self.carrito_compra[row]
+        item = self.carrito_compra[cart_idx]
         dlg = _DialogItemCompra(
             item['nombre'],
             item.get('precio_historico', 0.0),
@@ -643,24 +647,28 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         if dlg.exec_() != QDialog.Accepted:
             return
-        self.carrito_compra[row]['cantidad']       = dlg.cantidad
-        self.carrito_compra[row]['costo_unitario'] = dlg.costo
-        self.carrito_compra[row]['subtotal']       = round(cantidad * costo, 4)
+        self.carrito_compra[cart_idx]['cantidad']       = dlg.cantidad
+        self.carrito_compra[cart_idx]['costo_unitario'] = dlg.costo
+        self.carrito_compra[cart_idx]['subtotal']       = round(dlg.cantidad * dlg.costo, 4)
         self._refresh_tabla()
 
     def _menu_fila(self, pos) -> None:
         """Clic derecho: menú contextual por fila."""
-        row = self.tabla.rowAt(pos.y())
-        if row < 0:
+        tbl_row = self.tabla.rowAt(pos.y())
+        if tbl_row < 0:
+            return
+        id_item  = self.tabla.item(tbl_row, 0)
+        cart_idx = id_item.data(Qt.UserRole) if id_item is not None else tbl_row
+        if cart_idx is None or cart_idx < 0 or cart_idx >= len(self.carrito_compra):
             return
         menu = QMenu(self)
         act_edit = menu.addAction("✏️ Editar cantidad / costo")
         act_del  = menu.addAction("🗑 Eliminar del carrito")
         act = menu.exec_(QCursor.pos())
         if act == act_edit:
-            self.tabla.doubleClicked.emit(self.tabla.model().index(row, 0))
+            self.tabla.doubleClicked.emit(self.tabla.model().index(tbl_row, 0))
         elif act == act_del:
-            self.carrito_compra.pop(row)
+            self.carrito_compra.pop(cart_idx)
             self._refresh_tabla()
 
     def _limpiar_carrito(self) -> None:
@@ -696,6 +704,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             for col, val in enumerate(vals):
                 it = QTableWidgetItem(val)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                if col == 0:
+                    it.setData(Qt.UserRole, orig_row)  # map visible→carrito index
                 self.tabla.setItem(row, col, it)
 
             # Delete button in last column
@@ -817,8 +827,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         Muestra diálogo de resumen antes de procesar la compra.
         Retorna True si el usuario confirma, False si cancela.
         """
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QHBoxLayout
-
         dlg = QDialog(self)
         dlg.setWindowTitle("Confirmar Compra")
         dlg.setMinimumWidth(480)
@@ -965,19 +973,20 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hdr.addWidget(lbl)
         hdr.addStretch()
 
-        from PyQt5.QtWidgets import QDateEdit
-        from PyQt5.QtCore import QDate
         self._hist_desde = QDateEdit(QDate.currentDate().addDays(-30))
         self._hist_desde.setCalendarPopup(True)
         self._hist_hasta = QDateEdit(QDate.currentDate())
         self._hist_hasta.setCalendarPopup(True)
         btn_ref = create_primary_button(self, "🔄 Actualizar", "Actualizar historial de compras")
         btn_ref.clicked.connect(self._cargar_historial_compras)
+        btn_export = create_secondary_button(self, "📥 CSV", "Exportar historial a CSV")
+        btn_export.clicked.connect(self._exportar_historial_csv)
         hdr.addWidget(QLabel("Desde:"))
         hdr.addWidget(self._hist_desde)
         hdr.addWidget(QLabel("Hasta:"))
         hdr.addWidget(self._hist_hasta)
         hdr.addWidget(btn_ref)
+        hdr.addWidget(btn_export)
         lay.addLayout(hdr)
 
         self._hist_filter = FilterBar(
@@ -1082,9 +1091,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 total_periodo += float(r[4] or 0)
 
                 # Col 6: Detail button
-                compra_id = r[6]
+                compra_id       = r[6]
+                proveedor_nombre = str(r[2] or "")
                 btn_det = create_secondary_button(self, "🔍 Ver", "Ver detalles de esta compra")
-                btn_det.clicked.connect(lambda _, cid=compra_id: self._ver_detalle_compra(cid))
+                btn_det.clicked.connect(
+                    lambda _, cid=compra_id, pnm=proveedor_nombre:
+                        self._ver_detalle_compra(cid, pnm))
                 self._tbl_hist.setCellWidget(ri, 6, btn_det)
 
             self.lbl_hist_total_compras.setText(f"Total período: ${total_periodo:,.2f}")
@@ -1095,7 +1107,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if hasattr(self, "_hist_loading"):
                 self._hist_loading.hide()
 
-    def _ver_detalle_compra(self, compra_id: int) -> None:
+    def _ver_detalle_compra(self, compra_id: int, proveedor_nombre: str = "") -> None:
         """Muestra el detalle completo de una compra con opción de reimprimir."""
         try:
             c = self.container.db.execute(
@@ -1109,11 +1121,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 WHERE dd.compra_id=?
             """, (compra_id,)).fetchall()
 
-            # Build HTML receipt
-            html = self._generar_html_compra(dict(c), [dict(i) for i in items])
+            # Resolve provider name if not provided
+            if not proveedor_nombre:
+                prov_row = self.container.db.execute(
+                    "SELECT nombre FROM proveedores WHERE id=?",
+                    (c['proveedor_id'],)).fetchone()
+                proveedor_nombre = prov_row['nombre'] if prov_row else ""
 
-            # Show in dialog
-            from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QHBoxLayout
+            html = self._generar_html_compra(
+                dict(c), [dict(i) for i in items], proveedor_nombre)
+
             from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
             from PyQt5.QtGui import QTextDocument
 
@@ -1144,8 +1161,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
-    def _generar_html_compra(self, compra: dict, items: list) -> str:
+    def _generar_html_compra(self, compra: dict, items: list,
+                              proveedor_nombre: str = "") -> str:
         """Genera el ticket HTML de una compra para impresión."""
+        prov_display = proveedor_nombre or f"ID {compra.get('proveedor_id','?')}"
         rows_html = ""
         for it in items:
             rows_html += (f"<tr><td>{it.get('nombre','')}</td>"
@@ -1157,9 +1176,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         <h3 style='text-align:center;'>RECIBO DE COMPRA</h3>
         <p>Folio: <b>{compra.get('folio','?')}</b></p>
         <p>Fecha: {str(compra.get('fecha',''))[:16]}</p>
-        <p>Proveedor ID: {compra.get('proveedor_id','?')}</p>
+        <p>Proveedor: {prov_display}</p>
+        <p>Referencia: {compra.get('observaciones') or compra.get('factura') or '—'}</p>
         <p>Usuario: {compra.get('usuario','?')}</p>
-        <p>Condición: {compra.get('estado','?').upper()}</p>
+        <p>Condición: {str(compra.get('estado','?')).upper()}</p>
         <hr>
         <table width='100%' border='0' cellspacing='4'>
         <tr><th align='left'>Producto</th><th>Cant.</th><th>Costo</th><th>Subtotal</th></tr>
@@ -1177,6 +1197,37 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         QTimer.singleShot(0, self._refresh_stats)
         if hasattr(self, '_tbl_hist') and self._tabs.currentIndex() == 2:
             self._cargar_historial_compras()
+
+    def _exportar_historial_csv(self) -> None:
+        """Exporta las filas visibles del historial de compras a CSV."""
+        import csv, os
+        if not hasattr(self, '_tbl_hist') or self._tbl_hist.rowCount() == 0:
+            QMessageBox.information(self, "Exportar", "No hay datos para exportar.")
+            return
+        default_name = f"compras_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar historial de compras", default_name, "CSV (*.csv)")
+        if not path:
+            return
+        try:
+            headers = ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Estado"]
+            with open(path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                for row in range(self._tbl_hist.rowCount()):
+                    row_data = []
+                    for col in range(6):  # skip last col (action buttons)
+                        item = self._tbl_hist.item(row, col)
+                        if item is not None:
+                            row_data.append(item.text())
+                        else:
+                            # col 5 may be a chip widget — extract its text
+                            widget = self._tbl_hist.cellWidget(row, col)
+                            row_data.append(widget.text().strip() if widget else "")
+                    writer.writerow(row_data)
+            Toast.success(self, "✅ Exportado", os.path.basename(path))
+        except Exception as e:
+            QMessageBox.critical(self, "Error al exportar", str(e))
 
     def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
                                   items) -> str:
