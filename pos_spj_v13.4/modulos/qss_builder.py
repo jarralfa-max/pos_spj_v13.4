@@ -233,6 +233,78 @@ _TPL_OSCURO = f"""
             border: 1px solid #FBBF24;
         }}
 
+        /* ===== SEMANTIC OPERATIONAL COLORS (DARK) ===== */
+        QPushButton#editBtn, QPushButton#searchBtn, QPushButton[variant="edit"],
+        QPushButton[variant="search"] {{
+            background: {Colors.PRIMARY.BASE};
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 28px;
+        }}
+        QPushButton#editBtn:hover, QPushButton#searchBtn:hover,
+        QPushButton[variant="edit"]:hover, QPushButton[variant="search"]:hover {{
+            background: {Colors.PRIMARY.HOVER};
+        }}
+        QPushButton#editBtn:disabled, QPushButton#searchBtn:disabled {{
+            background: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.SLATE_500};
+        }}
+        QPushButton#deleteBtn, QPushButton#removeBtn, QPushButton[variant="delete"],
+        QPushButton[variant="remove"] {{
+            background: {Colors.DANGER.BASE};
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 28px;
+        }}
+        QPushButton#deleteBtn:hover, QPushButton#removeBtn:hover,
+        QPushButton[variant="delete"]:hover, QPushButton[variant="remove"]:hover {{
+            background: {Colors.DANGER.HOVER};
+        }}
+        QPushButton#deleteBtn:disabled, QPushButton#removeBtn:disabled {{
+            background: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.SLATE_500};
+        }}
+        QPushButton#addBtn, QPushButton#createBtn, QPushButton[variant="add"],
+        QPushButton[variant="create"] {{
+            background: {Colors.SUCCESS.BASE};
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 28px;
+        }}
+        QPushButton#addBtn:hover, QPushButton#createBtn:hover,
+        QPushButton[variant="add"]:hover, QPushButton[variant="create"]:hover {{
+            background: {Colors.SUCCESS.HOVER};
+        }}
+        QPushButton#addBtn:disabled, QPushButton#createBtn:disabled {{
+            background: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.SLATE_500};
+        }}
+        QPushButton#discountBadgeBtn {{
+            background: #EF4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 10px;
+            font-weight: 700;
+            min-height: 20px;
+        }}
+        QPushButton#discountBadgeBtn:hover {{
+            background: #DC2626;
+        }}
+
         /* ===== BOTONES OUTLINE ===== */
         QPushButton#outlineBtn, QPushButton[variant="outline"] {{
             background: transparent;
@@ -999,6 +1071,78 @@ _TPL_CLARO = f"""
             background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                 stop:0 {Colors.WARNING.HOVER}, stop:1 {Colors.WARNING.BASE});
             border: 1px solid #FBBF24;
+        }}
+
+        /* ===== SEMANTIC OPERATIONAL COLORS (LIGHT) ===== */
+        QPushButton#editBtn, QPushButton#searchBtn, QPushButton[variant="edit"],
+        QPushButton[variant="search"] {{
+            background: {Colors.PRIMARY.BASE};
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 28px;
+        }}
+        QPushButton#editBtn:hover, QPushButton#searchBtn:hover,
+        QPushButton[variant="edit"]:hover, QPushButton[variant="search"]:hover {{
+            background: {Colors.PRIMARY.HOVER};
+        }}
+        QPushButton#editBtn:disabled, QPushButton#searchBtn:disabled {{
+            background: {Colors.NEUTRAL.SLATE_200};
+            color: {Colors.NEUTRAL.SLATE_400};
+        }}
+        QPushButton#deleteBtn, QPushButton#removeBtn, QPushButton[variant="delete"],
+        QPushButton[variant="remove"] {{
+            background: {Colors.DANGER.BASE};
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 28px;
+        }}
+        QPushButton#deleteBtn:hover, QPushButton#removeBtn:hover,
+        QPushButton[variant="delete"]:hover, QPushButton[variant="remove"]:hover {{
+            background: {Colors.DANGER.HOVER};
+        }}
+        QPushButton#deleteBtn:disabled, QPushButton#removeBtn:disabled {{
+            background: {Colors.NEUTRAL.SLATE_200};
+            color: {Colors.NEUTRAL.SLATE_400};
+        }}
+        QPushButton#addBtn, QPushButton#createBtn, QPushButton[variant="add"],
+        QPushButton[variant="create"] {{
+            background: {Colors.SUCCESS.BASE};
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 4px 10px;
+            font-weight: 600;
+            font-size: 11px;
+            min-height: 28px;
+        }}
+        QPushButton#addBtn:hover, QPushButton#createBtn:hover,
+        QPushButton[variant="add"]:hover, QPushButton[variant="create"]:hover {{
+            background: {Colors.SUCCESS.HOVER};
+        }}
+        QPushButton#addBtn:disabled, QPushButton#createBtn:disabled {{
+            background: {Colors.NEUTRAL.SLATE_200};
+            color: {Colors.NEUTRAL.SLATE_400};
+        }}
+        QPushButton#discountBadgeBtn {{
+            background: #EF4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 10px;
+            font-weight: 700;
+            min-height: 20px;
+        }}
+        QPushButton#discountBadgeBtn:hover {{
+            background: #DC2626;
         }}
 
         /* ===== BOTONES OUTLINE ===== */
@@ -2131,6 +2275,99 @@ def _block_pos_module(
                 stop:0 {success}, stop:1 {Colors.SUCCESS.ACTIVE});
         }}
         QPushButton#btnCobrarPOS:disabled {{
+            background-color: {cobrar_disabled_bg};
+            color: {cobrar_disabled_text};
+        }}
+
+        /* ===== POS: PAYMENT DIALOG ===== */
+        QFrame#paymentHeader {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 8px;
+            padding: 4px;
+        }}
+        QLabel#paymentCaption {{
+            color: {muted};
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#paymentTotalAmount {{
+            color: {success};
+            font-size: 28px;
+            font-weight: 800;
+            background: transparent;
+            border: none;
+            letter-spacing: -0.5px;
+        }}
+        QComboBox#paymentCombo {{
+            background-color: {card};
+            color: {text};
+            border: 1px solid {border};
+            border-radius: 5px;
+            padding: 4px 8px;
+            font-size: 12px;
+            min-height: 32px;
+        }}
+        QComboBox#paymentCombo::drop-down {{
+            border: none;
+        }}
+        QComboBox#paymentCombo:focus {{
+            border-color: {primary};
+        }}
+        QDoubleSpinBox#paymentSpinbox {{
+            background-color: {card};
+            color: {text};
+            border: 1px solid {border};
+            border-radius: 5px;
+            padding: 4px 8px;
+            font-size: 15px;
+            font-weight: 700;
+            min-height: 36px;
+        }}
+        QDoubleSpinBox#paymentSpinbox:focus {{
+            border-color: {primary};
+            border-width: 2px;
+        }}
+        QLabel#paymentChange {{
+            color: {success};
+            font-size: 13px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QPushButton#paymentCancelBtn {{
+            background: transparent;
+            color: {muted};
+            border: 1px solid {border};
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            min-height: 36px;
+        }}
+        QPushButton#paymentCancelBtn:hover {{
+            border-color: {danger};
+            color: {danger};
+        }}
+        QPushButton#paymentConfirmBtn {{
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 {success_hover}, stop:1 {success});
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 800;
+            min-height: 40px;
+            letter-spacing: 0.2px;
+        }}
+        QPushButton#paymentConfirmBtn:hover {{
+            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #4ADE80, stop:1 {success_hover});
+        }}
+        QPushButton#paymentConfirmBtn:disabled {{
             background-color: {cobrar_disabled_bg};
             color: {cobrar_disabled_text};
         }}
