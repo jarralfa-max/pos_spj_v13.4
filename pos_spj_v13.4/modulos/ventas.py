@@ -114,7 +114,10 @@ class ProductCard(QFrame):
     product_selected = pyqtSignal(dict)
 
     CARD_W, CARD_H = 195, 242
+    ZOOM_W, ZOOM_H = 203, 251   # ~4% hover/selected zoom
     IMG_H = 115
+    _ZOOM_STEPS = 6             # frames for the zoom animation
+    _ZOOM_INTERVAL_MS = 12      # ms per frame (~80 fps feel)
 
     def __init__(self, producto_data: dict, parent: QWidget = None):
         super().__init__(parent)
@@ -122,7 +125,7 @@ class ProductCard(QFrame):
         self.is_selected    = False
         self._is_hovering   = False
         self.original_size  = QSize(self.CARD_W, self.CARD_H)
-        self.zoom_size      = self.original_size   # no zoom — stable grid
+        self.zoom_size      = QSize(self.ZOOM_W, self.ZOOM_H)
 
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(self.CARD_W, self.CARD_H)
@@ -276,10 +279,12 @@ class ProductCard(QFrame):
         self.is_selected = selected
         if selected:
             self.setProperty("class", "product-card-selected")
-            self.shadow_effect.setBlurRadius(18)
-            self.shadow_effect.setColor(QColor(37, 99, 235, 80))
+            self.shadow_effect.setBlurRadius(20)
+            self.shadow_effect.setColor(QColor(37, 99, 235, 90))
             self.shadow_effect.setXOffset(0)
             self.shadow_effect.setYOffset(3)
+            self.animate_size(self.zoom_size)
+            self.raise_()
             if hasattr(self, '_btn_star'):
                 self._btn_star.setText("★")
                 self._btn_star.setObjectName("posProductStarActive")
@@ -292,6 +297,8 @@ class ProductCard(QFrame):
             self.shadow_effect.setColor(QColor(0, 0, 0, 45))
             self.shadow_effect.setXOffset(0)
             self.shadow_effect.setYOffset(2)
+            if not self._is_hovering:
+                self.animate_size(self.original_size)
             if hasattr(self, '_btn_star'):
                 self._btn_star.setText("☆")
                 self._btn_star.setObjectName("posProductStar")
@@ -302,11 +309,13 @@ class ProductCard(QFrame):
 
     def enterEvent(self, event):
         self._is_hovering = True
-        self.shadow_effect.setBlurRadius(16)
-        self.shadow_effect.setColor(QColor(37, 99, 235, 60))
+        self.shadow_effect.setBlurRadius(18)
+        self.shadow_effect.setColor(QColor(37, 99, 235, 70))
         self.setProperty("class", "product-card-hover" if not self.is_selected else "product-card-selected")
         self.style().unpolish(self)
         self.style().polish(self)
+        self.animate_size(self.zoom_size)
+        self.raise_()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
@@ -315,20 +324,43 @@ class ProductCard(QFrame):
             self.shadow_effect.setBlurRadius(18)
             self.shadow_effect.setColor(QColor(37, 99, 235, 80))
             self.setProperty("class", "product-card-selected")
+            # stay zoomed while selected
         else:
             base_class = f"product-card-{self._stock_state}" if self._stock_state else "product-card"
             self.setProperty("class", base_class)
             self.shadow_effect.setBlurRadius(8)
             self.shadow_effect.setColor(QColor(0, 0, 0, 45))
+            self.animate_size(self.original_size)
         self.style().unpolish(self)
         self.style().polish(self)
         super().leaveEvent(event)
 
     def animate_size(self, target_size: QSize):
-        pass   # no zoom animation
+        """Smooth step-based size animation toward target_size."""
+        self._zoom_target = target_size
+        if not hasattr(self, '_zoom_timer'):
+            self._zoom_timer = QTimer(self)
+            self._zoom_timer.setInterval(self._ZOOM_INTERVAL_MS)
+            self._zoom_timer.timeout.connect(self._step_zoom)
+        self._zoom_timer.start()
 
     def _step_zoom(self):
-        pass   # no zoom animation
+        if not hasattr(self, '_zoom_target'):
+            self._zoom_timer.stop()
+            return
+        cur_w, cur_h = self.width(), self.height()
+        tgt_w, tgt_h = self._zoom_target.width(), self._zoom_target.height()
+        diff_w = tgt_w - cur_w
+        diff_h = tgt_h - cur_h
+        if abs(diff_w) <= 1 and abs(diff_h) <= 1:
+            self.setFixedSize(tgt_w, tgt_h)
+            self._zoom_timer.stop()
+            self._position_overlays()
+            return
+        step_w = max(1, abs(diff_w) // 2) * (1 if diff_w > 0 else -1)
+        step_h = max(1, abs(diff_h) // 2) * (1 if diff_h > 0 else -1)
+        self.setFixedSize(cur_w + step_w, cur_h + step_h)
+        self._position_overlays()
 
 # ==============================================================================
 # 2. DIÁLOGO PARA SUSPENDER VENTA
@@ -2084,9 +2116,30 @@ class ModuloVentas(ModuloBase):
         unidad = producto['unidad'].lower()
         
         if any(peso_keyword in unidad for peso_keyword in ['kg', 'kilogramo', 'kilo', 'gramo', 'gr']):
-            self.iniciar_monitoreo_peso(producto)
+            if self._hw_bascula_habilitada and getattr(self, 'bascula_conectada', False):
+                self.iniciar_monitoreo_peso(producto)
+            else:
+                self._solicitar_peso_manual_producto(producto)
         else:
             self.agregar_producto_por_unidad(producto)
+
+    def _solicitar_peso_manual_producto(self, producto: Dict[str, Any]):
+        """Direct manual weight entry — used when scale is disabled or not connected."""
+        nombre = producto.get('nombre', '')
+        unidad = producto.get('unidad', 'kg')
+        cantidad, ok = QInputDialog.getDouble(
+            self,
+            f"Peso manual — {nombre}",
+            f"Báscula no activa. Ingresa el peso ({unidad}):",
+            value=0.500,
+            min=0.001,
+            max=9999.0,
+            decimals=3,
+        )
+        if ok and cantidad > 0:
+            self.agregar_producto_directo(producto, cantidad)
+        else:
+            self.limpiar_seleccion_producto()
 
     def _actualizar_banner_impresora(self) -> None:
         """Shows/hides the 'no printer' warning banner."""
