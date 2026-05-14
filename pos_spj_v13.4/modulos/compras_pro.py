@@ -25,9 +25,10 @@ from PyQt5.QtWidgets import (
     QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QInputDialog, QTabWidget, QMenu, QAction, QSizePolicy,
+    QDialog, QShortcut,
 )
 from PyQt5.QtCore import Qt, QTimer, QStringListModel
-from PyQt5.QtGui import QCursor, QColor
+from PyQt5.QtGui import QCursor, QColor, QKeySequence
 from datetime import datetime
 import logging
 
@@ -45,6 +46,159 @@ _PAGO_ITEMS = [
 _PRICE_VARIANCE_THRESHOLD = 20.0
 # History query row limit
 _HIST_LIMIT = 500
+
+
+_STATUS_CHIP_STYLES: dict[str, tuple[str, str, str]] = {
+    # estado_key: (label, bg_color, text_color)
+    "completada":  ("✔ Completada",  Colors.SUCCESS_BASE,  "#FFFFFF"),
+    "completa":    ("✔ Completada",  Colors.SUCCESS_BASE,  "#FFFFFF"),
+    "credito":     ("💳 Crédito",    Colors.WARNING_BASE,  "#FFFFFF"),
+    "pendiente":   ("⏳ Pendiente",  Colors.INFO_BASE,     "#FFFFFF"),
+    "cancelada":   ("✕ Cancelada",  Colors.DANGER_BASE,   "#FFFFFF"),
+    "parcial":     ("▶ Parcial",     "#7C3AED",            "#FFFFFF"),
+}
+_STATUS_CHIP_DEFAULT = ("● " , "#64748B", "#FFFFFF")
+
+
+def _make_status_chip(estado: str) -> QLabel:
+    """Crea un QLabel con apariencia de chip para el estado de una compra."""
+    lower = estado.strip().lower()
+    cfg = _STATUS_CHIP_STYLES.get(lower)
+    if cfg:
+        label, bg, fg = cfg
+    else:
+        label = estado.upper() or "—"
+        _, bg, fg = _STATUS_CHIP_DEFAULT
+    chip = QLabel(label)
+    chip.setAlignment(Qt.AlignCenter)
+    chip.setStyleSheet(
+        f"background-color:{bg};color:{fg};border-radius:4px;"
+        "font-size:10px;font-weight:700;padding:2px 6px;"
+        "border:none;"
+    )
+    chip.setFixedHeight(22)
+    return chip
+
+
+class _DialogItemCompra(QDialog):
+    """
+    Dialog único para agregar o editar un ítem del carrito de compra.
+    Reemplaza los 3 QInputDialog secuenciales con un formulario compacto
+    que muestra la variación de precio en tiempo real.
+    """
+
+    def __init__(self, nombre: str, costo_hist: float, *,
+                 cantidad: float = 1.0, costo: float | None = None,
+                 modo: str = "add", parent=None):
+        super().__init__(parent)
+        self._costo_hist = costo_hist
+        self._modo = modo
+        costo_inicial = costo if costo is not None else (costo_hist or 0.0)
+
+        titulo = f"{'Agregar' if modo == 'add' else 'Editar'}: {nombre}"
+        self.setWindowTitle(titulo)
+        self.setMinimumWidth(380)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(12)
+        lay.setContentsMargins(16, 14, 16, 14)
+
+        # Product name header
+        lbl_nombre = QLabel(nombre)
+        lbl_nombre.setObjectName("subheading")
+        lbl_nombre.setWordWrap(True)
+        lay.addWidget(lbl_nombre)
+
+        # Form
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self._spin_qty = QDoubleSpinBox()
+        self._spin_qty.setDecimals(3)
+        self._spin_qty.setMinimum(0.001)
+        self._spin_qty.setMaximum(99999.0)
+        self._spin_qty.setValue(cantidad)
+        self._spin_qty.setMinimumWidth(130)
+        self._spin_qty.setObjectName("styledInput")
+        form.addRow("Cantidad:", self._spin_qty)
+
+        self._spin_costo = QDoubleSpinBox()
+        self._spin_costo.setDecimals(4)
+        self._spin_costo.setMinimum(0.0)
+        self._spin_costo.setMaximum(999999.0)
+        self._spin_costo.setPrefix("$")
+        self._spin_costo.setValue(costo_inicial)
+        self._spin_costo.setMinimumWidth(130)
+        self._spin_costo.setObjectName("styledInput")
+        form.addRow("Costo unitario:", self._spin_costo)
+
+        if costo_hist > 0:
+            self._lbl_hist = QLabel(f"Precio histórico: ${costo_hist:.4f}")
+            self._lbl_hist.setObjectName("caption")
+            form.addRow("", self._lbl_hist)
+
+        # Live variance indicator
+        self._lbl_variacion = QLabel("")
+        self._lbl_variacion.setObjectName("caption")
+        form.addRow("Variación:", self._lbl_variacion)
+
+        # Live subtotal
+        self._lbl_subtotal = QLabel("Subtotal: $0.00")
+        self._lbl_subtotal.setObjectName("statsKpiValue")
+        self._lbl_subtotal.setProperty("variant", "success")
+        form.addRow("", self._lbl_subtotal)
+
+        lay.addLayout(form)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        btn_cancel = create_secondary_button(self, "Cancelar", "Cancelar sin guardar")
+        verb = "Agregar al carrito" if modo == "add" else "Guardar cambios"
+        self._btn_ok = create_success_button(self, f"✔ {verb}", verb)
+        btn_cancel.clicked.connect(self.reject)
+        self._btn_ok.clicked.connect(self.accept)
+        btn_row.addWidget(btn_cancel)
+        btn_row.addStretch()
+        btn_row.addWidget(self._btn_ok)
+        lay.addLayout(btn_row)
+
+        # Wire live updates
+        self._spin_qty.valueChanged.connect(self._actualizar_preview)
+        self._spin_costo.valueChanged.connect(self._actualizar_preview)
+        self._actualizar_preview()
+
+        # Keyboard: Enter → accept, focus quantity
+        QShortcut(QKeySequence(Qt.Key_Return), self, self._btn_ok.click)
+        self._spin_qty.setFocus()
+        self._spin_qty.selectAll()
+
+    def _actualizar_preview(self) -> None:
+        qty   = self._spin_qty.value()
+        costo = self._spin_costo.value()
+        subtotal = round(qty * costo, 4)
+        self._lbl_subtotal.setText(f"Subtotal: ${subtotal:,.4f}")
+
+        if self._costo_hist > 0 and costo > 0:
+            variacion = (costo - self._costo_hist) / self._costo_hist * 100
+            simbolo = "▲" if variacion > 0 else "▼"
+            color_var = (Colors.DANGER_BASE if abs(variacion) >= _PRICE_VARIANCE_THRESHOLD
+                         else Colors.SUCCESS_BASE)
+            self._lbl_variacion.setText(f"{simbolo} {abs(variacion):.1f}%")
+            self._lbl_variacion.setStyleSheet(
+                f"color:{color_var};font-weight:700;background:transparent;border:none;")
+        else:
+            self._lbl_variacion.setText("—")
+            self._lbl_variacion.setStyleSheet("")
+
+    @property
+    def cantidad(self) -> float:
+        return self._spin_qty.value()
+
+    @property
+    def costo(self) -> float:
+        return self._spin_costo.value()
 
 
 class ModuloComprasPro(QWidget, RefreshMixin):
@@ -238,10 +392,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(self._trad_filter)
 
         # ── Carrito editable ──────────────────────────────────────────────────
-        grp_cart = QGroupBox("🛒 Carrito de compra  "
-                             "(doble clic = editar · clic derecho = opciones)")
-        grp_cart.setObjectName("styledGroup")
-        cart_lay = QVBoxLayout(grp_cart)
+        self._grp_cart = QGroupBox("🛒 Carrito  (doble clic = editar · clic derecho = opciones)")
+        self._grp_cart.setObjectName("styledGroup")
+        cart_lay = QVBoxLayout(self._grp_cart)
+        grp_cart = self._grp_cart   # alias for rest of method
 
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(6)
@@ -274,11 +428,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Toolbar del carrito
         cart_tb = QHBoxLayout()
-        btn_clear = create_danger_button(self, "🗑 Limpiar carrito", "Vaciar carrito de compras")
+        btn_clear = create_danger_button(self, "🗑 Limpiar", "Vaciar carrito de compras")
         btn_clear.clicked.connect(self._limpiar_carrito)
         cart_tb.addWidget(btn_clear)
+        self._lbl_cart_count = QLabel("0 ítems")
+        self._lbl_cart_count.setObjectName("caption")
+        cart_tb.addWidget(self._lbl_cart_count)
         cart_tb.addStretch()
-
         self.lbl_total = QLabel("Total: $0.00")
         self.lbl_total.setObjectName("heading")
         cart_tb.addWidget(self.lbl_total)
@@ -291,15 +447,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         for label, data in _PAGO_ITEMS:
             self.cmb_pago.addItem(label, data)  # use userData to avoid text parsing
 
-        btn_proc = create_success_button(self, "📥 PROCESAR COMPRA E INGRESAR AL INVENTARIO", 
-                                         "Procionar compra y actualizar inventario")
+        btn_proc = create_success_button(self, "📥 PROCESAR COMPRA  (F10)",
+                                         "Procesar compra e ingresar al inventario (F10)")
         btn_proc.clicked.connect(self._procesar_compra)
+        self._btn_procesar = btn_proc   # needed for shortcut wiring below
 
         footer.addWidget(QLabel("Pago:"))
         footer.addWidget(self.cmb_pago)
         footer.addStretch()
         footer.addWidget(btn_proc)
         lay.addLayout(footer)
+
+        # F10 global shortcut to process purchase
+        QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
     def _build_tab_qr(self, parent: QWidget) -> None:
         from PyQt5.QtWidgets import QVBoxLayout
@@ -409,58 +569,41 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Cart management ───────────────────────────────────────────────────────
     def _agregar_producto(self, prod: dict) -> None:
-        """Agrega producto al carrito con validación de precio y duplicados."""
-        nombre = prod.get('nombre', '')
+        """Agrega producto al carrito con dialog único (cantidad + costo + preview)."""
+        nombre     = prod.get('nombre', '')
         costo_hist = float(prod.get('precio_compra', 0) or 0)
 
-        # Check if already in cart → offer to update quantity instead
+        # Already in cart → add extra quantity via same dialog
         for i, item in enumerate(self.carrito_compra):
             if item['producto_id'] == prod['id']:
-                if confirm_action(
-                    self,
-                    "Producto ya en carrito",
-                    f"'{nombre}' ya está en el carrito.\n¿Agregar más cantidad?",
-                    "Agregar",
-                    "Cancelar",
-                ):
-                    extra, ok = QInputDialog.getDouble(
-                        self, "Cantidad adicional",
-                        f"¿Cuántas unidades adicionales de '{nombre}'?",
-                        value=1.0, min=0.001, max=99999.0, decimals=3)
-                    if ok:
-                        self.carrito_compra[i]['cantidad'] += extra
-                        self.carrito_compra[i]['subtotal'] = (
-                            self.carrito_compra[i]['cantidad'] *
-                            self.carrito_compra[i]['costo_unitario'])
-                        self._refresh_tabla()
+                dlg = _DialogItemCompra(
+                    nombre, costo_hist,
+                    cantidad=1.0,
+                    costo=item['costo_unitario'],
+                    modo="add",
+                    parent=self,
+                )
+                dlg.setWindowTitle(f"Agregar más: {nombre} (ya en carrito)")
+                if dlg.exec_() == QDialog.Accepted:
+                    self.carrito_compra[i]['cantidad'] += dlg.cantidad
+                    self.carrito_compra[i]['subtotal'] = round(
+                        self.carrito_compra[i]['cantidad'] *
+                        self.carrito_compra[i]['costo_unitario'], 4)
+                    self._refresh_tabla()
                 return
 
-        # Ask quantity
-        cantidad, ok = QInputDialog.getDouble(
-            self, "Cantidad recibida",
-            f"¿Cuántas unidades de '{nombre}' llegaron?",
-            value=1.0, min=0.001, max=99999.0, decimals=3)
-        if not ok:
+        dlg = _DialogItemCompra(nombre, costo_hist, modo="add", parent=self)
+        if dlg.exec_() != QDialog.Accepted:
             return
 
-        # Ask cost (prefilled with historical)
-        costo, ok2 = QInputDialog.getDouble(
-            self, "Costo unitario",
-            f"Costo unitario de '{nombre}':",
-            value=costo_hist, min=0.0, max=999999.0, decimals=4)
-        if not ok2:
-            return
+        cantidad = dlg.cantidad
+        costo    = dlg.costo
 
-        # Price variance alert
+        # Audit price variance
         if costo_hist > 0 and costo > 0:
             variacion = abs(costo - costo_hist) / costo_hist * 100
             if variacion >= _PRICE_VARIANCE_THRESHOLD:
                 dir_txt = "▲ SUBIÓ" if costo > costo_hist else "▼ BAJÓ"
-                msg = (f"VARIACION DE PRECIO: {nombre}\n"
-                       f"Anterior: ${costo_hist:.2f}  Nuevo: ${costo:.2f}\n"
-                       f"{dir_txt} {variacion:.1f}% — ¿Confirmar?")
-                if not confirm_action(self, "Alerta de Precio", msg, "Confirmar", "Cancelar"):
-                    return
                 try:
                     audit_write(self.container, modulo="COMPRAS",
                                 accion="VARIACION_PRECIO", entidad="productos",
@@ -474,39 +617,34 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     pass
 
         self.carrito_compra.append({
-            'producto_id':     prod['id'],
-            'nombre':          nombre,
-            'cantidad':        cantidad,
-            'costo_unitario':  costo,
-            'subtotal':        round(cantidad * costo, 4),
+            'producto_id':      prod['id'],
+            'nombre':           nombre,
+            'cantidad':         cantidad,
+            'costo_unitario':   costo,
+            'subtotal':         round(cantidad * costo, 4),
             'precio_historico': costo_hist,
         })
         self._refresh_tabla()
         self._buscador.clear()
 
     def _editar_fila(self, index) -> None:
-        """Doble clic: edita cantidad y costo del ítem."""
+        """Doble clic: edita cantidad y costo del ítem con el dialog compacto."""
         row = index.row()
         if row < 0 or row >= len(self.carrito_compra):
             return
         item = self.carrito_compra[row]
-
-        cantidad, ok1 = QInputDialog.getDouble(
-            self, "Editar cantidad",
-            f"Nueva cantidad para '{item['nombre']}':",
-            value=item['cantidad'], min=0.001, max=99999.0, decimals=3)
-        if not ok1:
+        dlg = _DialogItemCompra(
+            item['nombre'],
+            item.get('precio_historico', 0.0),
+            cantidad=item['cantidad'],
+            costo=item['costo_unitario'],
+            modo="edit",
+            parent=self,
+        )
+        if dlg.exec_() != QDialog.Accepted:
             return
-
-        costo, ok2 = QInputDialog.getDouble(
-            self, "Editar costo",
-            f"Nuevo costo unitario para '{item['nombre']}':",
-            value=item['costo_unitario'], min=0.0, max=999999.0, decimals=4)
-        if not ok2:
-            return
-
-        self.carrito_compra[row]['cantidad']       = cantidad
-        self.carrito_compra[row]['costo_unitario'] = costo
+        self.carrito_compra[row]['cantidad']       = dlg.cantidad
+        self.carrito_compra[row]['costo_unitario'] = dlg.costo
         self.carrito_compra[row]['subtotal']       = round(cantidad * costo, 4)
         self._refresh_tabla()
 
@@ -568,7 +706,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             total += item['subtotal']
             visible_rows += 1
 
+        n_items = len(self.carrito_compra)
         self.lbl_total.setText(f"Total: ${total:,.2f}")
+        if hasattr(self, "_lbl_cart_count"):
+            self._lbl_cart_count.setText(
+                f"{n_items} ítem{'s' if n_items != 1 else ''}" if n_items else "")
         if hasattr(self, "_cart_empty"):
             self._cart_empty.setVisible(visible_rows == 0)
         if hasattr(self, "_cart_loading"):
@@ -855,8 +997,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._tbl_hist.setHorizontalHeaderLabels(
             ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Estado", ""])
         hh = self._tbl_hist.horizontalHeader()
-        hh.setSectionResizeMode(2, QHeaderView.Stretch)
-        for c in (0,1,3,4,5,6):
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)   # Proveedor stretches
+        hh.setSectionResizeMode(5, QHeaderView.Fixed)     # Estado chip: fixed
+        self._tbl_hist.setColumnWidth(5, 110)
+        for c in (0, 1, 3, 4, 6):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
         self._tbl_hist.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_hist.setAlternatingRowColors(True)
@@ -920,23 +1064,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             total_periodo = 0.0
             for ri, r in enumerate(rows):
                 self._tbl_hist.insertRow(ri)
+                estado_raw = str(r[5] or "").strip().lower()
+                # Columns 0-4: text items (skip col 5 — rendered as chip widget)
                 vals = [
                     str(r[0] or ""), str(r[1] or "")[:16],
                     str(r[2] or ""), str(r[3] or ""),
-                    f"${float(r[4] or 0):,.2f}", str(r[5] or ""),
+                    f"${float(r[4] or 0):,.2f}",
                 ]
-                is_credito = str(r[5] or "").lower() == "credito"
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    if is_credito:
-                        it.setForeground(QColor(Colors.WARNING_BASE))
+                    if ci == 4:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     self._tbl_hist.setItem(ri, ci, it)
+                # Col 5: status chip
+                self._tbl_hist.setCellWidget(ri, 5, _make_status_chip(estado_raw))
                 total_periodo += float(r[4] or 0)
 
-                # Detail button
+                # Col 6: Detail button
                 compra_id = r[6]
-                btn_det = create_secondary_button(self, "🔍 Ver detalle", "Ver detalles de esta compra")
+                btn_det = create_secondary_button(self, "🔍 Ver", "Ver detalles de esta compra")
                 btn_det.clicked.connect(lambda _, cid=compra_id: self._ver_detalle_compra(cid))
                 self._tbl_hist.setCellWidget(ri, 6, btn_det)
 
