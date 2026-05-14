@@ -1247,6 +1247,7 @@ class ModuloVentas(ModuloBase):
         # CLIENT SECTION
         group_cliente = QGroupBox("CLIENTE")
         group_cliente.setProperty("class", "client-group")
+        group_cliente.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         cliente_layout = QVBoxLayout(group_cliente)
         cliente_layout.setContentsMargins(6, 4, 6, 4)
         cliente_layout.setSpacing(3)
@@ -1304,12 +1305,12 @@ class ModuloVentas(ModuloBase):
         layout_derecho.addWidget(group_cliente)
 
         # CART TABLE — primary flexible section: absorbs all available vertical space
-        group_carrito = QGroupBox("CARRITO")
-        group_carrito.setProperty("class", "venta-group")
-        group_carrito.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._carrito_group = QGroupBox("CARRITO")
+        self._carrito_group.setProperty("class", "venta-group")
+        self._carrito_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # Guarantee at minimum 4 visible rows (row_height=36 × 4 + header≈28 + padding=12)
-        group_carrito.setMinimumHeight(184)
-        carrito_layout = QVBoxLayout(group_carrito)
+        self._carrito_group.setMinimumHeight(184)
+        carrito_layout = QVBoxLayout(self._carrito_group)
         # Bottom margin 6px so the table's last row border never gets clipped
         # by the GroupBox frame edge when scrolled to end
         carrito_layout.setContentsMargins(3, 2, 3, 6)
@@ -1344,16 +1345,17 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setFrameShape(QFrame.NoFrame)
         carrito_layout.addWidget(self.tabla_compra, 1)
 
+        # Item count moved to group title; label kept as hidden stub for legacy refs
         self.lbl_info_carrito = QLabel("")
-        self.lbl_info_carrito.setAlignment(Qt.AlignCenter)
-        self.lbl_info_carrito.setProperty("class", "info-label")
-        carrito_layout.addWidget(self.lbl_info_carrito)
+        self.lbl_info_carrito.setMaximumHeight(0)
+        self.lbl_info_carrito.setVisible(False)
         # stretch=1: cart is the ONLY section that grows when window is tall/maximized
-        layout_derecho.addWidget(group_carrito, 1)
+        layout_derecho.addWidget(self._carrito_group, 1)
 
         # QUICK DISCOUNT BUTTONS — compact flat bar (no GroupBox title overhead)
         desc_frame = QFrame()
         desc_frame.setObjectName("posCompactBar")
+        desc_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         desc_lay = QHBoxLayout(desc_frame)
         desc_lay.setContentsMargins(4, 3, 4, 3)
         desc_lay.setSpacing(4)
@@ -1382,6 +1384,7 @@ class ModuloVentas(ModuloBase):
         # TOTALS BREAKDOWN CARD
         totals_card = QFrame()
         totals_card.setObjectName("posTotalsCard")
+        totals_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         totals_layout = QVBoxLayout(totals_card)
         totals_layout.setContentsMargins(12, 8, 12, 8)
         totals_layout.setSpacing(4)
@@ -1480,6 +1483,7 @@ class ModuloVentas(ModuloBase):
         # ── PRIMARY TRANSACTION ACTIONS ──────────────────────────────────────
         group_acciones = QGroupBox("COBRAR")
         group_acciones.setProperty("class", "venta-group")
+        group_acciones.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         acciones_layout = QVBoxLayout(group_acciones)
         acciones_layout.setContentsMargins(6, 4, 6, 6)
         acciones_layout.setSpacing(4)
@@ -1513,6 +1517,7 @@ class ModuloVentas(ModuloBase):
         # ── UTILITY ACTIONS — compact flat bar (visually subordinate to checkout) ─
         group_utilidad = QFrame()
         group_utilidad.setObjectName("posCompactBar")
+        group_utilidad.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         utilidad_layout = QHBoxLayout(group_utilidad)
         utilidad_layout.setContentsMargins(4, 3, 4, 3)
         utilidad_layout.setSpacing(4)
@@ -3016,20 +3021,22 @@ class ModuloVentas(ModuloBase):
             btn_modificar = QPushButton("✏️")
             btn_modificar.setToolTip("Modificar cantidad")
             btn_modificar.setFixedSize(28, 28)
-            btn_modificar.setProperty("class", "btn-icon-table")
+            btn_modificar.setObjectName("cartEditBtn")
             btn_modificar.clicked.connect(lambda checked, r=row: self.modificar_cantidad_producto(r))
             self.tabla_compra.setCellWidget(row, 5, btn_modificar)
-            
+
             btn_eliminar = QPushButton("❌")
             btn_eliminar.setToolTip("Eliminar producto")
             btn_eliminar.setFixedSize(28, 28)
-            btn_eliminar.setProperty("class", "btn-icon-table btn-danger")
+            btn_eliminar.setObjectName("cartDeleteBtn")
             btn_eliminar.clicked.connect(lambda checked, r=row: self.eliminar_producto_carrito(r))
             self.tabla_compra.setCellWidget(row, 6, btn_eliminar)
             
         self.calcular_totales()
         n = len(self.compra_actual)
-        self.lbl_info_carrito.setText(f"{n} producto{'s' if n != 1 else ''}" if n else "")
+        title = f"CARRITO  ({n} producto{'s' if n != 1 else ''})" if n else "CARRITO"
+        if hasattr(self, '_carrito_group'):
+            self._carrito_group.setTitle(title)
 
     def _on_cart_cell_clicked(self, row: int, col: int) -> None:
         """Handles click on cart table cells. Column 3 = discount badge (remove on click)."""

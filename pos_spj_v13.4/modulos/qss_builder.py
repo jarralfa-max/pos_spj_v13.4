@@ -246,6 +246,7 @@ _TPL_OSCURO = f"""
             min-height: 28px;
         }}
         QPushButton#editBtn:hover, QPushButton#searchBtn:hover,
+        QPushButton#cartEditBtn:hover,
         QPushButton[variant="edit"]:hover, QPushButton[variant="search"]:hover {{
             background: {Colors.PRIMARY.HOVER};
         }}
@@ -265,6 +266,7 @@ _TPL_OSCURO = f"""
             min-height: 28px;
         }}
         QPushButton#deleteBtn:hover, QPushButton#removeBtn:hover,
+        QPushButton#cartDeleteBtn:hover,
         QPushButton[variant="delete"]:hover, QPushButton[variant="remove"]:hover {{
             background: {Colors.DANGER.HOVER};
         }}
@@ -1086,6 +1088,7 @@ _TPL_CLARO = f"""
             min-height: 28px;
         }}
         QPushButton#editBtn:hover, QPushButton#searchBtn:hover,
+        QPushButton#cartEditBtn:hover,
         QPushButton[variant="edit"]:hover, QPushButton[variant="search"]:hover {{
             background: {Colors.PRIMARY.HOVER};
         }}
@@ -1105,6 +1108,7 @@ _TPL_CLARO = f"""
             min-height: 28px;
         }}
         QPushButton#deleteBtn:hover, QPushButton#removeBtn:hover,
+        QPushButton#cartDeleteBtn:hover,
         QPushButton[variant="delete"]:hover, QPushButton[variant="remove"]:hover {{
             background: {Colors.DANGER.HOVER};
         }}
@@ -2156,6 +2160,25 @@ def _block_pos_module(
         QTableWidget[class="tabla-carrito"]::item:selected {{
             background-color: {primary};
             color: white;
+        }}
+
+        /* ===== POS: CART ROW ACTION BUTTONS ===== */
+        /* Compact variants of editBtn/deleteBtn — inherit semantic colors, override padding */
+        QPushButton#cartEditBtn {{
+            background: {primary};
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0px;
+            font-size: 12px;
+        }}
+        QPushButton#cartDeleteBtn {{
+            background: {danger};
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0px;
+            font-size: 12px;
         }}
 
         /* ===== POS: TOTALS BREAKDOWN CARD ===== */
