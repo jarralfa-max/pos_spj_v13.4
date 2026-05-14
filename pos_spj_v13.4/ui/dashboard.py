@@ -2,14 +2,15 @@
 # ui/dashboard.py — SPJ POS v13.4
 """
 Dashboard principal del POS en tiempo real.
-  - KPIs del día: ventas, tickets, productos top
+  - KPIs del día: ventas, tickets, ticket promedio, margen, clientes
   - Cola de pedidos WhatsApp pendientes
   - Alertas de stock bajo y lotes por caducar
+  - Feed de actividad reciente
   - Estado de repartidores activos
   - Acceso rápido a módulos clave
 
-UI OPTIMIZADA v13.4: Usa design_tokens y ui_components para consistencia global.
-Sistema de diseño centralizado con variables CSS y clases semánticas.
+Enterprise UI v13.5 — modular, touch-first, operational clarity.
+Hero KPIs · Activity Feed · Quick Actions · Compact Alerts
 """
 from __future__ import annotations
 import logging
@@ -23,7 +24,6 @@ from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
 
-# Importar design tokens para consistencia
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
 from modulos.ui_components import (
     LoadingIndicator, EmptyStateWidget, PageHeader,
@@ -31,6 +31,7 @@ from modulos.ui_components import (
 
 logger = logging.getLogger("spj.ui.dashboard")
 
+# ── Semantic color maps ──────────────────────────────────────────────────────
 
 _VARIANT_ACCENT = {
     "primary": Colors.PRIMARY.BASE,
@@ -40,39 +41,104 @@ _VARIANT_ACCENT = {
     "info":    Colors.INFO.BASE,
 }
 
+_ALERTA_VARIANT = {
+    "danger":  (Colors.DANGER.BG_SOFT,  Colors.DANGER.BASE,  "●"),
+    "warning": (Colors.WARNING.BG_SOFT, Colors.WARNING.BASE, "▲"),
+    "success": (Colors.SUCCESS.BG_SOFT, Colors.SUCCESS.BASE, "✓"),
+    "info":    (Colors.PRIMARY.LIGHT,   Colors.PRIMARY.BASE, "i"),
+}
+
+_PEDIDO_BADGE_COLOR = {
+    "nuevo":      Colors.DANGER.BASE,
+    "confirmado": Colors.PRIMARY.BASE,
+    "pesando":    Colors.WARNING.BASE,
+    "listo":      Colors.SUCCESS.BASE,
+}
+
+_ACTIVITY_ICON = {
+    "venta":   ("💰", Colors.SUCCESS.BASE),
+    "pedido":  ("📲", Colors.PRIMARY.BASE),
+    "alerta":  ("⚠️",  Colors.WARNING.BASE),
+    "sistema": ("⚙️",  Colors.INFO.BASE),
+    "stock":   ("📦", Colors.DANGER.BASE),
+}
+
+# ── Low-level helpers ────────────────────────────────────────────────────────
+
+def _card_style(radius: int = Borders.RADIUS_XL, border_alpha: int = 18) -> str:
+    """QSS fragment: dark enterprise card."""
+    return (
+        f"background-color: {Colors.NEUTRAL.SLATE_800};"
+        f" border-radius: {radius}px;"
+        f" border: 1px solid rgba(255,255,255,{border_alpha});"
+    )
+
+
+def _add_shadow(widget: QWidget, blur: int = 20, dy: int = 3, alpha: int = 40) -> None:
+    eff = QGraphicsDropShadowEffect(widget)
+    eff.setBlurRadius(blur)
+    eff.setOffset(0, dy)
+    eff.setColor(QColor(0, 0, 0, alpha))
+    widget.setGraphicsEffect(eff)
+
+
+def _section_label(text: str, parent=None) -> QLabel:
+    lbl = QLabel(text.upper(), parent)
+    lbl.setObjectName("sectionLabel")
+    lbl.setStyleSheet(
+        f"color: {Colors.NEUTRAL.SLATE_500};"
+        f" font-size: {Typography.SIZE_XS};"
+        f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+        f" letter-spacing: 0.1em;"
+        f" background: transparent; border: none;"
+    )
+    return lbl
+
+
+def _divider(parent=None) -> QFrame:
+    line = QFrame(parent)
+    line.setFrameShape(QFrame.HLine)
+    line.setFixedHeight(1)
+    line.setStyleSheet(f"background-color: rgba(255,255,255,10); border: none;")
+    return line
+
+
+# ── KPICard ──────────────────────────────────────────────────────────────────
 
 class KPICard(QFrame):
     """
-    Tarjeta KPI moderna: accent bar superior, sombra suave, delta opcional.
+    Tarjeta KPI: accent bar superior, sombra, delta opcional.
 
-    Resuelve el color del accent vía KPIColorEngine si se provee metric_key
-    (semáforo dinámico verde/amarillo/rojo según umbrales del negocio); en
-    caso contrario usa el color de la variante.
+    hero=True → tarjeta grande (hero section), valor 28 px, padding mayor.
+    hero=False → tarjeta compacta (secondary grid), valor 22 px.
 
-    Hover y fondo dependen del tema (theme-aware vía objectName "kpiCard"
-    cuyo QSS se define en modulos.qss_builder._block_kpi_card).
-
-    API pública preservada:
-        clicked: pyqtSignal(str)        # emitido en clic
-        set_valor(str)                   # actualiza valor mostrado
-        set_estado(value, prev)          # actualiza color + tendencia desde KPIColorEngine
+    API pública preservada (backward compat):
+        clicked: pyqtSignal(str)
+        set_valor(str)
+        set_estado(value, prev)
     """
     clicked = pyqtSignal(str)
 
-    def __init__(self, titulo: str, valor: str = "—",
-                 color: str = "",          # legacy, se ignora si metric_key
-                 icono: str = "📊",
-                 key: str = "",
-                 metric_key: str = "",
-                 metric_value: float = 0,
-                 metric_prev: float = 0,
-                 tendencia: str = "",
-                 variant: str = "primary",
-                 parent=None):
+    def __init__(
+        self,
+        titulo: str,
+        valor: str = "—",
+        color: str = "",
+        icono: str = "📊",
+        key: str = "",
+        metric_key: str = "",
+        metric_value: float = 0,
+        metric_prev: float = 0,
+        tendencia: str = "",
+        variant: str = "primary",
+        hero: bool = False,
+        parent=None,
+    ):
         super().__init__(parent)
         self._key = key
         self._metric_key = metric_key
         self._variant = variant
+        self._hero = hero
 
         accent = self._resolve_accent(metric_key, metric_value, metric_prev, variant)
         if metric_key and not tendencia:
@@ -81,62 +147,60 @@ class KPICard(QFrame):
 
         self.setObjectName("kpiCard")
         self.setProperty("variant", variant)
+        self.setProperty("hero", "true" if hero else "false")
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(96)
+        self.setMinimumHeight(126 if hero else 90)
 
-        # Sombra
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
-        shadow.setOffset(0, 2)
-        shadow.setColor(QColor(0, 0, 0, 32))
-        self.setGraphicsEffect(shadow)
+        _add_shadow(self, blur=24 if hero else 14, dy=4 if hero else 2, alpha=45 if hero else 28)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Accent bar superior
+        # Accent bar
         self._accent_bar = QFrame(self)
-        self._accent_bar.setFixedHeight(3)
+        self._accent_bar.setFixedHeight(4 if hero else 3)
         self._accent_bar.setStyleSheet(
             f"background-color: {accent};"
-            f" border-top-left-radius: {Borders.RADIUS_LG}px;"
-            f" border-top-right-radius: {Borders.RADIUS_LG}px;"
+            f" border-top-left-radius: {Borders.RADIUS_XL}px;"
+            f" border-top-right-radius: {Borders.RADIUS_XL}px;"
             f" border: none;"
         )
         outer.addWidget(self._accent_bar)
 
-        # Cuerpo
+        # Body
         body = QHBoxLayout()
-        body.setContentsMargins(16, 12, 16, 12)
-        body.setSpacing(8)
+        h_pad = Spacing.XL if hero else Spacing.LG
+        v_pad = 14 if hero else 10
+        body.setContentsMargins(h_pad, v_pad, h_pad, v_pad)
+        body.setSpacing(Spacing.MD)
         outer.addLayout(body)
 
         text_col = QVBoxLayout()
-        text_col.setSpacing(2)
+        text_col.setSpacing(3)
 
         lbl_titulo = QLabel(titulo.upper(), self)
         lbl_titulo.setStyleSheet(
             f"color: {Colors.NEUTRAL.SLATE_500};"
             f" font-size: {Typography.SIZE_XS};"
             f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f" letter-spacing: 0.05em;"
+            f" letter-spacing: 0.08em;"
             f" background: transparent; border: none;"
         )
         text_col.addWidget(lbl_titulo)
 
+        val_size = "28px" if hero else "22px"
         self.lbl_valor = QLabel(valor, self)
         self.lbl_valor.setObjectName("kpiValue")
         self.lbl_valor.setStyleSheet(
-            f"font-size: 22px;"
+            f"font-size: {val_size};"
             f" font-weight: {Typography.WEIGHT_BOLD};"
             f" letter-spacing: -0.02em;"
             f" background: transparent; border: none;"
         )
         text_col.addWidget(self.lbl_valor)
 
-        # Tendencia: pill con color según signo
         self.lbl_tendencia = QLabel("", self)
         self.lbl_tendencia.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self._set_tendencia_text(tendencia)
@@ -144,19 +208,22 @@ class KPICard(QFrame):
 
         body.addLayout(text_col, 1)
 
-        # Ícono con tinte
+        # Icon badge
+        icon_sz = 46 if hero else 36
+        icon_font = "24px" if hero else "18px"
         lbl_icono = QLabel(icono, self)
-        lbl_icono.setFixedSize(40, 40)
+        lbl_icono.setFixedSize(icon_sz, icon_sz)
         lbl_icono.setAlignment(Qt.AlignCenter)
         lbl_icono.setStyleSheet(
-            f"font-size: 22px;"
-            f" background-color: {accent}1F;"  # alpha 12%
-            f" border-radius: {Borders.RADIUS_LG}px;"
+            f"font-size: {icon_font};"
+            f" background-color: {accent}1A;"
+            f" border-radius: {icon_sz // 2}px;"
             f" border: none;"
         )
         body.addWidget(lbl_icono, 0, alignment=Qt.AlignTop)
 
-    # ── Helpers de color/tendencia (KPIColorEngine opcional) ──────────────
+    # ── Color/trend resolution ────────────────────────────────────────────
+
     @staticmethod
     def _resolve_accent(metric_key, metric_value, metric_prev, variant) -> str:
         if metric_key:
@@ -180,23 +247,21 @@ class KPICard(QFrame):
             return ""
 
     def _set_tendencia_text(self, text: str) -> None:
-        """Actualiza la pill de tendencia. Detecta signo desde el texto (+/-/↑/↓)."""
         if not text:
             self.lbl_tendencia.setText("")
             self.lbl_tendencia.setVisible(False)
             return
-        # Determinar color por signo
-        is_positive = ("↑" in text) or text.lstrip().startswith("+")
-        is_negative = ("↓" in text) or text.lstrip().startswith("-")
-        if is_positive:
-            color, bg = Colors.SUCCESS.BASE, Colors.SUCCESS.BG_SOFT
-        elif is_negative:
-            color, bg = Colors.DANGER.BASE, Colors.DANGER.BG_SOFT
+        is_pos = ("↑" in text) or text.lstrip().startswith("+")
+        is_neg = ("↓" in text) or text.lstrip().startswith("-")
+        if is_pos:
+            fg, bg = Colors.SUCCESS.BASE, Colors.SUCCESS.BG_SOFT
+        elif is_neg:
+            fg, bg = Colors.DANGER.BASE, Colors.DANGER.BG_SOFT
         else:
-            color, bg = Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100
+            fg, bg = Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100
         self.lbl_tendencia.setText(text)
         self.lbl_tendencia.setStyleSheet(
-            f"color: {color}; background-color: {bg};"
+            f"color: {fg}; background-color: {bg};"
             f" font-size: {Typography.SIZE_XS};"
             f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
             f" border-radius: {Borders.RADIUS_FULL}px;"
@@ -204,23 +269,25 @@ class KPICard(QFrame):
         )
         self.lbl_tendencia.setVisible(True)
 
-    # ── API pública ────────────────────────────────────────────────────────
+    # ── Public API ────────────────────────────────────────────────────────
+
     def set_valor(self, valor: str):
         self.lbl_valor.setText(valor)
 
     def set_estado(self, metric_value: float, metric_prev: float = 0) -> None:
-        """Actualiza accent bar + tendencia delegando a KPIColorEngine."""
         if not self._metric_key:
             return
         try:
             from core.services.kpi_color_engine import get_kpi_color_engine
-            cfg = get_kpi_color_engine().kpi_config(self._metric_key, metric_value, metric_prev)
+            cfg = get_kpi_color_engine().kpi_config(
+                self._metric_key, metric_value, metric_prev
+            )
             _color = cfg["color"]
             self._current_color = _color
             self._accent_bar.setStyleSheet(
                 f"background-color: {_color};"
-                f" border-top-left-radius: {Borders.RADIUS_LG}px;"
-                f" border-top-right-radius: {Borders.RADIUS_LG}px;"
+                f" border-top-left-radius: {Borders.RADIUS_XL}px;"
+                f" border-top-right-radius: {Borders.RADIUS_XL}px;"
                 f" border: none;"
             )
             self._set_tendencia_text(cfg.get("tendencia", ""))
@@ -232,57 +299,61 @@ class KPICard(QFrame):
         super().mousePressEvent(event)
 
 
-_ALERTA_VARIANT = {
-    # tipo: (bg_soft, accent, icon)
-    "danger":  (Colors.DANGER.BG_SOFT,  Colors.DANGER.BASE,  "🔴"),
-    "warning": (Colors.WARNING.BG_SOFT, Colors.WARNING.BASE, "⚠️"),
-    "success": (Colors.SUCCESS.BG_SOFT, Colors.SUCCESS.BASE, "✅"),
-    "info":    (Colors.PRIMARY.LIGHT,   Colors.PRIMARY.BASE, "ℹ️"),
-}
-
-_PEDIDO_BADGE_COLOR = {
-    "nuevo":      Colors.DANGER.BASE,
-    "confirmado": Colors.PRIMARY.BASE,
-    "pesando":    Colors.WARNING.BASE,
-    "listo":      Colors.SUCCESS.BASE,
-}
-
+# ── AlertaItem ───────────────────────────────────────────────────────────────
 
 class AlertaItem(QFrame):
-    """Item de alerta con border-left de color según severidad.
+    """Compact alert card with left accent bar and severity icon."""
 
-    Estilos via tokens; antes usaba var(--xxx) que Qt QSS no soporta y
-    los estilos no se aplicaban (caía a defaults).
-    """
-    def __init__(self, texto: str, tipo: str = "info", parent=None):
+    def __init__(self, texto: str, tipo: str = "info", timestamp: str = "", parent=None):
         super().__init__(parent)
         bg, accent, icon = _ALERTA_VARIANT.get(tipo, _ALERTA_VARIANT["info"])
+
         self.setObjectName("alertaItem")
         self.setStyleSheet(
             f"QFrame#alertaItem {{"
             f"  background: {bg};"
-            f"  border-radius: {Borders.RADIUS_LG}px;"
-            f"  border: 1px solid {accent}33;"  # alpha 20%
+            f"  border-radius: {Borders.RADIUS_MD}px;"
+            f"  border: 1px solid {accent}33;"
             f"  border-left: 4px solid {accent};"
             f"}}"
             f"QFrame#alertaItem QLabel {{"
             f"  background: transparent; border: none;"
-            f"  color: {Colors.NEUTRAL.SLATE_900};"
-            f"  font-size: {Typography.SIZE_MD};"
+            f"  font-size: {Typography.SIZE_SM};"
             f"}}"
         )
-        lyt = QHBoxLayout(self)
-        lyt.setContentsMargins(10, 8, 10, 8)
-        lbl = QLabel(f"{icon}  {texto}", self)
-        lbl.setWordWrap(True)
-        lyt.addWidget(lbl)
 
+        lyt = QHBoxLayout(self)
+        lyt.setContentsMargins(10, 7, 10, 7)
+        lyt.setSpacing(8)
+
+        lbl_icon = QLabel(icon, self)
+        lbl_icon.setFixedWidth(14)
+        lbl_icon.setStyleSheet(f"color: {accent}; font-size: 11px;")
+        lyt.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+
+        col = QVBoxLayout()
+        col.setSpacing(1)
+
+        lbl_txt = QLabel(texto, self)
+        lbl_txt.setWordWrap(True)
+        lbl_txt.setStyleSheet(f"color: {Colors.NEUTRAL.SLATE_900};")
+        col.addWidget(lbl_txt)
+
+        if timestamp:
+            lbl_ts = QLabel(timestamp, self)
+            lbl_ts.setStyleSheet(
+                f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
+            )
+            col.addWidget(lbl_ts)
+
+        lyt.addLayout(col, 1)
+
+
+# ── PedidoWAItem ─────────────────────────────────────────────────────────────
 
 class PedidoWAItem(QFrame):
-    """Tarjeta de pedido WhatsApp pendiente.
+    """Compact WhatsApp order card with status badge."""
 
-    Estilos via tokens (antes con var(--xxx) inutilizables en Qt QSS).
-    """
     ver_pedido = pyqtSignal(int)
 
     def __init__(self, pedido: dict, parent=None):
@@ -292,157 +363,351 @@ class PedidoWAItem(QFrame):
         self.setObjectName("pedidoWAItem")
         self.setStyleSheet(
             f"QFrame#pedidoWAItem {{"
-            f"  background: {Colors.NEUTRAL.WHITE};"
+            f"  background: {Colors.NEUTRAL.SLATE_800};"
             f"  border-radius: {Borders.RADIUS_LG}px;"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"  border: 1px solid rgba(255,255,255,12);"
             f"}}"
             f"QFrame#pedidoWAItem:hover {{"
-            f"  border-color: {Colors.PRIMARY.BASE};"
+            f"  border-color: {Colors.PRIMARY.BASE}55;"
+            f"  background: {Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'};"
             f"}}"
             f"QFrame#pedidoWAItem QLabel {{"
             f"  background: transparent; border: none;"
-            f"  color: {Colors.NEUTRAL.SLATE_900};"
             f"}}"
         )
-        lyt = QVBoxLayout(self)
-        lyt.setContentsMargins(12, 10, 12, 10)
-        lyt.setSpacing(4)
 
-        top = QHBoxLayout()
-        lbl_id = QLabel(f"📲 Pedido #{pid}", self)
-        lbl_id.setStyleSheet(
-            f"font-weight: {Typography.WEIGHT_BOLD};"
-            f" font-size: {Typography.SIZE_LG};"
-            f" background: transparent; border: none;"
+        lyt = QHBoxLayout(self)
+        lyt.setContentsMargins(12, 9, 12, 9)
+        lyt.setSpacing(10)
+
+        # Left: icon
+        lbl_icon = QLabel("📲", self)
+        lbl_icon.setFixedSize(32, 32)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet(
+            f"font-size: 16px;"
+            f" background: {Colors.PRIMARY.BASE}1A;"
+            f" border-radius: 16px; border: none;"
         )
-        top.addWidget(lbl_id)
-        top.addStretch()
+        lyt.addWidget(lbl_icon, 0, alignment=Qt.AlignVCenter)
+
+        # Center: info
+        info = QVBoxLayout()
+        info.setSpacing(1)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(6)
+
+        lbl_id = QLabel(f"Pedido #{pid}", self)
+        lbl_id.setStyleSheet(
+            f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" font-size: {Typography.SIZE_MD};"
+        )
+        top_row.addWidget(lbl_id)
 
         estado = pedido.get("estado", "nuevo")
         badge_color = _PEDIDO_BADGE_COLOR.get(estado, Colors.NEUTRAL.SLATE_500)
         badge = QLabel(estado.upper(), self)
         badge.setStyleSheet(
             f"background: {badge_color}; color: white;"
-            f" padding: 3px 8px;"
+            f" padding: 2px 7px;"
             f" border-radius: {Borders.RADIUS_MD}px;"
             f" font-size: {Typography.SIZE_XS};"
-            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f" border: none;"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD}; border: none;"
         )
-        top.addWidget(badge)
-        lyt.addLayout(top)
+        top_row.addWidget(badge)
+        top_row.addStretch()
 
-        lbl_cliente = QLabel(pedido.get("cliente_nombre", "—"), self)
-        lbl_cliente.setStyleSheet(
-            f"font-size: {Typography.SIZE_MD};"
-            f" color: {Colors.NEUTRAL.SLATE_700};"
-            f" background: transparent; border: none;"
+        total_txt = f"${float(pedido.get('total', 0)):,.0f}"
+        lbl_total = QLabel(total_txt, self)
+        lbl_total.setStyleSheet(
+            f"font-weight: {Typography.WEIGHT_BOLD};"
+            f" font-size: {Typography.SIZE_MD};"
+            f" color: {Colors.SUCCESS.BASE};"
         )
-        lyt.addWidget(lbl_cliente)
+        top_row.addWidget(lbl_total)
 
-        lbl_resumen = QLabel(
-            f"${float(pedido.get('total', 0)):.2f}  ·  "
-            f"{pedido.get('tipo_entrega', 'mostrador')}",
+        info.addLayout(top_row)
+
+        sub = QLabel(
+            f"{pedido.get('cliente_nombre','—')}  ·  {pedido.get('tipo_entrega','mostrador')}",
             self,
         )
-        lbl_resumen.setStyleSheet(
+        sub.setStyleSheet(
             f"font-size: {Typography.SIZE_SM};"
             f" color: {Colors.NEUTRAL.SLATE_500};"
-            f" background: transparent; border: none;"
         )
-        lyt.addWidget(lbl_resumen)
+        info.addWidget(sub)
 
-        btn = QPushButton("Ver detalle →", self)
+        lyt.addLayout(info, 1)
+
+        # Right: action
+        btn = QPushButton("Ver →", self)
         btn.setObjectName("primaryBtn")
         btn.setCursor(Qt.PointingHandCursor)
+        btn.setFixedWidth(56)
         btn.setToolTip(f"Ver detalles del pedido #{pid}")
         btn.clicked.connect(lambda: self.ver_pedido.emit(pid))
-        lyt.addWidget(btn)
+        lyt.addWidget(btn, 0, alignment=Qt.AlignVCenter)
 
+
+# ── MiniGraficaVentas ─────────────────────────────────────────────────────────
 
 class MiniGraficaVentas(QWidget):
     """
-    Gráfica de barras mini — ventas últimos 7 días.
-    Pintada con QPainter; sin dependencias externas.
-    Barra de hoy en azul primario; resto en azul semitransparente.
+    7-day sales bar chart via QPainter.
+    Today's bar: solid primary blue with gradient.
+    Past bars: translucent blue.
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._datos: list = []          # [(etiqueta, valor_float), ...]
-        self.setMinimumHeight(130)
-        self.setMaximumHeight(150)
+        self._datos: list = []
+        self.setMinimumHeight(140)
+        self.setMaximumHeight(160)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setToolTip("Ventas de los últimos 7 días")
 
     def set_datos(self, datos: list) -> None:
-        """datos: [(etiqueta_str, valor_float), ...]"""
         self._datos = datos
         self.update()
 
     def paintEvent(self, event):
-        from PyQt5.QtGui import (QPainter, QBrush, QPen,
-                                 QLinearGradient, QFont as _QF)
+        from PyQt5.QtGui import QPainter, QBrush, QPen, QLinearGradient, QFont as _QF
         if not self._datos:
             return
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
 
         W, H = self.width(), self.height()
-        PAD_L, PAD_R, PAD_T, PAD_B = 6, 6, 20, 22
+        PAD_L, PAD_R, PAD_T, PAD_B = 8, 8, 24, 26
         chart_h = H - PAD_T - PAD_B
 
         values = [d[1] for d in self._datos]
         max_v = max(values) if max(values) > 0 else 1
         n = len(self._datos)
-        bar_w = (W - PAD_L - PAD_R) / (n * 1.5)
-        gap = bar_w * 0.5
+        total_w = W - PAD_L - PAD_R
+        bar_w = total_w / (n * 1.6)
+        gap = (total_w - bar_w * n) / (n + 1)
 
-        BLUE      = QColor(37, 99, 235)
-        BLUE_SOFT = QColor(59, 130, 246, 80)
-        TEXT_DIM  = QColor(148, 163, 184)
-        TEXT_LT   = QColor(226, 232, 240)
+        BLUE_SOLID = QColor(37, 99, 235)
+        BLUE_SOFT  = QColor(59, 130, 246, 70)
+        TEXT_TODAY = QColor(226, 232, 240)
+        TEXT_DIM   = QColor(100, 116, 139)
 
         for i, (label, val) in enumerate(self._datos):
             is_today = (i == n - 1)
-            bar_h = max(int((val / max_v) * chart_h), 3)
-            x = int(PAD_L + i * (bar_w + gap))
+            bar_h = max(int((val / max_v) * chart_h), 4)
+            x = int(PAD_L + gap + i * (bar_w + gap))
             y = H - PAD_B - bar_h
 
-            # Gradiente por barra
             grad = QLinearGradient(x, y, x, H - PAD_B)
-            top_color = QColor(BLUE) if is_today else QColor(BLUE_SOFT)
-            bot_color = QColor(top_color); bot_color.setAlpha(20)
-            grad.setColorAt(0, top_color)
-            grad.setColorAt(1, bot_color)
+            if is_today:
+                grad.setColorAt(0, QColor(37, 99, 235))
+                grad.setColorAt(1, QColor(37, 99, 235, 30))
+            else:
+                grad.setColorAt(0, QColor(59, 130, 246, 75))
+                grad.setColorAt(1, QColor(59, 130, 246, 10))
 
             p.setPen(Qt.NoPen)
             p.setBrush(QBrush(grad))
-            p.drawRoundedRect(x, y, int(bar_w), bar_h, 3, 3)
+            p.drawRoundedRect(x, y, int(bar_w), bar_h, 4, 4)
 
-            # Valor encima de la barra
             if val > 0:
                 val_str = f"${val/1000:.1f}k" if val >= 1000 else f"${val:.0f}"
-                p.setPen(QPen(TEXT_LT if is_today else TEXT_DIM))
+                p.setPen(QPen(TEXT_TODAY if is_today else TEXT_DIM))
                 p.setFont(_QF("Segoe UI", 7, 700 if is_today else 400))
-                p.drawText(x, y - 14, int(bar_w), 14, Qt.AlignCenter, val_str)
+                p.drawText(x, y - 16, int(bar_w), 14, Qt.AlignCenter, val_str)
 
-            # Etiqueta del día
-            p.setPen(QPen(BLUE if is_today else TEXT_DIM))
+            p.setPen(QPen(BLUE_SOLID if is_today else TEXT_DIM))
             p.setFont(_QF("Segoe UI", 8, 700 if is_today else 400))
-            p.drawText(x, H - PAD_B + 4, int(bar_w), 16,
-                       Qt.AlignCenter, label)
+            p.drawText(x, H - PAD_B + 6, int(bar_w), 16, Qt.AlignCenter, label)
 
         p.end()
 
 
-class Dashboard(QWidget):
-    """Dashboard principal con KPIs, alertas y cola de pedidos."""
+# ── ActivityFeedItem ─────────────────────────────────────────────────────────
 
-    abrir_modulo = pyqtSignal(str)   # key del módulo a abrir
+class ActivityFeedItem(QFrame):
+    """Single row in the live activity feed."""
+
+    def __init__(self, tipo: str, descripcion: str, monto: str = "",
+                 hora: str = "", parent=None):
+        super().__init__(parent)
+        icon, color = _ACTIVITY_ICON.get(tipo, ("●", Colors.NEUTRAL.SLATE_500))
+
+        self.setObjectName("actFeedItem")
+        self.setStyleSheet(
+            f"QFrame#actFeedItem {{"
+            f"  background: transparent; border: none;"
+            f"  border-bottom: 1px solid rgba(255,255,255,6);"
+            f"}}"
+            f"QFrame#actFeedItem QLabel {{ background: transparent; border: none; }}"
+        )
+
+        lyt = QHBoxLayout(self)
+        lyt.setContentsMargins(0, 7, 0, 7)
+        lyt.setSpacing(10)
+
+        # Dot indicator
+        dot = QLabel(icon, self)
+        dot.setFixedWidth(20)
+        dot.setAlignment(Qt.AlignCenter)
+        dot.setStyleSheet(f"color: {color}; font-size: 10px;")
+        lyt.addWidget(dot, 0, alignment=Qt.AlignVCenter)
+
+        # Description
+        lbl_desc = QLabel(descripcion, self)
+        lbl_desc.setStyleSheet(
+            f"font-size: {Typography.SIZE_SM}; color: {Colors.NEUTRAL.SLATE_100};"
+        )
+        lyt.addWidget(lbl_desc, 1)
+
+        # Amount (right-aligned)
+        if monto:
+            lbl_monto = QLabel(monto, self)
+            lbl_monto.setStyleSheet(
+                f"font-size: {Typography.SIZE_SM};"
+                f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+                f" color: {Colors.SUCCESS.BASE};"
+            )
+            lyt.addWidget(lbl_monto, 0, alignment=Qt.AlignVCenter)
+
+        # Timestamp
+        if hora:
+            lbl_hora = QLabel(hora, self)
+            lbl_hora.setFixedWidth(44)
+            lbl_hora.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl_hora.setStyleSheet(
+                f"font-size: {Typography.SIZE_XS};"
+                f" color: {Colors.NEUTRAL.SLATE_500};"
+            )
+            lyt.addWidget(lbl_hora)
+
+
+# ── QuickActionButton ─────────────────────────────────────────────────────────
+
+class QuickActionButton(QFrame):
+    """Large touch-friendly action button with icon + label."""
+
+    clicked = pyqtSignal(str)
+
+    def __init__(self, icono: str, label: str, key: str,
+                 accent: str = "", parent=None):
+        super().__init__(parent)
+        self._key = key
+        _ac = accent or Colors.PRIMARY.BASE
+
+        self.setObjectName("quickActionBtn")
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumHeight(70)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setStyleSheet(
+            f"QFrame#quickActionBtn {{"
+            f"  background: {Colors.NEUTRAL.SLATE_800};"
+            f"  border-radius: {Borders.RADIUS_LG}px;"
+            f"  border: 1px solid rgba(255,255,255,12);"
+            f"}}"
+            f"QFrame#quickActionBtn:hover {{"
+            f"  background: {_ac}1A;"
+            f"  border-color: {_ac}55;"
+            f"}}"
+            f"QFrame#quickActionBtn QLabel {{ background: transparent; border: none; }}"
+        )
+
+        lyt = QVBoxLayout(self)
+        lyt.setContentsMargins(10, 10, 10, 10)
+        lyt.setSpacing(4)
+        lyt.setAlignment(Qt.AlignCenter)
+
+        lbl_icon = QLabel(icono, self)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet(f"font-size: 22px;")
+        lyt.addWidget(lbl_icon)
+
+        lbl_txt = QLabel(label, self)
+        lbl_txt.setAlignment(Qt.AlignCenter)
+        lbl_txt.setWordWrap(True)
+        lbl_txt.setStyleSheet(
+            f"font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" color: {Colors.NEUTRAL.SLATE_300 if hasattr(Colors.NEUTRAL,'SLATE_300') else Colors.NEUTRAL.SLATE_100};"
+            f" letter-spacing: 0.03em;"
+        )
+        lyt.addWidget(lbl_txt)
+
+    def mousePressEvent(self, event):
+        self.clicked.emit(self._key)
+        super().mousePressEvent(event)
+
+
+# ── DriverCard ────────────────────────────────────────────────────────────────
+
+class DriverCard(QFrame):
+    """Compact driver status card."""
+
+    def __init__(self, nombre: str, en_ruta: bool, pedidos: int, parent=None):
+        super().__init__(parent)
+        self.setObjectName("driverCard")
+        self.setStyleSheet(
+            f"QFrame#driverCard {{"
+            f"  background: transparent;"
+            f"  border: none;"
+            f"  border-bottom: 1px solid rgba(255,255,255,6);"
+            f"}}"
+            f"QFrame#driverCard QLabel {{ background: transparent; border: none; }}"
+        )
+
+        lyt = QHBoxLayout(self)
+        lyt.setContentsMargins(0, 7, 0, 7)
+        lyt.setSpacing(8)
+
+        # Status dot
+        dot_color = Colors.SUCCESS.BASE if en_ruta else Colors.NEUTRAL.SLATE_500
+        dot = QLabel("●", self)
+        dot.setStyleSheet(f"color: {dot_color}; font-size: 9px;")
+        lyt.addWidget(dot, 0, alignment=Qt.AlignVCenter)
+
+        # Name
+        lbl_nom = QLabel(nombre, self)
+        lbl_nom.setStyleSheet(
+            f"font-size: {Typography.SIZE_SM};"
+            f" color: {Colors.NEUTRAL.SLATE_100};"
+        )
+        lyt.addWidget(lbl_nom, 1)
+
+        # Status text
+        status_txt = "En ruta" if en_ruta else "Disponible"
+        lbl_status = QLabel(status_txt, self)
+        lbl_status.setStyleSheet(
+            f"font-size: {Typography.SIZE_XS};"
+            f" color: {dot_color};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+        )
+        lyt.addWidget(lbl_status, 0, alignment=Qt.AlignVCenter)
+
+        # Pedidos count
+        if pedidos > 0:
+            lbl_p = QLabel(f"{pedidos}", self)
+            lbl_p.setFixedSize(20, 20)
+            lbl_p.setAlignment(Qt.AlignCenter)
+            lbl_p.setStyleSheet(
+                f"background: {Colors.PRIMARY.BASE}; color: white;"
+                f" border-radius: 10px; font-size: {Typography.SIZE_XS};"
+                f" font-weight: {Typography.WEIGHT_BOLD}; border: none;"
+            )
+            lyt.addWidget(lbl_p, 0, alignment=Qt.AlignVCenter)
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+class Dashboard(QWidget):
+    """Enterprise operational dashboard — SPJ POS v13.5."""
+
+    abrir_modulo = pyqtSignal(str)
 
     def __init__(self, container_or_conn=None, parent=None):
-        # Accept either AppContainer or raw conn
-        if hasattr(container_or_conn, 'db'):
+        if hasattr(container_or_conn, "db"):
             conn = container_or_conn.db
             self._container = container_or_conn
         else:
@@ -451,13 +716,14 @@ class Dashboard(QWidget):
         super().__init__(parent)
         self.conn = conn or get_connection()
         self._setup_ui()
-        # Fallback timer: cada 60s (solo si no llega evento del bus)
+
+        # 60s fallback timer
         self._timer = QTimer(self)
         self._timer.setInterval(60_000)
         self._timer.timeout.connect(self.actualizar)
         self._timer.start()
 
-        # EventBus: actualización INMEDIATA tras cada venta o alerta
+        # EventBus subscriptions
         try:
             from core.events.event_bus import get_bus, VENTA_COMPLETADA, STOCK_BAJO_MINIMO
             from PyQt5.QtCore import QTimer as _QT
@@ -465,33 +731,110 @@ class Dashboard(QWidget):
             bus.subscribe(
                 VENTA_COMPLETADA,
                 lambda _p: _QT.singleShot(0, self.actualizar),
-                label="dashboard.venta"
+                label="dashboard.venta",
             )
             bus.subscribe(
                 STOCK_BAJO_MINIMO,
                 lambda _p: _QT.singleShot(0, self.actualizar),
-                label="dashboard.stock_bajo"
+                label="dashboard.stock_bajo",
             )
         except Exception as _e:
             logger.debug("EventBus dashboard: %s", _e)
 
         self.actualizar()
 
+    # ── UI Construction ───────────────────────────────────────────────────────
+
     def _setup_ui(self):
         self.setObjectName("Dashboard")
-        # Sin background hardcodeado — el QSS global controla colores por tema.
 
         root = QVBoxLayout(self)
-        root.setSpacing(12)
-        root.setContentsMargins(16, 12, 16, 12)
+        root.setSpacing(0)
+        root.setContentsMargins(0, 0, 0, 0)
 
-        # ── Header (PageHeader reutilizable) ─────────────────────────
-        self._page_header = PageHeader(
-            self,
-            title="📊 Dashboard SPJ POS",
-            subtitle="Resumen operativo en tiempo real",
-            with_separator=True,
+        # Outer scroll area — allows full-page scroll on smaller screens
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { width: 6px; background: transparent; }"
+            "QScrollBar::handle:vertical { background: rgba(255,255,255,18);"
+            " border-radius: 3px; min-height: 24px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
         )
+        root.addWidget(scroll)
+
+        inner = QWidget()
+        inner.setObjectName("DashboardInner")
+        scroll.setWidget(inner)
+
+        layout = QVBoxLayout(inner)
+        layout.setSpacing(Spacing.LG)
+        layout.setContentsMargins(Spacing.XL, Spacing.LG, Spacing.XL, Spacing.XL)
+
+        # 1. Header
+        layout.addWidget(self._build_header())
+
+        # 2. Hero KPIs (ventas + margen)
+        layout.addWidget(self._build_hero_kpis())
+
+        # 3. Secondary KPI grid (6 cards, 3 cols × 2 rows)
+        layout.addWidget(self._build_secondary_kpis())
+
+        # 4. Body: left (chart + WA queue) + right (actions + alerts + delivery)
+        body = QHBoxLayout()
+        body.setSpacing(Spacing.LG)
+
+        body.addWidget(self._build_left_column(), 3)
+        body.addWidget(self._build_right_column(), 2)
+
+        layout.addLayout(body)
+        layout.addStretch()
+
+    # ── Section builders ──────────────────────────────────────────────────────
+
+    def _build_header(self) -> QWidget:
+        container = QWidget(self)
+        lyt = QHBoxLayout(container)
+        lyt.setContentsMargins(0, 0, 0, 0)
+        lyt.setSpacing(Spacing.MD)
+
+        # Title block
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
+
+        lbl_title = QLabel("Dashboard Operativo", self)
+        lbl_title.setStyleSheet(
+            f"font-size: 20px;"
+            f" font-weight: {Typography.WEIGHT_BOLD};"
+            f" letter-spacing: -0.01em;"
+            f" background: transparent; border: none;"
+        )
+        title_col.addWidget(lbl_title)
+
+        self._lbl_subtitle = QLabel("Resumen en tiempo real", self)
+        self._lbl_subtitle.setStyleSheet(
+            f"font-size: {Typography.SIZE_MD};"
+            f" color: {Colors.NEUTRAL.SLATE_500};"
+            f" background: transparent; border: none;"
+        )
+        title_col.addWidget(self._lbl_subtitle)
+
+        lyt.addLayout(title_col, 1)
+
+        # System status
+        self._status_dot = QLabel("● En línea", self)
+        self._status_dot.setStyleSheet(
+            f"color: {Colors.SUCCESS.BASE};"
+            f" font-size: {Typography.SIZE_SM};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f" background: transparent; border: none;"
+        )
+        lyt.addWidget(self._status_dot, 0, alignment=Qt.AlignVCenter)
+
+        # Clock
         self.lbl_hora = QLabel("", self)
         self.lbl_hora.setObjectName("dashboardTime")
         self.lbl_hora.setStyleSheet(
@@ -499,152 +842,382 @@ class Dashboard(QWidget):
             f" font-size: {Typography.SIZE_SM};"
             f" background: transparent; border: none;"
         )
-        self._page_header.add_action(self.lbl_hora)
-        root.addWidget(self._page_header)
+        lyt.addWidget(self.lbl_hora, 0, alignment=Qt.AlignVCenter)
 
-        # ── Cuerpo ───────────────────────────────────────────────────
-        body = QHBoxLayout()
-        body.setContentsMargins(0, 0, 0, 0)
-        body.setSpacing(12)
+        # Keep PageHeader reference for backward compat with set_subtitle
+        self._page_header = _PageHeaderCompat(self._lbl_subtitle)
 
-        # Columna izquierda (KPIs + pedidos WA)
-        left = QVBoxLayout()
-        left.setSpacing(12)
+        return container
 
-        # KPIs en grid 4 columnas (4x2 = 8 KPIs)
-        # Cada KPI tiene una metric_key conocida por KPIColorEngine para
-        # resolver el color del semáforo según umbrales del negocio.
-        kpi_grid = QGridLayout()
-        kpi_grid.setSpacing(10)
+    def _build_hero_kpis(self) -> QWidget:
+        container = QWidget(self)
+        lyt = QHBoxLayout(container)
+        lyt.setContentsMargins(0, 0, 0, 0)
+        lyt.setSpacing(Spacing.LG)
+
+        hero_ventas = KPICard(
+            "Ventas hoy", "$0",
+            icono="💰", key="ventas",
+            metric_key="ventas", variant="primary",
+            hero=True,
+        )
+        hero_ventas.clicked.connect(self.abrir_modulo)
+
+        hero_margen = KPICard(
+            "Margen bruto", "0%",
+            icono="📈", key="reportes",
+            metric_key="margen_bruto", variant="success",
+            hero=True,
+        )
+        hero_margen.clicked.connect(self.abrir_modulo)
+
+        lyt.addWidget(hero_ventas)
+        lyt.addWidget(hero_margen)
+
+        # Store in _kpis for update methods
         self._kpis = {
-            "ventas_hoy":    KPICard("Ventas hoy",     "$0",  icono="💰", key="ventas",            metric_key="ventas",           variant="primary"),
-            "tickets_hoy":   KPICard("Tickets",        "0",   icono="🧾", key="ventas",            metric_key="ventas",           variant="success"),
-            "ticket_prom":   KPICard("Ticket promedio","$0",  icono="📊", key="ventas",            metric_key="ticket_promedio",  variant="info"),
-            "clientes_hoy":  KPICard("Clientes hoy",   "0",   icono="👥", key="clientes",          metric_key="clientes",         variant="primary"),
-            "margen_hoy":    KPICard("Margen bruto",   "0%",  icono="📈", key="reportes",          metric_key="margen_bruto",     variant="success"),
-            "vs_ayer":       KPICard("vs Ayer",        "—",   icono="⏱️", key="reportes",          metric_key="ventas",           variant="warning"),
-            "pedidos_wa":    KPICard("Pedidos WA",     "0",   icono="📲", key="pedidos_whatsapp",  metric_key="pedidos_whatsapp", variant="info"),
-            "productos_bajo":KPICard("Stock bajo",     "0",   icono="⚠️",  key="inventario",        metric_key="inventario",       variant="warning"),
+            "ventas_hoy":  hero_ventas,
+            "margen_hoy":  hero_margen,
         }
-        for i, (_key, card) in enumerate(self._kpis.items()):
+
+        return container
+
+    def _build_secondary_kpis(self) -> QWidget:
+        container = QWidget(self)
+        grid = QGridLayout(container)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(Spacing.MD)
+
+        secondary = [
+            ("tickets_hoy",    "Tickets",         "0",  "🧾", "ventas",           "ventas",           "success"),
+            ("ticket_prom",    "Ticket promedio",  "$0", "📊", "ventas",           "ticket_promedio",  "info"),
+            ("clientes_hoy",   "Clientes hoy",     "0",  "👥", "clientes",         "clientes",         "primary"),
+            ("vs_ayer",        "vs Ayer",           "—",  "⏱️", "reportes",         "ventas",           "warning"),
+            ("pedidos_wa",     "Pedidos WA",        "0",  "📲", "pedidos_whatsapp", "pedidos_whatsapp", "info"),
+            ("productos_bajo", "Stock bajo",        "0",  "⚠️", "inventario",       "inventario",       "warning"),
+        ]
+
+        for i, (key, titulo, valor, icono, nav_key, metric_k, var) in enumerate(secondary):
+            card = KPICard(
+                titulo, valor,
+                icono=icono, key=nav_key,
+                metric_key=metric_k, variant=var,
+            )
             card.clicked.connect(self.abrir_modulo)
-            kpi_grid.addWidget(card, i // 4, i % 4)  # 4 columnas
-        # Distribuir las 4 columnas equitativamente
-        for col in range(4):
-            kpi_grid.setColumnStretch(col, 1)
-        left.addLayout(kpi_grid)
+            self._kpis[key] = card
+            grid.addWidget(card, i // 3, i % 3)
 
-        # ── Gráfica ventas 7 días ─────────────────────────────────────────
-        lbl_grafica = QLabel("📈 Ventas últimos 7 días")
-        lbl_grafica.setObjectName("sectionLabel")
-        left.addWidget(lbl_grafica)
-        self._grafica = MiniGraficaVentas(self)
-        left.addWidget(self._grafica)
+        for col in range(3):
+            grid.setColumnStretch(col, 1)
 
-        # Cola pedidos WA
-        lbl_wa = QLabel("📲 Pedidos WhatsApp pendientes")
-        lbl_wa.setObjectName("sectionLabel")
-        left.addWidget(lbl_wa)
+        return container
 
-        self._scroll_wa = QScrollArea()
-        self._scroll_wa.setWidgetResizable(True)
-        self._scroll_wa.setMinimumHeight(180)  # Reducido de 220 a 180
+    def _build_left_column(self) -> QWidget:
+        container = QWidget(self)
+        lyt = QVBoxLayout(container)
+        lyt.setContentsMargins(0, 0, 0, 0)
+        lyt.setSpacing(Spacing.LG)
+
+        # Chart card
+        chart_card = QFrame(self)
+        chart_card.setObjectName("dashChartCard")
+        chart_card.setStyleSheet(
+            f"QFrame#dashChartCard {{"
+            f"  {_card_style()}"
+            f"}}"
+            f"QFrame#dashChartCard QLabel {{ background: transparent; border: none; }}"
+        )
+        _add_shadow(chart_card)
+
+        chart_lyt = QVBoxLayout(chart_card)
+        chart_lyt.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        chart_lyt.setSpacing(Spacing.MD)
+
+        chart_header = QHBoxLayout()
+        chart_header.addWidget(_section_label("Ventas — últimos 7 días"))
+        chart_header.addStretch()
+        chart_lyt.addLayout(chart_header)
+
+        self._grafica = MiniGraficaVentas(chart_card)
+        chart_lyt.addWidget(self._grafica)
+
+        lyt.addWidget(chart_card)
+
+        # Activity feed card
+        lyt.addWidget(self._build_activity_card())
+
+        # WA Queue card
+        lyt.addWidget(self._build_wa_queue_card())
+
+        return container
+
+    def _build_activity_card(self) -> QFrame:
+        card = QFrame(self)
+        card.setObjectName("dashActCard")
+        card.setStyleSheet(
+            f"QFrame#dashActCard {{"
+            f"  {_card_style()}"
+            f"}}"
+            f"QFrame#dashActCard QLabel {{ background: transparent; border: none; }}"
+        )
+        _add_shadow(card)
+
+        lyt = QVBoxLayout(card)
+        lyt.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lyt.setSpacing(Spacing.SM)
+
+        hdr = QHBoxLayout()
+        hdr.addWidget(_section_label("Actividad reciente"))
+        hdr.addStretch()
+        lyt.addLayout(hdr)
+
+        lyt.addWidget(_divider(card))
+
+        self._lyt_actividad = QVBoxLayout()
+        self._lyt_actividad.setSpacing(0)
+        lyt.addLayout(self._lyt_actividad)
+
+        self._empty_actividad = QLabel("Sin actividad reciente hoy.", card)
+        self._empty_actividad.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
+            f" padding: 12px 0;"
+        )
+        self._empty_actividad.hide()
+        lyt.addWidget(self._empty_actividad)
+
+        return card
+
+    def _build_wa_queue_card(self) -> QFrame:
+        card = QFrame(self)
+        card.setObjectName("dashWACard")
+        card.setStyleSheet(
+            f"QFrame#dashWACard {{"
+            f"  {_card_style()}"
+            f"}}"
+            f"QFrame#dashWACard QLabel {{ background: transparent; border: none; }}"
+        )
+        _add_shadow(card)
+
+        lyt = QVBoxLayout(card)
+        lyt.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lyt.setSpacing(Spacing.SM)
+
+        hdr = QHBoxLayout()
+        hdr.addWidget(_section_label("Cola WhatsApp"))
+        hdr.addStretch()
+
+        btn_wa = QPushButton("Ver todos →", card)
+        btn_wa.setObjectName("secondaryBtn")
+        btn_wa.setCursor(Qt.PointingHandCursor)
+        btn_wa.clicked.connect(lambda: self.abrir_modulo.emit("pedidos_whatsapp"))
+        hdr.addWidget(btn_wa)
+        lyt.addLayout(hdr)
+
+        lyt.addWidget(_divider(card))
+
+        scroll = QScrollArea(card)
+        scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(160)
+        scroll.setMaximumHeight(240)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { width: 4px; background: transparent; }"
+            "QScrollBar::handle:vertical { background: rgba(255,255,255,20);"
+            " border-radius: 2px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+        )
+
         self._container_wa = QWidget()
         self._lyt_wa = QVBoxLayout(self._container_wa)
-        self._lyt_wa.setSpacing(6)  # Reducido de 8 a 6
-        self._lyt_wa.setContentsMargins(0, 0, 0, 0)
+        self._lyt_wa.setSpacing(6)
+        self._lyt_wa.setContentsMargins(0, 4, 0, 4)
         self._lyt_wa.addStretch()
-        self._scroll_wa.setWidget(self._container_wa)
-        left.addWidget(self._scroll_wa)
-        self._loading_wa = LoadingIndicator("Cargando pedidos WA…", self)
+        scroll.setWidget(self._container_wa)
+        lyt.addWidget(scroll)
+
+        self._loading_wa = LoadingIndicator("Cargando pedidos WA…", card)
         self._loading_wa.hide()
-        left.addWidget(self._loading_wa)
+        lyt.addWidget(self._loading_wa)
+
         self._empty_wa = EmptyStateWidget(
             "Sin pedidos pendientes",
             "No hay pedidos de WhatsApp en cola.",
             "✅",
-            self,
+            card,
         )
         self._empty_wa.hide()
-        left.addWidget(self._empty_wa)
+        lyt.addWidget(self._empty_wa)
 
-        # Accesos rápidos
-        lbl_acc = QLabel("⚡ Acceso rápido")
-        lbl_acc.setObjectName("sectionLabel")
-        left.addWidget(lbl_acc)
-        acc_row = QHBoxLayout()
-        acc_row.setSpacing(6)  # Reducido de 8 a 6
-        for texto, key, color in [
-            ("🛒 Nueva Venta",    "ventas",           "#2563EB"),  # Azul primario
-            ("📦 Inventario",     "inventario",        "#2563EB"),
-            ("📲 Pedidos WA",     "pedidos_whatsapp",  "#2563EB"),
-            ("📊 Reportes",       "reportes",          "#2563EB"),
-        ]:
-            btn = QPushButton(texto)
-            btn.setObjectName("primaryBtn")  # Usar estilo global
-            btn.setCursor(Qt.PointingHandCursor)
-            btn.setToolTip(f"Ir al módulo de {texto.lower()}")  # Tooltip agregado
-            btn.clicked.connect(lambda _, k=key: self.abrir_modulo.emit(k))
-            acc_row.addWidget(btn)
-        left.addLayout(acc_row)
-        left.addStretch()
+        # Keep scroll reference for legacy compat
+        self._scroll_wa = scroll
+        return card
 
-        # Columna derecha (alertas + repartidores)
-        right = QVBoxLayout()
-        right.setSpacing(12)
-        right.setContentsMargins(0, 0, 0, 0)
+    def _build_right_column(self) -> QWidget:
+        container = QWidget(self)
+        lyt = QVBoxLayout(container)
+        lyt.setContentsMargins(0, 0, 0, 0)
+        lyt.setSpacing(Spacing.LG)
 
-        lbl_alertas = QLabel("🔔 Alertas")
-        lbl_alertas.setObjectName("sectionLabelBold")
-        right.addWidget(lbl_alertas)
+        # Quick actions
+        lyt.addWidget(self._build_quick_actions_card())
 
-        self._scroll_alertas = QScrollArea()
-        self._scroll_alertas.setWidgetResizable(True)
-        self._scroll_alertas.setFixedWidth(300)
+        # Alerts
+        lyt.addWidget(self._build_alerts_card())
+
+        # Delivery
+        lyt.addWidget(self._build_delivery_card())
+
+        return container
+
+    def _build_quick_actions_card(self) -> QFrame:
+        card = QFrame(self)
+        card.setObjectName("dashQACard")
+        card.setStyleSheet(
+            f"QFrame#dashQACard {{"
+            f"  {_card_style()}"
+            f"}}"
+            f"QFrame#dashQACard QLabel {{ background: transparent; border: none; }}"
+        )
+        _add_shadow(card)
+
+        lyt = QVBoxLayout(card)
+        lyt.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lyt.setSpacing(Spacing.MD)
+
+        lyt.addWidget(_section_label("Acciones rápidas"))
+        lyt.addWidget(_divider(card))
+
+        actions = [
+            ("🛒", "Nueva\nVenta",   "ventas",           Colors.PRIMARY.BASE),
+            ("📦", "Inventario",     "inventario",        Colors.INFO.BASE),
+            ("💳", "Abrir\nCaja",    "caja",              Colors.SUCCESS.BASE),
+            ("📲", "WhatsApp",       "pedidos_whatsapp",  Colors.SUCCESS.BASE),
+            ("🚚", "Delivery",       "delivery",          Colors.WARNING.BASE),
+            ("📊", "Reportes",       "reportes",          Colors.PRIMARY.BASE),
+        ]
+
+        grid = QGridLayout()
+        grid.setSpacing(Spacing.SM)
+
+        for i, (icon, label, key, color) in enumerate(actions):
+            btn = QuickActionButton(icon, label, key, accent=color, parent=card)
+            btn.clicked.connect(self.abrir_modulo)
+            grid.addWidget(btn, i // 2, i % 2)
+
+        lyt.addLayout(grid)
+        return card
+
+    def _build_alerts_card(self) -> QFrame:
+        card = QFrame(self)
+        card.setObjectName("dashAlertCard")
+        card.setStyleSheet(
+            f"QFrame#dashAlertCard {{"
+            f"  {_card_style()}"
+            f"}}"
+            f"QFrame#dashAlertCard QLabel {{ background: transparent; border: none; }}"
+        )
+        _add_shadow(card)
+
+        lyt = QVBoxLayout(card)
+        lyt.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lyt.setSpacing(Spacing.SM)
+
+        hdr = QHBoxLayout()
+        hdr.addWidget(_section_label("Alertas"))
+        self._lbl_alerts_count = QLabel("", card)
+        self._lbl_alerts_count.setStyleSheet(
+            f"color: {Colors.DANGER.BASE};"
+            f" font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_BOLD};"
+        )
+        hdr.addWidget(self._lbl_alerts_count)
+        hdr.addStretch()
+        lyt.addLayout(hdr)
+
+        lyt.addWidget(_divider(card))
+
+        scroll = QScrollArea(card)
+        scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(120)
+        scroll.setMaximumHeight(200)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { width: 4px; background: transparent; }"
+            "QScrollBar::handle:vertical { background: rgba(255,255,255,20);"
+            " border-radius: 2px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+        )
+
         self._container_alertas = QWidget()
         self._lyt_alertas = QVBoxLayout(self._container_alertas)
-        self._lyt_alertas.setSpacing(6)
-        self._lyt_alertas.setContentsMargins(0, 0, 0, 0)
+        self._lyt_alertas.setSpacing(4)
+        self._lyt_alertas.setContentsMargins(0, 2, 0, 2)
         self._lyt_alertas.addStretch()
-        self._scroll_alertas.setWidget(self._container_alertas)
-        right.addWidget(self._scroll_alertas)
-        self._loading_alertas = LoadingIndicator("Cargando alertas…", self)
+        scroll.setWidget(self._container_alertas)
+        lyt.addWidget(scroll)
+
+        self._loading_alertas = LoadingIndicator("Cargando alertas…", card)
         self._loading_alertas.hide()
-        right.addWidget(self._loading_alertas)
+        lyt.addWidget(self._loading_alertas)
+
         self._empty_alertas = EmptyStateWidget(
             "Sin alertas",
-            "No hay alertas pendientes por revisar.",
-            "🔕",
-            self,
+            "Sistema operando normalmente.",
+            "✅",
+            card,
         )
         self._empty_alertas.hide()
-        right.addWidget(self._empty_alertas)
+        lyt.addWidget(self._empty_alertas)
 
-        lbl_reps = QLabel("🚚 Repartidores activos")
-        lbl_reps.setObjectName("sectionLabelBold")
-        right.addWidget(lbl_reps)
-        self._lbl_reps = QLabel("Sin repartidores activos")
+        self._scroll_alertas = scroll
+        return card
+
+    def _build_delivery_card(self) -> QFrame:
+        card = QFrame(self)
+        card.setObjectName("dashDelivCard")
+        card.setStyleSheet(
+            f"QFrame#dashDelivCard {{"
+            f"  {_card_style()}"
+            f"}}"
+            f"QFrame#dashDelivCard QLabel {{ background: transparent; border: none; }}"
+        )
+        _add_shadow(card)
+
+        lyt = QVBoxLayout(card)
+        lyt.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lyt.setSpacing(Spacing.SM)
+
+        lyt.addWidget(_section_label("Repartidores"))
+        lyt.addWidget(_divider(card))
+
+        self._lyt_drivers = QVBoxLayout()
+        self._lyt_drivers.setSpacing(0)
+        lyt.addLayout(self._lyt_drivers)
+
+        # Legacy label kept for backward compat (set by _actualizar_repartidores fallback)
+        self._lbl_reps = QLabel("", card)
         self._lbl_reps.setWordWrap(True)
         self._lbl_reps.setObjectName("repartidorStatus")
-        right.addWidget(self._lbl_reps)
-        right.addStretch()
+        self._lbl_reps.hide()
+        lyt.addWidget(self._lbl_reps)
 
-        body.addLayout(left, 3)
-        body.addLayout(right, 1)
-        root.addLayout(body, 1)
+        return card
 
-    # ── Actualización ──────────────────────────────────────────────
+    # ── Data refresh ──────────────────────────────────────────────────────────
+
     def actualizar(self):
-        self.lbl_hora.setText(datetime.now().strftime("%d/%m/%Y %H:%M"))
+        self.lbl_hora.setText(datetime.now().strftime("%d/%m/%Y  %H:%M"))
         self._actualizar_kpis()
         self._actualizar_grafica()
+        self._actualizar_actividad()
         self._actualizar_pedidos_wa()
         self._actualizar_alertas()
         self._actualizar_repartidores()
 
     def _actualizar_grafica(self) -> None:
-        """Carga ventas de los últimos 7 días y actualiza la MiniGraficaVentas."""
-        DIAS_ES = ["L","M","X","J","V","S","D"]
+        DIAS_ES = ["L", "M", "X", "J", "V", "S", "D"]
         datos = []
         try:
             rows = self.conn.execute("""
@@ -660,7 +1233,6 @@ class Dashboard(QWidget):
             """).fetchall()
             for row in rows:
                 try:
-                    from datetime import date as _date
                     import datetime as _dt
                     d = _dt.date.fromisoformat(row[0])
                     etiqueta = DIAS_ES[d.weekday()]
@@ -669,88 +1241,162 @@ class Dashboard(QWidget):
                 datos.append((etiqueta, float(row[1])))
         except Exception as e:
             logger.debug("_actualizar_grafica: %s", e)
-            # Fallback: 7 ceros para no crashear
             datos = [(d, 0.0) for d in DIAS_ES]
         self._grafica.set_datos(datos)
 
     def _actualizar_kpis(self):
-        # ── Ventas del día ────────────────────────────────────────────────────
         ventas_hoy = tickets_hoy = 0.0
+
+        # Ventas del día
         try:
-            es_gerente = getattr(self, 'rol_actual', 'cajero') in ('admin','administrador','gerente')
-            suc_filter = "" if es_gerente else f"AND sucursal_id={getattr(self,'sucursal_id',1)}"
+            es_gerente = getattr(self, "rol_actual", "cajero") in (
+                "admin", "administrador", "gerente"
+            )
+            suc_filter = (
+                ""
+                if es_gerente
+                else f"AND sucursal_id={getattr(self,'sucursal_id',1)}"
+            )
             row = self.conn.execute(f"""
                 SELECT COALESCE(SUM(total),0), COUNT(*)
                 FROM ventas WHERE DATE(fecha)=DATE('now') AND estado='completada'
-                {suc_filter}""").fetchone()
+                {suc_filter}
+            """).fetchone()
             ventas_hoy  = float(row[0])
             tickets_hoy = int(row[1])
             self._kpis["ventas_hoy"].set_valor(f"${ventas_hoy:,.0f}")
             self._kpis["tickets_hoy"].set_valor(str(tickets_hoy))
             ticket_prom = ventas_hoy / tickets_hoy if tickets_hoy > 0 else 0
             self._kpis["ticket_prom"].set_valor(f"${ticket_prom:,.0f}")
-        except Exception: pass
+        except Exception:
+            pass
 
-        # ── Margen bruto del día ──────────────────────────────────────────────
+        # Margen bruto
         try:
             r = self.conn.execute("""
-                SELECT COALESCE(SUM(vd.cantidad * vd.precio_unitario),0) as ingresos,
-                       COALESCE(SUM(vd.cantidad * COALESCE(p.precio_compra,0)),0) as costos
+                SELECT COALESCE(SUM(vd.cantidad * vd.precio_unitario),0),
+                       COALESCE(SUM(vd.cantidad * COALESCE(p.precio_compra,0)),0)
                 FROM ventas v
                 JOIN detalles_venta vd ON vd.venta_id=v.id
                 JOIN productos p ON p.id=vd.producto_id
-                WHERE DATE(v.fecha)=DATE('now') AND v.estado='completada'""").fetchone()
+                WHERE DATE(v.fecha)=DATE('now') AND v.estado='completada'
+            """).fetchone()
             ingresos = float(r[0] or 0)
             costos   = float(r[1] or 0)
             margen   = ((ingresos - costos) / ingresos * 100) if ingresos > 0 else 0
             self._kpis["margen_hoy"].set_valor(f"{margen:.1f}%")
-            # set_estado pinta accent bar + tendencia delegando a KPIColorEngine
             self._kpis["margen_hoy"].set_estado(margen)
-        except Exception: pass
+        except Exception:
+            pass
 
-        # ── Comparativo vs ayer ───────────────────────────────────────────────
+        # vs Ayer
         try:
-            ayer = float(self.conn.execute("""
-                SELECT COALESCE(SUM(total),0) FROM ventas
-                WHERE DATE(fecha)=DATE('now','-1 day') AND estado='completada'""").fetchone()[0])
+            ayer = float(
+                self.conn.execute("""
+                    SELECT COALESCE(SUM(total),0) FROM ventas
+                    WHERE DATE(fecha)=DATE('now','-1 day') AND estado='completada'
+                """).fetchone()[0]
+            )
             if ayer > 0:
-                delta = ((ventas_hoy - ayer) / ayer * 100)
+                delta = (ventas_hoy - ayer) / ayer * 100
                 sign  = "↑ +" if delta >= 0 else "↓ "
                 self._kpis["vs_ayer"].set_valor(f"{sign}{delta:.1f}%")
-                # Pasar el delta a set_estado para que la pill se coloree
                 self._kpis["vs_ayer"].set_estado(ventas_hoy, ayer)
             else:
                 self._kpis["vs_ayer"].set_valor("—")
-        except Exception: pass
+        except Exception:
+            pass
 
-        # ── Clientes atendidos hoy ────────────────────────────────────────────
+        # Clientes
         try:
-            n_clientes = self.conn.execute("""
+            n = self.conn.execute("""
                 SELECT COUNT(DISTINCT COALESCE(cliente_id,0)) FROM ventas
                 WHERE DATE(fecha)=DATE('now') AND estado='completada'
-                  AND cliente_id IS NOT NULL""").fetchone()[0]
-            self._kpis["clientes_hoy"].set_valor(str(n_clientes))
-        except Exception: pass
+                  AND cliente_id IS NOT NULL
+            """).fetchone()[0]
+            self._kpis["clientes_hoy"].set_valor(str(n))
+        except Exception:
+            pass
 
-        # ── Pedidos WA pendientes ─────────────────────────────────────────────
+        # Pedidos WA
         try:
             n = self.conn.execute("""
                 SELECT COUNT(*) FROM pedidos_whatsapp
-                WHERE estado NOT IN ('entregado','cancelado')""").fetchone()[0]
+                WHERE estado NOT IN ('entregado','cancelado')
+            """).fetchone()[0]
             self._kpis["pedidos_wa"].set_valor(str(n))
-        except Exception: pass
+        except Exception:
+            pass
 
-        # ── Stock bajo mínimo ─────────────────────────────────────────────────
+        # Stock bajo
         try:
             n = self.conn.execute("""
                 SELECT COUNT(*) FROM productos
-                WHERE existencia <= COALESCE(stock_minimo,5) AND activo=1""").fetchone()[0]
+                WHERE existencia <= COALESCE(stock_minimo,5) AND activo=1
+            """).fetchone()[0]
             self._kpis["productos_bajo"].set_valor(str(n))
-        except Exception: pass
+        except Exception:
+            pass
+
+    def _actualizar_actividad(self) -> None:
+        """Populate activity feed from recent sales and WA orders."""
+        # Clear existing items
+        while self._lyt_actividad.count():
+            item = self._lyt_actividad.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        eventos = []
+
+        try:
+            rows = self.conn.execute("""
+                SELECT 'venta' as tipo, total, fecha, 'completada' as extra
+                FROM ventas
+                WHERE DATE(fecha)=DATE('now') AND estado='completada'
+                ORDER BY fecha DESC LIMIT 5
+            """).fetchall()
+            for r in rows:
+                try:
+                    ts = datetime.fromisoformat(str(r[2]))
+                    hora = ts.strftime("%H:%M")
+                except Exception:
+                    hora = ""
+                eventos.append(("venta", f"Venta completada", f"${float(r[1]):,.0f}", hora))
+        except Exception:
+            pass
+
+        try:
+            rows = self.conn.execute("""
+                SELECT 'pedido' as tipo, total, fecha, estado
+                FROM pedidos_whatsapp
+                WHERE DATE(fecha)=DATE('now')
+                ORDER BY fecha DESC LIMIT 4
+            """).fetchall()
+            for r in rows:
+                try:
+                    ts = datetime.fromisoformat(str(r[2]))
+                    hora = ts.strftime("%H:%M")
+                except Exception:
+                    hora = ""
+                eventos.append(("pedido", f"Pedido WA — {r[3]}", f"${float(r[1]):,.0f}", hora))
+        except Exception:
+            pass
+
+        # Sort by timestamp desc (rough, based on hora string)
+        eventos.sort(key=lambda e: e[3], reverse=True)
+        eventos = eventos[:8]
+
+        if not eventos:
+            self._empty_actividad.show()
+            return
+
+        self._empty_actividad.hide()
+        for tipo, desc, monto, hora in eventos:
+            item = ActivityFeedItem(tipo, desc, monto, hora, self)
+            self._lyt_actividad.addWidget(item)
 
     def _actualizar_pedidos_wa(self):
         self._loading_wa.show()
-        # Limpiar
         while self._lyt_wa.count() > 1:
             item = self._lyt_wa.takeAt(0)
             if item.widget():
@@ -764,13 +1410,9 @@ class Dashboard(QWidget):
                 ORDER BY CASE estado
                     WHEN 'nuevo' THEN 0 WHEN 'confirmado' THEN 1
                     WHEN 'pesando' THEN 2 ELSE 3 END, fecha DESC
-                LIMIT 8""").fetchall()
+                LIMIT 8
+            """).fetchall()
             if not rows:
-                lbl = QLabel("✅ Sin pedidos pendientes")
-                lbl.setStyleSheet(
-                    "color:#94A3B8;font-size:13px;padding:12px;"
-                    "background:#1E293B;border-radius:8px;")
-                self._lyt_wa.insertWidget(0, lbl)
                 self._empty_wa.show()
                 return
             for i, r in enumerate(rows):
@@ -788,84 +1430,113 @@ class Dashboard(QWidget):
         self._loading_alertas.show()
         while self._lyt_alertas.count() > 1:
             item = self._lyt_alertas.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
+            if item.widget():
+                item.widget().deleteLater()
+
         alertas = []
         try:
             rows = self.conn.execute("""
                 SELECT nombre FROM productos
                 WHERE existencia <= COALESCE(stock_minimo,5) AND activo=1
-                LIMIT 5""").fetchall()
+                LIMIT 5
+            """).fetchall()
             for r in rows:
                 alertas.append((f"Stock bajo: {r[0]}", "danger"))
-        except Exception: pass
+        except Exception:
+            pass
+
         try:
             rows = self.conn.execute("""
                 SELECT p.nombre FROM lotes l
                 JOIN productos p ON p.id=l.producto_id
                 WHERE l.caducidad <= DATE('now','+3 days')
                   AND l.estado='activo' AND l.cantidad_disponible > 0
-                LIMIT 5""").fetchall()
+                LIMIT 5
+            """).fetchall()
             for r in rows:
                 alertas.append((f"Caducidad próxima: {r[0]}", "warning"))
-        except Exception: pass
+        except Exception:
+            pass
+
         try:
             rows = self.conn.execute("""
                 SELECT titulo, tipo FROM alertas_log
                 WHERE leida=0 AND tipo != 'ok'
-                ORDER BY fecha DESC LIMIT 10""").fetchall()
+                ORDER BY fecha DESC LIMIT 10
+            """).fetchall()
             for r in rows:
-                t = "warning" if r[1] in ("stock_bajo","caducidad_proxima") else "info"
+                t = "warning" if r[1] in ("stock_bajo", "caducidad_proxima") else "info"
                 alertas.append((r[0], t))
-        except Exception: pass
+        except Exception:
+            pass
+
+        # Update badge count
+        if alertas:
+            danger_count = sum(1 for _, t in alertas if t == "danger")
+            if danger_count:
+                self._lbl_alerts_count.setText(f"  {len(alertas)} activas")
+            else:
+                self._lbl_alerts_count.setText(f"  {len(alertas)}")
+        else:
+            self._lbl_alerts_count.setText("")
+
         if not alertas:
             self._empty_alertas.show()
             self._loading_alertas.hide()
             return
+
         self._empty_alertas.hide()
         for i, (texto, tipo) in enumerate(alertas):
             self._lyt_alertas.insertWidget(i, AlertaItem(texto, tipo))
         self._loading_alertas.hide()
 
     def _actualizar_repartidores(self):
+        # Clear existing driver cards
+        while self._lyt_drivers.count():
+            item = self._lyt_drivers.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
         try:
             rows = self.conn.execute("""
-                SELECT d.nombre, d.en_ruta,
-                    COUNT(p.id) as pedidos_activos
+                SELECT d.nombre, d.en_ruta, COUNT(p.id) as pedidos_activos
                 FROM drivers d
                 LEFT JOIN pedidos_whatsapp p
                     ON p.repartidor_id=d.id AND p.estado='listo'
                 WHERE d.activo=1
                 GROUP BY d.id
-                ORDER BY d.nombre""").fetchall()
+                ORDER BY d.nombre
+            """).fetchall()
             if not rows:
-                self._lbl_reps.setText("Sin repartidores registrados")
+                no_driver = QLabel("Sin repartidores registrados", self)
+                no_driver.setStyleSheet(
+                    f"color: {Colors.NEUTRAL.SLATE_500};"
+                    f" font-size: {Typography.SIZE_SM}; padding: 8px 0;"
+                )
+                self._lyt_drivers.addWidget(no_driver)
                 return
-            lines = []
             for r in rows:
-                estado = "🟢 En ruta" if r[1] else "⚪ Disponible"
-                lines.append(
-                    f"• {r[0]}  {estado}  ({r[2]} pedidos)")
-            self._lbl_reps.setText("\n".join(lines))
+                card = DriverCard(r[0], bool(r[1]), int(r[2]), self)
+                self._lyt_drivers.addWidget(card)
         except Exception:
             pass
 
     def _on_ver_pedido(self, pedido_id: int):
         self.abrir_modulo.emit("pedidos_whatsapp")
 
-    # ── Estado de sesión (consumido por main_window via hasattr) ───────────
+    # ── Session state (consumed by main_window via hasattr) ───────────────────
+
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
-        """Cambia la sucursal activa y refresca KPIs filtrados."""
         self.sucursal_id = sucursal_id
         self._nombre_sucursal = nombre
         if nombre:
-            self._page_header.set_subtitle(f"Resumen operativo · {nombre}")
+            self._lbl_subtitle.setText(f"Resumen operativo · {nombre}")
         try:
             self.actualizar()
         except Exception as e:
             logger.debug("set_sucursal refresh: %s", e)
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
-        """Almacena el usuario activo (afecta filtrado por rol en KPIs)."""
         self.usuario_actual = usuario
         self.rol_actual = rol.lower() if rol else "cajero"
         try:
@@ -874,10 +1545,24 @@ class Dashboard(QWidget):
             logger.debug("set_usuario_actual refresh: %s", e)
 
     def set_sesion(self, usuario: str, rol: str) -> None:
-        """Compatibilidad legacy — delega a set_usuario_actual."""
         self.set_usuario_actual(usuario, rol)
 
 
+# ── Compatibility shims ───────────────────────────────────────────────────────
+
+class _PageHeaderCompat:
+    """Thin shim so legacy callers to self._page_header.set_subtitle() still work."""
+
+    def __init__(self, subtitle_label: QLabel):
+        self._lbl = subtitle_label
+
+    def set_subtitle(self, text: str) -> None:
+        self._lbl.setText(text)
+
+    def add_action(self, widget) -> None:
+        pass  # Header rebuilt; actions wired directly in _build_header
+
+
 class DashboardWidget(Dashboard):
-    """Alias de Dashboard para compatibilidad con main_window.py."""
+    """Alias of Dashboard for compatibility with main_window.py."""
     pass
