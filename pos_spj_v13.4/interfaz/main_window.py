@@ -647,6 +647,24 @@ class MainWindow(QMainWindow):
                 except Exception:
                     pass
                 self.indices_pantallas[codigo] = self.stack.addWidget(pantalla)
+                # Wire dashboard navigation signal → manejar_navegacion
+                if hasattr(pantalla, 'abrir_modulo'):
+                    _DASH_NAV = {
+                        "ventas":           "POS",
+                        "inventario":       "INVENTARIO",
+                        "caja":             "CAJA",
+                        "clientes":         "CLIENTES",
+                        "pedidos_whatsapp": "WHATSAPP",
+                        "delivery":         "DELIVERY",
+                        "reportes":         "INTELIGENCIA_BI",
+                        "finanzas":         "FINANZAS_UNIFICADAS",
+                        "rrhh":             "RRHH",
+                        "productos":        "PRODUCTOS",
+                        "compras":          "COMPRAS",
+                    }
+                    pantalla.abrir_modulo.connect(
+                        lambda k: self.manejar_navegacion(_DASH_NAV.get(k, k.upper()))
+                    )
                 return
             except Exception as e:
                 import traceback as _tb

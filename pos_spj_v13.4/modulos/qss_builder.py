@@ -2397,11 +2397,69 @@ def _block_pos_module(
     """
 
 
+def _block_dash_cards(*, bg: str, border: str, hover_bg: str, text: str, muted: str) -> str:
+    """QSS para las tarjetas enterprise del dashboard (v13.5)."""
+    return f"""
+        /* ===== DASHBOARD ENTERPRISE CARDS (v13.5) ===== */
+        QFrame#dashChartCard, QFrame#dashActCard, QFrame#dashWACard,
+        QFrame#dashQACard, QFrame#dashAlertCard, QFrame#dashDelivCard {{
+            background-color: {bg};
+            border: 1px solid {border};
+            border-radius: 12px;
+        }}
+        QFrame#dashChartCard QLabel, QFrame#dashActCard QLabel,
+        QFrame#dashWACard QLabel, QFrame#dashQACard QLabel,
+        QFrame#dashAlertCard QLabel, QFrame#dashDelivCard QLabel {{
+            background-color: transparent;
+            border: none;
+            color: {text};
+        }}
+        QPushButton#quickActionBtn {{
+            background-color: {bg};
+            border: 1px solid {border};
+            border-radius: 8px;
+            color: {text};
+            font-size: 11px;
+            font-weight: 600;
+            padding: 8px 6px;
+            text-align: center;
+        }}
+        QFrame#pedidoWAItem {{
+            background-color: {bg};
+            border: 1px solid {border};
+            border-radius: 8px;
+        }}
+        QFrame#pedidoWAItem:hover {{
+            border-color: {Colors.PRIMARY.BASE};
+            background-color: {hover_bg};
+        }}
+        QFrame#pedidoWAItem QLabel {{
+            background-color: transparent;
+            border: none;
+            color: {text};
+        }}
+        QFrame#driverCard QLabel, QFrame#actFeedItem QLabel {{
+            background-color: transparent;
+            border: none;
+        }}
+        QLabel#dashboardTime {{
+            color: {muted};
+        }}
+    """
+
+
 def _modern_blocks(theme: str) -> str:
     """Concatena todos los bloques modernos para el tema dado."""
     if theme == "Oscuro":
         return (
-            _block_kpi_card(
+            _block_dash_cards(
+                bg=Colors.NEUTRAL.SLATE_800,
+                border=Colors.NEUTRAL.SLATE_700,
+                hover_bg=Colors.NEUTRAL.SLATE_700,
+                text=Colors.NEUTRAL.SLATE_50,
+                muted=Colors.NEUTRAL.SLATE_400,
+            )
+            + _block_kpi_card(
                 bg=Colors.NEUTRAL.SLATE_800,
                 border=Colors.NEUTRAL.SLATE_700,
                 hover_bg=Colors.NEUTRAL.SLATE_700,
@@ -2455,7 +2513,14 @@ def _modern_blocks(theme: str) -> str:
         )
     # Claro
     return (
-        _block_kpi_card(
+        _block_dash_cards(
+            bg=Colors.NEUTRAL.WHITE,
+            border=Colors.NEUTRAL.SLATE_200,
+            hover_bg=Colors.NEUTRAL.SLATE_50,
+            text=Colors.NEUTRAL.SLATE_900,
+            muted=Colors.NEUTRAL.SLATE_500,
+        )
+        + _block_kpi_card(
             bg=Colors.NEUTRAL.WHITE,
             border=Colors.NEUTRAL.SLATE_200,
             hover_bg=Colors.NEUTRAL.SLATE_50,

@@ -65,13 +65,7 @@ _ACTIVITY_ICON = {
 
 # ── Low-level helpers ────────────────────────────────────────────────────────
 
-def _card_style(radius: int = Borders.RADIUS_XL, border_alpha: int = 18) -> str:
-    """QSS fragment: dark enterprise card."""
-    return (
-        f"background-color: {Colors.NEUTRAL.SLATE_800};"
-        f" border-radius: {radius}px;"
-        f" border: 1px solid rgba(255,255,255,{border_alpha});"
-    )
+
 
 
 def _add_shadow(widget: QWidget, blur: int = 20, dy: int = 3, alpha: int = 40) -> None:
@@ -361,20 +355,7 @@ class PedidoWAItem(QFrame):
         pid = pedido.get("id", 0)
 
         self.setObjectName("pedidoWAItem")
-        self.setStyleSheet(
-            f"QFrame#pedidoWAItem {{"
-            f"  background: {Colors.NEUTRAL.SLATE_800};"
-            f"  border-radius: {Borders.RADIUS_LG}px;"
-            f"  border: 1px solid rgba(255,255,255,12);"
-            f"}}"
-            f"QFrame#pedidoWAItem:hover {{"
-            f"  border-color: {Colors.PRIMARY.BASE}55;"
-            f"  background: {Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'};"
-            f"}}"
-            f"QFrame#pedidoWAItem QLabel {{"
-            f"  background: transparent; border: none;"
-            f"}}"
-        )
+        # Background/border/labels handled by global QSS (_block_dash_cards)
 
         lyt = QHBoxLayout(self)
         lyt.setContentsMargins(12, 9, 12, 9)
@@ -585,60 +566,24 @@ class ActivityFeedItem(QFrame):
             lyt.addWidget(lbl_hora)
 
 
-# ── QuickActionButton ─────────────────────────────────────────────────────────
-
-class QuickActionButton(QFrame):
-    """Large touch-friendly action button with icon + label."""
-
-    clicked = pyqtSignal(str)
-
-    def __init__(self, icono: str, label: str, key: str,
-                 accent: str = "", parent=None):
-        super().__init__(parent)
-        self._key = key
-        _ac = accent or Colors.PRIMARY.BASE
-
-        self.setObjectName("quickActionBtn")
-        self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(70)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setStyleSheet(
-            f"QFrame#quickActionBtn {{"
-            f"  background: {Colors.NEUTRAL.SLATE_800};"
-            f"  border-radius: {Borders.RADIUS_LG}px;"
-            f"  border: 1px solid rgba(255,255,255,12);"
-            f"}}"
-            f"QFrame#quickActionBtn:hover {{"
-            f"  background: {_ac}1A;"
-            f"  border-color: {_ac}55;"
-            f"}}"
-            f"QFrame#quickActionBtn QLabel {{ background: transparent; border: none; }}"
-        )
-
-        lyt = QVBoxLayout(self)
-        lyt.setContentsMargins(10, 10, 10, 10)
-        lyt.setSpacing(4)
-        lyt.setAlignment(Qt.AlignCenter)
-
-        lbl_icon = QLabel(icono, self)
-        lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet(f"font-size: 22px;")
-        lyt.addWidget(lbl_icon)
-
-        lbl_txt = QLabel(label, self)
-        lbl_txt.setAlignment(Qt.AlignCenter)
-        lbl_txt.setWordWrap(True)
-        lbl_txt.setStyleSheet(
-            f"font-size: {Typography.SIZE_XS};"
-            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f" color: {Colors.NEUTRAL.SLATE_300 if hasattr(Colors.NEUTRAL,'SLATE_300') else Colors.NEUTRAL.SLATE_100};"
-            f" letter-spacing: 0.03em;"
-        )
-        lyt.addWidget(lbl_txt)
-
-    def mousePressEvent(self, event):
-        self.clicked.emit(self._key)
-        super().mousePressEvent(event)
+def _make_quick_action_btn(icono: str, label: str, accent: str, parent=None) -> QPushButton:
+    """
+    Native QPushButton styled as a touch-friendly action card.
+    QPushButton.clicked is the only reliable click mechanism on QFrame children.
+    """
+    btn = QPushButton(f"{icono}  {label}", parent)
+    btn.setObjectName("quickActionBtn")
+    btn.setCursor(Qt.PointingHandCursor)
+    btn.setMinimumHeight(72)
+    btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    # Per-button accent hover only — base card style comes from global QSS
+    btn.setStyleSheet(
+        f"QPushButton#quickActionBtn:hover {{"
+        f"  background-color: {accent}1A;"
+        f"  border-color: {accent}55;"
+        f"}}"
+    )
+    return btn
 
 
 # ── DriverCard ────────────────────────────────────────────────────────────────
@@ -921,12 +866,6 @@ class Dashboard(QWidget):
         # Chart card
         chart_card = QFrame(self)
         chart_card.setObjectName("dashChartCard")
-        chart_card.setStyleSheet(
-            f"QFrame#dashChartCard {{"
-            f"  {_card_style()}"
-            f"}}"
-            f"QFrame#dashChartCard QLabel {{ background: transparent; border: none; }}"
-        )
         _add_shadow(chart_card)
 
         chart_lyt = QVBoxLayout(chart_card)
@@ -954,12 +893,6 @@ class Dashboard(QWidget):
     def _build_activity_card(self) -> QFrame:
         card = QFrame(self)
         card.setObjectName("dashActCard")
-        card.setStyleSheet(
-            f"QFrame#dashActCard {{"
-            f"  {_card_style()}"
-            f"}}"
-            f"QFrame#dashActCard QLabel {{ background: transparent; border: none; }}"
-        )
         _add_shadow(card)
 
         lyt = QVBoxLayout(card)
@@ -990,12 +923,6 @@ class Dashboard(QWidget):
     def _build_wa_queue_card(self) -> QFrame:
         card = QFrame(self)
         card.setObjectName("dashWACard")
-        card.setStyleSheet(
-            f"QFrame#dashWACard {{"
-            f"  {_card_style()}"
-            f"}}"
-            f"QFrame#dashWACard QLabel {{ background: transparent; border: none; }}"
-        )
         _add_shadow(card)
 
         lyt = QVBoxLayout(card)
@@ -1073,12 +1000,6 @@ class Dashboard(QWidget):
     def _build_quick_actions_card(self) -> QFrame:
         card = QFrame(self)
         card.setObjectName("dashQACard")
-        card.setStyleSheet(
-            f"QFrame#dashQACard {{"
-            f"  {_card_style()}"
-            f"}}"
-            f"QFrame#dashQACard QLabel {{ background: transparent; border: none; }}"
-        )
         _add_shadow(card)
 
         lyt = QVBoxLayout(card)
@@ -1089,20 +1010,20 @@ class Dashboard(QWidget):
         lyt.addWidget(_divider(card))
 
         actions = [
-            ("🛒", "Nueva\nVenta",   "ventas",           Colors.PRIMARY.BASE),
-            ("📦", "Inventario",     "inventario",        Colors.INFO.BASE),
-            ("💳", "Abrir\nCaja",    "caja",              Colors.SUCCESS.BASE),
-            ("📲", "WhatsApp",       "pedidos_whatsapp",  Colors.SUCCESS.BASE),
-            ("🚚", "Delivery",       "delivery",          Colors.WARNING.BASE),
-            ("📊", "Reportes",       "reportes",          Colors.PRIMARY.BASE),
+            ("🛒", "Nueva Venta",  "ventas",           Colors.PRIMARY.BASE),
+            ("📦", "Inventario",   "inventario",        Colors.INFO.BASE),
+            ("💳", "Abrir Caja",   "caja",              Colors.SUCCESS.BASE),
+            ("📲", "WhatsApp",     "pedidos_whatsapp",  Colors.SUCCESS.BASE),
+            ("🚚", "Delivery",     "delivery",          Colors.WARNING.BASE),
+            ("📊", "Reportes",     "reportes",          Colors.PRIMARY.BASE),
         ]
 
         grid = QGridLayout()
         grid.setSpacing(Spacing.SM)
 
         for i, (icon, label, key, color) in enumerate(actions):
-            btn = QuickActionButton(icon, label, key, accent=color, parent=card)
-            btn.clicked.connect(self.abrir_modulo)
+            btn = _make_quick_action_btn(icon, label, color, parent=card)
+            btn.clicked.connect(lambda _checked=False, k=key: self.abrir_modulo.emit(k))
             grid.addWidget(btn, i // 2, i % 2)
 
         lyt.addLayout(grid)
@@ -1111,12 +1032,6 @@ class Dashboard(QWidget):
     def _build_alerts_card(self) -> QFrame:
         card = QFrame(self)
         card.setObjectName("dashAlertCard")
-        card.setStyleSheet(
-            f"QFrame#dashAlertCard {{"
-            f"  {_card_style()}"
-            f"}}"
-            f"QFrame#dashAlertCard QLabel {{ background: transparent; border: none; }}"
-        )
         _add_shadow(card)
 
         lyt = QVBoxLayout(card)
@@ -1177,12 +1092,6 @@ class Dashboard(QWidget):
     def _build_delivery_card(self) -> QFrame:
         card = QFrame(self)
         card.setObjectName("dashDelivCard")
-        card.setStyleSheet(
-            f"QFrame#dashDelivCard {{"
-            f"  {_card_style()}"
-            f"}}"
-            f"QFrame#dashDelivCard QLabel {{ background: transparent; border: none; }}"
-        )
         _add_shadow(card)
 
         lyt = QVBoxLayout(card)
