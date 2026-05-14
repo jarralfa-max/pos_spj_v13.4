@@ -1,4 +1,4 @@
-# modulos/compras_pro.py — SPJ POS v13.2
+# modulos/compras_pro.py — SPJ POS v13.4
 """
 Compras a Proveedores.
   - Busca productos por nombre, código, barcode o ID
@@ -21,14 +21,14 @@ from modulos.ui_components import (
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QFrame,
     QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QInputDialog, QTabWidget, QMenu, QAction, QSizePolicy,
+    QMessageBox, QMenu, QSizePolicy,
     QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog,
 )
 from PyQt5.QtCore import Qt, QTimer, QStringListModel, QDate
-from PyQt5.QtGui import QCursor, QColor, QKeySequence
+from PyQt5.QtGui import QCursor, QKeySequence
 from datetime import datetime
 import logging
 
@@ -244,8 +244,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         root.setContentsMargins(10, 8, 10, 8)
 
         # ── PageHeader ────────────────────────────────────────────────────────
-        from modulos.ui_components import PageHeader as _PH
-        root.addWidget(_PH(self,
+        root.addWidget(PageHeader(self,
             title="🛒 Compras a Proveedores",
             subtitle="Recepción de mercancía · Actualización de stock · Historial",
         ))
@@ -273,21 +272,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._normalizar_botones_ui()
 
     def _normalizar_botones_ui(self) -> None:
-        """Evita botones full-width y desalineados en el módulo de compras."""
+        """Normaliza botones propios del módulo (excluye RecepcionQRWidget)."""
+        _recv = getattr(self, '_recv_qr', None)
         for btn in self.findChildren(QPushButton):
             if btn.minimumWidth() and btn.minimumWidth() <= 40:
+                continue
+            # Don't touch buttons that belong to the embedded QR widget
+            if _recv is not None and _recv.isAncestorOf(btn):
                 continue
             btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
 
-    def _crear_stats_compras(self) -> 'QWidget':
+    def _crear_stats_compras(self) -> QWidget:
         """Barra de KPIs: compras del mes, proveedores activos, órdenes pendientes, gasto."""
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        bar = _F()
+        bar = QFrame()
         bar.setObjectName("statsBarCmp")
         bar.setFixedHeight(64)
-        lay = _H(bar)
+        lay = QHBoxLayout(bar)
         lay.setContentsMargins(20, 8, 20, 8)
         lay.setSpacing(0)
 
@@ -301,18 +303,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         for i, (caption, val, variant) in enumerate(kpi_defs):
             if i > 0:
-                sep = _F()
+                sep = QFrame()
                 sep.setObjectName("statsBarSeparator")
-                sep.setFrameShape(_F.VLine)
+                sep.setFrameShape(QFrame.VLine)
                 sep.setFixedWidth(1)
                 lay.addWidget(sep)
                 lay.addSpacing(20)
-            col_lay = _V()
+            col_lay = QVBoxLayout()
             col_lay.setSpacing(1)
-            lbl_val = _L(val)
+            lbl_val = QLabel(val)
             lbl_val.setObjectName("statsKpiValue")
             lbl_val.setProperty("variant", variant)   # theme-aware via QSS
-            lbl_cap = _L(caption.upper())
+            lbl_cap = QLabel(caption.upper())
             lbl_cap.setObjectName("statsKpiCaption")
             col_lay.addWidget(lbl_val)
             col_lay.addWidget(lbl_cap)
@@ -395,7 +397,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(self._trad_filter)
 
         # ── Carrito editable ──────────────────────────────────────────────────
-        self._grp_cart = QGroupBox("🛒 Carrito  (doble clic = editar · clic derecho = opciones)")
+        self._grp_cart = QGroupBox("🛒 Carrito  —  doble clic: editar  ·  clic derecho: opciones")
         self._grp_cart.setObjectName("styledGroup")
         cart_lay = QVBoxLayout(self._grp_cart)
         grp_cart = self._grp_cart   # alias for rest of method
@@ -720,7 +722,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.lbl_total.setText(f"Total: ${total:,.2f}")
         if hasattr(self, "_lbl_cart_count"):
             self._lbl_cart_count.setText(
-                f"{n_items} ítem{'s' if n_items != 1 else ''}" if n_items else "")
+                f"{n_items} ítem{'s' if n_items != 1 else ''}" if n_items else "0 ítems")
         if hasattr(self, "_cart_empty"):
             self._cart_empty.setVisible(visible_rows == 0)
         if hasattr(self, "_cart_loading"):
@@ -850,7 +852,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         html = f"""<html><body style='font-family:sans-serif;font-size:12px;'>
         <h3 style='margin-bottom:8px;'>Resumen de Compra</h3>
-        <p style='color:#666;'><b>Proveedor:</b> {proveedor} &nbsp;|&nbsp;
+        <p><b>Proveedor:</b> {proveedor} &nbsp;|&nbsp;
            <b>Ref:</b> {doc_ref} &nbsp;|&nbsp;
            <b>Pago:</b> {pago}</p>
         <table width='100%' cellspacing='0' style='border-collapse:collapse;font-size:12px;'>
@@ -883,21 +885,27 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         return dlg.exec_() == QDialog.Accepted
 
     def _detectar_recetas(self) -> list[dict]:
-        """Retorna los ítems del carrito que tienen receta registrada."""
-        result = []
+        """Retorna los ítems del carrito que tienen receta registrada (batch query)."""
+        if not self.carrito_compra:
+            return []
+        ids = [it['producto_id'] for it in self.carrito_compra]
+        ph  = ",".join("?" * len(ids))
         try:
-            for item in self.carrito_compra:
-                r = self.container.db.execute(
-                    """SELECT COUNT(*) as n FROM recetas
-                       WHERE (producto_id=? OR producto_base_id=?)
-                         AND (activa=1 OR activo=1)""",
-                    (item['producto_id'], item['producto_id'])
-                ).fetchone()
-                if r and r['n'] > 0:
-                    result.append(item)
+            rows = self.container.db.execute(
+                f"""SELECT DISTINCT c FROM (
+                        SELECT producto_id      AS c FROM recetas
+                        WHERE  producto_id      IN ({ph}) AND (activa=1 OR activo=1)
+                        UNION
+                        SELECT producto_base_id AS c FROM recetas
+                        WHERE  producto_base_id IN ({ph}) AND (activa=1 OR activo=1)
+                    )""",
+                ids + ids
+            ).fetchall()
+            ids_con_receta = {r[0] for r in rows}
+            return [it for it in self.carrito_compra
+                    if it['producto_id'] in ids_con_receta]
         except Exception:
-            pass
-        return result
+            return []
 
     def _procesar_recetas(self, items: list[dict]) -> list[str]:
         """Ejecuta la receta de cada producto comprado que la tenga."""
@@ -992,7 +1000,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_filter = FilterBar(
             self,
             placeholder="Buscar folio, proveedor o usuario…",
-            combo_filters={"estado": ["completada", "credito", "cancelada"]},
+            combo_filters={"estado": [
+                "completada", "credito", "pendiente", "parcial", "cancelada",
+            ]},
         )
         self._hist_filter.filters_changed.connect(lambda _v: self._cargar_historial_compras())
         lay.addWidget(self._hist_filter)
@@ -1166,27 +1176,45 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Genera el ticket HTML de una compra para impresión."""
         prov_display = proveedor_nombre or f"ID {compra.get('proveedor_id','?')}"
         rows_html = ""
-        for it in items:
-            rows_html += (f"<tr><td>{it.get('nombre','')}</td>"
-                          f"<td align='right'>{float(it.get('cantidad',0)):.3f}</td>"
-                          f"<td align='right'>${float(it.get('costo_unitario',0)):.4f}</td>"
-                          f"<td align='right'>${float(it.get('subtotal',0)):.2f}</td></tr>")
+        for idx, it in enumerate(items):
+            bg_row = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+            rows_html += (
+                f"<tr style='background:{bg_row};'>"
+                f"<td style='padding:4px 6px;'>{it.get('nombre','')}</td>"
+                f"<td align='right' style='padding:4px 6px;font-family:monospace;'>"
+                f"{float(it.get('cantidad',0)):.3f}</td>"
+                f"<td align='right' style='padding:4px 6px;font-family:monospace;'>"
+                f"${float(it.get('costo_unitario',0)):.4f}</td>"
+                f"<td align='right' style='padding:4px 6px;font-family:monospace;'>"
+                f"${float(it.get('subtotal',0)):.2f}</td></tr>"
+            )
+        ref = compra.get('observaciones') or compra.get('factura') or '—'
         return f"""
-        <html><body style='font-family:monospace;font-size:12px;'>
-        <h3 style='text-align:center;'>RECIBO DE COMPRA</h3>
-        <p>Folio: <b>{compra.get('folio','?')}</b></p>
-        <p>Fecha: {str(compra.get('fecha',''))[:16]}</p>
-        <p>Proveedor: {prov_display}</p>
-        <p>Referencia: {compra.get('observaciones') or compra.get('factura') or '—'}</p>
-        <p>Usuario: {compra.get('usuario','?')}</p>
-        <p>Condición: {str(compra.get('estado','?')).upper()}</p>
-        <hr>
-        <table width='100%' border='0' cellspacing='4'>
-        <tr><th align='left'>Producto</th><th>Cant.</th><th>Costo</th><th>Subtotal</th></tr>
-        {rows_html}
+        <html><body style='font-family:sans-serif;font-size:12px;margin:0;padding:0;'>
+        <h3 style='text-align:center;margin:8px 0 4px;'>RECIBO DE COMPRA</h3>
+        <hr style='margin:4px 0 8px;'>
+        <table width='100%' border='0' cellspacing='0' cellpadding='0'
+               style='font-size:12px;margin-bottom:8px;'>
+          <tr><td><b>Folio:</b></td><td style='font-family:monospace;'>{compra.get('folio','?')}</td></tr>
+          <tr><td><b>Fecha:</b></td><td style='font-family:monospace;'>{str(compra.get('fecha',''))[:16]}</td></tr>
+          <tr><td><b>Proveedor:</b></td><td>{prov_display}</td></tr>
+          <tr><td><b>Referencia:</b></td><td style='font-family:monospace;'>{ref}</td></tr>
+          <tr><td><b>Usuario:</b></td><td>{compra.get('usuario','?')}</td></tr>
+          <tr><td><b>Condición:</b></td><td>{str(compra.get('estado','?')).upper()}</td></tr>
         </table>
-        <hr>
-        <p style='font-size:14px;'><b>Total: ${float(compra.get('total',0)):,.2f}</b></p>
+        <table width='100%' border='0' cellspacing='0'
+               style='border-collapse:collapse;font-size:12px;'>
+          <tr style='background:{Colors.PRIMARY_BASE};color:#fff;'>
+            <th align='left'  style='padding:5px 6px;'>Producto</th>
+            <th align='right' style='padding:5px 6px;'>Cant.</th>
+            <th align='right' style='padding:5px 6px;'>Costo</th>
+            <th align='right' style='padding:5px 6px;'>Subtotal</th>
+          </tr>
+          {rows_html}
+        </table>
+        <hr style='margin:8px 0 4px;'>
+        <p style='font-size:14px;font-weight:bold;color:{Colors.SUCCESS_BASE};margin:4px 0;'>
+          Total: ${float(compra.get('total',0)):,.2f}</p>
         </body></html>"""
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
@@ -1232,10 +1260,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
                                   items) -> str:
         """Registro directo en BD cuando PurchaseService no está disponible."""
-        import uuid
         from core.db.connection import transaction
         folio = f"C{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        op_id = str(uuid.uuid4())
         db = self.container.db
         with transaction(db):
             db.execute(
@@ -1243,7 +1269,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                    total, estado, observaciones, forma_pago, factura, fecha)
                    VALUES (?,?,?,?,?,?,?,?,datetime('now'))""",
                 (proveedor_id, self.sucursal_id, self.usuario_actual,
-                 total, "completada", doc_ref, pago, op_id))
+                 total, "completada", doc_ref, pago, doc_ref))
             compra_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             for it in items:
                 db.execute(
