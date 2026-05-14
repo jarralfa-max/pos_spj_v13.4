@@ -114,7 +114,7 @@ class RecepcionQRWidget(QWidget):
             "solo reemplázalo si se daña."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(f"color:{_C_GRIS}; font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         form = QFormLayout()
@@ -134,7 +134,10 @@ class RecepcionQRWidget(QWidget):
         self._lbl_qr_preview.setAlignment(Qt.AlignCenter)
         self._lbl_qr_preview.setFixedHeight(200)
         self._lbl_qr_preview.setStyleSheet(
-            "border:2px dashed #ccc; background:#f9f9f9; color:#aaa; font-size:13px;"
+            "border:2px dashed rgba(0,0,0,0.18);"
+            "background:rgba(0,0,0,0.02);"
+            "color:rgba(0,0,0,0.38);"
+            "font-size:13px;"
         )
         lay.addWidget(self._lbl_qr_preview)
 
@@ -180,11 +183,17 @@ class RecepcionQRWidget(QWidget):
         self._txt_buscar_proveedor = QLineEdit()
         self._txt_buscar_proveedor.setPlaceholderText("Buscar por nombre o RFC…")
         self._txt_buscar_proveedor.setMinimumHeight(30)
-        self._txt_buscar_proveedor.textChanged.connect(self._buscar_proveedor_asignar)
+        self._timer_buscar_prov = QTimer(); self._timer_buscar_prov.setSingleShot(True)
+        self._timer_buscar_prov.timeout.connect(
+            lambda: self._buscar_proveedor_asignar(self._txt_buscar_proveedor.text())
+        )
+        self._txt_buscar_proveedor.textChanged.connect(
+            lambda: self._timer_buscar_prov.start(300)
+        )
         self._lbl_proveedor_sel = QLabel("Ninguno")
         self._lbl_proveedor_sel.setStyleSheet(
             f"color:{Colors.PRIMARY_BASE};font-weight:bold;padding:4px 10px;"
-            "border-radius:4px;border:1px solid gray;min-width:120px;")
+            "border-radius:4px;border:1px solid rgba(0,0,0,0.2);min-width:120px;")
         self._proveedor_asignar_id = 0
         s2.addWidget(self._txt_buscar_proveedor, 1)
         s2.addWidget(self._lbl_proveedor_sel)
@@ -206,7 +215,13 @@ class RecepcionQRWidget(QWidget):
         self._txt_buscar_prod_asign = QLineEdit()
         self._txt_buscar_prod_asign.setPlaceholderText("Buscar producto…")
         self._txt_buscar_prod_asign.setMinimumHeight(30)
-        self._txt_buscar_prod_asign.textChanged.connect(self._buscar_producto_asignar)
+        self._timer_buscar_prod = QTimer(); self._timer_buscar_prod.setSingleShot(True)
+        self._timer_buscar_prod.timeout.connect(
+            lambda: self._buscar_producto_asignar(self._txt_buscar_prod_asign.text())
+        )
+        self._txt_buscar_prod_asign.textChanged.connect(
+            lambda: self._timer_buscar_prod.start(300)
+        )
         self._lbl_prod_asign_sel = QLabel("")
         self._lbl_prod_asign_sel.setStyleSheet(f"color:{Colors.PRIMARY_BASE};font-size:11px;")
         self._prod_asignar_id = 0
@@ -322,7 +337,7 @@ class RecepcionQRWidget(QWidget):
             "El sistema actualiza inventario, lotes FIFO y trazabilidad."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(f"color:{_C_GRIS}; font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         scan_grp = QGroupBox("Escanear QR del contenedor recibido")
@@ -411,7 +426,8 @@ class RecepcionQRWidget(QWidget):
         hdr_qr = QHBoxLayout()
         hdr_qr.addWidget(QLabel("<b>Historial de QR generados — reimpresión</b>"))
         hdr_qr.addStretch()
-        btn_ref_qr = QPushButton("🔄 Actualizar")
+        btn_ref_qr = create_secondary_button(self, "🔄 Actualizar",
+                                             "Actualizar historial de QR generados")
         btn_ref_qr.clicked.connect(self._cargar_historial_qr)
         hdr_qr.addWidget(btn_ref_qr)
         lay_qr.addLayout(hdr_qr)
@@ -425,8 +441,12 @@ class RecepcionQRWidget(QWidget):
         self._tbl_qr_hist.setSelectionBehavior(QTableWidget.SelectRows)
         self._tbl_qr_hist.setAlternatingRowColors(True)
         hh = self._tbl_qr_hist.horizontalHeader()
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # UUID
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)            # Descripción
+        for c in (2, 3, 4):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)  # Tipo, Sucursal, Fecha
+        hh.setSectionResizeMode(5, QHeaderView.Fixed)               # Acciones
+        self._tbl_qr_hist.setColumnWidth(5, 120)
         lay_qr.addWidget(self._tbl_qr_hist)
 
         self._cargar_historial_qr()
@@ -670,14 +690,11 @@ class RecepcionQRWidget(QWidget):
         """Transacción atómica: recepciones + recepcion_items + inventario + lotes + trazabilidad."""
         op_id = str(uuid.uuid4())
         folio = f"REC-{op_id[:8].upper()}"
-        datos_extra = json.loads(
-            self.conexion.execute(
-                "SELECT COALESCE(datos_extra,'{}') FROM trazabilidad_qr WHERE uuid_qr=?",
-                (uuid_qr,)
-            ).fetchone()[0] if self.conexion.execute(
-                "SELECT 1 FROM trazabilidad_qr WHERE uuid_qr=?", (uuid_qr,)
-            ).fetchone() else "{}"
-        )
+        _tqr_row = self.conexion.execute(
+            "SELECT COALESCE(datos_extra,'{}') FROM trazabilidad_qr WHERE uuid_qr=?",
+            (uuid_qr,)
+        ).fetchone()
+        datos_extra = json.loads(_tqr_row[0] if _tqr_row else "{}")
         proveedor_id = datos_extra.get("proveedor_id")
         condicion    = datos_extra.get("condicion_pago", "liquidado")
         metodo       = datos_extra.get("metodo_pago", "efectivo")
