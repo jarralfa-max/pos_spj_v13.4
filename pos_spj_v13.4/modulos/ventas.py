@@ -36,7 +36,7 @@ from PyQt5.QtWidgets import (
     QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
-from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette
+from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush
 from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
 
 # Importación de la clase base y utilidades
@@ -1066,6 +1066,8 @@ class ModuloVentas(ModuloBase):
         self.txt_busqueda.textChanged.connect(self.buscar_productos_en_tiempo_real)
         self.txt_cliente.returnPressed.connect(self.buscar_cliente)
         self.btn_buscar_cliente.clicked.connect(self.buscar_cliente)
+        # Discount removal via table click (cellClicked is reliable for NoEditTriggers tables)
+        self.tabla_compra.cellClicked.connect(self._on_cart_cell_clicked)
         # Real-time autocomplete: any keystroke (even 1 char) triggers debounced DB search
         self.txt_cliente.textChanged.connect(self._cliente_textchanged)
         self.btn_agregar_cliente.clicked.connect(self.agregar_cliente)
@@ -1181,11 +1183,11 @@ class ModuloVentas(ModuloBase):
 
         self.btn_buscar = QPushButton("Buscar")
         self.btn_buscar.setMinimumWidth(72)
-        self.btn_buscar.setObjectName("primaryBtn")
+        self.btn_buscar.setObjectName("searchBtn")
         self.btn_limpiar_busqueda = QPushButton("✕")
         self.btn_limpiar_busqueda.setToolTip("Limpiar búsqueda")
         self.btn_limpiar_busqueda.setFixedSize(32, 32)
-        self.btn_limpiar_busqueda.setProperty("class", "icon-button")
+        self.btn_limpiar_busqueda.setObjectName("deleteBtn")
 
         search_layout.addWidget(self.txt_busqueda)
         search_layout.addWidget(self.btn_buscar)
@@ -1260,13 +1262,13 @@ class ModuloVentas(ModuloBase):
 
         self.btn_buscar_cliente = QPushButton("🔍")
         self.btn_buscar_cliente.setFixedSize(32, 28)
-        self.btn_buscar_cliente.setProperty("class", "icon-button")
+        self.btn_buscar_cliente.setObjectName("searchBtn")
         self.btn_agregar_cliente = QPushButton("➕")
         self.btn_agregar_cliente.setFixedSize(32, 28)
-        self.btn_agregar_cliente.setProperty("class", "icon-button")
+        self.btn_agregar_cliente.setObjectName("addBtn")
         self.btn_limpiar_cliente = QPushButton("✕")
         self.btn_limpiar_cliente.setFixedSize(32, 28)
-        self.btn_limpiar_cliente.setProperty("class", "icon-button")
+        self.btn_limpiar_cliente.setObjectName("deleteBtn")
 
         busqueda_cliente_layout = QHBoxLayout()
         busqueda_cliente_layout.setSpacing(4)
@@ -1305,8 +1307,8 @@ class ModuloVentas(ModuloBase):
         group_carrito = QGroupBox("CARRITO")
         group_carrito.setProperty("class", "venta-group")
         group_carrito.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # Guarantee at minimum 4 visible rows (row_height=32 × 4 + header≈26 + padding=8)
-        group_carrito.setMinimumHeight(166)
+        # Guarantee at minimum 4 visible rows (row_height=36 × 4 + header≈28 + padding=12)
+        group_carrito.setMinimumHeight(184)
         carrito_layout = QVBoxLayout(group_carrito)
         # Bottom margin 6px so the table's last row border never gets clipped
         # by the GroupBox frame edge when scrolled to end
@@ -1322,7 +1324,10 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.tabla_compra.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.tabla_compra.verticalHeader().setDefaultSectionSize(32)
+        # 36px: 32px content + 2px top-padding + 1px border-bottom (from ::item CSS) + 1px spare
+        # prevents the bottom row border from being clipped when scrolled to end
+        self.tabla_compra.verticalHeader().setDefaultSectionSize(36)
+        self.tabla_compra.verticalHeader().setMinimumSectionSize(36)
         self.tabla_compra.verticalHeader().setVisible(False)
         self.tabla_compra.setColumnWidth(0, 140)
         self.tabla_compra.setColumnWidth(1, 45)
@@ -1333,7 +1338,7 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setColumnWidth(6, 28)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         # Minimum for 4 rows; table grows with group_carrito stretch
-        self.tabla_compra.setMinimumHeight(4 * 32 + 26)
+        self.tabla_compra.setMinimumHeight(4 * 36 + 28)
         self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # NoFrame: removes the 1px frame border that clips the last row when scrolled to end
         self.tabla_compra.setFrameShape(QFrame.NoFrame)
@@ -2990,17 +2995,18 @@ class ModuloVentas(ModuloBase):
             precio_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 2, precio_item)
 
-            # v13.4: Columna de descuento con click para quitar
+            # Descuento: QTableWidgetItem clicable vía cellClicked (más fiable que
+            # setCellWidget en tablas NoEditTriggers — el press llega directo al item)
             desc_pct = float(item.get('descuento_pct', 0))
             if desc_pct > 0:
-                btn_desc = QPushButton(f"-{desc_pct:.0f}%")
-                btn_desc.setObjectName("discountBadgeBtn")
-                btn_desc.setToolTip("Click para quitar descuento")
-                # Capture row index at creation time to prevent closure-over-loop
-                btn_desc.clicked.connect(
-                    lambda checked, r=row: self._quitar_descuento_item(r))
-                self.tabla_compra.setCellWidget(row, 3, btn_desc)
+                disc_item = QTableWidgetItem(f"-{desc_pct:.0f}%")
+                disc_item.setForeground(QBrush(QColor("#EF4444")))
+                disc_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                disc_item.setToolTip("Clic para quitar el descuento")
+                self.tabla_compra.removeCellWidget(row, 3)
+                self.tabla_compra.setItem(row, 3, disc_item)
             else:
+                self.tabla_compra.removeCellWidget(row, 3)
                 self.tabla_compra.setItem(row, 3, QTableWidgetItem(""))
             
             total_item = QTableWidgetItem(f"${item['total']:.2f}")
@@ -3025,6 +3031,12 @@ class ModuloVentas(ModuloBase):
         n = len(self.compra_actual)
         self.lbl_info_carrito.setText(f"{n} producto{'s' if n != 1 else ''}" if n else "")
 
+    def _on_cart_cell_clicked(self, row: int, col: int) -> None:
+        """Handles click on cart table cells. Column 3 = discount badge (remove on click)."""
+        if col == 3 and 0 <= row < len(self.compra_actual):
+            if float(self.compra_actual[row].get('descuento_pct', 0)) > 0:
+                self._quitar_descuento_item(row)
+
     def _quitar_descuento_item(self, row: int):
         """Quita el descuento de un item del carrito y restaura el precio original."""
         if not (0 <= row < len(self.compra_actual)):
@@ -3035,9 +3047,8 @@ class ModuloVentas(ModuloBase):
         item['precio_unitario'] = precio_original
         item['descuento_pct'] = 0
         item['total'] = round(item['cantidad'] * precio_original, 2)
-        # Defer the table rebuild so the button widget is not destroyed while
-        # its own clicked signal is still being processed by Qt's event loop.
-        QTimer.singleShot(0, self.actualizar_tabla_compra)
+        # cellClicked handler: table is not being destroyed mid-signal, safe to rebuild now
+        self.actualizar_tabla_compra()
 
     def modificar_cantidad_producto(self, row: int):
         if 0 <= row < len(self.compra_actual):
