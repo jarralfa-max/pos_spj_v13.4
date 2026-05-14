@@ -1430,7 +1430,7 @@ class ModuloVentas(ModuloBase):
         btn_cart_clear.setObjectName("posCartIconBtn")
         btn_cart_clear.setFixedSize(28, 28)
         btn_cart_clear.setToolTip("Vaciar carrito")
-        btn_cart_clear.clicked.connect(self.limpiar_venta)
+        btn_cart_clear.clicked.connect(self.cancelar_venta)
         ch_lay.addWidget(btn_cart_menu)
         ch_lay.addWidget(btn_cart_clear)
         layout_derecho.addWidget(cart_header)
