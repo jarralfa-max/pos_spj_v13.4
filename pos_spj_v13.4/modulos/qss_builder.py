@@ -2118,7 +2118,6 @@ def _block_pos_module(
         }}
 
         /* ===== POS: COMPACT SECTION GROUP BOXES ===== */
-        /* Override global QGroupBox defaults for the POS right panel */
         QGroupBox[class="venta-group"],
         QGroupBox[class="client-group"],
         QGroupBox[class="discount-group"] {{
@@ -2136,6 +2135,118 @@ def _block_pos_module(
             font-size: 9px;
             font-weight: 700;
             letter-spacing: 0.4px;
+        }}
+        /* Cart QGroupBox — borderless, no title (header shown as separate frame) */
+        QGroupBox#posCartGroup {{
+            border: none;
+            margin-top: 0px;
+            padding-top: 0px;
+            background-color: {bg};
+        }}
+        QGroupBox#posCartGroup::title {{
+            width: 0px; height: 0px;
+        }}
+
+        /* ===== POS: CART TABLE 2-LINE CELLS ===== */
+        QLabel#posCartItemName {{
+            color: {text};
+            font-size: 12px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posCartItemCode {{
+            color: {muted};
+            font-size: 10px;
+            font-weight: 400;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: CLIENT SECTION ===== */
+        QLabel#posClientSectionLabel {{
+            color: {muted};
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posClientName {{
+            color: {text};
+            font-size: 13px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: TOTALS — PUNTOS A GANAR MINI CARD ===== */
+        QFrame#posPtsGainCard {{
+            background-color: {success_soft};
+            border: 1px solid {success};
+            border-radius: 6px;
+        }}
+        QLabel#posPtsGainTitle {{
+            color: {success};
+            font-size: 9px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posPtsGainValue {{
+            color: {success};
+            font-size: 12px;
+            font-weight: 800;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: DISCOUNT BUTTONS BAR ===== */
+        QFrame#posDiscountBar {{
+            background-color: {card};
+            border-top: 1px solid {border};
+            border-bottom: 1px solid {border};
+        }}
+        QPushButton#posDiscountBtn {{
+            background-color: transparent;
+            border: 1px solid {border};
+            border-radius: 5px;
+            color: {text};
+            font-size: 12px;
+            font-weight: 600;
+            min-height: 30px;
+        }}
+        QPushButton#posDiscountBtn:hover {{
+            background-color: {warning_soft};
+            border-color: {warning};
+            color: {warning};
+        }}
+        QPushButton#posDiscountCustomBtn {{
+            background-color: {primary_soft};
+            border: 1px solid {primary};
+            border-radius: 5px;
+            color: {primary};
+            font-size: 11px;
+            font-weight: 600;
+            min-height: 30px;
+        }}
+        QPushButton#posDiscountCustomBtn:hover {{
+            background-color: {primary};
+            color: #FFFFFF;
+        }}
+
+        /* ===== POS: CART DELETE BUTTON ===== */
+        QPushButton#cartDeleteBtn {{
+            background-color: transparent;
+            border: none;
+            color: {muted};
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 4px;
+        }}
+        QPushButton#cartDeleteBtn:hover {{
+            background-color: #FEE2E2;
+            color: #EF4444;
         }}
 
         /* ===== POS: CART TABLE ===== */

@@ -1425,15 +1425,15 @@ class ModuloVentas(ModuloBase):
         panel_derecho.setMinimumWidth(380)
         panel_derecho.setMaximumWidth(600)
         layout_derecho = QVBoxLayout(panel_derecho)
-        layout_derecho.setSpacing(4)
-        layout_derecho.setContentsMargins(4, 4, 4, 4)
+        layout_derecho.setSpacing(0)
+        layout_derecho.setContentsMargins(0, 0, 0, 0)
 
         # ── CART HEADER BAR ──────────────────────────────────────────────────
         cart_header = QFrame()
         cart_header.setObjectName("posCartHeader")
-        cart_header.setFixedHeight(40)
+        cart_header.setFixedHeight(42)
         ch_lay = QHBoxLayout(cart_header)
-        ch_lay.setContentsMargins(12, 0, 8, 0)
+        ch_lay.setContentsMargins(14, 0, 10, 0)
         ch_lay.setSpacing(4)
         lbl_cart_title = QLabel("CARRITO DE COMPRA")
         lbl_cart_title.setObjectName("posCartHeaderTitle")
@@ -1452,16 +1452,77 @@ class ModuloVentas(ModuloBase):
         ch_lay.addWidget(btn_cart_clear)
         layout_derecho.addWidget(cart_header)
 
-        # ── CLIENT SECTION (display-only; txt_cliente hidden for scanner) ────
-        group_cliente = QGroupBox()
+        # ── CART TABLE — flexible, absorbs all available vertical space ───────
+        self._carrito_group = QGroupBox()
+        self._carrito_group.setObjectName("posCartGroup")
+        self._carrito_group.setProperty("class", "venta-group")
+        self._carrito_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._carrito_group.setMinimumHeight(160)
+        carrito_layout = QVBoxLayout(self._carrito_group)
+        carrito_layout.setContentsMargins(0, 0, 0, 0)
+        carrito_layout.setSpacing(0)
+
+        self.tabla_compra = QTableWidget()
+        self.tabla_compra.setProperty("class", "tabla-carrito")
+        self.tabla_compra.setObjectName("posCartTable")
+        self.tabla_compra.setColumnCount(7)
+        self.tabla_compra.setHorizontalHeaderLabels(
+            ["Producto", "Cant.", "Precio", "Desc.", "Total", "", ""])
+        self.tabla_compra.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.tabla_compra.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 48px rows — tall enough for 2-line product cells (name + code)
+        self.tabla_compra.verticalHeader().setDefaultSectionSize(48)
+        self.tabla_compra.verticalHeader().setMinimumSectionSize(48)
+        self.tabla_compra.verticalHeader().setVisible(False)
+        self.tabla_compra.setColumnWidth(1, 46)
+        self.tabla_compra.setColumnWidth(2, 58)
+        self.tabla_compra.setColumnWidth(3, 52)
+        self.tabla_compra.setColumnWidth(4, 62)
+        self.tabla_compra.setColumnWidth(5, 0)   # hidden edit col
+        self.tabla_compra.setColumnWidth(6, 30)
+        self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabla_compra.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
+        self.tabla_compra.setColumnHidden(5, True)
+        self.tabla_compra.setMinimumHeight(3 * 48 + 28)
+        self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.tabla_compra.setFrameShape(QFrame.NoFrame)
+        carrito_layout.addWidget(self.tabla_compra, 1)
+
+        # Empty-cart placeholder
+        self._lbl_cart_empty = QLabel(
+            "Carrito vacío\n\n"
+            "• Escanea un código de barras\n"
+            "• Selecciona un producto del catálogo\n"
+            "• Escribe el nombre en el buscador"
+        )
+        self._lbl_cart_empty.setObjectName("posCartEmpty")
+        self._lbl_cart_empty.setAlignment(Qt.AlignCenter)
+        self._lbl_cart_empty.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._lbl_cart_empty.show()
+        self.tabla_compra.hide()
+        carrito_layout.addWidget(self._lbl_cart_empty, 1)
+
+        self.lbl_info_carrito = QLabel("")
+        self.lbl_info_carrito.setMaximumHeight(0)
+        self.lbl_info_carrito.setVisible(False)
+        layout_derecho.addWidget(self._carrito_group, 1)
+
+        # ── CLIENT SECTION (compact display; txt_cliente hidden for scanner) ──
+        group_cliente = QFrame()
         group_cliente.setObjectName("posClientFrame")
-        group_cliente.setProperty("class", "client-group")
         group_cliente.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         cliente_layout = QVBoxLayout(group_cliente)
-        cliente_layout.setContentsMargins(8, 6, 8, 6)
-        cliente_layout.setSpacing(4)
+        cliente_layout.setContentsMargins(12, 6, 12, 6)
+        cliente_layout.setSpacing(3)
 
-        # Hidden scanner field — scanner targets this when scan context = "cliente"
+        # Section label
+        _lbl_cliente_sec = QLabel("Cliente")
+        _lbl_cliente_sec.setObjectName("posClientSectionLabel")
+        cliente_layout.addWidget(_lbl_cliente_sec)
+
+        # Hidden scanner field — scanner targets this when context = "cliente"
         self.txt_cliente = QLineEdit()
         self.txt_cliente.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
         self.txt_cliente.setProperty("class", "client-input")
@@ -1470,10 +1531,10 @@ class ModuloVentas(ModuloBase):
             "Cuando este campo tenga foco, el scanner carga el cliente por tarjeta o ID.")
         self._filter_cliente = _ScanContextFilter(self, "cliente", self.txt_cliente)
         self.txt_cliente.installEventFilter(self._filter_cliente)
-        self.txt_cliente.setVisible(False)      # hidden by default; shown on Cambiar
+        self.txt_cliente.setVisible(False)
         self.txt_cliente.setMaximumHeight(0)
 
-        # Editable search row (shown when user clicks Cambiar)
+        # Search row (shown when Cambiar is clicked)
         self._client_search_row = QFrame()
         self._client_search_row.setObjectName("posClientSearchRow")
         _csr_lay = QHBoxLayout(self._client_search_row)
@@ -1495,7 +1556,7 @@ class ModuloVentas(ModuloBase):
         self._client_search_row.setVisible(False)
         cliente_layout.addWidget(self._client_search_row)
 
-        # Display row (shown by default)
+        # Display row — name + pts + Cambiar button
         self._client_display_row = QFrame()
         self._client_display_row.setObjectName("posClientDisplayRow")
         _cdr_lay = QHBoxLayout(self._client_display_row)
@@ -1503,35 +1564,25 @@ class ModuloVentas(ModuloBase):
         _cdr_lay.setSpacing(6)
 
         self.lbl_nombre_cliente = QLabel("Público General")
-        self.lbl_nombre_cliente.setProperty("class", "client-info-highlight")
-
+        self.lbl_nombre_cliente.setObjectName("posClientName")
         self.lbl_puntos_cliente = QLabel("+ 0 pts")
         self.lbl_puntos_cliente.setProperty("class", "client-info-highlight")
-
         self.lbl_telefono_cliente = QLabel("Tel: —")
         self.lbl_telefono_cliente.setProperty("class", "client-info")
-
-        self.lbl_email_cliente = QLabel("")  # kept for API compatibility
+        self.lbl_email_cliente = QLabel("")
         self.lbl_email_cliente.setProperty("class", "client-info")
         self.lbl_email_cliente.setVisible(False)
 
-        # Loyalty tier badge
         self._lbl_loyalty_tier = QLabel("")
         self._lbl_loyalty_tier.setObjectName("posLoyaltyTierBadge")
         self._lbl_loyalty_tier.hide()
 
         _cdr_lay.addWidget(self.lbl_nombre_cliente)
-        _sep1 = QLabel("·")
-        _sep1.setProperty("class", "client-info")
-        _cdr_lay.addWidget(_sep1)
-        _cdr_lay.addWidget(self.lbl_puntos_cliente)
         _cdr_lay.addWidget(self._lbl_loyalty_tier)
         _cdr_lay.addStretch(1)
-
-        # "Cambiar" button — toggles visibility of search row
         btn_cambiar_cliente = QPushButton("Cambiar")
         btn_cambiar_cliente.setObjectName("posClientChangeBtn")
-        btn_cambiar_cliente.setFixedHeight(26)
+        btn_cambiar_cliente.setFixedHeight(24)
         btn_cambiar_cliente.setToolTip("Buscar o cambiar el cliente de esta venta")
         def _toggle_client_search():
             visible = not self._client_search_row.isVisible()
@@ -1544,122 +1595,25 @@ class ModuloVentas(ModuloBase):
                 self.txt_cliente.selectAll()
         btn_cambiar_cliente.clicked.connect(_toggle_client_search)
         _cdr_lay.addWidget(btn_cambiar_cliente)
-
         cliente_layout.addWidget(self._client_display_row)
 
-        # Tel row (second line, compact)
-        _tel_row = QHBoxLayout()
-        _tel_row.setContentsMargins(0, 0, 0, 0)
-        _tel_row.setSpacing(4)
-        _tel_row.addWidget(self.lbl_telefono_cliente)
-        _tel_row.addStretch(1)
-        cliente_layout.addLayout(_tel_row)
-
+        # Second info line: pts + tel
+        _info2_lay = QHBoxLayout()
+        _info2_lay.setContentsMargins(0, 0, 0, 0)
+        _info2_lay.setSpacing(8)
+        _info2_lay.addWidget(self.lbl_puntos_cliente)
+        _info2_lay.addWidget(self.lbl_telefono_cliente)
+        _info2_lay.addStretch(1)
+        cliente_layout.addLayout(_info2_lay)
         layout_derecho.addWidget(group_cliente)
 
-        # CART TABLE — primary flexible section: absorbs all available vertical space
-        self._carrito_group = QGroupBox("CARRITO")
-        self._carrito_group.setProperty("class", "venta-group")
-        self._carrito_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # Guarantee at minimum 4 visible rows (row_height=36 × 4 + header≈28 + padding=12)
-        self._carrito_group.setMinimumHeight(184)
-        carrito_layout = QVBoxLayout(self._carrito_group)
-        # Bottom margin 6px so the table's last row border never gets clipped
-        # by the GroupBox frame edge when scrolled to end
-        carrito_layout.setContentsMargins(3, 2, 3, 6)
-        carrito_layout.setSpacing(2)
-
-        self.tabla_compra = QTableWidget()
-        self.tabla_compra.setProperty("class", "tabla-carrito")
-        self.tabla_compra.setColumnCount(7)
-        self.tabla_compra.setHorizontalHeaderLabels(
-            ["Producto", "Cant.", "Precio", "Desc.", "Total", "", ""])
-        self.tabla_compra.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabla_compra.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla_compra.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.tabla_compra.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        # 36px: 32px content + 2px top-padding + 1px border-bottom (from ::item CSS) + 1px spare
-        # prevents the bottom row border from being clipped when scrolled to end
-        self.tabla_compra.verticalHeader().setDefaultSectionSize(36)
-        self.tabla_compra.verticalHeader().setMinimumSectionSize(36)
-        self.tabla_compra.verticalHeader().setVisible(False)
-        self.tabla_compra.setColumnWidth(0, 140)
-        self.tabla_compra.setColumnWidth(1, 45)
-        self.tabla_compra.setColumnWidth(2, 55)
-        self.tabla_compra.setColumnWidth(3, 45)
-        self.tabla_compra.setColumnWidth(4, 60)
-        self.tabla_compra.setColumnWidth(5, 28)
-        self.tabla_compra.setColumnWidth(6, 28)
-        self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        # Minimum for 4 rows; table grows with group_carrito stretch
-        self.tabla_compra.setMinimumHeight(4 * 36 + 28)
-        self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        # NoFrame: removes the 1px frame border that clips the last row when scrolled to end
-        self.tabla_compra.setFrameShape(QFrame.NoFrame)
-        carrito_layout.addWidget(self.tabla_compra, 1)
-
-        # Empty-cart placeholder — visible when carrito is empty
-        self._lbl_cart_empty = QLabel(
-            "Carrito vacío\n\n"
-            "• Escanea un código de barras\n"
-            "• Selecciona un producto del catálogo\n"
-            "• Escribe el nombre en el buscador"
-        )
-        self._lbl_cart_empty.setObjectName("posCartEmpty")
-        self._lbl_cart_empty.setAlignment(Qt.AlignCenter)
-        self._lbl_cart_empty.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self._lbl_cart_empty.show()
-        self.tabla_compra.hide()
-        carrito_layout.addWidget(self._lbl_cart_empty, 1)
-
-        # Item count moved to group title; label kept as hidden stub for legacy refs
-        self.lbl_info_carrito = QLabel("")
-        self.lbl_info_carrito.setMaximumHeight(0)
-        self.lbl_info_carrito.setVisible(False)
-        # stretch=1: cart is the ONLY section that grows when window is tall/maximized
-        layout_derecho.addWidget(self._carrito_group, 1)
-
-        # QUICK DISCOUNT BUTTONS — compact flat bar (no GroupBox title overhead)
-        desc_frame = QFrame()
-        desc_frame.setObjectName("posCompactBar")
-        desc_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        desc_lay = QHBoxLayout(desc_frame)
-        desc_lay.setContentsMargins(4, 3, 4, 3)
-        desc_lay.setSpacing(4)
-        _lbl_desc = QLabel("🔒 Dto:")
-        _lbl_desc.setObjectName("posBarLabel")
-        _lbl_desc.setToolTip("Descuentos protegidos — requieren autorización de gerente")
-        desc_lay.addWidget(_lbl_desc)
-        for pct in [5, 10, 15, 20]:
-            btn_d = QPushButton(f"{pct}%")
-            btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            btn_d.setMinimumHeight(28)
-            btn_d.setMaximumHeight(28)
-            btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
-            btn_d.setObjectName("outlineBtn")
-            btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
-            desc_lay.addWidget(btn_d)
-        btn_custom = QPushButton("Custom")
-        btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        btn_custom.setMinimumHeight(28)
-        btn_custom.setMaximumHeight(28)
-        btn_custom.setToolTip("Descuento personalizado")
-        btn_custom.setObjectName("accentBtn")
-        btn_custom.clicked.connect(lambda: self._descuento_custom())
-        desc_lay.addWidget(btn_custom)
-        layout_derecho.addWidget(desc_frame)
-
-        # TOTALS BREAKDOWN CARD
+        # ── TOTALS BREAKDOWN ──────────────────────────────────────────────────
         totals_card = QFrame()
         totals_card.setObjectName("posTotalsCard")
         totals_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         totals_layout = QVBoxLayout(totals_card)
         totals_layout.setContentsMargins(12, 8, 12, 8)
         totals_layout.setSpacing(4)
-
-        lbl_resumen_header = QLabel("RESUMEN")
-        lbl_resumen_header.setObjectName("posSectionHeader")
-        totals_layout.addWidget(lbl_resumen_header)
 
         row_sub = QHBoxLayout()
         row_sub.setSpacing(4)
@@ -1688,7 +1642,7 @@ class ModuloVentas(ModuloBase):
         self._row_discount_widget.setVisible(False)
         totals_layout.addWidget(self._row_discount_widget)
 
-        # IVA row — hidden until a taxable item is in cart
+        # IVA row — hidden until present
         self._row_iva_widget = QWidget()
         row_iva = QHBoxLayout(self._row_iva_widget)
         row_iva.setContentsMargins(0, 0, 0, 0)
@@ -1710,8 +1664,9 @@ class ModuloVentas(ModuloBase):
         divider.setFixedHeight(1)
         totals_layout.addWidget(divider)
 
+        # TOTAL row + Puntos a ganar mini-card on the right
         row_total = QHBoxLayout()
-        row_total.setSpacing(4)
+        row_total.setSpacing(8)
         lbl_total_label = QLabel("TOTAL")
         lbl_total_label.setObjectName("posGrandTotalLabel")
         self.lbl_total = QLabel("$0.00")
@@ -1720,41 +1675,48 @@ class ModuloVentas(ModuloBase):
         row_total.addWidget(lbl_total_label)
         row_total.addStretch(1)
         row_total.addWidget(self.lbl_total)
+
+        # "Puntos a ganar" mini card — aligned right of total
+        _pts_card = QFrame()
+        _pts_card.setObjectName("posPtsGainCard")
+        _pts_card_lay = QVBoxLayout(_pts_card)
+        _pts_card_lay.setContentsMargins(6, 3, 6, 3)
+        _pts_card_lay.setSpacing(0)
+        _lbl_pts_title = QLabel("Puntos a ganar")
+        _lbl_pts_title.setObjectName("posPtsGainTitle")
+        _lbl_pts_title.setAlignment(Qt.AlignCenter)
+        self.lbl_puntos_venta = QLabel("+0 pts")
+        self.lbl_puntos_venta.setObjectName("posPtsGainValue")
+        self.lbl_puntos_venta.setAlignment(Qt.AlignCenter)
+        _pts_card_lay.addWidget(_lbl_pts_title)
+        _pts_card_lay.addWidget(self.lbl_puntos_venta)
+        row_total.addWidget(_pts_card)
         totals_layout.addLayout(row_total)
 
-        # 3 indicator cards: peso / puntos / comisión
-        indicators_row = QHBoxLayout()
-        indicators_row.setSpacing(6)
-        indicators_row.setContentsMargins(0, 6, 0, 0)
+        # Báscula indicator (kept for API compat; compact)
+        card_peso = QFrame()
+        card_peso.setObjectName("posIndicatorCard")
+        card_peso.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        _cp_lay = QHBoxLayout(card_peso)
+        _cp_lay.setContentsMargins(6, 3, 6, 3)
+        _cp_lay.setSpacing(4)
+        _lbl_bsc = QLabel("⚖")
+        _lbl_bsc.setObjectName("posIndicatorTitle")
+        self.lbl_peso_bascula = QLabel("0.000 kg")
+        self.lbl_peso_bascula.setObjectName("posIndicatorValue")
+        _cp_lay.addWidget(_lbl_bsc)
+        _cp_lay.addWidget(self.lbl_peso_bascula)
+        card_peso.setVisible(False)   # shown only when scale is active
+        self._card_peso = card_peso
 
-        def _make_indicator(title_text, value_text, object_name):
-            card = QFrame()
-            card.setObjectName("posIndicatorCard")
-            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            card_lay = QVBoxLayout(card)
-            card_lay.setContentsMargins(6, 4, 6, 4)
-            card_lay.setSpacing(1)
-            lbl_title = QLabel(title_text)
-            lbl_title.setObjectName("posIndicatorTitle")
-            lbl_title.setAlignment(Qt.AlignCenter)
-            lbl_val = QLabel(value_text)
-            lbl_val.setObjectName(object_name)
-            lbl_val.setAlignment(Qt.AlignCenter)
-            card_lay.addWidget(lbl_title)
-            card_lay.addWidget(lbl_val)
-            return card, lbl_val
-
-        card_peso, self.lbl_peso_bascula = _make_indicator("Báscula", "0.000 kg", "posIndicatorValue")
-        card_puntos, self.lbl_puntos_venta = _make_indicator("Puntos", "0 pts", "posIndicatorValue")
-        card_comision, self.lbl_comision_turno = _make_indicator("Comisión", "", "posIndicatorValue")
-        self.lbl_comision_turno.setVisible(False)
+        # Comisión (kept for API compat)
+        card_comision = QFrame()
+        card_comision.setObjectName("posIndicatorCard")
         card_comision.setVisible(False)
         self._card_comision = card_comision
+        self.lbl_comision_turno = QLabel("")
+        self.lbl_comision_turno.setVisible(False)
 
-        indicators_row.addWidget(card_peso)
-        indicators_row.addWidget(card_puntos)
-        indicators_row.addWidget(card_comision)
-        totals_layout.addLayout(indicators_row)
         layout_derecho.addWidget(totals_card)
 
         self._banner_sin_impresora = QLabel(
@@ -1764,46 +1726,70 @@ class ModuloVentas(ModuloBase):
         self._banner_sin_impresora.setVisible(False)
         layout_derecho.addWidget(self._banner_sin_impresora)
 
+        # ── DISCOUNT BUTTONS ─────────────────────────────────────────────────
+        desc_frame = QFrame()
+        desc_frame.setObjectName("posDiscountBar")
+        desc_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        desc_lay = QHBoxLayout(desc_frame)
+        desc_lay.setContentsMargins(8, 5, 8, 5)
+        desc_lay.setSpacing(5)
+        for pct in [5, 10, 15, 20]:
+            btn_d = QPushButton(f"{pct}%")
+            btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            btn_d.setMinimumHeight(30)
+            btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
+            btn_d.setObjectName("posDiscountBtn")
+            btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
+            desc_lay.addWidget(btn_d)
+        btn_custom = QPushButton("Personalizado")
+        btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        btn_custom.setMinimumHeight(30)
+        btn_custom.setToolTip("Descuento personalizado")
+        btn_custom.setObjectName("posDiscountCustomBtn")
+        btn_custom.clicked.connect(lambda: self._descuento_custom())
+        desc_lay.addWidget(btn_custom)
+        layout_derecho.addWidget(desc_frame)
+
         # ── PRIMARY TRANSACTION ACTIONS ──────────────────────────────────────
         group_acciones = QFrame()
         group_acciones.setObjectName("posCobrarFrame")
         group_acciones.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         acciones_layout = QVBoxLayout(group_acciones)
-        acciones_layout.setContentsMargins(8, 8, 8, 8)
-        acciones_layout.setSpacing(6)
+        acciones_layout.setContentsMargins(8, 6, 8, 6)
+        acciones_layout.setSpacing(5)
 
-        # PRIMARY: COBRAR — dominant full-width green button with F9 badge
+        # COBRAR — dominant full-width green button with F9 badge
         cobrar_wrap = QFrame()
         cobrar_wrap.setObjectName("posCobrarBtnWrap")
         _cobrar_lay = QHBoxLayout(cobrar_wrap)
         _cobrar_lay.setContentsMargins(0, 0, 0, 0)
         _cobrar_lay.setSpacing(0)
-        self.btn_cobrar = create_success_button(self, "💰  COBRAR  $0.00", "Procesar el pago de la venta (F9)")
+        self.btn_cobrar = create_success_button(self, "💳  COBRAR  $0.00", "Procesar el pago de la venta (F9)")
         self.btn_cobrar.setObjectName("btnCobrarPOS")
         self.btn_cobrar.setProperty("fill_parent", True)
         self.btn_cobrar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.btn_cobrar.setMinimumHeight(50)
+        self.btn_cobrar.setMinimumHeight(48)
         _lbl_f9 = QLabel("F9")
         _lbl_f9.setObjectName("posFKeyBadge")
-        _lbl_f9.setFixedSize(26, 50)
+        _lbl_f9.setFixedSize(26, 48)
         _lbl_f9.setAlignment(Qt.AlignCenter)
         _cobrar_lay.addWidget(self.btn_cobrar, 1)
         _cobrar_lay.addWidget(_lbl_f9)
         acciones_layout.addWidget(cobrar_wrap)
 
-        # SECONDARY ROW 1: Suspender | Reanudar | Cancelar
+        # Row 1: Suspender | Reanudar | Cancelar
         row_secondary = QHBoxLayout()
-        row_secondary.setSpacing(5)
-        self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta actual para atender otra (F6)")
+        row_secondary.setSpacing(4)
+        self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta (F6)")
         self.btn_reanudar  = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida (F7)")
         self.btn_reanudar.setObjectName("posActionBtn")
-        self.btn_cancelar  = create_danger_button(self, "✕ Cancelar", "Cancelar venta actual (F8)")
+        self.btn_cancelar  = create_danger_button(self, "✕ Cancelar", "Cancelar venta (F8)")
         for _b, _fk in ((self.btn_suspender, "F6"),
-                        (self.btn_reanudar, "F7"),
-                        (self.btn_cancelar, "F8")):
+                        (self.btn_reanudar,  "F7"),
+                        (self.btn_cancelar,  "F8")):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(34)
+            _b.setMinimumHeight(32)
             _wrap = QFrame()
             _wrap.setObjectName("posFKeyBtnWrap")
             _wl = QVBoxLayout(_wrap)
@@ -1813,20 +1799,20 @@ class ModuloVentas(ModuloBase):
             _fkl = QLabel(_fk)
             _fkl.setObjectName("posFKeySubLabel")
             _fkl.setAlignment(Qt.AlignCenter)
-            _fkl.setFixedHeight(14)
+            _fkl.setFixedHeight(13)
             _wl.addWidget(_fkl)
             row_secondary.addWidget(_wrap)
         acciones_layout.addLayout(row_secondary)
 
         layout_derecho.addWidget(group_acciones)
 
-        # ── UTILITY ACTIONS — compact bar with F-key labels ─────────────────
+        # ── UTILITY ACTIONS ROW ───────────────────────────────────────────────
         group_utilidad = QFrame()
         group_utilidad.setObjectName("posUtilBar")
         group_utilidad.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         utilidad_layout = QHBoxLayout(group_utilidad)
         utilidad_layout.setContentsMargins(8, 4, 8, 4)
-        utilidad_layout.setSpacing(6)
+        utilidad_layout.setSpacing(4)
 
         self.btn_devolucion = create_secondary_button(
             self, "↩ Devolución",
@@ -3347,7 +3333,8 @@ class ModuloVentas(ModuloBase):
             'cantidad': cantidad,
             'unidad': producto['unidad'],
             'precio_unitario': producto['precio'],
-            'total': total_item
+            'total': total_item,
+            'codigo': producto.get('codigo', '') or producto.get('codigo_barras', ''),
         }
         
         self.compra_actual.append(item_compra)
@@ -3367,20 +3354,32 @@ class ModuloVentas(ModuloBase):
             self._lbl_cart_empty.setVisible(not has_items)
 
         self.tabla_compra.setRowCount(len(self.compra_actual))
-        
-        for row, item in enumerate(self.compra_actual): 
-            self.tabla_compra.setItem(row, 0, QTableWidgetItem(item['nombre']))
-            
+
+        for row, item in enumerate(self.compra_actual):
+            # Column 0: 2-line cell — name (bold) + code (muted small)
+            cell_w = QWidget()
+            cell_lay = QVBoxLayout(cell_w)
+            cell_lay.setContentsMargins(6, 4, 4, 4)
+            cell_lay.setSpacing(1)
+            lbl_name = QLabel(item['nombre'])
+            lbl_name.setObjectName("posCartItemName")
+            codigo = (item.get('codigo', '') or item.get('codigo_barras', '')
+                      or str(item.get('id', '')))
+            lbl_code = QLabel(f"Código: {codigo}")
+            lbl_code.setObjectName("posCartItemCode")
+            cell_lay.addWidget(lbl_name)
+            cell_lay.addWidget(lbl_code)
+            self.tabla_compra.setCellWidget(row, 0, cell_w)
+
             cantidad_item = QTableWidgetItem(f"{item['cantidad']:.3f}")
             cantidad_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 1, cantidad_item)
-            
+
             precio_item = QTableWidgetItem(f"${item['precio_unitario']:.2f}")
             precio_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 2, precio_item)
 
-            # Descuento: QTableWidgetItem clicable vía cellClicked (más fiable que
-            # setCellWidget en tablas NoEditTriggers — el press llega directo al item)
+            # Descuento — clicable via cellClicked (col 3)
             desc_pct = float(item.get('descuento_pct', 0))
             if desc_pct > 0:
                 disc_item = QTableWidgetItem(f"-{desc_pct:.0f}%")
@@ -3391,12 +3390,13 @@ class ModuloVentas(ModuloBase):
                 self.tabla_compra.setItem(row, 3, disc_item)
             else:
                 self.tabla_compra.removeCellWidget(row, 3)
-                self.tabla_compra.setItem(row, 3, QTableWidgetItem(""))
-            
+                self.tabla_compra.setItem(row, 3, QTableWidgetItem("$0.00"))
+
             total_item = QTableWidgetItem(f"${item['total']:.2f}")
             total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 4, total_item)
-            
+
+            # Col 5: hidden edit button (kept for legacy compatibility)
             btn_modificar = QPushButton("✏️")
             btn_modificar.setToolTip("Modificar cantidad")
             btn_modificar.setFixedSize(28, 28)
@@ -3404,18 +3404,15 @@ class ModuloVentas(ModuloBase):
             btn_modificar.clicked.connect(lambda checked, r=row: self.modificar_cantidad_producto(r))
             self.tabla_compra.setCellWidget(row, 5, btn_modificar)
 
-            btn_eliminar = QPushButton("❌")
+            # Col 6: delete ×
+            btn_eliminar = QPushButton("×")
             btn_eliminar.setToolTip("Eliminar producto")
             btn_eliminar.setFixedSize(28, 28)
             btn_eliminar.setObjectName("cartDeleteBtn")
             btn_eliminar.clicked.connect(lambda checked, r=row: self.eliminar_producto_carrito(r))
             self.tabla_compra.setCellWidget(row, 6, btn_eliminar)
-            
+
         self.calcular_totales()
-        n = len(self.compra_actual)
-        title = f"CARRITO  ({n} producto{'s' if n != 1 else ''})" if n else "CARRITO"
-        if hasattr(self, '_carrito_group'):
-            self._carrito_group.setTitle(title)
 
     def _on_cart_cell_clicked(self, row: int, col: int) -> None:
         """Handles click on cart table cells. Column 3 = discount badge (remove on click)."""
