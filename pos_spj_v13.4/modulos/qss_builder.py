@@ -2566,6 +2566,184 @@ def _block_pos_module(
             border-color: {primary};
             border-width: 2px;
         }}
+
+        /* ===== POS: PAGE HEADER (PUNTO DE VENTA) ===== */
+        QFrame#posPageHeader {{
+            background-color: {card};
+            border: none;
+            border-bottom: 1px solid {border};
+        }}
+        QLabel#posPageTitle {{
+            color: {text};
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posPageSubtitle {{
+            color: {muted};
+            font-size: 11px;
+            font-weight: 400;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: SEARCH BAR ===== */
+        QFrame#posSearchFrame {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 8px;
+        }}
+        QPushButton#posBarcodeBtn {{
+            background: transparent;
+            border: none;
+            color: {muted};
+            font-size: 18px;
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 0px;
+        }}
+        QPushButton#posBarcodeBtn:hover {{
+            background-color: {primary_soft};
+            color: {primary};
+        }}
+        QLineEdit#posSearchInput {{
+            background-color: transparent;
+            border: none;
+            color: {text};
+            font-size: 13px;
+            padding: 4px 2px;
+        }}
+        QLineEdit#posSearchInput:focus {{
+            border: none;
+            outline: none;
+        }}
+
+        /* ===== POS: CATEGORY ROW ===== */
+        QFrame#posCategoryRow {{
+            background-color: {card};
+            border: none;
+            border-bottom: 1px solid {border};
+        }}
+        QPushButton#posViewToggleActive {{
+            background-color: {primary_soft};
+            border: 1px solid {primary};
+            border-radius: 4px;
+            color: {primary};
+            font-size: 14px;
+            font-weight: 700;
+        }}
+        QPushButton#posViewToggleBtn {{
+            background-color: transparent;
+            border: 1px solid {border};
+            border-radius: 4px;
+            color: {muted};
+            font-size: 14px;
+        }}
+        QPushButton#posViewToggleBtn:hover {{
+            background-color: {primary_soft};
+            color: {primary};
+        }}
+
+        /* ===== POS: CART HEADER ===== */
+        QFrame#posCartHeader {{
+            background-color: {card};
+            border: none;
+            border-bottom: 1px solid {border};
+        }}
+        QLabel#posCartHeaderTitle {{
+            color: {text};
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: transparent;
+            border: none;
+        }}
+        QPushButton#posCartIconBtn {{
+            background: transparent;
+            border: none;
+            color: {muted};
+            font-size: 15px;
+            border-radius: 4px;
+            padding: 0px;
+        }}
+        QPushButton#posCartIconBtn:hover {{
+            background-color: {primary_soft};
+            color: {primary};
+        }}
+
+        /* ===== POS: CLIENT SECTION ===== */
+        QGroupBox#posClientFrame {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 6px;
+            margin-top: 0px;
+            padding: 6px 8px;
+        }}
+        QGroupBox#posClientFrame::title {{
+            width: 0px;
+            height: 0px;
+        }}
+        QFrame#posClientDisplayRow {{
+            background: transparent;
+            border: none;
+        }}
+        QFrame#posClientSearchRow {{
+            background: transparent;
+            border: none;
+        }}
+        QPushButton#posClientChangeBtn {{
+            background-color: transparent;
+            border: 1px solid {border};
+            border-radius: 4px;
+            color: {primary};
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+        }}
+        QPushButton#posClientChangeBtn:hover {{
+            background-color: {primary_soft};
+            border-color: {primary};
+        }}
+
+        /* ===== POS: COBRAR FRAME ===== */
+        QFrame#posCobrarFrame {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 8px;
+        }}
+        QFrame#posCobrarBtnWrap {{
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posFKeyBadge {{
+            background-color: {success};
+            color: #FFFFFF;
+            font-size: 10px;
+            font-weight: 800;
+            border-radius: 3px;
+            letter-spacing: 0.3px;
+        }}
+        QFrame#posFKeyBtnWrap {{
+            background: transparent;
+            border: none;
+        }}
+        QLabel#posFKeySubLabel {{
+            color: {muted};
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            background: transparent;
+            border: none;
+        }}
+
+        /* ===== POS: UTILITY BAR ===== */
+        QFrame#posUtilBar {{
+            background-color: {card};
+            border: 1px solid {border};
+            border-radius: 6px;
+        }}
     """
 
 
