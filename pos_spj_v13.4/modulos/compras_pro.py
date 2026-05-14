@@ -135,14 +135,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.setSpacing(0)
 
         kpi_defs = [
-            ("Compras este mes",   "—", Colors.PRIMARY_BASE),
-            ("Proveedores activos","—", Colors.SUCCESS_BASE),
-            ("Órdenes pendientes", "—", Colors.WARNING_BASE),
-            ("Gasto del mes",      "—", Colors.INFO_BASE),
+            ("Compras este mes",    "—", "primary"),
+            ("Proveedores activos", "—", "success"),
+            ("Órdenes pendientes",  "—", "warning"),
+            ("Gasto del mes",       "—", "info"),
         ]
         self._stats_value_labels: list[QLabel] = []
 
-        for i, (caption, val, col) in enumerate(kpi_defs):
+        for i, (caption, val, variant) in enumerate(kpi_defs):
             if i > 0:
                 sep = _F()
                 sep.setObjectName("statsBarSeparator")
@@ -154,8 +154,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             col_lay.setSpacing(1)
             lbl_val = _L(val)
             lbl_val.setObjectName("statsKpiValue")
-            lbl_val.setStyleSheet(
-                f"color:{col};font-size:18px;font-weight:700;background:transparent;border:none;")
+            lbl_val.setProperty("variant", variant)   # theme-aware via QSS
             lbl_cap = _L(caption.upper())
             lbl_cap.setObjectName("statsKpiCaption")
             col_lay.addWidget(lbl_val)
