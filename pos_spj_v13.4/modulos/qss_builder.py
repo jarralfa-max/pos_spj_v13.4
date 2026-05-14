@@ -2885,8 +2885,11 @@ def _block_pos_module(
     """
 
 
-def _block_stats_bar(*, bg: str, border: str, muted: str) -> str:
-    """QSS para la barra de KPIs del módulo de Compras."""
+def _block_stats_bar(
+    *, bg: str, border: str, muted: str,
+    primary: str, success: str, warning: str, info: str,
+) -> str:
+    """QSS para la barra de KPIs del módulo de Compras — completamente theme-aware."""
     return f"""
         /* ===== COMPRAS: STATS BAR ===== */
         QFrame#statsBarCmp {{
@@ -2907,9 +2910,15 @@ def _block_stats_bar(*, bg: str, border: str, muted: str) -> str:
             border: none;
         }}
         QLabel#statsKpiValue {{
+            font-size: 18px;
+            font-weight: 700;
             background: transparent;
             border: none;
         }}
+        QLabel#statsKpiValue[variant="primary"] {{ color: {primary}; }}
+        QLabel#statsKpiValue[variant="success"] {{ color: {success}; }}
+        QLabel#statsKpiValue[variant="warning"] {{ color: {warning}; }}
+        QLabel#statsKpiValue[variant="info"]    {{ color: {info};    }}
     """
 
 
@@ -2972,6 +2981,10 @@ def _modern_blocks(theme: str) -> str:
                 bg=Colors.NEUTRAL.SLATE_800,
                 border=Colors.NEUTRAL.SLATE_700,
                 muted=Colors.NEUTRAL.SLATE_400,
+                primary=Colors.PRIMARY_BASE,
+                success=Colors.SUCCESS_BASE,
+                warning=Colors.WARNING_BASE,
+                info=Colors.INFO_BASE,
             )
             + _block_dash_cards(
                 bg=Colors.NEUTRAL.SLATE_800,
@@ -3041,6 +3054,10 @@ def _modern_blocks(theme: str) -> str:
             bg=Colors.NEUTRAL.SLATE_100,
             border=Colors.NEUTRAL.SLATE_200,
             muted=Colors.NEUTRAL.SLATE_500,
+            primary=Colors.PRIMARY_BASE,
+            success=Colors.SUCCESS_BASE,
+            warning=Colors.WARNING_BASE,
+            info=Colors.INFO_BASE,
         )
         + _block_dash_cards(
             bg=Colors.NEUTRAL.WHITE,
