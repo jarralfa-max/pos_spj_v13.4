@@ -119,9 +119,9 @@ class ProductCard(QFrame):
         self.producto = producto_data
         self.is_selected = False
         self._is_hovering = False
-        self.original_size = QSize(160, 220)
-        self.zoom_size = QSize(170, 230)
-        
+        self.original_size = QSize(148, 192)
+        self.zoom_size     = QSize(154, 198)   # 6px zoom delta — subtle, no layout jumps
+
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(self.original_size)
         self.setFrameShape(QFrame.StyledPanel)
@@ -151,7 +151,7 @@ class ProductCard(QFrame):
 
         self.lbl_imagen = QLabel()
         self.lbl_imagen.setAlignment(Qt.AlignCenter)
-        self.lbl_imagen.setFixedSize(140, 110)
+        self.lbl_imagen.setFixedSize(128, 90)
         self.lbl_imagen.setProperty("class", "product-image")
         self._load_image()
 
@@ -908,6 +908,108 @@ class _DialogoAsignarTarjeta(QDialog):
             QMessageBox.critical(self, "Error", f"No se pudo crear cliente: {exc}")
 
 # ==============================================================================
+# 5a. DIALOGO DE AUTORIZACION PROTEGIDA (descuentos, overrides, etc.)
+# ==============================================================================
+
+class _AuthDiscountDialog(QDialog):
+    """Enterprise authorization dialog for protected POS operations.
+
+    Replaces raw QInputDialog for PIN entry — provides structured reason
+    capture and supervisor PIN in a single, auditable dialog.
+    """
+    def __init__(self, operacion: str, detalles: str,
+                 requiere_pin: bool = True, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Autorización Requerida")
+        self.setModal(True)
+        self.setMinimumWidth(380)
+        self._pin: str = ""
+        self._motivo: str = ""
+        self._requiere_pin = requiere_pin
+        self._build_ui(operacion, detalles)
+
+    def _build_ui(self, operacion: str, detalles: str):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(16, 14, 16, 14)
+
+        hdr = QFrame()
+        hdr.setObjectName("authDialogHeader")
+        hdr_lay = QHBoxLayout(hdr)
+        hdr_lay.setContentsMargins(10, 8, 10, 8)
+        hdr_lay.setSpacing(8)
+        lbl_icon = QLabel("🔒")
+        lbl_icon.setObjectName("authDialogIcon")
+        lbl_title = QLabel(operacion)
+        lbl_title.setObjectName("authDialogTitle")
+        hdr_lay.addWidget(lbl_icon)
+        hdr_lay.addWidget(lbl_title)
+        hdr_lay.addStretch(1)
+        layout.addWidget(hdr)
+
+        lbl_det = QLabel(detalles)
+        lbl_det.setWordWrap(True)
+        lbl_det.setObjectName("authDialogDetail")
+        layout.addWidget(lbl_det)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setContentsMargins(0, 4, 0, 4)
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.txt_motivo = QLineEdit()
+        self.txt_motivo.setPlaceholderText("Motivo de la operación...")
+        self.txt_motivo.setObjectName("authDialogInput")
+        form.addRow("Motivo:", self.txt_motivo)
+
+        if self._requiere_pin:
+            self.txt_pin = QLineEdit()
+            self.txt_pin.setEchoMode(QLineEdit.Password)
+            self.txt_pin.setPlaceholderText("PIN del supervisor")
+            self.txt_pin.setMaxLength(8)
+            self.txt_pin.setObjectName("authDialogInput")
+            self.txt_pin.returnPressed.connect(self._aceptar)
+            form.addRow("PIN supervisor:", self.txt_pin)
+
+        layout.addLayout(form)
+        layout.addStretch(1)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondaryBtn")
+        btn_cancel.setMinimumHeight(34)
+        btn_ok = QPushButton("✓  Autorizar")
+        btn_ok.setObjectName("primaryBtn")
+        btn_ok.setMinimumHeight(36)
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_ok, 2)
+        layout.addLayout(btn_row)
+
+        btn_ok.clicked.connect(self._aceptar)
+        btn_cancel.clicked.connect(self.reject)
+
+    def _aceptar(self):
+        if self._requiere_pin:
+            pin_field = getattr(self, 'txt_pin', None)
+            if not pin_field or not pin_field.text().strip():
+                QMessageBox.warning(self, "PIN Requerido",
+                                    "Ingresa el PIN de supervisor.")
+                return
+            self._pin = pin_field.text().strip()
+        self._motivo = self.txt_motivo.text().strip()
+        self.accept()
+
+    @property
+    def pin(self) -> str:
+        return self._pin
+
+    @property
+    def motivo(self) -> str:
+        return self._motivo
+
+
+# ==============================================================================
 # 5. MODULO PRINCIPAL DE VENTAS ENTERPRISE
 # ==============================================================================
 
@@ -1189,10 +1291,29 @@ class ModuloVentas(ModuloBase):
         self.btn_limpiar_busqueda.setFixedSize(32, 32)
         self.btn_limpiar_busqueda.setObjectName("deleteBtn")
 
+        # Persistent scanner state badge — ACTIVO / CLIENTE / LIBRE
+        self._lbl_scan_state = QLabel("LIBRE")
+        self._lbl_scan_state.setObjectName("posScanStateWaiting")
+        self._lbl_scan_state.setFixedHeight(22)
+        self._lbl_scan_state.setToolTip(
+            "Estado del scanner.\n"
+            "ACTIVO → El scanner agrega productos al carrito.\n"
+            "CLIENTE → El scanner carga cliente o tarjeta.\n"
+            "LIBRE → Sin campo activo; escritura manual detectada.")
+
         search_layout.addWidget(self.txt_busqueda)
         search_layout.addWidget(self.btn_buscar)
         search_layout.addWidget(self.btn_limpiar_busqueda)
+        search_layout.addWidget(self._lbl_scan_state)
         layout_izquierdo.addWidget(search_row)
+
+        # Scanner result notification — shown briefly after each scan event
+        self.lbl_scanner_notif = QLabel("")
+        self.lbl_scanner_notif.setObjectName("posScannerNotif")
+        self.lbl_scanner_notif.setWordWrap(False)
+        self.lbl_scanner_notif.setFixedHeight(24)
+        self.lbl_scanner_notif.hide()
+        layout_izquierdo.addWidget(self.lbl_scanner_notif)
 
         # Category tab bar (scrollable)
         self._category_scroll = QScrollArea()
@@ -1289,6 +1410,11 @@ class ModuloVentas(ModuloBase):
         self.lbl_telefono_cliente.setProperty("class", "client-info")
         self.lbl_email_cliente.setProperty("class", "client-info")
 
+        # Loyalty tier badge — shown when a customer with a loyalty level is loaded
+        self._lbl_loyalty_tier = QLabel("")
+        self._lbl_loyalty_tier.setObjectName("posLoyaltyTierBadge")
+        self._lbl_loyalty_tier.hide()
+
         cliente_info_row = QHBoxLayout()
         cliente_info_row.setSpacing(6)
         cliente_info_row.addWidget(self.lbl_nombre_cliente)
@@ -1300,6 +1426,7 @@ class ModuloVentas(ModuloBase):
         _sep2.setProperty("class", "client-info")
         cliente_info_row.addWidget(_sep2)
         cliente_info_row.addWidget(self.lbl_telefono_cliente)
+        cliente_info_row.addWidget(self._lbl_loyalty_tier)
         cliente_info_row.addStretch(1)
         cliente_layout.addLayout(cliente_info_row)
         layout_derecho.addWidget(group_cliente)
@@ -1345,6 +1472,20 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setFrameShape(QFrame.NoFrame)
         carrito_layout.addWidget(self.tabla_compra, 1)
 
+        # Empty-cart placeholder — visible when carrito is empty
+        self._lbl_cart_empty = QLabel(
+            "Carrito vacío\n\n"
+            "• Escanea un código de barras\n"
+            "• Selecciona un producto del catálogo\n"
+            "• Escribe el nombre en el buscador"
+        )
+        self._lbl_cart_empty.setObjectName("posCartEmpty")
+        self._lbl_cart_empty.setAlignment(Qt.AlignCenter)
+        self._lbl_cart_empty.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._lbl_cart_empty.show()
+        self.tabla_compra.hide()
+        carrito_layout.addWidget(self._lbl_cart_empty, 1)
+
         # Item count moved to group title; label kept as hidden stub for legacy refs
         self.lbl_info_carrito = QLabel("")
         self.lbl_info_carrito.setMaximumHeight(0)
@@ -1359,8 +1500,9 @@ class ModuloVentas(ModuloBase):
         desc_lay = QHBoxLayout(desc_frame)
         desc_lay.setContentsMargins(4, 3, 4, 3)
         desc_lay.setSpacing(4)
-        _lbl_desc = QLabel("Dto:")
+        _lbl_desc = QLabel("🔒 Dto:")
         _lbl_desc.setObjectName("posBarLabel")
+        _lbl_desc.setToolTip("Descuentos protegidos — requieren autorización de gerente")
         desc_lay.addWidget(_lbl_desc)
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
@@ -2280,6 +2422,21 @@ class ModuloVentas(ModuloBase):
                 elif field is getattr(self, 'txt_cliente', None):
                     field.setPlaceholderText("💳 Escanear tarjeta o buscar cliente...")
         
+        # Update persistent scanner state badge
+        badge = getattr(self, '_lbl_scan_state', None)
+        if badge:
+            if context == "producto":
+                badge.setText("● ACTIVO")
+                badge.setObjectName("posScanStateActive")
+            elif context == "cliente":
+                badge.setText("● CLIENTE")
+                badge.setObjectName("posScanStatePrimary")
+            else:
+                badge.setText("LIBRE")
+                badge.setObjectName("posScanStateWaiting")
+            badge.style().unpolish(badge)
+            badge.style().polish(badge)
+
         # Forzar actualización de estilos
         for field in (getattr(self,'txt_busqueda',None), getattr(self,'txt_cliente',None)):
             if field:
@@ -2485,7 +2642,18 @@ class ModuloVentas(ModuloBase):
         if hasattr(self, 'lbl_nombre_cliente'): self.lbl_nombre_cliente.setText(nombre)
         if hasattr(self, 'lbl_puntos_cliente'):
             puntos = self.cliente_actual.get('puntos', 0)
-            self.lbl_puntos_cliente.setText(f"Puntos: {puntos}")
+            self.lbl_puntos_cliente.setText(f"⭐ {puntos} pts")
+        if hasattr(self, '_lbl_loyalty_tier'):
+            nivel = (self.cliente_actual.get('nivel_fidelidad', '')
+                     or self.cliente_actual.get('nivel', ''))
+            if nivel:
+                self._lbl_loyalty_tier.setText(nivel)
+                self._lbl_loyalty_tier.setProperty("tier", nivel)
+                self._lbl_loyalty_tier.style().unpolish(self._lbl_loyalty_tier)
+                self._lbl_loyalty_tier.style().polish(self._lbl_loyalty_tier)
+                self._lbl_loyalty_tier.show()
+            else:
+                self._lbl_loyalty_tier.hide()
 
     def _descuento_rapido(self, pct: float) -> None:
         """Aplica descuento % al ítem — validado por DiscountGuard financiero."""
@@ -2519,15 +2687,15 @@ class ModuloVentas(ModuloBase):
                 QMessageBox.critical(self, "Descuento Bloqueado", mensaje)
                 return
             if requiere_pin:
-                # Solicitar PIN de gerente
-                pin, ok = __import__('PyQt5.QtWidgets', fromlist=['QInputDialog']).QInputDialog.getText(
-                    self, "Autorización Requerida",
-                    "PIN de gerente requerido\n\n" + mensaje + "\n\nIngresa PIN:",
-                    __import__('PyQt5.QtWidgets', fromlist=['QLineEdit']).QLineEdit.Password
+                dlg = _AuthDiscountDialog(
+                    "Descuento Protegido",
+                    f"Se requiere autorización de gerente.\n\n{mensaje}",
+                    requiere_pin=True,
+                    parent=self,
                 )
-                if not ok:
+                if dlg.exec_() != QDialog.Accepted:
                     return
-                if not guard.solicitar_pin_gerente(self.conexion, pin):
+                if not guard.solicitar_pin_gerente(self.conexion, dlg.pin):
                     QMessageBox.warning(self, "PIN Incorrecto",
                         "PIN de gerente incorrecto. Descuento no aplicado.")
                     return
@@ -2987,6 +3155,11 @@ class ModuloVentas(ModuloBase):
         self.producto_seleccionado = None
 
     def actualizar_tabla_compra(self):
+        has_items = bool(self.compra_actual)
+        self.tabla_compra.setVisible(has_items)
+        if hasattr(self, '_lbl_cart_empty'):
+            self._lbl_cart_empty.setVisible(not has_items)
+
         self.tabla_compra.setRowCount(len(self.compra_actual))
         
         for row, item in enumerate(self.compra_actual): 
@@ -3322,11 +3495,13 @@ class ModuloVentas(ModuloBase):
 
     def limpiar_cliente(self):
         self.cliente_actual = None
-        self.lbl_nombre_cliente.setText("Nombre: Público General")
-        self.lbl_telefono_cliente.setText("Teléfono: -")
-        self.lbl_email_cliente.setText("Email: -")
-        self.lbl_puntos_cliente.setText("Puntos: 0")
+        self.lbl_nombre_cliente.setText("Público General")
+        self.lbl_telefono_cliente.setText("Tel: —")
+        self.lbl_email_cliente.setText("")
+        self.lbl_puntos_cliente.setText("+ 0 pts")
         self.txt_cliente.clear()
+        if hasattr(self, '_lbl_loyalty_tier'):
+            self._lbl_loyalty_tier.hide()
 
     def suspender_venta(self):
         if not self.compra_actual:

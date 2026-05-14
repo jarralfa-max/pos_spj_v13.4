@@ -1827,6 +1827,9 @@ def _block_pos_module(
     cobrar_disabled_bg: str, cobrar_disabled_text: str,
     warning: str, critical: str, out_stock_bg: str,
     action: str, action_hover: str,
+    success_soft: str = "#DCFCE7",
+    warning_soft: str = "#FEF3C7",
+    primary_soft: str = "#DBEAFE",
 ) -> str:
     """Genera el QSS para el módulo POS (ventas.py)."""
     return f"""
@@ -2394,6 +2397,175 @@ def _block_pos_module(
             background-color: {cobrar_disabled_bg};
             color: {cobrar_disabled_text};
         }}
+
+        /* ===== POS: SCANNER INPUT STATES ===== */
+        QLineEdit[class="input-scanner-success"] {{
+            border: 2px solid {success};
+            background-color: {success_soft};
+        }}
+        QLineEdit[class="input-scanner-primary"] {{
+            border: 2px solid {primary};
+            background-color: {primary_soft};
+        }}
+        QLineEdit[class="input-scanner-base"] {{
+            border: 1px solid {border};
+        }}
+
+        /* ===== POS: SCANNER STATE BADGE ===== */
+        QLabel#posScanStateActive {{
+            color: {success};
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border: 1px solid {success};
+            border-radius: 8px;
+            background: {success_soft};
+            letter-spacing: 0.3px;
+        }}
+        QLabel#posScanStatePrimary {{
+            color: {primary};
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border: 1px solid {primary};
+            border-radius: 8px;
+            background: {primary_soft};
+            letter-spacing: 0.3px;
+        }}
+        QLabel#posScanStateWaiting {{
+            color: {muted};
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border: 1px solid {border};
+            border-radius: 8px;
+            background: transparent;
+            letter-spacing: 0.3px;
+        }}
+
+        /* ===== POS: SCANNER NOTIFICATION LABEL ===== */
+        QLabel#posScannerNotif {{
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background: transparent;
+            border: none;
+        }}
+        QLabel[class="badge-scanner-success badge"] {{
+            background-color: {success_soft};
+            color: {success};
+            border: 1px solid {success};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        QLabel[class="badge-scanner-warning badge"] {{
+            background-color: {warning_soft};
+            color: {warning};
+            border: 1px solid {warning};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        QLabel[class="badge-scanner-info badge"] {{
+            background-color: {primary_soft};
+            color: {primary};
+            border: 1px solid {primary};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        QLabel[class="badge-scanner-secondary badge"] {{
+            background-color: {card};
+            color: {muted};
+            border: 1px solid {border};
+            border-radius: 4px;
+            padding: 2px 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+
+        /* ===== POS: LOYALTY TIER BADGE ===== */
+        QLabel#posLoyaltyTierBadge {{
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 8px;
+            border: 1px solid {muted};
+            background: transparent;
+            color: {muted};
+            letter-spacing: 0.3px;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Bronce"] {{
+            color: #CD7F32;
+            border-color: #CD7F32;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Plata"] {{
+            color: #9CA3AF;
+            border-color: #9CA3AF;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Oro"] {{
+            color: #D97706;
+            border-color: #D97706;
+        }}
+        QLabel#posLoyaltyTierBadge[tier="Platino"] {{
+            color: {primary};
+            border-color: {primary};
+        }}
+
+        /* ===== POS: CART EMPTY STATE ===== */
+        QLabel#posCartEmpty {{
+            color: {muted};
+            font-size: 12px;
+            font-weight: 400;
+            line-height: 1.6;
+            background: transparent;
+            border: 2px dashed {border};
+            border-radius: 8px;
+            padding: 24px 16px;
+        }}
+
+        /* ===== POS: AUTH DISCOUNT DIALOG ===== */
+        QFrame#authDialogHeader {{
+            background-color: {warning_soft};
+            border: 1px solid {warning};
+            border-radius: 6px;
+        }}
+        QLabel#authDialogIcon {{
+            font-size: 18px;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#authDialogTitle {{
+            color: {warning};
+            font-size: 13px;
+            font-weight: 700;
+            background: transparent;
+            border: none;
+        }}
+        QLabel#authDialogDetail {{
+            color: {text};
+            font-size: 11px;
+            background: transparent;
+            border: none;
+        }}
+        QLineEdit#authDialogInput {{
+            background-color: {card};
+            color: {text};
+            border: 1px solid {border};
+            border-radius: 5px;
+            padding: 5px 8px;
+            font-size: 12px;
+            min-height: 32px;
+        }}
+        QLineEdit#authDialogInput:focus {{
+            border-color: {primary};
+            border-width: 2px;
+        }}
     """
 
 
@@ -2509,6 +2681,9 @@ def _modern_blocks(theme: str) -> str:
                 out_stock_bg=Colors.NEUTRAL.SLATE_900,
                 action=Colors.POS_ACTION_BASE,
                 action_hover=Colors.POS_ACTION_HOVER,
+                success_soft="#16A34A22",
+                warning_soft="#D9770622",
+                primary_soft="#2563EB22",
             )
         )
     # Claro
