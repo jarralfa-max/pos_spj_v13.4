@@ -181,9 +181,10 @@ class ProductCard(QFrame):
         self.lbl_nombre.setProperty("class", name_class)
         self.lbl_nombre.setMaximumHeight(40)   # max 2 lines
 
-        codigo = (self.producto.get('codigo_barras', '') or
-                  str(self.producto.get('id', '')))
-        self.lbl_codigo = QLabel(f"Código: {codigo}")
+        codigo = (self.producto.get('codigo', '')
+                  or self.producto.get('codigo_barras', '')
+                  or str(self.producto.get('id', '')))
+        self.lbl_codigo = QLabel(f"Cód: {codigo}")
         self.lbl_codigo.setObjectName("posProductCode")
 
         self.lbl_precio = QLabel(
@@ -2011,15 +2012,17 @@ class ModuloVentas(ModuloBase):
                        COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
                        p.unidad, p.categoria,
                        p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
-                       COALESCE(p.codigo_barras,'') as codigo_barras
+                       COALESCE(p.codigo_barras,'') as codigo_barras,
+                       COALESCE(p.codigo,'') as codigo
                 FROM productos p
                 LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
                 WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
             """
             params = [self.sucursal_id]
             if filtro:
-                query += " AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ? OR COALESCE(p.codigo_barras,'') = ?)"
-                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro]
+                query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
+                             OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
+                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
             if categoria:
                 query += " AND COALESCE(p.categoria,'') = ?"
                 params.append(categoria)
@@ -2049,7 +2052,8 @@ class ModuloVentas(ModuloBase):
                     'imagen_path': producto[7],
                     'es_compuesto': producto[8],
                     'es_subproducto': producto[9],
-                    'codigo_barras': producto[10]
+                    'codigo_barras': producto[10],
+                    'codigo': producto[11]
                 }
 
                 card = ProductCard(producto_data)
