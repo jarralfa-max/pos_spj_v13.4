@@ -27,11 +27,24 @@ from PyQt5.QtWidgets import (
     QMessageBox, QInputDialog, QTabWidget, QMenu, QAction, QSizePolicy,
 )
 from PyQt5.QtCore import Qt, QTimer, QStringListModel
-from PyQt5.QtGui import QCursor
+from PyQt5.QtGui import QCursor, QColor
 from datetime import datetime
 import logging
 
 logger = logging.getLogger("spj.compras")
+
+# ── Payment method constants ────────────────────────────────────────────────
+_PAGO_ITEMS = [
+    ("CONTADO (Efectivo)",         "CONTADO"),
+    ("CREDITO (Cuentas por Pagar)", "CREDITO"),
+    ("TRANSFERENCIA",               "TRANSFERENCIA"),
+    ("CHEQUE",                      "CHEQUE"),
+]
+
+# Price variance threshold (%) that triggers audit alert
+_PRICE_VARIANCE_THRESHOLD = 20.0
+# History query row limit
+_HIST_LIMIT = 500
 
 
 class ModuloComprasPro(QWidget, RefreshMixin):
@@ -67,12 +80,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
         self.usuario_actual = usuario
-
-    def _on_refresh(self, event_type: str, data: dict) -> None:
-        """Auto-refresh: update product search and provider list."""
-        if hasattr(self, '_buscador'):
-            self._buscador.set_db(self.container.db)  # re-point to live DB
-        self.cargar_proveedores()
 
     # ── UI ───────────────────────────────────────────────────────────────────
     def _build_ui(self) -> None:
@@ -120,45 +127,68 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _crear_stats_compras(self) -> 'QWidget':
         """Barra de KPIs: compras del mes, proveedores activos, órdenes pendientes, gasto."""
         from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        from modulos.design_tokens import Colors as _C
-        bar = _F(); bar.setObjectName("statsBarCmp")
+        bar = _F()
+        bar.setObjectName("statsBarCmp")
         bar.setFixedHeight(64)
-        bar.setStyleSheet(
-            "QFrame#statsBarCmp { background:#1E293B; border-radius:8px;"
-            " border:1px solid #334155; }"
-        )
-        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+        lay = _H(bar)
+        lay.setContentsMargins(20, 8, 20, 8)
+        lay.setSpacing(0)
 
-        kpis = [("Compras este mes","—",_C.PRIMARY_BASE),("Proveedores activos","—",_C.SUCCESS_BASE),
-                ("Órdenes pendientes","—",_C.WARNING_BASE),("Gasto del mes","—",_C.INFO_BASE)]
+        kpi_defs = [
+            ("Compras este mes",   "—", Colors.PRIMARY_BASE),
+            ("Proveedores activos","—", Colors.SUCCESS_BASE),
+            ("Órdenes pendientes", "—", Colors.WARNING_BASE),
+            ("Gasto del mes",      "—", Colors.INFO_BASE),
+        ]
+        self._stats_value_labels: list[QLabel] = []
+
+        for i, (caption, val, col) in enumerate(kpi_defs):
+            if i > 0:
+                sep = _F()
+                sep.setObjectName("statsBarSeparator")
+                sep.setFrameShape(_F.VLine)
+                sep.setFixedWidth(1)
+                lay.addWidget(sep)
+                lay.addSpacing(20)
+            col_lay = _V()
+            col_lay.setSpacing(1)
+            lbl_val = _L(val)
+            lbl_val.setObjectName("statsKpiValue")
+            lbl_val.setStyleSheet(
+                f"color:{col};font-size:18px;font-weight:700;background:transparent;border:none;")
+            lbl_cap = _L(caption.upper())
+            lbl_cap.setObjectName("statsKpiCaption")
+            col_lay.addWidget(lbl_val)
+            col_lay.addWidget(lbl_cap)
+            lay.addLayout(col_lay)
+            self._stats_value_labels.append(lbl_val)
+            if i < 3:
+                lay.addSpacing(20)
+        lay.addStretch()
+        # Defer DB queries so stats don't block __init__
+        QTimer.singleShot(250, self._refresh_stats)
+        return bar
+
+    def _refresh_stats(self) -> None:
+        """Recarga los KPIs de la barra de estadísticas (deferred, non-blocking)."""
+        if not hasattr(self, '_stats_value_labels'):
+            return
         try:
             db = self.container.db
             r = db.execute(
                 "SELECT COUNT(*), COALESCE(SUM(total),0) FROM compras "
                 "WHERE DATE(fecha)>=DATE('now','start of month')"
             ).fetchone()
-            kpis[0] = ("Compras este mes", str(r[0] or 0), _C.PRIMARY_BASE)
-            kpis[3] = ("Gasto del mes", f"${float(r[1] or 0):,.0f}", _C.INFO_BASE)
+            self._stats_value_labels[0].setText(str(r[0] or 0))
+            self._stats_value_labels[3].setText(f"${float(r[1] or 0):,.0f}")
             r2 = db.execute("SELECT COUNT(*) FROM proveedores WHERE activo=1").fetchone()
-            kpis[1] = ("Proveedores activos", str(r2[0] or 0), _C.SUCCESS_BASE)
+            self._stats_value_labels[1].setText(str(r2[0] or 0))
             r3 = db.execute(
                 "SELECT COUNT(*) FROM ordenes_compra WHERE estado='pendiente'"
             ).fetchone()
-            kpis[2] = ("Órdenes pendientes", str(r3[0] or 0), _C.WARNING_BASE)
-        except Exception: pass
-
-        for i, (lbl, val, col) in enumerate(kpis):
-            if i > 0:
-                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
-                s.setStyleSheet("background:#334155; border:none;")
-                lay.addWidget(s); lay.addSpacing(20)
-            c = _V(); c.setSpacing(1)
-            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
-            l = _L(lbl.upper()); l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
-            c.addWidget(v); c.addWidget(l); lay.addLayout(c)
-            if i < 3: lay.addSpacing(20)
-        lay.addStretch()
-        return bar
+            self._stats_value_labels[2].setText(str(r3[0] or 0))
+        except Exception:
+            pass
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
         lay = QVBoxLayout(parent)
@@ -259,10 +289,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # ── Footer: forma de pago + procesar ─────────────────────────────────
         footer = QHBoxLayout()
         self.cmb_pago = create_combo(self)
-        self.cmb_pago.addItems([
-            "CONTADO (Efectivo)", "CREDITO (Cuentas por Pagar)",
-            "TRANSFERENCIA", "CHEQUE",
-        ])
+        for label, data in _PAGO_ITEMS:
+            self.cmb_pago.addItem(label, data)  # use userData to avoid text parsing
 
         btn_proc = create_success_button(self, "📥 PROCESAR COMPRA E INGRESAR AL INVENTARIO", 
                                          "Procionar compra y actualizar inventario")
@@ -424,10 +452,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not ok2:
             return
 
-        # Price variance alert ≥ 20%
+        # Price variance alert
         if costo_hist > 0 and costo > 0:
             variacion = abs(costo - costo_hist) / costo_hist * 100
-            if variacion >= 20:
+            if variacion >= _PRICE_VARIANCE_THRESHOLD:
                 dir_txt = "▲ SUBIÓ" if costo > costo_hist else "▼ BAJÓ"
                 msg = (f"VARIACION DE PRECIO: {nombre}\n"
                        f"Anterior: ${costo_hist:.2f}  Nuevo: ${costo:.2f}\n"
@@ -565,8 +593,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         proveedor_id  = self._proveedor_id_selected
         proveedor_nom = self.txt_proveedor.text().strip()
         doc_ref = self.txt_factura.text().strip() or "Sin Ref"
-        pago    = ("CREDITO" if "CREDITO" in self.cmb_pago.currentText()
-                   else self.cmb_pago.currentText().split()[0])
+        pago    = self.cmb_pago.currentData() or "CONTADO"   # stored as userData
         total   = sum(i['subtotal'] for i in self.carrito_compra)
 
         # Check for recipes among purchased items
@@ -635,6 +662,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.carrito_compra.clear()
             self._refresh_tabla()
             self.txt_factura.clear()
+            # Refresh KPI bar non-blocking
+            QTimer.singleShot(300, self._refresh_stats)
 
         except Exception as e:
             QMessageBox.critical(self, "Error al procesar", str(e))
@@ -665,25 +694,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         receta_aviso = ""
         if items_receta:
             nombres = ", ".join(i['nombre'] for i in items_receta)
-            receta_aviso = (f"<p style='background:#fffbea;padding:6px;border-radius:4px;'>"
-                            f"<b>Productos con receta:</b> {nombres}<br>"
+            receta_aviso = (f"<p style='background:{Colors.WARNING_BASE}22;border-left:3px solid "
+                            f"{Colors.WARNING_BASE};padding:6px 10px;border-radius:0 4px 4px 0;'>"
+                            f"<b>⚠ Productos con receta:</b> {nombres}<br>"
                             f"Se procesará la producción automáticamente.</p>")
 
         html = f"""<html><body style='font-family:sans-serif;font-size:12px;'>
-        <h3>Resumen de Compra</h3>
-        <p><b>Proveedor:</b> {proveedor} &nbsp;|&nbsp;
+        <h3 style='margin-bottom:8px;'>Resumen de Compra</h3>
+        <p style='color:#666;'><b>Proveedor:</b> {proveedor} &nbsp;|&nbsp;
            <b>Ref:</b> {doc_ref} &nbsp;|&nbsp;
            <b>Pago:</b> {pago}</p>
-        <table width='100%' cellspacing='4' style='border-collapse:collapse;'>
-        <tr style='background:#2c3e50;color:white;'>
-          <th align='left' style='padding:4px;'>Producto</th>
-          <th style='padding:4px;'>Cantidad</th>
-          <th style='padding:4px;'>Costo Unit.</th>
-          <th style='padding:4px;'>Subtotal</th></tr>
+        <table width='100%' cellspacing='0' style='border-collapse:collapse;font-size:12px;'>
+        <tr style='background:{Colors.PRIMARY_BASE};color:#fff;'>
+          <th align='left' style='padding:6px 8px;'>Producto</th>
+          <th style='padding:6px 8px;'>Cantidad</th>
+          <th style='padding:6px 8px;'>Costo Unit.</th>
+          <th style='padding:6px 8px;'>Subtotal</th></tr>
         {rows}
         </table>
-        <hr>
-        <p style='font-size:14px;font-weight:bold;'>
+        <hr style='margin:10px 0;'>
+        <p style='font-size:15px;font-weight:bold;color:{Colors.SUCCESS_BASE};'>
           Total: ${total:,.2f}</p>
         {receta_aviso}
         </body></html>"""
@@ -871,8 +901,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     FROM compras c
                     LEFT JOIN proveedores p ON p.id=c.proveedor_id
                     WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
-                    ORDER BY c.fecha DESC LIMIT 200
-                """, (self.sucursal_id, desde, hasta)).fetchall()
+                    ORDER BY c.fecha DESC LIMIT ?
+                """, (self.sucursal_id, desde, hasta, _HIST_LIMIT)).fetchall()
             except Exception as e:
                 rows = []
                 logger.debug("_cargar_historial_compras: %s", e)
@@ -896,11 +926,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     str(r[2] or ""), str(r[3] or ""),
                     f"${float(r[4] or 0):,.2f}", str(r[5] or ""),
                 ]
+                is_credito = str(r[5] or "").lower() == "credito"
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    if str(r[5]) == "credito":
-                        it.setForeground(__import__('PyQt5.QtGui', fromlist=['QColor']).QColor('#e74c3c'))
+                    if is_credito:
+                        it.setForeground(QColor(Colors.WARNING_BASE))
                     self._tbl_hist.setItem(ri, ci, it)
                 total_periodo += float(r[4] or 0)
 
@@ -993,11 +1024,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         </body></html>"""
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
-        """Auto-refresh: update product search and provider list."""
+        """EventBus handler: refresh product search, providers, stats and history."""
         if hasattr(self, '_buscador'):
             self._buscador.set_db(self.container.db)
         self.cargar_proveedores()
-        # Also refresh historial if it's the active tab
+        QTimer.singleShot(0, self._refresh_stats)
         if hasattr(self, '_tbl_hist') and self._tabs.currentIndex() == 2:
             self._cargar_historial_compras()
 

@@ -36,7 +36,7 @@ from PyQt5.QtWidgets import (
     QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
-from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush
+from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush, QPainter
 from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
 
 # Importación de la clase base y utilidades
@@ -109,13 +109,45 @@ class _ScanContextFilter(QObject):
             self._module._set_scan_context("auto", None)
         return False  # Never consume the event — always pass through
 
+class _FKeyButton(QPushButton):
+    """QPushButton with an F-key shortcut badge painted inside the button, right side."""
+
+    def __init__(self, text: str = "", fkey: str = "", parent=None):
+        super().__init__(text, parent)
+        self._fkey = fkey
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self._fkey:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        bw, bh = 24, 14
+        margin = 5
+        rx = self.width() - bw - margin
+        ry = (self.height() - bh) // 2
+        badge_rect = QRect(rx, ry, bw, bh)
+        # Badge background — semi-transparent dark pill
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 55))
+        p.drawRoundedRect(badge_rect, 4, 4)
+        # Badge text
+        p.setPen(QColor(255, 255, 255, 200))
+        f = p.font()
+        f.setPointSize(7)
+        f.setBold(True)
+        p.setFont(f)
+        p.drawText(badge_rect, Qt.AlignCenter, self._fkey)
+        p.end()
+
+
 class ProductCard(QFrame):
     """Operational retail product card — matches enterprise POS visual design."""
     product_selected = pyqtSignal(dict)
 
-    CARD_W, CARD_H = 195, 242
-    ZOOM_W, ZOOM_H = 203, 251   # ~4% hover/selected zoom
-    IMG_H = 115
+    CARD_W, CARD_H = 175, 198
+    ZOOM_W, ZOOM_H = 182, 206   # ~4% hover/selected zoom
+    IMG_H = 85
     _ZOOM_STEPS = 6             # frames for the zoom animation
     _ZOOM_INTERVAL_MS = 12      # ms per frame (~80 fps feel)
 
@@ -175,14 +207,14 @@ class ProductCard(QFrame):
         info_widget = QWidget()
         info_widget.setObjectName("posProductInfo")
         info_lay = QVBoxLayout(info_widget)
-        info_lay.setContentsMargins(10, 8, 10, 8)
-        info_lay.setSpacing(3)
+        info_lay.setContentsMargins(8, 6, 8, 6)
+        info_lay.setSpacing(2)
 
         self.lbl_nombre = QLabel(self.producto['nombre'])
         self.lbl_nombre.setWordWrap(True)
         name_class = "product-name-dimmed" if self._stock_state == "out-of-stock" else "product-name"
         self.lbl_nombre.setProperty("class", name_class)
-        self.lbl_nombre.setMaximumHeight(40)   # max 2 lines
+        self.lbl_nombre.setMaximumHeight(34)   # max 2 lines
 
         codigo = (self.producto.get('codigo', '')
                   or self.producto.get('codigo_barras', '')
@@ -1480,11 +1512,11 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setColumnWidth(2, 58)
         self.tabla_compra.setColumnWidth(3, 52)
         self.tabla_compra.setColumnWidth(4, 62)
-        self.tabla_compra.setColumnWidth(5, 0)   # hidden edit col
+        self.tabla_compra.setColumnWidth(5, 30)
         self.tabla_compra.setColumnWidth(6, 30)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
-        self.tabla_compra.setColumnHidden(5, True)
+        self.tabla_compra.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
         self.tabla_compra.setMinimumHeight(3 * 48 + 28)
         self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.tabla_compra.setFrameShape(QFrame.NoFrame)
@@ -1563,6 +1595,10 @@ class ModuloVentas(ModuloBase):
         _cdr_lay.setContentsMargins(0, 0, 0, 0)
         _cdr_lay.setSpacing(6)
 
+        _lbl_client_icon = QLabel("👤")
+        _lbl_client_icon.setObjectName("posClientIcon")
+        _lbl_client_icon.setFixedWidth(18)
+
         self.lbl_nombre_cliente = QLabel("Público General")
         self.lbl_nombre_cliente.setObjectName("posClientName")
         self.lbl_puntos_cliente = QLabel("+ 0 pts")
@@ -1577,6 +1613,7 @@ class ModuloVentas(ModuloBase):
         self._lbl_loyalty_tier.setObjectName("posLoyaltyTierBadge")
         self._lbl_loyalty_tier.hide()
 
+        _cdr_lay.addWidget(_lbl_client_icon)
         _cdr_lay.addWidget(self.lbl_nombre_cliente)
         _cdr_lay.addWidget(self._lbl_loyalty_tier)
         _cdr_lay.addStretch(1)
@@ -1664,19 +1701,30 @@ class ModuloVentas(ModuloBase):
         divider.setFixedHeight(1)
         totals_layout.addWidget(divider)
 
-        # TOTAL row + Puntos a ganar mini-card on the right
+        # TOTAL row: LEFT [⚖ peso] [pts] [comision?] ── stretch ── RIGHT [TOTAL]
         row_total = QHBoxLayout()
-        row_total.setSpacing(8)
-        lbl_total_label = QLabel("TOTAL")
-        lbl_total_label.setObjectName("posGrandTotalLabel")
-        self.lbl_total = QLabel("$0.00")
-        self.lbl_total.setObjectName("posGrandTotalValue")
-        self.lbl_total.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        row_total.addWidget(lbl_total_label)
-        row_total.addStretch(1)
-        row_total.addWidget(self.lbl_total)
+        row_total.setSpacing(6)
 
-        # "Puntos a ganar" mini card — aligned right of total
+        # ── Báscula card (shown only when scale is active) ────────────────
+        card_peso = QFrame()
+        card_peso.setObjectName("posIndicatorCard")
+        card_peso.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        _cp_lay = QVBoxLayout(card_peso)
+        _cp_lay.setContentsMargins(6, 3, 6, 3)
+        _cp_lay.setSpacing(0)
+        _lbl_bsc = QLabel("⚖ Báscula")
+        _lbl_bsc.setObjectName("posIndicatorTitle")
+        _lbl_bsc.setAlignment(Qt.AlignCenter)
+        self.lbl_peso_bascula = QLabel("0.000 kg")
+        self.lbl_peso_bascula.setObjectName("posIndicatorValue")
+        self.lbl_peso_bascula.setAlignment(Qt.AlignCenter)
+        _cp_lay.addWidget(_lbl_bsc)
+        _cp_lay.addWidget(self.lbl_peso_bascula)
+        card_peso.setVisible(False)
+        self._card_peso = card_peso
+        row_total.addWidget(card_peso)
+
+        # ── "Puntos a ganar" mini card ────────────────────────────────────
         _pts_card = QFrame()
         _pts_card.setObjectName("posPtsGainCard")
         _pts_card_lay = QVBoxLayout(_pts_card)
@@ -1691,31 +1739,38 @@ class ModuloVentas(ModuloBase):
         _pts_card_lay.addWidget(_lbl_pts_title)
         _pts_card_lay.addWidget(self.lbl_puntos_venta)
         row_total.addWidget(_pts_card)
-        totals_layout.addLayout(row_total)
 
-        # Báscula indicator (kept for API compat; compact)
-        card_peso = QFrame()
-        card_peso.setObjectName("posIndicatorCard")
-        card_peso.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        _cp_lay = QHBoxLayout(card_peso)
-        _cp_lay.setContentsMargins(6, 3, 6, 3)
-        _cp_lay.setSpacing(4)
-        _lbl_bsc = QLabel("⚖")
-        _lbl_bsc.setObjectName("posIndicatorTitle")
-        self.lbl_peso_bascula = QLabel("0.000 kg")
-        self.lbl_peso_bascula.setObjectName("posIndicatorValue")
-        _cp_lay.addWidget(_lbl_bsc)
-        _cp_lay.addWidget(self.lbl_peso_bascula)
-        card_peso.setVisible(False)   # shown only when scale is active
-        self._card_peso = card_peso
-
-        # Comisión (kept for API compat)
+        # ── Comisión card (shown only when commissions config is active) ──
         card_comision = QFrame()
         card_comision.setObjectName("posIndicatorCard")
         card_comision.setVisible(False)
-        self._card_comision = card_comision
+        _cc_lay = QVBoxLayout(card_comision)
+        _cc_lay.setContentsMargins(6, 3, 6, 3)
+        _cc_lay.setSpacing(0)
+        _lbl_com_title = QLabel("Comisión")
+        _lbl_com_title.setObjectName("posIndicatorTitle")
+        _lbl_com_title.setAlignment(Qt.AlignCenter)
         self.lbl_comision_turno = QLabel("")
-        self.lbl_comision_turno.setVisible(False)
+        self.lbl_comision_turno.setObjectName("posIndicatorValue")
+        self.lbl_comision_turno.setAlignment(Qt.AlignCenter)
+        _cc_lay.addWidget(_lbl_com_title)
+        _cc_lay.addWidget(self.lbl_comision_turno)
+        self._card_comision = card_comision
+        row_total.addWidget(card_comision)
+
+        # ── Stretch pushes TOTAL to the right ────────────────────────────
+        row_total.addStretch(1)
+
+        # ── TOTAL label + value ───────────────────────────────────────────
+        lbl_total_label = QLabel("TOTAL")
+        lbl_total_label.setObjectName("posGrandTotalLabel")
+        self.lbl_total = QLabel("$0.00")
+        self.lbl_total.setObjectName("posGrandTotalValue")
+        self.lbl_total.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        row_total.addWidget(lbl_total_label)
+        row_total.addSpacing(8)
+        row_total.addWidget(self.lbl_total)
+        totals_layout.addLayout(row_total)
 
         layout_derecho.addWidget(totals_card)
 
@@ -1758,50 +1813,36 @@ class ModuloVentas(ModuloBase):
         acciones_layout.setContentsMargins(8, 6, 8, 6)
         acciones_layout.setSpacing(5)
 
-        # COBRAR — dominant full-width green button with F9 badge
-        cobrar_wrap = QFrame()
-        cobrar_wrap.setObjectName("posCobrarBtnWrap")
-        _cobrar_lay = QHBoxLayout(cobrar_wrap)
-        _cobrar_lay.setContentsMargins(0, 0, 0, 0)
-        _cobrar_lay.setSpacing(0)
-        self.btn_cobrar = create_success_button(self, "💳  COBRAR  $0.00", "Procesar el pago de la venta (F9)")
+        # COBRAR — dominant full-width green button with F9 badge inside
+        self.btn_cobrar = _FKeyButton("💳  COBRAR  $0.00", "F9", self)
         self.btn_cobrar.setObjectName("btnCobrarPOS")
+        self.btn_cobrar.setProperty("class", "success")
         self.btn_cobrar.setProperty("fill_parent", True)
         self.btn_cobrar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.btn_cobrar.setMinimumHeight(48)
-        _lbl_f9 = QLabel("F9")
-        _lbl_f9.setObjectName("posFKeyBadge")
-        _lbl_f9.setFixedSize(26, 48)
-        _lbl_f9.setAlignment(Qt.AlignCenter)
-        _cobrar_lay.addWidget(self.btn_cobrar, 1)
-        _cobrar_lay.addWidget(_lbl_f9)
-        acciones_layout.addWidget(cobrar_wrap)
+        self.btn_cobrar.setToolTip("Procesar el pago de la venta (F9)")
+        acciones_layout.addWidget(self.btn_cobrar)
 
-        # Row 1: Suspender | Reanudar | Cancelar
+        # Row 1: Suspender | Reanudar | Cancelar (F-key badge inside each button)
         row_secondary = QHBoxLayout()
         row_secondary.setSpacing(4)
-        self.btn_suspender = create_warning_button(self, "⏸ Suspender", "Suspender venta (F6)")
-        self.btn_reanudar  = create_primary_button(self, "▶ Reanudar (0)", "Reanudar venta suspendida (F7)")
+        self.btn_suspender = _FKeyButton("⏸ Suspender", "F6", self)
+        self.btn_suspender.setObjectName("warningBtn")
+        self.btn_suspender.setProperty("class", "warning")
+        self.btn_suspender.setToolTip("Suspender venta (F6)")
+        self.btn_reanudar = _FKeyButton("▶ Reanudar (0)", "F7", self)
         self.btn_reanudar.setObjectName("posActionBtn")
-        self.btn_cancelar  = create_danger_button(self, "✕ Cancelar", "Cancelar venta (F8)")
-        for _b, _fk in ((self.btn_suspender, "F6"),
-                        (self.btn_reanudar,  "F7"),
-                        (self.btn_cancelar,  "F8")):
+        self.btn_reanudar.setProperty("class", "primary")
+        self.btn_reanudar.setToolTip("Reanudar venta suspendida (F7)")
+        self.btn_cancelar = _FKeyButton("✕ Cancelar", "F8", self)
+        self.btn_cancelar.setObjectName("dangerBtn")
+        self.btn_cancelar.setProperty("class", "danger")
+        self.btn_cancelar.setToolTip("Cancelar venta (F8)")
+        for _b in (self.btn_suspender, self.btn_reanudar, self.btn_cancelar):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            _b.setMinimumHeight(32)
-            _wrap = QFrame()
-            _wrap.setObjectName("posFKeyBtnWrap")
-            _wl = QVBoxLayout(_wrap)
-            _wl.setContentsMargins(0, 0, 0, 0)
-            _wl.setSpacing(0)
-            _wl.addWidget(_b)
-            _fkl = QLabel(_fk)
-            _fkl.setObjectName("posFKeySubLabel")
-            _fkl.setAlignment(Qt.AlignCenter)
-            _fkl.setFixedHeight(13)
-            _wl.addWidget(_fkl)
-            row_secondary.addWidget(_wrap)
+            _b.setMinimumHeight(34)
+            row_secondary.addWidget(_b)
         acciones_layout.addLayout(row_secondary)
 
         layout_derecho.addWidget(group_acciones)
@@ -1814,38 +1855,26 @@ class ModuloVentas(ModuloBase):
         utilidad_layout.setContentsMargins(8, 4, 8, 4)
         utilidad_layout.setSpacing(4)
 
-        self.btn_devolucion = create_secondary_button(
-            self, "↩ Devolución",
-            "Cancelar o devolver una venta anterior (requiere permiso) — F10")
+        self.btn_devolucion = _FKeyButton("↩ Devolución", "F10", self)
         self.btn_devolucion.setObjectName("posUtilBtn")
         self.btn_devolucion.setEnabled(False)
-        self.btn_factura = create_secondary_button(self, "🧾 Factura", "Generar CFDI de la última venta — F11")
+        self.btn_devolucion.setToolTip("Cancelar o devolver una venta anterior (requiere permiso) — F10")
+        self.btn_factura = _FKeyButton("🧾 Factura", "F11", self)
         self.btn_factura.setObjectName("posUtilBtn")
         self.btn_factura.setEnabled(False)
+        self.btn_factura.setToolTip("Generar CFDI de la última venta — F11")
         self.btn_factura.clicked.connect(self._generar_factura)
-        self.btn_reimprimir = create_secondary_button(self, "🖨️ Reimpr.", "Reimprimir el ticket de la última venta — F12")
+        self.btn_reimprimir = _FKeyButton("🖨️ Reimpr.", "F12", self)
         self.btn_reimprimir.setObjectName("posUtilBtn")
         self.btn_reimprimir.setEnabled(False)
+        self.btn_reimprimir.setToolTip("Reimprimir el ticket de la última venta — F12")
         self.btn_reimprimir.clicked.connect(self._reimprimir_ultima_venta)
 
-        for _b, _fk in ((self.btn_devolucion, "F10"),
-                        (self.btn_factura, "F11"),
-                        (self.btn_reimprimir, "F12")):
+        for _b in (self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
             _b.setProperty("fill_parent", True)
             _b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             _b.setMinimumHeight(30)
-            _uw = QFrame()
-            _uw.setObjectName("posFKeyBtnWrap")
-            _ul = QVBoxLayout(_uw)
-            _ul.setContentsMargins(0, 0, 0, 0)
-            _ul.setSpacing(0)
-            _ul.addWidget(_b)
-            _ufkl = QLabel(_fk)
-            _ufkl.setObjectName("posFKeySubLabel")
-            _ufkl.setAlignment(Qt.AlignCenter)
-            _ufkl.setFixedHeight(14)
-            _ul.addWidget(_ufkl)
-            utilidad_layout.addWidget(_uw)
+            utilidad_layout.addWidget(_b)
 
         layout_derecho.addWidget(group_utilidad)
 
@@ -2035,7 +2064,7 @@ class ModuloVentas(ModuloBase):
 
             # Responsive column count: fill available viewport width with fixed-width cards
             _spacing = self.grid_productos.spacing()
-            _card_cell = 195 + _spacing   # card fixed width + one gap
+            _card_cell = ProductCard.CARD_W + _spacing   # card fixed width + one gap
             _vp_w = self.scroll_area_productos.viewport().width()
             if _vp_w < 40:
                 # Viewport not yet laid out; approximate from scroll area minus scrollbar
@@ -2677,6 +2706,14 @@ class ModuloVentas(ModuloBase):
             self._mostrar_notif_scanner(
                 f"{icon} {nombre} ({nivel}){pts_txt}", "card")
 
+            # Switch to display mode
+            if hasattr(self, '_client_search_row'):
+                self._client_search_row.setVisible(False)
+                self.txt_cliente.setVisible(False)
+                self.txt_cliente.setMaximumHeight(0)
+            if hasattr(self, '_client_display_row'):
+                self._client_display_row.setVisible(True)
+
             # Refresh totals (in case discount rules apply to this client)
             if hasattr(self, '_actualizar_totales'):
                 try: self._actualizar_totales()
@@ -2829,23 +2866,8 @@ class ModuloVentas(ModuloBase):
 
     def _actualizar_ui_cliente(self) -> None:
         if not self.cliente_actual: return
-        nombre = self.cliente_actual.get('nombre', '')
-        if hasattr(self, 'txt_cliente'): self.txt_cliente.setText(nombre)
-        if hasattr(self, 'lbl_nombre_cliente'): self.lbl_nombre_cliente.setText(nombre)
-        if hasattr(self, 'lbl_puntos_cliente'):
-            puntos = self.cliente_actual.get('puntos', 0)
-            self.lbl_puntos_cliente.setText(f"⭐ {puntos} pts")
-        if hasattr(self, '_lbl_loyalty_tier'):
-            nivel = (self.cliente_actual.get('nivel_fidelidad', '')
-                     or self.cliente_actual.get('nivel', ''))
-            if nivel:
-                self._lbl_loyalty_tier.setText(nivel)
-                self._lbl_loyalty_tier.setProperty("tier", nivel)
-                self._lbl_loyalty_tier.style().unpolish(self._lbl_loyalty_tier)
-                self._lbl_loyalty_tier.style().polish(self._lbl_loyalty_tier)
-                self._lbl_loyalty_tier.show()
-            else:
-                self._lbl_loyalty_tier.hide()
+        # Delegate to the canonical update method
+        self.actualizar_info_cliente()
 
     def _descuento_rapido(self, pct: float) -> None:
         """Aplica descuento % al ítem — validado por DiscountGuard financiero."""
@@ -3396,8 +3418,8 @@ class ModuloVentas(ModuloBase):
             total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 4, total_item)
 
-            # Col 5: hidden edit button (kept for legacy compatibility)
-            btn_modificar = QPushButton("✏️")
+            # Col 5: edit button
+            btn_modificar = QPushButton("✏")
             btn_modificar.setToolTip("Modificar cantidad")
             btn_modificar.setFixedSize(28, 28)
             btn_modificar.setObjectName("cartEditBtn")
@@ -3622,10 +3644,30 @@ class ModuloVentas(ModuloBase):
 
     def actualizar_info_cliente(self):
         if self.cliente_actual:
-            self.lbl_nombre_cliente.setText(f"Nombre: {self.cliente_actual['nombre']}")
-            self.lbl_telefono_cliente.setText(f"Teléfono: {self.cliente_actual['telefono'] or '-'}")
-            self.lbl_email_cliente.setText(f"Email: {self.cliente_actual['email'] or '-'}")
-            self.lbl_puntos_cliente.setText(f"Puntos: {self.cliente_actual['puntos']}")
+            self.lbl_nombre_cliente.setText(self.cliente_actual['nombre'])
+            self.lbl_telefono_cliente.setText(f"Tel: {self.cliente_actual['telefono'] or '—'}")
+            self.lbl_email_cliente.setText(self.cliente_actual.get('email') or '')
+            puntos = self.cliente_actual.get('puntos', 0)
+            self.lbl_puntos_cliente.setText(f"+ {puntos} pts")
+            # Update loyalty tier badge
+            if hasattr(self, '_lbl_loyalty_tier'):
+                nivel = (self.cliente_actual.get('nivel_fidelidad', '')
+                         or self.cliente_actual.get('nivel', ''))
+                if nivel:
+                    self._lbl_loyalty_tier.setText(nivel)
+                    self._lbl_loyalty_tier.setProperty("tier", nivel)
+                    self._lbl_loyalty_tier.style().unpolish(self._lbl_loyalty_tier)
+                    self._lbl_loyalty_tier.style().polish(self._lbl_loyalty_tier)
+                    self._lbl_loyalty_tier.show()
+                else:
+                    self._lbl_loyalty_tier.hide()
+            # Switch to display mode (hide search row, show display row)
+            if hasattr(self, '_client_search_row'):
+                self._client_search_row.setVisible(False)
+                self.txt_cliente.setVisible(False)
+                self.txt_cliente.setMaximumHeight(0)
+            if hasattr(self, '_client_display_row'):
+                self._client_display_row.setVisible(True)
         else:
             self.limpiar_cliente()
 
