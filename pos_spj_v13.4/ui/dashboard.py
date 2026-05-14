@@ -566,57 +566,24 @@ class ActivityFeedItem(QFrame):
             lyt.addWidget(lbl_hora)
 
 
-# ── QuickActionButton ─────────────────────────────────────────────────────────
-
-class QuickActionButton(QFrame):
-    """Large touch-friendly action button with icon + label."""
-
-    clicked = pyqtSignal(str)
-
-    def __init__(self, icono: str, label: str, key: str,
-                 accent: str = "", parent=None):
-        super().__init__(parent)
-        self._key = key
-        _ac = accent or Colors.PRIMARY.BASE
-
-        self.setObjectName("quickActionBtn")
-        self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(70)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # Only override hover tint (accent is per-instance); base style from global QSS
-        self.setStyleSheet(
-            f"QFrame#quickActionBtn:hover {{"
-            f"  background-color: {_ac}1A;"
-            f"  border-color: {_ac}55;"
-            f"}}"
-        )
-
-        lyt = QVBoxLayout(self)
-        lyt.setContentsMargins(10, 10, 10, 10)
-        lyt.setSpacing(4)
-        lyt.setAlignment(Qt.AlignCenter)
-
-        lbl_icon = QLabel(icono, self)
-        lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet(f"font-size: 22px;")
-        # Pass mouse events through labels so the parent QFrame receives them
-        lbl_icon.setAttribute(Qt.WA_TransparentForMouseEvents)
-        lyt.addWidget(lbl_icon)
-
-        lbl_txt = QLabel(label, self)
-        lbl_txt.setAlignment(Qt.AlignCenter)
-        lbl_txt.setWordWrap(True)
-        lbl_txt.setStyleSheet(
-            f"font-size: {Typography.SIZE_XS};"
-            f" font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f" letter-spacing: 0.03em;"
-        )
-        lbl_txt.setAttribute(Qt.WA_TransparentForMouseEvents)
-        lyt.addWidget(lbl_txt)
-
-    def mousePressEvent(self, event):
-        self.clicked.emit(self._key)
-        super().mousePressEvent(event)
+def _make_quick_action_btn(icono: str, label: str, accent: str, parent=None) -> QPushButton:
+    """
+    Native QPushButton styled as a touch-friendly action card.
+    QPushButton.clicked is the only reliable click mechanism on QFrame children.
+    """
+    btn = QPushButton(f"{icono}  {label}", parent)
+    btn.setObjectName("quickActionBtn")
+    btn.setCursor(Qt.PointingHandCursor)
+    btn.setMinimumHeight(72)
+    btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    # Per-button accent hover only — base card style comes from global QSS
+    btn.setStyleSheet(
+        f"QPushButton#quickActionBtn:hover {{"
+        f"  background-color: {accent}1A;"
+        f"  border-color: {accent}55;"
+        f"}}"
+    )
+    return btn
 
 
 # ── DriverCard ────────────────────────────────────────────────────────────────
@@ -1043,20 +1010,20 @@ class Dashboard(QWidget):
         lyt.addWidget(_divider(card))
 
         actions = [
-            ("🛒", "Nueva\nVenta",   "ventas",           Colors.PRIMARY.BASE),
-            ("📦", "Inventario",     "inventario",        Colors.INFO.BASE),
-            ("💳", "Abrir\nCaja",    "caja",              Colors.SUCCESS.BASE),
-            ("📲", "WhatsApp",       "pedidos_whatsapp",  Colors.SUCCESS.BASE),
-            ("🚚", "Delivery",       "delivery",          Colors.WARNING.BASE),
-            ("📊", "Reportes",       "reportes",          Colors.PRIMARY.BASE),
+            ("🛒", "Nueva Venta",  "ventas",           Colors.PRIMARY.BASE),
+            ("📦", "Inventario",   "inventario",        Colors.INFO.BASE),
+            ("💳", "Abrir Caja",   "caja",              Colors.SUCCESS.BASE),
+            ("📲", "WhatsApp",     "pedidos_whatsapp",  Colors.SUCCESS.BASE),
+            ("🚚", "Delivery",     "delivery",          Colors.WARNING.BASE),
+            ("📊", "Reportes",     "reportes",          Colors.PRIMARY.BASE),
         ]
 
         grid = QGridLayout()
         grid.setSpacing(Spacing.SM)
 
         for i, (icon, label, key, color) in enumerate(actions):
-            btn = QuickActionButton(icon, label, key, accent=color, parent=card)
-            btn.clicked.connect(self.abrir_modulo)
+            btn = _make_quick_action_btn(icon, label, color, parent=card)
+            btn.clicked.connect(lambda _checked=False, k=key: self.abrir_modulo.emit(k))
             grid.addWidget(btn, i // 2, i % 2)
 
         lyt.addLayout(grid)

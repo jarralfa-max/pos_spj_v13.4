@@ -2414,15 +2414,15 @@ def _block_dash_cards(*, bg: str, border: str, hover_bg: str, text: str, muted: 
             border: none;
             color: {text};
         }}
-        QFrame#quickActionBtn {{
+        QPushButton#quickActionBtn {{
             background-color: {bg};
             border: 1px solid {border};
             border-radius: 8px;
-        }}
-        QFrame#quickActionBtn QLabel {{
-            background-color: transparent;
-            border: none;
-            color: {muted};
+            color: {text};
+            font-size: 11px;
+            font-weight: 600;
+            padding: 8px 6px;
+            text-align: center;
         }}
         QFrame#pedidoWAItem {{
             background-color: {bg};
