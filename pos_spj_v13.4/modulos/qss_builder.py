@@ -2825,6 +2825,25 @@ def _block_pos_module(
             background-color: {primary_soft};
             border-color: {primary};
         }}
+        QLabel#posClientIcon {{
+            color: {muted};
+            font-size: 13px;
+            background: transparent;
+            border: none;
+            padding: 0px;
+        }}
+        QPushButton#cartEditBtn {{
+            background-color: transparent;
+            border: none;
+            color: {primary};
+            font-size: 14px;
+            border-radius: 4px;
+            padding: 0px;
+        }}
+        QPushButton#cartEditBtn:hover {{
+            background-color: {primary_soft};
+            color: {primary};
+        }}
 
         /* ===== POS: COBRAR FRAME ===== */
         QFrame#posCobrarFrame {{

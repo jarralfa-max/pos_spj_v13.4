@@ -1512,11 +1512,11 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setColumnWidth(2, 58)
         self.tabla_compra.setColumnWidth(3, 52)
         self.tabla_compra.setColumnWidth(4, 62)
-        self.tabla_compra.setColumnWidth(5, 0)   # hidden edit col
+        self.tabla_compra.setColumnWidth(5, 30)
         self.tabla_compra.setColumnWidth(6, 30)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.tabla_compra.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
-        self.tabla_compra.setColumnHidden(5, True)
+        self.tabla_compra.horizontalHeader().setSectionResizeMode(6, QHeaderView.Fixed)
         self.tabla_compra.setMinimumHeight(3 * 48 + 28)
         self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.tabla_compra.setFrameShape(QFrame.NoFrame)
@@ -1595,6 +1595,10 @@ class ModuloVentas(ModuloBase):
         _cdr_lay.setContentsMargins(0, 0, 0, 0)
         _cdr_lay.setSpacing(6)
 
+        _lbl_client_icon = QLabel("👤")
+        _lbl_client_icon.setObjectName("posClientIcon")
+        _lbl_client_icon.setFixedWidth(18)
+
         self.lbl_nombre_cliente = QLabel("Público General")
         self.lbl_nombre_cliente.setObjectName("posClientName")
         self.lbl_puntos_cliente = QLabel("+ 0 pts")
@@ -1609,6 +1613,7 @@ class ModuloVentas(ModuloBase):
         self._lbl_loyalty_tier.setObjectName("posLoyaltyTierBadge")
         self._lbl_loyalty_tier.hide()
 
+        _cdr_lay.addWidget(_lbl_client_icon)
         _cdr_lay.addWidget(self.lbl_nombre_cliente)
         _cdr_lay.addWidget(self._lbl_loyalty_tier)
         _cdr_lay.addStretch(1)
@@ -3413,8 +3418,8 @@ class ModuloVentas(ModuloBase):
             total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.tabla_compra.setItem(row, 4, total_item)
 
-            # Col 5: hidden edit button (kept for legacy compatibility)
-            btn_modificar = QPushButton("✏️")
+            # Col 5: edit button
+            btn_modificar = QPushButton("✏")
             btn_modificar.setToolTip("Modificar cantidad")
             btn_modificar.setFixedSize(28, 28)
             btn_modificar.setObjectName("cartEditBtn")
