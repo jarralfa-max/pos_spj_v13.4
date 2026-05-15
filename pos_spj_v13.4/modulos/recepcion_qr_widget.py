@@ -37,9 +37,10 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QTableWidget,
     QTableWidgetItem, QAbstractItemView, QHeaderView, QMessageBox,
-    QDialog, QTabWidget, QTextEdit, QFrame, QSizePolicy, QSpinBox
+    QDialog, QTabWidget, QTextEdit, QFrame, QSizePolicy, QSpinBox,
+    QCheckBox, QDateEdit, QFileDialog,
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QDate
 from PyQt5.QtGui import QColor, QFont
 
 logger = logging.getLogger("spj.ui.recepcion_qr")

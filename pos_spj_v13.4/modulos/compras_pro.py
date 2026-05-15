@@ -22,7 +22,7 @@ from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QFrame,
-    QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QCompleter,
+    QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QMenu, QSizePolicy, QCheckBox, QListWidget, QListWidgetItem,
     QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog,
@@ -663,11 +663,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             "Sucursal a la que ingresará el inventario de esta compra")
         self._cargar_sucursales_compra()
 
+        self._cmb_moneda = QComboBox()
+        for code, label in [("MXN", "MXN — Peso Mexicano"), ("USD", "USD — Dólar"), ("EUR", "EUR — Euro")]:
+            self._cmb_moneda.addItem(label, code)
+
         form.addRow("Proveedor:*", self.txt_proveedor)
         form.addRow("", self._lbl_prov_status)
         form.addRow("", self._lbl_prov_info)
         form.addRow("No. Factura/Remisión:", self.txt_factura)
         form.addRow("Fecha factura:", self._date_factura)
+        form.addRow("Moneda:", self._cmb_moneda)
         form.addRow("Sucursal destino:*", self.cmb_sucursal_destino)
         lay.addWidget(grp_doc)
 
@@ -690,12 +695,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         cart_lay = QVBoxLayout(self._grp_cart)
 
         self.tabla = QTableWidget()
-        self.tabla.setColumnCount(6)
+        self.tabla.setColumnCount(9)
         self.tabla.setHorizontalHeaderLabels(
-            ["ID", "Producto", "Cantidad", "Costo Unit.", "Subtotal", ""])
+            ["ID", "Producto", "Unidad", "Cant.", "Costo Unit.", "Desc%", "IVA%", "Subtotal", ""])
         hh = self.tabla.horizontalHeader()
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        for c in (0, 2, 3, 4, 5):
+        for c in (0, 2, 3, 4, 5, 6, 7, 8):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -895,16 +900,29 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _build_summary_panel(self) -> QWidget:
         """Right ERP panel: live financial summary + validation + payment + actions."""
         panel = QFrame()
-        panel.setFixedWidth(215)
+        panel.setFixedWidth(230)
         panel.setStyleSheet(
             f"background:{Colors.NEUTRAL.SLATE_50};"
             "border-left:1px solid rgba(0,0,0,0.08);"
         )
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(10, 10, 10, 10)
-        lay.setSpacing(8)
+        lay.setSpacing(6)
 
-        # Financial summary
+        # ── A. Status badge + last edit ───────────────────────────────────────
+        self._lbl_estado_compra = QLabel("🔵  En captura")
+        self._lbl_estado_compra.setStyleSheet(
+            f"background:{Colors.INFO_BASE};color:white;border-radius:10px;"
+            "padding:3px 8px;font-size:11px;font-weight:700;"
+        )
+        lay.addWidget(self._lbl_estado_compra)
+
+        self._lbl_ultima_edicion = QLabel("—")
+        self._lbl_ultima_edicion.setObjectName("caption")
+        self._lbl_ultima_edicion.setWordWrap(True)
+        lay.addWidget(self._lbl_ultima_edicion)
+
+        # ── B. Financial summary group ────────────────────────────────────────
         sum_grp = QGroupBox("📊 Resumen")
         sum_grp.setObjectName("styledGroup")
         sum_lay = QVBoxLayout(sum_grp)
@@ -914,6 +932,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._sum_items_lbl = QLabel("0 productos")
         self._sum_items_lbl.setObjectName("caption")
         sum_lay.addWidget(self._sum_items_lbl)
+
+        self._sum_peso_lbl = QLabel("Peso est.: — kg")
+        self._sum_peso_lbl.setObjectName("caption")
+        sum_lay.addWidget(self._sum_peso_lbl)
 
         _hsep = lambda: (lambda f: (f.setFrameShape(QFrame.HLine),
                                      f.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);margin:2px 0;"),
@@ -930,6 +952,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._sum_iva_lbl.hide()
         sum_lay.addWidget(self._sum_iva_lbl)
 
+        self._sum_descuento_lbl = QLabel("Descuento:  $0.00")
+        self._sum_descuento_lbl.setObjectName("caption")
+        sum_lay.addWidget(self._sum_descuento_lbl)
+
+        self._sum_flete_lbl = QLabel("Flete:  $0.00")
+        self._sum_flete_lbl.setObjectName("caption")
+        sum_lay.addWidget(self._sum_flete_lbl)
+
+        self._sum_otros_lbl = QLabel("Otros cargos:  $0.00")
+        self._sum_otros_lbl.setObjectName("caption")
+        sum_lay.addWidget(self._sum_otros_lbl)
+
         sum_lay.addWidget(_hsep())
 
         self._sum_total_lbl = QLabel("TOTAL:  $0.00")
@@ -943,7 +977,30 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         lay.addWidget(sum_grp)
 
-        # Validation indicators
+        # ── C. Flete and Otros cargos spinboxes ──────────────────────────────
+        cargo_grp = QGroupBox("📦 Cargos adicionales")
+        cargo_grp.setObjectName("styledGroup")
+        cargo_form = QFormLayout(cargo_grp)
+        cargo_form.setSpacing(4)
+        cargo_form.setContentsMargins(8, 6, 8, 6)
+
+        self._spin_flete = QDoubleSpinBox()
+        self._spin_flete.setRange(0, 999999)
+        self._spin_flete.setDecimals(2)
+        self._spin_flete.setPrefix("$ ")
+        self._spin_flete.valueChanged.connect(self._refresh_totals_display)
+        cargo_form.addRow("Flete:", self._spin_flete)
+
+        self._spin_otros = QDoubleSpinBox()
+        self._spin_otros.setRange(0, 999999)
+        self._spin_otros.setDecimals(2)
+        self._spin_otros.setPrefix("$ ")
+        self._spin_otros.valueChanged.connect(self._refresh_totals_display)
+        cargo_form.addRow("Otros:", self._spin_otros)
+
+        lay.addWidget(cargo_grp)
+
+        # ── D. Validation indicators ──────────────────────────────────────────
         val_grp = QGroupBox("✓ Estado")
         val_grp.setObjectName("styledGroup")
         val_lay = QVBoxLayout(val_grp)
@@ -958,39 +1015,57 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             val_lay.addWidget(lbl)
         lay.addWidget(val_grp)
 
+        # ── E. Stretch ────────────────────────────────────────────────────────
         lay.addStretch()
 
-        # Payment separator
-        sep_pay = QFrame()
-        sep_pay.setFrameShape(QFrame.HLine)
-        sep_pay.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
-        lay.addWidget(sep_pay)
-
-        pay_lbl = QLabel("💳 PAGO")
-        pay_lbl.setStyleSheet(
-            f"font-size:10px;font-weight:700;letter-spacing:0.8px;"
-            f"color:{Colors.NEUTRAL.SLATE_500};"
-            "background:transparent;border:none;padding:2px 0;"
-        )
-        lay.addWidget(pay_lbl)
+        # ── F. Payment section ────────────────────────────────────────────────
+        pay_grp = QGroupBox("💳 Pago")
+        pay_grp.setObjectName("styledGroup")
+        pay_form = QFormLayout(pay_grp)
+        pay_form.setSpacing(4)
+        pay_form.setContentsMargins(8, 6, 8, 6)
 
         self.cmb_pago = create_combo(self)
         for label, data in _PAGO_ITEMS:
             self.cmb_pago.addItem(label, data)
-        lay.addWidget(self.cmb_pago)
+        pay_form.addRow("Método:", self.cmb_pago)
 
-        # Action buttons
-        self._btn_procesar = create_success_button(
-            self, "📥 PROCESAR  (F10)", "Procesar compra e ingresar al inventario (F10)")
-        self._btn_procesar.clicked.connect(self._procesar_compra)
-        self._btn_procesar.setMinimumHeight(36)
-        self._btn_procesar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        lay.addWidget(self._btn_procesar)
+        self._cmb_condicion_pago = QComboBox()
+        self._cmb_condicion_pago.addItems(["Liquidado", "Crédito", "Parcial"])
+        pay_form.addRow("Condición:", self._cmb_condicion_pago)
 
-        self._btn_enviar_recepcion = create_secondary_button(
-            self, "📨 Enviar a Recepción",
-            "Registrar y notificar a almacén para recepción QR")
+        self._spin_plazo_dias = QSpinBox()
+        self._spin_plazo_dias.setRange(0, 365)
+        self._spin_plazo_dias.setSuffix(" días")
+        self._spin_plazo_dias.setValue(30)
+        pay_form.addRow("Plazo:", self._spin_plazo_dias)
+
+        self._lbl_vence_el = QLabel("Vence: —")
+        self._lbl_vence_el.setObjectName("caption")
+        pay_form.addRow("", self._lbl_vence_el)
+
+        self._cmb_condicion_pago.currentTextChanged.connect(self._on_condicion_changed)
+        self._spin_plazo_dias.valueChanged.connect(self._on_plazo_changed)
+
+        lay.addWidget(pay_grp)
+
+        # ── G. Action buttons ─────────────────────────────────────────────────
+        self._btn_draft_save_r = create_secondary_button(self, "💾 Borrador", "Guardar como borrador")
+        self._btn_draft_save_r.clicked.connect(self._guardar_borrador)
+        lay.addWidget(self._btn_draft_save_r)
+
+        self._btn_autorizar = create_primary_button(self, "✓ Autorizar compra", "Autorizar y procesar compra")
+        self._btn_autorizar.clicked.connect(self._procesar_compra)
+        self._btn_autorizar.setMinimumHeight(36)
+        self._btn_autorizar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        # Backward-compat alias
+        self._btn_procesar = self._btn_autorizar
+        lay.addWidget(self._btn_autorizar)
+
+        self._btn_enviar_recepcion = create_success_button(
+            self, "📨 Enviar a recepción", "Registrar y enviar a almacén")
         self._btn_enviar_recepcion.clicked.connect(self._enviar_a_recepcion)
+        self._btn_enviar_recepcion.setMinimumHeight(36)
         self._btn_enviar_recepcion.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         lay.addWidget(self._btn_enviar_recepcion)
 
@@ -1159,6 +1234,25 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._val_total_v_lbl.setText("⚠ Total cero")
             self._val_total_v_lbl.setStyleSheet(war_s)
 
+    def _on_condicion_changed(self, condicion: str) -> None:
+        """Enable/disable plazo spinbox based on payment condition."""
+        es_credito = condicion.lower() != "liquidado"
+        if hasattr(self, '_spin_plazo_dias'):
+            self._spin_plazo_dias.setEnabled(es_credito)
+        self._on_plazo_changed()
+
+    def _on_plazo_changed(self, _=None) -> None:
+        """Recalculate and display due date based on plazo."""
+        if not hasattr(self, '_lbl_vence_el'):
+            return
+        condicion = self._cmb_condicion_pago.currentText().lower() if hasattr(self, '_cmb_condicion_pago') else "liquidado"
+        if condicion == "liquidado":
+            self._lbl_vence_el.setText("Vence: N/A")
+        else:
+            plazo = self._spin_plazo_dias.value() if hasattr(self, '_spin_plazo_dias') else 30
+            vence = QDate.currentDate().addDays(plazo)
+            self._lbl_vence_el.setText(f"Vence: {vence.toString('dd/MMM/yyyy')}")
+
     def _enviar_a_recepcion(self) -> None:
         """Process purchase then switch to QR reception tab."""
         if not self.carrito_compra:
@@ -1297,6 +1391,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             'costo_unitario':   costo,
             'subtotal':         round(cantidad * costo, 4),
             'precio_historico': costo_hist,
+            'unidad':           prod.get('unidad', 'kg'),
+            'descuento_pct':    0.0,
+            'iva_pct':          16.0 if (hasattr(self, '_chk_iva') and self._chk_iva.isChecked()) else 0.0,
         })
         self._refresh_tabla()
         self._buscador.clear()
@@ -1387,11 +1484,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.tabla.setRowCount(len(visible))   # single resize — one reflow only
         total = 0.0
         for row, (orig_row, item) in enumerate(visible):
+            # Columns: ID(0) | Producto(1) | Unidad(2) | Cant.(3) | Costo Unit.(4) | Desc%(5) | IVA%(6) | Subtotal(7) | del(8)
             vals = [
                 str(item['producto_id']),
                 item['nombre'],
+                item.get('unidad', 'kg'),
                 f"{item['cantidad']:.3f}",
                 f"${item['costo_unitario']:.4f}",
+                f"{item.get('descuento_pct', 0):.1f}%",
+                f"{item.get('iva_pct', 0):.0f}%",
                 f"${item['subtotal']:.2f}",
             ]
             for col, val in enumerate(vals):
@@ -1403,7 +1504,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             btn_del = create_danger_button(self, "✕", "Eliminar producto del carrito")
             btn_del.setFixedWidth(36)
             btn_del.clicked.connect(lambda _, r=orig_row: self._eliminar_fila(r))
-            self.tabla.setCellWidget(row, 5, btn_del)
+            self.tabla.setCellWidget(row, 8, btn_del)
             total += item['subtotal']
 
         n_items = len(self.carrito_compra)
@@ -1444,6 +1545,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         iva_activo = (hasattr(self, '_chk_iva') and self._chk_iva.isChecked())
         iva_monto  = round(subtotal * _IVA_RATE, 2) if iva_activo else 0.0
         total      = subtotal + iva_monto
+        # Add flete and otros cargos
+        flete = self._spin_flete.value() if hasattr(self, '_spin_flete') else 0.0
+        otros = self._spin_otros.value() if hasattr(self, '_spin_otros') else 0.0
+        total = total + flete + otros
         if hasattr(self, 'lbl_total'):
             self.lbl_total.setText(f"Total: ${total:,.2f}")
         if hasattr(self, '_lbl_subtotal_iva'):
@@ -1459,17 +1564,30 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_sum_iva_lbl'):
             self._sum_iva_lbl.setText(f"IVA (16%):  ${iva_monto:,.2f}")
             self._sum_iva_lbl.setVisible(iva_activo)
+        if hasattr(self, '_sum_flete_lbl'):
+            self._sum_flete_lbl.setText(f"Flete:  ${flete:,.2f}")
+        if hasattr(self, '_sum_otros_lbl'):
+            self._sum_otros_lbl.setText(f"Otros:  ${otros:,.2f}")
         if hasattr(self, '_sum_total_lbl'):
             self._sum_total_lbl.setText(f"TOTAL:  ${total:,.2f}")
         if hasattr(self, '_sum_items_lbl'):
             n = len(self.carrito_compra)
             self._sum_items_lbl.setText(f"{n} producto{'s' if n != 1 else ''}")
+        # Update peso estimado
+        qty_kg = sum(i.get('cantidad', 0) for i in self.carrito_compra)
+        if hasattr(self, '_sum_peso_lbl'):
+            self._sum_peso_lbl.setText(f"Peso est.: {qty_kg:,.2f} kg")
         if hasattr(self, '_sum_costo_kg_lbl'):
-            qty_kg = sum(i.get('cantidad', 0) for i in self.carrito_compra)
             if qty_kg > 0 and total > 0:
                 self._sum_costo_kg_lbl.setText(f"Costo/kg: ${total / qty_kg:,.2f}")
             else:
                 self._sum_costo_kg_lbl.setText("Costo/kg: —")
+        # Update ultima edicion timestamp
+        import datetime as _dt
+        if hasattr(self, '_lbl_ultima_edicion'):
+            ts = _dt.datetime.now().strftime("%d/%m/%Y %H:%M")
+            user = getattr(self, 'usuario_actual', 'Sistema')
+            self._lbl_ultima_edicion.setText(f"Última edición: {user}  {ts}")
         self._actualizar_panel_validacion()
 
     def _eliminar_seleccionados(self) -> None:
