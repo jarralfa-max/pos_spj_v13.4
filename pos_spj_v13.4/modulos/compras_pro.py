@@ -224,11 +224,30 @@ class _DialogItemCompra(QDialog):
 
     @property
     def cantidad(self) -> float:
-        return self._spin_qty.value()
+        v = self._spin_qty.value()
+        return max(0.001, v)
 
     @property
     def costo(self) -> float:
-        return self._spin_costo.value()
+        return max(0.0, self._spin_costo.value())
+
+    def accept(self) -> None:
+        if self._spin_qty.value() < 0.001:
+            self._lbl_variacion.setText("⚠ Cantidad debe ser > 0")
+            self._lbl_variacion.setStyleSheet(f"color:{Colors.DANGER_BASE};font-weight:700;")
+            self._spin_qty.setFocus()
+            return
+        if self._spin_costo.value() < 0:
+            self._lbl_variacion.setText("⚠ Costo no puede ser negativo")
+            self._lbl_variacion.setStyleSheet(f"color:{Colors.DANGER_BASE};font-weight:700;")
+            self._spin_costo.setFocus()
+            return
+        subtotal = self._spin_qty.value() * self._spin_costo.value()
+        if subtotal > 9_999_999:
+            self._lbl_variacion.setText("⚠ Subtotal supera $9,999,999")
+            self._lbl_variacion.setStyleSheet(f"color:{Colors.DANGER_BASE};font-weight:700;")
+            return
+        super().accept()
 
 
 class _ConfirmDestructiveDialog(QDialog):
@@ -1780,26 +1799,34 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._cargar_historial_compras()
 
     def _build_tab_historial(self, parent: QWidget) -> None:
-        """Tab con historial de todas las compras a proveedores."""
-        lay = QVBoxLayout(parent)
+        """Tab historial: 2-column layout — main table | right KPI sidebar."""
+        outer = QHBoxLayout(parent)
+        outer.setSpacing(0)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        # ── Left: filters + table + pagination + inline detail ────────────────
+        left_w = QWidget()
+        lay = QVBoxLayout(left_w)
         lay.setContentsMargins(8, 8, 8, 8)
+        outer.addWidget(left_w, 1)
 
-        # Toolbar
+        # ── Right: KPI sidebar ────────────────────────────────────────────────
+        outer.addWidget(self._build_hist_kpi_sidebar())
+
+        # Toolbar row
         hdr = QHBoxLayout()
-        lbl = create_subheading(self, "Historial de Compras a Proveedores")
-        hdr.addWidget(lbl)
+        hdr.addWidget(create_subheading(self, "Historial de Compras"))
         hdr.addStretch()
-
         _today = QDate.currentDate()
         self._hist_desde = QDateEdit(QDate(_today.year(), _today.month(), 1))
         self._hist_desde.setCalendarPopup(True)
         self._hist_hasta = QDateEdit(_today)
         self._hist_hasta.setCalendarPopup(True)
-        btn_ref = create_primary_button(self, "🔄 Actualizar", "Actualizar historial de compras")
+        btn_ref = create_primary_button(self, "🔄", "Actualizar historial")
         btn_ref.clicked.connect(self._cargar_historial_compras)
-        btn_export = create_secondary_button(self, "📥 CSV", "Exportar historial a CSV")
+        btn_export = create_secondary_button(self, "📥 CSV", "Exportar a CSV")
         btn_export.clicked.connect(self._exportar_historial_csv)
-        self._btn_export_csv = btn_export   # for permission control
+        self._btn_export_csv = btn_export
         hdr.addWidget(QLabel("Desde:"))
         hdr.addWidget(self._hist_desde)
         hdr.addWidget(QLabel("Hasta:"))
@@ -1807,6 +1834,20 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hdr.addWidget(btn_ref)
         hdr.addWidget(btn_export)
         lay.addLayout(hdr)
+
+        # Quick date presets
+        preset_row = QHBoxLayout()
+        preset_row.setSpacing(4)
+        _lbl_pre = QLabel("Período:")
+        _lbl_pre.setObjectName("caption")
+        preset_row.addWidget(_lbl_pre)
+        for label, days in [("Hoy", 0), ("7 días", 7), ("Este mes", -1),
+                             ("Trim.", -3), ("Año", -12)]:
+            btn = create_secondary_button(self, label, f"Ver {label}")
+            btn.clicked.connect(lambda _, d=days: self._hist_set_preset(d))
+            preset_row.addWidget(btn)
+        preset_row.addStretch()
+        lay.addLayout(preset_row)
 
         self._hist_filter = FilterBar(
             self,
@@ -1817,18 +1858,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         self._hist_filter.filters_changed.connect(self._hist_filter_changed)
         lay.addWidget(self._hist_filter)
-        self._hist_loading = LoadingIndicator("Cargando historial de compras…", self)
+        self._hist_loading = LoadingIndicator("Cargando historial…", self)
         self._hist_loading.hide()
         lay.addWidget(self._hist_loading)
 
-        # Table
+        # Main table
         self._tbl_hist = QTableWidget()
         self._tbl_hist.setColumnCount(7)
         self._tbl_hist.setHorizontalHeaderLabels(
             ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Estado", ""])
         hh = self._tbl_hist.horizontalHeader()
-        hh.setSectionResizeMode(2, QHeaderView.Stretch)   # Proveedor stretches
-        hh.setSectionResizeMode(5, QHeaderView.Fixed)     # Estado chip: fixed
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)
+        hh.setSectionResizeMode(5, QHeaderView.Fixed)
         self._tbl_hist.setColumnWidth(5, 110)
         for c in (0, 1, 3, 4, 6):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
@@ -1836,12 +1877,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._tbl_hist.setAlternatingRowColors(True)
         self._tbl_hist.verticalHeader().setVisible(False)
         self._tbl_hist.setObjectName("tableView")
+        self._tbl_hist.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._tbl_hist.itemSelectionChanged.connect(self._on_hist_row_selected)
         lay.addWidget(self._tbl_hist)
         self._hist_empty = EmptyStateWidget(
             "Sin compras",
             "No se encontraron compras para el rango y filtros seleccionados.",
-            "📭",
-            self,
+            "📭", self,
         )
         self._hist_empty.hide()
         lay.addWidget(self._hist_empty)
@@ -1860,18 +1902,38 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         pag_row.addWidget(self._lbl_pagina)
         pag_row.addWidget(self._btn_pag_next)
         pag_row.addStretch()
-        lay.addLayout(pag_row)
-
-        # KPI bar
-        kpi_row = QHBoxLayout()
-        self.lbl_hist_total_compras = QLabel("Total período: $0.00")
+        self.lbl_hist_total_compras = QLabel("Total: $0.00")
         self.lbl_hist_total_compras.setObjectName("badgeSuccess")
         self.lbl_hist_num_compras = QLabel("0 compras")
         self.lbl_hist_num_compras.setObjectName("badgeInfo")
-        kpi_row.addWidget(self.lbl_hist_total_compras)
-        kpi_row.addWidget(self.lbl_hist_num_compras)
-        kpi_row.addStretch()
-        lay.addLayout(kpi_row)
+        pag_row.addWidget(self.lbl_hist_total_compras)
+        pag_row.addWidget(self.lbl_hist_num_compras)
+        lay.addLayout(pag_row)
+
+        # Inline detail panel (shown on row selection)
+        self._hist_detail_panel = QGroupBox("📄 Detalle de compra")
+        self._hist_detail_panel.setObjectName("styledGroup")
+        det_lay = QVBoxLayout(self._hist_detail_panel)
+        det_lay.setContentsMargins(8, 6, 8, 6)
+        self._hist_detail_header = QLabel("")
+        self._hist_detail_header.setObjectName("caption")
+        det_lay.addWidget(self._hist_detail_header)
+        self._tbl_hist_detail = QTableWidget()
+        self._tbl_hist_detail.setColumnCount(4)
+        self._tbl_hist_detail.setHorizontalHeaderLabels(
+            ["Producto", "Cantidad", "Costo Unit.", "Subtotal"])
+        dh = self._tbl_hist_detail.horizontalHeader()
+        dh.setSectionResizeMode(0, QHeaderView.Stretch)
+        for c in (1, 2, 3):
+            dh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        self._tbl_hist_detail.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_hist_detail.verticalHeader().setVisible(False)
+        self._tbl_hist_detail.setAlternatingRowColors(True)
+        self._tbl_hist_detail.setObjectName("tableView")
+        self._tbl_hist_detail.setMaximumHeight(160)
+        det_lay.addWidget(self._tbl_hist_detail)
+        self._hist_detail_panel.hide()
+        lay.addWidget(self._hist_detail_panel)
 
     def _hist_filter_changed(self, _=None) -> None:
         """Resets pagination to page 1 before reloading filtered history."""
@@ -1957,16 +2019,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 str(r[2] or ""), str(r[3] or ""),
                 total_str,
             ]
+            cid_ = r[6]; pnm_ = str(r[2] or "")
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if ci == 4:
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                if ci == 0:
+                    it.setData(Qt.UserRole, cid_)  # store compra_id for inline detail
                 self._tbl_hist.setItem(ri, ci, it)
             self._tbl_hist.setCellWidget(ri, 5, _make_status_chip(estado_raw))
             total_periodo += monto
-
-            cid_ = r[6]; pnm_ = str(r[2] or "")
             btn_det = create_secondary_button(self, "🔍 Ver",
                                               "Ver detalles de esta compra")
             btn_det.clicked.connect(
@@ -1981,6 +2044,218 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._hist_empty.setVisible(len(rows) == 0)
         if hasattr(self, "_hist_loading"):
             self._hist_loading.hide()
+        self._actualizar_hist_kpi_sidebar(list(all_rows))
+
+    # ── History KPI sidebar ────────────────────────────────────────────────────
+
+    def _build_hist_kpi_sidebar(self) -> "QWidget":
+        """Right KPI sidebar for history tab (190 px fixed)."""
+        from PyQt5.QtWidgets import QScrollArea
+        panel = QFrame()
+        panel.setFixedWidth(190)
+        panel.setFrameShape(QFrame.StyledPanel)
+        panel.setStyleSheet(
+            f"QFrame{{background:{Colors.NEUTRAL.SLATE_50};"
+            f"border-left:1px solid {Colors.NEUTRAL.SLATE_200};}}"
+        )
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(10, 12, 10, 12)
+        lay.setSpacing(8)
+
+        def _section(title: str) -> QLabel:
+            lbl = QLabel(title)
+            lbl.setStyleSheet(
+                f"font-size:10px;font-weight:700;color:{Colors.NEUTRAL.SLATE_500};"
+                f"text-transform:uppercase;letter-spacing:0.5px;"
+                f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};padding-bottom:4px;"
+            )
+            return lbl
+
+        def _kpi(label: str, init: str = "—") -> QLabel:
+            lbl = QLabel(f"<b>{init}</b><br><span style='font-size:10px;"
+                         f"color:{Colors.NEUTRAL.SLATE_500};'>{label}</span>")
+            lbl.setStyleSheet("font-size:14px;padding:4px 0;")
+            lbl.setTextFormat(Qt.RichText)
+            return lbl
+
+        lay.addWidget(_section("📊 PERÍODO"))
+        self._kpi_total_periodo    = _kpi("Total comprado")
+        self._kpi_num_compras      = _kpi("N° compras")
+        self._kpi_ticket_prom      = _kpi("Ticket promedio")
+        lay.addWidget(self._kpi_total_periodo)
+        lay.addWidget(self._kpi_num_compras)
+        lay.addWidget(self._kpi_ticket_prom)
+
+        lay.addWidget(_section("📋 POR ESTADO"))
+        self._kpi_completadas  = _kpi("Completadas",  "0  $0")
+        self._kpi_credito      = _kpi("Crédito",      "0  $0")
+        self._kpi_pendientes   = _kpi("Pendientes",   "0  $0")
+        self._kpi_canceladas   = _kpi("Canceladas",   "0  $0")
+        for w in (self._kpi_completadas, self._kpi_credito,
+                  self._kpi_pendientes, self._kpi_canceladas):
+            lay.addWidget(w)
+
+        lay.addWidget(_section("⚠ ALERTAS"))
+        self._kpi_alertas_lbl = QLabel("—")
+        self._kpi_alertas_lbl.setWordWrap(True)
+        self._kpi_alertas_lbl.setStyleSheet(
+            f"font-size:11px;color:{Colors.NEUTRAL.SLATE_600};"
+        )
+        lay.addWidget(self._kpi_alertas_lbl)
+
+        lay.addStretch()
+        return panel
+
+    def _actualizar_hist_kpi_sidebar(self, all_rows: list) -> None:
+        """Compute and display KPIs from the full (unfiltered) result set."""
+        if not hasattr(self, "_kpi_total_periodo"):
+            return
+        _roles_sin_totales = {"CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR"}
+        ocultar = self._usuario_rol in _roles_sin_totales
+
+        totales: dict[str, float] = {}
+        counts:  dict[str, int]   = {}
+        grand_total = 0.0
+        for r in all_rows:
+            estado = str(r[5] or "").strip().lower()
+            monto  = float(r[4] or 0)
+            totales[estado] = totales.get(estado, 0.0) + monto
+            counts[estado]  = counts.get(estado, 0) + 1
+            grand_total += monto
+
+        n_total = len(all_rows)
+        ticket_prom = grand_total / n_total if n_total else 0.0
+
+        def _fmt(v: float) -> str:
+            return "—" if ocultar else f"${v:,.2f}"
+
+        def _set_kpi(widget: QLabel, label: str, value: str) -> None:
+            widget.setText(
+                f"<b>{value}</b><br>"
+                f"<span style='font-size:10px;color:{Colors.NEUTRAL.SLATE_500};'>{label}</span>"
+            )
+
+        _set_kpi(self._kpi_total_periodo, "Total comprado", _fmt(grand_total))
+        _set_kpi(self._kpi_num_compras,   "N° compras",     str(n_total))
+        _set_kpi(self._kpi_ticket_prom,   "Ticket promedio", _fmt(ticket_prom))
+
+        def _estado_text(key: str) -> str:
+            c = counts.get(key, 0)
+            t = totales.get(key, 0.0)
+            return f"{c}  {_fmt(t)}"
+
+        _set_kpi(self._kpi_completadas, "Completadas",
+                 _estado_text("completada"))
+        _set_kpi(self._kpi_credito,     "Crédito",
+                 _estado_text("crédito"))
+        _set_kpi(self._kpi_pendientes,  "Pendientes",
+                 _estado_text("pendiente"))
+        _set_kpi(self._kpi_canceladas,  "Canceladas",
+                 _estado_text("cancelada"))
+
+        # Overdue / pending alerts
+        alerts = []
+        pend_count = counts.get("pendiente", 0)
+        if pend_count:
+            alerts.append(f"⚠ {pend_count} compra(s) pendiente(s)")
+        cred_count = counts.get("crédito", 0)
+        if cred_count:
+            alerts.append(f"💳 {cred_count} en crédito")
+        self._kpi_alertas_lbl.setText("\n".join(alerts) if alerts else "✔ Sin alertas")
+        alert_color = Colors.WARNING_BASE if alerts else Colors.SUCCESS_BASE
+        self._kpi_alertas_lbl.setStyleSheet(
+            f"font-size:11px;color:{alert_color};"
+        )
+
+    def _hist_set_preset(self, days: int) -> None:
+        """Set history date range from a quick preset button.
+
+        days=0  → today only
+        days=7  → last 7 days
+        days=-1 → start of current month
+        days=-3 → start of current quarter
+        days=-12 → start of current year
+        """
+        today = QDate.currentDate()
+        if days == 0:
+            desde = today
+            hasta = today
+        elif days == 7:
+            desde = today.addDays(-6)
+            hasta = today
+        elif days == -1:
+            desde = QDate(today.year(), today.month(), 1)
+            hasta = today
+        elif days == -3:
+            quarter_month = ((today.month() - 1) // 3) * 3 + 1
+            desde = QDate(today.year(), quarter_month, 1)
+            hasta = today
+        elif days == -12:
+            desde = QDate(today.year(), 1, 1)
+            hasta = today
+        else:
+            desde = today.addDays(-days)
+            hasta = today
+
+        if hasattr(self, "_hist_desde"):
+            self._hist_desde.setDate(desde)
+        if hasattr(self, "_hist_hasta"):
+            self._hist_hasta.setDate(hasta)
+        self._hist_filter_changed()
+
+    def _on_hist_row_selected(self) -> None:
+        """Show inline purchase detail when a history row is selected."""
+        if not hasattr(self, "_tbl_hist") or not hasattr(self, "_hist_detail_panel"):
+            return
+        sel = self._tbl_hist.selectedItems()
+        if not sel:
+            self._hist_detail_panel.setVisible(False)
+            return
+        row = self._tbl_hist.currentRow()
+        # compra_id is stored in column 0 UserRole (set during _poblar_historial)
+        id_item = self._tbl_hist.item(row, 0)
+        if id_item is None:
+            self._hist_detail_panel.setVisible(False)
+            return
+        compra_id = id_item.data(Qt.UserRole)
+        if compra_id is None:
+            # Fallback: try to parse from folio column text (best-effort)
+            self._hist_detail_panel.setVisible(False)
+            return
+        try:
+            items = self.container.db.execute(
+                """
+                SELECT p.nombre, dd.cantidad, dd.costo_unitario, dd.subtotal
+                FROM detalles_compra dd
+                JOIN productos p ON p.id = dd.producto_id
+                WHERE dd.compra_id = ?
+                ORDER BY p.nombre
+                """,
+                (compra_id,),
+            ).fetchall()
+            tbl = self._tbl_hist_detail
+            tbl.setRowCount(len(items))
+            for ri, it in enumerate(items):
+                nombre, qty, costo, subtotal = it[0], it[1], it[2], it[3]
+                vals = [
+                    str(nombre or ""),
+                    f"{float(qty or 0):,.3f}",
+                    f"${float(costo or 0):,.2f}",
+                    f"${float(subtotal or 0):,.2f}",
+                ]
+                for ci, v in enumerate(vals):
+                    cell = QTableWidgetItem(v)
+                    cell.setFlags(Qt.ItemIsEnabled)
+                    if ci > 0:
+                        cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    tbl.setItem(ri, ci, cell)
+            self._hist_detail_panel.setTitle(
+                f"Detalle compra #{compra_id}  ({len(items)} producto(s))"
+            )
+            self._hist_detail_panel.setVisible(True)
+        except Exception as exc:
+            logger.debug("_on_hist_row_selected: %s", exc)
+            self._hist_detail_panel.setVisible(False)
 
     def _ver_detalle_compra(self, compra_id: int, proveedor_nombre: str = "") -> None:
         """Muestra el detalle completo de una compra: recibo + timeline + acciones."""
