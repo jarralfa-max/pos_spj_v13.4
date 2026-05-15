@@ -1,6 +1,7 @@
 
 # repositories/purchase_repository.py
 import logging
+import uuid
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,8 @@ class PurchaseRepository:
           folio, proveedor_id, usuario, subtotal, iva, total, estado, forma_pago, observaciones, factura
         """
         cursor = self.db.cursor()
-        folio = f"CMP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        # Timestamp + 4-char UUID fragment prevents same-second collisions
+        folio = f"CMP-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
         query = """
             INSERT INTO compras
                 (folio, proveedor_id, usuario, subtotal, iva, total,

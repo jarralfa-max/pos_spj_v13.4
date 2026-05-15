@@ -46,11 +46,8 @@ class ModuloPlaneacionCompras(QWidget):
         self.usuario_actual = usuario
         self.rol_actual = rol
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
-        """Recibe la sucursal activa."""
-        self.sucursal_id = sucursal_id
-
-    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
+    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = "") -> None:
+        """Recibe la sucursal activa y recarga la lista de productos."""
         self.sucursal_id = sucursal_id
         self.cargar_productos()
 

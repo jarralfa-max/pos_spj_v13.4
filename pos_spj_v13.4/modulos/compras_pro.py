@@ -16,7 +16,7 @@ from modulos.ui_components import (
     create_heading, create_subheading, create_caption, apply_tooltip,
     FilterBar, LoadingIndicator, EmptyStateWidget, confirm_action,
     create_standard_tabs, wrap_in_scroll_area,
-    PageHeader, Toast,
+    PageHeader, Toast, create_badge, create_kpi_card,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
@@ -51,22 +51,32 @@ _HIST_LIMIT = 500
 _COLOR_PARCIAL  = Colors.ACCENT_BASE
 _COLOR_NEUTRAL  = Colors.NEUTRAL.SLATE_500
 
-_STATUS_CHIP_STYLES: dict[str, tuple[str, str, str]] = {
-    # estado_key: (label, bg_color, text_color)
-    "completada":  ("✔ Completada",  Colors.SUCCESS_BASE,  Colors.NEUTRAL.WHITE),
-    "completa":    ("✔ Completada",  Colors.SUCCESS_BASE,  Colors.NEUTRAL.WHITE),
-    "credito":     ("💳 Crédito",    Colors.WARNING_BASE,  Colors.NEUTRAL.WHITE),
-    "pendiente":   ("⏳ Pendiente",  Colors.INFO_BASE,     Colors.NEUTRAL.WHITE),
-    "cancelada":   ("✕ Cancelada",  Colors.DANGER_BASE,   Colors.NEUTRAL.WHITE),
-    "parcial":     ("▶ Parcial",     _COLOR_PARCIAL,       Colors.NEUTRAL.WHITE),
+# Mapping: estado_key → (badge_label, badge_variant)
+# Variants match create_badge() palette: success|warning|info|danger|neutral|primary
+_STATUS_CHIP_MAP: dict[str, tuple[str, str]] = {
+    "completada": ("✔ Completada",  "success"),
+    "completa":   ("✔ Completada",  "success"),
+    "credito":    ("💳 Crédito",    "warning"),
+    "pendiente":  ("⏳ Pendiente",  "info"),
+    "cancelada":  ("✕ Cancelada",  "danger"),
+    "parcial":    ("▶ Parcial",     "primary"),
 }
-_STATUS_CHIP_DEFAULT = ("●",  _COLOR_NEUTRAL, Colors.NEUTRAL.WHITE)
+_COND_CHIP_MAP: dict[str, tuple[str, str]] = {
+    "liquidado": ("✓ Liquidado", "success"),
+    "credito":   ("⏱ Crédito",  "warning"),
+    "parcial":   ("◑ Parcial",   "info"),
+}
 
 # Draft purchase — persisted to user home so it survives restarts
 _DRAFT_PATH = os.path.join(os.path.expanduser("~"), ".spj_compra_borrador.json")
 
 # IVA rate for Mexico
 _IVA_RATE = 0.16
+
+# Roles that must not see monetary totals (cashiers, basic operators)
+_ROLES_SIN_TOTALES: frozenset[str] = frozenset({
+    "CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR",
+})
 
 # ── Role-based permissions ───────────────────────────────────────────────────
 _PERMISOS_POR_ROL: dict[str, frozenset] = {
@@ -90,24 +100,18 @@ _PERMISOS_DEFAULT = frozenset({"procesar", "exportar", "ver_totales",
                                 "borrador", "historial"})
 
 
-def _make_status_chip(estado: str) -> QLabel:
-    """Crea un QLabel con apariencia de chip para el estado de una compra."""
+def _make_status_chip(estado: str, parent=None) -> QLabel:
+    """Returns a badge QLabel for a purchase estado using the design system."""
     lower = estado.strip().lower()
-    cfg = _STATUS_CHIP_STYLES.get(lower)
-    if cfg:
-        label, bg, fg = cfg
-    else:
-        label = estado.upper() or "—"
-        _, bg, fg = _STATUS_CHIP_DEFAULT
-    chip = QLabel(label)
-    chip.setAlignment(Qt.AlignCenter)
-    chip.setStyleSheet(
-        f"background-color:{bg};color:{fg};border-radius:4px;"
-        "font-size:10px;font-weight:700;padding:2px 6px;"
-        "border:none;"
-    )
-    chip.setFixedHeight(22)
-    return chip
+    label, variant = _STATUS_CHIP_MAP.get(lower, (estado.upper() or "—", "neutral"))
+    return create_badge(parent, label, variant)
+
+
+def _make_cond_chip(condicion: str, parent=None) -> QLabel:
+    """Returns a badge QLabel for condicion_pago using the design system."""
+    lower = condicion.strip().lower()
+    label, variant = _COND_CHIP_MAP.get(lower, (condicion.capitalize() or "—", "neutral"))
+    return create_badge(parent, label, variant)
 
 
 class _DialogItemCompra(QDialog):
@@ -601,8 +605,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 "SELECT COUNT(*) FROM ordenes_compra WHERE estado='pendiente'"
             ).fetchone()
             self._stats_value_labels[2].setText(str(r3[0] or 0))
-        except Exception:
-            pass
+        except (TypeError, IndexError, AttributeError) as e:
+            logger.debug("_refresh_stats: %s", e)
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
         """3-column ERP layout: Provider Sidebar | Main Form + Cart | Financial Summary"""
@@ -830,11 +834,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 if hasattr(self._recv_qr, "_recargar_listas"):
                     try:
                         self._recv_qr._recargar_listas()
-                    except Exception:
+                    except AttributeError:
                         pass
             btn_reload.clicked.connect(_reload_qr)
-        except Exception as e:
-            logger.debug("_build_tab_qr: %s", e)
+        except (ImportError, AttributeError, RuntimeError) as e:
+            logger.warning("_build_tab_qr: %s", e)
             self._qr_empty.show()
             self._qr_loading.hide()
 
@@ -1143,7 +1147,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self._lbl_prov_info.show()
             else:
                 self._lbl_prov_info.hide()
-        except Exception:
+        except (TypeError, KeyError, IndexError):
             self._lbl_prov_info.hide()
 
     def _poblar_plantillas_sidebar(self) -> None:
@@ -1165,7 +1169,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 ph = QListWidgetItem("(Sin plantillas)")
                 ph.setFlags(Qt.NoItemFlags)
                 self._sidebar_templates_list.addItem(ph)
-        except Exception:
+        except (TypeError, KeyError, OSError) as e:
+            logger.warning("_cargar_plantillas_sidebar: %s", e)
             ph = QListWidgetItem("(Sin plantillas)")
             ph.setFlags(Qt.NoItemFlags)
             self._sidebar_templates_list.addItem(ph)
@@ -1206,8 +1211,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 })
             self._refresh_tabla()
             Toast.success(self, "📋 Plantilla cargada", f"{len(rows)} ítem(s) agregados")
-        except Exception as e:
-            logger.debug("_cargar_plantilla_sidebar: %s", e)
+        except (TypeError, KeyError, IndexError) as e:
+            logger.warning("_cargar_plantilla_sidebar: %s", e)
 
     def _actualizar_panel_validacion(self) -> None:
         """Updates validation state labels in the right summary panel."""
@@ -2144,17 +2149,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             rows = []
 
         # ── Render table ──────────────────────────────────────────────────────
-        _roles_sin_totales = {"CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR"}
-        ocultar_totales = self._usuario_rol in _roles_sin_totales
+        ocultar_totales = self._usuario_rol in _ROLES_SIN_TOTALES
 
         self._tbl_hist.setRowCount(len(rows))
         total_periodo = 0.0
-        _COND_CHIP = {
-            "liquidado": (Colors.SUCCESS_BASE, "✓ Liquidado"),
-            "crédito":   (Colors.WARNING_BASE, "⏱ Crédito"),
-            "credito":   (Colors.WARNING_BASE, "⏱ Crédito"),
-            "parcial":   (Colors.INFO_BASE,    "◑ Parcial"),
-        }
         for ri, r in enumerate(rows):
             estado_raw   = str(r[5] or "").strip().lower()
             monto        = float(r[4] or 0)
@@ -2174,17 +2172,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 if ci == 0:
                     it.setData(Qt.UserRole, cid_)  # store compra_id for inline detail
                 self._tbl_hist.setItem(ri, ci, it)
-            # col 5 — Cond. Pago chip
-            cond_color, cond_txt = _COND_CHIP.get(cond_raw, (Colors.NEUTRAL.SLATE_500, cond_raw.capitalize()))
-            cond_chip = QLabel(cond_txt)
-            cond_chip.setAlignment(Qt.AlignCenter)
-            cond_chip.setStyleSheet(
-                f"background:{cond_color};color:{Colors.NEUTRAL.WHITE};"
-                f"border-radius:4px;font-size:10px;font-weight:600;padding:2px 6px;"
-            )
-            self._tbl_hist.setCellWidget(ri, 5, cond_chip)
-            # col 6 — Estado chip
-            self._tbl_hist.setCellWidget(ri, 6, _make_status_chip(estado_raw))
+            # col 5 — Cond. Pago chip (design system badge)
+            self._tbl_hist.setCellWidget(ri, 5, _make_cond_chip(cond_raw, self))
+            # col 6 — Estado chip (design system badge)
+            self._tbl_hist.setCellWidget(ri, 6, _make_status_chip(estado_raw, self))
             total_periodo += monto
             btn_det = create_secondary_button(self, "🔍 Ver",
                                               "Ver detalles de esta compra")
@@ -2275,8 +2266,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Compute and display KPIs from the full (unfiltered) result set."""
         if not hasattr(self, "_kpi_total_periodo"):
             return
-        _roles_sin_totales = {"CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR"}
-        ocultar = self._usuario_rol in _roles_sin_totales
+        ocultar = self._usuario_rol in _ROLES_SIN_TOTALES
 
         totales: dict[str, float] = {}
         counts:  dict[str, int]   = {}
