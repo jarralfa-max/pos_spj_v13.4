@@ -457,6 +457,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception:
             pass
 
+        self._doc_type = "DIRECT"   # Phase 5: DIRECT | PR | PO
         self._build_ui()
         QTimer.singleShot(200, self.cargar_proveedores)
 
@@ -726,6 +727,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         outer.addWidget(self._build_summary_panel())
 
         lay = center_lay  # alias so body below builds into the center panel
+
+        # ── E-0: Document type selector (Phase 5) ─────────────────────────────
+        lay.addWidget(self._build_doctype_toolbar())
 
         # ── E-1: ERP Workflow Stepper ─────────────────────────────────────────
         lay.addWidget(self._build_stepper_bar())
@@ -1593,6 +1597,171 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_tabs') and self.carrito_compra == []:
             self._tabs.setCurrentIndex(1)
 
+    # ── Phase 5: Document-type toolbar ───────────────────────────────────────
+
+    def _build_doctype_toolbar(self) -> QWidget:
+        """
+        Barra de selección de tipo de documento: Compra Directa | Solicitud PR | Orden PO.
+        Permite elegir si el carrito generará una compra directa, una solicitud de
+        compra (PR) o una orden de compra (PO). Sin efecto en el flujo QR.
+        """
+        bar = QFrame()
+        bar.setObjectName("doctypeToolbar")
+        bar.setFixedHeight(38)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(0, 2, 0, 2)
+        lay.setSpacing(4)
+
+        lbl = QLabel("Tipo de documento:")
+        lbl.setObjectName("caption")
+        lay.addWidget(lbl)
+        lay.addSpacing(6)
+
+        self._doctype_buttons: dict[str, QPushButton] = {}
+        for doc_type, icon, label, tooltip in [
+            ("DIRECT", "🛒", "Compra Directa",
+             "Registra compra con efecto inmediato en inventario"),
+            ("PR",     "📋", "Solicitud (PR)",
+             "Crea solicitud pendiente de aprobación · Sin efecto en inventario"),
+            ("PO",     "📦", "Orden de Compra",
+             "Convierte PR aprobada en Orden de Compra · Sin efecto directo en inventario"),
+        ]:
+            btn = QPushButton(f"{icon} {label}")
+            btn.setToolTip(tooltip)
+            btn.setCheckable(True)
+            btn.setMinimumHeight(28)
+            btn.setChecked(doc_type == self._doc_type)
+            btn.clicked.connect(lambda _chk, dt=doc_type: self._on_doctype_changed(dt))
+            self._doctype_buttons[doc_type] = btn
+            lay.addWidget(btn)
+
+        lay.addStretch()
+        self._apply_doctype_button_styles()
+        return bar
+
+    def _on_doctype_changed(self, doc_type: str) -> None:
+        if self._doc_type == doc_type:
+            return
+        self._doc_type = doc_type
+        for dt, btn in self._doctype_buttons.items():
+            btn.setChecked(dt == doc_type)
+        self._apply_doctype_button_styles()
+        self._refresh_doctype_ui()
+
+    def _apply_doctype_button_styles(self) -> None:
+        active = (
+            f"background:{Colors.PRIMARY_BASE};color:white;"
+            f"border:1px solid {Colors.PRIMARY_BASE};border-radius:4px;"
+            "font-weight:600;padding:0 10px;"
+        )
+        idle = (
+            f"background:{Colors.NEUTRAL.SLATE_100};color:{Colors.NEUTRAL.SLATE_700};"
+            f"border:1px solid {Colors.NEUTRAL.SLATE_300};border-radius:4px;"
+            "padding:0 10px;"
+        )
+        for dt, btn in getattr(self, '_doctype_buttons', {}).items():
+            btn.setStyleSheet(active if dt == self._doc_type else idle)
+
+    def _refresh_doctype_ui(self) -> None:
+        """Actualiza badge de estado, texto del botón principal y visibilidad según doc type."""
+        _cfg = {
+            "DIRECT": (
+                "🔵  En captura",      Colors.INFO_BASE,
+                "✓ Autorizar compra",  "Autorizar y procesar compra (F10)",    True,
+            ),
+            "PR": (
+                "📋  Solicitud PR",    Colors.WARNING_BASE,
+                "📋 Crear solicitud",  "Guardar solicitud pendiente de aprobación",  False,
+            ),
+            "PO": (
+                "📦  Orden de Compra", Colors.SUCCESS_BASE,
+                "📦 Ver instrucciones", "Ver instrucciones para generar Orden de Compra", False,
+            ),
+        }
+        badge_txt, badge_color, btn_txt, btn_tip, show_enviar = _cfg.get(
+            self._doc_type, _cfg["DIRECT"])
+
+        if hasattr(self, '_lbl_estado_compra'):
+            self._lbl_estado_compra.setText(badge_txt)
+            self._lbl_estado_compra.setStyleSheet(
+                f"background:{badge_color};color:white;border-radius:10px;"
+                "padding:3px 8px;font-size:11px;font-weight:700;"
+            )
+        if hasattr(self, '_btn_autorizar'):
+            self._btn_autorizar.setText(btn_txt)
+            self._btn_autorizar.setToolTip(btn_tip)
+        if hasattr(self, '_btn_enviar_recepcion'):
+            self._btn_enviar_recepcion.setVisible(show_enviar)
+
+    def _procesar_como_pr(self, proveedor_id: int, proveedor_nom: str) -> None:
+        """
+        Crea una Purchase Request (BORRADOR) con los ítems del carrito.
+        Delega a TraditionalPurchaseUC con document_type=PR.
+        NO afecta inventario, GL ni CxP.
+        """
+        from application.purchases.commands import RegisterPurchaseCommand, PurchaseItemCommand
+        from application.purchases.states import DocumentType
+        try:
+            subtotal    = sum(i['subtotal'] for i in self.carrito_compra)
+            iva_activo  = hasattr(self, '_chk_iva') and self._chk_iva.isChecked()
+            iva_monto   = round(subtotal * self._get_iva_rate(), 2) if iva_activo else 0.0
+            total       = subtotal + iva_monto
+            pago        = self.cmb_pago.currentData() or "CONTADO"
+            branch_dest = (self.cmb_sucursal_destino.currentData()
+                           if hasattr(self, 'cmb_sucursal_destino')
+                           else self.sucursal_id) or self.sucursal_id
+            condicion   = (self._cmb_condicion_pago.currentText().lower()
+                           if hasattr(self, '_cmb_condicion_pago') else "liquidado")
+            plazo       = (self._spin_plazo_dias.value()
+                           if hasattr(self, '_spin_plazo_dias') else 0)
+            moneda      = (self._cmb_moneda.currentData()
+                           if hasattr(self, '_cmb_moneda') else "MXN")
+
+            cmd = RegisterPurchaseCommand(
+                proveedor_id=proveedor_id,
+                proveedor_nombre=proveedor_nom,
+                sucursal_id=branch_dest,
+                usuario=self.usuario_actual,
+                items=[
+                    PurchaseItemCommand(
+                        product_id=i['producto_id'],
+                        qty=i['cantidad'],
+                        unit_cost=i['costo_unitario'],
+                        nombre=i['nombre'],
+                    )
+                    for i in self.carrito_compra
+                ],
+                metodo_pago=pago,
+                subtotal=subtotal,
+                iva_monto=iva_monto,
+                total=total,
+                document_type=DocumentType.PR,
+                condicion_pago=condicion,
+                plazo_dias=plazo,
+                moneda=moneda,
+            )
+            uc = getattr(self.container, 'uc_compra_tradicional', None)
+            if uc is None:
+                from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
+                uc = TraditionalPurchaseUC(self.container)
+            result = uc.execute(cmd)
+            if result.ok:
+                Toast.success(
+                    self, "📋 Solicitud creada",
+                    f"Folio: {result.folio} · En espera de aprobación",
+                )
+                if hasattr(self, '_lbl_estado_compra'):
+                    self._lbl_estado_compra.setText(f"📋  {result.folio}")
+                    self._lbl_estado_compra.setStyleSheet(
+                        f"background:{Colors.WARNING_BASE};color:white;border-radius:10px;"
+                        "padding:3px 8px;font-size:11px;font-weight:700;"
+                    )
+            else:
+                QMessageBox.critical(self, "Error al crear solicitud", result.error)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+            logger.error("_procesar_como_pr: %s", e)
+
     # ── Providers ────────────────────────────────────────────────────────────
     def _cargar_sucursales_compra(self) -> None:
         """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
@@ -2123,6 +2292,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         proveedor_id  = self._proveedor_id_selected
         proveedor_nom = self.txt_proveedor.text().strip()
+
+        # ── Phase 5: route by document type ──────────────────────────────────
+        doc_type = getattr(self, '_doc_type', 'DIRECT')
+        if doc_type == "PR":
+            self._procesar_como_pr(proveedor_id, proveedor_nom)
+            return
+        if doc_type == "PO":
+            QMessageBox.information(
+                self, "Orden de Compra",
+                "Para generar una Orden de Compra:\n\n"
+                "1. Selecciona 'Solicitud (PR)' y crea la solicitud con los productos.\n"
+                "2. Envíala a aprobación (panel de administración).\n"
+                "3. Una vez aprobada, el sistema la convierte en PO automáticamente.\n\n"
+                "Selecciona 'Solicitud (PR)' para continuar.",
+            )
+            return
+        # ── DIRECT: flujo original sin cambios ────────────────────────────────
+
         doc_ref  = self.txt_factura.text().strip() or "Sin Ref"
         pago     = self.cmb_pago.currentData() or "CONTADO"
         subtotal = sum(i['subtotal'] for i in self.carrito_compra)
