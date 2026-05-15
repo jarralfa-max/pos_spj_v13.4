@@ -119,6 +119,38 @@ class RecepcionQRWidget(QWidget):
         info.setObjectName("caption")
         lay.addWidget(info)
 
+        # ── Selector de tipo de contenedor ────────────────────────────────────
+        tipo_lbl = QLabel("Tipo de contenedor:")
+        tipo_lbl.setStyleSheet("font-weight:bold; font-size:12px;")
+        lay.addWidget(tipo_lbl)
+
+        tipos_row = QHBoxLayout()
+        tipos_row.setSpacing(4)
+        _TIPOS = [
+            ("📦", "Caja"),
+            ("🪨", "Pallet"),
+            ("💰", "Saco"),
+            ("🧊", "Hielera"),
+            ("🗂", "Jaula"),
+            ("🪣", "Cubeta"),
+            ("❄️", "Refrigerador"),
+            ("✏️", "Otro"),
+        ]
+        self._tipo_btns = []
+        for icon, nombre in _TIPOS:
+            btn = QPushButton(f"{icon} {nombre}")
+            btn.setFixedSize(54, 38)
+            btn.setFlat(True)
+            btn.setProperty("tipo_nombre", nombre)
+            btn.clicked.connect(lambda _checked, n=nombre: self._seleccionar_tipo_contenedor(n))
+            self._tipo_btns.append(btn)
+            tipos_row.addWidget(btn)
+        tipos_row.addStretch()
+        lay.addLayout(tipos_row)
+        # Apply initial selection style
+        self._seleccionar_tipo_contenedor(self._tipo_contenedor)
+
+        # ── Formulario ────────────────────────────────────────────────────────
         form = QFormLayout()
         self._txt_codigo_interno = QLineEdit()
         self._txt_codigo_interno.setPlaceholderText("Ej: CAJA-001, CANASTA-A (opcional)")
@@ -157,9 +189,48 @@ class RecepcionQRWidget(QWidget):
     # ── Pestaña 2: Asignar Compra ─────────────────────────────────────────────
 
     def _build_tab_asignar(self) -> None:
-        lay = QVBoxLayout(self._tab_asignar)
+        root_lay = QHBoxLayout(self._tab_asignar)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
+
+        # ── Left sidebar: contenedores disponibles ────────────────────────────
+        sidebar = QFrame()
+        sidebar.setFixedWidth(220)
+        sidebar.setStyleSheet(
+            f"QFrame {{ background:{Colors.NEUTRAL.SLATE_50};"
+            f"border-right:1px solid {Colors.NEUTRAL.SLATE_300}; }}"
+        )
+        sb_lay = QVBoxLayout(sidebar)
+        sb_lay.setContentsMargins(6, 8, 6, 8)
+        sb_lay.setSpacing(4)
+
+        sb_title = QLabel("📦 Contenedores")
+        sb_title.setStyleSheet("font-weight:bold; font-size:12px; padding:2px 0;")
+        sb_lay.addWidget(sb_title)
+
+        self._txt_buscar_sidebar = QLineEdit()
+        self._txt_buscar_sidebar.setPlaceholderText("🔍 Buscar…")
+        self._txt_buscar_sidebar.setMinimumHeight(28)
+        self._txt_buscar_sidebar.textChanged.connect(self._filtrar_cont_sidebar)
+        sb_lay.addWidget(self._txt_buscar_sidebar)
+
+        self._lst_cont_sidebar = QListWidget()
+        self._lst_cont_sidebar.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._lst_cont_sidebar.itemDoubleClicked.connect(self._seleccionar_cont_sidebar)
+        sb_lay.addWidget(self._lst_cont_sidebar, 1)
+
+        btn_ref_sidebar = create_secondary_button(self, "🔄 Actualizar", "Actualizar lista de contenedores")
+        btn_ref_sidebar.clicked.connect(self._poblar_contenedores_sidebar)
+        sb_lay.addWidget(btn_ref_sidebar)
+
+        root_lay.addWidget(sidebar)
+
+        # ── Right: existing steps content ─────────────────────────────────────
+        right_widget = QWidget()
+        lay = QVBoxLayout(right_widget)
         lay.setContentsMargins(10, 8, 10, 8)
         lay.setSpacing(8)
+        root_lay.addWidget(right_widget, 1)
 
         # ── Step 1: Escanear contenedor ───────────────────────────────────────
         step1 = QGroupBox("① Escanear contenedor QR")
@@ -327,11 +398,21 @@ class RecepcionQRWidget(QWidget):
         btn_guardar_asig.clicked.connect(self._guardar_asignacion)
         lay.addWidget(btn_guardar_asig)
 
+        # Populate sidebar now that all widgets are built
+        self._poblar_contenedores_sidebar()
+
     # ── Pestaña 3: Recepcionar ─────────────────────────────────────────────────
 
     def _build_tab_recepcionar(self) -> None:
-        lay = QVBoxLayout(self._tab_recepcionar)
-        lay.setContentsMargins(12, 10, 12, 10)
+        root_lay = QHBoxLayout(self._tab_recepcionar)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
+
+        # ── Left: existing content ─────────────────────────────────────────────
+        left_widget = QWidget()
+        lay = QVBoxLayout(left_widget)
+        lay.setContentsMargins(12, 10, 8, 10)
+        root_lay.addWidget(left_widget, 1)
 
         info = QLabel(
             "Escanea el QR de cada contenedor al recibirlo en la sucursal. "
@@ -400,6 +481,10 @@ class RecepcionQRWidget(QWidget):
         btn_confirmar_recv.setMinimumHeight(38)
         btn_confirmar_recv.clicked.connect(self._confirmar_recepcion)
         lay.addWidget(btn_confirmar_recv)
+
+        # ── Right: summary panel ───────────────────────────────────────────────
+        summary_panel = self._build_recv_summary_panel()
+        root_lay.addWidget(summary_panel)
 
     # ── Pestaña 4: Historial ──────────────────────────────────────────────────
 
@@ -470,6 +555,155 @@ class RecepcionQRWidget(QWidget):
         self._cargar_historial()
         apply_object_names(self)
 
+    # ── Nuevos helpers UI ─────────────────────────────────────────────────────
+
+    def _seleccionar_tipo_contenedor(self, tipo: str) -> None:
+        self._tipo_contenedor = tipo
+        for btn in self._tipo_btns:
+            is_sel = btn.property("tipo_nombre") == tipo
+            btn.setStyleSheet(
+                f"background:{Colors.PRIMARY_BASE};color:white;border-radius:6px;font-weight:bold;"
+                if is_sel else
+                f"background:transparent;border:1px solid {Colors.NEUTRAL.SLATE_300};"
+                f"border-radius:6px;color:{Colors.NEUTRAL.SLATE_600};"
+            )
+
+    def _poblar_contenedores_sidebar(self) -> None:
+        """Load containers with estado='disponible' or 'generado' from trazabilidad_qr or contenedores_qr."""
+        self._lst_cont_sidebar.clear()
+        try:
+            rows = self.conexion.execute("""
+                SELECT c.uuid_qr,
+                       COALESCE(c.codigo_interno, '') as codigo,
+                       COALESCE(c.descripcion, '') as desc,
+                       COALESCE(t.estado, 'disponible') as estado
+                FROM contenedores_qr c
+                LEFT JOIN trazabilidad_qr t ON t.uuid_qr = c.uuid_qr
+                WHERE COALESCE(t.estado, 'disponible') IN ('disponible','generado')
+                ORDER BY c.created_at DESC LIMIT 100
+            """).fetchall()
+            if not rows:
+                it = QListWidgetItem("Sin contenedores disponibles")
+                it.setFlags(Qt.NoItemFlags)
+                self._lst_cont_sidebar.addItem(it)
+                return
+            for r in rows:
+                uuid_qr, codigo, desc, estado = r[0], r[1], r[2], r[3]
+                label = f"{codigo or uuid_qr[:12]+'…'}"
+                if desc:
+                    label += f"\n{desc[:28]}"
+                it = QListWidgetItem(label)
+                it.setData(Qt.UserRole, uuid_qr)
+                estado_icon = "🟢" if estado == "disponible" else "🔵"
+                it.setToolTip(f"{estado_icon} {estado.upper()} | {uuid_qr}")
+                self._lst_cont_sidebar.addItem(it)
+        except Exception as exc:
+            logger.warning("sidebar: %s", exc)
+            it = QListWidgetItem("—")
+            it.setFlags(Qt.NoItemFlags)
+            self._lst_cont_sidebar.addItem(it)
+
+    def _filtrar_cont_sidebar(self, text: str) -> None:
+        for i in range(self._lst_cont_sidebar.count()):
+            item = self._lst_cont_sidebar.item(i)
+            item.setHidden(text.lower() not in item.text().lower())
+
+    def _seleccionar_cont_sidebar(self, item: "QListWidgetItem") -> None:
+        uuid_qr = item.data(Qt.UserRole)
+        if uuid_qr:
+            self._txt_uuid_asignar.setText(uuid_qr)
+            self._cargar_contenedor()
+
+    def _build_recv_summary_panel(self) -> QFrame:
+        """Builds the 185px right summary panel for the recepcionar tab."""
+        panel = QFrame()
+        panel.setFixedWidth(185)
+        panel.setStyleSheet(
+            f"QFrame {{ background:{Colors.NEUTRAL.SLATE_50};"
+            f"border-left:1px solid {Colors.NEUTRAL.SLATE_300}; }}"
+        )
+        p_lay = QVBoxLayout(panel)
+        p_lay.setContentsMargins(8, 10, 8, 8)
+        p_lay.setSpacing(6)
+
+        # Resumen section
+        sec_resumen = QLabel("📊 RESUMEN")
+        sec_resumen.setStyleSheet(
+            f"font-weight:bold;font-size:11px;color:{Colors.NEUTRAL.SLATE_600};"
+            "padding:2px 0;letter-spacing:0.5px;"
+        )
+        p_lay.addWidget(sec_resumen)
+
+        self._sum_recv_esperado = QLabel("Esp: —")
+        self._sum_recv_recibido = QLabel("Rec: —")
+        self._sum_recv_diff_lbl = QLabel("Dif: —")
+        self._sum_recv_pct      = QLabel("Avance: —")
+        for lbl in (self._sum_recv_esperado, self._sum_recv_recibido,
+                    self._sum_recv_diff_lbl, self._sum_recv_pct):
+            lbl.setStyleSheet("font-size:12px; padding:1px 2px;")
+            lbl.setWordWrap(True)
+            p_lay.addWidget(lbl)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_300};")
+        p_lay.addWidget(sep)
+
+        # Discrepancias section
+        sec_disc = QLabel("⚠ DISCREPANCIAS")
+        sec_disc.setStyleSheet(
+            f"font-weight:bold;font-size:11px;color:{Colors.NEUTRAL.SLATE_600};"
+            "padding:2px 0;letter-spacing:0.5px;"
+        )
+        p_lay.addWidget(sec_disc)
+
+        self._lst_recv_discrepancias = QListWidget()
+        self._lst_recv_discrepancias.setMaximumHeight(120)
+        self._lst_recv_discrepancias.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._lst_recv_discrepancias.setStyleSheet("font-size:11px;")
+        p_lay.addWidget(self._lst_recv_discrepancias)
+
+        p_lay.addStretch()
+        return panel
+
+    def _actualizar_resumen_recepcion(self) -> None:
+        """Reads all rows from _tbl_recv and updates the summary panel."""
+        total_esp  = 0.0
+        total_recv = 0.0
+        self._lst_recv_discrepancias.clear()
+        for ri in range(self._tbl_recv.rowCount()):
+            spin = self._tbl_recv.cellWidget(ri, 3)
+            if not spin:
+                continue
+            qty_esp  = float(spin.property("qty_esperada") or 0)
+            qty_recv = spin.value()
+            total_esp  += qty_esp
+            total_recv += qty_recv
+            diff = qty_recv - qty_esp
+            if abs(diff) > 0.001:
+                prod_item = self._tbl_recv.item(ri, 0)
+                prod_name = prod_item.text() if prod_item else f"Fila {ri+1}"
+                it = QListWidgetItem(f"{prod_name[:20]}: {diff:+.3f}")
+                color = Colors.DANGER_BASE if diff < 0 else Colors.SUCCESS_BASE
+                it.setForeground(QColor(color))
+                self._lst_recv_discrepancias.addItem(it)
+        total_diff = total_recv - total_esp
+        pct = (total_recv / total_esp * 100) if total_esp > 0 else 0.0
+        self._sum_recv_esperado.setText(f"Esp: {total_esp:.3f}")
+        self._sum_recv_recibido.setText(f"Rec: {total_recv:.3f}")
+        diff_color = Colors.DANGER_BASE if total_diff < -0.001 else (
+            Colors.SUCCESS_BASE if total_diff > 0.001 else Colors.NEUTRAL.SLATE_700
+        )
+        self._sum_recv_diff_lbl.setText(f"Dif: {total_diff:+.3f}")
+        self._sum_recv_diff_lbl.setStyleSheet(
+            f"font-size:12px;padding:1px 2px;color:{diff_color};font-weight:bold;"
+        )
+        self._sum_recv_pct.setText(f"Avance: {pct:.1f}%")
+        if not self._lst_recv_discrepancias.count():
+            it = QListWidgetItem("✅ Sin discrepancias")
+            it.setForeground(QColor(Colors.SUCCESS_BASE))
+            self._lst_recv_discrepancias.addItem(it)
+
     # ── Lógica de negocio ─────────────────────────────────────────────────────
 
     def _activar_lector_qr(self) -> None:
@@ -501,9 +735,10 @@ class RecepcionQRWidget(QWidget):
             from services.qr_service import QRService
             svc = QRService(self.conexion, self.sucursal_id)
             datos = {
-                "usuario":         self.usuario,
-                "codigo_interno":  self._txt_codigo_interno.text().strip(),
-                "descripcion":     self._txt_descripcion.text().strip(),
+                "usuario":           self.usuario,
+                "codigo_interno":    self._txt_codigo_interno.text().strip(),
+                "descripcion":       self._txt_descripcion.text().strip(),
+                "tipo_contenedor":   self._tipo_contenedor,
             }
             uuid_qr = svc.generar_uuid_qr("contenedor", datos)
             # Registrar en contenedores_qr
@@ -665,6 +900,7 @@ class RecepcionQRWidget(QWidget):
         color = Colors.DANGER_BASE if total_diff > 0.01 else Colors.SUCCESS_BASE
         self._lbl_recv_diff.setText(f"Diferencia total: {total_diff:.3f}")
         self._lbl_recv_diff.setStyleSheet(f"font-weight:bold;font-size:13px;color:{color};")
+        self._actualizar_resumen_recepcion()
 
     def _confirmar_recepcion(self) -> None:
         """Confirma la recepción: actualiza inventario, lotes y trazabilidad."""
@@ -862,6 +1098,7 @@ class RecepcionQRWidget(QWidget):
             self.conexion.commit()
             Toast.success(self, "✅ Asignación guardada",
                           f"Total: ${monto_total:.2f} · Pagado: ${monto_pagado:.2f}")
+            self._poblar_contenedores_sidebar()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
