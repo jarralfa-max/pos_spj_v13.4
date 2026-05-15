@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QFrame,
     QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QMenu, QSizePolicy, QCheckBox,
+    QMessageBox, QMenu, QSizePolicy, QCheckBox, QListWidget, QListWidgetItem,
     QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog,
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal
@@ -352,16 +352,21 @@ class _PINDialog(QDialog):
     @staticmethod
     def _leer_pin(db) -> str:
         """Lee el PIN de supervisor desde configuracion. Retorna "" si no configurado."""
-        for tabla in ("configuracion", "settings", "parametros"):
-            for col_k, col_v in (("clave", "valor"), ("key", "value"), ("parametro", "valor")):
-                try:
-                    r = db.execute(
-                        f"SELECT {col_v} FROM {tabla} WHERE {col_k}='pin_supervisor' LIMIT 1"
-                    ).fetchone()
-                    if r:
-                        return str(r[0] or "").strip()
-                except Exception:
-                    pass
+        _CONFIGS = [
+            ("configuracion", "clave",    "valor"),
+            ("settings",      "key",      "value"),
+            ("parametros",    "parametro","valor"),
+        ]
+        for tabla, col_k, col_v in _CONFIGS:
+            try:
+                r = db.execute(
+                    f"SELECT {col_v} FROM {tabla} WHERE {col_k}=? LIMIT 1",
+                    ("pin_supervisor",)
+                ).fetchone()
+                if r:
+                    return str(r[0] or "").strip()
+            except Exception:
+                pass
         return ""
 
     @classmethod
@@ -579,19 +584,39 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             pass
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
-        lay = QVBoxLayout(parent)
-        lay.setSpacing(8)
+        """3-column ERP layout: Provider Sidebar | Main Form + Cart | Financial Summary"""
+        outer = QHBoxLayout(parent)
+        outer.setSpacing(0)
+        outer.setContentsMargins(0, 0, 0, 0)
+
+        # ── Left: provider list + templates ──────────────────────────────────
+        outer.addWidget(self._build_provider_sidebar())
+
+        # ── Center: document header + search + cart + IVA row ─────────────────
+        center_w = QWidget()
+        center_w.setObjectName("purchaseCenterPanel")
+        center_lay = QVBoxLayout(center_w)
+        center_lay.setSpacing(8)
+        center_lay.setContentsMargins(8, 6, 8, 6)
+        outer.addWidget(center_w, 1)
+
+        # ── Right: summary + payment + actions ────────────────────────────────
+        outer.addWidget(self._build_summary_panel())
+
+        lay = center_lay  # alias so body below builds into the center panel
 
         # ── Encabezado del documento ──────────────────────────────────────────
         grp_doc = QGroupBox("📄 Datos del Documento")
         grp_doc.setObjectName("styledGroup")
         form = QFormLayout(grp_doc)
+        form.setSpacing(6)
+        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         self._proveedor_id_selected = None
         self._proveedores_cache = []
         self.txt_proveedor = QLineEdit()
         self.txt_proveedor.setPlaceholderText("Buscar proveedor…")
-        self.txt_proveedor.setMinimumWidth(320)
+        self.txt_proveedor.setMinimumWidth(280)
         self._prov_model = QStringListModel(self)
         self._prov_completer = QCompleter(self._prov_model, self)
         self._prov_completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -602,10 +627,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_prov_status.setObjectName("caption")
         self._lbl_prov_status.setStyleSheet(f"color:{Colors.WARNING_BASE};")
 
+        self._lbl_prov_info = QLabel("")
+        self._lbl_prov_info.setObjectName("caption")
+        self._lbl_prov_info.setWordWrap(True)
+        self._lbl_prov_info.hide()
+
         self.txt_factura = QLineEdit()
         self.txt_factura.setPlaceholderText("Ej. FAC-001 / REM-00129 (opcional)")
 
-        # Sucursal destino — ¿a qué almacén llega esta mercancía?
+        self._date_factura = QDateEdit(QDate.currentDate())
+        self._date_factura.setCalendarPopup(True)
+        self._date_factura.setDisplayFormat("dd/MMM/yyyy")
+
         self.cmb_sucursal_destino = QComboBox()
         self.cmb_sucursal_destino.setToolTip(
             "Sucursal a la que ingresará el inventario de esta compra")
@@ -613,7 +646,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         form.addRow("Proveedor:*", self.txt_proveedor)
         form.addRow("", self._lbl_prov_status)
+        form.addRow("", self._lbl_prov_info)
         form.addRow("No. Factura/Remisión:", self.txt_factura)
+        form.addRow("Fecha factura:", self._date_factura)
         form.addRow("Sucursal destino:*", self.cmb_sucursal_destino)
         lay.addWidget(grp_doc)
 
@@ -634,7 +669,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._grp_cart = QGroupBox("🛒 Carrito  —  doble clic: editar  ·  clic derecho: opciones")
         self._grp_cart.setObjectName("styledGroup")
         cart_lay = QVBoxLayout(self._grp_cart)
-        grp_cart = self._grp_cart   # alias for rest of method
 
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(6)
@@ -666,10 +700,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._cart_empty.hide()
         cart_lay.addWidget(self._cart_empty)
 
-        # Toolbar del carrito
+        # Cart toolbar
         cart_tb = QHBoxLayout()
-        btn_clear = create_danger_button(self, "🗑 Limpiar todo",
-                                         "Vaciar carrito de compras")
+        btn_clear = create_danger_button(self, "🗑 Limpiar todo", "Vaciar carrito de compras")
         btn_clear.clicked.connect(self._limpiar_carrito)
         btn_del_sel = create_danger_button(self, "🗑 Eliminar selec.",
                                            "Eliminar filas seleccionadas del carrito")
@@ -680,7 +713,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                                                  "Cargar último borrador guardado")
         btn_draft_save.clicked.connect(self._guardar_borrador)
         btn_draft_load.clicked.connect(self._cargar_borrador)
-        # Store refs for permission control
         self._btn_draft_save = btn_draft_save
         self._btn_draft_load = btn_draft_load
         self._btn_del_sel    = btn_del_sel
@@ -695,19 +727,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         cart_tb.addWidget(self._lbl_cart_count)
         cart_tb.addStretch()
         cart_lay.addLayout(cart_tb)
-        lay.addWidget(grp_cart)
+        lay.addWidget(self._grp_cart)
 
-        # ── Footer: IVA panel + pago + procesar ──────────────────────────────
-        footer = QVBoxLayout()
-        footer.setSpacing(4)
-
-        # Row 1: IVA toggle + subtotal / IVA / total
-        totals_row = QHBoxLayout()
+        # ── Footer: IVA toggle + subtotals (payment moved to right panel) ─────
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
         self._chk_iva = QCheckBox("IVA 16%")
         self._chk_iva.setToolTip(
             "Incluir IVA del 16% al total de la compra (Ley del IVA México)")
         self._chk_iva.stateChanged.connect(lambda _: self._refresh_totals_display())
-
         self._lbl_subtotal_iva = QLabel("Subtotal: $0.00")
         self._lbl_subtotal_iva.setObjectName("caption")
         self._lbl_iva_monto = QLabel("IVA (16%): $0.00")
@@ -718,41 +746,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sep_iva.setObjectName("caption")
         sep_iva.hide()
         self._sep_iva = sep_iva
-
         self.lbl_total = QLabel("Total: $0.00")
         self.lbl_total.setObjectName("heading")
-
-        totals_row.addWidget(self._chk_iva)
-        totals_row.addSpacing(16)
-        totals_row.addWidget(self._lbl_subtotal_iva)
-        totals_row.addSpacing(8)
-        totals_row.addWidget(self._sep_iva)
-        totals_row.addSpacing(8)
-        totals_row.addWidget(self._lbl_iva_monto)
-        totals_row.addStretch()
-        totals_row.addWidget(self.lbl_total)
-        footer.addLayout(totals_row)
-
-        # Row 2: payment method + process button
-        pago_row = QHBoxLayout()
-        self.cmb_pago = create_combo(self)
-        for label, data in _PAGO_ITEMS:
-            self.cmb_pago.addItem(label, data)
-
-        btn_proc = create_success_button(self, "📥 PROCESAR COMPRA  (F10)",
-                                         "Procesar compra e ingresar al inventario (F10)")
-        btn_proc.clicked.connect(self._procesar_compra)
-        self._btn_procesar = btn_proc
-
-        pago_row.addWidget(QLabel("Pago:"))
-        pago_row.addWidget(self.cmb_pago)
-        pago_row.addStretch()
-        pago_row.addWidget(btn_proc)
-        footer.addLayout(pago_row)
-
+        footer.addWidget(self._chk_iva)
+        footer.addSpacing(16)
+        footer.addWidget(self._lbl_subtotal_iva)
+        footer.addSpacing(8)
+        footer.addWidget(self._sep_iva)
+        footer.addSpacing(8)
+        footer.addWidget(self._lbl_iva_monto)
+        footer.addStretch()
+        footer.addWidget(self.lbl_total)
         lay.addLayout(footer)
 
-        # F10 global shortcut to process purchase
         QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
     def _build_tab_qr(self, parent: QWidget) -> None:
@@ -806,6 +812,345 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._qr_empty.show()
             self._qr_loading.hide()
 
+    # ── Left provider sidebar ─────────────────────────────────────────────────
+    def _build_provider_sidebar(self) -> QWidget:
+        """Left ERP sidebar: quick-access provider list + purchase templates."""
+        sidebar = QFrame()
+        sidebar.setFixedWidth(220)
+        sidebar.setStyleSheet(
+            f"background:{Colors.NEUTRAL.SLATE_50};"
+            "border-right:1px solid rgba(0,0,0,0.08);"
+        )
+        lay = QVBoxLayout(sidebar)
+        lay.setContentsMargins(8, 8, 8, 8)
+        lay.setSpacing(6)
+
+        def _sec_lbl(txt: str) -> QLabel:
+            lbl = QLabel(txt)
+            lbl.setStyleSheet(
+                f"font-size:10px;font-weight:700;letter-spacing:0.8px;"
+                f"color:{Colors.NEUTRAL.SLATE_500};"
+                "background:transparent;border:none;padding:2px 0;"
+            )
+            return lbl
+
+        lay.addWidget(_sec_lbl("🏢 PROVEEDORES"))
+
+        self._sidebar_prov_search = QLineEdit()
+        self._sidebar_prov_search.setPlaceholderText("Buscar proveedor…")
+        self._sidebar_prov_search.setObjectName("styledInput")
+        self._sidebar_prov_search.textChanged.connect(self._filtrar_sidebar_proveedores)
+        lay.addWidget(self._sidebar_prov_search)
+
+        _list_style = (
+            "QListWidget{"
+            "  border:1px solid rgba(0,0,0,0.1);border-radius:4px;"
+            "  background:white;font-size:11px;outline:none;"
+            "}"
+            "QListWidget::item{padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.04);}"
+            f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
+            f"  color:{Colors.PRIMARY_BASE};"
+            f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
+            "QListWidget::item:hover{background:#F8FAFC;}"
+        )
+        self._sidebar_prov_list = QListWidget()
+        self._sidebar_prov_list.setStyleSheet(_list_style)
+        self._sidebar_prov_list.itemClicked.connect(self._seleccionar_proveedor_sidebar)
+        lay.addWidget(self._sidebar_prov_list, 1)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
+        lay.addWidget(sep)
+
+        lay.addWidget(_sec_lbl("📋 PLANTILLAS"))
+        self._sidebar_templates_list = QListWidget()
+        self._sidebar_templates_list.setMaximumHeight(100)
+        self._sidebar_templates_list.setStyleSheet(_list_style)
+        self._sidebar_templates_list.itemDoubleClicked.connect(self._cargar_plantilla_sidebar)
+        self._poblar_plantillas_sidebar()
+        lay.addWidget(self._sidebar_templates_list)
+
+        return sidebar
+
+    def _build_summary_panel(self) -> QWidget:
+        """Right ERP panel: live financial summary + validation + payment + actions."""
+        panel = QFrame()
+        panel.setFixedWidth(215)
+        panel.setStyleSheet(
+            f"background:{Colors.NEUTRAL.SLATE_50};"
+            "border-left:1px solid rgba(0,0,0,0.08);"
+        )
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(10, 10, 10, 10)
+        lay.setSpacing(8)
+
+        # Financial summary
+        sum_grp = QGroupBox("📊 Resumen")
+        sum_grp.setObjectName("styledGroup")
+        sum_lay = QVBoxLayout(sum_grp)
+        sum_lay.setSpacing(4)
+        sum_lay.setContentsMargins(8, 8, 8, 8)
+
+        self._sum_items_lbl = QLabel("0 productos")
+        self._sum_items_lbl.setObjectName("caption")
+        sum_lay.addWidget(self._sum_items_lbl)
+
+        _hsep = lambda: (lambda f: (f.setFrameShape(QFrame.HLine),
+                                     f.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);margin:2px 0;"),
+                                     f)[2])(QFrame())
+        sum_lay.addWidget(_hsep())
+
+        self._sum_subtotal_lbl = QLabel("Subtotal:  $0.00")
+        self._sum_subtotal_lbl.setObjectName("caption")
+        sum_lay.addWidget(self._sum_subtotal_lbl)
+
+        self._sum_iva_lbl = QLabel("IVA (16%):  $0.00")
+        self._sum_iva_lbl.setObjectName("caption")
+        self._sum_iva_lbl.setStyleSheet(f"color:{Colors.INFO_BASE};")
+        self._sum_iva_lbl.hide()
+        sum_lay.addWidget(self._sum_iva_lbl)
+
+        sum_lay.addWidget(_hsep())
+
+        self._sum_total_lbl = QLabel("TOTAL:  $0.00")
+        self._sum_total_lbl.setObjectName("statsKpiValue")
+        self._sum_total_lbl.setProperty("variant", "success")
+        sum_lay.addWidget(self._sum_total_lbl)
+
+        self._sum_costo_kg_lbl = QLabel("Costo/kg: —")
+        self._sum_costo_kg_lbl.setObjectName("caption")
+        sum_lay.addWidget(self._sum_costo_kg_lbl)
+
+        lay.addWidget(sum_grp)
+
+        # Validation indicators
+        val_grp = QGroupBox("✓ Estado")
+        val_grp.setObjectName("styledGroup")
+        val_lay = QVBoxLayout(val_grp)
+        val_lay.setSpacing(3)
+        val_lay.setContentsMargins(6, 6, 6, 6)
+
+        self._val_prov_lbl    = QLabel("⚠ Proveedor")
+        self._val_prod_lbl    = QLabel("⚠ Productos")
+        self._val_total_v_lbl = QLabel("⚠ Total cero")
+        for lbl in (self._val_prov_lbl, self._val_prod_lbl, self._val_total_v_lbl):
+            lbl.setObjectName("caption")
+            val_lay.addWidget(lbl)
+        lay.addWidget(val_grp)
+
+        lay.addStretch()
+
+        # Payment separator
+        sep_pay = QFrame()
+        sep_pay.setFrameShape(QFrame.HLine)
+        sep_pay.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
+        lay.addWidget(sep_pay)
+
+        pay_lbl = QLabel("💳 PAGO")
+        pay_lbl.setStyleSheet(
+            f"font-size:10px;font-weight:700;letter-spacing:0.8px;"
+            f"color:{Colors.NEUTRAL.SLATE_500};"
+            "background:transparent;border:none;padding:2px 0;"
+        )
+        lay.addWidget(pay_lbl)
+
+        self.cmb_pago = create_combo(self)
+        for label, data in _PAGO_ITEMS:
+            self.cmb_pago.addItem(label, data)
+        lay.addWidget(self.cmb_pago)
+
+        # Action buttons
+        self._btn_procesar = create_success_button(
+            self, "📥 PROCESAR  (F10)", "Procesar compra e ingresar al inventario (F10)")
+        self._btn_procesar.clicked.connect(self._procesar_compra)
+        self._btn_procesar.setMinimumHeight(36)
+        self._btn_procesar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        lay.addWidget(self._btn_procesar)
+
+        self._btn_enviar_recepcion = create_secondary_button(
+            self, "📨 Enviar a Recepción",
+            "Registrar y notificar a almacén para recepción QR")
+        self._btn_enviar_recepcion.clicked.connect(self._enviar_a_recepcion)
+        self._btn_enviar_recepcion.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        lay.addWidget(self._btn_enviar_recepcion)
+
+        return panel
+
+    def _poblar_sidebar_proveedores(self) -> None:
+        """Populates sidebar provider list from _proveedores_cache."""
+        if not hasattr(self, '_sidebar_prov_list'):
+            return
+        search = getattr(self, '_sidebar_prov_search', None)
+        txt = search.text().strip().lower() if search else ""
+        self._sidebar_prov_list.blockSignals(True)
+        self._sidebar_prov_list.clear()
+        for prov in self._proveedores_cache:
+            if txt and txt not in prov['nombre'].lower():
+                continue
+            item = QListWidgetItem(prov['nombre'])
+            item.setData(Qt.UserRole, prov['id'])
+            credito = prov.get('condicion_pago', prov.get('credito', ''))
+            if credito:
+                item.setToolTip(f"{prov['nombre']}\n{credito}")
+            # Highlight currently selected provider
+            if prov['id'] == self._proveedor_id_selected:
+                item.setSelected(True)
+            self._sidebar_prov_list.addItem(item)
+        self._sidebar_prov_list.blockSignals(False)
+
+    def _filtrar_sidebar_proveedores(self, _=None) -> None:
+        if not hasattr(self, '_sidebar_filter_timer'):
+            self._sidebar_filter_timer = QTimer(self)
+            self._sidebar_filter_timer.setSingleShot(True)
+            self._sidebar_filter_timer.timeout.connect(self._poblar_sidebar_proveedores)
+        self._sidebar_filter_timer.start(200)
+
+    def _seleccionar_proveedor_sidebar(self, item: QListWidgetItem) -> None:
+        """Click on sidebar provider: populate form fields."""
+        prov_id   = item.data(Qt.UserRole)
+        prov_name = item.text()
+        self._proveedor_id_selected = prov_id
+        if hasattr(self, 'txt_proveedor'):
+            self.txt_proveedor.setText(prov_name)
+        if hasattr(self, '_lbl_prov_status'):
+            self._lbl_prov_status.setText(f"✔ {prov_name}")
+            self._lbl_prov_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};")
+        self._cargar_info_proveedor(prov_id)
+        self._actualizar_panel_validacion()
+
+    def _cargar_info_proveedor(self, prov_id: int) -> None:
+        """Show RFC / address / phone under provider field after selection."""
+        if not hasattr(self, '_lbl_prov_info'):
+            return
+        try:
+            row = self.container.db.execute(
+                "SELECT rfc, direccion, telefono, condicion_pago"
+                " FROM proveedores WHERE id=?",
+                (prov_id,)
+            ).fetchone()
+            if not row:
+                self._lbl_prov_info.hide()
+                return
+            def _get(idx, key):
+                return str(row[idx] if not hasattr(row, 'keys') else (row.get(key) or "")).strip()
+            parts = []
+            rfc  = _get(0, 'rfc');       dirs = _get(1, 'direccion')
+            tel  = _get(2, 'telefono');  cond = _get(3, 'condicion_pago')
+            if rfc:  parts.append(f"RFC: {rfc}")
+            if dirs: parts.append(dirs[:48])
+            if tel:  parts.append(f"Tel: {tel}")
+            if cond: parts.append(cond)
+            info = "  ·  ".join(parts)
+            if info:
+                self._lbl_prov_info.setText(info)
+                self._lbl_prov_info.show()
+            else:
+                self._lbl_prov_info.hide()
+        except Exception:
+            self._lbl_prov_info.hide()
+
+    def _poblar_plantillas_sidebar(self) -> None:
+        """Loads purchase templates from DB into the sidebar list."""
+        if not hasattr(self, '_sidebar_templates_list'):
+            return
+        self._sidebar_templates_list.clear()
+        try:
+            rows = self.container.db.execute(
+                "SELECT id, nombre FROM plantillas_compra ORDER BY nombre LIMIT 20"
+            ).fetchall()
+            for r in rows:
+                pid  = r[0] if not hasattr(r, 'keys') else r['id']
+                name = r[1] if not hasattr(r, 'keys') else r['nombre']
+                item = QListWidgetItem(f"📋 {name}")
+                item.setData(Qt.UserRole, pid)
+                self._sidebar_templates_list.addItem(item)
+            if not rows:
+                ph = QListWidgetItem("(Sin plantillas)")
+                ph.setFlags(Qt.NoItemFlags)
+                self._sidebar_templates_list.addItem(ph)
+        except Exception:
+            ph = QListWidgetItem("(Sin plantillas)")
+            ph.setFlags(Qt.NoItemFlags)
+            self._sidebar_templates_list.addItem(ph)
+
+    def _cargar_plantilla_sidebar(self, item: QListWidgetItem) -> None:
+        """Double-click template: load its items into the cart."""
+        tpl_id = item.data(Qt.UserRole)
+        if not tpl_id:
+            return
+        try:
+            rows = self.container.db.execute("""
+                SELECT ti.producto_id, p.nombre, ti.cantidad,
+                       ti.costo_unitario, p.precio_compra
+                FROM plantillas_compra_items ti
+                JOIN productos p ON p.id = ti.producto_id
+                WHERE ti.plantilla_id = ?
+            """, (tpl_id,)).fetchall()
+            if not rows:
+                Toast.success(self, "📋 Plantilla vacía", "La plantilla no tiene ítems."); return
+            if self.carrito_compra:
+                if not confirm_action(
+                    self, "Cargar plantilla",
+                    f"¿Agregar {len(rows)} ítem(s) al carrito actual?",
+                    "Agregar", "Cancelar"
+                ):
+                    return
+            for r in rows:
+                def _v(i, k): return r[i] if not hasattr(r,'keys') else r.get(k)
+                pid = _v(0,'producto_id'); nombre = str(_v(1,'nombre') or '')
+                cantidad = float(_v(2,'cantidad') or 1)
+                costo    = float(_v(3,'costo_unitario') or 0)
+                costo_h  = float(_v(4,'precio_compra') or costo)
+                self.carrito_compra.append({
+                    'producto_id': pid, 'nombre': nombre,
+                    'cantidad': cantidad, 'costo_unitario': costo,
+                    'subtotal': round(cantidad * costo, 4),
+                    'precio_historico': costo_h,
+                })
+            self._refresh_tabla()
+            Toast.success(self, "📋 Plantilla cargada", f"{len(rows)} ítem(s) agregados")
+        except Exception as e:
+            logger.debug("_cargar_plantilla_sidebar: %s", e)
+
+    def _actualizar_panel_validacion(self) -> None:
+        """Updates validation state labels in the right summary panel."""
+        if not hasattr(self, '_val_prov_lbl'):
+            return
+        ok_s  = f"color:{Colors.SUCCESS_BASE};"
+        war_s = f"color:{Colors.WARNING_BASE};"
+        if self._proveedor_id_selected:
+            self._val_prov_lbl.setText("✔ Proveedor")
+            self._val_prov_lbl.setStyleSheet(ok_s)
+        else:
+            self._val_prov_lbl.setText("⚠ Proveedor")
+            self._val_prov_lbl.setStyleSheet(war_s)
+        n = len(self.carrito_compra)
+        if n > 0:
+            self._val_prod_lbl.setText(f"✔ Productos ({n})")
+            self._val_prod_lbl.setStyleSheet(ok_s)
+        else:
+            self._val_prod_lbl.setText("⚠ Productos")
+            self._val_prod_lbl.setStyleSheet(war_s)
+        total = sum(i['subtotal'] for i in self.carrito_compra)
+        if total > 0:
+            self._val_total_v_lbl.setText("✔ Total")
+            self._val_total_v_lbl.setStyleSheet(ok_s)
+        else:
+            self._val_total_v_lbl.setText("⚠ Total cero")
+            self._val_total_v_lbl.setStyleSheet(war_s)
+
+    def _enviar_a_recepcion(self) -> None:
+        """Process purchase then switch to QR reception tab."""
+        if not self.carrito_compra:
+            QMessageBox.warning(self, "Aviso", "El carrito está vacío."); return
+        self._resolver_proveedor_desde_texto()
+        if not self._proveedor_id_selected:
+            QMessageBox.warning(self, "Aviso", "Selecciona un proveedor válido."); return
+        self._procesar_compra()
+        if hasattr(self, '_tabs') and self.carrito_compra == []:
+            self._tabs.setCurrentIndex(1)
+
     # ── Providers ────────────────────────────────────────────────────────────
     def _cargar_sucursales_compra(self) -> None:
         """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
@@ -848,6 +1193,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                         self.txt_proveedor.setText(p["nombre"])
                         self._proveedor_id_selected = prev_id
                         break
+            self._poblar_sidebar_proveedores()
         except Exception as e:
             logger.debug("cargar_proveedores: %s", e)
 
@@ -862,6 +1208,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     self._lbl_prov_status.setText(f"✔ {p['nombre']}")
                     self._lbl_prov_status.setStyleSheet(
                         f"color:{Colors.SUCCESS_BASE};")
+                self._cargar_info_proveedor(p["id"])
+                self._actualizar_panel_validacion()
                 return
         if hasattr(self, "_lbl_prov_status"):
             if txt:
@@ -870,6 +1218,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             else:
                 self._lbl_prov_status.setText("⚠ Sin proveedor seleccionado")
                 self._lbl_prov_status.setStyleSheet(f"color:{Colors.WARNING_BASE};")
+        if hasattr(self, '_lbl_prov_info'):
+            self._lbl_prov_info.hide()
+        self._actualizar_panel_validacion()
 
     # ── Cart management ───────────────────────────────────────────────────────
     def _agregar_producto(self, prod: dict) -> None:
@@ -1003,17 +1354,20 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Reconstruye la tabla del carrito con botones de eliminar por fila."""
         if hasattr(self, "_cart_loading"):
             self._cart_loading.show()
-        self.tabla.setRowCount(0)
-        total = 0.0
         filtro = ""
         if hasattr(self, "_trad_filter"):
             filtro = self._trad_filter.values().get("search", "").lower().strip()
-        visible_rows = 0
-        for orig_row, item in enumerate(self.carrito_compra):
-            if filtro and filtro not in item['nombre'].lower():
-                continue
-            row = visible_rows
-            self.tabla.insertRow(row)
+
+        # Pre-collect visible rows (avoids N insertRow() layout reflows)
+        visible = [
+            (orig_row, item)
+            for orig_row, item in enumerate(self.carrito_compra)
+            if not filtro or filtro in item['nombre'].lower()
+        ]
+
+        self.tabla.setRowCount(len(visible))   # single resize — one reflow only
+        total = 0.0
+        for row, (orig_row, item) in enumerate(visible):
             vals = [
                 str(item['producto_id']),
                 item['nombre'],
@@ -1027,14 +1381,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 if col == 0:
                     it.setData(Qt.UserRole, orig_row)  # map visible→carrito index
                 self.tabla.setItem(row, col, it)
-
-            # Delete button in last column
             btn_del = create_danger_button(self, "✕", "Eliminar producto del carrito")
             btn_del.setFixedWidth(36)
             btn_del.clicked.connect(lambda _, r=orig_row: self._eliminar_fila(r))
             self.tabla.setCellWidget(row, 5, btn_del)
             total += item['subtotal']
-            visible_rows += 1
 
         n_items = len(self.carrito_compra)
         self._refresh_totals_display(subtotal=total)
@@ -1042,7 +1393,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._lbl_cart_count.setText(
                 f"{n_items} ítem{'s' if n_items != 1 else ''}" if n_items else "0 ítems")
         if hasattr(self, "_cart_empty"):
-            self._cart_empty.setVisible(visible_rows == 0)
+            self._cart_empty.setVisible(len(visible) == 0)
         if hasattr(self, "_cart_loading"):
             self._cart_loading.hide()
 
@@ -1083,6 +1434,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._lbl_iva_monto.setVisible(iva_activo)
         if hasattr(self, '_sep_iva'):
             self._sep_iva.setVisible(iva_activo)
+        # Mirror values to the right summary panel
+        if hasattr(self, '_sum_subtotal_lbl'):
+            self._sum_subtotal_lbl.setText(f"Subtotal:  ${subtotal:,.2f}")
+        if hasattr(self, '_sum_iva_lbl'):
+            self._sum_iva_lbl.setText(f"IVA (16%):  ${iva_monto:,.2f}")
+            self._sum_iva_lbl.setVisible(iva_activo)
+        if hasattr(self, '_sum_total_lbl'):
+            self._sum_total_lbl.setText(f"TOTAL:  ${total:,.2f}")
+        if hasattr(self, '_sum_items_lbl'):
+            n = len(self.carrito_compra)
+            self._sum_items_lbl.setText(f"{n} producto{'s' if n != 1 else ''}")
+        if hasattr(self, '_sum_costo_kg_lbl'):
+            qty_kg = sum(i.get('cantidad', 0) for i in self.carrito_compra)
+            if qty_kg > 0 and total > 0:
+                self._sum_costo_kg_lbl.setText(f"Costo/kg: ${total / qty_kg:,.2f}")
+            else:
+                self._sum_costo_kg_lbl.setText("Costo/kg: —")
+        self._actualizar_panel_validacion()
 
     def _eliminar_seleccionados(self) -> None:
         """Elimina las filas seleccionadas del carrito (multi-select support)."""
@@ -1421,9 +1790,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hdr.addWidget(lbl)
         hdr.addStretch()
 
-        self._hist_desde = QDateEdit(QDate.currentDate().addDays(-30))
+        _today = QDate.currentDate()
+        self._hist_desde = QDateEdit(QDate(_today.year(), _today.month(), 1))
         self._hist_desde.setCalendarPopup(True)
-        self._hist_hasta = QDateEdit(QDate.currentDate())
+        self._hist_hasta = QDateEdit(_today)
         self._hist_hasta.setCalendarPopup(True)
         btn_ref = create_primary_button(self, "🔄 Actualizar", "Actualizar historial de compras")
         btn_ref.clicked.connect(self._cargar_historial_compras)
@@ -1445,7 +1815,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 "completada", "credito", "pendiente", "parcial", "cancelada",
             ]},
         )
-        self._hist_filter.filters_changed.connect(lambda _v: self._cargar_historial_compras())
+        self._hist_filter.filters_changed.connect(self._hist_filter_changed)
         lay.addWidget(self._hist_filter)
         self._hist_loading = LoadingIndicator("Cargando historial de compras…", self)
         self._hist_loading.hide()
@@ -1502,6 +1872,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         kpi_row.addWidget(self.lbl_hist_num_compras)
         kpi_row.addStretch()
         lay.addLayout(kpi_row)
+
+    def _hist_filter_changed(self, _=None) -> None:
+        """Resets pagination to page 1 before reloading filtered history."""
+        self._hist_page = 0
+        self._cargar_historial_compras()
 
     def _cargar_historial_compras(self) -> None:
         """Inicia carga asíncrona del historial. El thread emite loaded → _poblar_historial."""
