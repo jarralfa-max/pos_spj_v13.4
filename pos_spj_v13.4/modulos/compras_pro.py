@@ -419,7 +419,9 @@ class _HistorialLoader(QThread):
         try:
             rows = self._db.execute("""
                 SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
-                       c.usuario, c.total, c.estado, c.id
+                       c.usuario, c.total, c.estado, c.id,
+                       COALESCE(c.condicion_pago,'liquidado') AS condicion_pago,
+                       COALESCE(c.moneda,'MXN') AS moneda
                 FROM compras c
                 LEFT JOIN proveedores p ON p.id=c.proveedor_id
                 WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
@@ -1713,6 +1715,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             branch_dest = (self.cmb_sucursal_destino.currentData()
                            if hasattr(self, 'cmb_sucursal_destino')
                            else self.sucursal_id) or self.sucursal_id
+            condicion = (self._cmb_condicion_pago.currentText().lower()
+                         if hasattr(self, '_cmb_condicion_pago') else "liquidado")
+            plazo     = (self._spin_plazo_dias.value()
+                         if hasattr(self, '_spin_plazo_dias') else 0)
+            moneda    = (self._cmb_moneda.currentText()
+                         if hasattr(self, '_cmb_moneda') else "MXN")
             datos_uc = DatosCompraDTO(
                 proveedor_id=proveedor_id,
                 proveedor_nombre=proveedor_nom,
@@ -1732,6 +1740,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 subtotal=subtotal,
                 iva_monto=iva_monto,
                 total=total,
+                condicion_pago=condicion,
+                plazo_dias=plazo,
+                moneda=moneda,
             )
             resultado = RegistrarCompraUC(self.container).execute(datos_uc)
             if not resultado.ok:
@@ -1980,16 +1991,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_loading.hide()
         lay.addWidget(self._hist_loading)
 
-        # Main table
+        # Main table — cols: Folio | Fecha | Proveedor | Usuario | Total | Cond.Pago | Estado | ⋯
         self._tbl_hist = QTableWidget()
-        self._tbl_hist.setColumnCount(7)
+        self._tbl_hist.setColumnCount(8)
         self._tbl_hist.setHorizontalHeaderLabels(
-            ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Estado", ""])
+            ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Cond. Pago", "Estado", ""])
         hh = self._tbl_hist.horizontalHeader()
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
         hh.setSectionResizeMode(5, QHeaderView.Fixed)
-        self._tbl_hist.setColumnWidth(5, 110)
-        for c in (0, 1, 3, 4, 6):
+        hh.setSectionResizeMode(6, QHeaderView.Fixed)
+        self._tbl_hist.setColumnWidth(5, 90)
+        self._tbl_hist.setColumnWidth(6, 110)
+        for c in (0, 1, 3, 4, 7):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
         self._tbl_hist.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_hist.setAlternatingRowColors(True)
@@ -2136,10 +2149,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         self._tbl_hist.setRowCount(len(rows))
         total_periodo = 0.0
+        _COND_CHIP = {
+            "liquidado": (Colors.SUCCESS_BASE, "✓ Liquidado"),
+            "crédito":   (Colors.WARNING_BASE, "⏱ Crédito"),
+            "credito":   (Colors.WARNING_BASE, "⏱ Crédito"),
+            "parcial":   (Colors.INFO_BASE,    "◑ Parcial"),
+        }
         for ri, r in enumerate(rows):
-            estado_raw = str(r[5] or "").strip().lower()
-            monto      = float(r[4] or 0)
-            total_str  = "—" if ocultar_totales else f"${monto:,.2f}"
+            estado_raw   = str(r[5] or "").strip().lower()
+            monto        = float(r[4] or 0)
+            cond_raw     = str(r[7] if len(r) > 7 else "liquidado").strip().lower()
+            total_str    = "—" if ocultar_totales else f"${monto:,.2f}"
             vals = [
                 str(r[0] or ""), str(r[1] or "")[:16],
                 str(r[2] or ""), str(r[3] or ""),
@@ -2154,14 +2174,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 if ci == 0:
                     it.setData(Qt.UserRole, cid_)  # store compra_id for inline detail
                 self._tbl_hist.setItem(ri, ci, it)
-            self._tbl_hist.setCellWidget(ri, 5, _make_status_chip(estado_raw))
+            # col 5 — Cond. Pago chip
+            cond_color, cond_txt = _COND_CHIP.get(cond_raw, (Colors.NEUTRAL.SLATE_500, cond_raw.capitalize()))
+            cond_chip = QLabel(cond_txt)
+            cond_chip.setAlignment(Qt.AlignCenter)
+            cond_chip.setStyleSheet(
+                f"background:{cond_color};color:{Colors.NEUTRAL.WHITE};"
+                f"border-radius:4px;font-size:10px;font-weight:600;padding:2px 6px;"
+            )
+            self._tbl_hist.setCellWidget(ri, 5, cond_chip)
+            # col 6 — Estado chip
+            self._tbl_hist.setCellWidget(ri, 6, _make_status_chip(estado_raw))
             total_periodo += monto
             btn_det = create_secondary_button(self, "🔍 Ver",
                                               "Ver detalles de esta compra")
             btn_det.clicked.connect(
                 lambda _, cid=cid_, pnm=pnm_:
                     self._ver_detalle_compra(cid, pnm))
-            self._tbl_hist.setCellWidget(ri, 6, btn_det)
+            self._tbl_hist.setCellWidget(ri, 7, btn_det)
 
         total_display = "—" if ocultar_totales else f"${total_periodo:,.2f}"
         self.lbl_hist_total_compras.setText(f"Total período: {total_display}")
@@ -2221,6 +2251,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                   self._kpi_pendientes, self._kpi_canceladas):
             lay.addWidget(w)
 
+        lay.addWidget(_section("📅 ESTE MES"))
+        self._kpi_mes_compras    = _kpi("Compras mes",       "—")
+        self._kpi_mes_recibido   = _kpi("Recibido mes",      "—")
+        self._kpi_mes_pendiente  = _kpi("Pendiente mes",     "—")
+        self._kpi_proveedores    = _kpi("Proveedores activos","—")
+        for w in (self._kpi_mes_compras, self._kpi_mes_recibido,
+                  self._kpi_mes_pendiente, self._kpi_proveedores):
+            lay.addWidget(w)
+
         lay.addWidget(_section("⚠ ALERTAS"))
         self._kpi_alertas_lbl = QLabel("—")
         self._kpi_alertas_lbl.setWordWrap(True)
@@ -2278,6 +2317,47 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                  _estado_text("pendiente"))
         _set_kpi(self._kpi_canceladas,  "Canceladas",
                  _estado_text("cancelada"))
+
+        # Month-specific KPIs — query DB directly for current month
+        if hasattr(self, "_kpi_mes_compras"):
+            try:
+                from datetime import date as _date
+                _today = _date.today()
+                _mes_desde = f"{_today.year}-{_today.month:02d}-01"
+                _mes_hasta = f"{_today.year}-{_today.month:02d}-31 23:59:59"
+                _db = self.container.db
+                _mes_row = _db.execute(
+                    """SELECT COUNT(*), COALESCE(SUM(total),0)
+                       FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?""",
+                    (self.sucursal_id, _mes_desde, _mes_hasta),
+                ).fetchone()
+                _mes_n, _mes_total = (_mes_row[0], _mes_row[1]) if _mes_row else (0, 0.0)
+                _pend_row = _db.execute(
+                    """SELECT COALESCE(SUM(total),0)
+                       FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?
+                       AND estado IN ('pendiente','credito')""",
+                    (self.sucursal_id, _mes_desde, _mes_hasta),
+                ).fetchone()
+                _pend_total = _pend_row[0] if _pend_row else 0.0
+                _prov_row = _db.execute(
+                    """SELECT COUNT(DISTINCT proveedor_id)
+                       FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?""",
+                    (self.sucursal_id, _mes_desde, _mes_hasta),
+                ).fetchone()
+                _n_prov = _prov_row[0] if _prov_row else 0
+
+                def _set_kpi_mes(widget, label, value):
+                    widget.setText(
+                        f"<b>{value}</b><br>"
+                        f"<span style='font-size:10px;color:{Colors.NEUTRAL.SLATE_500};'>{label}</span>"
+                    )
+
+                _set_kpi_mes(self._kpi_mes_compras,   "Compras mes",        _fmt(_mes_total))
+                _set_kpi_mes(self._kpi_mes_recibido,  "Recibido mes",       str(_mes_n))
+                _set_kpi_mes(self._kpi_mes_pendiente, "Pendiente mes",      _fmt(_pend_total))
+                _set_kpi_mes(self._kpi_proveedores,   "Proveedores activos", str(_n_prov))
+            except Exception as _e:
+                logger.debug("month KPIs: %s", _e)
 
         # Overdue / pending alerts
         alerts = []
@@ -2725,18 +2805,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not path:
             return
         try:
-            headers = ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Estado"]
+            headers = ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Cond. Pago", "Estado"]
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
                 for row in range(self._tbl_hist.rowCount()):
                     row_data = []
-                    for col in range(6):  # skip last col (action buttons)
+                    for col in range(7):  # cols 0-6; skip col 7 (action buttons)
                         item = self._tbl_hist.item(row, col)
                         if item is not None:
                             row_data.append(item.text())
                         else:
-                            # col 5 may be a chip widget — extract its text
                             widget = self._tbl_hist.cellWidget(row, col)
                             row_data.append(widget.text().strip() if widget else "")
                     writer.writerow(row_data)
@@ -2750,13 +2829,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         from core.db.connection import transaction
         folio = f"C{datetime.now().strftime('%Y%m%d%H%M%S')}"
         db = self.container.db
+        _condicion = (self._cmb_condicion_pago.currentText().lower()
+                      if hasattr(self, '_cmb_condicion_pago') else "liquidado")
+        _plazo     = (self._spin_plazo_dias.value()
+                      if hasattr(self, '_spin_plazo_dias') else 0)
+        _moneda    = (self._cmb_moneda.currentText()
+                      if hasattr(self, '_cmb_moneda') else "MXN")
         with transaction(db):
             db.execute(
                 """INSERT INTO compras (proveedor_id, sucursal_id, usuario,
-                   total, estado, observaciones, forma_pago, factura, fecha)
-                   VALUES (?,?,?,?,?,?,?,?,datetime('now'))""",
+                   total, estado, observaciones, forma_pago, factura, fecha,
+                   condicion_pago, plazo_dias, moneda)
+                   VALUES (?,?,?,?,?,?,?,?,datetime('now'),?,?,?)""",
                 (proveedor_id, self.sucursal_id, self.usuario_actual,
-                 total, "completada", doc_ref, pago, doc_ref))
+                 total, "completada", doc_ref, pago, doc_ref,
+                 _condicion, _plazo, _moneda))
             compra_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
             for it in items:
                 db.execute(

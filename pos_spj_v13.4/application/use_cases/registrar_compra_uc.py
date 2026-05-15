@@ -38,6 +38,9 @@ class DatosCompraDTO:
     iva_monto: float
     total: float
     notas: str = ""
+    condicion_pago: str = "liquidado"
+    plazo_dias: int = 0
+    moneda: str = "MXN"
 
 
 @dataclass
@@ -100,6 +103,15 @@ class RegistrarCompraUC:
                 amount_paid=(datos.total if datos.metodo_pago != "CREDITO" else 0),
                 notes=notes,
             )
+
+            # Persist payment condition fields (added in migration 071)
+            try:
+                self._container.db.execute(
+                    "UPDATE compras SET condicion_pago=?, plazo_dias=?, moneda=? WHERE folio=?",
+                    (datos.condicion_pago, datos.plazo_dias, datos.moneda, folio),
+                )
+            except Exception as _e:
+                logger.warning("condicion_pago UPDATE skipped: %s", _e)
 
             recetas = self._procesar_recetas(datos)
             after   = self._build_audit_after(datos, folio)
