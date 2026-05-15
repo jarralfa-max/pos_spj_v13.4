@@ -2,6 +2,19 @@
 """
 Caso de uso: Procesar Compra
 
+⚠️  DEPRECATED — Phase 2 (2026-05-15)
+    Usar la ruta canónica:
+        application.purchases.traditional_purchase_uc.TraditionalPurchaseUC
+
+    ProcesarCompraUC se mantiene por compatibilidad con código existente
+    y con los tests de caracterización de Phase 1.
+    NO agregar nueva lógica aquí.
+    NO llamar desde código nuevo.
+
+    Riesgo conocido: si ProcesarCompraUC.ejecutar() se llama Y el handler
+    PurchaseFinanceHandler está suscrito a PURCHASE_CREATED, se generan
+    dos asientos GL 1201/2101. Usar TraditionalPurchaseUC evita este riesgo.
+
 Orquesta el flujo completo de recepción de mercancía:
   1. Validar items (cantidad > 0, proveedor_id set)
   2. Registrar compra + entrada de stock (PurchaseService — SAVEPOINT)
@@ -10,11 +23,8 @@ Orquesta el flujo completo de recepción de mercancía:
   5. Crear CxP en accounts_payable    (si queda deuda)
   6. Publicar COMPRA_REGISTRADA al EventBus
 
-Brecha que cierra: PurchaseService ya maneja DB + inventario pero nunca llama
-registrar_asiento() para el asiento de entrada de mercancía (1201/2101).
-Este UC agrega ese paso sin tocar PurchaseService.
-
-Acceso desde AppContainer: container.uc_compra
+Acceso legacy desde AppContainer: container.uc_compra (alias deprecado)
+Acceso canónico: container.uc_compra_tradicional
 """
 from __future__ import annotations
 
@@ -65,9 +75,16 @@ class ProcesarCompraUC:
     """
     Orquestador del flujo de recepción de mercancía.
 
-    Uso desde AppContainer:
-        uc = container.uc_compra
+    ⚠️  DEPRECATED — Phase 2 (2026-05-15)
+    Usar: application.purchases.TraditionalPurchaseUC
+
+    Uso legacy desde AppContainer:
+        uc = container.uc_compra          # deprecated alias
         resultado = uc.ejecutar(items, datos, sucursal_id, usuario)
+
+    Uso canónico:
+        uc = container.uc_compra_tradicional
+        resultado = uc.execute(RegisterPurchaseCommand(...))
     """
 
     def __init__(

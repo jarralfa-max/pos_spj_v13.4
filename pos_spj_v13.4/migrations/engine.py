@@ -70,6 +70,9 @@ MIGRATIONS = [
     ("073",  "migrations.standalone.073_temp_purchase_drafts"),           # v13.4: DB-backed cart drafts per user/branch
     ("074",  "migrations.standalone.074_compras_archivo_adjunto"),        # v13.4: optional file attachment per purchase
     ("075",  "migrations.standalone.075_plantillas_compra"),              # Hotfix: plantillas_compra tables missing from schema
+    ("076",  "migrations.standalone.076_purchase_requests"),             # Phase 3: tabla purchase_requests (PR)
+    ("077",  "migrations.standalone.077_ordenes_compra_erp"),            # Phase 3: extender ordenes_compra con campos ERP
+    ("078",  "migrations.standalone.078_compras_po_link"),               # Phase 3: vincular compras con PO (nullable FK)
 ]
 
 def _ensure_tracking_table(conn):

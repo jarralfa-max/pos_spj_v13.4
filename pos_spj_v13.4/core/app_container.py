@@ -76,7 +76,18 @@ class AppContainer:
         self.finance_repo = FinanceRepository(self.db)
         self.sales_repo = SalesRepository(self.db)
         self.purchase_repo = PurchaseRepository(self.db)
-        
+
+        # Phase 3: repositorios documentales PR/PO
+        try:
+            from repositories.purchase_request_repository import PurchaseRequestRepository
+            from repositories.purchase_order_repository import PurchaseOrderRepository
+            self.purchase_request_repo = PurchaseRequestRepository(self.db)
+            self.purchase_order_repo   = PurchaseOrderRepository(self.db)
+        except Exception as _pr_repo_err:
+            self.purchase_request_repo = None
+            self.purchase_order_repo   = None
+            logger.debug("purchase_request/order_repo: %s", _pr_repo_err)
+
         # Opcionales (depende de qué tan avanzados vayan tus módulos)
         self.promo_repo = PromotionRepository(self.db)
         # [REFACTOR FASE 2] BIRepository eliminado - toda la lógica migrada a AnalyticsEngine
@@ -385,12 +396,28 @@ class AppContainer:
             self.uc_produccion = None
             logger.debug("uc_produccion: %s", _uc_p)
 
-        # ── v13.5: ERP Use Cases — compra, cliente, nomina, finanzas ────────
+        # ── Phase 2/3: Ruta canónica + UCs documentales PR/PO ───────────────
+        try:
+            from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
+            from application.purchases.purchase_request_uc import PurchaseRequestUC
+            from application.purchases.purchase_order_uc import PurchaseOrderUC
+            self.uc_compra_tradicional = TraditionalPurchaseUC(self)
+            self.uc_purchase_request   = PurchaseRequestUC(self)
+            self.uc_purchase_order     = PurchaseOrderUC(self)
+        except Exception as _uc_trad:
+            self.uc_compra_tradicional = None
+            self.uc_purchase_request   = None
+            self.uc_purchase_order     = None
+            logger.debug("uc_compra_tradicional/pr/po: %s", _uc_trad)
+
+        # ── v13.5: ERP Use Cases — compra (deprecated), cliente, nomina, finanzas ──
         try:
             from core.use_cases.compra import ProcesarCompraUC
             from core.use_cases.cliente import GestionarClienteUC
             from core.use_cases.nomina import GestionarNominaUC
             from core.use_cases.finanzas import GestionarFinanzasUC
+            # uc_compra queda como alias deprecado hacia ProcesarCompraUC.
+            # Código nuevo debe usar self.uc_compra_tradicional.
             self.uc_compra    = ProcesarCompraUC.desde_container(self)
             self.uc_cliente   = GestionarClienteUC.desde_container(self)
             self.uc_nomina    = GestionarNominaUC.desde_container(self)
