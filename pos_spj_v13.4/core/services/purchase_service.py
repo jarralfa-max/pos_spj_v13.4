@@ -65,10 +65,12 @@ class PurchaseService:
             if _bus.handler_count(PURCHASE_ITEMS_PROCESS) > 0:
                 _bus.publish(PURCHASE_ITEMS_PROCESS, {
                     "branch_id":    branch_id,
+                    "sucursal_id":  branch_id,
                     "operation_id": operation_id,
                     "compra_id":    compra_id,
                     "folio":        folio,
                     "user":         user,
+                    "usuario":      user,
                     "items":        items,
                 })
             else:

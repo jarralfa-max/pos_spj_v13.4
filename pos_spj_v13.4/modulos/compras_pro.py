@@ -460,6 +460,42 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._build_ui()
         QTimer.singleShot(200, self.cargar_proveedores)
 
+    # ── Repository access (lazy, same DB connection) ─────────────────────────
+    @property
+    def _purchase_repo(self):
+        """Lazy PurchaseRepository bound to the container's DB connection."""
+        if not hasattr(self, '_purchase_repo_instance'):
+            from repositories.purchase_repository import PurchaseRepository
+            self._purchase_repo_instance = PurchaseRepository(self.container.db)
+        return self._purchase_repo_instance
+
+    def _get_iva_rate(self) -> float:
+        """Read IVA rate from DB configuraciones with fallback to _IVA_RATE constant."""
+        if hasattr(self, '_iva_rate_cached'):
+            return self._iva_rate_cached
+        try:
+            db = self.container.db
+            for tabla, col_k, col_v in [
+                ('configuraciones', 'clave', 'valor'),
+                ('settings', 'key', 'value'),
+            ]:
+                try:
+                    row = db.execute(
+                        f"SELECT {col_v} FROM {tabla} WHERE {col_k}=? LIMIT 1",
+                        ('iva_rate',)
+                    ).fetchone()
+                    if row:
+                        raw = float(row[0] or _IVA_RATE)
+                        # Accept both fractional (0.16) and percentage (16) forms
+                        self._iva_rate_cached = raw / 100.0 if raw > 1 else raw
+                        return self._iva_rate_cached
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        self._iva_rate_cached = _IVA_RATE
+        return self._iva_rate_cached
+
     # ── Propagation ──────────────────────────────────────────────────────────
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
@@ -592,20 +628,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_stats_value_labels'):
             return
         try:
-            db = self.container.db
-            r = db.execute(
-                "SELECT COUNT(*), COALESCE(SUM(total),0) FROM compras "
-                "WHERE DATE(fecha)>=DATE('now','start of month')"
-            ).fetchone()
-            self._stats_value_labels[0].setText(str(r[0] or 0))
-            self._stats_value_labels[3].setText(f"${float(r[1] or 0):,.0f}")
-            r2 = db.execute("SELECT COUNT(*) FROM proveedores WHERE activo=1").fetchone()
-            self._stats_value_labels[1].setText(str(r2[0] or 0))
-            r3 = db.execute(
-                "SELECT COUNT(*) FROM ordenes_compra WHERE estado='pendiente'"
-            ).fetchone()
-            self._stats_value_labels[2].setText(str(r3[0] or 0))
-        except (TypeError, IndexError, AttributeError) as e:
+            stats = self._purchase_repo.get_header_stats(self.sucursal_id)
+            self._stats_value_labels[0].setText(str(stats["count_mes"]))
+            self._stats_value_labels[1].setText(str(stats["prov_activos"]))
+            self._stats_value_labels[2].setText(str(stats["oc_pendientes"]))
+            self._stats_value_labels[3].setText(f"${stats['total_mes']:,.0f}")
+        except Exception as e:
             logger.debug("_refresh_stats: %s", e)
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
@@ -1550,7 +1578,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if subtotal is None:
             subtotal = sum(i['subtotal'] for i in self.carrito_compra)
         iva_activo = (hasattr(self, '_chk_iva') and self._chk_iva.isChecked())
-        iva_monto  = round(subtotal * _IVA_RATE, 2) if iva_activo else 0.0
+        iva_monto  = round(subtotal * self._get_iva_rate(), 2) if iva_activo else 0.0
         total      = subtotal + iva_monto
         # Add flete and otros cargos
         flete = self._spin_flete.value() if hasattr(self, '_spin_flete') else 0.0
@@ -1699,7 +1727,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         pago     = self.cmb_pago.currentData() or "CONTADO"
         subtotal = sum(i['subtotal'] for i in self.carrito_compra)
         iva_activo = hasattr(self, '_chk_iva') and self._chk_iva.isChecked()
-        iva_monto  = round(subtotal * _IVA_RATE, 2) if iva_activo else 0.0
+        iva_monto  = round(subtotal * self._get_iva_rate(), 2) if iva_activo else 0.0
         total      = subtotal + iva_monto
 
         # Check for recipes among purchased items
@@ -2308,33 +2336,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         _set_kpi(self._kpi_canceladas,  "Canceladas",
                  _estado_text("cancelada"))
 
-        # Month-specific KPIs — query DB directly for current month
+        # Month-specific KPIs — via repository (no direct SQL in UI)
         if hasattr(self, "_kpi_mes_compras"):
             try:
                 from datetime import date as _date
                 _today = _date.today()
                 _mes_desde = f"{_today.year}-{_today.month:02d}-01"
                 _mes_hasta = f"{_today.year}-{_today.month:02d}-31 23:59:59"
-                _db = self.container.db
-                _mes_row = _db.execute(
-                    """SELECT COUNT(*), COALESCE(SUM(total),0)
-                       FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?""",
-                    (self.sucursal_id, _mes_desde, _mes_hasta),
-                ).fetchone()
-                _mes_n, _mes_total = (_mes_row[0], _mes_row[1]) if _mes_row else (0, 0.0)
-                _pend_row = _db.execute(
-                    """SELECT COALESCE(SUM(total),0)
-                       FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?
-                       AND estado IN ('pendiente','credito')""",
-                    (self.sucursal_id, _mes_desde, _mes_hasta),
-                ).fetchone()
-                _pend_total = _pend_row[0] if _pend_row else 0.0
-                _prov_row = _db.execute(
-                    """SELECT COUNT(DISTINCT proveedor_id)
-                       FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?""",
-                    (self.sucursal_id, _mes_desde, _mes_hasta),
-                ).fetchone()
-                _n_prov = _prov_row[0] if _prov_row else 0
+                kpis = self._purchase_repo.get_monthly_kpis(
+                    self.sucursal_id, _mes_desde, _mes_hasta)
 
                 def _set_kpi_mes(widget, label, value):
                     widget.setText(
@@ -2342,10 +2352,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                         f"<span style='font-size:10px;color:{Colors.NEUTRAL.SLATE_500};'>{label}</span>"
                     )
 
-                _set_kpi_mes(self._kpi_mes_compras,   "Compras mes",        _fmt(_mes_total))
-                _set_kpi_mes(self._kpi_mes_recibido,  "Recibido mes",       str(_mes_n))
-                _set_kpi_mes(self._kpi_mes_pendiente, "Pendiente mes",      _fmt(_pend_total))
-                _set_kpi_mes(self._kpi_proveedores,   "Proveedores activos", str(_n_prov))
+                _set_kpi_mes(self._kpi_mes_compras,   "Compras mes",         _fmt(kpis["total"]))
+                _set_kpi_mes(self._kpi_mes_recibido,  "Recibido mes",        str(kpis["count"]))
+                _set_kpi_mes(self._kpi_mes_pendiente, "Pendiente mes",       _fmt(kpis["pending_total"]))
+                _set_kpi_mes(self._kpi_proveedores,   "Proveedores activos", str(kpis["provider_count"]))
             except Exception as _e:
                 logger.debug("month KPIs: %s", _e)
 
@@ -2419,20 +2429,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._hist_detail_panel.setVisible(False)
             return
         try:
-            items = self.container.db.execute(
-                """
-                SELECT p.nombre, dd.cantidad, dd.costo_unitario, dd.subtotal
-                FROM detalles_compra dd
-                JOIN productos p ON p.id = dd.producto_id
-                WHERE dd.compra_id = ?
-                ORDER BY p.nombre
-                """,
-                (compra_id,),
-            ).fetchall()
+            items = self._purchase_repo.get_purchase_detail_items(compra_id)
             tbl = self._tbl_hist_detail
             tbl.setRowCount(len(items))
             for ri, it in enumerate(items):
-                nombre, qty, costo, subtotal = it[0], it[1], it[2], it[3]
+                nombre = it["nombre"]
+                qty, costo, subtotal = it["cantidad"], it["costo_unitario"], it["subtotal"]
                 vals = [
                     str(nombre or ""),
                     f"{float(qty or 0):,.3f}",
@@ -2456,27 +2458,22 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _ver_detalle_compra(self, compra_id: int, proveedor_nombre: str = "") -> None:
         """Muestra el detalle completo de una compra: recibo + timeline + acciones."""
         try:
-            c = self.container.db.execute(
-                "SELECT * FROM compras WHERE id=?", (compra_id,)).fetchone()
-            if not c:
+            compra_dict = self._purchase_repo.get_purchase_full(compra_id)
+            if not compra_dict:
                 return
-            items = self.container.db.execute("""
-                SELECT dd.cantidad, dd.costo_unitario, dd.subtotal,
-                       p.nombre
-                FROM detalles_compra dd
-                JOIN productos p ON p.id=dd.producto_id
-                WHERE dd.compra_id=?
-            """, (compra_id,)).fetchall()
+            raw_items = self._purchase_repo.get_purchase_detail_items(compra_id)
+            # Normalise to the key names _generar_html_compra expects
+            items = [
+                {"nombre": it["nombre"], "cantidad": it["cantidad"],
+                 "costo_unitario": it["costo_unitario"], "subtotal": it["subtotal"]}
+                for it in raw_items
+            ]
 
             if not proveedor_nombre:
-                prov_row = self.container.db.execute(
-                    "SELECT nombre FROM proveedores WHERE id=?",
-                    (c['proveedor_id'],)).fetchone()
-                proveedor_nombre = prov_row['nombre'] if prov_row else ""
+                proveedor_nombre = self._purchase_repo.get_provider_name(
+                    compra_dict.get("proveedor_id", 0))
 
-            compra_dict = dict(c)
-            html = self._generar_html_compra(
-                compra_dict, [dict(i) for i in items], proveedor_nombre)
+            html = self._generar_html_compra(compra_dict, items, proveedor_nombre)
 
             from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
             from PyQt5.QtGui import QTextDocument
@@ -2591,16 +2588,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _cancelar_compra(self, compra_id: int, dlg_padre: QDialog) -> None:
         """Cancela una compra. Requiere: motivo + PIN de supervisor (si configurado)."""
-        try:
-            row = self.container.db.execute(
-                "SELECT estado, folio FROM compras WHERE id=?",
-                (compra_id,)).fetchone()
-        except Exception:
-            row = None
-        if not row:
+        state = self._purchase_repo.get_purchase_state(compra_id)
+        if not state:
             return
-        estado_actual = str(row[0] if hasattr(row, '__getitem__') else row['estado'] if hasattr(row, 'keys') else "").lower()
-        folio         = str(row[1] if hasattr(row, '__getitem__') else row['folio'] if hasattr(row, 'keys') else compra_id)
+        estado_actual = state["estado"]
+        folio         = state["folio"]
 
         if estado_actual == "cancelada":
             QMessageBox.information(self, "Aviso", "Esta compra ya está cancelada.")
@@ -2624,9 +2616,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
 
         try:
-            self.container.db.execute(
-                "UPDATE compras SET estado='cancelada' WHERE id=?", (compra_id,))
-            self.container.db.commit()
+            self._purchase_repo.cancel_purchase(compra_id)
             try:
                 audit_write(
                     self.container,
@@ -2655,17 +2645,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         debe verificar manualmente el estado del inventario.
         Requiere PIN de supervisor.
         """
-        try:
-            row = self.container.db.execute(
-                "SELECT folio, estado FROM compras WHERE id=?", (compra_id,)
-            ).fetchone()
-        except Exception:
-            row = None
-        if not row:
+        state = self._purchase_repo.get_purchase_state(compra_id)
+        if not state:
             return
 
-        folio = str(row[0] if hasattr(row, '__getitem__') else row.get('folio', compra_id))
-        estado = str(row[1] if hasattr(row, '__getitem__') else row.get('estado', '')).lower()
+        folio  = state["folio"]
+        estado = state["estado"]
 
         if estado != "cancelada":
             QMessageBox.information(self, "Aviso",
@@ -2689,9 +2674,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
 
         try:
-            self.container.db.execute(
-                "UPDATE compras SET estado='pendiente' WHERE id=?", (compra_id,))
-            self.container.db.commit()
+            self._purchase_repo.reopen_purchase(compra_id)
             try:
                 audit_write(
                     self.container,

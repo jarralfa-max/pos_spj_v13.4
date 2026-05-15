@@ -73,6 +73,127 @@ class PurchaseRepository:
         cursor.execute(query, (purchase_id, product_id, qty, unit_cost, subtotal))
         logger.debug(f"Detalle de compra insertado: Compra {purchase_id} | Prod {product_id} | Cant {qty}")
 
+    # ── Read helpers ─────────────────────────────────────────────────────────
+
+    def get_header_stats(self, sucursal_id: int = 1) -> dict:
+        """Stats for the top KPI bar: compras this month, active providers, pending orders."""
+        cur = self.db.cursor()
+        r = cur.execute(
+            "SELECT COUNT(*), COALESCE(SUM(total),0) FROM compras "
+            "WHERE sucursal_id=? AND DATE(fecha)>=DATE('now','start of month')",
+            (sucursal_id,),
+        ).fetchone()
+        count_mes  = int(r[0] or 0)
+        total_mes  = float(r[1] or 0)
+
+        r2 = cur.execute(
+            "SELECT COUNT(*) FROM proveedores WHERE activo=1"
+        ).fetchone()
+        prov_activos = int(r2[0] or 0)
+
+        oc_pendientes = 0
+        try:
+            r3 = cur.execute(
+                "SELECT COUNT(*) FROM ordenes_compra WHERE estado='pendiente'"
+            ).fetchone()
+            oc_pendientes = int(r3[0] or 0)
+        except Exception:
+            pass
+
+        return {
+            "count_mes":      count_mes,
+            "total_mes":      total_mes,
+            "prov_activos":   prov_activos,
+            "oc_pendientes":  oc_pendientes,
+        }
+
+    def get_monthly_kpis(self, sucursal_id: int, desde: str, hasta: str) -> dict:
+        """Month-range KPIs for history sidebar (count, total, pending_total, provider_count)."""
+        cur = self.db.cursor()
+        r1 = cur.execute(
+            """SELECT COUNT(*), COALESCE(SUM(total),0)
+               FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?""",
+            (sucursal_id, desde, hasta),
+        ).fetchone()
+        r2 = cur.execute(
+            """SELECT COALESCE(SUM(total),0)
+               FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?
+               AND estado IN ('pendiente','credito')""",
+            (sucursal_id, desde, hasta),
+        ).fetchone()
+        r3 = cur.execute(
+            """SELECT COUNT(DISTINCT proveedor_id)
+               FROM compras WHERE sucursal_id=? AND fecha BETWEEN ? AND ?""",
+            (sucursal_id, desde, hasta),
+        ).fetchone()
+        return {
+            "count":          int(r1[0] or 0) if r1 else 0,
+            "total":          float(r1[1] or 0) if r1 else 0.0,
+            "pending_total":  float(r2[0] or 0) if r2 else 0.0,
+            "provider_count": int(r3[0] or 0) if r3 else 0,
+        }
+
+    def get_purchase_detail_items(self, compra_id: int) -> list:
+        """Line items for a purchase — used by inline detail panel and full detail dialog."""
+        rows = self.db.cursor().execute(
+            """SELECT p.nombre, dd.cantidad, dd.costo_unitario, dd.subtotal
+               FROM detalles_compra dd
+               JOIN productos p ON p.id = dd.producto_id
+               WHERE dd.compra_id = ?
+               ORDER BY p.nombre""",
+            (compra_id,),
+        ).fetchall()
+        return [
+            {
+                "nombre":       r[0],
+                "cantidad":     float(r[1] or 0),
+                "costo_unitario": float(r[2] or 0),
+                "subtotal":     float(r[3] or 0),
+            }
+            for r in rows
+        ]
+
+    def get_purchase_state(self, compra_id: int) -> "dict | None":
+        """Returns {id, folio, estado} for state-machine guards (cancel / reopen)."""
+        row = self.db.cursor().execute(
+            "SELECT id, folio, estado FROM compras WHERE id=?", (compra_id,)
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "id":     row[0],
+            "folio":  str(row[1] or compra_id),
+            "estado": str(row[2] or "").lower(),
+        }
+
+    def get_purchase_full(self, compra_id: int) -> "dict | None":
+        """Full purchase header as dict (for detail/print view)."""
+        row = self.db.cursor().execute(
+            "SELECT * FROM compras WHERE id=?", (compra_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_provider_name(self, proveedor_id: int) -> str:
+        """Provider display name for a given ID."""
+        row = self.db.cursor().execute(
+            "SELECT nombre FROM proveedores WHERE id=?", (proveedor_id,)
+        ).fetchone()
+        return str(row[0]) if row else ""
+
+    # ── Write helpers ─────────────────────────────────────────────────────────
+
+    def cancel_purchase(self, compra_id: int) -> None:
+        """Sets estado → 'cancelada'. Caller writes audit trail."""
+        self.db.execute(
+            "UPDATE compras SET estado='cancelada' WHERE id=?", (compra_id,))
+        self.db.commit()
+
+    def reopen_purchase(self, compra_id: int) -> None:
+        """Sets estado → 'pendiente' (from 'cancelada'). Caller writes audit trail."""
+        self.db.execute(
+            "UPDATE compras SET estado='pendiente' WHERE id=?", (compra_id,))
+        self.db.commit()
+
     def get_purchase_by_folio(self, folio: str) -> dict:
         """
         Consulta una compra específica por su folio para auditoría o devoluciones.
