@@ -396,19 +396,22 @@ class AppContainer:
             self.uc_produccion = None
             logger.debug("uc_produccion: %s", _uc_p)
 
-        # ── Phase 2/3: Ruta canónica + UCs documentales PR/PO ───────────────
+        # ── Phase 2/3/4: Ruta canónica + UCs documentales + adaptador recepción ─
         try:
             from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
             from application.purchases.purchase_request_uc import PurchaseRequestUC
             from application.purchases.purchase_order_uc import PurchaseOrderUC
+            from application.purchases.receive_po_adapter import ReceivePOAdapter
             self.uc_compra_tradicional = TraditionalPurchaseUC(self)
             self.uc_purchase_request   = PurchaseRequestUC(self)
             self.uc_purchase_order     = PurchaseOrderUC(self)
+            self.receive_po_adapter    = ReceivePOAdapter(self)
         except Exception as _uc_trad:
             self.uc_compra_tradicional = None
             self.uc_purchase_request   = None
             self.uc_purchase_order     = None
-            logger.debug("uc_compra_tradicional/pr/po: %s", _uc_trad)
+            self.receive_po_adapter    = None
+            logger.debug("uc_compra_tradicional/pr/po/adapter: %s", _uc_trad)
 
         # ── v13.5: ERP Use Cases — compra (deprecated), cliente, nomina, finanzas ──
         try:
