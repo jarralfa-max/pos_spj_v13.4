@@ -49,6 +49,7 @@ class ResultadoCompraDTO:
     folio: str = ""
     error: str = ""
     recetas_procesadas: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
     audit_before: dict = field(default_factory=dict)
     audit_after:  dict = field(default_factory=dict)
 
@@ -79,12 +80,26 @@ class RegistrarCompraUC:
                 error="PurchaseService no disponible. Reinicia la aplicación.",
             )
 
+        # C-4: validate items list before touching the DB
+        if not datos.items:
+            return ResultadoCompraDTO(ok=False, error="El carrito está vacío.")
+        invalid = [
+            i.nombre for i in datos.items
+            if i.qty <= 0 or i.unit_cost < 0
+        ]
+        if invalid:
+            return ResultadoCompraDTO(
+                ok=False,
+                error=f"Cantidad o costo inválido en: {', '.join(invalid)}",
+            )
+
         try:
             items_svc = [
                 {
                     'product_id': i.product_id,
-                    'qty':        i.qty,
-                    'unit_cost':  i.unit_cost,
+                    # C-5: guard float accumulation at the boundary
+                    'qty':        round(float(i.qty), 6),
+                    'unit_cost':  round(float(i.unit_cost), 6),
                     'nombre':     i.nombre,
                 }
                 for i in datos.items
@@ -94,24 +109,21 @@ class RegistrarCompraUC:
             if datos.iva_monto > 0:
                 notes = f"{datos.doc_ref} | IVA:{datos.iva_monto:.2f}"
 
-            folio = svc.register_purchase(
+            # C-2: condicion_pago/plazo_dias/moneda now go inside the SAVEPOINT
+            # via register_purchase → create_purchase — no external UPDATE needed.
+            folio, fin_warnings = svc.register_purchase(
                 provider_id=datos.proveedor_id,
                 branch_id=datos.sucursal_id,
                 user=datos.usuario,
                 items=items_svc,
                 payment_method=datos.metodo_pago,
-                amount_paid=(datos.total if datos.metodo_pago != "CREDITO" else 0),
+                amount_paid=round(
+                    datos.total if datos.metodo_pago != "CREDITO" else 0, 2),
                 notes=notes,
+                condicion_pago=datos.condicion_pago,
+                plazo_dias=datos.plazo_dias,
+                moneda=datos.moneda,
             )
-
-            # Persist payment condition fields (added in migration 071)
-            try:
-                self._container.db.execute(
-                    "UPDATE compras SET condicion_pago=?, plazo_dias=?, moneda=? WHERE folio=?",
-                    (datos.condicion_pago, datos.plazo_dias, datos.moneda, folio),
-                )
-            except Exception as _e:
-                logger.warning("condicion_pago UPDATE skipped: %s", _e)
 
             recetas = self._procesar_recetas(datos)
             after   = self._build_audit_after(datos, folio)
@@ -121,6 +133,7 @@ class RegistrarCompraUC:
                 ok=True,
                 folio=folio,
                 recetas_procesadas=recetas,
+                warnings=fin_warnings,   # C-3: surface finance warnings to caller
                 audit_before={},
                 audit_after=after,
             )
@@ -146,6 +159,23 @@ class RegistrarCompraUC:
                     nombres.append(item.nombre)
             except Exception as e:
                 logger.warning("_procesar_recetas %s: %s", item.nombre, e)
+                # C-6: write audit trail for recipe failures
+                try:
+                    from core.services.auto_audit import audit_write
+                    audit_write(
+                        self._container,
+                        modulo="COMPRAS",
+                        accion="RECETA_FALLO",
+                        entidad="productos",
+                        entidad_id=str(item.product_id),
+                        usuario=datos.usuario,
+                        detalles=f"Receta de {item.nombre} falló en compra: {e}",
+                        before={},
+                        after={"error": str(e)},
+                        sucursal_id=datos.sucursal_id,
+                    )
+                except Exception:
+                    pass
         return nombres
 
     @staticmethod

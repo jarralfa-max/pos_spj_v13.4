@@ -51,11 +51,11 @@ from typing import Dict, Tuple
 class PrimaryColors:
     """Colores primarios (azul) con variantes hover/active."""
     BASE: str = "#2563EB"
-    HOVER: str = "#E600E6"      # Magenta para hover
-    ACTIVE: str = "#CC00CC"     # Magenta oscuro para active
-    GLOW: str = "#FF4DFF"       # Glow effect
+    HOVER: str = "#1D4ED8"      # Azul más oscuro para hover
+    ACTIVE: str = "#1E40AF"     # Azul más oscuro aún para active
+    GLOW: str = "#3B82F6"       # Glow azul (medium blue)
     LIGHT: str = "#DBEAFE"      # Fondo suave
-    DARK: str = "#1D4ED8"       # Versión oscura
+    DARK: str = "#1E40AF"       # Versión oscura
 
 
 @dataclass(frozen=True)
@@ -170,8 +170,8 @@ class Colors:
     
     # Alias directos para compatibilidad (Single Source of Truth)
     PRIMARY_BASE = "#2563EB"
-    PRIMARY_HOVER = "#E600E6"
-    PRIMARY_ACTIVE = "#CC00CC"
+    PRIMARY_HOVER = "#1D4ED8"   # darker blue — was magenta (#E600E6), fixed A-1
+    PRIMARY_ACTIVE = "#1E40AF"  # darkest blue — was magenta (#CC00CC), fixed A-1
     SUCCESS_BASE = "#16A34A"
     SUCCESS_HOVER = "#22C55E"
     DANGER_BASE = "#DC2626"
@@ -285,9 +285,9 @@ class Shadows:
     
     # Glow effects (para hover magenta)
     GLOW_PRIMARY = "0 0 12px rgba(37, 99, 235, 0.4)"
-    GLOW_MAGENTA = "0 0 12px rgba(230, 0, 230, 0.4)"
+    GLOW_ACCENT  = "0 0 12px rgba(124, 58, 237, 0.4)"  # violet/accent glow
     GLOW_SUCCESS = "0 0 12px rgba(22, 163, 74, 0.4)"
-    GLOW_DANGER = "0 0 12px rgba(220, 38, 38, 0.4)"
+    GLOW_DANGER  = "0 0 12px rgba(220, 38, 38, 0.4)"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
