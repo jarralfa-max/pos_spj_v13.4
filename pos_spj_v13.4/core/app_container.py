@@ -385,12 +385,22 @@ class AppContainer:
             self.uc_produccion = None
             logger.debug("uc_produccion: %s", _uc_p)
 
-        # ── v13.5: ERP Use Cases — compra, cliente, nomina, finanzas ────────
+        # ── Phase 2: Ruta canónica de Compra Tradicional ─────────────────────
+        try:
+            from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
+            self.uc_compra_tradicional = TraditionalPurchaseUC(self)
+        except Exception as _uc_trad:
+            self.uc_compra_tradicional = None
+            logger.debug("uc_compra_tradicional: %s", _uc_trad)
+
+        # ── v13.5: ERP Use Cases — compra (deprecated), cliente, nomina, finanzas ──
         try:
             from core.use_cases.compra import ProcesarCompraUC
             from core.use_cases.cliente import GestionarClienteUC
             from core.use_cases.nomina import GestionarNominaUC
             from core.use_cases.finanzas import GestionarFinanzasUC
+            # uc_compra queda como alias deprecado hacia ProcesarCompraUC.
+            # Código nuevo debe usar self.uc_compra_tradicional.
             self.uc_compra    = ProcesarCompraUC.desde_container(self)
             self.uc_cliente   = GestionarClienteUC.desde_container(self)
             self.uc_nomina    = GestionarNominaUC.desde_container(self)
