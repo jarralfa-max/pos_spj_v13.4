@@ -12,8 +12,10 @@ Ruta canónica de Compra Tradicional:
 """
 from application.purchases.commands import RegisterPurchaseCommand, PurchaseItemCommand
 from application.purchases.results import PurchaseResult
-from application.purchases.states import DocumentType, PRState, POState
+from application.purchases.states import DocumentType, PRState, POState, DirectPurchaseState
 from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
+from application.purchases.purchase_request_uc import PurchaseRequestUC, PRResult
+from application.purchases.purchase_order_uc import PurchaseOrderUC, POResult
 
 __all__ = [
     "RegisterPurchaseCommand",
@@ -22,5 +24,10 @@ __all__ = [
     "DocumentType",
     "PRState",
     "POState",
+    "DirectPurchaseState",
     "TraditionalPurchaseUC",
+    "PurchaseRequestUC",
+    "PRResult",
+    "PurchaseOrderUC",
+    "POResult",
 ]

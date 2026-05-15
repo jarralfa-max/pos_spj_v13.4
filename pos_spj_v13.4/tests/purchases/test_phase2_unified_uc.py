@@ -216,24 +216,22 @@ class TestTraditionalPurchaseUC:
         assert "vacío" in result.error.lower()
         container.purchase_service.register_purchase.assert_not_called()
 
-    def test_document_type_pr_returns_not_implemented(self):
+    def test_document_type_pr_routes_to_pr_uc(self):
+        """Phase 3: document_type=PR es enrutado (no rechazado)."""
         from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
         from application.purchases.states import DocumentType
-        container = self._make_container()
-        uc = TraditionalPurchaseUC(container)
-        cmd = self._make_command(document_type=DocumentType.PR)
-        result = uc.execute(cmd)
-        assert not result.ok
-        assert "Phase 3" in result.error or "implementado" in result.error.lower()
+        import inspect
+        source = inspect.getsource(TraditionalPurchaseUC._execute_pr)
+        assert "PurchaseRequestUC" in source, (
+            "TraditionalPurchaseUC._execute_pr debe delegar a PurchaseRequestUC"
+        )
 
-    def test_document_type_po_returns_not_implemented(self):
+    def test_document_type_po_routes_to_po_uc(self):
+        """Phase 3: document_type=PO es enrutado (no rechazado)."""
         from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
-        from application.purchases.states import DocumentType
-        container = self._make_container()
-        uc = TraditionalPurchaseUC(container)
-        cmd = self._make_command(document_type=DocumentType.PO)
-        result = uc.execute(cmd)
-        assert not result.ok
+        import inspect
+        source = inspect.getsource(TraditionalPurchaseUC._execute_po)
+        assert "PurchaseRequestUC" in source or "PurchaseOrderUC" in source
 
     def test_result_document_type_is_direct(self):
         from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
