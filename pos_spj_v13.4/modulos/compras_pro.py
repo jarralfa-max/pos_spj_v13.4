@@ -1491,7 +1491,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 ph = QListWidgetItem("(Sin plantillas)")
                 ph.setFlags(Qt.NoItemFlags)
                 self._sidebar_templates_list.addItem(ph)
-        except (TypeError, KeyError, OSError) as e:
+        except Exception as e:
             logger.warning("_cargar_plantillas_sidebar: %s", e)
             ph = QListWidgetItem("(Sin plantillas)")
             ph.setFlags(Qt.NoItemFlags)

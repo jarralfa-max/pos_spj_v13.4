@@ -5,12 +5,29 @@ existing one, then ensures existing rows have valid values.
 
 SQLite does not support adding CHECK constraints to existing columns via
 ALTER TABLE, so we validate existing data and set defaults for NULLs.
+
+NOTE: This migration is self-sufficient — it re-applies the same ADD COLUMN
+statements as migration 071 (idempotently) so that it succeeds even when 071
+was marked done in schema_migrations but the actual columns are missing from
+the DB (e.g. DB was replaced from a backup while schema_migrations was kept).
 """
 
 _VALID_CONDICION = frozenset({"liquidado", "credito", "parcial"})
 
 
+def _add_column(conn, table: str, col: str, definition: str) -> None:
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
+    except Exception:
+        pass  # column already exists — expected on most DBs
+
+
 def run(conn):
+    # 0. Guarantee columns exist regardless of whether 071 ran on this schema
+    _add_column(conn, "compras", "condicion_pago", "TEXT DEFAULT 'liquidado'")
+    _add_column(conn, "compras", "plazo_dias",     "INTEGER DEFAULT 0")
+    _add_column(conn, "compras", "moneda",         "TEXT DEFAULT 'MXN'")
+
     # 1. Backfill NULLs → 'liquidado' (safe default: implies full payment)
     conn.execute("""
         UPDATE compras

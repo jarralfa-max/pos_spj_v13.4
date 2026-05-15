@@ -69,6 +69,7 @@ MIGRATIONS = [
     ("072",  "migrations.standalone.072_condicion_pago_check"),           # v13.4: backfill NULLs, enforce valid condicion_pago values
     ("073",  "migrations.standalone.073_temp_purchase_drafts"),           # v13.4: DB-backed cart drafts per user/branch
     ("074",  "migrations.standalone.074_compras_archivo_adjunto"),        # v13.4: optional file attachment per purchase
+    ("075",  "migrations.standalone.075_plantillas_compra"),              # Hotfix: plantillas_compra tables missing from schema
 ]
 
 def _ensure_tracking_table(conn):
