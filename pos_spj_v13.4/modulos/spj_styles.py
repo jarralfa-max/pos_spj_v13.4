@@ -166,8 +166,8 @@ def apply_theme_dialogs(dialog) -> None:
     qss = app.styleSheet() if app else ""
     bg_m = _re.search(r'background-color:\s*([#\w]+)', qss)
     fg_m = _re.search(r'QMainWindow[^}]*\bcolor:\s*([#\w]+)', qss)
-    bg = bg_m.group(1) if bg_m else "#f5f6fa"
-    fg = fg_m.group(1) if fg_m else "#2c3e50"
+    bg = bg_m.group(1) if bg_m else Colors.NEUTRAL.SLATE_100
+    fg = fg_m.group(1) if fg_m else Colors.NEUTRAL.SLATE_800
     base = (
         "QDialog, QWidget { background-color:" + bg + "; color:" + fg + "; }"
         "QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {"

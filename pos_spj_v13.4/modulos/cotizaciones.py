@@ -30,18 +30,18 @@ from .base import ModuloBase
 
 logger = logging.getLogger("spj.ui.cotizaciones")
 
-_C_VERDE  = "#27ae60"
-_C_AZUL   = "#2980b9"
-_C_NARANJ = "#e67e22"
-_C_ROJO   = "#e74c3c"
-_C_GRIS   = "#95a5a6"
+_C_VERDE  = Colors.SUCCESS_BASE
+_C_AZUL   = Colors.PRIMARY_BASE
+_C_NARANJ = Colors.WARNING_BASE
+_C_ROJO   = Colors.DANGER_HOVER
+_C_GRIS   = Colors.NEUTRAL.SLATE_400
 
 _STATUS_COLOR = {
     "pendiente":   _C_AZUL,
     "aprobada":    _C_VERDE,
     "rechazada":   _C_ROJO,
     "vencida":     _C_GRIS,
-    "convertida":  "#8e44ad",
+    "convertida":  Colors.ACCENT_BASE,
 }
 
 
@@ -253,7 +253,7 @@ class ModuloCotizaciones(ModuloBase):
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 estado_r = r.get("estado", "")
-                color    = _STATUS_COLOR.get(estado_r, "#333")
+                color    = _STATUS_COLOR.get(estado_r, Colors.NEUTRAL.SLATE_700)
                 vals = [
                     r.get("folio", ""),
                     r.get("cliente_nombre", "—"),
@@ -493,7 +493,7 @@ class ModuloCotizaciones(ModuloBase):
             data.append(["", "", "", "TOTAL:", f"${float(row.get('total',0)):.2f}"])
             t = Table(data, colWidths=[8*cm, 2.5*cm, 2*cm, 2.5*cm, 2.5*cm])
             t.setStyle(TableStyle([
-                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#2980b9")),
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor(Colors.PRIMARY_BASE)),
                 ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
                 ("FONTNAME",   (0,0), (-1,0), "Helvetica-Bold"),
                 ("GRID",       (0,0), (-1,-1), 0.5, colors.grey),

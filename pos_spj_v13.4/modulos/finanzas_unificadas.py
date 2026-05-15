@@ -1657,8 +1657,8 @@ class ModuloFinanzasUnificadas(QWidget):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     if ci == 7:
-                        color = {"pagado": "#16A34A", "cancelado": "#DC2626",
-                                 "confirmado": "#2563EB", "parcial": "#D97706"}.get(v, "")
+                        color = {"pagado": Colors.SUCCESS_BASE, "cancelado": Colors.DANGER_BASE,
+                                 "confirmado": Colors.PRIMARY_BASE, "parcial": Colors.WARNING_BASE}.get(v, "")
                         if color:
                             it.setForeground(QFont())
                             it.setData(Qt.ForegroundRole,
@@ -1772,7 +1772,7 @@ class ModuloFinanzasUnificadas(QWidget):
                     self._tbl_pc.setItem(ri, ci, it)
             kpis = self._erp.kpis_erp(self.sucursal_id)
             flujo = kpis.get("flujo_neto", 0)
-            color = "#16A34A" if flujo >= 0 else "#DC2626"
+            color = Colors.SUCCESS_BASE if flujo >= 0 else Colors.DANGER_BASE
             if hasattr(self, "_lbl_flujo_neto"):
                 self._lbl_flujo_neto.setText(f"Flujo neto mes: ${flujo:,.2f}")
                 self._lbl_flujo_neto.setStyleSheet(

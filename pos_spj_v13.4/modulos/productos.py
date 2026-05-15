@@ -676,7 +676,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 is_deleted = not activo
 
                 # Color de fondo para productos eliminados
-                bg_color = _QC("#fde8e8") if is_deleted else None
+                bg_color = _QC(Colors.DANGER.BG_SOFT) if is_deleted else None
 
                 self.tabla_productos.setItem(row_idx, 0, QTableWidgetItem(str(prod_id)))
                 self.tabla_productos.setItem(row_idx, 1, QTableWidgetItem(str(row_data['codigo'] or '')))
@@ -691,9 +691,9 @@ class ModuloProductos(QWidget, RefreshMixin):
                 estado_txt = "✅ Activo" if activo else "❌ Eliminado"
                 estado_item = QTableWidgetItem(estado_txt)
                 if is_deleted:
-                    estado_item.setForeground(_QC("#e74c3c"))
+                    estado_item.setForeground(_QC(Colors.DANGER_HOVER))
                 else:
-                    estado_item.setForeground(_QC("#27ae60"))
+                    estado_item.setForeground(_QC(Colors.SUCCESS_BASE))
                 self.tabla_productos.setItem(row_idx, 7, estado_item)
 
                 # v13.30: Colorear toda la fila si está eliminado
@@ -702,7 +702,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                         it = self.tabla_productos.item(row_idx, ci)
                         if it:
                             it.setBackground(bg_color)
-                            it.setForeground(_QC("#999"))
+                            it.setForeground(_QC(Colors.NEUTRAL.SLATE_400))
 
                 # ── Acciones ──────────────────────────────────────────────
                 _cell = _QW(); _lay = _HL(_cell)
@@ -1049,9 +1049,9 @@ class ModuloProductos(QWidget, RefreshMixin):
                     it = QTableWidgetItem(str(v))
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     if ci == 2 and "No" in str(v):
-                        it.setForeground(QColor("#e74c3c"))
+                        it.setForeground(QColor(Colors.DANGER_HOVER))
                     elif ci == 6 and v != "—":
-                        it.setForeground(QColor("#e67e22"))
+                        it.setForeground(QColor(Colors.WARNING_BASE))
                     # Store branch_id/product_id for editing
                     if ci == 0:
                         it.setData(Qt.UserRole, (r["branch_id"], r["product_id"]))
@@ -1159,7 +1159,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 diff_pct = float(r[3] or 0)
-                color = QColor("#e74c3c") if diff_pct > 10 else                         QColor("#27ae60") if diff_pct < 0 else None
+                color = QColor(Colors.DANGER_HOVER) if diff_pct > 10 else                         QColor(Colors.SUCCESS_BASE) if diff_pct < 0 else None
                 vals = [
                     str(r[0]), f"${float(r[1]):.2f}", f"${float(r[2]):.2f}",
                     f"{diff_pct:+.1f}%", str(r[4] or "—"), str(r[5] or "")[:16]

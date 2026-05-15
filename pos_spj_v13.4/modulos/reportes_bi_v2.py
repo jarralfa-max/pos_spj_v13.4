@@ -940,7 +940,7 @@ class ModuloReportesBIv2(QWidget):
                 if prev_ing > 0:
                     diff_pct = (curr_ing - prev_ing) / prev_ing * 100
                     arrow = "▲" if diff_pct >= 0 else "▼"
-                    color = "#27ae60" if diff_pct >= 0 else "#e74c3c"
+                    color = Colors.SUCCESS_BASE if diff_pct >= 0 else Colors.DANGER_HOVER
                     self.lbl_comparativa.setText(
                         f"<span style='color:{color}'>{arrow} {abs(diff_pct):.1f}% vs período anterior</span>")
                     self.lbl_comparativa.show()

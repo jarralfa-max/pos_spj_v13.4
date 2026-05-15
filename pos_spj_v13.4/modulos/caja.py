@@ -249,13 +249,13 @@ class DialogoCorteZCiego(QDialog):
 
             if abs(dif) < 0.01:
                 dif_txt  = "✅  CAJA CUADRADA"
-                dif_color = "#27ae60"
+                dif_color = Colors.SUCCESS_BASE
             elif dif < 0:
                 dif_txt  = f"⚠️  FALTANTE  ${abs(dif):,.2f}"
-                dif_color = "#e74c3c"
+                dif_color = Colors.DANGER_HOVER
             else:
                 dif_txt  = f"ℹ️  SOBRANTE  ${dif:,.2f}"
-                dif_color = "#e67e22"
+                dif_color = Colors.WARNING_BASE
 
             # Build forma_pago breakdown rows
             breakdown_rows = ""
@@ -1173,7 +1173,7 @@ class ModuloCaja(QWidget, RefreshMixin):
                 if row:
                     sistema = float(row[0] or 0)
                     diff = total - sistema
-                    color = "#27ae60" if abs(diff) < 0.01 else "#e74c3c"
+                    color = Colors.SUCCESS_BASE if abs(diff) < 0.01 else Colors.DANGER_HOVER
                     self.lbl_diferencia_arqueo.setText(
                         f"Sistema: ${sistema:,.2f} | Diferencia: "
                         f"<span style='color:{color}'>${diff:+.2f}</span>")
