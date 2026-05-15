@@ -24,10 +24,10 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox, QFrame,
     QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QMenu, QSizePolicy,
+    QMessageBox, QMenu, QSizePolicy, QCheckBox,
     QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog,
 )
-from PyQt5.QtCore import Qt, QTimer, QStringListModel, QDate
+from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal
 from PyQt5.QtGui import QCursor, QKeySequence
 from datetime import datetime
 import json, logging, os
@@ -67,6 +67,27 @@ _DRAFT_PATH = os.path.join(os.path.expanduser("~"), ".spj_compra_borrador.json")
 
 # IVA rate for Mexico
 _IVA_RATE = 0.16
+
+# ── Role-based permissions ───────────────────────────────────────────────────
+_PERMISOS_POR_ROL: dict[str, frozenset] = {
+    "ADMIN":      frozenset({"procesar", "cancelar", "reabrir", "editar",
+                              "exportar", "ver_totales", "borrador", "historial"}),
+    "GERENTE":    frozenset({"procesar", "cancelar", "reabrir", "editar",
+                              "exportar", "ver_totales", "borrador", "historial"}),
+    "SUPERVISOR": frozenset({"procesar", "cancelar", "exportar",
+                              "ver_totales", "borrador", "historial"}),
+    "COMPRAS":    frozenset({"procesar", "exportar", "ver_totales",
+                              "borrador", "historial"}),
+    "ALMACEN":    frozenset({"procesar", "exportar", "ver_totales",
+                              "borrador", "historial"}),
+    "CAJERO":     frozenset({"historial"}),
+    "VENDEDOR":   frozenset({"historial"}),
+    "BÁSICO":     frozenset({"historial"}),
+    "BASIC":      frozenset({"historial"}),
+    "CASHIER":    frozenset({"historial"}),
+}
+_PERMISOS_DEFAULT = frozenset({"procesar", "exportar", "ver_totales",
+                                "borrador", "historial"})
 
 
 def _make_status_chip(estado: str) -> QLabel:
@@ -271,6 +292,120 @@ class _ConfirmDestructiveDialog(QDialog):
         return ""
 
 
+class _PINDialog(QDialog):
+    """
+    Diálogo de PIN de supervisor para autorizar acciones sensibles.
+    Si `pin_supervisor` no está configurado en la tabla `configuracion`,
+    el método `verificar()` retorna True sin mostrar el diálogo (modo sin PIN).
+    El PIN se lee de la DB cada vez para reflejar cambios en caliente.
+    """
+
+    def __init__(self, pin_correcto: str, accion_label: str, parent=None):
+        super().__init__(parent)
+        self._pin = pin_correcto
+        self.setWindowTitle("Autorización de Supervisor")
+        self.setMinimumWidth(320)
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(10)
+        lay.setContentsMargins(20, 16, 20, 16)
+
+        lbl = QLabel(f"Acción restringida:\n{accion_label}\n\nIngresa el PIN de supervisor:")
+        lbl.setWordWrap(True)
+        lbl.setObjectName("subheading")
+        lay.addWidget(lbl)
+
+        self._txt_pin = QLineEdit()
+        self._txt_pin.setEchoMode(QLineEdit.Password)
+        self._txt_pin.setMaxLength(12)
+        self._txt_pin.setAlignment(Qt.AlignCenter)
+        self._txt_pin.setPlaceholderText("PIN  ·  ·  ·  ·")
+        self._txt_pin.setObjectName("styledInput")
+        lay.addWidget(self._txt_pin)
+
+        self._lbl_err = QLabel("")
+        self._lbl_err.setObjectName("caption")
+        self._lbl_err.setStyleSheet(f"color:{Colors.DANGER_BASE};")
+        lay.addWidget(self._lbl_err)
+
+        btn_row = QHBoxLayout()
+        btn_cancel = create_secondary_button(None, "✕ Cancelar", "Cancelar")
+        btn_ok = create_primary_button(None, "✓ Autorizar", "Verificar PIN")
+        btn_cancel.clicked.connect(self.reject)
+        btn_ok.clicked.connect(self._verificar)
+        btn_row.addWidget(btn_cancel); btn_row.addStretch(); btn_row.addWidget(btn_ok)
+        lay.addLayout(btn_row)
+
+        QShortcut(QKeySequence(Qt.Key_Return), self, self._verificar)
+        QShortcut(QKeySequence(Qt.Key_Escape), self, self.reject)
+        self._txt_pin.setFocus()
+
+    def _verificar(self) -> None:
+        if self._txt_pin.text().strip() == self._pin:
+            self.accept()
+        else:
+            self._lbl_err.setText("⚠ PIN incorrecto — intenta de nuevo")
+            self._txt_pin.clear()
+            self._txt_pin.setFocus()
+
+    @staticmethod
+    def _leer_pin(db) -> str:
+        """Lee el PIN de supervisor desde configuracion. Retorna "" si no configurado."""
+        for tabla in ("configuracion", "settings", "parametros"):
+            for col_k, col_v in (("clave", "valor"), ("key", "value"), ("parametro", "valor")):
+                try:
+                    r = db.execute(
+                        f"SELECT {col_v} FROM {tabla} WHERE {col_k}='pin_supervisor' LIMIT 1"
+                    ).fetchone()
+                    if r:
+                        return str(r[0] or "").strip()
+                except Exception:
+                    pass
+        return ""
+
+    @classmethod
+    def verificar(cls, db, accion_label: str, parent=None) -> bool:
+        """
+        Punto de entrada único. Retorna True si autorizado.
+        No muestra diálogo si PIN no está configurado (modo sin PIN).
+        """
+        pin = cls._leer_pin(db)
+        if not pin:
+            return True   # PIN no configurado — sólo require motivo (ya capturado antes)
+        dlg = cls(pin, accion_label, parent)
+        return dlg.exec_() == QDialog.Accepted
+
+
+class _HistorialLoader(QThread):
+    """Carga el historial de compras en background para no bloquear la UI."""
+    loaded  = pyqtSignal(list)   # emite lista de rows cuando termina
+    error   = pyqtSignal(str)    # emite mensaje de error si falla
+
+    def __init__(self, db, sucursal_id: int, desde: str, hasta: str,
+                 limit: int = _HIST_LIMIT):
+        super().__init__()
+        self._db         = db
+        self._sucursal   = sucursal_id
+        self._desde      = desde
+        self._hasta      = hasta
+        self._limit      = limit
+
+    def run(self) -> None:
+        try:
+            rows = self._db.execute("""
+                SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
+                       c.usuario, c.total, c.estado, c.id
+                FROM compras c
+                LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
+                ORDER BY c.fecha DESC LIMIT ?
+            """, (self._sucursal, self._desde, self._hasta, self._limit)).fetchall()
+            self.loaded.emit(rows)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class ModuloComprasPro(QWidget, RefreshMixin):
     """Módulo Enterprise para Recepción de Mercancía."""
 
@@ -306,6 +441,32 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
         self.usuario_actual = usuario
         self._usuario_rol = rol.upper().strip()
+        QTimer.singleShot(0, self._aplicar_permisos_ui)
+
+    def _tiene_permiso(self, accion: str) -> bool:
+        """Retorna True si el rol actual tiene el permiso solicitado."""
+        rol = self._usuario_rol
+        if not rol or rol == "ADMIN":
+            return True
+        return accion in _PERMISOS_POR_ROL.get(rol, _PERMISOS_DEFAULT)
+
+    def _aplicar_permisos_ui(self) -> None:
+        """Muestra/oculta/deshabilita controles según el rol del usuario."""
+        puede_procesar = self._tiene_permiso("procesar")
+        puede_exportar = self._tiene_permiso("exportar")
+        puede_borrador = self._tiene_permiso("borrador")
+        puede_editar   = self._tiene_permiso("editar")
+
+        for attr, visible in [
+            ("_btn_procesar",  puede_procesar),
+            ("_btn_draft_save", puede_borrador),
+            ("_btn_draft_load", puede_borrador),
+            ("_btn_del_sel",    puede_editar or puede_procesar),
+            ("_btn_export_csv", puede_exportar),
+        ]:
+            btn = getattr(self, attr, None)
+            if btn is not None:
+                btn.setVisible(visible)
 
     # ── UI ───────────────────────────────────────────────────────────────────
     def _build_ui(self) -> None:
@@ -519,6 +680,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                                                  "Cargar último borrador guardado")
         btn_draft_save.clicked.connect(self._guardar_borrador)
         btn_draft_load.clicked.connect(self._cargar_borrador)
+        # Store refs for permission control
+        self._btn_draft_save = btn_draft_save
+        self._btn_draft_load = btn_draft_load
+        self._btn_del_sel    = btn_del_sel
         self._lbl_cart_count = QLabel("0 ítems")
         self._lbl_cart_count.setObjectName("caption")
         cart_tb.addWidget(btn_clear)
@@ -784,9 +949,27 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         if dlg.exec_() != QDialog.Accepted:
             return
+        before_snap = {
+            "cantidad":      item['cantidad'],
+            "costo_unitario": item['costo_unitario'],
+            "subtotal":      item['subtotal'],
+        }
         self.carrito_compra[cart_idx]['cantidad']       = dlg.cantidad
         self.carrito_compra[cart_idx]['costo_unitario'] = dlg.costo
         self.carrito_compra[cart_idx]['subtotal']       = round(dlg.cantidad * dlg.costo, 4)
+        try:
+            audit_write(self.container, modulo="COMPRAS",
+                        accion="ITEM_EDITADO_CARRITO", entidad="carrito",
+                        entidad_id=str(item['producto_id']),
+                        usuario=self.usuario_actual,
+                        detalles=f"{item['nombre']}: qty {before_snap['cantidad']:.3f}→{dlg.cantidad:.3f}  "
+                                 f"costo ${before_snap['costo_unitario']:.4f}→${dlg.costo:.4f}",
+                        before=before_snap,
+                        after={"cantidad": dlg.cantidad, "costo_unitario": dlg.costo,
+                               "subtotal": self.carrito_compra[cart_idx]['subtotal']},
+                        sucursal_id=self.sucursal_id)
+        except Exception:
+            pass
         self._refresh_tabla()
 
     def _menu_fila(self, pos) -> None:
@@ -865,6 +1048,22 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _eliminar_fila(self, row: int) -> None:
         if 0 <= row < len(self.carrito_compra):
+            item = self.carrito_compra[row]
+            try:
+                audit_write(self.container, modulo="COMPRAS",
+                            accion="ITEM_ELIMINADO_CARRITO", entidad="carrito",
+                            entidad_id=str(item['producto_id']),
+                            usuario=self.usuario_actual,
+                            detalles=f"Eliminado: {item['nombre']} "
+                                     f"qty={item['cantidad']:.3f} "
+                                     f"costo=${item['costo_unitario']:.4f}",
+                            before={"nombre": item['nombre'],
+                                    "cantidad": item['cantidad'],
+                                    "costo_unitario": item['costo_unitario']},
+                            after={},
+                            sucursal_id=self.sucursal_id)
+            except Exception:
+                pass
             self.carrito_compra.pop(row)
             self._refresh_tabla()
 
@@ -1001,54 +1200,42 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
 
         try:
-            # Build items in format expected by PurchaseService
-            items_svc = [
-                {
-                    'product_id': i['producto_id'],
-                    'qty':        i['cantidad'],
-                    'unit_cost':  i['costo_unitario'],
-                    'nombre':     i['nombre'],
-                }
-                for i in self.carrito_compra
-            ]
-
-            svc = getattr(self.container, 'purchase_service', None)
-            if not svc:
-                raise RuntimeError(
-                    "PurchaseService no disponible.\n"
-                    "Reinicia la aplicación o contacta al administrador.")
+            # ── Delegate to application use case (clean architecture) ─────────
+            from application.use_cases.registrar_compra_uc import (
+                RegistrarCompraUC, DatosCompraDTO, ItemCompraDTO,
+            )
             branch_dest = (self.cmb_sucursal_destino.currentData()
                            if hasattr(self, 'cmb_sucursal_destino')
                            else self.sucursal_id) or self.sucursal_id
-            folio = svc.register_purchase(
-                provider_id=proveedor_id,
-                branch_id=branch_dest,
-                user=self.usuario_actual,
-                items=items_svc,
-                payment_method=pago,
-                amount_paid=(total if pago != "CREDITO" else 0),
-                notes=f"{doc_ref} | IVA:{iva_monto:.2f}" if iva_monto > 0 else doc_ref,
+            datos_uc = DatosCompraDTO(
+                proveedor_id=proveedor_id,
+                proveedor_nombre=proveedor_nom,
+                sucursal_id=branch_dest,
+                usuario=self.usuario_actual,
+                items=[
+                    ItemCompraDTO(
+                        product_id=i['producto_id'],
+                        qty=i['cantidad'],
+                        unit_cost=i['costo_unitario'],
+                        nombre=i['nombre'],
+                    )
+                    for i in self.carrito_compra
+                ],
+                metodo_pago=pago,
+                doc_ref=doc_ref,
+                subtotal=subtotal,
+                iva_monto=iva_monto,
+                total=total,
             )
+            resultado = RegistrarCompraUC(self.container).execute(datos_uc)
+            if not resultado.ok:
+                QMessageBox.critical(self, "Error al procesar", resultado.error)
+                return
 
-            # Stock already updated by PurchaseService.register_purchase() via
-            # inventory_service.add_stock() — no duplicate update needed here.
+            folio              = resultado.folio
+            recetas_procesadas = resultado.recetas_procesadas
 
-            # Process recipes for purchased items
-            recetas_procesadas = []
-            if items_con_receta:
-                recetas_procesadas = self._procesar_recetas(items_con_receta)
-
-            # Audit
-            try:
-                audit_write(self.container, modulo="COMPRAS",
-                            accion="COMPRA_REGISTRADA", entidad="compras",
-                            entidad_id=str(folio),
-                            usuario=self.usuario_actual,
-                            detalles=(f"Folio {folio} | {proveedor_nom} | "
-                                      f"${total:.2f} | {pago}"),
-                            sucursal_id=self.sucursal_id)
-            except Exception:
-                pass
+            # Audit is written inside RegistrarCompraUC.execute() — nothing extra needed here.
 
             detail = f"Folio: {folio}"
             if recetas_procesadas:
@@ -1242,6 +1429,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         btn_ref.clicked.connect(self._cargar_historial_compras)
         btn_export = create_secondary_button(self, "📥 CSV", "Exportar historial a CSV")
         btn_export.clicked.connect(self._exportar_historial_csv)
+        self._btn_export_csv = btn_export   # for permission control
         hdr.addWidget(QLabel("Desde:"))
         hdr.addWidget(self._hist_desde)
         hdr.addWidget(QLabel("Hasta:"))
@@ -1288,6 +1476,22 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_empty.hide()
         lay.addWidget(self._hist_empty)
 
+        # Pagination
+        pag_row = QHBoxLayout()
+        self._btn_pag_prev = create_secondary_button(self, "◀ Anterior", "Página anterior")
+        self._btn_pag_next = create_secondary_button(self, "Siguiente ▶", "Página siguiente")
+        self._lbl_pagina   = QLabel("Pág. 1")
+        self._lbl_pagina.setObjectName("caption")
+        self._hist_page    = 0
+        self._hist_page_size = 100
+        self._btn_pag_prev.clicked.connect(self._hist_pag_prev)
+        self._btn_pag_next.clicked.connect(self._hist_pag_next)
+        pag_row.addWidget(self._btn_pag_prev)
+        pag_row.addWidget(self._lbl_pagina)
+        pag_row.addWidget(self._btn_pag_next)
+        pag_row.addStretch()
+        lay.addLayout(pag_row)
+
         # KPI bar
         kpi_row = QHBoxLayout()
         self.lbl_hist_total_compras = QLabel("Total período: $0.00")
@@ -1300,31 +1504,39 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addLayout(kpi_row)
 
     def _cargar_historial_compras(self) -> None:
-        """Carga el historial de compras en la tabla."""
+        """Inicia carga asíncrona del historial. El thread emite loaded → _poblar_historial."""
         if not hasattr(self, '_tbl_hist'):
             return
         self._tbl_hist.setRowCount(0)
         if hasattr(self, "_hist_loading"):
             self._hist_loading.show()
+        # Kill any previous loader that may still be running
+        if hasattr(self, '_hist_loader') and self._hist_loader.isRunning():
+            self._hist_loader.quit()
+            self._hist_loader.wait(200)
         try:
-            try:
-                desde = self._hist_desde.date().toString("yyyy-MM-dd")
-                hasta = self._hist_hasta.date().toString("yyyy-MM-dd") + " 23:59:59"
-                rows = self.container.db.execute("""
-                    SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
-                           c.usuario, c.total, c.estado, c.id
-                    FROM compras c
-                    LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                    WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
-                    ORDER BY c.fecha DESC LIMIT ?
-                """, (self.sucursal_id, desde, hasta, _HIST_LIMIT)).fetchall()
-            except Exception as e:
-                rows = []
-                logger.debug("_cargar_historial_compras: %s", e)
+            desde = self._hist_desde.date().toString("yyyy-MM-dd")
+            hasta = self._hist_hasta.date().toString("yyyy-MM-dd") + " 23:59:59"
+        except Exception:
+            desde, hasta = "2000-01-01", "2099-12-31 23:59:59"
+        self._hist_loader = _HistorialLoader(
+            self.container.db, self.sucursal_id, desde, hasta, _HIST_LIMIT)
+        self._hist_loader.loaded.connect(self._poblar_historial)
+        self._hist_loader.error.connect(lambda e: (
+            logger.debug("_hist_loader: %s", e),
+            self._hist_loading.hide() if hasattr(self, '_hist_loading') else None,
+        ))
+        self._hist_loader.start()
 
+    def _poblar_historial(self, all_rows: list) -> None:
+        """Recibe filas del thread de carga, aplica filtros y paginación, renderiza tabla."""
+        if not hasattr(self, '_tbl_hist'):
+            return
+        try:
             filtros = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
-            estado = (filtros.get("estado") or "").strip().lower()
-            search = (filtros.get("search") or "").strip().lower()
+            estado  = (filtros.get("estado") or "").strip().lower()
+            search  = (filtros.get("search") or "").strip().lower()
+            rows = list(all_rows)
             if estado:
                 rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
             if search:
@@ -1333,48 +1545,67 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                         search in str(r[2] or "").lower() or
                         search in str(r[3] or "").lower()]
 
-            # Roles without financial visibility: totals shown as "—"
-            _roles_sin_totales = {"CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR"}
-            ocultar_totales = self._usuario_rol in _roles_sin_totales
+            # Pagination
+            total_rows = len(rows)
+            page_size  = getattr(self, '_hist_page_size', 100)
+            page       = getattr(self, '_hist_page', 0)
+            max_page   = max(0, (total_rows - 1) // page_size) if total_rows > 0 else 0
+            self._hist_page = min(page, max_page)  # clamp
+            offset = self._hist_page * page_size
+            rows   = rows[offset: offset + page_size]
 
-            total_periodo = 0.0
-            for ri, r in enumerate(rows):
-                self._tbl_hist.insertRow(ri)
-                estado_raw = str(r[5] or "").strip().lower()
-                monto = float(r[4] or 0)
-                total_str = "—" if ocultar_totales else f"${monto:,.2f}"
-                vals = [
-                    str(r[0] or ""), str(r[1] or "")[:16],
-                    str(r[2] or ""), str(r[3] or ""),
-                    total_str,
-                ]
-                for ci, v in enumerate(vals):
-                    it = QTableWidgetItem(v)
-                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    if ci == 4:
-                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    self._tbl_hist.setItem(ri, ci, it)
-                # Col 5: status chip
-                self._tbl_hist.setCellWidget(ri, 5, _make_status_chip(estado_raw))
-                total_periodo += monto
+            if hasattr(self, '_lbl_pagina'):
+                self._lbl_pagina.setText(f"Pág. {self._hist_page + 1}/{max_page + 1}")
+            if hasattr(self, '_btn_pag_prev'):
+                self._btn_pag_prev.setEnabled(self._hist_page > 0)
+            if hasattr(self, '_btn_pag_next'):
+                self._btn_pag_next.setEnabled(self._hist_page < max_page)
 
-                # Col 6: Detail button
-                compra_id       = r[6]
-                proveedor_nombre = str(r[2] or "")
-                btn_det = create_secondary_button(self, "🔍 Ver", "Ver detalles de esta compra")
-                btn_det.clicked.connect(
-                    lambda _, cid=compra_id, pnm=proveedor_nombre:
-                        self._ver_detalle_compra(cid, pnm))
-                self._tbl_hist.setCellWidget(ri, 6, btn_det)
+            # Cache for pagination navigation without re-querying DB
+            self._hist_all_rows = list(all_rows)
+        except Exception as e:
+            logger.debug("_poblar_historial filter/page: %s", e)
+            rows = []
 
-            total_display = "—" if ocultar_totales else f"${total_periodo:,.2f}"
-            self.lbl_hist_total_compras.setText(f"Total período: {total_display}")
-            self.lbl_hist_num_compras.setText(f"{len(rows)} compra(s)")
-            if hasattr(self, "_hist_empty"):
-                self._hist_empty.setVisible(len(rows) == 0)
-        finally:
-            if hasattr(self, "_hist_loading"):
-                self._hist_loading.hide()
+        # ── Render table ──────────────────────────────────────────────────────
+        _roles_sin_totales = {"CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR"}
+        ocultar_totales = self._usuario_rol in _roles_sin_totales
+
+        self._tbl_hist.setRowCount(len(rows))
+        total_periodo = 0.0
+        for ri, r in enumerate(rows):
+            estado_raw = str(r[5] or "").strip().lower()
+            monto      = float(r[4] or 0)
+            total_str  = "—" if ocultar_totales else f"${monto:,.2f}"
+            vals = [
+                str(r[0] or ""), str(r[1] or "")[:16],
+                str(r[2] or ""), str(r[3] or ""),
+                total_str,
+            ]
+            for ci, v in enumerate(vals):
+                it = QTableWidgetItem(v)
+                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                if ci == 4:
+                    it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self._tbl_hist.setItem(ri, ci, it)
+            self._tbl_hist.setCellWidget(ri, 5, _make_status_chip(estado_raw))
+            total_periodo += monto
+
+            cid_ = r[6]; pnm_ = str(r[2] or "")
+            btn_det = create_secondary_button(self, "🔍 Ver",
+                                              "Ver detalles de esta compra")
+            btn_det.clicked.connect(
+                lambda _, cid=cid_, pnm=pnm_:
+                    self._ver_detalle_compra(cid, pnm))
+            self._tbl_hist.setCellWidget(ri, 6, btn_det)
+
+        total_display = "—" if ocultar_totales else f"${total_periodo:,.2f}"
+        self.lbl_hist_total_compras.setText(f"Total período: {total_display}")
+        self.lbl_hist_num_compras.setText(f"{len(rows)} compra(s)")
+        if hasattr(self, "_hist_empty"):
+            self._hist_empty.setVisible(len(rows) == 0)
+        if hasattr(self, "_hist_loading"):
+            self._hist_loading.hide()
 
     def _ver_detalle_compra(self, compra_id: int, proveedor_nombre: str = "") -> None:
         """Muestra el detalle completo de una compra: recibo + timeline + acciones."""
@@ -1442,15 +1673,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             btn_close2.clicked.connect(dlg.accept)
             btn_row.addWidget(btn_print)
 
-            # Cancel button — only if purchase is not already cancelled
-            if estado_actual not in ("cancelada",):
+            # Conditional action buttons based on status + role
+            if estado_actual not in ("cancelada",) and self._tiene_permiso("cancelar"):
                 btn_cancel_oc = create_danger_button(
                     self, "🚫 Cancelar compra",
-                    "Cancelar esta compra (requiere motivo — auditado)")
+                    "Cancelar esta compra (requiere motivo y PIN — auditado)")
                 btn_cancel_oc.clicked.connect(
-                    lambda _, cid=compra_id, d=dlg:
+                    lambda _, cid=compra_dict.get('id', compra_id), d=dlg:
                         self._cancelar_compra(cid, d))
                 btn_row.addWidget(btn_cancel_oc)
+
+            if estado_actual == "cancelada" and self._tiene_permiso("reabrir"):
+                btn_reabrir = create_secondary_button(
+                    self, "🔄 Reabrir compra",
+                    "Reabrir esta compra como pendiente (requiere PIN)")
+                btn_reabrir.clicked.connect(
+                    lambda _, cid=compra_dict.get('id', compra_id), d=dlg:
+                        self._reabrir_compra(cid, d))
+                btn_row.addWidget(btn_reabrir)
 
             btn_row.addStretch()
             btn_row.addWidget(btn_close2)
@@ -1504,7 +1744,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 f"</body></html>")
 
     def _cancelar_compra(self, compra_id: int, dlg_padre: QDialog) -> None:
-        """Cancela una compra con confirmación de motivo y escritura en audit log."""
+        """Cancela una compra. Requiere: motivo + PIN de supervisor (si configurado)."""
         try:
             row = self.container.db.execute(
                 "SELECT estado, folio FROM compras WHERE id=?",
@@ -1533,6 +1773,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
 
         motivo = conf.motivo
+        # PIN de supervisor (sólo si configurado en DB)
+        if not _PINDialog.verificar(self.container.db, f"Cancelar compra {folio}", self):
+            return
+
         try:
             self.container.db.execute(
                 "UPDATE compras SET estado='cancelada' WHERE id=?", (compra_id,))
@@ -1557,6 +1801,86 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             QTimer.singleShot(0, self._cargar_historial_compras)
         except Exception as e:
             QMessageBox.critical(self, "Error al cancelar", str(e))
+
+    def _reabrir_compra(self, compra_id: int, dlg_padre: QDialog) -> None:
+        """
+        Reabre una compra cancelada como 'pendiente'.
+        IMPORTANTE: No revierte inventario automáticamente — el supervisor
+        debe verificar manualmente el estado del inventario.
+        Requiere PIN de supervisor.
+        """
+        try:
+            row = self.container.db.execute(
+                "SELECT folio, estado FROM compras WHERE id=?", (compra_id,)
+            ).fetchone()
+        except Exception:
+            row = None
+        if not row:
+            return
+
+        folio = str(row[0] if hasattr(row, '__getitem__') else row.get('folio', compra_id))
+        estado = str(row[1] if hasattr(row, '__getitem__') else row.get('estado', '')).lower()
+
+        if estado != "cancelada":
+            QMessageBox.information(self, "Aviso",
+                "Solo se pueden reabrir compras con estado 'cancelada'.")
+            return
+
+        conf = _ConfirmDestructiveDialog(
+            "Reabrir Compra",
+            f"¿Reabrir la compra {folio}?\n\n"
+            "⚠ El inventario NO fue revertido automáticamente al cancelar.\n"
+            "Verifica el inventario manualmente antes de continuar.\n"
+            "La compra quedará en estado PENDIENTE.",
+            accion_label="Reabrir como pendiente",
+            require_reason=True,
+            parent=self,
+        )
+        if conf.exec_() != QDialog.Accepted:
+            return
+
+        if not _PINDialog.verificar(self.container.db, f"Reabrir compra {folio}", self):
+            return
+
+        try:
+            self.container.db.execute(
+                "UPDATE compras SET estado='pendiente' WHERE id=?", (compra_id,))
+            self.container.db.commit()
+            try:
+                audit_write(
+                    self.container,
+                    modulo="COMPRAS",
+                    accion="COMPRA_REABIERTA",
+                    entidad="compras",
+                    entidad_id=str(compra_id),
+                    usuario=self.usuario_actual,
+                    detalles=f"Folio {folio} | Motivo: {conf.motivo}",
+                    before={"estado": "cancelada"},
+                    after={"estado": "pendiente"},
+                    sucursal_id=self.sucursal_id,
+                )
+            except Exception:
+                pass
+            Toast.success(self, "🔄 Compra reabierta", f"Folio {folio} → Pendiente")
+            dlg_padre.accept()
+            QTimer.singleShot(0, self._cargar_historial_compras)
+        except Exception as e:
+            QMessageBox.critical(self, "Error al reabrir", str(e))
+
+    def _hist_pag_prev(self) -> None:
+        if self._hist_page > 0:
+            self._hist_page -= 1
+            if hasattr(self, '_hist_all_rows'):
+                self._poblar_historial(self._hist_all_rows)
+            else:
+                self._cargar_historial_compras()
+
+    def _hist_pag_next(self) -> None:
+        self._hist_page += 1
+        if hasattr(self, '_hist_all_rows'):
+            self._poblar_historial(self._hist_all_rows)
+        else:
+            self._cargar_historial_compras()
 
     def _generar_html_compra(self, compra: dict, items: list,
                               proveedor_nombre: str = "") -> str:

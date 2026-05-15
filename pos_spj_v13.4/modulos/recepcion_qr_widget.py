@@ -377,6 +377,21 @@ class RecepcionQRWidget(QWidget):
         self._lbl_recv_diff.setStyleSheet("font-weight:bold; font-size:13px;")
         lay.addWidget(self._lbl_recv_diff)
 
+        # Batch reception helpers
+        batch_row = QHBoxLayout()
+        btn_aceptar_todo = create_success_button(
+            self, "✅ Aceptar todo",
+            "Establecer todas las cantidades recibidas = esperadas")
+        btn_aceptar_todo.clicked.connect(self._aceptar_todo_recepcion)
+        btn_resetear = create_secondary_button(
+            self, "⟳ Resetear",
+            "Restaurar cantidades recibidas a las esperadas originales")
+        btn_resetear.clicked.connect(self._resetear_diff_recepcion)
+        batch_row.addWidget(btn_aceptar_todo)
+        batch_row.addWidget(btn_resetear)
+        batch_row.addStretch()
+        lay.addLayout(batch_row)
+
         btn_confirmar_recv = create_success_button(
             self, "✅ Confirmar Recepción y Actualizar Inventario",
             "Confirmar recepción e ingresar al inventario")
@@ -1103,6 +1118,21 @@ class RecepcionQRWidget(QWidget):
                 self._tbl_hist.setCellWidget(ri, 6, badge)
         except Exception as e:
             logger.warning("_cargar_historial: %s", e)
+
+    def _aceptar_todo_recepcion(self) -> None:
+        """Establece cantidad recibida = esperada en todas las filas."""
+        for ri in range(self._tbl_recv.rowCount()):
+            spin = self._tbl_recv.cellWidget(ri, 3)
+            if spin:
+                qty_esp = float(spin.property("qty_esperada") or 0)
+                spin.blockSignals(True)
+                spin.setValue(qty_esp)
+                spin.blockSignals(False)
+        self._actualizar_diff_recepcion()
+
+    def _resetear_diff_recepcion(self) -> None:
+        """Alias de _aceptar_todo — restaura received = expected."""
+        self._aceptar_todo_recepcion()
 
     def _limpiar_tab_recepcion(self) -> None:
         self._txt_uuid_recv.clear()
