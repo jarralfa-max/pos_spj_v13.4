@@ -252,13 +252,67 @@ class ModuloPlaneacionCompras(QWidget):
         self.lbl_recomendacion.style().polish(self.lbl_recomendacion)
 
     def enviar_a_modulo_compras(self):
-        """Crea un puente entre la predicción y la acción real de comprar."""
+        """Puente predicción → módulo de Compras: pre-rellena el carrito."""
         compra_texto = self.lbl_recomendacion.text().replace("COMPRAR:\n", "")
         if "SUFICIENTE" in compra_texto:
             Toast.info(self, "Aviso", "No necesitas comprar este producto actualmente.")
             return
 
-        Toast.info(
-            self, "Redirección",
-            f"Enviaría {compra_texto} de {self.cmb_producto.currentText()} a Compras.",
-        )
+        try:
+            qty = float(compra_texto.replace(",", "").strip())
+        except (ValueError, AttributeError):
+            Toast.info(self, "Redirección",
+                       f"Lleva {compra_texto} de "
+                       f"{self.cmb_producto.currentText()} al módulo de Compras.")
+            return
+
+        producto_id   = self.cmb_producto.currentData()
+        producto_nom  = self.cmb_producto.currentText()
+
+        # Look up last purchase cost for this product as a price hint
+        unit_cost = 0.0
+        try:
+            row = self.container.db.execute(
+                """SELECT dd.precio_unitario
+                   FROM detalles_compra dd
+                   JOIN compras c ON c.id = dd.compra_id
+                   WHERE dd.producto_id = ?
+                   ORDER BY c.fecha DESC, c.id DESC LIMIT 1""",
+                (producto_id,),
+            ).fetchone()
+            if row:
+                unit_cost = float(row[0] or 0)
+        except Exception:
+            pass
+
+        suggested_items = [{
+            "product_id": producto_id,
+            "nombre":     producto_nom,
+            "qty":        qty,
+            "unit_cost":  unit_cost,
+        }]
+
+        # Navigate to the Compras module via the container (if available)
+        compras_mod = None
+        for attr in ('compras_module', 'modulo_compras', 'compras'):
+            compras_mod = getattr(self.container, attr, None)
+            if compras_mod is not None:
+                break
+
+        if compras_mod and hasattr(compras_mod, 'set_suggested_order'):
+            compras_mod.set_suggested_order(suggested_items)
+            # Try to switch the main window to the Compras tab
+            try:
+                mw = self.window()
+                if hasattr(mw, 'mostrar_modulo'):
+                    mw.mostrar_modulo('compras')
+                elif hasattr(mw, 'switch_to'):
+                    mw.switch_to('compras')
+            except Exception:
+                pass
+        else:
+            Toast.info(
+                self, "🛒 Orden sugerida",
+                f"Comprar {qty:,.2f} de {producto_nom}\n"
+                "Ve al módulo de Compras y usa 'Recuperar' o añade manualmente.",
+            )

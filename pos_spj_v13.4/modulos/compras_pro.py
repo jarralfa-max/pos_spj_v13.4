@@ -510,6 +510,67 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_buscador'):
             self._buscador.set_db(self.container.db)
 
+    # ── E-6: Planeacion → Compras bridge ─────────────────────────────────────
+
+    def set_suggested_order(self, items: list[dict], proveedor_id: int = 0,
+                             proveedor_nombre: str = "") -> None:
+        """
+        Pre-fills the cart from a planning suggestion.
+
+        Expected item keys: product_id (int), nombre (str), qty (float),
+                            unit_cost (float, optional)
+        Called by ModuloPlaneacionCompras.enviar_a_modulo_compras() via container.
+        """
+        if not items:
+            return
+        # Switch to the Compra Tradicional tab
+        if hasattr(self, '_tabs'):
+            self._tabs.setCurrentIndex(0)
+
+        added = 0
+        for it in items:
+            prod_id    = int(it.get("product_id", it.get("producto_id", 0)) or 0)
+            nombre     = str(it.get("nombre", f"Producto {prod_id}"))
+            qty        = float(it.get("qty", it.get("cantidad", 0)) or 0)
+            unit_cost  = float(it.get("unit_cost", it.get("costo_unitario", 0)) or 0)
+            if prod_id <= 0 or qty <= 0:
+                continue
+            # Avoid duplicating items already in cart
+            for cart_item in self.carrito_compra:
+                if cart_item["producto_id"] == prod_id:
+                    cart_item["cantidad"] += qty
+                    cart_item["subtotal"] = round(
+                        cart_item["cantidad"] * cart_item["costo_unitario"], 4)
+                    added += 1
+                    break
+            else:
+                self.carrito_compra.append({
+                    "producto_id":   prod_id,
+                    "nombre":        nombre,
+                    "cantidad":      qty,
+                    "costo_unitario": unit_cost,
+                    "subtotal":      round(qty * unit_cost, 4),
+                    "unidad":        it.get("unidad", "kg"),
+                    "descuento_pct": 0.0,
+                    "iva_pct":       0.0,
+                })
+                added += 1
+
+        # Pre-select provider if given
+        if proveedor_id > 0:
+            self._proveedor_id_selected = proveedor_id
+            if proveedor_nombre and hasattr(self, 'txt_proveedor'):
+                self.txt_proveedor.setText(proveedor_nombre)
+            self._cargar_info_proveedor(proveedor_id)
+            self._cargar_recientes_proveedor(proveedor_id)
+            self._cargar_alertas_cxp(proveedor_id)
+
+        self._refresh_tabla()
+        self._refresh_stepper()
+        if added:
+            Toast.info(self, "🧠 Sugerencia cargada",
+                       f"{added} ítem(s) desde Planeación · revisa cantidades antes de autorizar.")
+
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
         self.usuario_actual = usuario
         self._usuario_rol = rol.upper().strip()
@@ -666,6 +727,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         lay = center_lay  # alias so body below builds into the center panel
 
+        # ── E-1: ERP Workflow Stepper ─────────────────────────────────────────
+        lay.addWidget(self._build_stepper_bar())
+
         # ── Encabezado del documento ──────────────────────────────────────────
         grp_doc = QGroupBox("📄 Datos del Documento")
         grp_doc.setObjectName("styledGroup")
@@ -696,6 +760,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.txt_factura = QLineEdit()
         self.txt_factura.setPlaceholderText("Ej. FAC-001 / REM-00129 (opcional)")
 
+        # E-2: file attachment
+        self._adjunto_path: str = ""
+        self._lbl_adjunto = QLabel("Sin archivo")
+        self._lbl_adjunto.setObjectName("caption")
+        self._lbl_adjunto.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};")
+        btn_adjunto = create_secondary_button(self, "📎 Adjuntar", "Adjuntar PDF o imagen de factura")
+        btn_adjunto.setMaximumWidth(90)
+        btn_adjunto.clicked.connect(self._adjuntar_factura)
+        _factura_row = QHBoxLayout()
+        _factura_row.addWidget(self.txt_factura, 1)
+        _factura_row.addWidget(btn_adjunto)
+        _factura_row.addWidget(self._lbl_adjunto)
+
         self._date_factura = QDateEdit(QDate.currentDate())
         self._date_factura.setCalendarPopup(True)
         self._date_factura.setDisplayFormat("dd/MMM/yyyy")
@@ -712,7 +789,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         form.addRow("Proveedor:*", self.txt_proveedor)
         form.addRow("", self._lbl_prov_status)
         form.addRow("", self._lbl_prov_info)
-        form.addRow("No. Factura/Remisión:", self.txt_factura)
+        form.addRow("No. Factura/Remisión:", _factura_row)
         form.addRow("Fecha factura:", self._date_factura)
         form.addRow("Moneda:", self._cmb_moneda)
         form.addRow("Sucursal destino:*", self.cmb_sucursal_destino)
@@ -730,6 +807,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._trad_filter = FilterBar(self, placeholder="Filtrar carrito por nombre de producto…")
         self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
         lay.addWidget(self._trad_filter)
+
+        # ── E-4: CxP alert banner (hidden until provider has unpaid purchases) ──
+        self._cxp_alert_bar = QLabel("")
+        self._cxp_alert_bar.setWordWrap(True)
+        self._cxp_alert_bar.setObjectName("caption")
+        self._cxp_alert_bar.setStyleSheet(
+            f"background:{Colors.WARNING_BASE}18;"
+            f"border:1px solid {Colors.WARNING_BASE}60;"
+            f"border-radius:4px;padding:5px 10px;"
+            f"color:{Colors.WARNING_BASE};"
+        )
+        self._cxp_alert_bar.hide()
+        lay.addWidget(self._cxp_alert_bar)
 
         # ── Carrito editable ──────────────────────────────────────────────────
         self._grp_cart = QGroupBox("🛒 Carrito  —  doble clic: editar  ·  clic derecho: opciones")
@@ -936,6 +1026,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._sidebar_templates_list.itemDoubleClicked.connect(self._cargar_plantilla_sidebar)
         self._poblar_plantillas_sidebar()
         lay.addWidget(self._sidebar_templates_list)
+
+        # ── E-3: Recent purchases from selected provider ───────────────────
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
+        lay.addWidget(sep2)
+
+        lay.addWidget(_sec_lbl("🕐 ÚLTIMAS COMPRAS"))
+        self._sidebar_recent_list = QListWidget()
+        self._sidebar_recent_list.setMaximumHeight(120)
+        self._sidebar_recent_list.setStyleSheet(_list_style)
+        self._sidebar_recent_list.setToolTip(
+            "Últimas compras registradas para el proveedor seleccionado")
+        self._sidebar_recent_list.itemClicked.connect(self._abrir_reciente_sidebar)
+        self._lbl_recientes_empty = QLabel("Selecciona un proveedor")
+        self._lbl_recientes_empty.setObjectName("caption")
+        self._lbl_recientes_empty.setStyleSheet(
+            f"color:{Colors.NEUTRAL.SLATE_400};font-size:10px;padding:4px;")
+        lay.addWidget(self._sidebar_recent_list)
+        lay.addWidget(self._lbl_recientes_empty)
 
         return sidebar
 
@@ -1153,7 +1263,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._lbl_prov_status.setText(f"✔ {prov_name}")
             self._lbl_prov_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};")
         self._cargar_info_proveedor(prov_id)
+        self._cargar_recientes_proveedor(prov_id)
+        self._cargar_alertas_cxp(prov_id)
         self._actualizar_panel_validacion()
+        self._refresh_stepper()
 
     def _cargar_info_proveedor(self, prov_id: int) -> None:
         """Show RFC / address / phone under provider field after selection."""
@@ -1185,6 +1298,179 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self._lbl_prov_info.hide()
         except (TypeError, KeyError, IndexError):
             self._lbl_prov_info.hide()
+
+    # ── E-1: Workflow stepper ─────────────────────────────────────────────────
+
+    def _build_stepper_bar(self) -> QWidget:
+        """Horizontal 4-step ERP stepper: Proveedor → Productos → Condición → Autorizar."""
+        bar = QWidget()
+        bar.setObjectName("stepperBar")
+        bar.setFixedHeight(44)
+        bar.setStyleSheet("background:transparent;")
+        h = QHBoxLayout(bar)
+        h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(0)
+
+        self._stepper_labels: list[QLabel] = []
+        steps = ["① Proveedor", "② Productos", "③ Condición", "④ Autorizar"]
+        for i, txt in enumerate(steps):
+            lbl = QLabel(txt)
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setFixedHeight(32)
+            lbl.setObjectName(f"stepperStep_{i}")
+            lbl.setStyleSheet(
+                f"font-size:11px;font-weight:600;border-radius:4px;"
+                f"padding:0 12px;"
+                f"background:{Colors.NEUTRAL.SLATE_100};"
+                f"color:{Colors.NEUTRAL.SLATE_400};"
+            )
+            self._stepper_labels.append(lbl)
+            h.addWidget(lbl, 1)
+            if i < len(steps) - 1:
+                arrow = QLabel("›")
+                arrow.setAlignment(Qt.AlignCenter)
+                arrow.setFixedWidth(16)
+                arrow.setStyleSheet(
+                    f"color:{Colors.NEUTRAL.SLATE_300};font-size:16px;"
+                    "background:transparent;"
+                )
+                h.addWidget(arrow)
+        return bar
+
+    def _refresh_stepper(self) -> None:
+        """Update stepper colours based on current form completion state."""
+        if not hasattr(self, '_stepper_labels') or not self._stepper_labels:
+            return
+        done_style = (
+            f"font-size:11px;font-weight:600;border-radius:4px;padding:0 12px;"
+            f"background:{Colors.SUCCESS_BASE}22;color:{Colors.SUCCESS_BASE};"
+            f"border:1px solid {Colors.SUCCESS_BASE}60;"
+        )
+        active_style = (
+            f"font-size:11px;font-weight:700;border-radius:4px;padding:0 12px;"
+            f"background:{Colors.PRIMARY_BASE};color:white;"
+        )
+        idle_style = (
+            f"font-size:11px;font-weight:600;border-radius:4px;padding:0 12px;"
+            f"background:{Colors.NEUTRAL.SLATE_100};color:{Colors.NEUTRAL.SLATE_400};"
+        )
+
+        s1 = bool(self._proveedor_id_selected)
+        s2 = bool(self.carrito_compra)
+        s3 = bool(hasattr(self, '_cmb_condicion_pago'))  # field exists = filled
+        # Determine current active step (first incomplete)
+        if not s1:   active = 0
+        elif not s2: active = 1
+        elif not s3: active = 2
+        else:        active = 3
+
+        states = [s1, s2, s3, active == 3]
+        for i, (lbl, done) in enumerate(zip(self._stepper_labels, states)):
+            if i == active and not done:
+                lbl.setStyleSheet(active_style)
+            elif done and i < active:
+                lbl.setStyleSheet(done_style)
+            elif i == 3 and s1 and s2:
+                lbl.setStyleSheet(active_style)
+            else:
+                lbl.setStyleSheet(idle_style)
+
+    # ── E-2: File attachment ──────────────────────────────────────────────────
+
+    def _adjuntar_factura(self) -> None:
+        """Open file dialog to attach a PDF or image to this purchase."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Adjuntar factura / remisión",
+            os.path.expanduser("~"),
+            "Documentos (*.pdf *.png *.jpg *.jpeg *.webp *.xml);;Todos los archivos (*)",
+        )
+        if not path:
+            return
+        self._adjunto_path = path
+        short = os.path.basename(path)
+        if len(short) > 28:
+            short = short[:25] + "…"
+        if hasattr(self, '_lbl_adjunto'):
+            self._lbl_adjunto.setText(f"📎 {short}")
+            self._lbl_adjunto.setStyleSheet(
+                f"color:{Colors.SUCCESS_BASE};font-size:10px;")
+        Toast.success(self, "📎 Adjunto", f"Archivo: {short}")
+
+    # ── E-3: Recent purchases in sidebar ─────────────────────────────────────
+
+    def _cargar_recientes_proveedor(self, prov_id: int) -> None:
+        """Load last 5 purchases from this provider into the sidebar list."""
+        if not hasattr(self, '_sidebar_recent_list'):
+            return
+        self._sidebar_recent_list.clear()
+        try:
+            rows = self.container.db.execute(
+                """SELECT id, folio, fecha, total, estado
+                   FROM compras
+                   WHERE proveedor_id=? AND sucursal_id=?
+                   ORDER BY fecha DESC, id DESC LIMIT 5""",
+                (prov_id, self.sucursal_id),
+            ).fetchall()
+            if not rows:
+                self._sidebar_recent_list.hide()
+                if hasattr(self, '_lbl_recientes_empty'):
+                    self._lbl_recientes_empty.setText("Sin compras previas")
+                    self._lbl_recientes_empty.show()
+                return
+            self._sidebar_recent_list.show()
+            if hasattr(self, '_lbl_recientes_empty'):
+                self._lbl_recientes_empty.hide()
+            for r in rows:
+                r_id    = r[0] if not hasattr(r, 'keys') else r['id']
+                folio   = str(r[1] if not hasattr(r, 'keys') else r.get('folio', r_id))
+                fecha   = str(r[2] if not hasattr(r, 'keys') else r.get('fecha', ''))[:10]
+                total   = float(r[3] if not hasattr(r, 'keys') else r.get('total', 0) or 0)
+                estado  = str(r[4] if not hasattr(r, 'keys') else r.get('estado', ''))
+                txt = (f"${total:,.0f}  {fecha}\n"
+                       f"{folio[-16:]}  [{estado}]")
+                item = QListWidgetItem(txt)
+                item.setData(Qt.UserRole, r_id)
+                item.setToolTip(f"Folio: {folio} — Haz clic para ver detalle")
+                self._sidebar_recent_list.addItem(item)
+        except Exception as e:
+            logger.debug("_cargar_recientes_proveedor: %s", e)
+            if hasattr(self, '_lbl_recientes_empty'):
+                self._lbl_recientes_empty.setText("No disponible")
+                self._lbl_recientes_empty.show()
+            self._sidebar_recent_list.hide()
+
+    def _abrir_reciente_sidebar(self, item: QListWidgetItem) -> None:
+        """Click on recent purchase in sidebar → open detail dialog."""
+        compra_id = item.data(Qt.UserRole)
+        if compra_id:
+            self._ver_detalle_compra(compra_id)
+
+    # ── E-4: CxP / pending invoice alert ─────────────────────────────────────
+
+    def _cargar_alertas_cxp(self, prov_id: int) -> None:
+        """Show a warning banner if this provider has open credit/pending purchases."""
+        if not hasattr(self, '_cxp_alert_bar'):
+            return
+        try:
+            row = self.container.db.execute(
+                """SELECT COUNT(*), COALESCE(SUM(total), 0)
+                   FROM compras
+                   WHERE proveedor_id=? AND sucursal_id=?
+                     AND estado IN ('credito', 'pendiente')""",
+                (prov_id, self.sucursal_id),
+            ).fetchone()
+            count = int(row[0] or 0)
+            monto = float(row[1] or 0)
+            if count > 0 and self._tiene_permiso("ver_totales"):
+                self._cxp_alert_bar.setText(
+                    f"⚠  Este proveedor tiene {count} compra(s) pendiente(s) "
+                    f"por ${monto:,.2f} — verifica antes de continuar.")
+                self._cxp_alert_bar.show()
+            else:
+                self._cxp_alert_bar.hide()
+        except Exception as e:
+            logger.debug("_cargar_alertas_cxp: %s", e)
+            self._cxp_alert_bar.hide()
 
     def _poblar_plantillas_sidebar(self) -> None:
         """Loads purchase templates from DB into the sidebar list."""
@@ -1365,7 +1651,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     self._lbl_prov_status.setStyleSheet(
                         f"color:{Colors.SUCCESS_BASE};")
                 self._cargar_info_proveedor(p["id"])
+                self._cargar_recientes_proveedor(p["id"])
+                self._cargar_alertas_cxp(p["id"])
                 self._actualizar_panel_validacion()
+                self._refresh_stepper()
                 return
         if hasattr(self, "_lbl_prov_status"):
             if txt:
@@ -1560,6 +1849,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._cart_empty.setVisible(len(visible) == 0)
         if hasattr(self, "_cart_loading"):
             self._cart_loading.hide()
+        self._refresh_stepper()
 
     def _eliminar_fila(self, row: int) -> None:
         if 0 <= row < len(self.carrito_compra):
@@ -1671,6 +1961,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                                 if hasattr(self, 'cmb_pago') else None,
             "iva_activo":       self._chk_iva.isChecked()
                                 if hasattr(self, '_chk_iva') else False,
+            "adjunto_path":     getattr(self, '_adjunto_path', ""),
             "saved_at":         datetime.now().isoformat(),
         }
 
@@ -1693,6 +1984,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     break
         if hasattr(self, '_chk_iva'):
             self._chk_iva.setChecked(bool(draft.get("iva_activo", False)))
+        adjunto = draft.get("adjunto_path", "")
+        if adjunto and os.path.exists(adjunto):
+            self._adjunto_path = adjunto
+            short = os.path.basename(adjunto)
+            if hasattr(self, '_lbl_adjunto'):
+                self._lbl_adjunto.setText(f"📎 {short[:28]}")
+                self._lbl_adjunto.setStyleSheet(
+                    f"color:{Colors.SUCCESS_BASE};font-size:10px;")
         self._refresh_tabla()
 
     def _auto_save_draft(self) -> None:
@@ -1903,17 +2202,110 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     + "\n\nContacta al administrador si el saldo no cuadra.",
                 )
 
+            # E-5: offer quick print of reception ticket
+            self._ofrecer_impresion_recepcion(folio)
+
             # Clear UI and draft
             self.carrito_compra.clear()
             self._refresh_tabla()
             self.txt_factura.clear()
+            self._adjunto_path = ""
+            if hasattr(self, '_lbl_adjunto'):
+                self._lbl_adjunto.setText("Sin archivo")
+                self._lbl_adjunto.setStyleSheet(
+                    f"color:{Colors.NEUTRAL.SLATE_500};")
             self._clear_draft()
+            self._refresh_stepper()
             # Refresh KPI bar non-blocking
             QTimer.singleShot(300, self._refresh_stats)
 
         except Exception as e:
             QMessageBox.critical(self, "Error al procesar", str(e))
             logger.error("_procesar_compra: %s", e)
+
+    # ── E-5: Quick reception ticket print ────────────────────────────────────
+
+    def _ofrecer_impresion_recepcion(self, folio: str) -> None:
+        """After a purchase is registered, offer to print the reception ticket."""
+        reply = QMessageBox.question(
+            self, "Imprimir comprobante",
+            f"Compra {folio} registrada.\n\n¿Deseas imprimir el comprobante de recepción?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        try:
+            compra_dict = self._purchase_repo.get_purchase_full(
+                self.container.db.execute(
+                    "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
+                ).fetchone()[0]
+            )
+            if not compra_dict:
+                return
+            prov_nombre = self._purchase_repo.get_provider_name(
+                compra_dict.get("proveedor_id", 0))
+            items = self._purchase_repo.get_purchase_detail_items(compra_dict["id"])
+            html = self._generar_html_recepcion(compra_dict, items, prov_nombre)
+
+            from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
+            from PyQt5.QtGui import QTextDocument
+            printer = QPrinter(QPrinter.HighResolution)
+            printer.setPageSize(QPrinter.A5)
+            if QPrintDialog(printer, self).exec_() == QPrintDialog.Accepted:
+                doc = QTextDocument()
+                doc.setHtml(html)
+                doc.print_(printer)
+        except Exception as e:
+            logger.warning("_ofrecer_impresion_recepcion: %s", e)
+
+    def _generar_html_recepcion(self, compra: dict, items: list,
+                                proveedor_nombre: str) -> str:
+        """Compact A5 reception ticket HTML."""
+        folio   = compra.get('folio', compra.get('id', ''))
+        fecha   = str(compra.get('fecha', ''))[:16]
+        total   = float(compra.get('total', 0) or 0)
+        estado  = str(compra.get('estado', '')).upper()
+        cond    = str(compra.get('condicion_pago', '')).capitalize()
+        adjunto = getattr(self, '_adjunto_path', "")
+        adjunto_html = (
+            f"<p style='font-size:9px;color:#666;'>📎 {os.path.basename(adjunto)}</p>"
+            if adjunto else ""
+        )
+        rows_html = "".join(
+            f"<tr>"
+            f"<td style='padding:2px 4px;border-bottom:1px solid #eee;'>{it['nombre']}</td>"
+            f"<td style='text-align:right;padding:2px 4px;border-bottom:1px solid #eee;'>"
+            f"{it['cantidad']:.3f}</td>"
+            f"<td style='text-align:right;padding:2px 4px;border-bottom:1px solid #eee;'>"
+            f"${it['subtotal']:.2f}</td>"
+            f"</tr>"
+            for it in items
+        )
+        return f"""
+        <html><body style='font-family:Arial,sans-serif;font-size:11px;margin:16px;'>
+          <h2 style='text-align:center;margin:0;font-size:14px;'>COMPROBANTE DE RECEPCIÓN</h2>
+          <p style='text-align:center;color:#666;margin:2px 0;font-size:10px;'>
+            {folio} · {fecha}</p>
+          <hr style='border:none;border-top:1px solid #ccc;margin:6px 0;'>
+          <p><b>Proveedor:</b> {proveedor_nombre}</p>
+          <p><b>Estado:</b> {estado} &nbsp;&nbsp; <b>Condición:</b> {cond}</p>
+          {adjunto_html}
+          <table width='100%' style='border-collapse:collapse;margin-top:8px;'>
+            <thead><tr style='background:#f5f5f5;'>
+              <th style='text-align:left;padding:3px 4px;'>Producto</th>
+              <th style='text-align:right;padding:3px 4px;'>Cant.</th>
+              <th style='text-align:right;padding:3px 4px;'>Subtotal</th>
+            </tr></thead>
+            <tbody>{rows_html}</tbody>
+          </table>
+          <hr style='border:none;border-top:1px solid #ccc;margin:8px 0;'>
+          <p style='text-align:right;font-size:13px;font-weight:bold;'>
+            TOTAL: ${total:,.2f}</p>
+          <p style='text-align:center;font-size:9px;color:#999;margin-top:16px;'>
+            Generado por SPJ POS · {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+        </body></html>
+        """
 
     def _mostrar_resumen_compra(self, proveedor: str, doc_ref: str,
                                 pago: str,
