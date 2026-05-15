@@ -515,7 +515,8 @@ class RecepcionQRWidget(QWidget):
                       self._txt_descripcion.text().strip() or None,
                       self.sucursal_id))
                 self.conexion.commit()
-            except Exception: pass
+            except Exception as _e_db:
+                logger.warning("contenedores_qr insert failed (non-fatal): %s", _e_db)
 
             # Mostrar imagen QR
             png_bytes = svc.generar_imagen_qr(f"SPJ:CONT:{uuid_qr}", size=200)
@@ -655,7 +656,9 @@ class RecepcionQRWidget(QWidget):
             total_diff += abs(diff)
             diff_item.setText(f"{diff:+.3f}")
             diff_item.setForeground(
-                QColor(Colors.DANGER_BASE if diff < -0.001 else Colors.SUCCESS_BASE if diff > 0.001 else "#333")
+                QColor(Colors.DANGER_BASE if diff < -0.001 else
+                       Colors.SUCCESS_BASE if diff > 0.001 else
+                       Colors.NEUTRAL.SLATE_700)
             )
         color = Colors.DANGER_BASE if total_diff > 0.01 else Colors.SUCCESS_BASE
         self._lbl_recv_diff.setText(f"Diferencia total: {total_diff:.3f}")
@@ -748,15 +751,18 @@ class RecepcionQRWidget(QWidget):
                 """, (recepcion_id, prod_id, qty, costo, uuid_qr, caducidad))
 
                 # 3. Actualizar inventario_actual (UPSERT con costo promedio ponderado)
+                # CASE guard prevents division-by-zero if existing quantity is somehow 0.
                 self.conexion.execute("""
                     INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad, costo_promedio)
                     VALUES(?,?,?,?)
                     ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
                         cantidad = cantidad + excluded.cantidad,
-                        costo_promedio = (
-                            (cantidad * costo_promedio + excluded.cantidad * excluded.costo_promedio)
-                            / (cantidad + excluded.cantidad)
-                        ),
+                        costo_promedio = CASE
+                            WHEN (cantidad + excluded.cantidad) > 0
+                            THEN (cantidad * costo_promedio + excluded.cantidad * excluded.costo_promedio)
+                                 / (cantidad + excluded.cantidad)
+                            ELSE excluded.costo_promedio
+                        END,
                         ultima_actualizacion = datetime('now')
                 """, (prod_id, self.sucursal_id, qty, costo))
 
@@ -795,7 +801,8 @@ class RecepcionQRWidget(QWidget):
                         viaje_actual=viaje_actual+1, updated_at=datetime('now')
                     WHERE uuid_qr=?
                 """, (self.sucursal_id, uuid_qr))
-            except Exception: pass
+            except Exception as _e_cont:
+                logger.warning("contenedores_qr update failed (non-fatal): %s", _e_cont)
 
         # Stock already updated inside the transaction above (inventario_actual UPSERT
         # + productos.existencia sync via SUM). No post-commit update needed.
@@ -1034,8 +1041,8 @@ class RecepcionQRWidget(QWidget):
             ).fetchall()
         except Exception:
             rows = []
+        self._tbl_qr_hist.setRowCount(len(rows))
         for i, r in enumerate(rows):
-            self._tbl_qr_hist.insertRow(i)
             uuid = str(r[0])
             self._tbl_qr_hist.setItem(i, 0, QTableWidgetItem(uuid[:18] + "…"))
             self._tbl_qr_hist.setItem(i, 1, QTableWidgetItem(str(r[1])))

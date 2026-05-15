@@ -1935,6 +1935,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_detail_panel.hide()
         lay.addWidget(self._hist_detail_panel)
 
+    def _on_hist_loader_error(self, msg: str) -> None:
+        """Called when the history background thread fails — surfaces error to user."""
+        logger.warning("_hist_loader error: %s", msg)
+        if hasattr(self, "_hist_loading"):
+            self._hist_loading.hide()
+        try:
+            from modulos.ui_components import Toast
+            Toast.error(self, "Error al cargar historial", msg)
+        except Exception:
+            QMessageBox.warning(self, "Error al cargar historial", msg)
+
     def _hist_filter_changed(self, _=None) -> None:
         """Resets pagination to page 1 before reloading filtered history."""
         self._hist_page = 0
@@ -1959,10 +1970,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_loader = _HistorialLoader(
             self.container.db, self.sucursal_id, desde, hasta, _HIST_LIMIT)
         self._hist_loader.loaded.connect(self._poblar_historial)
-        self._hist_loader.error.connect(lambda e: (
-            logger.debug("_hist_loader: %s", e),
-            self._hist_loading.hide() if hasattr(self, '_hist_loading') else None,
-        ))
+        self._hist_loader.error.connect(self._on_hist_loader_error)
         self._hist_loader.start()
 
     def _poblar_historial(self, all_rows: list) -> None:
