@@ -1,5 +1,5 @@
 
-# modulos/recepcion_qr_widget.py — SPJ POS v12
+# modulos/recepcion_qr_widget.py — SPJ POS v13.4
 # ── Widget de Recepción con QR Reutilizable ───────────────────────────────────
 #
 # Flujo completo:
@@ -24,7 +24,12 @@
 #
 from __future__ import annotations
 from core.services.auto_audit import audit_write
-from modulos.spj_styles import spj_btn, apply_btn_styles, apply_object_names
+from modulos.design_tokens import Colors
+from modulos.spj_styles import apply_object_names
+from modulos.ui_components import (
+    create_primary_button, create_success_button, create_secondary_button,
+    create_danger_button, Toast, create_badge,
+)
 import logging, uuid, json
 from typing import Dict, List, Optional
 from PyQt5.QtWidgets import (
@@ -39,11 +44,7 @@ from PyQt5.QtGui import QColor, QFont
 
 logger = logging.getLogger("spj.ui.recepcion_qr")
 
-_C_AZUL   = "#2980b9"
-_C_VERDE  = "#27ae60"
-_C_ROJO   = "#e74c3c"
-_C_NARAN  = "#e67e22"
-_C_GRIS   = "#7f8c8d"
+_C_GRIS = "#7f8c8d"   # muted text — no direct Colors token
 
 
 class RecepcionQRWidget(QWidget):
@@ -113,7 +114,7 @@ class RecepcionQRWidget(QWidget):
             "solo reemplázalo si se daña."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(f"color:{_C_GRIS}; font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         form = QFormLayout()
@@ -133,20 +134,19 @@ class RecepcionQRWidget(QWidget):
         self._lbl_qr_preview.setAlignment(Qt.AlignCenter)
         self._lbl_qr_preview.setFixedHeight(200)
         self._lbl_qr_preview.setStyleSheet(
-            "border:2px dashed #ccc; background:#f9f9f9; color:#aaa; font-size:13px;"
+            "border:2px dashed rgba(0,0,0,0.18);"
+            "background:rgba(0,0,0,0.02);"
+            "color:rgba(0,0,0,0.38);"
+            "font-size:13px;"
         )
         lay.addWidget(self._lbl_qr_preview)
 
         btns = QHBoxLayout()
-        btn_generar = QPushButton("🏷️ Generar y Ver QR")
-        btn_generar.setStyleSheet(
-            f"background:{_C_AZUL};color:white;font-weight:bold;padding:8px 16px;border-radius:4px;"
-        )
+        btn_generar  = create_primary_button(self, "🏷️ Generar y Ver QR",
+                                             "Generar código QR para el contenedor")
+        btn_imprimir = create_success_button(self, "🖨️ Imprimir Etiqueta",
+                                             "Imprimir etiqueta del último QR generado")
         btn_generar.clicked.connect(self._generar_qr_contenedor)
-        btn_imprimir = QPushButton("🖨️ Imprimir Etiqueta")
-        btn_imprimir.setStyleSheet(
-            f"background:{_C_VERDE};color:white;padding:8px 16px;border-radius:4px;"
-        )
         btn_imprimir.clicked.connect(self._imprimir_etiqueta_qr)
         btns.addStretch(); btns.addWidget(btn_generar); btns.addWidget(btn_imprimir)
         lay.addLayout(btns)
@@ -166,10 +166,7 @@ class RecepcionQRWidget(QWidget):
         self._txt_uuid_asignar.setPlaceholderText("Escanea el QR o escribe el UUID…")
         self._txt_uuid_asignar.setMinimumHeight(32)
         self._txt_uuid_asignar.returnPressed.connect(self._cargar_contenedor)
-        btn_cargar = QPushButton("🔍 Cargar")
-        btn_cargar.setStyleSheet(
-            f"background:{_C_AZUL};color:white;font-weight:bold;"
-            "padding:6px 14px;border-radius:4px;")
+        btn_cargar = create_primary_button(self, "🔍 Cargar", "Cargar datos del contenedor QR")
         btn_cargar.clicked.connect(self._cargar_contenedor)
         s1.addWidget(self._txt_uuid_asignar, 1)
         s1.addWidget(btn_cargar)
@@ -186,11 +183,17 @@ class RecepcionQRWidget(QWidget):
         self._txt_buscar_proveedor = QLineEdit()
         self._txt_buscar_proveedor.setPlaceholderText("Buscar por nombre o RFC…")
         self._txt_buscar_proveedor.setMinimumHeight(30)
-        self._txt_buscar_proveedor.textChanged.connect(self._buscar_proveedor_asignar)
+        self._timer_buscar_prov = QTimer(); self._timer_buscar_prov.setSingleShot(True)
+        self._timer_buscar_prov.timeout.connect(
+            lambda: self._buscar_proveedor_asignar(self._txt_buscar_proveedor.text())
+        )
+        self._txt_buscar_proveedor.textChanged.connect(
+            lambda: self._timer_buscar_prov.start(300)
+        )
         self._lbl_proveedor_sel = QLabel("Ninguno")
         self._lbl_proveedor_sel.setStyleSheet(
-            f"color:{_C_AZUL};font-weight:bold;padding:4px 10px;"
-            "border-radius:4px;border:1px solid gray;min-width:120px;")
+            f"color:{Colors.PRIMARY_BASE};font-weight:bold;padding:4px 10px;"
+            "border-radius:4px;border:1px solid rgba(0,0,0,0.2);min-width:120px;")
         self._proveedor_asignar_id = 0
         s2.addWidget(self._txt_buscar_proveedor, 1)
         s2.addWidget(self._lbl_proveedor_sel)
@@ -212,9 +215,15 @@ class RecepcionQRWidget(QWidget):
         self._txt_buscar_prod_asign = QLineEdit()
         self._txt_buscar_prod_asign.setPlaceholderText("Buscar producto…")
         self._txt_buscar_prod_asign.setMinimumHeight(30)
-        self._txt_buscar_prod_asign.textChanged.connect(self._buscar_producto_asignar)
+        self._timer_buscar_prod = QTimer(); self._timer_buscar_prod.setSingleShot(True)
+        self._timer_buscar_prod.timeout.connect(
+            lambda: self._buscar_producto_asignar(self._txt_buscar_prod_asign.text())
+        )
+        self._txt_buscar_prod_asign.textChanged.connect(
+            lambda: self._timer_buscar_prod.start(300)
+        )
         self._lbl_prod_asign_sel = QLabel("")
-        self._lbl_prod_asign_sel.setStyleSheet(f"color:{_C_AZUL};font-size:11px;")
+        self._lbl_prod_asign_sel.setStyleSheet(f"color:{Colors.PRIMARY_BASE};font-size:11px;")
         self._prod_asignar_id = 0
 
         self._spin_qty_asign = QDoubleSpinBox()
@@ -227,18 +236,12 @@ class RecepcionQRWidget(QWidget):
         self._spin_costo_asign.setPrefix("$ "); self._spin_costo_asign.setMinimumHeight(30)
         self._spin_costo_asign.setFixedWidth(110)
 
-        btn_add_item = QPushButton("➕")
-        btn_add_item.setToolTip("Agregar producto al contenedor")
+        btn_add_item = create_success_button(self, "➕", "Agregar producto al contenedor")
         btn_add_item.setFixedSize(36, 30)
-        btn_add_item.setStyleSheet(
-            f"background:{_C_VERDE};color:white;font-weight:bold;border-radius:4px;")
         btn_add_item.clicked.connect(self._agregar_item_asignacion)
 
-        btn_rm_item = QPushButton("🗑")
-        btn_rm_item.setToolTip("Quitar producto seleccionado")
+        btn_rm_item = create_danger_button(self, "🗑", "Quitar producto seleccionado")
         btn_rm_item.setFixedSize(36, 30)
-        btn_rm_item.setStyleSheet(
-            f"background:{_C_ROJO};color:white;border-radius:4px;")
         btn_rm_item.clicked.connect(self._quitar_item_asignacion)
 
         add_row.addWidget(self._txt_buscar_prod_asign, 1)
@@ -288,7 +291,7 @@ class RecepcionQRWidget(QWidget):
         self._txt_referencia = QLineEdit()
         self._txt_referencia.setPlaceholderText("No. cheque / referencia (opcional)")
         self._lbl_saldo = QLabel("Saldo pendiente: $0.00")
-        self._lbl_saldo.setStyleSheet(f"color:{_C_ROJO};font-weight:bold;")
+        self._lbl_saldo.setStyleSheet(f"color:{Colors.DANGER_BASE};font-weight:bold;")
         self._cmb_sucursal_destino = QComboBox()
         self._cargar_sucursales_combo_recepcion()
         self._txt_notas_asign = QTextEdit()
@@ -316,11 +319,9 @@ class RecepcionQRWidget(QWidget):
         lay.addWidget(step4)
 
         # ── Botón guardar ─────────────────────────────────────────────────────
-        btn_guardar_asig = QPushButton("💾 Guardar asignación")
+        btn_guardar_asig = create_success_button(self, "💾 Guardar asignación",
+                                                 "Guardar asignación de productos al contenedor QR")
         btn_guardar_asig.setMinimumHeight(38)
-        btn_guardar_asig.setStyleSheet(
-            f"background:{_C_VERDE};color:white;font-weight:bold;"
-            "font-size:14px;padding:8px;border-radius:5px;")
         btn_guardar_asig.clicked.connect(self._guardar_asignacion)
         lay.addWidget(btn_guardar_asig)
 
@@ -336,7 +337,7 @@ class RecepcionQRWidget(QWidget):
             "El sistema actualiza inventario, lotes FIFO y trazabilidad."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(f"color:{_C_GRIS}; font-size:12px;")
+        info.setObjectName("caption")
         lay.addWidget(info)
 
         scan_grp = QGroupBox("Escanear QR del contenedor recibido")
@@ -344,10 +345,8 @@ class RecepcionQRWidget(QWidget):
         self._txt_uuid_recv = QLineEdit()
         self._txt_uuid_recv.setPlaceholderText("Escanea el QR con el lector HID…")
         self._txt_uuid_recv.returnPressed.connect(self._cargar_para_recepcion)
-        btn_recv_cargar = QPushButton("🔍 Cargar")
-        btn_recv_cargar.setStyleSheet(
-            f"background:{_C_AZUL};color:white;padding:6px 12px;border-radius:3px;"
-        )
+        btn_recv_cargar = create_primary_button(self, "🔍 Cargar",
+                                                "Cargar contenedor QR para recepción")
         btn_recv_cargar.clicked.connect(self._cargar_para_recepcion)
         scan_lay.addWidget(self._txt_uuid_recv); scan_lay.addWidget(btn_recv_cargar)
         lay.addWidget(scan_grp)
@@ -378,17 +377,31 @@ class RecepcionQRWidget(QWidget):
         self._lbl_recv_diff.setStyleSheet("font-weight:bold; font-size:13px;")
         lay.addWidget(self._lbl_recv_diff)
 
-        btn_confirmar_recv = QPushButton("✅ Confirmar Recepción y Actualizar Inventario")
-        btn_confirmar_recv.setStyleSheet(
-            f"background:{_C_VERDE};color:white;font-weight:bold;padding:8px 14px;border-radius:4px;"
-        )
+        # Batch reception helpers
+        batch_row = QHBoxLayout()
+        btn_aceptar_todo = create_success_button(
+            self, "✅ Aceptar todo",
+            "Establecer todas las cantidades recibidas = esperadas")
+        btn_aceptar_todo.clicked.connect(self._aceptar_todo_recepcion)
+        btn_resetear = create_secondary_button(
+            self, "⟳ Resetear",
+            "Restaurar cantidades recibidas a las esperadas originales")
+        btn_resetear.clicked.connect(self._resetear_diff_recepcion)
+        batch_row.addWidget(btn_aceptar_todo)
+        batch_row.addWidget(btn_resetear)
+        batch_row.addStretch()
+        lay.addLayout(batch_row)
+
+        btn_confirmar_recv = create_success_button(
+            self, "✅ Confirmar Recepción y Actualizar Inventario",
+            "Confirmar recepción e ingresar al inventario")
+        btn_confirmar_recv.setMinimumHeight(38)
         btn_confirmar_recv.clicked.connect(self._confirmar_recepcion)
         lay.addWidget(btn_confirmar_recv)
 
     # ── Pestaña 4: Historial ──────────────────────────────────────────────────
 
     def _build_tab_historial(self) -> None:
-        from PyQt5.QtWidgets import QTabWidget
         lay = QVBoxLayout(self._tab_historial)
         lay.setContentsMargins(8, 8, 8, 8)
 
@@ -396,9 +409,9 @@ class RecepcionQRWidget(QWidget):
         sub_tabs = QTabWidget()
         lay.addWidget(sub_tabs)
 
-        # ── Sub-tab 1: Recepciones (original) ────────────────────────────────
+        # ── Sub-tab 1: Recepciones ────────────────────────────────────────────
         tab_rec = QWidget(); sub_tabs.addTab(tab_rec, "📦 Recepciones")
-        lay_rec = QVBoxLayout(tab_rec); lay_rec.setContentsMargins(4,4,4,4)
+        lay_rec = QVBoxLayout(tab_rec); lay_rec.setContentsMargins(4, 4, 4, 4)
         self._tbl_hist = QTableWidget()
         self._tbl_hist.setColumnCount(7)
         self._tbl_hist.setHorizontalHeaderLabels([
@@ -409,11 +422,14 @@ class RecepcionQRWidget(QWidget):
         self._tbl_hist.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._tbl_hist.verticalHeader().setVisible(False)
         self._tbl_hist.setAlternatingRowColors(True)
+        self._tbl_hist.setObjectName("tableView")
         hdr = self._tbl_hist.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(6, QHeaderView.Stretch)
-        lay.addWidget(self._tbl_hist)
-        btn_refresh = QPushButton("🔄 Actualizar historial")
+        hdr.setSectionResizeMode(2, QHeaderView.Stretch)   # Proveedor stretches
+        hdr.setSectionResizeMode(6, QHeaderView.Fixed)     # Estado chip: fixed
+        self._tbl_hist.setColumnWidth(6, 110)
+        for c in (0, 1, 3, 4, 5):
+            hdr.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        btn_refresh = create_secondary_button(self, "🔄 Actualizar", "Actualizar historial QR")
         btn_refresh.clicked.connect(self._cargar_historial)
         lay_rec.addWidget(self._tbl_hist)
         lay_rec.addWidget(btn_refresh)
@@ -425,7 +441,8 @@ class RecepcionQRWidget(QWidget):
         hdr_qr = QHBoxLayout()
         hdr_qr.addWidget(QLabel("<b>Historial de QR generados — reimpresión</b>"))
         hdr_qr.addStretch()
-        btn_ref_qr = QPushButton("🔄 Actualizar")
+        btn_ref_qr = create_secondary_button(self, "🔄 Actualizar",
+                                             "Actualizar historial de QR generados")
         btn_ref_qr.clicked.connect(self._cargar_historial_qr)
         hdr_qr.addWidget(btn_ref_qr)
         lay_qr.addLayout(hdr_qr)
@@ -439,8 +456,12 @@ class RecepcionQRWidget(QWidget):
         self._tbl_qr_hist.setSelectionBehavior(QTableWidget.SelectRows)
         self._tbl_qr_hist.setAlternatingRowColors(True)
         hh = self._tbl_qr_hist.horizontalHeader()
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # UUID
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)            # Descripción
+        for c in (2, 3, 4):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)  # Tipo, Sucursal, Fecha
+        hh.setSectionResizeMode(5, QHeaderView.Fixed)               # Acciones
+        self._tbl_qr_hist.setColumnWidth(5, 120)
         lay_qr.addWidget(self._tbl_qr_hist)
 
         self._cargar_historial_qr()
@@ -505,8 +526,7 @@ class RecepcionQRWidget(QWidget):
             )
             self._last_generated_uuid = uuid_qr
             self._last_generated_png  = png_bytes
-            QMessageBox.information(self, "QR Generado",
-                f"UUID: {uuid_qr}\nListo para imprimir.")
+            Toast.success(self, "🏷️ QR Generado", f"UUID: {uuid_qr}")
         except Exception as e:
             logger.exception("_generar_qr_contenedor")
             QMessageBox.critical(self, "Error", str(e))
@@ -549,14 +569,14 @@ class RecepcionQRWidget(QWidget):
                     f"✅ Contenedor: {uuid_qr} | "
                     f"Viaje #{row.get('datos_extra','{}')}"
                 )
-                self._lbl_cont_info.setStyleSheet(f"color:{_C_VERDE}; padding:4px;")
+                self._lbl_cont_info.setStyleSheet(f"color:{Colors.SUCCESS_BASE}; padding:4px;")
             else:
                 # Contenedor nuevo o nunca registrado
                 self._contenedor_activo = {"uuid_qr": uuid_qr, "es_nuevo": True}
                 self._lbl_cont_info.setText(
                     f"🆕 QR nuevo (no asignado antes): {uuid_qr}"
                 )
-                self._lbl_cont_info.setStyleSheet(f"color:{_C_NARAN}; padding:4px;")
+                self._lbl_cont_info.setStyleSheet(f"color:{Colors.WARNING_BASE}; padding:4px;")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -583,7 +603,7 @@ class RecepcionQRWidget(QWidget):
                 f"📦 UUID: {uuid_qr} | Proveedor: {row.get('proveedor_nombre','—')} | "
                 f"Items: {len(items)}"
             )
-            self._lbl_recv_info.setStyleSheet(f"color:{_C_AZUL}; padding:4px; font-weight:bold;")
+            self._lbl_recv_info.setStyleSheet(f"color:{Colors.PRIMARY_BASE}; padding:4px; font-weight:bold;")
             self._poblar_tabla_recepcion(items)
             self._contenedor_activo = row
         except Exception as e:
@@ -635,9 +655,9 @@ class RecepcionQRWidget(QWidget):
             total_diff += abs(diff)
             diff_item.setText(f"{diff:+.3f}")
             diff_item.setForeground(
-                QColor(_C_ROJO if diff < -0.001 else _C_VERDE if diff > 0.001 else "#333")
+                QColor(Colors.DANGER_BASE if diff < -0.001 else Colors.SUCCESS_BASE if diff > 0.001 else "#333")
             )
-        color = _C_ROJO if total_diff > 0.01 else _C_VERDE
+        color = Colors.DANGER_BASE if total_diff > 0.01 else Colors.SUCCESS_BASE
         self._lbl_recv_diff.setText(f"Diferencia total: {total_diff:.3f}")
         self._lbl_recv_diff.setStyleSheet(f"font-weight:bold;font-size:13px;color:{color};")
 
@@ -670,9 +690,8 @@ class RecepcionQRWidget(QWidget):
             # Actualizar inventario y lotes
             self._procesar_recepcion_en_bd(uuid_qr, items_recibidos, notas_recv)
 
-            QMessageBox.information(self, "✅ Recepción Completada",
-                f"Inventario actualizado.\nQR: {uuid_qr}\n"
-                f"Items procesados: {len(items_recibidos)}")
+            Toast.success(self, "✅ Recepción Completada",
+                          f"QR: {uuid_qr} · {len(items_recibidos)} ítem(s) al inventario")
             self._limpiar_tab_recepcion()
             self._cargar_historial()
             self.recepcion_completada.emit({
@@ -686,14 +705,11 @@ class RecepcionQRWidget(QWidget):
         """Transacción atómica: recepciones + recepcion_items + inventario + lotes + trazabilidad."""
         op_id = str(uuid.uuid4())
         folio = f"REC-{op_id[:8].upper()}"
-        datos_extra = json.loads(
-            self.conexion.execute(
-                "SELECT COALESCE(datos_extra,'{}') FROM trazabilidad_qr WHERE uuid_qr=?",
-                (uuid_qr,)
-            ).fetchone()[0] if self.conexion.execute(
-                "SELECT 1 FROM trazabilidad_qr WHERE uuid_qr=?", (uuid_qr,)
-            ).fetchone() else "{}"
-        )
+        _tqr_row = self.conexion.execute(
+            "SELECT COALESCE(datos_extra,'{}') FROM trazabilidad_qr WHERE uuid_qr=?",
+            (uuid_qr,)
+        ).fetchone()
+        datos_extra = json.loads(_tqr_row[0] if _tqr_row else "{}")
         proveedor_id = datos_extra.get("proveedor_id")
         condicion    = datos_extra.get("condicion_pago", "liquidado")
         metodo       = datos_extra.get("metodo_pago", "efectivo")
@@ -790,45 +806,53 @@ class RecepcionQRWidget(QWidget):
             QMessageBox.warning(self, "Aviso", "Carga un contenedor primero."); return
         if not self._items_asignados:
             QMessageBox.warning(self, "Aviso", "Agrega al menos un producto."); return
+        if not self._proveedor_asignar_id:
+            QMessageBox.warning(self, "Aviso",
+                "Selecciona un proveedor antes de guardar la asignación."); return
 
-        uuid_qr     = self._contenedor_activo.get("uuid_qr", "")
-        condicion   = self._cmb_condicion.currentText()
-        metodo      = self._cmb_metodo.currentText()
-        monto_total = sum(i["subtotal"] for i in self._items_asignados)
+        uuid_qr      = self._contenedor_activo.get("uuid_qr", "")
+        proveedor_id = self._proveedor_asignar_id
+        condicion    = self._cmb_condicion.currentText()
+        metodo       = self._cmb_metodo.currentText()
+        monto_total  = sum(i["subtotal"] for i in self._items_asignados)
         monto_pagado = self._spin_monto_pagado.value()
         if condicion == "liquidado": monto_pagado = monto_total
         elif condicion == "crédito": monto_pagado = 0.0
-        dest_id     = self._cmb_sucursal_destino.currentData() or self.sucursal_id
-        notas       = self._txt_notas_asign.toPlainText().strip()
-        referencia  = self._txt_referencia.text().strip()
+        dest_id    = self._cmb_sucursal_destino.currentData() or self.sucursal_id
+        notas      = self._txt_notas_asign.toPlainText().strip()
+        referencia = self._txt_referencia.text().strip()
 
         datos_extra = {
-            "items":          self._items_asignados,
-            "condicion_pago": condicion,
-            "metodo_pago":    metodo,
-            "monto_pagado":   monto_pagado,
-            "monto_total":    monto_total,
+            "items":           self._items_asignados,
+            "proveedor_id":    proveedor_id,
+            "condicion_pago":  condicion,
+            "metodo_pago":     metodo,
+            "monto_pagado":    monto_pagado,
+            "monto_total":     monto_total,
             "saldo_pendiente": max(0, monto_total - monto_pagado),
             "sucursal_destino": dest_id,
-            "referencia_pago":  referencia,
+            "referencia_pago": referencia,
             "notas":           notas,
         }
 
         try:
             self.conexion.execute("""
                 INSERT INTO trazabilidad_qr
-                    (uuid_qr, tipo, sucursal_id, sucursal_destino, estado, datos_extra)
-                VALUES(?,?,?,?,'asignado',?)
+                    (uuid_qr, tipo, proveedor_id, sucursal_id, sucursal_destino,
+                     estado, datos_extra)
+                VALUES(?,?,?,?,?,'asignado',?)
                 ON CONFLICT(uuid_qr) DO UPDATE SET
                     estado='asignado',
+                    proveedor_id=excluded.proveedor_id,
                     sucursal_destino=excluded.sucursal_destino,
                     datos_extra=excluded.datos_extra,
                     fecha_generacion=datetime('now')
-            """, (uuid_qr, "contenedor", self.sucursal_id, dest_id,
+            """, (uuid_qr, "contenedor", proveedor_id,
+                  self.sucursal_id, dest_id,
                   json.dumps(datos_extra, ensure_ascii=False)))
             self.conexion.commit()
-            QMessageBox.information(self, "Guardado",
-                f"Asignación guardada.\nTotal: ${monto_total:.2f} | Pagado: ${monto_pagado:.2f}")
+            Toast.success(self, "✅ Asignación guardada",
+                          f"Total: ${monto_total:.2f} · Pagado: ${monto_pagado:.2f}")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -861,13 +885,14 @@ class RecepcionQRWidget(QWidget):
                   if hasattr(self, '_lbl_prod_asign_sel') else "Producto")
         if any(i["product_id"] == prod_id for i in self._items_asignados):
             QMessageBox.warning(self, "Dup.", "Ese producto ya está en la lista."); return
+        unidad = getattr(self, '_prod_asignar_unidad', 'pz')
         self._items_asignados.append({
             "product_id":    prod_id,
             "nombre":        nombre,
             "cantidad":      qty,
             "costo_unitario": costo,
             "subtotal":      round(qty * costo, 2),
-            "unidad":        "kg",
+            "unidad":        unidad,
         })
         self._refrescar_tabla_items_asign()
         # Limpiar selección para siguiente producto
@@ -916,18 +941,18 @@ class RecepcionQRWidget(QWidget):
                 for r in rows:
                     pid  = r['id']    if hasattr(r,'keys') else r[0]
                     name = r['nombre'] if hasattr(r,'keys') else r[1]
-                    item = __import__('PyQt5.QtWidgets', fromlist=['QListWidgetItem']).QListWidgetItem(name)
-                    item.setData(32, pid)  # Qt.UserRole = 32
+                    item = QListWidgetItem(name)
+                    item.setData(Qt.UserRole, pid)
                     self._lst_proveedores.addItem(item)
                 self._lst_proveedores.setVisible(True)
             else:
                 self._lst_proveedores.setVisible(False)
         except Exception as e:
-            import logging; logging.getLogger(__name__).debug("_buscar_proveedor_asignar: %s", e)
+            logger.debug("_buscar_proveedor_asignar: %s", e)
 
     def _seleccionar_proveedor_asignar(self, item) -> None:
         """Confirma la selección de proveedor y oculta la lista."""
-        self._proveedor_asignar_id = item.data(32)
+        self._proveedor_asignar_id = item.data(Qt.UserRole)
         self._lbl_proveedor_sel.setText(item.text())
         self._txt_buscar_proveedor.setText(item.text())
         self._lst_proveedores.setVisible(False)
@@ -959,37 +984,36 @@ class RecepcionQRWidget(QWidget):
                     name = r['nombre'] if hasattr(r,'keys') else r[1]
                     costo = float(r['costo'] if hasattr(r,'keys') else r[3])
                     unidad = r['unidad'] if hasattr(r,'keys') else r[4]
-                    item = __import__('PyQt5.QtWidgets', fromlist=['QListWidgetItem']).QListWidgetItem(
-                        f"{name}  [${costo:.2f}/{unidad}]")
-                    item.setData(32, (pid, name, costo, unidad))
+                    item = QListWidgetItem(f"{name}  [${costo:.2f}/{unidad}]")
+                    item.setData(Qt.UserRole, (pid, name, costo, unidad))
                     self._lst_prod_asign.addItem(item)
                 self._lst_prod_asign.setVisible(True)
             else:
                 self._lst_prod_asign.setVisible(False)
         except Exception as e:
-            import logging; logging.getLogger(__name__).debug("_buscar_producto_asignar: %s", e)
+            logger.debug("_buscar_producto_asignar: %s", e)
 
     def _seleccionar_producto_asignar(self, item) -> None:
         """Confirma selección de producto y pre-llena el costo."""
-        pid, name, costo, unidad = item.data(32)
+        pid, name, costo, unidad = item.data(Qt.UserRole)
         self._prod_asignar_id = pid
+        self._prod_asignar_unidad = unidad   # persist for _agregar_item_asignacion
         self._lbl_prod_asign_sel.setText(name)
         self._txt_buscar_prod_asign.setText(name)
         self._spin_costo_asign.setValue(costo)
         self._lst_prod_asign.setVisible(False)
 
-    def _cargar_proveedores_asignar(self) -> None:
-        """No-op: proveedor ahora se selecciona con la barra de búsqueda."""
-        pass
+    def _recargar_listas(self) -> None:
+        """Recarga todas las listas dinámicas. Llamado por el botón Recargar del módulo padre."""
+        self._cargar_historial()
+        self._cargar_historial_qr()
+        self._cargar_sucursales_combo_recepcion()
 
-    def _cargar_productos_combo(self) -> None:
-        """No-op: productos ahora se buscan con la barra de búsqueda."""
-        pass
     def _cargar_sucursales_combo_recepcion(self) -> None:
         self._cmb_sucursal_destino.clear()
         try:
             rows = self.conexion.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY id"
+                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
             ).fetchall()
             for r in rows:
                 self._cmb_sucursal_destino.addItem(f"🏪 {r[1]}", r[0])
@@ -1018,10 +1042,7 @@ class RecepcionQRWidget(QWidget):
             self._tbl_qr_hist.setItem(i, 2, QTableWidgetItem(str(r[2])))
             self._tbl_qr_hist.setItem(i, 3, QTableWidgetItem(str(r[3])))
             self._tbl_qr_hist.setItem(i, 4, QTableWidgetItem(str(r[4])[:16]))
-            # Reprint button
-            btn_reimp = QPushButton("🖨 Reimprimir QR")
-            btn_reimp.setStyleSheet(
-                f"background:{_C_AZUL};color:white;padding:3px 8px;border-radius:3px;font-size:11px;")
+            btn_reimp = create_secondary_button(self, "🖨 Reimprimir", "Reimprimir etiqueta QR")
             btn_reimp.clicked.connect(lambda _, u=uuid: self._reimprimir_qr(u))
             self._tbl_qr_hist.setCellWidget(i, 5, btn_reimp)
 
@@ -1059,6 +1080,12 @@ class RecepcionQRWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
+    _HIST_ESTADO_VARIANTS = {
+        "completada": "success", "completa":   "success",
+        "credito":    "warning", "pendiente":  "info",
+        "cancelada":  "error",   "parcial":    "primary",
+    }
+
     def _cargar_historial(self) -> None:
         try:
             rows = self.conexion.execute("""
@@ -1076,14 +1103,36 @@ class RecepcionQRWidget(QWidget):
                     str(r[0] or ""), str(r[1] or "")[:16],
                     str(r[2] or "—"), str(r[3] or ""),
                     f"${float(r[4] or 0):.2f}",
-                    f"${float(r[5] or 0):.2f}", str(r[6] or "")
+                    f"${float(r[5] or 0):.2f}",
                 ]
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci in (4, 5):
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     self._tbl_hist.setItem(ri, ci, it)
+                # Col 6: status badge
+                estado_raw = str(r[6] or "").strip().lower()
+                variant    = self._HIST_ESTADO_VARIANTS.get(estado_raw, "primary")
+                badge      = create_badge(self, (r[6] or "—").upper(), variant)
+                self._tbl_hist.setCellWidget(ri, 6, badge)
         except Exception as e:
             logger.warning("_cargar_historial: %s", e)
+
+    def _aceptar_todo_recepcion(self) -> None:
+        """Establece cantidad recibida = esperada en todas las filas."""
+        for ri in range(self._tbl_recv.rowCount()):
+            spin = self._tbl_recv.cellWidget(ri, 3)
+            if spin:
+                qty_esp = float(spin.property("qty_esperada") or 0)
+                spin.blockSignals(True)
+                spin.setValue(qty_esp)
+                spin.blockSignals(False)
+        self._actualizar_diff_recepcion()
+
+    def _resetear_diff_recepcion(self) -> None:
+        """Alias de _aceptar_todo — restaura received = expected."""
+        self._aceptar_todo_recepcion()
 
     def _limpiar_tab_recepcion(self) -> None:
         self._txt_uuid_recv.clear()
