@@ -30,19 +30,33 @@ class PurchaseRepository:
         cursor = self.db.cursor()
         # Timestamp + 4-char UUID fragment prevents same-second collisions
         folio = f"CMP-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
-        query = """
-            INSERT INTO compras
-                (folio, proveedor_id, usuario, subtotal, iva, total,
-                 estado, forma_pago, observaciones, sucursal_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        cursor.execute(query, (
+        condicion_pago = kwargs.get('condicion_pago', 'liquidado')
+        plazo_dias     = int(kwargs.get('plazo_dias', 0))
+        moneda         = kwargs.get('moneda', 'MXN') or 'MXN'
+        base_params = (
             folio, provider_id, user, subtotal,
             tax, total, status,
             kwargs.get('payment_method', 'CONTADO'),
             notes or operation_id,
             branch_id,
-        ))
+        )
+        try:
+            # Full INSERT including payment-condition columns (migration 071+)
+            cursor.execute("""
+                INSERT INTO compras
+                    (folio, proveedor_id, usuario, subtotal, iva, total,
+                     estado, forma_pago, observaciones, sucursal_id,
+                     condicion_pago, plazo_dias, moneda)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, base_params + (condicion_pago, plazo_dias, moneda))
+        except Exception:
+            # Fallback for DBs without migration 071 columns (test fixtures, older DBs)
+            cursor.execute("""
+                INSERT INTO compras
+                    (folio, proveedor_id, usuario, subtotal, iva, total,
+                     estado, forma_pago, observaciones, sucursal_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, base_params)
         
         purchase_id = cursor.lastrowid
         logger.debug(f"Cabecera de compra {folio} insertada con ID {purchase_id}.")
@@ -136,7 +150,9 @@ class PurchaseRepository:
     def get_purchase_detail_items(self, compra_id: int) -> list:
         """Line items for a purchase — used by inline detail panel and full detail dialog."""
         rows = self.db.cursor().execute(
-            """SELECT p.nombre, dd.cantidad, dd.costo_unitario, dd.subtotal
+            """SELECT p.nombre, dd.cantidad,
+                      COALESCE(dd.costo_unitario, dd.precio_unitario, 0) AS costo_unitario,
+                      dd.subtotal
                FROM detalles_compra dd
                JOIN productos p ON p.id = dd.producto_id
                WHERE dd.compra_id = ?
@@ -145,10 +161,27 @@ class PurchaseRepository:
         ).fetchall()
         return [
             {
-                "nombre":       r[0],
-                "cantidad":     float(r[1] or 0),
+                "nombre":         r[0],
+                "cantidad":       float(r[1] or 0),
                 "costo_unitario": float(r[2] or 0),
-                "subtotal":     float(r[3] or 0),
+                "subtotal":       float(r[3] or 0),
+            }
+            for r in rows
+        ]
+
+    def get_purchase_items_raw(self, compra_id: int) -> list:
+        """Raw item rows (product_id + qty + cost) for inventory reversal operations."""
+        rows = self.db.cursor().execute(
+            """SELECT producto_id, cantidad,
+                      COALESCE(costo_unitario, precio_unitario, 0) AS costo
+               FROM detalles_compra WHERE compra_id = ?""",
+            (compra_id,),
+        ).fetchall()
+        return [
+            {
+                "product_id": int(r[0]),
+                "qty":        float(r[1] or 0),
+                "unit_cost":  float(r[2] or 0),
             }
             for r in rows
         ]

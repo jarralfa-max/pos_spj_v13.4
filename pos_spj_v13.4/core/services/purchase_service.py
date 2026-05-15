@@ -20,15 +20,23 @@ class PurchaseService:
         self.inventory_service = inventory_service
         self.finance_service = finance_service
 
-    def register_purchase(self, provider_id: int, branch_id: int, user: str, 
-                          items: list, payment_method: str, amount_paid: float, notes: str = "") -> str:
+    def register_purchase(self, provider_id: int, branch_id: int, user: str,
+                          items: list, payment_method: str, amount_paid: float,
+                          notes: str = "",
+                          condicion_pago: str = "liquidado",
+                          plazo_dias: int = 0,
+                          moneda: str = "MXN") -> tuple:
         """
         Registra la compra, suma inventario y descuenta el dinero automáticamente.
-        
+
+        Returns (folio, finance_warnings) where finance_warnings is a list of
+        non-fatal strings (empty on clean run).
+
         :param items: Lista de diccionarios [{'product_id': 1, 'qty': 100, 'unit_cost': 50.0}, ...]
         """
         # Generamos un ID único para rastrear todo este movimiento en conjunto
         operation_id = str(uuid.uuid4())
+        finance_warnings: list[str] = []
         
         # Calculamos el total real de la compra
         total_purchase = sum(item['qty'] * item['unit_cost'] for item in items)
@@ -52,6 +60,9 @@ class PurchaseService:
                 operation_id=operation_id,
                 notes=notes,
                 payment_method=payment_method,
+                condicion_pago=condicion_pago,
+                plazo_dias=plazo_dias,
+                moneda=moneda,
             )
             
             # Guardar los renglones (productos) de la compra
@@ -149,9 +160,9 @@ class PurchaseService:
                                           "payment_method": payment_method},
                             )
                 except Exception as _fe:
-                    import logging
-                    logging.getLogger(__name__).warning("FinanceService compra: %s", _fe)
-                    # Non-fatal: inventory already updated, purchase recorded
+                    _msg = f"Registro financiero incompleto: {_fe}"
+                    logger.warning("FinanceService compra %s: %s", folio, _fe)
+                    finance_warnings.append(_msg)
 
             # MEJORA: Auto-crear lotes para trazabilidad FIFO
             # Cada ítem de compra genera un lote independiente con su costo y caducidad
@@ -193,7 +204,7 @@ class PurchaseService:
             except Exception:
                 pass
 
-            return folio
+            return folio, finance_warnings
 
         except Exception as e:
             if not _sp_released:
@@ -265,3 +276,61 @@ class PurchaseService:
             except Exception as _le:
                 # No crítico: la compra ya se guardó, el lote es auditoría adicional
                 logger.warning("Auto-lote compra item=%s: %s", item.get("product_id"), _le)
+
+    # ── C-1: Cancel with inventory reversal ──────────────────────────────────
+
+    def cancel_purchase_with_reversal(
+        self, compra_id: int, user: str, branch_id: int, folio: str,
+    ) -> list[str]:
+        """
+        Cancels a purchase and reverses its inventory movements.
+
+        Returns a list of warning strings (empty on clean run).
+        Partial reversal is allowed: if an item's stock has already been
+        consumed the reversal for that item is skipped with a WARNING, and the
+        purchase is still cancelled so the record stays accurate.
+        """
+        warnings: list[str] = []
+        _sp = f"cancel_{uuid.uuid4().hex[:8]}"
+        try:
+            self.db.execute(f"SAVEPOINT {_sp}")
+
+            items = self.purchase_repo.get_purchase_items_raw(compra_id)
+
+            for item in items:
+                pid = item["product_id"]
+                qty = item["qty"]
+                if qty <= 0:
+                    continue
+                try:
+                    self.inventory_service.deduct_stock(
+                        product_id     = pid,
+                        branch_id      = branch_id,
+                        qty            = qty,
+                        reference_type = "CANCELACION",
+                        reference_id   = str(compra_id),
+                        operation_id   = _sp,
+                        user           = user,
+                        notes          = f"Reversión por cancelación {folio}",
+                    )
+                except ValueError as _ve:
+                    # Stock insuficiente — reversal parcial; still cancel the purchase
+                    _w = f"Producto {pid}: stock insuficiente para revertir ({_ve})"
+                    logger.warning("cancel_reversal %s: %s", folio, _w)
+                    warnings.append(_w)
+                except Exception as _e:
+                    _w = f"Producto {pid}: fallo reversión — {_e}"
+                    logger.error("cancel_reversal %s: %s", folio, _w)
+                    warnings.append(_w)
+
+            self.purchase_repo.cancel_purchase(compra_id)
+
+            self.db.execute(f"RELEASE SAVEPOINT {_sp}")
+        except Exception as e:
+            try:
+                self.db.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+            except Exception:
+                pass
+            raise RuntimeError(f"Error al cancelar compra {folio}: {e}")
+
+        return warnings

@@ -1791,6 +1791,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if recetas_procesadas:
                 detail += f" · Recetas: {', '.join(recetas_procesadas)}"
             Toast.success(self, "✅ Compra registrada", detail)
+            # C-3: surface non-fatal finance warnings without blocking the flow
+            if resultado.warnings:
+                from PyQt5.QtWidgets import QMessageBox as _MB
+                _MB.warning(
+                    self, "Aviso — Registro financiero",
+                    "La compra fue guardada y el inventario actualizado,\n"
+                    "pero el registro financiero tuvo un problema:\n\n"
+                    + "\n".join(f"• {w}" for w in resultado.warnings)
+                    + "\n\nContacta al administrador si el saldo no cuadra.",
+                )
 
             # Clear UI
             self.carrito_compra.clear()
@@ -2598,11 +2608,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             QMessageBox.information(self, "Aviso", "Esta compra ya está cancelada.")
             return
 
+        svc = getattr(self.container, 'purchase_service', None)
+        reversal_available = (svc is not None
+                              and hasattr(svc, 'cancel_purchase_with_reversal'))
+
+        inv_note = ("El inventario ingresado SERÁ revertido automáticamente."
+                    if reversal_available else
+                    "El inventario ingresado NO se revierte automáticamente.")
+
         conf = _ConfirmDestructiveDialog(
             "Cancelar Compra",
             f"¿Cancelar la compra {folio}?\n\n"
             "Esta acción se registrará en el audit log y no puede deshacerse.\n"
-            "El inventario ingresado NO se revierte automáticamente.",
+            f"{inv_note}",
             accion_label="Cancelar compra",
             require_reason=True,
             parent=self,
@@ -2616,7 +2634,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
 
         try:
-            self._purchase_repo.cancel_purchase(compra_id)
+            rev_warnings: list = []
+            if reversal_available:
+                rev_warnings = svc.cancel_purchase_with_reversal(
+                    compra_id=compra_id,
+                    user=self.usuario_actual,
+                    branch_id=self.sucursal_id,
+                    folio=folio,
+                )
+            else:
+                self._purchase_repo.cancel_purchase(compra_id)
+
             try:
                 audit_write(
                     self.container,
@@ -2625,14 +2653,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     entidad="compras",
                     entidad_id=str(compra_id),
                     usuario=self.usuario_actual,
-                    detalles=f"Folio {folio} | Motivo: {motivo}",
+                    detalles=(f"Folio {folio} | Motivo: {motivo}"
+                              + (f" | Reversión parcial: {rev_warnings}" if rev_warnings else "")),
                     before={"estado": estado_actual},
-                    after={"estado": "cancelada"},
+                    after={"estado": "cancelada",
+                           "inventario_revertido": reversal_available,
+                           "rev_warnings": rev_warnings},
                     sucursal_id=self.sucursal_id,
                 )
             except Exception:
                 pass
+
             Toast.success(self, "✓ Compra cancelada", f"Folio {folio}")
+            if rev_warnings:
+                from PyQt5.QtWidgets import QMessageBox as _MB
+                _MB.warning(
+                    self, "Reversión parcial",
+                    "La compra fue cancelada pero algunos ítems no pudieron\n"
+                    "revertirse por stock insuficiente:\n\n"
+                    + "\n".join(f"• {w}" for w in rev_warnings),
+                )
             dlg_padre.accept()
             QTimer.singleShot(0, self._cargar_historial_compras)
         except Exception as e:
@@ -2660,8 +2700,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         conf = _ConfirmDestructiveDialog(
             "Reabrir Compra",
             f"¿Reabrir la compra {folio}?\n\n"
-            "⚠ El inventario NO fue revertido automáticamente al cancelar.\n"
-            "Verifica el inventario manualmente antes de continuar.\n"
+            "⚠ El inventario fue revertido al cancelar esta compra.\n"
+            "Volver a abrir NO readmite el inventario automáticamente —\n"
+            "deberás registrar una nueva entrada si es necesario.\n"
             "La compra quedará en estado PENDIENTE.",
             accion_label="Reabrir como pendiente",
             require_reason=True,

@@ -131,7 +131,7 @@ class ProcesarCompraUC:
             for it in items
         ]
         try:
-            folio = self._purchase.register_purchase(
+            _result = self._purchase.register_purchase(
                 provider_id    = datos.proveedor_id,
                 branch_id      = sucursal_id,
                 user           = usuario,
@@ -140,6 +140,9 @@ class ProcesarCompraUC:
                 amount_paid    = datos.monto_pagado,
                 notes          = datos.notas,
             )
+            # register_purchase returns (folio, finance_warnings); support legacy
+            # callers that return a plain string (mocks, older integrations)
+            folio = _result[0] if isinstance(_result, tuple) else _result
         except Exception as exc:
             logger.error("ProcesarCompraUC.register_purchase: %s", exc)
             return ResultadoCompra(ok=False, error=str(exc))
