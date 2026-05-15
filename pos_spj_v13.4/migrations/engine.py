@@ -67,6 +67,7 @@ MIGRATIONS = [
     ("070",  "migrations.standalone.070_delivery_enterprise_lifecycle"),  # v13.30: lifecycle columns + driver cuts + indexes
     ("071",  "migrations.standalone.071_compras_condicion_pago"),         # v13.4: condicion_pago + plazo_dias + moneda en compras
     ("072",  "migrations.standalone.072_condicion_pago_check"),           # v13.4: backfill NULLs, enforce valid condicion_pago values
+    ("073",  "migrations.standalone.073_temp_purchase_drafts"),           # v13.4: DB-backed cart drafts per user/branch
 ]
 
 def _ensure_tracking_table(conn):

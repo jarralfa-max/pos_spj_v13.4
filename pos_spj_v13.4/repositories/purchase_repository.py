@@ -227,6 +227,52 @@ class PurchaseRepository:
             "UPDATE compras SET estado='pendiente' WHERE id=?", (compra_id,))
         self.db.commit()
 
+    # ── Draft helpers (temp_purchase_drafts) ─────────────────────────────────
+
+    def save_draft(self, usuario: str, sucursal_id: int, data_json: str) -> None:
+        """Upsert a cart draft (one active draft per user per branch)."""
+        try:
+            row = self.db.cursor().execute(
+                "SELECT id FROM temp_purchase_drafts WHERE usuario=? AND sucursal_id=?",
+                (usuario, sucursal_id),
+            ).fetchone()
+            if row:
+                self.db.execute(
+                    "UPDATE temp_purchase_drafts SET draft_data=?, updated_at=datetime('now') WHERE id=?",
+                    (data_json, row[0]),
+                )
+            else:
+                self.db.execute(
+                    "INSERT INTO temp_purchase_drafts (usuario, sucursal_id, draft_data) VALUES (?, ?, ?)",
+                    (usuario, sucursal_id, data_json),
+                )
+            self.db.commit()
+        except Exception as _e:
+            logger.debug("save_draft: %s", _e)
+
+    def load_draft(self, usuario: str, sucursal_id: int) -> "tuple[str, str] | None":
+        """Returns (draft_json, updated_at) or None if no draft exists."""
+        try:
+            row = self.db.cursor().execute(
+                "SELECT draft_data, updated_at FROM temp_purchase_drafts WHERE usuario=? AND sucursal_id=?",
+                (usuario, sucursal_id),
+            ).fetchone()
+            return (str(row[0]), str(row[1])) if row else None
+        except Exception as _e:
+            logger.debug("load_draft: %s", _e)
+            return None
+
+    def delete_draft(self, usuario: str, sucursal_id: int) -> None:
+        """Removes the draft for user+branch (call after purchase or explicit clear)."""
+        try:
+            self.db.execute(
+                "DELETE FROM temp_purchase_drafts WHERE usuario=? AND sucursal_id=?",
+                (usuario, sucursal_id),
+            )
+            self.db.commit()
+        except Exception as _e:
+            logger.debug("delete_draft: %s", _e)
+
     def get_purchase_by_folio(self, folio: str) -> dict:
         """
         Consulta una compra específica por su folio para auditoría o devoluciones.

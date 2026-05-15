@@ -167,3 +167,73 @@ class TestGetPurchaseByFolio:
                                 unit_cost=20.0, subtotal=400.0)
         compra = repo.get_purchase_by_folio(folio)
         assert len(compra["items"]) == 2
+
+
+# ── Draft helpers ─────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def draft_db():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE temp_purchase_drafts (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario     TEXT NOT NULL,
+            sucursal_id INTEGER NOT NULL DEFAULT 1,
+            draft_data  TEXT NOT NULL,
+            updated_at  TEXT DEFAULT (datetime('now')),
+            created_at  TEXT DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX uix_draft_user_branch
+            ON temp_purchase_drafts(usuario, sucursal_id);
+    """)
+    return conn
+
+
+@pytest.fixture
+def draft_repo(draft_db):
+    return PurchaseRepository(draft_db)
+
+
+class TestDraftHelpers:
+
+    def test_load_retorna_none_sin_borrador(self, draft_repo):
+        assert draft_repo.load_draft("admin", 1) is None
+
+    def test_save_y_load_roundtrip(self, draft_repo):
+        draft_repo.save_draft("admin", 1, '{"items": []}')
+        result = draft_repo.load_draft("admin", 1)
+        assert result is not None
+        data_json, updated_at = result
+        assert '"items"' in data_json
+        assert updated_at  # not empty
+
+    def test_save_upsert_actualiza_datos(self, draft_repo):
+        draft_repo.save_draft("admin", 1, '{"v": 1}')
+        draft_repo.save_draft("admin", 1, '{"v": 2}')
+        data_json, _ = draft_repo.load_draft("admin", 1)
+        assert '"v": 2' in data_json
+
+    def test_draft_aislado_por_usuario(self, draft_repo):
+        draft_repo.save_draft("admin",   1, '{"user": "admin"}')
+        draft_repo.save_draft("cajero1", 1, '{"user": "cajero1"}')
+        a, _ = draft_repo.load_draft("admin", 1)
+        b, _ = draft_repo.load_draft("cajero1", 1)
+        assert '"admin"' in a
+        assert '"cajero1"' in b
+
+    def test_draft_aislado_por_sucursal(self, draft_repo):
+        draft_repo.save_draft("admin", 1, '{"branch": 1}')
+        draft_repo.save_draft("admin", 2, '{"branch": 2}')
+        a, _ = draft_repo.load_draft("admin", 1)
+        b, _ = draft_repo.load_draft("admin", 2)
+        assert '"branch": 1' in a
+        assert '"branch": 2' in b
+
+    def test_delete_elimina_borrador(self, draft_repo):
+        draft_repo.save_draft("admin", 1, '{"x": 1}')
+        draft_repo.delete_draft("admin", 1)
+        assert draft_repo.load_draft("admin", 1) is None
+
+    def test_delete_sin_borrador_no_falla(self, draft_repo):
+        draft_repo.delete_draft("nadie", 99)  # must not raise

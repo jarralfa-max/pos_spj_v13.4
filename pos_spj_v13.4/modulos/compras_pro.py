@@ -460,6 +460,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._build_ui()
         QTimer.singleShot(200, self.cargar_proveedores)
 
+        # Auto-save timer: silent draft every 45 s when cart is non-empty
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setInterval(45_000)
+        self._autosave_timer.timeout.connect(self._auto_save_draft)
+        self._autosave_timer.start()
+
     # ── Repository access (lazy, same DB connection) ─────────────────────────
     @property
     def _purchase_repo(self):
@@ -508,6 +514,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.usuario_actual = usuario
         self._usuario_rol = rol.upper().strip()
         QTimer.singleShot(0, self._aplicar_permisos_ui)
+        # Offer draft restore 1.5 s after login (cart must still be empty)
+        QTimer.singleShot(1500, self._check_pending_draft)
 
     def _tiene_permiso(self, accion: str) -> bool:
         """Retorna True si el rol actual tiene el permiso solicitado."""
@@ -1500,6 +1508,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                           "Limpiar", "Cancelar"):
             self.carrito_compra.clear()
             self._refresh_tabla()
+            self._clear_draft()
 
     def _refresh_tabla(self) -> None:
         """Reconstruye la tabla del carrito con botones de eliminar por fila."""
@@ -1647,41 +1656,150 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.carrito_compra.pop(row)
         self._refresh_tabla()
 
+    # ── Draft helpers ─────────────────────────────────────────────────────────
+
+    def _build_draft_dict(self) -> dict:
+        """Snapshot of the current cart and form state for serialisation."""
+        return {
+            "carrito":          self.carrito_compra,
+            "proveedor_id":     self._proveedor_id_selected,
+            "proveedor_nombre": self.txt_proveedor.text().strip()
+                                if hasattr(self, 'txt_proveedor') else "",
+            "factura":          self.txt_factura.text().strip()
+                                if hasattr(self, 'txt_factura') else "",
+            "pago":             self.cmb_pago.currentData()
+                                if hasattr(self, 'cmb_pago') else None,
+            "iva_activo":       self._chk_iva.isChecked()
+                                if hasattr(self, '_chk_iva') else False,
+            "saved_at":         datetime.now().isoformat(),
+        }
+
+    def _restore_draft_dict(self, draft: dict) -> None:
+        """Apply a loaded draft dict to the UI."""
+        self.carrito_compra = draft.get("carrito", [])
+        prov_nombre = draft.get("proveedor_nombre", "")
+        if prov_nombre and hasattr(self, 'txt_proveedor'):
+            self.txt_proveedor.setText(prov_nombre)
+            self._proveedor_id_selected = draft.get("proveedor_id")
+            self._resolver_proveedor_desde_texto()
+        factura = draft.get("factura", "")
+        if factura and hasattr(self, 'txt_factura'):
+            self.txt_factura.setText(factura)
+        pago_data = draft.get("pago")
+        if pago_data and hasattr(self, 'cmb_pago'):
+            for i in range(self.cmb_pago.count()):
+                if self.cmb_pago.itemData(i) == pago_data:
+                    self.cmb_pago.setCurrentIndex(i)
+                    break
+        if hasattr(self, '_chk_iva'):
+            self._chk_iva.setChecked(bool(draft.get("iva_activo", False)))
+        self._refresh_tabla()
+
+    def _auto_save_draft(self) -> None:
+        """Silent periodic auto-save — writes to DB if cart is non-empty."""
+        if not self.carrito_compra or not self.usuario_actual:
+            return
+        try:
+            data_json = json.dumps(self._build_draft_dict(), default=str)
+            self._purchase_repo.save_draft(
+                self.usuario_actual, self.sucursal_id, data_json)
+            logger.debug("Auto-guardado borrador: %d ítem(s)", len(self.carrito_compra))
+        except Exception as e:
+            logger.debug("_auto_save_draft: %s", e)
+
+    def _clear_draft(self) -> None:
+        """Delete draft from DB and legacy JSON file."""
+        try:
+            if self.usuario_actual:
+                self._purchase_repo.delete_draft(self.usuario_actual, self.sucursal_id)
+        except Exception as e:
+            logger.debug("_clear_draft DB: %s", e)
+        try:
+            if os.path.exists(_DRAFT_PATH):
+                os.remove(_DRAFT_PATH)
+        except Exception:
+            pass
+
+    def _check_pending_draft(self) -> None:
+        """Non-blocking check on login: notify user if a draft awaits recovery."""
+        if not self.usuario_actual or self.carrito_compra:
+            return
+        if not self._tiene_permiso("borrador"):
+            return
+        try:
+            result = self._purchase_repo.load_draft(self.usuario_actual, self.sucursal_id)
+            if not result:
+                return
+            data_json, _ = result
+            draft = json.loads(data_json)
+            n = len(draft.get("carrito", []))
+            if n == 0:
+                return
+            total_b  = sum(i.get("subtotal", 0) for i in draft.get("carrito", []))
+            saved_at = str(draft.get("saved_at", ""))[:16]
+            Toast.info(
+                self, "📂 Borrador pendiente",
+                f"{n} ítem(s) · ${total_b:,.2f} del {saved_at}. "
+                "Usa 'Recuperar' para restaurar.",
+            )
+        except Exception as e:
+            logger.debug("_check_pending_draft: %s", e)
+
     def _guardar_borrador(self) -> None:
-        """Guarda el carrito actual como borrador JSON en disco."""
+        """Guarda el carrito actual como borrador (DB primario, JSON de respaldo)."""
         if not self.carrito_compra:
             QMessageBox.information(self, "Borrador", "El carrito está vacío."); return
-        draft = {
-            "carrito":         self.carrito_compra,
-            "proveedor_id":    self._proveedor_id_selected,
-            "proveedor_nombre": self.txt_proveedor.text().strip(),
-            "factura":         self.txt_factura.text().strip(),
-            "pago":            self.cmb_pago.currentData(),
-            "iva_activo":      self._chk_iva.isChecked() if hasattr(self, '_chk_iva') else False,
-            "saved_at":        datetime.now().isoformat(),
-        }
+        draft = self._build_draft_dict()
+        data_json = json.dumps(draft, ensure_ascii=False, default=str)
+        saved = False
+        # Primary: DB (per user+branch)
+        if self.usuario_actual:
+            try:
+                self._purchase_repo.save_draft(
+                    self.usuario_actual, self.sucursal_id, data_json)
+                saved = True
+            except Exception as e:
+                logger.warning("_guardar_borrador DB: %s", e)
+        # Secondary: JSON file (legacy fallback)
         try:
             with open(_DRAFT_PATH, "w", encoding="utf-8") as f:
-                json.dump(draft, f, ensure_ascii=False, default=str)
-            Toast.success(self, "💾 Borrador guardado",
-                          f"{len(self.carrito_compra)} ítem(s) · "
-                          f"${sum(i['subtotal'] for i in self.carrito_compra):,.2f}")
+                f.write(data_json)
+            saved = True
         except Exception as e:
-            QMessageBox.critical(self, "Error al guardar borrador", str(e))
+            if not saved:
+                QMessageBox.critical(self, "Error al guardar borrador", str(e))
+                return
+        Toast.success(
+            self, "💾 Borrador guardado",
+            f"{len(self.carrito_compra)} ítem(s) · "
+            f"${sum(i['subtotal'] for i in self.carrito_compra):,.2f}",
+        )
 
     def _cargar_borrador(self) -> None:
-        """Carga el borrador guardado, reemplazando el carrito actual."""
-        if not os.path.exists(_DRAFT_PATH):
+        """Carga el borrador (DB primario, JSON de respaldo), reemplazando el carrito."""
+        draft = None
+        # Primary: DB
+        if self.usuario_actual:
+            try:
+                result = self._purchase_repo.load_draft(self.usuario_actual, self.sucursal_id)
+                if result:
+                    draft = json.loads(result[0])
+            except Exception as e:
+                logger.warning("_cargar_borrador DB: %s", e)
+        # Secondary: JSON file
+        if draft is None and os.path.exists(_DRAFT_PATH):
+            try:
+                with open(_DRAFT_PATH, "r", encoding="utf-8") as f:
+                    draft = json.load(f)
+            except Exception as e:
+                QMessageBox.critical(self, "Error al leer borrador", str(e)); return
+
+        if not draft or not draft.get("carrito"):
             QMessageBox.information(self, "Borrador", "No hay borrador guardado."); return
-        try:
-            with open(_DRAFT_PATH, "r", encoding="utf-8") as f:
-                draft = json.load(f)
-        except Exception as e:
-            QMessageBox.critical(self, "Error al leer borrador", str(e)); return
 
         saved_at = str(draft.get("saved_at", ""))[:16]
-        n        = len(draft.get("carrito", []))
-        total_b  = sum(i.get('subtotal', 0) for i in draft.get("carrito", []))
+        n        = len(draft["carrito"])
+        total_b  = sum(i.get("subtotal", 0) for i in draft["carrito"])
         if not confirm_action(
             self, "Recuperar borrador",
             f"¿Cargar el borrador del {saved_at}?\n"
@@ -1690,24 +1808,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             "Cargar borrador", "Cancelar",
         ):
             return
-        self.carrito_compra = draft.get("carrito", [])
-        prov_nombre = draft.get("proveedor_nombre", "")
-        if prov_nombre:
-            self.txt_proveedor.setText(prov_nombre)
-            self._proveedor_id_selected = draft.get("proveedor_id")
-            self._resolver_proveedor_desde_texto()
-        factura = draft.get("factura", "")
-        if factura:
-            self.txt_factura.setText(factura)
-        pago_data = draft.get("pago")
-        if pago_data:
-            for i in range(self.cmb_pago.count()):
-                if self.cmb_pago.itemData(i) == pago_data:
-                    self.cmb_pago.setCurrentIndex(i)
-                    break
-        if hasattr(self, '_chk_iva'):
-            self._chk_iva.setChecked(bool(draft.get("iva_activo", False)))
-        self._refresh_tabla()
+        self._restore_draft_dict(draft)
         Toast.success(self, "📂 Borrador recuperado",
                       f"{len(self.carrito_compra)} ítem(s) cargados")
 
@@ -1802,10 +1903,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     + "\n\nContacta al administrador si el saldo no cuadra.",
                 )
 
-            # Clear UI
+            # Clear UI and draft
             self.carrito_compra.clear()
             self._refresh_tabla()
             self.txt_factura.clear()
+            self._clear_draft()
             # Refresh KPI bar non-blocking
             QTimer.singleShot(300, self._refresh_stats)
 
