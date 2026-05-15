@@ -425,7 +425,8 @@ class _HistorialLoader(QThread):
                 SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
                        c.usuario, c.total, c.estado, c.id,
                        COALESCE(c.condicion_pago,'liquidado') AS condicion_pago,
-                       COALESCE(c.moneda,'MXN') AS moneda
+                       COALESCE(c.moneda,'MXN') AS moneda,
+                       COALESCE(c.purchase_order_id, 0) AS po_id
                 FROM compras c
                 LEFT JOIN proveedores p ON p.id=c.proveedor_id
                 WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
@@ -2705,9 +2706,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_filter = FilterBar(
             self,
             placeholder="Buscar folio, proveedor o usuario…",
-            combo_filters={"estado": [
-                "completada", "credito", "pendiente", "parcial", "cancelada",
-            ]},
+            combo_filters={
+                "estado":    ["completada", "credito", "pendiente", "parcial", "cancelada"],
+                "tipo_doc":  ["directa", "con po"],   # Phase 7
+            },
         )
         self._hist_filter.filters_changed.connect(self._hist_filter_changed)
         lay.addWidget(self._hist_filter)
@@ -2715,18 +2717,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_loading.hide()
         lay.addWidget(self._hist_loading)
 
-        # Main table — cols: Folio | Fecha | Proveedor | Usuario | Total | Cond.Pago | Estado | ⋯
+        # Main table — 9 cols: Folio|Fecha|Proveedor|Usuario|Total|Cond.Pago|Estado|TipoDoc|⋯
         self._tbl_hist = QTableWidget()
-        self._tbl_hist.setColumnCount(8)
+        self._tbl_hist.setColumnCount(9)
         self._tbl_hist.setHorizontalHeaderLabels(
-            ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Cond. Pago", "Estado", ""])
+            ["Folio", "Fecha", "Proveedor", "Usuario", "Total",
+             "Cond. Pago", "Estado", "Tipo Doc", ""])
         hh = self._tbl_hist.horizontalHeader()
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
         hh.setSectionResizeMode(5, QHeaderView.Fixed)
         hh.setSectionResizeMode(6, QHeaderView.Fixed)
         self._tbl_hist.setColumnWidth(5, 90)
         self._tbl_hist.setColumnWidth(6, 110)
-        for c in (0, 1, 3, 4, 7):
+        for c in (0, 1, 3, 4, 7, 8):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
         self._tbl_hist.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_hist.setAlternatingRowColors(True)
@@ -2787,6 +2790,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._tbl_hist_detail.setObjectName("tableView")
         self._tbl_hist_detail.setMaximumHeight(160)
         det_lay.addWidget(self._tbl_hist_detail)
+
+        # Phase 7 — mini documento-timeline (visible solo cuando la compra tiene PO asociada)
+        self._hist_timeline_bar = QFrame()
+        self._hist_timeline_bar.setObjectName("histTimelineBar")
+        self._hist_timeline_bar.setFixedHeight(54)
+        self._hist_timeline_bar.setStyleSheet(
+            f"background:{Colors.NEUTRAL.SLATE_50};"
+            f"border:1px solid {Colors.NEUTRAL.SLATE_200};border-radius:6px;"
+        )
+        self._hist_timeline_lay = QHBoxLayout(self._hist_timeline_bar)
+        self._hist_timeline_lay.setContentsMargins(12, 6, 12, 6)
+        self._hist_timeline_lay.setSpacing(4)
+        self._hist_timeline_bar.hide()
+        det_lay.addWidget(self._hist_timeline_bar)
+
         self._hist_detail_panel.hide()
         lay.addWidget(self._hist_detail_panel)
 
@@ -2833,9 +2851,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_tbl_hist'):
             return
         try:
-            filtros = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
-            estado  = (filtros.get("estado") or "").strip().lower()
-            search  = (filtros.get("search") or "").strip().lower()
+            filtros   = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
+            estado    = (filtros.get("estado")   or "").strip().lower()
+            search    = (filtros.get("search")   or "").strip().lower()
+            tipo_doc  = (filtros.get("tipo_doc") or "").strip().lower()   # Phase 7
             rows = list(all_rows)
             if estado:
                 rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
@@ -2844,6 +2863,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                         search in str(r[0] or "").lower() or
                         search in str(r[2] or "").lower() or
                         search in str(r[3] or "").lower()]
+            if tipo_doc == "directa":
+                rows = [r for r in rows if not (len(r) > 9 and int(r[9] or 0))]
+            elif tipo_doc == "con po":
+                rows = [r for r in rows if len(r) > 9 and int(r[9] or 0)]
 
             # Pagination
             total_rows = len(rows)
@@ -2882,26 +2905,37 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 str(r[2] or ""), str(r[3] or ""),
                 total_str,
             ]
-            cid_ = r[6]; pnm_ = str(r[2] or "")
+            cid_  = r[6]
+            pnm_  = str(r[2] or "")
+            po_id = int(r[9] or 0) if len(r) > 9 else 0   # Phase 7
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if ci == 4:
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if ci == 0:
-                    it.setData(Qt.UserRole, cid_)  # store compra_id for inline detail
+                    it.setData(Qt.UserRole, cid_)        # compra_id for inline detail
+                    it.setData(Qt.UserRole + 1, po_id)   # po_id for timeline (Phase 7)
                 self._tbl_hist.setItem(ri, ci, it)
-            # col 5 — Cond. Pago chip (design system badge)
+            # col 5 — Cond. Pago chip
             self._tbl_hist.setCellWidget(ri, 5, _make_cond_chip(cond_raw, self))
-            # col 6 — Estado chip (design system badge)
+            # col 6 — Estado chip
             self._tbl_hist.setCellWidget(ri, 6, _make_status_chip(estado_raw, self))
+            # col 7 — Tipo Doc badge (Phase 7)
+            if po_id:
+                tipo_badge = create_badge(self, "📦 PO", "primary")
+                tipo_badge.setToolTip(f"Recibida contra PO #{po_id}")
+            else:
+                tipo_badge = create_badge(self, "🛒 Directa", "neutral")
+            self._tbl_hist.setCellWidget(ri, 7, tipo_badge)
             total_periodo += monto
+            # col 8 — Ver btn
             btn_det = create_secondary_button(self, "🔍 Ver",
                                               "Ver detalles de esta compra")
             btn_det.clicked.connect(
                 lambda _, cid=cid_, pnm=pnm_:
                     self._ver_detalle_compra(cid, pnm))
-            self._tbl_hist.setCellWidget(ri, 7, btn_det)
+            self._tbl_hist.setCellWidget(ri, 8, btn_det)
 
         total_display = "—" if ocultar_totales else f"${total_periodo:,.2f}"
         self.lbl_hist_total_compras.setText(f"Total período: {total_display}")
@@ -3119,6 +3153,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             # Fallback: try to parse from folio column text (best-effort)
             self._hist_detail_panel.setVisible(False)
             return
+        po_id = id_item.data(Qt.UserRole + 1) or 0   # Phase 7
         try:
             items = self._purchase_repo.get_purchase_detail_items(compra_id)
             tbl = self._tbl_hist_detail
@@ -3138,13 +3173,110 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     if ci > 0:
                         cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     tbl.setItem(ri, ci, cell)
+            folio_compra = str(self._tbl_hist.item(row, 0).text() if self._tbl_hist.item(row, 0) else "")
             self._hist_detail_panel.setTitle(
                 f"Detalle compra #{compra_id}  ({len(items)} producto(s))"
             )
             self._hist_detail_panel.setVisible(True)
+            # Phase 7 — timeline
+            self._refresh_hist_timeline(int(po_id), folio_compra)
         except Exception as exc:
             logger.debug("_on_hist_row_selected: %s", exc)
             self._hist_detail_panel.setVisible(False)
+
+    def _refresh_hist_timeline(self, po_id: int, compra_folio: str) -> None:
+        """
+        Phase 7 — Muestra u oculta el mini-timeline documental en el panel de detalle.
+
+        Si la compra NO tiene PO asociada → oculta la barra.
+        Si tiene PO → muestra cadena:  [PR folio?] →→ [PO folio] →→ [Compra folio]
+        """
+        bar = getattr(self, '_hist_timeline_bar', None)
+        lay = getattr(self, '_hist_timeline_lay', None)
+        if bar is None or lay is None:
+            return
+
+        # Limpiar widgets anteriores
+        while lay.count():
+            child = lay.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        if not po_id:
+            bar.hide()
+            return
+
+        def _node(icon: str, label: str, sublabel: str, variant: str) -> QFrame:
+            f = QFrame()
+            f.setStyleSheet(
+                f"background:{'#EFF6FF' if variant=='primary' else '#F0FDF4' if variant=='success' else Colors.NEUTRAL.SLATE_100};"
+                f"border:1px solid {'#BFDBFE' if variant=='primary' else '#BBF7D0' if variant=='success' else Colors.NEUTRAL.SLATE_300};"
+                f"border-radius:5px;padding:2px 6px;"
+            )
+            fl = QVBoxLayout(f)
+            fl.setContentsMargins(4, 2, 4, 2)
+            fl.setSpacing(0)
+            top = QLabel(f"{icon} <b>{label}</b>")
+            top.setStyleSheet("font-size:11px;")
+            top.setTextFormat(Qt.RichText)
+            sub = QLabel(sublabel)
+            sub.setStyleSheet(f"font-size:9px;color:{Colors.NEUTRAL.SLATE_500};")
+            fl.addWidget(top)
+            fl.addWidget(sub)
+            return f
+
+        def _arrow() -> QLabel:
+            lbl = QLabel("→")
+            lbl.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_400};font-size:16px;")
+            lbl.setAlignment(Qt.AlignCenter)
+            return lbl
+
+        # Fetch PO data
+        try:
+            repo = getattr(self.container, 'purchase_order_repo', None)
+            po   = repo.get_by_id(po_id) if repo else None
+            if po is None:
+                row = self.container.db.execute(
+                    "SELECT folio, estado, pr_id FROM ordenes_compra WHERE id=? LIMIT 1",
+                    (po_id,)
+                ).fetchone()
+                po = dict(row) if row and hasattr(row, 'keys') else (
+                    {"folio": f"PO-{po_id}", "estado": "?", "pr_id": 0} if row is None else
+                    {"folio": row[0] or f"PO-{po_id}", "estado": row[1] or "?", "pr_id": row[2] or 0}
+                )
+        except Exception:
+            po = {"folio": f"PO-{po_id}", "estado": "?", "pr_id": 0}
+
+        po_folio  = po.get("folio") or f"PO-{po_id}"
+        po_estado = po.get("estado") or "?"
+        pr_id     = int(po.get("pr_id") or 0)
+
+        # Fetch PR data if linked
+        pr_folio = ""
+        if pr_id:
+            try:
+                pr_repo = getattr(self.container, 'purchase_request_repo', None)
+                pr = pr_repo.get_by_id(pr_id) if pr_repo else None
+                if pr:
+                    pr_folio = pr.get("folio") or f"PR-{pr_id}"
+                else:
+                    row2 = self.container.db.execute(
+                        "SELECT folio FROM purchase_requests WHERE id=? LIMIT 1",
+                        (pr_id,)
+                    ).fetchone()
+                    if row2:
+                        pr_folio = (row2["folio"] if hasattr(row2, 'keys') else row2[0]) or f"PR-{pr_id}"
+            except Exception:
+                pr_folio = f"PR-{pr_id}"
+
+        if pr_folio:
+            lay.addWidget(_node("📋", pr_folio, "Solicitud PR", "neutral"))
+            lay.addWidget(_arrow())
+        lay.addWidget(_node("📦", po_folio, f"PO · {po_estado}", "primary"))
+        lay.addWidget(_arrow())
+        lay.addWidget(_node("🛒", compra_folio or "—", "Compra registrada", "success"))
+        lay.addStretch()
+        bar.show()
 
     def _ver_detalle_compra(self, compra_id: int, proveedor_nombre: str = "") -> None:
         """Muestra el detalle completo de una compra: recibo + timeline + acciones."""
