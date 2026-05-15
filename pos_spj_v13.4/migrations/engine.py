@@ -70,6 +70,7 @@ MIGRATIONS = [
     ("073",  "migrations.standalone.073_temp_purchase_drafts"),           # v13.4: DB-backed cart drafts per user/branch
     ("074",  "migrations.standalone.074_compras_archivo_adjunto"),        # v13.4: optional file attachment per purchase
     ("075",  "migrations.standalone.075_plantillas_compra"),              # Hotfix: plantillas_compra tables missing from schema
+    ("076",  "migrations.standalone.076_recepciones_peso_total_kg"),      # Hotfix: recepciones.peso_total_kg missing (ref'd by QR history query)
 ]
 
 def _ensure_tracking_table(conn):
