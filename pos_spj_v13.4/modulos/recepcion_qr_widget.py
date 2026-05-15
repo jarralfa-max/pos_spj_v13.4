@@ -88,22 +88,25 @@ class RecepcionQRWidget(QWidget):
         root.setContentsMargins(12, 10, 12, 10)
         root.setSpacing(10)
 
-        # Pestañas: Generar QR | Asignar Compra | Recepcionar
+        # Pestañas: Generar QR | Asignar Compra | Recepcionar | Historial | Recepción PO
         self._tabs = QTabWidget()
         self._tab_generar    = QWidget()
         self._tab_asignar    = QWidget()
         self._tab_recepcionar = QWidget()
         self._tab_historial  = QWidget()
+        self._tab_po_recv    = QWidget()   # Phase 6 — PO reception tab (no QR changes)
         self._tabs.addTab(self._tab_generar,     "🏷️ 1. Generar Etiqueta QR")
         self._tabs.addTab(self._tab_asignar,     "📋 2. Asignar Compra")
         self._tabs.addTab(self._tab_recepcionar, "📦 3. Recepcionar")
         self._tabs.addTab(self._tab_historial,   "📜 Historial")
+        self._tabs.addTab(self._tab_po_recv,     "🧾 Recepción PO")
         root.addWidget(self._tabs)
 
         self._build_tab_generar()
         self._build_tab_asignar()
         self._build_tab_recepcionar()
         self._build_tab_historial()
+        self._build_tab_po_recepcion()    # Phase 6
 
     # ── Pestaña 1: Generar QR ─────────────────────────────────────────────────
 
@@ -673,6 +676,297 @@ class RecepcionQRWidget(QWidget):
         self._cargar_historial()
         self._cargar_proveedores_qr_hist()
         apply_object_names(self)
+
+    # ── Pestaña 5: Recepción PO (Phase 6) ────────────────────────────────────
+
+    def _build_tab_po_recepcion(self) -> None:
+        """
+        Pestaña adicional para recibir una PO contra el ReceivePOAdapter.
+
+        NO modifica las pestañas QR existentes (QR NO-TOUCH policy).
+        Flujo: selector de PO → get_po_lines() → tabla visual →
+               cantidades editables → register_partial_receipt()
+        """
+        lay = QVBoxLayout(self._tab_po_recv)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(8)
+
+        info = QLabel(
+            "Selecciona una Orden de Compra abierta para recibir su mercancía. "
+            "Puedes recibir parcialmente — la PO quedará en estado PARCIAL hasta completarse."
+        )
+        info.setWordWrap(True)
+        info.setObjectName("caption")
+        lay.addWidget(info)
+
+        # ── Selector de PO ────────────────────────────────────────────────────
+        sel_grp = QGroupBox("① Seleccionar Orden de Compra")
+        sel_lay = QHBoxLayout(sel_grp)
+        sel_lay.setSpacing(6)
+        self._cmb_po_selector = QComboBox()
+        self._cmb_po_selector.setMinimumWidth(320)
+        btn_reload_pos = create_secondary_button(self, "🔄", "Recargar lista de POs abiertas")
+        btn_reload_pos.setMaximumWidth(36)
+        btn_reload_pos.clicked.connect(self._cargar_pos_abiertas)
+        btn_cargar_po = create_primary_button(self, "📋 Cargar líneas", "Ver productos esperados de esta PO")
+        btn_cargar_po.clicked.connect(self._cargar_lineas_po)
+        sel_lay.addWidget(QLabel("PO:"))
+        sel_lay.addWidget(self._cmb_po_selector, 1)
+        sel_lay.addWidget(btn_reload_pos)
+        sel_lay.addWidget(btn_cargar_po)
+        lay.addWidget(sel_grp)
+
+        self._lbl_po_info = QLabel("—")
+        self._lbl_po_info.setObjectName("caption")
+        lay.addWidget(self._lbl_po_info)
+
+        # ── Tabla de líneas ───────────────────────────────────────────────────
+        self._tbl_po_lines = QTableWidget()
+        self._tbl_po_lines.setColumnCount(7)
+        self._tbl_po_lines.setHorizontalHeaderLabels(
+            ["ID", "Producto", "Unidad", "Esperado", "Ya recibido", "Cant. a recibir", "Costo unit."]
+        )
+        self._tbl_po_lines.verticalHeader().setVisible(False)
+        self._tbl_po_lines.setAlternatingRowColors(True)
+        self._tbl_po_lines.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        hdr = self._tbl_po_lines.horizontalHeader()
+        hdr.setSectionResizeMode(1, QHeaderView.Stretch)
+        for c in (0, 2, 3, 4, 5, 6):
+            hdr.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        lay.addWidget(self._tbl_po_lines, 1)
+
+        self._lbl_po_completion = QLabel("")
+        self._lbl_po_completion.setObjectName("caption")
+        lay.addWidget(self._lbl_po_completion)
+
+        # ── Método de pago ────────────────────────────────────────────────────
+        pay_row = QHBoxLayout()
+        pay_row.addWidget(QLabel("Método de pago:"))
+        self._cmb_po_metodo_pago = QComboBox()
+        for label, code in [
+            ("CREDITO (Cuentas por Pagar)", "CREDITO"),
+            ("CONTADO",                     "CONTADO"),
+            ("TRANSFERENCIA",               "TRANSFERENCIA"),
+        ]:
+            self._cmb_po_metodo_pago.addItem(label, code)
+        pay_row.addWidget(self._cmb_po_metodo_pago)
+        pay_row.addStretch()
+        lay.addLayout(pay_row)
+
+        # ── Botones de acción ─────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        btn_accept_all = create_secondary_button(
+            self, "✅ Aceptar todo",
+            "Pone la cantidad a recibir igual al pendiente de cada línea"
+        )
+        btn_accept_all.clicked.connect(self._aceptar_todo_po)
+        btn_confirmar_po = create_success_button(
+            self, "✅ Confirmar Recepción PO",
+            "Registra recepción física e ingresa al inventario via ReceivePOAdapter"
+        )
+        btn_confirmar_po.setMinimumHeight(38)
+        btn_confirmar_po.clicked.connect(self._confirmar_recepcion_po)
+        btn_row.addWidget(btn_accept_all)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_confirmar_po)
+        lay.addLayout(btn_row)
+
+        # Carga diferida para no bloquear __init__
+        QTimer.singleShot(400, self._cargar_pos_abiertas)
+
+    def _cargar_pos_abiertas(self) -> None:
+        """Carga POs en estado ABIERTA o PARCIAL en el combobox selector."""
+        if not hasattr(self, '_cmb_po_selector'):
+            return
+        self._cmb_po_selector.clear()
+        try:
+            repo = getattr(self.container, 'purchase_order_repo', None) if self.container else None
+            if repo and hasattr(repo, 'list_open'):
+                pos = repo.list_open()
+            else:
+                rows = self.conexion.execute(
+                    "SELECT id, folio, proveedor_nombre, estado FROM ordenes_compra "
+                    "WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente') "
+                    "ORDER BY id DESC LIMIT 100"
+                ).fetchall()
+                pos = [
+                    dict(r) if hasattr(r, 'keys') else
+                    {"id": r[0], "folio": r[1], "proveedor_nombre": r[2], "estado": r[3]}
+                    for r in (rows or [])
+                ]
+            for po in pos:
+                folio  = po.get('folio') or f"PO-{po.get('id', '?')}"
+                prov   = po.get('proveedor_nombre', '')
+                estado = po.get('estado', '')
+                label  = f"{folio} — {prov} [{estado}]"
+                self._cmb_po_selector.addItem(label, po.get('id'))
+            count = len(pos)
+            if hasattr(self, '_lbl_po_info'):
+                if count:
+                    self._lbl_po_info.setText(f"{count} PO(s) disponibles · selecciona y carga líneas.")
+                else:
+                    self._lbl_po_info.setText("No hay POs abiertas o parciales en este momento.")
+        except Exception as e:
+            logger.debug("_cargar_pos_abiertas: %s", e)
+            if hasattr(self, '_lbl_po_info'):
+                self._lbl_po_info.setText("Sin acceso al repositorio de POs.")
+
+    def _cargar_lineas_po(self) -> None:
+        """Carga las líneas de la PO seleccionada en la tabla comparativa."""
+        if not hasattr(self, '_cmb_po_selector'):
+            return
+        po_id = self._cmb_po_selector.currentData()
+        if not po_id:
+            QMessageBox.warning(self, "Aviso", "Selecciona una PO primero.")
+            return
+        try:
+            adapter = getattr(self.container, 'receive_po_adapter', None) if self.container else None
+            if not adapter:
+                self._lbl_po_info.setText("⚠ receive_po_adapter no disponible — inicia sesión desde AppContainer.")
+                return
+            lines  = adapter.get_po_lines(int(po_id))
+            estado = adapter.get_po_status(int(po_id))
+            self._tbl_po_lines.setRowCount(0)
+            self._po_id_activo  = int(po_id)
+            self._po_lines_cache = lines
+
+            for row_idx, line in enumerate(lines):
+                self._tbl_po_lines.insertRow(row_idx)
+                prod_id   = line.get('producto_id', '')
+                nombre    = line.get('nombre', '')
+                unidad    = line.get('unidad', 'kg')
+                cantidad  = float(line.get('cantidad', 0))
+                recibido  = float(line.get('recibido', 0))
+                pendiente = float(line.get('pendiente', 0))
+                costo     = float(line.get('precio_unitario', 0))
+
+                for col, val in enumerate([
+                    str(prod_id), nombre, unidad,
+                    f"{cantidad:.3f}", f"{recibido:.3f}",
+                ]):
+                    item = QTableWidgetItem(val)
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    self._tbl_po_lines.setItem(row_idx, col, item)
+
+                # Col 5: cantidad a recibir (SpinBox editable)
+                spin_qty = QDoubleSpinBox()
+                spin_qty.setRange(0, 999999)
+                spin_qty.setDecimals(3)
+                spin_qty.setValue(max(0.0, pendiente))
+                spin_qty.setSingleStep(0.5)
+                spin_qty.setFrame(False)
+                self._tbl_po_lines.setCellWidget(row_idx, 5, spin_qty)
+
+                # Col 6: costo unitario (SpinBox editable)
+                spin_cost = QDoubleSpinBox()
+                spin_cost.setRange(0, 9999999)
+                spin_cost.setDecimals(4)
+                spin_cost.setValue(costo)
+                spin_cost.setPrefix("$")
+                spin_cost.setFrame(False)
+                self._tbl_po_lines.setCellWidget(row_idx, 6, spin_cost)
+
+            # Colorize received rows
+            for row_idx, line in enumerate(lines):
+                if float(line.get('pendiente', 1)) <= 0:
+                    for col in range(5):
+                        item = self._tbl_po_lines.item(row_idx, col)
+                        if item:
+                            item.setForeground(QColor(Colors.NEUTRAL.SLATE_400))
+
+            self._lbl_po_info.setText(
+                f"PO cargada: {self._cmb_po_selector.currentText()} — "
+                f"Estado: {estado} — {len(lines)} línea(s)"
+            )
+            self._lbl_po_completion.setText("")
+        except Exception as e:
+            logger.error("_cargar_lineas_po po_id=%s: %s", po_id, e)
+            QMessageBox.critical(self, "Error al cargar PO", str(e))
+
+    def _aceptar_todo_po(self) -> None:
+        """Iguala la cantidad a recibir al pendiente de cada línea."""
+        cache = getattr(self, '_po_lines_cache', [])
+        for row_idx, line in enumerate(cache):
+            spin = self._tbl_po_lines.cellWidget(row_idx, 5)
+            if spin:
+                spin.setValue(max(0.0, float(line.get('pendiente', 0))))
+
+    def _confirmar_recepcion_po(self) -> None:
+        """Registra la recepción física de la PO vía ReceivePOAdapter."""
+        po_id = getattr(self, '_po_id_activo', None)
+        if not po_id:
+            QMessageBox.warning(self, "Aviso", "Carga una PO primero (botón 'Cargar líneas').")
+            return
+        if not self.container:
+            QMessageBox.warning(self, "Aviso", "Módulo no disponible sin AppContainer.")
+            return
+        adapter = getattr(self.container, 'receive_po_adapter', None)
+        if not adapter:
+            QMessageBox.critical(self, "Error", "receive_po_adapter no está registrado en el contenedor.")
+            return
+
+        # Recoger ítems con cantidad > 0
+        from application.purchases.receive_po_adapter import ReceiptItem
+        items = []
+        for row_idx in range(self._tbl_po_lines.rowCount()):
+            id_item    = self._tbl_po_lines.item(row_idx, 0)
+            name_item  = self._tbl_po_lines.item(row_idx, 1)
+            spin_qty   = self._tbl_po_lines.cellWidget(row_idx, 5)
+            spin_cost  = self._tbl_po_lines.cellWidget(row_idx, 6)
+            if not (id_item and spin_qty and spin_cost):
+                continue
+            qty = spin_qty.value()
+            if qty <= 0:
+                continue
+            items.append(ReceiptItem(
+                product_id=int(id_item.text()),
+                qty_received=qty,
+                unit_cost=spin_cost.value(),
+                nombre=name_item.text() if name_item else "",
+            ))
+
+        if not items:
+            QMessageBox.warning(self, "Aviso", "No hay cantidades a recibir. Ingresa al menos un valor mayor a 0.")
+            return
+
+        # Obtener proveedor_id desde la PO
+        try:
+            repo = getattr(self.container, 'purchase_order_repo', None)
+            po   = repo.get_by_id(po_id) if repo else None
+            proveedor_id = int((po or {}).get('proveedor_id') or 0)
+        except Exception:
+            proveedor_id = 0
+
+        metodo_pago = self._cmb_po_metodo_pago.currentData() or "CREDITO"
+
+        result = adapter.register_partial_receipt(
+            po_id=po_id,
+            received_items=items,
+            usuario=self.usuario,
+            sucursal_id=self.sucursal_id,
+            proveedor_id=proveedor_id,
+            metodo_pago=metodo_pago,
+        )
+
+        if result.ok:
+            pct = f"{result.completion * 100:.0f}%"
+            msg = f"PO {result.po_id} → {result.po_estado} · {pct} recibido"
+            if result.folio:
+                msg += f"\nFolio compra: {result.folio}"
+            Toast.success(self, "✅ Recepción PO registrada", msg)
+            self._lbl_po_completion.setText(
+                f"✅ Estado: {result.po_estado} · Completitud: {pct}"
+            )
+            if result.warnings:
+                QMessageBox.warning(
+                    self, "Advertencias de recepción",
+                    "\n".join(f"• {w}" for w in result.warnings),
+                )
+            # Recargar líneas para mostrar recibido actualizado
+            QTimer.singleShot(200, self._cargar_lineas_po)
+            QTimer.singleShot(500, self._cargar_pos_abiertas)
+        else:
+            QMessageBox.critical(self, "Error al registrar recepción", result.error)
 
     # ── Nuevos helpers UI ─────────────────────────────────────────────────────
 
