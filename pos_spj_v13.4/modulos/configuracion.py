@@ -1457,7 +1457,7 @@ class ModuloConfiguracion(ModuloBase):
                 self.tabla_sucursales.setItem(i, 2, QTableWidgetItem(direccion or ""))
                 self.tabla_sucursales.setItem(i, 3, QTableWidgetItem(telefono or ""))
                 estado_item = QTableWidgetItem("✅ Activa" if activa else "❌ Inactiva")
-                estado_item.setForeground(QColor("#27ae60") if activa else QColor("#c0392b"))
+                estado_item.setForeground(QColor(Colors.SUCCESS_BASE) if activa else QColor(Colors.DANGER_BASE))
                 self.tabla_sucursales.setItem(i, 4, estado_item)
         except Exception as e:
             print(f"Error cargando sucursales: {e}")

@@ -2567,9 +2567,9 @@ if(drivers.length===0){{
                     if j == 8 and v is not None:
                         diff = float(v)
                         if abs(diff) > 0.01:
-                            item.setForeground(QColor("#e74c3c") if diff < 0 else QColor("#f39c12"))
+                            item.setForeground(QColor(Colors.DANGER_HOVER) if diff < 0 else QColor(Colors.WARNING_HOVER))
                         else:
-                            item.setForeground(QColor("#27ae60"))
+                            item.setForeground(QColor(Colors.SUCCESS_BASE))
                     tbl.setItem(i, j, item)
         except Exception as e:
             lay.addWidget(QLabel(f"Error cargando historial: {e}"))

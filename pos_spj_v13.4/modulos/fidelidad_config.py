@@ -369,7 +369,7 @@ class ModuloFidelidadConfig(QWidget):
                         val = str(int(v))
                     it = QTableWidgetItem(str(val or "Nunca"))
                     if j == 2 and v is not None and int(v) > 60:
-                        it.setForeground(QColor("#e74c3c"))
+                        it.setForeground(QColor(Colors.DANGER_HOVER))
                         it.setFont(QFont("Arial", -1, QFont.Bold))
                     self.tbl_riesgo.setItem(i, j, it)
 

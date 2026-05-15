@@ -44,7 +44,7 @@ from PyQt5.QtGui import QColor, QFont
 
 logger = logging.getLogger("spj.ui.recepcion_qr")
 
-_C_GRIS = "#7f8c8d"   # muted text — no direct Colors token
+_C_GRIS = Colors.NEUTRAL.SLATE_500  # muted text
 
 
 class RecepcionQRWidget(QWidget):
@@ -68,6 +68,8 @@ class RecepcionQRWidget(QWidget):
         self.usuario      = usuario
         self._contenedor_activo: Optional[Dict] = None
         self._items_asignados: List[Dict] = []
+        self._tipo_contenedor: str = "Caja"
+        self._tipo_btns: list = []
         self._build_ui()
         # Activar lector QR HID
         self._activar_lector_qr()

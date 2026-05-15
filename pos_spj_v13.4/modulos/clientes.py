@@ -1357,12 +1357,12 @@ class _DialogoRFM(QDialog):
     """
 
     SEGMENTOS = {
-        "Champions":    {"r": (4,5), "f": (4,5), "m": (3,5), "color": "#27ae60", "icono": "👑"},
-        "Leales":       {"r": (3,5), "f": (4,5), "m": (3,5), "color": "#2980b9", "icono": "⭐"},
-        "Potenciales":  {"r": (4,5), "f": (2,3), "m": (2,4), "color": "#8e44ad", "icono": "🌱"},
-        "Nuevos":       {"r": (4,5), "f": (1,1), "m": (1,3), "color": "#16a085", "icono": "🆕"},
-        "En riesgo":    {"r": (2,3), "f": (3,5), "m": (3,5), "color": "#e67e22", "icono": "⚠️"},
-        "Casi perdidos":{"r": (1,2), "f": (1,2), "m": (1,2), "color": "#e74c3c", "icono": "🚨"},
+        "Champions":    {"r": (4,5), "f": (4,5), "m": (3,5), "color": Colors.SUCCESS_BASE, "icono": "👑"},
+        "Leales":       {"r": (3,5), "f": (4,5), "m": (3,5), "color": Colors.PRIMARY_BASE, "icono": "⭐"},
+        "Potenciales":  {"r": (4,5), "f": (2,3), "m": (2,4), "color": Colors.ACCENT_BASE, "icono": "🌱"},
+        "Nuevos":       {"r": (4,5), "f": (1,1), "m": (1,3), "color": Colors.POS_ACTION_BASE, "icono": "🆕"},
+        "En riesgo":    {"r": (2,3), "f": (3,5), "m": (3,5), "color": Colors.WARNING_BASE, "icono": "⚠️"},
+        "Casi perdidos":{"r": (1,2), "f": (1,2), "m": (1,2), "color": Colors.DANGER_HOVER, "icono": "🚨"},
     }
 
     def __init__(self, conn, parent=None):
@@ -1552,7 +1552,7 @@ class _DialogoRFM(QDialog):
         self.tbl.setRowCount(len(data))
         for ri, d in enumerate(data):
             seg_cfg = self.SEGMENTOS.get(d["segmento"], {})
-            color   = seg_cfg.get("color", "#888888")
+            color   = seg_cfg.get("color", Colors.NEUTRAL.SLATE_400)
             vals = [
                 d["nombre"], d["telefono"], d["ultima"],
                 str(d["dias_r"]),

@@ -52,8 +52,8 @@ TRANSFER_DISPATCHED = "TRASPASO_INICIADO"
 TRANSFER_RECEIVED   = "TRASPASO_CONFIRMADO"
 TRANSFER_CANCELLED  = "TRASPASO_CANCELADO"
 
-_C1 = "#1a252f"; _C3 = "#2980b9"; _C4 = "#27ae60"
-_C5 = "#e74c3c"; _C6 = "#f39c12"; _C7 = "#8e44ad"
+_C1 = Colors.NEUTRAL.SLATE_900; _C3 = Colors.PRIMARY_BASE; _C4 = Colors.SUCCESS_BASE
+_C5 = Colors.DANGER_HOVER; _C6 = Colors.WARNING_HOVER; _C7 = Colors.ACCENT_BASE
 
 _STATUS_COLORS = {
     "DISPATCHED": _C6,
@@ -365,7 +365,7 @@ class ModuloTransferencias(ModuloBase):
                     it = QTableWidgetItem(str(v))
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     if ci == 3: # Columna de Estado
-                        it.setForeground(QColor(_STATUS_COLORS.get(st, "#000")))
+                        it.setForeground(QColor(_STATUS_COLORS.get(st, Colors.NEUTRAL.SLATE_900)))
                         it.setTextAlignment(Qt.AlignCenter)
                     self._tbl.setItem(ri, ci, it)
 

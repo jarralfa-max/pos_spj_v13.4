@@ -48,19 +48,19 @@ _PRICE_VARIANCE_THRESHOLD = 20.0
 _HIST_LIMIT = 500
 
 
-_COLOR_PARCIAL  = "#7C3AED"  # purple — no semantic token exists yet
-_COLOR_NEUTRAL  = "#64748B"  # slate-500 for unknown states
+_COLOR_PARCIAL  = Colors.ACCENT_BASE
+_COLOR_NEUTRAL  = Colors.NEUTRAL.SLATE_500
 
 _STATUS_CHIP_STYLES: dict[str, tuple[str, str, str]] = {
     # estado_key: (label, bg_color, text_color)
-    "completada":  ("✔ Completada",  Colors.SUCCESS_BASE,  "#FFFFFF"),
-    "completa":    ("✔ Completada",  Colors.SUCCESS_BASE,  "#FFFFFF"),
-    "credito":     ("💳 Crédito",    Colors.WARNING_BASE,  "#FFFFFF"),
-    "pendiente":   ("⏳ Pendiente",  Colors.INFO_BASE,     "#FFFFFF"),
-    "cancelada":   ("✕ Cancelada",  Colors.DANGER_BASE,   "#FFFFFF"),
-    "parcial":     ("▶ Parcial",     _COLOR_PARCIAL,       "#FFFFFF"),
+    "completada":  ("✔ Completada",  Colors.SUCCESS_BASE,  Colors.NEUTRAL.WHITE),
+    "completa":    ("✔ Completada",  Colors.SUCCESS_BASE,  Colors.NEUTRAL.WHITE),
+    "credito":     ("💳 Crédito",    Colors.WARNING_BASE,  Colors.NEUTRAL.WHITE),
+    "pendiente":   ("⏳ Pendiente",  Colors.INFO_BASE,     Colors.NEUTRAL.WHITE),
+    "cancelada":   ("✕ Cancelada",  Colors.DANGER_BASE,   Colors.NEUTRAL.WHITE),
+    "parcial":     ("▶ Parcial",     _COLOR_PARCIAL,       Colors.NEUTRAL.WHITE),
 }
-_STATUS_CHIP_DEFAULT = ("●",  _COLOR_NEUTRAL, "#FFFFFF")
+_STATUS_CHIP_DEFAULT = ("●",  _COLOR_NEUTRAL, Colors.NEUTRAL.WHITE)
 
 # Draft purchase — persisted to user home so it survives restarts
 _DRAFT_PATH = os.path.join(os.path.expanduser("~"), ".spj_compra_borrador.json")
@@ -2378,9 +2378,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         for label, active, ts in steps:
             if label == "Cancelada" and estado != "cancelada":
                 continue
-            color   = Colors.SUCCESS_BASE if active else "#c0c0c0"
+            color   = Colors.SUCCESS_BASE if active else Colors.NEUTRAL.SLATE_300
             dot_bg  = color
-            txt_col = "#333" if active else "#aaa"
+            txt_col = Colors.NEUTRAL.SLATE_700 if active else Colors.NEUTRAL.SLATE_400
             ts_txt  = f"<br><small style='color:#888;'>{ts}</small>" if ts else ""
             items_html += (
                 f"<td align='center' style='padding:4px 16px;'>"
@@ -2546,7 +2546,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         prov_display = proveedor_nombre or f"ID {compra.get('proveedor_id','?')}"
         rows_html = ""
         for idx, it in enumerate(items):
-            bg_row = "#f8f9fa" if idx % 2 == 0 else "#ffffff"
+            bg_row = Colors.NEUTRAL.SLATE_50 if idx % 2 == 0 else Colors.NEUTRAL.WHITE
             rows_html += (
                 f"<tr style='background:{bg_row};'>"
                 f"<td style='padding:4px 6px;'>{it.get('nombre','')}</td>"

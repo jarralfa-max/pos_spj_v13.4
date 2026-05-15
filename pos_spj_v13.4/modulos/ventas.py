@@ -3405,7 +3405,7 @@ class ModuloVentas(ModuloBase):
             desc_pct = float(item.get('descuento_pct', 0))
             if desc_pct > 0:
                 disc_item = QTableWidgetItem(f"-{desc_pct:.0f}%")
-                disc_item.setForeground(QBrush(QColor("#EF4444")))
+                disc_item.setForeground(QBrush(QColor(Colors.DANGER_HOVER)))
                 disc_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
                 disc_item.setToolTip("Clic para quitar el descuento")
                 self.tabla_compra.removeCellWidget(row, 3)

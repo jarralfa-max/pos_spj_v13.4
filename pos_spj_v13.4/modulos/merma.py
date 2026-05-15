@@ -524,7 +524,7 @@ class ModuloMerma(QWidget):
                     if ci in (2, 4, 5):
                         it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     if ci == 5 and valor >= UMBRAL_VALOR_ALTO:
-                        it.setForeground(QColor("#e74c3c"))
+                        it.setForeground(QColor(Colors.DANGER_HOVER))
                         it.setFont(QFont("Arial", -1, QFont.Bold))
                     self.tbl.setItem(ri, ci, it)
 
