@@ -27,6 +27,7 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QMenu, QSizePolicy, QCheckBox, QListWidget, QListWidgetItem,
     QDialog, QInputDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog, QScrollArea,
+    QPlainTextEdit,
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal
 from PyQt5.QtGui import QCursor, QKeySequence
@@ -898,7 +899,46 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_provider_card(self) -> QFrame:
         """Provider section card. Sets up all provider-related instance attrs."""
-        panel, body = _make_section_card("Datos del Proveedor")
+        # Manual build so we can add "Nuevo +" button to the header
+        panel = QFrame()
+        panel.setObjectName("sectionCard")
+        panel.setStyleSheet(
+            f"QFrame#sectionCard{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"border-radius:{Borders.RADIUS_MD}px;}}"
+        )
+        panel_lay = QVBoxLayout(panel)
+        panel_lay.setContentsMargins(0, 0, 0, 0)
+        panel_lay.setSpacing(0)
+
+        # Header row with label + "Nuevo +" button
+        hdr_frame = QFrame()
+        hdr_frame.setStyleSheet(
+            f"background:transparent;"
+            f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"border-top-left-radius:{Borders.RADIUS_MD}px;"
+            f"border-top-right-radius:{Borders.RADIUS_MD}px;"
+        )
+        hdr_row = QHBoxLayout(hdr_frame)
+        hdr_row.setContentsMargins(Spacing.SM + 2, Spacing.XS, Spacing.SM + 2, Spacing.XS)
+        hdr_row.setSpacing(Spacing.XS)
+        hdr_lbl = QLabel("DATOS DEL PROVEEDOR")
+        hdr_lbl.setStyleSheet(
+            f"color:{Colors.NEUTRAL.SLATE_700};font-size:{Typography.SIZE_XS};"
+            f"font-weight:{Typography.WEIGHT_BOLD};letter-spacing:0.1em;"
+            "background:transparent;border:none;"
+        )
+        btn_nuevo_prov = create_secondary_button(self, "Nuevo +", "Registrar nuevo proveedor")
+        btn_nuevo_prov.setFixedHeight(22)
+        btn_nuevo_prov.setMaximumWidth(68)
+        hdr_row.addWidget(hdr_lbl)
+        hdr_row.addStretch()
+        hdr_row.addWidget(btn_nuevo_prov)
+        panel_lay.addWidget(hdr_frame)
+
+        body = QVBoxLayout()
+        body.setContentsMargins(Spacing.SM + 2, Spacing.SM, Spacing.SM + 2, Spacing.SM)
+        body.setSpacing(Spacing.XS + 2)
+        panel_lay.addLayout(body)
 
         self._proveedor_id_selected = None
         self._proveedores_cache = []
@@ -915,18 +955,35 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_prov_status.setObjectName("caption")
         self._lbl_prov_status.setStyleSheet(f"color:{Colors.WARNING_BASE};")
 
+        # Individual read-only info labels — populated by _cargar_info_proveedor
+        self._lbl_rfc      = QLabel("—")
+        self._lbl_tel      = QLabel("—")
+        self._lbl_dir      = QLabel("—")
+        self._lbl_cred_disp = QLabel("—")
+        self._lbl_cond_disp = QLabel("—")
+        for lbl in (self._lbl_rfc, self._lbl_tel, self._lbl_dir,
+                    self._lbl_cred_disp, self._lbl_cond_disp):
+            lbl.setObjectName("caption")
+            lbl.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_600};background:transparent;")
+
+        # _lbl_prov_info kept hidden for backward compatibility with existing code
         self._lbl_prov_info = QLabel("")
         self._lbl_prov_info.setObjectName("caption")
         self._lbl_prov_info.setWordWrap(True)
         self._lbl_prov_info.hide()
 
         prov_form = QFormLayout()
-        prov_form.setSpacing(6)
+        prov_form.setSpacing(5)
         prov_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         prov_form.addRow("Proveedor:*", self.txt_proveedor)
         prov_form.addRow("", self._lbl_prov_status)
-        prov_form.addRow("", self._lbl_prov_info)
+        prov_form.addRow("RFC:", self._lbl_rfc)
+        prov_form.addRow("Teléfono:", self._lbl_tel)
+        prov_form.addRow("Dirección:", self._lbl_dir)
+        prov_form.addRow("Crédito disp.:", self._lbl_cred_disp)
+        prov_form.addRow("Condiciones:", self._lbl_cond_disp)
         body.addLayout(prov_form)
+        body.addWidget(self._lbl_prov_info)
         return panel
 
     def _build_document_card(self) -> QFrame:
@@ -963,13 +1020,27 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         for code, label in [("MXN", "MXN — Peso Mexicano"), ("USD", "USD — Dólar"), ("EUR", "EUR — Euro")]:
             self._cmb_moneda.addItem(label, code)
 
+        self._cmb_prioridad = create_combo(self)
+        for p in ["ALTA", "MEDIA", "BAJA"]:
+            self._cmb_prioridad.addItem(p)
+
+        self.txt_solicitante = create_input(self, "Nombre del solicitante")
+
+        self.txt_notas = QPlainTextEdit()
+        self.txt_notas.setPlaceholderText("Observaciones adicionales…")
+        self.txt_notas.setObjectName("standardInput")
+        self.txt_notas.setFixedHeight(56)
+
         doc_form = QFormLayout()
-        doc_form.setSpacing(6)
+        doc_form.setSpacing(5)
         doc_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         doc_form.addRow("No. Factura/Rem.:", _factura_row)
         doc_form.addRow("Fecha factura:", self._date_factura)
         doc_form.addRow("Moneda:", self._cmb_moneda)
         doc_form.addRow("Sucursal destino:*", self.cmb_sucursal_destino)
+        doc_form.addRow("Prioridad:", self._cmb_prioridad)
+        doc_form.addRow("Solicitante:", self.txt_solicitante)
+        doc_form.addRow("Notas:", self.txt_notas)
         body.addLayout(doc_form)
         return panel
 
@@ -2312,7 +2383,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         for label, data in _PAGO_ITEMS:
             self.cmb_pago.addItem(label, data)
         pay_form.addRow("Método:", self.cmb_pago)
-        self._cmb_condicion_pago = QComboBox()
+        self._cmb_condicion_pago = create_combo(self)
         self._cmb_condicion_pago.addItems(["Liquidado", "Crédito", "Parcial"])
         pay_form.addRow("Condición:", self._cmb_condicion_pago)
         self._spin_plazo_dias = QSpinBox()
@@ -2417,7 +2488,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             dirs = _k(row, 'direccion')
             tel  = _k(row, 'telefono')
             cond = _k(row, 'condicion_pago', 'condiciones_pago')
+            cred = _k(row, 'credito_disponible', 'limite_credito', 'credito')
 
+            # Populate individual display labels
+            if hasattr(self, '_lbl_rfc'):
+                self._lbl_rfc.setText(rfc or "—")
+            if hasattr(self, '_lbl_tel'):
+                self._lbl_tel.setText(tel or "—")
+            if hasattr(self, '_lbl_dir'):
+                self._lbl_dir.setText(dirs[:60] if dirs else "—")
+            if hasattr(self, '_lbl_cred_disp'):
+                self._lbl_cred_disp.setText(cred or "—")
+            if hasattr(self, '_lbl_cond_disp'):
+                self._lbl_cond_disp.setText(cond or "—")
+
+            # Keep _lbl_prov_info for backward compat (hidden)
             parts = []
             if rfc:  parts.append(f"RFC: {rfc}")
             if dirs: parts.append(dirs[:48])
@@ -2426,7 +2511,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             info = "  ·  ".join(parts)
             if info:
                 self._lbl_prov_info.setText(info)
-                self._lbl_prov_info.show()
             else:
                 self._lbl_prov_info.hide()
         except Exception:
