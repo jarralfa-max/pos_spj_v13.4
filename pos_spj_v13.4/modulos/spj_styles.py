@@ -139,7 +139,7 @@ def apply_spj_buttons(widget) -> None:
         if "border-radius:5px" in existing and "font-weight:bold" in existing:
             continue
         # Skip very small buttons (icon-only, 30px wide action buttons)
-        if btn.maximumWidth() <= 36 or btn.fixedSize().width() == 30:
+        if btn.maximumWidth() <= 36 or btn.minimumWidth() == btn.maximumWidth() == 30:
             continue
         v = _variant_for_text(btn.text())
         if v:
