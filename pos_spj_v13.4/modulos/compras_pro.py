@@ -710,39 +710,220 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             logger.debug("_refresh_stats: %s", e)
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
-        """3-column ERP layout: Provider Sidebar | Main Form + Cart | Financial Summary"""
-        outer = QHBoxLayout(parent)
-        outer.setSpacing(0)
-        outer.setContentsMargins(0, 0, 0, 0)
+        """Professional ERP layout: KPI strip + 3-column splitter (Sidebar | Center | Summary)"""
+        from PyQt5.QtWidgets import QSplitter
+        root = QVBoxLayout(parent)
+        root.setSpacing(0)
+        root.setContentsMargins(0, 0, 0, 0)
 
-        # ── Left: Toolbar Documental ERP (Phase 8) ────────────────────────────
-        outer.addWidget(self._build_documental_toolbar())
+        # ── KPI Strip (full width, above columns) ─────────────────────────────
+        root.addWidget(self._build_kpi_strip())
 
-        # ── Center: document header + search + cart + IVA row ─────────────────
+        # ── 3-column splitter ─────────────────────────────────────────────────
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet(
+            "QSplitter::handle{background:rgba(0,0,0,0.08);}"
+        )
+        root.addWidget(splitter, 1)
+
+        # Left column — Documental Toolbar (260px fixed)
+        left_col = self._build_documental_toolbar()
+        splitter.addWidget(left_col)
+
+        # Center column — Captura Documental
+        center_col = self._build_center_column()
+        splitter.addWidget(center_col)
+
+        # Right column — Summary + Payment + Actions
+        right_col = self._build_summary_panel()
+        splitter.addWidget(right_col)
+
+        # Set initial sizes: left=260, center=stretch, right=380
+        splitter.setSizes([260, 9999, 380])
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(2, 0)
+
+        QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
+
+    def _build_kpi_strip(self) -> QWidget:
+        """Full-width KPI bar with 5 operational metrics for the Compra Tradicional tab."""
+        bar = QFrame()
+        bar.setObjectName("kpiStripBar")
+        bar.setStyleSheet(
+            f"QFrame#kpiStripBar{{"
+            f"  background:{Colors.NEUTRAL.SLATE_50};"
+            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"}}"
+        )
+        bar.setFixedHeight(100)
+
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(0)
+
+        kpi_defs = [
+            ("Compras del mes",      "—",  "💰", Colors.SUCCESS_BASE,  "success"),
+            ("Ordenes en curso",     "—",  "📋", Colors.PRIMARY_BASE,  "primary"),
+            ("Por pagar (CXP)",      "—",  "⏱", Colors.WARNING_BASE,  "warning"),
+            ("Proveedores activos",  "—",  "🏢", Colors.INFO_BASE,     "info"),
+            ("Lead time prom.",      "—",  "📅", Colors.NEUTRAL.SLATE_500, "neutral"),
+        ]
+
+        self._kpi_strip_cards: list = []
+
+        for i, (titulo, valor, icono, accent, _variant) in enumerate(kpi_defs):
+            if i > 0:
+                div = QFrame()
+                div.setFrameShape(QFrame.VLine)
+                div.setFixedWidth(1)
+                div.setStyleSheet(
+                    f"background:{Colors.NEUTRAL.SLATE_200};border:none;"
+                )
+                lay.addWidget(div)
+
+            card = QFrame()
+            card.setObjectName("kpiCard")
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            card_lay = QVBoxLayout(card)
+            card_lay.setContentsMargins(0, 0, 0, 0)
+            card_lay.setSpacing(0)
+
+            # 3px accent bar at top
+            acc_bar = QFrame(card)
+            acc_bar.setFixedHeight(3)
+            acc_bar.setStyleSheet(
+                f"background:{accent};border:none;"
+                f"border-top-left-radius:8px;border-top-right-radius:8px;"
+            )
+            card_lay.addWidget(acc_bar)
+
+            # Body: icon circle + text
+            body_lay = QHBoxLayout()
+            body_lay.setContentsMargins(12, 8, 12, 8)
+            body_lay.setSpacing(8)
+            card_lay.addLayout(body_lay)
+
+            # Text column
+            txt_col = QVBoxLayout()
+            txt_col.setSpacing(2)
+
+            lbl_title = QLabel(titulo.upper())
+            lbl_title.setStyleSheet(
+                f"color:{Colors.NEUTRAL.SLATE_500};"
+                f"font-size:9px;font-weight:700;letter-spacing:0.08em;"
+                "background:transparent;border:none;"
+            )
+            txt_col.addWidget(lbl_title)
+
+            lbl_val = QLabel(valor)
+            lbl_val.setObjectName("kpiValue")
+            lbl_val.setStyleSheet(
+                f"font-size:22px;font-weight:700;letter-spacing:-0.02em;"
+                "background:transparent;border:none;"
+            )
+            txt_col.addWidget(lbl_val)
+            body_lay.addLayout(txt_col, 1)
+
+            # Icon circle
+            lbl_icon = QLabel(icono)
+            lbl_icon.setFixedSize(36, 36)
+            lbl_icon.setAlignment(Qt.AlignCenter)
+            lbl_icon.setStyleSheet(
+                f"font-size:16px;background:{accent}1A;"
+                "border-radius:18px;border:none;"
+            )
+            body_lay.addWidget(lbl_icon, 0, Qt.AlignTop)
+
+            lay.addWidget(card, 1)
+            self._kpi_strip_cards.append(lbl_val)
+
+        # Wire strip cards to _refresh_stats if it updates _stats_value_labels
+        # We keep _stats_value_labels pointing to the old statsBar for compat,
+        # and also wire the strip cards independently via _kpi_strip_cards.
+        QTimer.singleShot(300, self._refresh_kpi_strip)
+        return bar
+
+    def _refresh_kpi_strip(self) -> None:
+        """Refresh the 5 KPI strip cards from purchase_repo stats."""
+        if not hasattr(self, '_kpi_strip_cards') or not self._kpi_strip_cards:
+            return
+        try:
+            stats = self._purchase_repo.get_header_stats(self.sucursal_id)
+            vals = [
+                f"${stats.get('total_mes', 0):,.0f}",
+                str(stats.get("oc_pendientes", "—")),
+                f"${stats.get('cxp_total', stats.get('total_mes', 0)):,.0f}",
+                str(stats.get("prov_activos", "—")),
+                f"{stats.get('lead_time', '—')}d",
+            ]
+            for lbl, v in zip(self._kpi_strip_cards, vals):
+                lbl.setText(v)
+        except Exception as e:
+            logger.debug("_refresh_kpi_strip: %s", e)
+
+    def _build_center_column(self) -> QWidget:
+        """Center column: Captura Documental — Provider, Document, Product search, Cart."""
         center_w = QWidget()
         center_w.setObjectName("purchaseCenterPanel")
-        center_lay = QVBoxLayout(center_w)
-        center_lay.setSpacing(8)
-        center_lay.setContentsMargins(8, 6, 8, 6)
-        outer.addWidget(center_w, 1)
 
-        # ── Right: summary + payment + actions ────────────────────────────────
-        outer.addWidget(self._build_summary_panel())
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet(
+            "QScrollArea{border:none;background:transparent;}"
+            "QScrollBar:vertical{width:5px;background:transparent;}"
+        )
 
-        lay = center_lay  # alias so body below builds into the center panel
+        inner_w = QWidget()
+        inner_w.setObjectName("centerInner")
+        lay = QVBoxLayout(inner_w)
+        lay.setSpacing(8)
+        lay.setContentsMargins(10, 8, 10, 8)
 
-        # ── E-0: Document type selector (Phase 5) ─────────────────────────────
+        # ── E-0: Document type selector ───────────────────────────────────────
         lay.addWidget(self._build_doctype_toolbar())
 
         # ── E-1: ERP Workflow Stepper ─────────────────────────────────────────
         lay.addWidget(self._build_stepper_bar())
 
-        # ── Encabezado del documento ──────────────────────────────────────────
-        grp_doc = QGroupBox("📄 Datos del Documento")
-        grp_doc.setObjectName("styledGroup")
-        form = QFormLayout(grp_doc)
-        form.setSpacing(6)
-        form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        # ── Section helper ────────────────────────────────────────────────────
+        def _section_panel(header_text: str, accent_color: str = Colors.NEUTRAL.SLATE_700) -> tuple:
+            """Returns (panel QFrame, content_layout QVBoxLayout)."""
+            panel = QFrame()
+            panel.setObjectName("sectionCard")
+            panel.setStyleSheet(
+                f"QFrame#sectionCard{{"
+                f"  background:white;"
+                f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
+                f"  border-radius:6px;"
+                f"}}"
+            )
+            panel_lay = QVBoxLayout(panel)
+            panel_lay.setContentsMargins(0, 0, 0, 0)
+            panel_lay.setSpacing(0)
+
+            hdr = QLabel(header_text.upper())
+            hdr.setStyleSheet(
+                f"color:{accent_color};"
+                "font-size:9px;font-weight:800;letter-spacing:0.1em;"
+                f"background:{Colors.NEUTRAL.SLATE_50};"
+                f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+                "border-top-left-radius:6px;border-top-right-radius:6px;"
+                "padding:6px 10px;"
+            )
+            panel_lay.addWidget(hdr)
+
+            body = QVBoxLayout()
+            body.setContentsMargins(10, 8, 10, 8)
+            body.setSpacing(6)
+            panel_lay.addLayout(body)
+
+            return panel, body
+
+        # ── ① Datos del Proveedor ─────────────────────────────────────────────
+        prov_panel, prov_body = _section_panel("Datos del Proveedor")
 
         self._proveedor_id_selected = None
         self._proveedores_cache = []
@@ -755,7 +936,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._prov_completer.setFilterMode(Qt.MatchContains)
         self.txt_proveedor.setCompleter(self._prov_completer)
         self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
-        self._lbl_prov_status = QLabel("⚠ Sin proveedor seleccionado")
+
+        self._lbl_prov_status = QLabel("Sin proveedor seleccionado")
         self._lbl_prov_status.setObjectName("caption")
         self._lbl_prov_status.setStyleSheet(f"color:{Colors.WARNING_BASE};")
 
@@ -763,6 +945,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_prov_info.setObjectName("caption")
         self._lbl_prov_info.setWordWrap(True)
         self._lbl_prov_info.hide()
+
+        prov_form = QFormLayout()
+        prov_form.setSpacing(6)
+        prov_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        prov_form.addRow("Proveedor:*", self.txt_proveedor)
+        prov_form.addRow("", self._lbl_prov_status)
+        prov_form.addRow("", self._lbl_prov_info)
+        prov_body.addLayout(prov_form)
+        lay.addWidget(prov_panel)
+
+        # ── ② Datos del Documento ─────────────────────────────────────────────
+        doc_panel, doc_body = _section_panel("Datos del Documento")
 
         self.txt_factura = QLineEdit()
         self.txt_factura.setPlaceholderText("Ej. FAC-001 / REM-00129 (opcional)")
@@ -772,10 +966,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_adjunto = QLabel("Sin archivo")
         self._lbl_adjunto.setObjectName("caption")
         self._lbl_adjunto.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};")
-        btn_adjunto = create_secondary_button(self, "📎 Adjuntar", "Adjuntar PDF o imagen de factura")
-        btn_adjunto.setMaximumWidth(90)
+        btn_adjunto = create_secondary_button(self, "Adjuntar", "Adjuntar PDF o imagen de factura")
+        btn_adjunto.setMaximumWidth(80)
         btn_adjunto.clicked.connect(self._adjuntar_factura)
         _factura_row = QHBoxLayout()
+        _factura_row.setSpacing(4)
         _factura_row.addWidget(self.txt_factura, 1)
         _factura_row.addWidget(btn_adjunto)
         _factura_row.addWidget(self._lbl_adjunto)
@@ -793,29 +988,34 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         for code, label in [("MXN", "MXN — Peso Mexicano"), ("USD", "USD — Dólar"), ("EUR", "EUR — Euro")]:
             self._cmb_moneda.addItem(label, code)
 
-        form.addRow("Proveedor:*", self.txt_proveedor)
-        form.addRow("", self._lbl_prov_status)
-        form.addRow("", self._lbl_prov_info)
-        form.addRow("No. Factura/Remisión:", _factura_row)
-        form.addRow("Fecha factura:", self._date_factura)
-        form.addRow("Moneda:", self._cmb_moneda)
-        form.addRow("Sucursal destino:*", self.cmb_sucursal_destino)
-        lay.addWidget(grp_doc)
+        doc_form = QFormLayout()
+        doc_form.setSpacing(6)
+        doc_form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        doc_form.addRow("No. Factura/Rem.:", _factura_row)
+        doc_form.addRow("Fecha factura:", self._date_factura)
+        doc_form.addRow("Moneda:", self._cmb_moneda)
+        doc_form.addRow("Sucursal destino:*", self.cmb_sucursal_destino)
+        doc_body.addLayout(doc_form)
+        lay.addWidget(doc_panel)
 
-        # ── Buscador con scanner ──────────────────────────────────────────────
+        # ── ③ Buscar Producto ─────────────────────────────────────────────────
+        search_panel, search_body = _section_panel("Buscar Producto", Colors.PRIMARY_BASE)
+
         from modulos.spj_product_search import ProductSearchWidget
         self._buscador = ProductSearchWidget(
             db=self.container.db,
-            placeholder="🔍 Buscar por nombre, código interno, ID o escanear barcode...",
+            placeholder="Buscar por nombre, codigo, ID o escanear barcode...",
             show_stock=True,
         )
         self._buscador.producto_seleccionado.connect(self._agregar_producto)
-        lay.addWidget(self._buscador)
+        search_body.addWidget(self._buscador)
+
         self._trad_filter = FilterBar(self, placeholder="Filtrar carrito por nombre de producto…")
         self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
-        lay.addWidget(self._trad_filter)
+        search_body.addWidget(self._trad_filter)
+        lay.addWidget(search_panel)
 
-        # ── E-4: CxP alert banner (hidden until provider has unpaid purchases) ──
+        # ── E-4: CxP alert banner ─────────────────────────────────────────────
         self._cxp_alert_bar = QLabel("")
         self._cxp_alert_bar.setWordWrap(True)
         self._cxp_alert_bar.setObjectName("caption")
@@ -828,10 +1028,73 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._cxp_alert_bar.hide()
         lay.addWidget(self._cxp_alert_bar)
 
-        # ── Carrito editable ──────────────────────────────────────────────────
-        self._grp_cart = QGroupBox("🛒 Carrito  —  doble clic: editar  ·  clic derecho: opciones")
-        self._grp_cart.setObjectName("styledGroup")
-        cart_lay = QVBoxLayout(self._grp_cart)
+        # ── Carrito / Items grid ──────────────────────────────────────────────
+        cart_panel = QFrame()
+        cart_panel.setObjectName("sectionCard")
+        cart_panel.setStyleSheet(
+            f"QFrame#sectionCard{{"
+            f"  background:white;"
+            f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"  border-radius:6px;"
+            f"}}"
+        )
+        cart_lay_outer = QVBoxLayout(cart_panel)
+        cart_lay_outer.setContentsMargins(0, 0, 0, 0)
+        cart_lay_outer.setSpacing(0)
+
+        # Items header row
+        cart_hdr = QHBoxLayout()
+        cart_hdr.setContentsMargins(10, 6, 10, 6)
+        cart_hdr.setSpacing(6)
+        lbl_cart_hdr = QLabel("PARTIDAS DEL DOCUMENTO")
+        lbl_cart_hdr.setStyleSheet(
+            f"color:{Colors.NEUTRAL.SLATE_700};"
+            "font-size:9px;font-weight:800;letter-spacing:0.1em;"
+            "background:transparent;border:none;"
+        )
+        self._lbl_cart_count = QLabel("0 items")
+        self._lbl_cart_count.setObjectName("caption")
+        self._lbl_cart_count.setStyleSheet(
+            f"color:{Colors.NEUTRAL.SLATE_500};"
+            "background:transparent;border:none;"
+        )
+        btn_clear = create_danger_button(self, "Limpiar", "Vaciar carrito de compras")
+        btn_clear.setFixedHeight(26)
+        btn_clear.clicked.connect(self._limpiar_carrito)
+        btn_del_sel = create_danger_button(self, "Eliminar sel.", "Eliminar filas seleccionadas")
+        btn_del_sel.setFixedHeight(26)
+        btn_del_sel.clicked.connect(self._eliminar_seleccionados)
+        btn_draft_save = create_secondary_button(self, "Borrador", "Guardar carrito como borrador")
+        btn_draft_save.setFixedHeight(26)
+        btn_draft_load = create_secondary_button(self, "Recuperar", "Cargar ultimo borrador guardado")
+        btn_draft_load.setFixedHeight(26)
+        btn_draft_save.clicked.connect(self._guardar_borrador)
+        btn_draft_load.clicked.connect(self._cargar_borrador)
+        self._btn_draft_save = btn_draft_save
+        self._btn_draft_load = btn_draft_load
+        self._btn_del_sel    = btn_del_sel
+
+        cart_hdr.addWidget(lbl_cart_hdr)
+        cart_hdr.addWidget(self._lbl_cart_count)
+        cart_hdr.addStretch()
+        cart_hdr.addWidget(btn_clear)
+        cart_hdr.addWidget(btn_del_sel)
+        cart_hdr.addWidget(btn_draft_save)
+        cart_hdr.addWidget(btn_draft_load)
+
+        cart_hdr_frame = QFrame()
+        cart_hdr_frame.setStyleSheet(
+            f"background:{Colors.NEUTRAL.SLATE_50};"
+            f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+            "border-top-left-radius:6px;border-top-right-radius:6px;"
+        )
+        cart_hdr_frame.setLayout(cart_hdr)
+        cart_lay_outer.addWidget(cart_hdr_frame)
+
+        cart_body = QVBoxLayout()
+        cart_body.setContentsMargins(8, 4, 8, 4)
+        cart_body.setSpacing(4)
+        cart_lay_outer.addLayout(cart_body)
 
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(9)
@@ -841,10 +1104,20 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
         for c in (0, 2, 3, 4, 5, 6, 7, 8):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        hh.setStyleSheet(
+            f"QHeaderView::section{{"
+            f"  background:{Colors.NEUTRAL.SLATE_100};"
+            f"  color:{Colors.NEUTRAL.SLATE_500};"
+            f"  font-size:9px;font-weight:700;letter-spacing:0.05em;"
+            f"  border:none;border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"  padding:4px 6px;"
+            f"}}"
+        )
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tabla.setAlternatingRowColors(True)
+        self.tabla.setShowGrid(False)
         self.tabla.verticalHeader().setVisible(False)
         self.tabla.doubleClicked.connect(self._editar_fila)
         self.tabla.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -852,52 +1125,35 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.tabla.setObjectName("tableView")
         self._cart_loading = LoadingIndicator("Actualizando carrito…", self)
         self._cart_loading.hide()
-        cart_lay.addWidget(self._cart_loading)
-        cart_lay.addWidget(self.tabla)
+        cart_body.addWidget(self._cart_loading)
+        cart_body.addWidget(self.tabla)
         self._cart_empty = EmptyStateWidget(
-            "Carrito vacío",
+            "Carrito vacio",
             "Agrega productos o ajusta el filtro del carrito.",
             "🧺",
             self,
         )
         self._cart_empty.hide()
-        cart_lay.addWidget(self._cart_empty)
+        cart_body.addWidget(self._cart_empty)
+        lay.addWidget(cart_panel, 1)
 
-        # Cart toolbar
-        cart_tb = QHBoxLayout()
-        btn_clear = create_danger_button(self, "🗑 Limpiar todo", "Vaciar carrito de compras")
-        btn_clear.clicked.connect(self._limpiar_carrito)
-        btn_del_sel = create_danger_button(self, "🗑 Eliminar selec.",
-                                           "Eliminar filas seleccionadas del carrito")
-        btn_del_sel.clicked.connect(self._eliminar_seleccionados)
-        btn_draft_save = create_secondary_button(self, "💾 Borrador",
-                                                 "Guardar carrito como borrador")
-        btn_draft_load = create_secondary_button(self, "📂 Recuperar",
-                                                 "Cargar último borrador guardado")
-        btn_draft_save.clicked.connect(self._guardar_borrador)
-        btn_draft_load.clicked.connect(self._cargar_borrador)
-        self._btn_draft_save = btn_draft_save
-        self._btn_draft_load = btn_draft_load
-        self._btn_del_sel    = btn_del_sel
-        self._lbl_cart_count = QLabel("0 ítems")
-        self._lbl_cart_count.setObjectName("caption")
-        cart_tb.addWidget(btn_clear)
-        cart_tb.addWidget(btn_del_sel)
-        cart_tb.addSpacing(8)
-        cart_tb.addWidget(btn_draft_save)
-        cart_tb.addWidget(btn_draft_load)
-        cart_tb.addSpacing(8)
-        cart_tb.addWidget(self._lbl_cart_count)
-        cart_tb.addStretch()
-        cart_lay.addLayout(cart_tb)
-        lay.addWidget(self._grp_cart)
-
-        # ── Footer: IVA toggle + subtotals (payment moved to right panel) ─────
-        footer = QHBoxLayout()
+        # ── Footer: IVA toggle + subtotals ────────────────────────────────────
+        footer_frame = QFrame()
+        footer_frame.setObjectName("sectionCard")
+        footer_frame.setStyleSheet(
+            f"QFrame#sectionCard{{"
+            f"  background:white;"
+            f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"  border-radius:6px;"
+            f"}}"
+        )
+        footer = QHBoxLayout(footer_frame)
+        footer.setContentsMargins(10, 6, 10, 6)
         footer.setSpacing(8)
+
         self._chk_iva = QCheckBox("IVA 16%")
         self._chk_iva.setToolTip(
-            "Incluir IVA del 16% al total de la compra (Ley del IVA México)")
+            "Incluir IVA del 16% al total de la compra (Ley del IVA Mexico)")
         self._chk_iva.stateChanged.connect(lambda _: self._refresh_totals_display())
         self._lbl_subtotal_iva = QLabel("Subtotal: $0.00")
         self._lbl_subtotal_iva.setObjectName("caption")
@@ -912,17 +1168,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.lbl_total = QLabel("Total: $0.00")
         self.lbl_total.setObjectName("heading")
         footer.addWidget(self._chk_iva)
-        footer.addSpacing(16)
+        footer.addSpacing(8)
         footer.addWidget(self._lbl_subtotal_iva)
-        footer.addSpacing(8)
+        footer.addSpacing(6)
         footer.addWidget(self._sep_iva)
-        footer.addSpacing(8)
+        footer.addSpacing(6)
         footer.addWidget(self._lbl_iva_monto)
         footer.addStretch()
         footer.addWidget(self.lbl_total)
-        lay.addLayout(footer)
+        lay.addWidget(footer_frame)
 
-        QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
+        scroll.setWidget(inner_w)
+
+        outer_lay = QVBoxLayout(center_w)
+        outer_lay.setContentsMargins(0, 0, 0, 0)
+        outer_lay.setSpacing(0)
+        outer_lay.addWidget(scroll, 1)
+
+        return center_w
 
     def _build_tab_qr(self, parent: QWidget) -> None:
         from modulos.recepcion_qr_widget import RecepcionQRWidget
@@ -988,8 +1251,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sidebar.setObjectName("documentalToolbar")
         sidebar.setFixedWidth(260)
         sidebar.setStyleSheet(
-            f"background:{Colors.NEUTRAL.SLATE_50};"
-            "border-right:1px solid rgba(0,0,0,0.08);"
+            f"QFrame#documentalToolbar{{"
+            f"  background:{Colors.NEUTRAL.SLATE_50};"
+            f"  border-right:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"}}"
         )
         root_lay = QVBoxLayout(sidebar)
         root_lay.setContentsMargins(0, 0, 0, 0)
@@ -1003,29 +1268,36 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._doc_filter_active   = "all"
 
         # ── Header strip ──────────────────────────────────────────────────────
-        hdr = QLabel("  TOOLBAR DOCUMENTAL ERP")
-        hdr.setFixedHeight(26)
-        hdr.setStyleSheet(
-            f"background:{Colors.PRIMARY_BASE};"
-            "color:white;"
-            "font-size:9px;font-weight:800;letter-spacing:1px;"
-            "padding:0 8px;"
+        hdr_frame = QFrame()
+        hdr_frame.setStyleSheet(
+            f"background:{Colors.NEUTRAL.SLATE_800};"
+            f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_700};"
         )
-        root_lay.addWidget(hdr)
+        hdr_frame.setFixedHeight(32)
+        hdr_lay = QHBoxLayout(hdr_frame)
+        hdr_lay.setContentsMargins(10, 0, 10, 0)
+        hdr = QLabel("DOCUMENTOS ERP")
+        hdr.setStyleSheet(
+            "color:white;font-size:9px;font-weight:800;letter-spacing:1.2px;"
+            "background:transparent;"
+        )
+        hdr_lay.addWidget(hdr)
+        hdr_lay.addStretch()
+        root_lay.addWidget(hdr_frame)
 
         # ── Scrollable content ────────────────────────────────────────────────
         scroll_w = QWidget()
         scroll_w.setStyleSheet("background:transparent;")
         inner = QVBoxLayout(scroll_w)
-        inner.setContentsMargins(8, 6, 8, 6)
+        inner.setContentsMargins(8, 8, 8, 6)
         inner.setSpacing(4)
 
         def _sec(txt: str) -> QLabel:
-            lbl = QLabel(txt)
+            lbl = QLabel(txt.upper() if txt and txt[0].isalpha() else txt)
             lbl.setStyleSheet(
-                f"font-size:9px;font-weight:800;letter-spacing:0.8px;"
+                f"font-size:9px;font-weight:800;letter-spacing:0.08em;"
                 f"color:{Colors.NEUTRAL.SLATE_500};"
-                "background:transparent;padding:2px 0;"
+                "background:transparent;padding:4px 0 2px 0;"
             )
             return lbl
 
@@ -1085,22 +1357,27 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._doc_detail_card = QFrame()
         self._doc_detail_card.setObjectName("docDetailCard")
         self._doc_detail_card.setStyleSheet(
-            f"QFrame#docDetailCard{{background:white;"
+            f"QFrame#docDetailCard{{"
+            f"  background:{Colors.NEUTRAL.SLATE_50};"
             f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:6px;}}"
+            f"  border-radius:6px;"
+            f"}}"
         )
         card_lay = QVBoxLayout(self._doc_detail_card)
         card_lay.setContentsMargins(8, 6, 8, 6)
-        card_lay.setSpacing(2)
+        card_lay.setSpacing(3)
 
         folio_row = QHBoxLayout()
         self._doc_lbl_folio = QLabel("—")
-        self._doc_lbl_folio.setStyleSheet("font-size:11px;font-weight:700;")
+        self._doc_lbl_folio.setStyleSheet(
+            f"font-size:11px;font-weight:700;color:{Colors.NEUTRAL.SLATE_900};"
+            "background:transparent;"
+        )
         self._doc_lbl_estado_badge = QLabel("")
         self._doc_lbl_estado_badge.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self._doc_lbl_estado_badge.setStyleSheet(
             f"font-size:9px;font-weight:700;border-radius:8px;"
-            f"padding:2px 5px;"
+            f"padding:2px 5px;background:transparent;"
         )
         folio_row.addWidget(self._doc_lbl_folio)
         folio_row.addStretch()
@@ -1109,13 +1386,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         def _info_row(lbl_txt: str, attr: str) -> None:
             r = QHBoxLayout(); r.setSpacing(3)
-            k = QLabel(lbl_txt)
+            k = QLabel(lbl_txt.upper())
             k.setStyleSheet(
-                f"font-size:9px;color:{Colors.NEUTRAL.SLATE_400};min-width:56px;"
+                f"font-size:9px;font-weight:700;color:{Colors.NEUTRAL.SLATE_500};"
+                f"letter-spacing:0.05em;min-width:60px;background:transparent;"
             )
             v = QLabel("—")
             v.setObjectName("caption")
-            v.setStyleSheet("font-size:10px;")
+            v.setStyleSheet(
+                f"font-size:10px;color:{Colors.NEUTRAL.SLATE_900};"
+                "background:transparent;"
+            )
             v.setWordWrap(True)
             setattr(self, attr, v)
             r.addWidget(k); r.addWidget(v, 1)
@@ -1127,13 +1408,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         _info_row("Proveedor:",   "_doc_lbl_proveedor_doc")
 
         monto_row = QHBoxLayout(); monto_row.setSpacing(3)
-        _mk = QLabel("Monto:")
+        _mk = QLabel("MONTO:")
         _mk.setStyleSheet(
-            f"font-size:9px;color:{Colors.NEUTRAL.SLATE_400};min-width:56px;"
+            f"font-size:9px;font-weight:700;color:{Colors.NEUTRAL.SLATE_500};"
+            f"letter-spacing:0.05em;min-width:60px;background:transparent;"
         )
         self._doc_lbl_monto = QLabel("$0.00")
         self._doc_lbl_monto.setStyleSheet(
-            f"font-size:12px;font-weight:700;color:{Colors.SUCCESS_BASE};"
+            f"font-size:14px;font-weight:700;color:{Colors.SUCCESS_BASE};"
+            "background:transparent;"
         )
         self._doc_lbl_prioridad = QLabel("")
         self._doc_lbl_prioridad.setStyleSheet(
