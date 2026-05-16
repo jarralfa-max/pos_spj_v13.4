@@ -78,6 +78,97 @@ _ROLES_SIN_TOTALES: frozenset[str] = frozenset({
     "CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR",
 })
 
+
+class _PurchaseKPICard(QFrame):
+    """KPI card for Compra Tradicional tab — mirrors _InvKPICard pattern."""
+
+    def __init__(self, titulo, valor="—", icono="📦", variant="primary", parent=None):
+        super().__init__(parent)
+        _accent = {
+            "primary": Colors.PRIMARY.BASE,
+            "success": Colors.SUCCESS.BASE,
+            "danger":  Colors.DANGER.BASE,
+            "warning": Colors.WARNING.BASE,
+            "info":    Colors.INFO.BASE,
+        }.get(variant, Colors.PRIMARY.BASE)
+        self.setObjectName("kpiCard")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(86)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        bar = QFrame(self)
+        bar.setFixedHeight(3)
+        bar.setStyleSheet(
+            f"background: {_accent}; border: none;"
+            f" border-top-left-radius: 12px; border-top-right-radius: 12px;"
+        )
+        outer.addWidget(bar)
+        body = QHBoxLayout()
+        body.setContentsMargins(14, 10, 14, 10)
+        body.setSpacing(8)
+        outer.addLayout(body)
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        lbl_t = QLabel(titulo.upper())
+        lbl_t.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
+            f" font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.08em;"
+            f" background: transparent; border: none;"
+        )
+        col.addWidget(lbl_t)
+        self.lbl_valor = QLabel(valor)
+        self.lbl_valor.setObjectName("kpiValue")
+        self.lbl_valor.setStyleSheet(
+            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        col.addWidget(self.lbl_valor)
+        body.addLayout(col, 1)
+        lbl_icon = QLabel(icono)
+        lbl_icon.setFixedSize(36, 36)
+        lbl_icon.setAlignment(Qt.AlignCenter)
+        lbl_icon.setStyleSheet(
+            f"font-size: 18px; background: {_accent}1A;"
+            f" border-radius: 18px; border: none;"
+        )
+        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
+
+    def set_valor(self, v: str):
+        self.lbl_valor.setText(v)
+
+
+def _make_section_card(header_text: str, accent_color: str = None) -> tuple:
+    """Returns (QFrame panel, QVBoxLayout body). Theme-aware via objectName."""
+    if accent_color is None:
+        accent_color = Colors.NEUTRAL.SLATE_700
+    panel = QFrame()
+    panel.setObjectName("sectionCard")
+    panel.setStyleSheet(
+        f"QFrame#sectionCard{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
+        f"border-radius:{Borders.RADIUS_MD}px;}}"
+    )
+    panel_lay = QVBoxLayout(panel)
+    panel_lay.setContentsMargins(0, 0, 0, 0)
+    panel_lay.setSpacing(0)
+    hdr = QLabel(header_text.upper())
+    hdr.setStyleSheet(
+        f"color:{accent_color};font-size:{Typography.SIZE_XS};"
+        f"font-weight:{Typography.WEIGHT_BOLD};letter-spacing:0.1em;"
+        f"background:transparent;border:none;"
+        f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+        f"border-top-left-radius:{Borders.RADIUS_MD}px;"
+        f"border-top-right-radius:{Borders.RADIUS_MD}px;"
+        f"padding:{Spacing.XS}px {Spacing.SM+2}px;"
+    )
+    panel_lay.addWidget(hdr)
+    body = QVBoxLayout()
+    body.setContentsMargins(Spacing.SM+2, Spacing.SM, Spacing.SM+2, Spacing.SM)
+    body.setSpacing(Spacing.XS+2)
+    panel_lay.addLayout(body)
+    return panel, body
+
+
 # ── Role-based permissions ───────────────────────────────────────────────────
 _PERMISOS_POR_ROL: dict[str, frozenset] = {
     "ADMIN":      frozenset({"procesar", "cancelar", "reabrir", "editar",
@@ -715,7 +806,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         root.setContentsMargins(0, 0, 0, 0)
 
         # ── KPI Strip (full width, above columns) ─────────────────────────────
-        root.addWidget(self._build_kpi_strip())
+        root.addWidget(self._build_purchase_kpi_bar())
 
         # ── 3-column splitter ─────────────────────────────────────────────────
         splitter = QSplitter(Qt.Horizontal)
@@ -745,8 +836,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
-    def _build_kpi_strip(self) -> QWidget:
-        """Full-width KPI bar with 5 operational metrics for the Compra Tradicional tab."""
+    def _build_purchase_kpi_bar(self) -> QWidget:
+        """Full-width KPI bar with 5 operational metrics using _PurchaseKPICard."""
         bar = QFrame()
         bar.setObjectName("kpiStripBar")
         bar.setStyleSheet(
@@ -754,91 +845,35 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
             "}"
         )
-        bar.setFixedHeight(100)
+        bar.setFixedHeight(96)
 
         lay = QHBoxLayout(bar)
-        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setContentsMargins(Spacing.SM, Spacing.XS, Spacing.SM, Spacing.XS)
         lay.setSpacing(0)
 
         kpi_defs = [
-            ("Compras del mes",      "—",  "💰", Colors.SUCCESS_BASE,  "success"),
-            ("Ordenes en curso",     "—",  "📋", Colors.PRIMARY_BASE,  "primary"),
-            ("Por pagar (CXP)",      "—",  "⏱", Colors.WARNING_BASE,  "warning"),
-            ("Proveedores activos",  "—",  "🏢", Colors.INFO_BASE,     "info"),
-            ("Lead time prom.",      "—",  "📅", Colors.NEUTRAL.SLATE_500, "neutral"),
+            ("Compras del mes",     "—", "💰", "success"),
+            ("Ordenes en curso",    "—", "📋", "primary"),
+            ("Por pagar (CXP)",     "—", "⏱", "warning"),
+            ("Proveedores activos", "—", "🏢", "info"),
+            ("Lead time prom.",     "—", "📅", "neutral"),
         ]
 
-        self._kpi_strip_cards: list = []
+        self._kpi_strip_cards: list[_PurchaseKPICard] = []
 
-        for i, (titulo, valor, icono, accent, _variant) in enumerate(kpi_defs):
+        for i, (titulo, valor, icono, variant) in enumerate(kpi_defs):
             if i > 0:
                 div = QFrame()
-                div.setFrameShape(QFrame.VLine)
                 div.setFixedWidth(1)
                 div.setStyleSheet(
-                    f"background:{Colors.NEUTRAL.SLATE_200};border:none;"
+                    "background:rgba(148,163,184,0.2);border:none;"
                 )
                 lay.addWidget(div)
 
-            card = QFrame()
-            card.setObjectName("kpiCard")
-            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            card_lay = QVBoxLayout(card)
-            card_lay.setContentsMargins(0, 0, 0, 0)
-            card_lay.setSpacing(0)
-
-            # 3px accent bar at top
-            acc_bar = QFrame(card)
-            acc_bar.setFixedHeight(3)
-            acc_bar.setStyleSheet(
-                f"background:{accent};border:none;"
-                f"border-top-left-radius:8px;border-top-right-radius:8px;"
-            )
-            card_lay.addWidget(acc_bar)
-
-            # Body: icon circle + text
-            body_lay = QHBoxLayout()
-            body_lay.setContentsMargins(12, 8, 12, 8)
-            body_lay.setSpacing(8)
-            card_lay.addLayout(body_lay)
-
-            # Text column
-            txt_col = QVBoxLayout()
-            txt_col.setSpacing(2)
-
-            lbl_title = QLabel(titulo.upper())
-            lbl_title.setStyleSheet(
-                f"color:{Colors.NEUTRAL.SLATE_500};"
-                f"font-size:9px;font-weight:700;letter-spacing:0.08em;"
-                "background:transparent;border:none;"
-            )
-            txt_col.addWidget(lbl_title)
-
-            lbl_val = QLabel(valor)
-            lbl_val.setObjectName("kpiValue")
-            lbl_val.setStyleSheet(
-                f"font-size:22px;font-weight:700;letter-spacing:-0.02em;"
-                "background:transparent;border:none;"
-            )
-            txt_col.addWidget(lbl_val)
-            body_lay.addLayout(txt_col, 1)
-
-            # Icon circle
-            lbl_icon = QLabel(icono)
-            lbl_icon.setFixedSize(36, 36)
-            lbl_icon.setAlignment(Qt.AlignCenter)
-            lbl_icon.setStyleSheet(
-                f"font-size:16px;background:{accent}1A;"
-                "border-radius:18px;border:none;"
-            )
-            body_lay.addWidget(lbl_icon, 0, Qt.AlignTop)
-
+            card = _PurchaseKPICard(titulo, valor, icono, variant, bar)
             lay.addWidget(card, 1)
-            self._kpi_strip_cards.append(lbl_val)
+            self._kpi_strip_cards.append(card)
 
-        # Wire strip cards to _refresh_stats if it updates _stats_value_labels
-        # We keep _stats_value_labels pointing to the old statsBar for compat,
-        # and also wire the strip cards independently via _kpi_strip_cards.
         QTimer.singleShot(300, self._refresh_kpi_strip)
         return bar
 
@@ -855,8 +890,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 str(stats.get("prov_activos", "—")),
                 f"{stats.get('lead_time', '—')}d",
             ]
-            for lbl, v in zip(self._kpi_strip_cards, vals):
-                lbl.setText(v)
+            for card, v in zip(self._kpi_strip_cards, vals):
+                card.set_valor(v)
         except Exception as e:
             logger.debug("_refresh_kpi_strip: %s", e)
 
