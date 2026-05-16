@@ -18,6 +18,7 @@ from modulos.ui_components import (
     create_standard_tabs, wrap_in_scroll_area,
     PageHeader, Toast, create_badge, create_kpi_card,
 )
+from modulos.spj_styles import apply_spj_buttons
 from modulos.spj_refresh_mixin import RefreshMixin
 from core.services.auto_audit import audit_write
 from PyQt5.QtWidgets import (
@@ -729,6 +730,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._build_tab_historial(tab_hist)
 
         self._tabs.currentChanged.connect(self._on_tab_change)
+        apply_spj_buttons(self)
         self._normalizar_botones_ui()
 
     def _normalizar_botones_ui(self) -> None:
@@ -900,8 +902,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         self._proveedor_id_selected = None
         self._proveedores_cache = []
-        self.txt_proveedor = QLineEdit()
-        self.txt_proveedor.setPlaceholderText("Buscar proveedor…")
+        self.txt_proveedor = create_input(self, "Buscar proveedor…")
         self.txt_proveedor.setMinimumWidth(280)
         self._prov_model = QStringListModel(self)
         self._prov_completer = QCompleter(self._prov_model, self)
@@ -932,8 +933,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Document section card. Sets up all document-related instance attrs."""
         panel, body = _make_section_card("Datos del Documento")
 
-        self.txt_factura = QLineEdit()
-        self.txt_factura.setPlaceholderText("Ej. FAC-001 / REM-00129 (opcional)")
+        self.txt_factura = create_input(self, "Ej. FAC-001 / REM-00129 (opcional)")
 
         # E-2: file attachment
         self._adjunto_path: str = ""
@@ -952,13 +952,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._date_factura = QDateEdit(QDate.currentDate())
         self._date_factura.setCalendarPopup(True)
         self._date_factura.setDisplayFormat("dd/MMM/yyyy")
+        self._date_factura.setObjectName("standardInput")
 
-        self.cmb_sucursal_destino = QComboBox()
+        self.cmb_sucursal_destino = create_combo(self)
         self.cmb_sucursal_destino.setToolTip(
             "Sucursal a la que ingresará el inventario de esta compra")
         self._cargar_sucursales_compra()
 
-        self._cmb_moneda = QComboBox()
+        self._cmb_moneda = create_combo(self)
         for code, label in [("MXN", "MXN — Peso Mexicano"), ("USD", "USD — Dólar"), ("EUR", "EUR — Euro")]:
             self._cmb_moneda.addItem(label, code)
 
