@@ -25,7 +25,7 @@ from PyQt5.QtWidgets import (
     QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QMenu, QSizePolicy, QCheckBox, QListWidget, QListWidgetItem,
-    QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog,
+    QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog, QScrollArea,
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal
 from PyQt5.QtGui import QCursor, QKeySequence
