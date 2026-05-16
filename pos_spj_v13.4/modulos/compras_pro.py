@@ -2092,23 +2092,47 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._refresh_stepper()
 
     def _cargar_info_proveedor(self, prov_id: int) -> None:
-        """Show RFC / address / phone under provider field after selection."""
+        """Show RFC / address / phone under provider field after selection.
+
+        La columna de condición de pago varía entre instancias:
+        - condicion_pago  (nombre antiguo, algunas DBs)
+        - condiciones_pago (nombre migración 047, plural)
+        Se usa SELECT * y se extrae por clave para evitar OperationalError.
+        """
         if not hasattr(self, '_lbl_prov_info'):
             return
         try:
             row = self.container.db.execute(
-                "SELECT rfc, direccion, telefono, condicion_pago"
-                " FROM proveedores WHERE id=?",
-                (prov_id,)
+                "SELECT * FROM proveedores WHERE id=?", (prov_id,)
             ).fetchone()
             if not row:
                 self._lbl_prov_info.hide()
                 return
-            def _get(idx, key):
-                return str(row[idx] if not hasattr(row, 'keys') else (row.get(key) or "")).strip()
+
+            def _k(row, *keys):
+                """Extrae primer clave que exista en la fila (dict-like o tuple por índice)."""
+                if hasattr(row, 'keys'):
+                    for k in keys:
+                        v = row.get(k)
+                        if v is not None:
+                            return str(v).strip()
+                    return ""
+                # sqlite3.Row — acceso por nombre
+                for k in keys:
+                    try:
+                        v = row[k]
+                        if v is not None:
+                            return str(v).strip()
+                    except (IndexError, KeyError):
+                        pass
+                return ""
+
+            rfc  = _k(row, 'rfc')
+            dirs = _k(row, 'direccion')
+            tel  = _k(row, 'telefono')
+            cond = _k(row, 'condicion_pago', 'condiciones_pago')
+
             parts = []
-            rfc  = _get(0, 'rfc');       dirs = _get(1, 'direccion')
-            tel  = _get(2, 'telefono');  cond = _get(3, 'condicion_pago')
             if rfc:  parts.append(f"RFC: {rfc}")
             if dirs: parts.append(dirs[:48])
             if tel:  parts.append(f"Tel: {tel}")
@@ -2119,7 +2143,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self._lbl_prov_info.show()
             else:
                 self._lbl_prov_info.hide()
-        except (TypeError, KeyError, IndexError):
+        except Exception:
             self._lbl_prov_info.hide()
 
     # ── E-1: Workflow stepper ─────────────────────────────────────────────────
