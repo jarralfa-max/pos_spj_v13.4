@@ -709,8 +709,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             subtitle="Recepción de mercancía · Actualización de stock · Historial",
         ))
 
-        # ── Stats bar ─────────────────────────────────────────────────────────
-        root.addWidget(self._crear_stats_compras())
+        # ── KPI bar (outside tabs, spans all 3 tabs) ─────────────────────────
+        root.addWidget(self._build_purchase_kpi_bar())
 
         # Tabs: Tradicional | QR
         self._tabs = create_standard_tabs(self)
@@ -799,14 +799,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             logger.debug("_refresh_stats: %s", e)
 
     def _build_tab_tradicional(self, parent: QWidget) -> None:
-        """Professional ERP layout: KPI strip + 3-column splitter (Sidebar | Center | Summary)"""
+        """3-column ERP layout: Sidebar | Center | Right panel."""
         from PyQt5.QtWidgets import QSplitter
         root = QVBoxLayout(parent)
         root.setSpacing(0)
         root.setContentsMargins(0, 0, 0, 0)
-
-        # ── KPI Strip (full width, above columns) ─────────────────────────────
-        root.addWidget(self._build_purchase_kpi_bar())
 
         # ── 3-column splitter ─────────────────────────────────────────────────
         splitter = QSplitter(Qt.Horizontal)
