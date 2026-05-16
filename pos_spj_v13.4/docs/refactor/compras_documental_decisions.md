@@ -61,11 +61,26 @@
 
 ## DEC-007: ProcesarCompraUC marcado DEPRECATED (no eliminado)
 
-**Decisión:** `core/use_cases/compra.py` se marca deprecated pero no se elimina hasta confirmar que no tiene referencias activas.
+**Decisión:** `core/use_cases/compra.py` se marca deprecated pero NO se elimina — tiene referencias activas confirmadas en Fase 10.
 
 **Riesgo:** Si se elimina prematuramente y hay código que lo importa, la app falla en inicio.
 
-**Acción:** Verificar referencias con grep antes de eliminar en Fase 10.
+**Auditoría Fase 10 (2026-05-16):** grep confirmó referencias activas en:
+
+| Archivo | Tipo de referencia | Seguro eliminar |
+|---------|-------------------|-----------------|
+| `core/app_container.py:424` | `self.uc_compra = ProcesarCompraUC.desde_container(self)` — alias backward compat | ❌ NO — rompe módulos que usen `container.uc_compra` |
+| `application/use_cases/__init__.py:3` | re-export shim (intencional, documentado Phase 2) | ❌ NO |
+| `tests/test_uc_compra.py` | tests de caracterización del UC deprecated | ✅ Puede eliminarse junto con el UC |
+| `tests/purchases/test_purchase_finance_effects.py:25` | usa ProcesarCompraUC para tests de finanzas | ⚠ Migrar a RegistrarCompraUC antes de eliminar |
+| `core/events/handlers/purchase_handler.py:73` | solo comentario, no uso real | ✅ Inofensivo |
+
+**Próxima acción (Fase futura):**
+1. Migrar `test_purchase_finance_effects.py` para usar `RegistrarCompraUC`
+2. Reemplazar `container.uc_compra` en `app_container.py` por alias a `TraditionalPurchaseUC`
+3. Solo entonces eliminar `core/use_cases/compra.py`
+
+**Estado:** BLOCKED — no eliminar hasta completar los pasos anteriores.
 
 ---
 

@@ -76,9 +76,9 @@ PO (ABIERTA)
 | 5 | UI doc_type selector | ✅ | modulos/compras_pro.py |
 | 6 | UI Recepción PO | ✅ | modulos/recepcion_qr_widget.py |
 | 7 | UI Historial timeline | ✅ | modulos/compras_pro.py |
-| **8** | **UI Toolbar Documental** | **⏳** | modulos/compras_pro.py |
-| 9 | UI QR mejorada | ⏳ | modulos/recepcion_qr_widget.py |
-| 10 | Limpieza | ⏳ | Múltiples |
+| 8 | UI Toolbar Documental | ✅ | modulos/compras_pro.py |
+| 9 | UI QR mejorada | ✅ | modulos/recepcion_qr_widget.py |
+| **10** | **Limpieza** | **✅** | modulos/compras_pro.py, docs/refactor/ |
 
 ---
 
@@ -92,7 +92,11 @@ PO (ABIERTA)
 - [x] PO no afecta inventario
 - [x] Recepción PO usa ReceivePOAdapter
 - [x] UI respeta Colors.* (sin hex hardcodeados críticos)
-- [x] 205+ tests pasando
-- [ ] Toolbar Documental ERP en Tab 1 (Fase 8)
-- [ ] Panel de aprobación funcional (Fase 8)
-- [ ] Botón dinámico según estado/permisos (Fase 8)
+- [x] 363+ tests pasando
+- [x] Toolbar Documental ERP en Tab 1 (Fase 8)
+- [x] Panel de aprobación funcional (Fase 8)
+- [x] Botón dinámico según estado/permisos (Fase 8)
+- [x] Badge estado PO + columna Δ + panel mermas en Recepción PO (Fase 9)
+- [x] Filtro Estado PO en Tab 3 historial (Fase 10)
+- [x] CSV exporta todas las columnas desde cache (Fase 10)
+- [x] Auditoría ProcesarCompraUC — bloqueado por referencias activas (DEC-007)

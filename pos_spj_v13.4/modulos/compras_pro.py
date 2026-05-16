@@ -426,9 +426,11 @@ class _HistorialLoader(QThread):
                        c.usuario, c.total, c.estado, c.id,
                        COALESCE(c.condicion_pago,'liquidado') AS condicion_pago,
                        COALESCE(c.moneda,'MXN') AS moneda,
-                       COALESCE(c.purchase_order_id, 0) AS po_id
+                       COALESCE(c.purchase_order_id, 0) AS po_id,
+                       COALESCE(oc.estado, '') AS po_estado
                 FROM compras c
                 LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                LEFT JOIN ordenes_compra oc ON oc.id=c.purchase_order_id
                 WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
                 ORDER BY c.fecha DESC LIMIT ?
             """, (self._sucursal, self._desde, self._hasta, self._limit)).fetchall()
@@ -3524,7 +3526,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             placeholder="Buscar folio, proveedor o usuario…",
             combo_filters={
                 "estado":    ["completada", "credito", "pendiente", "parcial", "cancelada"],
-                "tipo_doc":  ["directa", "con po"],   # Phase 7
+                "tipo_doc":  ["directa", "con po"],         # Phase 7
+                "po_estado": ["ABIERTA", "PARCIAL", "RECIBIDA", "CERRADA", "CANCELADA"],  # Phase 10
             },
         )
         self._hist_filter.filters_changed.connect(self._hist_filter_changed)
@@ -3671,9 +3674,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             estado    = (filtros.get("estado")   or "").strip().lower()
             search    = (filtros.get("search")   or "").strip().lower()
             tipo_doc  = (filtros.get("tipo_doc") or "").strip().lower()   # Phase 7
+            po_estado = (filtros.get("po_estado") or "").strip().upper()  # Phase 10
             rows = list(all_rows)
             if estado:
                 rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
+            if po_estado:
+                rows = [r for r in rows if str(r[10] if len(r) > 10 else "").strip().upper() == po_estado]
             if search:
                 rows = [r for r in rows if
                         search in str(r[0] or "").lower() or
@@ -3721,26 +3727,31 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 str(r[2] or ""), str(r[3] or ""),
                 total_str,
             ]
-            cid_  = r[6]
-            pnm_  = str(r[2] or "")
-            po_id = int(r[9] or 0) if len(r) > 9 else 0   # Phase 7
+            cid_      = r[6]
+            pnm_      = str(r[2] or "")
+            po_id     = int(r[9] or 0) if len(r) > 9 else 0        # Phase 7
+            po_estado = str(r[10] or "") if len(r) > 10 else ""     # Phase 10
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if ci == 4:
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if ci == 0:
-                    it.setData(Qt.UserRole, cid_)        # compra_id for inline detail
-                    it.setData(Qt.UserRole + 1, po_id)   # po_id for timeline (Phase 7)
+                    it.setData(Qt.UserRole,     cid_)       # compra_id for inline detail
+                    it.setData(Qt.UserRole + 1, po_id)      # po_id for timeline (Phase 7)
+                    it.setData(Qt.UserRole + 2, po_estado)  # po_estado for CSV export (Phase 10)
                 self._tbl_hist.setItem(ri, ci, it)
             # col 5 — Cond. Pago chip
             self._tbl_hist.setCellWidget(ri, 5, _make_cond_chip(cond_raw, self))
             # col 6 — Estado chip
             self._tbl_hist.setCellWidget(ri, 6, _make_status_chip(estado_raw, self))
-            # col 7 — Tipo Doc badge (Phase 7)
+            # col 7 — Tipo Doc badge (Phase 7), tooltip con PO estado si existe
             if po_id:
+                tip = f"PO #{po_id}"
+                if po_estado:
+                    tip += f" · {po_estado}"
                 tipo_badge = create_badge(self, "📦 PO", "primary")
-                tipo_badge.setToolTip(f"Recibida contra PO #{po_id}")
+                tipo_badge.setToolTip(tip)
             else:
                 tipo_badge = create_badge(self, "🛒 Directa", "neutral")
             self._tbl_hist.setCellWidget(ri, 7, tipo_badge)
@@ -4437,32 +4448,72 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._cargar_historial_compras()
 
     def _exportar_historial_csv(self) -> None:
-        """Exporta las filas visibles del historial de compras a CSV."""
+        """Exporta el historial de compras a CSV.
+
+        Phase 10: lee del cache _hist_all_rows (datos completos de BD),
+        aplica los mismos filtros activos, incluye Tipo Doc y Estado PO.
+        """
         import csv, os
-        if not hasattr(self, '_tbl_hist') or self._tbl_hist.rowCount() == 0:
+        all_rows = getattr(self, '_hist_all_rows', None)
+        if not all_rows:
             QMessageBox.information(self, "Exportar", "No hay datos para exportar.")
             return
+
+        # Aplicar los mismos filtros que _poblar_historial
+        filtros  = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
+        estado   = (filtros.get("estado")   or "").strip().lower()
+        search   = (filtros.get("search")   or "").strip().lower()
+        tipo_doc = (filtros.get("tipo_doc") or "").strip().lower()
+        po_est   = (filtros.get("po_estado") or "").strip().upper()
+
+        rows = list(all_rows)
+        if estado:
+            rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
+        if po_est:
+            rows = [r for r in rows if str(r[10] if len(r) > 10 else "").strip().upper() == po_est]
+        if search:
+            rows = [r for r in rows if
+                    search in str(r[0] or "").lower() or
+                    search in str(r[2] or "").lower() or
+                    search in str(r[3] or "").lower()]
+        if tipo_doc == "directa":
+            rows = [r for r in rows if not (len(r) > 9 and int(r[9] or 0))]
+        elif tipo_doc == "con po":
+            rows = [r for r in rows if len(r) > 9 and int(r[9] or 0)]
+
+        if not rows:
+            QMessageBox.information(self, "Exportar", "No hay datos para exportar con los filtros actuales.")
+            return
+
         default_name = f"compras_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
         path, _ = QFileDialog.getSaveFileName(
             self, "Guardar historial de compras", default_name, "CSV (*.csv)")
         if not path:
             return
+
+        ocultar_totales = self._usuario_rol in _ROLES_SIN_TOTALES
         try:
-            headers = ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Cond. Pago", "Estado"]
+            headers = [
+                "Folio", "Fecha", "Proveedor", "Usuario", "Total",
+                "Cond. Pago", "Estado", "Tipo Doc", "PO #", "Estado PO",
+            ]
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
-                for row in range(self._tbl_hist.rowCount()):
-                    row_data = []
-                    for col in range(7):  # cols 0-6; skip col 7 (action buttons)
-                        item = self._tbl_hist.item(row, col)
-                        if item is not None:
-                            row_data.append(item.text())
-                        else:
-                            widget = self._tbl_hist.cellWidget(row, col)
-                            row_data.append(widget.text().strip() if widget else "")
-                    writer.writerow(row_data)
-            Toast.success(self, "✅ Exportado", os.path.basename(path))
+                for r in rows:
+                    po_id    = int(r[9] or 0) if len(r) > 9 else 0
+                    po_est_r = str(r[10] or "") if len(r) > 10 else ""
+                    total    = "—" if ocultar_totales else str(r[4] or "")
+                    tipo     = f"PO #{po_id}" if po_id else "Directa"
+                    writer.writerow([
+                        r[0] or "", r[1] or "", r[2] or "", r[3] or "",
+                        total,
+                        r[7] or "" if len(r) > 7 else "",  # condicion_pago
+                        r[5] or "",                          # estado
+                        tipo, po_id or "", po_est_r,
+                    ])
+            Toast.success(self, "✅ Exportado",
+                          f"{os.path.basename(path)} · {len(rows)} registros")
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))
 
