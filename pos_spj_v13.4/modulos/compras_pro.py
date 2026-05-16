@@ -25,7 +25,7 @@ from PyQt5.QtWidgets import (
     QLabel, QComboBox, QLineEdit, QPushButton, QDoubleSpinBox, QSpinBox, QCompleter,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QMenu, QSizePolicy, QCheckBox, QListWidget, QListWidgetItem,
-    QDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog, QScrollArea,
+    QDialog, QInputDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog, QScrollArea,
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal
 from PyQt5.QtGui import QCursor, QKeySequence
@@ -641,15 +641,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._normalizar_botones_ui()
 
     def _normalizar_botones_ui(self) -> None:
-        """Normaliza botones propios del módulo (excluye RecepcionQRWidget)."""
+        """Ensure minimum height on module buttons; excludes icon-only and QR widget."""
         _recv = getattr(self, '_recv_qr', None)
         for btn in self.findChildren(QPushButton):
             if btn.minimumWidth() and btn.minimumWidth() <= 40:
                 continue
-            # Don't touch buttons that belong to the embedded QR widget
             if _recv is not None and _recv.isAncestorOf(btn):
                 continue
-            btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
 
@@ -739,8 +737,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         right_col = self._build_summary_panel()
         splitter.addWidget(right_col)
 
-        # Set initial sizes: left=260, center=stretch, right=380
-        splitter.setSizes([260, 9999, 380])
+        # Set initial sizes: left=260, center=stretch, right=480
+        splitter.setSizes([260, 9999, 480])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
@@ -752,10 +750,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         bar = QFrame()
         bar.setObjectName("kpiStripBar")
         bar.setStyleSheet(
-            f"QFrame#kpiStripBar{{"
-            f"  background:{Colors.NEUTRAL.SLATE_50};"
+            "QFrame#kpiStripBar{"
             f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"}}"
+            "}"
         )
         bar.setFixedHeight(100)
 
@@ -895,7 +892,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             panel.setObjectName("sectionCard")
             panel.setStyleSheet(
                 f"QFrame#sectionCard{{"
-                f"  background:white;"
                 f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
                 f"  border-radius:6px;"
                 f"}}"
@@ -908,7 +904,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             hdr.setStyleSheet(
                 f"color:{accent_color};"
                 "font-size:9px;font-weight:800;letter-spacing:0.1em;"
-                f"background:{Colors.NEUTRAL.SLATE_50};"
                 f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
                 "border-top-left-radius:6px;border-top-right-radius:6px;"
                 "padding:6px 10px;"
@@ -1010,9 +1005,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._buscador.producto_seleccionado.connect(self._agregar_producto)
         search_body.addWidget(self._buscador)
 
+        # Cart filter — created here but placed in right panel (with the table)
         self._trad_filter = FilterBar(self, placeholder="Filtrar carrito por nombre de producto…")
         self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
-        search_body.addWidget(self._trad_filter)
         lay.addWidget(search_panel)
 
         # ── E-4: CxP alert banner ─────────────────────────────────────────────
@@ -1028,12 +1023,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._cxp_alert_bar.hide()
         lay.addWidget(self._cxp_alert_bar)
 
-        # ── Carrito / Items grid ──────────────────────────────────────────────
+        # ── Carrito / Items grid (widget created here; placed in right panel) ──
         cart_panel = QFrame()
         cart_panel.setObjectName("sectionCard")
         cart_panel.setStyleSheet(
             f"QFrame#sectionCard{{"
-            f"  background:white;"
             f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
             f"  border-radius:6px;"
             f"}}"
@@ -1083,10 +1077,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         cart_hdr.addWidget(btn_draft_load)
 
         cart_hdr_frame = QFrame()
+        cart_hdr_frame.setObjectName("cartHdrFrame")
         cart_hdr_frame.setStyleSheet(
-            f"background:{Colors.NEUTRAL.SLATE_50};"
-            f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
-            "border-top-left-radius:6px;border-top-right-radius:6px;"
+            "QFrame#cartHdrFrame{"
+            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+            "  border-top-left-radius:6px;border-top-right-radius:6px;"
+            "}"
         )
         cart_hdr_frame.setLayout(cart_hdr)
         cart_lay_outer.addWidget(cart_hdr_frame)
@@ -1135,17 +1131,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         self._cart_empty.hide()
         cart_body.addWidget(self._cart_empty)
-        lay.addWidget(cart_panel, 1)
+        # Store cart panel — will be placed in right column by _build_summary_panel
+        self._cart_panel_widget = cart_panel
 
-        # ── Footer: IVA toggle + subtotals ────────────────────────────────────
+        # ── Footer: IVA toggle + subtotals (placed in right panel) ──────────
         footer_frame = QFrame()
-        footer_frame.setObjectName("sectionCard")
+        footer_frame.setObjectName("totalsFooterFrame")
         footer_frame.setStyleSheet(
-            f"QFrame#sectionCard{{"
-            f"  background:white;"
+            "QFrame#totalsFooterFrame{"
             f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
             f"  border-radius:6px;"
-            f"}}"
+            "}"
         )
         footer = QHBoxLayout(footer_frame)
         footer.setContentsMargins(10, 6, 10, 6)
@@ -1176,7 +1172,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         footer.addWidget(self._lbl_iva_monto)
         footer.addStretch()
         footer.addWidget(self.lbl_total)
-        lay.addWidget(footer_frame)
+        # Store footer — will be placed in right column by _build_summary_panel
+        self._totals_footer_widget = footer_frame
 
         scroll.setWidget(inner_w)
 
@@ -1251,10 +1248,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sidebar.setObjectName("documentalToolbar")
         sidebar.setFixedWidth(260)
         sidebar.setStyleSheet(
-            f"QFrame#documentalToolbar{{"
-            f"  background:{Colors.NEUTRAL.SLATE_50};"
+            "QFrame#documentalToolbar{"
             f"  border-right:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"}}"
+            "}"
         )
         root_lay = QVBoxLayout(sidebar)
         root_lay.setContentsMargins(0, 0, 0, 0)
@@ -1515,13 +1511,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         _list_s = (
             f"QListWidget{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:4px;background:white;font-size:11px;outline:none;}}"
+            f"  border-radius:4px;font-size:11px;outline:none;}}"
             f"QListWidget::item{{padding:4px 6px;"
             f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_100};}}"
             f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
             f"  color:{Colors.PRIMARY_BASE};"
             f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
-            f"QListWidget::item:hover{{background:{Colors.NEUTRAL.SLATE_50};}}"
         )
         self._sidebar_prov_list = QListWidget()
         self._sidebar_prov_list.setStyleSheet(_list_s)
@@ -1605,41 +1600,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
 
     def _refresh_doc_btn_styles(self) -> None:
-        """Apply variant styles to the 5 documental action buttons."""
+        """Set variant property on documental action buttons; QSS handles visual state."""
         _BTN_VARIANTS = {
-            '_btn_aprobar_pr':    ("success",  True),
-            '_btn_rechazar_pr':   ("danger",   True),
-            '_btn_editar_doc':    ("warning",  True),
-            '_btn_conv_po':       ("primary",  True),
-            '_btn_enviar_rec_doc':("success",  True),
+            '_btn_aprobar_pr':     'success',
+            '_btn_rechazar_pr':    'danger',
+            '_btn_editar_doc':     'warning',
+            '_btn_conv_po':        'primary',
+            '_btn_enviar_rec_doc': 'success',
         }
-        for attr, (variant, _) in _BTN_VARIANTS.items():
+        for attr, variant in _BTN_VARIANTS.items():
             btn = getattr(self, attr, None)
             if btn is None:
                 continue
-            enabled = btn.isEnabled()
-            c_map = {
-                "success": (Colors.SUCCESS_BASE, Colors.SUCCESS_HOVER),
-                "danger":  (Colors.DANGER_BASE,  Colors.DANGER_HOVER),
-                "warning": (Colors.WARNING_BASE, Colors.WARNING_HOVER),
-                "primary": (Colors.PRIMARY_BASE, Colors.PRIMARY_HOVER),
-            }
-            base, hover = c_map.get(variant, (Colors.PRIMARY_BASE, Colors.PRIMARY_HOVER))
-            if enabled:
-                btn.setStyleSheet(
-                    f"font-size:10px;font-weight:600;border-radius:4px;"
-                    f"background:{base};color:white;"
-                    f"border:1px solid {base};"
-                    f"padding:0 4px;"
-                )
-            else:
-                btn.setStyleSheet(
-                    f"font-size:10px;font-weight:600;border-radius:4px;"
-                    f"background:{Colors.NEUTRAL.SLATE_100};"
-                    f"color:{Colors.NEUTRAL.SLATE_400};"
-                    f"border:1px solid {Colors.NEUTRAL.SLATE_200};"
-                    f"padding:0 4px;"
-                )
+            btn.setProperty("variant", variant)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
     # ── Phase 8 helpers ───────────────────────────────────────────────────────
 
@@ -2156,16 +2131,60 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         return sidebar
 
     def _build_summary_panel(self) -> QWidget:
-        """Right ERP panel: live financial summary + validation + payment + actions."""
+        """Right ERP panel: Partidas + Totales + financial summary + payment + actions."""
         panel = QFrame()
-        panel.setFixedWidth(230)
+        panel.setObjectName("purchaseRightPanel")
+        panel.setMinimumWidth(380)
         panel.setStyleSheet(
-            f"background:{Colors.NEUTRAL.SLATE_50};"
-            "border-left:1px solid rgba(0,0,0,0.08);"
+            "QFrame#purchaseRightPanel{"
+            f"  border-left:1px solid {Colors.NEUTRAL.SLATE_200};"
+            "}"
         )
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(10, 10, 10, 10)
-        lay.setSpacing(6)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        # ── Cart filter (top of right panel) ─────────────────────────────────
+        if hasattr(self, '_trad_filter'):
+            filter_wrap = QWidget()
+            filter_wrap.setObjectName("cartFilterWrap")
+            filter_wrap.setStyleSheet(
+                "QWidget#cartFilterWrap{"
+                f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
+                "}"
+            )
+            fw_lay = QHBoxLayout(filter_wrap)
+            fw_lay.setContentsMargins(8, 4, 8, 4)
+            fw_lay.addWidget(self._trad_filter)
+            lay.addWidget(filter_wrap)
+
+        # ── Cart items table (stretches) ──────────────────────────────────────
+        if hasattr(self, '_cart_panel_widget'):
+            lay.addWidget(self._cart_panel_widget, 1)
+
+        # ── IVA / totals footer ───────────────────────────────────────────────
+        if hasattr(self, '_totals_footer_widget'):
+            lay.addWidget(self._totals_footer_widget)
+
+        # ── Scrollable bottom section ─────────────────────────────────────────
+        bottom_w = QWidget()
+        bottom_lay = QVBoxLayout(bottom_w)
+        bottom_lay.setContentsMargins(10, 8, 10, 8)
+        bottom_lay.setSpacing(6)
+
+        bottom_scroll = QScrollArea()
+        bottom_scroll.setWidgetResizable(True)
+        bottom_scroll.setWidget(bottom_w)
+        bottom_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        bottom_scroll.setMaximumHeight(340)
+        bottom_scroll.setStyleSheet(
+            "QScrollArea{border:none;background:transparent;}"
+            "QScrollBar:vertical{width:4px;background:transparent;}"
+        )
+        lay.addWidget(bottom_scroll)
+
+        # Reassign lay to bottom_lay for remaining widgets
+        lay = bottom_lay
 
         # ── A. Status badge + last edit ───────────────────────────────────────
         self._lbl_estado_compra = QLabel("🔵  En captura")
