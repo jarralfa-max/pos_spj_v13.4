@@ -73,6 +73,7 @@ MIGRATIONS = [
     ("076",  "migrations.standalone.076_purchase_requests"),             # Phase 3: tabla purchase_requests (PR)
     ("077",  "migrations.standalone.077_ordenes_compra_erp"),            # Phase 3: extender ordenes_compra con campos ERP
     ("078",  "migrations.standalone.078_compras_po_link"),               # Phase 3: vincular compras con PO (nullable FK)
+    ("079",  "migrations.standalone.079_proveedores_condicion_pago"),    # Bugfix: normalizar condicion_pago en proveedores
 ]
 
 def _ensure_tracking_table(conn):
