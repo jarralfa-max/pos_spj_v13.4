@@ -1274,11 +1274,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.setSpacing(Spacing.SM)
         lay.setContentsMargins(Spacing.SM + 2, Spacing.SM, Spacing.SM + 2, Spacing.SM)
 
-        lay.addWidget(self._build_doctype_toolbar())
-        lay.addWidget(self._build_stepper_bar())
         lay.addWidget(self._build_provider_card())
         lay.addWidget(self._build_document_card())
         lay.addWidget(self._build_product_search_card())
+        # Doctype toolbar compact (below cards) + stepper hidden
+        lay.addWidget(self._build_doctype_toolbar())
+        _stepper = self._build_stepper_bar()
+        _stepper.hide()
 
         # ── E-4: CxP alert banner ─────────────────────────────────────────────
         self._cxp_alert_bar = QLabel("")
@@ -1604,80 +1606,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         _btn_rf.clicked.connect(self._cargar_docs_erp)
         inner.addWidget(_btn_rf)
+        inner.addStretch()
 
-        # ── Separator ─────────────────────────────────────────────────────────
-        _sep = QFrame()
-        _sep.setFrameShape(QFrame.HLine)
-        _sep.setStyleSheet(
-            f"border:none;border-top:1px solid {Colors.NEUTRAL.SLATE_200};"
-            "margin:4px 0;"
-        )
-        inner.addWidget(_sep)
-
-        # ── Provider quick-select (existing logic) ────────────────────────────
-        inner.addWidget(_sec("🏢 PROVEEDOR RÁPIDO"))
-
+        # ── Hidden widgets — kept for backward-compat with business logic ─────
         self._sidebar_prov_search = QLineEdit()
-        self._sidebar_prov_search.setPlaceholderText("Buscar proveedor…")
-        self._sidebar_prov_search.setObjectName("styledInput")
-        self._sidebar_prov_search.textChanged.connect(self._filtrar_sidebar_proveedores)
-        inner.addWidget(self._sidebar_prov_search)
-
-        _list_s = (
-            f"QListWidget{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:4px;font-size:11px;outline:none;}}"
-            f"QListWidget::item{{padding:4px 6px;"
-            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_100};}}"
-            f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
-            f"  color:{Colors.PRIMARY_BASE};"
-            f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
-        )
+        self._sidebar_prov_search.hide()
         self._sidebar_prov_list = QListWidget()
-        self._sidebar_prov_list.setStyleSheet(_list_s)
-        self._sidebar_prov_list.setMaximumHeight(110)
+        self._sidebar_prov_list.hide()
         self._sidebar_prov_list.itemClicked.connect(self._seleccionar_proveedor_sidebar)
-        inner.addWidget(self._sidebar_prov_list)
-
-        _sep2 = QFrame()
-        _sep2.setFrameShape(QFrame.HLine)
-        _sep2.setStyleSheet(
-            f"border:none;border-top:1px solid {Colors.NEUTRAL.SLATE_200};"
-        )
-        inner.addWidget(_sep2)
-
-        inner.addWidget(_sec("📋 PLANTILLAS"))
         self._sidebar_templates_list = QListWidget()
-        self._sidebar_templates_list.setMaximumHeight(76)
-        self._sidebar_templates_list.setStyleSheet(_list_s)
+        self._sidebar_templates_list.hide()
         self._sidebar_templates_list.itemDoubleClicked.connect(
             self._cargar_plantilla_sidebar
         )
         self._poblar_plantillas_sidebar()
-        inner.addWidget(self._sidebar_templates_list)
-
-        _sep3 = QFrame()
-        _sep3.setFrameShape(QFrame.HLine)
-        _sep3.setStyleSheet(
-            f"border:none;border-top:1px solid {Colors.NEUTRAL.SLATE_200};"
-        )
-        inner.addWidget(_sep3)
-
-        inner.addWidget(_sec("🕐 ÚLTIMAS COMPRAS"))
         self._sidebar_recent_list = QListWidget()
-        self._sidebar_recent_list.setMaximumHeight(88)
-        self._sidebar_recent_list.setStyleSheet(_list_s)
-        self._sidebar_recent_list.setToolTip(
-            "Últimas compras del proveedor seleccionado"
-        )
-        self._sidebar_recent_list.itemClicked.connect(self._abrir_reciente_sidebar)
-        self._lbl_recientes_empty = QLabel("Selecciona un proveedor")
-        self._lbl_recientes_empty.setObjectName("caption")
-        self._lbl_recientes_empty.setStyleSheet(
-            f"color:{Colors.NEUTRAL.SLATE_400};font-size:10px;padding:4px;"
-        )
-        inner.addWidget(self._sidebar_recent_list)
-        inner.addWidget(self._lbl_recientes_empty)
-        inner.addStretch()
+        self._sidebar_recent_list.hide()
+        self._lbl_recientes_empty = QLabel("")
+        self._lbl_recientes_empty.hide()
 
         # Wrap content in QScrollArea
         sa = QScrollArea()
