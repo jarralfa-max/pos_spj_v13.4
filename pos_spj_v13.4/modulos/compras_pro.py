@@ -425,9 +425,12 @@ class _HistorialLoader(QThread):
                 SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
                        c.usuario, c.total, c.estado, c.id,
                        COALESCE(c.condicion_pago,'liquidado') AS condicion_pago,
-                       COALESCE(c.moneda,'MXN') AS moneda
+                       COALESCE(c.moneda,'MXN') AS moneda,
+                       COALESCE(c.purchase_order_id, 0) AS po_id,
+                       COALESCE(oc.estado, '') AS po_estado
                 FROM compras c
                 LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                LEFT JOIN ordenes_compra oc ON oc.id=c.purchase_order_id
                 WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
                 ORDER BY c.fecha DESC LIMIT ?
             """, (self._sucursal, self._desde, self._hasta, self._limit)).fetchall()
@@ -457,6 +460,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception:
             pass
 
+        self._doc_type = "DIRECT"   # Phase 5: DIRECT | PR | PO
         self._build_ui()
         QTimer.singleShot(200, self.cargar_proveedores)
 
@@ -711,8 +715,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         outer.setSpacing(0)
         outer.setContentsMargins(0, 0, 0, 0)
 
-        # ── Left: provider list + templates ──────────────────────────────────
-        outer.addWidget(self._build_provider_sidebar())
+        # ── Left: Toolbar Documental ERP (Phase 8) ────────────────────────────
+        outer.addWidget(self._build_documental_toolbar())
 
         # ── Center: document header + search + cart + IVA row ─────────────────
         center_w = QWidget()
@@ -726,6 +730,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         outer.addWidget(self._build_summary_panel())
 
         lay = center_lay  # alias so body below builds into the center panel
+
+        # ── E-0: Document type selector (Phase 5) ─────────────────────────────
+        lay.addWidget(self._build_doctype_toolbar())
 
         # ── E-1: ERP Workflow Stepper ─────────────────────────────────────────
         lay.addWidget(self._build_stepper_bar())
@@ -967,6 +974,822 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             logger.warning("_build_tab_qr: %s", e)
             self._qr_empty.show()
             self._qr_loading.hide()
+
+    # ── Phase 8: Toolbar Documental ERP ──────────────────────────────────────
+
+    def _build_documental_toolbar(self) -> QWidget:
+        """
+        Left ERP panel: documental workflow toolbar (Phase 8).
+        Top section: PR/PO document list + detail card + action buttons.
+        Bottom section: provider quick-select (preserves existing logic).
+        Width: 260px.
+        """
+        sidebar = QFrame()
+        sidebar.setObjectName("documentalToolbar")
+        sidebar.setFixedWidth(260)
+        sidebar.setStyleSheet(
+            f"background:{Colors.NEUTRAL.SLATE_50};"
+            "border-right:1px solid rgba(0,0,0,0.08);"
+        )
+        root_lay = QVBoxLayout(sidebar)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
+
+        # ── State ─────────────────────────────────────────────────────────────
+        self._selected_doc_id     = None
+        self._selected_doc_type   = None   # 'PR' | 'PO'
+        self._selected_doc_estado = None
+        self._docs_erp_cache: list[dict] = []
+        self._doc_filter_active   = "all"
+
+        # ── Header strip ──────────────────────────────────────────────────────
+        hdr = QLabel("  TOOLBAR DOCUMENTAL ERP")
+        hdr.setFixedHeight(26)
+        hdr.setStyleSheet(
+            f"background:{Colors.PRIMARY_BASE};"
+            "color:white;"
+            "font-size:9px;font-weight:800;letter-spacing:1px;"
+            "padding:0 8px;"
+        )
+        root_lay.addWidget(hdr)
+
+        # ── Scrollable content ────────────────────────────────────────────────
+        scroll_w = QWidget()
+        scroll_w.setStyleSheet("background:transparent;")
+        inner = QVBoxLayout(scroll_w)
+        inner.setContentsMargins(8, 6, 8, 6)
+        inner.setSpacing(4)
+
+        def _sec(txt: str) -> QLabel:
+            lbl = QLabel(txt)
+            lbl.setStyleSheet(
+                f"font-size:9px;font-weight:800;letter-spacing:0.8px;"
+                f"color:{Colors.NEUTRAL.SLATE_500};"
+                "background:transparent;padding:2px 0;"
+            )
+            return lbl
+
+        # ── Filter chips ──────────────────────────────────────────────────────
+        inner.addWidget(_sec("DOCUMENTOS"))
+
+        self._doc_filter_chips: dict[str, QPushButton] = {}
+        chip_defs = [
+            ("all",          "Todos"),
+            ("pr_pend",      "PR pend."),
+            ("pr_aprobadas", "PR aprobadas"),
+            ("po_abiertas",  "PO abiertas"),
+            ("rec_parc",     "Rec. parciales"),
+        ]
+        row1 = QHBoxLayout(); row1.setSpacing(3)
+        row2 = QHBoxLayout(); row2.setSpacing(3)
+        for idx, (key, label) in enumerate(chip_defs):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setFixedHeight(20)
+            btn.setChecked(key == "all")
+            btn.setStyleSheet(self._doc_chip_style(key == "all"))
+            btn.clicked.connect(lambda _checked, k=key: self._on_doc_filter_changed(k))
+            self._doc_filter_chips[key] = btn
+            (row1 if idx < 3 else row2).addWidget(btn)
+        row1.addStretch(); row2.addStretch()
+        inner.addLayout(row1)
+        inner.addLayout(row2)
+
+        # ── Document list ─────────────────────────────────────────────────────
+        self._doc_erp_list = QListWidget()
+        self._doc_erp_list.setObjectName("docErpList")
+        self._doc_erp_list.setMaximumHeight(165)
+        self._doc_erp_list.setStyleSheet(
+            f"QListWidget{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"  border-radius:4px;background:white;font-size:10px;outline:none;}}"
+            f"QListWidget::item{{padding:4px 6px;"
+            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_100};}}"
+            f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
+            f"  color:{Colors.PRIMARY_BASE};"
+            f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
+            f"QListWidget::item:hover{{background:{Colors.NEUTRAL.SLATE_50};}}"
+        )
+        self._doc_erp_list.itemClicked.connect(self._on_doc_item_clicked)
+        inner.addWidget(self._doc_erp_list)
+
+        self._doc_list_empty_lbl = QLabel("Sin documentos en esta categoría")
+        self._doc_list_empty_lbl.setAlignment(Qt.AlignCenter)
+        self._doc_list_empty_lbl.setObjectName("caption")
+        self._doc_list_empty_lbl.setStyleSheet(
+            f"color:{Colors.NEUTRAL.SLATE_400};padding:6px;font-size:10px;"
+        )
+        self._doc_list_empty_lbl.hide()
+        inner.addWidget(self._doc_list_empty_lbl)
+
+        # ── Detail card ───────────────────────────────────────────────────────
+        self._doc_detail_card = QFrame()
+        self._doc_detail_card.setObjectName("docDetailCard")
+        self._doc_detail_card.setStyleSheet(
+            f"QFrame#docDetailCard{{background:white;"
+            f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"  border-radius:6px;}}"
+        )
+        card_lay = QVBoxLayout(self._doc_detail_card)
+        card_lay.setContentsMargins(8, 6, 8, 6)
+        card_lay.setSpacing(2)
+
+        folio_row = QHBoxLayout()
+        self._doc_lbl_folio = QLabel("—")
+        self._doc_lbl_folio.setStyleSheet("font-size:11px;font-weight:700;")
+        self._doc_lbl_estado_badge = QLabel("")
+        self._doc_lbl_estado_badge.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self._doc_lbl_estado_badge.setStyleSheet(
+            f"font-size:9px;font-weight:700;border-radius:8px;"
+            f"padding:2px 5px;"
+        )
+        folio_row.addWidget(self._doc_lbl_folio)
+        folio_row.addStretch()
+        folio_row.addWidget(self._doc_lbl_estado_badge)
+        card_lay.addLayout(folio_row)
+
+        def _info_row(lbl_txt: str, attr: str) -> None:
+            r = QHBoxLayout(); r.setSpacing(3)
+            k = QLabel(lbl_txt)
+            k.setStyleSheet(
+                f"font-size:9px;color:{Colors.NEUTRAL.SLATE_400};min-width:56px;"
+            )
+            v = QLabel("—")
+            v.setObjectName("caption")
+            v.setStyleSheet("font-size:10px;")
+            v.setWordWrap(True)
+            setattr(self, attr, v)
+            r.addWidget(k); r.addWidget(v, 1)
+            card_lay.addLayout(r)
+
+        _info_row("Fecha:",       "_doc_lbl_fecha")
+        _info_row("Sucursal:",    "_doc_lbl_sucursal")
+        _info_row("Solicitante:", "_doc_lbl_solicitante")
+        _info_row("Proveedor:",   "_doc_lbl_proveedor_doc")
+
+        monto_row = QHBoxLayout(); monto_row.setSpacing(3)
+        _mk = QLabel("Monto:")
+        _mk.setStyleSheet(
+            f"font-size:9px;color:{Colors.NEUTRAL.SLATE_400};min-width:56px;"
+        )
+        self._doc_lbl_monto = QLabel("$0.00")
+        self._doc_lbl_monto.setStyleSheet(
+            f"font-size:12px;font-weight:700;color:{Colors.SUCCESS_BASE};"
+        )
+        self._doc_lbl_prioridad = QLabel("")
+        self._doc_lbl_prioridad.setStyleSheet(
+            f"font-size:9px;font-weight:700;border-radius:6px;padding:2px 5px;"
+            f"background:{Colors.WARNING_BASE}22;color:{Colors.WARNING_BASE};"
+        )
+        monto_row.addWidget(_mk)
+        monto_row.addWidget(self._doc_lbl_monto, 1)
+        monto_row.addWidget(self._doc_lbl_prioridad)
+        card_lay.addLayout(monto_row)
+
+        self._doc_detail_card.hide()
+        inner.addWidget(self._doc_detail_card)
+
+        # ── Action buttons ────────────────────────────────────────────────────
+        self._doc_acciones_frame = QFrame()
+        self._doc_acciones_frame.setObjectName("docAccionesFrame")
+        accs = QVBoxLayout(self._doc_acciones_frame)
+        accs.setContentsMargins(0, 3, 0, 0)
+        accs.setSpacing(3)
+
+        row_a = QHBoxLayout(); row_a.setSpacing(3)
+        self._btn_aprobar_pr = QPushButton("✓ Aprobar PR")
+        self._btn_aprobar_pr.setObjectName("btnAprobarPR")
+        self._btn_aprobar_pr.setFixedHeight(26)
+        self._btn_aprobar_pr.setEnabled(False)
+        self._btn_aprobar_pr.clicked.connect(self._accion_aprobar_pr)
+
+        self._btn_rechazar_pr = QPushButton("✗ Rechazar")
+        self._btn_rechazar_pr.setObjectName("btnRechazarPR")
+        self._btn_rechazar_pr.setFixedHeight(26)
+        self._btn_rechazar_pr.setEnabled(False)
+        self._btn_rechazar_pr.clicked.connect(self._accion_rechazar_pr)
+
+        row_a.addWidget(self._btn_aprobar_pr, 1)
+        row_a.addWidget(self._btn_rechazar_pr, 1)
+        accs.addLayout(row_a)
+
+        row_b = QHBoxLayout(); row_b.setSpacing(3)
+        self._btn_editar_doc = QPushButton("✏ Editar")
+        self._btn_editar_doc.setObjectName("btnEditarDoc")
+        self._btn_editar_doc.setFixedHeight(26)
+        self._btn_editar_doc.setEnabled(False)
+        self._btn_editar_doc.clicked.connect(self._accion_editar_doc)
+
+        self._btn_conv_po = QPushButton("→ Conv. a PO")
+        self._btn_conv_po.setObjectName("btnConvPO")
+        self._btn_conv_po.setFixedHeight(26)
+        self._btn_conv_po.setEnabled(False)
+        self._btn_conv_po.clicked.connect(self._accion_convertir_a_po)
+
+        row_b.addWidget(self._btn_editar_doc, 1)
+        row_b.addWidget(self._btn_conv_po, 1)
+        accs.addLayout(row_b)
+
+        self._btn_enviar_rec_doc = QPushButton("↗ Enviar a Recepción")
+        self._btn_enviar_rec_doc.setObjectName("btnEnviarRecDoc")
+        self._btn_enviar_rec_doc.setFixedHeight(28)
+        self._btn_enviar_rec_doc.setEnabled(False)
+        self._btn_enviar_rec_doc.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self._btn_enviar_rec_doc.clicked.connect(self._accion_enviar_recepcion_doc)
+        accs.addWidget(self._btn_enviar_rec_doc)
+
+        self._doc_acciones_frame.hide()
+        inner.addWidget(self._doc_acciones_frame)
+
+        # Refresh button
+        _btn_rf = QPushButton("↺ Actualizar documentos")
+        _btn_rf.setFixedHeight(22)
+        _btn_rf.setStyleSheet(
+            f"font-size:9px;background:transparent;"
+            f"color:{Colors.NEUTRAL.SLATE_500};"
+            f"border:1px solid {Colors.NEUTRAL.SLATE_300};"
+            "border-radius:3px;padding:0 6px;"
+        )
+        _btn_rf.clicked.connect(self._cargar_docs_erp)
+        inner.addWidget(_btn_rf)
+
+        # ── Separator ─────────────────────────────────────────────────────────
+        _sep = QFrame()
+        _sep.setFrameShape(QFrame.HLine)
+        _sep.setStyleSheet(
+            f"border:none;border-top:1px solid {Colors.NEUTRAL.SLATE_200};"
+            "margin:4px 0;"
+        )
+        inner.addWidget(_sep)
+
+        # ── Provider quick-select (existing logic) ────────────────────────────
+        inner.addWidget(_sec("🏢 PROVEEDOR RÁPIDO"))
+
+        self._sidebar_prov_search = QLineEdit()
+        self._sidebar_prov_search.setPlaceholderText("Buscar proveedor…")
+        self._sidebar_prov_search.setObjectName("styledInput")
+        self._sidebar_prov_search.textChanged.connect(self._filtrar_sidebar_proveedores)
+        inner.addWidget(self._sidebar_prov_search)
+
+        _list_s = (
+            f"QListWidget{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
+            f"  border-radius:4px;background:white;font-size:11px;outline:none;}}"
+            f"QListWidget::item{{padding:4px 6px;"
+            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_100};}}"
+            f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
+            f"  color:{Colors.PRIMARY_BASE};"
+            f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
+            f"QListWidget::item:hover{{background:{Colors.NEUTRAL.SLATE_50};}}"
+        )
+        self._sidebar_prov_list = QListWidget()
+        self._sidebar_prov_list.setStyleSheet(_list_s)
+        self._sidebar_prov_list.setMaximumHeight(110)
+        self._sidebar_prov_list.itemClicked.connect(self._seleccionar_proveedor_sidebar)
+        inner.addWidget(self._sidebar_prov_list)
+
+        _sep2 = QFrame()
+        _sep2.setFrameShape(QFrame.HLine)
+        _sep2.setStyleSheet(
+            f"border:none;border-top:1px solid {Colors.NEUTRAL.SLATE_200};"
+        )
+        inner.addWidget(_sep2)
+
+        inner.addWidget(_sec("📋 PLANTILLAS"))
+        self._sidebar_templates_list = QListWidget()
+        self._sidebar_templates_list.setMaximumHeight(76)
+        self._sidebar_templates_list.setStyleSheet(_list_s)
+        self._sidebar_templates_list.itemDoubleClicked.connect(
+            self._cargar_plantilla_sidebar
+        )
+        self._poblar_plantillas_sidebar()
+        inner.addWidget(self._sidebar_templates_list)
+
+        _sep3 = QFrame()
+        _sep3.setFrameShape(QFrame.HLine)
+        _sep3.setStyleSheet(
+            f"border:none;border-top:1px solid {Colors.NEUTRAL.SLATE_200};"
+        )
+        inner.addWidget(_sep3)
+
+        inner.addWidget(_sec("🕐 ÚLTIMAS COMPRAS"))
+        self._sidebar_recent_list = QListWidget()
+        self._sidebar_recent_list.setMaximumHeight(88)
+        self._sidebar_recent_list.setStyleSheet(_list_s)
+        self._sidebar_recent_list.setToolTip(
+            "Últimas compras del proveedor seleccionado"
+        )
+        self._sidebar_recent_list.itemClicked.connect(self._abrir_reciente_sidebar)
+        self._lbl_recientes_empty = QLabel("Selecciona un proveedor")
+        self._lbl_recientes_empty.setObjectName("caption")
+        self._lbl_recientes_empty.setStyleSheet(
+            f"color:{Colors.NEUTRAL.SLATE_400};font-size:10px;padding:4px;"
+        )
+        inner.addWidget(self._sidebar_recent_list)
+        inner.addWidget(self._lbl_recientes_empty)
+        inner.addStretch()
+
+        # Wrap content in QScrollArea
+        sa = QScrollArea()
+        sa.setWidgetResizable(True)
+        sa.setWidget(scroll_w)
+        sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        sa.setStyleSheet(
+            "QScrollArea{border:none;background:transparent;}"
+            "QScrollBar:vertical{width:4px;background:transparent;}"
+        )
+        root_lay.addWidget(sa, 1)
+
+        # Apply action-button styles after widget creation
+        self._refresh_doc_btn_styles()
+
+        QTimer.singleShot(350, self._cargar_docs_erp)
+        return sidebar
+
+    def _doc_chip_style(self, active: bool) -> str:
+        """CSS for filter chip buttons in the documental toolbar."""
+        if active:
+            return (
+                f"font-size:9px;font-weight:700;border-radius:9px;"
+                f"padding:0 6px;"
+                f"background:{Colors.PRIMARY_BASE};"
+                f"color:white;border:1px solid {Colors.PRIMARY_BASE};"
+            )
+        return (
+            f"font-size:9px;font-weight:600;border-radius:9px;"
+            f"padding:0 6px;"
+            f"background:{Colors.NEUTRAL.SLATE_100};"
+            f"color:{Colors.NEUTRAL.SLATE_600};"
+            f"border:1px solid {Colors.NEUTRAL.SLATE_300};"
+        )
+
+    def _refresh_doc_btn_styles(self) -> None:
+        """Apply variant styles to the 5 documental action buttons."""
+        _BTN_VARIANTS = {
+            '_btn_aprobar_pr':    ("success",  True),
+            '_btn_rechazar_pr':   ("danger",   True),
+            '_btn_editar_doc':    ("warning",  True),
+            '_btn_conv_po':       ("primary",  True),
+            '_btn_enviar_rec_doc':("success",  True),
+        }
+        for attr, (variant, _) in _BTN_VARIANTS.items():
+            btn = getattr(self, attr, None)
+            if btn is None:
+                continue
+            enabled = btn.isEnabled()
+            c_map = {
+                "success": (Colors.SUCCESS_BASE, Colors.SUCCESS_HOVER),
+                "danger":  (Colors.DANGER_BASE,  Colors.DANGER_HOVER),
+                "warning": (Colors.WARNING_BASE, Colors.WARNING_HOVER),
+                "primary": (Colors.PRIMARY_BASE, Colors.PRIMARY_HOVER),
+            }
+            base, hover = c_map.get(variant, (Colors.PRIMARY_BASE, Colors.PRIMARY_HOVER))
+            if enabled:
+                btn.setStyleSheet(
+                    f"font-size:10px;font-weight:600;border-radius:4px;"
+                    f"background:{base};color:white;"
+                    f"border:1px solid {base};"
+                    f"padding:0 4px;"
+                )
+            else:
+                btn.setStyleSheet(
+                    f"font-size:10px;font-weight:600;border-radius:4px;"
+                    f"background:{Colors.NEUTRAL.SLATE_100};"
+                    f"color:{Colors.NEUTRAL.SLATE_400};"
+                    f"border:1px solid {Colors.NEUTRAL.SLATE_200};"
+                    f"padding:0 4px;"
+                )
+
+    # ── Phase 8 helpers ───────────────────────────────────────────────────────
+
+    def _cargar_docs_erp(self) -> None:
+        """Load PR/PO documents into cache from UCs or DB fallback."""
+        docs: list[dict] = []
+        try:
+            pr_uc = getattr(self.container, 'purchase_request_uc', None)
+            if pr_uc is None:
+                from application.purchases.purchase_request_uc import PurchaseRequestUC
+                pr_uc = PurchaseRequestUC(self.container)
+
+            pend = pr_uc.listar_pendientes(self.sucursal_id) or []
+            aprob = pr_uc.listar_aprobadas(self.sucursal_id) or []
+            for d in pend:
+                d['_tipo'] = 'PR'; d['_categoria'] = 'pr_pend'
+                docs.append(d)
+            for d in aprob:
+                d['_tipo'] = 'PR'; d['_categoria'] = 'pr_aprobadas'
+                docs.append(d)
+        except Exception as e:
+            logger.debug("_cargar_docs_erp PR: %s", e)
+            try:
+                rows = self.container.db.execute(
+                    "SELECT id, folio, estado, proveedor_nombre, total,"
+                    "       fecha_creacion, sucursal_id, usuario, notas"
+                    " FROM purchase_requests"
+                    " WHERE sucursal_id=? AND estado NOT IN ('CANCELADA','CONVERTIDA_A_PO')"
+                    " ORDER BY fecha_creacion DESC LIMIT 40",
+                    (self.sucursal_id,),
+                ).fetchall()
+                for r in rows:
+                    def _v(i, k):
+                        return r[i] if not hasattr(r, 'keys') else r.get(k)
+                    estado = str(_v(2, 'estado') or '').upper()
+                    cat = 'pr_pend' if estado == 'PENDIENTE_APROBACION' else 'pr_aprobadas'
+                    docs.append({
+                        'id':              _v(0, 'id'),
+                        'folio':           _v(1, 'folio'),
+                        'estado':          estado,
+                        'proveedor_nombre': _v(3, 'proveedor_nombre'),
+                        'total':           float(_v(4, 'total') or 0),
+                        'fecha_creacion':  str(_v(5, 'fecha_creacion') or '')[:10],
+                        'sucursal_id':     _v(6, 'sucursal_id'),
+                        'usuario':         _v(7, 'usuario'),
+                        'notas':           _v(8, 'notas'),
+                        '_tipo':           'PR',
+                        '_categoria':      cat,
+                    })
+            except Exception as e2:
+                logger.debug("_cargar_docs_erp PR fallback: %s", e2)
+
+        try:
+            po_uc = getattr(self.container, 'purchase_order_uc', None)
+            if po_uc is None:
+                from application.purchases.purchase_order_uc import PurchaseOrderUC
+                po_uc = PurchaseOrderUC(self.container)
+            abiertas = po_uc.listar_abiertas(self.sucursal_id) or []
+            for d in abiertas:
+                d['_tipo'] = 'PO'; d['_categoria'] = 'po_abiertas'
+                docs.append(d)
+        except Exception as e:
+            logger.debug("_cargar_docs_erp PO: %s", e)
+            try:
+                rows = self.container.db.execute(
+                    "SELECT id, folio, estado, proveedor_id, total,"
+                    "       fecha_creacion, sucursal_id, usuario, notas"
+                    " FROM ordenes_compra"
+                    " WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente')"
+                    " ORDER BY fecha_creacion DESC LIMIT 20",
+                ).fetchall()
+                for r in rows:
+                    def _pv(i, k):
+                        return r[i] if not hasattr(r, 'keys') else r.get(k)
+                    docs.append({
+                        'id':              _pv(0, 'id'),
+                        'folio':           _pv(1, 'folio'),
+                        'estado':          str(_pv(2, 'estado') or '').upper(),
+                        'proveedor_nombre': str(_pv(3, 'proveedor_id') or ''),
+                        'total':           float(_pv(4, 'total') or 0),
+                        'fecha_creacion':  str(_pv(5, 'fecha_creacion') or '')[:10],
+                        'sucursal_id':     _pv(6, 'sucursal_id'),
+                        'usuario':         _pv(7, 'usuario'),
+                        'notas':           _pv(8, 'notas'),
+                        '_tipo':           'PO',
+                        '_categoria':      'po_abiertas',
+                    })
+            except Exception as e2:
+                logger.debug("_cargar_docs_erp PO fallback: %s", e2)
+
+        self._docs_erp_cache = docs
+        self._poblar_lista_docs()
+        self._actualizar_chips_contadores()
+
+    def _actualizar_chips_contadores(self) -> None:
+        """Update filter chip labels with live counts."""
+        counts = {'all': len(self._docs_erp_cache)}
+        for cat in ('pr_pend', 'pr_aprobadas', 'po_abiertas', 'rec_parc'):
+            counts[cat] = sum(1 for d in self._docs_erp_cache if d.get('_categoria') == cat)
+        labels = {
+            'all':          f"Todos ({counts['all']})",
+            'pr_pend':      f"PR pend. ({counts['pr_pend']})",
+            'pr_aprobadas': f"PR aprobadas ({counts['pr_aprobadas']})",
+            'po_abiertas':  f"PO abiertas ({counts['po_abiertas']})",
+            'rec_parc':     f"Rec. parciales ({counts['rec_parc']})",
+        }
+        for key, lbl in labels.items():
+            btn = self._doc_filter_chips.get(key)
+            if btn:
+                btn.setText(lbl)
+
+    def _poblar_lista_docs(self) -> None:
+        """Fill the ERP document list based on active filter."""
+        if not hasattr(self, '_doc_erp_list'):
+            return
+        cat = self._doc_filter_active
+        docs = (
+            self._docs_erp_cache
+            if cat == 'all'
+            else [d for d in self._docs_erp_cache if d.get('_categoria') == cat]
+        )
+        self._doc_erp_list.blockSignals(True)
+        self._doc_erp_list.clear()
+        if not docs:
+            self._doc_erp_list.hide()
+            self._doc_list_empty_lbl.show()
+            self._doc_erp_list.blockSignals(False)
+            return
+        self._doc_list_empty_lbl.hide()
+        self._doc_erp_list.show()
+
+        _ESTADO_COLORS = {
+            "PENDIENTE_APROBACION": Colors.WARNING_BASE,
+            "APROBADA":             Colors.SUCCESS_BASE,
+            "RECHAZADA":            Colors.DANGER_BASE,
+            "CONVERTIDA_A_PO":      Colors.PRIMARY_BASE,
+            "BORRADOR":             Colors.NEUTRAL.SLATE_400,
+            "ABIERTA":              Colors.PRIMARY_BASE,
+            "PARCIAL":              Colors.WARNING_BASE,
+            "RECIBIDA":             Colors.SUCCESS_BASE,
+            "CERRADA":              Colors.NEUTRAL.SLATE_500,
+            "CANCELADA":            Colors.DANGER_BASE,
+        }
+
+        for doc in docs:
+            tipo   = doc.get('_tipo', '?')
+            folio  = str(doc.get('folio') or doc.get('id') or '—')
+            estado = str(doc.get('estado') or '').upper()
+            prov   = str(doc.get('proveedor_nombre') or '—')[:22]
+            total  = float(doc.get('total') or 0)
+            fecha  = str(doc.get('fecha_creacion') or '')[:10]
+            icon   = '📋' if tipo == 'PR' else '📦'
+            color  = _ESTADO_COLORS.get(estado, Colors.NEUTRAL.SLATE_400)
+            line1  = f"{icon} {folio}"
+            line2  = f"   {prov}  ${total:,.0f}"
+            item   = QListWidgetItem(f"{line1}\n{line2}")
+            item.setData(Qt.UserRole,     doc.get('id'))
+            item.setData(Qt.UserRole + 1, tipo)
+            item.setData(Qt.UserRole + 2, doc)
+            item.setToolTip(
+                f"{tipo}: {folio}\nEstado: {estado}\n"
+                f"Proveedor: {prov}\nTotal: ${total:,.2f}\nFecha: {fecha}"
+            )
+            self._doc_erp_list.addItem(item)
+        self._doc_erp_list.blockSignals(False)
+
+    def _on_doc_filter_changed(self, key: str) -> None:
+        """Handle filter chip click."""
+        self._doc_filter_active = key
+        for k, btn in self._doc_filter_chips.items():
+            btn.setChecked(k == key)
+            btn.setStyleSheet(self._doc_chip_style(k == key))
+        self._poblar_lista_docs()
+
+    def _on_doc_item_clicked(self, item: QListWidgetItem) -> None:
+        """Populate detail card and enable context-sensitive action buttons."""
+        doc = item.data(Qt.UserRole + 2)
+        if not doc:
+            return
+        self._selected_doc_id     = item.data(Qt.UserRole)
+        self._selected_doc_type   = item.data(Qt.UserRole + 1)
+        self._selected_doc_estado = str(doc.get('estado') or '').upper()
+        self._refresh_doc_detail(doc)
+        self._refresh_doc_acciones()
+
+    def _refresh_doc_detail(self, doc: dict) -> None:
+        """Populate the detail card with selected document data."""
+        tipo    = doc.get('_tipo', '?')
+        folio   = str(doc.get('folio') or doc.get('id') or '—')
+        estado  = str(doc.get('estado') or '').upper()
+        prov    = str(doc.get('proveedor_nombre') or '—')
+        total   = float(doc.get('total') or 0)
+        fecha   = str(doc.get('fecha_creacion') or '')[:10]
+        suc     = str(doc.get('sucursal_nombre') or doc.get('sucursal_id') or '—')
+        solic   = str(doc.get('usuario') or doc.get('solicitante') or '—')
+        prior   = str(doc.get('prioridad') or doc.get('priority') or '')
+
+        # Folio + tipo
+        self._doc_lbl_folio.setText(f"{'📋' if tipo == 'PR' else '📦'} {folio}")
+
+        # Estado badge color
+        _BADGE_STYLES = {
+            "PENDIENTE_APROBACION": (Colors.WARNING_BASE,  f"{Colors.WARNING_BASE}22"),
+            "APROBADA":             (Colors.SUCCESS_BASE,  f"{Colors.SUCCESS_BASE}22"),
+            "RECHAZADA":            (Colors.DANGER_BASE,   f"{Colors.DANGER_BASE}22"),
+            "CONVERTIDA_A_PO":      (Colors.PRIMARY_BASE,  f"{Colors.PRIMARY_BASE}22"),
+            "BORRADOR":             (Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100),
+            "ABIERTA":              (Colors.PRIMARY_BASE,  f"{Colors.PRIMARY_BASE}22"),
+            "PARCIAL":              (Colors.WARNING_BASE,  f"{Colors.WARNING_BASE}22"),
+            "RECIBIDA":             (Colors.SUCCESS_BASE,  f"{Colors.SUCCESS_BASE}22"),
+            "CANCELADA":            (Colors.DANGER_BASE,   f"{Colors.DANGER_BASE}22"),
+        }
+        fg, bg = _BADGE_STYLES.get(estado, (Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100))
+        short_estado = {
+            "PENDIENTE_APROBACION": "PENDIENTE",
+            "CONVERTIDA_A_PO":      "CONV.PO",
+        }.get(estado, estado)
+        self._doc_lbl_estado_badge.setText(short_estado)
+        self._doc_lbl_estado_badge.setStyleSheet(
+            f"font-size:9px;font-weight:700;border-radius:8px;"
+            f"padding:2px 5px;background:{bg};color:{fg};"
+        )
+
+        self._doc_lbl_fecha.setText(fecha or "—")
+        self._doc_lbl_sucursal.setText(suc)
+        self._doc_lbl_solicitante.setText(solic[:24] or "—")
+        self._doc_lbl_proveedor_doc.setText(prov[:28])
+        self._doc_lbl_monto.setText(f"${total:,.2f}")
+
+        if prior:
+            self._doc_lbl_prioridad.setText(prior.upper())
+            self._doc_lbl_prioridad.show()
+        else:
+            self._doc_lbl_prioridad.hide()
+
+        self._doc_detail_card.show()
+        self._doc_acciones_frame.show()
+
+    def _refresh_doc_acciones(self) -> None:
+        """Enable/disable action buttons based on selected document state + permissions."""
+        if not hasattr(self, '_btn_aprobar_pr'):
+            return
+        tipo   = self._selected_doc_type
+        estado = self._selected_doc_estado or ''
+
+        puede_aprobar  = tipo == 'PR' and estado == 'PENDIENTE_APROBACION'
+        puede_rechazar = tipo == 'PR' and estado == 'PENDIENTE_APROBACION'
+        puede_editar   = tipo == 'PR' and estado in ('BORRADOR',)
+        puede_conv_po  = tipo == 'PR' and estado == 'APROBADA'
+        puede_enviar   = tipo == 'PO' and estado in ('ABIERTA', 'PARCIAL', 'abierta', 'parcial')
+
+        # Permission guard
+        if not self._tiene_permiso("admin") and not self._tiene_permiso("compras_aprobar"):
+            puede_aprobar = puede_rechazar = puede_conv_po = False
+
+        self._btn_aprobar_pr.setEnabled(puede_aprobar)
+        self._btn_rechazar_pr.setEnabled(puede_rechazar)
+        self._btn_editar_doc.setEnabled(puede_editar)
+        self._btn_conv_po.setEnabled(puede_conv_po)
+        self._btn_enviar_rec_doc.setEnabled(puede_enviar)
+        self._refresh_doc_btn_styles()
+
+    def _accion_aprobar_pr(self) -> None:
+        """Approve selected PR."""
+        pr_id = self._selected_doc_id
+        if not pr_id:
+            return
+        try:
+            from application.purchases.purchase_request_uc import PurchaseRequestUC
+            uc = PurchaseRequestUC(self.container)
+            result = uc.aprobar(pr_id, self.usuario_actual or "sistema")
+            if result.ok:
+                Toast.success(self, "✓ PR Aprobada",
+                              f"Folio: {result.folio} aprobado")
+                self._cargar_docs_erp()
+            else:
+                QMessageBox.warning(self, "Error al aprobar", result.error or "No se pudo aprobar")
+        except Exception as e:
+            logger.warning("_accion_aprobar_pr: %s", e)
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _accion_rechazar_pr(self) -> None:
+        """Reject selected PR with a reason dialog."""
+        pr_id = self._selected_doc_id
+        if not pr_id:
+            return
+        motivo, ok = QInputDialog.getText(
+            self, "Rechazar PR",
+            "Motivo del rechazo (requerido):",
+            QLineEdit.Normal, ""
+        )
+        if not ok or not motivo.strip():
+            return
+        try:
+            from application.purchases.purchase_request_uc import PurchaseRequestUC
+            uc = PurchaseRequestUC(self.container)
+            result = uc.rechazar(pr_id, self.usuario_actual or "sistema", motivo.strip())
+            if result.ok:
+                Toast.info(self, "✗ PR Rechazada",
+                           f"Folio: {result.folio} rechazado — {motivo[:40]}")
+                self._cargar_docs_erp()
+            else:
+                QMessageBox.warning(self, "Error al rechazar", result.error or "No se pudo rechazar")
+        except Exception as e:
+            logger.warning("_accion_rechazar_pr: %s", e)
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _accion_editar_doc(self) -> None:
+        """Load selected PR/PO data into the center form for editing."""
+        pr_id = self._selected_doc_id
+        if not pr_id or self._selected_doc_type != 'PR':
+            return
+        try:
+            from application.purchases.purchase_request_uc import PurchaseRequestUC
+            uc  = PurchaseRequestUC(self.container)
+            doc = uc.get_pr(pr_id)
+            if not doc:
+                QMessageBox.warning(self, "No encontrado", f"PR {pr_id} no encontrada"); return
+
+            # Load provider
+            prov_id   = doc.get('proveedor_id')
+            prov_nom  = str(doc.get('proveedor_nombre') or '')
+            if prov_id:
+                self._proveedor_id_selected = prov_id
+                if hasattr(self, 'txt_proveedor'):
+                    self.txt_proveedor.setText(prov_nom)
+                if hasattr(self, '_lbl_prov_status'):
+                    self._lbl_prov_status.setText(f"✔ {prov_nom}")
+                    self._lbl_prov_status.setStyleSheet(
+                        f"color:{Colors.SUCCESS_BASE};"
+                    )
+
+            # Load document ref
+            if doc.get('doc_ref') and hasattr(self, 'txt_factura'):
+                self.txt_factura.setText(str(doc['doc_ref']))
+
+            # Load items into cart
+            pr_repo = getattr(self.container, 'purchase_request_repo', None)
+            items_raw: list = []
+            if pr_repo and hasattr(pr_repo, 'get_items'):
+                items_raw = pr_repo.get_items(pr_id) or []
+            else:
+                try:
+                    rows = self.container.db.execute(
+                        "SELECT producto_id, nombre, cantidad, precio_unitario,"
+                        "       unidad, descuento, notas"
+                        " FROM purchase_request_items WHERE pr_id=?",
+                        (pr_id,)
+                    ).fetchall()
+                    items_raw = [
+                        {
+                            'producto_id':    r[0] if not hasattr(r,'keys') else r.get('producto_id'),
+                            'nombre':         r[1] if not hasattr(r,'keys') else r.get('nombre',''),
+                            'cantidad':       float(r[2] if not hasattr(r,'keys') else r.get('cantidad',0) or 0),
+                            'precio_unitario':float(r[3] if not hasattr(r,'keys') else r.get('precio_unitario',0) or 0),
+                            'unidad':         r[4] if not hasattr(r,'keys') else r.get('unidad','kg'),
+                            'descuento':      float(r[5] if not hasattr(r,'keys') else r.get('descuento',0) or 0),
+                        }
+                        for r in rows
+                    ]
+                except Exception:
+                    pass
+
+            if items_raw:
+                if self.carrito_compra and not confirm_action(
+                    self, "Cargar PR",
+                    f"¿Reemplazar el carrito actual con {len(items_raw)} ítem(s) de la PR?",
+                    "Reemplazar", "Cancelar"
+                ):
+                    return
+                self.carrito_compra.clear()
+                for it in items_raw:
+                    qty  = float(it.get('cantidad')       or 0)
+                    cost = float(it.get('precio_unitario') or 0)
+                    self.carrito_compra.append({
+                        'producto_id':   it.get('producto_id'),
+                        'nombre':        str(it.get('nombre') or ''),
+                        'unidad':        str(it.get('unidad') or 'kg'),
+                        'cantidad':      qty,
+                        'costo_unitario':cost,
+                        'descuento':     float(it.get('descuento') or 0),
+                        'subtotal':      round(qty * cost, 4),
+                    })
+                self._refresh_tabla()
+
+            Toast.info(self, "📋 PR cargada",
+                       f"Folio {doc.get('folio',pr_id)} cargado en el formulario")
+            self._refresh_stepper()
+        except Exception as e:
+            logger.warning("_accion_editar_doc: %s", e)
+            QMessageBox.critical(self, "Error al cargar PR", str(e))
+
+    def _accion_convertir_a_po(self) -> None:
+        """Convert selected approved PR to a PO."""
+        pr_id = self._selected_doc_id
+        if not pr_id:
+            return
+        try:
+            from application.purchases.purchase_request_uc import PurchaseRequestUC
+            uc     = PurchaseRequestUC(self.container)
+            result = uc.convertir_a_po(pr_id, self.usuario_actual or "sistema")
+            if result.ok:
+                po_folio = str(result.po_folio if hasattr(result, 'po_folio') else result.folio or '')
+                Toast.success(self, "📦 PO Generada",
+                              f"PR convertida → PO {po_folio}" if po_folio else "PO generada")
+                self._cargar_docs_erp()
+            else:
+                QMessageBox.warning(self, "Error", result.error or "No se pudo convertir a PO")
+        except Exception as e:
+            logger.warning("_accion_convertir_a_po: %s", e)
+            QMessageBox.critical(self, "Error", str(e))
+
+    def _accion_enviar_recepcion_doc(self) -> None:
+        """Mark selected PO as sent to reception and switch to QR tab."""
+        po_id = self._selected_doc_id
+        if not po_id:
+            return
+        try:
+            from application.purchases.purchase_order_uc import PurchaseOrderUC
+            uc     = PurchaseOrderUC(self.container)
+            result = uc.enviar_a_recepcion(po_id, self.usuario_actual or "sistema")
+            if result.ok:
+                Toast.success(self, "↗ Enviada a recepción",
+                              f"PO {result.folio} lista para recibir")
+                self._cargar_docs_erp()
+                # Switch to QR/Reception tab
+                if hasattr(self, '_tabs'):
+                    self._tabs.setCurrentIndex(1)
+            else:
+                QMessageBox.warning(self, "Error", result.error or "No se pudo enviar a recepción")
+        except Exception as e:
+            logger.warning("_accion_enviar_recepcion_doc: %s", e)
+            QMessageBox.critical(self, "Error", str(e))
 
     # ── Left provider sidebar ─────────────────────────────────────────────────
     def _build_provider_sidebar(self) -> QWidget:
@@ -1593,6 +2416,171 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_tabs') and self.carrito_compra == []:
             self._tabs.setCurrentIndex(1)
 
+    # ── Phase 5: Document-type toolbar ───────────────────────────────────────
+
+    def _build_doctype_toolbar(self) -> QWidget:
+        """
+        Barra de selección de tipo de documento: Compra Directa | Solicitud PR | Orden PO.
+        Permite elegir si el carrito generará una compra directa, una solicitud de
+        compra (PR) o una orden de compra (PO). Sin efecto en el flujo QR.
+        """
+        bar = QFrame()
+        bar.setObjectName("doctypeToolbar")
+        bar.setFixedHeight(38)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(0, 2, 0, 2)
+        lay.setSpacing(4)
+
+        lbl = QLabel("Tipo de documento:")
+        lbl.setObjectName("caption")
+        lay.addWidget(lbl)
+        lay.addSpacing(6)
+
+        self._doctype_buttons: dict[str, QPushButton] = {}
+        for doc_type, icon, label, tooltip in [
+            ("DIRECT", "🛒", "Compra Directa",
+             "Registra compra con efecto inmediato en inventario"),
+            ("PR",     "📋", "Solicitud (PR)",
+             "Crea solicitud pendiente de aprobación · Sin efecto en inventario"),
+            ("PO",     "📦", "Orden de Compra",
+             "Convierte PR aprobada en Orden de Compra · Sin efecto directo en inventario"),
+        ]:
+            btn = QPushButton(f"{icon} {label}")
+            btn.setToolTip(tooltip)
+            btn.setCheckable(True)
+            btn.setMinimumHeight(28)
+            btn.setChecked(doc_type == self._doc_type)
+            btn.clicked.connect(lambda _chk, dt=doc_type: self._on_doctype_changed(dt))
+            self._doctype_buttons[doc_type] = btn
+            lay.addWidget(btn)
+
+        lay.addStretch()
+        self._apply_doctype_button_styles()
+        return bar
+
+    def _on_doctype_changed(self, doc_type: str) -> None:
+        if self._doc_type == doc_type:
+            return
+        self._doc_type = doc_type
+        for dt, btn in self._doctype_buttons.items():
+            btn.setChecked(dt == doc_type)
+        self._apply_doctype_button_styles()
+        self._refresh_doctype_ui()
+
+    def _apply_doctype_button_styles(self) -> None:
+        active = (
+            f"background:{Colors.PRIMARY_BASE};color:white;"
+            f"border:1px solid {Colors.PRIMARY_BASE};border-radius:4px;"
+            "font-weight:600;padding:0 10px;"
+        )
+        idle = (
+            f"background:{Colors.NEUTRAL.SLATE_100};color:{Colors.NEUTRAL.SLATE_700};"
+            f"border:1px solid {Colors.NEUTRAL.SLATE_300};border-radius:4px;"
+            "padding:0 10px;"
+        )
+        for dt, btn in getattr(self, '_doctype_buttons', {}).items():
+            btn.setStyleSheet(active if dt == self._doc_type else idle)
+
+    def _refresh_doctype_ui(self) -> None:
+        """Actualiza badge de estado, texto del botón principal y visibilidad según doc type."""
+        _cfg = {
+            "DIRECT": (
+                "🔵  En captura",      Colors.INFO_BASE,
+                "✓ Autorizar compra",  "Autorizar y procesar compra (F10)",    True,
+            ),
+            "PR": (
+                "📋  Solicitud PR",    Colors.WARNING_BASE,
+                "📋 Crear solicitud",  "Guardar solicitud pendiente de aprobación",  False,
+            ),
+            "PO": (
+                "📦  Orden de Compra", Colors.SUCCESS_BASE,
+                "📦 Ver instrucciones", "Ver instrucciones para generar Orden de Compra", False,
+            ),
+        }
+        badge_txt, badge_color, btn_txt, btn_tip, show_enviar = _cfg.get(
+            self._doc_type, _cfg["DIRECT"])
+
+        if hasattr(self, '_lbl_estado_compra'):
+            self._lbl_estado_compra.setText(badge_txt)
+            self._lbl_estado_compra.setStyleSheet(
+                f"background:{badge_color};color:white;border-radius:10px;"
+                "padding:3px 8px;font-size:11px;font-weight:700;"
+            )
+        if hasattr(self, '_btn_autorizar'):
+            self._btn_autorizar.setText(btn_txt)
+            self._btn_autorizar.setToolTip(btn_tip)
+        if hasattr(self, '_btn_enviar_recepcion'):
+            self._btn_enviar_recepcion.setVisible(show_enviar)
+
+    def _procesar_como_pr(self, proveedor_id: int, proveedor_nom: str) -> None:
+        """
+        Crea una Purchase Request (BORRADOR) con los ítems del carrito.
+        Delega a TraditionalPurchaseUC con document_type=PR.
+        NO afecta inventario, GL ni CxP.
+        """
+        from application.purchases.commands import RegisterPurchaseCommand, PurchaseItemCommand
+        from application.purchases.states import DocumentType
+        try:
+            subtotal    = sum(i['subtotal'] for i in self.carrito_compra)
+            iva_activo  = hasattr(self, '_chk_iva') and self._chk_iva.isChecked()
+            iva_monto   = round(subtotal * self._get_iva_rate(), 2) if iva_activo else 0.0
+            total       = subtotal + iva_monto
+            pago        = self.cmb_pago.currentData() or "CONTADO"
+            branch_dest = (self.cmb_sucursal_destino.currentData()
+                           if hasattr(self, 'cmb_sucursal_destino')
+                           else self.sucursal_id) or self.sucursal_id
+            condicion   = (self._cmb_condicion_pago.currentText().lower()
+                           if hasattr(self, '_cmb_condicion_pago') else "liquidado")
+            plazo       = (self._spin_plazo_dias.value()
+                           if hasattr(self, '_spin_plazo_dias') else 0)
+            moneda      = (self._cmb_moneda.currentData()
+                           if hasattr(self, '_cmb_moneda') else "MXN")
+
+            cmd = RegisterPurchaseCommand(
+                proveedor_id=proveedor_id,
+                proveedor_nombre=proveedor_nom,
+                sucursal_id=branch_dest,
+                usuario=self.usuario_actual,
+                items=[
+                    PurchaseItemCommand(
+                        product_id=i['producto_id'],
+                        qty=i['cantidad'],
+                        unit_cost=i['costo_unitario'],
+                        nombre=i['nombre'],
+                    )
+                    for i in self.carrito_compra
+                ],
+                metodo_pago=pago,
+                subtotal=subtotal,
+                iva_monto=iva_monto,
+                total=total,
+                document_type=DocumentType.PR,
+                condicion_pago=condicion,
+                plazo_dias=plazo,
+                moneda=moneda,
+            )
+            uc = getattr(self.container, 'uc_compra_tradicional', None)
+            if uc is None:
+                from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
+                uc = TraditionalPurchaseUC(self.container)
+            result = uc.execute(cmd)
+            if result.ok:
+                Toast.success(
+                    self, "📋 Solicitud creada",
+                    f"Folio: {result.folio} · En espera de aprobación",
+                )
+                if hasattr(self, '_lbl_estado_compra'):
+                    self._lbl_estado_compra.setText(f"📋  {result.folio}")
+                    self._lbl_estado_compra.setStyleSheet(
+                        f"background:{Colors.WARNING_BASE};color:white;border-radius:10px;"
+                        "padding:3px 8px;font-size:11px;font-weight:700;"
+                    )
+            else:
+                QMessageBox.critical(self, "Error al crear solicitud", result.error)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+            logger.error("_procesar_como_pr: %s", e)
+
     # ── Providers ────────────────────────────────────────────────────────────
     def _cargar_sucursales_compra(self) -> None:
         """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
@@ -2123,6 +3111,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         proveedor_id  = self._proveedor_id_selected
         proveedor_nom = self.txt_proveedor.text().strip()
+
+        # ── Phase 5: route by document type ──────────────────────────────────
+        doc_type = getattr(self, '_doc_type', 'DIRECT')
+        if doc_type == "PR":
+            self._procesar_como_pr(proveedor_id, proveedor_nom)
+            return
+        if doc_type == "PO":
+            QMessageBox.information(
+                self, "Orden de Compra",
+                "Para generar una Orden de Compra:\n\n"
+                "1. Selecciona 'Solicitud (PR)' y crea la solicitud con los productos.\n"
+                "2. Envíala a aprobación (panel de administración).\n"
+                "3. Una vez aprobada, el sistema la convierte en PO automáticamente.\n\n"
+                "Selecciona 'Solicitud (PR)' para continuar.",
+            )
+            return
+        # ── DIRECT: flujo original sin cambios ────────────────────────────────
+
         doc_ref  = self.txt_factura.text().strip() or "Sin Ref"
         pago     = self.cmb_pago.currentData() or "CONTADO"
         subtotal = sum(i['subtotal'] for i in self.carrito_compra)
@@ -2518,9 +3524,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_filter = FilterBar(
             self,
             placeholder="Buscar folio, proveedor o usuario…",
-            combo_filters={"estado": [
-                "completada", "credito", "pendiente", "parcial", "cancelada",
-            ]},
+            combo_filters={
+                "estado":    ["completada", "credito", "pendiente", "parcial", "cancelada"],
+                "tipo_doc":  ["directa", "con po"],         # Phase 7
+                "po_estado": ["ABIERTA", "PARCIAL", "RECIBIDA", "CERRADA", "CANCELADA"],  # Phase 10
+            },
         )
         self._hist_filter.filters_changed.connect(self._hist_filter_changed)
         lay.addWidget(self._hist_filter)
@@ -2528,18 +3536,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_loading.hide()
         lay.addWidget(self._hist_loading)
 
-        # Main table — cols: Folio | Fecha | Proveedor | Usuario | Total | Cond.Pago | Estado | ⋯
+        # Main table — 9 cols: Folio|Fecha|Proveedor|Usuario|Total|Cond.Pago|Estado|TipoDoc|⋯
         self._tbl_hist = QTableWidget()
-        self._tbl_hist.setColumnCount(8)
+        self._tbl_hist.setColumnCount(9)
         self._tbl_hist.setHorizontalHeaderLabels(
-            ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Cond. Pago", "Estado", ""])
+            ["Folio", "Fecha", "Proveedor", "Usuario", "Total",
+             "Cond. Pago", "Estado", "Tipo Doc", ""])
         hh = self._tbl_hist.horizontalHeader()
         hh.setSectionResizeMode(2, QHeaderView.Stretch)
         hh.setSectionResizeMode(5, QHeaderView.Fixed)
         hh.setSectionResizeMode(6, QHeaderView.Fixed)
         self._tbl_hist.setColumnWidth(5, 90)
         self._tbl_hist.setColumnWidth(6, 110)
-        for c in (0, 1, 3, 4, 7):
+        for c in (0, 1, 3, 4, 7, 8):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
         self._tbl_hist.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._tbl_hist.setAlternatingRowColors(True)
@@ -2600,6 +3609,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._tbl_hist_detail.setObjectName("tableView")
         self._tbl_hist_detail.setMaximumHeight(160)
         det_lay.addWidget(self._tbl_hist_detail)
+
+        # Phase 7 — mini documento-timeline (visible solo cuando la compra tiene PO asociada)
+        self._hist_timeline_bar = QFrame()
+        self._hist_timeline_bar.setObjectName("histTimelineBar")
+        self._hist_timeline_bar.setFixedHeight(54)
+        self._hist_timeline_bar.setStyleSheet(
+            f"background:{Colors.NEUTRAL.SLATE_50};"
+            f"border:1px solid {Colors.NEUTRAL.SLATE_200};border-radius:6px;"
+        )
+        self._hist_timeline_lay = QHBoxLayout(self._hist_timeline_bar)
+        self._hist_timeline_lay.setContentsMargins(12, 6, 12, 6)
+        self._hist_timeline_lay.setSpacing(4)
+        self._hist_timeline_bar.hide()
+        det_lay.addWidget(self._hist_timeline_bar)
+
         self._hist_detail_panel.hide()
         lay.addWidget(self._hist_detail_panel)
 
@@ -2646,17 +3670,25 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_tbl_hist'):
             return
         try:
-            filtros = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
-            estado  = (filtros.get("estado") or "").strip().lower()
-            search  = (filtros.get("search") or "").strip().lower()
+            filtros   = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
+            estado    = (filtros.get("estado")   or "").strip().lower()
+            search    = (filtros.get("search")   or "").strip().lower()
+            tipo_doc  = (filtros.get("tipo_doc") or "").strip().lower()   # Phase 7
+            po_estado = (filtros.get("po_estado") or "").strip().upper()  # Phase 10
             rows = list(all_rows)
             if estado:
                 rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
+            if po_estado:
+                rows = [r for r in rows if str(r[10] if len(r) > 10 else "").strip().upper() == po_estado]
             if search:
                 rows = [r for r in rows if
                         search in str(r[0] or "").lower() or
                         search in str(r[2] or "").lower() or
                         search in str(r[3] or "").lower()]
+            if tipo_doc == "directa":
+                rows = [r for r in rows if not (len(r) > 9 and int(r[9] or 0))]
+            elif tipo_doc == "con po":
+                rows = [r for r in rows if len(r) > 9 and int(r[9] or 0)]
 
             # Pagination
             total_rows = len(rows)
@@ -2695,26 +3727,42 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 str(r[2] or ""), str(r[3] or ""),
                 total_str,
             ]
-            cid_ = r[6]; pnm_ = str(r[2] or "")
+            cid_      = r[6]
+            pnm_      = str(r[2] or "")
+            po_id     = int(r[9] or 0) if len(r) > 9 else 0        # Phase 7
+            po_estado = str(r[10] or "") if len(r) > 10 else ""     # Phase 10
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if ci == 4:
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 if ci == 0:
-                    it.setData(Qt.UserRole, cid_)  # store compra_id for inline detail
+                    it.setData(Qt.UserRole,     cid_)       # compra_id for inline detail
+                    it.setData(Qt.UserRole + 1, po_id)      # po_id for timeline (Phase 7)
+                    it.setData(Qt.UserRole + 2, po_estado)  # po_estado for CSV export (Phase 10)
                 self._tbl_hist.setItem(ri, ci, it)
-            # col 5 — Cond. Pago chip (design system badge)
+            # col 5 — Cond. Pago chip
             self._tbl_hist.setCellWidget(ri, 5, _make_cond_chip(cond_raw, self))
-            # col 6 — Estado chip (design system badge)
+            # col 6 — Estado chip
             self._tbl_hist.setCellWidget(ri, 6, _make_status_chip(estado_raw, self))
+            # col 7 — Tipo Doc badge (Phase 7), tooltip con PO estado si existe
+            if po_id:
+                tip = f"PO #{po_id}"
+                if po_estado:
+                    tip += f" · {po_estado}"
+                tipo_badge = create_badge(self, "📦 PO", "primary")
+                tipo_badge.setToolTip(tip)
+            else:
+                tipo_badge = create_badge(self, "🛒 Directa", "neutral")
+            self._tbl_hist.setCellWidget(ri, 7, tipo_badge)
             total_periodo += monto
+            # col 8 — Ver btn
             btn_det = create_secondary_button(self, "🔍 Ver",
                                               "Ver detalles de esta compra")
             btn_det.clicked.connect(
                 lambda _, cid=cid_, pnm=pnm_:
                     self._ver_detalle_compra(cid, pnm))
-            self._tbl_hist.setCellWidget(ri, 7, btn_det)
+            self._tbl_hist.setCellWidget(ri, 8, btn_det)
 
         total_display = "—" if ocultar_totales else f"${total_periodo:,.2f}"
         self.lbl_hist_total_compras.setText(f"Total período: {total_display}")
@@ -2932,6 +3980,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             # Fallback: try to parse from folio column text (best-effort)
             self._hist_detail_panel.setVisible(False)
             return
+        po_id = id_item.data(Qt.UserRole + 1) or 0   # Phase 7
         try:
             items = self._purchase_repo.get_purchase_detail_items(compra_id)
             tbl = self._tbl_hist_detail
@@ -2951,13 +4000,110 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     if ci > 0:
                         cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     tbl.setItem(ri, ci, cell)
+            folio_compra = str(self._tbl_hist.item(row, 0).text() if self._tbl_hist.item(row, 0) else "")
             self._hist_detail_panel.setTitle(
                 f"Detalle compra #{compra_id}  ({len(items)} producto(s))"
             )
             self._hist_detail_panel.setVisible(True)
+            # Phase 7 — timeline
+            self._refresh_hist_timeline(int(po_id), folio_compra)
         except Exception as exc:
             logger.debug("_on_hist_row_selected: %s", exc)
             self._hist_detail_panel.setVisible(False)
+
+    def _refresh_hist_timeline(self, po_id: int, compra_folio: str) -> None:
+        """
+        Phase 7 — Muestra u oculta el mini-timeline documental en el panel de detalle.
+
+        Si la compra NO tiene PO asociada → oculta la barra.
+        Si tiene PO → muestra cadena:  [PR folio?] →→ [PO folio] →→ [Compra folio]
+        """
+        bar = getattr(self, '_hist_timeline_bar', None)
+        lay = getattr(self, '_hist_timeline_lay', None)
+        if bar is None or lay is None:
+            return
+
+        # Limpiar widgets anteriores
+        while lay.count():
+            child = lay.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        if not po_id:
+            bar.hide()
+            return
+
+        def _node(icon: str, label: str, sublabel: str, variant: str) -> QFrame:
+            f = QFrame()
+            f.setStyleSheet(
+                f"background:{'#EFF6FF' if variant=='primary' else '#F0FDF4' if variant=='success' else Colors.NEUTRAL.SLATE_100};"
+                f"border:1px solid {'#BFDBFE' if variant=='primary' else '#BBF7D0' if variant=='success' else Colors.NEUTRAL.SLATE_300};"
+                f"border-radius:5px;padding:2px 6px;"
+            )
+            fl = QVBoxLayout(f)
+            fl.setContentsMargins(4, 2, 4, 2)
+            fl.setSpacing(0)
+            top = QLabel(f"{icon} <b>{label}</b>")
+            top.setStyleSheet("font-size:11px;")
+            top.setTextFormat(Qt.RichText)
+            sub = QLabel(sublabel)
+            sub.setStyleSheet(f"font-size:9px;color:{Colors.NEUTRAL.SLATE_500};")
+            fl.addWidget(top)
+            fl.addWidget(sub)
+            return f
+
+        def _arrow() -> QLabel:
+            lbl = QLabel("→")
+            lbl.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_400};font-size:16px;")
+            lbl.setAlignment(Qt.AlignCenter)
+            return lbl
+
+        # Fetch PO data
+        try:
+            repo = getattr(self.container, 'purchase_order_repo', None)
+            po   = repo.get_by_id(po_id) if repo else None
+            if po is None:
+                row = self.container.db.execute(
+                    "SELECT folio, estado, pr_id FROM ordenes_compra WHERE id=? LIMIT 1",
+                    (po_id,)
+                ).fetchone()
+                po = dict(row) if row and hasattr(row, 'keys') else (
+                    {"folio": f"PO-{po_id}", "estado": "?", "pr_id": 0} if row is None else
+                    {"folio": row[0] or f"PO-{po_id}", "estado": row[1] or "?", "pr_id": row[2] or 0}
+                )
+        except Exception:
+            po = {"folio": f"PO-{po_id}", "estado": "?", "pr_id": 0}
+
+        po_folio  = po.get("folio") or f"PO-{po_id}"
+        po_estado = po.get("estado") or "?"
+        pr_id     = int(po.get("pr_id") or 0)
+
+        # Fetch PR data if linked
+        pr_folio = ""
+        if pr_id:
+            try:
+                pr_repo = getattr(self.container, 'purchase_request_repo', None)
+                pr = pr_repo.get_by_id(pr_id) if pr_repo else None
+                if pr:
+                    pr_folio = pr.get("folio") or f"PR-{pr_id}"
+                else:
+                    row2 = self.container.db.execute(
+                        "SELECT folio FROM purchase_requests WHERE id=? LIMIT 1",
+                        (pr_id,)
+                    ).fetchone()
+                    if row2:
+                        pr_folio = (row2["folio"] if hasattr(row2, 'keys') else row2[0]) or f"PR-{pr_id}"
+            except Exception:
+                pr_folio = f"PR-{pr_id}"
+
+        if pr_folio:
+            lay.addWidget(_node("📋", pr_folio, "Solicitud PR", "neutral"))
+            lay.addWidget(_arrow())
+        lay.addWidget(_node("📦", po_folio, f"PO · {po_estado}", "primary"))
+        lay.addWidget(_arrow())
+        lay.addWidget(_node("🛒", compra_folio or "—", "Compra registrada", "success"))
+        lay.addStretch()
+        bar.show()
 
     def _ver_detalle_compra(self, compra_id: int, proveedor_nombre: str = "") -> None:
         """Muestra el detalle completo de una compra: recibo + timeline + acciones."""
@@ -3302,32 +4448,72 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._cargar_historial_compras()
 
     def _exportar_historial_csv(self) -> None:
-        """Exporta las filas visibles del historial de compras a CSV."""
+        """Exporta el historial de compras a CSV.
+
+        Phase 10: lee del cache _hist_all_rows (datos completos de BD),
+        aplica los mismos filtros activos, incluye Tipo Doc y Estado PO.
+        """
         import csv, os
-        if not hasattr(self, '_tbl_hist') or self._tbl_hist.rowCount() == 0:
+        all_rows = getattr(self, '_hist_all_rows', None)
+        if not all_rows:
             QMessageBox.information(self, "Exportar", "No hay datos para exportar.")
             return
+
+        # Aplicar los mismos filtros que _poblar_historial
+        filtros  = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
+        estado   = (filtros.get("estado")   or "").strip().lower()
+        search   = (filtros.get("search")   or "").strip().lower()
+        tipo_doc = (filtros.get("tipo_doc") or "").strip().lower()
+        po_est   = (filtros.get("po_estado") or "").strip().upper()
+
+        rows = list(all_rows)
+        if estado:
+            rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
+        if po_est:
+            rows = [r for r in rows if str(r[10] if len(r) > 10 else "").strip().upper() == po_est]
+        if search:
+            rows = [r for r in rows if
+                    search in str(r[0] or "").lower() or
+                    search in str(r[2] or "").lower() or
+                    search in str(r[3] or "").lower()]
+        if tipo_doc == "directa":
+            rows = [r for r in rows if not (len(r) > 9 and int(r[9] or 0))]
+        elif tipo_doc == "con po":
+            rows = [r for r in rows if len(r) > 9 and int(r[9] or 0)]
+
+        if not rows:
+            QMessageBox.information(self, "Exportar", "No hay datos para exportar con los filtros actuales.")
+            return
+
         default_name = f"compras_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
         path, _ = QFileDialog.getSaveFileName(
             self, "Guardar historial de compras", default_name, "CSV (*.csv)")
         if not path:
             return
+
+        ocultar_totales = self._usuario_rol in _ROLES_SIN_TOTALES
         try:
-            headers = ["Folio", "Fecha", "Proveedor", "Usuario", "Total", "Cond. Pago", "Estado"]
+            headers = [
+                "Folio", "Fecha", "Proveedor", "Usuario", "Total",
+                "Cond. Pago", "Estado", "Tipo Doc", "PO #", "Estado PO",
+            ]
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
                 writer.writerow(headers)
-                for row in range(self._tbl_hist.rowCount()):
-                    row_data = []
-                    for col in range(7):  # cols 0-6; skip col 7 (action buttons)
-                        item = self._tbl_hist.item(row, col)
-                        if item is not None:
-                            row_data.append(item.text())
-                        else:
-                            widget = self._tbl_hist.cellWidget(row, col)
-                            row_data.append(widget.text().strip() if widget else "")
-                    writer.writerow(row_data)
-            Toast.success(self, "✅ Exportado", os.path.basename(path))
+                for r in rows:
+                    po_id    = int(r[9] or 0) if len(r) > 9 else 0
+                    po_est_r = str(r[10] or "") if len(r) > 10 else ""
+                    total    = "—" if ocultar_totales else str(r[4] or "")
+                    tipo     = f"PO #{po_id}" if po_id else "Directa"
+                    writer.writerow([
+                        r[0] or "", r[1] or "", r[2] or "", r[3] or "",
+                        total,
+                        r[7] or "" if len(r) > 7 else "",  # condicion_pago
+                        r[5] or "",                          # estado
+                        tipo, po_id or "", po_est_r,
+                    ])
+            Toast.success(self, "✅ Exportado",
+                          f"{os.path.basename(path)} · {len(rows)} registros")
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))
 

@@ -16,6 +16,7 @@ from application.purchases.states import DocumentType, PRState, POState, DirectP
 from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
 from application.purchases.purchase_request_uc import PurchaseRequestUC, PRResult
 from application.purchases.purchase_order_uc import PurchaseOrderUC, POResult
+from application.purchases.receive_po_adapter import ReceivePOAdapter, ReceiptItem, ReceiptResult
 
 __all__ = [
     "RegisterPurchaseCommand",
@@ -30,4 +31,7 @@ __all__ = [
     "PRResult",
     "PurchaseOrderUC",
     "POResult",
+    "ReceivePOAdapter",
+    "ReceiptItem",
+    "ReceiptResult",
 ]
