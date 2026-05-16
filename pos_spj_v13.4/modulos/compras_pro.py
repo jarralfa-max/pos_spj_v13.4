@@ -825,8 +825,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         right_col = self._build_summary_panel()
         splitter.addWidget(right_col)
 
-        # Set initial sizes: left=260, center=stretch, right=480
-        splitter.setSizes([260, 9999, 480])
+        # Set initial sizes: left=260, center=500, right=440
+        splitter.setSizes([260, 500, 440])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
@@ -1376,13 +1376,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._doc_erp_list.setMaximumHeight(165)
         self._doc_erp_list.setStyleSheet(
             f"QListWidget{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:4px;background:white;font-size:10px;outline:none;}}"
+            f"  border-radius:4px;font-size:10px;outline:none;}}"
             f"QListWidget::item{{padding:4px 6px;"
-            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_100};}}"
+            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};}}"
             f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
             f"  color:{Colors.PRIMARY_BASE};"
             f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
-            f"QListWidget::item:hover{{background:{Colors.NEUTRAL.SLATE_50};}}"
         )
         self._doc_erp_list.itemClicked.connect(self._on_doc_item_clicked)
         inner.addWidget(self._doc_erp_list)
@@ -1401,9 +1400,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._doc_detail_card.setObjectName("docDetailCard")
         self._doc_detail_card.setStyleSheet(
             f"QFrame#docDetailCard{{"
-            f"  background:{Colors.NEUTRAL.SLATE_50};"
             f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:6px;"
+            f"  border-radius:{Borders.RADIUS_MD}px;"
             f"}}"
         )
         card_lay = QVBoxLayout(self._doc_detail_card)
@@ -1413,7 +1411,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         folio_row = QHBoxLayout()
         self._doc_lbl_folio = QLabel("—")
         self._doc_lbl_folio.setStyleSheet(
-            f"font-size:11px;font-weight:700;color:{Colors.NEUTRAL.SLATE_900};"
+            f"font-size:{Typography.SIZE_SM};font-weight:{Typography.WEIGHT_BOLD};"
             "background:transparent;"
         )
         self._doc_lbl_estado_badge = QLabel("")
@@ -1436,10 +1434,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             )
             v = QLabel("—")
             v.setObjectName("caption")
-            v.setStyleSheet(
-                f"font-size:10px;color:{Colors.NEUTRAL.SLATE_900};"
-                "background:transparent;"
-            )
+            v.setStyleSheet("background:transparent;")
             v.setWordWrap(True)
             setattr(self, attr, v)
             r.addWidget(k); r.addWidget(v, 1)
