@@ -746,11 +746,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._prov_completer = QCompleter(self._prov_model, self)
         self._prov_completer.setCaseSensitivity(Qt.CaseInsensitive)
         self._prov_completer.setFilterMode(Qt.MatchContains)
+        # InlineCompletion: completa en línea sin abrir ninguna ventana flotante.
+        # El popup window del QCompleter era la "ventana" que abría al escribir.
+        self._prov_completer.setCompletionMode(QCompleter.InlineCompletion)
         self.txt_proveedor.setCompleter(self._prov_completer)
-        self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
-        # activated[str] fires when user picks an item from the completer dropdown —
-        # editingFinished alone is unreliable after a completer click.
+        # activated[str] se emite cuando el usuario acepta la sugerencia inline
+        # (Tab / Enter) — es el punto canónico para disparar _seleccionar_proveedor.
         self._prov_completer.activated[str].connect(self._on_completer_activated)
+        # editingFinished como fallback para cuando escribe y sale sin Tab/Enter
+        self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
         self._lbl_prov_status = QLabel("⚠ Sin proveedor seleccionado")
         self._lbl_prov_status.setObjectName("caption")
         self._lbl_prov_status.setStyleSheet(f"color:{Colors.WARNING_BASE};")

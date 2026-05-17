@@ -81,14 +81,13 @@ class ProductSearchWidget(QWidget):
         lay.addWidget(self.txt_search, 1)
         lay.addWidget(btn_search)
 
-        # Popup de resultados (flotante) — hereda estilos del tema global
-        # Qt.Tool + WA_ShowWithoutActivating evita que el popup robe el foco del
-        # campo de texto, lo que causaba que el usuario no pudiese escribir más de
-        # una letra (Qt.Popup robaba el foco al mostrarse).
-        self._popup = QFrame(self.window(), Qt.Tool | Qt.FramelessWindowHint)
+        # Popup de resultados — widget hijo del main window, NO ventana top-level.
+        # Usar Qt.Popup o Qt.Tool como flag hace que el widget robe el foco del
+        # teclado al aparecer, impidiendo seguir escribiendo en txt_search.
+        # Como widget hijo (sin flags de ventana) el foco nunca cambia.
+        self._popup = QFrame(self.window())
         self._popup.setObjectName("productSearchPopup")
         self._popup.setAttribute(Qt.WA_StyledBackground, True)
-        self._popup.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self._popup.setFocusPolicy(Qt.NoFocus)
         self._popup_lay = QVBoxLayout(self._popup)
         self._popup_lay.setContentsMargins(4, 4, 4, 4)
@@ -243,16 +242,16 @@ class ProductSearchWidget(QWidget):
             item.setData(Qt.UserRole, prod)
             self._popup_list.addItem(item)
 
-        # Position popup below the search bar
-        pos = self.txt_search.mapToGlobal(
-            self.txt_search.rect().bottomLeft())
-        self._popup.move(pos)
-        self._popup.resize(max(self.txt_search.width() + 40, 400),
-                           min(len(self._last_results) * 36 + 16, 280))
+        # Posicionar el popup bajo el campo de búsqueda.
+        # Como es widget hijo del main window, convertimos las coordenadas
+        # relativas a txt_search → relativas al main window con mapTo().
+        win = self.window()
+        pos = self.txt_search.mapTo(win, self.txt_search.rect().bottomLeft())
+        w   = max(self.txt_search.width() + 40, 400)
+        h   = min(len(self._last_results) * 36 + 16, 280)
+        self._popup.setGeometry(pos.x(), pos.y(), w, h)
+        self._popup.raise_()
         self._popup.show()
-        self._popup_list.setCurrentRow(0)
-        # Devolver foco al campo de texto para que el usuario siga escribiendo
-        self.txt_search.setFocus()
 
     def _on_item_click(self, item: QListWidgetItem) -> None:
         prod = item.data(Qt.UserRole)
