@@ -205,9 +205,10 @@ class TestDesignTokens:
 # QR NO-TOUCH policy — recepcion_qr_widget.py unchanged (structurally)
 # ---------------------------------------------------------------------------
 class TestQRNoTouch:
-    def test_qr_widget_has_po_tab(self):
+    def test_qr_widget_has_po_submode_not_tab(self):
         src = _qr_source()
-        assert "_build_tab_po_recepcion" in src or "_tab_po_recv" in src
+        assert "_build_po_reception_panel" in src
+        assert "_tab_po_recv" not in src
 
     def test_qr_widget_has_confirmar_recepcion(self):
         src = _qr_source()

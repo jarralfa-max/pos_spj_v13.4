@@ -1,228 +1,140 @@
-# AUDITORÍA REAL — Módulo Compras Pro
-> Generada: 2026-05-17 | Base: compras_pro.py 5138 líneas + recepcion_qr_widget.py 2234 líneas
+# FASE 0 — Auditoría real del módulo Compras ERP
+
+**Fecha:** 2026-05-17
+**Alcance:** auditoría sin cambio funcional de `modulos/compras_pro.py`, `modulos/recepcion_qr_widget.py`, componentes visuales, servicios de compras, repositorios y casos de uso relacionados.
+**Decisión base:** detener la ejecución en Fase 0 + Fase 1. No se rediseña UI, no se implementa PR/PO nuevo, no se toca el motor QR y no se migran datos.
 
 ---
 
-## 1. Estructura de clases
+## 1. Mapa actual de pestañas
 
-### Clases en compras_pro.py
+### 1.1 Pestañas principales de `ModuloComprasPro`
 
-| Clase | Línea | Rol |
-|-------|-------|-----|
-| `_PurchaseKPICard` | 84 | Card KPI reutilizable (patrón _InvKPICard) |
-| `_DialogItemCompra` | 210 | Dialog de edición de ítem en carrito |
-| `_ConfirmDestructiveDialog` | 350 | Confirmación de acciones destructivas |
-| `_PINDialog` | 411 | Solicitud de PIN para acciones privilegiadas |
-| `_HistorialLoader` | 501 | QThread para carga async del historial |
-| `ModuloComprasPro` | 535 | Clase principal del módulo UI |
+`_build_ui()` crea exactamente tres tabs externas:
 
-### Clases en recepcion_qr_widget.py
+| Índice | Tab actual | Constructor | Evaluación |
+|---:|---|---|---|
+| 0 | `🛒 Compra Tradicional` | `_build_tab_tradicional()` | Cumple contrato de 3 tabs principales. |
+| 1 | `📦 Recepción con QR` | `_build_tab_qr()` | Cumple como contenedor de recepción física. |
+| 2 | `📋 Historial de Compras` | `_build_tab_historial()` | Cumple estructura principal ligera. |
 
-| Clase | Línea | Rol |
-|-------|-------|-----|
-| `RecepcionQRWidget` | 51 | Widget completo de recepción con QR |
+Evidencia: `compras_pro.py` agrega las tres tabs principales en `_build_ui()` y no agrega una cuarta pestaña externa para PO.
 
----
+### 1.2 Pestañas internas actuales de `RecepcionQRWidget`
 
-## 2. Mapa de tabs
+`RecepcionQRWidget._build_ui()` crea cuatro tabs internas y la recepción contra PO vive como submodo dentro de `📦 3. Recepcionar`:
 
-### Tabs externas (ModuloComprasPro._build_ui, L722-730)
+| Índice | Tab interna actual | Evaluación Fase 2 |
+|---:|---|---|
+| 0 | `🏷️ 1. Generar Etiqueta QR` | Lógica QR existente: no tocada. |
+| 1 | `📋 2. Asignar Compra` | Lógica QR existente: no tocada. |
+| 2 | `📦 3. Recepcionar` | Contiene selector interno `QR / Contenedor` y `Orden de Compra / PO`. |
+| 3 | `📜 Historial` | Historial QR existente: no tocado. |
 
-```
-Línea 722: "🛒 Compra Tradicional"   → _build_tab_tradicional()
-Línea 726: "📦 Recepción con QR"     → _build_tab_qr() (contiene RecepcionQRWidget)
-Línea 730: "📋 Historial de Compras" → _build_tab_historial()
-```
-
-**CORRECTO: 3 tabs. No hay 4ª tab de PO reception en el nivel externo.**
-
-### Tabs internas en RecepcionQRWidget._build_ui (L92-109)
-
-```
-L98:  "🏷️ 1. Generar Etiqueta QR"  → _build_tab_generar()
-L99:  "📋 2. Asignar Compra"        → _build_tab_asignar()
-L100: "📦 3. Recepcionar"           → _build_tab_recepcionar()
-L101: "📜 Historial"                → _build_tab_historial()
-L102: "🧾 Recepción PO"             → _build_tab_po_recepcion()   ← Fase 6, en su lugar correcto
-```
-
-**CORRECTO: La recepción PO está DENTRO del widget QR, no como 4ª tab externa.**
+**Conclusión Fase 2:** el nivel principal conserva tres tabs y el widget QR ya no expone una pestaña separada para recepción PO; el contenido útil se mantiene dentro de Recepcionar como panel/submodo.
 
 ---
 
-## 3. Mapa de métodos (ModuloComprasPro)
+## 2. Mapa actual de UI en Compra Tradicional
 
-### Construcción UI
+| Zona | Estado actual | Severidad |
+|---|---|---|
+| Header | Usa `PageHeader` y KPI bar fuera de tabs. | BAJO |
+| KPI bar | Usa `_PurchaseKPICard`, muy similar a `_InvKPICard` de Inventario, pero con estilos inline para bordes/divisores. | MEDIO |
+| Layout principal | Usa `QSplitter` horizontal con izquierda, centro y derecha. | MEDIO |
+| Columna izquierda | `_build_documental_toolbar()` mezcla flujo documental con accesos secundarios; ancho fijo 260 px. | ALTO |
+| Columna central | `_build_center_column()` contiene selector tipo documento, stepper, proveedor, documento, búsqueda y productos rápidos. | MEDIO |
+| Columna derecha | `_build_summary_panel()` contiene tabla de partidas + totales + pago + acción dinámica, con mínimo 400 px. | MEDIO |
+| Tabla de partidas | Está en la derecha, dentro de `_build_purchase_items_panel()`. | BAJO |
+| Historial | Tiene filtros, tabla y panel KPI derecho; no es BI pesado. | BAJO |
 
-| Método | Línea | Responsabilidad |
-|--------|-------|-----------------|
-| `_build_ui` | 704 | Root layout, KPI bar, 3 tabs, apply_spj_buttons |
-| `_build_tab_tradicional` | 804 | Splitter 3 columnas |
-| `_build_purchase_kpi_bar` | 839 | 5 KPI cards horizontales |
-| `_build_provider_card` | 900 | Card proveedor (left/center) |
-| `_build_document_card` | 1041 | Card documento (tipo, folio, fecha) |
-| `_build_product_search_card` | 1173 | Búsqueda de productos |
-| `_build_purchase_items_panel` | 1204 | Tabla de partidas de compra |
-| `_build_purchase_totals_footer` | 1355 | Footer de totales |
-| `_build_dynamic_action_button` | 1396 | Botón principal de acción (Procesar/Guardar) |
-| `_build_quick_products_card` | 1457 | Productos frecuentes |
-| `_build_center_column` | 1491 | Columna central (agrupa cards) |
-| `_build_tab_qr` | 1544 | Tab QR (instancia RecepcionQRWidget) |
-| `_build_documental_toolbar` | 1597 | Columna izquierda: docs ERP (PR/PO) |
-| `_build_provider_sidebar` | 2349 | Panel proveedor en sidebar |
-| `_build_summary_panel` | 2429 | Panel derecho: totales + acción |
-| `_build_stepper_bar` | 2705 | Stepper documental (oculto en modo DIRECT) |
-| `_build_doctype_toolbar` | 2999 | Toolbar tipo documento (oculto, backward compat) |
-| `_build_draft_dict` | 3517 | Serializa draft actual a dict |
-| `_build_tab_historial` | 4051 | Tab historial de compras |
-| `_build_hist_kpi_sidebar` | 4356 | Sidebar KPIs del historial |
-
-### Business logic (en capa UI — a migrar en Fase 4)
-
-| Método | Línea | SQL directo | Notas |
-|--------|-------|-------------|-------|
-| `_cargar_info_proveedor` | 2631 | Sí (L2642) | Consulta datos del proveedor |
-| `_cargar_recientes_proveedor` | 2802 | Sí (L2808) | Últimas compras al proveedor |
-| `_cargar_alertas_cxp` | 2851 | Sí (L2856) | Alertas de cuentas por pagar |
-| `_poblar_plantillas_sidebar` | 2876 | Sí (L2882) | Carga plantillas de compra |
-| `_procesar_como_pr` | 3093 | No (delega a UC) | TraditionalPurchaseUC |
-| `_cargar_sucursales_compra` | 3163 | Sí (L3167) | Lista de sucursales |
-| `cargar_proveedores` | 3187 | Sí (L3190) | Lista de proveedores |
-| `_procesar_compra` | 3681 | No (delega a UC) | RegistrarCompraUC |
-| `_detectar_recetas` | 3965 | Sí (L3972) | Recetas de producción |
-| `_refresh_hist_timeline` | 4592 | Sí (L4644,L4668) | Línea de tiempo del historial |
-| `_fallback_compra_directa` | 5098 | Sí (L5111-5135) | Fallback SQL cuando UC falla |
+**Hallazgo importante:** el layout actual ya intenta tres columnas y la tabla está en derecha. La deuda no es crear otro layout desde cero, sino limpiar visualmente el layout, eliminar estilos claros fijos, normalizar objectNames/QSS y separar responsabilidades de UI/negocio.
 
 ---
 
-## 4. Capas y delegación
+## 3. Patrón visual real del módulo Inventario
 
-### Estado actual de delegación
+Inventario (`modulos/inventario_local.py`) define el estándar a reutilizar:
 
-```
-UI (compras_pro.py)
-  ├── _procesar_compra()         → RegistrarCompraUC (OK ✅)
-  ├── _procesar_como_pr()        → TraditionalPurchaseUC (OK ✅)
-  ├── SQL directo en:
-  │   ├── _cargar_info_proveedor()      ← debe → PurchaseRepository
-  │   ├── _cargar_recientes_proveedor() ← debe → PurchaseRepository
-  │   ├── _cargar_alertas_cxp()         ← debe → FinanceService / CXPRepository
-  │   ├── _poblar_plantillas_sidebar()  ← debe → PurchaseRepository
-  │   ├── _cargar_sucursales_compra()   ← debe → SucursalRepository
-  │   ├── cargar_proveedores()          ← debe → ProveedorRepository
-  │   ├── _detectar_recetas()           ← debe → ProduccionRepository
-  │   ├── _refresh_hist_timeline()      ← debe → PurchaseRepository
-  │   └── _fallback_compra_directa()    ← fallback, usar solo en emergencia
-  └── _load_erp_docs_cache()     → PurchaseRequestUC + PurchaseOrderUC (OK ✅)
-```
-
-### Repositorios disponibles
-
-| Repositorio | Archivo | Estado |
-|-------------|---------|--------|
-| `PurchaseRepository` | `repositories/purchase_repository.py` | ✅ Existe |
-| `PurchaseOrderRepository` | `repositories/purchase_order_repository.py` | ✅ Existe |
-| `PurchaseRequestRepository` | `repositories/purchase_request_repository.py` | ✅ Existe |
-
-### Use Cases disponibles
-
-| UC | Archivo | Estado |
-|----|---------|--------|
-| `RegistrarCompraUC` | `application/use_cases/registrar_compra_uc.py` | ✅ Existe |
-| `TraditionalPurchaseUC` | `application/purchases/traditional_purchase_uc.py` | ✅ Existe |
-| `PurchaseRequestUC` | `application/purchases/purchase_request_uc.py` | ✅ Existe |
-| `PurchaseOrderUC` | `application/purchases/purchase_order_uc.py` | ✅ Existe |
-| `ReceivePOAdapter` | `application/purchases/receive_po_adapter.py` | ✅ Existe |
+| Elemento | Patrón Inventario | Implicación para Compras |
+|---|---|---|
+| KPI card | `_InvKPICard` con `objectName="kpiCard"`, altura mínima 86, barra superior de acento y valor `#kpiValue`. | `_PurchaseKPICard` debe mantenerse hermano y reducir estilos inline no semánticos. |
+| KPI row | `_build_kpi_row()` agrega cinco cards con `Spacing.MD` y sin tabs intermedias. | Compras debe mantener KPI bar fuera de tabs y con densidad equivalente. |
+| Tablas | `QTableWidget#tableView`, no editables, selección por filas, grid oculto, colores por QSS global. | Compras debe evitar headers hardcodeados claros y delegar a QSS global. |
+| Inputs | `objectName="inputField"`. | Compras debe usar `create_input`, `create_combo` u objectName equivalente. |
+| Botones | `objectName` semántico (`successBtn`, `warningBtn`, `secondaryBtn`). | Compras debe evitar `QPushButton{background:...}` inline. |
+| Header | `PageHeader`. | Compras ya lo reutiliza. |
 
 ---
 
-## 5. Atributos de instancia críticos
+## 4. Componentes estándar disponibles
 
-### Atributos del carrito y proveedor
-
-```python
-self.carrito_compra: list[dict]    # Items actuales en compra
-self._doc_type: str                # "DIRECT" | "PR" | "PO"
-self._prov_id: int | None          # ID proveedor seleccionado
-self._prov_nombre: str             # Nombre proveedor display
-```
-
-### Atributos UI (widgets críticos con nombre esperado por business logic)
-
-```python
-# Proveedor
-self._cmb_proveedor          # QComboBox — selector proveedor
-self._inp_rfc                # QLineEdit (disabled) — RFC proveedor
-self._inp_tel                # QLineEdit (disabled) — Teléfono
-self._inp_dir                # QLineEdit (disabled) — Dirección
-self._inp_cred               # QLineEdit (disabled) — Crédito disponible
-self._cmb_cond_prov          # QComboBox — condición de pago del proveedor
-# Alias backward-compat:
-self._lbl_rfc = self._inp_rfc
-self._lbl_tel = self._inp_tel
-self._lbl_dir = self._inp_dir
-self._lbl_cred_disp = self._inp_cred
-self._lbl_cond_disp = self._cmb_cond_prov
-
-# Documento
-self.txt_factura             # QLineEdit — referencia/folio
-self._date_factura           # QDateEdit — fecha documento
-self.cmb_sucursal_destino    # QComboBox — sucursal destino
-self._cmb_moneda             # QComboBox — moneda
-self._cmb_prioridad          # QComboBox — prioridad
-self.txt_solicitante         # QLineEdit — solicitante
-self.txt_notas               # QPlainTextEdit — notas
-
-# Tabla de partidas
-self.tabla                   # QTableWidget — partidas de compra
-
-# Totales
-self._lbl_subtotal           # QLabel — subtotal display
-self._lbl_iva                # QLabel — IVA display
-self._lbl_descuento          # QLabel — descuento display
-self._lbl_flete              # QLabel — flete display
-self._lbl_total_grande       # QLabel — total principal
-self._spin_flete             # QDoubleSpinBox — oculto, backward compat
-self._spin_otros             # QDoubleSpinBox — oculto, backward compat
-
-# Widgets ocultos backward-compat (C++ GC guard)
-self._hidden_doctype_toolbar # QWidget oculto
-self._hidden_stepper         # QWidget oculto
-self._sidebar_prov_search    # QLineEdit oculto
-self._sidebar_prov_list      # QListWidget oculto
-self._sidebar_templates_list # QListWidget oculto
-self._sidebar_recent_list    # QListWidget oculto
-self._lbl_recientes_empty    # QLabel oculto
-```
+| Archivo | Componentes útiles identificados |
+|---|---|
+| `modulos/ui_components.py` | `PageHeader`, `Toast`, `create_card`, `create_kpi_card`, `create_badge`, `create_input`, `create_combo`, `create_standard_tabs`, `wrap_in_scroll_area`, `LoadingIndicator`, `EmptyStateWidget`. |
+| `modulos/design_tokens.py` | `Colors`, `Spacing`, `Typography`, `Borders`. |
+| `modulos/spj_styles.py` | `apply_spj_buttons` para asignación de objectNames estándar. |
+| `modulos/qss_builder.py` | QSS global para `#kpiCard`, `#pageHeader`, `#tableView`, botones e inputs. |
+| `ui/themes/theme_engine.py` | `ThemeManager` / `ThemeEngine` como punto de aplicación de QSS global. |
 
 ---
 
-## 6. Flujo documental soportado
+## 5. Mapa backend y side effects actuales
 
-```
-DIRECT → (_doc_type="DIRECT") → _procesar_compra() → RegistrarCompraUC
-PR     → (_doc_type="PR")     → _procesar_como_pr() → TraditionalPurchaseUC
-PO     → (selección en sidebar) → _on_doc_item_clicked() → [pendiente Fase 6]
-```
+### 5.1 Ruta de compra directa actual
 
-### Flujo ERP completo (objetivo Fase 7)
+`RegistrarCompraUC.execute()` invoca `PurchaseService.register_purchase()` con items, proveedor, sucursal, forma de pago y metadatos de documento. Después procesa recetas y escribe auditoría.
 
-```
-CAPTURAR → SOLICITUD (PR) → APROBAR PR → GENERAR PO → RECIBIR (QR/PO tab) → INVENTARIO → CXP
-```
+`PurchaseService.register_purchase()` actualmente hace demasiado en una sola ruta:
+
+| Efecto | Ubicación actual | Evaluación |
+|---|---|---|
+| Crear cabecera de compra | `purchase_repo.create_purchase()` llamado desde `register_purchase()` | Válido para compra directa. |
+| Guardar partidas | `purchase_repo.save_purchase_items()` | Válido para compra directa. |
+| Afectar inventario | EventBus `PURCHASE_ITEMS_PROCESS` o fallback `inventory_service.add_stock()` | **Crítico si se reutiliza para PR/PO.** |
+| Generar CXP | `finance_service.crear_cxp()` cuando hay deuda | **Crítico si PR/PO llaman esta ruta.** |
+| Registrar caja/asiento | `registrar_movimiento_manual()` y `registrar_asiento()` | Riesgo de duplicidad con otras rutas financieras. |
+| Crear lotes | `_crear_lotes_compra()` inserta `lotes` y `movimientos_lote` | **Crítico si PR/PO llaman esta ruta.** |
+| Publicar evento de inventario | EventBus `PURCHASE_ITEMS_PROCESS` | Correcto para compra directa/recepción; prohibido para PR/PO documental. |
+
+### 5.2 Ruta legacy adicional con riesgo de doble asiento
+
+`core/use_cases/compra.py` declara `ProcesarCompraUC` como deprecado y advierte que puede duplicar asientos si se combina con handlers financieros. Además registra asientos y CXP después de llamar a `PurchaseService.register_purchase()`.
+
+### 5.3 SQL directo en UI
+
+`compras_pro.py` contiene SQL directo y fallbacks de BD dentro de widgets/métodos UI. Ejemplos auditados:
+
+| Uso | Líneas/área | Riesgo |
+|---|---|---|
+| Carga documental PR/PO en toolbar | `_load_documental_docs()` con `container.db.execute()` | UI conoce tablas/estados. |
+| Carga proveedores/sucursales/plantillas | métodos de carga en UI | Acoplamiento UI-BD. |
+| Procesamiento de recetas | consulta recetas y actualiza `productos.existencia` | Riesgo alto de side effects fuera de servicios. |
+| Fallback compra directa | `_fallback_compra_directa()` inserta compra, detalles y actualiza inventario | Riesgo crítico: bypass de servicios canónicos. |
+
+**Decisión Fase 0:** no borrar ni mover aún. Documentar y proteger con tests. Cualquier refactor debe envolver primero para compatibilidad.
 
 ---
 
-## 7. Métricas
+## 6. Tabla de severidad consolidada
 
-| Métrica | Valor |
-|---------|-------|
-| Total líneas compras_pro.py | 5138 |
-| Total líneas recepcion_qr_widget.py | 2234 |
-| Total métodos en ModuloComprasPro | ~148 |
-| Métodos con SQL directo | ~9 |
-| Métodos que delegan a UC | ~3 |
-| Tests existentes en tests/purchases/ | ~22 archivos |
-| Atributos de instancia críticos | ~45+ |
-| Tabs externas | 3 (correcto) |
-| Tabs internas QR | 5 (correcto) |
+| Severidad | Hallazgo | Acción posterior |
+|---|---|---|
+| CRÍTICO | `register_purchase()` afecta inventario, CXP, caja/asientos y lotes; PR/PO no pueden usar esta ruta. | Fases 5-7: separar DIRECT/PR/PO/recepción. |
+| CRÍTICO | `_fallback_compra_directa()` en UI puede insertar compra y actualizar stock directamente. | Fase 5: estabilizar compra directa y retirar fallback solo con wrapper seguro. |
+| RESUELTO | `RecepcionQRWidget` ya no contiene pestaña interna explícita `Recepción PO`; PO vive como submodo de `Recepcionar`. | Fase 3+: limpiar visualmente sin tocar motor QR. |
+| ALTO | SQL directo y side effects en `compras_pro.py`. | Fases 6-8: mover a use cases/adapters. |
+| ALTO | Colores claros fijos y estilos inline abundantes en Compra Tradicional/QR. | Fases 3-4: normalizar con tokens/QSS global. |
+| MEDIO | KPI de Compras parece hermano de Inventario pero aún mezcla styles inline y divisores propios. | Fase 3: alinear con patrón Inventario. |
+| MEDIO | Toolbar documental mezcla flujo con elementos secundarios y usa ancho fijo. | Fase 3: reorganizar sin cambio negocio. |
+| BAJO | Imports críticos `QInputDialog` y `QScrollArea` ya están presentes. | Fase 1: smoke tests para prevenir regresión. |
+
+---
+
+## 7. Límites de esta fase
+
+- No se modificó comportamiento funcional.
+- No se rediseñó Compra Tradicional.
+- No se tocó `RecepcionQRWidget` ni motor QR.
+- No se separaron todavía rutas PR/PO/DIRECT.
+- No se corrigió aún la pestaña interna PO: queda documentada para Fase 2.

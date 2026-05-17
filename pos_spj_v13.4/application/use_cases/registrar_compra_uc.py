@@ -80,18 +80,40 @@ class RegistrarCompraUC:
                 error="PurchaseService no disponible. Reinicia la aplicación.",
             )
 
-        # C-4: validate items list before touching the DB
+        # Fase 5: validate DIRECT purchase boundaries before touching the DB.
+        if datos.proveedor_id <= 0:
+            return ResultadoCompraDTO(ok=False, error="Selecciona un proveedor válido.")
+        if datos.sucursal_id <= 0:
+            return ResultadoCompraDTO(ok=False, error="Sucursal inválida para la compra.")
         if not datos.items:
             return ResultadoCompraDTO(ok=False, error="El carrito está vacío.")
         invalid = [
             i.nombre for i in datos.items
-            if i.qty <= 0 or i.unit_cost < 0
+            if i.product_id <= 0 or i.qty <= 0 or i.unit_cost < 0
         ]
         if invalid:
             return ResultadoCompraDTO(
                 ok=False,
-                error=f"Cantidad o costo inválido en: {', '.join(invalid)}",
+                error=f"Cantidad, producto o costo inválido en: {', '.join(invalid)}",
             )
+        subtotal_items = round(sum(float(i.qty) * float(i.unit_cost) for i in datos.items), 2)
+        subtotal_declared = round(float(datos.subtotal), 2)
+        iva_declared = round(float(datos.iva_monto), 2)
+        total_declared = round(float(datos.total), 2)
+        if subtotal_declared != subtotal_items:
+            return ResultadoCompraDTO(
+                ok=False,
+                error="El subtotal no coincide con los productos del carrito.",
+            )
+        if iva_declared < 0:
+            return ResultadoCompraDTO(ok=False, error="El IVA no puede ser negativo.")
+        if total_declared != round(subtotal_declared + iva_declared, 2):
+            return ResultadoCompraDTO(
+                ok=False,
+                error="El total no coincide con subtotal más IVA.",
+            )
+        if not datos.metodo_pago:
+            return ResultadoCompraDTO(ok=False, error="Selecciona una forma de pago válida.")
 
         try:
             items_svc = [
@@ -123,6 +145,7 @@ class RegistrarCompraUC:
                 condicion_pago=datos.condicion_pago,
                 plazo_dias=datos.plazo_dias,
                 moneda=datos.moneda,
+                tax_amount=datos.iva_monto,
             )
 
             recetas = self._procesar_recetas(datos)

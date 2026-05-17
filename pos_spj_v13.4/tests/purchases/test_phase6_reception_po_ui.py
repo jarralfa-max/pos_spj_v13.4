@@ -1,13 +1,13 @@
 """
 tests/purchases/test_phase6_reception_po_ui.py
 ───────────────────────────────────────────────
-FASE 6 — Tests de la pestaña Recepción PO en RecepcionQRWidget.
+FASE 2/6 — Tests del submodo de recepción de orden en RecepcionQRWidget.
 
 Verifica:
-1. El código fuente tiene la nueva pestaña sin romper las 4 existentes
-2. Los métodos de Phase 6 existen y son independientes del flujo QR
-3. _build_tab_po_recepcion llama a ReceivePOAdapter (no reimplementa inventario)
-4. QR NO-TOUCH: las 4 pestañas originales no se modificaron
+1. No existe pestaña separada para PO.
+2. El panel interno de recepción de orden conserva los métodos existentes.
+3. _build_po_reception_panel llama a ReceivePOAdapter (no reimplementa inventario).
+4. QR NO-TOUCH: las 4 pestañas originales se mantienen.
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -24,18 +24,29 @@ def _src():
     return open(path, encoding="utf-8").read()
 
 
+def _method_source(src: str, method_name: str) -> str:
+    tree = ast.parse(src)
+    lines = src.splitlines()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == method_name:
+            return "\n".join(lines[node.lineno - 1:node.end_lineno])
+    raise AssertionError(f"Método {method_name} no encontrado")
+
+
 class TestPhase6SourceCode:
 
     def test_no_syntax_error(self):
         ast.parse(_src())
 
-    def test_tab_po_recv_added_to_build_ui(self):
+    def test_no_tab_po_recv_added_to_build_ui(self):
         src = _src()
-        assert "_tab_po_recv" in src
-        assert "Recepción PO" in src
+        build_ui = _method_source(src, "_build_ui")
+        assert build_ui.count(".addTab(") == 4
+        assert "_tab_po_recv" not in build_ui
+        assert "Recepción PO" not in build_ui
 
-    def test_build_tab_po_recepcion_method_exists(self):
-        assert "_build_tab_po_recepcion" in _src()
+    def test_build_po_reception_panel_method_exists(self):
+        assert "_build_po_reception_panel" in _src()
 
     def test_cargar_pos_abiertas_exists(self):
         assert "_cargar_pos_abiertas" in _src()
@@ -60,8 +71,8 @@ class TestPhase6SourceCode:
     def test_does_not_call_add_stock_directly(self):
         """Phase 6 UI no llama add_stock directamente — delega al adapter."""
         src = _src()
-        # Find only the Phase 6 section
-        start = src.find("# ── Pestaña 5: Recepción PO (Phase 6)")
+        # Find only the integrated PO section
+        start = src.find("# ── Submodo interno: recepción de Orden de Compra")
         end   = src.find("# ── Nuevos helpers UI", start)
         phase6 = src[start:end] if start != -1 and end != -1 else src
         assert "add_stock" not in phase6, (
@@ -71,27 +82,26 @@ class TestPhase6SourceCode:
     def test_does_not_reimport_qr_service(self):
         """Phase 6 no importa qr_service (QR NO-TOUCH policy)."""
         src = _src()
-        start = src.find("# ── Pestaña 5: Recepción PO (Phase 6)")
+        start = src.find("# ── Submodo interno: recepción de Orden de Compra")
         end   = src.find("# ── Nuevos helpers UI", start)
         phase6 = src[start:end] if start != -1 else ""
         assert "qr_service" not in phase6
 
     def test_original_qr_tabs_still_present(self):
-        """Las 4 tabs originales (pre-Fase 6) del widget QR siguen presentes.
-        La Fase 6 agregó una 5ª tab ('🧾 Recepción PO') — no las eliminó.
-        """
+        """Las 4 tabs originales del widget QR siguen presentes."""
         src = _src()
         assert "🏷️ 1. Generar Etiqueta QR" in src
         assert "📋 2. Asignar Compra" in src
         assert "📦 3. Recepcionar" in src
         assert "📜 Historial" in src
 
-    def test_phase6_added_fifth_tab_po_recv(self):
-        """Fase 6 agregó la 5ª tab 'Recepción PO' — total debe ser 5 tabs internas."""
+    def test_phase2_integrated_po_as_submode_not_fifth_tab(self):
+        """Fase 2 reintegra PO como submodo: total debe ser 4 tabs internas."""
         src = _src()
-        assert "🧾 Recepción PO" in src or "_tab_po_recv" in src, (
-            "La 5ª tab de Recepción PO (Fase 6) debe existir en RecepcionQRWidget"
-        )
+        build_ui = _method_source(src, "_build_ui")
+        assert build_ui.count(".addTab(") == 4
+        assert "_po_receipt_panel" in src
+        assert "_tab_po_recv" not in src
 
     def test_build_tab_generar_unchanged(self):
         """_build_tab_generar no debe referenciar _po_id_activo ni receive_po_adapter."""
@@ -114,9 +124,9 @@ class TestPhase6SourceCode:
         src = _src()
         assert "ReceiptItem" in src
 
-    def test_table_has_7_columns(self):
+    def test_table_has_8_columns(self):
         src = _src()
-        assert "setColumnCount(7)" in src
+        assert "setColumnCount(8)" in src
 
 
 class TestReceivePOAdapterContractPhase6:
