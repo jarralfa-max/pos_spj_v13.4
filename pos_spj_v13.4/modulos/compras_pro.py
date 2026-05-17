@@ -5113,6 +5113,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         QTimer.singleShot(0, self._refresh_stats)
         if hasattr(self, '_tbl_hist') and self._tabs.currentIndex() == 2:
             self._cargar_historial_compras()
+        # FASE 8: when a PO receipt is confirmed, refresh the documental sidebar
+        # so the PO state (PARCIAL / RECIBIDA) is reflected immediately.
+        # Small delay (50 ms) ensures DB writes from ReceivePOAdapter are visible.
+        if event_type == "RECEPCION_CONFIRMADA" and data.get("source") == "PO":
+            QTimer.singleShot(50, self._cargar_docs_erp)
 
     def _exportar_historial_csv(self) -> None:
         """Exporta el historial de compras a CSV.

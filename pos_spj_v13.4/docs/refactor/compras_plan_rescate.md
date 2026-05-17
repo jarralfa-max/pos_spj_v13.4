@@ -243,14 +243,31 @@ Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebi
 
 ---
 
-### FASE 8 — Recepción QR puede manejar PO
+### FASE 8 — Recepción QR puede manejar PO (✅ COMPLETADA 2026-05-17)
 
 **Objetivo:** El tab `_tab_po_recv` (ya existente en RecepcionQRWidget) recibe artículos de una PO y actualiza el estado de la PO en el sidebar documental de ModuloComprasPro.
 
 **Checklist:**
-- [ ] `ReceivePOAdapter.register_partial_receipt()` emite evento EventBus
-- [ ] `_on_refresh("PO_RECIBIDA_PARCIAL", {...})` actualiza sidebar
-- [ ] Estado PO cambia a "PARCIAL" o "RECIBIDA" en la lista documental
+- [x] `ReceivePOAdapter.register_partial_receipt()` emite `RECEPCION_CONFIRMADA` con `source="PO"` — ya existía, verificado con test de integración
+- [x] `ModuloComprasPro._on_refresh()` detecta `RECEPCION_CONFIRMADA` + `source="PO"` → llama `QTimer.singleShot(50, self._cargar_docs_erp)` 
+- [x] Estado PO cambia a "PARCIAL" o "RECIBIDA" en la lista documental (via `po_repo.update_estado()` en ReceivePOAdapter)
+
+**Decisiones de diseño:**
+- Evento ya existía: `ReceivePOAdapter` ya publicaba `RECEPCION_CONFIRMADA` con `source="PO"` desde la fase anterior. Solo faltaba el branch en `_on_refresh()`.
+- No se creó un nuevo tipo de evento `PO_RECIBIDA_PARCIAL` — se reutilizó `RECEPCION_CONFIRMADA` con `source="PO"` para no duplicar la tabla de eventos del EventBus.
+- `QTimer.singleShot(50ms)` en lugar de 0ms — 50ms garantiza que los writes de `register_partial_receipt()` ya están visibles en SQLite cuando el sidebar carga los datos.
+- Zero cambios a `recepcion_qr_widget.py` — la lógica QR no fue tocada.
+
+**Tests:**
+- [x] `tests/purchases/test_fase8_po_reception_event.py` — 31 tests, todos pasando
+  - TestOnRefreshHandlesPOEvent (8): verifica el nuevo branch en `_on_refresh`
+  - TestOnRefreshIgnoresNonPOEvents (1): sidebar no refresca en eventos no-PO
+  - TestPublishRecepcionPayload (6): payload incluye `source="PO"`, `po_id`, `completion`
+  - TestReceivePOAdapterStateTransitions (10): ABIERTA→PARCIAL/RECIBIDA, acumulación, guardas
+  - TestNoDuplicateInventoryInOnRefresh (4): `_on_refresh` no duplica `add_stock`/`register_purchase`/lotes/CXP
+  - TestNoBannedColorsInFase8Methods (2): no colores hardcodeados
+
+**Baseline tras FASE 8:** 88 failed / 1637 passed (+31 nuevos tests, 0 regresiones)
 
 ---
 
