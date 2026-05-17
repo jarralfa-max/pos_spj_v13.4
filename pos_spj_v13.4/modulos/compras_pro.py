@@ -761,9 +761,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
         self.cargar_proveedores()
-        # Update ProductSearchWidget db ref (same connection, already live)
         if hasattr(self, '_buscador'):
             self._buscador.set_db(self.container.db)
+        if hasattr(self, '_quick_grid'):
+            self._cargar_quick_products()
 
     # ── E-6: Planeacion → Compras bridge ─────────────────────────────────────
 
@@ -1566,13 +1567,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._quick_grid.setSpacing(Spacing.XS)
         self._quick_grid_body = body
         body.addLayout(self._quick_grid)
-        self._cargar_quick_products()
+        # Defer until the event loop is running so sucursal_id is final
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(0, self._cargar_quick_products)
         return panel
 
     def _cargar_quick_products(self) -> None:
-        """Populate quick-product grid from the 5 most frequently purchased products."""
+        """Populate quick-product grid from the 8 most frequently purchased products."""
         grid = self._quick_grid
-        # Clear existing buttons
         while grid.count():
             item = grid.takeAt(0)
             if item and item.widget():
@@ -1581,29 +1583,38 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         frecuentes: list[dict] = []
         try:
             frecuentes = self._purchase_repo.get_productos_frecuentes(
-                sucursal_id=self.sucursal_id, limit=5
+                sucursal_id=self.sucursal_id, limit=8
             )
         except Exception:
             pass
 
-        def _short(nombre: str, maxlen: int = 14) -> str:
+        def _short(nombre: str, maxlen: int = 13) -> str:
             return nombre if len(nombre) <= maxlen else nombre[:maxlen - 1] + "…"
 
-        for idx, prod in enumerate(frecuentes):
-            nombre = _short(prod.get("nombre") or "")
-            btn = QPushButton(f"📦\n{nombre}")
-            btn.setObjectName("secondaryBtn")
-            btn.setFixedHeight(54)
-            pid = prod.get("producto_id")
-            if pid:
-                btn.clicked.connect(lambda _checked, p=prod: self._add_quick_product(p))
-            grid.addWidget(btn, idx // 3, idx % 3)
+        if not frecuentes:
+            lbl = QLabel("Realiza tu primera\ncompra para ver\nproductos frecuentes")
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet(
+                f"color:{_C_HINT};font-size:{Typography.SIZE_XS};background:transparent;"
+            )
+            grid.addWidget(lbl, 0, 0, 1, 3)
+        else:
+            for idx, prod in enumerate(frecuentes):
+                nombre = _short(prod.get("nombre") or "")
+                btn = QPushButton(f"📦\n{nombre}")
+                btn.setObjectName("secondaryBtn")
+                btn.setFixedHeight(54)
+                btn.setToolTip(prod.get("nombre") or "")
+                pid = prod.get("producto_id")
+                if pid:
+                    btn.clicked.connect(lambda _checked, p=prod: self._add_quick_product(p))
+                grid.addWidget(btn, idx // 3, idx % 3)
 
-        # Config button always in last slot of the 3×2 grid
-        cfg_btn = QPushButton("⚙\nConfig")
+        # ⟳ Reload button always occupies the next free slot
+        cfg_btn = QPushButton("⟳\nActualizar")
         cfg_btn.setObjectName("secondaryBtn")
         cfg_btn.setFixedHeight(54)
-        cfg_btn.setToolTip("Recargar productos frecuentes")
+        cfg_btn.setToolTip("Recargar productos más comprados")
         cfg_btn.clicked.connect(self._cargar_quick_products)
         slot = len(frecuentes)
         grid.addWidget(cfg_btn, slot // 3, slot % 3)
