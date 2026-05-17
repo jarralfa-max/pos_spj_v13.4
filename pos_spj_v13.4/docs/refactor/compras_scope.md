@@ -27,7 +27,7 @@ PR (BORRADOR)
   → [Enviar a aprobación] → PR (PENDIENTE_APROBACION)
   → [Aprobar PR]          → PR (APROBADA)
   → [Convertir a PO]      → PR (CONVERTIDA_A_PO) + PO (ABIERTA)
-  → [Enviar a recepción]  → Recepción PO
+  → [Enviar a recepción]  → Recepción con QR / origen PO
   → [Confirmar recepción] → PO (PARCIAL|RECIBIDA) + compras + inventario + GL
 ```
 
@@ -74,7 +74,7 @@ PO (ABIERTA)
 | 3 | Modelo PR | ✅ | application/purchases/purchase_request_uc.py |
 | 4 | Modelo PO + Adapter | ✅ | application/purchases/receive_po_adapter.py |
 | 5 | UI doc_type selector | ✅ | modulos/compras_pro.py |
-| 6 | UI Recepción PO | ✅ | modulos/recepcion_qr_widget.py |
+| 6 | UI recepción PO como submodo | ✅ | modulos/recepcion_qr_widget.py |
 | 7 | UI Historial timeline | ✅ | modulos/compras_pro.py |
 | 8 | UI Toolbar Documental | ✅ | modulos/compras_pro.py |
 | 9 | UI QR mejorada | ✅ | modulos/recepcion_qr_widget.py |
@@ -90,13 +90,13 @@ PO (ABIERTA)
 - [x] QR sin regresión
 - [x] PR no afecta inventario
 - [x] PO no afecta inventario
-- [x] Recepción PO usa ReceivePOAdapter
+- [x] Recepción PO usa ReceivePOAdapter desde submodo interno
 - [x] UI respeta Colors.* (sin hex hardcodeados críticos)
 - [x] 363+ tests pasando
 - [x] Toolbar Documental ERP en Tab 1 (Fase 8)
 - [x] Panel de aprobación funcional (Fase 8)
 - [x] Botón dinámico según estado/permisos (Fase 8)
-- [x] Badge estado PO + columna Δ + panel mermas en Recepción PO (Fase 9)
+- [x] Badge estado PO + columna Δ + panel mermas en submodo PO de Recepcionar (Fase 9)
 - [x] Filtro Estado PO en Tab 3 historial (Fase 10)
 - [x] CSV exporta todas las columnas desde cache (Fase 10)
 - [x] Auditoría ProcesarCompraUC — bloqueado por referencias activas (DEC-007)

@@ -25,7 +25,8 @@ class PurchaseService:
                           notes: str = "",
                           condicion_pago: str = "liquidado",
                           plazo_dias: int = 0,
-                          moneda: str = "MXN") -> tuple:
+                          moneda: str = "MXN",
+                          tax_amount: float = 0.0) -> tuple:
         """
         Registra la compra, suma inventario y descuenta el dinero automáticamente.
 
@@ -38,8 +39,12 @@ class PurchaseService:
         operation_id = str(uuid.uuid4())
         finance_warnings: list[str] = []
         
-        # Calculamos el total real de la compra
-        total_purchase = sum(item['qty'] * item['unit_cost'] for item in items)
+        # Calculamos el subtotal físico y el total fiscal de la compra directa.
+        subtotal_purchase = round(
+            sum(item['qty'] * item['unit_cost'] for item in items), 2
+        )
+        tax_amount = round(float(tax_amount or 0), 2)
+        total_purchase = round(subtotal_purchase + tax_amount, 2)
         
         # Determinamos si se pagó completa o quedó a crédito
         status = "completada" if amount_paid >= total_purchase else "credito"
@@ -55,6 +60,8 @@ class PurchaseService:
                 provider_id=provider_id,
                 branch_id=branch_id,
                 user=user,
+                subtotal=subtotal_purchase,
+                tax=tax_amount,
                 total=total_purchase,
                 status=status,
                 operation_id=operation_id,
@@ -106,10 +113,17 @@ class PurchaseService:
                             item['product_id'], folio, _inv_e)
 
             if inv_errors:
-                self.db.execute(f"RELEASE SAVEPOINT {_sp}")
-                _sp_released = True
+                # Fase 5: inventario es parte del flujo DIRECT; si falla,
+                # no debe quedar cabecera/detalle de compra parcialmente
+                # comprometido porque eso abriría riesgo de doble inventario,
+                # doble CxP/asiento o reintentos ambiguos.
+                try:
+                    self.db.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+                finally:
+                    self.db.execute(f"RELEASE SAVEPOINT {_sp}")
+                    _sp_released = True
                 raise RuntimeError(
-                    f"Compra {folio} guardada pero el inventario "
+                    f"Compra {folio} cancelada: el inventario "
                     f"NO se actualizó para:\n" +
                     "\n".join(inv_errors))
 
