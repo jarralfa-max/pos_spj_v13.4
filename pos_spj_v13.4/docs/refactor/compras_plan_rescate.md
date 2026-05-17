@@ -210,16 +210,36 @@ Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebi
 
 ---
 
-### FASE 7 — PR / Aprobación / PO en Compra Tradicional
+### FASE 7 — PR / Aprobación / PO en Compra Tradicional (✅ COMPLETADA 2026-05-17)
 
 **Objetivo:** Flujo documental completo PR → APROBACIÓN → PO desde la UI.
 
 **Checklist:**
-- [ ] Sidebar izquierda lista PRs pendientes
-- [ ] Botón "Aprobar PR" funciona → estado cambia → sidebar actualiza
-- [ ] Botón "Convertir a PO" funciona → PO creada → aparece en lista PO
-- [ ] Stepper refleja paso actual del documento seleccionado
-- [ ] No hay SQL directo en ninguno de estos flujos
+- [x] Sidebar izquierda lista PRs pendientes (`_build_documental_toolbar()` + `_cargar_docs_erp()`)
+- [x] Botón "Aprobar PR" funciona → estado cambia → sidebar actualiza (`_accion_aprobar_pr()` → `PurchaseRequestUC.aprobar()`)
+- [x] Botón "Convertir a PO" funciona → PO creada → aparece en lista PO (`_accion_convertir_a_po()` → `PurchaseRequestUC.convertir_a_po()`)
+- [x] Stepper refleja paso actual del documento seleccionado (`_refresh_stepper_for_doc()` wired to `_on_doc_item_clicked()`)
+- [x] No hay SQL directo en ninguno de estos flujos (verificado AST)
+
+**Tests:**
+- [x] `tests/purchases/test_fase7_documental_sidebar.py` — 65 tests, todos pasando
+  - TestDocumentalSidebarStructure (10)
+  - TestCargarDocsERPPattern (5)
+  - TestActionMethodsDelegation (9)
+  - TestRefreshStepperForDoc (8)
+  - TestOnDocItemClickedWiring (5)
+  - TestPurchaseRequestUCStateMachine (9)
+  - TestConvertirAPO (5)
+  - TestNoPrimarySQL (6)
+  - TestNoBannedColorsInFase7Methods (7)
+
+**Baseline tras FASE 7:** 88 failed / 1606 passed (+65 nuevos tests)
+
+**Notas:**
+- `_refresh_stepper_for_doc()` guarda contra stepper invisible (DIRECT mode); solo actualiza cuando `_hidden_stepper.isVisible()`
+- Mapa estado→paso: BORRADOR=0, PENDIENTE_APROBACION=2, APROBADA=3, estados PO=3
+- Test `TestNoPrimarySQL` usa regex `\bSELECT\s+\w` para evitar falso positivo en `_selected_doc_id`
+- Schema `ordenes_compra` en fixture de tests incluye `subtotal, iva_monto, metodo_pago, condicion_pago, plazo_dias, moneda, notas, doc_ref, fecha_entrega_esperada` (alineado con `purchase_order_repository.py`)
 
 ---
 

@@ -2101,6 +2101,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._selected_doc_estado = str(doc.get('estado') or '').upper()
         self._refresh_doc_detail(doc)
         self._refresh_doc_acciones()
+        # FASE 7: update stepper to reflect selected document's workflow position
+        self._refresh_stepper_for_doc(self._selected_doc_estado, self._selected_doc_type or '')
 
     def _refresh_doc_detail(self, doc: dict) -> None:
         """Populate the detail card with selected document data."""
@@ -2783,6 +2785,56 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             elif done and i < active:
                 lbl.setStyleSheet(done_style)
             elif i == 3 and s1 and s2:
+                lbl.setStyleSheet(active_style)
+            else:
+                lbl.setStyleSheet(idle_style)
+
+    def _refresh_stepper_for_doc(self, estado: str, tipo: str) -> None:
+        """Update stepper to reflect the selected document's workflow position.
+
+        Maps document state → step index so the stepper reads like a timeline:
+          ① Proveedor → ② Productos → ③ Condición → ④ Autorizar
+
+        Only updates if the stepper is currently visible (PR/PO doc type active).
+        Called from _on_doc_item_clicked() when the user selects a PR or PO.
+        """
+        if not hasattr(self, '_stepper_labels') or not self._stepper_labels:
+            return
+        if not hasattr(self, '_hidden_stepper') or not self._hidden_stepper.isVisible():
+            return
+
+        _STATE_TO_STEP: dict[str, int] = {
+            "BORRADOR":             0,   # ① just created
+            "CANCELADA":            0,   # ① reset
+            "RECHAZADA":            1,   # ② needs re-edit
+            "PENDIENTE_APROBACION": 2,   # ③ submitted, awaiting approval
+            "APROBADA":             3,   # ④ approved
+            "CONVERTIDA_A_PO":      3,   # ④ converted (all done)
+            "ABIERTA":              3,   # ④ PO open
+            "PARCIAL":              3,   # ④ PO partial receipt
+            "RECIBIDA":             3,   # ④ PO fully received
+            "CERRADA":              3,   # ④ PO closed
+        }
+        active = _STATE_TO_STEP.get(estado.upper() if estado else "", 0)
+
+        done_style = (
+            f"font-size:11px;font-weight:600;border-radius:4px;padding:0 12px;"
+            f"background:{Colors.SUCCESS_BASE}22;color:{Colors.SUCCESS_BASE};"
+            f"border:1px solid {Colors.SUCCESS_BASE}60;"
+        )
+        active_style = (
+            f"font-size:11px;font-weight:700;border-radius:4px;padding:0 12px;"
+            f"background:{Colors.PRIMARY_BASE};color:white;"
+        )
+        idle_style = (
+            f"font-size:11px;font-weight:600;border-radius:4px;padding:0 12px;"
+            f"background:{Colors.NEUTRAL.SLATE_100};color:{Colors.NEUTRAL.SLATE_400};"
+        )
+
+        for i, lbl in enumerate(self._stepper_labels):
+            if i < active:
+                lbl.setStyleSheet(done_style)
+            elif i == active:
                 lbl.setStyleSheet(active_style)
             else:
                 lbl.setStyleSheet(idle_style)
