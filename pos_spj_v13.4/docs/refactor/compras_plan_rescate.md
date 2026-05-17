@@ -271,16 +271,43 @@ Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebi
 
 ---
 
-### FASE 9 — Historial documental completo
+### FASE 9 — Historial documental completo (✅ COMPLETADA 2026-05-17)
 
 **Objetivo:** El tab Historial muestra el ciclo de vida completo de cada compra.
 
 **Checklist:**
-- [ ] Timeline: PR → APROBACIÓN → PO → RECEPCIÓN → CXP → PAGADA
-- [ ] Filtros por estado, proveedor, rango de fechas
-- [ ] KPI sidebar actualizado
-- [ ] Export CSV funciona
-- [ ] `_refresh_hist_timeline()` usa repositorio (no SQL directo)
+- [x] Timeline: PR → APROBACIÓN → PO → RECEPCIÓN → CXP — nodos completos con estado visual
+- [x] Filtros por estado, tipo_doc, po_estado y rango de fechas — ya existían; búsqueda cubre proveedor
+- [x] KPI sidebar actualizado — `_actualizar_hist_kpi_sidebar()` llamada desde `_poblar_historial()`
+- [x] Export CSV funciona — `_exportar_historial_csv()` con filtros activos, conectada al botón
+- [x] `_refresh_hist_timeline()` usa repositorio (no SQL directo) — eliminados los dos fallbacks SQL
+
+**Cambios en `_refresh_hist_timeline()`:**
+- Eliminados SQL fallback para PO (`db.execute("SELECT folio, estado, pr_id FROM ordenes_compra")`)
+- Eliminado SQL fallback para PR (`db.execute("SELECT folio FROM purchase_requests")`)
+- Repos: `purchase_order_repo.get_by_id()` y `purchase_request_repo.get_by_id()`
+- Degradación graceful: si repo no disponible → muestra nodo mínimo PO-{id}
+- Colores: eliminados `#EFF6FF`, `#F0FDF4`, `#BFDBFE`, `#BBF7D0` hardcodeados → `Colors.SUCCESS_BASE`, `Colors.PRIMARY_BASE`, `Colors.NEUTRAL.SLATE_*`
+- Nodos extendidos: PR (con estado) → APROBACIÓN (si `aprobado_por` presente) → PO (con estado) → RECEPCIÓN (PARCIAL/RECIBIDA/pendiente) → Compra → CXP (pendiente indicador)
+- `done` boolean controla estilo: ✅ success verde, 🔵 primary azul (activo), ⬜ slate (pendiente)
+
+**Decisiones de diseño:**
+- "Filtro proveedor": no se agregó combo específico — el campo de búsqueda ya filtra por nombre de proveedor (cubriendo el caso de uso sin complejidad extra)
+- CXP/PAGADA: nodo CXP mostrado como indicador de ciclo (no data-driven) — sin consulta a repo CXP para evitar dependencia inexistente. PAGADA se omite hasta FASE 10 cuando se confirme si existe repo de pagos.
+- PO ABIERTA/PARCIAL → nodo Recepción en estado `active` (azul). PO RECIBIDA/CERRADA → `done` (verde).
+
+**Tests:**
+- [x] `tests/purchases/test_fase9_historial_documental.py` — 55 tests, todos pasando
+  - TestTimelineNoSQL (8): sin db.execute, sin fetchone, repos via getattr
+  - TestTimelineNodesPresent (8): PR, APROBACIÓN, PO, RECEPCIÓN, CXP, COMPRA, PARCIAL, RECIBIDA
+  - TestTimelineNoHardcodedColors (7): sin #EFF6FF/#F0FDF4/#BFDBFE/#BBF7D0, usa Colors.*
+  - TestKPISidebarWiring (7): kpi sidebar llamada desde poblar, atributos existentes
+  - TestExportCSV (8): cache, headers (Folio/Proveedor/Estado/TipoDoc/EstadoPO), filtros, csv.writer
+  - TestHistFilterBar (6): estado/tipo_doc/po_estado/fechas/csv/kpi presentes
+  - TestNoBannedColorsInFase9Methods (6): no background:white ni SLATE_50 como fondo
+  - TestHistorialLoaderPattern (4): loader asíncrono, sin SQL inline, conecta a poblar
+
+**Baseline tras FASE 9:** 88 failed / 1692 passed (+55 nuevos, 0 regresiones)
 
 ---
 

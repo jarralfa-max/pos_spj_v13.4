@@ -4679,17 +4679,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _refresh_hist_timeline(self, po_id: int, compra_folio: str) -> None:
         """
-        Phase 7 — Muestra u oculta el mini-timeline documental en el panel de detalle.
+        FASE 9 — Full documental lifecycle timeline in the history detail panel.
 
-        Si la compra NO tiene PO asociada → oculta la barra.
-        Si tiene PO → muestra cadena:  [PR folio?] →→ [PO folio] →→ [Compra folio]
+        Chain: [PR?] → [Aprobada?] → [PO] → [Recepción] → [CXP] → [🛒 Compra]
+
+        Uses repository only — no SQL in UI layer.
+        Gracefully degrades: if repo unavailable, shows minimal PO node.
         """
         bar = getattr(self, '_hist_timeline_bar', None)
         lay = getattr(self, '_hist_timeline_lay', None)
         if bar is None or lay is None:
             return
 
-        # Limpiar widgets anteriores
+        # Clear previous widgets
         while lay.count():
             child = lay.takeAt(0)
             if child.widget():
@@ -4699,18 +4701,31 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             bar.hide()
             return
 
-        def _node(icon: str, label: str, sublabel: str, variant: str) -> QFrame:
+        def _node(icon: str, label: str, sublabel: str,
+                  done: bool, active: bool = False) -> QFrame:
+            """Build a timeline node using design tokens only."""
+            if done:
+                bg     = f"{Colors.SUCCESS_BASE}22"
+                border = f"{Colors.SUCCESS_BASE}60"
+                txt    = Colors.SUCCESS_BASE
+            elif active:
+                bg     = f"{Colors.PRIMARY_BASE}22"
+                border = f"{Colors.PRIMARY_BASE}60"
+                txt    = Colors.PRIMARY_BASE
+            else:
+                bg     = Colors.NEUTRAL.SLATE_100
+                border = Colors.NEUTRAL.SLATE_300
+                txt    = Colors.NEUTRAL.SLATE_400
             f = QFrame()
             f.setStyleSheet(
-                f"background:{'#EFF6FF' if variant=='primary' else '#F0FDF4' if variant=='success' else Colors.NEUTRAL.SLATE_100};"
-                f"border:1px solid {'#BFDBFE' if variant=='primary' else '#BBF7D0' if variant=='success' else Colors.NEUTRAL.SLATE_300};"
+                f"background:{bg};border:1px solid {border};"
                 f"border-radius:5px;padding:2px 6px;"
             )
             fl = QVBoxLayout(f)
             fl.setContentsMargins(4, 2, 4, 2)
             fl.setSpacing(0)
             top = QLabel(f"{icon} <b>{label}</b>")
-            top.setStyleSheet("font-size:11px;")
+            top.setStyleSheet(f"font-size:11px;color:{txt};")
             top.setTextFormat(Qt.RichText)
             sub = QLabel(sublabel)
             sub.setStyleSheet(f"font-size:9px;color:{Colors.NEUTRAL.SLATE_500};")
@@ -4724,50 +4739,82 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             lbl.setAlignment(Qt.AlignCenter)
             return lbl
 
-        # Fetch PO data
-        try:
-            repo = getattr(self.container, 'purchase_order_repo', None)
-            po   = repo.get_by_id(po_id) if repo else None
-            if po is None:
-                row = self.container.db.execute(
-                    "SELECT folio, estado, pr_id FROM ordenes_compra WHERE id=? LIMIT 1",
-                    (po_id,)
-                ).fetchone()
-                po = dict(row) if row and hasattr(row, 'keys') else (
-                    {"folio": f"PO-{po_id}", "estado": "?", "pr_id": 0} if row is None else
-                    {"folio": row[0] or f"PO-{po_id}", "estado": row[1] or "?", "pr_id": row[2] or 0}
-                )
-        except Exception:
-            po = {"folio": f"PO-{po_id}", "estado": "?", "pr_id": 0}
+        # ── 1. Fetch PO via repo only (no SQL fallback) ───────────────────────
+        po_repo = getattr(self.container, 'purchase_order_repo', None)
+        po = po_repo.get_by_id(po_id) if po_repo else None
+        if po is None:
+            lay.addWidget(_node("📦", f"PO-{po_id}", "Orden de Compra",
+                                done=False, active=True))
+            lay.addStretch()
+            bar.show()
+            return
 
         po_folio  = po.get("folio") or f"PO-{po_id}"
-        po_estado = po.get("estado") or "?"
+        po_estado = str(po.get("estado") or "ABIERTA").upper()
         pr_id     = int(po.get("pr_id") or 0)
 
-        # Fetch PR data if linked
-        pr_folio = ""
-        if pr_id:
-            try:
-                pr_repo = getattr(self.container, 'purchase_request_repo', None)
-                pr = pr_repo.get_by_id(pr_id) if pr_repo else None
-                if pr:
-                    pr_folio = pr.get("folio") or f"PR-{pr_id}"
-                else:
-                    row2 = self.container.db.execute(
-                        "SELECT folio FROM purchase_requests WHERE id=? LIMIT 1",
-                        (pr_id,)
-                    ).fetchone()
-                    if row2:
-                        pr_folio = (row2["folio"] if hasattr(row2, 'keys') else row2[0]) or f"PR-{pr_id}"
-            except Exception:
-                pr_folio = f"PR-{pr_id}"
+        po_recibida = po_estado in ("RECIBIDA", "CERRADA")
+        po_parcial  = po_estado == "PARCIAL"
 
+        # ── 2. Fetch PR via repo only (no SQL fallback) ───────────────────────
+        pr          = None
+        pr_folio    = ""
+        aprobado_por = ""
+        pr_estado_raw = ""
+        if pr_id:
+            pr_repo = getattr(self.container, 'purchase_request_repo', None)
+            pr = pr_repo.get_by_id(pr_id) if pr_repo else None
+            if pr:
+                pr_folio      = pr.get("folio") or f"PR-{pr_id}"
+                aprobado_por  = pr.get("aprobado_por") or ""
+                pr_estado_raw = str(pr.get("estado") or "BORRADOR").upper()
+
+        # ── 3. Build timeline ─────────────────────────────────────────────────
+
+        # Node: PR (if linked)
         if pr_folio:
-            lay.addWidget(_node("📋", pr_folio, "Solicitud PR", "neutral"))
+            pr_done = pr_estado_raw in ("APROBADA", "CONVERTIDA_A_PO")
+            lay.addWidget(_node(
+                "📋", pr_folio, f"PR · {pr_estado_raw.lower() or 'solicitud'}",
+                done=pr_done, active=not pr_done,
+            ))
             lay.addWidget(_arrow())
-        lay.addWidget(_node("📦", po_folio, f"PO · {po_estado}", "primary"))
+
+        # Node: APROBACIÓN (if PR was approved)
+        if aprobado_por:
+            lay.addWidget(_node("✓", "Aprobada", f"por {aprobado_por}",
+                                done=True, active=False))
+            lay.addWidget(_arrow())
+
+        # Node: PO
+        lay.addWidget(_node(
+            "📦", po_folio, f"PO · {po_estado.lower()}",
+            done=po_recibida, active=not po_recibida,
+        ))
         lay.addWidget(_arrow())
-        lay.addWidget(_node("🛒", compra_folio or "—", "Compra registrada", "success"))
+
+        # Node: RECEPCIÓN
+        rec_done   = po_recibida
+        rec_active = po_parcial
+        rec_sub    = ("Recibida completa" if rec_done
+                      else "Recepción parcial" if rec_active
+                      else "Pendiente de recepción")
+        lay.addWidget(_node("📥", "Recepción", rec_sub,
+                            done=rec_done, active=rec_active))
+
+        # Node: Compra registrada (always when PO exists)
+        if compra_folio:
+            lay.addWidget(_arrow())
+            lay.addWidget(_node("🛒", compra_folio, "Compra registrada",
+                                done=True, active=False))
+
+        # Node: CXP — shown as pending indicator when PO fully received.
+        # No CxP repo lookup here — presence shown structurally, not data-driven.
+        if po_recibida:
+            lay.addWidget(_arrow())
+            lay.addWidget(_node("💳", "CXP", "Por conciliar",
+                                done=False, active=False))
+
         lay.addStretch()
         bar.show()
 
