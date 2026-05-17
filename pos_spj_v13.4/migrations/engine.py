@@ -71,6 +71,7 @@ MIGRATIONS = [
     ("074",  "migrations.standalone.074_compras_archivo_adjunto"),        # v13.4: optional file attachment per purchase
     ("075",  "migrations.standalone.075_plantillas_compra"),              # Hotfix: plantillas_compra tables missing from schema
     ("076",  "migrations.standalone.076_recepciones_peso_total_kg"),      # Hotfix: recepciones.peso_total_kg missing (ref'd by QR history query)
+    ("077",  "migrations.standalone.077_purchase_requests"),              # v13.4: purchase_requests + items + events tables
 ]
 
 def _ensure_tracking_table(conn):

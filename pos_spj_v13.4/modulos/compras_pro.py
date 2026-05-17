@@ -722,8 +722,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         center_lay.setContentsMargins(8, 6, 8, 6)
         outer.addWidget(center_w, 1)
 
-        # ── Right: summary + payment + actions ────────────────────────────────
-        outer.addWidget(self._build_summary_panel())
+        # ── Right: cart table + totals + payment + actions ───────────────────
+        outer.addWidget(self._build_cart_panel(), 2)
 
         lay = center_lay  # alias so body below builds into the center panel
 
@@ -748,6 +748,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._prov_completer.setFilterMode(Qt.MatchContains)
         self.txt_proveedor.setCompleter(self._prov_completer)
         self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
+        # activated[str] fires when user picks an item from the completer dropdown —
+        # editingFinished alone is unreliable after a completer click.
+        self._prov_completer.activated[str].connect(self._on_completer_activated)
         self._lbl_prov_status = QLabel("⚠ Sin proveedor seleccionado")
         self._lbl_prov_status.setObjectName("caption")
         self._lbl_prov_status.setStyleSheet(f"color:{Colors.WARNING_BASE};")
@@ -821,100 +824,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._cxp_alert_bar.hide()
         lay.addWidget(self._cxp_alert_bar)
 
-        # ── Carrito editable ──────────────────────────────────────────────────
-        self._grp_cart = QGroupBox("🛒 Carrito  —  doble clic: editar  ·  clic derecho: opciones")
-        self._grp_cart.setObjectName("styledGroup")
-        cart_lay = QVBoxLayout(self._grp_cart)
-
-        self.tabla = QTableWidget()
-        self.tabla.setColumnCount(9)
-        self.tabla.setHorizontalHeaderLabels(
-            ["ID", "Producto", "Unidad", "Cant.", "Costo Unit.", "Desc%", "IVA%", "Subtotal", ""])
-        hh = self.tabla.horizontalHeader()
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        for c in (0, 2, 3, 4, 5, 6, 7, 8):
-            hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
-        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.tabla.setAlternatingRowColors(True)
-        self.tabla.verticalHeader().setVisible(False)
-        self.tabla.doubleClicked.connect(self._editar_fila)
-        self.tabla.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.tabla.customContextMenuRequested.connect(self._menu_fila)
-        self.tabla.setObjectName("tableView")
-        self._cart_loading = LoadingIndicator("Actualizando carrito…", self)
-        self._cart_loading.hide()
-        cart_lay.addWidget(self._cart_loading)
-        cart_lay.addWidget(self.tabla)
-        self._cart_empty = EmptyStateWidget(
-            "Carrito vacío",
-            "Agrega productos o ajusta el filtro del carrito.",
-            "🧺",
-            self,
-        )
-        self._cart_empty.hide()
-        cart_lay.addWidget(self._cart_empty)
-
-        # Cart toolbar
-        cart_tb = QHBoxLayout()
-        btn_clear = create_danger_button(self, "🗑 Limpiar todo", "Vaciar carrito de compras")
-        btn_clear.clicked.connect(self._limpiar_carrito)
-        btn_del_sel = create_danger_button(self, "🗑 Eliminar selec.",
-                                           "Eliminar filas seleccionadas del carrito")
-        btn_del_sel.clicked.connect(self._eliminar_seleccionados)
-        btn_draft_save = create_secondary_button(self, "💾 Borrador",
-                                                 "Guardar carrito como borrador")
-        btn_draft_load = create_secondary_button(self, "📂 Recuperar",
-                                                 "Cargar último borrador guardado")
-        btn_draft_save.clicked.connect(self._guardar_borrador)
-        btn_draft_load.clicked.connect(self._cargar_borrador)
-        self._btn_draft_save = btn_draft_save
-        self._btn_draft_load = btn_draft_load
-        self._btn_del_sel    = btn_del_sel
-        self._lbl_cart_count = QLabel("0 ítems")
-        self._lbl_cart_count.setObjectName("caption")
-        cart_tb.addWidget(btn_clear)
-        cart_tb.addWidget(btn_del_sel)
-        cart_tb.addSpacing(8)
-        cart_tb.addWidget(btn_draft_save)
-        cart_tb.addWidget(btn_draft_load)
-        cart_tb.addSpacing(8)
-        cart_tb.addWidget(self._lbl_cart_count)
-        cart_tb.addStretch()
-        cart_lay.addLayout(cart_tb)
-        lay.addWidget(self._grp_cart)
-
-        # ── Footer: IVA toggle + subtotals (payment moved to right panel) ─────
-        footer = QHBoxLayout()
-        footer.setSpacing(8)
-        self._chk_iva = QCheckBox("IVA 16%")
-        self._chk_iva.setToolTip(
-            "Incluir IVA del 16% al total de la compra (Ley del IVA México)")
-        self._chk_iva.stateChanged.connect(lambda _: self._refresh_totals_display())
-        self._lbl_subtotal_iva = QLabel("Subtotal: $0.00")
-        self._lbl_subtotal_iva.setObjectName("caption")
-        self._lbl_iva_monto = QLabel("IVA (16%): $0.00")
-        self._lbl_iva_monto.setObjectName("caption")
-        self._lbl_iva_monto.setStyleSheet(f"color:{Colors.INFO_BASE};")
-        self._lbl_iva_monto.hide()
-        sep_iva = QLabel("|")
-        sep_iva.setObjectName("caption")
-        sep_iva.hide()
-        self._sep_iva = sep_iva
-        self.lbl_total = QLabel("Total: $0.00")
-        self.lbl_total.setObjectName("heading")
-        footer.addWidget(self._chk_iva)
-        footer.addSpacing(16)
-        footer.addWidget(self._lbl_subtotal_iva)
-        footer.addSpacing(8)
-        footer.addWidget(self._sep_iva)
-        footer.addSpacing(8)
-        footer.addWidget(self._lbl_iva_monto)
-        footer.addStretch()
-        footer.addWidget(self.lbl_total)
-        lay.addLayout(footer)
-
+        # Cart table and IVA footer are now built in _build_cart_panel() (right column)
         QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
     def _build_tab_qr(self, parent: QWidget) -> None:
@@ -1049,19 +959,118 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         return sidebar
 
-    def _build_summary_panel(self) -> QWidget:
-        """Right ERP panel: live financial summary + validation + payment + actions."""
+    def _build_cart_panel(self) -> QWidget:
+        """Right ERP panel: cart table + IVA footer + financial summary + payment + actions.
+
+        Width grows with stretch factor 2 set in _build_tab_tradicional so the
+        table has room to expand.  Replaces the former narrow _build_summary_panel.
+        """
         panel = QFrame()
-        panel.setFixedWidth(230)
+        panel.setMinimumWidth(480)
         panel.setStyleSheet(
-            f"background:{Colors.NEUTRAL.SLATE_50};"
             "border-left:1px solid rgba(0,0,0,0.08);"
         )
         lay = QVBoxLayout(panel)
-        lay.setContentsMargins(10, 10, 10, 10)
+        lay.setContentsMargins(10, 8, 10, 8)
         lay.setSpacing(6)
 
-        # ── A. Status badge + last edit ───────────────────────────────────────
+        # ── Cart table (moved from center column) ─────────────────────────────
+        self._grp_cart = QGroupBox("🛒 Partidas  —  doble clic: editar  ·  clic derecho: opciones")
+        self._grp_cart.setObjectName("styledGroup")
+        cart_lay = QVBoxLayout(self._grp_cart)
+        cart_lay.setSpacing(4)
+        cart_lay.setContentsMargins(6, 6, 6, 6)
+
+        self.tabla = QTableWidget()
+        self.tabla.setColumnCount(9)
+        self.tabla.setHorizontalHeaderLabels(
+            ["ID", "Producto", "Unidad", "Cant.", "Costo Unit.", "Desc%", "IVA%", "Subtotal", ""])
+        hh = self.tabla.horizontalHeader()
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        for c in (0, 2, 3, 4, 5, 6, 7, 8):
+            hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.tabla.setAlternatingRowColors(True)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.doubleClicked.connect(self._editar_fila)
+        self.tabla.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tabla.customContextMenuRequested.connect(self._menu_fila)
+        self.tabla.setObjectName("tableView")
+        self._cart_loading = LoadingIndicator("Actualizando carrito…", self)
+        self._cart_loading.hide()
+        cart_lay.addWidget(self._cart_loading)
+        cart_lay.addWidget(self.tabla, 1)
+        self._cart_empty = EmptyStateWidget(
+            "Carrito vacío",
+            "Agrega productos o ajusta el filtro del carrito.",
+            "🧺",
+            self,
+        )
+        self._cart_empty.hide()
+        cart_lay.addWidget(self._cart_empty)
+
+        # Cart toolbar
+        cart_tb = QHBoxLayout()
+        btn_clear = create_danger_button(self, "🗑 Limpiar", "Vaciar carrito de compras")
+        btn_clear.clicked.connect(self._limpiar_carrito)
+        btn_del_sel = create_danger_button(self, "🗑 Eliminar selec.",
+                                           "Eliminar filas seleccionadas del carrito")
+        btn_del_sel.clicked.connect(self._eliminar_seleccionados)
+        btn_draft_save = create_secondary_button(self, "💾 Borrador",
+                                                 "Guardar carrito como borrador")
+        btn_draft_load = create_secondary_button(self, "📂 Recuperar",
+                                                 "Cargar último borrador guardado")
+        btn_draft_save.clicked.connect(self._guardar_borrador)
+        btn_draft_load.clicked.connect(self._cargar_borrador)
+        self._btn_draft_save = btn_draft_save
+        self._btn_draft_load = btn_draft_load
+        self._btn_del_sel    = btn_del_sel
+        self._lbl_cart_count = QLabel("0 ítems")
+        self._lbl_cart_count.setObjectName("caption")
+        cart_tb.addWidget(btn_clear)
+        cart_tb.addWidget(btn_del_sel)
+        cart_tb.addSpacing(6)
+        cart_tb.addWidget(btn_draft_save)
+        cart_tb.addWidget(btn_draft_load)
+        cart_tb.addSpacing(6)
+        cart_tb.addWidget(self._lbl_cart_count)
+        cart_tb.addStretch()
+        cart_lay.addLayout(cart_tb)
+        lay.addWidget(self._grp_cart, 1)
+
+        # ── IVA toggle + totals row ───────────────────────────────────────────
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+        self._chk_iva = QCheckBox("IVA 16%")
+        self._chk_iva.setToolTip(
+            "Incluir IVA del 16% al total de la compra (Ley del IVA México)")
+        self._chk_iva.stateChanged.connect(lambda _: self._refresh_totals_display())
+        self._lbl_subtotal_iva = QLabel("Subtotal: $0.00")
+        self._lbl_subtotal_iva.setObjectName("caption")
+        self._lbl_iva_monto = QLabel("IVA (16%): $0.00")
+        self._lbl_iva_monto.setObjectName("caption")
+        self._lbl_iva_monto.setStyleSheet(f"color:{Colors.INFO_BASE};")
+        self._lbl_iva_monto.hide()
+        sep_iva = QLabel("|")
+        sep_iva.setObjectName("caption")
+        sep_iva.hide()
+        self._sep_iva = sep_iva
+        self.lbl_total = QLabel("Total: $0.00")
+        self.lbl_total.setObjectName("heading")
+        footer.addWidget(self._chk_iva)
+        footer.addSpacing(12)
+        footer.addWidget(self._lbl_subtotal_iva)
+        footer.addSpacing(6)
+        footer.addWidget(self._sep_iva)
+        footer.addSpacing(6)
+        footer.addWidget(self._lbl_iva_monto)
+        footer.addStretch()
+        footer.addWidget(self.lbl_total)
+        lay.addLayout(footer)
+
+        # ── Status badge + last edit ──────────────────────────────────────────
         self._lbl_estado_compra = QLabel("🔵  En captura")
         self._lbl_estado_compra.setStyleSheet(
             f"background:{Colors.INFO_BASE};color:white;border-radius:10px;"
@@ -1202,10 +1211,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(pay_grp)
 
         # ── G. Action buttons ─────────────────────────────────────────────────
-        self._btn_draft_save_r = create_secondary_button(self, "💾 Borrador", "Guardar como borrador")
-        self._btn_draft_save_r.clicked.connect(self._guardar_borrador)
-        lay.addWidget(self._btn_draft_save_r)
-
+        # Draft save is already in the cart toolbar above; no duplicate here.
         self._btn_autorizar = create_primary_button(self, "✓ Autorizar compra", "Autorizar y procesar compra")
         self._btn_autorizar.clicked.connect(self._procesar_compra)
         self._btn_autorizar.setMinimumHeight(36)
@@ -1253,20 +1259,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._sidebar_filter_timer.start(200)
 
     def _seleccionar_proveedor_sidebar(self, item: QListWidgetItem) -> None:
-        """Click on sidebar provider: populate form fields."""
-        prov_id   = item.data(Qt.UserRole)
-        prov_name = item.text()
-        self._proveedor_id_selected = prov_id
-        if hasattr(self, 'txt_proveedor'):
-            self.txt_proveedor.setText(prov_name)
-        if hasattr(self, '_lbl_prov_status'):
-            self._lbl_prov_status.setText(f"✔ {prov_name}")
-            self._lbl_prov_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};")
-        self._cargar_info_proveedor(prov_id)
-        self._cargar_recientes_proveedor(prov_id)
-        self._cargar_alertas_cxp(prov_id)
-        self._actualizar_panel_validacion()
-        self._refresh_stepper()
+        """Click on sidebar provider: delegates to canonical _seleccionar_proveedor."""
+        prov_id = item.data(Qt.UserRole)
+        if prov_id is not None:
+            self._seleccionar_proveedor(prov_id, item.text())
 
     def _cargar_info_proveedor(self, prov_id: int) -> None:
         """Show RFC / address / phone under provider field after selection."""
@@ -1639,23 +1635,42 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("cargar_proveedores: %s", e)
 
+    def _on_completer_activated(self, nombre: str) -> None:
+        """Fired when user picks a provider from the QCompleter dropdown."""
+        for p in self._proveedores_cache:
+            if p["nombre"] == nombre:
+                self._seleccionar_proveedor(p["id"], nombre)
+                return
+
+    def _seleccionar_proveedor(self, prov_id: int, nombre: str) -> None:
+        """Canonical entry point for all provider-selection paths.
+
+        Sets _proveedor_id_selected and loads RFC / phone / address /
+        credit conditions / CxP alerts / validation panel.
+        No dialogs are opened.
+        """
+        self._proveedor_id_selected = prov_id
+        if hasattr(self, 'txt_proveedor'):
+            self.txt_proveedor.setText(nombre)
+        if hasattr(self, '_lbl_prov_status'):
+            self._lbl_prov_status.setText(f"✔ {nombre}")
+            self._lbl_prov_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};")
+        self._cargar_info_proveedor(prov_id)
+        self._cargar_recientes_proveedor(prov_id)
+        self._cargar_alertas_cxp(prov_id)
+        self._actualizar_panel_validacion()
+        self._refresh_stepper()
+        self._poblar_sidebar_proveedores()
+
     def _resolver_proveedor_desde_texto(self) -> None:
+        """Fallback: resolves provider from plain text when user tabs out."""
         txt = (self.txt_proveedor.text() or "").strip().lower()
-        self._proveedor_id_selected = None
         for p in self._proveedores_cache:
             if p["nombre"].strip().lower() == txt:
-                self._proveedor_id_selected = p["id"]
-                self.txt_proveedor.setText(p["nombre"])
-                if hasattr(self, "_lbl_prov_status"):
-                    self._lbl_prov_status.setText(f"✔ {p['nombre']}")
-                    self._lbl_prov_status.setStyleSheet(
-                        f"color:{Colors.SUCCESS_BASE};")
-                self._cargar_info_proveedor(p["id"])
-                self._cargar_recientes_proveedor(p["id"])
-                self._cargar_alertas_cxp(p["id"])
-                self._actualizar_panel_validacion()
-                self._refresh_stepper()
+                self._seleccionar_proveedor(p["id"], p["nombre"])
                 return
+        # No match — clear selection
+        self._proveedor_id_selected = None
         if hasattr(self, "_lbl_prov_status"):
             if txt:
                 self._lbl_prov_status.setText("⚠ Proveedor no reconocido")

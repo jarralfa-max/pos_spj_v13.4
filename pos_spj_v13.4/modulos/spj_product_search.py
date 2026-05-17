@@ -82,14 +82,20 @@ class ProductSearchWidget(QWidget):
         lay.addWidget(btn_search)
 
         # Popup de resultados (flotante) — hereda estilos del tema global
-        self._popup = QFrame(self.window(), Qt.Popup | Qt.FramelessWindowHint)
+        # Qt.Tool + WA_ShowWithoutActivating evita que el popup robe el foco del
+        # campo de texto, lo que causaba que el usuario no pudiese escribir más de
+        # una letra (Qt.Popup robaba el foco al mostrarse).
+        self._popup = QFrame(self.window(), Qt.Tool | Qt.FramelessWindowHint)
         self._popup.setObjectName("productSearchPopup")
         self._popup.setAttribute(Qt.WA_StyledBackground, True)
+        self._popup.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self._popup.setFocusPolicy(Qt.NoFocus)
         self._popup_lay = QVBoxLayout(self._popup)
         self._popup_lay.setContentsMargins(4, 4, 4, 4)
         self._popup_lay.setSpacing(2)
         self._popup_list = QListWidget()
         self._popup_list.setObjectName("productSearchPopupList")
+        self._popup_list.setFocusPolicy(Qt.NoFocus)
         self._popup_list.itemClicked.connect(self._on_item_click)
         self._popup_list.setMaximumHeight(280)
         self._popup_lay.addWidget(self._popup_list)
@@ -245,6 +251,8 @@ class ProductSearchWidget(QWidget):
                            min(len(self._last_results) * 36 + 16, 280))
         self._popup.show()
         self._popup_list.setCurrentRow(0)
+        # Devolver foco al campo de texto para que el usuario siga escribiendo
+        self.txt_search.setFocus()
 
     def _on_item_click(self, item: QListWidgetItem) -> None:
         prod = item.data(Qt.UserRole)
