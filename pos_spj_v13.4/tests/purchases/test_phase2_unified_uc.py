@@ -35,6 +35,13 @@ class TestPhase2Imports:
         assert RegisterPurchaseCommand is not None
         assert PurchaseItemCommand is not None
 
+    def test_register_purchase_command_has_pr_initial_state(self):
+        from application.purchases.commands import RegisterPurchaseCommand
+        from application.purchases.states import PRState
+        field_names = RegisterPurchaseCommand.__dataclass_fields__
+        assert "pr_estado_inicial" in field_names
+        assert field_names["pr_estado_inicial"].default == PRState.BORRADOR
+
     def test_purchase_result_imports(self):
         from application.purchases.results import PurchaseResult
         assert PurchaseResult is not None

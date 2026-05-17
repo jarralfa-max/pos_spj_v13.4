@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from application.purchases.states import DocumentType
+from application.purchases.states import DocumentType, PRState
 
 
 @dataclass
@@ -67,6 +67,7 @@ class RegisterPurchaseCommand:
 
     # ── PR/PO (Phase 3+) ─────────────────────────────────────────────────────
     document_type: DocumentType = DocumentType.DIRECT
+    pr_estado_inicial: PRState = PRState.BORRADOR
     po_id:         Optional[int] = None    # solo si document_type == PO
 
     def to_datos_compra_dto(self):

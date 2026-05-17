@@ -1,102 +1,86 @@
-# ERROR: Tab PO Reception en posición incorrecta
-> Generado: 2026-05-17 | Relacionado con: PROMPT MAESTRO ESTRICTO §4
+# FASE 0 — Error de pestaña separada para recepción PO
+
+**Fecha:** 2026-05-17
+**Estado:** documentado, no corregido en Fase 1.
+**Fase de corrección:** Fase 2.
 
 ---
 
-## Descripción del problema (histórico)
+## 1. Regla estricta
 
-En versiones anteriores del módulo existía (o se intentó agregar) un 4° tab externo en `ModuloComprasPro` para "Recepción PO", en el mismo nivel que:
-- Tab 0: Compra Tradicional
-- Tab 1: Recepción con QR
-- Tab 2: Historial de Compras
-- ~~Tab 3: Recepción PO~~ ← INCORRECTO — generó regresión
+Está prohibido crear pestañas llamadas o equivalentes a:
 
----
+- `Recepción de PO`
+- `Recepción OC`
+- `PO Reception`
+- `Recibir Orden`
+- `Recepción PO`
 
-## Estado actual (correcto)
-
-```
-ModuloComprasPro._build_ui() — 3 tabs externas ÚNICAMENTE:
-  Tab 0: "🛒 Compra Tradicional"   (compras_pro.py L722)
-  Tab 1: "📦 Recepción con QR"     (compras_pro.py L726)
-  Tab 2: "📋 Historial de Compras" (compras_pro.py L730)
-
-RecepcionQRWidget._build_ui() — 5 tabs internas:
-  Tab 0: "🏷️ 1. Generar Etiqueta QR"  (recepcion_qr_widget.py L98)
-  Tab 1: "📋 2. Asignar Compra"        (recepcion_qr_widget.py L99)
-  Tab 2: "📦 3. Recepcionar"           (recepcion_qr_widget.py L100)
-  Tab 3: "📜 Historial"                (recepcion_qr_widget.py L101)
-  Tab 4: "🧾 Recepción PO"             (recepcion_qr_widget.py L102) ← CORRECTO aquí
-```
-
-**La Recepción PO VIVE DENTRO del widget QR como sub-pestaña interna.**
+La recepción de PO debe integrarse dentro de “Recepción con QR” como submodo, selector interno o panel interno.
 
 ---
 
-## Decisión de arquitectura
+## 2. Estado actual encontrado
 
-### ¿Por qué PO reception está dentro del widget QR?
+### Nivel principal de Compras
 
-1. **Flujo de usuario:** La recepción física de mercancía (QR o PO) sucede en el almacén. Agrupar las dos modalidades de recepción física en un mismo tab ("Recepción con QR") mantiene coherencia UX.
+Correcto: no existe cuarta tab externa. `ModuloComprasPro._build_ui()` crea solo:
 
-2. **Separación de responsabilidades:** El módulo externo `ModuloComprasPro` gestiona el ciclo documental (crear compra, solicitud, orden). La recepción física es una etapa posterior que pertenece al tab de recepción.
+1. `Compra Tradicional`
+2. `Recepción con QR`
+3. `Historial de Compras`
 
-3. **No duplicar lógica:** Si existiera un tab externo de "Recepción PO" y también el tab interno en QR, habría dos puntos de entrada para la misma operación → doble inventario.
+### Interior de Recepción con QR
 
----
-
-## Regla inviolable
-
-> **Solo 3 tabs en el nivel externo de ModuloComprasPro.**  
-> Cualquier adición de un 4° tab de tipo "recepción" o "PO" en el nivel externo es un ERROR de arquitectura y debe revertirse inmediatamente.
+Corregido: `RecepcionQRWidget._build_ui()` ya no crea `self._tab_po_recv` ni hace `addTab()` para PO. La recepción contra orden queda integrada en `📦 3. Recepcionar` mediante `self._cmb_recepcion_origen` y `self._recv_origin_stack`.
 
 ---
 
-## Test de regresión
+## 3. Riesgos mitigados
 
-```python
-# tests/purchases/test_qr_no_extra_po_tab.py
-def test_outer_tabs_count_is_exactly_3():
-    """ModuloComprasPro must have exactly 3 top-level tabs."""
-    ...
+| Riesgo | Severidad | Descripción |
+|---|---|---|
+| Confusión UX | MITIGADO | PO se selecciona como origen dentro de la recepción física. |
+| Duplicación futura | MITIGADO | No existe tab separada; el panel reutiliza el adaptador existente. |
+| Doble inventario | CRÍTICO | Si PO y QR reciben por rutas distintas sin adapter único, se puede duplicar stock. |
+| Doble CXP/asiento | CRÍTICO | Si recepción PO dispara finanzas fuera del flujo definido, se duplica deuda/asiento. |
+| Mantenimiento | MEDIO | Contrato de tabs internas contradice el estándar del prompt. |
 
-def test_no_fourth_po_tab_in_outer_module():
-    """No 'PO' or 'Recepción PO' tab must exist at outer level."""
-    ...
+---
 
-def test_po_reception_tab_is_inside_qr_widget():
-    """_tab_po_recv must exist inside RecepcionQRWidget, not in outer module."""
-    ...
+## 4. Corrección aplicada en Fase 2
+
+Sin reescribir QR:
+
+```text
+Recepción con QR
+└── Panel Origen
+    ├── QR / Contenedor
+    ├── Orden de Compra / PO
+    └── Transferencia (si existe)
 ```
 
----
+Pasos aplicados:
 
-## Verificación de código actual
-
-```bash
-# Verificar que no haya 4° tab externo:
-grep -n "addTab" pos_spj_v13.4/modulos/compras_pro.py
-# Debe mostrar EXACTAMENTE 3 líneas con addTab en _build_ui()
-
-# Verificar que el tab PO está en el lugar correcto:
-grep -n "addTab.*PO\|po_recv\|Recepci.*PO" pos_spj_v13.4/modulos/recepcion_qr_widget.py
-# Debe mostrar UNA línea: "🧾 Recepción PO" en recepcion_qr_widget.py
-```
+1. Se mantuvieron las cuatro tabs QR existentes.
+2. Se movió el contenido útil de recepción contra PO a `_build_po_reception_panel()`.
+3. Se reutiliza `receive_po_adapter`; no se agregó motor de inventario nuevo.
+4. Los tests de Fase 2 ahora exigen cuatro tabs internas y ausencia de `_tab_po_recv`.
 
 ---
 
-## Resultado de verificación (2026-05-17)
+## 5. Criterio de aceptación Fase 2
 
-```
-compras_pro.py addTab lines:
-  L722: self._tabs.addTab(tab_trad, "🛒 Compra Tradicional")
-  L726: self._tabs.addTab(tab_qr,   "📦 Recepción con QR")
-  L730: self._tabs.addTab(tab_hist, "📋 Historial de Compras")
-  TOTAL: 3 tabs ✅
+- No hay tab externa PO.
+- No hay tab interna llamada `Recepción PO`/`PO Reception`/similar.
+- Sí hay selector/panel de origen PO dentro de “Recepción con QR”.
+- QR/contenedor conserva comportamiento actual.
 
-recepcion_qr_widget.py PO tab:
-  L102: self._tabs.addTab(self._tab_po_recv, "🧾 Recepción PO")
-  TOTAL: 1 (en lugar correcto) ✅
-```
 
-**CONCLUSIÓN: No existe el error actualmente. El test de regresión previene su reaparición.**
+## Actualización 2026-05-17 — guard anti-regresión
+
+Se agregó un fail-safe en `ModuloComprasPro` y `RecepcionQRWidget` que elimina cualquier pestaña accidental cuyo título normalizado coincida con `Recepción PO`, `Recepción de PO`, `PO Reception`, `Recepción OC` o `Recibir Orden`. La recepción contra PO sigue siendo únicamente un submodo dentro de `📦 3. Recepcionar`; no se tocó el motor QR ni se creó una ruta paralela.
+
+## Actualización Fase 8 — selector de origen completo
+
+El selector interno de `📦 3. Recepcionar` ahora incluye QR, PO y Transferencia. Transferencia queda como opción reservada/informativa dentro del mismo stack para no crear pestañas ni duplicar inventario/kardex del módulo Transferencias.

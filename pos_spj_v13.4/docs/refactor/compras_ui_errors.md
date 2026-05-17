@@ -1,115 +1,81 @@
-# INVENTARIO DE ERRORES UI — Módulo Compras Pro
-> Generado: 2026-05-17 | Severidades: CRÍTICO / ALTO / MEDIO / BAJO
+# FASE 0 — Inventario de errores UI en Compras
+
+**Fecha:** 2026-05-17
+**Regla de esta entrega:** documentar y agregar smoke tests; no rediseñar todavía.
 
 ---
 
-## Errores UI activos (confirmados)
+## 1. Errores UI activos
 
-### ERROR-UI-01 — Colores hardcodeados SLATE_50 como fondo de widget principal
-**Severidad:** MEDIO  
-**Archivo:** `compras_pro.py`  
-**Líneas:** 2354, 4196, 4363  
-**Descripción:** Se usa `Colors.NEUTRAL.SLATE_50` como fondo de QFrame en zonas principales del panel de totales y del historial. En tema Dark, SLATE_50 es un gris claro que rompe el contraste.  
-**Impacto:** UI visual — panel se ve blanco/claro en tema oscuro.  
-**Regla violada:** "NO usar Colors.NEUTRAL.SLATE_50 como fondo fijo en widgets de Compra Tradicional"  
-**Fix:** Usar `background:transparent` o `palette().window()` para heredar del tema.
-
-### ERROR-UI-02 — background:white hardcodeado en QLineEdit del panel de proveedor
-**Severidad:** MEDIO  
-**Archivo:** `compras_pro.py`  
-**Línea:** 2381  
-**Descripción:** `"background:white;font-size:11px;outline:none;"` en un QLineEdit de la sección de información del proveedor.  
-**Impacto:** En tema Dark el input aparece blanco con texto blanco (invisible).  
-**Regla violada:** "NO usar background:white"  
-**Fix:** Remover `background:white` del estilo inline; usar `QLineEdit { background: palette(base); }` en QSS global o dejar sin background para que lo aplique el tema.
-
-### ERROR-UI-03 — background:white en Colors.NEUTRAL.WHITE en tabla historial
-**Severidad:** BAJO  
-**Archivo:** `compras_pro.py`  
-**Línea:** 4979  
-**Descripción:** `Colors.NEUTRAL.WHITE` en alternado de filas del historial. Este color es #ffffff hardcodeado.  
-**Impacto:** Alternado de filas visualmente roto en tema oscuro.  
-**Regla violada:** "NO usar background:white"  
-**Fix:** Usar alpha transparente sobre color base del tema, o eliminar alternado y dejar QSS global de QTableWidget.
-
-### ERROR-UI-04 — Stepper bar visible en modo DIRECT
-**Severidad:** ALTO  
-**Archivo:** `compras_pro.py`  
-**Líneas:** 2741-2778 (`_refresh_stepper`)  
-**Descripción:** `_refresh_stepper()` intenta actualizar el stepper de documentos. El stepper se construye y se almacena como `self._hidden_stepper` pero su lógica de refresco puede exponer el widget cuando `_doc_type == "DIRECT"`.  
-**Impacto:** Stepper visible cuando no debe. Confunde al usuario en flujo directo.  
-**Fix:** Guardar `_refresh_stepper` con guard explícito: `if self._doc_type == "DIRECT": return`.
-
-### ERROR-UI-05 — Panel proveedor SLATE_50 background
-**Severidad:** MEDIO  
-**Archivo:** `compras_pro.py`  
-**Línea:** 2354  
-**Descripción:** `_build_provider_sidebar()` (L2349) crea el panel con `background:{Colors.NEUTRAL.SLATE_50}`.  
-**Impacto:** En dark mode el sidebar del proveedor tiene fondo claro.  
-**Fix:** Cambiar a `background:transparent` o eliminar el background del frame.
-
-### ERROR-UI-06 — Doble instanciación del widget `_build_provider_sidebar`
-**Severidad:** ALTO  
-**Archivo:** `compras_pro.py`  
-**Líneas:** 900 (`_build_provider_card`) y 2349 (`_build_provider_sidebar`)  
-**Descripción:** Existen dos métodos que construyen UI de proveedor: `_build_provider_card()` (integrado en columna central, visible) y `_build_provider_sidebar()` (construido pero posiblemente nunca agregado al layout visible).  
-**Impacto:** Duplicación de widgets; el segundo puede ser desperdicio de memoria o estar causando confusión en `_cargar_info_proveedor`.  
-**Fix:** Auditar si `_build_provider_sidebar()` sigue siendo llamado. Si no, marcar como dead code a eliminar en Fase 4.
-
-### ERROR-UI-07 — apply_spj_buttons() rompe botones custom con inline style
-**Severidad:** BAJO  
-**Archivo:** `modulos/spj_styles.py` (L132-146)  
-**Descripción:** `apply_spj_buttons()` salta botones que ya tienen `border-radius:5px` y `font-weight:bold`, pero puede sobrescribir botones que tenían estilos inline con variante correcta pero sin esas marcas exactas.  
-**Impacto:** Algunos botones de iconos pequeños (< 36px) pierden su estilo custom.  
-**Fix ya aplicado:** `btn.minimumWidth() <= 36 or btn.minimumWidth() == btn.maximumWidth() == 30`  
-**Estado:** RESUELTO en commit `2763428`.
-
-### ERROR-UI-08 — KPI bar no refresca en cambio de tab
-**Severidad:** MEDIO  
-**Archivo:** `compras_pro.py`  
-**Líneas:** 839-899 (`_build_purchase_kpi_bar`), 4047 (`_on_tab_change`)  
-**Descripción:** Los KPI cards se construyen una vez y el método `_refresh_kpi_cards()` (L881) se llama desde `__init__` con delay, pero no cuando el usuario regresa a la tab "Compra Tradicional".  
-**Impacto:** KPIs muestran datos desactualizados si el usuario hizo una compra en otra pestaña.  
-**Fix:** En `_on_tab_change(idx)`, cuando `idx == 0`, llamar `QTimer.singleShot(0, self._refresh_kpi_cards)`.
-
-### ERROR-UI-09 — QSplitter sin handle visual adecuado
-**Severidad:** BAJO  
-**Archivo:** `compras_pro.py`  
-**Línea:** 815  
-**Descripción:** El handle del QSplitter usa `rgba(0,0,0,0.08)` que en tema Dark es invisible.  
-**Impacto:** El usuario no ve el separador de columnas.  
-**Fix:** Usar color fijo de tokens o `rgba(128,128,128,0.3)`.
+| ID | Severidad | Archivo/área | Hallazgo | Riesgo | Fase de corrección |
+|---|---|---|---|---|---|
+| UI-01 | ALTO | `compras_pro.py` KPI/tabla/cards | Uso extensivo de `setStyleSheet()` con colores principales y bordes. | Tema oscuro/claro inconsistente; difícil aplicar QSS global. | Fases 3-4 |
+| UI-02 | ALTO | `recepcion_qr_widget.py` sidebars | Uso de `Colors.NEUTRAL.SLATE_50` como fondo fijo en paneles de recepción. | Paneles claros dentro de tema oscuro. | Fase 4, sin tocar lógica QR |
+| UI-03 | RESUELTO | `recepcion_qr_widget.py` | La tab interna `🧾 Recepción PO` fue eliminada. | PO vive como submodo/panel interno de `📦 3. Recepcionar`. | Fase 2 completada |
+| UI-04 | RESUELTO | `_build_documental_toolbar()` | La columna documental usa mínimo/máximo 260–320 px en lugar de ancho fijo rígido. | Mantiene densidad documental sin bloquear el splitter. | Fase 3 completada |
+| UI-05 | RESUELTO PARCIAL | `_build_summary_panel()` | Panel derecho sube a mínimo 480 px y crece con el splitter. | Queda limpieza fina de estilos para Fase 4. | Fase 3/Fase 4 |
+| UI-06 | MEDIO | `_build_purchase_items_panel()` | Header de tabla fuerza `Colors.NEUTRAL.SLATE_100`. | Header claro fijo en dark mode. | Fase 4 |
+| UI-07 | MEDIO | botones rápidos/dinámicos | Algunos botones tienen `QPushButton{...}` inline. | Se apartan de `primaryBtn`, `secondaryBtn`, `successBtn`. | Fases 3-4 |
+| UI-08 | MEDIO | badges/chips documentales | Chips usan styles manuales. | Badges no heredan estándar global. | Fase 4 |
+| UI-09 | BAJO | `_PurchaseKPICard` | Es hermano de Inventario, pero todavía define color/size inline. | Aceptable temporalmente; requiere limpieza futura. | Fase 3 |
 
 ---
 
-## Errores UI resueltos (histórico)
+## 2. Estado del layout de Compra Tradicional
 
-### ERROR-UI-R01 — fixedSize() en apply_spj_buttons (AttributeError)
-**Resuelto:** Commit `2763428`  
-**Descripción:** `QPushButton` no tiene `.fixedSize()`. Causaba `AttributeError` al cargar el módulo.
+El código actual sí crea un `QSplitter` horizontal con tres áreas: toolbar documental, captura central y panel derecho. La tabla de partidas está dentro del panel derecho actual. La deuda visual no es crear una cuarta área ni otra pantalla, sino estabilizar estas tres columnas con componentes estándar y tema global.
 
-### ERROR-UI-R02 — C++ deleted object en _refresh_stepper
-**Resuelto:** Commit `2763428`  
-**Descripción:** `self._build_stepper_bar().hide()` — sin guardar referencia, Python GC destruía el objeto C++.
+### Distribución actual
 
-### ERROR-UI-R03 — KPI bar duplicada dentro del tab y fuera
-**Resuelto:** Sesión anterior  
-**Descripción:** `_build_purchase_kpi_bar()` era llamada tanto en `_build_ui()` como dentro de `_build_tab_tradicional()`.
-
-### ERROR-UI-R04 — QSplitter colapsaba columna derecha
-**Resuelto:** Sesión anterior  
-**Descripción:** `setSizes([260, 9999, 480])` colapsaba la columna derecha. Fix: `setSizes([260, 500, 440])` con `setStretchFactor(1, 1)`.
+```text
+Compra Tradicional
+├── left_col  = _build_documental_toolbar()
+├── center    = _build_center_column()
+└── right_col = _build_summary_panel()
+    ├── _build_purchase_items_panel()  ← tabla de partidas
+    ├── totales/pago
+    └── acción dinámica
+```
 
 ---
 
-## Errores de accesibilidad
+## 3. Hardcodes detectados por búsqueda
 
-### ERROR-ACC-01 — Tooltips ausentes en botones de acción
-**Severidad:** BAJO  
-**Descripción:** Los botones `_btn_procesar`, `_btn_borrador`, `_btn_enviar` no tienen tooltips obligatorios.  
-**Fix:** `apply_spj_tooltips(self)` en `_build_ui()` (ya está en el plan de Fase 1).
+Búsquedas ejecutadas:
 
-### ERROR-ACC-02 — Labels sin texto accesible en KPI cards
-**Severidad:** BAJO  
-**Descripción:** Los `_PurchaseKPICard` no tienen `setAccessibleName`.  
-**Fix:** Fase posterior.
+```bash
+rg -n "background:white|background: white|SLATE_50|#fff|#ffffff|WHITE|setFixedWidth\(230\)|setStyleSheet|QPushButton\{" pos_spj_v13.4/modulos/compras_pro.py pos_spj_v13.4/modulos/recepcion_qr_widget.py
+```
+
+Resultado resumido:
+
+- No se encontró `panel.setFixedWidth(230)` exacto en los archivos auditados.
+- Sí existen múltiples `setStyleSheet()` manuales en Compras y Recepción QR.
+- Sí existen `Colors.NEUTRAL.SLATE_50` en Recepción QR.
+- Sí existen `#ffffff`, `#fff` y fondos claros en HTML/renderizado de historial/impresión.
+- Los botones principales nuevos no deben copiar estos patrones.
+
+---
+
+## 4. Estándar visual a reutilizar
+
+| Elemento | Estándar |
+|---|---|
+| Cards | `create_card()` o `QFrame` con objectName estándar y QSS global. |
+| KPI | Patrón `_InvKPICard`: `#kpiCard`, `#kpiValue`, barra de acento mínima. |
+| Inputs | `create_input()` / `create_combo()` / `objectName="inputField"`. |
+| Tabla | `QTableWidget#tableView`, sin QSS inline claro. |
+| Badges | `create_badge()` o variante con objectName/propiedades. |
+| Botones | `create_primary_button`, `create_secondary_button`, `create_success_button`, `create_danger_button`, o objectName semántico. |
+| Tabs | `create_standard_tabs()`. |
+| Tema | `ThemeManager`/QSS global; no hardcodear fondos blancos. |
+
+---
+
+## 5. No cambios aplicados en Fase 0/Fase 1
+
+- No se rediseñó la pantalla.
+- No se cambió el layout funcional existente.
+- No se modificaron reglas de inventario/CXP/finanzas.
+- No se tocó el motor QR.
+- La tab interna de PO fue eliminada en Fase 2; queda pendiente limpiar estilos generales en Fase 4.
