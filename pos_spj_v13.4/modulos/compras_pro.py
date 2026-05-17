@@ -1091,8 +1091,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._prov_completer = QCompleter(self._prov_model, self)
         self._prov_completer.setCaseSensitivity(Qt.CaseInsensitive)
         self._prov_completer.setFilterMode(Qt.MatchContains)
-        # InlineCompletion: completa en línea sin abrir ninguna ventana flotante.
-        self._prov_completer.setCompletionMode(QCompleter.InlineCompletion)
+        self._prov_completer.setCompletionMode(QCompleter.PopupCompletion)
         self.txt_proveedor.setCompleter(self._prov_completer)
         self._prov_completer.activated[str].connect(self._on_completer_activated)
         self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
@@ -3939,6 +3938,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         info = "  ·  ".join(parts)
         if info:
             self._lbl_prov_info.setText(info)
+            self._lbl_prov_info.show()
         else:
             self._lbl_prov_info.hide()
 
