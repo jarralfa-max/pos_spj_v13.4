@@ -110,7 +110,12 @@ Decisiones ejecutadas en esta fase:
 - `_fallback_compra_directa()` queda como stub bloqueado: no inserta compras, no actualiza inventario y no opera como ruta alterna desde UI.
 - No se tocó QR, no se agregaron pestañas y no se separaron rutas PR/PO; eso queda para Fase 6+.
 
----
+- DIRECT puede usar `register_purchase()`.
+- PR no puede usar `register_purchase()`.
+- PO no puede usar `register_purchase()`.
+- Recepción PO debe ser la ruta física que afecta inventario.
+
+Decisiones ejecutadas en esta fase:
 
 ## FASE 6 — Separar rutas documentales
 
@@ -172,24 +177,11 @@ Decisiones ejecutadas en esta fase:
 
 ## FASE 9 — Historial documental
 
-**Estado:** ejecutada el 2026-05-17.
+**Estado:** pendiente.
 
 Objetivo:
 
 - Mostrar compras, PR, PO y recepciones sin convertir historial en BI.
-
-Decisiones ejecutadas en esta fase:
-
-- El historial sigue en la pestaña existente `📚 Historial`; no se crea módulo paralelo ni pestaña nueva.
-- La carga del historial se mantiene en `_HistorialLoader` para evitar SQL bloqueante en la UI principal.
-- El detalle de historial muestra el ciclo documental PR → aprobación → PO → recepción → CXP → compra usando repositorios (`purchase_order_repo` y `purchase_request_repo`) y degradación segura si falta algún repo.
-- Los filtros de historial cubren estado, tipo documental y estado PO; el CSV exporta desde el cache `_hist_all_rows` con los mismos filtros activos.
-- El sidebar conserva KPIs operativos ligeros del periodo; no se convierte en BI, dashboard analítico ni consulta pesada desde widgets.
-- No se toca inventario, kardex, CXP, asientos, lotes, eventos ni motor QR durante esta fase.
-
----
-
-## FASE 10 — Pruebas, limpieza y documentación final
 
 **Estado:** ejecutada el 2026-05-17.
 
@@ -199,10 +191,12 @@ Objetivo:
 - Limpiar estilos/manuales/código muerto.
 - Documentar decisiones finales.
 
-Decisiones ejecutadas en esta fase:
+## FASE 10 — Pruebas, limpieza y documentación final
 
-- Se ejecutó la suite completa `tests/purchases` como validación final focal del rescate.
-- Se eliminó el método muerto `_build_provider_sidebar`, que ya no estaba conectado a ningún layout y conservaba estilos obsoletos. Los widgets ocultos necesarios para compatibilidad siguen inicializándose dentro de `_build_documental_toolbar`.
-- Se cerró la documentación de alcance marcando Fase 10 como completada sin cambiar rutas funcionales de compra DIRECT, PR, PO ni Recepción QR.
-- Se mantuvo la decisión DEC-007: `ProcesarCompraUC` queda deprecated pero no se elimina por referencias activas documentadas.
-- No se agregó SQL nuevo en UI ni se movió lógica QR en esta fase.
+**Estado:** pendiente.
+
+Objetivo:
+
+- Ejecutar suite relevante.
+- Limpiar estilos/manuales/código muerto.
+- Documentar decisiones finales.

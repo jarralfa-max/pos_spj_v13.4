@@ -92,13 +92,11 @@ PO (ABIERTA)
 - [x] PO no afecta inventario
 - [x] Recepción PO usa ReceivePOAdapter desde submodo interno
 - [x] UI respeta Colors.* (sin hex hardcodeados críticos)
-- [x] Suite purchases completa pasando
-- [x] Toolbar Documental ERP en Tab 1
-- [x] Panel de aprobación funcional
-- [x] Botón dinámico según estado/permisos
-- [x] Badge estado PO + columna Δ + panel mermas en submodo PO de Recepcionar
-- [x] Timeline documental PR/PO/Recepción/CXP/Compra en historial (Fase 9)
-- [x] Filtro Estado PO en Tab 3 historial (Fase 9)
-- [x] CSV exporta columnas documentales desde cache (Fase 9)
-- [x] Limpieza Fase 10: `_build_provider_sidebar` eliminado
+- [x] 363+ tests pasando
+- [x] Toolbar Documental ERP en Tab 1 (Fase 8)
+- [x] Panel de aprobación funcional (Fase 8)
+- [x] Botón dinámico según estado/permisos (Fase 8)
+- [x] Badge estado PO + columna Δ + panel mermas en submodo PO de Recepcionar (Fase 9)
+- [x] Filtro Estado PO en Tab 3 historial (Fase 10)
+- [x] CSV exporta todas las columnas desde cache (Fase 10)
 - [x] Auditoría ProcesarCompraUC — bloqueado por referencias activas (DEC-007)
