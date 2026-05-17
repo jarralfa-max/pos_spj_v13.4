@@ -999,7 +999,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._prov_completer = QCompleter(self._prov_model, self)
         self._prov_completer.setCaseSensitivity(Qt.CaseInsensitive)
         self._prov_completer.setFilterMode(Qt.MatchContains)
+        # InlineCompletion: completa en línea sin abrir ninguna ventana flotante.
+        # El popup window del QCompleter era la "ventana" que abría al escribir.
+        self._prov_completer.setCompletionMode(QCompleter.InlineCompletion)
         self.txt_proveedor.setCompleter(self._prov_completer)
+        # activated[str] se emite cuando el usuario acepta la sugerencia inline
+        # (Tab / Enter) — es el punto canónico para disparar _seleccionar_proveedor.
+        self._prov_completer.activated[str].connect(self._on_completer_activated)
+        # editingFinished como fallback para cuando escribe y sale sin Tab/Enter
         self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
 
         self._lbl_prov_status = QLabel("Sin proveedor seleccionado")
@@ -2547,20 +2554,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._sidebar_filter_timer.start(200)
 
     def _seleccionar_proveedor_sidebar(self, item: QListWidgetItem) -> None:
-        """Click on sidebar provider: populate form fields."""
-        prov_id   = item.data(Qt.UserRole)
-        prov_name = item.text()
-        self._proveedor_id_selected = prov_id
-        if hasattr(self, 'txt_proveedor'):
-            self.txt_proveedor.setText(prov_name)
-        if hasattr(self, '_lbl_prov_status'):
-            self._lbl_prov_status.setText(f"✔ {prov_name}")
-            self._lbl_prov_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};")
-        self._cargar_info_proveedor(prov_id)
-        self._cargar_recientes_proveedor(prov_id)
-        self._cargar_alertas_cxp(prov_id)
-        self._actualizar_panel_validacion()
-        self._refresh_stepper()
+        """Click on sidebar provider: delegates to canonical _seleccionar_proveedor."""
+        prov_id = item.data(Qt.UserRole)
+        if prov_id is not None:
+            self._seleccionar_proveedor(prov_id, item.text())
 
     def _cargar_info_proveedor(self, prov_id: int) -> None:
         """Show RFC / address / phone under provider field after selection.
@@ -3215,23 +3212,42 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("cargar_proveedores: %s", e)
 
+    def _on_completer_activated(self, nombre: str) -> None:
+        """Fired when user picks a provider from the QCompleter dropdown."""
+        for p in self._proveedores_cache:
+            if p["nombre"] == nombre:
+                self._seleccionar_proveedor(p["id"], nombre)
+                return
+
+    def _seleccionar_proveedor(self, prov_id: int, nombre: str) -> None:
+        """Canonical entry point for all provider-selection paths.
+
+        Sets _proveedor_id_selected and loads RFC / phone / address /
+        credit conditions / CxP alerts / validation panel.
+        No dialogs are opened.
+        """
+        self._proveedor_id_selected = prov_id
+        if hasattr(self, 'txt_proveedor'):
+            self.txt_proveedor.setText(nombre)
+        if hasattr(self, '_lbl_prov_status'):
+            self._lbl_prov_status.setText(f"✔ {nombre}")
+            self._lbl_prov_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};")
+        self._cargar_info_proveedor(prov_id)
+        self._cargar_recientes_proveedor(prov_id)
+        self._cargar_alertas_cxp(prov_id)
+        self._actualizar_panel_validacion()
+        self._refresh_stepper()
+        self._poblar_sidebar_proveedores()
+
     def _resolver_proveedor_desde_texto(self) -> None:
+        """Fallback: resolves provider from plain text when user tabs out."""
         txt = (self.txt_proveedor.text() or "").strip().lower()
-        self._proveedor_id_selected = None
         for p in self._proveedores_cache:
             if p["nombre"].strip().lower() == txt:
-                self._proveedor_id_selected = p["id"]
-                self.txt_proveedor.setText(p["nombre"])
-                if hasattr(self, "_lbl_prov_status"):
-                    self._lbl_prov_status.setText(f"✔ {p['nombre']}")
-                    self._lbl_prov_status.setStyleSheet(
-                        f"color:{Colors.SUCCESS_BASE};")
-                self._cargar_info_proveedor(p["id"])
-                self._cargar_recientes_proveedor(p["id"])
-                self._cargar_alertas_cxp(p["id"])
-                self._actualizar_panel_validacion()
-                self._refresh_stepper()
+                self._seleccionar_proveedor(p["id"], p["nombre"])
                 return
+        # No match — clear selection
+        self._proveedor_id_selected = None
         if hasattr(self, "_lbl_prov_status"):
             if txt:
                 self._lbl_prov_status.setText("⚠ Proveedor no reconocido")
