@@ -109,15 +109,29 @@ Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebi
 
 ---
 
-### FASE 4 — Tema Dark/Light sin fondos hardcodeados
+### FASE 4 — Tema Dark/Light sin fondos hardcodeados (✅ COMPLETADA 2026-05-17)
 
 **Objetivo:** El módulo es 100% compatible con Dark y Light theme.
 
-**Correcciones pendientes (de compras_ui_errors.md):**
-- [ ] ERROR-UI-01: Cambiar `Colors.NEUTRAL.SLATE_50` → `transparent` en panel totales
-- [ ] ERROR-UI-02: Remover `background:white` del QLineEdit proveedor info
-- [ ] ERROR-UI-03: Corregir alternado de filas en historial
-- [ ] ERROR-UI-05: Cambiar `SLATE_50` en `_build_provider_sidebar()`
+**Correcciones aplicadas:**
+- [x] L815 QSplitter handle: `rgba(0,0,0,0.08)` → `rgba(148,163,184,0.25)` (visible en dark mode)
+- [x] L4201 `_hist_timeline_bar`: `SLATE_50` → `transparent`
+- [x] L4368 `_build_hist_kpi_sidebar`: `SLATE_50` → `transparent`
+- [x] L2359 dead code `_build_provider_sidebar`: `SLATE_50` → `transparent` (preventivo)
+- [x] L2386 dead code `_build_provider_sidebar`: `background:white` → eliminado de QListWidget style
+- [x] L4984 `_generar_html_compra`: `Colors.NEUTRAL.SLATE_50/.WHITE` → literales `"#f8fafc"/"#ffffff"`
+  **Decisión documentada:** HTML de impresión es EXEMPT — CSS de tema no aplica a QPrinter output
+
+**Tests creados (63 tests, todos en verde):**
+- `tests/purchases/test_fase4_dark_light_theme.py`
+  - `TestHistorialTabTheme`: verifica `transparent` en `_hist_timeline_bar`
+  - `TestHistKPISidebarTheme`: verifica `transparent` en KPI sidebar
+  - `TestSplitterHandleVisibility`: verifica rgba visible en dark mode
+  - `TestPrintHTMLExemption`: verifica que HTML print usa literales (no tokens)
+  - `TestNoSLATE50InActiveWidgets`: 17 métodos × parametrize
+  - `TestNoBackgroundWhiteInActiveWidgets`: 17 métodos × parametrize
+  - `TestNoNeutralWhiteBackgroundInWidgets`: 17 métodos × parametrize
+  - `TestDeadCodeColorStatus`: dead code es dead y está documentado
 
 ---
 

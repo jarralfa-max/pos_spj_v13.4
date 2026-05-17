@@ -812,7 +812,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         splitter = QSplitter(Qt.Horizontal)
         splitter.setHandleWidth(1)
         splitter.setStyleSheet(
-            "QSplitter::handle{background:rgba(0,0,0,0.08);}"
+            "QSplitter::handle{background:rgba(148,163,184,0.25);}"
         )
         root.addWidget(splitter, 1)
 
@@ -2356,7 +2356,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sidebar = QFrame()
         sidebar.setFixedWidth(220)
         sidebar.setStyleSheet(
-            f"background:{Colors.NEUTRAL.SLATE_50};"
+            "background:transparent;"
             "border-right:1px solid rgba(0,0,0,0.08);"
         )
         lay = QVBoxLayout(sidebar)
@@ -2383,7 +2383,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         _list_style = (
             "QListWidget{"
             "  border:1px solid rgba(0,0,0,0.1);border-radius:4px;"
-            "  background:white;font-size:11px;outline:none;"
+            "  font-size:11px;outline:none;"
             "}"
             "QListWidget::item{padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.04);}"
             f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
@@ -4198,7 +4198,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_timeline_bar.setObjectName("histTimelineBar")
         self._hist_timeline_bar.setFixedHeight(54)
         self._hist_timeline_bar.setStyleSheet(
-            f"background:{Colors.NEUTRAL.SLATE_50};"
+            f"background:transparent;"
             f"border:1px solid {Colors.NEUTRAL.SLATE_200};border-radius:6px;"
         )
         self._hist_timeline_lay = QHBoxLayout(self._hist_timeline_bar)
@@ -4365,7 +4365,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         panel.setFixedWidth(190)
         panel.setFrameShape(QFrame.StyledPanel)
         panel.setStyleSheet(
-            f"QFrame{{background:{Colors.NEUTRAL.SLATE_50};"
+            f"QFrame{{background:transparent;"
             f"border-left:1px solid {Colors.NEUTRAL.SLATE_200};}}"
         )
         lay = QVBoxLayout(panel)
@@ -4981,7 +4981,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         prov_display = proveedor_nombre or f"ID {compra.get('proveedor_id','?')}"
         rows_html = ""
         for idx, it in enumerate(items):
-            bg_row = Colors.NEUTRAL.SLATE_50 if idx % 2 == 0 else Colors.NEUTRAL.WHITE
+            # Print HTML — fixed colors intentional; theme CSS does not apply to print output
+            bg_row = "#f8fafc" if idx % 2 == 0 else "#ffffff"
             rows_html += (
                 f"<tr style='background:{bg_row};'>"
                 f"<td style='padding:4px 6px;'>{it.get('nombre','')}</td>"
