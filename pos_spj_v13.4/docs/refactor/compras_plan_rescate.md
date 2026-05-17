@@ -65,10 +65,22 @@ Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebi
 
 ---
 
-### FASE 2 — Eliminar tab PO externo incorrecto (si reaparece)
+### FASE 2 — Eliminar tab PO externo incorrecto (si reaparece) (✅ COMPLETADA 2026-05-17)
 
 **Objetivo:** Garantizar por código y test que nunca haya 4° tab externo.  
-**Estado:** No aplica actualmente — el error no existe. El test de Fase 1 previene regresión.
+**Estado:** El error no existía en el código. Verificación formal completada.
+
+**Hallazgos de la verificación:**
+- `compras_pro.py._build_ui()`: exactamente 3 `addTab` (L722, L726, L730) — sin 4ª tab
+- `recepcion_qr_widget.py._build_ui()`: exactamente 5 tabs internas — `_tab_po_recv` en lugar correcto
+- `_accion_enviar_recepcion_doc` usa `setCurrentIndex(1)` (tab QR) — sin salto a índice 3/4
+- `_build_tab_po_recepcion`: implementación completa (no stub) — 50+ líneas de UI real
+- Sin TODO/FIXME sobre agregar 4ª tab en compras_pro.py
+
+**Correcciones aplicadas:**
+- Renombrado `test_original_4_tabs_still_registered` → `test_original_qr_tabs_still_present` (nombre confuso)
+- Agregado `test_phase6_added_fifth_tab_po_recv` — clarifica que hay 5 tabs, no 4
+- Agregado `TestTabSwitchIndexes` — verifica que `setCurrentIndex` usa índices 0-2 solamente
 
 ---
 

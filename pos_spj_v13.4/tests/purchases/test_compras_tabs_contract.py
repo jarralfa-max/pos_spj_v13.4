@@ -197,3 +197,40 @@ class TestQRWidgetInternalTabs:
         assert "Recepción PO" in src or "Recepcion PO" in src, (
             "El tab 'Recepción PO' debe estar DENTRO de RecepcionQRWidget"
         )
+
+
+class TestTabSwitchIndexes:
+    """Cuando la UI navega entre tabs, debe usar los índices correctos."""
+
+    def _src(self):
+        return _source("modulos/compras_pro.py")
+
+    def test_enviar_a_recepcion_switches_to_tab_1(self):
+        """_accion_enviar_recepcion_doc / _enviar_a_recepcion debe usar setCurrentIndex(1).
+        Índice 1 = 'Recepción con QR' (la tab que contiene RecepcionQRWidget).
+        Un índice 3 o 4 implicaría una 4ª tab externa inexistente.
+        """
+        src = self._src()
+        import re
+        # Find all setCurrentIndex calls in the source
+        calls = re.findall(r'setCurrentIndex\((\d+)\)', src)
+        # Index 1 must appear (for switching to QR tab)
+        assert "1" in calls, "setCurrentIndex(1) debe existir para navegar al tab de Recepción QR"
+        # Indices 3 or 4 would indicate a 4th/5th external tab — not allowed
+        for bad_idx in ["3", "4"]:
+            if bad_idx in calls:
+                # Find context of the bad call
+                match = re.search(rf'setCurrentIndex\({bad_idx}\)', src)
+                if match:
+                    start = max(0, match.start() - 100)
+                    ctx = src[start:match.end() + 50]
+                    pytest.fail(
+                        f"setCurrentIndex({bad_idx}) encontrado — implica 4ª/5ª tab externa.\n"
+                        f"Contexto: ...{ctx}...\n"
+                        f"Solo se permiten índices 0, 1, 2 en ModuloComprasPro."
+                    )
+
+    def test_on_tab_change_handler_exists(self):
+        """El handler _on_tab_change debe existir para gestionar cambios de tab."""
+        src = self._src()
+        assert "_on_tab_change" in src

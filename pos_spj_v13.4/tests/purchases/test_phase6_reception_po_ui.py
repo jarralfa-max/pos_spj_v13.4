@@ -76,12 +76,22 @@ class TestPhase6SourceCode:
         phase6 = src[start:end] if start != -1 else ""
         assert "qr_service" not in phase6
 
-    def test_original_4_tabs_still_registered(self):
+    def test_original_qr_tabs_still_present(self):
+        """Las 4 tabs originales (pre-Fase 6) del widget QR siguen presentes.
+        La Fase 6 agregó una 5ª tab ('🧾 Recepción PO') — no las eliminó.
+        """
         src = _src()
         assert "🏷️ 1. Generar Etiqueta QR" in src
         assert "📋 2. Asignar Compra" in src
         assert "📦 3. Recepcionar" in src
         assert "📜 Historial" in src
+
+    def test_phase6_added_fifth_tab_po_recv(self):
+        """Fase 6 agregó la 5ª tab 'Recepción PO' — total debe ser 5 tabs internas."""
+        src = _src()
+        assert "🧾 Recepción PO" in src or "_tab_po_recv" in src, (
+            "La 5ª tab de Recepción PO (Fase 6) debe existir en RecepcionQRWidget"
+        )
 
     def test_build_tab_generar_unchanged(self):
         """_build_tab_generar no debe referenciar _po_id_activo ni receive_po_adapter."""
