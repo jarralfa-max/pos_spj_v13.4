@@ -612,6 +612,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._purchase_repo_instance = PurchaseRepository(self.container.db)
         return self._purchase_repo_instance
 
+    @property
+    def _prov_repo(self):
+        """Lazy ProveedorRepository bound to the container's DB connection."""
+        if not hasattr(self, '_prov_repo_instance'):
+            from repositories.proveedor_repository import ProveedorRepository
+            self._prov_repo_instance = ProveedorRepository(self.container.db)
+        return self._prov_repo_instance
+
     def _get_iva_rate(self) -> float:
         """Read IVA rate from DB configuraciones with fallback to _IVA_RATE constant."""
         if hasattr(self, '_iva_rate_cached'):
@@ -2560,75 +2568,51 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._seleccionar_proveedor(prov_id, item.text())
 
     def _cargar_info_proveedor(self, prov_id: int) -> None:
-        """Show RFC / address / phone under provider field after selection.
-
-        La columna de condición de pago varía entre instancias:
-        - condicion_pago  (nombre antiguo, algunas DBs)
-        - condiciones_pago (nombre migración 047, plural)
-        Se usa SELECT * y se extrae por clave para evitar OperationalError.
-        """
+        """Show RFC / address / phone under provider field after selection."""
         if not hasattr(self, '_lbl_prov_info'):
             return
-        try:
-            row = self.container.db.execute(
-                "SELECT * FROM proveedores WHERE id=?", (prov_id,)
-            ).fetchone()
-            if not row:
-                self._lbl_prov_info.hide()
-                return
+        data = self._prov_repo.get_by_id(prov_id)
+        if not data:
+            self._lbl_prov_info.hide()
+            return
 
-            def _k(row, *keys):
-                """Extrae primer clave que exista en la fila (dict-like o tuple por índice)."""
-                if hasattr(row, 'keys'):
-                    for k in keys:
-                        v = row.get(k)
-                        if v is not None:
-                            return str(v).strip()
-                    return ""
-                # sqlite3.Row — acceso por nombre
-                for k in keys:
-                    try:
-                        v = row[k]
-                        if v is not None:
-                            return str(v).strip()
-                    except (IndexError, KeyError):
-                        pass
-                return ""
+        def _k(*keys):
+            for k in keys:
+                v = data.get(k)
+                if v is not None:
+                    return str(v).strip()
+            return ""
 
-            rfc  = _k(row, 'rfc')
-            dirs = _k(row, 'direccion')
-            tel  = _k(row, 'telefono')
-            cond = _k(row, 'condicion_pago', 'condiciones_pago')
-            cred = _k(row, 'credito_disponible', 'limite_credito', 'credito')
+        rfc  = _k('rfc')
+        dirs = _k('direccion')
+        tel  = _k('telefono')
+        cond = _k('condicion_pago', 'condiciones_pago')
+        cred = _k('credito_disponible', 'limite_credito', 'credito')
 
-            # Populate individual display labels
-            if hasattr(self, '_lbl_rfc'):
-                self._lbl_rfc.setText(rfc or "—")
-            if hasattr(self, '_lbl_tel'):
-                self._lbl_tel.setText(tel or "—")
-            if hasattr(self, '_lbl_dir'):
-                self._lbl_dir.setText(dirs[:60] if dirs else "—")
-            if hasattr(self, '_lbl_cred_disp'):
-                self._lbl_cred_disp.setText(cred or "—")
-            if hasattr(self, '_cmb_cond_prov') and cond:
-                idx = self._cmb_cond_prov.findText(cond, Qt.MatchContains)
-                if idx < 0:
-                    self._cmb_cond_prov.insertItem(0, cond)
-                    idx = 0
-                self._cmb_cond_prov.setCurrentIndex(idx)
+        if hasattr(self, '_lbl_rfc'):
+            self._lbl_rfc.setText(rfc or "—")
+        if hasattr(self, '_lbl_tel'):
+            self._lbl_tel.setText(tel or "—")
+        if hasattr(self, '_lbl_dir'):
+            self._lbl_dir.setText(dirs[:60] if dirs else "—")
+        if hasattr(self, '_lbl_cred_disp'):
+            self._lbl_cred_disp.setText(cred or "—")
+        if hasattr(self, '_cmb_cond_prov') and cond:
+            idx = self._cmb_cond_prov.findText(cond, Qt.MatchContains)
+            if idx < 0:
+                self._cmb_cond_prov.insertItem(0, cond)
+                idx = 0
+            self._cmb_cond_prov.setCurrentIndex(idx)
 
-            # Keep _lbl_prov_info for backward compat (hidden)
-            parts = []
-            if rfc:  parts.append(f"RFC: {rfc}")
-            if dirs: parts.append(dirs[:48])
-            if tel:  parts.append(f"Tel: {tel}")
-            if cond: parts.append(cond)
-            info = "  ·  ".join(parts)
-            if info:
-                self._lbl_prov_info.setText(info)
-            else:
-                self._lbl_prov_info.hide()
-        except Exception:
+        parts = []
+        if rfc:  parts.append(f"RFC: {rfc}")
+        if dirs: parts.append(dirs[:48])
+        if tel:  parts.append(f"Tel: {tel}")
+        if cond: parts.append(cond)
+        info = "  ·  ".join(parts)
+        if info:
+            self._lbl_prov_info.setText(info)
+        else:
             self._lbl_prov_info.hide()
 
     # ── E-1: Workflow stepper ─────────────────────────────────────────────────
@@ -2785,41 +2769,28 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_sidebar_recent_list'):
             return
         self._sidebar_recent_list.clear()
-        try:
-            rows = self.container.db.execute(
-                """SELECT id, folio, fecha, total, estado
-                   FROM compras
-                   WHERE proveedor_id=? AND sucursal_id=?
-                   ORDER BY fecha DESC, id DESC LIMIT 5""",
-                (prov_id, self.sucursal_id),
-            ).fetchall()
-            if not rows:
-                self._sidebar_recent_list.hide()
-                if hasattr(self, '_lbl_recientes_empty'):
-                    self._lbl_recientes_empty.setText("Sin compras previas")
-                    self._lbl_recientes_empty.show()
-                return
-            self._sidebar_recent_list.show()
-            if hasattr(self, '_lbl_recientes_empty'):
-                self._lbl_recientes_empty.hide()
-            for r in rows:
-                r_id    = r[0] if not hasattr(r, 'keys') else r['id']
-                folio   = str(r[1] if not hasattr(r, 'keys') else r.get('folio', r_id))
-                fecha   = str(r[2] if not hasattr(r, 'keys') else r.get('fecha', ''))[:10]
-                total   = float(r[3] if not hasattr(r, 'keys') else r.get('total', 0) or 0)
-                estado  = str(r[4] if not hasattr(r, 'keys') else r.get('estado', ''))
-                txt = (f"${total:,.0f}  {fecha}\n"
-                       f"{folio[-16:]}  [{estado}]")
-                item = QListWidgetItem(txt)
-                item.setData(Qt.UserRole, r_id)
-                item.setToolTip(f"Folio: {folio} — Haz clic para ver detalle")
-                self._sidebar_recent_list.addItem(item)
-        except Exception as e:
-            logger.debug("_cargar_recientes_proveedor: %s", e)
-            if hasattr(self, '_lbl_recientes_empty'):
-                self._lbl_recientes_empty.setText("No disponible")
-                self._lbl_recientes_empty.show()
+        rows = self._prov_repo.get_compras_recientes(prov_id, self.sucursal_id)
+        if not rows:
             self._sidebar_recent_list.hide()
+            if hasattr(self, '_lbl_recientes_empty'):
+                self._lbl_recientes_empty.setText("Sin compras previas")
+                self._lbl_recientes_empty.show()
+            return
+        self._sidebar_recent_list.show()
+        if hasattr(self, '_lbl_recientes_empty'):
+            self._lbl_recientes_empty.hide()
+        for r in rows:
+            r_id   = r.get("id")
+            folio  = str(r.get("folio") or r_id)
+            fecha  = str(r.get("fecha") or "")[:10]
+            total  = float(r.get("total") or 0)
+            estado = str(r.get("estado") or "")
+            txt = (f"${total:,.0f}  {fecha}\n"
+                   f"{folio[-16:]}  [{estado}]")
+            item = QListWidgetItem(txt)
+            item.setData(Qt.UserRole, r_id)
+            item.setToolTip(f"Folio: {folio} — Haz clic para ver detalle")
+            self._sidebar_recent_list.addItem(item)
 
     def _abrir_reciente_sidebar(self, item: QListWidgetItem) -> None:
         """Click on recent purchase in sidebar → open detail dialog."""
@@ -2833,25 +2804,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Show a warning banner if this provider has open credit/pending purchases."""
         if not hasattr(self, '_cxp_alert_bar'):
             return
-        try:
-            row = self.container.db.execute(
-                """SELECT COUNT(*), COALESCE(SUM(total), 0)
-                   FROM compras
-                   WHERE proveedor_id=? AND sucursal_id=?
-                     AND estado IN ('credito', 'pendiente')""",
-                (prov_id, self.sucursal_id),
-            ).fetchone()
-            count = int(row[0] or 0)
-            monto = float(row[1] or 0)
-            if count > 0 and self._tiene_permiso("ver_totales"):
-                self._cxp_alert_bar.setText(
-                    f"⚠  Este proveedor tiene {count} compra(s) pendiente(s) "
-                    f"por ${monto:,.2f} — verifica antes de continuar.")
-                self._cxp_alert_bar.show()
-            else:
-                self._cxp_alert_bar.hide()
-        except Exception as e:
-            logger.debug("_cargar_alertas_cxp: %s", e)
+        alerta = self._prov_repo.get_alertas_cxp(prov_id, self.sucursal_id)
+        count = alerta["count"]
+        monto = alerta["monto"]
+        if count > 0 and self._tiene_permiso("ver_totales"):
+            self._cxp_alert_bar.setText(
+                f"⚠  Este proveedor tiene {count} compra(s) pendiente(s) "
+                f"por ${monto:,.2f} — verifica antes de continuar.")
+            self._cxp_alert_bar.show()
+        else:
             self._cxp_alert_bar.hide()
 
     def _poblar_plantillas_sidebar(self) -> None:
@@ -2859,22 +2820,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_sidebar_templates_list'):
             return
         self._sidebar_templates_list.clear()
-        try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM plantillas_compra ORDER BY nombre LIMIT 20"
-            ).fetchall()
+        rows = self._prov_repo.get_plantillas()
+        if rows:
             for r in rows:
-                pid  = r[0] if not hasattr(r, 'keys') else r['id']
-                name = r[1] if not hasattr(r, 'keys') else r['nombre']
-                item = QListWidgetItem(f"📋 {name}")
-                item.setData(Qt.UserRole, pid)
-                self._sidebar_templates_list.addItem(item)
-            if not rows:
-                ph = QListWidgetItem("(Sin plantillas)")
-                ph.setFlags(Qt.NoItemFlags)
-                self._sidebar_templates_list.addItem(ph)
-        except Exception as e:
-            logger.warning("_cargar_plantillas_sidebar: %s", e)
+                it = QListWidgetItem(f"📋 {r['nombre']}")
+                it.setData(Qt.UserRole, r['id'])
+                self._sidebar_templates_list.addItem(it)
+        else:
             ph = QListWidgetItem("(Sin plantillas)")
             ph.setFlags(Qt.NoItemFlags)
             self._sidebar_templates_list.addItem(ph)
@@ -2884,39 +2836,30 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         tpl_id = item.data(Qt.UserRole)
         if not tpl_id:
             return
-        try:
-            rows = self.container.db.execute("""
-                SELECT ti.producto_id, p.nombre, ti.cantidad,
-                       ti.costo_unitario, p.precio_compra
-                FROM plantillas_compra_items ti
-                JOIN productos p ON p.id = ti.producto_id
-                WHERE ti.plantilla_id = ?
-            """, (tpl_id,)).fetchall()
-            if not rows:
-                Toast.success(self, "📋 Plantilla vacía", "La plantilla no tiene ítems."); return
-            if self.carrito_compra:
-                if not confirm_action(
-                    self, "Cargar plantilla",
-                    f"¿Agregar {len(rows)} ítem(s) al carrito actual?",
-                    "Agregar", "Cancelar"
-                ):
-                    return
-            for r in rows:
-                def _v(i, k): return r[i] if not hasattr(r,'keys') else r.get(k)
-                pid = _v(0,'producto_id'); nombre = str(_v(1,'nombre') or '')
-                cantidad = float(_v(2,'cantidad') or 1)
-                costo    = float(_v(3,'costo_unitario') or 0)
-                costo_h  = float(_v(4,'precio_compra') or costo)
-                self.carrito_compra.append({
-                    'producto_id': pid, 'nombre': nombre,
-                    'cantidad': cantidad, 'costo_unitario': costo,
-                    'subtotal': round(cantidad * costo, 4),
-                    'precio_historico': costo_h,
-                })
-            self._refresh_tabla()
-            Toast.success(self, "📋 Plantilla cargada", f"{len(rows)} ítem(s) agregados")
-        except (TypeError, KeyError, IndexError) as e:
-            logger.warning("_cargar_plantilla_sidebar: %s", e)
+        rows = self._prov_repo.get_plantilla_items(tpl_id)
+        if not rows:
+            Toast.success(self, "📋 Plantilla vacía", "La plantilla no tiene ítems."); return
+        if self.carrito_compra:
+            if not confirm_action(
+                self, "Cargar plantilla",
+                f"¿Agregar {len(rows)} ítem(s) al carrito actual?",
+                "Agregar", "Cancelar"
+            ):
+                return
+        for r in rows:
+            pid      = r.get("producto_id")
+            nombre   = str(r.get("nombre") or "")
+            cantidad = float(r.get("cantidad") or 1)
+            costo    = float(r.get("costo_unitario") or 0)
+            costo_h  = float(r.get("precio_compra") or costo)
+            self.carrito_compra.append({
+                'producto_id': pid, 'nombre': nombre,
+                'cantidad': cantidad, 'costo_unitario': costo,
+                'subtotal': round(cantidad * costo, 4),
+                'precio_historico': costo_h,
+            })
+        self._refresh_tabla()
+        Toast.success(self, "📋 Plantilla cargada", f"{len(rows)} ítem(s) agregados")
 
     def _actualizar_panel_validacion(self) -> None:
         """Updates validation state labels in the right summary panel."""
@@ -3169,48 +3112,29 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     # ── Providers ────────────────────────────────────────────────────────────
     def _cargar_sucursales_compra(self) -> None:
         """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
-        try:
-            self.cmb_sucursal_destino.clear()
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            if rows:
-                for r in rows:
-                    pid  = r['id']     if hasattr(r,'keys') else r[0]
-                    name = r['nombre'] if hasattr(r,'keys') else r[1]
-                    self.cmb_sucursal_destino.addItem(str(name), pid)
-                # Select the user's current branch by default
-                for i in range(self.cmb_sucursal_destino.count()):
-                    if self.cmb_sucursal_destino.itemData(i) == self.sucursal_id:
-                        self.cmb_sucursal_destino.setCurrentIndex(i)
-                        break
-            else:
-                # No sucursales table or empty — add default
-                self.cmb_sucursal_destino.addItem("Sucursal Principal", 1)
-        except Exception:
-            self.cmb_sucursal_destino.clear()
+        self.cmb_sucursal_destino.clear()
+        rows = self._prov_repo.get_sucursales_activas()
+        if rows:
+            for r in rows:
+                self.cmb_sucursal_destino.addItem(str(r["nombre"]), r["id"])
+            for i in range(self.cmb_sucursal_destino.count()):
+                if self.cmb_sucursal_destino.itemData(i) == self.sucursal_id:
+                    self.cmb_sucursal_destino.setCurrentIndex(i)
+                    break
+        else:
             self.cmb_sucursal_destino.addItem("Sucursal Principal", 1)
 
     def cargar_proveedores(self) -> None:
-        try:
-            prev_id = self._proveedor_id_selected
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            self._proveedores_cache = [
-                {"id": r['id'], "nombre": r['nombre']}
-                for r in rows
-            ]
-            self._prov_model.setStringList([p["nombre"] for p in self._proveedores_cache])
-            if prev_id:
-                for p in self._proveedores_cache:
-                    if p["id"] == prev_id:
-                        self.txt_proveedor.setText(p["nombre"])
-                        self._proveedor_id_selected = prev_id
-                        break
-            self._poblar_sidebar_proveedores()
-        except Exception as e:
-            logger.debug("cargar_proveedores: %s", e)
+        prev_id = self._proveedor_id_selected
+        self._proveedores_cache = self._prov_repo.get_activos()
+        self._prov_model.setStringList([p["nombre"] for p in self._proveedores_cache])
+        if prev_id:
+            for p in self._proveedores_cache:
+                if p["id"] == prev_id:
+                    self.txt_proveedor.setText(p["nombre"])
+                    self._proveedor_id_selected = prev_id
+                    break
+        self._poblar_sidebar_proveedores()
 
     def _on_completer_activated(self, nombre: str) -> None:
         """Fired when user picks a provider from the QCompleter dropdown."""
@@ -3846,11 +3770,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if reply != QMessageBox.Yes:
             return
         try:
-            compra_dict = self._purchase_repo.get_purchase_full(
-                self.container.db.execute(
-                    "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
-                ).fetchone()[0]
-            )
+            compra_id = self._purchase_repo.get_id_by_folio(folio)
+            compra_dict = self._purchase_repo.get_purchase_full(compra_id) if compra_id else None
             if not compra_dict:
                 return
             prov_nombre = self._purchase_repo.get_provider_name(

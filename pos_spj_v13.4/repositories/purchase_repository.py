@@ -199,6 +199,13 @@ class PurchaseRepository:
             "estado": str(row[2] or "").lower(),
         }
 
+    def get_id_by_folio(self, folio: str) -> "int | None":
+        """Return the compra id for the given folio, or None if not found."""
+        row = self.db.cursor().execute(
+            "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
+        ).fetchone()
+        return int(row[0]) if row else None
+
     def get_purchase_full(self, compra_id: int) -> "dict | None":
         """Full purchase header as dict (for detail/print view)."""
         row = self.db.cursor().execute(
