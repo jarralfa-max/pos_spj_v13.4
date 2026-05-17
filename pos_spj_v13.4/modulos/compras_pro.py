@@ -1609,16 +1609,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         grid.addWidget(cfg_btn, slot // 3, slot % 3)
 
     def _add_quick_product(self, prod: dict) -> None:
-        """Add a quick-product to the cart with qty=1 and cost=0 (user must edit)."""
-        self.carrito_compra.append({
-            'producto_id':     prod.get("producto_id"),
-            'nombre':          prod.get("nombre", ""),
-            'cantidad':        1,
-            'costo_unitario':  0.0,
-            'subtotal':        0.0,
-            'precio_historico': 0.0,
-        })
-        self._refresh_tabla()
+        """Fetch full product details then go through the standard _agregar_producto flow."""
+        pid = prod.get("producto_id") or prod.get("id")
+        if not pid:
+            return
+        full = None
+        try:
+            from repositories.productos import ProductosRepository
+            full = ProductosRepository(self.container.db).get_by_id(int(pid))
+        except Exception:
+            pass
+        if not full:
+            full = {
+                'id':           pid,
+                'nombre':       prod.get("nombre", ""),
+                'precio_compra': 0.0,
+                'precio':       0.0,
+                'unidad':       'pz',
+                'existencia':   0,
+            }
+        self._agregar_producto(full)
 
     def _build_center_column(self) -> QWidget:
         """Center column: Captura Documental — Provider, Document, Product search."""
