@@ -12,7 +12,7 @@ RUTA DE RECEPCIÓN PO:
                      → inventory_service.add_stock()    (existente)
                      → lote_service.registrar_lote()    (existente, opcional)
                      → purchase_order_repo.update_*()   (estado PO)
-                     → purchase_service.register_purchase() (registra compra con po_id)
+                     → PurchaseRepository.create_purchase() (trazabilidad sin stock)
                      → EventBus RECEPCION_CONFIRMADA    (existente)
 
 REGLAS:
@@ -65,7 +65,7 @@ class ReceivePOAdapter:
 
     Dependencias inyectadas (no hardcodeadas):
         purchase_order_repo  — PurchaseOrderRepository
-        purchase_service     — PurchaseService (registro contable)
+        purchase_repo        — PurchaseRepository opcional (trazabilidad, sin stock)
         inventory_service    — UnifiedInventoryService.add_stock()
         lote_service         — LoteService.registrar_lote() (opcional)
         event_bus            — EventBus (RECEPCION_CONFIRMADA)
@@ -206,35 +206,21 @@ class ReceivePOAdapter:
         po_repo.update_estado(po_id, nuevo_estado_po)
 
         # ── 6. Crear registro en 'compras' con purchase_order_id ───────────────
-        folio = ""
-        purchase_svc = getattr(self._container, "purchase_service", None)
-        if purchase_svc:
-            try:
-                items_svc = [
-                    {
-                        "product_id": i.product_id,
-                        "qty":        i.qty_received,
-                        "unit_cost":  i.unit_cost,
-                        "nombre":     i.nombre,
-                    }
-                    for i in received_items if i.qty_received > 0
-                ]
-                total = sum(i["qty"] * i["unit_cost"] for i in items_svc)
-                folio, fin_warnings = purchase_svc.register_purchase(
-                    provider_id=proveedor_id,
-                    branch_id=sucursal_id,
-                    user=usuario,
-                    items=items_svc,
-                    payment_method=metodo_pago,
-                    amount_paid=0.0 if metodo_pago == "CREDITO" else total,
-                    notes=f"Recepción PO {po.get('folio', po_id)}",
-                )
-                warnings.extend(fin_warnings)
-                # Vincular compra con PO
-                self._link_compra_po(folio, po_id)
-            except Exception as e:
-                logger.error("register_purchase desde PO %d: %s", po_id, e)
-                warnings.append(f"Registro contable: {e}")
+        # Fase 6: NO usar el servicio de compra directa desde una ruta PO.
+        # Ese servicio vuelve a afectar inventario/lotes/finanzas; aquí el stock
+        # ya fue recibido arriba por inventory_service.add_stock().
+        folio = self._create_receipt_purchase_record(
+            po=po,
+            po_id=po_id,
+            items=received_items,
+            proveedor_id=proveedor_id,
+            sucursal_id=sucursal_id,
+            usuario=usuario,
+            metodo_pago=metodo_pago,
+            warnings=warnings,
+        )
+        if folio:
+            self._link_compra_po(folio, po_id)
 
         # ── 7. Publicar RECEPCION_CONFIRMADA ──────────────────────────────────
         self._publish_recepcion(po_id, po.get("folio", ""), folio, usuario,
@@ -253,6 +239,66 @@ class ReceivePOAdapter:
 
     def _po_repo(self):
         return getattr(self._container, "purchase_order_repo", None)
+
+    def _purchase_repo(self):
+        # MagicMock containers fabricate attributes on getattr(); read __dict__
+        # first so an unconfigured mock does not masquerade as a repository.
+        repo = getattr(self._container, "__dict__", {}).get("purchase_repo")
+        if repo is not None:
+            return repo
+        db = getattr(self._container, "db", None)
+        if db is None:
+            return None
+        from repositories.purchase_repository import PurchaseRepository
+        return PurchaseRepository(db)
+
+    def _create_receipt_purchase_record(
+        self, po: dict, po_id: int, items: list[ReceiptItem], proveedor_id: int,
+        sucursal_id: int, usuario: str, metodo_pago: str, warnings: list[str],
+    ) -> str:
+        """Crea cabecera/partidas de compra para trazabilidad de recepción PO.
+
+        No llama el servicio de compra directa: el inventario ya fue
+        afectado una sola vez por esta ruta de recepción física.
+        """
+        repo = self._purchase_repo()
+        if repo is None:
+            warnings.append("Compra trazabilidad: purchase_repo no disponible")
+            return ""
+        items_repo = [
+            {
+                "product_id": i.product_id,
+                "qty": i.qty_received,
+                "unit_cost": i.unit_cost,
+                "nombre": i.nombre,
+            }
+            for i in items if i.qty_received > 0
+        ]
+        if not items_repo:
+            return ""
+        total = round(sum(i["qty"] * i["unit_cost"] for i in items_repo), 2)
+        try:
+            _compra_id, folio = repo.create_purchase(
+                provider_id=proveedor_id,
+                branch_id=sucursal_id,
+                user=usuario,
+                subtotal=total,
+                tax=0.0,
+                total=total,
+                status="credito" if metodo_pago == "CREDITO" else "completada",
+                notes=f"Recepción PO {po.get('folio', po_id)}",
+                payment_method=metodo_pago,
+            )
+            try:
+                repo.save_purchase_items(_compra_id, items_repo)
+            except Exception as e:
+                logger.warning("save_purchase_items recepción PO %d: %s", po_id, e)
+                warnings.append(f"Partidas compra PO: {e}")
+            return folio
+        except Exception as e:
+            logger.error("create_purchase recepción PO %d: %s", po_id, e)
+            warnings.append(f"Compra trazabilidad: {e}")
+            return ""
 
     def _link_compra_po(self, folio: str, po_id: int) -> None:
         """Vincula la compra recién creada con la PO en la tabla compras."""

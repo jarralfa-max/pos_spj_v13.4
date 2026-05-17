@@ -435,3 +435,32 @@ class TestHistorialLoaderPattern:
         assert "_poblar_historial" in src, (
             "_cargar_historial_compras debe conectar la señal loaded a _poblar_historial."
         )
+
+# ── 9. Fase 9 documentation stays aligned with scope ────────────────────────
+
+class TestFase9Documentation:
+    """Plan y decisiones deben reflejar que Fase 9 es historial, no BI ni QR."""
+
+    def _doc(self, rel_path: str) -> str:
+        base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return open(os.path.join(base, rel_path), encoding="utf-8").read()
+
+    def test_plan_marks_fase9_executed(self):
+        plan = self._doc("docs/refactor/compras_plan_rescate.md")
+        assert "## FASE 9 — Historial documental" in plan
+        assert "**Estado:** ejecutada el 2026-05-17." in plan
+
+    def test_plan_documents_no_bi_boundary(self):
+        plan = self._doc("docs/refactor/compras_plan_rescate.md")
+        assert "sin convertir historial en BI" in plan
+        assert "no se convierte en BI" in plan
+
+    def test_decisions_forbid_timeline_hex_exception(self):
+        decisions = self._doc("docs/refactor/compras_documental_decisions.md")
+        assert "Timeline documental con tokens de diseño" in decisions
+        assert "puede usar hex literales" not in decisions
+
+    def test_scope_keeps_fase9_complete_after_fase10(self):
+        scope = self._doc("docs/refactor/compras_scope.md")
+        assert "| 9 | Historial documental | ✅ |" in scope
+        assert "| 10 | Pruebas, limpieza y documentación final | ✅ |" in scope

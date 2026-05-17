@@ -32,7 +32,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal
 from PyQt5.QtGui import QCursor, QKeySequence
 from datetime import datetime
-import json, logging, os
+import json, logging, os, unicodedata
 
 logger = logging.getLogger("spj.compras")
 
@@ -140,11 +140,51 @@ class _PurchaseKPICard(QFrame):
         self.lbl_valor.setText(v)
 
 
-def _make_section_card(header_text: str, accent_color: str = None) -> tuple:
+class PurchaseKpiBar(QFrame):
+    """Componente Fase 3: barra KPI de Compras, hermana visual de Inventario."""
+
+
+class PurchaseDocumentToolbar(QFrame):
+    """Componente Fase 3: columna izquierda documental ERP."""
+
+
+class PurchaseCapturePanel(QWidget):
+    """Componente Fase 3: columna central de captura documental."""
+
+
+class PurchaseProviderCard(QFrame):
+    """Componente Fase 3: card de datos del proveedor."""
+
+
+class PurchaseDocumentCard(QFrame):
+    """Componente Fase 3: card de datos del documento."""
+
+
+class PurchaseProductSearchCard(QFrame):
+    """Componente Fase 3: card de búsqueda de producto."""
+
+
+class PurchaseQuickProductsCard(QFrame):
+    """Componente Fase 3: card de productos rápidos."""
+
+
+class PurchaseItemsAndTotalsPanel(QFrame):
+    """Componente Fase 3: columna derecha de partidas + totales."""
+
+
+class PurchaseTotalsFooter(QFrame):
+    """Componente Fase 3: bloque compacto de totales/pago."""
+
+
+class PurchaseDynamicActionBar(QWidget):
+    """Componente Fase 3: acción dinámica según estado documental."""
+
+
+def _make_section_card(header_text: str, accent_color: str = None, panel_cls=QFrame) -> tuple:
     """Returns (QFrame panel, QVBoxLayout body). Theme-aware via objectName."""
     if accent_color is None:
         accent_color = Colors.NEUTRAL.SLATE_700
-    panel = QFrame()
+    panel = panel_cls()
     panel.setObjectName("sectionCard")
     panel.setStyleSheet(
         f"QFrame#sectionCard{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
@@ -730,9 +770,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._tabs.addTab(tab_hist, "📋 Historial de Compras")
         self._build_tab_historial(tab_hist)
 
+        self._remove_accidental_po_tabs()
         self._tabs.currentChanged.connect(self._on_tab_change)
         apply_spj_buttons(self)
         self._normalizar_botones_ui()
+
+    def _remove_accidental_po_tabs(self) -> None:
+        """Fail-safe: Compras no debe exponer una pestaña superior dedicada a PO."""
+        if not hasattr(self, '_tabs'):
+            return
+        banned = (
+            "recepcion po", "recepcion de po", "po reception",
+            "recepcion oc", "recepcion de oc", "recibir orden",
+        )
+        for idx in range(self._tabs.count() - 1, -1, -1):
+            label = self._tabs.tabText(idx) or ""
+            normalized = unicodedata.normalize("NFKD", label).encode(
+                "ascii", "ignore"
+            ).decode("ascii").lower()
+            if any(token in normalized for token in banned):
+                self._tabs.removeTab(idx)
 
     def _normalizar_botones_ui(self) -> None:
         """Ensure minimum height on module buttons; excludes icon-only and QR widget."""
@@ -810,13 +867,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # ── 3-column splitter ─────────────────────────────────────────────────
         splitter = QSplitter(Qt.Horizontal)
+        splitter.setObjectName("purchaseThreeColumnSplitter")
         splitter.setHandleWidth(1)
         splitter.setStyleSheet(
             "QSplitter::handle{background:rgba(148,163,184,0.25);}"
         )
         root.addWidget(splitter, 1)
 
-        # Left column — Documental Toolbar (260px fixed)
+        # Left column — Documental Toolbar (ERP documental)
         left_col = self._build_documental_toolbar()
         splitter.addWidget(left_col)
 
@@ -828,11 +886,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         right_col = self._build_summary_panel()
         splitter.addWidget(right_col)
 
-        # Set initial sizes: left=260, center=500, right=440
-        splitter.setSizes([260, 500, 440])
+        # Set initial sizes: left=280, center=520, right=520.
+        # Fase 3: la columna derecha no es sidebar; crece junto con captura.
+        splitter.setSizes([280, 520, 520])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 0)
+        splitter.setStretchFactor(2, 1)
 
         QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
@@ -841,13 +900,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_purchase_kpi_bar(self) -> QWidget:
         """Full-width KPI bar with 5 operational metrics using _PurchaseKPICard."""
-        bar = QFrame()
+        bar = PurchaseKpiBar()
         bar.setObjectName("kpiStripBar")
-        bar.setStyleSheet(
-            "QFrame#kpiStripBar{"
-            f"  border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};"
-            "}"
-        )
         bar.setFixedHeight(96)
 
         lay = QHBoxLayout(bar)
@@ -867,10 +921,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         for i, (titulo, valor, icono, variant) in enumerate(kpi_defs):
             if i > 0:
                 div = QFrame()
+                div.setObjectName("kpiDivider")
                 div.setFixedWidth(1)
-                div.setStyleSheet(
-                    "background:rgba(148,163,184,0.2);border:none;"
-                )
                 lay.addWidget(div)
 
             card = _PurchaseKPICard(titulo, valor, icono, variant, bar)
@@ -903,12 +955,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _build_provider_card(self) -> QFrame:
         """Provider section card. Sets up all provider-related instance attrs."""
         # Manual build so we can add "Nuevo +" button to the header
-        panel = QFrame()
+        panel = PurchaseProviderCard()
         panel.setObjectName("sectionCard")
-        panel.setStyleSheet(
-            f"QFrame#sectionCard{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"border-radius:{Borders.RADIUS_MD}px;}}"
-        )
         panel_lay = QVBoxLayout(panel)
         panel_lay.setContentsMargins(0, 0, 0, 0)
         panel_lay.setSpacing(0)
@@ -1043,12 +1091,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_document_card(self) -> QFrame:
         """Document section card — 2-col grid layout matching ERP reference."""
-        panel = QFrame()
+        panel = PurchaseDocumentCard()
         panel.setObjectName("sectionCard")
-        panel.setStyleSheet(
-            f"QFrame#sectionCard{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"border-radius:{Borders.RADIUS_MD}px;}}"
-        )
         panel_lay = QVBoxLayout(panel)
         panel_lay.setContentsMargins(0, 0, 0, 0)
         panel_lay.setSpacing(0)
@@ -1175,7 +1219,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_product_search_card(self) -> QFrame:
         """Product search card with status bar. Sets up _buscador and _trad_filter."""
-        panel, body = _make_section_card("Buscar Producto", Colors.PRIMARY_BASE)
+        panel, body = _make_section_card("Buscar Producto", Colors.PRIMARY_BASE, PurchaseProductSearchCard)
 
         from modulos.spj_product_search import ProductSearchWidget
         self._buscador = ProductSearchWidget(
@@ -1206,14 +1250,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_purchase_items_panel(self) -> QFrame:
         """Cart items panel with header, table, loading, and empty state."""
-        cart_panel = QFrame()
+        cart_panel = PurchaseItemsAndTotalsPanel()
         cart_panel.setObjectName("sectionCard")
-        cart_panel.setStyleSheet(
-            f"QFrame#sectionCard{{"
-            f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:{Borders.RADIUS_MD}px;"
-            f"}}"
-        )
         cart_lay_outer = QVBoxLayout(cart_panel)
         cart_lay_outer.setContentsMargins(0, 0, 0, 0)
         cart_lay_outer.setSpacing(0)
@@ -1398,7 +1436,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_dynamic_action_button(self) -> QWidget:
         """Full-width primary action button + secondary draft/enviar buttons."""
-        w = QWidget()
+        w = PurchaseDynamicActionBar()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(Spacing.XS)
@@ -1432,17 +1470,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addLayout(sec_row)
 
         # Main action button — large, full-width, prominent
-        self._btn_autorizar = create_primary_button(self, "✓ Autorizar compra", "Autorizar y procesar compra")
+        self._btn_autorizar = create_success_button(self, "✓ Autorizar compra", "Autorizar y procesar compra")
         self._btn_autorizar.clicked.connect(self._procesar_compra)
         self._btn_autorizar.setMinimumHeight(48)
         self._btn_autorizar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._btn_autorizar.setStyleSheet(
-            f"QPushButton{{background:{Colors.SUCCESS_BASE};color:white;"
-            f"border-radius:{Borders.RADIUS_MD}px;font-size:13px;font-weight:700;"
-            f"letter-spacing:0.05em;border:none;}}"
-            f"QPushButton:hover{{background:{Colors.SUCCESS_HOVER};}}"
-            f"QPushButton:disabled{{background:{Colors.NEUTRAL.SLATE_400};color:{Colors.NEUTRAL.SLATE_600};}}"
-        )
         self._btn_procesar = self._btn_autorizar
         lay.addWidget(self._btn_autorizar)
 
@@ -1459,7 +1490,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_quick_products_card(self) -> QFrame:
         """3×2 grid of emoji quick-add product buttons."""
-        panel, body = _make_section_card("Productos Rápidos")
+        panel, body = _make_section_card("Productos Rápidos", panel_cls=PurchaseQuickProductsCard)
         quick_defs = [
             ("🥩", "Filete Res"),
             ("🍗", "Pechuga"),
@@ -1471,29 +1502,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         grid.setSpacing(Spacing.XS)
         for idx, (emoji, name) in enumerate(quick_defs):
             btn = QPushButton(f"{emoji}\n{name}")
+            btn.setObjectName("secondaryBtn")
             btn.setFixedHeight(54)
-            btn.setStyleSheet(
-                f"QPushButton{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
-                f"border-radius:{Borders.RADIUS_SM}px;"
-                f"font-size:10px;font-weight:600;background:transparent;}}"
-                f"QPushButton:hover{{background:{Colors.NEUTRAL.SLATE_100};}}"
-                f"QPushButton:pressed{{background:{Colors.NEUTRAL.SLATE_200};}}"
-            )
             grid.addWidget(btn, idx // 3, idx % 3)
         cfg_btn = QPushButton("⚙\nConfig")
+        cfg_btn.setObjectName("secondaryBtn")
         cfg_btn.setFixedHeight(54)
-        cfg_btn.setStyleSheet(
-            f"QPushButton{{border:1px dashed {Colors.NEUTRAL.SLATE_300};"
-            f"border-radius:{Borders.RADIUS_SM}px;"
-            f"font-size:10px;color:{Colors.NEUTRAL.SLATE_400};background:transparent;}}"
-        )
         grid.addWidget(cfg_btn, 1, 2)
         body.addLayout(grid)
         return panel
 
     def _build_center_column(self) -> QWidget:
         """Center column: Captura Documental — Provider, Document, Product search."""
-        center_w = QWidget()
+        center_w = PurchaseCapturePanel()
         center_w.setObjectName("purchaseCenterPanel")
 
         scroll = QScrollArea()
@@ -1607,14 +1628,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         Bottom section: provider quick-select (preserves existing logic).
         Width: 260px.
         """
-        sidebar = QFrame()
+        sidebar = PurchaseDocumentToolbar()
         sidebar.setObjectName("documentalToolbar")
-        sidebar.setFixedWidth(260)
-        sidebar.setStyleSheet(
-            "QFrame#documentalToolbar{"
-            f"  border-right:1px solid {Colors.NEUTRAL.SLATE_200};"
-            "}"
-        )
+        sidebar.setMinimumWidth(260)
+        sidebar.setMaximumWidth(320)
         root_lay = QVBoxLayout(sidebar)
         root_lay.setContentsMargins(0, 0, 0, 0)
         root_lay.setSpacing(0)
@@ -1920,14 +1937,36 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Phase 8 helpers ───────────────────────────────────────────────────────
 
+    def _get_purchase_request_uc(self):
+        """Return canonical PR UC from container or construct one lazily."""
+        uc = getattr(self.container, 'uc_purchase_request', None)
+        if uc is not None:
+            return uc
+        uc = getattr(self.container, 'purchase_request_uc', None)
+        if uc is not None:
+            return uc
+        from application.purchases.purchase_request_uc import PurchaseRequestUC
+        return PurchaseRequestUC(self.container)
+
+    def _get_purchase_order_uc(self):
+        """Return canonical PO UC from container or construct one lazily."""
+        uc = getattr(self.container, 'uc_purchase_order', None)
+        if uc is not None:
+            return uc
+        uc = getattr(self.container, 'purchase_order_uc', None)
+        if uc is not None:
+            return uc
+        from application.purchases.purchase_order_uc import PurchaseOrderUC
+        return PurchaseOrderUC(self.container)
+
     def _cargar_docs_erp(self) -> None:
-        """Load PR/PO documents into cache from UCs or DB fallback."""
+        """Load PR/PO documents into cache from UCs or DB fallback.
+
+        Uses PurchaseRequestUC and PurchaseOrderUC through container helpers.
+        """
         docs: list[dict] = []
         try:
-            pr_uc = getattr(self.container, 'purchase_request_uc', None)
-            if pr_uc is None:
-                from application.purchases.purchase_request_uc import PurchaseRequestUC
-                pr_uc = PurchaseRequestUC(self.container)
+            pr_uc = self._get_purchase_request_uc()
 
             pend = pr_uc.listar_pendientes(self.sucursal_id) or []
             aprob = pr_uc.listar_aprobadas(self.sucursal_id) or []
@@ -1970,10 +2009,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 logger.debug("_cargar_docs_erp PR fallback: %s", e2)
 
         try:
-            po_uc = getattr(self.container, 'purchase_order_uc', None)
-            if po_uc is None:
-                from application.purchases.purchase_order_uc import PurchaseOrderUC
-                po_uc = PurchaseOrderUC(self.container)
+            po_uc = self._get_purchase_order_uc()
             abiertas = po_uc.listar_abiertas(self.sucursal_id) or []
             for d in abiertas:
                 d['_tipo'] = 'PO'; d['_categoria'] = 'po_abiertas'
@@ -2187,8 +2223,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not pr_id:
             return
         try:
-            from application.purchases.purchase_request_uc import PurchaseRequestUC
-            uc = PurchaseRequestUC(self.container)
+            # PurchaseRequestUC via canonical helper
+            uc = self._get_purchase_request_uc()
             result = uc.aprobar(pr_id, self.usuario_actual or "sistema")
             if result.ok:
                 Toast.success(self, "✓ PR Aprobada",
@@ -2213,8 +2249,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not ok or not motivo.strip():
             return
         try:
-            from application.purchases.purchase_request_uc import PurchaseRequestUC
-            uc = PurchaseRequestUC(self.container)
+            # PurchaseRequestUC via canonical helper
+            uc = self._get_purchase_request_uc()
             result = uc.rechazar(pr_id, self.usuario_actual or "sistema", motivo.strip())
             if result.ok:
                 Toast.info(self, "✗ PR Rechazada",
@@ -2232,8 +2268,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not pr_id or self._selected_doc_type != 'PR':
             return
         try:
-            from application.purchases.purchase_request_uc import PurchaseRequestUC
-            uc  = PurchaseRequestUC(self.container)
+            uc  = self._get_purchase_request_uc()
             doc = uc.get_pr(pr_id)
             if not doc:
                 QMessageBox.warning(self, "No encontrado", f"PR {pr_id} no encontrada"); return
@@ -2256,31 +2291,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.txt_factura.setText(str(doc['doc_ref']))
 
             # Load items into cart
+            items_raw = doc.get('items') or []
             pr_repo = getattr(self.container, 'purchase_request_repo', None)
-            items_raw: list = []
-            if pr_repo and hasattr(pr_repo, 'get_items'):
+            if not items_raw and pr_repo and hasattr(pr_repo, 'get_items'):
                 items_raw = pr_repo.get_items(pr_id) or []
-            else:
-                try:
-                    rows = self.container.db.execute(
-                        "SELECT producto_id, nombre, cantidad, precio_unitario,"
-                        "       unidad, descuento, notas"
-                        " FROM purchase_request_items WHERE pr_id=?",
-                        (pr_id,)
-                    ).fetchall()
-                    items_raw = [
-                        {
-                            'producto_id':    r[0] if not hasattr(r,'keys') else r.get('producto_id'),
-                            'nombre':         r[1] if not hasattr(r,'keys') else r.get('nombre',''),
-                            'cantidad':       float(r[2] if not hasattr(r,'keys') else r.get('cantidad',0) or 0),
-                            'precio_unitario':float(r[3] if not hasattr(r,'keys') else r.get('precio_unitario',0) or 0),
-                            'unidad':         r[4] if not hasattr(r,'keys') else r.get('unidad','kg'),
-                            'descuento':      float(r[5] if not hasattr(r,'keys') else r.get('descuento',0) or 0),
-                        }
-                        for r in rows
-                    ]
-                except Exception:
-                    pass
 
             if items_raw:
                 if self.carrito_compra and not confirm_action(
@@ -2317,8 +2331,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not pr_id:
             return
         try:
-            from application.purchases.purchase_request_uc import PurchaseRequestUC
-            uc     = PurchaseRequestUC(self.container)
+            # PurchaseRequestUC via canonical helper
+            uc     = self._get_purchase_request_uc()
             result = uc.convertir_a_po(pr_id, self.usuario_actual or "sistema")
             if result.ok:
                 po_folio = str(result.po_folio if hasattr(result, 'po_folio') else result.folio or '')
@@ -2337,8 +2351,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not po_id:
             return
         try:
-            from application.purchases.purchase_order_uc import PurchaseOrderUC
-            uc     = PurchaseOrderUC(self.container)
+            uc     = self._get_purchase_order_uc()
             result = uc.enviar_a_recepcion(po_id, self.usuario_actual or "sistema")
             if result.ok:
                 Toast.success(self, "↗ Enviada a recepción",
@@ -2353,101 +2366,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             logger.warning("_accion_enviar_recepcion_doc: %s", e)
             QMessageBox.critical(self, "Error", str(e))
 
-    # ── Left provider sidebar ─────────────────────────────────────────────────
-    def _build_provider_sidebar(self) -> QWidget:
-        """DEAD CODE — never added to any layout. Scheduled for removal in FASE 10.
-        The sidebar provider list lives as hidden attrs in _build_documental_toolbar()
-        for backward-compat with _poblar_sidebar_proveedores() etc.
-        Prohibited colors (SLATE_50, background:white) exist here but are not rendered.
-        DO NOT call this method — it would overwrite _sidebar_prov_search / _sidebar_prov_list.
-        """
-        sidebar = QFrame()
-        sidebar.setFixedWidth(220)
-        sidebar.setStyleSheet(
-            "background:transparent;"
-            "border-right:1px solid rgba(0,0,0,0.08);"
-        )
-        lay = QVBoxLayout(sidebar)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(6)
-
-        def _sec_lbl(txt: str) -> QLabel:
-            lbl = QLabel(txt)
-            lbl.setStyleSheet(
-                f"font-size:10px;font-weight:700;letter-spacing:0.8px;"
-                f"color:{Colors.NEUTRAL.SLATE_500};"
-                "background:transparent;border:none;padding:2px 0;"
-            )
-            return lbl
-
-        lay.addWidget(_sec_lbl("🏢 PROVEEDORES"))
-
-        self._sidebar_prov_search = QLineEdit()
-        self._sidebar_prov_search.setPlaceholderText("Buscar proveedor…")
-        self._sidebar_prov_search.setObjectName("styledInput")
-        self._sidebar_prov_search.textChanged.connect(self._filtrar_sidebar_proveedores)
-        lay.addWidget(self._sidebar_prov_search)
-
-        _list_style = (
-            "QListWidget{"
-            "  border:1px solid rgba(0,0,0,0.1);border-radius:4px;"
-            "  font-size:11px;outline:none;"
-            "}"
-            "QListWidget::item{padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.04);}"
-            f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
-            f"  color:{Colors.PRIMARY_BASE};"
-            f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
-            "QListWidget::item:hover{background:#F8FAFC;}"
-        )
-        self._sidebar_prov_list = QListWidget()
-        self._sidebar_prov_list.setStyleSheet(_list_style)
-        self._sidebar_prov_list.itemClicked.connect(self._seleccionar_proveedor_sidebar)
-        lay.addWidget(self._sidebar_prov_list, 1)
-
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
-        lay.addWidget(sep)
-
-        lay.addWidget(_sec_lbl("📋 PLANTILLAS"))
-        self._sidebar_templates_list = QListWidget()
-        self._sidebar_templates_list.setMaximumHeight(100)
-        self._sidebar_templates_list.setStyleSheet(_list_style)
-        self._sidebar_templates_list.itemDoubleClicked.connect(self._cargar_plantilla_sidebar)
-        self._poblar_plantillas_sidebar()
-        lay.addWidget(self._sidebar_templates_list)
-
-        # ── E-3: Recent purchases from selected provider ───────────────────
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.HLine)
-        sep2.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
-        lay.addWidget(sep2)
-
-        lay.addWidget(_sec_lbl("🕐 ÚLTIMAS COMPRAS"))
-        self._sidebar_recent_list = QListWidget()
-        self._sidebar_recent_list.setMaximumHeight(120)
-        self._sidebar_recent_list.setStyleSheet(_list_style)
-        self._sidebar_recent_list.setToolTip(
-            "Últimas compras registradas para el proveedor seleccionado")
-        self._sidebar_recent_list.itemClicked.connect(self._abrir_reciente_sidebar)
-        self._lbl_recientes_empty = QLabel("Selecciona un proveedor")
-        self._lbl_recientes_empty.setObjectName("caption")
-        self._lbl_recientes_empty.setStyleSheet(
-            f"color:{Colors.NEUTRAL.SLATE_400};font-size:10px;padding:4px;")
-        lay.addWidget(self._sidebar_recent_list)
-        lay.addWidget(self._lbl_recientes_empty)
-
-        return sidebar
+    # ── Right summary panel ───────────────────────────────────────────────────
 
     def _build_summary_panel(self) -> QWidget:
         """Right column: items table (flex-1) + totals footer (fixed) + action button."""
-        panel = QFrame()
+        panel = PurchaseItemsAndTotalsPanel()
         panel.setObjectName("purchaseRightPanel")
-        panel.setMinimumWidth(400)
-        panel.setStyleSheet(
-            "QFrame#purchaseRightPanel{"
-            f"border-left:1px solid {Colors.NEUTRAL.SLATE_200};}}"
-        )
+        panel.setMinimumWidth(480)
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(Spacing.XS, Spacing.XS, Spacing.XS, Spacing.XS)
         lay.setSpacing(Spacing.XS)
@@ -2456,12 +2381,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(self._build_purchase_items_panel(), 1)
 
         # Totals footer card (compact)
-        totals_card = QFrame()
+        totals_card = PurchaseTotalsFooter()
         totals_card.setObjectName("sectionCard")
-        totals_card.setStyleSheet(
-            f"QFrame#sectionCard{{border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"border-radius:{Borders.RADIUS_MD}px;}}"
-        )
         tc_lay = QVBoxLayout(totals_card)
         tc_lay.setContentsMargins(Spacing.SM + 2, Spacing.SM, Spacing.SM + 2, Spacing.SM)
         tc_lay.setSpacing(Spacing.SM)
@@ -3180,12 +3101,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _procesar_como_pr(self, proveedor_id: int, proveedor_nom: str) -> None:
         """
-        Crea una Purchase Request (BORRADOR) con los ítems del carrito.
+        Crea una Purchase Request y la envía a aprobación con los ítems del carrito.
         Delega a TraditionalPurchaseUC con document_type=PR.
         NO afecta inventario, GL ni CxP.
         """
         from application.purchases.commands import RegisterPurchaseCommand, PurchaseItemCommand
-        from application.purchases.states import DocumentType
+        from application.purchases.states import DocumentType, PRState
         try:
             subtotal    = sum(i['subtotal'] for i in self.carrito_compra)
             iva_activo  = hasattr(self, '_chk_iva') and self._chk_iva.isChecked()
@@ -3221,6 +3142,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 iva_monto=iva_monto,
                 total=total,
                 document_type=DocumentType.PR,
+                pr_estado_inicial=PRState.PENDIENTE_APROBACION,
                 condicion_pago=condicion,
                 plazo_dias=plazo,
                 moneda=moneda,
@@ -3232,8 +3154,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             result = uc.execute(cmd)
             if result.ok:
                 Toast.success(
-                    self, "📋 Solicitud creada",
-                    f"Folio: {result.folio} · En espera de aprobación",
+                    self, "📋 Solicitud enviada",
+                    f"Folio: {result.folio} · Pendiente de aprobación",
                 )
                 if hasattr(self, '_lbl_estado_compra'):
                     self._lbl_estado_compra.setText(f"📋  {result.folio}")
@@ -4193,7 +4115,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             combo_filters={
                 "estado":    ["completada", "credito", "pendiente", "parcial", "cancelada"],
                 "tipo_doc":  ["directa", "con po"],         # Phase 7
-                "po_estado": ["ABIERTA", "PARCIAL", "RECIBIDA", "CERRADA", "CANCELADA"],  # Phase 10
+                "po_estado": ["ABIERTA", "PARCIAL", "RECIBIDA", "CERRADA", "CANCELADA"],  # Phase 9
             },
         )
         self._hist_filter.filters_changed.connect(self._hist_filter_changed)
@@ -4340,7 +4262,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             estado    = (filtros.get("estado")   or "").strip().lower()
             search    = (filtros.get("search")   or "").strip().lower()
             tipo_doc  = (filtros.get("tipo_doc") or "").strip().lower()   # Phase 7
-            po_estado = (filtros.get("po_estado") or "").strip().upper()  # Phase 10
+            po_estado = (filtros.get("po_estado") or "").strip().upper()  # Phase 9
             rows = list(all_rows)
             if estado:
                 rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
@@ -4396,7 +4318,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             cid_      = r[6]
             pnm_      = str(r[2] or "")
             po_id     = int(r[9] or 0) if len(r) > 9 else 0        # Phase 7
-            po_estado = str(r[10] or "") if len(r) > 10 else ""     # Phase 10
+            po_estado = str(r[10] or "") if len(r) > 10 else ""     # Phase 9
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -4405,7 +4327,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 if ci == 0:
                     it.setData(Qt.UserRole,     cid_)       # compra_id for inline detail
                     it.setData(Qt.UserRole + 1, po_id)      # po_id for timeline (Phase 7)
-                    it.setData(Qt.UserRole + 2, po_estado)  # po_estado for CSV export (Phase 10)
+                    it.setData(Qt.UserRole + 2, po_estado)  # po_estado for CSV export (Phase 9)
                 self._tbl_hist.setItem(ri, ci, it)
             # col 5 — Cond. Pago chip
             self._tbl_hist.setCellWidget(ri, 5, _make_cond_chip(cond_raw, self))
@@ -5169,7 +5091,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _exportar_historial_csv(self) -> None:
         """Exporta el historial de compras a CSV.
 
-        Phase 10: lee del cache _hist_all_rows (datos completos de BD),
+        FASE 9: lee del cache _hist_all_rows (datos completos de BD),
         aplica los mismos filtros activos, incluye Tipo Doc y Estado PO.
         """
         import csv, os
@@ -5238,42 +5160,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
                                   items) -> str:
-        """Registro directo en BD cuando PurchaseService no está disponible."""
-        from core.db.connection import transaction
-        folio = f"C{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        db = self.container.db
-        _condicion = (self._cmb_condicion_pago.currentText().lower()
-                      if hasattr(self, '_cmb_condicion_pago') else "liquidado")
-        _plazo     = (self._spin_plazo_dias.value()
-                      if hasattr(self, '_spin_plazo_dias') else 0)
-        _moneda    = (self._cmb_moneda.currentText()
-                      if hasattr(self, '_cmb_moneda') else "MXN")
-        with transaction(db):
-            db.execute(
-                """INSERT INTO compras (proveedor_id, sucursal_id, usuario,
-                   total, estado, observaciones, forma_pago, factura, fecha,
-                   condicion_pago, plazo_dias, moneda)
-                   VALUES (?,?,?,?,?,?,?,?,datetime('now'),?,?,?)""",
-                (proveedor_id, self.sucursal_id, self.usuario_actual,
-                 total, "completada", doc_ref, pago, doc_ref,
-                 _condicion, _plazo, _moneda))
-            compra_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-            for it in items:
-                db.execute(
-                    """INSERT INTO detalles_compra
-                       (compra_id, producto_id, cantidad, costo_unitario, subtotal)
-                       VALUES (?,?,?,?,?)""",
-                    (compra_id, it['product_id'], it['qty'],
-                     it['unit_cost'], it['qty'] * it['unit_cost']))
-                _app = getattr(self.container, 'app_service', None)
-                if _app:
-                    _app.registrar_compra(
-                        producto_id=it['product_id'], cantidad=it['qty'],
-                        costo_unitario=it['unit_cost'],
-                        usuario=self.usuario_actual,
-                        sucursal_id=self.sucursal_id)
-                else:
-                    db.execute(
-                        "UPDATE productos SET existencia=existencia+?, precio_compra=? WHERE id=?",
-                        (it['qty'], it['unit_cost'], it['product_id']))
-        return folio
+        """Safety stub: direct DB fallback is disabled for Phase 5.
+
+        Compra directa debe pasar por RegistrarCompraUC → PurchaseService para
+        mantener una única ruta de inventario, CxP, asientos, lotes y auditoría.
+        Este método permanece solo por compatibilidad con referencias antiguas y
+        no debe ser llamado desde el flujo principal.
+        """
+        raise RuntimeError(
+            "Fallback directo deshabilitado: usa RegistrarCompraUC/PurchaseService."
+        )

@@ -8,7 +8,7 @@
 | Archivo | Responsabilidad | Estado |
 |---------|----------------|--------|
 | `modulos/compras_pro.py` | UI principal (3 tabs) | Activo — 3 500+ LOC |
-| `modulos/recepcion_qr_widget.py` | UI QR / Recepción (5 tabs) | Activo — QR NO-TOUCH |
+| `modulos/recepcion_qr_widget.py` | UI QR / Recepción (4 tabs + submodo PO en Recepcionar) | Activo — QR NO-TOUCH |
 | `modulos/design_tokens.py` | Sistema de colores y tokens | Activo |
 | `modulos/spj_styles.py` | Funciones de estilo (apply_spj_buttons, etc.) | Activo |
 | `core/services/purchase_service.py` | Servicio principal de registro de compra | Activo — canónico |
@@ -67,7 +67,7 @@ UI (RecepcionQRWidget._procesar_recepcion_en_bd)
 
 ### Ruta Recepción PO (Fase 4):
 ```
-UI (RecepcionQRWidget._confirmar_recepcion_po)
+UI (RecepcionQRWidget submodo PO → _confirmar_recepcion_po)
   └─ ReceivePOAdapter.register_partial_receipt()
       ├─ inventory_service.add_stock()   → kardex + inventario
       ├─ lote_service.registrar_lote()   → lotes
@@ -190,8 +190,8 @@ UI (RecepcionQRWidget._confirmar_recepcion_po)
 | Fase 3 | Modelo documental PR | ✅ PurchaseRequestUC + tabla purchase_requests |
 | Fase 4 | Modelo documental PO + ReceivePOAdapter | ✅ PurchaseOrderUC + receive_po_adapter |
 | Fase 5 | UI selector doc_type (DIRECT/PR/PO) | ✅ _build_doctype_toolbar en compras_pro.py |
-| Fase 6 | UI Recepción PO en QR widget | ✅ _build_tab_po_recepcion en recepcion_qr_widget.py |
+| Fase 6 | UI recepción PO en QR widget | ✅ submodo `_build_po_reception_panel` en `📦 3. Recepcionar` |
 | Fase 7 | Historial con timeline + filtro tipo_doc | ✅ _refresh_hist_timeline, 9 cols, badges |
-| **Fase 8** | **UI Toolbar Documental ERP (Tab 1 columna izquierda)** | **⏳ Pendiente** |
-| Fase 9 | UI QR/Recepción mejorada | ⏳ Pendiente |
-| Fase 10 | UI Histórico mejorada | ⏳ Pendiente |
+| Fase 8 | Recepción con QR apta para PO | ✅ selector de origen interno QR/PO/Transferencia |
+| Fase 9 | Historial documental | ✅ timeline PR/PO/recepción + filtros + CSV desde cache |
+| Fase 10 | Pruebas, limpieza y documentación final | ✅ suite purchases + dead code cleanup + docs finales |

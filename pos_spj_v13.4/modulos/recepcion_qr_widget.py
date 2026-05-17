@@ -30,7 +30,7 @@ from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
     create_danger_button, Toast, create_badge,
 )
-import logging, uuid, json
+import logging, uuid, json, unicodedata
 from typing import Dict, List, Optional
 from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem,
@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QTableWidget,
     QTableWidgetItem, QAbstractItemView, QHeaderView, QMessageBox,
     QDialog, QTabWidget, QTextEdit, QFrame, QSizePolicy, QSpinBox,
-    QCheckBox, QDateEdit, QFileDialog,
+    QCheckBox, QDateEdit, QFileDialog, QStackedWidget,
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QDate
 from PyQt5.QtGui import QColor, QFont
@@ -88,25 +88,46 @@ class RecepcionQRWidget(QWidget):
         root.setContentsMargins(12, 10, 12, 10)
         root.setSpacing(10)
 
-        # Pestañas: Generar QR | Asignar Compra | Recepcionar | Historial | Recepción PO
+        # Pestañas principales internas del widget QR: no existe tab separada para PO.
+        # La recepción de orden se integra como submodo dentro de “📦 3. Recepcionar”.
         self._tabs = QTabWidget()
         self._tab_generar    = QWidget()
         self._tab_asignar    = QWidget()
         self._tab_recepcionar = QWidget()
         self._tab_historial  = QWidget()
-        self._tab_po_recv    = QWidget()   # Phase 6 — PO reception tab (no QR changes)
         self._tabs.addTab(self._tab_generar,     "🏷️ 1. Generar Etiqueta QR")
         self._tabs.addTab(self._tab_asignar,     "📋 2. Asignar Compra")
         self._tabs.addTab(self._tab_recepcionar, "📦 3. Recepcionar")
         self._tabs.addTab(self._tab_historial,   "📜 Historial")
-        self._tabs.addTab(self._tab_po_recv,     "🧾 Recepción PO")
         root.addWidget(self._tabs)
 
         self._build_tab_generar()
         self._build_tab_asignar()
         self._build_tab_recepcionar()
         self._build_tab_historial()
-        self._build_tab_po_recepcion()    # Phase 6
+        self._build_po_reception_panel()    # Fase 2: submodo interno, no tab
+        self._remove_accidental_po_tabs()
+
+    def _remove_accidental_po_tabs(self) -> None:
+        """Fail-safe: elimina cualquier pestaña PO creada por regresión.
+
+        La recepción contra PO vive únicamente como submodo dentro de
+        “📦 3. Recepcionar”. Este guard no toca el motor QR; solo protege el
+        contrato visual de no tener una pestaña adicional dedicada a PO.
+        """
+        if not hasattr(self, '_tabs'):
+            return
+        banned = (
+            "recepcion po", "recepcion de po", "po reception",
+            "recepcion oc", "recepcion de oc", "recibir orden",
+        )
+        for idx in range(self._tabs.count() - 1, -1, -1):
+            label = self._tabs.tabText(idx) or ""
+            normalized = unicodedata.normalize("NFKD", label).encode(
+                "ascii", "ignore"
+            ).decode("ascii").lower()
+            if any(token in normalized for token in banned):
+                self._tabs.removeTab(idx)
 
     # ── Pestaña 1: Generar QR ─────────────────────────────────────────────────
 
@@ -414,11 +435,9 @@ class RecepcionQRWidget(QWidget):
 
         # ── LEFT: Pending queue (180px) ───────────────────────────────────────
         left = QFrame()
+        left.setObjectName("receptionQueuePanel")
         left.setFixedWidth(180)
-        left.setStyleSheet(
-            f"QFrame{{background:{Colors.NEUTRAL.SLATE_50};"
-            f"border-right:1px solid {Colors.NEUTRAL.SLATE_200};}}"
-        )
+        self._recv_left_panel = left
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(6, 8, 6, 8)
         left_lay.setSpacing(4)
@@ -437,12 +456,60 @@ class RecepcionQRWidget(QWidget):
         left_lay.addWidget(btn_ref_pend)
         outer.addWidget(left)
 
-        # ── CENTER: scan + table + incidencias + peso + buttons ───────────────
+        # ── CENTER: origin selector + mode stack ─────────────────────────────
         center = QWidget()
-        lay = QVBoxLayout(center)
-        lay.setContentsMargins(10, 8, 10, 8)
-        lay.setSpacing(8)
+        center_lay = QVBoxLayout(center)
+        center_lay.setContentsMargins(10, 8, 10, 8)
+        center_lay.setSpacing(8)
         outer.addWidget(center, 1)
+
+        origin_bar = QFrame()
+        origin_bar.setObjectName("sectionCard")
+        origin_lay = QHBoxLayout(origin_bar)
+        origin_lay.setContentsMargins(8, 6, 8, 6)
+        origin_lay.setSpacing(8)
+        lbl_origen = QLabel("Origen de recepción:")
+        lbl_origen.setObjectName("sectionLabel")
+        self._cmb_recepcion_origen = QComboBox()
+        self._cmb_recepcion_origen.setObjectName("inputField")
+        self._cmb_recepcion_origen.addItem("QR / Contenedor", "QR")
+        self._cmb_recepcion_origen.addItem("Orden de Compra / PO", "PO")
+        self._cmb_recepcion_origen.addItem("Transferencia", "TRANSFER")
+        self._cmb_recepcion_origen.currentIndexChanged.connect(self._on_recepcion_origen_changed)
+        self._lbl_recepcion_origen_hint = QLabel(
+            "Escanea contenedores QR o cambia a Orden de Compra para recibir una PO enviada a recepción."
+        )
+        self._lbl_recepcion_origen_hint.setObjectName("caption")
+        origin_lay.addWidget(lbl_origen)
+        origin_lay.addWidget(self._cmb_recepcion_origen)
+        origin_lay.addWidget(self._lbl_recepcion_origen_hint, 1)
+        center_lay.addWidget(origin_bar)
+
+        self._recv_origin_stack = QStackedWidget()
+        center_lay.addWidget(self._recv_origin_stack, 1)
+
+        qr_page = QWidget()
+        lay = QVBoxLayout(qr_page)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+        self._recv_origin_stack.addWidget(qr_page)
+
+        self._po_receipt_panel = QWidget()
+        self._recv_origin_stack.addWidget(self._po_receipt_panel)
+
+        self._transfer_receipt_panel = QWidget()
+        transfer_lay = QVBoxLayout(self._transfer_receipt_panel)
+        transfer_lay.setContentsMargins(12, 10, 12, 10)
+        transfer_lay.setSpacing(8)
+        transfer_info = QLabel(
+            "Recepción por transferencia: usa el módulo Transferencias. "
+            "Este espacio reserva el origen sin crear pestañas ni tocar inventario desde Compras."
+        )
+        transfer_info.setWordWrap(True)
+        transfer_info.setObjectName("caption")
+        transfer_lay.addWidget(transfer_info)
+        transfer_lay.addStretch()
+        self._recv_origin_stack.addWidget(self._transfer_receipt_panel)
 
         # Caption
         info_lbl = QLabel("Escanea el QR del contenedor al recibirlo en sucursal. Confirma o ajusta cantidades reales.")
@@ -559,10 +626,38 @@ class RecepcionQRWidget(QWidget):
         lay.addLayout(btn_row)
 
         # ── RIGHT: summary panel (185px, already built) ───────────────────────
-        outer.addWidget(self._build_recv_summary_panel())
+        self._recv_summary_panel = self._build_recv_summary_panel()
+        outer.addWidget(self._recv_summary_panel)
 
         # Load pending containers
         self._cargar_pendientes_recepcion()
+        self._on_recepcion_origen_changed(0)
+
+    def _on_recepcion_origen_changed(self, idx: int) -> None:
+        """Alterna el submodo de recepción sin crear pestañas adicionales."""
+        if not hasattr(self, '_recv_origin_stack'):
+            return
+        mode = self._cmb_recepcion_origen.currentData() if hasattr(self, '_cmb_recepcion_origen') else "QR"
+        stack_index = {"QR": 0, "PO": 1, "TRANSFER": 2}.get(mode, 0)
+        is_qr = mode == "QR"
+        is_po = mode == "PO"
+        self._recv_origin_stack.setCurrentIndex(stack_index)
+        if hasattr(self, '_recv_left_panel'):
+            self._recv_left_panel.setVisible(is_qr)
+        if hasattr(self, '_recv_summary_panel'):
+            self._recv_summary_panel.setVisible(is_qr)
+        if hasattr(self, '_lbl_recepcion_origen_hint'):
+            hints = {
+                "PO": "Recibe líneas esperadas contra una PO mediante el adaptador existente.",
+                "TRANSFER": (
+                    "Para transferencias, usa el módulo Transferencias; aquí no se duplica "
+                    "inventario ni kardex."
+                ),
+                "QR": "Escanea el QR del contenedor físico y confirma diferencias contra lo esperado.",
+            }
+            self._lbl_recepcion_origen_hint.setText(hints.get(mode, hints["QR"]))
+        if is_po:
+            QTimer.singleShot(0, self._cargar_pos_abiertas)
 
     # ── Pestaña 4: Historial ──────────────────────────────────────────────────
 
@@ -677,23 +772,27 @@ class RecepcionQRWidget(QWidget):
         self._cargar_proveedores_qr_hist()
         apply_object_names(self)
 
-    # ── Pestaña 5: Recepción PO (Phase 6 core + Phase 9 UI/UX) ──────────────────
+    # ── Submodo interno: recepción de Orden de Compra (Fase 2) ───────────────
 
-    def _build_tab_po_recepcion(self) -> None:
+    def _build_po_reception_panel(self) -> None:
         """
-        Pestaña adicional para recibir una PO contra el ReceivePOAdapter.
+        Panel interno para recibir una PO contra el ReceivePOAdapter.
 
-        NO modifica las pestañas QR existentes (QR NO-TOUCH policy).
+        Vive dentro de la pestaña “Recepcionar” mediante selector de origen;
+        no crea una pestaña separada y no reescribe el motor QR existente.
         Flujo: selector de PO → get_po_lines() → tabla comparativa →
                cantidades editables → register_partial_receipt()
 
-        Phase 9 UI/UX additions:
+        UI/UX existente preservada:
         - Badge de estado PO con color semántico
         - Columna Δ Diferencia (esperado − recibido − a recibir)
         - Panel de resumen con totales, mermas y % completitud
         - Row coloring por estado de línea
         """
-        lay = QVBoxLayout(self._tab_po_recv)
+        target = getattr(self, '_po_receipt_panel', None)
+        if target is None:
+            return
+        lay = QVBoxLayout(target)
         lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(8)
 
@@ -759,11 +858,9 @@ class RecepcionQRWidget(QWidget):
         self._po_summary_frame = QFrame()
         self._po_summary_frame.setObjectName("poSummaryFrame")
         self._po_summary_frame.setStyleSheet(
-            f"QFrame#poSummaryFrame {{"
-            f"  background:{Colors.NEUTRAL.SLATE_50};"
-            f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:6px;"
-            f"}}"
+            "QFrame#poSummaryFrame {"
+            "  border: none;"
+            "}"
         )
         self._po_summary_frame.hide()
         sum_lay = QHBoxLayout(self._po_summary_frame)
@@ -819,7 +916,7 @@ class RecepcionQRWidget(QWidget):
         )
         btn_accept_all.clicked.connect(self._aceptar_todo_po)
         btn_confirmar_po = create_success_button(
-            self, "✅ Confirmar Recepción PO",
+            self, "✅ Confirmar recepción de orden",
             "Registra recepción física e ingresa al inventario via ReceivePOAdapter"
         )
         btn_confirmar_po.setMinimumHeight(38)
@@ -1139,7 +1236,7 @@ class RecepcionQRWidget(QWidget):
             msg = f"PO {result.po_id} → {result.po_estado} · {pct} recibido"
             if result.folio:
                 msg += f"\nFolio compra: {result.folio}"
-            Toast.success(self, "✅ Recepción PO registrada", msg)
+            Toast.success(self, "✅ Recepción de orden registrada", msg)
             self._lbl_po_completion.setText(
                 f"✅ Estado: {result.po_estado} · Completitud: {pct}"
             )

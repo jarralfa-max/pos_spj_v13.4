@@ -16,7 +16,7 @@ Verifica:
 10. PO en estado NO recibible → error claro
 11. PO inexistente → error claro
 12. items_received vacío → error claro
-13. Se crea compra con purchase_order_id vinculado
+13. Se crea compra con purchase_order_id vinculado sin llamar register_purchase
 14. Se publica RECEPCION_CONFIRMADA
 15. ReceivePOAdapter NO tiene add_stock propio
 16. AppContainer registra receive_po_adapter
@@ -119,9 +119,7 @@ def _make_container(db, po_repo):
     container.purchase_order_repo = po_repo
     container.inventory_service = MagicMock()
     container.lote_service = None      # sin lote por defecto
-    # purchase_service que devuelve folio real
     container.purchase_service = MagicMock()
-    container.purchase_service.register_purchase.return_value = ("CMP-PO-TEST", [])
     return container
 
 
@@ -326,13 +324,6 @@ class TestRegisterPartialReceipt:
         from application.purchases.receive_po_adapter import ReceivePOAdapter, ReceiptItem
         po_id, _ = _make_po(db, po_repo)
         container = _make_container(db, po_repo)
-        # Mock purchase_service to actually insert compra
-        folio = "CMP-PO-LINK-TEST"
-        db.execute(
-            "INSERT INTO compras (folio, total, usuario) VALUES (?,?,?)",
-            (folio, 500.0, "almacen")
-        )
-        container.purchase_service.register_purchase.return_value = (folio, [])
         adapter = ReceivePOAdapter(container)
         items = [ReceiptItem(product_id=1, qty_received=5.0, unit_cost=50.0, nombre="Pollo")]
         with patch("core.events.event_bus.get_bus", return_value=MagicMock()):
@@ -340,11 +331,26 @@ class TestRegisterPartialReceipt:
                 po_id=po_id, received_items=items,
                 usuario="almacen", sucursal_id=1, proveedor_id=1,
             )
+        assert result.folio.startswith("CMP-")
         row = db.execute(
-            "SELECT purchase_order_id FROM compras WHERE folio=?", (folio,)
+            "SELECT purchase_order_id, total FROM compras WHERE folio=?", (result.folio,)
         ).fetchone()
         assert row is not None
         assert row["purchase_order_id"] == po_id
+        assert float(row["total"]) == 250.0
+
+    def test_po_receipt_does_not_call_purchase_service_register_purchase(self, db, po_repo):
+        from application.purchases.receive_po_adapter import ReceivePOAdapter, ReceiptItem
+        po_id, _ = _make_po(db, po_repo)
+        container = _make_container(db, po_repo)
+        adapter = ReceivePOAdapter(container)
+        items = [ReceiptItem(product_id=1, qty_received=5.0, unit_cost=50.0, nombre="Pollo")]
+        with patch("core.events.event_bus.get_bus", return_value=MagicMock()):
+            adapter.register_partial_receipt(
+                po_id=po_id, received_items=items,
+                usuario="almacen", sucursal_id=1, proveedor_id=1,
+            )
+        container.purchase_service.register_purchase.assert_not_called()
 
 
 # ── Tests de validación / errores ─────────────────────────────────────────────

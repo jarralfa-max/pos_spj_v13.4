@@ -54,7 +54,8 @@ def test_qr_protected_methods_present(method):
 def test_qr_tabs_count_unchanged():
     src = _qr()
     tabs = re.findall(r"addTab\(", src)
-    assert len(tabs) >= 5, "Expected 5 tabs (4 QR + 1 PO)"
+    assert len(tabs) == 4, "Expected 4 tabs; PO reception is an internal submode"
+    assert "_tab_po_recv" not in src
 
 
 def test_qr_engine_not_duplicated_in_compras():
@@ -64,7 +65,7 @@ def test_qr_engine_not_duplicated_in_compras():
 
 
 # ---------------------------------------------------------------------------
-# Phase 9: nuevos widgets en _build_tab_po_recepcion
+# Phase 9: widgets preservados dentro de _build_po_reception_panel
 # ---------------------------------------------------------------------------
 PHASE9_ATTRS = [
     "self._lbl_po_estado_badge",

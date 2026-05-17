@@ -8,7 +8,7 @@ Verifica (sin instanciar PyQt5):
 2. PurchaseRepository — round-trip create/read, draft save/load/delete
 3. _procesar_compra() routing — DIRECT/PR/PO por AST
 4. Draft dict structure — _build_draft_dict keys, _restore_draft_dict, _auto_save_draft
-5. Fallback audit trail gap — _fallback_compra_directa no escribe financial_event_log
+5. Fallback directo deshabilitado — sin SQL/UI ni bypass de inventario
 6. Auto-save timer — _autosave_timer inicializado con 45 000 ms en __init__
 """
 from __future__ import annotations
@@ -262,6 +262,42 @@ class TestRegistrarCompraUCValidation:
         assert not resultado.ok
         assert "PurchaseService" in resultado.error or "disponible" in resultado.error.lower()
 
+    def test_invalid_provider_returns_error_before_db(self):
+        from application.use_cases.registrar_compra_uc import (
+            RegistrarCompraUC, DatosCompraDTO, ItemCompraDTO,
+        )
+        db = _make_db()
+        container = _make_container(db)
+        uc = RegistrarCompraUC(container)
+        datos = DatosCompraDTO(
+            proveedor_id=0, proveedor_nombre="", sucursal_id=1, usuario="test",
+            items=[ItemCompraDTO(product_id=1, qty=10, unit_cost=50.0, nombre="Pollo")],
+            metodo_pago="CONTADO", doc_ref="F001",
+            subtotal=500, iva_monto=0, total=500,
+        )
+        resultado = uc.execute(datos)
+        assert not resultado.ok
+        assert "proveedor" in resultado.error.lower()
+        assert db.execute("SELECT COUNT(*) FROM compras").fetchone()[0] == 0
+
+    def test_total_mismatch_returns_error_before_db(self):
+        from application.use_cases.registrar_compra_uc import (
+            RegistrarCompraUC, DatosCompraDTO, ItemCompraDTO,
+        )
+        db = _make_db()
+        container = _make_container(db)
+        uc = RegistrarCompraUC(container)
+        datos = DatosCompraDTO(
+            proveedor_id=1, proveedor_nombre="Prov", sucursal_id=1, usuario="test",
+            items=[ItemCompraDTO(product_id=1, qty=10, unit_cost=50.0, nombre="Pollo")],
+            metodo_pago="CONTADO", doc_ref="F001",
+            subtotal=500, iva_monto=80, total=500,
+        )
+        resultado = uc.execute(datos)
+        assert not resultado.ok
+        assert "total" in resultado.error.lower()
+        assert db.execute("SELECT COUNT(*) FROM compras").fetchone()[0] == 0
+
 
 class TestRegistrarCompraUCHappyPath:
     """RegistrarCompraUC.execute() registers a purchase and returns ok=True + folio."""
@@ -360,6 +396,29 @@ class TestRegistrarCompraUCHappyPath:
             "SELECT * FROM detalles_compra WHERE compra_id=?", (row["id"],)
         ).fetchall()
         assert len(items) == 2
+
+    def test_iva_is_saved_in_purchase_header_total(self):
+        from application.use_cases.registrar_compra_uc import (
+            RegistrarCompraUC, DatosCompraDTO, ItemCompraDTO,
+        )
+        db = _make_db()
+        container = _make_container(db)
+        uc = RegistrarCompraUC(container)
+        datos = DatosCompraDTO(
+            proveedor_id=1, proveedor_nombre="Prov", sucursal_id=1, usuario="tester",
+            items=[ItemCompraDTO(product_id=1, qty=10, unit_cost=50.0, nombre="Pollo")],
+            metodo_pago="CONTADO", doc_ref="F-IVA",
+            subtotal=500, iva_monto=80, total=580,
+        )
+        resultado = uc.execute(datos)
+        assert resultado.ok, resultado.error
+        row = db.execute(
+            "SELECT subtotal, iva, total FROM compras WHERE folio=?",
+            (resultado.folio,),
+        ).fetchone()
+        assert float(row["subtotal"]) == 500.0
+        assert float(row["iva"]) == 80.0
+        assert float(row["total"]) == 580.0
 
 
 # ── 2. PurchaseRepository round-trip ─────────────────────────────────────────
@@ -617,12 +676,12 @@ class TestAutoSaveTimer:
         )
 
 
-# ── 6. Fallback audit trail gap (AST) ────────────────────────────────────────
+# ── 6. Fallback directo deshabilitado (AST) ──────────────────────────────────
 
-class TestFallbackAuditTrailGap:
+class TestFallbackDirectDisabled:
     """
-    ERROR-BE-09: _fallback_compra_directa bypasses audit trail (known gap).
-    Tests document the gap and verify RegistrarCompraUC path does NOT use the fallback.
+    Fase 5: _fallback_compra_directa remains as a compatibility stub only.
+    It must not write SQL, update inventory, or bypass RegistrarCompraUC/PurchaseService.
     """
 
     def _fallback_src(self):
@@ -635,14 +694,24 @@ class TestFallbackAuditTrailGap:
             "P15 prohíbe eliminarla sin audit trail garantizado."
         )
 
-    def test_fallback_has_no_audit_write_call(self):
-        """Known gap: fallback does NOT call audit_write → financial_event_log not written."""
+    def test_fallback_is_disabled_stub(self):
+        """Fallback must fail closed instead of writing purchases from the UI."""
         src = self._fallback_src()
-        has_audit = "audit_write" in src or "financial_event_log" in src
-        assert not has_audit, (
-            "UNEXPECTED: _fallback_compra_directa now writes audit trail. "
-            "Update this test and remove ERROR-BE-09 from backlog."
-        )
+        assert "raise RuntimeError" in src
+        assert "deshabilitado" in src
+
+    def test_fallback_has_no_direct_sql_or_inventory_writes(self):
+        """No SQL/business side effects may remain in the UI fallback."""
+        src = self._fallback_src()
+        forbidden = [
+            "INSERT INTO compras",
+            "INSERT INTO detalles_compra",
+            "UPDATE productos",
+            "registrar_compra",
+            "transaction(",
+            "last_insert_rowid",
+        ]
+        assert not [token for token in forbidden if token in src]
 
     def test_procesar_compra_uses_uc_not_fallback(self):
         """_procesar_compra (DIRECT path) must delegate to RegistrarCompraUC, not _fallback."""
@@ -687,16 +756,8 @@ class TestFallbackAuditTrailGap:
 class TestPurchaseServiceSavepoint:
     """PurchaseService uses SAVEPOINT to roll back on inventory error."""
 
-    def test_inventory_failure_raises_and_purchase_is_partial_commit(self):
-        """
-        Known behavior (SAVEPOINT partial-commit): when inventory.add_stock fails,
-        PurchaseService does RELEASE SAVEPOINT (commit) and then raises RuntimeError.
-        This means the purchase HEADER IS SAVED but inventory is not updated.
-
-        This is a known defect — ideally it should ROLLBACK TO SAVEPOINT instead of RELEASE.
-        Documented here so the behavior is explicit; scheduled for fix in a future phase.
-        The RegistrarCompraUC.execute() surfaces this as ok=False to the caller.
-        """
+    def test_inventory_failure_rolls_back_purchase_header(self):
+        """Inventory failure must roll back the complete DIRECT purchase savepoint."""
         from repositories.purchase_repository import PurchaseRepository
         from core.services.purchase_service import PurchaseService
 
@@ -716,12 +777,13 @@ class TestPurchaseServiceSavepoint:
             )
 
         assert "Error al registrar la compra" in str(exc_info.value)
-        # Document actual partial-commit behavior: purchase header IS saved
+        assert "Operación cancelada" in str(exc_info.value)
         count = db.execute("SELECT COUNT(*) FROM compras").fetchone()[0]
-        assert count == 1, (
-            "Comportamiento actual (parcial): el header de compra queda en DB aunque el inventario falle. "
-            "Idealmente debería hacer ROLLBACK TO SAVEPOINT — pendiente corrección futura."
-        )
+        details = db.execute("SELECT COUNT(*) FROM detalles_compra").fetchone()[0]
+        stock = db.execute("SELECT existencia FROM productos WHERE id=1").fetchone()[0]
+        assert count == 0, "No debe quedar cabecera si inventario falla"
+        assert details == 0, "No deben quedar detalles si inventario falla"
+        assert float(stock) == 100.0, "No debe moverse stock si se cancela el savepoint"
 
     def test_successful_purchase_commits(self):
         """On success, purchase header is visible after register_purchase returns."""

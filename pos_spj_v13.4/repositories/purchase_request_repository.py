@@ -110,6 +110,10 @@ class PurchaseRequestRepository:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def get_items(self, pr_id: int) -> list[dict]:
+        """Public read helper for UI/use cases; keeps SQL inside repository."""
+        return self._get_items(pr_id)
+
     def list_by_estado(self, estado: str, sucursal_id: Optional[int] = None,
                        limit: int = 100) -> list[dict]:
         if sucursal_id:

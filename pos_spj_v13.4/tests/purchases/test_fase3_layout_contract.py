@@ -5,13 +5,13 @@ FASE 3 — Contrato del layout de 3 columnas de Compra Tradicional.
 
 Verifica mediante AST (sin instanciar PyQt5) que:
 - El layout es QSplitter de 3 columnas
-- Las proporciones son [260, 500, 440] con stretchFactor(1) en columna central
+- Las proporciones son [280, 520, 520] con stretchFactor(1) en columnas central y derecha
 - Columna izquierda = documental toolbar (ERP PR/PO)
 - Columna central = center column (proveedor → documento → búsqueda → partidas)
 - Columna derecha = summary panel (totales + acción)
 - KPI bar FUERA de las tabs (en _build_ui, no dentro de _build_tab_tradicional)
 - Sin PROVEEDOR RÁPIDO visible en columna izquierda
-- _build_provider_sidebar NO está conectada al layout (es dead code)
+- _build_provider_sidebar fue eliminado en FASE 10
 - Widgets backward-compat están ocultos (no visibles al usuario)
 - No hay SLATE_50 como background en los métodos del área Compra Tradicional
 """
@@ -40,6 +40,37 @@ def _method_src(method_name: str, class_name: str = "ModuloComprasPro") -> str |
     return None
 
 
+# ── Componentes Fase 3 ───────────────────────────────────────────────────────
+
+class TestPhase3ComponentClasses:
+    """Los componentes semánticos de Compra Tradicional deben existir y usarse."""
+
+    REQUIRED = [
+        "PurchaseKpiBar",
+        "PurchaseDocumentToolbar",
+        "PurchaseCapturePanel",
+        "PurchaseProviderCard",
+        "PurchaseDocumentCard",
+        "PurchaseProductSearchCard",
+        "PurchaseQuickProductsCard",
+        "PurchaseItemsAndTotalsPanel",
+        "PurchaseTotalsFooter",
+        "PurchaseDynamicActionBar",
+    ]
+
+    def test_component_classes_defined(self):
+        src = _source()
+        tree = ast.parse(src)
+        classes = {n.name for n in ast.walk(tree) if isinstance(n, ast.ClassDef)}
+        missing = [name for name in self.REQUIRED if name not in classes]
+        assert not missing, f"Componentes Fase 3 faltantes: {missing}"
+
+    def test_component_classes_used_by_builders(self):
+        src = _source()
+        for name in self.REQUIRED:
+            assert src.count(name) >= 2, f"{name} debe definirse y usarse en builders"
+
+
 # ── Splitter layout ──────────────────────────────────────────────────────────
 
 class TestSplitterLayout:
@@ -53,8 +84,8 @@ class TestSplitterLayout:
     def test_splitter_sizes_260_500_440(self):
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "260" in src and "500" in src and "440" in src, (
-            "setSizes debe usar [260, 500, 440] en _build_tab_tradicional"
+        assert "280" in src and "520" in src, (
+            "setSizes debe usar [280, 520, 520] en _build_tab_tradicional"
         )
         assert "setSizes" in src, "setSizes debe llamarse en _build_tab_tradicional"
 
@@ -62,10 +93,10 @@ class TestSplitterLayout:
         src = _method_src("_build_tab_tradicional")
         assert src is not None
         match = re.search(r'setSizes\(\[(\d+),\s*(\d+),\s*(\d+)\]\)', src)
-        assert match is not None, "setSizes([260, 500, 440]) debe estar en _build_tab_tradicional"
+        assert match is not None, "setSizes([280, 520, 520]) debe estar en _build_tab_tradicional"
         sizes = [int(match.group(i)) for i in (1, 2, 3)]
-        assert sizes == [260, 500, 440], (
-            f"Sizes incorrectos: {sizes}. Esperado: [260, 500, 440]"
+        assert sizes == [280, 520, 520], (
+            f"Sizes incorrectos: {sizes}. Esperado: [280, 520, 520]"
         )
 
     def test_stretch_factor_center_column_is_1(self):
@@ -86,8 +117,8 @@ class TestSplitterLayout:
     def test_stretch_factor_right_col_is_0(self):
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "setStretchFactor(2, 0)" in src, (
-            "setStretchFactor(2, 0) debe estar — columna derecha no crece"
+        assert "setStretchFactor(2, 1)" in src, (
+            "setStretchFactor(2, 1) debe estar — columna derecha crece como panel de partidas"
         )
 
     def test_exactly_3_columns_added_to_splitter(self):
@@ -206,12 +237,12 @@ class TestKPIBarPlacement:
 class TestLeftColumnContent:
     """La columna izquierda contiene solo documentos ERP, sin PROVEEDOR RÁPIDO visible."""
 
-    def test_documental_toolbar_fixed_width_260(self):
+    def test_documental_toolbar_uses_erp_width_bounds(self):
         src = _method_src("_build_documental_toolbar")
         assert src is not None
-        assert "setFixedWidth(260)" in src, (
-            "La columna izquierda debe tener ancho fijo de 260px"
-        )
+        assert "setMinimumWidth(260)" in src
+        assert "setMaximumWidth(320)" in src
+        assert "setFixedWidth(260)" not in src
 
     def test_no_proveedor_rapido_visible_in_documental_toolbar(self):
         src = _method_src("_build_documental_toolbar")
@@ -256,18 +287,18 @@ class TestLeftColumnContent:
         assert "_doc_filter_chips" in src
 
 
-# ── Dead code guard ──────────────────────────────────────────────────────────
+# ── FASE 10 dead code cleanup ────────────────────────────────────────────────
 
 class TestDeadCodeGuard:
-    """_build_provider_sidebar es dead code — nunca debe conectarse al layout."""
+    """_build_provider_sidebar fue eliminado; no debe volver al layout."""
+
+    def test_provider_sidebar_method_removed(self):
+        assert _method_src("_build_provider_sidebar") is None
 
     def test_provider_sidebar_not_called_from_build_tab_tradicional(self):
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "_build_provider_sidebar" not in src, (
-            "_build_provider_sidebar NO debe llamarse desde _build_tab_tradicional. "
-            "Es dead code — su contenido duplicaría attrs y usaría colores prohibidos."
-        )
+        assert "_build_provider_sidebar" not in src
 
     def test_provider_sidebar_not_called_from_build_center_column(self):
         src = _method_src("_build_center_column")
@@ -283,15 +314,6 @@ class TestDeadCodeGuard:
         src = _method_src("_build_ui")
         assert src is not None
         assert "_build_provider_sidebar" not in src
-
-    def test_provider_sidebar_marked_as_dead_code(self):
-        """El método dead _build_provider_sidebar debe estar documentado como tal."""
-        src = _method_src("_build_provider_sidebar")
-        assert src is not None
-        docstring_lower = src[:200].lower()
-        assert "dead" in docstring_lower or "nunca" in docstring_lower or "never" in docstring_lower or "fase 10" in docstring_lower.replace(" ", ""), (
-            "_build_provider_sidebar debe estar documentado como DEAD CODE para evitar uso accidental"
-        )
 
 
 # ── Theme safety (Compra Tradicional scope) ──────────────────────────────────

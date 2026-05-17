@@ -279,6 +279,21 @@ class TestActionMethodsDelegation:
         src = _method_src("_accion_convertir_a_po")
         assert "_cargar_docs_erp" in src
 
+    def test_procesar_como_pr_sends_to_approval(self):
+        src = _method_src("_procesar_como_pr")
+        assert src is not None
+        assert "PRState.PENDIENTE_APROBACION" in src, (
+            "FASE 7: crear solicitud desde Compra Tradicional debe dejarla "
+            "pendiente de aprobación, sin afectar inventario."
+        )
+
+    def test_accion_editar_doc_has_no_sql_fallback(self):
+        src = _method_src("_accion_editar_doc")
+        assert src is not None
+        assert "db.execute" not in src
+        assert not re.search(r'\bSELECT\s+\w', src, re.IGNORECASE)
+        assert "get_items" in src or "doc.get('items')" in src
+
     def test_refresh_doc_acciones_enables_approve_only_for_pending(self):
         src = _method_src("_refresh_doc_acciones")
         assert src is not None
@@ -493,6 +508,15 @@ class TestPurchaseRequestUCStateMachine:
         result = uc.enviar_aprobacion(pr_id, "user1")
         assert result.ok
         assert result.estado == "PENDIENTE_APROBACION"
+
+    def test_repo_get_items_public_helper(self):
+        from repositories.purchase_request_repository import PurchaseRequestRepository
+        uc, conn = self._uc()
+        pr_id, _ = self._create_pr(uc, "BORRADOR")
+        repo = PurchaseRequestRepository(conn)
+        items = repo.get_items(pr_id)
+        assert len(items) == 1
+        assert items[0]["producto_id"] == 1
 
 
 # ── 7. PurchaseRequestUC convertir_a_po (integration) ────────────────────────

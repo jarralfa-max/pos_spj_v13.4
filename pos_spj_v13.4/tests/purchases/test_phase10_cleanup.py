@@ -1,6 +1,6 @@
 """
-Phase 10 characterization tests — Cleanup: filtro Estado PO en historial,
-CSV mejorado, auditoría ProcesarCompraUC, DEC-007 actualizado.
+Phase 10 characterization tests — cleanup, final docs,
+CSV documental, auditoría ProcesarCompraUC, DEC-007 actualizado.
 """
 import ast
 import re
@@ -208,7 +208,7 @@ class TestDEC007Audit:
     def test_procesar_compra_uc_not_used_in_toolbar(self):
         src = _src()
         m = re.search(
-            r"def _build_documental_toolbar.*?(?=\n    def _build_provider_sidebar)",
+            r"def _build_documental_toolbar.*?(?=\n    def _doc_chip_style)",
             src, re.DOTALL
         )
         assert m
@@ -230,19 +230,19 @@ class TestDEC007Audit:
 class TestScopeDoc:
     def test_fase8_marked_complete(self):
         scope = _scope()
-        assert "| 8 | UI Toolbar Documental | ✅" in scope
+        assert "| 8 | Recepción QR apta para PO | ✅" in scope
 
     def test_fase9_marked_complete(self):
         scope = _scope()
-        assert "| 9 | UI QR mejorada | ✅" in scope
+        assert "| 9 | Historial documental | ✅" in scope
 
     def test_fase10_marked_complete(self):
         scope = _scope()
-        assert "| **10**" in scope and "✅" in scope
+        assert "| 10 | Pruebas, limpieza y documentación final | ✅" in scope
 
     def test_acceptance_criteria_updated(self):
         scope = _scope()
-        assert "363+" in scope or "Filtro Estado PO" in scope
+        assert "Suite purchases completa" in scope or "Filtro Estado PO" in scope
 
     def test_dec007_audit_referenced_in_scope(self):
         scope = _scope()
@@ -282,3 +282,21 @@ class TestNoRegression:
         src = _src()
         assert "_exportar_historial_csv" in src
         assert "btn_export" in src
+
+# ---------------------------------------------------------------------------
+# FASE 10 cleanup — dead provider sidebar removed
+# ---------------------------------------------------------------------------
+class TestFase10DeadCodeCleanup:
+    def test_provider_sidebar_method_removed(self):
+        tree = ast.parse(_src())
+        methods = {
+            item.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef) and node.name == "ModuloComprasPro"
+            for item in node.body
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        assert "_build_provider_sidebar" not in methods
+
+    def test_removed_provider_sidebar_hover_hex(self):
+        assert "QListWidget::item:hover{background:#F8FAFC;}" not in _src()
