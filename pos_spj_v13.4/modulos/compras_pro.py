@@ -1459,7 +1459,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Status badge + last edit (kept for existing update logic)
         self._lbl_estado_compra = QLabel("🔵  En captura")
         self._lbl_estado_compra.setStyleSheet(
-            f"background:{Colors.INFO_BASE};color:{Colors.NEUTRAL.WHITE};border-radius:10px;"
+            f"background:{Colors.INFO_BASE};"
+            f"color:{Colors.NEUTRAL.WHITE};"
+            f"border-radius:10px;"
             f"padding:3px {Spacing.SM}px;font-size:{Typography.SIZE_XS};"
             f"font-weight:{Typography.WEIGHT_BOLD};"
         )
@@ -1614,7 +1616,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         try:
             self._recv_qr = RecepcionQRWidget(
-                conexion=self.container.db,
+                conexion=self.container,          # pass AppContainer so receive_po_adapter is available
                 sucursal_id=self.sucursal_id,
                 usuario=self.usuario_actual or "Sistema",
                 parent=parent,
@@ -1622,6 +1624,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             lay.addWidget(wrap_in_scroll_area(self._recv_qr, self), 1)
             self._qr_empty.hide()
             self._qr_loading.hide()
+            # Refresh purchase history when a QR reception completes
+            self._recv_qr.recepcion_completada.connect(
+                lambda _data: QTimer.singleShot(300, self._cargar_historial_compras)
+            )
             def _reload_qr():
                 if hasattr(self._recv_qr, "_recargar_listas"):
                     try:
@@ -5094,4 +5100,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                           f"{os.path.basename(path)} · {len(rows)} registros")
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))
+
+    def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
+                                  items) -> str:
+        """Fallback directo deshabilitado — solo stub de seguridad.
+
+        Toda compra debe pasar por RegistrarCompraUC → PurchaseService para
+        mantener una única ruta de inventario, CxP, asientos, lotes y auditoría.
+        """
+        raise RuntimeError(
+            "Fallback directo deshabilitado: usa RegistrarCompraUC/PurchaseService."
+        )
 
