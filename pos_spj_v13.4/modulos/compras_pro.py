@@ -620,6 +620,30 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._prov_repo_instance = ProveedorRepository(self.container.db)
         return self._prov_repo_instance
 
+    @property
+    def _recetas_repo(self):
+        """Lazy RecetaRepository bound to the container's DB connection."""
+        if not hasattr(self, '_recetas_repo_instance'):
+            from repositories.recetas import RecetaRepository
+            self._recetas_repo_instance = RecetaRepository(self.container.db)
+        return self._recetas_repo_instance
+
+    @property
+    def _pr_repo(self):
+        """Lazy PurchaseRequestRepository bound to the container's DB connection."""
+        if not hasattr(self, '_pr_repo_instance'):
+            from repositories.purchase_request_repository import PurchaseRequestRepository
+            self._pr_repo_instance = PurchaseRequestRepository(self.container.db)
+        return self._pr_repo_instance
+
+    @property
+    def _po_repo(self):
+        """Lazy PurchaseOrderRepository bound to the container's DB connection."""
+        if not hasattr(self, '_po_repo_instance'):
+            from repositories.purchase_order_repository import PurchaseOrderRepository
+            self._po_repo_instance = PurchaseOrderRepository(self.container.db)
+        return self._po_repo_instance
+
     def _get_iva_rate(self) -> float:
         """Read IVA rate from DB configuraciones with fallback to _IVA_RATE constant."""
         if hasattr(self, '_iva_rate_cached'):
@@ -2000,32 +2024,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PR: %s", e)
             try:
-                rows = self.container.db.execute(
-                    "SELECT id, folio, estado, proveedor_nombre, total,"
-                    "       fecha_creacion, sucursal_id, usuario, notas"
-                    " FROM purchase_requests"
-                    " WHERE sucursal_id=? AND estado NOT IN ('CANCELADA','CONVERTIDA_A_PO')"
-                    " ORDER BY fecha_creacion DESC LIMIT 40",
-                    (self.sucursal_id,),
-                ).fetchall()
-                for r in rows:
-                    def _v(i, k):
-                        return r[i] if not hasattr(r, 'keys') else r.get(k)
-                    estado = str(_v(2, 'estado') or '').upper()
-                    cat = 'pr_pend' if estado == 'PENDIENTE_APROBACION' else 'pr_aprobadas'
-                    docs.append({
-                        'id':              _v(0, 'id'),
-                        'folio':           _v(1, 'folio'),
-                        'estado':          estado,
-                        'proveedor_nombre': _v(3, 'proveedor_nombre'),
-                        'total':           float(_v(4, 'total') or 0),
-                        'fecha_creacion':  str(_v(5, 'fecha_creacion') or '')[:10],
-                        'sucursal_id':     _v(6, 'sucursal_id'),
-                        'usuario':         _v(7, 'usuario'),
-                        'notas':           _v(8, 'notas'),
-                        '_tipo':           'PR',
-                        '_categoria':      cat,
-                    })
+                def _pr_row(d, cat):
+                    return {
+                        'id':               d.get('id'),
+                        'folio':            d.get('folio'),
+                        'estado':           str(d.get('estado') or '').upper(),
+                        'proveedor_nombre': d.get('proveedor_nombre'),
+                        'total':            float(d.get('total') or 0),
+                        'fecha_creacion':   str(d.get('fecha_creacion') or '')[:10],
+                        'sucursal_id':      d.get('sucursal_id'),
+                        'usuario':          d.get('usuario'),
+                        'notas':            d.get('notas'),
+                        '_tipo':            'PR',
+                        '_categoria':       cat,
+                    }
+                for d in (self._pr_repo.list_pending(self.sucursal_id) or []):
+                    docs.append(_pr_row(d, 'pr_pend'))
+                for d in (self._pr_repo.list_approved(self.sucursal_id) or []):
+                    docs.append(_pr_row(d, 'pr_aprobadas'))
             except Exception as e2:
                 logger.debug("_cargar_docs_erp PR fallback: %s", e2)
 
@@ -2038,28 +2054,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PO: %s", e)
             try:
-                rows = self.container.db.execute(
-                    "SELECT id, folio, estado, proveedor_id, total,"
-                    "       fecha_creacion, sucursal_id, usuario, notas"
-                    " FROM ordenes_compra"
-                    " WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente')"
-                    " ORDER BY fecha_creacion DESC LIMIT 20",
-                ).fetchall()
-                for r in rows:
-                    def _pv(i, k):
-                        return r[i] if not hasattr(r, 'keys') else r.get(k)
+                for d in (self._po_repo.list_open() or []):
                     docs.append({
-                        'id':              _pv(0, 'id'),
-                        'folio':           _pv(1, 'folio'),
-                        'estado':          str(_pv(2, 'estado') or '').upper(),
-                        'proveedor_nombre': str(_pv(3, 'proveedor_id') or ''),
-                        'total':           float(_pv(4, 'total') or 0),
-                        'fecha_creacion':  str(_pv(5, 'fecha_creacion') or '')[:10],
-                        'sucursal_id':     _pv(6, 'sucursal_id'),
-                        'usuario':         _pv(7, 'usuario'),
-                        'notas':           _pv(8, 'notas'),
-                        '_tipo':           'PO',
-                        '_categoria':      'po_abiertas',
+                        'id':               d.get('id'),
+                        'folio':            d.get('folio'),
+                        'estado':           str(d.get('estado') or '').upper(),
+                        'proveedor_nombre': str(d.get('proveedor_id') or ''),
+                        'total':            float(d.get('total') or 0),
+                        'fecha_creacion':   str(d.get('fecha_creacion') or '')[:10],
+                        'sucursal_id':      d.get('sucursal_id'),
+                        'usuario':          d.get('usuario'),
+                        'notas':            d.get('notas'),
+                        '_tipo':            'PO',
+                        '_categoria':       'po_abiertas',
                     })
             except Exception as e2:
                 logger.debug("_cargar_docs_erp PO fallback: %s", e2)
@@ -3920,19 +3927,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not self.carrito_compra:
             return []
         ids = [it['producto_id'] for it in self.carrito_compra]
-        ph  = ",".join("?" * len(ids))
         try:
-            rows = self.container.db.execute(
-                f"""SELECT DISTINCT c FROM (
-                        SELECT producto_id      AS c FROM recetas
-                        WHERE  producto_id      IN ({ph}) AND (activa=1 OR activo=1)
-                        UNION
-                        SELECT producto_base_id AS c FROM recetas
-                        WHERE  producto_base_id IN ({ph}) AND (activa=1 OR activo=1)
-                    )""",
-                ids + ids
-            ).fetchall()
-            ids_con_receta = {r[0] for r in rows}
+            ids_con_receta = self._recetas_repo.get_ids_con_receta(ids)
             return [it for it in self.carrito_compra
                     if it['producto_id'] in ids_con_receta]
         except Exception:
@@ -3954,44 +3950,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     )
                     nombres.append(item['nombre'])
                 else:
-                    # Fallback: query receta_componentes (m000 schema), then product_recipe_components
-                    receta = self.container.db.execute("""
-                        SELECT rc.producto_id AS insumo_id,
-                               COALESCE(rc.cantidad, 0) AS cantidad_insumo,
-                               p.nombre AS insumo_nombre
-                        FROM receta_componentes rc
-                        JOIN recetas r ON r.id = rc.receta_id
-                        JOIN productos p ON p.id = rc.producto_id
-                        WHERE (r.producto_base_id=? OR r.producto_id=?)
-                          AND (r.activo=1 OR r.activa=1)
-                    """, (item['producto_id'], item['producto_id'])).fetchall()
-                    if not receta:
-                        receta = self.container.db.execute("""
-                            SELECT rc.component_product_id AS insumo_id,
-                                   COALESCE(rc.cantidad, 0) AS cantidad_insumo,
-                                   p.nombre AS insumo_nombre
-                            FROM product_recipe_components rc
-                            JOIN product_recipes r ON r.id = rc.recipe_id
-                            JOIN productos p ON p.id = rc.component_product_id
-                            WHERE r.base_product_id=? AND r.is_active=1
-                        """, (item['producto_id'],)).fetchall()
-                    if receta:
+                    # Fallback: resolve components via repository (no direct SQL)
+                    componentes = self._recetas_repo.get_componentes_insumo(item['producto_id'])
+                    if componentes:
                         _app = getattr(self.container, 'app_service', None)
-                        for comp in receta:
-                            consumo = float(comp['cantidad_insumo'] or 0) * item['cantidad']
-                            if consumo > 0:
-                                if _app:
-                                    _app.registrar_salida_produccion(
-                                        producto_id=comp['insumo_id'],
-                                        cantidad=consumo,
-                                        usuario=getattr(self, 'usuario_actual', ''),
-                                        sucursal_id=self.sucursal_id)
-                                else:
-                                    self.container.db.execute(
-                                        "UPDATE productos SET existencia=existencia-? WHERE id=?",
-                                        (consumo, comp['insumo_id']))
-                        try: self.container.db.commit()
-                        except Exception: pass
+                        for comp in componentes:
+                            consumo = float(comp.get('cantidad_insumo') or 0) * item['cantidad']
+                            if consumo > 0 and _app:
+                                _app.registrar_salida_produccion(
+                                    producto_id=comp['insumo_id'],
+                                    cantidad=consumo,
+                                    usuario=getattr(self, 'usuario_actual', ''),
+                                    sucursal_id=self.sucursal_id)
                         nombres.append(item['nombre'])
             except Exception as e:
                 logger.warning("_procesar_recetas %s: %s", item['nombre'], e)

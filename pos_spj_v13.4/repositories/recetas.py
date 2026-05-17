@@ -485,3 +485,55 @@ class RecetaRepository:
             (combo_product_id,)
         ).fetchall()
         return [dict(r) for r in rows2]
+
+    def get_ids_con_receta(self, product_ids: list) -> set:
+        """Batch check: returns set of product IDs that have at least one active recipe."""
+        if not product_ids:
+            return set()
+        ph = ",".join("?" * len(product_ids))
+        ids = list(product_ids)
+        try:
+            rows = self.db.execute(
+                f"""SELECT DISTINCT c FROM (
+                        SELECT producto_id      AS c FROM recetas
+                        WHERE  producto_id      IN ({ph}) AND (activa=1 OR activo=1)
+                        UNION
+                        SELECT producto_base_id AS c FROM recetas
+                        WHERE  producto_base_id IN ({ph}) AND (activa=1 OR activo=1)
+                    )""",
+                ids + ids,
+            ).fetchall()
+            return {r[0] for r in rows}
+        except Exception:
+            return set()
+
+    def get_componentes_insumo(self, producto_id: int) -> list:
+        """Return recipe components for a product (tries legacy receta_componentes first)."""
+        try:
+            rows = self.db.execute("""
+                SELECT rc.producto_id AS insumo_id,
+                       COALESCE(rc.cantidad, 0) AS cantidad_insumo,
+                       p.nombre AS insumo_nombre
+                FROM receta_componentes rc
+                JOIN recetas r ON r.id = rc.receta_id
+                JOIN productos p ON p.id = rc.producto_id
+                WHERE (r.producto_base_id=? OR r.producto_id=?)
+                  AND (r.activo=1 OR r.activa=1)
+            """, (producto_id, producto_id)).fetchall()
+            if rows:
+                return [dict(r) for r in rows]
+        except Exception:
+            pass
+        try:
+            rows = self.db.execute("""
+                SELECT rc.component_product_id AS insumo_id,
+                       COALESCE(rc.cantidad, 0) AS cantidad_insumo,
+                       p.nombre AS insumo_nombre
+                FROM product_recipe_components rc
+                JOIN product_recipes r ON r.id = rc.recipe_id
+                JOIN productos p ON p.id = rc.component_product_id
+                WHERE r.base_product_id=? AND r.is_active=1
+            """, (producto_id,)).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
