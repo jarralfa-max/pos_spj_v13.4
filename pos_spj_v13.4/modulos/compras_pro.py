@@ -1042,13 +1042,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_provider_card(self) -> QFrame:
         """Provider section card. Sets up all provider-related instance attrs."""
-        btn_nuevo_prov = create_secondary_button(self, "Nuevo +", "Registrar nuevo proveedor")
-        btn_nuevo_prov.setFixedHeight(22)
-        btn_nuevo_prov.setMaximumWidth(72)
         panel, body = _make_section_card(
             "Datos del Proveedor",
             panel_cls=PurchaseProviderCard,
-            action=btn_nuevo_prov,
         )
 
         self._proveedor_id_selected = None
@@ -3907,29 +3903,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self._lbl_prov_info.hide()
                 return
 
-            def _k(row, *keys):
-                """Extrae primer clave que exista en la fila (dict-like o tuple por índice)."""
-                if hasattr(row, 'keys'):
-                    for k in keys:
-                        v = row.get(k)
-                        if v is not None:
-                            return str(v).strip()
-                    return ""
-                # sqlite3.Row — acceso por nombre
+            # Normalize to plain dict regardless of row_factory
+            if hasattr(row, 'keys'):
+                data = {k: row[k] for k in row.keys()}
+            elif hasattr(row, '_fields'):
+                data = row._asdict()
+            else:
+                data = dict(row) if isinstance(row, dict) else {}
+
+            def _k(*keys):
                 for k in keys:
-                    try:
-                        v = row[k]
-                        if v is not None:
-                            return str(v).strip()
-                    except (IndexError, KeyError):
-                        pass
+                    v = data.get(k)
+                    if v is not None and str(v).strip():
+                        return str(v).strip()
                 return ""
 
-            rfc  = _k(row, 'rfc')
-            dirs = _k(row, 'direccion')
-            tel  = _k(row, 'telefono')
-            cond = _k(row, 'condicion_pago', 'condiciones_pago')
-            cred = _k(row, 'credito_disponible', 'limite_credito', 'credito')
+            rfc  = _k('rfc')
+            dirs = _k('direccion')
+            tel  = _k('telefono')
+            cond = _k('condicion_pago', 'condiciones_pago')
+            cred = _k('credito_disponible', 'limite_credito', 'credito')
 
             # Populate individual display labels
             if hasattr(self, '_lbl_rfc'):
