@@ -1459,7 +1459,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Status badge + last edit (kept for existing update logic)
         self._lbl_estado_compra = QLabel("🔵  En captura")
         self._lbl_estado_compra.setStyleSheet(
-            f"background:{Colors.INFO_BASE};color:white;border-radius:10px;"
+            f"background:{Colors.INFO_BASE};color:{Colors.NEUTRAL.WHITE};border-radius:10px;"
             f"padding:3px {Spacing.SM}px;font-size:{Typography.SIZE_XS};"
             f"font-weight:{Typography.WEIGHT_BOLD};"
         )
@@ -1669,7 +1669,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hdr_lay.setContentsMargins(10, 0, 10, 0)
         hdr = QLabel("DOCUMENTOS ERP")
         hdr.setStyleSheet(
-            "color:white;font-size:9px;font-weight:800;letter-spacing:1.2px;"
+            f"color:{Colors.NEUTRAL.WHITE};font-size:9px;font-weight:800;letter-spacing:1.2px;"
             "background:transparent;"
         )
         hdr_lay.addWidget(hdr)
@@ -1923,7 +1923,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 f"font-size:9px;font-weight:700;border-radius:9px;"
                 f"padding:0 6px;"
                 f"background:{Colors.PRIMARY_BASE};"
-                f"color:white;border:1px solid {Colors.PRIMARY_BASE};"
+                f"color:{Colors.NEUTRAL.WHITE};border:1px solid {Colors.PRIMARY_BASE};"
             )
         return (
             f"font-size:9px;font-weight:600;border-radius:9px;"
@@ -2664,7 +2664,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         active_style = (
             f"font-size:11px;font-weight:700;border-radius:4px;padding:0 12px;"
-            f"background:{Colors.PRIMARY_BASE};color:white;"
+            f"background:{Colors.PRIMARY_BASE};color:{Colors.NEUTRAL.WHITE};"
         )
         idle_style = (
             f"font-size:11px;font-weight:600;border-radius:4px;padding:0 12px;"
@@ -2726,7 +2726,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         active_style = (
             f"font-size:11px;font-weight:700;border-radius:4px;padding:0 12px;"
-            f"background:{Colors.PRIMARY_BASE};color:white;"
+            f"background:{Colors.PRIMARY_BASE};color:{Colors.NEUTRAL.WHITE};"
         )
         idle_style = (
             f"font-size:11px;font-weight:600;border-radius:4px;padding:0 12px;"
@@ -2971,7 +2971,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _apply_doctype_button_styles(self) -> None:
         active = (
-            f"background:{Colors.PRIMARY_BASE};color:white;"
+            f"background:{Colors.PRIMARY_BASE};color:{Colors.NEUTRAL.WHITE};"
             f"border:1px solid {Colors.PRIMARY_BASE};border-radius:4px;"
             "font-weight:600;padding:0 10px;"
         )
@@ -3018,14 +3018,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_lbl_estado_compra'):
             self._lbl_estado_compra.setText(badge_txt)
             self._lbl_estado_compra.setStyleSheet(
-                f"background:{badge_color};color:white;border-radius:10px;"
+                f"background:{badge_color};color:{Colors.NEUTRAL.WHITE};border-radius:10px;"
                 "padding:3px 8px;font-size:11px;font-weight:700;"
             )
         if hasattr(self, '_btn_autorizar'):
             self._btn_autorizar.setText(btn_txt)
             self._btn_autorizar.setToolTip(btn_tip)
             self._btn_autorizar.setStyleSheet(
-                f"QPushButton{{background:{btn_color};color:white;"
+                f"QPushButton{{background:{btn_color};color:{Colors.NEUTRAL.WHITE};"
                 f"border-radius:{Borders.RADIUS_MD}px;font-size:13px;font-weight:700;"
                 f"letter-spacing:0.05em;border:none;}}"
                 f"QPushButton:hover{{background:{btn_hover};}}"
@@ -3100,7 +3100,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 if hasattr(self, '_lbl_estado_compra'):
                     self._lbl_estado_compra.setText(f"📋  {result.folio}")
                     self._lbl_estado_compra.setStyleSheet(
-                        f"background:{Colors.WARNING_BASE};color:white;border-radius:10px;"
+                        f"background:{Colors.WARNING_BASE};color:{Colors.NEUTRAL.WHITE};border-radius:10px;"
                         "padding:3px 8px;font-size:11px;font-weight:700;"
                     )
             else:
