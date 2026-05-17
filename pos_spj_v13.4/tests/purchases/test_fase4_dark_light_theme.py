@@ -13,7 +13,7 @@ Excepciones documentadas:
 - SLATE_100 en badges pequeños → PERMITIDO
 - HTML de impresión (_generar_html_compra) → EXEMPT: usa literales #f8fafc/#ffffff
   porque CSS de tema no se aplica a HTML enviado a QPrinter
-- Dead code (_build_provider_sidebar) → documentado en FASE 3; colores no renderizados
+- Dead code `_build_provider_sidebar` eliminado en FASE 10; colores no renderizados removidos
 
 No instancia PyQt5.
 """
@@ -199,7 +199,7 @@ class TestPrintHTMLExemption:
 
 # ── Global scan — no banned backgrounds in active rendering methods ──────────
 
-# All methods that render visible widgets (excludes dead code and print HTML)
+# All methods that render visible widgets (excludes print HTML)
 _ACTIVE_RENDERING_METHODS = [
     "_build_ui",
     "_build_tab_tradicional",
@@ -265,31 +265,16 @@ class TestNoNeutralWhiteBackgroundInWidgets:
         )
 
 
-# ── Dead code still has violations but is not rendered ───────────────────────
+# ── FASE 10 dead code cleanup ────────────────────────────────────────────────
 
 class TestDeadCodeColorStatus:
-    """_build_provider_sidebar es dead code — sus violaciones no se renderizan."""
+    """FASE 10 elimina _build_provider_sidebar y sus estilos obsoletos."""
 
-    def test_provider_sidebar_is_dead_code(self):
-        """Confirma que _build_provider_sidebar no se llama desde ningún método activo."""
-        src = _source()
-        tree = ast.parse(src)
-        lines = src.splitlines()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef) and node.name == "ModuloComprasPro":
-                for item in node.body:
-                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        if item.name in ("_build_provider_sidebar",):
-                            continue
-                        method_body = "\n".join(lines[item.lineno - 1:item.end_lineno])
-                        assert "_build_provider_sidebar()" not in method_body, (
-                            f"_build_provider_sidebar() llamada desde {item.name} — "
-                            f"es dead code con colores prohibidos, no debe activarse"
-                        )
+    def test_provider_sidebar_removed(self):
+        assert _method_src("_build_provider_sidebar") is None
 
-    def test_provider_sidebar_docstring_warns_dead_code(self):
-        src = _method_src("_build_provider_sidebar")
-        assert src is not None
-        assert "DEAD CODE" in src or "dead code" in src.lower(), (
-            "_build_provider_sidebar debe estar marcada como DEAD CODE en su docstring"
-        )
+    def test_provider_sidebar_not_called(self):
+        assert "_build_provider_sidebar()" not in _source()
+
+    def test_removed_dead_code_hex_not_present(self):
+        assert "QListWidget::item:hover{background:#F8FAFC;}" not in _source()

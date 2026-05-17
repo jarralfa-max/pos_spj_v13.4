@@ -110,7 +110,12 @@ Decisiones ejecutadas en esta fase:
 - `_fallback_compra_directa()` queda como stub bloqueado: no inserta compras, no actualiza inventario y no opera como ruta alterna desde UI.
 - No se tocó QR, no se agregaron pestañas y no se separaron rutas PR/PO; eso queda para Fase 6+.
 
----
+- DIRECT puede usar `register_purchase()`.
+- PR no puede usar `register_purchase()`.
+- PO no puede usar `register_purchase()`.
+- Recepción PO debe ser la ruta física que afecta inventario.
+
+Decisiones ejecutadas en esta fase:
 
 ## FASE 6 — Separar rutas documentales
 
@@ -178,7 +183,13 @@ Objetivo:
 
 - Mostrar compras, PR, PO y recepciones sin convertir historial en BI.
 
----
+**Estado:** ejecutada el 2026-05-17.
+
+Objetivo:
+
+- Ejecutar suite relevante.
+- Limpiar estilos/manuales/código muerto.
+- Documentar decisiones finales.
 
 ## FASE 10 — Pruebas, limpieza y documentación final
 

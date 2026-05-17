@@ -11,7 +11,7 @@ Verifica mediante AST (sin instanciar PyQt5) que:
 - Columna derecha = summary panel (totales + acción)
 - KPI bar FUERA de las tabs (en _build_ui, no dentro de _build_tab_tradicional)
 - Sin PROVEEDOR RÁPIDO visible en columna izquierda
-- _build_provider_sidebar NO está conectada al layout (es dead code)
+- _build_provider_sidebar fue eliminado en FASE 10
 - Widgets backward-compat están ocultos (no visibles al usuario)
 - No hay SLATE_50 como background en los métodos del área Compra Tradicional
 """
@@ -287,18 +287,18 @@ class TestLeftColumnContent:
         assert "_doc_filter_chips" in src
 
 
-# ── Dead code guard ──────────────────────────────────────────────────────────
+# ── FASE 10 dead code cleanup ────────────────────────────────────────────────
 
 class TestDeadCodeGuard:
-    """_build_provider_sidebar es dead code — nunca debe conectarse al layout."""
+    """_build_provider_sidebar fue eliminado; no debe volver al layout."""
+
+    def test_provider_sidebar_method_removed(self):
+        assert _method_src("_build_provider_sidebar") is None
 
     def test_provider_sidebar_not_called_from_build_tab_tradicional(self):
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "_build_provider_sidebar" not in src, (
-            "_build_provider_sidebar NO debe llamarse desde _build_tab_tradicional. "
-            "Es dead code — su contenido duplicaría attrs y usaría colores prohibidos."
-        )
+        assert "_build_provider_sidebar" not in src
 
     def test_provider_sidebar_not_called_from_build_center_column(self):
         src = _method_src("_build_center_column")
@@ -314,15 +314,6 @@ class TestDeadCodeGuard:
         src = _method_src("_build_ui")
         assert src is not None
         assert "_build_provider_sidebar" not in src
-
-    def test_provider_sidebar_marked_as_dead_code(self):
-        """El método dead _build_provider_sidebar debe estar documentado como tal."""
-        src = _method_src("_build_provider_sidebar")
-        assert src is not None
-        docstring_lower = src[:200].lower()
-        assert "dead" in docstring_lower or "nunca" in docstring_lower or "never" in docstring_lower or "fase 10" in docstring_lower.replace(" ", ""), (
-            "_build_provider_sidebar debe estar documentado como DEAD CODE para evitar uso accidental"
-        )
 
 
 # ── Theme safety (Compra Tradicional scope) ──────────────────────────────────

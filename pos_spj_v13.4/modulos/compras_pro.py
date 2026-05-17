@@ -2366,91 +2366,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             logger.warning("_accion_enviar_recepcion_doc: %s", e)
             QMessageBox.critical(self, "Error", str(e))
 
-    # ── Left provider sidebar ─────────────────────────────────────────────────
-    def _build_provider_sidebar(self) -> QWidget:
-        """DEAD CODE — never added to any layout. Scheduled for removal in FASE 10.
-        The sidebar provider list lives as hidden attrs in _build_documental_toolbar()
-        for backward-compat with _poblar_sidebar_proveedores() etc.
-        Prohibited colors (SLATE_50, background:white) exist here but are not rendered.
-        DO NOT call this method — it would overwrite _sidebar_prov_search / _sidebar_prov_list.
-        """
-        sidebar = QFrame()
-        sidebar.setFixedWidth(220)
-        sidebar.setStyleSheet(
-            "background:transparent;"
-            "border-right:1px solid rgba(0,0,0,0.08);"
-        )
-        lay = QVBoxLayout(sidebar)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(6)
-
-        def _sec_lbl(txt: str) -> QLabel:
-            lbl = QLabel(txt)
-            lbl.setStyleSheet(
-                f"font-size:10px;font-weight:700;letter-spacing:0.8px;"
-                f"color:{Colors.NEUTRAL.SLATE_500};"
-                "background:transparent;border:none;padding:2px 0;"
-            )
-            return lbl
-
-        lay.addWidget(_sec_lbl("🏢 PROVEEDORES"))
-
-        self._sidebar_prov_search = QLineEdit()
-        self._sidebar_prov_search.setPlaceholderText("Buscar proveedor…")
-        self._sidebar_prov_search.setObjectName("styledInput")
-        self._sidebar_prov_search.textChanged.connect(self._filtrar_sidebar_proveedores)
-        lay.addWidget(self._sidebar_prov_search)
-
-        _list_style = (
-            "QListWidget{"
-            "  border:1px solid rgba(0,0,0,0.1);border-radius:4px;"
-            "  font-size:11px;outline:none;"
-            "}"
-            "QListWidget::item{padding:5px 8px;border-bottom:1px solid rgba(0,0,0,0.04);}"
-            f"QListWidget::item:selected{{background:{Colors.PRIMARY_BASE}22;"
-            f"  color:{Colors.PRIMARY_BASE};"
-            f"  border-left:3px solid {Colors.PRIMARY_BASE};}}"
-            "QListWidget::item:hover{background:#F8FAFC;}"
-        )
-        self._sidebar_prov_list = QListWidget()
-        self._sidebar_prov_list.setStyleSheet(_list_style)
-        self._sidebar_prov_list.itemClicked.connect(self._seleccionar_proveedor_sidebar)
-        lay.addWidget(self._sidebar_prov_list, 1)
-
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
-        lay.addWidget(sep)
-
-        lay.addWidget(_sec_lbl("📋 PLANTILLAS"))
-        self._sidebar_templates_list = QListWidget()
-        self._sidebar_templates_list.setMaximumHeight(100)
-        self._sidebar_templates_list.setStyleSheet(_list_style)
-        self._sidebar_templates_list.itemDoubleClicked.connect(self._cargar_plantilla_sidebar)
-        self._poblar_plantillas_sidebar()
-        lay.addWidget(self._sidebar_templates_list)
-
-        # ── E-3: Recent purchases from selected provider ───────────────────
-        sep2 = QFrame()
-        sep2.setFrameShape(QFrame.HLine)
-        sep2.setStyleSheet("border:none;border-top:1px solid rgba(0,0,0,0.08);")
-        lay.addWidget(sep2)
-
-        lay.addWidget(_sec_lbl("🕐 ÚLTIMAS COMPRAS"))
-        self._sidebar_recent_list = QListWidget()
-        self._sidebar_recent_list.setMaximumHeight(120)
-        self._sidebar_recent_list.setStyleSheet(_list_style)
-        self._sidebar_recent_list.setToolTip(
-            "Últimas compras registradas para el proveedor seleccionado")
-        self._sidebar_recent_list.itemClicked.connect(self._abrir_reciente_sidebar)
-        self._lbl_recientes_empty = QLabel("Selecciona un proveedor")
-        self._lbl_recientes_empty.setObjectName("caption")
-        self._lbl_recientes_empty.setStyleSheet(
-            f"color:{Colors.NEUTRAL.SLATE_400};font-size:10px;padding:4px;")
-        lay.addWidget(self._sidebar_recent_list)
-        lay.addWidget(self._lbl_recientes_empty)
-
-        return sidebar
+    # ── Right summary panel ───────────────────────────────────────────────────
 
     def _build_summary_panel(self) -> QWidget:
         """Right column: items table (flex-1) + totals footer (fixed) + action button."""
@@ -4199,7 +4115,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             combo_filters={
                 "estado":    ["completada", "credito", "pendiente", "parcial", "cancelada"],
                 "tipo_doc":  ["directa", "con po"],         # Phase 7
-                "po_estado": ["ABIERTA", "PARCIAL", "RECIBIDA", "CERRADA", "CANCELADA"],  # Phase 10
+                "po_estado": ["ABIERTA", "PARCIAL", "RECIBIDA", "CERRADA", "CANCELADA"],  # Phase 9
             },
         )
         self._hist_filter.filters_changed.connect(self._hist_filter_changed)
@@ -4346,7 +4262,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             estado    = (filtros.get("estado")   or "").strip().lower()
             search    = (filtros.get("search")   or "").strip().lower()
             tipo_doc  = (filtros.get("tipo_doc") or "").strip().lower()   # Phase 7
-            po_estado = (filtros.get("po_estado") or "").strip().upper()  # Phase 10
+            po_estado = (filtros.get("po_estado") or "").strip().upper()  # Phase 9
             rows = list(all_rows)
             if estado:
                 rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
@@ -4402,7 +4318,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             cid_      = r[6]
             pnm_      = str(r[2] or "")
             po_id     = int(r[9] or 0) if len(r) > 9 else 0        # Phase 7
-            po_estado = str(r[10] or "") if len(r) > 10 else ""     # Phase 10
+            po_estado = str(r[10] or "") if len(r) > 10 else ""     # Phase 9
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -4411,7 +4327,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 if ci == 0:
                     it.setData(Qt.UserRole,     cid_)       # compra_id for inline detail
                     it.setData(Qt.UserRole + 1, po_id)      # po_id for timeline (Phase 7)
-                    it.setData(Qt.UserRole + 2, po_estado)  # po_estado for CSV export (Phase 10)
+                    it.setData(Qt.UserRole + 2, po_estado)  # po_estado for CSV export (Phase 9)
                 self._tbl_hist.setItem(ri, ci, it)
             # col 5 — Cond. Pago chip
             self._tbl_hist.setCellWidget(ri, 5, _make_cond_chip(cond_raw, self))
@@ -5175,7 +5091,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _exportar_historial_csv(self) -> None:
         """Exporta el historial de compras a CSV.
 
-        Phase 10: lee del cache _hist_all_rows (datos completos de BD),
+        FASE 9: lee del cache _hist_all_rows (datos completos de BD),
         aplica los mismos filtros activos, incluye Tipo Doc y Estado PO.
         """
         import csv, os

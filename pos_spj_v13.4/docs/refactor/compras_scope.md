@@ -8,7 +8,7 @@
 | Componente | Modificación permitida | Modificación prohibida |
 |-----------|----------------------|----------------------|
 | Tab 1: Compra Tradicional | ✅ Lógica documental PR/PO, UI completa, flujo aprobación | Romper flujo DIRECT existente |
-| Tab 2: QR / Recepción | ✅ UI/UX, Tab PO (Fase 6) | Motor QR, lógica de contenedores, inventario QR |
+| Tab 2: QR / Recepción | ✅ Submodo PO dentro de Recepción (sin pestaña nueva) | Motor QR, lógica de contenedores, inventario QR |
 | Tab 3: Histórico | ✅ Filtros, timeline, UI | Analytics pesados, BI, dashboard |
 | PurchaseService | ✅ Refactor interno incremental | Cambiar API pública sin wrapper |
 | RegistrarCompraUC | ✅ Canónico para DIRECT | No eliminar, no cambiar contrato |
@@ -76,9 +76,9 @@ PO (ABIERTA)
 | 5 | UI doc_type selector | ✅ | modulos/compras_pro.py |
 | 6 | UI recepción PO como submodo | ✅ | modulos/recepcion_qr_widget.py |
 | 7 | UI Historial timeline | ✅ | modulos/compras_pro.py |
-| 8 | UI Toolbar Documental | ✅ | modulos/compras_pro.py |
-| 9 | UI QR mejorada | ✅ | modulos/recepcion_qr_widget.py |
-| **10** | **Limpieza** | **✅** | modulos/compras_pro.py, docs/refactor/ |
+| 8 | Recepción QR apta para PO | ✅ | modulos/recepcion_qr_widget.py |
+| 9 | Historial documental | ✅ | modulos/compras_pro.py |
+| 10 | Pruebas, limpieza y documentación final | ✅ | docs/refactor/, tests/purchases/ |
 
 ---
 

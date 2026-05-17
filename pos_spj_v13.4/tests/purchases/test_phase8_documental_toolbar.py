@@ -159,7 +159,7 @@ class TestUCWiring:
         """Toolbar must not use deprecated ProcesarCompraUC."""
         src = _source()
         # Extract toolbar section
-        m = re.search(r"def _build_documental_toolbar.*?(?=\n    def _build_provider_sidebar)", src, re.DOTALL)
+        m = re.search(r"def _build_documental_toolbar.*?(?=\n    def _doc_chip_style)", src, re.DOTALL)
         assert m
         assert "ProcesarCompraUC" not in m.group(0)
 
@@ -170,9 +170,9 @@ class TestUCWiring:
 class TestDesignTokens:
     def _toolbar_section(self) -> str:
         src = _source()
-        # From _build_documental_toolbar to just before _build_provider_sidebar
+        # From _build_documental_toolbar to just before _doc_chip_style
         m = re.search(
-            r"def _build_documental_toolbar.*?(?=\n    def _build_provider_sidebar)",
+            r"def _build_documental_toolbar.*?(?=\n    def _doc_chip_style)",
             src, re.DOTALL
         )
         return m.group(0) if m else ""
@@ -240,8 +240,8 @@ class TestTabTradWiring:
         src = _source()
         m = re.search(r"def _build_tab_tradicional.*?(?=\n    def )", src, re.DOTALL)
         assert m
-        # _build_provider_sidebar should NOT be called directly from _build_tab_tradicional
-        assert "_build_provider_sidebar()" not in m.group(0)
+        # Provider sidebar dead code was removed in FASE 10
+        assert "_build_provider_sidebar" not in m.group(0)
 
 
 # ---------------------------------------------------------------------------

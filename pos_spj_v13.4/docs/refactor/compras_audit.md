@@ -192,6 +192,6 @@ UI (RecepcionQRWidget submodo PO → _confirmar_recepcion_po)
 | Fase 5 | UI selector doc_type (DIRECT/PR/PO) | ✅ _build_doctype_toolbar en compras_pro.py |
 | Fase 6 | UI recepción PO en QR widget | ✅ submodo `_build_po_reception_panel` en `📦 3. Recepcionar` |
 | Fase 7 | Historial con timeline + filtro tipo_doc | ✅ _refresh_hist_timeline, 9 cols, badges |
-| **Fase 8** | **UI Toolbar Documental ERP (Tab 1 columna izquierda)** | **⏳ Pendiente** |
-| Fase 9 | UI QR/Recepción mejorada | ⏳ Pendiente |
-| Fase 10 | UI Histórico mejorada | ⏳ Pendiente |
+| Fase 8 | Recepción con QR apta para PO | ✅ selector de origen interno QR/PO/Transferencia |
+| Fase 9 | Historial documental | ✅ timeline PR/PO/recepción + filtros + CSV desde cache |
+| Fase 10 | Pruebas, limpieza y documentación final | ✅ suite purchases + dead code cleanup + docs finales |

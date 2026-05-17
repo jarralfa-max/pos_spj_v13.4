@@ -33,29 +33,29 @@
 
 ---
 
-## DEC-004: QR NO-TOUCH como política permanente hasta Fase 9
+## DEC-004: QR NO-TOUCH como política permanente durante Fase 9
 
-**Decisión:** El motor QR existente no se modifica hasta que haya decisión explícita en Fase 9 con tests de caracterización previos.
+**Decisión:** Fase 9 no modifica el motor QR. La recepción de PO permanece como submodo dentro de `📦 3. Recepcionar`, y el historial documental solo consume datos ya generados por los UCs/adapters existentes.
 
-**Justificación:** El flujo QR es operativamente crítico y tiene lógica compleja de contenedores, trazabilidad y recepciones. Cualquier cambio sin tests previos tiene alto riesgo de regresión.
+**Justificación:** El flujo QR es operativamente crítico y tiene lógica compleja de contenedores, trazabilidad y recepciones. Fase 9 se limita a visualización documental y filtros de historial, sin duplicar inventario, kardex, CXP, asientos, lotes ni eventos.
 
 **Ver:** `docs/refactor/compras_qr_no_touch_policy.md`
 
 ---
 
-## DEC-005: SQL directo en RecepcionQRWidget (no se migra en Fases 0-7)
+## DEC-005: SQL directo en RecepcionQRWidget (no se migra en Fase 9)
 
-**Decisión:** El SQL de mutación en `recepcion_qr_widget.py` (inventario, kardex, trazabilidad) es lógica QR existente y no se mueve en las fases actuales.
+**Decisión:** El SQL de mutación en `recepcion_qr_widget.py` (inventario, kardex, trazabilidad) es lógica QR existente y no se mueve en Fase 9.
 
-**Deuda técnica documentada:** En Fase 9 o 10 se puede extraer a repositorios dedicados con tests de caracterización previos.
+**Deuda técnica documentada:** En una fase futura se puede extraer a repositorios dedicados con tests de caracterización previos; Fase 9 no lo hace para no tocar motor QR.
 
 ---
 
-## DEC-006: Timeline inline hex en _refresh_hist_timeline
+## DEC-006: Timeline documental con tokens de diseño
 
-**Decisión:** `_refresh_hist_timeline()` puede usar hex literales para nodos del timeline (máx 10 colores) como excepción documentada a la política Colors.*.
+**Decisión:** `_refresh_hist_timeline()` debe usar `Colors.*` y `Colors.NEUTRAL.*` para nodos del timeline; no se permiten hex literales ni `background:white`.
 
-**Justificación:** Los nodos del timeline son elementos decorativos de HTML inline donde el contexto Colors.* no aplica naturalmente. El test `test_timeline_inline_hex_count_reasonable` verifica que no exceda 10.
+**Justificación:** El historial documental debe soportar tema oscuro y claro con el estándar UI del ERP. Los tests de Fase 9 verifican ausencia de colores hardcodeados en los métodos nuevos/modificados.
 
 ---
 
@@ -65,7 +65,7 @@
 
 **Riesgo:** Si se elimina prematuramente y hay código que lo importa, la app falla en inicio.
 
-**Auditoría Fase 10 (2026-05-16):** grep confirmó referencias activas en:
+**Auditoría Fase 10 (2026-05-17):** `rg` confirmó referencias activas en:
 
 | Archivo | Tipo de referencia | Seguro eliminar |
 |---------|-------------------|-----------------|
@@ -104,4 +104,15 @@
 
 **Decisión:** El historial de compras se carga en `_HistorialLoader(QThread)` para no bloquear UI. Esta arquitectura se mantiene.
 
-**Columnas actuales del SELECT:** folio, fecha, proveedor, usuario, total, estado, id, condicion_pago, moneda, po_id (10 cols → índices 0-9).
+**Columnas actuales del SELECT:** folio, fecha, proveedor, usuario, total, estado, id, condicion_pago, moneda, po_id, po_estado (11 cols → índices 0-10).
+
+
+---
+
+## DEC-011: Limpieza final Fase 10
+
+**Decisión:** Se elimina `_build_provider_sidebar` porque era código muerto, no estaba conectado a layouts activos y retenía estilos obsoletos.
+
+**Compatibilidad:** Los atributos ocultos que consumen los métodos existentes de proveedores/plantillas permanecen inicializados en `_build_documental_toolbar`; por eso no cambia el flujo DIRECT ni el toolbar documental.
+
+**Límite:** Fase 10 no cambia motor QR, inventario, kardex, CXP, asientos, lotes ni eventos.
