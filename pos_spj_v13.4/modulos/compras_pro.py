@@ -2862,6 +2862,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sec_title.setStyleSheet(_section_label_style(_C_FIELD_LABEL))
         inner.addWidget(sec_title)
 
+        # ── Quick actions: Nueva Compra Directa | Nueva PR ────────────────────
+        new_actions_row = QHBoxLayout()
+        new_actions_row.setSpacing(Spacing.XS)
+        self._btn_nueva_compra_direct = create_secondary_button(
+            self, "🛒 Nueva Compra", "Iniciar nueva compra directa (efecto inmediato en inventario)")
+        self._btn_nueva_compra_direct.setFixedHeight(28)
+        self._btn_nueva_compra_direct.clicked.connect(self._nueva_compra_directa)
+        self._btn_nueva_pr_doc = create_primary_button(
+            self, "✚ Nueva PR", "Nueva solicitud de compra (requiere aprobación)")
+        self._btn_nueva_pr_doc.setFixedHeight(28)
+        self._btn_nueva_pr_doc.clicked.connect(self._nueva_pr_flow)
+        new_actions_row.addWidget(self._btn_nueva_compra_direct, 1)
+        new_actions_row.addWidget(self._btn_nueva_pr_doc, 1)
+        inner.addLayout(new_actions_row)
+
         # ── Filter chips — vertical nav (matches HTML) ────────────────────────
         self._doc_filter_chips: dict[str, QPushButton] = {}
         nav = QVBoxLayout()
@@ -4470,6 +4485,44 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._hidden_stepper.setVisible(show_stepper)
         if hasattr(self, '_lbl_hint'):
             self._lbl_hint.setText(hint_txt)
+
+    # ── Nueva Compra / Nueva PR ───────────────────────────────────────────────
+
+    def _nueva_compra_directa(self) -> None:
+        """Inicia una nueva compra directa: limpia el formulario y activa modo DIRECT."""
+        self._reset_form_for_new_doc()
+        self._on_doctype_changed("DIRECT")
+
+    def _nueva_pr_flow(self) -> None:
+        """Inicia una nueva solicitud de compra (PR): limpia el formulario y activa modo PR."""
+        self._reset_form_for_new_doc()
+        self._on_doctype_changed("PR")
+        from PyQt5.QtCore import QTimer
+        if hasattr(self, 'txt_proveedor'):
+            QTimer.singleShot(50, self.txt_proveedor.setFocus)
+
+    def _reset_form_for_new_doc(self) -> None:
+        """Limpia carrito y campos del proveedor para iniciar un nuevo documento."""
+        self.carrito_compra.clear()
+        self._refresh_tabla()
+        self._proveedor_id_selected = None
+        if hasattr(self, 'txt_proveedor'):
+            self.txt_proveedor.clear()
+        for attr in ('_inp_rfc', '_inp_tel', '_inp_dir', '_inp_cred'):
+            if hasattr(self, attr):
+                getattr(self, attr).clear()
+        if hasattr(self, '_lbl_prov_status'):
+            self._lbl_prov_status.setText("Sin proveedor seleccionado")
+            self._lbl_prov_status.setStyleSheet(
+                f"color:{Colors.WARNING_BASE};"
+                f"font-size:{Typography.SIZE_XS};background:transparent;"
+            )
+        if hasattr(self, '_lbl_prov_info'):
+            self._lbl_prov_info.hide()
+        if hasattr(self, '_cxp_alert_bar'):
+            self._cxp_alert_bar.hide()
+        self._actualizar_panel_validacion()
+        self._refresh_stepper()
 
     def _procesar_como_pr(self, proveedor_id: int, proveedor_nom: str) -> None:
         """
