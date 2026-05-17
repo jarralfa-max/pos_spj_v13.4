@@ -5174,15 +5174,3 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             QMessageBox.critical(self, "Error al exportar", str(e))
 
-    def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
-                                  items) -> str:
-        """Safety stub: direct DB fallback is disabled for Phase 5.
-
-        Compra directa debe pasar por RegistrarCompraUC → PurchaseService para
-        mantener una única ruta de inventario, CxP, asientos, lotes y auditoría.
-        Este método permanece solo por compatibilidad con referencias antiguas y
-        no debe ser llamado desde el flujo principal.
-        """
-        raise RuntimeError(
-            "Fallback directo deshabilitado: usa RegistrarCompraUC/PurchaseService."
-        )
