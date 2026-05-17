@@ -1525,9 +1525,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._cxp_alert_bar.hide()
         lay.addWidget(self._cxp_alert_bar)
 
-        # Keep doctype toolbar + stepper as hidden for existing logic
-        self._build_doctype_toolbar().hide()
-        self._build_stepper_bar().hide()
+        # Keep widgets alive (referenced by _doctype_buttons / _stepper_labels)
+        self._hidden_doctype_toolbar = self._build_doctype_toolbar()
+        self._hidden_doctype_toolbar.hide()
+        self._hidden_stepper = self._build_stepper_bar()
+        self._hidden_stepper.hide()
 
         lay.addStretch()
         scroll.setWidget(inner_w)
