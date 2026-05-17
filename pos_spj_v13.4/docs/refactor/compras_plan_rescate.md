@@ -1,0 +1,208 @@
+# PLAN DE RESCATE — Módulo Compras Pro
+> Generado: 2026-05-17 | Basado en: PROMPT MAESTRO ESTRICTO
+
+---
+
+## Objetivo
+
+Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebida en UI a un módulo de presentación puro que delegue al dominio/aplicación, sin perder ninguna funcionalidad operativa.
+
+---
+
+## Restricciones absolutas (activas en TODAS las fases)
+
+| # | Prohibición |
+|---|-------------|
+| P1 | NO tocar lógica QR (`recepcion_qr_widget.py` motor existente) |
+| P2 | NO modificar RecepcionQRWidget tabs 0-3 (Generar, Asignar, Recepcionar, Historial) |
+| P3 | NO cambiar reglas de negocio |
+| P4 | NO duplicar lógica de inventario |
+| P5 | NO meter SQL nuevo en UI |
+| P6 | NO usar colores hardcodeados (solo `Colors.*`, `Typography.*`, `Spacing.*`) |
+| P7 | NO usar `background:white` ni `background:#ffffff` en widgets principales |
+| P8 | NO usar `Colors.NEUTRAL.SLATE_50` como fondo fijo en Compra Tradicional |
+| P9 | NO usar `setStyleSheet` manual para colores principales si existe componente estándar |
+| P10 | NO agregar 4° tab externo en `ModuloComprasPro` |
+| P11 | NO romper atributos de instancia que usa la lógica de negocio (ver compras_auditoria_real.md §5) |
+| P12 | NO eliminar el autosave timer (`_autosave_timer`) |
+| P13 | NO romper el EventBus refresh mixin |
+| P14 | NO cambiar la firma de `_procesar_compra()` ni `_procesar_como_pr()` |
+| P15 | NO eliminar `_fallback_compra_directa` sin audit trail garantizado |
+
+---
+
+## Fases del plan
+
+### FASE 0 — Auditoría real (✅ COMPLETADA 2026-05-17)
+
+**Entregables:**
+- [x] `docs/refactor/compras_auditoria_real.md`
+- [x] `docs/refactor/compras_ui_errors.md`
+- [x] `docs/refactor/compras_backend_errors.md`
+- [x] `docs/refactor/compras_qr_no_touch_policy.md`
+- [x] `docs/refactor/compras_po_reception_tab_error.md`
+- [x] `docs/refactor/compras_plan_rescate.md`
+
+---
+
+### FASE 1 — Correcciones de arranque + smoke tests (🔄 EN CURSO)
+
+**Objetivo:** El módulo arranca sin errores. Los smoke tests pasan.  
+**Regla:** Sin rediseño. Sin cambios de lógica de negocio.
+
+**Correcciones de arranque:**
+- [x] Fix `apply_spj_buttons` AttributeError (`fixedSize` → `minimumWidth`)
+- [x] Fix C++ deleted object en `_refresh_stepper` (guardar referencia `_hidden_stepper`)
+- [x] Fix C++ deleted object en doctype toolbar (guardar referencia `_hidden_doctype_toolbar`)
+
+**Tests a crear:**
+- [ ] `tests/purchases/test_compras_module_imports.py`
+- [ ] `tests/purchases/test_compras_tabs_contract.py`
+- [ ] `tests/purchases/test_qr_no_extra_po_tab.py`
+- [ ] `tests/purchases/test_traditional_purchase_smoke.py`
+
+**Criterio de éxito:** Todos los smoke tests pasan. Baseline de tests no regresa (≤ 88 failing).
+
+---
+
+### FASE 2 — Eliminar tab PO externo incorrecto (si reaparece)
+
+**Objetivo:** Garantizar por código y test que nunca haya 4° tab externo.  
+**Estado:** No aplica actualmente — el error no existe. El test de Fase 1 previene regresión.
+
+---
+
+### FASE 3 — Reconstruir UI Compra Tradicional (3 columnas)
+
+**Objetivo:** Layout de 3 columnas igual al HTML de referencia.  
+**Estado:** Implementado en sesiones anteriores. Pendiente validar visualmente.
+
+**Checklist:**
+- [ ] Columna izquierda (260px): sidebar documental ERP (PR/PO/filtros)
+- [ ] Columna central (stretch): proveedor → documento → búsqueda → partidas
+- [ ] Columna derecha (440px): resumen + totales + acción principal
+- [ ] QSplitter con `setSizes([260, 500, 440])` y `setStretchFactor(1, 1)`
+- [ ] KPI bar FUERA de las tabs (sobre ellas)
+- [ ] Sin PROVEEDOR RÁPIDO visible en columna izquierda
+
+---
+
+### FASE 4 — Tema Dark/Light sin fondos hardcodeados
+
+**Objetivo:** El módulo es 100% compatible con Dark y Light theme.
+
+**Correcciones pendientes (de compras_ui_errors.md):**
+- [ ] ERROR-UI-01: Cambiar `Colors.NEUTRAL.SLATE_50` → `transparent` en panel totales
+- [ ] ERROR-UI-02: Remover `background:white` del QLineEdit proveedor info
+- [ ] ERROR-UI-03: Corregir alternado de filas en historial
+- [ ] ERROR-UI-05: Cambiar `SLATE_50` en `_build_provider_sidebar()`
+
+---
+
+### FASE 5 — Estabilizar compra directa (DIRECT)
+
+**Objetivo:** El flujo DIRECT completo funciona sin errores.
+
+**Checklist:**
+- [ ] Seleccionar proveedor → info carga correctamente
+- [ ] Agregar productos → tabla actualiza
+- [ ] Totales se calculan (IVA, descuento, flete)
+- [ ] `_procesar_compra()` completa sin exceptions
+- [ ] Audit trail en `financial_event_log`
+- [ ] Auto-save draft funciona
+- [ ] Reabrir draft restaura estado completo
+
+---
+
+### FASE 6 — Separar rutas doctypes (DIRECT / PR / PO)
+
+**Objetivo:** Al cambiar `_doc_type`, la UI adapta campos y acciones correctamente.
+
+**Checklist:**
+- [ ] DIRECT: sin stepper, botón "Procesar Compra" en SUCCESS
+- [ ] PR: stepper visible, botón "Crear Solicitud" en PRIMARY
+- [ ] PO: stepper visible, botón "Crear Orden" en WARNING
+- [ ] `_doctype_buttons` resalta el tipo activo
+- [ ] Al cambiar tipo, `_refresh_doctype_ui()` adapta UI
+- [ ] Hint text actualiza según el tipo
+
+---
+
+### FASE 7 — PR / Aprobación / PO en Compra Tradicional
+
+**Objetivo:** Flujo documental completo PR → APROBACIÓN → PO desde la UI.
+
+**Checklist:**
+- [ ] Sidebar izquierda lista PRs pendientes
+- [ ] Botón "Aprobar PR" funciona → estado cambia → sidebar actualiza
+- [ ] Botón "Convertir a PO" funciona → PO creada → aparece en lista PO
+- [ ] Stepper refleja paso actual del documento seleccionado
+- [ ] No hay SQL directo en ninguno de estos flujos
+
+---
+
+### FASE 8 — Recepción QR puede manejar PO
+
+**Objetivo:** El tab `_tab_po_recv` (ya existente en RecepcionQRWidget) recibe artículos de una PO y actualiza el estado de la PO en el sidebar documental de ModuloComprasPro.
+
+**Checklist:**
+- [ ] `ReceivePOAdapter.register_partial_receipt()` emite evento EventBus
+- [ ] `_on_refresh("PO_RECIBIDA_PARCIAL", {...})` actualiza sidebar
+- [ ] Estado PO cambia a "PARCIAL" o "RECIBIDA" en la lista documental
+
+---
+
+### FASE 9 — Historial documental completo
+
+**Objetivo:** El tab Historial muestra el ciclo de vida completo de cada compra.
+
+**Checklist:**
+- [ ] Timeline: PR → APROBACIÓN → PO → RECEPCIÓN → CXP → PAGADA
+- [ ] Filtros por estado, proveedor, rango de fechas
+- [ ] KPI sidebar actualizado
+- [ ] Export CSV funciona
+- [ ] `_refresh_hist_timeline()` usa repositorio (no SQL directo)
+
+---
+
+### FASE 10 — Tests, limpieza, documentación final
+
+**Objetivo:** El módulo está listo para producción.
+
+**Checklist:**
+- [ ] Suite de tests completa pasa (≥ 1239 passed, ≤ 88 failed baseline)
+- [ ] No hay SQL directo en capa UI
+- [ ] No hay `background:white` ni `SLATE_50` como fondo principal
+- [ ] `_fallback_compra_directa` tiene audit trail o está eliminada
+- [ ] MIGRATION_LOG.md actualizado
+- [ ] Este plan marcado como COMPLETADO
+
+---
+
+## Secuencia de commits esperada
+
+```
+fase-1: test(purchases): add smoke tests for module startup
+fase-1: fix(compras): correct stepper guard for DIRECT doc_type
+fase-3: refactor(compras): validate 3-column layout renders correctly
+fase-4: fix(compras): remove hardcoded SLATE_50/white backgrounds
+fase-5: test(purchases): add integration test for direct purchase flow
+fase-6: feat(compras): connect doctype buttons to UI refresh
+fase-7: feat(compras): implement PR approval and PO conversion in sidebar
+fase-8: feat(compras): link PO reception events to sidebar update
+fase-9: feat(compras): complete documental timeline in historial tab
+fase-10: test(purchases): full regression suite + cleanup
+```
+
+---
+
+## Métricas de éxito
+
+| Métrica | Baseline | Objetivo Fase 10 |
+|---------|----------|------------------|
+| Tests passing | 1239 | ≥ 1239 |
+| Tests failing (pre-existentes) | 88 | ≤ 88 |
+| SQL directo en compras_pro.py UI | ~9 métodos | 0 |
+| Colores hardcodeados (white/SLATE_50) | 5 líneas | 0 |
+| Tabs externas | 3 ✅ | 3 |
+| Fallback con audit trail | ❌ | ✅ |

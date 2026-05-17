@@ -1,11 +1,13 @@
 # Política QR NO-TOUCH — Módulo Compras
-> Versión: 2026-05-15 | Permanente hasta Fase 9 explícita
+> Versión: 2026-05-17 | Reemplaza: versión 2026-05-15 | Permanente hasta Fase 9 explícita
 
 ---
 
 ## Definición
 
-**QR NO-TOUCH** significa que el código de la pestaña *Recepción QR / Flujo con QR* y su motor subyacente **NO SE MODIFICA** salvo lo mínimo indispensable para aceptar PO.
+**QR NO-TOUCH** significa que el código de `RecepcionQRWidget` y su motor QR subyacente **NO SE MODIFICA** salvo lo mínimo indispensable para:
+1. Aceptar recepción de PO (ya implementado en Fase 6 como `_tab_po_recv`)
+2. Correcciones de bugs de arranque (syntax errors, import errors)
 
 ---
 
@@ -13,44 +15,87 @@
 
 | Archivo | Política |
 |---------|---------|
-| `modulos/recepcion_qr_widget.py` | Solo UI/UX + Tab PO (ya agregada en Fase 6). Sin cambiar lógica QR existente. |
+| `modulos/recepcion_qr_widget.py` | Solo UI/UX estética + Tab PO (ya en Fase 6). Sin tocar lógica QR. |
 | `services/qr_service.py` | No modificar. No reimportar desde código nuevo de compras. |
-| `core/events/wiring.py` handlers QR | No agregar handlers que dupliquen movimientos QR. |
+| `core/events/wiring.py` — handlers QR | No agregar handlers que dupliquen movimientos QR. |
 | Tablas `trazabilidad_qr`, `contenedores_qr` | No alterar esquema sin migración documentada. |
+
+---
+
+## Estructura actual de RecepcionQRWidget (CONGELAR)
+
+```python
+class RecepcionQRWidget(QWidget):
+    def _build_ui(self):
+        # 5 tabs internas — NO CAMBIAR ORDEN
+        self._tab_generar     → "🏷️ 1. Generar Etiqueta QR"
+        self._tab_asignar     → "📋 2. Asignar Compra"
+        self._tab_recepcionar → "📦 3. Recepcionar"
+        self._tab_historial   → "📜 Historial"
+        self._tab_po_recv     → "🧾 Recepción PO"   ← Fase 6, YA IMPLEMENTADO
+```
+
+**El número de tabs internas es 5. No se agregan más.**
 
 ---
 
 ## Qué NO se permite hacer
 
-1. Reescribir el motor QR existente
-2. Crear un segundo motor QR
-3. Duplicar lógica de contenedores
-4. Duplicar lógica de transferencias QR
-5. Duplicar inventario desde compras_pro.py
-6. Duplicar kardex desde compras_pro.py
-7. Duplicar lotes desde compras_pro.py
-8. Modificar `_build_tab_generar()` — la lógica de generación QR es inalterable
-9. Modificar `_build_tab_recepcionar()` — la recepción QR es inalterable
-10. Modificar `_build_tab_asignar()` — la asignación QR es inalterable
-11. Importar `qr_service` desde código nuevo de compras
-12. Referenciar `_hist_timeline` ni `tipo_doc` desde `recepcion_qr_widget.py`
+1. ❌ Reescribir el motor QR existente
+2. ❌ Crear un segundo motor QR fuera de `recepcion_qr_widget.py`
+3. ❌ Duplicar lógica de contenedores (`contenedores_qr`)
+4. ❌ Duplicar lógica de transferencias QR
+5. ❌ Duplicar actualización de inventario desde `compras_pro.py` para artículos QR
+6. ❌ Duplicar kardex desde `compras_pro.py` para artículos QR
+7. ❌ Duplicar lotes desde `compras_pro.py` para artículos QR
+8. ❌ Modificar `_build_tab_generar()` — lógica de generación QR inalterable
+9. ❌ Modificar `_build_tab_recepcionar()` — recepción QR inalterable
+10. ❌ Modificar `_build_tab_asignar()` — asignación QR inalterable
+11. ❌ Importar `qr_service` desde código nuevo de compras
+12. ❌ Referenciar `_hist_timeline` ni `tipo_doc` desde `recepcion_qr_widget.py` (Fase 7)
+13. ❌ Agregar una 4ª tab EXTERNA de PO reception en `ModuloComprasPro._build_ui`
+14. ❌ Cambiar el nombre o el ícono de los 3 tabs externos de ModuloComprasPro
 
 ---
 
 ## Qué SÍ se permite
 
-1. Mejorar UI/UX en tabs QR existentes (solo estilos, layout, no lógica)
-2. Agregar tab PO recepción (ya hecho en Fase 6 como `_tab_po_recv`)
-3. Mostrar comparación esperado vs recibido cuando recepción viene de PO
-4. Conectar visualmente PO con recepción
-5. Usar `ReceivePOAdapter` (creado en Fase 4) como único punto de entrada PO
-6. Agregar filtros en el tab Histórico QR (solo UI/UX)
+1. ✅ Mejorar UI/UX estética en tabs QR (solo estilos, colores de tokens, layout)
+2. ✅ El tab `_tab_po_recv` ya fue agregado en Fase 6 — está permitido
+3. ✅ Mostrar comparación esperado vs recibido cuando recepción viene de PO
+4. ✅ Conectar visualmente PO con recepción (solo display, no lógica duplicada)
+5. ✅ Usar `ReceivePOAdapter` como único punto de entrada PO
+6. ✅ Agregar filtros en el tab Histórico QR (solo UI/UX)
+7. ✅ Corregir bugs de UI en `_tab_po_recv` (Fase 6 puede recibir fixes)
 
 ---
 
-## Verificación Automática
+## Separación de rutas de recepción
 
-Los siguientes tests garantizan cumplimiento de la política:
+Las dos rutas son **mutuamente excluyentes**:
+
+| Ruta | Activador | Código |
+|------|-----------|--------|
+| QR | Usuario escanea contenedor | `recepcion_qr_widget.py` → motor QR existente |
+| PO | Usuario selecciona PO en `_tab_po_recv` | `ReceivePOAdapter.register_partial_receipt()` |
+
+**No existe ni debe existir código que llame ambas rutas para el mismo artículo.**
+
+---
+
+## Excepción documentada — SQL en recepcion_qr_widget.py
+
+`recepcion_qr_widget.py` contiene SQL directo de mutación (inventario, kardex, trazabilidad).  
+Este SQL ES la lógica QR existente y **no se toca hasta Fase 9**.
+
+Si en Fase 9 se decide moverlo a un servicio, se hará con:
+1. Tests de caracterización completos primero
+2. Migración paso a paso
+3. Documentación en `MIGRATION_LOG.md`
+
+---
+
+## Verificación automática (tests activos)
 
 ```
 tests/purchases/test_qr_flow_no_regression.py
@@ -61,10 +106,11 @@ tests/purchases/test_qr_flow_no_regression.py
   - test_compras_pro_module_has_no_syntax_error
   - test_qr_service_module_has_no_syntax_error
 
-tests/purchases/test_phase7_historial_timeline.py
-  - test_qr_widget_not_modified_for_phase7
-    (verifica: _hist_timeline NOT IN recepcion_qr_widget.py)
-    (verifica: tipo_doc NOT IN recepcion_qr_widget.py)
+tests/purchases/test_qr_no_extra_po_tab.py  ← NUEVO (Fase 1)
+  - test_outer_tabs_count_is_exactly_3
+  - test_qr_widget_has_5_internal_tabs
+  - test_no_fourth_po_tab_in_outer_module
+  - test_po_reception_tab_is_inside_qr_widget
 
 tests/purchases/test_phase6_reception_po_ui.py
   - test_does_not_reimport_qr_service
@@ -74,23 +120,9 @@ tests/purchases/test_phase6_reception_po_ui.py
 
 ---
 
-## Riesgo de Doble Inventario
+## Historial de cambios a esta política
 
-Si se llama `add_stock()` desde:
-- `recepcion_qr_widget.py` (UPSERT inventario_actual) → ruta QR original
-- `ReceivePOAdapter.register_partial_receipt()` → ruta PO
-
-Ambas rutas son **mutuamente excluyentes**:
-- Recepción QR: usuario escanea contenedor → flujo QR
-- Recepción PO: usuario selecciona PO en tab "🧾 Recepción PO" → flujo PO adapter
-
-No existe código que llame ambas rutas para el mismo artículo.
-
----
-
-## Excepción Documentada
-
-`recepcion_qr_widget.py` contiene SQL directo de mutación (inventario, kardex, trazabilidad).
-Este SQL es la lógica QR existente y **no se toca**.
-
-Si en Fase 9 se decide moverlo a un servicio, se hará con tests de caracterización primero.
+| Fecha | Cambio |
+|-------|--------|
+| 2026-05-15 | Versión inicial — política QR NO-TOUCH |
+| 2026-05-17 | Clarificación: 5 tabs internas QR (no 4). Agregado test `test_qr_no_extra_po_tab.py`. |
