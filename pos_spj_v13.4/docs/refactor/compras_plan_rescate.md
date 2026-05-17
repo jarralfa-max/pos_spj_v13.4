@@ -182,6 +182,7 @@ Decisiones ejecutadas en esta fase:
 Objetivo:
 
 - Mostrar compras, PR, PO y recepciones sin convertir historial en BI.
+- El historial no se convierte en BI: solo muestra datos transaccionales.
 
 **Estado:** ejecutada el 2026-05-17.
 

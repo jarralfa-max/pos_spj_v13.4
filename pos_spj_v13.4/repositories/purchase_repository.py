@@ -199,6 +199,13 @@ class PurchaseRepository:
             "estado": str(row[2] or "").lower(),
         }
 
+    def get_id_by_folio(self, folio: str) -> "int | None":
+        """Return the compra id for the given folio, or None if not found."""
+        row = self.db.cursor().execute(
+            "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
+        ).fetchone()
+        return int(row[0]) if row else None
+
     def get_purchase_full(self, compra_id: int) -> "dict | None":
         """Full purchase header as dict (for detail/print view)."""
         row = self.db.cursor().execute(
@@ -272,6 +279,40 @@ class PurchaseRepository:
             self.db.commit()
         except Exception as _e:
             logger.debug("delete_draft: %s", _e)
+
+    def get_productos_frecuentes(self, sucursal_id: int = None, limit: int = 5) -> list:
+        """Returns the most frequently purchased products ordered by purchase count."""
+        try:
+            if sucursal_id:
+                rows = self.db.execute(
+                    """SELECT d.producto_id,
+                              COALESCE(p.nombre, 'Producto') AS nombre,
+                              COUNT(DISTINCT c.id) AS frecuencia
+                       FROM detalles_compra d
+                       JOIN compras c ON c.id = d.compra_id
+                       JOIN productos p ON p.id = d.producto_id
+                       WHERE c.sucursal_id = ?
+                       GROUP BY d.producto_id
+                       ORDER BY frecuencia DESC
+                       LIMIT ?""",
+                    (sucursal_id, limit),
+                ).fetchall()
+            else:
+                rows = self.db.execute(
+                    """SELECT d.producto_id,
+                              COALESCE(p.nombre, 'Producto') AS nombre,
+                              COUNT(DISTINCT c.id) AS frecuencia
+                       FROM detalles_compra d
+                       JOIN compras c ON c.id = d.compra_id
+                       JOIN productos p ON p.id = d.producto_id
+                       GROUP BY d.producto_id
+                       ORDER BY frecuencia DESC
+                       LIMIT ?""",
+                    (limit,),
+                ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
 
     def get_purchase_by_folio(self, folio: str) -> dict:
         """
