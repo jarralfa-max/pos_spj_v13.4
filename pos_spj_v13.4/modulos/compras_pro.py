@@ -918,9 +918,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         right_col = self._build_summary_panel()
         splitter.addWidget(right_col)
 
-        # Proportions: col-span 3 | 4 | 5  →  25% | 33% | 42%
-        # Left fixed at 280; center:right grow at 4:5 ratio
-        splitter.setSizes([280, 360, 450])
+        # Exact 3:4:5 column proportions — reference 1140px total:
+        # left=285 (3u), center=380 (4u), right=475 (5u)
+        splitter.setSizes([285, 380, 475])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 4)
         splitter.setStretchFactor(2, 5)
@@ -2437,7 +2437,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Right column: items table (flex-1) + totals footer (fixed) + action button."""
         panel = PurchaseItemsAndTotalsPanel()
         panel.setObjectName("purchaseRightPanel")
-        panel.setMinimumWidth(480)
+        panel.setMinimumWidth(420)
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(Spacing.XS, Spacing.XS, Spacing.XS, Spacing.XS)
         lay.setSpacing(Spacing.XS)

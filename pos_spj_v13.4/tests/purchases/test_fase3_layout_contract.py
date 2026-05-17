@@ -83,23 +83,22 @@ class TestSplitterLayout:
         assert "QSplitter" in src, "_build_tab_tradicional debe usar QSplitter"
 
     def test_splitter_sizes_col_span_3_4_5(self):
-        """Sizes must follow col-span 3|4|5 proportions: left=280, center≤right."""
+        """Sizes must follow exact col-span 3|4|5: [285, 380, 475]."""
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "280" in src, "setSizes debe incluir 280 para columna izquierda"
+        assert "285" in src, "setSizes debe incluir 285 para columna izquierda (col-span-3)"
         assert "setSizes" in src, "setSizes debe llamarse en _build_tab_tradicional"
 
     def test_splitter_set_sizes_list_correct(self):
-        """setSizes must be [280, 360, 450] matching col-span 3:4:5 proportions."""
+        """setSizes must be [285, 380, 475] — exact 3:4:5 at 1140px reference."""
         src = _method_src("_build_tab_tradicional")
         assert src is not None
         match = re.search(r'setSizes\(\[(\d+),\s*(\d+),\s*(\d+)\]\)', src)
         assert match is not None, "setSizes([...]) debe estar en _build_tab_tradicional"
         sizes = [int(match.group(i)) for i in (1, 2, 3)]
         left, center, right = sizes
-        assert left == 280, f"Columna izquierda debe ser 280, got {left}"
-        assert center < right, (
-            f"Centro ({center}) debe ser menor que derecha ({right}) — col-span 4:5"
+        assert sizes == [285, 380, 475], (
+            f"Sizes incorrectos: {sizes}. Esperado: [285, 380, 475] (col-span 3:4:5)"
         )
 
     def test_stretch_factor_center_column_is_4(self):
