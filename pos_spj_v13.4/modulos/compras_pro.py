@@ -918,12 +918,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         right_col = self._build_summary_panel()
         splitter.addWidget(right_col)
 
-        # Set initial sizes: left=280, center=520, right=520.
-        # Fase 3: la columna derecha no es sidebar; crece junto con captura.
-        splitter.setSizes([280, 520, 520])
+        # Proportions: col-span 3 | 4 | 5  →  25% | 33% | 42%
+        # Left fixed at 280; center:right grow at 4:5 ratio
+        splitter.setSizes([280, 360, 450])
         splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 1)
+        splitter.setStretchFactor(1, 4)
+        splitter.setStretchFactor(2, 5)
 
         QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
@@ -1530,28 +1530,65 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         return w
 
     def _build_quick_products_card(self) -> QFrame:
-        """3×2 grid of emoji quick-add product buttons."""
+        """3×2 grid of quick-add product buttons loaded from purchase frequency."""
         panel, body = _make_section_card("Productos Rápidos", panel_cls=PurchaseQuickProductsCard)
-        quick_defs = [
-            ("🥩", "Filete Res"),
-            ("🍗", "Pechuga"),
-            ("🥓", "Tocino Ahum."),
-            ("🥛", "Leche Ent."),
-            ("🥚", "Huevo (Kg)"),
-        ]
-        grid = QGridLayout()
-        grid.setSpacing(Spacing.XS)
-        for idx, (emoji, name) in enumerate(quick_defs):
-            btn = QPushButton(f"{emoji}\n{name}")
+        self._quick_grid = QGridLayout()
+        self._quick_grid.setSpacing(Spacing.XS)
+        self._quick_grid_body = body
+        body.addLayout(self._quick_grid)
+        self._cargar_quick_products()
+        return panel
+
+    def _cargar_quick_products(self) -> None:
+        """Populate quick-product grid from the 5 most frequently purchased products."""
+        grid = self._quick_grid
+        # Clear existing buttons
+        while grid.count():
+            item = grid.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+
+        frecuentes: list[dict] = []
+        try:
+            frecuentes = self._purchase_repo.get_productos_frecuentes(
+                sucursal_id=self.sucursal_id, limit=5
+            )
+        except Exception:
+            pass
+
+        def _short(nombre: str, maxlen: int = 14) -> str:
+            return nombre if len(nombre) <= maxlen else nombre[:maxlen - 1] + "…"
+
+        for idx, prod in enumerate(frecuentes):
+            nombre = _short(prod.get("nombre") or "")
+            btn = QPushButton(f"📦\n{nombre}")
             btn.setObjectName("secondaryBtn")
             btn.setFixedHeight(54)
+            pid = prod.get("producto_id")
+            if pid:
+                btn.clicked.connect(lambda _checked, p=prod: self._add_quick_product(p))
             grid.addWidget(btn, idx // 3, idx % 3)
+
+        # Config button always in last slot of the 3×2 grid
         cfg_btn = QPushButton("⚙\nConfig")
         cfg_btn.setObjectName("secondaryBtn")
         cfg_btn.setFixedHeight(54)
-        grid.addWidget(cfg_btn, 1, 2)
-        body.addLayout(grid)
-        return panel
+        cfg_btn.setToolTip("Recargar productos frecuentes")
+        cfg_btn.clicked.connect(self._cargar_quick_products)
+        slot = len(frecuentes)
+        grid.addWidget(cfg_btn, slot // 3, slot % 3)
+
+    def _add_quick_product(self, prod: dict) -> None:
+        """Add a quick-product to the cart with qty=1 and cost=0 (user must edit)."""
+        self.carrito_compra.append({
+            'producto_id':     prod.get("producto_id"),
+            'nombre':          prod.get("nombre", ""),
+            'cantidad':        1,
+            'costo_unitario':  0.0,
+            'subtotal':        0.0,
+            'precio_historico': 0.0,
+        })
+        self._refresh_tabla()
 
     def _build_center_column(self) -> QWidget:
         """Center column: Captura Documental — Provider, Document, Product search."""

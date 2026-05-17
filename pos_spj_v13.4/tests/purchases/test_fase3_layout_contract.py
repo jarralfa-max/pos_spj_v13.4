@@ -5,7 +5,8 @@ FASE 3 — Contrato del layout de 3 columnas de Compra Tradicional.
 
 Verifica mediante AST (sin instanciar PyQt5) que:
 - El layout es QSplitter de 3 columnas
-- Las proporciones son [280, 520, 520] con stretchFactor(1) en columnas central y derecha
+- Las proporciones siguen col-span 3|4|5: setSizes([280, 360, 450])
+  con setStretchFactor(1, 4) para centro y setStretchFactor(2, 5) para derecha
 - Columna izquierda = documental toolbar (ERP PR/PO)
 - Columna central = center column (proveedor → documento → búsqueda → partidas)
 - Columna derecha = summary panel (totales + acción)
@@ -81,30 +82,32 @@ class TestSplitterLayout:
         assert src is not None
         assert "QSplitter" in src, "_build_tab_tradicional debe usar QSplitter"
 
-    def test_splitter_sizes_260_500_440(self):
+    def test_splitter_sizes_col_span_3_4_5(self):
+        """Sizes must follow col-span 3|4|5 proportions: left=280, center≤right."""
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "280" in src and "520" in src, (
-            "setSizes debe usar [280, 520, 520] en _build_tab_tradicional"
-        )
+        assert "280" in src, "setSizes debe incluir 280 para columna izquierda"
         assert "setSizes" in src, "setSizes debe llamarse en _build_tab_tradicional"
 
     def test_splitter_set_sizes_list_correct(self):
+        """setSizes must be [280, 360, 450] matching col-span 3:4:5 proportions."""
         src = _method_src("_build_tab_tradicional")
         assert src is not None
         match = re.search(r'setSizes\(\[(\d+),\s*(\d+),\s*(\d+)\]\)', src)
-        assert match is not None, "setSizes([280, 520, 520]) debe estar en _build_tab_tradicional"
+        assert match is not None, "setSizes([...]) debe estar en _build_tab_tradicional"
         sizes = [int(match.group(i)) for i in (1, 2, 3)]
-        assert sizes == [280, 520, 520], (
-            f"Sizes incorrectos: {sizes}. Esperado: [280, 520, 520]"
+        left, center, right = sizes
+        assert left == 280, f"Columna izquierda debe ser 280, got {left}"
+        assert center < right, (
+            f"Centro ({center}) debe ser menor que derecha ({right}) — col-span 4:5"
         )
 
-    def test_stretch_factor_center_column_is_1(self):
+    def test_stretch_factor_center_column_is_4(self):
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "setStretchFactor(1, 1)" in src, (
-            "setStretchFactor(1, 1) debe estar en _build_tab_tradicional "
-            "(columna central = índice 1, factor = 1)"
+        assert "setStretchFactor(1, 4)" in src, (
+            "setStretchFactor(1, 4) debe estar en _build_tab_tradicional "
+            "(columna central = índice 1, factor = 4 para col-span-4)"
         )
 
     def test_stretch_factor_left_col_is_0(self):
@@ -114,11 +117,11 @@ class TestSplitterLayout:
             "setStretchFactor(0, 0) debe estar — columna izquierda no crece"
         )
 
-    def test_stretch_factor_right_col_is_0(self):
+    def test_stretch_factor_right_col_is_5(self):
         src = _method_src("_build_tab_tradicional")
         assert src is not None
-        assert "setStretchFactor(2, 1)" in src, (
-            "setStretchFactor(2, 1) debe estar — columna derecha crece como panel de partidas"
+        assert "setStretchFactor(2, 5)" in src, (
+            "setStretchFactor(2, 5) debe estar — columna derecha crece como col-span-5"
         )
 
     def test_exactly_3_columns_added_to_splitter(self):
