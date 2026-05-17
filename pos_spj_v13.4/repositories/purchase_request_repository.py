@@ -1,97 +1,171 @@
-# repositories/purchase_request_repository.py — SPJ POS v13.4
 """
-Purchase Request Repository.
-All SQL for purchase_requests, purchase_request_items, purchase_request_events.
+repositories/purchase_request_repository.py
+────────────────────────────────────────────
+Acceso a datos para Purchase Requests (PR).
+
+Tabla: purchase_requests + purchase_request_items
+Sin lógica de negocio — solo CRUD + queries.
 """
 from __future__ import annotations
+
 import logging
+import uuid
+from datetime import datetime
+from typing import Optional
 
-logger = logging.getLogger("spj.repositories.purchase_request")
-
-_TABLE_EXISTS_SQL = (
-    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='purchase_requests'"
-)
+logger = logging.getLogger("spj.repo.purchase_request")
 
 
 class PurchaseRequestRepository:
-    def __init__(self, db):
-        self.db = db
 
-    def schema_ready(self) -> bool:
-        try:
-            return bool(self.db.execute(_TABLE_EXISTS_SQL).fetchone())
-        except Exception:
-            return False
+    def __init__(self, conn):
+        self.conn = conn
 
-    def create(self, *, folio: str, solicitante: str, sucursal_id: int,
-               proveedor_id: int | None = None, notas: str = "",
-               total_est: float = 0.0) -> int:
-        cur = self.db.execute(
+    # ── Creación ──────────────────────────────────────────────────────────────
+
+    def create(
+        self,
+        proveedor_id: int,
+        proveedor_nombre: str,
+        sucursal_id: int,
+        usuario: str,
+        items: list[dict],
+        metodo_pago: str,
+        subtotal: float,
+        iva_monto: float,
+        total: float,
+        condicion_pago: str = "liquidado",
+        plazo_dias: int = 0,
+        moneda: str = "MXN",
+        notas: str = "",
+        doc_ref: str = "",
+        estado: str = "BORRADOR",
+    ) -> tuple[int, str]:
+        """
+        Crea una PR en estado inicial.
+        Retorna (pr_id, folio).
+        NO afecta inventario, finanzas ni eventos.
+        """
+        folio = f"PR-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+        cur = self.conn.execute(
             """INSERT INTO purchase_requests
-               (folio, estado, solicitante, sucursal_id, proveedor_id, notas, total_est)
-               VALUES (?, 'borrador', ?, ?, ?, ?, ?)""",
-            (folio, solicitante, sucursal_id, proveedor_id, notas, total_est),
+               (folio, proveedor_id, proveedor_nombre, sucursal_id, usuario,
+                subtotal, iva_monto, total, metodo_pago, condicion_pago,
+                plazo_dias, moneda, notas, doc_ref, estado)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (folio, proveedor_id, proveedor_nombre, sucursal_id, usuario,
+             subtotal, iva_monto, total, metodo_pago, condicion_pago,
+             plazo_dias, moneda, notas, doc_ref, estado),
         )
-        self.db.commit()
-        return cur.lastrowid
+        pr_id = cur.lastrowid
+        self._save_items(pr_id, items)
+        logger.info("PR creada: %s id=%d proveedor=%s total=%.2f", folio, pr_id, proveedor_nombre, total)
+        return pr_id, folio
 
-    def add_item(self, pr_id: int, producto_id: int, cantidad: float,
-                 costo_estimado: float = 0.0, unidad: str = "pz",
-                 notas: str = "") -> None:
-        self.db.execute(
-            """INSERT INTO purchase_request_items
-               (pr_id, producto_id, cantidad_solicitada, costo_estimado, unidad, notas)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (pr_id, producto_id, cantidad, costo_estimado, unidad, notas),
-        )
-        self.db.commit()
+    def _save_items(self, pr_id: int, items: list[dict]) -> None:
+        for item in items:
+            self.conn.execute(
+                """INSERT INTO purchase_request_items
+                   (pr_id, producto_id, nombre, cantidad, unidad,
+                    precio_unitario, subtotal, lote, fecha_caducidad, notas)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (pr_id,
+                 item["product_id"],
+                 item.get("nombre", ""),
+                 item["qty"],
+                 item.get("unidad", "kg"),
+                 item["unit_cost"],
+                 round(item["qty"] * item["unit_cost"], 4),
+                 item.get("lote", ""),
+                 item.get("fecha_caducidad"),
+                 item.get("notas", "")),
+            )
 
-    def add_event(self, pr_id: int, evento: str, usuario: str,
-                  detalle: str = "") -> None:
-        self.db.execute(
-            """INSERT INTO purchase_request_events (pr_id, evento, usuario, detalle)
-               VALUES (?, ?, ?, ?)""",
-            (pr_id, evento, usuario, detalle),
-        )
-        self.db.commit()
+    # ── Lectura ───────────────────────────────────────────────────────────────
 
-    def get(self, pr_id: int) -> dict | None:
-        row = self.db.execute(
+    def get_by_id(self, pr_id: int) -> Optional[dict]:
+        row = self.conn.execute(
             "SELECT * FROM purchase_requests WHERE id=?", (pr_id,)
         ).fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        result = dict(row)
+        result["items"] = self._get_items(pr_id)
+        return result
 
-    def list_by_branch(self, sucursal_id: int, estado: str | None = None,
-                       limit: int = 100) -> list[dict]:
-        if estado:
-            rows = self.db.execute(
-                """SELECT * FROM purchase_requests
-                   WHERE sucursal_id=? AND estado=?
-                   ORDER BY creado_en DESC LIMIT ?""",
-                (sucursal_id, estado, limit),
-            ).fetchall()
-        else:
-            rows = self.db.execute(
-                """SELECT * FROM purchase_requests
-                   WHERE sucursal_id=?
-                   ORDER BY creado_en DESC LIMIT ?""",
-                (sucursal_id, limit),
-            ).fetchall()
-        return [dict(r) for r in rows]
+    def get_by_folio(self, folio: str) -> Optional[dict]:
+        row = self.conn.execute(
+            "SELECT * FROM purchase_requests WHERE folio=?", (folio,)
+        ).fetchone()
+        if not row:
+            return None
+        result = dict(row)
+        result["items"] = self._get_items(result["id"])
+        return result
 
-    def get_items(self, pr_id: int) -> list[dict]:
-        rows = self.db.execute(
-            """SELECT pri.*, p.nombre
-               FROM purchase_request_items pri
-               LEFT JOIN productos p ON p.id = pri.producto_id
-               WHERE pri.pr_id = ?""",
+    def _get_items(self, pr_id: int) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT * FROM purchase_request_items WHERE pr_id=? ORDER BY id",
             (pr_id,),
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def update_estado(self, pr_id: int, estado: str) -> None:
-        self.db.execute(
-            "UPDATE purchase_requests SET estado=?, actualizado=datetime('now') WHERE id=?",
-            (estado, pr_id),
-        )
-        self.db.commit()
+    def get_items(self, pr_id: int) -> list[dict]:
+        """Public read helper for UI/use cases; keeps SQL inside repository."""
+        return self._get_items(pr_id)
+
+    def list_by_estado(self, estado: str, sucursal_id: Optional[int] = None,
+                       limit: int = 100) -> list[dict]:
+        if sucursal_id:
+            rows = self.conn.execute(
+                """SELECT * FROM purchase_requests
+                   WHERE estado=? AND sucursal_id=?
+                   ORDER BY fecha_creacion DESC LIMIT ?""",
+                (estado, sucursal_id, limit),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """SELECT * FROM purchase_requests
+                   WHERE estado=?
+                   ORDER BY fecha_creacion DESC LIMIT ?""",
+                (estado, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_pending(self, sucursal_id: Optional[int] = None) -> list[dict]:
+        return self.list_by_estado("PENDIENTE_APROBACION", sucursal_id)
+
+    def list_approved(self, sucursal_id: Optional[int] = None) -> list[dict]:
+        return self.list_by_estado("APROBADA", sucursal_id)
+
+    # ── Transiciones de estado ────────────────────────────────────────────────
+
+    def update_estado(self, pr_id: int, nuevo_estado: str,
+                      usuario: Optional[str] = None,
+                      motivo: Optional[str] = None) -> bool:
+        now = datetime.now().isoformat()
+        if nuevo_estado in ("APROBADA",):
+            self.conn.execute(
+                """UPDATE purchase_requests
+                   SET estado=?, aprobado_por=?, fecha_aprobacion=?, fecha_actualizacion=?
+                   WHERE id=?""",
+                (nuevo_estado, usuario, now, now, pr_id),
+            )
+        elif nuevo_estado in ("RECHAZADA",):
+            self.conn.execute(
+                """UPDATE purchase_requests
+                   SET estado=?, rechazado_por=?, motivo_rechazo=?, fecha_actualizacion=?
+                   WHERE id=?""",
+                (nuevo_estado, usuario, motivo, now, pr_id),
+            )
+        else:
+            self.conn.execute(
+                """UPDATE purchase_requests
+                   SET estado=?, fecha_actualizacion=?
+                   WHERE id=?""",
+                (nuevo_estado, now, pr_id),
+            )
+        changed = self.conn.execute(
+            "SELECT changes()"
+        ).fetchone()[0]
+        return changed > 0
