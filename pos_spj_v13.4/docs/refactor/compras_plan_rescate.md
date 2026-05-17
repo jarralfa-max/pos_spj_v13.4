@@ -84,18 +84,28 @@ Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebi
 
 ---
 
-### FASE 3 — Reconstruir UI Compra Tradicional (3 columnas)
+### FASE 3 — Reconstruir UI Compra Tradicional (3 columnas) (✅ COMPLETADA 2026-05-17)
 
-**Objetivo:** Layout de 3 columnas igual al HTML de referencia.  
-**Estado:** Implementado en sesiones anteriores. Pendiente validar visualmente.
+**Objetivo:** Layout de 3 columnas igual al HTML de referencia.
 
 **Checklist:**
-- [ ] Columna izquierda (260px): sidebar documental ERP (PR/PO/filtros)
-- [ ] Columna central (stretch): proveedor → documento → búsqueda → partidas
-- [ ] Columna derecha (440px): resumen + totales + acción principal
-- [ ] QSplitter con `setSizes([260, 500, 440])` y `setStretchFactor(1, 1)`
-- [ ] KPI bar FUERA de las tabs (sobre ellas)
-- [ ] Sin PROVEEDOR RÁPIDO visible en columna izquierda
+- [x] Columna izquierda (260px): `_build_documental_toolbar()` — fijo `setFixedWidth(260)` ✅
+- [x] Columna central (stretch): `_build_center_column()` — proveedor→documento→búsqueda→partidas ✅
+- [x] Columna derecha (440px): `_build_summary_panel()` — totales+acción, `minWidth=400` ✅
+- [x] QSplitter con `setSizes([260, 500, 440])` y `setStretchFactor(1, 1)` ✅
+- [x] KPI bar FUERA de las tabs (en `_build_ui` antes de crear el QTabWidget) ✅
+- [x] Sin PROVEEDOR RÁPIDO visible en columna izquierda (está como attrs ocultos) ✅
+
+**Hallazgos:**
+- `_build_provider_sidebar()` (L2349) es **dead code** — nunca se llama desde ningún método de layout. Contiene colores prohibidos (SLATE_50, background:white) pero no se renderiza. Documentada con comentario de DEAD CODE; remoción en FASE 10.
+- Widgets backward-compat (`_sidebar_prov_search`, `_sidebar_prov_list`, `_sidebar_templates_list`, `_sidebar_recent_list`) están correctamente ocultos en `_build_documental_toolbar()`.
+- `_hidden_doctype_toolbar` y `_hidden_stepper` están correctamente guardados en `_build_center_column()`.
+
+**Cambios de código:**
+- Docstring de `_build_provider_sidebar()` actualizado a "DEAD CODE — never added to any layout"
+
+**Tests creados (46 nuevos, todos en verde):**
+- `tests/purchases/test_fase3_layout_contract.py`
 
 ---
 

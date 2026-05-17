@@ -2347,7 +2347,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Left provider sidebar ─────────────────────────────────────────────────
     def _build_provider_sidebar(self) -> QWidget:
-        """Left ERP sidebar: quick-access provider list + purchase templates."""
+        """DEAD CODE — never added to any layout. Scheduled for removal in FASE 10.
+        The sidebar provider list lives as hidden attrs in _build_documental_toolbar()
+        for backward-compat with _poblar_sidebar_proveedores() etc.
+        Prohibited colors (SLATE_50, background:white) exist here but are not rendered.
+        DO NOT call this method — it would overwrite _sidebar_prov_search / _sidebar_prov_list.
+        """
         sidebar = QFrame()
         sidebar.setFixedWidth(220)
         sidebar.setStyleSheet(
