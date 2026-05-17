@@ -382,12 +382,17 @@ class TestHiddenBackwardCompatWidgets:
         assert src is not None
         assert "_hidden_stepper" in src
 
-    def test_hidden_doctype_toolbar_is_hidden(self):
+    def test_doctype_toolbar_added_to_layout(self):
+        """FASE 6: doctype toolbar is now visible in center column layout (no unconditional hide)."""
         src = _method_src("_build_center_column")
         assert src is not None
-        idx = src.find("_hidden_doctype_toolbar")
-        block = src[idx:idx + 100]
-        assert ".hide()" in block
+        assert "_hidden_doctype_toolbar = self._build_doctype_toolbar()" in src, (
+            "_hidden_doctype_toolbar debe construirse en _build_center_column"
+        )
+        assert "lay.addWidget(self._hidden_doctype_toolbar)" in src, (
+            "FASE 6: doctype toolbar debe añadirse al layout (visible). "
+            "No debe eliminarse con .hide() incondicional."
+        )
 
     def test_hidden_stepper_is_hidden(self):
         src = _method_src("_build_center_column")

@@ -836,6 +836,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         QShortcut(QKeySequence(Qt.Key_F10), parent, self._procesar_compra)
 
+        # Apply initial doctype state after all panels are built
+        self._refresh_doctype_ui()
+
     def _build_purchase_kpi_bar(self) -> QWidget:
         """Full-width KPI bar with 5 operational metrics using _PurchaseKPICard."""
         bar = QFrame()
@@ -1443,14 +1446,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._btn_procesar = self._btn_autorizar
         lay.addWidget(self._btn_autorizar)
 
-        # Hint text
-        hint = QLabel("Flujo: Capturar → Generar PR → Aprobar PR → Generar PO → Procesar")
-        hint.setAlignment(Qt.AlignCenter)
-        hint.setStyleSheet(
+        # Hint text — stored as attr so _refresh_doctype_ui() can update it
+        self._lbl_hint = QLabel("Flujo: Capturar → Generar PR → Aprobar PR → Generar PO → Procesar")
+        self._lbl_hint.setAlignment(Qt.AlignCenter)
+        self._lbl_hint.setStyleSheet(
             f"font-size:9px;font-style:italic;color:{Colors.NEUTRAL.SLATE_400};"
             "background:transparent;"
         )
-        lay.addWidget(hint)
+        lay.addWidget(self._lbl_hint)
 
         return w
 
@@ -1507,6 +1510,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.setSpacing(Spacing.SM)
         lay.setContentsMargins(Spacing.SM + 2, Spacing.SM, Spacing.SM + 2, Spacing.SM)
 
+        # FASE 6: Doctype selector at top of center column (visible; no unconditional hide)
+        self._hidden_doctype_toolbar = self._build_doctype_toolbar()
+        lay.addWidget(self._hidden_doctype_toolbar)
+
+        # FASE 6: Stepper — hidden initially (DIRECT); _refresh_doctype_ui() controls visibility
+        self._hidden_stepper = self._build_stepper_bar()
+        self._hidden_stepper.hide()
+        lay.addWidget(self._hidden_stepper)
+
         lay.addWidget(self._build_provider_card())
         lay.addWidget(self._build_document_card())
         lay.addWidget(self._build_product_search_card())
@@ -1524,12 +1536,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         self._cxp_alert_bar.hide()
         lay.addWidget(self._cxp_alert_bar)
-
-        # Keep widgets alive (referenced by _doctype_buttons / _stepper_labels)
-        self._hidden_doctype_toolbar = self._build_doctype_toolbar()
-        self._hidden_doctype_toolbar.hide()
-        self._hidden_stepper = self._build_stepper_bar()
-        self._hidden_stepper.hide()
 
         lay.addStretch()
         scroll.setWidget(inner_w)
@@ -3065,22 +3071,35 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             btn.setStyleSheet(active if dt == self._doc_type else idle)
 
     def _refresh_doctype_ui(self) -> None:
-        """Actualiza badge de estado, texto del botón principal y visibilidad según doc type."""
+        """Actualiza badge, texto/color del botón principal, stepper y hint según doc type."""
         _cfg = {
+            #  badge_txt         badge_color           btn_txt              btn_tip
+            #  show_enviar  btn_color              btn_hover
+            #  show_stepper  hint_txt
             "DIRECT": (
                 "🔵  En captura",      Colors.INFO_BASE,
                 "✓ Autorizar compra",  "Autorizar y procesar compra (F10)",    True,
+                Colors.SUCCESS_BASE,   Colors.SUCCESS_HOVER,
+                False,
+                "Flujo: Capturar → Autorizar → Registra en inventario inmediatamente",
             ),
             "PR": (
                 "📋  Solicitud PR",    Colors.WARNING_BASE,
                 "📋 Crear solicitud",  "Guardar solicitud pendiente de aprobación",  False,
+                Colors.PRIMARY_BASE,   Colors.PRIMARY_HOVER,
+                True,
+                "Flujo: Crear solicitud → Aprobar PR → Convertir a Orden de Compra",
             ),
             "PO": (
                 "📦  Orden de Compra", Colors.SUCCESS_BASE,
                 "📦 Ver instrucciones", "Ver instrucciones para generar Orden de Compra", False,
+                Colors.WARNING_BASE,   Colors.WARNING_HOVER,
+                True,
+                "Flujo: PR aprobada → Orden de compra → Recepción con QR",
             ),
         }
-        badge_txt, badge_color, btn_txt, btn_tip, show_enviar = _cfg.get(
+        (badge_txt, badge_color, btn_txt, btn_tip, show_enviar,
+         btn_color, btn_hover, show_stepper, hint_txt) = _cfg.get(
             self._doc_type, _cfg["DIRECT"])
 
         if hasattr(self, '_lbl_estado_compra'):
@@ -3092,8 +3111,20 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_btn_autorizar'):
             self._btn_autorizar.setText(btn_txt)
             self._btn_autorizar.setToolTip(btn_tip)
+            self._btn_autorizar.setStyleSheet(
+                f"QPushButton{{background:{btn_color};color:white;"
+                f"border-radius:{Borders.RADIUS_MD}px;font-size:13px;font-weight:700;"
+                f"letter-spacing:0.05em;border:none;}}"
+                f"QPushButton:hover{{background:{btn_hover};}}"
+                f"QPushButton:disabled{{background:{Colors.NEUTRAL.SLATE_400};"
+                f"color:{Colors.NEUTRAL.SLATE_600};}}"
+            )
         if hasattr(self, '_btn_enviar_recepcion'):
             self._btn_enviar_recepcion.setVisible(show_enviar)
+        if hasattr(self, '_hidden_stepper'):
+            self._hidden_stepper.setVisible(show_stepper)
+        if hasattr(self, '_lbl_hint'):
+            self._lbl_hint.setText(hint_txt)
 
     def _procesar_como_pr(self, proveedor_id: int, proveedor_nom: str) -> None:
         """

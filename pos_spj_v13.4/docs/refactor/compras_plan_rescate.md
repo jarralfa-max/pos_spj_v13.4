@@ -175,17 +175,38 @@ Transformar `ModuloComprasPro` de un módulo PyQt5 con lógica de negocio embebi
 
 ---
 
-### FASE 6 — Separar rutas doctypes (DIRECT / PR / PO)
+### FASE 6 — Separar rutas doctypes (DIRECT / PR / PO) (✅ COMPLETADA 2026-05-17)
 
 **Objetivo:** Al cambiar `_doc_type`, la UI adapta campos y acciones correctamente.
 
 **Checklist:**
-- [ ] DIRECT: sin stepper, botón "Procesar Compra" en SUCCESS
-- [ ] PR: stepper visible, botón "Crear Solicitud" en PRIMARY
-- [ ] PO: stepper visible, botón "Crear Orden" en WARNING
-- [ ] `_doctype_buttons` resalta el tipo activo
-- [ ] Al cambiar tipo, `_refresh_doctype_ui()` adapta UI
-- [ ] Hint text actualiza según el tipo
+- [x] DIRECT: sin stepper, botón "✓ Autorizar compra" en SUCCESS (verde) ✅
+- [x] PR: stepper visible, botón "📋 Crear solicitud" en PRIMARY (azul) ✅
+- [x] PO: stepper visible, botón "📦 Ver instrucciones" en WARNING (ámbar) ✅
+- [x] `_doctype_buttons` resalta el tipo activo (`_apply_doctype_button_styles`) ✅
+- [x] Al cambiar tipo, `_refresh_doctype_ui()` adapta badge, botón, stepper y hint ✅
+- [x] Hint text actualiza según el tipo (`self._lbl_hint`) ✅
+
+**Cambios de código:**
+- `_build_center_column()`: doctype toolbar y stepper promovidos a layout visible (FASE 3 los tenía ocultos como transición)
+- `_build_dynamic_action_button()`: `hint` local → `self._lbl_hint` (atributo de instancia)
+- `_refresh_doctype_ui()`: extendido con `btn_color`, `btn_hover`, `show_stepper`, `hint_txt` por doc type
+- `_build_tab_tradicional()`: llama `_refresh_doctype_ui()` después de construir todos los paneles
+
+**Tests actualizados:**
+- `test_fase3_layout_contract.py`: `test_hidden_doctype_toolbar_is_hidden` → `test_doctype_toolbar_added_to_layout` (refleja nuevo comportamiento FASE 6)
+
+**Tests creados (42 nuevos, todos en verde):**
+- `tests/purchases/test_fase6_doctype_ui.py`
+  - `TestDoctypeToolbarVisible`: toolbar en layout, no oculto sin condición
+  - `TestStepperInCenterColumn`: stepper en layout, oculto inicial, visibilidad via refresh
+  - `TestRefreshDoctypeUICompleteness`: 3 doc types + fallback DIRECT
+  - `TestButtonColorPerDoctype`: SUCCESS/PRIMARY/WARNING + setStyleSheet en btn_autorizar
+  - `TestStepperVisibilityConfig`: show_stepper True para PR/PO, False para DIRECT
+  - `TestHintLabelAsAttr`: _lbl_hint como atributo, añadido al layout, actualizado en refresh
+  - `TestRefreshCalledOnBuild`: _refresh_doctype_ui() llamado DESPUÉS de _build_summary_panel()
+  - `TestDoctypeButtonsHighlight`: _apply_doctype_button_styles, _on_doctype_changed wiring
+  - `TestNoBannedColorsInFase6Methods`: 12 parametrize (6 métodos × 2 bans)
 
 ---
 
