@@ -179,25 +179,29 @@ def inicializar_sistema():
         QMessageBox.critical(None, "Error Fatal — Bootstrap DB", str(e))
         sys.exit(1)
 
+    _mig_conn = None
     try:
         import sqlite3
         from core.db.connection import migrate_db, verificar_tablas
-        conn = sqlite3.connect(DB_PATH)
-        migrator.up(conn)
-        migrate_db(conn)
-        verificar_tablas(conn)
-        conn.close()
+        _mig_conn = sqlite3.connect(DB_PATH)
+        migrator.up(_mig_conn)
+        migrate_db(_mig_conn)
+        verificar_tablas(_mig_conn)
+        _mig_conn.close()
+        _mig_conn = None
         logger.info("✅ Migraciones OK")
     except RuntimeError as e:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if _mig_conn:
+            try: _mig_conn.close()
+            except Exception: pass
         logger.critical("DB incompleta post-migraciones: %s", e)
         QMessageBox.critical(None, "Error Fatal — DB incompleta", str(e))
         sys.exit(1)
     except Exception as e:
-        logger.warning("Migraciones (continuando): %s", e)
+        if _mig_conn:
+            try: _mig_conn.close()
+            except Exception: pass
+        logger.error("Migraciones fallaron (continuando con repositorios como fallback): %s", e)
 
     try:
         container = AppContainer(db_path=DB_PATH)

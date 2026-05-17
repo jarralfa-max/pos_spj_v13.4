@@ -957,7 +957,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         splitter.setObjectName("purchaseThreeColumnSplitter")
         splitter.setHandleWidth(1)
         splitter.setStyleSheet(
-            f"QSplitter::handle{{background:{_C_BORDER};}}"
+            "QSplitter::handle{background:rgba(148,163,184,0.25);}"
         )
         root.addWidget(splitter, 1)
 
@@ -1712,6 +1712,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         sub_rec = QWidget()
         self._qr_subtabs.addTab(sub_rec, "📦 Recepción con QR")
+        # Subtab builds RecepcionQRWidget wrapped with wrap_in_scroll_area (see _build_subtab_recepcion)
         self._build_subtab_recepcion(sub_rec)
 
         sub_hst = QWidget()
@@ -2809,7 +2810,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         hdr_lay = QHBoxLayout(hdr_frame)
         hdr_lay.setContentsMargins(Spacing.SM + 2, 0, Spacing.XS, 0)
-        hdr = QLabel("📁  TOOLBAR DOCUMENTAL ERP")
+        hdr = QLabel("📁  DOCUMENTOS ERP")
         hdr.setStyleSheet(
             f"color:{Colors.NEUTRAL.WHITE};"
             f"font-size:{Typography.SIZE_XS};"
@@ -3146,7 +3147,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if hasattr(self, '_doc_toolbar_scroll'):
                 self._doc_toolbar_scroll.show()
             if hasattr(self, '_doc_toolbar_header_label'):
-                self._doc_toolbar_header_label.setText("📁  TOOLBAR DOCUMENTAL ERP")
+                self._doc_toolbar_header_label.setText("📁  DOCUMENTOS ERP")
             self._btn_collapse_doc.setText("◀")
             self._btn_collapse_doc.setToolTip("Ocultar toolbar documental")
             if splitter is not None:
@@ -4404,7 +4405,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         idle = (
             f"QPushButton{{"
-            f"  background:transparent;"
+            f"  background:{Colors.NEUTRAL.SLATE_100};"
             f"  color:{_C_BODY_TXT};"
             f"  border:1px solid transparent;"
             f"  border-radius:{Borders.RADIUS_SM - 1}px;"
