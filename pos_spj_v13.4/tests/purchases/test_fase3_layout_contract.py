@@ -407,15 +407,15 @@ class TestHiddenBackwardCompatWidgets:
         assert "_hidden_stepper" in src
 
     def test_doctype_toolbar_added_to_layout(self):
-        """FASE 6: doctype toolbar is now visible in center column layout (no unconditional hide)."""
+        """Doctype toolbar in layout for widget lifecycle; hidden by default.
+        Doctype is driven by left-column document selection, not a visible bar."""
         src = _method_src("_build_center_column")
         assert src is not None
         assert "_hidden_doctype_toolbar = self._build_doctype_toolbar()" in src, (
             "_hidden_doctype_toolbar debe construirse en _build_center_column"
         )
         assert "lay.addWidget(self._hidden_doctype_toolbar)" in src, (
-            "FASE 6: doctype toolbar debe añadirse al layout (visible). "
-            "No debe eliminarse con .hide() incondicional."
+            "_hidden_doctype_toolbar debe añadirse al layout para lifecycle del widget."
         )
 
     def test_hidden_stepper_is_hidden(self):

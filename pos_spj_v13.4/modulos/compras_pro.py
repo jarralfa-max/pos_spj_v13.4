@@ -1609,9 +1609,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.setSpacing(Spacing.SM)
         lay.setContentsMargins(Spacing.SM + 2, Spacing.SM, Spacing.SM + 2, Spacing.SM)
 
-        # FASE 6: Doctype selector at top of center column (visible; no unconditional hide)
+        # Doctype selector — in layout for widget lifecycle but hidden.
+        # Doctype is driven by left column document selection, not a visible bar.
         self._hidden_doctype_toolbar = self._build_doctype_toolbar()
         lay.addWidget(self._hidden_doctype_toolbar)
+        self._hidden_doctype_toolbar.hide()
 
         # FASE 6: Stepper — hidden initially (DIRECT); _refresh_doctype_ui() controls visibility
         self._hidden_stepper = self._build_stepper_bar()
