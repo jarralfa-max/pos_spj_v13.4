@@ -1943,21 +1943,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _qr_regenerar_codigo(self) -> None:
         pfx = self._TIPO_PFX.get(self._qr_tipo_actual, "CTN")
-        try:
-            row = self.container.db.execute(
-                "SELECT COALESCE(MAX(seq_num),0)+1 FROM contenedores WHERE tipo=?",
-                (self._qr_tipo_actual,)
-            ).fetchone()
-            seq = int(row[0]) if row else 1
-        except Exception:
-            from datetime import datetime as _dt
-            seq = int(_dt.now().strftime("%H%M%S"))
-        self.qr_codigo.setText(f"{pfx}-{seq:06d}")
+        suf = datetime.now().strftime("%y%m%d-%H%M%S")
+        self.qr_codigo.setText(f"{pfx}-{suf}")
         self._qr_actualizar_preview()
 
     def _qr_actualizar_preview(self) -> None:
         if not hasattr(self, "qr_preview_id"): return
-        self.qr_preview_id.setText(self.qr_codigo.text() or "CAJ-000001")
+        self.qr_preview_id.setText(self.qr_codigo.text() or "CAJ-260101-000000")
         tipo_lbl = self._TIPO_LBL.get(self._qr_tipo_actual, "Contenedor")
         desc = self.qr_descripcion.text().strip() if hasattr(self, "qr_descripcion") else ""
         parent_txt = ""
@@ -1983,18 +1975,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             ) != QMessageBox.Yes:
                 return
         try:
-            pfx  = self._TIPO_PFX.get(self._qr_tipo_actual, "CTN")
-            seq  = int(codigo.split("-")[-1]) if "-" in codigo else 0
             db   = self.container.db
             parent_id = getattr(self, "qr_parent_id", None)
             db.execute(
                 """INSERT INTO contenedores
-                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id, seq_num)
-                   VALUES (?,?,?,'generado',?,?,?)""",
+                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id)
+                   VALUES (?,?,?,'generado',?,?)""",
                 (codigo, self._qr_tipo_actual,
                  self.qr_descripcion.text().strip() or None,
                  self.usuario_actual or "Sistema",
-                 parent_id, seq)
+                 parent_id)
             )
             db.commit()
             self.qr_preview_status.setText("✓ Generado · sin asignar")
@@ -2141,12 +2131,33 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if sig is not None: sig.connect(self._qr_agregar_producto_carrito)
             cf.addWidget(self.qr_buscador)
         except Exception:
+            from PyQt5.QtWidgets import QCompleter
             row_busc = QHBoxLayout()
             self.qr_buscador_input = QLineEdit()
-            self.qr_buscador_input.setPlaceholderText("🔎 Buscar producto del catálogo…")
-            btn_add = create_primary_button(self,"➕ Agregar","")
+            self.qr_buscador_input.setPlaceholderText("🔎 Buscar producto por nombre, código o ID…")
+            try:
+                _prod_rows = self.container.db.execute(
+                    "SELECT id, nombre, codigo_barras FROM productos ORDER BY nombre LIMIT 2000"
+                ).fetchall()
+                _prod_labels = []
+                self._qr_prod_map: dict = {}
+                for _r in _prod_rows:
+                    _pid  = _r["id"]   if hasattr(_r, "keys") else _r[0]
+                    _nom  = _r["nombre"] if hasattr(_r, "keys") else _r[1]
+                    _cod  = _r["codigo_barras"] if hasattr(_r, "keys") else _r[2]
+                    _lbl  = f"{_nom} [{_cod or _pid}]"
+                    _prod_labels.append(_lbl)
+                    self._qr_prod_map[_lbl] = _pid
+                _comp = QCompleter(_prod_labels)
+                _comp.setCaseSensitivity(Qt.CaseInsensitive)
+                _comp.setFilterMode(Qt.MatchContains)
+                self.qr_buscador_input.setCompleter(_comp)
+                self.qr_buscador_input.returnPressed.connect(self._qr_agregar_producto_manual)
+            except Exception:
+                pass
+            btn_add = create_primary_button(self, "➕ Agregar", "")
             btn_add.clicked.connect(self._qr_agregar_producto_manual)
-            row_busc.addWidget(self.qr_buscador_input,1); row_busc.addWidget(btn_add)
+            row_busc.addWidget(self.qr_buscador_input, 1); row_busc.addWidget(btn_add)
             cf.addLayout(row_busc)
 
         self.tbl_qr_carrito = QTableWidget(0,7)
@@ -2205,12 +2216,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._contenedor_seleccionado_id = None
 
     def _qr_cargar_proveedores_combo(self) -> None:
+        from PyQt5.QtWidgets import QCompleter
+        from PyQt5.QtCore import Qt
         try:
             self.qr_proveedor.clear()
             for p in (self._prov_repo.get_activos() or []):
                 self.qr_proveedor.addItem(str(p.get("nombre", "")), p.get("id"))
         except Exception:
             pass
+        completer = QCompleter([self.qr_proveedor.itemText(i)
+                                 for i in range(self.qr_proveedor.count())])
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        self.qr_proveedor.setCompleter(completer)
 
     def _cargar_contenedores_pendientes(self) -> None:
         if not hasattr(self,"tbl_pendientes"): return
@@ -2223,7 +2241,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             sql += " ORDER BY fecha_creado DESC LIMIT 200"
             rows = self.container.db.execute(sql, params).fetchall()
             self.tbl_pendientes.setRowCount(0)
-            ico_map = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}
+            ico_map = self._TIPO_ICO
             for r in rows:
                 cid = r["id"] if hasattr(r,"keys") else r[0]
                 cod = r["codigo"] if hasattr(r,"keys") else r[1]
@@ -3254,7 +3272,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             sql += " ORDER BY c.fecha_creado DESC LIMIT 500"
             rows = self.container.db.execute(sql, params).fetchall()
             self.tbl_qr_hist.setRowCount(0)
-            ico_map = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}
+            ico_map = self._TIPO_ICO
             est_map = {"generado":"🏷️ Sin asignar","asignado":"🔗 Asignado",
                        "recibido":"✓ Recibido","diferencia":"⚠ Diferencia"}
             for r in rows:
