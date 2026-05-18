@@ -873,27 +873,45 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         root = QVBoxLayout(self)
         root.setContentsMargins(10, 8, 10, 8)
 
-        # ── PageHeader ────────────────────────────────────────────────────────
-        root.addWidget(PageHeader(self,
+        # ── Unified nav header: PageHeader + tab bars ─────────────────────────
+        nav_header = QFrame()
+        nav_header.setObjectName("moduleNavHeader")
+        nav_lay = QVBoxLayout(nav_header)
+        nav_lay.setContentsMargins(0, 0, 0, 0)
+        nav_lay.setSpacing(0)
+
+        nav_lay.addWidget(PageHeader(self,
             title="🛒 Compras a Proveedores",
             subtitle="Recepción de mercancía · Actualización de stock · Historial",
         ))
 
-        # ── Row 1: main tab bar ───────────────────────────────────────────
+        # Row 1: main tab bar (right-aligned, tabs don't stretch)
         self._main_tabbar = QTabBar()
         self._main_tabbar.setObjectName("mainTabBar")
         self._main_tabbar.setDocumentMode(True)
         self._main_tabbar.setUsesScrollButtons(True)
-        root.addWidget(self._main_tabbar)
+        self._main_tabbar.setExpanding(False)
+        row1 = QHBoxLayout()
+        row1.setContentsMargins(0, 0, 0, 0)
+        row1.addStretch(1)
+        row1.addWidget(self._main_tabbar)
+        nav_lay.addLayout(row1)
 
-        # ── Row 2: QR subtab bar (hidden until QR tab active) ────────────
+        # Row 2: QR subtab bar (right-aligned, hidden until QR tab active)
         self._qr_sub_tabbar = QTabBar()
         self._qr_sub_tabbar.setObjectName("subTabBar")
         self._qr_sub_tabbar.setDocumentMode(True)
+        self._qr_sub_tabbar.setExpanding(False)
         self._qr_sub_tabbar.setVisible(False)
-        root.addWidget(self._qr_sub_tabbar)
+        row2 = QHBoxLayout()
+        row2.setContentsMargins(0, 0, 0, 0)
+        row2.addStretch(1)
+        row2.addWidget(self._qr_sub_tabbar)
+        nav_lay.addLayout(row2)
 
-        # ── KPI bar ───────────────────────────────────────────────────────
+        root.addWidget(nav_header)
+
+        # ── KPI bar (below unified header, spans all tabs) ────────────────────
         root.addWidget(self._build_purchase_kpi_bar())
 
         # ── Content stack ─────────────────────────────────────────────────
@@ -4705,12 +4723,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_vence_el = QLabel("—")
         self._lbl_vence_el.setObjectName("caption")
 
-        pay_col.addWidget(_make_field_label("Método / Forma"), 0, 0, 1, 2)
-        pay_col.addWidget(self.cmb_pago,                       1, 0, 1, 2)
-        pay_col.addWidget(_make_field_label("Plazo"),          2, 0)
-        pay_col.addWidget(_make_field_label("Vence"),          2, 1)
-        pay_col.addWidget(self._spin_plazo_dias,               3, 0)
-        pay_col.addWidget(self._lbl_vence_el,                  3, 1)
+        pay_col.addWidget(_make_field_label("Método / Forma"),   0, 0, 1, 2)
+        pay_col.addWidget(self.cmb_pago,                         1, 0, 1, 2)
+        pay_col.addWidget(_make_field_label("Condición de pago"), 2, 0, 1, 2)
+        pay_col.addWidget(self._cmb_condicion_pago,              3, 0, 1, 2)
+        pay_col.addWidget(_make_field_label("Plazo"),            4, 0)
+        pay_col.addWidget(_make_field_label("Vence"),            4, 1)
+        pay_col.addWidget(self._spin_plazo_dias,                 5, 0)
+        pay_col.addWidget(self._lbl_vence_el,                    5, 1)
 
         self._cmb_condicion_pago.currentTextChanged.connect(self._on_condicion_changed)
         self._spin_plazo_dias.valueChanged.connect(self._on_plazo_changed)
