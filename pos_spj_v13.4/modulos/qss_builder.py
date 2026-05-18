@@ -858,6 +858,137 @@ _TPL_OSCURO = f"""
             background-color: {Colors.PRIMARY.BASE};
             color: {Colors.NEUTRAL.WHITE};
         }}
+
+        /* ═══════════════════════════════════════════════════════════════════
+           QR MODULE — DARK THEME
+           ═══════════════════════════════════════════════════════════════════ */
+
+        QGroupBox#sectionCard {{
+            background-color: {Colors.NEUTRAL.SLATE_800};
+            border: 1px solid {Colors.NEUTRAL.SLATE_700};
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 10px;
+            padding-top: 14px;
+        }}
+        QGroupBox#sectionCard::title {{
+            color: #60A5FA;
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 4px;
+        }}
+
+        QLabel#statusBadge {{
+            background-color: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.SLATE_400};
+            border-radius: 10px;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: 600;
+        }}
+        QLabel#statusBadge[variant="warning"] {{ background-color: #78350F; color: #FDE68A; }}
+        QLabel#statusBadge[variant="success"] {{ background-color: #14532D; color: #86EFAC; }}
+        QLabel#statusBadge[variant="accent"]  {{ background-color: #2E1065; color: #C4B5FD; }}
+        QLabel#statusBadge[variant="danger"]  {{ background-color: #7F1D1D; color: #FCA5A5; }}
+        QLabel#statusBadge[variant="info"]    {{ background-color: #164E63; color: #67E8F9; }}
+
+        QLabel#monoLabel {{
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px; font-weight: 700;
+            color: {Colors.NEUTRAL.SLATE_100}; background: transparent;
+        }}
+        QLineEdit#monoInput {{
+            font-family: 'Consolas', 'Courier New', monospace;
+            background-color: {Colors.NEUTRAL.SLATE_900};
+            color: {Colors.NEUTRAL.SLATE_400};
+            border: 1px solid {Colors.NEUTRAL.SLATE_700};
+            border-radius: 4px; padding: 4px 8px;
+        }}
+
+        QLabel#formSection {{
+            font-size: 10px; font-weight: 700;
+            color: {Colors.NEUTRAL.SLATE_500};
+            letter-spacing: 0.5px;
+            padding: 4px 0 2px 0;
+            border-bottom: 1px solid {Colors.NEUTRAL.SLATE_700};
+        }}
+
+        QLineEdit#scanInput {{
+            border: 2px solid {Colors.SUCCESS.BASE};
+            border-radius: 6px; padding: 5px 10px; font-size: 12px;
+            background-color: {Colors.NEUTRAL.SLATE_900};
+            color: {Colors.NEUTRAL.SLATE_100};
+        }}
+        QLineEdit#scanInput:focus {{ border-color: {Colors.SUCCESS.HOVER}; }}
+
+        QLabel#hero {{ font-size: 22px; font-weight: 800; color: {Colors.NEUTRAL.SLATE_100}; background: transparent; }}
+        QLabel#hero[variant="success"] {{ color: #4ADE80; }}
+        QLabel#hero[variant="danger"]  {{ color: #F87171; }}
+        QLabel#hero[variant="warning"] {{ color: #FBBF24; }}
+        QLabel#hero[variant="info"]    {{ color: #67E8F9; }}
+
+        QFrame#qrPreviewBox {{
+            background-color: {Colors.NEUTRAL.SLATE_900};
+            border: 1px solid {Colors.NEUTRAL.SLATE_700};
+            border-radius: 6px;
+        }}
+        QLabel#qrPreviewIcon {{ font-size: 24px; background: transparent; }}
+        QLabel#qrPreviewArea {{
+            background-color: {Colors.NEUTRAL.SLATE_800};
+            border: 2px dashed {Colors.NEUTRAL.SLATE_600};
+            border-radius: 8px;
+            color: {Colors.NEUTRAL.SLATE_600}; font-size: 36px;
+        }}
+
+        QPushButton#qrTypeButton {{
+            background-color: {Colors.NEUTRAL.SLATE_800};
+            border: 1px solid {Colors.NEUTRAL.SLATE_600};
+            border-radius: 6px;
+            color: {Colors.NEUTRAL.SLATE_400};
+            font-size: 10px; padding: 6px 4px; text-align: center;
+        }}
+        QPushButton#qrTypeButton:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_700};
+            border-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.SLATE_100};
+        }}
+        QPushButton#qrTypeButton:checked {{
+            background-color: #1E3A5F;
+            border: 2px solid #3B82F6;
+            color: {Colors.NEUTRAL.SLATE_100}; font-weight: 700;
+        }}
+
+        QListWidget#containerList {{
+            background-color: {Colors.NEUTRAL.SLATE_900};
+            border: 1px solid {Colors.NEUTRAL.SLATE_700};
+            border-radius: 6px;
+        }}
+        QListWidget#containerList::item {{ border-radius: 4px; padding: 1px; margin: 1px 2px; }}
+        QListWidget#containerList::item:hover {{ background-color: {Colors.NEUTRAL.SLATE_700}; }}
+        QListWidget#containerList::item:selected {{ background-color: #1E3A5F; border: 1px solid {Colors.PRIMARY.BASE}; }}
+        QWidget#containerCard {{ background-color: {Colors.NEUTRAL.SLATE_800}; border-radius: 6px; }}
+
+        QFrame#infoCallout {{
+            background-color: #1E3A5F;
+            border-left: 3px solid {Colors.PRIMARY.BASE};
+            border-radius: 4px;
+        }}
+
+        QLabel#stepNum {{
+            background-color: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.SLATE_400};
+            border-radius: 12px; font-weight: 700; font-size: 11px;
+        }}
+        QLabel#stepNum[active="true"] {{ background-color: {Colors.PRIMARY.BASE}; color: {Colors.NEUTRAL.WHITE}; }}
+        QLabel#stepLabel {{ color: {Colors.NEUTRAL.SLATE_500}; font-size: 11px; }}
+        QLabel#stepLabel[active="true"] {{ color: {Colors.NEUTRAL.SLATE_100}; font-weight: 600; }}
+        QLabel#stepArrow {{ color: {Colors.NEUTRAL.SLATE_600}; font-size: 14px; background: transparent; }}
+
+        QLabel#qrAssignHeader, QLabel#qrRecvHeader {{
+            font-size: 13px; font-weight: 700;
+            color: {Colors.NEUTRAL.SLATE_100}; background: transparent;
+        }}
+        QFrame[frameShape="4"] {{ color: {Colors.NEUTRAL.SLATE_700}; max-height: 1px; }}
     """
 
 
@@ -1698,6 +1829,130 @@ _TPL_CLARO = f"""
             background-color: {Colors.PRIMARY.BASE};
             color: {Colors.NEUTRAL.WHITE};
         }}
+
+        /* ═══════════════════════════════════════════════════════════════════
+           QR MODULE — LIGHT THEME
+           ═══════════════════════════════════════════════════════════════════ */
+
+        QGroupBox#sectionCard {{
+            background-color: {Colors.NEUTRAL.WHITE};
+            border: 1px solid {Colors.NEUTRAL.SLATE_200};
+            border-radius: 8px;
+            font-weight: 700; font-size: 10px; padding-top: 14px;
+        }}
+        QGroupBox#sectionCard::title {{
+            color: {Colors.PRIMARY.BASE};
+            subcontrol-origin: margin; left: 10px; padding: 0 4px;
+        }}
+
+        QLabel#statusBadge {{
+            background-color: {Colors.NEUTRAL.SLATE_100};
+            color: {Colors.NEUTRAL.SLATE_500};
+            border-radius: 10px; padding: 2px 8px;
+            font-size: 10px; font-weight: 600;
+        }}
+        QLabel#statusBadge[variant="warning"] {{ background-color: #FEF3C7; color: #92400E; }}
+        QLabel#statusBadge[variant="success"] {{ background-color: #DCFCE7; color: #166534; }}
+        QLabel#statusBadge[variant="accent"]  {{ background-color: #EDE9FE; color: #5B21B6; }}
+        QLabel#statusBadge[variant="danger"]  {{ background-color: #FEE2E2; color: #991B1B; }}
+        QLabel#statusBadge[variant="info"]    {{ background-color: #ECFEFF; color: #155E75; }}
+
+        QLabel#monoLabel {{
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px; font-weight: 700;
+            color: {Colors.NEUTRAL.SLATE_900}; background: transparent;
+        }}
+        QLineEdit#monoInput {{
+            font-family: 'Consolas', 'Courier New', monospace;
+            background-color: {Colors.NEUTRAL.SLATE_50};
+            color: {Colors.NEUTRAL.SLATE_600};
+            border: 1px solid {Colors.NEUTRAL.SLATE_300};
+            border-radius: 4px; padding: 4px 8px;
+        }}
+
+        QLabel#formSection {{
+            font-size: 10px; font-weight: 700;
+            color: {Colors.NEUTRAL.SLATE_400};
+            letter-spacing: 0.5px; padding: 4px 0 2px 0;
+            border-bottom: 1px solid {Colors.NEUTRAL.SLATE_200};
+        }}
+
+        QLineEdit#scanInput {{
+            border: 2px solid {Colors.SUCCESS.BASE};
+            border-radius: 6px; padding: 5px 10px; font-size: 12px;
+            background-color: {Colors.NEUTRAL.WHITE};
+            color: {Colors.NEUTRAL.SLATE_900};
+        }}
+        QLineEdit#scanInput:focus {{ border-color: {Colors.SUCCESS.HOVER}; }}
+
+        QLabel#hero {{ font-size: 22px; font-weight: 800; color: {Colors.NEUTRAL.SLATE_900}; background: transparent; }}
+        QLabel#hero[variant="success"] {{ color: {Colors.SUCCESS.BASE}; }}
+        QLabel#hero[variant="danger"]  {{ color: {Colors.DANGER.BASE}; }}
+        QLabel#hero[variant="warning"] {{ color: {Colors.WARNING.BASE}; }}
+        QLabel#hero[variant="info"]    {{ color: {Colors.INFO.BASE}; }}
+
+        QFrame#qrPreviewBox {{
+            background-color: {Colors.NEUTRAL.SLATE_50};
+            border: 1px solid {Colors.NEUTRAL.SLATE_200};
+            border-radius: 6px;
+        }}
+        QLabel#qrPreviewIcon {{ font-size: 24px; background: transparent; }}
+        QLabel#qrPreviewArea {{
+            background-color: {Colors.NEUTRAL.SLATE_100};
+            border: 2px dashed {Colors.NEUTRAL.SLATE_300};
+            border-radius: 8px;
+            color: {Colors.NEUTRAL.SLATE_400}; font-size: 36px;
+        }}
+
+        QPushButton#qrTypeButton {{
+            background-color: {Colors.NEUTRAL.SLATE_100};
+            border: 1px solid {Colors.NEUTRAL.SLATE_300};
+            border-radius: 6px;
+            color: {Colors.NEUTRAL.SLATE_500};
+            font-size: 10px; padding: 6px 4px; text-align: center;
+        }}
+        QPushButton#qrTypeButton:hover {{
+            background-color: {Colors.NEUTRAL.SLATE_200};
+            border-color: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.SLATE_900};
+        }}
+        QPushButton#qrTypeButton:checked {{
+            background-color: #EFF6FF;
+            border: 2px solid {Colors.PRIMARY.BASE};
+            color: {Colors.PRIMARY.DARK}; font-weight: 700;
+        }}
+
+        QListWidget#containerList {{
+            background-color: {Colors.NEUTRAL.SLATE_50};
+            border: 1px solid {Colors.NEUTRAL.SLATE_200};
+            border-radius: 6px;
+        }}
+        QListWidget#containerList::item {{ border-radius: 4px; padding: 1px; margin: 1px 2px; }}
+        QListWidget#containerList::item:hover {{ background-color: {Colors.NEUTRAL.SLATE_100}; }}
+        QListWidget#containerList::item:selected {{ background-color: #EFF6FF; border: 1px solid {Colors.PRIMARY.BASE}; }}
+        QWidget#containerCard {{ background-color: {Colors.NEUTRAL.WHITE}; border-radius: 6px; }}
+
+        QFrame#infoCallout {{
+            background-color: #EFF6FF;
+            border-left: 3px solid {Colors.PRIMARY.BASE};
+            border-radius: 4px;
+        }}
+
+        QLabel#stepNum {{
+            background-color: {Colors.NEUTRAL.SLATE_200};
+            color: {Colors.NEUTRAL.SLATE_400};
+            border-radius: 12px; font-weight: 700; font-size: 11px;
+        }}
+        QLabel#stepNum[active="true"] {{ background-color: {Colors.PRIMARY.BASE}; color: {Colors.NEUTRAL.WHITE}; }}
+        QLabel#stepLabel {{ color: {Colors.NEUTRAL.SLATE_400}; font-size: 11px; }}
+        QLabel#stepLabel[active="true"] {{ color: {Colors.NEUTRAL.SLATE_900}; font-weight: 600; }}
+        QLabel#stepArrow {{ color: {Colors.NEUTRAL.SLATE_300}; font-size: 14px; background: transparent; }}
+
+        QLabel#qrAssignHeader, QLabel#qrRecvHeader {{
+            font-size: 13px; font-weight: 700;
+            color: {Colors.NEUTRAL.SLATE_900}; background: transparent;
+        }}
+        QFrame[frameShape="4"] {{ color: {Colors.NEUTRAL.SLATE_200}; max-height: 1px; }}
     """
 
 

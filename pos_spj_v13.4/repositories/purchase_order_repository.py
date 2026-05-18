@@ -16,8 +16,8 @@ from typing import Optional
 logger = logging.getLogger("spj.repo.purchase_order")
 
 # Estados válidos de PO
-PO_STATES = ("ABIERTA", "PARCIAL", "RECIBIDA", "CERRADA", "CANCELADA",
-             "borrador", "pendiente")  # legacy WA states preserved
+PO_STATES = ("ABIERTA", "PARA_RECEPCION", "PARCIAL", "RECIBIDA", "CERRADA",
+             "CANCELADA", "borrador", "pendiente")  # legacy WA states preserved
 
 
 class PurchaseOrderRepository:
@@ -158,7 +158,7 @@ class PurchaseOrderRepository:
 
     def list_open(self, sucursal_id: Optional[int] = None,
                   limit: int = 100) -> list[dict]:
-        q = "SELECT * FROM ordenes_compra WHERE estado IN ('ABIERTA','PARCIAL')"
+        q = "SELECT * FROM ordenes_compra WHERE estado IN ('ABIERTA','PARA_RECEPCION','PARCIAL')"
         params: list = []
         if sucursal_id:
             q += " AND sucursal_id=?"

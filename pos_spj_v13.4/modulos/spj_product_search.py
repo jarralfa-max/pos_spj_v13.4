@@ -242,10 +242,13 @@ class ProductSearchWidget(QWidget):
             item.setData(Qt.UserRole, prod)
             self._popup_list.addItem(item)
 
-        # Posicionar el popup bajo el campo de búsqueda.
-        # Como es widget hijo del main window, convertimos las coordenadas
-        # relativas a txt_search → relativas al main window con mapTo().
+        # The popup must be a child of the main window so it floats over all
+        # other widgets. At __init__ time self.window() returns self (no parent
+        # yet), so we re-parent lazily here, after the widget is in the hierarchy.
         win = self.window()
+        if self._popup.parent() is not win:
+            self._popup.setParent(win)
+
         pos = self.txt_search.mapTo(win, self.txt_search.rect().bottomLeft())
         w   = max(self.txt_search.width() + 40, 400)
         h   = min(len(self._last_results) * 36 + 16, 280)

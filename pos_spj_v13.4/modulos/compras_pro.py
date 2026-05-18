@@ -698,38 +698,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._purchase_repo_instance = PurchaseRepository(self.container.db)
         return self._purchase_repo_instance
 
-    @property
-    def _prov_repo(self):
-        """Lazy ProveedorRepository bound to the container's DB connection."""
-        if not hasattr(self, '_prov_repo_instance'):
-            from repositories.proveedor_repository import ProveedorRepository
-            self._prov_repo_instance = ProveedorRepository(self.container.db)
-        return self._prov_repo_instance
-
-    @property
-    def _recetas_repo(self):
-        """Lazy RecetaRepository bound to the container's DB connection."""
-        if not hasattr(self, '_recetas_repo_instance'):
-            from repositories.recetas import RecetaRepository
-            self._recetas_repo_instance = RecetaRepository(self.container.db)
-        return self._recetas_repo_instance
-
-    @property
-    def _pr_repo(self):
-        """Lazy PurchaseRequestRepository bound to the container's DB connection."""
-        if not hasattr(self, '_pr_repo_instance'):
-            from repositories.purchase_request_repository import PurchaseRequestRepository
-            self._pr_repo_instance = PurchaseRequestRepository(self.container.db)
-        return self._pr_repo_instance
-
-    @property
-    def _po_repo(self):
-        """Lazy PurchaseOrderRepository bound to the container's DB connection."""
-        if not hasattr(self, '_po_repo_instance'):
-            from repositories.purchase_order_repository import PurchaseOrderRepository
-            self._po_repo_instance = PurchaseOrderRepository(self.container.db)
-        return self._po_repo_instance
-
     def _get_iva_rate(self) -> float:
         """Read IVA rate from DB configuraciones with fallback to _IVA_RATE constant."""
         if hasattr(self, '_iva_rate_cached'):
@@ -761,9 +729,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
         self.cargar_proveedores()
-        # Update ProductSearchWidget db ref (same connection, already live)
         if hasattr(self, '_buscador'):
             self._buscador.set_db(self.container.db)
+        if hasattr(self, '_quick_grid'):
+            self._cargar_quick_products()
 
     # ── E-6: Planeacion → Compras bridge ─────────────────────────────────────
 
@@ -830,6 +799,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.usuario_actual = usuario
         self._usuario_rol = rol.upper().strip()
         QTimer.singleShot(0, self._aplicar_permisos_ui)
+        # Auto-fill solicitante with the logged-in user
+        if usuario and hasattr(self, 'txt_solicitante'):
+            self.txt_solicitante.setText(usuario)
         # Offer draft restore 1.5 s after login (cart must still be empty)
         QTimer.singleShot(1500, self._check_pending_draft)
 
@@ -988,7 +960,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         splitter.setObjectName("purchaseThreeColumnSplitter")
         splitter.setHandleWidth(1)
         splitter.setStyleSheet(
-            f"QSplitter::handle{{background:{_C_BORDER};}}"
+            "QSplitter::handle{background:rgba(148,163,184,0.25);}"
         )
         root.addWidget(splitter, 1)
 
@@ -1004,8 +976,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         right_col = self._build_summary_panel()
         splitter.addWidget(right_col)
 
-        # Exact 3:4:5 column proportions — reference 1140px total:
-        # left=285 (3u), center=380 (4u), right=475 (5u)
+        # Set initial sizes: left=280, center=520, right=520.
+        # Fase 3: la columna derecha no es sidebar; crece junto con captura.
         splitter.setSizes([285, 380, 475])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 4)
@@ -1073,13 +1045,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _build_provider_card(self) -> QFrame:
         """Provider section card. Sets up all provider-related instance attrs."""
-        btn_nuevo_prov = create_secondary_button(self, "Nuevo +", "Registrar nuevo proveedor")
-        btn_nuevo_prov.setFixedHeight(22)
-        btn_nuevo_prov.setMaximumWidth(72)
         panel, body = _make_section_card(
             "Datos del Proveedor",
             panel_cls=PurchaseProviderCard,
-            action=btn_nuevo_prov,
         )
 
         self._proveedor_id_selected = None
@@ -1090,8 +1058,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._prov_completer = QCompleter(self._prov_model, self)
         self._prov_completer.setCaseSensitivity(Qt.CaseInsensitive)
         self._prov_completer.setFilterMode(Qt.MatchContains)
-        # InlineCompletion: completa en línea sin abrir ninguna ventana flotante.
-        self._prov_completer.setCompletionMode(QCompleter.InlineCompletion)
+        self._prov_completer.setCompletionMode(QCompleter.PopupCompletion)
         self.txt_proveedor.setCompleter(self._prov_completer)
         self._prov_completer.activated[str].connect(self._on_completer_activated)
         self.txt_proveedor.editingFinished.connect(self._resolver_proveedor_desde_texto)
@@ -1215,6 +1182,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._cmb_prioridad.addItem(p)
 
         self.txt_solicitante = create_input(self, "Nombre del solicitante")
+        if self.usuario_actual:
+            self.txt_solicitante.setText(self.usuario_actual)
 
         self.txt_notas = QPlainTextEdit()
         self.txt_notas.setPlaceholderText("Observaciones adicionales…")
@@ -1560,19 +1529,20 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         return w
 
     def _build_quick_products_card(self) -> QFrame:
-        """3×2 grid of quick-add product buttons loaded from purchase frequency."""
+        """3×2 grid of emoji quick-add product buttons."""
         panel, body = _make_section_card("Productos Rápidos", panel_cls=PurchaseQuickProductsCard)
         self._quick_grid = QGridLayout()
         self._quick_grid.setSpacing(Spacing.XS)
         self._quick_grid_body = body
         body.addLayout(self._quick_grid)
-        self._cargar_quick_products()
+        # Defer until the event loop is running so sucursal_id is final
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(0, self._cargar_quick_products)
         return panel
 
     def _cargar_quick_products(self) -> None:
-        """Populate quick-product grid from the 5 most frequently purchased products."""
+        """Populate quick-product grid from the 8 most frequently purchased products."""
         grid = self._quick_grid
-        # Clear existing buttons
         while grid.count():
             item = grid.takeAt(0)
             if item and item.widget():
@@ -1581,44 +1551,63 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         frecuentes: list[dict] = []
         try:
             frecuentes = self._purchase_repo.get_productos_frecuentes(
-                sucursal_id=self.sucursal_id, limit=5
+                sucursal_id=self.sucursal_id, limit=8
             )
         except Exception:
             pass
 
-        def _short(nombre: str, maxlen: int = 14) -> str:
+        def _short(nombre: str, maxlen: int = 13) -> str:
             return nombre if len(nombre) <= maxlen else nombre[:maxlen - 1] + "…"
 
-        for idx, prod in enumerate(frecuentes):
-            nombre = _short(prod.get("nombre") or "")
-            btn = QPushButton(f"📦\n{nombre}")
-            btn.setObjectName("secondaryBtn")
-            btn.setFixedHeight(54)
-            pid = prod.get("producto_id")
-            if pid:
-                btn.clicked.connect(lambda _checked, p=prod: self._add_quick_product(p))
-            grid.addWidget(btn, idx // 3, idx % 3)
+        if not frecuentes:
+            lbl = QLabel("Realiza tu primera\ncompra para ver\nproductos frecuentes")
+            lbl.setAlignment(Qt.AlignCenter)
+            lbl.setStyleSheet(
+                f"color:{_C_HINT};font-size:{Typography.SIZE_XS};background:transparent;"
+            )
+            grid.addWidget(lbl, 0, 0, 1, 3)
+        else:
+            for idx, prod in enumerate(frecuentes):
+                nombre = _short(prod.get("nombre") or "")
+                btn = QPushButton(f"📦\n{nombre}")
+                btn.setObjectName("secondaryBtn")
+                btn.setFixedHeight(54)
+                btn.setToolTip(prod.get("nombre") or "")
+                pid = prod.get("producto_id")
+                if pid:
+                    btn.clicked.connect(lambda _checked, p=prod: self._add_quick_product(p))
+                grid.addWidget(btn, idx // 3, idx % 3)
 
-        # Config button always in last slot of the 3×2 grid
-        cfg_btn = QPushButton("⚙\nConfig")
+        # ⟳ Reload button always occupies the next free slot
+        cfg_btn = QPushButton("⟳\nActualizar")
         cfg_btn.setObjectName("secondaryBtn")
         cfg_btn.setFixedHeight(54)
-        cfg_btn.setToolTip("Recargar productos frecuentes")
+        cfg_btn.setToolTip("Recargar productos más comprados")
         cfg_btn.clicked.connect(self._cargar_quick_products)
         slot = len(frecuentes)
         grid.addWidget(cfg_btn, slot // 3, slot % 3)
 
     def _add_quick_product(self, prod: dict) -> None:
-        """Add a quick-product to the cart with qty=1 and cost=0 (user must edit)."""
-        self.carrito_compra.append({
-            'producto_id':     prod.get("producto_id"),
-            'nombre':          prod.get("nombre", ""),
-            'cantidad':        1,
-            'costo_unitario':  0.0,
-            'subtotal':        0.0,
-            'precio_historico': 0.0,
-        })
-        self._refresh_tabla()
+        """Fetch full product details then go through the standard _agregar_producto flow."""
+        pid = prod.get("producto_id") or prod.get("id")
+        if not pid:
+            return
+        full = None
+        try:
+            from repositories.productos import ProductosRepository
+            full = ProductosRepository(self.container.db).get_by_id(int(pid))
+        except Exception:
+            pass
+        if not full:
+            full = {
+                'id':            pid,
+                'nombre':        prod.get("nombre", ""),
+                'precio_compra': float(prod.get('precio_compra') or prod.get('costo') or 0),
+                'precio':        float(prod.get('precio', 0) or 0),
+                'unidad':        prod.get('unidad', 'pz'),
+                'existencia':    float(prod.get('existencia', 0) or 0),
+            }
+        self._agregar_producto(full)
 
     def _build_center_column(self) -> QWidget:
         """Center column: Captura Documental — Provider, Document, Product search."""
@@ -1728,6 +1717,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         sub_rec = QWidget()
         self._qr_subtabs.addTab(sub_rec, "📦 Recepción con QR")
+        # Subtab builds RecepcionQRWidget wrapped with wrap_in_scroll_area (see _build_subtab_recepcion)
         self._build_subtab_recepcion(sub_rec)
 
         sub_hst = QWidget()
@@ -1800,6 +1790,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 "ALTER TABLE contenedores ADD COLUMN recibido_por TEXT",
                 "ALTER TABLE contenedores ADD COLUMN sucursal_destino INTEGER",
                 "ALTER TABLE contenedor_productos ADD COLUMN observaciones TEXT",
+                "ALTER TABLE contenedores ADD COLUMN parent_id INTEGER REFERENCES contenedores(id)",
+                "ALTER TABLE contenedores ADD COLUMN seq_num INTEGER",
             ]:
                 try:
                     db.execute(col_sql)
@@ -1819,49 +1811,122 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Sub-pestaña 1: Generación etiqueta QR ──────────────────────────────
     def _build_subtab_etiqueta(self, parent: QWidget) -> None:
-        lay = QHBoxLayout(parent); lay.setContentsMargins(8,8,8,8); lay.setSpacing(10)
+        root = QVBoxLayout(parent); root.setContentsMargins(8,8,8,8); root.setSpacing(8)
+
+        # ── Stepper ────────────────────────────────────────────────────────────
+        stepper = QFrame(); stepper.setObjectName("sectionCard")
+        st_lay = QHBoxLayout(stepper); st_lay.setContentsMargins(12,8,12,8); st_lay.setSpacing(0)
+        for num, label, active in [
+            ("1", "Identificar contenedor (QR)", True),
+            ("2", "Asignar datos de compra", False),
+            ("3", "Recibir contenido físico", False),
+        ]:
+            step_w = QWidget()
+            s_lay = QHBoxLayout(step_w); s_lay.setContentsMargins(0,0,0,0); s_lay.setSpacing(6)
+            num_lbl = QLabel(num); num_lbl.setObjectName("stepNum")
+            num_lbl.setProperty("active", "true" if active else "false")
+            num_lbl.setFixedSize(24, 24); num_lbl.setAlignment(Qt.AlignCenter)
+            txt_lbl = QLabel(label); txt_lbl.setObjectName("stepLabel")
+            txt_lbl.setProperty("active", "true" if active else "false")
+            s_lay.addWidget(num_lbl); s_lay.addWidget(txt_lbl)
+            st_lay.addWidget(step_w)
+            if num != "3":
+                arrow = QLabel("→"); arrow.setObjectName("stepArrow")
+                st_lay.addWidget(arrow); st_lay.addStretch()
+        root.addWidget(stepper)
+
+        # ── Body ───────────────────────────────────────────────────────────────
+        lay = QHBoxLayout(); lay.setSpacing(10)
+        root.addLayout(lay, 1)
 
         card_left = QGroupBox("📦 Identificación del contenedor")
         card_left.setObjectName("sectionCard")
-        cl = QVBoxLayout(card_left); cl.setSpacing(10)
-        cl.addWidget(create_caption(self,
-            "Genera la etiqueta QR que identifica físicamente al contenedor. "
-            "Los datos de compra y productos se asignan en la pestaña siguiente."))
+        cl = QVBoxLayout(card_left); cl.setSpacing(8)
+
+        # Info callout
+        info = QFrame(); info.setObjectName("infoCallout")
+        info_lay = QHBoxLayout(info); info_lay.setContentsMargins(10,8,10,8); info_lay.setSpacing(8)
+        info_icon = QLabel("ℹ️"); info_icon.setFixedWidth(20)
+        info_txt = QLabel(
+            "<b>Quién:</b> Almacenista / recepcionista<br>"
+            "Genera el ID único del contenedor <i>antes</i> de que llegue al almacén. "
+            "Aún no se conoce proveedor ni costo.")
+        info_txt.setObjectName("caption"); info_txt.setWordWrap(True)
+        info_lay.addWidget(info_icon); info_lay.addWidget(info_txt, 1)
+        cl.addWidget(info)
 
         cl.addWidget(QLabel("Tipo de contenedor:"))
-        types_row = QHBoxLayout(); types_row.setSpacing(6)
+        types_grid = QGridLayout(); types_grid.setSpacing(4)
         self._qr_tipo_buttons: dict = {}
         self._qr_tipo_actual = "caja"
-        for tipo, ico, lbl in [("caja","🟫","Caja"),("tarima","🛒","Tarima"),
-                                ("hielera","🧊","Hielera"),("bulto","📦","Bulto")]:
-            b = QPushButton(f"{ico}\n{lbl}")
-            b.setCheckable(True); b.setMinimumHeight(56)
+        _TIPOS = [
+            ("caja",         "🟫", "Caja",         "Cartón estándar"),
+            ("tarima",       "🛒", "Tarima",        "Palet completo"),
+            ("hielera",      "🧊", "Hielera",       "Refrigerado"),
+            ("bulto",        "📦", "Bulto",         "Bulto / saco"),
+            ("jaula",        "🔲", "Jaula",         "Metálica"),
+            ("contenedor",   "🚢", "Contenedor",    "Granel"),
+            ("refrigerado",  "❄️",  "Refrigerado",  "Cadena frío"),
+            ("personalizado","✏️",  "Otro",          "Personalizado"),
+        ]
+        for idx, (tipo, ico, lbl, sub) in enumerate(_TIPOS):
+            b = QPushButton(f"{ico}\n{lbl}\n{sub}")
+            b.setCheckable(True); b.setMinimumHeight(60)
             b.setObjectName("qrTypeButton"); b.setProperty("variant","accent")
             if tipo == "caja": b.setChecked(True)
             b.clicked.connect(lambda _=False, t=tipo: self._qr_set_tipo(t))
             self._qr_tipo_buttons[tipo] = b
-            types_row.addWidget(b)
-        cl.addLayout(types_row)
+            types_grid.addWidget(b, idx // 4, idx % 4)
+        cl.addLayout(types_grid)
 
-        form = QFormLayout(); form.setSpacing(10)
+        form = QFormLayout(); form.setSpacing(8)
         self.qr_codigo = QLineEdit(); self.qr_codigo.setReadOnly(True)
         self.qr_codigo.setObjectName("monoInput")
         btn_regen = create_secondary_button(self, "↻ Regenerar", "Genera nuevo ID")
         btn_regen.clicked.connect(self._qr_regenerar_codigo)
         row_id = QHBoxLayout(); row_id.addWidget(self.qr_codigo,1); row_id.addWidget(btn_regen)
         form.addRow("ID contenedor:", self._wrap(row_id))
+
+        self.qr_parent_id: int | None = None
+        self.qr_parent_txt = QLineEdit()
+        self.qr_parent_txt.setPlaceholderText("Dejar vacío si es contenedor raíz")
+        self.qr_parent_txt.setReadOnly(True)
+        btn_parent_pick = create_secondary_button(self, "🔍", "Buscar contenedor padre")
+        btn_parent_pick.setFixedWidth(36)
+        btn_parent_pick.clicked.connect(self._qr_pick_parent)
+        btn_parent_clear = create_secondary_button(self, "✕", "Quitar padre")
+        btn_parent_clear.setFixedWidth(32)
+        btn_parent_clear.clicked.connect(self._qr_clear_parent)
+        row_parent = QHBoxLayout()
+        row_parent.addWidget(self.qr_parent_txt, 1)
+        row_parent.addWidget(btn_parent_pick); row_parent.addWidget(btn_parent_clear)
+        form.addRow("Contenedor padre:", self._wrap(row_parent))
+
         self.qr_descripcion = QLineEdit()
         self.qr_descripcion.setPlaceholderText('Ej: "Caja roja del proveedor" (opcional)')
         self.qr_descripcion.textChanged.connect(lambda _t: self._qr_actualizar_preview())
         form.addRow("Descripción:", self.qr_descripcion)
+        self.qr_sucursal_gen = QComboBox()
+        self.qr_sucursal_gen.addItem("Seleccionar sucursal…", None)
+        try:
+            for s in (self._prov_repo.get_sucursales_activas() or []):
+                self.qr_sucursal_gen.addItem(str(s.get("nombre", "")), s.get("id"))
+        except Exception:
+            self.qr_sucursal_gen.addItem("Sucursal Principal", 1)
+        form.addRow("Sucursal destino (opcional):", self.qr_sucursal_gen)
+        from PyQt5.QtWidgets import QTextEdit as _TE
+        self.qr_obs_gen = _TE(); self.qr_obs_gen.setMaximumHeight(56)
+        self.qr_obs_gen.setPlaceholderText("Observaciones adicionales del contenedor…")
+        form.addRow("Observaciones (opcional):", self.qr_obs_gen)
         cl.addLayout(form); cl.addStretch()
 
         btn_gen = create_primary_button(self, "📥 Generar QR + imprimir", "")
         btn_gen.clicked.connect(self._qr_generar_contenedor)
         cl.addWidget(btn_gen)
 
+        # Right: preview card
         card_right = QGroupBox("🏷️ Etiqueta generada")
-        card_right.setObjectName("sectionCard"); card_right.setMaximumWidth(360)
+        card_right.setObjectName("sectionCard"); card_right.setMaximumWidth(340)
         cr = QVBoxLayout(card_right); cr.setSpacing(10); cr.setAlignment(Qt.AlignTop)
 
         self.qr_preview_box = QFrame(); self.qr_preview_box.setObjectName("qrPreviewBox")
@@ -1869,7 +1934,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_preview_ic = QLabel("🟫"); self.qr_preview_ic.setObjectName("qrPreviewIcon")
         pb.addWidget(self.qr_preview_ic)
         col = QVBoxLayout(); col.setSpacing(2)
-        self.qr_preview_id = QLabel("CTN-XXXX-000"); self.qr_preview_id.setObjectName("monoLabel")
+        self.qr_preview_id = QLabel("CAJ-260101-000000"); self.qr_preview_id.setObjectName("monoLabel")
         self.qr_preview_meta = QLabel("Caja"); self.qr_preview_meta.setObjectName("caption")
         col.addWidget(self.qr_preview_id); col.addWidget(self.qr_preview_meta)
         pb.addLayout(col,1)
@@ -1878,7 +1943,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_preview_qr = QLabel("📷  QR")
         self.qr_preview_qr.setObjectName("qrPreviewArea")
         self.qr_preview_qr.setAlignment(Qt.AlignCenter)
-        self.qr_preview_qr.setMinimumSize(220, 220)
+        self.qr_preview_qr.setMinimumSize(200, 200)
         cr.addWidget(self.qr_preview_qr, 0, Qt.AlignCenter)
 
         self.qr_preview_status = QLabel("⏳ Pendiente de generar")
@@ -1886,6 +1951,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_preview_status.setProperty("variant","warning")
         self.qr_preview_status.setAlignment(Qt.AlignCenter)
         cr.addWidget(self.qr_preview_status, 0, Qt.AlignCenter)
+
+        hint = QLabel("El contenido detallado, proveedor, costos e información financiera\nse asignan en el paso 2.")
+        hint.setObjectName("caption"); hint.setAlignment(Qt.AlignCenter); hint.setWordWrap(True)
+        cr.addWidget(hint)
+        cr.addStretch()
 
         row_btns = QHBoxLayout()
         btn_pdf = create_secondary_button(self, "💾 PDF", "Guardar etiqueta como PDF")
@@ -1898,57 +1968,147 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(card_left, 1); lay.addWidget(card_right, 0)
         self._qr_regenerar_codigo()
 
+    _TIPO_ICO = {
+        "caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦",
+        "jaula":"🔲","contenedor":"🚢","refrigerado":"❄️","personalizado":"✏️",
+    }
+    _TIPO_LBL = {
+        "caja":"Caja","tarima":"Tarima","hielera":"Hielera","bulto":"Bulto/Saco",
+        "jaula":"Jaula","contenedor":"Contenedor","refrigerado":"Refrigerado",
+        "personalizado":"Personalizado",
+    }
+    _TIPO_PFX = {
+        "caja":"CAJ","tarima":"TAR","hielera":"HIE","bulto":"BUL",
+        "jaula":"JAU","contenedor":"CTN","refrigerado":"REF","personalizado":"PER",
+    }
+    # Types that are always children (require a parent container)
+    _TIPOS_HIJO = {"caja", "bulto", "hielera"}
+
     def _qr_set_tipo(self, tipo: str) -> None:
         self._qr_tipo_actual = tipo
         for t, b in self._qr_tipo_buttons.items():
             b.setChecked(t == tipo)
-        ico = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}.get(tipo,"📦")
-        if hasattr(self,"qr_preview_ic"): self.qr_preview_ic.setText(ico)
-        self._qr_actualizar_preview()
+        ico = self._TIPO_ICO.get(tipo, "📦")
+        if hasattr(self, "qr_preview_ic"): self.qr_preview_ic.setText(ico)
+        self._qr_regenerar_codigo()
 
     def _qr_regenerar_codigo(self) -> None:
+        pfx = self._TIPO_PFX.get(self._qr_tipo_actual, "CTN")
         suf = datetime.now().strftime("%y%m%d-%H%M%S")
-        self.qr_codigo.setText(f"CTN-{suf}")
+        self.qr_codigo.setText(f"{pfx}-{suf}")
         self._qr_actualizar_preview()
 
     def _qr_actualizar_preview(self) -> None:
         if not hasattr(self, "qr_preview_id"): return
-        self.qr_preview_id.setText(self.qr_codigo.text() or "CTN-XXXX-000")
-        tipo_lbl = {"caja":"Caja","tarima":"Tarima","hielera":"Hielera",
-                    "bulto":"Bulto"}.get(self._qr_tipo_actual,"Caja")
-        desc = self.qr_descripcion.text().strip() if hasattr(self,"qr_descripcion") else ""
-        self.qr_preview_meta.setText(f"{tipo_lbl}{(' · ' + desc) if desc else ''}")
+        self.qr_preview_id.setText(self.qr_codigo.text() or "CAJ-260101-000000")
+        tipo_lbl = self._TIPO_LBL.get(self._qr_tipo_actual, "Contenedor")
+        desc = self.qr_descripcion.text().strip() if hasattr(self, "qr_descripcion") else ""
+        parent_txt = ""
+        if hasattr(self, "qr_parent_txt") and self.qr_parent_txt.text():
+            parent_txt = f" ↳ {self.qr_parent_txt.text()}"
+        self.qr_preview_meta.setText(
+            f"{tipo_lbl}{(' · ' + desc) if desc else ''}{parent_txt}")
 
     def _qr_generar_contenedor(self) -> None:
         codigo = (self.qr_codigo.text() or "").strip()
         if not codigo:
             QMessageBox.warning(self, "Datos faltantes", "Falta el ID del contenedor.")
             return
+        # Types that always need a parent
+        if self._qr_tipo_actual in self._TIPOS_HIJO and not getattr(self, "qr_parent_id", None):
+            if QMessageBox.question(
+                self, "Sin contenedor padre",
+                f"Un(a) {self._TIPO_LBL.get(self._qr_tipo_actual,'contenedor')} "
+                "normalmente es hijo de otro contenedor.\n"
+                "¿Continuar sin asignar contenedor padre?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            ) != QMessageBox.Yes:
+                return
         try:
-            db = self.container.db
-            db.execute("""INSERT INTO contenedores
-                (codigo, tipo, descripcion, estado, usuario_creado)
-                VALUES (?,?,?,'generado',?)""",
+            db   = self.container.db
+            parent_id = getattr(self, "qr_parent_id", None)
+            db.execute(
+                """INSERT INTO contenedores
+                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id,
+                    sucursal_destino, observaciones)
+                   VALUES (?,?,?,'generado',?,?,?,?)""",
                 (codigo, self._qr_tipo_actual,
                  self.qr_descripcion.text().strip() or None,
-                 self.usuario_actual or "Sistema"))
+                 self.usuario_actual or "Sistema",
+                 parent_id,
+                 getattr(self, "qr_sucursal_gen", None) and self.qr_sucursal_gen.currentData(),
+                 (self.qr_obs_gen.toPlainText().strip() or None) if hasattr(self, "qr_obs_gen") else None)
+            )
             db.commit()
             self.qr_preview_status.setText("✓ Generado · sin asignar")
-            self.qr_preview_status.setProperty("variant","accent")
+            self.qr_preview_status.setProperty("variant", "accent")
             self.qr_preview_status.style().unpolish(self.qr_preview_status)
             self.qr_preview_status.style().polish(self.qr_preview_status)
-            try: Toast.success(self, f"Contenedor {codigo} generado").show()
+            parent_info = f" (hijo de {self.qr_parent_txt.text()})" if parent_id else ""
+            try: Toast.success(self, f"Contenedor {codigo} generado{parent_info}").show()
             except Exception: pass
             try:
                 bus = getattr(self.container, "event_bus", None)
                 if bus and hasattr(bus, "publish"):
-                    bus.publish("CONTENEDOR_GENERADO", {"codigo": codigo})
+                    bus.publish("CONTENEDOR_GENERADO",
+                                {"codigo": codigo, "parent_id": parent_id})
             except Exception: pass
             self._qr_imprimir()
             self.qr_descripcion.clear()
+            self._qr_clear_parent()
+            if hasattr(self, "qr_obs_gen"): self.qr_obs_gen.clear()
             self._qr_regenerar_codigo()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo generar:\n{e}")
+
+    def _qr_pick_parent(self) -> None:
+        """Open a simple dialog to search and pick a parent container."""
+        from PyQt5.QtWidgets import QInputDialog
+        term, ok = QInputDialog.getText(
+            self, "Buscar contenedor padre",
+            "Ingresa código o descripción del contenedor padre:",
+        )
+        if not ok or not term.strip():
+            return
+        try:
+            rows = self.container.db.execute(
+                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
+                   FROM contenedores
+                   WHERE (codigo LIKE ? OR descripcion LIKE ?)
+                     AND id != COALESCE(
+                         (SELECT id FROM contenedores WHERE codigo=? LIMIT 1), -1)
+                   ORDER BY fecha_creado DESC LIMIT 50""",
+                (f"%{term}%", f"%{term}%", self.qr_codigo.text())
+            ).fetchall()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e)); return
+        if not rows:
+            QMessageBox.information(self, "Sin resultados", "No se encontraron contenedores.")
+            return
+        items = []
+        for r in rows:
+            rid   = r["id"]   if hasattr(r, "keys") else r[0]
+            cod   = r["codigo"] if hasattr(r, "keys") else r[1]
+            tipo  = r["tipo"] if hasattr(r, "keys") else r[2]
+            desc  = r["desc"] if hasattr(r, "keys") else r[3]
+            lbl_t = self._TIPO_LBL.get(tipo, tipo)
+            items.append((rid, f"{cod} · {lbl_t}{(' — ' + desc) if desc else ''}"))
+        labels = [x[1] for x in items]
+        chosen, ok2 = QInputDialog.getItem(
+            self, "Seleccionar padre", "Contenedor padre:", labels, 0, False)
+        if not ok2:
+            return
+        idx = labels.index(chosen)
+        self.qr_parent_id = items[idx][0]
+        self.qr_parent_txt.setText(items[idx][1])
+        self._qr_actualizar_preview()
+
+    def _qr_clear_parent(self) -> None:
+        self.qr_parent_id = None
+        if hasattr(self, "qr_parent_txt"):
+            self.qr_parent_txt.clear()
+        self._qr_actualizar_preview()
 
     def _qr_exportar_pdf(self) -> None:
         QMessageBox.information(self, "PDF",
@@ -1961,56 +2121,80 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _build_subtab_asignar(self, parent: QWidget) -> None:
         lay = QHBoxLayout(parent); lay.setContentsMargins(8,8,8,8); lay.setSpacing(10)
 
-        card_list = QGroupBox("📷 Escanear / Seleccionar contenedor")
-        card_list.setObjectName("sectionCard"); card_list.setMaximumWidth(360)
+        # Left: container list
+        card_list = QGroupBox("📋 Contenedores sin asignar")
+        card_list.setObjectName("sectionCard"); card_list.setMaximumWidth(300)
         cl = QVBoxLayout(card_list); cl.setSpacing(8)
         scan_row = QHBoxLayout()
         self.qr_scan_input = QLineEdit()
-        self.qr_scan_input.setPlaceholderText("📷 Escanear QR o teclear ID...")
+        self.qr_scan_input.setPlaceholderText("📷 Escanear QR o teclear ID…")
         self.qr_scan_input.setObjectName("scanInput")
         self.qr_scan_input.returnPressed.connect(self._qr_cargar_por_codigo)
         btn_scan = create_primary_button(self, "→ Cargar", "")
         btn_scan.clicked.connect(self._qr_cargar_por_codigo)
         scan_row.addWidget(self.qr_scan_input,1); scan_row.addWidget(btn_scan)
         cl.addLayout(scan_row)
-        cl.addWidget(QLabel("O selecciona de la lista:"))
         self.qr_filtro_cont = QLineEdit()
-        self.qr_filtro_cont.setPlaceholderText("🔎 Filtrar por ID…")
+        self.qr_filtro_cont.setPlaceholderText("🔎 Buscar ID contenedor…")
         self.qr_filtro_cont.textChanged.connect(lambda _: self._cargar_contenedores_pendientes())
         cl.addWidget(self.qr_filtro_cont)
-        self.tbl_pendientes = QTableWidget(0, 3)
-        self.tbl_pendientes.setHorizontalHeaderLabels(["ID Contenedor","Tipo","Generado"])
-        self.tbl_pendientes.horizontalHeader().setStretchLastSection(True)
-        self.tbl_pendientes.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.tbl_pendientes.verticalHeader().setVisible(False)
-        self.tbl_pendientes.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tbl_pendientes.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.tbl_pendientes.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tbl_pendientes.itemSelectionChanged.connect(self._on_contenedor_select)
-        cl.addWidget(self.tbl_pendientes, 1)
+        self.lst_pendientes = QListWidget()
+        self.lst_pendientes.setObjectName("containerList")
+        self.lst_pendientes.setSpacing(2)
+        self.lst_pendientes.setUniformItemSizes(False)
+        self.lst_pendientes.itemClicked.connect(self._on_contenedor_list_click)
+        cl.addWidget(self.lst_pendientes, 1)
+
+        # Center+Right: form + financial summary
+        body = QHBoxLayout(); body.setSpacing(10)
 
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.NoFrame)
         card_form = QGroupBox("🔗 Asignar datos comerciales"); card_form.setObjectName("sectionCard")
-        cf = QVBoxLayout(card_form); cf.setSpacing(10)
-        self.qr_asg_header = QLabel("⏳ Escanea o selecciona un contenedor para comenzar")
-        self.qr_asg_header.setObjectName("qrAssignHeader")
-        cf.addWidget(self.qr_asg_header)
+        cf = QVBoxLayout(card_form); cf.setSpacing(8)
 
-        sub1 = QLabel("DATOS DEL PROVEEDOR Y COMPRADOR"); sub1.setObjectName("formSection")
+        # Selected container info card
+        self.qr_asg_card = QFrame(); self.qr_asg_card.setObjectName("qrPreviewBox")
+        asg_card_lay = QHBoxLayout(self.qr_asg_card)
+        asg_card_lay.setContentsMargins(10,8,10,8); asg_card_lay.setSpacing(10)
+        self.qr_asg_ico = QLabel("📦"); self.qr_asg_ico.setObjectName("qrPreviewIcon")
+        asg_card_lay.addWidget(self.qr_asg_ico)
+        asg_info = QVBoxLayout(); asg_info.setSpacing(2)
+        self.qr_asg_header = QLabel("⏳ Selecciona un contenedor")
+        self.qr_asg_header.setObjectName("monoLabel")
+        self.qr_asg_meta = QLabel("Aún no se conoce proveedor ni costo")
+        self.qr_asg_meta.setObjectName("caption")
+        self.qr_asg_badge = QLabel("Sin asignar"); self.qr_asg_badge.setObjectName("statusBadge")
+        self.qr_asg_badge.setProperty("variant","warning")
+        asg_info.addWidget(self.qr_asg_header); asg_info.addWidget(self.qr_asg_meta)
+        asg_info.addWidget(self.qr_asg_badge)
+        asg_card_lay.addLayout(asg_info, 1)
+        # Sucursal + Almacén info on right of card
+        asg_dest = QVBoxLayout(); asg_dest.setSpacing(2)
+        dest_icon_lbl = QLabel("📍"); dest_icon_lbl.setObjectName("caption")
+        self.qr_asg_destino_lbl = QLabel("Sucursal destino"); self.qr_asg_destino_lbl.setObjectName("caption")
+        alm_icon_lbl = QLabel("🏭"); alm_icon_lbl.setObjectName("caption")
+        self.qr_asg_alm_lbl = QLabel("Almacén destino"); self.qr_asg_alm_lbl.setObjectName("caption")
+        asg_dest.addWidget(dest_icon_lbl); asg_dest.addWidget(self.qr_asg_destino_lbl)
+        asg_dest.addWidget(alm_icon_lbl); asg_dest.addWidget(self.qr_asg_alm_lbl)
+        asg_card_lay.addLayout(asg_dest)
+        cf.addWidget(self.qr_asg_card)
+
+        sub1 = QLabel("DATOS DEL PROVEEDOR"); sub1.setObjectName("formSection")
         cf.addWidget(sub1)
         form_prov = QFormLayout(); form_prov.setSpacing(6)
         self.qr_proveedor = QComboBox(); self.qr_proveedor.setEditable(True)
         self._qr_cargar_proveedores_combo()
-        form_prov.addRow("Proveedor:", self.qr_proveedor)
+        form_prov.addRow("Proveedor *:", self.qr_proveedor)
+        self.qr_factura = QLineEdit(); self.qr_factura.setPlaceholderText("FAC-AAAA-NNNNN")
+        self.qr_fecha_fact = QLineEdit(); self.qr_fecha_fact.setText(datetime.now().strftime("%Y-%m-%d"))
+        self.qr_fecha_fact.setPlaceholderText("AAAA-MM-DD")
+        row_ff = QHBoxLayout(); row_ff.addWidget(self.qr_factura,2)
+        row_ff.addWidget(QLabel("Fecha *:")); row_ff.addWidget(self.qr_fecha_fact,1)
+        form_prov.addRow("Folio factura *:", self._wrap(row_ff))
         self.qr_comprador = QLineEdit()
         self.qr_comprador.setPlaceholderText("Responsable de la compra")
         if self.usuario_actual: self.qr_comprador.setText(self.usuario_actual)
         form_prov.addRow("Comprador:", self.qr_comprador)
-        self.qr_factura = QLineEdit(); self.qr_factura.setPlaceholderText("FAC-AAAA-NNNNN")
-        self.qr_fecha_fact = QLineEdit(); self.qr_fecha_fact.setText(datetime.now().strftime("%Y-%m-%d"))
-        row_ff = QHBoxLayout(); row_ff.addWidget(self.qr_factura,2)
-        row_ff.addWidget(QLabel("Fecha:")); row_ff.addWidget(self.qr_fecha_fact,1)
-        form_prov.addRow("No. Factura:", self._wrap(row_ff))
         cf.addLayout(form_prov)
 
         sub2 = QLabel("PRODUCTOS DEL CONTENEDOR · CARRITO"); sub2.setObjectName("formSection")
@@ -2026,20 +2210,42 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if sig is not None: sig.connect(self._qr_agregar_producto_carrito)
             cf.addWidget(self.qr_buscador)
         except Exception:
+            from PyQt5.QtWidgets import QCompleter
             row_busc = QHBoxLayout()
             self.qr_buscador_input = QLineEdit()
-            self.qr_buscador_input.setPlaceholderText("🔎 Buscar producto del catálogo…")
-            btn_add = create_primary_button(self,"➕ Agregar","")
+            self.qr_buscador_input.setPlaceholderText("🔎 Buscar producto por nombre, código o ID…")
+            try:
+                _prod_rows = self.container.db.execute(
+                    "SELECT id, nombre, codigo_barras FROM productos ORDER BY nombre LIMIT 2000"
+                ).fetchall()
+                _prod_labels = []
+                self._qr_prod_map: dict = {}
+                for _r in _prod_rows:
+                    _pid  = _r["id"]   if hasattr(_r, "keys") else _r[0]
+                    _nom  = _r["nombre"] if hasattr(_r, "keys") else _r[1]
+                    _cod  = _r["codigo_barras"] if hasattr(_r, "keys") else _r[2]
+                    _lbl  = f"{_nom} [{_cod or _pid}]"
+                    _prod_labels.append(_lbl)
+                    self._qr_prod_map[_lbl] = _pid
+                _comp = QCompleter(_prod_labels)
+                _comp.setCaseSensitivity(Qt.CaseInsensitive)
+                _comp.setFilterMode(Qt.MatchContains)
+                self.qr_buscador_input.setCompleter(_comp)
+                self.qr_buscador_input.returnPressed.connect(self._qr_agregar_producto_manual)
+            except Exception:
+                pass
+            btn_add = create_primary_button(self, "➕ Agregar", "")
             btn_add.clicked.connect(self._qr_agregar_producto_manual)
-            row_busc.addWidget(self.qr_buscador_input,1); row_busc.addWidget(btn_add)
+            row_busc.addWidget(self.qr_buscador_input, 1); row_busc.addWidget(btn_add)
             cf.addLayout(row_busc)
 
-        self.tbl_qr_carrito = QTableWidget(0,7)
+        # Cart table: 9 columns (ID, Producto, Unidad, Volumen, Costo, Subtotal, Lote prev., Caducidad, Acc.)
+        self.tbl_qr_carrito = QTableWidget(0, 9)
         self.tbl_qr_carrito.setHorizontalHeaderLabels(
-            ["ID","Producto","Unidad","Volumen ✏","Costo ✏","Subtotal",""])
+            ["ID", "Producto", "Unidad", "Volumen ✏", "Costo ✏", "Subtotal", "Lote prev.", "Caducidad", ""])
         h = self.tbl_qr_carrito.horizontalHeader()
         h.setSectionResizeMode(1, QHeaderView.Stretch)
-        for col in (0,2,3,4,5,6): h.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        for col in (0, 2, 3, 4, 5, 6, 7, 8): h.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.tbl_qr_carrito.verticalHeader().setVisible(False)
         self.tbl_qr_carrito.setMinimumHeight(160)
         self.tbl_qr_carrito.itemChanged.connect(self._on_carrito_qr_changed)
@@ -2060,7 +2266,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         row_pv = QHBoxLayout(); row_pv.addWidget(self.qr_plazo,1)
         row_pv.addWidget(QLabel("Vence:")); row_pv.addWidget(self.qr_vence,1)
         self.qr_plazo.valueChanged.connect(self._qr_calcular_vencimiento)
-        form_pago.addRow("Plazo:", self._wrap(row_pv))
+        form_pago.addRow("Plazo / vencimiento:", self._wrap(row_pv))
         self.qr_sucursal_destino = QComboBox()
         try:
             for s in (self._prov_repo.get_sucursales_activas() or []):
@@ -2074,56 +2280,117 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         cf.addLayout(form_pago)
 
         footer = QHBoxLayout()
-        col_total = QVBoxLayout()
-        l_lbl = QLabel("TOTAL CONTENEDOR"); l_lbl.setObjectName("caption")
-        self.qr_total_lbl = QLabel("$0.00")
-        self.qr_total_lbl.setObjectName("hero"); self.qr_total_lbl.setProperty("variant","success")
-        col_total.addWidget(l_lbl); col_total.addWidget(self.qr_total_lbl)
-        footer.addLayout(col_total); footer.addStretch()
+        btn_borrador = create_secondary_button(self, "Guardar borrador", "")
+        btn_continuar = create_secondary_button(self, "Guardar y continuar", "")
         btn_guardar = create_success_button(self, "✓ Guardar y enviar a recepción", "")
         btn_guardar.clicked.connect(self._qr_guardar_asignacion)
-        footer.addWidget(btn_guardar)
+        footer.addWidget(btn_borrador); footer.addWidget(btn_continuar)
+        footer.addStretch(); footer.addWidget(btn_guardar)
         cf.addLayout(footer)
 
         scroll.setWidget(card_form)
-        lay.addWidget(card_list, 0); lay.addWidget(scroll, 1)
+        body.addWidget(scroll, 1)
+
+        # Right: financial summary panel
+        card_fin = QGroupBox("RESUMEN FINANCIERO"); card_fin.setObjectName("sectionCard")
+        card_fin.setMaximumWidth(220)
+        cf2 = QVBoxLayout(card_fin); cf2.setSpacing(6)
+        def _fin_row(lbl_txt, attr_name, variant=None):
+            row_w = QWidget(); row_l = QHBoxLayout(row_w)
+            row_l.setContentsMargins(0,0,0,0); row_l.setSpacing(4)
+            lbl = QLabel(lbl_txt); lbl.setObjectName("caption")
+            val = QLabel("$0.00"); val.setObjectName("caption")
+            val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if variant: val.setProperty("variant", variant)
+            row_l.addWidget(lbl, 1); row_l.addWidget(val)
+            setattr(self, attr_name, val)
+            cf2.addWidget(row_w)
+            return val
+        _fin_row("Subtotal", "qr_fin_subtotal")
+        _fin_row("Descuento", "qr_fin_descuento")
+        _fin_row("Flete", "qr_fin_flete")
+        _fin_row("IVA (16%)", "qr_fin_iva", "info")
+        _fin_row("Otros cargos", "qr_fin_otros")
+        sep = QFrame(); sep.setFrameShape(QFrame.HLine); sep.setObjectName("separator")
+        cf2.addWidget(sep)
+        lbl_tot = QLabel("TOTAL"); lbl_tot.setObjectName("formSection")
+        self.qr_total_lbl = QLabel("$0.00")
+        self.qr_total_lbl.setObjectName("hero"); self.qr_total_lbl.setProperty("variant","success")
+        cf2.addWidget(lbl_tot); cf2.addWidget(self.qr_total_lbl)
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.HLine); sep2.setObjectName("separator")
+        cf2.addWidget(sep2)
+        _fin_row("Costo prom. / kg", "qr_fin_costo_kg")
+        _fin_row("Peso total est.", "qr_fin_peso_total")
+        cf2.addStretch()
+        body.addWidget(card_fin, 0)
+
+        lay.addWidget(card_list, 0); lay.addLayout(body, 1)
         self._contenedor_seleccionado_id = None
 
     def _qr_cargar_proveedores_combo(self) -> None:
+        from PyQt5.QtWidgets import QCompleter
+        from PyQt5.QtCore import Qt
         try:
             self.qr_proveedor.clear()
             for p in (self._prov_repo.get_activos() or []):
                 self.qr_proveedor.addItem(str(p.get("nombre", "")), p.get("id"))
         except Exception:
             pass
+        completer = QCompleter([self.qr_proveedor.itemText(i)
+                                 for i in range(self.qr_proveedor.count())])
+        completer.setCaseSensitivity(Qt.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchContains)
+        self.qr_proveedor.setCompleter(completer)
 
     def _cargar_contenedores_pendientes(self) -> None:
-        if not hasattr(self,"tbl_pendientes"): return
+        if not hasattr(self, "lst_pendientes"): return
         try:
             f = (self.qr_filtro_cont.text() or "").strip()
-            sql = ("SELECT id, codigo, tipo, fecha_creado FROM contenedores "
-                   "WHERE estado='generado'")
+            sql = ("SELECT id, codigo, tipo, fecha_creado, "
+                   "COALESCE(descripcion,'') AS desc "
+                   "FROM contenedores WHERE estado='generado'")
             params: list = []
-            if f: sql += " AND codigo LIKE ?"; params.append(f"%{f}%")
+            if f: sql += " AND (codigo LIKE ? OR descripcion LIKE ?)"; params += [f"%{f}%"]*2
             sql += " ORDER BY fecha_creado DESC LIMIT 200"
             rows = self.container.db.execute(sql, params).fetchall()
-            self.tbl_pendientes.setRowCount(0)
-            ico_map = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}
+            self.lst_pendientes.clear()
             for r in rows:
-                cid = r["id"] if hasattr(r,"keys") else r[0]
-                cod = r["codigo"] if hasattr(r,"keys") else r[1]
-                tp = r["tipo"] if hasattr(r,"keys") else r[2]
-                fc = r["fecha_creado"] if hasattr(r,"keys") else r[3]
-                row = self.tbl_pendientes.rowCount()
-                self.tbl_pendientes.insertRow(row)
-                it_id = QTableWidgetItem(cod); it_id.setData(Qt.UserRole, cid)
-                self.tbl_pendientes.setItem(row, 0, it_id)
-                self.tbl_pendientes.setItem(row, 1, QTableWidgetItem(f"{ico_map.get(tp,'📦')} {tp}"))
-                self.tbl_pendientes.setItem(row, 2, QTableWidgetItem(str(fc or "")[:16]))
+                cid  = r["id"]   if hasattr(r,"keys") else r[0]
+                cod  = r["codigo"] if hasattr(r,"keys") else r[1]
+                tp   = r["tipo"] if hasattr(r,"keys") else r[2]
+                fc   = str(r["fecha_creado"] if hasattr(r,"keys") else r[3] or "")[:16]
+                desc = r["desc"] if hasattr(r,"keys") else r[4]
+                ico  = self._TIPO_ICO.get(tp, "📦")
+                lbl_t= self._TIPO_LBL.get(tp, tp)
+                # Build card widget
+                card = QWidget(); card.setObjectName("containerCard")
+                card_lay = QHBoxLayout(card); card_lay.setContentsMargins(8,6,8,6); card_lay.setSpacing(8)
+                ico_lbl = QLabel(ico); ico_lbl.setObjectName("qrPreviewIcon"); ico_lbl.setFixedWidth(28)
+                info_col = QVBoxLayout(); info_col.setSpacing(1)
+                name_lbl = QLabel(cod); name_lbl.setObjectName("monoLabel")
+                sub_lbl  = QLabel(f"{lbl_t}{(' · ' + desc[:30]) if desc else ''}  ·  {fc}")
+                sub_lbl.setObjectName("caption")
+                badge = QLabel("Sin asignar"); badge.setObjectName("statusBadge")
+                badge.setProperty("variant","warning")
+                info_col.addWidget(name_lbl); info_col.addWidget(sub_lbl); info_col.addWidget(badge)
+                card_lay.addWidget(ico_lbl); card_lay.addLayout(info_col, 1)
+                item = QListWidgetItem()
+                item.setData(Qt.UserRole, cid)
+                item.setData(Qt.UserRole+1, cod)
+                item.setSizeHint(card.sizeHint())
+                self.lst_pendientes.addItem(item)
+                self.lst_pendientes.setItemWidget(item, card)
         except Exception as e:
             logger.debug("_cargar_contenedores_pendientes: %s", e)
 
+    def _on_contenedor_list_click(self, item: "QListWidgetItem") -> None:
+        cod = item.data(Qt.UserRole + 1)
+        if cod and hasattr(self, "qr_scan_input"):
+            self.qr_scan_input.setText(cod)
+            self._qr_cargar_por_codigo()
+
     def _on_contenedor_select(self) -> None:
+        if not hasattr(self, "tbl_pendientes"): return
         sel = self.tbl_pendientes.currentRow()
         if sel < 0: return
         it = self.tbl_pendientes.item(sel, 0)
@@ -2137,7 +2404,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not codigo: return
         try:
             r = self.container.db.execute(
-                "SELECT id, codigo, tipo, descripcion, estado FROM contenedores WHERE codigo=?",
+                "SELECT id, codigo, tipo, descripcion, estado, fecha_creado FROM contenedores WHERE codigo=?",
                 (codigo,)).fetchone()
             if not r:
                 QMessageBox.warning(self,"No encontrado",
@@ -2152,9 +2419,23 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._contenedor_seleccionado_id = r["id"] if hasattr(r,"keys") else r[0]
             tp = r["tipo"] if hasattr(r,"keys") else r[2]
             desc = r["descripcion"] if hasattr(r,"keys") else r[3]
-            ico = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}.get(tp,"📦")
+            estado = r["estado"] if hasattr(r,"keys") else r[4]
+            fecha_creado = r["fecha_creado"] if hasattr(r,"keys") else r[5]
+            ico = self._TIPO_ICO.get(tp, "📦")
             desc_sfx = f"  ·  {desc}" if desc else ""
             self.qr_asg_header.setText(f"{ico}  {codigo}   ·   {(tp or 'caja').title()}{desc_sfx}")
+            if hasattr(self, "qr_asg_ico"):
+                self.qr_asg_ico.setText(self._TIPO_ICO.get(tp, "📦"))
+            if hasattr(self, "qr_asg_meta"):
+                self.qr_asg_meta.setText(f"Generado: {str(fecha_creado or '')[:16]}")
+            if hasattr(self, "qr_asg_badge"):
+                self.qr_asg_badge.setText(
+                    {"generado":"Sin asignar","asignado":"Asignado",
+                     "recibido":"Recibido"}.get(estado, estado))
+                self.qr_asg_badge.setProperty("variant",
+                    {"generado":"warning","asignado":"accent","recibido":"success"}.get(estado,"warning"))
+                self.qr_asg_badge.style().unpolish(self.qr_asg_badge)
+                self.qr_asg_badge.style().polish(self.qr_asg_badge)
             self._qr_carrito.clear()
             try:
                 rows = self.container.db.execute("""
@@ -2216,18 +2497,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.tbl_qr_carrito.insertRow(r)
             for col, val, editable in [
                 (0, str(it["producto_id"]), False),
-                (1, it["nombre"], False),
-                (2, it["unidad"], False),
+                (1, it["nombre"],           False),
+                (2, it["unidad"],           False),
                 (3, f"{it['cantidad']:.2f}", True),
-                (4, f"{it['costo']:.2f}", True),
-                (5, f"${it['cantidad']*it['costo']:.2f}", False)]:
+                (4, f"{it['costo']:.2f}",   True),
+                (5, f"${it['cantidad']*it['costo']:.2f}", False),
+                (6, it.get("lote", ""),     True),
+                (7, it.get("caducidad", ""), True),
+            ]:
                 cell = QTableWidgetItem(val)
                 if not editable: cell.setFlags(cell.flags() & ~Qt.ItemIsEditable)
                 if col in (3,4,5): cell.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self.tbl_qr_carrito.setItem(r, col, cell)
-            btn = create_danger_button(self,"🗑","Quitar del carrito"); btn.setFixedWidth(36)
+            btn = create_danger_button(self, "🗑", "Quitar del carrito"); btn.setFixedWidth(36)
             btn.clicked.connect(lambda _=False, i=idx: self._qr_quitar_producto(i))
-            self.tbl_qr_carrito.setCellWidget(r, 6, btn)
+            self.tbl_qr_carrito.setCellWidget(r, 8, btn)
         self.tbl_qr_carrito.blockSignals(False)
         self._qr_actualizar_total()
 
@@ -2239,20 +2523,25 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _on_carrito_qr_changed(self, item: QTableWidgetItem) -> None:
         try:
             row = item.row(); col = item.column()
-            if col not in (3, 4) or row >= len(self._qr_carrito): return
-            val_str = (item.text() or "").replace("$","").replace(",","").strip()
-            try: val = float(val_str)
-            except Exception: val = 0.0
-            if val < 0: val = 0
-            if col == 3: self._qr_carrito[row]["cantidad"] = val
-            else: self._qr_carrito[row]["costo"] = val
-            it = self._qr_carrito[row]
-            sub_item = self.tbl_qr_carrito.item(row, 5)
-            if sub_item:
-                self.tbl_qr_carrito.blockSignals(True)
-                sub_item.setText(f"${it['cantidad']*it['costo']:.2f}")
-                self.tbl_qr_carrito.blockSignals(False)
-            self._qr_actualizar_total()
+            if row >= len(self._qr_carrito): return
+            if col in (3, 4):
+                val_str = (item.text() or "").replace("$","").replace(",","").strip()
+                try: val = float(val_str)
+                except Exception: val = 0.0
+                if val < 0: val = 0
+                if col == 3: self._qr_carrito[row]["cantidad"] = val
+                else:        self._qr_carrito[row]["costo"] = val
+                it = self._qr_carrito[row]
+                sub_item = self.tbl_qr_carrito.item(row, 5)
+                if sub_item:
+                    self.tbl_qr_carrito.blockSignals(True)
+                    sub_item.setText(f"${it['cantidad']*it['costo']:.2f}")
+                    self.tbl_qr_carrito.blockSignals(False)
+                self._qr_actualizar_total()
+            elif col == 6:
+                self._qr_carrito[row]["lote"] = item.text()
+            elif col == 7:
+                self._qr_carrito[row]["caducidad"] = item.text()
         except Exception as e:
             logger.debug("_on_carrito_qr_changed: %s", e)
 
@@ -2316,7 +2605,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.tbl_qr_carrito.setRowCount(0)
             self._qr_actualizar_total()
             self._contenedor_seleccionado_id = None
-            self.qr_asg_header.setText("⏳ Escanea o selecciona un contenedor para comenzar")
+            self.qr_asg_header.setText("⏳ Selecciona un contenedor")
             self.qr_factura.clear()
             self._cargar_contenedores_pendientes()
         except Exception as e:
@@ -2324,15 +2613,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Sub-pestaña 3: Recepción con QR ────────────────────────────────────
     def _build_subtab_recepcion(self, parent: QWidget) -> None:
-        from PyQt5.QtWidgets import QTextEdit
+        from PyQt5.QtWidgets import QTextEdit, QDoubleSpinBox as QDSpin
         lay = QHBoxLayout(parent); lay.setContentsMargins(8,8,8,8); lay.setSpacing(10)
 
-        card_list = QGroupBox("📋 Contenedores asignados · pendientes de recibir")
-        card_list.setObjectName("sectionCard"); card_list.setMaximumWidth(340)
+        # Left panel: scan + container list
+        card_list = QGroupBox("📷 Escanear contenedor")
+        card_list.setObjectName("sectionCard"); card_list.setMaximumWidth(300)
         cl = QVBoxLayout(card_list); cl.setSpacing(8)
         scan_row = QHBoxLayout()
         self.qr_recv_scan = QLineEdit()
-        self.qr_recv_scan.setPlaceholderText("📷 Escanear QR del contenedor…")
+        self.qr_recv_scan.setPlaceholderText("📷 Escanear QR o ingresar ID…")
         self.qr_recv_scan.setObjectName("scanInput")
         self.qr_recv_scan.setProperty("variant","success")
         self.qr_recv_scan.returnPressed.connect(self._qr_recv_cargar)
@@ -2340,109 +2630,443 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         btn_recv_scan.clicked.connect(self._qr_recv_cargar)
         scan_row.addWidget(self.qr_recv_scan,1); scan_row.addWidget(btn_recv_scan)
         cl.addLayout(scan_row)
-        cl.addWidget(QLabel("O selecciona de la lista:"))
+
+        qr_icon = QLabel("▣"); qr_icon.setObjectName("qrPreviewArea")
+        qr_icon.setAlignment(Qt.AlignCenter); qr_icon.setFixedHeight(80)
+        cl.addWidget(qr_icon)
+        qr_hint = QLabel("o ingresar ID manualmente"); qr_hint.setObjectName("caption")
+        qr_hint.setAlignment(Qt.AlignCenter)
+        cl.addWidget(qr_hint)
+
+        recv_lbl = QLabel("CONTENEDORES EN RECEPCIÓN"); recv_lbl.setObjectName("formSection")
+        cl.addWidget(recv_lbl)
         self.qr_recv_filtro = QLineEdit()
         self.qr_recv_filtro.setPlaceholderText("🔎 Filtrar por ID, proveedor…")
         self.qr_recv_filtro.textChanged.connect(lambda _: self._cargar_contenedores_recepcion())
         cl.addWidget(self.qr_recv_filtro)
-        self.tbl_recv_list = QTableWidget(0,3)
-        self.tbl_recv_list.setHorizontalHeaderLabels(["ID","Proveedor","Total"])
-        self.tbl_recv_list.horizontalHeader().setStretchLastSection(True)
-        self.tbl_recv_list.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.tbl_recv_list.verticalHeader().setVisible(False)
-        self.tbl_recv_list.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tbl_recv_list.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.tbl_recv_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tbl_recv_list.itemSelectionChanged.connect(self._on_recv_list_select)
-        cl.addWidget(self.tbl_recv_list, 1)
+        self.lst_recv = QListWidget()
+        self.lst_recv.setObjectName("containerList")
+        self.lst_recv.setSpacing(2)
+        self.lst_recv.setUniformItemSizes(False)
+        self.lst_recv.itemClicked.connect(self._on_recv_list_click)
+        cl.addWidget(self.lst_recv, 1)
 
+        # Right panel: details + comparison table + weight + summary
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.NoFrame)
         card_recv = QGroupBox("✅ Validar recepción"); card_recv.setObjectName("sectionCard")
-        cr = QVBoxLayout(card_recv); cr.setSpacing(10)
+        cr = QVBoxLayout(card_recv); cr.setSpacing(8)
+
+        # Container header
         self.qr_recv_header = QLabel("⏳ Escanea o selecciona un contenedor asignado")
         self.qr_recv_header.setObjectName("qrRecvHeader")
         cr.addWidget(self.qr_recv_header)
-        self.qr_recv_meta = QLabel("Proveedor — · Factura — · Comprador — · Total —")
+        self.qr_recv_meta = QLabel("Proveedor — · Factura — · Destino —")
         self.qr_recv_meta.setObjectName("caption"); self.qr_recv_meta.setWordWrap(True)
         cr.addWidget(self.qr_recv_meta)
-        sub_tbl = QLabel("PRODUCTOS DEL CONTENEDOR · CAPTURA DE RECEPCIÓN")
-        sub_tbl.setObjectName("formSection")
+
+        # Comparison table: 9 columns
+        sub_tbl = QLabel("COMPARATIVO: ESPERADO VS RECIBIDO"); sub_tbl.setObjectName("formSection")
         cr.addWidget(sub_tbl)
-        self.tbl_recv_items = QTableWidget(0, 6)
+        self.tbl_recv_items = QTableWidget(0, 9)
         self.tbl_recv_items.setHorizontalHeaderLabels(
-            ["ID","Producto","Unidad","Esperado","Recibido ✏","Diferencia"])
+            ["ID", "Producto", "Unidad", "Esperado", "Recibido ✏", "Diferencia",
+             "Lote recibido", "Caducidad", "Estado"])
         h2 = self.tbl_recv_items.horizontalHeader()
         h2.setSectionResizeMode(1, QHeaderView.Stretch)
-        for col in (0,2,3,4,5): h2.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        for col in (0, 2, 3, 4, 5, 6, 7, 8): h2.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.tbl_recv_items.verticalHeader().setVisible(False)
         self.tbl_recv_items.setMinimumHeight(180)
         self.tbl_recv_items.itemChanged.connect(self._on_recv_items_changed)
         cr.addWidget(self.tbl_recv_items, 1)
-        sub_who = QLabel("RECEPCIÓN"); sub_who.setObjectName("formSection")
-        cr.addWidget(sub_who)
-        form_who = QFormLayout(); form_who.setSpacing(6)
+
+        # Bottom row: weight + summary + observations
+        bottom = QHBoxLayout(); bottom.setSpacing(10)
+
+        # Weight card
+        card_wt = QGroupBox("INFORMACIÓN RECEPCIÓN"); card_wt.setObjectName("sectionCard")
+        wt_form = QFormLayout(card_wt); wt_form.setSpacing(6)
+        self.qr_recv_peso_bruto = QDoubleSpinBox()
+        self.qr_recv_peso_bruto.setRange(0, 99999); self.qr_recv_peso_bruto.setSuffix(" kg")
+        self.qr_recv_peso_bruto.setDecimals(2)
+        self.qr_recv_peso_bruto.valueChanged.connect(self._qr_recv_actualizar_peso_neto)
+        wt_form.addRow("Peso bruto recibido (kg):", self.qr_recv_peso_bruto)
+        self.qr_recv_tara = QDoubleSpinBox()
+        self.qr_recv_tara.setRange(0, 9999); self.qr_recv_tara.setSuffix(" kg")
+        self.qr_recv_tara.setDecimals(2)
+        self.qr_recv_tara.valueChanged.connect(self._qr_recv_actualizar_peso_neto)
+        wt_form.addRow("Peso tara (kg):", self.qr_recv_tara)
+        self.qr_recv_peso_neto = QLineEdit(); self.qr_recv_peso_neto.setReadOnly(True)
+        self.qr_recv_peso_neto.setObjectName("monoInput"); self.qr_recv_peso_neto.setText("0.00 kg")
+        wt_form.addRow("Peso neto recibido:", self.qr_recv_peso_neto)
+        self.qr_recv_obs = QTextEdit(); self.qr_recv_obs.setMaximumHeight(55)
+        self.qr_recv_obs.setPlaceholderText("Observaciones (faltantes, daños, lote, temperatura…)")
+        wt_form.addRow("Observaciones:", self.qr_recv_obs)
         self.qr_recv_recibe = QLineEdit()
-        self.qr_recv_recibe.setPlaceholderText("Nombre de quien recibe")
+        self.qr_recv_recibe.setPlaceholderText("Responsable recepción")
         if self.usuario_actual: self.qr_recv_recibe.setText(self.usuario_actual)
-        form_who.addRow("Recibe:", self.qr_recv_recibe)
-        self.qr_recv_obs = QTextEdit(); self.qr_recv_obs.setMaximumHeight(70)
-        self.qr_recv_obs.setPlaceholderText(
-            "Observaciones (faltantes, daños, lote, temperatura, etc.)…")
-        form_who.addRow("Observaciones:", self.qr_recv_obs)
-        cr.addLayout(form_who)
+        wt_form.addRow("Responsable recepción:", self.qr_recv_recibe)
+        bottom.addWidget(card_wt, 1)
+
+        # Summary card
+        card_sum = QGroupBox("RESUMEN RECEPCIÓN"); card_sum.setObjectName("sectionCard")
+        card_sum.setMaximumWidth(240)
+        sum_lay = QVBoxLayout(card_sum); sum_lay.setSpacing(4)
+        def _sum_row(lbl_txt, attr):
+            w = QWidget(); wl = QHBoxLayout(w); wl.setContentsMargins(0,0,0,0)
+            l = QLabel(lbl_txt); l.setObjectName("caption")
+            v = QLabel("—"); v.setObjectName("caption"); v.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            wl.addWidget(l,1); wl.addWidget(v); sum_lay.addWidget(w); setattr(self, attr, v)
+        _sum_row("Peso estimado", "qr_sum_peso_est")
+        _sum_row("Peso recibido", "qr_sum_peso_rec")
+        _sum_row("Diferencia total", "qr_sum_diff")
+        sep_s = QFrame(); sep_s.setFrameShape(QFrame.HLine); sep_s.setObjectName("separator")
+        sum_lay.addWidget(sep_s)
+        _sum_row("Productos OK", "qr_sum_ok")
+        _sum_row("Con diferencia", "qr_sum_diff_count")
+        _sum_row("Rechazados", "qr_sum_rechazados")
+        sum_lay.addStretch()
+        self.qr_recv_status = QLabel("⏳ Sin datos")
+        self.qr_recv_status.setObjectName("statusBadge")
+        self.qr_recv_status.setProperty("variant","warning")
+        self.qr_recv_status.setAlignment(Qt.AlignCenter)
+        sum_lay.addWidget(self.qr_recv_status)
+        bottom.addWidget(card_sum, 0)
+
+        cr.addLayout(bottom)
+
+        # Footer buttons
         footer = QHBoxLayout()
-        self.qr_recv_status = QLabel("⏳ Sin datos"); self.qr_recv_status.setObjectName("statusBadge")
-        footer.addWidget(self.qr_recv_status); footer.addStretch()
-        btn_confirmar = create_success_button(self,
-            "✓ Confirmar recepción e ingresar al inventario","")
+        btn_save = create_secondary_button(self, "Guardar recepción", "")
+        btn_save.clicked.connect(lambda: self._qr_confirmar_recepcion(parcial=True))
+        btn_incid = create_secondary_button(self, "⚠ Marcar incidencias", "")
+        btn_confirmar = create_success_button(self, "✓ Confirmar recepción parcial", "")
         btn_confirmar.clicked.connect(self._qr_confirmar_recepcion)
-        footer.addWidget(btn_confirmar)
+        footer.addWidget(btn_save); footer.addWidget(btn_incid)
+        footer.addStretch(); footer.addWidget(btn_confirmar)
         cr.addLayout(footer)
+
         scroll.setWidget(card_recv)
-        lay.addWidget(card_list,0); lay.addWidget(scroll,1)
+        lay.addWidget(card_list, 0); lay.addWidget(scroll, 1)
         self._contenedor_recepcion_id = None
+        self._po_recepcion_id = None
+        self._compra_recepcion_id = None
 
     def _cargar_contenedores_recepcion(self) -> None:
-        if not hasattr(self,"tbl_recv_list"): return
+        if not hasattr(self, "lst_recv"): return
         try:
             f = (self.qr_recv_filtro.text() or "").strip()
-            sql = """
-                SELECT c.id, c.codigo, COALESCE(p.nombre,'—') AS proveedor,
-                       COALESCE(c.total, 0) AS total
-                FROM contenedores c
-                LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                WHERE c.estado='asignado'
-            """
+            self.lst_recv.clear()
+            est_colors = {"asignado":"accent","recibido":"success","recepcion_parcial":"warning"}
+
+            # POs en estado PARA_RECEPCION
+            try:
+                po_sql = """SELECT oc.id, oc.folio, COALESCE(p.nombre,'—') AS proveedor,
+                                   COALESCE(oc.total,0) AS total
+                            FROM ordenes_compra oc
+                            LEFT JOIN proveedores p ON p.id=oc.proveedor_id
+                            WHERE oc.estado='PARA_RECEPCION'"""
+                po_p: list = []
+                if f: po_sql += " AND (oc.folio LIKE ? OR p.nombre LIKE ?)"; po_p+=[f"%{f}%"]*2
+                po_sql += " ORDER BY oc.fecha_actualizacion DESC LIMIT 100"
+                for r in self.container.db.execute(po_sql, po_p).fetchall():
+                    po_id = r["id"] if hasattr(r,"keys") else r[0]
+                    folio = r["folio"] if hasattr(r,"keys") else r[1]
+                    prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
+                    tot   = float(r["total"] if hasattr(r,"keys") else r[3] or 0)
+                    card = QWidget(); card.setObjectName("containerCard")
+                    cl2 = QHBoxLayout(card); cl2.setContentsMargins(8,5,8,5); cl2.setSpacing(8)
+                    ico_l = QLabel("📋"); ico_l.setObjectName("qrPreviewIcon"); ico_l.setFixedWidth(26)
+                    info_c = QVBoxLayout(); info_c.setSpacing(1)
+                    n = QLabel(f"[PO] {folio}"); n.setObjectName("monoLabel")
+                    s = QLabel(f"{prov}  ·  ${tot:,.0f}"); s.setObjectName("caption")
+                    b = QLabel("Para recepción"); b.setObjectName("statusBadge"); b.setProperty("variant","accent")
+                    info_c.addWidget(n); info_c.addWidget(s); info_c.addWidget(b)
+                    cl2.addWidget(ico_l); cl2.addLayout(info_c, 1)
+                    it = QListWidgetItem(); it.setData(Qt.UserRole, None)
+                    it.setData(Qt.UserRole+1, po_id); it.setData(Qt.UserRole+2, "PO")
+                    it.setSizeHint(card.sizeHint()); self.lst_recv.addItem(it)
+                    self.lst_recv.setItemWidget(it, card)
+            except Exception: pass
+
+            # Compras directas para_recepcion
+            try:
+                cd_sql = """SELECT c.id, c.folio, COALESCE(p.nombre,'—') AS proveedor,
+                                   COALESCE(c.total,0) AS total
+                            FROM compras c LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                            WHERE c.estado='para_recepcion'"""
+                cd_p: list = []
+                if f: cd_sql += " AND (c.folio LIKE ? OR p.nombre LIKE ?)"; cd_p+=[f"%{f}%"]*2
+                cd_sql += " ORDER BY c.fecha DESC LIMIT 100"
+                for r in self.container.db.execute(cd_sql, cd_p).fetchall():
+                    cid   = r["id"] if hasattr(r,"keys") else r[0]
+                    folio = r["folio"] if hasattr(r,"keys") else r[1]
+                    prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
+                    tot   = float(r["total"] if hasattr(r,"keys") else r[3] or 0)
+                    card = QWidget(); card.setObjectName("containerCard")
+                    cl2 = QHBoxLayout(card); cl2.setContentsMargins(8,5,8,5); cl2.setSpacing(8)
+                    ico_l = QLabel("🛒"); ico_l.setObjectName("qrPreviewIcon"); ico_l.setFixedWidth(26)
+                    info_c = QVBoxLayout(); info_c.setSpacing(1)
+                    n = QLabel(f"[Compra] {folio}"); n.setObjectName("monoLabel")
+                    s = QLabel(f"{prov}  ·  ${tot:,.0f}"); s.setObjectName("caption")
+                    b = QLabel("Para recepción"); b.setObjectName("statusBadge"); b.setProperty("variant","accent")
+                    info_c.addWidget(n); info_c.addWidget(s); info_c.addWidget(b)
+                    cl2.addWidget(ico_l); cl2.addLayout(info_c, 1)
+                    it = QListWidgetItem(); it.setData(Qt.UserRole, None)
+                    it.setData(Qt.UserRole+1, cid); it.setData(Qt.UserRole+2, "COMPRA")
+                    it.setSizeHint(card.sizeHint()); self.lst_recv.addItem(it)
+                    self.lst_recv.setItemWidget(it, card)
+            except Exception: pass
+
+            # Contenedores asignados
+            sql = """SELECT c.id, c.codigo, c.tipo, COALESCE(p.nombre,'—') AS proveedor,
+                            COALESCE(c.total,0) AS total, c.estado
+                     FROM contenedores c LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                     WHERE c.estado IN ('asignado','en_recepcion','recepcion_parcial')"""
             params: list = []
-            if f:
-                sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ?)"
-                params += [f"%{f}%", f"%{f}%"]
+            if f: sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ?)"; params+=[f"%{f}%"]*2
             sql += " ORDER BY c.fecha_asignado DESC LIMIT 200"
-            rows = self.container.db.execute(sql, params).fetchall()
-            self.tbl_recv_list.setRowCount(0)
-            for r in rows:
-                cid = r["id"] if hasattr(r,"keys") else r[0]
-                cod = r["codigo"] if hasattr(r,"keys") else r[1]
-                prov = r["proveedor"] if hasattr(r,"keys") else r[2]
-                tot = r["total"] if hasattr(r,"keys") else r[3]
-                row = self.tbl_recv_list.rowCount()
-                self.tbl_recv_list.insertRow(row)
-                it = QTableWidgetItem(cod); it.setData(Qt.UserRole, cid)
-                self.tbl_recv_list.setItem(row, 0, it)
-                self.tbl_recv_list.setItem(row, 1, QTableWidgetItem(str(prov)))
-                tot_it = QTableWidgetItem(f"${float(tot or 0):,.2f}")
-                tot_it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.tbl_recv_list.setItem(row, 2, tot_it)
+            for r in self.container.db.execute(sql, params).fetchall():
+                cid  = r["id"] if hasattr(r,"keys") else r[0]
+                cod  = r["codigo"] if hasattr(r,"keys") else r[1]
+                tp   = r["tipo"] if hasattr(r,"keys") else r[2]
+                prov = r["proveedor"] if hasattr(r,"keys") else r[3]
+                tot  = float(r["total"] if hasattr(r,"keys") else r[4] or 0)
+                est  = r["estado"] if hasattr(r,"keys") else r[5]
+                ico  = self._TIPO_ICO.get(tp,"📦")
+                lbl_t= self._TIPO_LBL.get(tp, tp)
+                est_lbl = {"asignado":"Asignado","en_recepcion":"En recepción",
+                           "recepcion_parcial":"En recepción parcial"}.get(est, est)
+                est_var = est_colors.get(est, "accent")
+                card = QWidget(); card.setObjectName("containerCard")
+                cl2 = QHBoxLayout(card); cl2.setContentsMargins(8,5,8,5); cl2.setSpacing(8)
+                ico_l = QLabel(ico); ico_l.setObjectName("qrPreviewIcon"); ico_l.setFixedWidth(26)
+                info_c = QVBoxLayout(); info_c.setSpacing(1)
+                n = QLabel(cod); n.setObjectName("monoLabel")
+                s = QLabel(f"{lbl_t} · {prov}  ·  ${tot:,.0f}"); s.setObjectName("caption")
+                b = QLabel(est_lbl); b.setObjectName("statusBadge"); b.setProperty("variant", est_var)
+                info_c.addWidget(n); info_c.addWidget(s); info_c.addWidget(b)
+                cl2.addWidget(ico_l); cl2.addLayout(info_c, 1)
+                it = QListWidgetItem(); it.setData(Qt.UserRole, cid)
+                it.setData(Qt.UserRole+1, None); it.setData(Qt.UserRole+2, "CTN")
+                it.setSizeHint(card.sizeHint()); self.lst_recv.addItem(it)
+                self.lst_recv.setItemWidget(it, card)
         except Exception as e:
             logger.debug("_cargar_contenedores_recepcion: %s", e)
 
+    def _on_recv_list_click(self, item: "QListWidgetItem") -> None:
+        source_type = item.data(Qt.UserRole + 2) or "CTN"
+        if source_type == "PO":
+            self._cargar_po_en_recepcion(item.data(Qt.UserRole + 1))
+        elif source_type == "COMPRA":
+            self._cargar_compra_en_recepcion(item.data(Qt.UserRole + 1))
+        else:
+            cid = item.data(Qt.UserRole)
+            if cid: self._qr_recv_cargar_by_id(cid)
+
     def _on_recv_list_select(self) -> None:
+        if not hasattr(self, "tbl_recv_list"): return
         sel = self.tbl_recv_list.currentRow()
-        if sel < 0: return
+        if sel < 0:
+            return
         it = self.tbl_recv_list.item(sel, 0)
-        if not it: return
-        self.qr_recv_scan.setText(it.text())
-        self._qr_recv_cargar()
+        if not it:
+            return
+        source_type = it.data(Qt.UserRole + 2) or "CTN"
+        if source_type == "PO":
+            po_id = it.data(Qt.UserRole + 1)
+            self._cargar_po_en_recepcion(po_id)
+        elif source_type == "COMPRA":
+            compra_id = it.data(Qt.UserRole + 1)
+            self._cargar_compra_en_recepcion(compra_id)
+        else:
+            self.qr_recv_scan.setText(it.text())
+            self._qr_recv_cargar()
+
+    def _cargar_po_en_recepcion(self, po_id: int) -> None:
+        """Load a PO's line items into the reception validation table."""
+        try:
+            po_repo = getattr(self.container, 'purchase_order_repo', None)
+            if not po_repo:
+                return
+            po = po_repo.get_by_id(po_id)
+            if not po:
+                return
+            prov_row = self.container.db.execute(
+                "SELECT nombre FROM proveedores WHERE id=?",
+                (po.get("proveedor_id", 0),)
+            ).fetchone()
+            prov_nombre = prov_row[0] if prov_row else "—"
+            self._contenedor_recepcion_id = None
+            self._po_recepcion_id = po_id
+            self.qr_recv_header.setText(f"📋  PO {po.get('folio', po_id)}")
+            self.qr_recv_meta.setText(
+                f"<b>{prov_nombre}</b>  ·  Folio: {po.get('folio', '—')}  ·  "
+                f"Total: ${float(po.get('total', 0)):,.2f}")
+            items = po.get("items", [])
+            self.tbl_recv_items.blockSignals(True)
+            self.tbl_recv_items.setRowCount(0)
+            for item in items:
+                prod_id = item.get("producto_id") or item.get("product_id", "")
+                nombre  = item.get("nombre", str(prod_id))
+                unidad  = item.get("unidad", "pz")
+                esp     = float(item.get("cantidad", 0))
+                recib   = float(item.get("recibido", esp))
+                diff    = recib - esp
+                row = self.tbl_recv_items.rowCount()
+                self.tbl_recv_items.insertRow(row)
+                c0 = QTableWidgetItem(str(prod_id)); c0.setFlags(c0.flags() & ~Qt.ItemIsEditable)
+                c1 = QTableWidgetItem(nombre);       c1.setFlags(c1.flags() & ~Qt.ItemIsEditable)
+                c2 = QTableWidgetItem(unidad);       c2.setFlags(c2.flags() & ~Qt.ItemIsEditable)
+                c3 = QTableWidgetItem(f"{esp:.2f}"); c3.setFlags(c3.flags() & ~Qt.ItemIsEditable)
+                c3.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                c4 = QTableWidgetItem(f"{recib:.2f}")
+                c4.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.tbl_recv_items.setItem(row, 0, c0)
+                self.tbl_recv_items.setItem(row, 1, c1)
+                self.tbl_recv_items.setItem(row, 2, c2)
+                self.tbl_recv_items.setItem(row, 3, c3)
+                self.tbl_recv_items.setItem(row, 4, c4)
+                self._set_diff_cell(row, diff)
+            self.tbl_recv_items.blockSignals(False)
+            self._qr_recv_actualizar_status()
+        except Exception as e:
+            logger.warning("_cargar_po_en_recepcion: %s", e)
+
+    def _cargar_compra_en_recepcion(self, compra_id: int) -> None:
+        """Load a direct purchase's line items into the reception validation table."""
+        try:
+            row_c = self.container.db.execute(
+                """SELECT c.folio, c.total, c.proveedor_id, c.factura,
+                          COALESCE(p.nombre,'—') AS proveedor
+                   FROM compras c
+                   LEFT JOIN proveedores p ON p.id = c.proveedor_id
+                   WHERE c.id=? LIMIT 1""",
+                (compra_id,)
+            ).fetchone()
+            if not row_c:
+                return
+            folio      = row_c["folio"]    if hasattr(row_c, "keys") else row_c[0]
+            total      = row_c["total"]    if hasattr(row_c, "keys") else row_c[1]
+            factura    = row_c["factura"]  if hasattr(row_c, "keys") else row_c[3]
+            prov_nombre= row_c["proveedor"] if hasattr(row_c, "keys") else row_c[4]
+
+            items_rows = self.container.db.execute(
+                """SELECT dc.producto_id, COALESCE(pr.nombre, CAST(dc.producto_id AS TEXT)) AS nombre,
+                          COALESCE(pr.unidad,'pz') AS unidad, dc.cantidad, dc.precio_unitario
+                   FROM detalles_compra dc
+                   LEFT JOIN productos pr ON pr.id = dc.producto_id
+                   WHERE dc.compra_id=?""",
+                (compra_id,)
+            ).fetchall()
+
+            self._contenedor_recepcion_id = None
+            self._po_recepcion_id = None
+            self._compra_recepcion_id = compra_id
+            self.qr_recv_header.setText(f"🛒  Compra Directa {folio}")
+            self.qr_recv_meta.setText(
+                f"<b>{prov_nombre}</b>  ·  Factura: {factura or '—'}  ·  "
+                f"Total: ${float(total or 0):,.2f}")
+            self.tbl_recv_items.blockSignals(True)
+            self.tbl_recv_items.setRowCount(0)
+            for r in items_rows:
+                pid    = r["producto_id"] if hasattr(r, "keys") else r[0]
+                nombre = r["nombre"]      if hasattr(r, "keys") else r[1]
+                unidad = r["unidad"]      if hasattr(r, "keys") else r[2]
+                esp    = float(r["cantidad"] if hasattr(r, "keys") else r[3])
+                row = self.tbl_recv_items.rowCount()
+                self.tbl_recv_items.insertRow(row)
+                c0 = QTableWidgetItem(str(pid));    c0.setFlags(c0.flags() & ~Qt.ItemIsEditable)
+                c1 = QTableWidgetItem(nombre);      c1.setFlags(c1.flags() & ~Qt.ItemIsEditable)
+                c2 = QTableWidgetItem(unidad);      c2.setFlags(c2.flags() & ~Qt.ItemIsEditable)
+                c3 = QTableWidgetItem(f"{esp:.2f}"); c3.setFlags(c3.flags() & ~Qt.ItemIsEditable)
+                c3.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                c4 = QTableWidgetItem(f"{esp:.2f}")  # default received = expected
+                c4.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.tbl_recv_items.setItem(row, 0, c0)
+                self.tbl_recv_items.setItem(row, 1, c1)
+                self.tbl_recv_items.setItem(row, 2, c2)
+                self.tbl_recv_items.setItem(row, 3, c3)
+                self.tbl_recv_items.setItem(row, 4, c4)
+                self._set_diff_cell(row, 0)
+            self.tbl_recv_items.blockSignals(False)
+            self._qr_recv_actualizar_status()
+        except Exception as e:
+            logger.warning("_cargar_compra_en_recepcion: %s", e)
+
+    def _mostrar_hijos_contenedor(self, parent_id: int) -> None:
+        """Show child containers of a parent container in the reception items table.
+
+        The first rows show child containers (clickable to drill down),
+        then any direct products follow.
+        """
+        try:
+            hijos = self.container.db.execute(
+                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
+                   FROM contenedores WHERE parent_id=? ORDER BY codigo""",
+                (parent_id,)
+            ).fetchall()
+            if not hijos:
+                return
+            # Prepend a separator row + child rows to tbl_recv_items
+            self.tbl_recv_items.blockSignals(True)
+            # Insert a non-editable header row
+            sep_row = self.tbl_recv_items.rowCount()
+            self.tbl_recv_items.insertRow(sep_row)
+            hdr = QTableWidgetItem("── Contenedores hijos ──")
+            hdr.setFlags(Qt.NoItemFlags)
+            hdr.setForeground(self.tbl_recv_items.palette().mid())
+            self.tbl_recv_items.setItem(sep_row, 0, hdr)
+            self.tbl_recv_items.setSpan(sep_row, 0, 1, self.tbl_recv_items.columnCount())
+            for h in hijos:
+                hid   = h["id"]     if hasattr(h, "keys") else h[0]
+                hcod  = h["codigo"] if hasattr(h, "keys") else h[1]
+                htipo = h["tipo"]   if hasattr(h, "keys") else h[2]
+                hdesc = h["desc"]   if hasattr(h, "keys") else h[3]
+                ico   = self._TIPO_ICO.get(htipo, "📦")
+                lbl   = self._TIPO_LBL.get(htipo, htipo)
+                row = self.tbl_recv_items.rowCount()
+                self.tbl_recv_items.insertRow(row)
+                c0 = QTableWidgetItem(f"{ico} {hcod}")
+                c0.setData(Qt.UserRole, hid)          # child container id
+                c0.setData(Qt.UserRole + 1, "CHILD")  # marker
+                c0.setToolTip(f"Doble clic para abrir {lbl} {hcod}")
+                c1 = QTableWidgetItem(f"{lbl}{(' — ' + hdesc) if hdesc else ''}")
+                c1.setFlags(c1.flags() & ~Qt.ItemIsEditable)
+                self.tbl_recv_items.setItem(row, 0, c0)
+                self.tbl_recv_items.setItem(row, 1, c1)
+            self.tbl_recv_items.blockSignals(False)
+            # Connect double-click to drill-down (safe to connect multiple times — use lambda guard)
+            try:
+                self.tbl_recv_items.cellDoubleClicked.disconnect(self._on_recv_item_dblclick)
+            except Exception:
+                pass
+            self.tbl_recv_items.cellDoubleClicked.connect(self._on_recv_item_dblclick)
+        except Exception as e:
+            logger.debug("_mostrar_hijos_contenedor: %s", e)
+
+    def _on_recv_item_dblclick(self, row: int, _col: int) -> None:
+        """Drill down into a child container when double-clicked in the items table."""
+        it = self.tbl_recv_items.item(row, 0)
+        if not it:
+            return
+        if it.data(Qt.UserRole + 1) == "CHILD":
+            child_id = it.data(Qt.UserRole)
+            if child_id:
+                self.qr_recv_scan.setText(it.text().split()[-1])  # the code part
+                self._qr_recv_cargar_by_id(child_id)
+
+    def _qr_recv_cargar_by_id(self, contenedor_id: int) -> None:
+        """Load a container by ID (used for drill-down from parent to child)."""
+        try:
+            r = self.container.db.execute(
+                "SELECT codigo FROM contenedores WHERE id=? LIMIT 1", (contenedor_id,)
+            ).fetchone()
+            if r:
+                codigo = r[0] if not hasattr(r, "keys") else r["codigo"]
+                self.qr_recv_scan.setText(codigo)
+                self._qr_recv_cargar()
+        except Exception as e:
+            logger.debug("_qr_recv_cargar_by_id: %s", e)
 
     def _qr_recv_cargar(self) -> None:
         codigo = (self.qr_recv_scan.text() or "").strip()
@@ -2466,6 +3090,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     f"Asígnalo primero en la pestaña 'Asignar compra'.")
                 return
             self._contenedor_recepcion_id = r["id"] if hasattr(r,"keys") else r[0]
+            self._po_recepcion_id = None       # loading a container clears PO/compra context
+            self._compra_recepcion_id = None
             tp = r["tipo"] if hasattr(r,"keys") else r[2]
             tot = r["total"] if hasattr(r,"keys") else r[4]
             fact = r["folio_factura"] if hasattr(r,"keys") else r[5]
@@ -2509,6 +3135,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.tbl_recv_items.setItem(row, 4, c4)
                 self._set_diff_cell(row, diff)
             self.tbl_recv_items.blockSignals(False)
+            # Show child containers (if any) at the end of the items table
+            self._mostrar_hijos_contenedor(self._contenedor_recepcion_id)
             self._qr_recv_actualizar_status()
             self.qr_recv_scan.clear()
         except Exception as e:
@@ -2526,6 +3154,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
         item.setData(Qt.UserRole, variant)
         self.tbl_recv_items.setItem(row, 5, item)
+        # Col 8: Status dot
+        status_txt = "🟢" if abs(diff) < 0.001 else ("🔴" if diff < 0 else "🟡")
+        it_st = self.tbl_recv_items.item(row, 8)
+        if not it_st:
+            it_st = QTableWidgetItem(status_txt)
+            it_st.setFlags(it_st.flags() & ~Qt.ItemIsEditable)
+            it_st.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            self.tbl_recv_items.setItem(row, 8, it_st)
+        else:
+            it_st.setText(status_txt)
 
     def _on_recv_items_changed(self, item: QTableWidgetItem) -> None:
         if item.column() != 4: return
@@ -2563,9 +3201,76 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if sobre: partes.append(f"+ {sobre} sobre")
         self.qr_recv_status.setText("  ·  ".join(partes))
 
-    def _qr_confirmar_recepcion(self) -> None:
+    def _qr_recv_actualizar_peso_neto(self) -> None:
+        try:
+            bruto = self.qr_recv_peso_bruto.value()
+            tara  = self.qr_recv_tara.value()
+            neto  = max(0.0, bruto - tara)
+            self.qr_recv_peso_neto.setText(f"{neto:.2f} kg")
+        except Exception:
+            pass
+
+    def _on_hist_row_select(self) -> None:
+        sel = self.tbl_qr_hist.currentRow()
+        if sel < 0: return
+        it = self.tbl_qr_hist.item(sel, 0)
+        if not it: return
+        cod = it.data(Qt.UserRole) or it.text()
+        try:
+            r = self.container.db.execute(
+                """SELECT c.codigo, c.tipo, c.estado, c.total,
+                          COALESCE(p.nombre,'—') AS proveedor,
+                          COALESCE(c.folio_factura,'—') AS factura,
+                          COALESCE(s.nombre,'—') AS destino,
+                          c.fecha_creado, c.fecha_asignado, c.fecha_recibido
+                   FROM contenedores c
+                   LEFT JOIN proveedores p ON p.id = c.proveedor_id
+                   LEFT JOIN sucursales s ON s.id = c.sucursal_destino
+                   WHERE c.codigo=? LIMIT 1""",
+                (cod,)
+            ).fetchone()
+            if not r: return
+            def _g(k, i): return r[k] if hasattr(r,"keys") else r[i]
+            tipo = _g("tipo",1); estado = _g("estado",2); total = float(_g("total",3) or 0)
+            prov = _g("proveedor",4); fac = _g("factura",5)
+            dest = _g("destino",6)
+            fc = _g("fecha_creado",7); fa = _g("fecha_asignado",8); fr = _g("fecha_recibido",9)
+            lbl_t = self._TIPO_LBL.get(tipo, tipo)
+            self.qr_hist_det_titulo.setText(f"{cod}")
+            self.qr_hist_det_sub.setText(
+                f"{lbl_t} · {prov}\nFactura: {fac} · Destino: {dest}")
+            est_map = {"generado":"Sin asignar","asignado":"Asignado",
+                       "recibido":"Recibido","diferencia":"Con diferencia"}
+            var_map = {"generado":"warning","asignado":"accent",
+                       "recibido":"success","diferencia":"danger"}
+            self.qr_hist_det_badge.setText(f"● {est_map.get(estado, estado)}")
+            self.qr_hist_det_badge.setProperty("variant", var_map.get(estado,"warning"))
+            self.qr_hist_det_badge.style().unpolish(self.qr_hist_det_badge)
+            self.qr_hist_det_badge.style().polish(self.qr_hist_det_badge)
+            tl_lines = []
+            if fc:  tl_lines.append(f"● {str(fc)[:16]}  QR generado")
+            if fa:  tl_lines.append(f"● {str(fa)[:16]}  Compra asignada")
+            if fr:  tl_lines.append(f"● {str(fr)[:16]}  Recepción completada")
+            self.qr_hist_timeline.setText("\n".join(tl_lines) if tl_lines else "Sin eventos")
+            iva = total * 0.16
+            self.qr_hist_fs_subtotal.setText(f"${total/(1.16):,.2f}" if total else "—")
+            self.qr_hist_fs_iva.setText(f"${iva:,.2f}" if total else "—")
+            self.qr_hist_fs_flete.setText("$0.00")
+            self.qr_hist_fs_otros.setText("$0.00")
+            self.qr_hist_fs_total.setText(f"${total:,.2f}")
+        except Exception as e:
+            logger.debug("_on_hist_row_select: %s", e)
+
+    def _qr_confirmar_recepcion(self, parcial: bool = False) -> None:
+        # Delegate to specific reception handler based on what is loaded
+        if self._compra_recepcion_id and not self._contenedor_recepcion_id:
+            self._confirmar_recepcion_compra()
+            return
+        if self._po_recepcion_id and not self._contenedor_recepcion_id:
+            self._confirmar_recepcion_po()
+            return
         if not self._contenedor_recepcion_id:
-            QMessageBox.warning(self,"Atención","Escanea o selecciona un contenedor primero."); return
+            QMessageBox.warning(self,"Atención","Escanea o selecciona un contenedor o PO primero."); return
         if self.tbl_recv_items.rowCount() == 0:
             QMessageBox.warning(self,"Atención","El contenedor no tiene productos."); return
         if not (self.qr_recv_recibe.text() or "").strip():
@@ -2626,89 +3331,363 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             QMessageBox.critical(self,"Error", f"No se pudo confirmar:\n{e}")
 
+    def _confirmar_recepcion_po(self) -> None:
+        """Confirm reception of a PO: register stock IN and transition PO state."""
+        po_id = self._po_recepcion_id
+        if not po_id:
+            return
+        if self.tbl_recv_items.rowCount() == 0:
+            QMessageBox.warning(self, "Atención", "La PO no tiene productos.")
+            return
+        if not (self.qr_recv_recibe.text() or "").strip():
+            QMessageBox.warning(self, "Atención", "Indica quién recibe la mercancía.")
+            return
+        hay_diferencias = False
+        items_recib = []
+        for r in range(self.tbl_recv_items.rowCount()):
+            try:
+                pid = int(self.tbl_recv_items.item(r, 0).text())
+                esp = float((self.tbl_recv_items.item(r, 3).text() or "0").replace(",", ""))
+                rec = float((self.tbl_recv_items.item(r, 4).text() or "0").replace(",", ""))
+                items_recib.append((pid, rec, esp))
+                if abs(rec - esp) > 0.001:
+                    hay_diferencias = True
+            except Exception:
+                pass
+        if hay_diferencias:
+            if not confirm_action(
+                self, "Diferencias detectadas",
+                "Hay diferencias entre lo esperado y lo recibido.\n"
+                "¿Confirmar de todos modos?",
+                "Confirmar", "Cancelar",
+            ):
+                return
+        try:
+            usuario = self.usuario_actual or "Sistema"
+            svc = getattr(self.container, 'inventory_service', None)
+            po_repo = getattr(self.container, 'purchase_order_repo', None)
+            po = po_repo.get_by_id(po_id) if po_repo else None
+            if not po:
+                QMessageBox.critical(self, "Error", "PO no encontrada.")
+                return
+            sucursal_id = po.get("sucursal_id", self.sucursal_id or 1)
+            folio = po.get("folio", str(po_id))
+            warnings: list[str] = []
+            if svc:
+                for pid, rec, _esp in items_recib:
+                    if rec <= 0:
+                        continue
+                    try:
+                        svc.add_stock(
+                            product_id=pid,
+                            branch_id=sucursal_id,
+                            qty=rec,
+                            reference_type="RECEPCION_PO",
+                            reference_id=folio,
+                            operation_id=f"{folio}_{pid}",
+                            user=usuario,
+                            notes=f"Recepción PO {folio}",
+                        )
+                        if po_repo:
+                            po_repo.update_item_received(po_id, pid, rec)
+                    except Exception as _ie:
+                        warnings.append(str(_ie))
+            # Fully received → CERRADA (closed); with differences → PARCIAL for follow-up
+            new_estado = "PARCIAL" if hay_diferencias else "CERRADA"
+            if po_repo:
+                po_repo.update_estado(po_id, new_estado)
+            obs = (self.qr_recv_obs.toPlainText() or "").strip()
+            try:
+                from core.services.auto_audit import audit_write
+                audit_write(
+                    self.container,
+                    modulo="COMPRAS",
+                    accion="PO_RECIBIDA",
+                    entidad="ordenes_compra",
+                    entidad_id=folio,
+                    usuario=usuario,
+                    detalles=f"PO {folio} recibida por {self.qr_recv_recibe.text().strip()} · {obs}",
+                    before={"estado": "PARA_RECEPCION"},
+                    after={"estado": new_estado},
+                    sucursal_id=sucursal_id,
+                )
+            except Exception:
+                pass
+            msg = f"PO {folio} · {'cerrada ✓' if new_estado == 'CERRADA' else 'recepción parcial — estado: PARCIAL'}"
+            if warnings:
+                msg += f"\nAvisos: {'; '.join(warnings)}"
+            Toast.success(self, "✓ Recepción confirmada", msg)
+            self._po_recepcion_id = None
+            self.qr_recv_header.setText("⏳ Escanea o selecciona un contenedor asignado")
+            self.qr_recv_meta.setText("Proveedor — · Factura — · Comprador — · Total —")
+            self.tbl_recv_items.setRowCount(0)
+            self.qr_recv_obs.clear()
+            self.qr_recv_status.setText("⏳ Sin datos")
+            self._cargar_contenedores_recepcion()
+            self._cargar_docs_erp()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo confirmar recepción PO:\n{e}")
+
+    def _confirmar_recepcion_compra(self) -> None:
+        """Confirm physical reception of a direct purchase.
+
+        Inventory was already updated when the purchase was registered.
+        This step just verifies the physical goods and moves the compra
+        from 'para_recepcion' to 'completada'.
+        """
+        compra_id = self._compra_recepcion_id
+        if not compra_id:
+            return
+        if self.tbl_recv_items.rowCount() == 0:
+            QMessageBox.warning(self, "Atención", "La compra no tiene productos.")
+            return
+        if not (self.qr_recv_recibe.text() or "").strip():
+            QMessageBox.warning(self, "Atención", "Indica quién recibe la mercancía.")
+            return
+        hay_diferencias = False
+        for r in range(self.tbl_recv_items.rowCount()):
+            try:
+                esp = float((self.tbl_recv_items.item(r, 3).text() or "0").replace(",", ""))
+                rec = float((self.tbl_recv_items.item(r, 4).text() or "0").replace(",", ""))
+                if abs(rec - esp) > 0.001:
+                    hay_diferencias = True
+                    break
+            except Exception:
+                pass
+        if hay_diferencias:
+            if not confirm_action(
+                self, "Diferencias detectadas",
+                "Hay diferencias entre lo esperado y lo recibido.\n"
+                "¿Confirmar de todos modos?",
+                "Confirmar", "Cancelar",
+            ):
+                return
+        try:
+            row_c = self.container.db.execute(
+                "SELECT folio FROM compras WHERE id=? LIMIT 1", (compra_id,)
+            ).fetchone()
+            folio = (row_c[0] if row_c else str(compra_id))
+            usuario = self.usuario_actual or "Sistema"
+            # Inventory was already updated on purchase registration — just close reception.
+            new_estado = "completada"
+            self.container.db.execute(
+                "UPDATE compras SET estado=? WHERE id=?", (new_estado, compra_id)
+            )
+            obs = (self.qr_recv_obs.toPlainText() or "").strip()
+            try:
+                from core.services.auto_audit import audit_write
+                audit_write(
+                    self.container,
+                    modulo="COMPRAS",
+                    accion="COMPRA_RECIBIDA",
+                    entidad="compras",
+                    entidad_id=folio,
+                    usuario=usuario,
+                    detalles=f"Compra {folio} recibida por {self.qr_recv_recibe.text().strip()} · {obs}",
+                    before={"estado": "para_recepcion"},
+                    after={"estado": new_estado},
+                    sucursal_id=self.sucursal_id or 1,
+                )
+            except Exception:
+                pass
+            msg = f"Compra {folio} · recepción confirmada ✓"
+            if hay_diferencias:
+                msg += " (con diferencias)"
+            Toast.success(self, "✓ Recepción confirmada", msg)
+            self._compra_recepcion_id = None
+            self.qr_recv_header.setText("⏳ Escanea o selecciona un contenedor asignado")
+            self.qr_recv_meta.setText("Proveedor — · Factura — · Comprador — · Total —")
+            self.tbl_recv_items.setRowCount(0)
+            self.qr_recv_obs.clear()
+            self.qr_recv_status.setText("⏳ Sin datos")
+            self._cargar_contenedores_recepcion()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo confirmar recepción:\n{e}")
+
     # ── Sub-pestaña 4: Histórico ───────────────────────────────────────────
     def _build_subtab_historico_qr(self, parent: QWidget) -> None:
+        from PyQt5.QtWidgets import QSplitter
         lay = QVBoxLayout(parent); lay.setContentsMargins(8,8,8,8); lay.setSpacing(8)
-        tb = QHBoxLayout(); tb.setSpacing(6)
+
+        # Filter bar
+        filt_card = QGroupBox(); filt_card.setObjectName("sectionCard")
+        fb = QHBoxLayout(filt_card); fb.setContentsMargins(8,6,8,6); fb.setSpacing(8)
+        fb.addWidget(QLabel("Fecha inicio:"))
+        self.qr_hist_fecha_ini = QLineEdit()
+        self.qr_hist_fecha_ini.setPlaceholderText("AAAA-MM-DD")
+        self.qr_hist_fecha_ini.setFixedWidth(110)
+        self.qr_hist_fecha_ini.setText("2026-01-01")
+        fb.addWidget(self.qr_hist_fecha_ini)
+        fb.addWidget(QLabel("Fecha fin:"))
+        self.qr_hist_fecha_fin = QLineEdit()
+        self.qr_hist_fecha_fin.setPlaceholderText("AAAA-MM-DD")
+        self.qr_hist_fecha_fin.setFixedWidth(110)
+        self.qr_hist_fecha_fin.setText(datetime.now().strftime("%Y-%m-%d"))
+        fb.addWidget(self.qr_hist_fecha_fin)
+        self.qr_hist_sucursal = QComboBox(); self.qr_hist_sucursal.addItem("todas", "")
+        try:
+            for s in (self._prov_repo.get_sucursales_activas() or []):
+                self.qr_hist_sucursal.addItem(str(s.get("nombre","")), s.get("id"))
+        except Exception: pass
+        fb.addWidget(QLabel("Sucursal:")); fb.addWidget(self.qr_hist_sucursal)
+        self.qr_hist_prov_combo = QComboBox(); self.qr_hist_prov_combo.addItem("todos", "")
+        try:
+            for p in (self._prov_repo.get_activos() or []):
+                self.qr_hist_prov_combo.addItem(str(p.get("nombre","")), p.get("id"))
+        except Exception: pass
+        fb.addWidget(QLabel("Proveedor:")); fb.addWidget(self.qr_hist_prov_combo)
         self.qr_hist_filtro = QLineEdit()
-        self.qr_hist_filtro.setPlaceholderText("🔎 ID contenedor, proveedor, factura…")
-        self.qr_hist_filtro.setMaximumWidth(260)
-        self.qr_hist_estado = QComboBox()
-        self.qr_hist_estado.addItem("Todos los estados", "")
-        for e_val, e_lbl in [("generado","🏷️ Sin asignar"),("asignado","🔗 Asignados"),
-                              ("recibido","✓ Recibidos"),("diferencia","⚠ Con diferencias")]:
-            self.qr_hist_estado.addItem(e_lbl, e_val)
-        btn_filtrar = create_secondary_button(self, "Filtrar", "")
+        self.qr_hist_filtro.setPlaceholderText("🔎 Buscar contenedor…")
+        self.qr_hist_filtro.setMaximumWidth(200)
+        fb.addWidget(self.qr_hist_filtro)
+        btn_filtrar = create_primary_button(self, "Buscar", "")
         btn_filtrar.clicked.connect(self._cargar_historico_qr)
         btn_export = create_secondary_button(self, "📤 Exportar", "Exportar a CSV")
         btn_export.clicked.connect(self._qr_exportar_historico)
-        tb.addWidget(self.qr_hist_filtro); tb.addWidget(self.qr_hist_estado)
-        tb.addWidget(btn_filtrar); tb.addStretch(); tb.addWidget(btn_export)
-        lay.addLayout(tb)
+        fb.addWidget(btn_filtrar); fb.addStretch(); fb.addWidget(btn_export)
+        lay.addWidget(filt_card)
 
-        self.tbl_qr_hist = QTableWidget(0, 9)
-        self.tbl_qr_hist.setHorizontalHeaderLabels(
-            ["Tipo","ID Contenedor","Proveedor","Factura","Volumen",
-             "Costo total","Pago","Estado","Fecha"])
+        # Main table: 11 columns
+        self.tbl_qr_hist = QTableWidget(0, 11)
+        self.tbl_qr_hist.setHorizontalHeaderLabels([
+            "Contenedor", "Tipo", "Proveedor", "Factura",
+            "Fecha compra", "Destino", "Estatus",
+            "Peso est.", "Peso rec.", "Total", "Fecha recepción"
+        ])
         h = self.tbl_qr_hist.horizontalHeader()
         h.setSectionResizeMode(2, QHeaderView.Stretch)
-        for col in (0,1,3,4,5,6,7,8): h.setSectionResizeMode(col, QHeaderView.ResizeToContents)
+        for col in (0,1,3,4,5,6,7,8,9,10): h.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         self.tbl_qr_hist.verticalHeader().setVisible(False)
         self.tbl_qr_hist.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_qr_hist.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tbl_qr_hist.itemSelectionChanged.connect(self._on_hist_row_select)
         lay.addWidget(self.tbl_qr_hist, 1)
+
+        # Bottom detail splitter
+        detail_split = QSplitter(Qt.Horizontal)
+        detail_split.setMaximumHeight(200)
+
+        # Detail card
+        card_det = QGroupBox("DETALLE DEL CONTENEDOR"); card_det.setObjectName("sectionCard")
+        det_lay = QVBoxLayout(card_det); det_lay.setSpacing(4)
+        self.qr_hist_det_titulo = QLabel("—"); self.qr_hist_det_titulo.setObjectName("monoLabel")
+        self.qr_hist_det_sub = QLabel("—"); self.qr_hist_det_sub.setObjectName("caption")
+        self.qr_hist_det_sub.setWordWrap(True)
+        det_lay.addWidget(self.qr_hist_det_titulo); det_lay.addWidget(self.qr_hist_det_sub)
+        self.qr_hist_det_badge = QLabel("—"); self.qr_hist_det_badge.setObjectName("statusBadge")
+        self.qr_hist_det_badge.setProperty("variant","warning")
+        det_lay.addWidget(self.qr_hist_det_badge); det_lay.addStretch()
+        detail_split.addWidget(card_det)
+
+        # Timeline card
+        card_tl = QGroupBox("TIMELINE DE TRAZABILIDAD"); card_tl.setObjectName("sectionCard")
+        tl_lay = QVBoxLayout(card_tl)
+        self.qr_hist_timeline = QLabel("Selecciona un contenedor para ver el historial")
+        self.qr_hist_timeline.setObjectName("caption"); self.qr_hist_timeline.setWordWrap(True)
+        self.qr_hist_timeline.setAlignment(Qt.AlignTop)
+        tl_lay.addWidget(self.qr_hist_timeline)
+        detail_split.addWidget(card_tl)
+
+        # Financial summary card
+        card_fs = QGroupBox("RESUMEN FINANCIERO"); card_fs.setObjectName("sectionCard")
+        card_fs.setMaximumWidth(240)
+        fs_lay = QVBoxLayout(card_fs); fs_lay.setSpacing(4)
+        def _fs_row(lbl_txt, attr, variant=None):
+            w = QWidget(); wl = QHBoxLayout(w); wl.setContentsMargins(0,0,0,0)
+            l = QLabel(lbl_txt); l.setObjectName("caption")
+            v = QLabel("—"); v.setObjectName("caption"); v.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if variant: v.setProperty("variant", variant)
+            wl.addWidget(l,1); wl.addWidget(v); fs_lay.addWidget(w); setattr(self, attr, v)
+        _fs_row("Subtotal", "qr_hist_fs_subtotal")
+        _fs_row("IVA (16%)", "qr_hist_fs_iva", "info")
+        _fs_row("Flete", "qr_hist_fs_flete")
+        _fs_row("Otros cargos", "qr_hist_fs_otros")
+        sep_fs = QFrame(); sep_fs.setFrameShape(QFrame.HLine); sep_fs.setObjectName("separator")
+        fs_lay.addWidget(sep_fs)
+        lbl_tot_fs = QLabel("TOTAL"); lbl_tot_fs.setObjectName("formSection")
+        self.qr_hist_fs_total = QLabel("—"); self.qr_hist_fs_total.setObjectName("hero")
+        self.qr_hist_fs_total.setProperty("variant","success")
+        fs_lay.addWidget(lbl_tot_fs); fs_lay.addWidget(self.qr_hist_fs_total)
+        fs_lay.addStretch()
+        detail_split.addWidget(card_fs)
+        detail_split.setSizes([300, 400, 240])
+        lay.addWidget(detail_split)
+
         QTimer.singleShot(150, self._cargar_historico_qr)
 
     def _cargar_historico_qr(self) -> None:
-        if not hasattr(self,"tbl_qr_hist"): return
+        if not hasattr(self, "tbl_qr_hist"): return
         try:
-            f = (self.qr_hist_filtro.text() or "").strip()
-            est = self.qr_hist_estado.currentData() or ""
+            f    = (self.qr_hist_filtro.text() or "").strip()
+            f_ini = (self.qr_hist_fecha_ini.text() or "").strip() if hasattr(self,"qr_hist_fecha_ini") else ""
+            f_fin = (self.qr_hist_fecha_fin.text() or "").strip() if hasattr(self,"qr_hist_fecha_fin") else ""
+            p_id  = self.qr_hist_prov_combo.currentData() if hasattr(self,"qr_hist_prov_combo") else ""
             sql = """
-                SELECT c.tipo, c.codigo,
+                SELECT c.codigo, c.tipo,
                        COALESCE(p.nombre,'(sin asignar)') AS proveedor,
                        COALESCE(c.folio_factura,'—') AS factura,
+                       COALESCE(c.fecha_factura,'—') AS fecha_compra,
+                       COALESCE(s.nombre,'—') AS destino,
+                       c.estado,
                        c.total,
-                       COALESCE(c.metodo_pago,'—') AS pago,
-                       c.estado, COALESCE(c.fecha_asignado, c.fecha_creado) AS fecha
+                       COALESCE(c.fecha_recibido,'—') AS fecha_recibido
                 FROM contenedores c
                 LEFT JOIN proveedores p ON p.id = c.proveedor_id
+                LEFT JOIN sucursales s ON s.id = c.sucursal_destino
                 WHERE 1=1
             """
             params: list = []
             if f:
                 sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ? OR c.folio_factura LIKE ?)"
                 params += [f"%{f}%"]*3
-            if est:
-                sql += " AND c.estado=?"; params.append(est)
+            if f_ini:
+                sql += " AND c.fecha_creado >= ?"; params.append(f_ini)
+            if f_fin:
+                sql += " AND c.fecha_creado <= ?"; params.append(f_fin + " 23:59:59")
+            if p_id:
+                sql += " AND c.proveedor_id=?"; params.append(p_id)
             sql += " ORDER BY c.fecha_creado DESC LIMIT 500"
             rows = self.container.db.execute(sql, params).fetchall()
             self.tbl_qr_hist.setRowCount(0)
-            ico_map = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}
-            est_map = {"generado":"🏷️ Sin asignar","asignado":"🔗 Asignado",
-                       "recibido":"✓ Recibido","diferencia":"⚠ Diferencia"}
+            est_map = {
+                "generado":  "🏷️ Sin asignar",
+                "asignado":  "🔗 Asignado",
+                "recibido":  "✓ Recibido",
+                "diferencia":"⚠ Diferencia",
+            }
             for r in rows:
                 row = self.tbl_qr_hist.rowCount()
                 self.tbl_qr_hist.insertRow(row)
-                tp = r["tipo"] if hasattr(r,"keys") else r[0]
-                self.tbl_qr_hist.setItem(row, 0, QTableWidgetItem(ico_map.get(tp,"📦")))
-                self.tbl_qr_hist.setItem(row, 1, QTableWidgetItem(
-                    r["codigo"] if hasattr(r,"keys") else r[1]))
-                self.tbl_qr_hist.setItem(row, 2, QTableWidgetItem(
-                    r["proveedor"] if hasattr(r,"keys") else r[2]))
-                self.tbl_qr_hist.setItem(row, 3, QTableWidgetItem(
-                    r["factura"] if hasattr(r,"keys") else r[3]))
-                self.tbl_qr_hist.setItem(row, 4, QTableWidgetItem("—"))
-                tot = r["total"] if hasattr(r,"keys") else r[4]
-                it_t = QTableWidgetItem(f"${float(tot or 0):,.2f}")
-                it_t.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.tbl_qr_hist.setItem(row, 5, it_t)
-                self.tbl_qr_hist.setItem(row, 6, QTableWidgetItem(
-                    r["pago"] if hasattr(r,"keys") else r[5]))
-                est_v = r["estado"] if hasattr(r,"keys") else r[6]
-                self.tbl_qr_hist.setItem(row, 7, QTableWidgetItem(est_map.get(est_v, est_v)))
-                fch = r["fecha"] if hasattr(r,"keys") else r[7]
-                self.tbl_qr_hist.setItem(row, 8, QTableWidgetItem(str(fch or "")[:16]))
+                def _get(key, idx_):
+                    return r[key] if hasattr(r,"keys") else r[idx_]
+                cod      = _get("codigo", 0)
+                tp       = _get("tipo", 1)
+                prv      = _get("proveedor", 2)
+                fac      = _get("factura", 3)
+                fec_comp = _get("fecha_compra", 4)
+                dest     = _get("destino", 5)
+                est_v    = _get("estado", 6)
+                tot      = float(_get("total", 7) or 0)
+                fec_rec  = _get("fecha_recibido", 8)
+                ico = self._TIPO_ICO.get(tp, "📦")
+                items_data = [
+                    (0, cod,                              Qt.AlignLeft),
+                    (1, f"{ico} {self._TIPO_LBL.get(tp, tp)}", Qt.AlignLeft),
+                    (2, prv,                              Qt.AlignLeft),
+                    (3, fac,                              Qt.AlignLeft),
+                    (4, str(fec_comp)[:10],               Qt.AlignLeft),
+                    (5, str(dest),                        Qt.AlignLeft),
+                    (6, est_map.get(est_v, est_v),        Qt.AlignLeft),
+                    (7, "—",                              Qt.AlignRight),
+                    (8, "—",                              Qt.AlignRight),
+                    (9, f"${tot:,.2f}",                   Qt.AlignRight),
+                    (10, str(fec_rec)[:10] if fec_rec and fec_rec != "—" else "—", Qt.AlignLeft),
+                ]
+                for col, val, align in items_data:
+                    it = QTableWidgetItem(val)
+                    it.setTextAlignment(align | Qt.AlignVCenter)
+                    if col == 0: it.setData(Qt.UserRole, cod)
+                    self.tbl_qr_hist.setItem(row, col, it)
         except Exception as e:
             logger.debug("_cargar_historico_qr: %s", e)
 
@@ -2763,7 +3742,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         try:
             self._recv_qr = RecepcionQRWidget(
-                conexion=self.container,          # pass AppContainer so receive_po_adapter is available
+                conexion=self.container.db,
                 sucursal_id=self.sucursal_id,
                 usuario=self.usuario_actual or "Sistema",
                 parent=parent,
@@ -2771,10 +3750,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             lay.addWidget(wrap_in_scroll_area(self._recv_qr, self), 1)
             self._qr_empty.hide()
             self._qr_loading.hide()
-            # Refresh purchase history when a QR reception completes
-            self._recv_qr.recepcion_completada.connect(
-                lambda _data: QTimer.singleShot(300, self._cargar_historial_compras)
-            )
             def _reload_qr():
                 if hasattr(self._recv_qr, "_recargar_listas"):
                     try:
@@ -2829,7 +3804,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         hdr_lay = QHBoxLayout(hdr_frame)
         hdr_lay.setContentsMargins(Spacing.SM + 2, 0, Spacing.XS, 0)
-        hdr = QLabel("📁  TOOLBAR DOCUMENTAL ERP")
+        hdr = QLabel("📁  DOCUMENTOS ERP")
         hdr.setStyleSheet(
             f"color:{Colors.NEUTRAL.WHITE};"
             f"font-size:{Typography.SIZE_XS};"
@@ -2877,6 +3852,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sec_title = QLabel("DOCUMENTOS")
         sec_title.setStyleSheet(_section_label_style(_C_FIELD_LABEL))
         inner.addWidget(sec_title)
+
+        # ── Quick actions: Nueva Compra Directa | Nueva PR ────────────────────
+        new_actions_row = QHBoxLayout()
+        new_actions_row.setSpacing(Spacing.XS)
+        self._btn_nueva_compra_direct = create_secondary_button(
+            self, "🛒 Nueva Compra", "Iniciar nueva compra directa (efecto inmediato en inventario)")
+        self._btn_nueva_compra_direct.setFixedHeight(28)
+        self._btn_nueva_compra_direct.clicked.connect(self._nueva_compra_directa)
+        self._btn_nueva_pr_doc = create_primary_button(
+            self, "✚ Nueva PR", "Nueva solicitud de compra (requiere aprobación)")
+        self._btn_nueva_pr_doc.setFixedHeight(28)
+        self._btn_nueva_pr_doc.clicked.connect(self._nueva_pr_flow)
+        new_actions_row.addWidget(self._btn_nueva_compra_direct, 1)
+        new_actions_row.addWidget(self._btn_nueva_pr_doc, 1)
+        inner.addLayout(new_actions_row)
 
         # ── Filter chips — vertical nav (matches HTML) ────────────────────────
         self._doc_filter_chips: dict[str, QPushButton] = {}
@@ -3072,8 +4062,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._btn_conv_po.setObjectName("btnConvPO")
         self._btn_conv_po.clicked.connect(self._accion_convertir_a_po)
 
-        self._btn_enviar_rec_doc = create_secondary_button(
-            self, "↗ Enviar a Recepción", "Enviar a recepción")
+        self._btn_enviar_rec_doc = create_success_button(
+            self, "↗ Enviar a Recepción", "Enviar a recepción física")
         self._btn_enviar_rec_doc.setFixedHeight(32)
         self._btn_enviar_rec_doc.setEnabled(False)
         self._btn_enviar_rec_doc.setObjectName("btnEnviarRecDoc")
@@ -3151,7 +4141,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if hasattr(self, '_doc_toolbar_scroll'):
                 self._doc_toolbar_scroll.show()
             if hasattr(self, '_doc_toolbar_header_label'):
-                self._doc_toolbar_header_label.setText("📁  TOOLBAR DOCUMENTAL ERP")
+                self._doc_toolbar_header_label.setText("📁  DOCUMENTOS ERP")
             self._btn_collapse_doc.setText("◀")
             self._btn_collapse_doc.setToolTip("Ocultar toolbar documental")
             if splitter is not None:
@@ -3222,11 +4212,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _refresh_doc_btn_styles(self) -> None:
         """Set variant property on documental action buttons; QSS handles visual state."""
         _BTN_VARIANTS = {
-            '_btn_aprobar_pr':     'success',
-            '_btn_rechazar_pr':    'danger',
-            '_btn_editar_doc':     'warning',
-            '_btn_conv_po':        'primary',
-            '_btn_enviar_rec_doc': 'success',
+            '_btn_aprobar_pr':  'success',
+            '_btn_rechazar_pr': 'danger',
+            '_btn_editar_doc':  'warning',
+            '_btn_conv_po':     'primary',
+            # _btn_enviar_rec_doc is create_success_button — no variant override needed
         }
         for attr, variant in _BTN_VARIANTS.items():
             btn = getattr(self, attr, None)
@@ -3280,24 +4270,32 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PR: %s", e)
             try:
-                def _pr_row(d, cat):
-                    return {
-                        'id':               d.get('id'),
-                        'folio':            d.get('folio'),
-                        'estado':           str(d.get('estado') or '').upper(),
-                        'proveedor_nombre': d.get('proveedor_nombre'),
-                        'total':            float(d.get('total') or 0),
-                        'fecha_creacion':   str(d.get('fecha_creacion') or '')[:10],
-                        'sucursal_id':      d.get('sucursal_id'),
-                        'usuario':          d.get('usuario'),
-                        'notas':            d.get('notas'),
-                        '_tipo':            'PR',
-                        '_categoria':       cat,
-                    }
-                for d in (self._pr_repo.list_pending(self.sucursal_id) or []):
-                    docs.append(_pr_row(d, 'pr_pend'))
-                for d in (self._pr_repo.list_approved(self.sucursal_id) or []):
-                    docs.append(_pr_row(d, 'pr_aprobadas'))
+                rows = self.container.db.execute(
+                    "SELECT id, folio, estado, proveedor_nombre, total,"
+                    "       fecha_creacion, sucursal_id, usuario, notas"
+                    " FROM purchase_requests"
+                    " WHERE sucursal_id=? AND estado NOT IN ('CANCELADA','CONVERTIDA_A_PO')"
+                    " ORDER BY fecha_creacion DESC LIMIT 40",
+                    (self.sucursal_id,),
+                ).fetchall()
+                for r in rows:
+                    def _v(i, k):
+                        return r[i] if not hasattr(r, 'keys') else r.get(k)
+                    estado = str(_v(2, 'estado') or '').upper()
+                    cat = 'pr_pend' if estado == 'PENDIENTE_APROBACION' else 'pr_aprobadas'
+                    docs.append({
+                        'id':              _v(0, 'id'),
+                        'folio':           _v(1, 'folio'),
+                        'estado':          estado,
+                        'proveedor_nombre': _v(3, 'proveedor_nombre'),
+                        'total':           float(_v(4, 'total') or 0),
+                        'fecha_creacion':  str(_v(5, 'fecha_creacion') or '')[:10],
+                        'sucursal_id':     _v(6, 'sucursal_id'),
+                        'usuario':         _v(7, 'usuario'),
+                        'notas':           _v(8, 'notas'),
+                        '_tipo':           'PR',
+                        '_categoria':      cat,
+                    })
             except Exception as e2:
                 logger.debug("_cargar_docs_erp PR fallback: %s", e2)
 
@@ -3310,19 +4308,28 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PO: %s", e)
             try:
-                for d in (self._po_repo.list_open() or []):
+                rows = self.container.db.execute(
+                    "SELECT id, folio, estado, proveedor_id, total,"
+                    "       fecha_creacion, sucursal_id, usuario, notas"
+                    " FROM ordenes_compra"
+                    " WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente')"
+                    " ORDER BY fecha_creacion DESC LIMIT 20",
+                ).fetchall()
+                for r in rows:
+                    def _pv(i, k):
+                        return r[i] if not hasattr(r, 'keys') else r.get(k)
                     docs.append({
-                        'id':               d.get('id'),
-                        'folio':            d.get('folio'),
-                        'estado':           str(d.get('estado') or '').upper(),
-                        'proveedor_nombre': str(d.get('proveedor_id') or ''),
-                        'total':            float(d.get('total') or 0),
-                        'fecha_creacion':   str(d.get('fecha_creacion') or '')[:10],
-                        'sucursal_id':      d.get('sucursal_id'),
-                        'usuario':          d.get('usuario'),
-                        'notas':            d.get('notas'),
-                        '_tipo':            'PO',
-                        '_categoria':       'po_abiertas',
+                        'id':              _pv(0, 'id'),
+                        'folio':           _pv(1, 'folio'),
+                        'estado':          str(_pv(2, 'estado') or '').upper(),
+                        'proveedor_nombre': str(_pv(3, 'proveedor_id') or ''),
+                        'total':           float(_pv(4, 'total') or 0),
+                        'fecha_creacion':  str(_pv(5, 'fecha_creacion') or '')[:10],
+                        'sucursal_id':     _pv(6, 'sucursal_id'),
+                        'usuario':         _pv(7, 'usuario'),
+                        'notas':           _pv(8, 'notas'),
+                        '_tipo':           'PO',
+                        '_categoria':      'po_abiertas',
                     })
             except Exception as e2:
                 logger.debug("_cargar_docs_erp PO fallback: %s", e2)
@@ -3633,7 +4640,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             QMessageBox.critical(self, "Error", str(e))
 
     def _accion_enviar_recepcion_doc(self) -> None:
-        """Mark selected PO as sent to reception and switch to QR tab."""
+        """Mark selected PO as PARA_RECEPCION and navigate to QR reception subtab."""
         po_id = self._selected_doc_id
         if not po_id:
             return
@@ -3641,17 +4648,24 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             uc     = self._get_purchase_order_uc()
             result = uc.enviar_a_recepcion(po_id, self.usuario_actual or "sistema")
             if result.ok:
+                po_folio = getattr(result, 'po_folio', None) or getattr(result, 'folio', str(po_id))
                 Toast.success(self, "↗ Enviada a recepción",
-                              f"PO {result.folio} lista para recibir")
+                              f"PO {po_folio} · aparece en lista de recepción (pestaña QR)")
                 self._cargar_docs_erp()
-                # Switch to QR/Reception tab
-                if hasattr(self, '_tabs'):
-                    self._tabs.setCurrentIndex(1)
             else:
                 QMessageBox.warning(self, "Error", result.error or "No se pudo enviar a recepción")
         except Exception as e:
             logger.warning("_accion_enviar_recepcion_doc: %s", e)
             QMessageBox.critical(self, "Error", str(e))
+
+    def _navegar_a_recepcion_qr(self) -> None:
+        """Switch to 'Recepción con QR' subtab (index 2) within the QR tab."""
+        try:
+            if hasattr(self, '_qr_subtabs'):
+                self._qr_subtabs.setCurrentIndex(2)
+                self._cargar_contenedores_recepcion()
+        except Exception as e:
+            logger.debug("_navegar_a_recepcion_qr: %s", e)
 
     # ── Right summary panel ───────────────────────────────────────────────────
 
@@ -3874,51 +4888,73 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._seleccionar_proveedor(prov_id, item.text())
 
     def _cargar_info_proveedor(self, prov_id: int) -> None:
-        """Show RFC / address / phone under provider field after selection."""
+        """Show RFC / address / phone under provider field after selection.
+
+        La columna de condición de pago varía entre instancias:
+        - condicion_pago  (nombre antiguo, algunas DBs)
+        - condiciones_pago (nombre migración 047, plural)
+        Se usa SELECT * y se extrae por clave para evitar OperationalError.
+        """
         if not hasattr(self, '_lbl_prov_info'):
             return
-        data = self._prov_repo.get_by_id(prov_id)
-        if not data:
-            self._lbl_prov_info.hide()
-            return
+        try:
+            row = self.container.db.execute(
+                "SELECT * FROM proveedores WHERE id=?", (prov_id,)
+            ).fetchone()
+            if not row:
+                self._lbl_prov_info.hide()
+                return
 
-        def _k(*keys):
-            for k in keys:
-                v = data.get(k)
-                if v is not None:
-                    return str(v).strip()
-            return ""
+            # Normalize to plain dict regardless of row_factory
+            if hasattr(row, 'keys'):
+                data = {k: row[k] for k in row.keys()}
+            elif hasattr(row, '_fields'):
+                data = row._asdict()
+            else:
+                data = dict(row) if isinstance(row, dict) else {}
 
-        rfc  = _k('rfc')
-        dirs = _k('direccion')
-        tel  = _k('telefono')
-        cond = _k('condicion_pago', 'condiciones_pago')
-        cred = _k('credito_disponible', 'limite_credito', 'credito')
+            def _k(*keys):
+                for k in keys:
+                    v = data.get(k)
+                    if v is not None and str(v).strip():
+                        return str(v).strip()
+                return ""
 
-        if hasattr(self, '_lbl_rfc'):
-            self._lbl_rfc.setText(rfc or "—")
-        if hasattr(self, '_lbl_tel'):
-            self._lbl_tel.setText(tel or "—")
-        if hasattr(self, '_lbl_dir'):
-            self._lbl_dir.setText(dirs[:60] if dirs else "—")
-        if hasattr(self, '_lbl_cred_disp'):
-            self._lbl_cred_disp.setText(cred or "—")
-        if hasattr(self, '_cmb_cond_prov') and cond:
-            idx = self._cmb_cond_prov.findText(cond, Qt.MatchContains)
-            if idx < 0:
-                self._cmb_cond_prov.insertItem(0, cond)
-                idx = 0
-            self._cmb_cond_prov.setCurrentIndex(idx)
+            rfc  = _k('rfc')
+            dirs = _k('direccion')
+            tel  = _k('telefono')
+            cond = _k('condicion_pago', 'condiciones_pago')
+            cred = _k('credito_disponible', 'limite_credito', 'credito')
 
-        parts = []
-        if rfc:  parts.append(f"RFC: {rfc}")
-        if dirs: parts.append(dirs[:48])
-        if tel:  parts.append(f"Tel: {tel}")
-        if cond: parts.append(cond)
-        info = "  ·  ".join(parts)
-        if info:
-            self._lbl_prov_info.setText(info)
-        else:
+            # Populate individual display labels
+            if hasattr(self, '_lbl_rfc'):
+                self._lbl_rfc.setText(rfc or "—")
+            if hasattr(self, '_lbl_tel'):
+                self._lbl_tel.setText(tel or "—")
+            if hasattr(self, '_lbl_dir'):
+                self._lbl_dir.setText(dirs[:60] if dirs else "—")
+            if hasattr(self, '_lbl_cred_disp'):
+                self._lbl_cred_disp.setText(cred or "—")
+            if hasattr(self, '_cmb_cond_prov') and cond:
+                idx = self._cmb_cond_prov.findText(cond, Qt.MatchContains)
+                if idx < 0:
+                    self._cmb_cond_prov.insertItem(0, cond)
+                    idx = 0
+                self._cmb_cond_prov.setCurrentIndex(idx)
+
+            # Keep _lbl_prov_info for backward compat (hidden)
+            parts = []
+            if rfc:  parts.append(f"RFC: {rfc}")
+            if dirs: parts.append(dirs[:48])
+            if tel:  parts.append(f"Tel: {tel}")
+            if cond: parts.append(cond)
+            info = "  ·  ".join(parts)
+            if info:
+                self._lbl_prov_info.setText(info)
+                self._lbl_prov_info.show()
+            else:
+                self._lbl_prov_info.hide()
+        except Exception:
             self._lbl_prov_info.hide()
 
     # ── E-1: Workflow stepper ─────────────────────────────────────────────────
@@ -4096,32 +5132,40 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     # ── E-3: Recent purchases in sidebar ─────────────────────────────────────
 
     def _cargar_recientes_proveedor(self, prov_id: int) -> None:
-        """Load last 5 purchases from this provider into the sidebar list."""
+        """Load last 5 purchases from this provider into the sidebar list.
+
+        Note: _sidebar_recent_list has no layout parent so it must never be
+        shown directly (show() on a parentless widget creates a floating window).
+        Items are stored in it for internal use; display happens via tooltip or
+        future integration.
+        """
         if not hasattr(self, '_sidebar_recent_list'):
             return
         self._sidebar_recent_list.clear()
-        rows = self._prov_repo.get_compras_recientes(prov_id, self.sucursal_id)
-        if not rows:
-            self._sidebar_recent_list.hide()
-            if hasattr(self, '_lbl_recientes_empty'):
-                self._lbl_recientes_empty.setText("Sin compras previas")
-                self._lbl_recientes_empty.show()
-            return
-        self._sidebar_recent_list.show()
-        if hasattr(self, '_lbl_recientes_empty'):
-            self._lbl_recientes_empty.hide()
-        for r in rows:
-            r_id   = r.get("id")
-            folio  = str(r.get("folio") or r_id)
-            fecha  = str(r.get("fecha") or "")[:10]
-            total  = float(r.get("total") or 0)
-            estado = str(r.get("estado") or "")
-            txt = (f"${total:,.0f}  {fecha}\n"
-                   f"{folio[-16:]}  [{estado}]")
-            item = QListWidgetItem(txt)
-            item.setData(Qt.UserRole, r_id)
-            item.setToolTip(f"Folio: {folio} — Haz clic para ver detalle")
-            self._sidebar_recent_list.addItem(item)
+        try:
+            rows = self.container.db.execute(
+                """SELECT id, folio, fecha, total, estado
+                   FROM compras
+                   WHERE proveedor_id=? AND sucursal_id=?
+                   ORDER BY fecha DESC, id DESC LIMIT 5""",
+                (prov_id, self.sucursal_id),
+            ).fetchall()
+            if not rows:
+                return
+            for r in rows:
+                r_id    = r[0] if not hasattr(r, 'keys') else r['id']
+                folio   = str(r[1] if not hasattr(r, 'keys') else r.get('folio', r_id))
+                fecha   = str(r[2] if not hasattr(r, 'keys') else r.get('fecha', ''))[:10]
+                total   = float(r[3] if not hasattr(r, 'keys') else r.get('total', 0) or 0)
+                estado  = str(r[4] if not hasattr(r, 'keys') else r.get('estado', ''))
+                txt = (f"${total:,.0f}  {fecha}\n"
+                       f"{folio[-16:]}  [{estado}]")
+                item = QListWidgetItem(txt)
+                item.setData(Qt.UserRole, r_id)
+                item.setToolTip(f"Folio: {folio} — Haz clic para ver detalle")
+                self._sidebar_recent_list.addItem(item)
+        except Exception as e:
+            logger.debug("_cargar_recientes_proveedor: %s", e)
 
     def _abrir_reciente_sidebar(self, item: QListWidgetItem) -> None:
         """Click on recent purchase in sidebar → open detail dialog."""
@@ -4129,21 +5173,45 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if compra_id:
             self._ver_detalle_compra(compra_id)
 
+    def _auto_seleccionar_doc(self, folio: str) -> None:
+        """Auto-select a document in the ERP list by folio (called after PR/PO creation)."""
+        if not hasattr(self, '_doc_erp_list'):
+            return
+        for i in range(self._doc_erp_list.count()):
+            item = self._doc_erp_list.item(i)
+            if not item:
+                continue
+            doc = item.data(Qt.UserRole + 2)
+            if doc and str(doc.get('folio', '')) == folio:
+                self._doc_erp_list.setCurrentItem(item)
+                self._on_doc_item_clicked(item)
+                return
+
     # ── E-4: CxP / pending invoice alert ─────────────────────────────────────
 
     def _cargar_alertas_cxp(self, prov_id: int) -> None:
         """Show a warning banner if this provider has open credit/pending purchases."""
         if not hasattr(self, '_cxp_alert_bar'):
             return
-        alerta = self._prov_repo.get_alertas_cxp(prov_id, self.sucursal_id)
-        count = alerta["count"]
-        monto = alerta["monto"]
-        if count > 0 and self._tiene_permiso("ver_totales"):
-            self._cxp_alert_bar.setText(
-                f"⚠  Este proveedor tiene {count} compra(s) pendiente(s) "
-                f"por ${monto:,.2f} — verifica antes de continuar.")
-            self._cxp_alert_bar.show()
-        else:
+        try:
+            row = self.container.db.execute(
+                """SELECT COUNT(*), COALESCE(SUM(total), 0)
+                   FROM compras
+                   WHERE proveedor_id=? AND sucursal_id=?
+                     AND estado IN ('credito', 'pendiente')""",
+                (prov_id, self.sucursal_id),
+            ).fetchone()
+            count = int(row[0] or 0)
+            monto = float(row[1] or 0)
+            if count > 0 and self._tiene_permiso("ver_totales"):
+                self._cxp_alert_bar.setText(
+                    f"⚠  Este proveedor tiene {count} compra(s) pendiente(s) "
+                    f"por ${monto:,.2f} — verifica antes de continuar.")
+                self._cxp_alert_bar.show()
+            else:
+                self._cxp_alert_bar.hide()
+        except Exception as e:
+            logger.debug("_cargar_alertas_cxp: %s", e)
             self._cxp_alert_bar.hide()
 
     def _poblar_plantillas_sidebar(self) -> None:
@@ -4151,13 +5219,22 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_sidebar_templates_list'):
             return
         self._sidebar_templates_list.clear()
-        rows = self._prov_repo.get_plantillas()
-        if rows:
+        try:
+            rows = self.container.db.execute(
+                "SELECT id, nombre FROM plantillas_compra ORDER BY nombre LIMIT 20"
+            ).fetchall()
             for r in rows:
-                it = QListWidgetItem(f"📋 {r['nombre']}")
-                it.setData(Qt.UserRole, r['id'])
-                self._sidebar_templates_list.addItem(it)
-        else:
+                pid  = r[0] if not hasattr(r, 'keys') else r['id']
+                name = r[1] if not hasattr(r, 'keys') else r['nombre']
+                item = QListWidgetItem(f"📋 {name}")
+                item.setData(Qt.UserRole, pid)
+                self._sidebar_templates_list.addItem(item)
+            if not rows:
+                ph = QListWidgetItem("(Sin plantillas)")
+                ph.setFlags(Qt.NoItemFlags)
+                self._sidebar_templates_list.addItem(ph)
+        except Exception as e:
+            logger.warning("_cargar_plantillas_sidebar: %s", e)
             ph = QListWidgetItem("(Sin plantillas)")
             ph.setFlags(Qt.NoItemFlags)
             self._sidebar_templates_list.addItem(ph)
@@ -4167,30 +5244,39 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         tpl_id = item.data(Qt.UserRole)
         if not tpl_id:
             return
-        rows = self._prov_repo.get_plantilla_items(tpl_id)
-        if not rows:
-            Toast.success(self, "📋 Plantilla vacía", "La plantilla no tiene ítems."); return
-        if self.carrito_compra:
-            if not confirm_action(
-                self, "Cargar plantilla",
-                f"¿Agregar {len(rows)} ítem(s) al carrito actual?",
-                "Agregar", "Cancelar"
-            ):
-                return
-        for r in rows:
-            pid      = r.get("producto_id")
-            nombre   = str(r.get("nombre") or "")
-            cantidad = float(r.get("cantidad") or 1)
-            costo    = float(r.get("costo_unitario") or 0)
-            costo_h  = float(r.get("precio_compra") or costo)
-            self.carrito_compra.append({
-                'producto_id': pid, 'nombre': nombre,
-                'cantidad': cantidad, 'costo_unitario': costo,
-                'subtotal': round(cantidad * costo, 4),
-                'precio_historico': costo_h,
-            })
-        self._refresh_tabla()
-        Toast.success(self, "📋 Plantilla cargada", f"{len(rows)} ítem(s) agregados")
+        try:
+            rows = self.container.db.execute("""
+                SELECT ti.producto_id, p.nombre, ti.cantidad,
+                       ti.costo_unitario, p.precio_compra
+                FROM plantillas_compra_items ti
+                JOIN productos p ON p.id = ti.producto_id
+                WHERE ti.plantilla_id = ?
+            """, (tpl_id,)).fetchall()
+            if not rows:
+                Toast.success(self, "📋 Plantilla vacía", "La plantilla no tiene ítems."); return
+            if self.carrito_compra:
+                if not confirm_action(
+                    self, "Cargar plantilla",
+                    f"¿Agregar {len(rows)} ítem(s) al carrito actual?",
+                    "Agregar", "Cancelar"
+                ):
+                    return
+            for r in rows:
+                def _v(i, k): return r[i] if not hasattr(r,'keys') else r.get(k)
+                pid = _v(0,'producto_id'); nombre = str(_v(1,'nombre') or '')
+                cantidad = float(_v(2,'cantidad') or 1)
+                costo    = float(_v(3,'costo_unitario') or 0)
+                costo_h  = float(_v(4,'precio_compra') or costo)
+                self.carrito_compra.append({
+                    'producto_id': pid, 'nombre': nombre,
+                    'cantidad': cantidad, 'costo_unitario': costo,
+                    'subtotal': round(cantidad * costo, 4),
+                    'precio_historico': costo_h,
+                })
+            self._refresh_tabla()
+            Toast.success(self, "📋 Plantilla cargada", f"{len(rows)} ítem(s) agregados")
+        except (TypeError, KeyError, IndexError) as e:
+            logger.warning("_cargar_plantilla_sidebar: %s", e)
 
     def _actualizar_panel_validacion(self) -> None:
         """Updates validation state labels in the right summary panel."""
@@ -4238,16 +5324,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             vence = QDate.currentDate().addDays(plazo)
             self._lbl_vence_el.setText(f"Vence: {vence.toString('dd/MMM/yyyy')}")
 
+    def _ir_a_recepcion_tras_compra(self) -> None:
+        """Refresh the reception list so the new direct purchase shows up there."""
+        try:
+            self._cargar_contenedores_recepcion()
+        except Exception:
+            pass
+
     def _enviar_a_recepcion(self) -> None:
-        """Process purchase then switch to QR reception tab."""
+        """Process purchase (validates cart and provider, then delegates to _procesar_compra)."""
         if not self.carrito_compra:
             QMessageBox.warning(self, "Aviso", "El carrito está vacío."); return
         self._resolver_proveedor_desde_texto()
         if not self._proveedor_id_selected:
             QMessageBox.warning(self, "Aviso", "Selecciona un proveedor válido."); return
         self._procesar_compra()
-        if hasattr(self, '_tabs') and self.carrito_compra == []:
-            self._tabs.setCurrentIndex(1)
 
     # ── Phase 5: Document-type toolbar ───────────────────────────────────────
 
@@ -4329,7 +5420,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         idle = (
             f"QPushButton{{"
-            f"  background:transparent;"
+            f"  background:{Colors.NEUTRAL.SLATE_100};"
             f"  color:{_C_BODY_TXT};"
             f"  border:1px solid transparent;"
             f"  border-radius:{Borders.RADIUS_SM - 1}px;"
@@ -4390,7 +5481,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._btn_autorizar.setText(btn_txt)
             self._btn_autorizar.setToolTip(btn_tip)
             self._btn_autorizar.setStyleSheet(
-                f"QPushButton{{background:{btn_color};color:{Colors.NEUTRAL.WHITE};"
+                f"QPushButton{{background:{btn_color};color:white;"
                 f"border-radius:{Borders.RADIUS_MD}px;font-size:13px;font-weight:700;"
                 f"letter-spacing:0.05em;border:none;}}"
                 f"QPushButton:hover{{background:{btn_hover};}}"
@@ -4403,6 +5494,44 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._hidden_stepper.setVisible(show_stepper)
         if hasattr(self, '_lbl_hint'):
             self._lbl_hint.setText(hint_txt)
+
+    # ── Nueva Compra / Nueva PR ───────────────────────────────────────────────
+
+    def _nueva_compra_directa(self) -> None:
+        """Inicia una nueva compra directa: limpia el formulario y activa modo DIRECT."""
+        self._reset_form_for_new_doc()
+        self._on_doctype_changed("DIRECT")
+
+    def _nueva_pr_flow(self) -> None:
+        """Inicia una nueva solicitud de compra (PR): limpia el formulario y activa modo PR."""
+        self._reset_form_for_new_doc()
+        self._on_doctype_changed("PR")
+        from PyQt5.QtCore import QTimer
+        if hasattr(self, 'txt_proveedor'):
+            QTimer.singleShot(50, self.txt_proveedor.setFocus)
+
+    def _reset_form_for_new_doc(self) -> None:
+        """Limpia carrito y campos del proveedor para iniciar un nuevo documento."""
+        self.carrito_compra.clear()
+        self._refresh_tabla()
+        self._proveedor_id_selected = None
+        if hasattr(self, 'txt_proveedor'):
+            self.txt_proveedor.clear()
+        for attr in ('_inp_rfc', '_inp_tel', '_inp_dir', '_inp_cred'):
+            if hasattr(self, attr):
+                getattr(self, attr).clear()
+        if hasattr(self, '_lbl_prov_status'):
+            self._lbl_prov_status.setText("Sin proveedor seleccionado")
+            self._lbl_prov_status.setStyleSheet(
+                f"color:{Colors.WARNING_BASE};"
+                f"font-size:{Typography.SIZE_XS};background:transparent;"
+            )
+        if hasattr(self, '_lbl_prov_info'):
+            self._lbl_prov_info.hide()
+        if hasattr(self, '_cxp_alert_bar'):
+            self._cxp_alert_bar.hide()
+        self._actualizar_panel_validacion()
+        self._refresh_stepper()
 
     def _procesar_como_pr(self, proveedor_id: int, proveedor_nom: str) -> None:
         """
@@ -4451,6 +5580,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 condicion_pago=condicion,
                 plazo_dias=plazo,
                 moneda=moneda,
+                doc_ref=self.txt_factura.text().strip() if hasattr(self, 'txt_factura') else "",
+                notas="\n".join(filter(None, [
+                    f"Solicitante: {self.txt_solicitante.text().strip()}" if hasattr(self, 'txt_solicitante') and self.txt_solicitante.text().strip() else "",
+                    self.txt_notas.toPlainText().strip() if hasattr(self, 'txt_notas') else "",
+                ])),
             )
             uc = getattr(self.container, 'uc_compra_tradicional', None)
             if uc is None:
@@ -4462,15 +5596,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     self, "📋 Solicitud enviada",
                     f"Folio: {result.folio} · Pendiente de aprobación",
                 )
-                if hasattr(self, '_lbl_estado_compra'):
-                    self._lbl_estado_compra.setText(f"📋  {result.folio}")
-                    self._lbl_estado_compra.setStyleSheet(
-                        f"background:{Colors.WARNING_BASE};color:{Colors.NEUTRAL.WHITE};"
-                        f"border-radius:{Borders.RADIUS_FULL}px;"
-                        f"padding:{Spacing.XS - 1}px {Spacing.SM}px;"
-                        f"font-size:{Typography.SIZE_SM};"
-                        f"font-weight:{Typography.WEIGHT_BOLD};"
-                    )
+                # Clear cart — PR is committed, form should be clean
+                self.carrito_compra.clear()
+                self._refresh_tabla()
+                self._actualizar_panel_validacion()
+                # Refresh documental toolbar list so the new PR appears
+                self._cargar_docs_erp()
+                # Auto-select the newly created PR so toolbar buttons activate
+                _new_folio = result.folio
+                QTimer.singleShot(120, lambda f=_new_folio: self._auto_seleccionar_doc(f))
             else:
                 QMessageBox.critical(self, "Error al crear solicitud", result.error)
         except Exception as e:
@@ -4480,29 +5614,48 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     # ── Providers ────────────────────────────────────────────────────────────
     def _cargar_sucursales_compra(self) -> None:
         """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
-        self.cmb_sucursal_destino.clear()
-        rows = self._prov_repo.get_sucursales_activas()
-        if rows:
-            for r in rows:
-                self.cmb_sucursal_destino.addItem(str(r["nombre"]), r["id"])
-            for i in range(self.cmb_sucursal_destino.count()):
-                if self.cmb_sucursal_destino.itemData(i) == self.sucursal_id:
-                    self.cmb_sucursal_destino.setCurrentIndex(i)
-                    break
-        else:
+        try:
+            self.cmb_sucursal_destino.clear()
+            rows = self.container.db.execute(
+                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
+            ).fetchall()
+            if rows:
+                for r in rows:
+                    pid  = r['id']     if hasattr(r,'keys') else r[0]
+                    name = r['nombre'] if hasattr(r,'keys') else r[1]
+                    self.cmb_sucursal_destino.addItem(str(name), pid)
+                # Select the user's current branch by default
+                for i in range(self.cmb_sucursal_destino.count()):
+                    if self.cmb_sucursal_destino.itemData(i) == self.sucursal_id:
+                        self.cmb_sucursal_destino.setCurrentIndex(i)
+                        break
+            else:
+                # No sucursales table or empty — add default
+                self.cmb_sucursal_destino.addItem("Sucursal Principal", 1)
+        except Exception:
+            self.cmb_sucursal_destino.clear()
             self.cmb_sucursal_destino.addItem("Sucursal Principal", 1)
 
     def cargar_proveedores(self) -> None:
-        prev_id = self._proveedor_id_selected
-        self._proveedores_cache = self._prov_repo.get_activos()
-        self._prov_model.setStringList([p["nombre"] for p in self._proveedores_cache])
-        if prev_id:
-            for p in self._proveedores_cache:
-                if p["id"] == prev_id:
-                    self.txt_proveedor.setText(p["nombre"])
-                    self._proveedor_id_selected = prev_id
-                    break
-        self._poblar_sidebar_proveedores()
+        try:
+            prev_id = self._proveedor_id_selected
+            rows = self.container.db.execute(
+                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
+            ).fetchall()
+            self._proveedores_cache = [
+                {"id": r['id'], "nombre": r['nombre']}
+                for r in rows
+            ]
+            self._prov_model.setStringList([p["nombre"] for p in self._proveedores_cache])
+            if prev_id:
+                for p in self._proveedores_cache:
+                    if p["id"] == prev_id:
+                        self.txt_proveedor.setText(p["nombre"])
+                        self._proveedor_id_selected = prev_id
+                        break
+            self._poblar_sidebar_proveedores()
+        except Exception as e:
+            logger.debug("cargar_proveedores: %s", e)
 
     def _on_completer_activated(self, nombre: str) -> None:
         """Fired when user picks a provider from the QCompleter dropdown."""
@@ -4552,10 +5705,33 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._actualizar_panel_validacion()
 
     # ── Cart management ───────────────────────────────────────────────────────
+    def _costo_compra_producto(self, prod: dict) -> float:
+        """Returns best available purchase cost for a product dict.
+
+        Priority: precio_compra → inventario_actual.costo_promedio → 0.
+        """
+        pc = float(prod.get('precio_compra') or prod.get('costo_promedio') or
+                   prod.get('costo') or 0)
+        if pc > 0:
+            return pc
+        # Fallback: look up weighted average cost from inventory table
+        pid = prod.get('id') or prod.get('producto_id')
+        if pid:
+            try:
+                row = self.container.db.execute(
+                    "SELECT COALESCE(costo_promedio,0) FROM inventario_actual "
+                    "WHERE producto_id=? LIMIT 1", (pid,)
+                ).fetchone()
+                if row and row[0]:
+                    return float(row[0])
+            except Exception:
+                pass
+        return 0.0
+
     def _agregar_producto(self, prod: dict) -> None:
         """Agrega producto al carrito con dialog único (cantidad + costo + preview)."""
         nombre     = prod.get('nombre', '')
-        costo_hist = float(prod.get('precio_compra', 0) or 0)
+        costo_hist = self._costo_compra_producto(prod)
 
         # Already in cart → add extra quantity via same dialog
         for i, item in enumerate(self.carrito_compra):
@@ -5027,10 +6203,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         doc_ref  = self.txt_factura.text().strip() or "Sin Ref"
         pago     = self.cmb_pago.currentData() or "CONTADO"
-        subtotal = sum(i['subtotal'] for i in self.carrito_compra)
+        # Recompute subtotal from qty×unit_cost to match UC validation (avoids float drift)
+        subtotal = round(sum(
+            float(i['cantidad']) * float(i['costo_unitario'])
+            for i in self.carrito_compra
+        ), 2)
         iva_activo = hasattr(self, '_chk_iva') and self._chk_iva.isChecked()
         iva_monto  = round(subtotal * self._get_iva_rate(), 2) if iva_activo else 0.0
-        total      = subtotal + iva_monto
+        total      = round(subtotal + iva_monto, 2)
 
         # Check for recipes among purchased items
         items_con_receta = self._detectar_recetas()
@@ -5087,7 +6267,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             folio              = resultado.folio
             recetas_procesadas = resultado.recetas_procesadas
 
-            # Audit is written inside RegistrarCompraUC.execute() — nothing extra needed here.
+            # Mark direct purchase as pending physical reception so it shows up
+            # in the QR reception tab for the warehouse to verify.
+            try:
+                self.container.db.execute(
+                    "UPDATE compras SET estado='para_recepcion' WHERE folio=?",
+                    (folio,)
+                )
+            except Exception as _re:
+                logger.debug("_procesar_compra: could not set para_recepcion: %s", _re)
 
             detail = f"Folio: {folio}"
             if recetas_procesadas:
@@ -5111,6 +6299,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.carrito_compra.clear()
             self._refresh_tabla()
             self.txt_factura.clear()
+
             self._adjunto_path = ""
             if hasattr(self, '_lbl_adjunto'):
                 self._lbl_adjunto.setText("Sin archivo")
@@ -5120,6 +6309,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._refresh_stepper()
             # Refresh KPI bar non-blocking
             QTimer.singleShot(300, self._refresh_stats)
+            # Navigate to QR reception tab so the user can validate physical receipt
+            QTimer.singleShot(400, self._ir_a_recepcion_tras_compra)
 
         except Exception as e:
             QMessageBox.critical(self, "Error al procesar", str(e))
@@ -5138,8 +6329,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if reply != QMessageBox.Yes:
             return
         try:
-            compra_id = self._purchase_repo.get_id_by_folio(folio)
-            compra_dict = self._purchase_repo.get_purchase_full(compra_id) if compra_id else None
+            compra_dict = self._purchase_repo.get_purchase_full(
+                self.container.db.execute(
+                    "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
+                ).fetchone()[0]
+            )
             if not compra_dict:
                 return
             prov_nombre = self._purchase_repo.get_provider_name(
@@ -5282,8 +6476,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not self.carrito_compra:
             return []
         ids = [it['producto_id'] for it in self.carrito_compra]
+        ph  = ",".join("?" * len(ids))
         try:
-            ids_con_receta = self._recetas_repo.get_ids_con_receta(ids)
+            rows = self.container.db.execute(
+                f"""SELECT DISTINCT c FROM (
+                        SELECT producto_id      AS c FROM recetas
+                        WHERE  producto_id      IN ({ph}) AND (activa=1 OR activo=1)
+                        UNION
+                        SELECT producto_base_id AS c FROM recetas
+                        WHERE  producto_base_id IN ({ph}) AND (activa=1 OR activo=1)
+                    )""",
+                ids + ids
+            ).fetchall()
+            ids_con_receta = {r[0] for r in rows}
             return [it for it in self.carrito_compra
                     if it['producto_id'] in ids_con_receta]
         except Exception:
@@ -5305,18 +6510,44 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     )
                     nombres.append(item['nombre'])
                 else:
-                    # Fallback: resolve components via repository (no direct SQL)
-                    componentes = self._recetas_repo.get_componentes_insumo(item['producto_id'])
-                    if componentes:
+                    # Fallback: query receta_componentes (m000 schema), then product_recipe_components
+                    receta = self.container.db.execute("""
+                        SELECT rc.producto_id AS insumo_id,
+                               COALESCE(rc.cantidad, 0) AS cantidad_insumo,
+                               p.nombre AS insumo_nombre
+                        FROM receta_componentes rc
+                        JOIN recetas r ON r.id = rc.receta_id
+                        JOIN productos p ON p.id = rc.producto_id
+                        WHERE (r.producto_base_id=? OR r.producto_id=?)
+                          AND (r.activo=1 OR r.activa=1)
+                    """, (item['producto_id'], item['producto_id'])).fetchall()
+                    if not receta:
+                        receta = self.container.db.execute("""
+                            SELECT rc.component_product_id AS insumo_id,
+                                   COALESCE(rc.cantidad, 0) AS cantidad_insumo,
+                                   p.nombre AS insumo_nombre
+                            FROM product_recipe_components rc
+                            JOIN product_recipes r ON r.id = rc.recipe_id
+                            JOIN productos p ON p.id = rc.component_product_id
+                            WHERE r.base_product_id=? AND r.is_active=1
+                        """, (item['producto_id'],)).fetchall()
+                    if receta:
                         _app = getattr(self.container, 'app_service', None)
-                        for comp in componentes:
-                            consumo = float(comp.get('cantidad_insumo') or 0) * item['cantidad']
-                            if consumo > 0 and _app:
-                                _app.registrar_salida_produccion(
-                                    producto_id=comp['insumo_id'],
-                                    cantidad=consumo,
-                                    usuario=getattr(self, 'usuario_actual', ''),
-                                    sucursal_id=self.sucursal_id)
+                        for comp in receta:
+                            consumo = float(comp['cantidad_insumo'] or 0) * item['cantidad']
+                            if consumo > 0:
+                                if _app:
+                                    _app.registrar_salida_produccion(
+                                        producto_id=comp['insumo_id'],
+                                        cantidad=consumo,
+                                        usuario=getattr(self, 'usuario_actual', ''),
+                                        sucursal_id=self.sucursal_id)
+                                else:
+                                    self.container.db.execute(
+                                        "UPDATE productos SET existencia=existencia-? WHERE id=?",
+                                        (consumo, comp['insumo_id']))
+                        try: self.container.db.commit()
+                        except Exception: pass
                         nombres.append(item['nombre'])
             except Exception as e:
                 logger.warning("_procesar_recetas %s: %s", item['nombre'], e)
@@ -6428,12 +7659,137 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
                                   items) -> str:
-        """Fallback directo deshabilitado — solo stub de seguridad.
+        """Safety stub: direct DB fallback is disabled for Phase 5.
 
-        Toda compra debe pasar por RegistrarCompraUC → PurchaseService para
+        Compra directa debe pasar por RegistrarCompraUC → PurchaseService para
         mantener una única ruta de inventario, CxP, asientos, lotes y auditoría.
+        Este método permanece solo por compatibilidad con referencias antiguas y
+        no debe ser llamado desde el flujo principal.
         """
         raise RuntimeError(
             "Fallback directo deshabilitado: usa RegistrarCompraUC/PurchaseService."
         )
+        return f"""
+        <html><body style='font-family:sans-serif;font-size:12px;margin:0;padding:0;'>
+        <h3 style='text-align:center;margin:8px 0 4px;'>RECIBO DE COMPRA</h3>
+        <hr style='margin:4px 0 8px;'>
+        <table width='100%' border='0' cellspacing='0' cellpadding='0'
+               style='font-size:12px;margin-bottom:8px;'>
+          <tr><td><b>Folio:</b></td><td style='font-family:monospace;'>{compra.get('folio','?')}</td></tr>
+          <tr><td><b>Fecha:</b></td><td style='font-family:monospace;'>{str(compra.get('fecha',''))[:16]}</td></tr>
+          <tr><td><b>Proveedor:</b></td><td>{prov_display}</td></tr>
+          <tr><td><b>Referencia:</b></td><td style='font-family:monospace;'>{ref}</td></tr>
+          <tr><td><b>Usuario:</b></td><td>{compra.get('usuario','?')}</td></tr>
+          <tr><td><b>Condición:</b></td><td>{str(compra.get('estado','?')).upper()}</td></tr>
+        </table>
+        <table width='100%' border='0' cellspacing='0'
+               style='border-collapse:collapse;font-size:12px;'>
+          <tr style='background:{Colors.PRIMARY_BASE};color:#fff;'>
+            <th align='left'  style='padding:5px 6px;'>Producto</th>
+            <th align='right' style='padding:5px 6px;'>Cant.</th>
+            <th align='right' style='padding:5px 6px;'>Costo</th>
+            <th align='right' style='padding:5px 6px;'>Subtotal</th>
+          </tr>
+          {rows_html}
+        </table>
+        <hr style='margin:8px 0 4px;'>
+        <p style='font-size:14px;font-weight:bold;color:{Colors.SUCCESS_BASE};margin:4px 0;'>
+          Total: ${float(compra.get('total',0)):,.2f}</p>
+        </body></html>"""
 
+    def _on_refresh(self, event_type: str, data: dict) -> None:
+        """EventBus handler: refresh product search, providers, stats and history."""
+        if hasattr(self, '_buscador'):
+            self._buscador.set_db(self.container.db)
+        self.cargar_proveedores()
+        QTimer.singleShot(0, self._refresh_stats)
+        if hasattr(self, '_tbl_hist') and self._tabs.currentIndex() == 2:
+            self._cargar_historial_compras()
+        # FASE 8: when a PO receipt is confirmed, refresh the documental sidebar
+        # so the PO state (PARCIAL / RECIBIDA) is reflected immediately.
+        # Small delay (50 ms) ensures DB writes from ReceivePOAdapter are visible.
+        if event_type == "RECEPCION_CONFIRMADA" and data.get("source") == "PO":
+            QTimer.singleShot(50, self._cargar_docs_erp)
+
+    def _exportar_historial_csv(self) -> None:
+        """Exporta el historial de compras a CSV.
+
+        FASE 9: lee del cache _hist_all_rows (datos completos de BD),
+        aplica los mismos filtros activos, incluye Tipo Doc y Estado PO.
+        """
+        import csv, os
+        all_rows = getattr(self, '_hist_all_rows', None)
+        if not all_rows:
+            QMessageBox.information(self, "Exportar", "No hay datos para exportar.")
+            return
+
+        # Aplicar los mismos filtros que _poblar_historial
+        filtros  = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
+        estado   = (filtros.get("estado")   or "").strip().lower()
+        search   = (filtros.get("search")   or "").strip().lower()
+        tipo_doc = (filtros.get("tipo_doc") or "").strip().lower()
+        po_est   = (filtros.get("po_estado") or "").strip().upper()
+
+        rows = list(all_rows)
+        if estado:
+            rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
+        if po_est:
+            rows = [r for r in rows if str(r[10] if len(r) > 10 else "").strip().upper() == po_est]
+        if search:
+            rows = [r for r in rows if
+                    search in str(r[0] or "").lower() or
+                    search in str(r[2] or "").lower() or
+                    search in str(r[3] or "").lower()]
+        if tipo_doc == "directa":
+            rows = [r for r in rows if not (len(r) > 9 and int(r[9] or 0))]
+        elif tipo_doc == "con po":
+            rows = [r for r in rows if len(r) > 9 and int(r[9] or 0)]
+
+        if not rows:
+            QMessageBox.information(self, "Exportar", "No hay datos para exportar con los filtros actuales.")
+            return
+
+        default_name = f"compras_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar historial de compras", default_name, "CSV (*.csv)")
+        if not path:
+            return
+
+        ocultar_totales = self._usuario_rol in _ROLES_SIN_TOTALES
+        try:
+            headers = [
+                "Folio", "Fecha", "Proveedor", "Usuario", "Total",
+                "Cond. Pago", "Estado", "Tipo Doc", "PO #", "Estado PO",
+            ]
+            with open(path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(headers)
+                for r in rows:
+                    po_id    = int(r[9] or 0) if len(r) > 9 else 0
+                    po_est_r = str(r[10] or "") if len(r) > 10 else ""
+                    total    = "—" if ocultar_totales else str(r[4] or "")
+                    tipo     = f"PO #{po_id}" if po_id else "Directa"
+                    writer.writerow([
+                        r[0] or "", r[1] or "", r[2] or "", r[3] or "",
+                        total,
+                        r[7] or "" if len(r) > 7 else "",  # condicion_pago
+                        r[5] or "",                          # estado
+                        tipo, po_id or "", po_est_r,
+                    ])
+            Toast.success(self, "✅ Exportado",
+                          f"{os.path.basename(path)} · {len(rows)} registros")
+        except Exception as e:
+            QMessageBox.critical(self, "Error al exportar", str(e))
+
+    def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
+                                  items) -> str:
+        """Safety stub: direct DB fallback is disabled for Phase 5.
+
+        Compra directa debe pasar por RegistrarCompraUC → PurchaseService para
+        mantener una única ruta de inventario, CxP, asientos, lotes y auditoría.
+        Este método permanece solo por compatibilidad con referencias antiguas y
+        no debe ser llamado desde el flujo principal.
+        """
+        raise RuntimeError(
+            "Fallback directo deshabilitado: usa RegistrarCompraUC/PurchaseService."
+        )
