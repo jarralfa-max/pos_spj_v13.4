@@ -3433,6 +3433,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Sub-pestaña 4: Histórico ───────────────────────────────────────────
     def _build_subtab_historico_qr(self, parent: QWidget) -> None:
+        from PyQt5.QtWidgets import QSplitter
         lay = QVBoxLayout(parent); lay.setContentsMargins(8,8,8,8); lay.setSpacing(8)
 
         # Filter bar
