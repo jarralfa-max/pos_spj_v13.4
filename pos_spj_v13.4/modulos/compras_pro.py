@@ -1811,32 +1811,67 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Sub-pestaña 1: Generación etiqueta QR ──────────────────────────────
     def _build_subtab_etiqueta(self, parent: QWidget) -> None:
-        lay = QHBoxLayout(parent); lay.setContentsMargins(8,8,8,8); lay.setSpacing(10)
+        root = QVBoxLayout(parent); root.setContentsMargins(8,8,8,8); root.setSpacing(8)
+
+        # ── Stepper ────────────────────────────────────────────────────────────
+        stepper = QFrame(); stepper.setObjectName("sectionCard")
+        st_lay = QHBoxLayout(stepper); st_lay.setContentsMargins(12,8,12,8); st_lay.setSpacing(0)
+        for num, label, active in [
+            ("1", "Identificar contenedor (QR)", True),
+            ("2", "Asignar datos de compra", False),
+            ("3", "Recibir contenido físico", False),
+        ]:
+            step_w = QWidget()
+            s_lay = QHBoxLayout(step_w); s_lay.setContentsMargins(0,0,0,0); s_lay.setSpacing(6)
+            num_lbl = QLabel(num); num_lbl.setObjectName("stepNum")
+            num_lbl.setProperty("active", "true" if active else "false")
+            num_lbl.setFixedSize(24, 24); num_lbl.setAlignment(Qt.AlignCenter)
+            txt_lbl = QLabel(label); txt_lbl.setObjectName("stepLabel")
+            txt_lbl.setProperty("active", "true" if active else "false")
+            s_lay.addWidget(num_lbl); s_lay.addWidget(txt_lbl)
+            st_lay.addWidget(step_w)
+            if num != "3":
+                arrow = QLabel("→"); arrow.setObjectName("stepArrow")
+                st_lay.addWidget(arrow); st_lay.addStretch()
+        root.addWidget(stepper)
+
+        # ── Body ───────────────────────────────────────────────────────────────
+        lay = QHBoxLayout(); lay.setSpacing(10)
+        root.addLayout(lay, 1)
 
         card_left = QGroupBox("📦 Identificación del contenedor")
         card_left.setObjectName("sectionCard")
         cl = QVBoxLayout(card_left); cl.setSpacing(8)
-        cl.addWidget(create_caption(self,
-            "Genera la etiqueta QR que identifica físicamente al contenedor. "
-            "Los datos de compra y productos se asignan en la pestaña siguiente."))
+
+        # Info callout
+        info = QFrame(); info.setObjectName("infoCallout")
+        info_lay = QHBoxLayout(info); info_lay.setContentsMargins(10,8,10,8); info_lay.setSpacing(8)
+        info_icon = QLabel("ℹ️"); info_icon.setFixedWidth(20)
+        info_txt = QLabel(
+            "<b>Quién:</b> Almacenista / recepcionista<br>"
+            "Genera el ID único del contenedor <i>antes</i> de que llegue al almacén. "
+            "Aún no se conoce proveedor ni costo.")
+        info_txt.setObjectName("caption"); info_txt.setWordWrap(True)
+        info_lay.addWidget(info_icon); info_lay.addWidget(info_txt, 1)
+        cl.addWidget(info)
 
         cl.addWidget(QLabel("Tipo de contenedor:"))
         types_grid = QGridLayout(); types_grid.setSpacing(4)
         self._qr_tipo_buttons: dict = {}
         self._qr_tipo_actual = "caja"
         _TIPOS = [
-            ("caja",         "🟫", "Caja"),
-            ("tarima",       "🛒", "Tarima"),
-            ("hielera",      "🧊", "Hielera"),
-            ("bulto",        "📦", "Bulto/Saco"),
-            ("jaula",        "🔲", "Jaula"),
-            ("contenedor",   "🚢", "Contenedor"),
-            ("refrigerado",  "❄️",  "Refrigerado"),
-            ("personalizado","✏️",  "Personalizado"),
+            ("caja",         "🟫", "Caja",         "Cartón estándar"),
+            ("tarima",       "🛒", "Tarima",        "Palet completo"),
+            ("hielera",      "🧊", "Hielera",       "Refrigerado"),
+            ("bulto",        "📦", "Bulto",         "Bulto / saco"),
+            ("jaula",        "🔲", "Jaula",         "Metálica"),
+            ("contenedor",   "🚢", "Contenedor",    "Granel"),
+            ("refrigerado",  "❄️",  "Refrigerado",  "Cadena frío"),
+            ("personalizado","✏️",  "Otro",          "Personalizado"),
         ]
-        for idx, (tipo, ico, lbl) in enumerate(_TIPOS):
-            b = QPushButton(f"{ico}\n{lbl}")
-            b.setCheckable(True); b.setMinimumHeight(52)
+        for idx, (tipo, ico, lbl, sub) in enumerate(_TIPOS):
+            b = QPushButton(f"{ico}\n{lbl}\n{sub}")
+            b.setCheckable(True); b.setMinimumHeight(60)
             b.setObjectName("qrTypeButton"); b.setProperty("variant","accent")
             if tipo == "caja": b.setChecked(True)
             b.clicked.connect(lambda _=False, t=tipo: self._qr_set_tipo(t))
@@ -1852,7 +1887,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         row_id = QHBoxLayout(); row_id.addWidget(self.qr_codigo,1); row_id.addWidget(btn_regen)
         form.addRow("ID contenedor:", self._wrap(row_id))
 
-        # Parent container selector
         self.qr_parent_id: int | None = None
         self.qr_parent_txt = QLineEdit()
         self.qr_parent_txt.setPlaceholderText("Dejar vacío si es contenedor raíz")
@@ -1865,8 +1899,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         btn_parent_clear.clicked.connect(self._qr_clear_parent)
         row_parent = QHBoxLayout()
         row_parent.addWidget(self.qr_parent_txt, 1)
-        row_parent.addWidget(btn_parent_pick)
-        row_parent.addWidget(btn_parent_clear)
+        row_parent.addWidget(btn_parent_pick); row_parent.addWidget(btn_parent_clear)
         form.addRow("Contenedor padre:", self._wrap(row_parent))
 
         self.qr_descripcion = QLineEdit()
@@ -1879,8 +1912,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         btn_gen.clicked.connect(self._qr_generar_contenedor)
         cl.addWidget(btn_gen)
 
+        # Right: preview card
         card_right = QGroupBox("🏷️ Etiqueta generada")
-        card_right.setObjectName("sectionCard"); card_right.setMaximumWidth(360)
+        card_right.setObjectName("sectionCard"); card_right.setMaximumWidth(340)
         cr = QVBoxLayout(card_right); cr.setSpacing(10); cr.setAlignment(Qt.AlignTop)
 
         self.qr_preview_box = QFrame(); self.qr_preview_box.setObjectName("qrPreviewBox")
@@ -1888,7 +1922,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_preview_ic = QLabel("🟫"); self.qr_preview_ic.setObjectName("qrPreviewIcon")
         pb.addWidget(self.qr_preview_ic)
         col = QVBoxLayout(); col.setSpacing(2)
-        self.qr_preview_id = QLabel("CAJ-000001"); self.qr_preview_id.setObjectName("monoLabel")
+        self.qr_preview_id = QLabel("CAJ-260101-000000"); self.qr_preview_id.setObjectName("monoLabel")
         self.qr_preview_meta = QLabel("Caja"); self.qr_preview_meta.setObjectName("caption")
         col.addWidget(self.qr_preview_id); col.addWidget(self.qr_preview_meta)
         pb.addLayout(col,1)
@@ -1897,7 +1931,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_preview_qr = QLabel("📷  QR")
         self.qr_preview_qr.setObjectName("qrPreviewArea")
         self.qr_preview_qr.setAlignment(Qt.AlignCenter)
-        self.qr_preview_qr.setMinimumSize(220, 220)
+        self.qr_preview_qr.setMinimumSize(200, 200)
         cr.addWidget(self.qr_preview_qr, 0, Qt.AlignCenter)
 
         self.qr_preview_status = QLabel("⏳ Pendiente de generar")
@@ -1905,6 +1939,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_preview_status.setProperty("variant","warning")
         self.qr_preview_status.setAlignment(Qt.AlignCenter)
         cr.addWidget(self.qr_preview_status, 0, Qt.AlignCenter)
+
+        hint = QLabel("El contenido detallado, proveedor, costos e información financiera\nse asignan en el paso 2.")
+        hint.setObjectName("caption"); hint.setAlignment(Qt.AlignCenter); hint.setWordWrap(True)
+        cr.addWidget(hint)
+        cr.addStretch()
 
         row_btns = QHBoxLayout()
         btn_pdf = create_secondary_button(self, "💾 PDF", "Guardar etiqueta como PDF")
