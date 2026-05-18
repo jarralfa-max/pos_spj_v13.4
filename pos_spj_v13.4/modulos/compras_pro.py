@@ -1600,12 +1600,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             pass
         if not full:
             full = {
-                'id':           pid,
-                'nombre':       prod.get("nombre", ""),
-                'precio_compra': 0.0,
-                'precio':       0.0,
-                'unidad':       'pz',
-                'existencia':   0,
+                'id':            pid,
+                'nombre':        prod.get("nombre", ""),
+                'precio_compra': float(prod.get('precio_compra') or prod.get('costo') or 0),
+                'precio':        float(prod.get('precio', 0) or 0),
+                'unidad':        prod.get('unidad', 'pz'),
+                'existencia':    float(prod.get('existencia', 0) or 0),
             }
         self._agregar_producto(full)
 
@@ -4922,10 +4922,33 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._actualizar_panel_validacion()
 
     # ── Cart management ───────────────────────────────────────────────────────
+    def _costo_compra_producto(self, prod: dict) -> float:
+        """Returns best available purchase cost for a product dict.
+
+        Priority: precio_compra → inventario_actual.costo_promedio → 0.
+        """
+        pc = float(prod.get('precio_compra') or prod.get('costo_promedio') or
+                   prod.get('costo') or 0)
+        if pc > 0:
+            return pc
+        # Fallback: look up weighted average cost from inventory table
+        pid = prod.get('id') or prod.get('producto_id')
+        if pid:
+            try:
+                row = self.container.db.execute(
+                    "SELECT COALESCE(costo_promedio,0) FROM inventario_actual "
+                    "WHERE producto_id=? LIMIT 1", (pid,)
+                ).fetchone()
+                if row and row[0]:
+                    return float(row[0])
+            except Exception:
+                pass
+        return 0.0
+
     def _agregar_producto(self, prod: dict) -> None:
         """Agrega producto al carrito con dialog único (cantidad + costo + preview)."""
         nombre     = prod.get('nombre', '')
-        costo_hist = float(prod.get('precio_compra', 0) or 0)
+        costo_hist = self._costo_compra_producto(prod)
 
         # Already in cart → add extra quantity via same dialog
         for i, item in enumerate(self.carrito_compra):
