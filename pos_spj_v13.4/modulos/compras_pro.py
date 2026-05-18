@@ -5160,10 +5160,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         doc_ref  = self.txt_factura.text().strip() or "Sin Ref"
         pago     = self.cmb_pago.currentData() or "CONTADO"
-        subtotal = sum(i['subtotal'] for i in self.carrito_compra)
+        # Recompute subtotal from qty×unit_cost to match UC validation (avoids float drift)
+        subtotal = round(sum(
+            float(i['cantidad']) * float(i['costo_unitario'])
+            for i in self.carrito_compra
+        ), 2)
         iva_activo = hasattr(self, '_chk_iva') and self._chk_iva.isChecked()
         iva_monto  = round(subtotal * self._get_iva_rate(), 2) if iva_activo else 0.0
-        total      = subtotal + iva_monto
+        total      = round(subtotal + iva_monto, 2)
 
         # Check for recipes among purchased items
         items_con_receta = self._detectar_recetas()

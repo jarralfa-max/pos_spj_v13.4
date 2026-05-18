@@ -100,14 +100,20 @@ class RegistrarCompraUC:
         subtotal_declared = round(float(datos.subtotal), 2)
         iva_declared = round(float(datos.iva_monto), 2)
         total_declared = round(float(datos.total), 2)
-        if subtotal_declared != subtotal_items:
+        # Tolerance of $0.02 allows for floating-point rounding differences between
+        # per-item pre-rounded subtotals (sum of round(qty*cost, 4)) and the
+        # recomputed sum (sum(qty*cost)). A real mismatch would be dollar-scale.
+        if abs(subtotal_declared - subtotal_items) > 0.02:
             return ResultadoCompraDTO(
                 ok=False,
-                error="El subtotal no coincide con los productos del carrito.",
+                error=(
+                    f"El subtotal no coincide con los productos del carrito "
+                    f"(declarado: ${subtotal_declared:.2f}, calculado: ${subtotal_items:.2f})."
+                ),
             )
         if iva_declared < 0:
             return ResultadoCompraDTO(ok=False, error="El IVA no puede ser negativo.")
-        if total_declared != round(subtotal_declared + iva_declared, 2):
+        if abs(total_declared - round(subtotal_declared + iva_declared, 2)) > 0.02:
             return ResultadoCompraDTO(
                 ok=False,
                 error="El total no coincide con subtotal más IVA.",
