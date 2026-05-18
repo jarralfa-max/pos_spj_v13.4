@@ -799,6 +799,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.usuario_actual = usuario
         self._usuario_rol = rol.upper().strip()
         QTimer.singleShot(0, self._aplicar_permisos_ui)
+        # Auto-fill solicitante with the logged-in user
+        if usuario and hasattr(self, 'txt_solicitante'):
+            self.txt_solicitante.setText(usuario)
         # Offer draft restore 1.5 s after login (cart must still be empty)
         QTimer.singleShot(1500, self._check_pending_draft)
 
@@ -1179,6 +1182,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._cmb_prioridad.addItem(p)
 
         self.txt_solicitante = create_input(self, "Nombre del solicitante")
+        if self.usuario_actual:
+            self.txt_solicitante.setText(self.usuario_actual)
 
         self.txt_notas = QPlainTextEdit()
         self.txt_notas.setPlaceholderText("Observaciones adicionales…")
@@ -2774,7 +2779,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                             po_repo.update_item_received(po_id, pid, rec)
                     except Exception as _ie:
                         warnings.append(str(_ie))
-            new_estado = "PARCIAL" if hay_diferencias else "RECIBIDA"
+            # Fully received → CERRADA (closed); with differences → PARCIAL for follow-up
+            new_estado = "PARCIAL" if hay_diferencias else "CERRADA"
             if po_repo:
                 po_repo.update_estado(po_id, new_estado)
             obs = (self.qr_recv_obs.toPlainText() or "").strip()
@@ -2794,7 +2800,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 )
             except Exception:
                 pass
-            msg = f"PO {folio} recibida · estado: {new_estado}"
+            msg = f"PO {folio} · {'cerrada ✓' if new_estado == 'CERRADA' else 'recepción parcial — estado: PARCIAL'}"
             if warnings:
                 msg += f"\nAvisos: {'; '.join(warnings)}"
             Toast.success(self, "✓ Recepción confirmada", msg)
@@ -3266,8 +3272,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._btn_conv_po.setObjectName("btnConvPO")
         self._btn_conv_po.clicked.connect(self._accion_convertir_a_po)
 
-        self._btn_enviar_rec_doc = create_secondary_button(
-            self, "↗ Enviar a Recepción", "Enviar a recepción")
+        self._btn_enviar_rec_doc = create_success_button(
+            self, "↗ Enviar a Recepción", "Enviar a recepción física")
         self._btn_enviar_rec_doc.setFixedHeight(32)
         self._btn_enviar_rec_doc.setEnabled(False)
         self._btn_enviar_rec_doc.setObjectName("btnEnviarRecDoc")
@@ -3416,11 +3422,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _refresh_doc_btn_styles(self) -> None:
         """Set variant property on documental action buttons; QSS handles visual state."""
         _BTN_VARIANTS = {
-            '_btn_aprobar_pr':     'success',
-            '_btn_rechazar_pr':    'danger',
-            '_btn_editar_doc':     'warning',
-            '_btn_conv_po':        'primary',
-            '_btn_enviar_rec_doc': 'success',
+            '_btn_aprobar_pr':  'success',
+            '_btn_rechazar_pr': 'danger',
+            '_btn_editar_doc':  'warning',
+            '_btn_conv_po':     'primary',
+            # _btn_enviar_rec_doc is create_success_button — no variant override needed
         }
         for attr, variant in _BTN_VARIANTS.items():
             btn = getattr(self, attr, None)
@@ -4532,6 +4538,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             vence = QDate.currentDate().addDays(plazo)
             self._lbl_vence_el.setText(f"Vence: {vence.toString('dd/MMM/yyyy')}")
 
+    def _ir_a_recepcion_tras_compra(self) -> None:
+        """After a direct purchase is saved, switch to QR reception tab."""
+        try:
+            if hasattr(self, '_tabs'):
+                self._tabs.setCurrentIndex(1)
+        except Exception:
+            pass
+
     def _enviar_a_recepcion(self) -> None:
         """Process purchase then switch to QR reception tab."""
         if not self.carrito_compra:
@@ -4783,6 +4797,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 condicion_pago=condicion,
                 plazo_dias=plazo,
                 moneda=moneda,
+                doc_ref=self.txt_factura.text().strip() if hasattr(self, 'txt_factura') else "",
+                notas="\n".join(filter(None, [
+                    f"Solicitante: {self.txt_solicitante.text().strip()}" if hasattr(self, 'txt_solicitante') and self.txt_solicitante.text().strip() else "",
+                    self.txt_notas.toPlainText().strip() if hasattr(self, 'txt_notas') else "",
+                ])),
             )
             uc = getattr(self.container, 'uc_compra_tradicional', None)
             if uc is None:
@@ -5466,6 +5485,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.carrito_compra.clear()
             self._refresh_tabla()
             self.txt_factura.clear()
+
             self._adjunto_path = ""
             if hasattr(self, '_lbl_adjunto'):
                 self._lbl_adjunto.setText("Sin archivo")
@@ -5475,6 +5495,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._refresh_stepper()
             # Refresh KPI bar non-blocking
             QTimer.singleShot(300, self._refresh_stats)
+            # Navigate to QR reception tab so the user can validate physical receipt
+            QTimer.singleShot(400, self._ir_a_recepcion_tras_compra)
 
         except Exception as e:
             QMessageBox.critical(self, "Error al procesar", str(e))

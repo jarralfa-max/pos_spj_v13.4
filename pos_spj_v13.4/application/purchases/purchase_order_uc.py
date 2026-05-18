@@ -26,9 +26,10 @@ logger = logging.getLogger("spj.purchases.po_uc")
 
 _VALID_TRANSITIONS: dict[str, set[str]] = {
     POState.ABIERTA:         {POState.PARA_RECEPCION, POState.PARCIAL,
-                               POState.RECIBIDA, POState.CANCELADA},
-    POState.PARA_RECEPCION:  {POState.PARCIAL, POState.RECIBIDA, POState.CANCELADA},
-    POState.PARCIAL:         {POState.RECIBIDA, POState.CANCELADA},
+                               POState.RECIBIDA, POState.CERRADA, POState.CANCELADA},
+    POState.PARA_RECEPCION:  {POState.PARCIAL, POState.RECIBIDA,
+                               POState.CERRADA, POState.CANCELADA},
+    POState.PARCIAL:         {POState.RECIBIDA, POState.CERRADA, POState.CANCELADA},
     POState.RECIBIDA:        {POState.CERRADA},
     POState.CERRADA:         set(),
     POState.CANCELADA:       set(),
