@@ -3654,8 +3654,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             uc     = self._get_purchase_order_uc()
             result = uc.enviar_a_recepcion(po_id, self.usuario_actual or "sistema")
             if result.ok:
+                po_folio = getattr(result, 'po_folio', None) or getattr(result, 'folio', str(po_id))
                 Toast.success(self, "↗ Enviada a recepción",
-                              f"PO {result.folio} lista para recibir")
+                              f"PO {po_folio} lista para recibir")
                 self._cargar_docs_erp()
                 # Switch to QR/Reception tab
                 if hasattr(self, '_tabs'):
