@@ -2755,6 +2755,81 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.warning("_cargar_compra_en_recepcion: %s", e)
 
+    def _mostrar_hijos_contenedor(self, parent_id: int) -> None:
+        """Show child containers of a parent container in the reception items table.
+
+        The first rows show child containers (clickable to drill down),
+        then any direct products follow.
+        """
+        try:
+            hijos = self.container.db.execute(
+                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
+                   FROM contenedores WHERE parent_id=? ORDER BY codigo""",
+                (parent_id,)
+            ).fetchall()
+            if not hijos:
+                return
+            # Prepend a separator row + child rows to tbl_recv_items
+            self.tbl_recv_items.blockSignals(True)
+            # Insert a non-editable header row
+            sep_row = self.tbl_recv_items.rowCount()
+            self.tbl_recv_items.insertRow(sep_row)
+            hdr = QTableWidgetItem("── Contenedores hijos ──")
+            hdr.setFlags(Qt.NoItemFlags)
+            hdr.setForeground(self.tbl_recv_items.palette().mid())
+            self.tbl_recv_items.setItem(sep_row, 0, hdr)
+            self.tbl_recv_items.setSpan(sep_row, 0, 1, self.tbl_recv_items.columnCount())
+            for h in hijos:
+                hid   = h["id"]     if hasattr(h, "keys") else h[0]
+                hcod  = h["codigo"] if hasattr(h, "keys") else h[1]
+                htipo = h["tipo"]   if hasattr(h, "keys") else h[2]
+                hdesc = h["desc"]   if hasattr(h, "keys") else h[3]
+                ico   = self._TIPO_ICO.get(htipo, "📦")
+                lbl   = self._TIPO_LBL.get(htipo, htipo)
+                row = self.tbl_recv_items.rowCount()
+                self.tbl_recv_items.insertRow(row)
+                c0 = QTableWidgetItem(f"{ico} {hcod}")
+                c0.setData(Qt.UserRole, hid)          # child container id
+                c0.setData(Qt.UserRole + 1, "CHILD")  # marker
+                c0.setToolTip(f"Doble clic para abrir {lbl} {hcod}")
+                c1 = QTableWidgetItem(f"{lbl}{(' — ' + hdesc) if hdesc else ''}")
+                c1.setFlags(c1.flags() & ~Qt.ItemIsEditable)
+                self.tbl_recv_items.setItem(row, 0, c0)
+                self.tbl_recv_items.setItem(row, 1, c1)
+            self.tbl_recv_items.blockSignals(False)
+            # Connect double-click to drill-down (safe to connect multiple times — use lambda guard)
+            try:
+                self.tbl_recv_items.cellDoubleClicked.disconnect(self._on_recv_item_dblclick)
+            except Exception:
+                pass
+            self.tbl_recv_items.cellDoubleClicked.connect(self._on_recv_item_dblclick)
+        except Exception as e:
+            logger.debug("_mostrar_hijos_contenedor: %s", e)
+
+    def _on_recv_item_dblclick(self, row: int, _col: int) -> None:
+        """Drill down into a child container when double-clicked in the items table."""
+        it = self.tbl_recv_items.item(row, 0)
+        if not it:
+            return
+        if it.data(Qt.UserRole + 1) == "CHILD":
+            child_id = it.data(Qt.UserRole)
+            if child_id:
+                self.qr_recv_scan.setText(it.text().split()[-1])  # the code part
+                self._qr_recv_cargar_by_id(child_id)
+
+    def _qr_recv_cargar_by_id(self, contenedor_id: int) -> None:
+        """Load a container by ID (used for drill-down from parent to child)."""
+        try:
+            r = self.container.db.execute(
+                "SELECT codigo FROM contenedores WHERE id=? LIMIT 1", (contenedor_id,)
+            ).fetchone()
+            if r:
+                codigo = r[0] if not hasattr(r, "keys") else r["codigo"]
+                self.qr_recv_scan.setText(codigo)
+                self._qr_recv_cargar()
+        except Exception as e:
+            logger.debug("_qr_recv_cargar_by_id: %s", e)
+
     def _qr_recv_cargar(self) -> None:
         codigo = (self.qr_recv_scan.text() or "").strip()
         if not codigo: return
@@ -2822,6 +2897,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.tbl_recv_items.setItem(row, 4, c4)
                 self._set_diff_cell(row, diff)
             self.tbl_recv_items.blockSignals(False)
+            # Show child containers (if any) at the end of the items table
+            self._mostrar_hijos_contenedor(self._contenedor_recepcion_id)
             self._qr_recv_actualizar_status()
             self.qr_recv_scan.clear()
         except Exception as e:
