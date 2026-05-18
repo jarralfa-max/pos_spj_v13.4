@@ -64,8 +64,11 @@ class TestPOStateDefinitions:
     def test_po_state_has_cancelada(self):
         assert POState.CANCELADA == "CANCELADA"
 
-    def test_po_state_count_is_5(self):
-        assert len(POState) == 5
+    def test_po_state_count_is_6(self):
+        assert len(POState) == 6
+
+    def test_po_state_has_para_recepcion(self):
+        assert POState.PARA_RECEPCION == "PARA_RECEPCION"
 
 
 class TestDocumentTypeDefinitions:

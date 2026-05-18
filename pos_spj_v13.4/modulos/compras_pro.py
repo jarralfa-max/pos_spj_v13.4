@@ -2386,11 +2386,50 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         scroll.setWidget(card_recv)
         lay.addWidget(card_list,0); lay.addWidget(scroll,1)
         self._contenedor_recepcion_id = None
+        self._po_recepcion_id = None
 
     def _cargar_contenedores_recepcion(self) -> None:
-        if not hasattr(self,"tbl_recv_list"): return
+        if not hasattr(self, "tbl_recv_list"):
+            return
         try:
             f = (self.qr_recv_filtro.text() or "").strip()
+            self.tbl_recv_list.setRowCount(0)
+
+            # ── POs en estado PARA_RECEPCION ──────────────────────────────────
+            try:
+                po_sql = """
+                    SELECT oc.id, oc.folio, COALESCE(p.nombre,'—') AS proveedor,
+                           COALESCE(oc.total, 0) AS total
+                    FROM ordenes_compra oc
+                    LEFT JOIN proveedores p ON p.id = oc.proveedor_id
+                    WHERE oc.estado = 'PARA_RECEPCION'
+                """
+                po_params: list = []
+                if f:
+                    po_sql += " AND (oc.folio LIKE ? OR p.nombre LIKE ?)"
+                    po_params += [f"%{f}%", f"%{f}%"]
+                po_sql += " ORDER BY oc.fecha_actualizacion DESC LIMIT 100"
+                po_rows = self.container.db.execute(po_sql, po_params).fetchall()
+                for r in po_rows:
+                    po_id   = r["id"]    if hasattr(r, "keys") else r[0]
+                    folio   = r["folio"] if hasattr(r, "keys") else r[1]
+                    prov    = r["proveedor"] if hasattr(r, "keys") else r[2]
+                    tot     = r["total"] if hasattr(r, "keys") else r[3]
+                    row = self.tbl_recv_list.rowCount()
+                    self.tbl_recv_list.insertRow(row)
+                    it = QTableWidgetItem(f"[PO] {folio}")
+                    it.setData(Qt.UserRole, None)        # not a container
+                    it.setData(Qt.UserRole + 1, po_id)   # PO id
+                    it.setData(Qt.UserRole + 2, "PO")    # source type
+                    self.tbl_recv_list.setItem(row, 0, it)
+                    self.tbl_recv_list.setItem(row, 1, QTableWidgetItem(str(prov)))
+                    tot_it = QTableWidgetItem(f"${float(tot or 0):,.2f}")
+                    tot_it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self.tbl_recv_list.setItem(row, 2, tot_it)
+            except Exception as _pe:
+                logger.debug("_cargar_contenedores_recepcion POs: %s", _pe)
+
+            # ── Contenedores asignados ────────────────────────────────────────
             sql = """
                 SELECT c.id, c.codigo, COALESCE(p.nombre,'—') AS proveedor,
                        COALESCE(c.total, 0) AS total
@@ -2404,15 +2443,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 params += [f"%{f}%", f"%{f}%"]
             sql += " ORDER BY c.fecha_asignado DESC LIMIT 200"
             rows = self.container.db.execute(sql, params).fetchall()
-            self.tbl_recv_list.setRowCount(0)
             for r in rows:
-                cid = r["id"] if hasattr(r,"keys") else r[0]
-                cod = r["codigo"] if hasattr(r,"keys") else r[1]
-                prov = r["proveedor"] if hasattr(r,"keys") else r[2]
-                tot = r["total"] if hasattr(r,"keys") else r[3]
+                cid = r["id"]     if hasattr(r, "keys") else r[0]
+                cod = r["codigo"] if hasattr(r, "keys") else r[1]
+                prov = r["proveedor"] if hasattr(r, "keys") else r[2]
+                tot  = r["total"] if hasattr(r, "keys") else r[3]
                 row = self.tbl_recv_list.rowCount()
                 self.tbl_recv_list.insertRow(row)
-                it = QTableWidgetItem(cod); it.setData(Qt.UserRole, cid)
+                it = QTableWidgetItem(cod)
+                it.setData(Qt.UserRole, cid)
+                it.setData(Qt.UserRole + 2, "CTN")
                 self.tbl_recv_list.setItem(row, 0, it)
                 self.tbl_recv_list.setItem(row, 1, QTableWidgetItem(str(prov)))
                 tot_it = QTableWidgetItem(f"${float(tot or 0):,.2f}")
@@ -2423,11 +2463,68 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _on_recv_list_select(self) -> None:
         sel = self.tbl_recv_list.currentRow()
-        if sel < 0: return
+        if sel < 0:
+            return
         it = self.tbl_recv_list.item(sel, 0)
-        if not it: return
-        self.qr_recv_scan.setText(it.text())
-        self._qr_recv_cargar()
+        if not it:
+            return
+        source_type = it.data(Qt.UserRole + 2) or "CTN"
+        if source_type == "PO":
+            po_id = it.data(Qt.UserRole + 1)
+            self._cargar_po_en_recepcion(po_id)
+        else:
+            self.qr_recv_scan.setText(it.text())
+            self._qr_recv_cargar()
+
+    def _cargar_po_en_recepcion(self, po_id: int) -> None:
+        """Load a PO's line items into the reception validation table."""
+        try:
+            po_repo = getattr(self.container, 'purchase_order_repo', None)
+            if not po_repo:
+                return
+            po = po_repo.get_by_id(po_id)
+            if not po:
+                return
+            prov_row = self.container.db.execute(
+                "SELECT nombre FROM proveedores WHERE id=?",
+                (po.get("proveedor_id", 0),)
+            ).fetchone()
+            prov_nombre = prov_row[0] if prov_row else "—"
+            self._contenedor_recepcion_id = None
+            self._po_recepcion_id = po_id
+            self.qr_recv_header.setText(f"📋  PO {po.get('folio', po_id)}")
+            self.qr_recv_meta.setText(
+                f"<b>{prov_nombre}</b>  ·  Folio: {po.get('folio', '—')}  ·  "
+                f"Total: ${float(po.get('total', 0)):,.2f}")
+            items = po.get("items", [])
+            self.tbl_recv_items.blockSignals(True)
+            self.tbl_recv_items.setRowCount(0)
+            for item in items:
+                prod_id = item.get("producto_id") or item.get("product_id", "")
+                nombre  = item.get("nombre", str(prod_id))
+                unidad  = item.get("unidad", "pz")
+                esp     = float(item.get("cantidad", 0))
+                recib   = float(item.get("recibido", esp))
+                diff    = recib - esp
+                row = self.tbl_recv_items.rowCount()
+                self.tbl_recv_items.insertRow(row)
+                c0 = QTableWidgetItem(str(prod_id)); c0.setFlags(c0.flags() & ~Qt.ItemIsEditable)
+                c1 = QTableWidgetItem(nombre);       c1.setFlags(c1.flags() & ~Qt.ItemIsEditable)
+                c2 = QTableWidgetItem(unidad);       c2.setFlags(c2.flags() & ~Qt.ItemIsEditable)
+                c3 = QTableWidgetItem(f"{esp:.2f}"); c3.setFlags(c3.flags() & ~Qt.ItemIsEditable)
+                c3.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                c4 = QTableWidgetItem(f"{recib:.2f}")
+                c4.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                self.tbl_recv_items.setItem(row, 0, c0)
+                self.tbl_recv_items.setItem(row, 1, c1)
+                self.tbl_recv_items.setItem(row, 2, c2)
+                self.tbl_recv_items.setItem(row, 3, c3)
+                self.tbl_recv_items.setItem(row, 4, c4)
+                self._set_diff_cell(row, diff)
+            self.tbl_recv_items.blockSignals(False)
+            self._qr_recv_actualizar_status()
+        except Exception as e:
+            logger.warning("_cargar_po_en_recepcion: %s", e)
 
     def _qr_recv_cargar(self) -> None:
         codigo = (self.qr_recv_scan.text() or "").strip()
@@ -2451,6 +2548,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     f"Asígnalo primero en la pestaña 'Asignar compra'.")
                 return
             self._contenedor_recepcion_id = r["id"] if hasattr(r,"keys") else r[0]
+            self._po_recepcion_id = None  # loading a container clears PO context
             tp = r["tipo"] if hasattr(r,"keys") else r[2]
             tot = r["total"] if hasattr(r,"keys") else r[4]
             fact = r["folio_factura"] if hasattr(r,"keys") else r[5]
@@ -2549,8 +2647,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_recv_status.setText("  ·  ".join(partes))
 
     def _qr_confirmar_recepcion(self) -> None:
+        # If a PO is loaded (not a container), delegate to PO reception
+        if self._po_recepcion_id and not self._contenedor_recepcion_id:
+            self._confirmar_recepcion_po()
+            return
         if not self._contenedor_recepcion_id:
-            QMessageBox.warning(self,"Atención","Escanea o selecciona un contenedor primero."); return
+            QMessageBox.warning(self,"Atención","Escanea o selecciona un contenedor o PO primero."); return
         if self.tbl_recv_items.rowCount() == 0:
             QMessageBox.warning(self,"Atención","El contenedor no tiene productos."); return
         if not (self.qr_recv_recibe.text() or "").strip():
@@ -2610,6 +2712,102 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._cargar_contenedores_recepcion()
         except Exception as e:
             QMessageBox.critical(self,"Error", f"No se pudo confirmar:\n{e}")
+
+    def _confirmar_recepcion_po(self) -> None:
+        """Confirm reception of a PO: register stock IN and transition PO state."""
+        po_id = self._po_recepcion_id
+        if not po_id:
+            return
+        if self.tbl_recv_items.rowCount() == 0:
+            QMessageBox.warning(self, "Atención", "La PO no tiene productos.")
+            return
+        if not (self.qr_recv_recibe.text() or "").strip():
+            QMessageBox.warning(self, "Atención", "Indica quién recibe la mercancía.")
+            return
+        hay_diferencias = False
+        items_recib = []
+        for r in range(self.tbl_recv_items.rowCount()):
+            try:
+                pid = int(self.tbl_recv_items.item(r, 0).text())
+                esp = float((self.tbl_recv_items.item(r, 3).text() or "0").replace(",", ""))
+                rec = float((self.tbl_recv_items.item(r, 4).text() or "0").replace(",", ""))
+                items_recib.append((pid, rec, esp))
+                if abs(rec - esp) > 0.001:
+                    hay_diferencias = True
+            except Exception:
+                pass
+        if hay_diferencias:
+            if not confirm_action(
+                self, "Diferencias detectadas",
+                "Hay diferencias entre lo esperado y lo recibido.\n"
+                "¿Confirmar de todos modos?",
+                "Confirmar", "Cancelar",
+            ):
+                return
+        try:
+            usuario = self.usuario_actual or "Sistema"
+            svc = getattr(self.container, 'inventory_service', None)
+            po_repo = getattr(self.container, 'purchase_order_repo', None)
+            po = po_repo.get_by_id(po_id) if po_repo else None
+            if not po:
+                QMessageBox.critical(self, "Error", "PO no encontrada.")
+                return
+            sucursal_id = po.get("sucursal_id", self.sucursal_id or 1)
+            folio = po.get("folio", str(po_id))
+            warnings: list[str] = []
+            if svc:
+                for pid, rec, _esp in items_recib:
+                    if rec <= 0:
+                        continue
+                    try:
+                        svc.add_stock(
+                            product_id=pid,
+                            branch_id=sucursal_id,
+                            qty=rec,
+                            reference_type="RECEPCION_PO",
+                            reference_id=folio,
+                            operation_id=f"{folio}_{pid}",
+                            user=usuario,
+                            notes=f"Recepción PO {folio}",
+                        )
+                        if po_repo:
+                            po_repo.update_item_received(po_id, pid, rec)
+                    except Exception as _ie:
+                        warnings.append(str(_ie))
+            new_estado = "PARCIAL" if hay_diferencias else "RECIBIDA"
+            if po_repo:
+                po_repo.update_estado(po_id, new_estado)
+            obs = (self.qr_recv_obs.toPlainText() or "").strip()
+            try:
+                from core.services.auto_audit import audit_write
+                audit_write(
+                    self.container,
+                    modulo="COMPRAS",
+                    accion="PO_RECIBIDA",
+                    entidad="ordenes_compra",
+                    entidad_id=folio,
+                    usuario=usuario,
+                    detalles=f"PO {folio} recibida por {self.qr_recv_recibe.text().strip()} · {obs}",
+                    before={"estado": "PARA_RECEPCION"},
+                    after={"estado": new_estado},
+                    sucursal_id=sucursal_id,
+                )
+            except Exception:
+                pass
+            msg = f"PO {folio} recibida · estado: {new_estado}"
+            if warnings:
+                msg += f"\nAvisos: {'; '.join(warnings)}"
+            Toast.success(self, "✓ Recepción confirmada", msg)
+            self._po_recepcion_id = None
+            self.qr_recv_header.setText("⏳ Escanea o selecciona un contenedor asignado")
+            self.qr_recv_meta.setText("Proveedor — · Factura — · Comprador — · Total —")
+            self.tbl_recv_items.setRowCount(0)
+            self.qr_recv_obs.clear()
+            self.qr_recv_status.setText("⏳ Sin datos")
+            self._cargar_contenedores_recepcion()
+            self._cargar_docs_erp()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"No se pudo confirmar recepción PO:\n{e}")
 
     # ── Sub-pestaña 4: Histórico ───────────────────────────────────────────
     def _build_subtab_historico_qr(self, parent: QWidget) -> None:
@@ -3646,7 +3844,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             QMessageBox.critical(self, "Error", str(e))
 
     def _accion_enviar_recepcion_doc(self) -> None:
-        """Mark selected PO as sent to reception and switch to QR tab."""
+        """Mark selected PO as PARA_RECEPCION and navigate to QR reception subtab."""
         po_id = self._selected_doc_id
         if not po_id:
             return
@@ -3656,16 +3854,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if result.ok:
                 po_folio = getattr(result, 'po_folio', None) or getattr(result, 'folio', str(po_id))
                 Toast.success(self, "↗ Enviada a recepción",
-                              f"PO {po_folio} lista para recibir")
+                              f"PO {po_folio} · aparece en lista de recepción")
                 self._cargar_docs_erp()
-                # Switch to QR/Reception tab
+                # Switch to QR tab → "Recepción con QR" subtab (index 2)
                 if hasattr(self, '_tabs'):
                     self._tabs.setCurrentIndex(1)
+                    QTimer.singleShot(80, self._navegar_a_recepcion_qr)
             else:
                 QMessageBox.warning(self, "Error", result.error or "No se pudo enviar a recepción")
         except Exception as e:
             logger.warning("_accion_enviar_recepcion_doc: %s", e)
             QMessageBox.critical(self, "Error", str(e))
+
+    def _navegar_a_recepcion_qr(self) -> None:
+        """Switch to 'Recepción con QR' subtab (index 2) within the QR tab."""
+        try:
+            if hasattr(self, '_qr_subtabs'):
+                self._qr_subtabs.setCurrentIndex(2)
+                self._cargar_contenedores_recepcion()
+        except Exception as e:
+            logger.debug("_navegar_a_recepcion_qr: %s", e)
 
     # ── Right summary panel ───────────────────────────────────────────────────
 

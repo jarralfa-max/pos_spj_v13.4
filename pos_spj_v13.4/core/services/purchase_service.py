@@ -189,7 +189,18 @@ class PurchaseService:
                 usuario=user,
             )
 
-            self.db.execute(f"RELEASE SAVEPOINT {_sp}")
+            try:
+                self.db.execute(f"RELEASE SAVEPOINT {_sp}")
+            except Exception as _rel_err:
+                if "no such savepoint" in str(_rel_err).lower():
+                    # A nested service (e.g. FinanceService) committed the connection,
+                    # implicitly releasing all savepoints. The purchase was already
+                    # persisted to disk — treat this as success.
+                    logger.debug(
+                        "register_purchase: savepoint %s released by nested commit; "
+                        "data already persisted.", _sp)
+                else:
+                    raise
             _sp_released = True
 
             # Notify EventBus — enriched payload includes items for downstream handlers

@@ -441,7 +441,7 @@ class TestPurchaseOrderUC:
         r = po_uc.crear_desde_pr(pr_id, pr_data, "comprador")
         r2 = po_uc.enviar_a_recepcion(r.po_id, "comprador")
         assert r2.ok
-        assert r2.estado == "ABIERTA"
+        assert r2.estado == "PARA_RECEPCION"
 
     def test_cancelar_po_abierta(self, db, pr_repo, po_repo):
         from application.purchases.purchase_order_uc import PurchaseOrderUC

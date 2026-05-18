@@ -25,11 +25,13 @@ from application.purchases.states import POState
 logger = logging.getLogger("spj.purchases.po_uc")
 
 _VALID_TRANSITIONS: dict[str, set[str]] = {
-    POState.ABIERTA:   {POState.PARCIAL, POState.RECIBIDA, POState.CANCELADA},
-    POState.PARCIAL:   {POState.RECIBIDA, POState.CANCELADA},
-    POState.RECIBIDA:  {POState.CERRADA},
-    POState.CERRADA:   set(),
-    POState.CANCELADA: set(),
+    POState.ABIERTA:         {POState.PARA_RECEPCION, POState.PARCIAL,
+                               POState.RECIBIDA, POState.CANCELADA},
+    POState.PARA_RECEPCION:  {POState.PARCIAL, POState.RECIBIDA, POState.CANCELADA},
+    POState.PARCIAL:         {POState.RECIBIDA, POState.CANCELADA},
+    POState.RECIBIDA:        {POState.CERRADA},
+    POState.CERRADA:         set(),
+    POState.CANCELADA:       set(),
 }
 
 
@@ -76,21 +78,28 @@ class PurchaseOrderUC:
 
     def enviar_a_recepcion(self, po_id: int, usuario: str) -> POResult:
         """
-        Marca la PO como lista para recepción física.
-        Estado sigue ABIERTA — la recepción real se ejecuta desde Tab QR (Phase 4).
+        Marca la PO como PARA_RECEPCION — visible en la lista de recepción del QR tab.
+        La recepción real (inventario) se ejecuta desde Tab QR (Phase 4).
         """
         po = self._repo.get_by_id(po_id)
         if not po:
             return POResult(ok=False, error=f"PO {po_id} no encontrada.")
-        if po["estado"] not in (POState.ABIERTA, "borrador", "pendiente"):
+        if po["estado"] not in (POState.ABIERTA, POState.PARA_RECEPCION,
+                                "borrador", "pendiente"):
             return POResult(
                 ok=False,
                 error=f"PO {po_id} no está en estado ABIERTA. Estado: {po['estado']}",
             )
+        try:
+            self._repo.update_estado(po_id, POState.PARA_RECEPCION)
+        except Exception as e:
+            logger.error("enviar_a_recepcion PO=%d: %s", po_id, e)
+            return POResult(ok=False, error=str(e))
         self._audit("PO_ENVIADA_A_RECEPCION", po["folio"], usuario,
                     po.get("sucursal_id", 1),
-                    after={"po_id": po_id, "estado": "ABIERTA_PARA_RECEPCION"})
-        return POResult(ok=True, po_id=po_id, po_folio=po["folio"], estado=POState.ABIERTA)
+                    after={"po_id": po_id, "estado": POState.PARA_RECEPCION})
+        return POResult(ok=True, po_id=po_id, po_folio=po["folio"],
+                        estado=POState.PARA_RECEPCION)
 
     # ── Cancelar PO ───────────────────────────────────────────────────────────
 

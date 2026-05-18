@@ -29,11 +29,12 @@ class PRState(str, Enum):
 
 class POState(str, Enum):
     """Estados del ciclo de vida de una Purchase Order."""
-    ABIERTA    = "ABIERTA"
-    PARCIAL    = "PARCIAL"
-    RECIBIDA   = "RECIBIDA"
-    CERRADA    = "CERRADA"
-    CANCELADA  = "CANCELADA"
+    ABIERTA          = "ABIERTA"
+    PARA_RECEPCION   = "PARA_RECEPCION"   # Enviada al área de recepción, pendiente de recibir
+    PARCIAL          = "PARCIAL"
+    RECIBIDA         = "RECIBIDA"
+    CERRADA          = "CERRADA"
+    CANCELADA        = "CANCELADA"
 
 
 class DirectPurchaseState(str, Enum):
