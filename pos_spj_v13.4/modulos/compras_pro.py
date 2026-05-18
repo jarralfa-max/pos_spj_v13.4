@@ -1906,6 +1906,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_descripcion.setPlaceholderText('Ej: "Caja roja del proveedor" (opcional)')
         self.qr_descripcion.textChanged.connect(lambda _t: self._qr_actualizar_preview())
         form.addRow("Descripción:", self.qr_descripcion)
+        self.qr_sucursal_gen = QComboBox()
+        self.qr_sucursal_gen.addItem("Seleccionar sucursal…", None)
+        try:
+            for s in (self._prov_repo.get_sucursales_activas() or []):
+                self.qr_sucursal_gen.addItem(str(s.get("nombre", "")), s.get("id"))
+        except Exception:
+            self.qr_sucursal_gen.addItem("Sucursal Principal", 1)
+        form.addRow("Sucursal destino (opcional):", self.qr_sucursal_gen)
+        from PyQt5.QtWidgets import QTextEdit as _TE
+        self.qr_obs_gen = _TE(); self.qr_obs_gen.setMaximumHeight(56)
+        self.qr_obs_gen.setPlaceholderText("Observaciones adicionales del contenedor…")
+        form.addRow("Observaciones (opcional):", self.qr_obs_gen)
         cl.addLayout(form); cl.addStretch()
 
         btn_gen = create_primary_button(self, "📥 Generar QR + imprimir", "")
@@ -2018,12 +2030,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             parent_id = getattr(self, "qr_parent_id", None)
             db.execute(
                 """INSERT INTO contenedores
-                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id)
-                   VALUES (?,?,?,'generado',?,?)""",
+                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id,
+                    sucursal_destino, observaciones)
+                   VALUES (?,?,?,'generado',?,?,?,?)""",
                 (codigo, self._qr_tipo_actual,
                  self.qr_descripcion.text().strip() or None,
                  self.usuario_actual or "Sistema",
-                 parent_id)
+                 parent_id,
+                 getattr(self, "qr_sucursal_gen", None) and self.qr_sucursal_gen.currentData(),
+                 (self.qr_obs_gen.toPlainText().strip() or None) if hasattr(self, "qr_obs_gen") else None)
             )
             db.commit()
             self.qr_preview_status.setText("✓ Generado · sin asignar")
@@ -2042,6 +2057,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._qr_imprimir()
             self.qr_descripcion.clear()
             self._qr_clear_parent()
+            if hasattr(self, "qr_obs_gen"): self.qr_obs_gen.clear()
             self._qr_regenerar_codigo()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo generar:\n{e}")
@@ -2122,16 +2138,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_filtro_cont.setPlaceholderText("🔎 Buscar ID contenedor…")
         self.qr_filtro_cont.textChanged.connect(lambda _: self._cargar_contenedores_pendientes())
         cl.addWidget(self.qr_filtro_cont)
-        self.tbl_pendientes = QTableWidget(0, 3)
-        self.tbl_pendientes.setHorizontalHeaderLabels(["ID Contenedor","Tipo","Generado"])
-        self.tbl_pendientes.horizontalHeader().setStretchLastSection(True)
-        self.tbl_pendientes.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.tbl_pendientes.verticalHeader().setVisible(False)
-        self.tbl_pendientes.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tbl_pendientes.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.tbl_pendientes.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tbl_pendientes.itemSelectionChanged.connect(self._on_contenedor_select)
-        cl.addWidget(self.tbl_pendientes, 1)
+        self.lst_pendientes = QListWidget()
+        self.lst_pendientes.setObjectName("containerList")
+        self.lst_pendientes.setSpacing(2)
+        self.lst_pendientes.setUniformItemSizes(False)
+        self.lst_pendientes.itemClicked.connect(self._on_contenedor_list_click)
+        cl.addWidget(self.lst_pendientes, 1)
 
         # Center+Right: form + financial summary
         body = QHBoxLayout(); body.setSpacing(10)
@@ -2140,9 +2152,32 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         card_form = QGroupBox("🔗 Asignar datos comerciales"); card_form.setObjectName("sectionCard")
         cf = QVBoxLayout(card_form); cf.setSpacing(8)
 
-        self.qr_asg_header = QLabel("⏳ Escanea o selecciona un contenedor para comenzar")
-        self.qr_asg_header.setObjectName("qrAssignHeader")
-        cf.addWidget(self.qr_asg_header)
+        # Selected container info card
+        self.qr_asg_card = QFrame(); self.qr_asg_card.setObjectName("qrPreviewBox")
+        asg_card_lay = QHBoxLayout(self.qr_asg_card)
+        asg_card_lay.setContentsMargins(10,8,10,8); asg_card_lay.setSpacing(10)
+        self.qr_asg_ico = QLabel("📦"); self.qr_asg_ico.setObjectName("qrPreviewIcon")
+        asg_card_lay.addWidget(self.qr_asg_ico)
+        asg_info = QVBoxLayout(); asg_info.setSpacing(2)
+        self.qr_asg_header = QLabel("⏳ Selecciona un contenedor")
+        self.qr_asg_header.setObjectName("monoLabel")
+        self.qr_asg_meta = QLabel("Aún no se conoce proveedor ni costo")
+        self.qr_asg_meta.setObjectName("caption")
+        self.qr_asg_badge = QLabel("Sin asignar"); self.qr_asg_badge.setObjectName("statusBadge")
+        self.qr_asg_badge.setProperty("variant","warning")
+        asg_info.addWidget(self.qr_asg_header); asg_info.addWidget(self.qr_asg_meta)
+        asg_info.addWidget(self.qr_asg_badge)
+        asg_card_lay.addLayout(asg_info, 1)
+        # Sucursal + Almacén info on right of card
+        asg_dest = QVBoxLayout(); asg_dest.setSpacing(2)
+        dest_icon_lbl = QLabel("📍"); dest_icon_lbl.setObjectName("caption")
+        self.qr_asg_destino_lbl = QLabel("Sucursal destino"); self.qr_asg_destino_lbl.setObjectName("caption")
+        alm_icon_lbl = QLabel("🏭"); alm_icon_lbl.setObjectName("caption")
+        self.qr_asg_alm_lbl = QLabel("Almacén destino"); self.qr_asg_alm_lbl.setObjectName("caption")
+        asg_dest.addWidget(dest_icon_lbl); asg_dest.addWidget(self.qr_asg_destino_lbl)
+        asg_dest.addWidget(alm_icon_lbl); asg_dest.addWidget(self.qr_asg_alm_lbl)
+        asg_card_lay.addLayout(asg_dest)
+        cf.addWidget(self.qr_asg_card)
 
         sub1 = QLabel("DATOS DEL PROVEEDOR"); sub1.setObjectName("formSection")
         cf.addWidget(sub1)
@@ -2308,32 +2343,54 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_proveedor.setCompleter(completer)
 
     def _cargar_contenedores_pendientes(self) -> None:
-        if not hasattr(self,"tbl_pendientes"): return
+        if not hasattr(self, "lst_pendientes"): return
         try:
             f = (self.qr_filtro_cont.text() or "").strip()
-            sql = ("SELECT id, codigo, tipo, fecha_creado FROM contenedores "
-                   "WHERE estado='generado'")
+            sql = ("SELECT id, codigo, tipo, fecha_creado, "
+                   "COALESCE(descripcion,'') AS desc "
+                   "FROM contenedores WHERE estado='generado'")
             params: list = []
-            if f: sql += " AND codigo LIKE ?"; params.append(f"%{f}%")
+            if f: sql += " AND (codigo LIKE ? OR descripcion LIKE ?)"; params += [f"%{f}%"]*2
             sql += " ORDER BY fecha_creado DESC LIMIT 200"
             rows = self.container.db.execute(sql, params).fetchall()
-            self.tbl_pendientes.setRowCount(0)
-            ico_map = self._TIPO_ICO
+            self.lst_pendientes.clear()
             for r in rows:
-                cid = r["id"] if hasattr(r,"keys") else r[0]
-                cod = r["codigo"] if hasattr(r,"keys") else r[1]
-                tp = r["tipo"] if hasattr(r,"keys") else r[2]
-                fc = r["fecha_creado"] if hasattr(r,"keys") else r[3]
-                row = self.tbl_pendientes.rowCount()
-                self.tbl_pendientes.insertRow(row)
-                it_id = QTableWidgetItem(cod); it_id.setData(Qt.UserRole, cid)
-                self.tbl_pendientes.setItem(row, 0, it_id)
-                self.tbl_pendientes.setItem(row, 1, QTableWidgetItem(f"{ico_map.get(tp,'📦')} {tp}"))
-                self.tbl_pendientes.setItem(row, 2, QTableWidgetItem(str(fc or "")[:16]))
+                cid  = r["id"]   if hasattr(r,"keys") else r[0]
+                cod  = r["codigo"] if hasattr(r,"keys") else r[1]
+                tp   = r["tipo"] if hasattr(r,"keys") else r[2]
+                fc   = str(r["fecha_creado"] if hasattr(r,"keys") else r[3] or "")[:16]
+                desc = r["desc"] if hasattr(r,"keys") else r[4]
+                ico  = self._TIPO_ICO.get(tp, "📦")
+                lbl_t= self._TIPO_LBL.get(tp, tp)
+                # Build card widget
+                card = QWidget(); card.setObjectName("containerCard")
+                card_lay = QHBoxLayout(card); card_lay.setContentsMargins(8,6,8,6); card_lay.setSpacing(8)
+                ico_lbl = QLabel(ico); ico_lbl.setObjectName("qrPreviewIcon"); ico_lbl.setFixedWidth(28)
+                info_col = QVBoxLayout(); info_col.setSpacing(1)
+                name_lbl = QLabel(cod); name_lbl.setObjectName("monoLabel")
+                sub_lbl  = QLabel(f"{lbl_t}{(' · ' + desc[:30]) if desc else ''}  ·  {fc}")
+                sub_lbl.setObjectName("caption")
+                badge = QLabel("Sin asignar"); badge.setObjectName("statusBadge")
+                badge.setProperty("variant","warning")
+                info_col.addWidget(name_lbl); info_col.addWidget(sub_lbl); info_col.addWidget(badge)
+                card_lay.addWidget(ico_lbl); card_lay.addLayout(info_col, 1)
+                item = QListWidgetItem()
+                item.setData(Qt.UserRole, cid)
+                item.setData(Qt.UserRole+1, cod)
+                item.setSizeHint(card.sizeHint())
+                self.lst_pendientes.addItem(item)
+                self.lst_pendientes.setItemWidget(item, card)
         except Exception as e:
             logger.debug("_cargar_contenedores_pendientes: %s", e)
 
+    def _on_contenedor_list_click(self, item: "QListWidgetItem") -> None:
+        cod = item.data(Qt.UserRole + 1)
+        if cod and hasattr(self, "qr_scan_input"):
+            self.qr_scan_input.setText(cod)
+            self._qr_cargar_por_codigo()
+
     def _on_contenedor_select(self) -> None:
+        if not hasattr(self, "tbl_pendientes"): return
         sel = self.tbl_pendientes.currentRow()
         if sel < 0: return
         it = self.tbl_pendientes.item(sel, 0)
@@ -2347,7 +2404,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not codigo: return
         try:
             r = self.container.db.execute(
-                "SELECT id, codigo, tipo, descripcion, estado FROM contenedores WHERE codigo=?",
+                "SELECT id, codigo, tipo, descripcion, estado, fecha_creado FROM contenedores WHERE codigo=?",
                 (codigo,)).fetchone()
             if not r:
                 QMessageBox.warning(self,"No encontrado",
@@ -2362,9 +2419,23 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._contenedor_seleccionado_id = r["id"] if hasattr(r,"keys") else r[0]
             tp = r["tipo"] if hasattr(r,"keys") else r[2]
             desc = r["descripcion"] if hasattr(r,"keys") else r[3]
-            ico = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}.get(tp,"📦")
+            estado = r["estado"] if hasattr(r,"keys") else r[4]
+            fecha_creado = r["fecha_creado"] if hasattr(r,"keys") else r[5]
+            ico = self._TIPO_ICO.get(tp, "📦")
             desc_sfx = f"  ·  {desc}" if desc else ""
             self.qr_asg_header.setText(f"{ico}  {codigo}   ·   {(tp or 'caja').title()}{desc_sfx}")
+            if hasattr(self, "qr_asg_ico"):
+                self.qr_asg_ico.setText(self._TIPO_ICO.get(tp, "📦"))
+            if hasattr(self, "qr_asg_meta"):
+                self.qr_asg_meta.setText(f"Generado: {str(fecha_creado or '')[:16]}")
+            if hasattr(self, "qr_asg_badge"):
+                self.qr_asg_badge.setText(
+                    {"generado":"Sin asignar","asignado":"Asignado",
+                     "recibido":"Recibido"}.get(estado, estado))
+                self.qr_asg_badge.setProperty("variant",
+                    {"generado":"warning","asignado":"accent","recibido":"success"}.get(estado,"warning"))
+                self.qr_asg_badge.style().unpolish(self.qr_asg_badge)
+                self.qr_asg_badge.style().polish(self.qr_asg_badge)
             self._qr_carrito.clear()
             try:
                 rows = self.container.db.execute("""
@@ -2534,7 +2605,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.tbl_qr_carrito.setRowCount(0)
             self._qr_actualizar_total()
             self._contenedor_seleccionado_id = None
-            self.qr_asg_header.setText("⏳ Escanea o selecciona un contenedor para comenzar")
+            self.qr_asg_header.setText("⏳ Selecciona un contenedor")
             self.qr_factura.clear()
             self._cargar_contenedores_pendientes()
         except Exception as e:
@@ -2573,16 +2644,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_recv_filtro.setPlaceholderText("🔎 Filtrar por ID, proveedor…")
         self.qr_recv_filtro.textChanged.connect(lambda _: self._cargar_contenedores_recepcion())
         cl.addWidget(self.qr_recv_filtro)
-        self.tbl_recv_list = QTableWidget(0, 3)
-        self.tbl_recv_list.setHorizontalHeaderLabels(["ID","Proveedor","Total"])
-        self.tbl_recv_list.horizontalHeader().setStretchLastSection(True)
-        self.tbl_recv_list.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.tbl_recv_list.verticalHeader().setVisible(False)
-        self.tbl_recv_list.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tbl_recv_list.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.tbl_recv_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tbl_recv_list.itemSelectionChanged.connect(self._on_recv_list_select)
-        cl.addWidget(self.tbl_recv_list, 1)
+        self.lst_recv = QListWidget()
+        self.lst_recv.setObjectName("containerList")
+        self.lst_recv.setSpacing(2)
+        self.lst_recv.setUniformItemSizes(False)
+        self.lst_recv.itemClicked.connect(self._on_recv_list_click)
+        cl.addWidget(self.lst_recv, 1)
 
         # Right panel: details + comparison table + weight + summary
         scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QScrollArea.NoFrame)
