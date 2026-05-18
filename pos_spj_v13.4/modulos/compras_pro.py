@@ -2318,19 +2318,45 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._contenedor_seleccionado_id = None
 
     def _qr_cargar_proveedores_combo(self) -> None:
-        from PyQt5.QtWidgets import QCompleter
-        from PyQt5.QtCore import Qt
+        """Populate qr_proveedor combo and attach a contains-mode completer."""
         try:
-            self.qr_proveedor.clear()
-            for p in (self._prov_repo.get_activos() or []):
-                self.qr_proveedor.addItem(str(p.get("nombre", "")), p.get("id"))
+            rows = self.container.db.execute(
+                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
+            ).fetchall()
         except Exception:
-            pass
-        completer = QCompleter([self.qr_proveedor.itemText(i)
-                                 for i in range(self.qr_proveedor.count())])
+            rows = []
+
+        self.qr_proveedor.blockSignals(True)
+        current_id = self.qr_proveedor.currentData()
+        self.qr_proveedor.clear()
+        restore_idx = 0
+        for i, r in enumerate(rows):
+            pid   = r["id"]    if hasattr(r, "keys") else r[0]
+            pname = r["nombre"] if hasattr(r, "keys") else r[1]
+            self.qr_proveedor.addItem(str(pname), pid)
+            if pid == current_id:
+                restore_idx = i
+        if current_id:
+            self.qr_proveedor.setCurrentIndex(restore_idx)
+        self.qr_proveedor.blockSignals(False)
+
+        # Completer: contains-mode so partial typing finds providers
+        names = [self.qr_proveedor.itemText(i) for i in range(self.qr_proveedor.count())]
+        completer = QCompleter(names, self.qr_proveedor)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)
+        completer.setCompletionMode(QCompleter.PopupCompletion)
         self.qr_proveedor.setCompleter(completer)
+
+        # When a suggestion is activated, sync the combo's selected index
+        def _on_qr_prov_activated(text: str):
+            idx = self.qr_proveedor.findText(text, Qt.MatchFixedString | Qt.MatchCaseSensitive)
+            if idx < 0:
+                idx = self.qr_proveedor.findText(text, Qt.MatchFixedString)
+            if idx >= 0:
+                self.qr_proveedor.setCurrentIndex(idx)
+
+        completer.activated.connect(_on_qr_prov_activated)
 
     def _cargar_contenedores_pendientes(self) -> None:
         if not hasattr(self, "lst_pendientes"): return
@@ -5467,6 +5493,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                         self._proveedor_id_selected = prev_id
                         break
             self._poblar_sidebar_proveedores()
+            # Also refresh QR assign combo if already built
+            if hasattr(self, 'qr_proveedor'):
+                self._qr_cargar_proveedores_combo()
         except Exception as e:
             logger.debug("cargar_proveedores: %s", e)
 
