@@ -4131,7 +4131,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     # ── E-3: Recent purchases in sidebar ─────────────────────────────────────
 
     def _cargar_recientes_proveedor(self, prov_id: int) -> None:
-        """Load last 5 purchases from this provider into the sidebar list."""
+        """Load last 5 purchases from this provider into the sidebar list.
+
+        Note: _sidebar_recent_list has no layout parent so it must never be
+        shown directly (show() on a parentless widget creates a floating window).
+        Items are stored in it for internal use; display happens via tooltip or
+        future integration.
+        """
         if not hasattr(self, '_sidebar_recent_list'):
             return
         self._sidebar_recent_list.clear()
@@ -4144,14 +4150,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 (prov_id, self.sucursal_id),
             ).fetchall()
             if not rows:
-                self._sidebar_recent_list.hide()
-                if hasattr(self, '_lbl_recientes_empty'):
-                    self._lbl_recientes_empty.setText("Sin compras previas")
-                    self._lbl_recientes_empty.show()
                 return
-            self._sidebar_recent_list.show()
-            if hasattr(self, '_lbl_recientes_empty'):
-                self._lbl_recientes_empty.hide()
             for r in rows:
                 r_id    = r[0] if not hasattr(r, 'keys') else r['id']
                 folio   = str(r[1] if not hasattr(r, 'keys') else r.get('folio', r_id))
@@ -4166,16 +4165,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self._sidebar_recent_list.addItem(item)
         except Exception as e:
             logger.debug("_cargar_recientes_proveedor: %s", e)
-            if hasattr(self, '_lbl_recientes_empty'):
-                self._lbl_recientes_empty.setText("No disponible")
-                self._lbl_recientes_empty.show()
-            self._sidebar_recent_list.hide()
 
     def _abrir_reciente_sidebar(self, item: QListWidgetItem) -> None:
         """Click on recent purchase in sidebar → open detail dialog."""
         compra_id = item.data(Qt.UserRole)
         if compra_id:
             self._ver_detalle_compra(compra_id)
+
+    def _auto_seleccionar_doc(self, folio: str) -> None:
+        """Auto-select a document in the ERP list by folio (called after PR/PO creation)."""
+        if not hasattr(self, '_doc_erp_list'):
+            return
+        for i in range(self._doc_erp_list.count()):
+            item = self._doc_erp_list.item(i)
+            if not item:
+                continue
+            doc = item.data(Qt.UserRole + 2)
+            if doc and str(doc.get('folio', '')) == folio:
+                self._doc_erp_list.setCurrentItem(item)
+                self._on_doc_item_clicked(item)
+                return
 
     # ── E-4: CxP / pending invoice alert ─────────────────────────────────────
 
@@ -4576,15 +4585,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     self, "📋 Solicitud enviada",
                     f"Folio: {result.folio} · Pendiente de aprobación",
                 )
-                if hasattr(self, '_lbl_estado_compra'):
-                    self._lbl_estado_compra.setText(f"📋  {result.folio}")
-                    self._lbl_estado_compra.setStyleSheet(
-                        f"background:{Colors.WARNING_BASE};color:{Colors.NEUTRAL.WHITE};"
-                        f"border-radius:{Borders.RADIUS_FULL}px;"
-                        f"padding:{Spacing.XS - 1}px {Spacing.SM}px;"
-                        f"font-size:{Typography.SIZE_SM};"
-                        f"font-weight:{Typography.WEIGHT_BOLD};"
-                    )
+                # Clear cart — PR is committed, form should be clean
+                self.carrito_compra.clear()
+                self._refresh_tabla()
+                self._actualizar_panel_validacion()
+                # Refresh documental toolbar list so the new PR appears
+                self._cargar_docs_erp()
+                # Auto-select the newly created PR so toolbar buttons activate
+                _new_folio = result.folio
+                QTimer.singleShot(120, lambda f=_new_folio: self._auto_seleccionar_doc(f))
             else:
                 QMessageBox.critical(self, "Error al crear solicitud", result.error)
         except Exception as e:
