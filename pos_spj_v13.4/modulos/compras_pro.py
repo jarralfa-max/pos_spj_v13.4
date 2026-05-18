@@ -139,10 +139,8 @@ class _PurchaseKPICard(QFrame):
         outer.setSpacing(0)
         bar = QFrame(self)
         bar.setFixedHeight(3)
-        bar.setStyleSheet(
-            f"background: {_accent}; border: none;"
-            f" border-top-left-radius: 12px; border-top-right-radius: 12px;"
-        )
+        bar.setObjectName("kpiAccentBar")
+        bar.setProperty("variant", variant)
         outer.addWidget(bar)
         body = QHBoxLayout()
         body.setContentsMargins(14, 10, 14, 10)
@@ -151,27 +149,17 @@ class _PurchaseKPICard(QFrame):
         col = QVBoxLayout()
         col.setSpacing(2)
         lbl_t = QLabel(titulo.upper())
-        lbl_t.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
-            f" font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.08em;"
-            f" background: transparent; border: none;"
-        )
+        lbl_t.setObjectName("kpiCaption")
         col.addWidget(lbl_t)
         self.lbl_valor = QLabel(valor)
         self.lbl_valor.setObjectName("kpiValue")
-        self.lbl_valor.setStyleSheet(
-            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
-            f" letter-spacing: -0.02em; background: transparent; border: none;"
-        )
         col.addWidget(self.lbl_valor)
         body.addLayout(col, 1)
         lbl_icon = QLabel(icono)
         lbl_icon.setFixedSize(36, 36)
         lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet(
-            f"font-size: 18px; background: {_accent}1A;"
-            f" border-radius: 18px; border: none;"
-        )
+        lbl_icon.setObjectName("kpiIcon")
+        lbl_icon.setProperty("variant", variant)
         body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
 
     def set_valor(self, v: str):
@@ -267,7 +255,6 @@ def _make_field_label(text: str) -> QLabel:
     """Label uppercase pequeño para cabeceras de campos en grillas."""
     lbl = QLabel(text.upper())
     lbl.setObjectName("fieldLabel")
-    lbl.setStyleSheet(_field_label_style())
     return lbl
 
 
@@ -289,13 +276,6 @@ def _make_section_card(header_text: str, accent_color: str = None,
     """
     panel = panel_cls()
     panel.setObjectName("sectionCard")
-    panel.setStyleSheet(
-        f"QFrame#sectionCard{{"
-        f"  background:{_C_CARD_BG};"
-        f"  border:1px solid {_C_BORDER};"
-        f"  border-radius:{Borders.RADIUS_MD}px;"
-        f"}}"
-    )
     panel_lay = QVBoxLayout(panel)
     panel_lay.setContentsMargins(0, 0, 0, 0)
     panel_lay.setSpacing(0)
@@ -303,25 +283,17 @@ def _make_section_card(header_text: str, accent_color: str = None,
     # Header bar — slightly lighter than card body
     hdr_frame = QFrame()
     hdr_frame.setObjectName("sectionCardHeader")
-    hdr_frame.setStyleSheet(
-        f"QFrame#sectionCardHeader{{"
-        f"  background:{_C_CARD_HDR_BG};"
-        f"  border-bottom:1px solid {_C_BORDER};"
-        f"  border-top-left-radius:{Borders.RADIUS_MD}px;"
-        f"  border-top-right-radius:{Borders.RADIUS_MD}px;"
-        f"}}"
-    )
     hdr_row = QHBoxLayout(hdr_frame)
     hdr_row.setContentsMargins(Spacing.SM + 2, Spacing.XS, Spacing.SM + 2, Spacing.XS)
     hdr_row.setSpacing(Spacing.XS)
 
     hdr_lbl = QLabel(header_text.upper())
-    hdr_lbl.setStyleSheet(_section_label_style(accent_color))
+    hdr_lbl.setObjectName("sectionLabel")
     hdr_row.addWidget(hdr_lbl)
     hdr_row.addStretch()
     if hint:
         hint_lbl = QLabel(hint)
-        hint_lbl.setStyleSheet(_hint_label_style())
+        hint_lbl.setObjectName("hintLabel")
         hdr_row.addWidget(hint_lbl)
     if action is not None:
         hdr_row.addWidget(action)
@@ -474,14 +446,17 @@ class _DialogItemCompra(QDialog):
         if self._costo_hist > 0 and costo > 0:
             variacion = (costo - self._costo_hist) / self._costo_hist * 100
             simbolo = "▲" if variacion > 0 else "▼"
-            color_var = (Colors.DANGER_BASE if abs(variacion) >= _PRICE_VARIANCE_THRESHOLD
-                         else Colors.SUCCESS_BASE)
+            var_variant = ("danger" if abs(variacion) >= _PRICE_VARIANCE_THRESHOLD
+                           else "success")
             self._lbl_variacion.setText(f"{simbolo} {abs(variacion):.1f}%")
-            self._lbl_variacion.setStyleSheet(
-                f"color:{color_var};font-weight:700;background:transparent;border:none;")
+            self._lbl_variacion.setProperty("variant", var_variant)
+            self._lbl_variacion.style().unpolish(self._lbl_variacion)
+            self._lbl_variacion.style().polish(self._lbl_variacion)
         else:
             self._lbl_variacion.setText("—")
-            self._lbl_variacion.setStyleSheet("")
+            self._lbl_variacion.setProperty("variant", "")
+            self._lbl_variacion.style().unpolish(self._lbl_variacion)
+            self._lbl_variacion.style().polish(self._lbl_variacion)
 
     @property
     def cantidad(self) -> float:
@@ -493,20 +468,22 @@ class _DialogItemCompra(QDialog):
         return max(0.0, self._spin_costo.value())
 
     def accept(self) -> None:
+        def _set_err(msg):
+            self._lbl_variacion.setText(msg)
+            self._lbl_variacion.setProperty("variant", "danger")
+            self._lbl_variacion.style().unpolish(self._lbl_variacion)
+            self._lbl_variacion.style().polish(self._lbl_variacion)
         if self._spin_qty.value() < 0.001:
-            self._lbl_variacion.setText("⚠ Cantidad debe ser > 0")
-            self._lbl_variacion.setStyleSheet(f"color:{Colors.DANGER_BASE};font-weight:700;")
+            _set_err("⚠ Cantidad debe ser > 0")
             self._spin_qty.setFocus()
             return
         if self._spin_costo.value() < 0:
-            self._lbl_variacion.setText("⚠ Costo no puede ser negativo")
-            self._lbl_variacion.setStyleSheet(f"color:{Colors.DANGER_BASE};font-weight:700;")
+            _set_err("⚠ Costo no puede ser negativo")
             self._spin_costo.setFocus()
             return
         subtotal = self._spin_qty.value() * self._spin_costo.value()
         if subtotal > 9_999_999:
-            self._lbl_variacion.setText("⚠ Subtotal supera $9,999,999")
-            self._lbl_variacion.setStyleSheet(f"color:{Colors.DANGER_BASE};font-weight:700;")
+            _set_err("⚠ Subtotal supera $9,999,999")
             return
         super().accept()
 
@@ -535,7 +512,7 @@ class _ConfirmDestructiveDialog(QDialog):
         warn = QLabel(f"⚠️  {mensaje}")
         warn.setWordWrap(True)
         warn.setObjectName("subheading")
-        warn.setStyleSheet(f"color:{Colors.DANGER_BASE};")
+        warn.setProperty("variant", "danger")
         lay.addWidget(warn)
 
         if require_reason:
@@ -606,7 +583,7 @@ class _PINDialog(QDialog):
 
         self._lbl_err = QLabel("")
         self._lbl_err.setObjectName("caption")
-        self._lbl_err.setStyleSheet(f"color:{Colors.DANGER_BASE};")
+        self._lbl_err.setProperty("variant", "danger")
         lay.addWidget(self._lbl_err)
 
         btn_row = QHBoxLayout()
@@ -3871,12 +3848,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         ]
         for key, label in chip_defs:
             btn = QPushButton(label)
-            btn.setObjectName(f"docNavItem_{key}")
+            btn.setObjectName("docNavChip")
             btn.setCheckable(True)
             btn.setFixedHeight(28)
             btn.setCursor(Qt.PointingHandCursor)
             btn.setChecked(key == "all")
-            btn.setStyleSheet(self._doc_chip_style(key == "all"))
+            btn.setProperty("active", key == "all")
             btn.clicked.connect(lambda _checked, k=key: self._on_doc_filter_changed(k))
             self._doc_filter_chips[key] = btn
             nav.addWidget(btn)
@@ -4349,7 +4326,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._doc_filter_active = key
         for k, btn in self._doc_filter_chips.items():
             btn.setChecked(k == key)
-            btn.setStyleSheet(self._doc_chip_style(k == key))
+            btn.setProperty("active", k == key)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
         self._poblar_lista_docs()
 
     def _on_doc_item_clicked(self, item: QListWidgetItem) -> None:
@@ -4380,31 +4359,28 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Folio + tipo
         self._doc_lbl_folio.setText(f"{'📋' if tipo == 'PR' else '📦'} {folio}")
 
-        # Estado badge color
-        _BADGE_STYLES = {
-            "PENDIENTE_APROBACION": (Colors.WARNING_BASE,  f"{Colors.WARNING_BASE}22"),
-            "APROBADA":             (Colors.SUCCESS_BASE,  f"{Colors.SUCCESS_BASE}22"),
-            "RECHAZADA":            (Colors.DANGER_BASE,   f"{Colors.DANGER_BASE}22"),
-            "CONVERTIDA_A_PO":      (Colors.PRIMARY_BASE,  f"{Colors.PRIMARY_BASE}22"),
-            "BORRADOR":             (Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100),
-            "ABIERTA":              (Colors.PRIMARY_BASE,  f"{Colors.PRIMARY_BASE}22"),
-            "PARCIAL":              (Colors.WARNING_BASE,  f"{Colors.WARNING_BASE}22"),
-            "RECIBIDA":             (Colors.SUCCESS_BASE,  f"{Colors.SUCCESS_BASE}22"),
-            "CANCELADA":            (Colors.DANGER_BASE,   f"{Colors.DANGER_BASE}22"),
+        # Estado badge variant
+        _BADGE_VARIANTS = {
+            "PENDIENTE_APROBACION": "warning",
+            "APROBADA":             "success",
+            "RECHAZADA":            "danger",
+            "CONVERTIDA_A_PO":      "primary",
+            "BORRADOR":             "muted",
+            "ABIERTA":              "primary",
+            "PARCIAL":              "warning",
+            "RECIBIDA":             "success",
+            "CANCELADA":            "danger",
         }
-        fg, bg = _BADGE_STYLES.get(estado, (Colors.NEUTRAL.SLATE_500, Colors.NEUTRAL.SLATE_100))
+        badge_variant = _BADGE_VARIANTS.get(estado, "muted")
         short_estado = {
             "PENDIENTE_APROBACION": "PENDIENTE",
             "CONVERTIDA_A_PO":      "CONV.PO",
         }.get(estado, estado)
         self._doc_lbl_estado_badge.setText(short_estado)
-        self._doc_lbl_estado_badge.setStyleSheet(
-            f"font-size:{Typography.SIZE_XS};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            f"border-radius:{Borders.RADIUS_SM}px;"
-            f"padding:{Spacing.XS - 2}px {Spacing.XS + 2}px;"
-            f"background:{bg};color:{fg};"
-        )
+        self._doc_lbl_estado_badge.setObjectName("docEstadoBadge")
+        self._doc_lbl_estado_badge.setProperty("variant", badge_variant)
+        self._doc_lbl_estado_badge.style().unpolish(self._doc_lbl_estado_badge)
+        self._doc_lbl_estado_badge.style().polish(self._doc_lbl_estado_badge)
 
         self._doc_lbl_fecha.setText(fecha or "—")
         self._doc_lbl_sucursal.setText(suc)
@@ -4510,9 +4486,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     self.txt_proveedor.setText(prov_nom)
                 if hasattr(self, '_lbl_prov_status'):
                     self._lbl_prov_status.setText(f"✔ {prov_nom}")
-                    self._lbl_prov_status.setStyleSheet(
-                        f"color:{Colors.SUCCESS_BASE};"
-                    )
+                    self._lbl_prov_status.setProperty("variant", "success")
+                    self._lbl_prov_status.style().unpolish(self._lbl_prov_status)
+                    self._lbl_prov_status.style().polish(self._lbl_prov_status)
 
             # Load document ref
             if doc.get('doc_ref') and hasattr(self, 'txt_factura'):
@@ -4919,9 +4895,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Update stepper colours based on current form completion state."""
         if not hasattr(self, '_stepper_labels') or not self._stepper_labels:
             return
-        done_style   = self._stepper_style("done")
-        active_style = self._stepper_style("active")
-        idle_style   = self._stepper_style("idle")
 
         s1 = bool(self._proveedor_id_selected)
         s2 = bool(self.carrito_compra)
@@ -4934,13 +4907,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         states = [s1, s2, s3, active == 3]
         for i, (lbl, done) in enumerate(zip(self._stepper_labels, states)):
             if i == active and not done:
-                lbl.setStyleSheet(active_style)
+                state = "active"
             elif done and i < active:
-                lbl.setStyleSheet(done_style)
+                state = "done"
             elif i == 3 and s1 and s2:
-                lbl.setStyleSheet(active_style)
+                state = "active"
             else:
-                lbl.setStyleSheet(idle_style)
+                state = "idle"
+            lbl.setProperty("stepperState", state)
+            lbl.style().unpolish(lbl)
+            lbl.style().polish(lbl)
 
     def _refresh_stepper_for_doc(self, estado: str, tipo: str) -> None:
         """Update stepper to reflect the selected document's workflow position.
@@ -4970,38 +4946,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         }
         active = _STATE_TO_STEP.get(estado.upper() if estado else "", 0)
 
-        _base = (
-            f"font-size:{Typography.SIZE_SM};"
-            f"border-radius:{Borders.RADIUS_SM}px;"
-            f"padding:0 {Spacing.MD}px;"
-        )
-        done_style = (
-            _base
-            + f"font-weight:{Typography.WEIGHT_SEMIBOLD};"
-            + f"background:{Colors.SUCCESS.BG_SOFT};"
-            + f"color:{Colors.SUCCESS_BASE};"
-            + f"border:1px solid {Colors.SUCCESS.BORDER};"
-        )
-        active_style = (
-            _base
-            + f"font-weight:{Typography.WEIGHT_BOLD};"
-            + f"background:{Colors.PRIMARY_BASE};"
-            + f"color:{Colors.NEUTRAL.WHITE};"
-        )
-        idle_style = (
-            _base
-            + f"font-weight:{Typography.WEIGHT_SEMIBOLD};"
-            + f"background:{_C_MUTED_BG};"
-            + f"color:{_C_HINT};"
-        )
-
         for i, lbl in enumerate(self._stepper_labels):
             if i < active:
-                lbl.setStyleSheet(done_style)
+                state = "done"
             elif i == active:
-                lbl.setStyleSheet(active_style)
+                state = "active"
             else:
-                lbl.setStyleSheet(idle_style)
+                state = "idle"
+            lbl.setProperty("stepperState", state)
+            lbl.style().unpolish(lbl)
+            lbl.style().polish(lbl)
 
     # ── E-2: File attachment ──────────────────────────────────────────────────
 
@@ -5020,8 +4974,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             short = short[:25] + "…"
         if hasattr(self, '_lbl_adjunto'):
             self._lbl_adjunto.setText(f"📎 {short}")
-            self._lbl_adjunto.setStyleSheet(
-                f"color:{Colors.SUCCESS_BASE};font-size:{Typography.SIZE_XS};")
+            self._lbl_adjunto.setProperty("variant", "success")
+            self._lbl_adjunto.style().unpolish(self._lbl_adjunto)
+            self._lbl_adjunto.style().polish(self._lbl_adjunto)
         Toast.success(self, "📎 Adjunto", f"Archivo: {short}")
 
     # ── E-3: Recent purchases in sidebar ─────────────────────────────────────
@@ -5177,28 +5132,32 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Updates validation state labels in the right summary panel."""
         if not hasattr(self, '_val_prov_lbl'):
             return
-        ok_s  = f"color:{Colors.SUCCESS_BASE};"
-        war_s = f"color:{Colors.WARNING_BASE};"
+
+        def _set_val_variant(lbl, variant):
+            lbl.setProperty("variant", variant)
+            lbl.style().unpolish(lbl)
+            lbl.style().polish(lbl)
+
         if self._proveedor_id_selected:
             self._val_prov_lbl.setText("✔ Proveedor")
-            self._val_prov_lbl.setStyleSheet(ok_s)
+            _set_val_variant(self._val_prov_lbl, "success")
         else:
             self._val_prov_lbl.setText("⚠ Proveedor")
-            self._val_prov_lbl.setStyleSheet(war_s)
+            _set_val_variant(self._val_prov_lbl, "warning")
         n = len(self.carrito_compra)
         if n > 0:
             self._val_prod_lbl.setText(f"✔ Productos ({n})")
-            self._val_prod_lbl.setStyleSheet(ok_s)
+            _set_val_variant(self._val_prod_lbl, "success")
         else:
             self._val_prod_lbl.setText("⚠ Productos")
-            self._val_prod_lbl.setStyleSheet(war_s)
+            _set_val_variant(self._val_prod_lbl, "warning")
         total = sum(i['subtotal'] for i in self.carrito_compra)
         if total > 0:
             self._val_total_v_lbl.setText("✔ Total")
-            self._val_total_v_lbl.setStyleSheet(ok_s)
+            _set_val_variant(self._val_total_v_lbl, "success")
         else:
             self._val_total_v_lbl.setText("⚠ Total cero")
-            self._val_total_v_lbl.setStyleSheet(war_s)
+            _set_val_variant(self._val_total_v_lbl, "warning")
 
     def _on_condicion_changed(self, condicion: str) -> None:
         """Enable/disable plazo spinbox based on payment condition."""
@@ -5271,6 +5230,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
              "Convierte PR aprobada en Orden de Compra · Sin efecto directo en inventario"),
         ]:
             btn = QPushButton(f"{icon} {label}")
+            btn.setObjectName("doctypeBtn")
+            btn.setProperty("active", doc_type == self._doc_type)
             btn.setToolTip(tooltip)
             btn.setCheckable(True)
             btn.setCursor(Qt.PointingHandCursor)
@@ -5295,34 +5256,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._refresh_doctype_ui()
 
     def _apply_doctype_button_styles(self) -> None:
-        active = (
-            f"QPushButton{{"
-            f"  background:{Colors.PRIMARY_BASE};"
-            f"  color:{Colors.NEUTRAL.WHITE};"
-            f"  border:1px solid {Colors.PRIMARY_BASE};"
-            f"  border-radius:{Borders.RADIUS_SM - 1}px;"
-            f"  font-size:{Typography.SIZE_SM};"
-            f"  font-weight:{Typography.WEIGHT_SEMIBOLD};"
-            f"  padding:{Spacing.XS - 2}px {Spacing.MD - 2}px;"
-            f"}}"
-        )
-        idle = (
-            f"QPushButton{{"
-            f"  background:{Colors.NEUTRAL.SLATE_100};"
-            f"  color:{_C_BODY_TXT};"
-            f"  border:1px solid transparent;"
-            f"  border-radius:{Borders.RADIUS_SM - 1}px;"
-            f"  font-size:{Typography.SIZE_SM};"
-            f"  font-weight:{Typography.WEIGHT_MEDIUM};"
-            f"  padding:{Spacing.XS - 2}px {Spacing.MD - 2}px;"
-            f"}}"
-            f"QPushButton:hover{{"
-            f"  background:{_C_BORDER};"
-            f"  color:{_C_HEADER_TXT};"
-            f"}}"
-        )
         for dt, btn in getattr(self, '_doctype_buttons', {}).items():
-            btn.setStyleSheet(active if dt == self._doc_type else idle)
+            btn.setProperty("active", dt == self._doc_type)
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
     def _refresh_doctype_ui(self) -> None:
         """Actualiza badge, texto/color del botón principal, stepper y hint según doc type."""
@@ -5358,24 +5295,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         if hasattr(self, '_lbl_estado_compra'):
             self._lbl_estado_compra.setText(badge_txt)
-            self._lbl_estado_compra.setStyleSheet(
-                f"background:{badge_color};color:{Colors.NEUTRAL.WHITE};"
-                f"border-radius:{Borders.RADIUS_FULL}px;"
-                f"padding:{Spacing.XS - 1}px {Spacing.SM}px;"
-                f"font-size:{Typography.SIZE_SM};"
-                f"font-weight:{Typography.WEIGHT_BOLD};"
-            )
+            # Map badge_color to a QSS variant
+            _badge_variant_map = {
+                Colors.INFO_BASE:    "info",
+                Colors.WARNING_BASE: "warning",
+                Colors.SUCCESS_BASE: "success",
+            }
+            _badge_v = _badge_variant_map.get(badge_color, "primary")
+            self._lbl_estado_compra.setProperty("variant", _badge_v)
+            self._lbl_estado_compra.style().unpolish(self._lbl_estado_compra)
+            self._lbl_estado_compra.style().polish(self._lbl_estado_compra)
         if hasattr(self, '_btn_autorizar'):
             self._btn_autorizar.setText(btn_txt)
             self._btn_autorizar.setToolTip(btn_tip)
-            self._btn_autorizar.setStyleSheet(
-                f"QPushButton{{background:{btn_color};color:white;"
-                f"border-radius:{Borders.RADIUS_MD}px;font-size:13px;font-weight:700;"
-                f"letter-spacing:0.05em;border:none;}}"
-                f"QPushButton:hover{{background:{btn_hover};}}"
-                f"QPushButton:disabled{{background:{Colors.NEUTRAL.SLATE_400};"
-                f"color:{Colors.NEUTRAL.SLATE_600};}}"
-            )
         if hasattr(self, '_btn_enviar_recepcion'):
             self._btn_enviar_recepcion.setVisible(show_enviar)
         if hasattr(self, '_hidden_stepper'):
@@ -5410,10 +5342,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 getattr(self, attr).clear()
         if hasattr(self, '_lbl_prov_status'):
             self._lbl_prov_status.setText("Sin proveedor seleccionado")
-            self._lbl_prov_status.setStyleSheet(
-                f"color:{Colors.WARNING_BASE};"
-                f"font-size:{Typography.SIZE_XS};background:transparent;"
-            )
+            self._lbl_prov_status.setProperty("variant", "warning")
+            self._lbl_prov_status.style().unpolish(self._lbl_prov_status)
+            self._lbl_prov_status.style().polish(self._lbl_prov_status)
         if hasattr(self, '_lbl_prov_info'):
             self._lbl_prov_info.hide()
         if hasattr(self, '_cxp_alert_bar'):
@@ -5564,7 +5495,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.txt_proveedor.setText(nombre)
         if hasattr(self, '_lbl_prov_status'):
             self._lbl_prov_status.setText(f"✔ {nombre}")
-            self._lbl_prov_status.setStyleSheet(f"color:{Colors.SUCCESS_BASE};")
+            self._lbl_prov_status.setProperty("variant", "success")
+            self._lbl_prov_status.style().unpolish(self._lbl_prov_status)
+            self._lbl_prov_status.style().polish(self._lbl_prov_status)
         self._cargar_info_proveedor(prov_id)
         self._cargar_recientes_proveedor(prov_id)
         self._cargar_alertas_cxp(prov_id)
@@ -5584,10 +5517,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, "_lbl_prov_status"):
             if txt:
                 self._lbl_prov_status.setText("⚠ Proveedor no reconocido")
-                self._lbl_prov_status.setStyleSheet(f"color:{Colors.DANGER_BASE};")
+                self._lbl_prov_status.setProperty("variant", "danger")
             else:
                 self._lbl_prov_status.setText("⚠ Sin proveedor seleccionado")
-                self._lbl_prov_status.setStyleSheet(f"color:{Colors.WARNING_BASE};")
+                self._lbl_prov_status.setProperty("variant", "warning")
+            self._lbl_prov_status.style().unpolish(self._lbl_prov_status)
+            self._lbl_prov_status.style().polish(self._lbl_prov_status)
         if hasattr(self, '_lbl_prov_info'):
             self._lbl_prov_info.hide()
         self._actualizar_panel_validacion()
@@ -5938,8 +5873,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             short = os.path.basename(adjunto)
             if hasattr(self, '_lbl_adjunto'):
                 self._lbl_adjunto.setText(f"📎 {short[:28]}")
-                self._lbl_adjunto.setStyleSheet(
-                    f"color:{Colors.SUCCESS_BASE};font-size:{Typography.SIZE_XS};")
+                self._lbl_adjunto.setProperty("variant", "success")
+                self._lbl_adjunto.style().unpolish(self._lbl_adjunto)
+                self._lbl_adjunto.style().polish(self._lbl_adjunto)
         self._refresh_tabla()
 
     def _auto_save_draft(self) -> None:
@@ -6191,8 +6127,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._adjunto_path = ""
             if hasattr(self, '_lbl_adjunto'):
                 self._lbl_adjunto.setText("Sin archivo")
-                self._lbl_adjunto.setStyleSheet(
-                    f"color:{Colors.NEUTRAL.SLATE_500};")
+                self._lbl_adjunto.setProperty("variant", "muted")
+                self._lbl_adjunto.style().unpolish(self._lbl_adjunto)
+                self._lbl_adjunto.style().polish(self._lbl_adjunto)
             self._clear_draft()
             self._refresh_stepper()
             # Refresh KPI bar non-blocking
@@ -6882,10 +6819,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if cred_count:
             alerts.append(f"💳 {cred_count} en crédito")
         self._kpi_alertas_lbl.setText("\n".join(alerts) if alerts else "✔ Sin alertas")
-        alert_color = Colors.WARNING_BASE if alerts else Colors.SUCCESS_BASE
-        self._kpi_alertas_lbl.setStyleSheet(
-            f"font-size:11px;color:{alert_color};"
-        )
+        alert_variant = "warning" if alerts else "success"
+        self._kpi_alertas_lbl.setProperty("variant", alert_variant)
+        self._kpi_alertas_lbl.style().unpolish(self._kpi_alertas_lbl)
+        self._kpi_alertas_lbl.style().polish(self._kpi_alertas_lbl)
 
     def _hist_set_preset(self, days: int) -> None:
         """Set history date range from a quick preset button.
