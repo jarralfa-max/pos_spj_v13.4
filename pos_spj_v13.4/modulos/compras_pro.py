@@ -2752,113 +2752,119 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._compra_recepcion_id = None
 
     def _cargar_contenedores_recepcion(self) -> None:
-        if not hasattr(self, "tbl_recv_list"):
-            return
+        if not hasattr(self, "lst_recv"): return
         try:
             f = (self.qr_recv_filtro.text() or "").strip()
-            self.tbl_recv_list.setRowCount(0)
+            self.lst_recv.clear()
+            est_colors = {"asignado":"accent","recibido":"success","recepcion_parcial":"warning"}
 
-            # ── POs en estado PARA_RECEPCION ──────────────────────────────────
+            # POs en estado PARA_RECEPCION
             try:
-                po_sql = """
-                    SELECT oc.id, oc.folio, COALESCE(p.nombre,'—') AS proveedor,
-                           COALESCE(oc.total, 0) AS total
-                    FROM ordenes_compra oc
-                    LEFT JOIN proveedores p ON p.id = oc.proveedor_id
-                    WHERE oc.estado = 'PARA_RECEPCION'
-                """
-                po_params: list = []
-                if f:
-                    po_sql += " AND (oc.folio LIKE ? OR p.nombre LIKE ?)"
-                    po_params += [f"%{f}%", f"%{f}%"]
+                po_sql = """SELECT oc.id, oc.folio, COALESCE(p.nombre,'—') AS proveedor,
+                                   COALESCE(oc.total,0) AS total
+                            FROM ordenes_compra oc
+                            LEFT JOIN proveedores p ON p.id=oc.proveedor_id
+                            WHERE oc.estado='PARA_RECEPCION'"""
+                po_p: list = []
+                if f: po_sql += " AND (oc.folio LIKE ? OR p.nombre LIKE ?)"; po_p+=[f"%{f}%"]*2
                 po_sql += " ORDER BY oc.fecha_actualizacion DESC LIMIT 100"
-                po_rows = self.container.db.execute(po_sql, po_params).fetchall()
-                for r in po_rows:
-                    po_id   = r["id"]    if hasattr(r, "keys") else r[0]
-                    folio   = r["folio"] if hasattr(r, "keys") else r[1]
-                    prov    = r["proveedor"] if hasattr(r, "keys") else r[2]
-                    tot     = r["total"] if hasattr(r, "keys") else r[3]
-                    row = self.tbl_recv_list.rowCount()
-                    self.tbl_recv_list.insertRow(row)
-                    it = QTableWidgetItem(f"[PO] {folio}")
-                    it.setData(Qt.UserRole, None)        # not a container
-                    it.setData(Qt.UserRole + 1, po_id)   # PO id
-                    it.setData(Qt.UserRole + 2, "PO")    # source type
-                    self.tbl_recv_list.setItem(row, 0, it)
-                    self.tbl_recv_list.setItem(row, 1, QTableWidgetItem(str(prov)))
-                    tot_it = QTableWidgetItem(f"${float(tot or 0):,.2f}")
-                    tot_it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    self.tbl_recv_list.setItem(row, 2, tot_it)
-            except Exception as _pe:
-                logger.debug("_cargar_contenedores_recepcion POs: %s", _pe)
+                for r in self.container.db.execute(po_sql, po_p).fetchall():
+                    po_id = r["id"] if hasattr(r,"keys") else r[0]
+                    folio = r["folio"] if hasattr(r,"keys") else r[1]
+                    prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
+                    tot   = float(r["total"] if hasattr(r,"keys") else r[3] or 0)
+                    card = QWidget(); card.setObjectName("containerCard")
+                    cl2 = QHBoxLayout(card); cl2.setContentsMargins(8,5,8,5); cl2.setSpacing(8)
+                    ico_l = QLabel("📋"); ico_l.setObjectName("qrPreviewIcon"); ico_l.setFixedWidth(26)
+                    info_c = QVBoxLayout(); info_c.setSpacing(1)
+                    n = QLabel(f"[PO] {folio}"); n.setObjectName("monoLabel")
+                    s = QLabel(f"{prov}  ·  ${tot:,.0f}"); s.setObjectName("caption")
+                    b = QLabel("Para recepción"); b.setObjectName("statusBadge"); b.setProperty("variant","accent")
+                    info_c.addWidget(n); info_c.addWidget(s); info_c.addWidget(b)
+                    cl2.addWidget(ico_l); cl2.addLayout(info_c, 1)
+                    it = QListWidgetItem(); it.setData(Qt.UserRole, None)
+                    it.setData(Qt.UserRole+1, po_id); it.setData(Qt.UserRole+2, "PO")
+                    it.setSizeHint(card.sizeHint()); self.lst_recv.addItem(it)
+                    self.lst_recv.setItemWidget(it, card)
+            except Exception: pass
 
-            # ── Compras directas pendientes de recepción ──────────────────────
+            # Compras directas para_recepcion
             try:
-                cd_sql = """
-                    SELECT c.id, c.folio, COALESCE(p.nombre,'—') AS proveedor,
-                           COALESCE(c.total, 0) AS total
-                    FROM compras c
-                    LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                    WHERE c.estado = 'para_recepcion'
-                """
-                cd_params: list = []
-                if f:
-                    cd_sql += " AND (c.folio LIKE ? OR p.nombre LIKE ?)"
-                    cd_params += [f"%{f}%", f"%{f}%"]
+                cd_sql = """SELECT c.id, c.folio, COALESCE(p.nombre,'—') AS proveedor,
+                                   COALESCE(c.total,0) AS total
+                            FROM compras c LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                            WHERE c.estado='para_recepcion'"""
+                cd_p: list = []
+                if f: cd_sql += " AND (c.folio LIKE ? OR p.nombre LIKE ?)"; cd_p+=[f"%{f}%"]*2
                 cd_sql += " ORDER BY c.fecha DESC LIMIT 100"
-                cd_rows = self.container.db.execute(cd_sql, cd_params).fetchall()
-                for r in cd_rows:
-                    cid   = r["id"]    if hasattr(r, "keys") else r[0]
-                    folio = r["folio"] if hasattr(r, "keys") else r[1]
-                    prov  = r["proveedor"] if hasattr(r, "keys") else r[2]
-                    tot   = r["total"] if hasattr(r, "keys") else r[3]
-                    row = self.tbl_recv_list.rowCount()
-                    self.tbl_recv_list.insertRow(row)
-                    it = QTableWidgetItem(f"[Compra] {folio}")
-                    it.setData(Qt.UserRole, None)
-                    it.setData(Qt.UserRole + 1, cid)
-                    it.setData(Qt.UserRole + 2, "COMPRA")
-                    self.tbl_recv_list.setItem(row, 0, it)
-                    self.tbl_recv_list.setItem(row, 1, QTableWidgetItem(str(prov)))
-                    tot_it = QTableWidgetItem(f"${float(tot or 0):,.2f}")
-                    tot_it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    self.tbl_recv_list.setItem(row, 2, tot_it)
-            except Exception as _ce:
-                logger.debug("_cargar_contenedores_recepcion compras: %s", _ce)
+                for r in self.container.db.execute(cd_sql, cd_p).fetchall():
+                    cid   = r["id"] if hasattr(r,"keys") else r[0]
+                    folio = r["folio"] if hasattr(r,"keys") else r[1]
+                    prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
+                    tot   = float(r["total"] if hasattr(r,"keys") else r[3] or 0)
+                    card = QWidget(); card.setObjectName("containerCard")
+                    cl2 = QHBoxLayout(card); cl2.setContentsMargins(8,5,8,5); cl2.setSpacing(8)
+                    ico_l = QLabel("🛒"); ico_l.setObjectName("qrPreviewIcon"); ico_l.setFixedWidth(26)
+                    info_c = QVBoxLayout(); info_c.setSpacing(1)
+                    n = QLabel(f"[Compra] {folio}"); n.setObjectName("monoLabel")
+                    s = QLabel(f"{prov}  ·  ${tot:,.0f}"); s.setObjectName("caption")
+                    b = QLabel("Para recepción"); b.setObjectName("statusBadge"); b.setProperty("variant","accent")
+                    info_c.addWidget(n); info_c.addWidget(s); info_c.addWidget(b)
+                    cl2.addWidget(ico_l); cl2.addLayout(info_c, 1)
+                    it = QListWidgetItem(); it.setData(Qt.UserRole, None)
+                    it.setData(Qt.UserRole+1, cid); it.setData(Qt.UserRole+2, "COMPRA")
+                    it.setSizeHint(card.sizeHint()); self.lst_recv.addItem(it)
+                    self.lst_recv.setItemWidget(it, card)
+            except Exception: pass
 
-            # ── Contenedores asignados ────────────────────────────────────────
-            sql = """
-                SELECT c.id, c.codigo, COALESCE(p.nombre,'—') AS proveedor,
-                       COALESCE(c.total, 0) AS total
-                FROM contenedores c
-                LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                WHERE c.estado='asignado'
-            """
+            # Contenedores asignados
+            sql = """SELECT c.id, c.codigo, c.tipo, COALESCE(p.nombre,'—') AS proveedor,
+                            COALESCE(c.total,0) AS total, c.estado
+                     FROM contenedores c LEFT JOIN proveedores p ON p.id=c.proveedor_id
+                     WHERE c.estado IN ('asignado','en_recepcion','recepcion_parcial')"""
             params: list = []
-            if f:
-                sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ?)"
-                params += [f"%{f}%", f"%{f}%"]
+            if f: sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ?)"; params+=[f"%{f}%"]*2
             sql += " ORDER BY c.fecha_asignado DESC LIMIT 200"
-            rows = self.container.db.execute(sql, params).fetchall()
-            for r in rows:
-                cid = r["id"]     if hasattr(r, "keys") else r[0]
-                cod = r["codigo"] if hasattr(r, "keys") else r[1]
-                prov = r["proveedor"] if hasattr(r, "keys") else r[2]
-                tot  = r["total"] if hasattr(r, "keys") else r[3]
-                row = self.tbl_recv_list.rowCount()
-                self.tbl_recv_list.insertRow(row)
-                it = QTableWidgetItem(cod)
-                it.setData(Qt.UserRole, cid)
-                it.setData(Qt.UserRole + 2, "CTN")
-                self.tbl_recv_list.setItem(row, 0, it)
-                self.tbl_recv_list.setItem(row, 1, QTableWidgetItem(str(prov)))
-                tot_it = QTableWidgetItem(f"${float(tot or 0):,.2f}")
-                tot_it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self.tbl_recv_list.setItem(row, 2, tot_it)
+            for r in self.container.db.execute(sql, params).fetchall():
+                cid  = r["id"] if hasattr(r,"keys") else r[0]
+                cod  = r["codigo"] if hasattr(r,"keys") else r[1]
+                tp   = r["tipo"] if hasattr(r,"keys") else r[2]
+                prov = r["proveedor"] if hasattr(r,"keys") else r[3]
+                tot  = float(r["total"] if hasattr(r,"keys") else r[4] or 0)
+                est  = r["estado"] if hasattr(r,"keys") else r[5]
+                ico  = self._TIPO_ICO.get(tp,"📦")
+                lbl_t= self._TIPO_LBL.get(tp, tp)
+                est_lbl = {"asignado":"Asignado","en_recepcion":"En recepción",
+                           "recepcion_parcial":"En recepción parcial"}.get(est, est)
+                est_var = est_colors.get(est, "accent")
+                card = QWidget(); card.setObjectName("containerCard")
+                cl2 = QHBoxLayout(card); cl2.setContentsMargins(8,5,8,5); cl2.setSpacing(8)
+                ico_l = QLabel(ico); ico_l.setObjectName("qrPreviewIcon"); ico_l.setFixedWidth(26)
+                info_c = QVBoxLayout(); info_c.setSpacing(1)
+                n = QLabel(cod); n.setObjectName("monoLabel")
+                s = QLabel(f"{lbl_t} · {prov}  ·  ${tot:,.0f}"); s.setObjectName("caption")
+                b = QLabel(est_lbl); b.setObjectName("statusBadge"); b.setProperty("variant", est_var)
+                info_c.addWidget(n); info_c.addWidget(s); info_c.addWidget(b)
+                cl2.addWidget(ico_l); cl2.addLayout(info_c, 1)
+                it = QListWidgetItem(); it.setData(Qt.UserRole, cid)
+                it.setData(Qt.UserRole+1, None); it.setData(Qt.UserRole+2, "CTN")
+                it.setSizeHint(card.sizeHint()); self.lst_recv.addItem(it)
+                self.lst_recv.setItemWidget(it, card)
         except Exception as e:
             logger.debug("_cargar_contenedores_recepcion: %s", e)
 
+    def _on_recv_list_click(self, item: "QListWidgetItem") -> None:
+        source_type = item.data(Qt.UserRole + 2) or "CTN"
+        if source_type == "PO":
+            self._cargar_po_en_recepcion(item.data(Qt.UserRole + 1))
+        elif source_type == "COMPRA":
+            self._cargar_compra_en_recepcion(item.data(Qt.UserRole + 1))
+        else:
+            cid = item.data(Qt.UserRole)
+            if cid: self._qr_recv_cargar_by_id(cid)
+
     def _on_recv_list_select(self) -> None:
+        if not hasattr(self, "tbl_recv_list"): return
         sel = self.tbl_recv_list.currentRow()
         if sel < 0:
             return
