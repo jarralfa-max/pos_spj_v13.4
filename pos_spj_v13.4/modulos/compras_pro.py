@@ -1790,6 +1790,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 "ALTER TABLE contenedores ADD COLUMN recibido_por TEXT",
                 "ALTER TABLE contenedores ADD COLUMN sucursal_destino INTEGER",
                 "ALTER TABLE contenedor_productos ADD COLUMN observaciones TEXT",
+                "ALTER TABLE contenedores ADD COLUMN parent_id INTEGER REFERENCES contenedores(id)",
+                "ALTER TABLE contenedores ADD COLUMN seq_num INTEGER",
             ]:
                 try:
                     db.execute(col_sql)
@@ -1813,33 +1815,60 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         card_left = QGroupBox("📦 Identificación del contenedor")
         card_left.setObjectName("sectionCard")
-        cl = QVBoxLayout(card_left); cl.setSpacing(10)
+        cl = QVBoxLayout(card_left); cl.setSpacing(8)
         cl.addWidget(create_caption(self,
             "Genera la etiqueta QR que identifica físicamente al contenedor. "
             "Los datos de compra y productos se asignan en la pestaña siguiente."))
 
         cl.addWidget(QLabel("Tipo de contenedor:"))
-        types_row = QHBoxLayout(); types_row.setSpacing(6)
+        types_grid = QGridLayout(); types_grid.setSpacing(4)
         self._qr_tipo_buttons: dict = {}
         self._qr_tipo_actual = "caja"
-        for tipo, ico, lbl in [("caja","🟫","Caja"),("tarima","🛒","Tarima"),
-                                ("hielera","🧊","Hielera"),("bulto","📦","Bulto")]:
+        _TIPOS = [
+            ("caja",         "🟫", "Caja"),
+            ("tarima",       "🛒", "Tarima"),
+            ("hielera",      "🧊", "Hielera"),
+            ("bulto",        "📦", "Bulto/Saco"),
+            ("jaula",        "🔲", "Jaula"),
+            ("contenedor",   "🚢", "Contenedor"),
+            ("refrigerado",  "❄️",  "Refrigerado"),
+            ("personalizado","✏️",  "Personalizado"),
+        ]
+        for idx, (tipo, ico, lbl) in enumerate(_TIPOS):
             b = QPushButton(f"{ico}\n{lbl}")
-            b.setCheckable(True); b.setMinimumHeight(56)
+            b.setCheckable(True); b.setMinimumHeight(52)
             b.setObjectName("qrTypeButton"); b.setProperty("variant","accent")
             if tipo == "caja": b.setChecked(True)
             b.clicked.connect(lambda _=False, t=tipo: self._qr_set_tipo(t))
             self._qr_tipo_buttons[tipo] = b
-            types_row.addWidget(b)
-        cl.addLayout(types_row)
+            types_grid.addWidget(b, idx // 4, idx % 4)
+        cl.addLayout(types_grid)
 
-        form = QFormLayout(); form.setSpacing(10)
+        form = QFormLayout(); form.setSpacing(8)
         self.qr_codigo = QLineEdit(); self.qr_codigo.setReadOnly(True)
         self.qr_codigo.setObjectName("monoInput")
         btn_regen = create_secondary_button(self, "↻ Regenerar", "Genera nuevo ID")
         btn_regen.clicked.connect(self._qr_regenerar_codigo)
         row_id = QHBoxLayout(); row_id.addWidget(self.qr_codigo,1); row_id.addWidget(btn_regen)
         form.addRow("ID contenedor:", self._wrap(row_id))
+
+        # Parent container selector
+        self.qr_parent_id: int | None = None
+        self.qr_parent_txt = QLineEdit()
+        self.qr_parent_txt.setPlaceholderText("Dejar vacío si es contenedor raíz")
+        self.qr_parent_txt.setReadOnly(True)
+        btn_parent_pick = create_secondary_button(self, "🔍", "Buscar contenedor padre")
+        btn_parent_pick.setFixedWidth(36)
+        btn_parent_pick.clicked.connect(self._qr_pick_parent)
+        btn_parent_clear = create_secondary_button(self, "✕", "Quitar padre")
+        btn_parent_clear.setFixedWidth(32)
+        btn_parent_clear.clicked.connect(self._qr_clear_parent)
+        row_parent = QHBoxLayout()
+        row_parent.addWidget(self.qr_parent_txt, 1)
+        row_parent.addWidget(btn_parent_pick)
+        row_parent.addWidget(btn_parent_clear)
+        form.addRow("Contenedor padre:", self._wrap(row_parent))
+
         self.qr_descripcion = QLineEdit()
         self.qr_descripcion.setPlaceholderText('Ej: "Caja roja del proveedor" (opcional)')
         self.qr_descripcion.textChanged.connect(lambda _t: self._qr_actualizar_preview())
@@ -1859,7 +1888,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_preview_ic = QLabel("🟫"); self.qr_preview_ic.setObjectName("qrPreviewIcon")
         pb.addWidget(self.qr_preview_ic)
         col = QVBoxLayout(); col.setSpacing(2)
-        self.qr_preview_id = QLabel("CTN-XXXX-000"); self.qr_preview_id.setObjectName("monoLabel")
+        self.qr_preview_id = QLabel("CAJ-000001"); self.qr_preview_id.setObjectName("monoLabel")
         self.qr_preview_meta = QLabel("Caja"); self.qr_preview_meta.setObjectName("caption")
         col.addWidget(self.qr_preview_id); col.addWidget(self.qr_preview_meta)
         pb.addLayout(col,1)
@@ -1888,57 +1917,153 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(card_left, 1); lay.addWidget(card_right, 0)
         self._qr_regenerar_codigo()
 
+    _TIPO_ICO = {
+        "caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦",
+        "jaula":"🔲","contenedor":"🚢","refrigerado":"❄️","personalizado":"✏️",
+    }
+    _TIPO_LBL = {
+        "caja":"Caja","tarima":"Tarima","hielera":"Hielera","bulto":"Bulto/Saco",
+        "jaula":"Jaula","contenedor":"Contenedor","refrigerado":"Refrigerado",
+        "personalizado":"Personalizado",
+    }
+    _TIPO_PFX = {
+        "caja":"CAJ","tarima":"TAR","hielera":"HIE","bulto":"BUL",
+        "jaula":"JAU","contenedor":"CTN","refrigerado":"REF","personalizado":"PER",
+    }
+    # Types that are always children (require a parent container)
+    _TIPOS_HIJO = {"caja", "bulto", "hielera"}
+
     def _qr_set_tipo(self, tipo: str) -> None:
         self._qr_tipo_actual = tipo
         for t, b in self._qr_tipo_buttons.items():
             b.setChecked(t == tipo)
-        ico = {"caja":"🟫","tarima":"🛒","hielera":"🧊","bulto":"📦"}.get(tipo,"📦")
-        if hasattr(self,"qr_preview_ic"): self.qr_preview_ic.setText(ico)
-        self._qr_actualizar_preview()
+        ico = self._TIPO_ICO.get(tipo, "📦")
+        if hasattr(self, "qr_preview_ic"): self.qr_preview_ic.setText(ico)
+        self._qr_regenerar_codigo()
 
     def _qr_regenerar_codigo(self) -> None:
-        suf = datetime.now().strftime("%y%m%d-%H%M%S")
-        self.qr_codigo.setText(f"CTN-{suf}")
+        pfx = self._TIPO_PFX.get(self._qr_tipo_actual, "CTN")
+        try:
+            row = self.container.db.execute(
+                "SELECT COALESCE(MAX(seq_num),0)+1 FROM contenedores WHERE tipo=?",
+                (self._qr_tipo_actual,)
+            ).fetchone()
+            seq = int(row[0]) if row else 1
+        except Exception:
+            from datetime import datetime as _dt
+            seq = int(_dt.now().strftime("%H%M%S"))
+        self.qr_codigo.setText(f"{pfx}-{seq:06d}")
         self._qr_actualizar_preview()
 
     def _qr_actualizar_preview(self) -> None:
         if not hasattr(self, "qr_preview_id"): return
-        self.qr_preview_id.setText(self.qr_codigo.text() or "CTN-XXXX-000")
-        tipo_lbl = {"caja":"Caja","tarima":"Tarima","hielera":"Hielera",
-                    "bulto":"Bulto"}.get(self._qr_tipo_actual,"Caja")
-        desc = self.qr_descripcion.text().strip() if hasattr(self,"qr_descripcion") else ""
-        self.qr_preview_meta.setText(f"{tipo_lbl}{(' · ' + desc) if desc else ''}")
+        self.qr_preview_id.setText(self.qr_codigo.text() or "CAJ-000001")
+        tipo_lbl = self._TIPO_LBL.get(self._qr_tipo_actual, "Contenedor")
+        desc = self.qr_descripcion.text().strip() if hasattr(self, "qr_descripcion") else ""
+        parent_txt = ""
+        if hasattr(self, "qr_parent_txt") and self.qr_parent_txt.text():
+            parent_txt = f" ↳ {self.qr_parent_txt.text()}"
+        self.qr_preview_meta.setText(
+            f"{tipo_lbl}{(' · ' + desc) if desc else ''}{parent_txt}")
 
     def _qr_generar_contenedor(self) -> None:
         codigo = (self.qr_codigo.text() or "").strip()
         if not codigo:
             QMessageBox.warning(self, "Datos faltantes", "Falta el ID del contenedor.")
             return
+        # Types that always need a parent
+        if self._qr_tipo_actual in self._TIPOS_HIJO and not getattr(self, "qr_parent_id", None):
+            if QMessageBox.question(
+                self, "Sin contenedor padre",
+                f"Un(a) {self._TIPO_LBL.get(self._qr_tipo_actual,'contenedor')} "
+                "normalmente es hijo de otro contenedor.\n"
+                "¿Continuar sin asignar contenedor padre?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            ) != QMessageBox.Yes:
+                return
         try:
-            db = self.container.db
-            db.execute("""INSERT INTO contenedores
-                (codigo, tipo, descripcion, estado, usuario_creado)
-                VALUES (?,?,?,'generado',?)""",
+            pfx  = self._TIPO_PFX.get(self._qr_tipo_actual, "CTN")
+            seq  = int(codigo.split("-")[-1]) if "-" in codigo else 0
+            db   = self.container.db
+            parent_id = getattr(self, "qr_parent_id", None)
+            db.execute(
+                """INSERT INTO contenedores
+                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id, seq_num)
+                   VALUES (?,?,?,'generado',?,?,?)""",
                 (codigo, self._qr_tipo_actual,
                  self.qr_descripcion.text().strip() or None,
-                 self.usuario_actual or "Sistema"))
+                 self.usuario_actual or "Sistema",
+                 parent_id, seq)
+            )
             db.commit()
             self.qr_preview_status.setText("✓ Generado · sin asignar")
-            self.qr_preview_status.setProperty("variant","accent")
+            self.qr_preview_status.setProperty("variant", "accent")
             self.qr_preview_status.style().unpolish(self.qr_preview_status)
             self.qr_preview_status.style().polish(self.qr_preview_status)
-            try: Toast.success(self, f"Contenedor {codigo} generado").show()
+            parent_info = f" (hijo de {self.qr_parent_txt.text()})" if parent_id else ""
+            try: Toast.success(self, f"Contenedor {codigo} generado{parent_info}").show()
             except Exception: pass
             try:
                 bus = getattr(self.container, "event_bus", None)
                 if bus and hasattr(bus, "publish"):
-                    bus.publish("CONTENEDOR_GENERADO", {"codigo": codigo})
+                    bus.publish("CONTENEDOR_GENERADO",
+                                {"codigo": codigo, "parent_id": parent_id})
             except Exception: pass
             self._qr_imprimir()
             self.qr_descripcion.clear()
+            self._qr_clear_parent()
             self._qr_regenerar_codigo()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo generar:\n{e}")
+
+    def _qr_pick_parent(self) -> None:
+        """Open a simple dialog to search and pick a parent container."""
+        from PyQt5.QtWidgets import QInputDialog
+        term, ok = QInputDialog.getText(
+            self, "Buscar contenedor padre",
+            "Ingresa código o descripción del contenedor padre:",
+        )
+        if not ok or not term.strip():
+            return
+        try:
+            rows = self.container.db.execute(
+                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
+                   FROM contenedores
+                   WHERE (codigo LIKE ? OR descripcion LIKE ?)
+                     AND id != COALESCE(
+                         (SELECT id FROM contenedores WHERE codigo=? LIMIT 1), -1)
+                   ORDER BY fecha_creado DESC LIMIT 50""",
+                (f"%{term}%", f"%{term}%", self.qr_codigo.text())
+            ).fetchall()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", str(e)); return
+        if not rows:
+            QMessageBox.information(self, "Sin resultados", "No se encontraron contenedores.")
+            return
+        items = []
+        for r in rows:
+            rid   = r["id"]   if hasattr(r, "keys") else r[0]
+            cod   = r["codigo"] if hasattr(r, "keys") else r[1]
+            tipo  = r["tipo"] if hasattr(r, "keys") else r[2]
+            desc  = r["desc"] if hasattr(r, "keys") else r[3]
+            lbl_t = self._TIPO_LBL.get(tipo, tipo)
+            items.append((rid, f"{cod} · {lbl_t}{(' — ' + desc) if desc else ''}"))
+        labels = [x[1] for x in items]
+        chosen, ok2 = QInputDialog.getItem(
+            self, "Seleccionar padre", "Contenedor padre:", labels, 0, False)
+        if not ok2:
+            return
+        idx = labels.index(chosen)
+        self.qr_parent_id = items[idx][0]
+        self.qr_parent_txt.setText(items[idx][1])
+        self._qr_actualizar_preview()
+
+    def _qr_clear_parent(self) -> None:
+        self.qr_parent_id = None
+        if hasattr(self, "qr_parent_txt"):
+            self.qr_parent_txt.clear()
+        self._qr_actualizar_preview()
 
     def _qr_exportar_pdf(self) -> None:
         QMessageBox.information(self, "PDF",
