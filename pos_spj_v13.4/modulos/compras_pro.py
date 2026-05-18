@@ -1021,9 +1021,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         splitter = QSplitter(Qt.Horizontal)
         splitter.setObjectName("purchaseThreeColumnSplitter")
         splitter.setHandleWidth(1)
-        splitter.setStyleSheet(
-            "QSplitter::handle{background:rgba(148,163,184,0.25);}"
-        )
         root.addWidget(splitter, 1)
 
         # Left column — Documental Toolbar (ERP documental)
@@ -1127,10 +1124,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         self._lbl_prov_status = QLabel("Sin proveedor seleccionado")
         self._lbl_prov_status.setObjectName("caption")
-        self._lbl_prov_status.setStyleSheet(
-            f"color:{Colors.WARNING_BASE};"
-            f"font-size:{Typography.SIZE_XS};background:transparent;"
-        )
+        self._lbl_prov_status.setProperty("variant", "warning")
 
         # _lbl_prov_info kept hidden for backward compatibility with existing code
         self._lbl_prov_info = QLabel("")
@@ -1142,8 +1136,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             """Disabled read-only input for provider info display."""
             w = QLineEdit(placeholder)
             w.setReadOnly(True)
-            w.setObjectName("standardInput")
-            w.setStyleSheet("opacity:0.6;")
+            w.setObjectName("readOnlyInput")
             return w
 
         # Read-only display inputs (populated by _cargar_info_proveedor)
@@ -1151,10 +1144,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._inp_tel  = _ro_input()
         self._inp_dir  = _ro_input()
         self._inp_cred = _ro_input()
-        self._inp_cred.setStyleSheet(
-            f"opacity:0.85;color:{Colors.ACCENT_BASE};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-        )
+        self._inp_cred.setObjectName("creditInput")
         # Aliases backward-compat — point to input.text() via proxy
         self._lbl_rfc      = self._inp_rfc
         self._lbl_tel      = self._inp_tel
@@ -1299,11 +1289,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         status_row = QHBoxLayout()
         status_row.setSpacing(Spacing.SM)
         lbl_bascula = QLabel("⚖ Báscula: <b>Integrada</b>")
-        lbl_bascula.setObjectName("caption")
-        lbl_bascula.setStyleSheet(f"color:{Colors.ACCENT_BASE};background:transparent;")
+        lbl_bascula.setObjectName("captionAccent")
         lbl_etiquetas = QLabel("🖨 Etiquetas: <b>Lista</b>")
-        lbl_etiquetas.setObjectName("caption")
-        lbl_etiquetas.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};background:transparent;")
+        lbl_etiquetas.setObjectName("captionMuted")
         status_row.addWidget(lbl_bascula)
         status_row.addStretch()
         status_row.addWidget(lbl_etiquetas)
@@ -1318,13 +1306,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Cart items panel with header, table, loading, and empty state."""
         cart_panel = PurchaseItemsAndTotalsPanel()
         cart_panel.setObjectName("sectionCard")
-        cart_panel.setStyleSheet(
-            f"QFrame#sectionCard{{"
-            f"  background:{_C_CARD_BG};"
-            f"  border:1px solid {_C_BORDER};"
-            f"  border-radius:{Borders.RADIUS_MD}px;"
-            f"}}"
-        )
         cart_lay_outer = QVBoxLayout(cart_panel)
         cart_lay_outer.setContentsMargins(0, 0, 0, 0)
         cart_lay_outer.setSpacing(0)
@@ -1332,27 +1313,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # ── Header bar — title + counter + actions ──────────────────────────
         cart_hdr_frame = QFrame()
         cart_hdr_frame.setObjectName("cartHdrFrame")
-        cart_hdr_frame.setStyleSheet(
-            f"QFrame#cartHdrFrame{{"
-            f"  background:{_C_CARD_HDR_BG};"
-            f"  border-bottom:1px solid {_C_BORDER};"
-            f"  border-top-left-radius:{Borders.RADIUS_MD}px;"
-            f"  border-top-right-radius:{Borders.RADIUS_MD}px;"
-            f"}}"
-        )
         cart_hdr = QHBoxLayout(cart_hdr_frame)
         cart_hdr.setContentsMargins(Spacing.SM + 2, Spacing.XS, Spacing.SM + 2, Spacing.XS)
         cart_hdr.setSpacing(Spacing.XS + 2)
 
         lbl_cart_hdr = QLabel("PARTIDAS DEL DOCUMENTO")
-        lbl_cart_hdr.setStyleSheet(_section_label_style(Colors.PRIMARY_BASE))
+        lbl_cart_hdr.setObjectName("sectionLabel")
         self._lbl_cart_count = QLabel("0 items")
-        self._lbl_cart_count.setObjectName("caption")
-        self._lbl_cart_count.setStyleSheet(
-            f"color:{_C_FIELD_LABEL};"
-            f"font-size:{Typography.SIZE_XS};"
-            "background:transparent;border:none;"
-        )
+        self._lbl_cart_count.setObjectName("captionMuted")
 
         btn_clear = create_danger_button(self, "Limpiar", "Vaciar carrito de compras")
         btn_clear.setFixedHeight(26)
@@ -1394,35 +1362,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
         for c in (0, 2, 3, 4, 5, 6, 7, 8):
             hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
-        hh.setStyleSheet(
-            f"QHeaderView::section{{"
-            f"  background:{_C_MUTED_BG};"
-            f"  color:{_C_FIELD_LABEL};"
-            f"  font-size:{Typography.SIZE_XS};"
-            f"  font-weight:{Typography.WEIGHT_BOLD};"
-            f"  letter-spacing:0.05em;"
-            f"  border:none;border-bottom:1px solid {_C_BORDER};"
-            f"  padding:{Spacing.XS}px {Spacing.SM - 2}px;"
-            f"}}"
-        )
-        self.tabla.setStyleSheet(
-            f"QTableWidget#tableView{{"
-            f"  background:{_C_CARD_BG};"
-            f"  alternate-background-color:{_C_MUTED_BG};"
-            f"  color:{_C_BODY_TXT};"
-            f"  gridline-color:{_C_BORDER};"
-            f"  border:none;"
-            f"  font-size:{Typography.SIZE_SM};"
-            f"}}"
-            f"QTableWidget#tableView::item{{"
-            f"  padding:{Spacing.XS}px {Spacing.SM - 2}px;"
-            f"  border-bottom:1px solid {_C_BORDER};"
-            f"}}"
-            f"QTableWidget#tableView::item:selected{{"
-            f"  background:{Colors.PRIMARY.DARK};"
-            f"  color:{Colors.NEUTRAL.WHITE};"
-            f"}}"
-        )
         self.tabla.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -1450,27 +1389,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # ── Mini action bar (Descuento / Impuestos / count) ─────────────────
         mini_bar = QFrame()
         mini_bar.setObjectName("cartMiniBar")
-        mini_bar.setStyleSheet(
-            f"QFrame#cartMiniBar{{"
-            f"  background:transparent;"
-            f"  border-top:1px solid {_C_BORDER};"
-            f"}}"
-        )
         mini_lay = QHBoxLayout(mini_bar)
         mini_lay.setContentsMargins(Spacing.SM + 2, Spacing.XS, Spacing.SM + 2, Spacing.XS)
         mini_lay.setSpacing(Spacing.LG)
-
-        _link_btn_style = (
-            "QPushButton{{background:transparent;border:none;text-align:left;"
-            f"font-size:{Typography.SIZE_XS};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            "letter-spacing:0.03em;color:{c};}}"
-            "QPushButton:hover{{text-decoration:underline;}}"
-        )
+        _link_btn_style = ""  # kept for potential future use; styling via QSS
         btn_desc_gral = QPushButton("%  Aplicar Descuento Gral.")
         btn_desc_gral.setFlat(True)
+        btn_desc_gral.setObjectName("linkBtnPrimary")
         btn_desc_gral.setCursor(Qt.PointingHandCursor)
-        btn_desc_gral.setStyleSheet(_link_btn_style.format(c=Colors.PRIMARY_BASE))
         btn_desc_gral.clicked.connect(
             lambda: self._aplicar_descuento_global()
             if hasattr(self, '_aplicar_descuento_global') else None
@@ -1478,15 +1404,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         btn_imp_gral = QPushButton("⚑  Ajustar Impuestos Gral.")
         btn_imp_gral.setFlat(True)
+        btn_imp_gral.setObjectName("linkBtnWarning")
         btn_imp_gral.setCursor(Qt.PointingHandCursor)
-        btn_imp_gral.setStyleSheet(_link_btn_style.format(c=Colors.WARNING_BASE))
 
         self._lbl_partidas_count = QLabel("0 Partidas en lista")
-        self._lbl_partidas_count.setStyleSheet(
-            f"font-size:{Typography.SIZE_XS};"
-            f"font-weight:{Typography.WEIGHT_SEMIBOLD};"
-            f"color:{_C_FIELD_LABEL};background:transparent;"
-        )
+        self._lbl_partidas_count.setObjectName("captionMuted")
 
         mini_lay.addWidget(btn_desc_gral)
         mini_lay.addWidget(btn_imp_gral)
@@ -1499,12 +1421,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """IVA toggle + subtotals footer. Sets up _chk_iva, lbl_total, etc."""
         footer_frame = QFrame()
         footer_frame.setObjectName("totalsFooterFrame")
-        footer_frame.setStyleSheet(
-            "QFrame#totalsFooterFrame{"
-            f"  border:1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius:{Borders.RADIUS_MD}px;"
-            "}"
-        )
         footer = QHBoxLayout(footer_frame)
         footer.setContentsMargins(Spacing.SM, Spacing.XS, Spacing.SM, Spacing.XS)
         footer.setSpacing(Spacing.SM)
@@ -1516,8 +1432,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_subtotal_iva = QLabel("Subtotal: $0.00")
         self._lbl_subtotal_iva.setObjectName("caption")
         self._lbl_iva_monto = QLabel("IVA (16%): $0.00")
-        self._lbl_iva_monto.setObjectName("caption")
-        self._lbl_iva_monto.setStyleSheet(f"color:{Colors.INFO_BASE};")
+        self._lbl_iva_monto.setObjectName("captionInfo")
         self._lbl_iva_monto.hide()
         sep_iva = QLabel("|")
         sep_iva.setObjectName("caption")
@@ -1545,14 +1460,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Status badge + last edit (kept for existing update logic)
         self._lbl_estado_compra = QLabel("🔵  En captura")
-        self._lbl_estado_compra.setStyleSheet(
-            f"background:{Colors.INFO_BASE};"
-            f"color:{Colors.NEUTRAL.WHITE};"
-            f"border-radius:{Borders.RADIUS_FULL}px;"
-            f"padding:{Spacing.XS - 1}px {Spacing.SM}px;"
-            f"font-size:{Typography.SIZE_XS};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-        )
+        self._lbl_estado_compra.setObjectName("statusBadge")
+        self._lbl_estado_compra.setProperty("variant", "info")
         self._lbl_estado_compra.hide()
         self._lbl_ultima_edicion = QLabel("—")
         self._lbl_ultima_edicion.setObjectName("caption")
@@ -1585,7 +1494,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Hint text — stored as attr so _refresh_doctype_ui() can update it
         self._lbl_hint = QLabel("Flujo: Capturar → Generar PR → Aprobar PR → Generar PO → Procesar")
         self._lbl_hint.setAlignment(Qt.AlignCenter)
-        self._lbl_hint.setStyleSheet(_hint_label_style())
+        self._lbl_hint.setObjectName("hintLabel")
         lay.addWidget(self._lbl_hint)
 
         return w
@@ -1624,9 +1533,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not frecuentes:
             lbl = QLabel("Realiza tu primera\ncompra para ver\nproductos frecuentes")
             lbl.setAlignment(Qt.AlignCenter)
-            lbl.setStyleSheet(
-                f"color:{_C_HINT};font-size:{Typography.SIZE_XS};background:transparent;"
-            )
+            lbl.setObjectName("hintLabel")
             grid.addWidget(lbl, 0, 0, 1, 3)
         else:
             for idx, prod in enumerate(frecuentes):
@@ -1675,18 +1582,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Center column: Captura Documental — Provider, Document, Product search."""
         center_w = PurchaseCapturePanel()
         center_w.setObjectName("purchaseCenterPanel")
-        center_w.setStyleSheet(
-            f"QWidget#purchaseCenterPanel{{background:{_C_PAGE_BG};}}"
-            f"QWidget#centerInner{{background:{_C_PAGE_BG};}}"
-        )
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(
-            "QScrollArea{border:none;background:transparent;}"
-            "QScrollBar:vertical{width:5px;background:transparent;}"
-        )
+        scroll.setObjectName("transparentScrollArea")
 
         inner_w = QWidget()
         inner_w.setObjectName("centerInner")
@@ -1713,15 +1613,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # CxP alert banner
         self._cxp_alert_bar = QLabel("")
         self._cxp_alert_bar.setWordWrap(True)
-        self._cxp_alert_bar.setObjectName("caption")
-        self._cxp_alert_bar.setStyleSheet(
-            f"background:{Colors.WARNING.BG_SOFT};"
-            f"border:1px solid {Colors.WARNING.BORDER};"
-            f"border-radius:{Borders.RADIUS_SM}px;"
-            f"padding:{Spacing.XS + 1}px {Spacing.SM + 2}px;"
-            f"color:{Colors.WARNING_BASE};"
-            f"font-size:{Typography.SIZE_XS};"
-        )
+        self._cxp_alert_bar.setObjectName("warningBanner")
         self._cxp_alert_bar.hide()
         lay.addWidget(self._cxp_alert_bar)
 
@@ -1865,51 +1757,26 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Sub-pestaña 1: Generación etiqueta QR ──────────────────────────────
     def _build_subtab_etiqueta(self, parent: QWidget) -> None:
-        root = QVBoxLayout(parent); root.setContentsMargins(8,8,8,8); root.setSpacing(8)
+        root = QVBoxLayout(parent); root.setContentsMargins(8, 8, 8, 8); root.setSpacing(8)
 
-        # ── Stepper ────────────────────────────────────────────────────────────
-        stepper = QFrame(); stepper.setObjectName("sectionCard")
-        st_lay = QHBoxLayout(stepper); st_lay.setContentsMargins(12,8,12,8); st_lay.setSpacing(0)
-        for num, label, active in [
-            ("1", "Identificar contenedor (QR)", True),
-            ("2", "Asignar datos de compra", False),
-            ("3", "Recibir contenido físico", False),
-        ]:
-            step_w = QWidget()
-            s_lay = QHBoxLayout(step_w); s_lay.setContentsMargins(0,0,0,0); s_lay.setSpacing(6)
-            num_lbl = QLabel(num); num_lbl.setObjectName("stepNum")
-            num_lbl.setProperty("active", "true" if active else "false")
-            num_lbl.setFixedSize(24, 24); num_lbl.setAlignment(Qt.AlignCenter)
-            txt_lbl = QLabel(label); txt_lbl.setObjectName("stepLabel")
-            txt_lbl.setProperty("active", "true" if active else "false")
-            s_lay.addWidget(num_lbl); s_lay.addWidget(txt_lbl)
-            st_lay.addWidget(step_w)
-            if num != "3":
-                arrow = QLabel("→"); arrow.setObjectName("stepArrow")
-                st_lay.addWidget(arrow); st_lay.addStretch()
-        root.addWidget(stepper)
+        # ── True 3-column body: 2 : 2 : 1 ─────────────────────────────────────
+        body = QHBoxLayout(); body.setSpacing(10)
+        root.addLayout(body, 1)
 
-        # ── Body ───────────────────────────────────────────────────────────────
-        lay = QHBoxLayout(); lay.setSpacing(10)
-        root.addLayout(lay, 1)
+        # ── Col 1 (stretch=2): info callout + 8-type grid ──────────────────────
+        col1 = QWidget()
+        c1 = QVBoxLayout(col1); c1.setSpacing(8); c1.setContentsMargins(0, 0, 0, 0)
 
-        card_left = QGroupBox("📦 Identificación del contenedor")
-        card_left.setObjectName("sectionCard")
-        cl = QVBoxLayout(card_left); cl.setSpacing(8)
-
-        # Info callout
         info = QFrame(); info.setObjectName("infoCallout")
-        info_lay = QHBoxLayout(info); info_lay.setContentsMargins(10,8,10,8); info_lay.setSpacing(8)
+        info_lay = QHBoxLayout(info); info_lay.setContentsMargins(10, 8, 10, 8); info_lay.setSpacing(8)
         info_icon = QLabel("ℹ️"); info_icon.setFixedWidth(20)
         info_txt = QLabel(
-            "<b>Quién:</b> Almacenista / recepcionista<br>"
-            "Genera el ID único del contenedor <i>antes</i> de que llegue al almacén. "
-            "Aún no se conoce proveedor ni costo.")
+            "Selecciona el tipo de contenedor para el QR y completa los datos del formulario.")
         info_txt.setObjectName("caption"); info_txt.setWordWrap(True)
         info_lay.addWidget(info_icon); info_lay.addWidget(info_txt, 1)
-        cl.addWidget(info)
+        c1.addWidget(info)
 
-        cl.addWidget(QLabel("Tipo de contenedor:"))
+        c1.addWidget(QLabel("Tipo de contenedor:"))
         types_grid = QGridLayout(); types_grid.setSpacing(4)
         self._qr_tipo_buttons: dict = {}
         self._qr_tipo_actual = "caja"
@@ -1926,40 +1793,55 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         for idx, (tipo, ico, lbl, sub) in enumerate(_TIPOS):
             b = QPushButton(f"{ico}\n{lbl}\n{sub}")
             b.setCheckable(True); b.setMinimumHeight(60)
-            b.setObjectName("qrTypeButton"); b.setProperty("variant","accent")
+            b.setObjectName("qrTypeButton"); b.setProperty("variant", "accent")
             if tipo == "caja": b.setChecked(True)
             b.clicked.connect(lambda _=False, t=tipo: self._qr_set_tipo(t))
             self._qr_tipo_buttons[tipo] = b
             types_grid.addWidget(b, idx // 4, idx % 4)
-        cl.addLayout(types_grid)
+        c1.addLayout(types_grid)
+        c1.addStretch()
+
+        body.addWidget(col1, 2)
+
+        # ── Col 2 (stretch=2): form fields + generate button ───────────────────
+        col2 = QWidget()
+        c2 = QVBoxLayout(col2); c2.setSpacing(8); c2.setContentsMargins(0, 0, 0, 0)
 
         form = QFormLayout(); form.setSpacing(8)
+
         self.qr_codigo = QLineEdit(); self.qr_codigo.setReadOnly(True)
         self.qr_codigo.setObjectName("monoInput")
-        btn_regen = create_secondary_button(self, "↻ Regenerar", "Genera nuevo ID")
+        btn_regen = create_secondary_button(self, "🔄 Regenerar", "Genera nuevo ID")
         btn_regen.clicked.connect(self._qr_regenerar_codigo)
-        row_id = QHBoxLayout(); row_id.addWidget(self.qr_codigo,1); row_id.addWidget(btn_regen)
+        row_id = QHBoxLayout(); row_id.addWidget(self.qr_codigo, 1); row_id.addWidget(btn_regen)
         form.addRow("ID contenedor:", self._wrap(row_id))
 
         self.qr_parent_id: int | None = None
+        self.qr_parent_combo = QComboBox(); self.qr_parent_combo.setEditable(False)
+        self.qr_parent_combo.addItem("— Sin padre —", None)
+        try:
+            rows = self.container.db.execute(
+                "SELECT id, codigo, tipo FROM contenedores ORDER BY fecha_creado DESC LIMIT 500"
+            ).fetchall()
+            for _r in rows:
+                _cid  = _r["id"]     if hasattr(_r, "keys") else _r[0]
+                _cod  = _r["codigo"] if hasattr(_r, "keys") else _r[1]
+                _tp   = _r["tipo"]   if hasattr(_r, "keys") else _r[2]
+                self.qr_parent_combo.addItem(f"{_cod} ({_tp})", _cid)
+        except Exception:
+            pass
+        # Keep backward-compat alias so existing code that references qr_parent_txt still works
         self.qr_parent_txt = QLineEdit()
-        self.qr_parent_txt.setPlaceholderText("Dejar vacío si es contenedor raíz")
-        self.qr_parent_txt.setReadOnly(True)
-        btn_parent_pick = create_secondary_button(self, "🔍", "Buscar contenedor padre")
-        btn_parent_pick.setFixedWidth(36)
-        btn_parent_pick.clicked.connect(self._qr_pick_parent)
-        btn_parent_clear = create_secondary_button(self, "✕", "Quitar padre")
-        btn_parent_clear.setFixedWidth(32)
-        btn_parent_clear.clicked.connect(self._qr_clear_parent)
-        row_parent = QHBoxLayout()
-        row_parent.addWidget(self.qr_parent_txt, 1)
-        row_parent.addWidget(btn_parent_pick); row_parent.addWidget(btn_parent_clear)
-        form.addRow("Contenedor padre:", self._wrap(row_parent))
+        self.qr_parent_txt.setVisible(False)
+        form.addRow("Contenedor padre:", self.qr_parent_combo)
 
-        self.qr_descripcion = QLineEdit()
-        self.qr_descripcion.setPlaceholderText('Ej: "Caja roja del proveedor" (opcional)')
-        self.qr_descripcion.textChanged.connect(lambda _t: self._qr_actualizar_preview())
-        form.addRow("Descripción:", self.qr_descripcion)
+        self.qr_desc = QLineEdit()
+        self.qr_desc.setPlaceholderText('Ej: "Caja roja del proveedor" (opcional)')
+        self.qr_desc.textChanged.connect(lambda _t: self._qr_actualizar_preview())
+        # Alias for legacy code using qr_descripcion
+        self.qr_descripcion = self.qr_desc
+        form.addRow("Descripción:", self.qr_desc)
+
         self.qr_sucursal_gen = QComboBox()
         self.qr_sucursal_gen.addItem("Seleccionar sucursal…", None)
         try:
@@ -1967,59 +1849,70 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.qr_sucursal_gen.addItem(str(s.get("nombre", "")), s.get("id"))
         except Exception:
             self.qr_sucursal_gen.addItem("Sucursal Principal", 1)
-        form.addRow("Sucursal destino (opcional):", self.qr_sucursal_gen)
-        from PyQt5.QtWidgets import QTextEdit as _TE
-        self.qr_obs_gen = _TE(); self.qr_obs_gen.setMaximumHeight(56)
+        form.addRow("Sucursal destino:", self.qr_sucursal_gen)
+
+        self.qr_obs_gen = QPlainTextEdit()
+        self.qr_obs_gen.setMaximumHeight(60)
         self.qr_obs_gen.setPlaceholderText("Observaciones adicionales del contenedor…")
-        form.addRow("Observaciones (opcional):", self.qr_obs_gen)
-        cl.addLayout(form); cl.addStretch()
+        form.addRow("Observaciones:", self.qr_obs_gen)
 
-        btn_gen = create_primary_button(self, "📥 Generar QR + imprimir", "")
+        c2.addLayout(form)
+        c2.addStretch()
+
+        btn_gen = QPushButton("⚡ Generar contenedor")
+        btn_gen.setObjectName("primaryBtn")
         btn_gen.clicked.connect(self._qr_generar_contenedor)
-        cl.addWidget(btn_gen)
+        c2.addWidget(btn_gen)
 
-        # Right: preview card
-        card_right = QGroupBox("🏷️ Etiqueta generada")
-        card_right.setObjectName("sectionCard"); card_right.setMaximumWidth(340)
-        cr = QVBoxLayout(card_right); cr.setSpacing(10); cr.setAlignment(Qt.AlignTop)
+        body.addWidget(col2, 2)
 
-        self.qr_preview_box = QFrame(); self.qr_preview_box.setObjectName("qrPreviewBox")
-        pb = QHBoxLayout(self.qr_preview_box); pb.setContentsMargins(10,8,10,8)
-        self.qr_preview_ic = QLabel("🟫"); self.qr_preview_ic.setObjectName("qrPreviewIcon")
-        pb.addWidget(self.qr_preview_ic)
-        col = QVBoxLayout(); col.setSpacing(2)
-        self.qr_preview_id = QLabel("CAJ-260101-000000"); self.qr_preview_id.setObjectName("monoLabel")
-        self.qr_preview_meta = QLabel("Caja"); self.qr_preview_meta.setObjectName("caption")
-        col.addWidget(self.qr_preview_id); col.addWidget(self.qr_preview_meta)
-        pb.addLayout(col,1)
-        cr.addWidget(self.qr_preview_box)
+        # ── Col 3 (stretch=1): preview card ────────────────────────────────────
+        col3 = QFrame(); col3.setObjectName("qrPreviewBox")
+        c3 = QVBoxLayout(col3); c3.setSpacing(10); c3.setAlignment(Qt.AlignTop)
+        c3.setContentsMargins(10, 10, 10, 10)
+
+        self.qr_preview_ic = QLabel("▣")
+        self.qr_preview_ic.setObjectName("qrPreviewIconLarge")
+        self.qr_preview_ic.setAlignment(Qt.AlignCenter)
+        c3.addWidget(self.qr_preview_ic, 0, Qt.AlignCenter)
+
+        self.qr_preview_id = QLabel("CAJ-260101-000000")
+        self.qr_preview_id.setObjectName("monoLabel")
+        self.qr_preview_id.setAlignment(Qt.AlignCenter)
+        c3.addWidget(self.qr_preview_id, 0, Qt.AlignCenter)
+
+        self.qr_preview_meta = QLabel("Caja")
+        self.qr_preview_meta.setObjectName("caption")
+        self.qr_preview_meta.setAlignment(Qt.AlignCenter)
+        c3.addWidget(self.qr_preview_meta, 0, Qt.AlignCenter)
 
         self.qr_preview_qr = QLabel("📷  QR")
         self.qr_preview_qr.setObjectName("qrPreviewArea")
         self.qr_preview_qr.setAlignment(Qt.AlignCenter)
-        self.qr_preview_qr.setMinimumSize(200, 200)
-        cr.addWidget(self.qr_preview_qr, 0, Qt.AlignCenter)
+        self.qr_preview_qr.setMinimumSize(160, 160)
+        c3.addWidget(self.qr_preview_qr, 0, Qt.AlignCenter)
 
         self.qr_preview_status = QLabel("⏳ Pendiente de generar")
         self.qr_preview_status.setObjectName("statusBadge")
-        self.qr_preview_status.setProperty("variant","warning")
+        self.qr_preview_status.setProperty("variant", "warning")
         self.qr_preview_status.setAlignment(Qt.AlignCenter)
-        cr.addWidget(self.qr_preview_status, 0, Qt.AlignCenter)
+        c3.addWidget(self.qr_preview_status, 0, Qt.AlignCenter)
 
-        hint = QLabel("El contenido detallado, proveedor, costos e información financiera\nse asignan en el paso 2.")
-        hint.setObjectName("caption"); hint.setAlignment(Qt.AlignCenter); hint.setWordWrap(True)
-        cr.addWidget(hint)
-        cr.addStretch()
+        c3.addStretch()
 
         row_btns = QHBoxLayout()
-        btn_pdf = create_secondary_button(self, "💾 PDF", "Guardar etiqueta como PDF")
-        btn_print = create_primary_button(self, "🖨 Imprimir", "Imprimir etiqueta")
+        btn_pdf = create_secondary_button(self, "📄 PDF", "Guardar etiqueta como PDF")
+        btn_print = create_primary_button(self, "🖨️ Imprimir", "Imprimir etiqueta")
         btn_pdf.clicked.connect(self._qr_exportar_pdf)
         btn_print.clicked.connect(self._qr_imprimir)
         row_btns.addWidget(btn_pdf); row_btns.addWidget(btn_print)
-        cr.addLayout(row_btns)
+        c3.addLayout(row_btns)
 
-        lay.addWidget(card_left, 1); lay.addWidget(card_right, 0)
+        body.addWidget(col3, 1)
+
+        # Keep backward-compat alias for preview_box
+        self.qr_preview_box = col3
+
         self._qr_regenerar_codigo()
 
     _TIPO_ICO = {
@@ -2172,22 +2065,76 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         pass
 
     # ── Sub-pestaña 2: Asignar compra ──────────────────────────────────────
+    def _qr_asignar_scan_input_handler(self) -> None:
+        """Stub: handles QR scan input from the scan overlay in the Asignar subtab."""
+        if not hasattr(self, "_qr_scan_overlay_input"):
+            return
+        code = self._qr_scan_overlay_input.text().strip()
+        if not code:
+            return
+        if hasattr(self, "qr_scan_input"):
+            self.qr_scan_input.setText(code)
+        self._qr_cargar_por_codigo()
+        self._qr_scan_overlay_input.clear()
+
     def _build_subtab_asignar(self, parent: QWidget) -> None:
-        lay = QHBoxLayout(parent); lay.setContentsMargins(8,8,8,8); lay.setSpacing(10)
+        outer_root = QVBoxLayout(parent)
+        outer_root.setContentsMargins(8, 8, 8, 8)
+        outer_root.setSpacing(0)
+
+        # ── Header row with scan button ────────────────────────────────────────
+        hdr_row = QHBoxLayout(); hdr_row.setSpacing(8)
+        lbl_asgn_hdr = QLabel("Asignar datos a contenedor")
+        lbl_asgn_hdr.setObjectName("formSection")
+        hdr_row.addWidget(lbl_asgn_hdr)
+        hdr_row.addStretch()
+        btn_scan_overlay = QPushButton("📷 Escanear QR")
+        btn_scan_overlay.setObjectName("secondaryBtn")
+        hdr_row.addWidget(btn_scan_overlay)
+        outer_root.addLayout(hdr_row)
+
+        # ── Scan overlay panel (slide-in from top, hidden by default) ─────────
+        self._qr_scan_overlay = QFrame()
+        self._qr_scan_overlay.setObjectName("scanOverlay")
+        scan_ov_lay = QHBoxLayout(self._qr_scan_overlay)
+        scan_ov_lay.setContentsMargins(8, 6, 8, 6); scan_ov_lay.setSpacing(8)
+        lbl_scan_ov = QLabel("📷 Escanear / teclear código:")
+        lbl_scan_ov.setObjectName("caption")
+        scan_ov_lay.addWidget(lbl_scan_ov)
+        self._qr_scan_overlay_input = QLineEdit()
+        self._qr_scan_overlay_input.setObjectName("scanInput")
+        self._qr_scan_overlay_input.setPlaceholderText("Escanea el QR o teclea el ID…")
+        self._qr_scan_overlay_input.returnPressed.connect(self._qr_asignar_scan_input_handler)
+        scan_ov_lay.addWidget(self._qr_scan_overlay_input, 1)
+        btn_scan_go = QPushButton("→ Cargar")
+        btn_scan_go.clicked.connect(self._qr_asignar_scan_input_handler)
+        scan_ov_lay.addWidget(btn_scan_go)
+        self._qr_scan_overlay.setVisible(False)
+        outer_root.addWidget(self._qr_scan_overlay)
+
+        def _toggle_scan_overlay():
+            self._qr_scan_overlay.setVisible(not self._qr_scan_overlay.isVisible())
+            if self._qr_scan_overlay.isVisible():
+                self._qr_scan_overlay_input.setFocus()
+        btn_scan_overlay.clicked.connect(_toggle_scan_overlay)
+
+        # ── Main content (left list + center/right form) ───────────────────────
+        lay = QHBoxLayout(); lay.setSpacing(10)
+        outer_root.addLayout(lay, 1)
 
         # Left: container list
         card_list = QGroupBox("📋 Contenedores sin asignar")
-        card_list.setObjectName("sectionCard"); card_list.setMaximumWidth(300)
+        card_list.setObjectName("sectionCard"); card_list.setMaximumWidth(220)
         cl = QVBoxLayout(card_list); cl.setSpacing(8)
-        scan_row = QHBoxLayout()
         self.qr_scan_input = QLineEdit()
         self.qr_scan_input.setPlaceholderText("📷 Escanear QR o teclear ID…")
         self.qr_scan_input.setObjectName("scanInput")
         self.qr_scan_input.returnPressed.connect(self._qr_cargar_por_codigo)
+        cl.addWidget(self.qr_scan_input)
         btn_scan = create_primary_button(self, "→ Cargar", "")
+        btn_scan.setFixedWidth(200)
         btn_scan.clicked.connect(self._qr_cargar_por_codigo)
-        scan_row.addWidget(self.qr_scan_input,1); scan_row.addWidget(btn_scan)
-        cl.addLayout(scan_row)
+        cl.addWidget(btn_scan, 0, Qt.AlignHCenter)
         self.qr_filtro_cont = QLineEdit()
         self.qr_filtro_cont.setPlaceholderText("🔎 Buscar ID contenedor…")
         self.qr_filtro_cont.textChanged.connect(lambda _: self._cargar_contenedores_pendientes())
@@ -3829,12 +3776,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sidebar.setObjectName("documentalToolbar")
         sidebar.setMinimumWidth(260)
         sidebar.setMaximumWidth(320)
-        sidebar.setStyleSheet(
-            f"QFrame#documentalToolbar{{"
-            f"  background:{_C_CARD_BG};"
-            f"  border-right:1px solid {_C_BORDER};"
-            f"}}"
-        )
         root_lay = QVBoxLayout(sidebar)
         root_lay.setContentsMargins(0, 0, 0, 0)
         root_lay.setSpacing(0)
@@ -3850,42 +3791,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         hdr_frame = QFrame()
         hdr_frame.setObjectName("toolbarHeaderStrip")
         hdr_frame.setFixedHeight(34)
-        hdr_frame.setStyleSheet(
-            f"QFrame#toolbarHeaderStrip{{"
-            f"  background:{_C_CARD_HDR_BG};"
-            f"  border-bottom:1px solid {_C_BORDER};"
-            f"}}"
-        )
         hdr_lay = QHBoxLayout(hdr_frame)
         hdr_lay.setContentsMargins(Spacing.SM + 2, 0, Spacing.XS, 0)
         hdr = QLabel("📁  DOCUMENTOS ERP")
-        hdr.setStyleSheet(
-            f"color:{Colors.NEUTRAL.WHITE};"
-            f"font-size:{Typography.SIZE_XS};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            "letter-spacing:0.1em;background:transparent;"
-        )
+        hdr.setObjectName("toolbarHeaderLabel")
         hdr_lay.addWidget(hdr)
         hdr_lay.addStretch()
 
         # Collapse / expand toggle
         self._btn_collapse_doc = QPushButton("◀")
         self._btn_collapse_doc.setFixedSize(24, 24)
+        self._btn_collapse_doc.setObjectName("toolbarCollapseBtn")
         self._btn_collapse_doc.setCursor(Qt.PointingHandCursor)
         self._btn_collapse_doc.setToolTip("Ocultar / mostrar toolbar documental")
-        self._btn_collapse_doc.setStyleSheet(
-            f"QPushButton{{"
-            f"  background:transparent;"
-            f"  color:{Colors.NEUTRAL.WHITE};"
-            f"  border:none;"
-            f"  font-size:{Typography.SIZE_SM};"
-            f"  font-weight:{Typography.WEIGHT_BOLD};"
-            f"}}"
-            f"QPushButton:hover{{"
-            f"  background:{_C_BORDER};"
-            f"  border-radius:{Borders.RADIUS_SM}px;"
-            f"}}"
-        )
         self._btn_collapse_doc.clicked.connect(self._toggle_documental_toolbar)
         hdr_lay.addWidget(self._btn_collapse_doc)
         root_lay.addWidget(hdr_frame)
@@ -3897,14 +3815,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # ── Scrollable content ────────────────────────────────────────────────
         scroll_w = QWidget()
-        scroll_w.setStyleSheet("background:transparent;")
+        scroll_w.setObjectName("toolbarScrollContent")
         inner = QVBoxLayout(scroll_w)
         inner.setContentsMargins(Spacing.SM + 2, Spacing.SM, Spacing.SM + 2, Spacing.XS)
         inner.setSpacing(Spacing.SM)
 
         # Section title "DOCUMENTOS"
         sec_title = QLabel("DOCUMENTOS")
-        sec_title.setStyleSheet(_section_label_style(_C_FIELD_LABEL))
+        sec_title.setObjectName("sectionLabel")
         inner.addWidget(sec_title)
 
         # ── Quick actions: Nueva Compra Directa | Nueva PR ────────────────────
@@ -3950,49 +3868,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._doc_erp_list = QListWidget()
         self._doc_erp_list.setObjectName("docErpList")
         self._doc_erp_list.setMaximumHeight(160)
-        self._doc_erp_list.setStyleSheet(
-            f"QListWidget#docErpList{{"
-            f"  background:{_C_PAGE_BG};"
-            f"  border:1px solid {_C_BORDER};"
-            f"  border-radius:{Borders.RADIUS_SM}px;"
-            f"  font-size:{Typography.SIZE_XS};"
-            f"  color:{_C_BODY_TXT};outline:none;"
-            f"}}"
-            f"QListWidget#docErpList::item{{"
-            f"  padding:{Spacing.XS}px {Spacing.SM - 2}px;"
-            f"  border-bottom:1px solid {_C_BORDER};"
-            f"}}"
-            f"QListWidget#docErpList::item:selected{{"
-            f"  background:{Colors.PRIMARY.DARK};"
-            f"  color:{Colors.NEUTRAL.WHITE};"
-            f"  border-left:3px solid {Colors.PRIMARY_BASE};"
-            f"}}"
-        )
         self._doc_erp_list.itemClicked.connect(self._on_doc_item_clicked)
         inner.addWidget(self._doc_erp_list)
 
         self._doc_list_empty_lbl = QLabel("Sin documentos en esta categoría")
         self._doc_list_empty_lbl.setAlignment(Qt.AlignCenter)
-        self._doc_list_empty_lbl.setObjectName("caption")
-        self._doc_list_empty_lbl.setStyleSheet(
-            f"color:{_C_HINT};"
-            f"padding:{Spacing.XS + 2}px;"
-            f"font-size:{Typography.SIZE_XS};"
-            "background:transparent;"
-        )
+        self._doc_list_empty_lbl.setObjectName("hintLabel")
         self._doc_list_empty_lbl.hide()
         inner.addWidget(self._doc_list_empty_lbl)
 
         # ── Detail / summary card ─────────────────────────────────────────────
         self._doc_detail_card = QFrame()
         self._doc_detail_card.setObjectName("docDetailCard")
-        self._doc_detail_card.setStyleSheet(
-            f"QFrame#docDetailCard{{"
-            f"  background:{_C_MUTED_BG};"
-            f"  border:1px solid {_C_BORDER};"
-            f"  border-radius:{Borders.RADIUS_MD}px;"
-            f"}}"
-        )
         card_lay = QVBoxLayout(self._doc_detail_card)
         card_lay.setContentsMargins(Spacing.SM + 2, Spacing.SM, Spacing.SM + 2, Spacing.SM)
         card_lay.setSpacing(Spacing.XS + 2)
@@ -4002,22 +3889,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         folio_col = QVBoxLayout(); folio_col.setSpacing(0)
         folio_col.addWidget(_make_field_label("Folio"))
         self._doc_lbl_folio = QLabel("—")
-        self._doc_lbl_folio.setStyleSheet(
-            f"font-size:{Typography.SIZE_SM};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            f"color:{_C_HEADER_TXT};background:transparent;"
-        )
+        self._doc_lbl_folio.setObjectName("docFolioLabel")
         folio_col.addWidget(self._doc_lbl_folio)
         folio_row.addLayout(folio_col)
         folio_row.addStretch()
         self._doc_lbl_estado_badge = QLabel("")
+        self._doc_lbl_estado_badge.setObjectName("statusBadge")
         self._doc_lbl_estado_badge.setAlignment(Qt.AlignCenter)
-        self._doc_lbl_estado_badge.setStyleSheet(
-            f"font-size:{Typography.SIZE_XS};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            f"border-radius:{Borders.RADIUS_SM}px;"
-            f"padding:{Spacing.XS}px {Spacing.SM}px;background:transparent;"
-        )
         folio_row.addWidget(self._doc_lbl_estado_badge)
         card_lay.addLayout(folio_row)
 
@@ -4033,10 +3911,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             v = QLabel("—")
             v.setObjectName("caption")
             v.setWordWrap(True)
-            v.setStyleSheet(
-                f"font-size:{Typography.SIZE_XS};"
-                f"color:{_C_BODY_TXT};background:transparent;"
-            )
             setattr(self, attr, v)
             box.addWidget(v)
             info_grid.addLayout(box, row, col, 1, span)
@@ -4051,7 +3925,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Separator
         sep = QFrame(); sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet(f"border:none;border-top:1px solid {_C_BORDER};")
+        sep.setObjectName("separator")
         card_lay.addWidget(sep)
 
         # Prioridad + Monto row
@@ -4059,23 +3933,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         pri_col = QVBoxLayout(); pri_col.setSpacing(0)
         pri_col.addWidget(_make_field_label("Prioridad"))
         self._doc_lbl_prioridad = QLabel("—")
-        self._doc_lbl_prioridad.setStyleSheet(
-            f"font-size:{Typography.SIZE_SM};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            f"color:{Colors.DANGER_BASE};background:transparent;"
-        )
+        self._doc_lbl_prioridad.setObjectName("docPrioridadLabel")
         pri_col.addWidget(self._doc_lbl_prioridad)
         monto_col = QVBoxLayout(); monto_col.setSpacing(0)
         m_lbl = _make_field_label("Monto"); m_lbl.setAlignment(Qt.AlignRight)
         monto_col.addWidget(m_lbl)
         self._doc_lbl_monto = QLabel("$0.00")
+        self._doc_lbl_monto.setObjectName("docMontoLabel")
         self._doc_lbl_monto.setAlignment(Qt.AlignRight)
-        self._doc_lbl_monto.setStyleSheet(
-            f"font-size:{Typography.SIZE_XXL};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            f"color:{Colors.SUCCESS_BASE};background:transparent;"
-            "letter-spacing:-0.02em;"
-        )
         monto_col.addWidget(self._doc_lbl_monto)
         monto_row.addLayout(pri_col)
         monto_row.addStretch()
@@ -4162,10 +4027,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         sa.setWidgetResizable(True)
         sa.setWidget(scroll_w)
         sa.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        sa.setStyleSheet(
-            "QScrollArea{border:none;background:transparent;}"
-            f"QScrollBar:vertical{{width:{Spacing.XS}px;background:transparent;}}"
-        )
+        sa.setObjectName("transparentScrollArea")
         self._doc_toolbar_scroll = sa
         root_lay.addWidget(sa, 1)
 
@@ -4727,9 +4589,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Right column: items table (flex-1) + totals footer (fixed) + action button."""
         panel = PurchaseItemsAndTotalsPanel()
         panel.setObjectName("purchaseRightPanel")
-        panel.setStyleSheet(
-            f"QFrame#purchaseRightPanel{{background:{_C_PAGE_BG};}}"
-        )
         panel.setMinimumWidth(420)
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(Spacing.XS, Spacing.XS, Spacing.XS, Spacing.XS)
@@ -4744,27 +4603,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # ── Totals footer card ───────────────────────────────────────────────
         totals_card = PurchaseTotalsFooter()
         totals_card.setObjectName("sectionCard")
-        totals_card.setStyleSheet(
-            f"QFrame#sectionCard{{"
-            f"  background:{_C_CARD_BG};"
-            f"  border:1px solid {_C_BORDER};"
-            f"  border-radius:{Borders.RADIUS_MD}px;"
-            f"}}"
-        )
         tc_lay = QVBoxLayout(totals_card)
         tc_lay.setContentsMargins(Spacing.SM + 2, Spacing.XS + 2, Spacing.SM + 2, Spacing.XS + 2)
         tc_lay.setSpacing(Spacing.XS)
 
-        def _fv(initial="$0.00", color=None) -> QLabel:
+        def _fv(initial="$0.00", variant=None) -> QLabel:
             l = QLabel(initial)
-            l.setObjectName("caption")
-            base = (
-                f"font-family:'JetBrains Mono','Consolas',monospace;"
-                f"font-size:{Typography.SIZE_SM};"
-                f"font-weight:{Typography.WEIGHT_SEMIBOLD};"
-                "background:transparent;"
-            )
-            l.setStyleSheet(base + (f"color:{color};" if color else ""))
+            l.setObjectName("totalValueLabel")
+            if variant:
+                l.setProperty("variant", variant)
             return l
 
         # Totals 2-col grid
@@ -4774,8 +4621,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         tgrid.setColumnStretch(1, 1)
 
         self._sum_subtotal_lbl  = _fv()
-        self._sum_descuento_lbl = _fv(color=Colors.WARNING_BASE)
-        self._sum_iva_lbl       = _fv(color=Colors.INFO_BASE)
+        self._sum_descuento_lbl = _fv(variant="warning")
+        self._sum_iva_lbl       = _fv(variant="info")
         self._sum_iva_lbl.hide()
         self._sum_flete_lbl     = _fv()
         self._sum_otros_lbl     = _fv()
@@ -4822,7 +4669,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Separator
         sep_line = QFrame(); sep_line.setFrameShape(QFrame.HLine)
-        sep_line.setStyleSheet(f"border:none;border-top:1px solid {_C_BORDER};")
+        sep_line.setObjectName("separator")
         tc_lay.addWidget(sep_line)
 
         # ── Total + payment row ─────────────────────────────────────────────
@@ -4833,13 +4680,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         total_col.setSpacing(2)
         lbl_total_hdr = _make_field_label("Total Documento")
         self.lbl_total = QLabel("$0.00")
-        self.lbl_total.setStyleSheet(
-            f"font-family:'JetBrains Mono','Consolas',monospace;"
-            f"font-size:{Typography.SIZE_XXL};"
-            f"font-weight:{Typography.WEIGHT_BOLD};"
-            f"color:{Colors.ACCENT_BASE};"
-            "background:transparent;letter-spacing:-0.02em;"
-        )
+        self.lbl_total.setObjectName("totalMainLabel")
         self._sum_total_lbl = self.lbl_total
         total_col.addWidget(lbl_total_hdr)
         total_col.addWidget(self.lbl_total)
@@ -4863,9 +4704,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._spin_plazo_dias.setObjectName("standardInput")
         self._lbl_vence_el = QLabel("—")
         self._lbl_vence_el.setObjectName("caption")
-        self._lbl_vence_el.setStyleSheet(
-            f"font-size:{Typography.SIZE_XS};color:{_C_BODY_TXT};background:transparent;"
-        )
 
         pay_col.addWidget(_make_field_label("Método / Forma"), 0, 0, 1, 2)
         pay_col.addWidget(self.cmb_pago,                       1, 0, 1, 2)
@@ -4892,18 +4730,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         scroll.setWidget(panel)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(
-            f"QScrollArea#rightColScroll{{"
-            f"  background:{_C_PAGE_BG};border:none;"
-            f"}}"
-            f"QScrollBar:vertical{{"
-            f"  width:{Spacing.SM}px;background:transparent;"
-            f"}}"
-            f"QScrollBar::handle:vertical{{"
-            f"  background:{_C_BORDER};"
-            f"  border-radius:{Borders.RADIUS_SM - 1}px;"
-            f"}}"
-        )
         return scroll
 
     def _poblar_sidebar_proveedores(self) -> None:
@@ -5018,7 +4844,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         bar = QWidget()
         bar.setObjectName("stepperBar")
         bar.setFixedHeight(44)
-        bar.setStyleSheet("background:transparent;")
         h = QHBoxLayout(bar)
         h.setContentsMargins(0, 0, 0, 0)
         h.setSpacing(0)
@@ -5030,18 +4855,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setFixedHeight(32)
             lbl.setObjectName(f"stepperStep_{i}")
-            lbl.setStyleSheet(self._stepper_style("idle"))
+            lbl.setProperty("stepperState", "idle")
             self._stepper_labels.append(lbl)
             h.addWidget(lbl, 1)
             if i < len(steps) - 1:
                 arrow = QLabel("›")
+                arrow.setObjectName("stepperArrow")
                 arrow.setAlignment(Qt.AlignCenter)
                 arrow.setFixedWidth(16)
-                arrow.setStyleSheet(
-                    f"color:{Colors.NEUTRAL.SLATE_300};"
-                    f"font-size:{Typography.SIZE_XXL};"
-                    "background:transparent;"
-                )
                 h.addWidget(arrow)
         return bar
 
@@ -5416,13 +5237,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Container with subtle background, mimics the HTML pill-group
         group = QFrame()
         group.setObjectName("doctypeGroup")
-        group.setStyleSheet(
-            f"QFrame#doctypeGroup{{"
-            f"  background:{_C_MUTED_BG};"
-            f"  border:1px solid {_C_BORDER};"
-            f"  border-radius:{Borders.RADIUS_SM}px;"
-            f"}}"
-        )
         group_lay = QHBoxLayout(group)
         group_lay.setContentsMargins(2, 2, 2, 2)
         group_lay.setSpacing(2)
@@ -6755,10 +6569,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_timeline_bar = QFrame()
         self._hist_timeline_bar.setObjectName("histTimelineBar")
         self._hist_timeline_bar.setFixedHeight(54)
-        self._hist_timeline_bar.setStyleSheet(
-            f"background:transparent;"
-            f"border:1px solid {Colors.NEUTRAL.SLATE_200};border-radius:6px;"
-        )
         self._hist_timeline_lay = QHBoxLayout(self._hist_timeline_bar)
         self._hist_timeline_lay.setContentsMargins(12, 6, 12, 6)
         self._hist_timeline_lay.setSpacing(4)
@@ -6921,28 +6731,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         from PyQt5.QtWidgets import QScrollArea
         panel = QFrame()
         panel.setFixedWidth(190)
+        panel.setObjectName("histKpiSidebar")
         panel.setFrameShape(QFrame.StyledPanel)
-        panel.setStyleSheet(
-            f"QFrame{{background:transparent;"
-            f"border-left:1px solid {Colors.NEUTRAL.SLATE_200};}}"
-        )
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(10, 12, 10, 12)
         lay.setSpacing(8)
 
         def _section(title: str) -> QLabel:
             lbl = QLabel(title)
-            lbl.setStyleSheet(
-                f"font-size:10px;font-weight:700;color:{Colors.NEUTRAL.SLATE_500};"
-                f"text-transform:uppercase;letter-spacing:0.5px;"
-                f"border-bottom:1px solid {Colors.NEUTRAL.SLATE_200};padding-bottom:4px;"
-            )
+            lbl.setObjectName("kpiSidebarSection")
             return lbl
 
         def _kpi(label: str, init: str = "—") -> QLabel:
             lbl = QLabel(f"<b>{init}</b><br><span style='font-size:10px;"
                          f"color:{Colors.NEUTRAL.SLATE_500};'>{label}</span>")
-            lbl.setStyleSheet("font-size:14px;padding:4px 0;")
+            lbl.setObjectName("kpiSidebarValue")
             lbl.setTextFormat(Qt.RichText)
             return lbl
 
@@ -6974,10 +6777,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         lay.addWidget(_section("⚠ ALERTAS"))
         self._kpi_alertas_lbl = QLabel("—")
+        self._kpi_alertas_lbl.setObjectName("captionMuted")
         self._kpi_alertas_lbl.setWordWrap(True)
-        self._kpi_alertas_lbl.setStyleSheet(
-            f"font-size:11px;color:{Colors.NEUTRAL.SLATE_600};"
-        )
         lay.addWidget(self._kpi_alertas_lbl)
 
         lay.addStretch()
@@ -7178,39 +6979,27 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         def _node(icon: str, label: str, sublabel: str,
                   done: bool, active: bool = False) -> QFrame:
-            """Build a timeline node using design tokens only."""
-            if done:
-                bg     = f"{Colors.SUCCESS_BASE}22"
-                border = f"{Colors.SUCCESS_BASE}60"
-                txt    = Colors.SUCCESS_BASE
-            elif active:
-                bg     = f"{Colors.PRIMARY_BASE}22"
-                border = f"{Colors.PRIMARY_BASE}60"
-                txt    = Colors.PRIMARY_BASE
-            else:
-                bg     = Colors.NEUTRAL.SLATE_100
-                border = Colors.NEUTRAL.SLATE_300
-                txt    = Colors.NEUTRAL.SLATE_400
+            """Build a timeline node. Uses objectName + property for styling."""
+            state = "done" if done else ("active" if active else "pending")
             f = QFrame()
-            f.setStyleSheet(
-                f"background:{bg};border:1px solid {border};"
-                f"border-radius:5px;padding:2px 6px;"
-            )
+            f.setObjectName("timelineNode")
+            f.setProperty("state", state)
             fl = QVBoxLayout(f)
             fl.setContentsMargins(4, 2, 4, 2)
             fl.setSpacing(0)
             top = QLabel(f"{icon} <b>{label}</b>")
-            top.setStyleSheet(f"font-size:11px;color:{txt};")
+            top.setObjectName("timelineNodeLabel")
+            top.setProperty("state", state)
             top.setTextFormat(Qt.RichText)
             sub = QLabel(sublabel)
-            sub.setStyleSheet(f"font-size:9px;color:{Colors.NEUTRAL.SLATE_500};")
+            sub.setObjectName("timelineNodeSub")
             fl.addWidget(top)
             fl.addWidget(sub)
             return f
 
         def _arrow() -> QLabel:
             lbl = QLabel("→")
-            lbl.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_400};font-size:16px;")
+            lbl.setObjectName("timelineArrow")
             lbl.setAlignment(Qt.AlignCenter)
             return lbl
 
