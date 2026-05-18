@@ -27,9 +27,9 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QMenu, QSizePolicy, QCheckBox, QListWidget, QListWidgetItem,
     QDialog, QInputDialog, QShortcut, QTextBrowser, QDateEdit, QFileDialog, QScrollArea,
-    QPlainTextEdit,
+    QPlainTextEdit, QTabBar, QStackedWidget,
 )
-from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, QThread, QStringListModel, QDate, pyqtSignal, QObject
 from PyQt5.QtGui import QCursor, QKeySequence
 from datetime import datetime
 import json, logging, os, unicodedata
@@ -79,6 +79,44 @@ _IVA_RATE = 0.16
 _ROLES_SIN_TOTALES: frozenset[str] = frozenset({
     "CAJERO", "BÁSICO", "BASIC", "CASHIER", "VENDEDOR",
 })
+
+
+class _TabsProxy(QObject):
+    """Wraps a QTabBar + QStackedWidget to mimic QTabWidget interface."""
+    currentChanged = pyqtSignal(int)
+
+    def __init__(self, tabbar: 'QTabBar', stack: 'QStackedWidget', parent=None):
+        super().__init__(parent)
+        self._bar = tabbar
+        self._stack = stack
+        self._bar.currentChanged.connect(self._on_bar_change)
+
+    def _on_bar_change(self, idx: int):
+        self._stack.setCurrentIndex(idx)
+        self.currentChanged.emit(idx)
+
+    def addTab(self, widget: 'QWidget', label: str) -> int:
+        idx = self._bar.addTab(label)
+        self._stack.addWidget(widget)
+        return idx
+
+    def count(self) -> int:
+        return self._bar.count()
+
+    def tabText(self, idx: int) -> str:
+        return self._bar.tabText(idx)
+
+    def removeTab(self, idx: int):
+        w = self._stack.widget(idx)
+        self._bar.removeTab(idx)
+        if w:
+            self._stack.removeWidget(w)
+
+    def setCurrentIndex(self, idx: int):
+        self._bar.setCurrentIndex(idx)
+
+    def currentIndex(self) -> int:
+        return self._bar.currentIndex()
 
 
 class _PurchaseKPICard(QFrame):
@@ -841,13 +879,31 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             subtitle="Recepción de mercancía · Actualización de stock · Historial",
         ))
 
-        # ── KPI bar (outside tabs, spans all 3 tabs) ─────────────────────────
+        # ── Row 1: main tab bar ───────────────────────────────────────────
+        self._main_tabbar = QTabBar()
+        self._main_tabbar.setObjectName("mainTabBar")
+        self._main_tabbar.setDocumentMode(True)
+        self._main_tabbar.setUsesScrollButtons(True)
+        root.addWidget(self._main_tabbar)
+
+        # ── Row 2: QR subtab bar (hidden until QR tab active) ────────────
+        self._qr_sub_tabbar = QTabBar()
+        self._qr_sub_tabbar.setObjectName("subTabBar")
+        self._qr_sub_tabbar.setDocumentMode(True)
+        self._qr_sub_tabbar.setVisible(False)
+        root.addWidget(self._qr_sub_tabbar)
+
+        # ── KPI bar ───────────────────────────────────────────────────────
         root.addWidget(self._build_purchase_kpi_bar())
 
-        # Tabs: Tradicional | QR
-        self._tabs = create_standard_tabs(self)
-        root.addWidget(self._tabs)
+        # ── Content stack ─────────────────────────────────────────────────
+        self._main_stack = QStackedWidget()
+        root.addWidget(self._main_stack, 1)
 
+        # Build proxy so existing code using self._tabs still works
+        self._tabs = _TabsProxy(self._main_tabbar, self._main_stack, parent=self)
+
+        # ── Main tabs ─────────────────────────────────────────────────────
         tab_trad = QWidget()
         self._tabs.addTab(tab_trad, "🛒 Compra Tradicional")
         self._build_tab_tradicional(tab_trad)
@@ -862,6 +918,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         self._remove_accidental_po_tabs()
         self._tabs.currentChanged.connect(self._on_tab_change)
+
+        # Show/hide QR subtab bar based on active main tab
+        def _on_main_tab_change(idx):
+            self._qr_sub_tabbar.setVisible(idx == 1)
+        self._main_tabbar.currentChanged.connect(_on_main_tab_change)
+
         apply_spj_buttons(self)
         self._normalizar_botones_ui()
 
@@ -1687,25 +1749,18 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._ensure_qr_schema()
 
         lay = QVBoxLayout(parent)
-        lay.setContentsMargins(8, 8, 8, 8)
-        lay.setSpacing(8)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
 
-        info_bar = QFrame()
-        info_bar.setObjectName("qrFlowBanner")
-        ib = QHBoxLayout(info_bar)
-        ib.setContentsMargins(12, 6, 12, 6)
-        ib.setSpacing(10)
-        lbl_flow = QLabel(
-            "🏷️  Identificar contenedor   →   🔗  Asignar compra   →   "
-            "📦  Recibir   →   📚  Histórico"
-        )
-        lbl_flow.setObjectName("subheading")
-        ib.addWidget(lbl_flow)
-        ib.addStretch()
-        lay.addWidget(info_bar)
+        qr_stack = QStackedWidget()
+        lay.addWidget(qr_stack, 1)
 
-        self._qr_subtabs = create_standard_tabs(self)
-        lay.addWidget(self._qr_subtabs, 1)
+        # Wire subtab bar (created in _build_ui) to this stack
+        self._qr_subtabs = _TabsProxy(self._qr_sub_tabbar, qr_stack, parent=self)
+
+        # Clear any existing tabs from a previous build
+        while self._qr_sub_tabbar.count() > 0:
+            self._qr_sub_tabbar.removeTab(0)
 
         sub_etq = QWidget()
         self._qr_subtabs.addTab(sub_etq, "🏷️ Generación etiqueta QR")
@@ -1717,7 +1772,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         sub_rec = QWidget()
         self._qr_subtabs.addTab(sub_rec, "📦 Recepción con QR")
-        # Subtab builds RecepcionQRWidget wrapped with wrap_in_scroll_area (see _build_subtab_recepcion)
         self._build_subtab_recepcion(sub_rec)
 
         sub_hst = QWidget()
