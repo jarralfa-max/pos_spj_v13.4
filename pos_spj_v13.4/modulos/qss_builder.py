@@ -989,6 +989,168 @@ _TPL_OSCURO = f"""
             color: {Colors.NEUTRAL.SLATE_100}; background: transparent;
         }}
         QFrame[frameShape="4"] {{ color: {Colors.NEUTRAL.SLATE_700}; max-height: 1px; }}
+
+        /* ═══════════════════════════════════════════════════════════════════
+           COMPRAS PRO — DARK THEME
+           KPI accent bars, field labels, section cards, variant labels
+           ═══════════════════════════════════════════════════════════════════ */
+
+        /* KPI accent bar (thin coloured stripe at top of KPI card) */
+        QFrame#kpiAccentBar {{
+            border: none;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+        }}
+        QFrame#kpiAccentBar[variant="primary"] {{ background: {Colors.PRIMARY.BASE}; }}
+        QFrame#kpiAccentBar[variant="success"] {{ background: {Colors.SUCCESS.BASE}; }}
+        QFrame#kpiAccentBar[variant="danger"]  {{ background: {Colors.DANGER.BASE}; }}
+        QFrame#kpiAccentBar[variant="warning"] {{ background: {Colors.WARNING.BASE}; }}
+        QFrame#kpiAccentBar[variant="info"]    {{ background: {Colors.INFO.BASE}; }}
+
+        /* KPI caption (small uppercase label above the value) */
+        QLabel#kpiCaption {{
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            color: {Colors.NEUTRAL.SLATE_500};
+            background: transparent;
+            border: none;
+        }}
+
+        /* KPI icon bubble */
+        QLabel#kpiIcon {{
+            font-size: 18px;
+            border-radius: 18px;
+            border: none;
+            background: transparent;
+        }}
+        QLabel#kpiIcon[variant="primary"] {{ background: {Colors.PRIMARY.BASE}1A; }}
+        QLabel#kpiIcon[variant="success"] {{ background: {Colors.SUCCESS.BASE}1A; }}
+        QLabel#kpiIcon[variant="danger"]  {{ background: {Colors.DANGER.BASE}1A; }}
+        QLabel#kpiIcon[variant="warning"] {{ background: {Colors.WARNING.BASE}1A; }}
+        QLabel#kpiIcon[variant="info"]    {{ background: {Colors.INFO.BASE}1A; }}
+
+        /* Section card frame */
+        QFrame#sectionCard {{
+            background: {Colors.NEUTRAL.SLATE_900};
+            border: 1px solid {Colors.NEUTRAL.SLATE_700};
+            border-radius: 8px;
+        }}
+
+        /* Section card header bar */
+        QFrame#sectionCardHeader {{
+            background: {Colors.NEUTRAL.DARK_CARD};
+            border-bottom: 1px solid {Colors.NEUTRAL.SLATE_700};
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }}
+
+        /* Section card header label */
+        QLabel#sectionLabel {{
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: {Colors.NEUTRAL.DARK_TEXT};
+            background: transparent;
+            border: none;
+        }}
+
+        /* Field label (small uppercase above inputs) */
+        QLabel#fieldLabel {{
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: {Colors.NEUTRAL.DARK_TEXT_SEC};
+            background: transparent;
+            border: none;
+        }}
+
+        /* Hint label (italic muted) */
+        QLabel#hintLabel {{
+            font-size: 9px;
+            font-style: italic;
+            color: {Colors.NEUTRAL.SLATE_500};
+            background: transparent;
+            border: none;
+        }}
+
+        /* Variant colour labels — used for dynamic state (danger/success/warning/info/muted) */
+        QLabel[variant="danger"]  {{ color: {Colors.DANGER.BASE}; font-weight: 700; }}
+        QLabel[variant="success"] {{ color: {Colors.SUCCESS.BASE}; }}
+        QLabel[variant="warning"] {{ color: {Colors.WARNING.BASE}; }}
+        QLabel[variant="info"]    {{ color: {Colors.INFO.BASE}; }}
+        QLabel[variant="muted"]   {{ color: {Colors.NEUTRAL.SLATE_500}; }}
+
+        /* Doc-type selector chips (doctype buttons) */
+        QPushButton#doctypeBtn[active="true"] {{
+            background: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+            border: 1px solid {Colors.PRIMARY.BASE};
+        }}
+        QPushButton#doctypeBtn[active="false"],
+        QPushButton#doctypeBtn {{
+            background: {Colors.NEUTRAL.SLATE_800};
+            color: {Colors.NEUTRAL.SLATE_300};
+            border: 1px solid transparent;
+        }}
+        QPushButton#doctypeBtn:hover {{
+            background: {Colors.NEUTRAL.SLATE_700};
+            color: {Colors.NEUTRAL.SLATE_100};
+        }}
+
+        /* Doc filter nav chips */
+        QPushButton#docNavChip[active="true"] {{
+            background: {Colors.SUCCESS.BG_SOFT};
+            color: {Colors.SUCCESS.BASE};
+            border: 1px solid {Colors.SUCCESS.BORDER};
+            font-weight: 600;
+        }}
+        QPushButton#docNavChip {{
+            background: {Colors.NEUTRAL.DARK_CARD};
+            color: {Colors.NEUTRAL.SLATE_500};
+            border: none;
+        }}
+
+        /* Stepper step labels */
+        QLabel[stepperState="active"] {{
+            font-weight: 700;
+            background: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+        }}
+        QLabel[stepperState="done"] {{
+            font-weight: 600;
+            background: {Colors.SUCCESS.BG_SOFT};
+            color: {Colors.SUCCESS.BASE};
+            border: 1px solid {Colors.SUCCESS.BORDER};
+        }}
+        QLabel[stepperState="idle"] {{
+            font-weight: 600;
+            background: {Colors.NEUTRAL.DARK_CARD};
+            color: {Colors.NEUTRAL.SLATE_500};
+        }}
+
+        /* Estado badge in document detail (used by _doc_lbl_estado_badge) */
+        QLabel#docEstadoBadge {{
+            font-size: 9px;
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 2px 6px;
+        }}
+        QLabel#docEstadoBadge[variant="success"] {{
+            background: {Colors.SUCCESS.BG_SOFT}; color: {Colors.SUCCESS.BASE};
+        }}
+        QLabel#docEstadoBadge[variant="danger"] {{
+            background: {Colors.DANGER.BG_SOFT}; color: {Colors.DANGER.BASE};
+        }}
+        QLabel#docEstadoBadge[variant="warning"] {{
+            background: #78350F; color: #FDE68A;
+        }}
+        QLabel#docEstadoBadge[variant="primary"] {{
+            background: {Colors.PRIMARY.BASE}22; color: {Colors.PRIMARY.BASE};
+        }}
+        QLabel#docEstadoBadge[variant="muted"] {{
+            background: {Colors.NEUTRAL.SLATE_700}; color: {Colors.NEUTRAL.SLATE_400};
+        }}
     """
 
 
@@ -1953,6 +2115,168 @@ _TPL_CLARO = f"""
             color: {Colors.NEUTRAL.SLATE_900}; background: transparent;
         }}
         QFrame[frameShape="4"] {{ color: {Colors.NEUTRAL.SLATE_200}; max-height: 1px; }}
+
+        /* ═══════════════════════════════════════════════════════════════════
+           COMPRAS PRO — LIGHT THEME
+           KPI accent bars, field labels, section cards, variant labels
+           ═══════════════════════════════════════════════════════════════════ */
+
+        /* KPI accent bar */
+        QFrame#kpiAccentBar {{
+            border: none;
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+        }}
+        QFrame#kpiAccentBar[variant="primary"] {{ background: {Colors.PRIMARY.BASE}; }}
+        QFrame#kpiAccentBar[variant="success"] {{ background: {Colors.SUCCESS.BASE}; }}
+        QFrame#kpiAccentBar[variant="danger"]  {{ background: {Colors.DANGER.BASE}; }}
+        QFrame#kpiAccentBar[variant="warning"] {{ background: {Colors.WARNING.BASE}; }}
+        QFrame#kpiAccentBar[variant="info"]    {{ background: {Colors.INFO.BASE}; }}
+
+        /* KPI caption */
+        QLabel#kpiCaption {{
+            font-size: 9px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            color: {Colors.NEUTRAL.SLATE_500};
+            background: transparent;
+            border: none;
+        }}
+
+        /* KPI icon bubble */
+        QLabel#kpiIcon {{
+            font-size: 18px;
+            border-radius: 18px;
+            border: none;
+            background: transparent;
+        }}
+        QLabel#kpiIcon[variant="primary"] {{ background: {Colors.PRIMARY.BASE}1A; }}
+        QLabel#kpiIcon[variant="success"] {{ background: {Colors.SUCCESS.BASE}1A; }}
+        QLabel#kpiIcon[variant="danger"]  {{ background: {Colors.DANGER.BASE}1A; }}
+        QLabel#kpiIcon[variant="warning"] {{ background: {Colors.WARNING.BASE}1A; }}
+        QLabel#kpiIcon[variant="info"]    {{ background: {Colors.INFO.BASE}1A; }}
+
+        /* Section card frame */
+        QFrame#sectionCard {{
+            background: {Colors.NEUTRAL.WHITE};
+            border: 1px solid {Colors.NEUTRAL.SLATE_200};
+            border-radius: 8px;
+        }}
+
+        /* Section card header bar */
+        QFrame#sectionCardHeader {{
+            background: {Colors.NEUTRAL.SLATE_100};
+            border-bottom: 1px solid {Colors.NEUTRAL.SLATE_200};
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }}
+
+        /* Section card header label */
+        QLabel#sectionLabel {{
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: {Colors.NEUTRAL.SLATE_700};
+            background: transparent;
+            border: none;
+        }}
+
+        /* Field label */
+        QLabel#fieldLabel {{
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: {Colors.NEUTRAL.SLATE_600};
+            background: transparent;
+            border: none;
+        }}
+
+        /* Hint label */
+        QLabel#hintLabel {{
+            font-size: 9px;
+            font-style: italic;
+            color: {Colors.NEUTRAL.SLATE_400};
+            background: transparent;
+            border: none;
+        }}
+
+        /* Variant colour labels */
+        QLabel[variant="danger"]  {{ color: {Colors.DANGER.BASE}; font-weight: 700; }}
+        QLabel[variant="success"] {{ color: {Colors.SUCCESS.BASE}; }}
+        QLabel[variant="warning"] {{ color: {Colors.WARNING.BASE}; }}
+        QLabel[variant="info"]    {{ color: {Colors.INFO.BASE}; }}
+        QLabel[variant="muted"]   {{ color: {Colors.NEUTRAL.SLATE_400}; }}
+
+        /* Doc-type selector chips */
+        QPushButton#doctypeBtn[active="true"] {{
+            background: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+            border: 1px solid {Colors.PRIMARY.BASE};
+        }}
+        QPushButton#doctypeBtn[active="false"],
+        QPushButton#doctypeBtn {{
+            background: {Colors.NEUTRAL.SLATE_100};
+            color: {Colors.NEUTRAL.SLATE_700};
+            border: 1px solid transparent;
+        }}
+        QPushButton#doctypeBtn:hover {{
+            background: {Colors.NEUTRAL.SLATE_200};
+            color: {Colors.NEUTRAL.SLATE_900};
+        }}
+
+        /* Doc filter nav chips */
+        QPushButton#docNavChip[active="true"] {{
+            background: {Colors.SUCCESS.BG_SOFT};
+            color: {Colors.SUCCESS.BASE};
+            border: 1px solid {Colors.SUCCESS.BORDER};
+            font-weight: 600;
+        }}
+        QPushButton#docNavChip {{
+            background: {Colors.NEUTRAL.SLATE_100};
+            color: {Colors.NEUTRAL.SLATE_500};
+            border: none;
+        }}
+
+        /* Stepper step labels */
+        QLabel[stepperState="active"] {{
+            font-weight: 700;
+            background: {Colors.PRIMARY.BASE};
+            color: {Colors.NEUTRAL.WHITE};
+        }}
+        QLabel[stepperState="done"] {{
+            font-weight: 600;
+            background: {Colors.SUCCESS.BG_SOFT};
+            color: {Colors.SUCCESS.BASE};
+            border: 1px solid {Colors.SUCCESS.BORDER};
+        }}
+        QLabel[stepperState="idle"] {{
+            font-weight: 600;
+            background: {Colors.NEUTRAL.SLATE_200};
+            color: {Colors.NEUTRAL.SLATE_500};
+        }}
+
+        /* Estado badge in document detail */
+        QLabel#docEstadoBadge {{
+            font-size: 9px;
+            font-weight: 700;
+            border-radius: 4px;
+            padding: 2px 6px;
+        }}
+        QLabel#docEstadoBadge[variant="success"] {{
+            background: {Colors.SUCCESS.BG_SOFT}; color: {Colors.SUCCESS.BASE};
+        }}
+        QLabel#docEstadoBadge[variant="danger"] {{
+            background: {Colors.DANGER.BG_SOFT}; color: {Colors.DANGER.BASE};
+        }}
+        QLabel#docEstadoBadge[variant="warning"] {{
+            background: #FEF3C7; color: #92400E;
+        }}
+        QLabel#docEstadoBadge[variant="primary"] {{
+            background: {Colors.PRIMARY.BASE}22; color: {Colors.PRIMARY.BASE};
+        }}
+        QLabel#docEstadoBadge[variant="muted"] {{
+            background: {Colors.NEUTRAL.SLATE_200}; color: {Colors.NEUTRAL.SLATE_500};
+        }}
     """
 
 
