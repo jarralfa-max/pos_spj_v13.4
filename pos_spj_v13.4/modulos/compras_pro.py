@@ -850,55 +850,48 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         root = QVBoxLayout(self)
         root.setContentsMargins(10, 8, 10, 8)
 
-        # ── Unified nav header: PageHeader + tab bars ─────────────────────────
-        nav_header = QFrame()
-        nav_header.setObjectName("moduleNavHeader")
-        nav_lay = QVBoxLayout(nav_header)
-        nav_lay.setContentsMargins(0, 0, 0, 0)
-        nav_lay.setSpacing(0)
-
-        nav_lay.addWidget(PageHeader(self,
+        # PageHeader with tab bars in the top-right corner
+        page_hdr = PageHeader(self,
             title="🛒 Compras a Proveedores",
             subtitle="Recepción de mercancía · Actualización de stock · Historial",
-        ))
+        )
 
-        # Row 1: main tab bar (right-aligned, tabs don't stretch)
+        # Main tab bar (non-expanding so tabs stay compact)
         self._main_tabbar = QTabBar()
         self._main_tabbar.setObjectName("mainTabBar")
         self._main_tabbar.setDocumentMode(True)
         self._main_tabbar.setUsesScrollButtons(True)
         self._main_tabbar.setExpanding(False)
-        row1 = QHBoxLayout()
-        row1.setContentsMargins(0, 0, 0, 0)
-        row1.addStretch(1)
-        row1.addWidget(self._main_tabbar)
-        nav_lay.addLayout(row1)
 
-        # Row 2: QR subtab bar (right-aligned, hidden until QR tab active)
+        # QR subtab bar — second row, hidden until QR tab is active
         self._qr_sub_tabbar = QTabBar()
         self._qr_sub_tabbar.setObjectName("subTabBar")
         self._qr_sub_tabbar.setDocumentMode(True)
         self._qr_sub_tabbar.setExpanding(False)
         self._qr_sub_tabbar.setVisible(False)
-        row2 = QHBoxLayout()
-        row2.setContentsMargins(0, 0, 0, 0)
-        row2.addStretch(1)
-        row2.addWidget(self._qr_sub_tabbar)
-        nav_lay.addLayout(row2)
 
-        root.addWidget(nav_header)
+        # Stack both bars vertically; place in PageHeader's right action slot
+        tabs_w = QWidget(page_hdr)
+        tabs_lay = QVBoxLayout(tabs_w)
+        tabs_lay.setContentsMargins(0, 0, 0, 0)
+        tabs_lay.setSpacing(2)
+        tabs_lay.addWidget(self._main_tabbar)
+        tabs_lay.addWidget(self._qr_sub_tabbar)
+        page_hdr.add_action(tabs_w)
 
-        # ── KPI bar (below unified header, spans all tabs) ────────────────────
+        root.addWidget(page_hdr)
+
+        # KPI bar (below header, spans all tabs)
         root.addWidget(self._build_purchase_kpi_bar())
 
-        # ── Content stack ─────────────────────────────────────────────────
+        # Content stack
         self._main_stack = QStackedWidget()
         root.addWidget(self._main_stack, 1)
 
         # Build proxy so existing code using self._tabs still works
         self._tabs = _TabsProxy(self._main_tabbar, self._main_stack, parent=self)
 
-        # ── Main tabs ─────────────────────────────────────────────────────
+        # Main tabs
         tab_trad = QWidget()
         self._tabs.addTab(tab_trad, "🛒 Compra Tradicional")
         self._build_tab_tradicional(tab_trad)
@@ -914,14 +907,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._remove_accidental_po_tabs()
         self._tabs.currentChanged.connect(self._on_tab_change)
 
-        # Show/hide QR subtab bar based on active main tab
+        # Show/hide QR subtab bar when switching to/from QR tab
         def _on_main_tab_change(idx):
             self._qr_sub_tabbar.setVisible(idx == 1)
         self._main_tabbar.currentChanged.connect(_on_main_tab_change)
 
         apply_spj_buttons(self)
         self._normalizar_botones_ui()
-
     def _remove_accidental_po_tabs(self) -> None:
         """Fail-safe: Compras no debe exponer una pestaña superior dedicada a PO."""
         if not hasattr(self, '_tabs'):
@@ -1453,14 +1445,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(Spacing.XS)
 
-        # Status badge + last edit (kept for existing update logic)
+        # Status badge + last edit — in layout (hidden) so they stay properly parented
         self._lbl_estado_compra = QLabel("🔵  En captura")
         self._lbl_estado_compra.setObjectName("statusBadge")
         self._lbl_estado_compra.setProperty("variant", "info")
+        lay.addWidget(self._lbl_estado_compra)
         self._lbl_estado_compra.hide()
         self._lbl_ultima_edicion = QLabel("—")
         self._lbl_ultima_edicion.setObjectName("caption")
         self._lbl_ultima_edicion.setWordWrap(True)
+        lay.addWidget(self._lbl_ultima_edicion)
         self._lbl_ultima_edicion.hide()
 
         # Secondary row: Borrador + Enviar a recepción
