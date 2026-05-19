@@ -920,6 +920,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         apply_spj_buttons(self)
         self._normalizar_botones_ui()
         self._purge_orphan_children()
+        # Also run after deferred timers fire (singleShot 0..300ms)
+        QTimer.singleShot(600, self._purge_orphan_children)
     def _remove_accidental_po_tabs(self) -> None:
         """Fail-safe: Compras no debe exponer una pestaña superior dedicada a PO."""
         if not hasattr(self, '_tabs'):
