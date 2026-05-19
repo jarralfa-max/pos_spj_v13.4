@@ -165,6 +165,7 @@ class CajaApplicationService:
         kpis = {
             "fondo_inicial": 0.0,
             "total_ventas_turno": 0.0,
+            "total_efectivo_turno": 0.0,
             "num_movimientos_hoy": 0,
             "num_cortes_hoy": 0,
         }
@@ -172,16 +173,25 @@ class CajaApplicationService:
             turno = self.get_estado_turno(sucursal_id, usuario)
             if turno:
                 kpis["fondo_inicial"] = float(turno.get("fondo_inicial", 0) or 0)
+                formas_ef = list(_EFECTIVO_FORMAS)
+                ph = ",".join("?" * len(formas_ef))
+                # No filtra por usuario ni turno_id — ningún INSERT de ventas los setea.
+                # Usa solo sucursal_id + fecha >= fecha_apertura (mismo criterio que corte Z).
                 row_v = self.db.execute(
-                    """SELECT COALESCE(SUM(total), 0)
-                       FROM ventas
-                       WHERE sucursal_id=? AND cajero=? AND estado='completada'
-                         AND fecha >= (SELECT fecha_apertura FROM turnos_caja WHERE id=?)""",
-                    (sucursal_id, usuario, turno["id"]),
+                    f"""SELECT
+                          COALESCE(SUM(total), 0),
+                          COALESCE(SUM(CASE WHEN COALESCE(forma_pago,'Efectivo') IN ({ph})
+                                           THEN total ELSE 0 END), 0)
+                        FROM ventas
+                        WHERE sucursal_id=? AND estado='completada'
+                          AND fecha >= (SELECT fecha_apertura
+                                        FROM turnos_caja WHERE id=?)""",
+                    tuple(formas_ef) + (sucursal_id, turno["id"]),
                 ).fetchone()
-                kpis["total_ventas_turno"] = float(row_v[0] or 0) if row_v else 0.0
+                kpis["total_ventas_turno"]   = float(row_v[0] or 0) if row_v else 0.0
+                kpis["total_efectivo_turno"] = float(row_v[1] or 0) if row_v else 0.0
         except Exception as e:
-            logger.debug("kpis ventas: %s", e)
+            logger.warning("kpis ventas: %s", e)
         try:
             row_m = self.db.execute(
                 "SELECT COUNT(*) FROM movimientos_caja WHERE DATE(fecha)=DATE('now') AND sucursal_id=?",
