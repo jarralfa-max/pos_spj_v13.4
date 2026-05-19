@@ -948,32 +948,49 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 btn.setMinimumHeight(32)
 
     def _purge_orphan_children(self) -> None:
-        """Hide any visible QWidget direct children of self that are NOT managed by
-        the root layout. These are layout-orphan widgets that render at (0,0) and
-        overlap the module title."""
-        root_lay = self.layout()
-        # Collect widgets that ARE in the root layout
-        managed: set = set()
-        if root_lay:
-            for i in range(root_lay.count()):
-                item = root_lay.itemAt(i)
-                if item and item.widget():
-                    managed.add(item.widget())
-        for child in self.children():
-            if not isinstance(child, QWidget):
-                continue
-            if child in managed:
-                continue
-            if child.isWindow():
-                continue
-            if child.isVisible():
-                logger.warning(
-                    "compras_pro: hiding orphan child %s '%s' at pos %s",
-                    type(child).__name__,
-                    child.objectName() or getattr(child, 'text', lambda: '')(),
-                    child.pos(),
-                )
-                child.hide()
+        """Recursively find any visible QWidget that has no layout managing it
+        and is a descendant of self. Hides them and logs for diagnosis."""
+        def _scan(widget: 'QWidget'):
+            lay = widget.layout()
+            managed: set = set()
+            if lay:
+                # Walk all items in the layout (including nested sub-layouts)
+                stack = [lay]
+                while stack:
+                    l = stack.pop()
+                    for i in range(l.count()):
+                        item = l.itemAt(i)
+                        if item is None:
+                            continue
+                        if item.widget():
+                            managed.add(item.widget())
+                        elif item.layout():
+                            stack.append(item.layout())
+
+            for child in widget.children():
+                if not isinstance(child, QWidget):
+                    continue
+                if child.isWindow():
+                    continue
+                if child not in managed and child.isVisible():
+                    txt = ""
+                    try:
+                        txt = child.text() if hasattr(child, 'text') else ""
+                    except Exception:
+                        pass
+                    logger.warning(
+                        "compras_pro orphan: %s objectName=%r text=%r parent=%s pos=%s",
+                        type(child).__name__,
+                        child.objectName(),
+                        txt[:30],
+                        type(widget).__name__,
+                        child.pos(),
+                    )
+                    child.hide()
+                else:
+                    _scan(child)
+
+        _scan(self)
 
     def _crear_stats_compras(self) -> QWidget:
         """Barra de KPIs: compras del mes, proveedores activos, órdenes pendientes, gasto."""
