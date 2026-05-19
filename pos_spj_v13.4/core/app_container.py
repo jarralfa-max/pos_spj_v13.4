@@ -12,6 +12,7 @@ from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
 from repositories.sales_repository import SalesRepository
 from repositories.purchase_repository import PurchaseRepository
+from repositories.caja import CajaRepository
 # Si tienes estos, descoméntalos; si no, coméntalos para que no den error:
 from repositories.promotion_repository import PromotionRepository
 # [REFACTOR FASE 2] BIRepository eliminado - toda la lógica migrada a AnalyticsEngine
@@ -76,6 +77,7 @@ class AppContainer:
         self.finance_repo = FinanceRepository(self.db)
         self.sales_repo = SalesRepository(self.db)
         self.purchase_repo = PurchaseRepository(self.db)
+        self.caja_repo = CajaRepository(self.db)
 
         # Phase 3: repositorios documentales PR/PO
         try:
@@ -136,6 +138,29 @@ class AppContainer:
 
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
         self.loyalty_service = LoyaltyService(self.db)  # module_config set below
+
+        # CajaApplicationService — fuente única de verdad para operaciones de caja
+        try:
+            from application.services.caja_application_service import CajaApplicationService
+            self.caja_service = CajaApplicationService(
+                db=self.db,
+                finance_service=self.finance_service,
+                caja_repo=self.caja_repo,
+            )
+        except Exception as _caja_svc_err:
+            self.caja_service = None
+            logger.warning("CajaApplicationService no cargado: %s", _caja_svc_err)
+
+        # CajaTicketService — impresión y PDF de cortes Z
+        try:
+            from core.services.caja_ticket_service import CajaTicketService
+            self.caja_ticket_service = CajaTicketService(
+                db=self.db,
+                hardware_service=None,  # wired later after hardware_service init
+            )
+        except Exception as _caja_tkt_err:
+            self.caja_ticket_service = None
+            logger.warning("CajaTicketService no cargado: %s", _caja_tkt_err)
 
         # CustomerCreditService — validación de crédito y CxC en ventas
         from application.services.customer_credit_service import CustomerCreditService
@@ -233,6 +258,10 @@ class AppContainer:
         # ── Servicios adicionales (v12) ───────────────────────────────────
         from core.services.hardware_service import HardwareService
         self.hardware_service = HardwareService(self.db)
+
+        # Wire hardware_service into CajaTicketService now that it's available
+        if self.caja_ticket_service is not None:
+            self.caja_ticket_service._hw = self.hardware_service
 
         # v13.4 Fase 1: ModuleConfig (toggles globales) — antes de otros servicios
         from core.module_config import ModuleConfig

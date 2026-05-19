@@ -163,6 +163,13 @@ CUSTOMER_NOTIFICATION_REQUESTED = "CUSTOMER_NOTIFICATION_REQUESTED"  # order_id,
 DRIVER_SETTLEMENT_CREATED     = "DRIVER_SETTLEMENT_CREATED"       # cut_id, driver_id, driver_nombre, efectivo, diferencia, fecha
 PURCHASE_SUGGESTION_CREATED   = "PURCHASE_SUGGESTION_CREATED"     # producto_id, cantidad_sugerida, motivo, sucursal_id
 
+# Caja (módulo de caja registradora)
+CAJA_MOVIMIENTO           = "CAJA_MOVIMIENTO"
+CAJA_TURNO_ABIERTO        = "CAJA_TURNO_ABIERTO"
+CAJA_TURNO_CERRADO        = "CAJA_TURNO_CERRADO"
+CAJA_CORTE_Z_GENERADO     = "CAJA_CORTE_Z_GENERADO"
+CAJA_DIFERENCIA_DETECTADA = "CAJA_DIFERENCIA_DETECTADA"
+
 
 class EventBus:
     """Bus de eventos singleton thread-safe."""
