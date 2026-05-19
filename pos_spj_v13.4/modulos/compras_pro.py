@@ -919,9 +919,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         apply_spj_buttons(self)
         self._normalizar_botones_ui()
-        self._purge_orphan_children()
-        # Also run after deferred timers fire (singleShot 0..300ms)
-        QTimer.singleShot(600, self._purge_orphan_children)
     def _remove_accidental_po_tabs(self) -> None:
         """Fail-safe: Compras no debe exponer una pestaña superior dedicada a PO."""
         if not hasattr(self, '_tabs'):
@@ -1314,7 +1311,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         return panel
 
     def _build_product_search_card(self) -> QFrame:
-        """Product search card with status bar. Sets up _buscador and _trad_filter."""
+        """Product search card with status bar. Sets up _buscador."""
         panel, body = _make_section_card("Buscar Producto", Colors.PRIMARY_BASE, PurchaseProductSearchCard)
 
         from modulos.spj_product_search import ProductSearchWidget
@@ -1337,9 +1334,6 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         status_row.addWidget(lbl_etiquetas)
         body.addLayout(status_row)
 
-        # Cart filter — placed in right panel header
-        self._trad_filter = FilterBar(self, placeholder="Filtrar carrito por nombre de producto…")
-        self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
         return panel
 
     def _build_purchase_items_panel(self) -> QFrame:
@@ -1393,6 +1387,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         cart_body.setSpacing(Spacing.XS)
         cart_lay_outer.addLayout(cart_body)
 
+        # Cart filter — inline above table so parent matches layout owner
+        self._trad_filter = FilterBar(None, placeholder="Filtrar carrito por nombre de producto…")
+        self._trad_filter.filters_changed.connect(lambda _v: self._refresh_tabla())
+        cart_body.addWidget(self._trad_filter)
+
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(9)
         self.tabla.setHorizontalHeaderLabels(
@@ -1413,7 +1412,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.tabla.customContextMenuRequested.connect(self._menu_fila)
         self.tabla.setObjectName("tableView")
 
-        self._cart_loading = LoadingIndicator("Actualizando carrito…", self)
+        self._cart_loading = LoadingIndicator("Actualizando carrito…", None)
         self._cart_loading.hide()
         cart_body.addWidget(self._cart_loading)
         cart_body.addWidget(self.tabla, 1)
@@ -1421,7 +1420,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             "Carrito vacío",
             "Escanee o use el buscador para agregar productos.",
             "🧺",
-            self,
+            None,
         )
         self._cart_empty.hide()
         cart_body.addWidget(self._cart_empty)
@@ -6510,7 +6509,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addLayout(preset_row)
 
         self._hist_filter = FilterBar(
-            self,
+            None,
             placeholder="Buscar folio, proveedor o usuario…",
             combo_filters={
                 "estado":    ["completada", "credito", "pendiente", "parcial", "cancelada"],
@@ -6520,7 +6519,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
         self._hist_filter.filters_changed.connect(self._hist_filter_changed)
         lay.addWidget(self._hist_filter)
-        self._hist_loading = LoadingIndicator("Cargando historial…", self)
+        self._hist_loading = LoadingIndicator("Cargando historial…", None)
         self._hist_loading.hide()
         lay.addWidget(self._hist_loading)
 
@@ -6548,7 +6547,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._hist_empty = EmptyStateWidget(
             "Sin compras",
             "No se encontraron compras para el rango y filtros seleccionados.",
-            "📭", self,
+            "📭", None,
         )
         self._hist_empty.hide()
         lay.addWidget(self._hist_empty)
@@ -7179,7 +7178,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             # Conditional action buttons based on status + role
             if estado_actual not in ("cancelada",) and self._tiene_permiso("cancelar"):
                 btn_cancel_oc = create_danger_button(
-                    self, "🚫 Cancelar compra",
+                    dlg, "🚫 Cancelar compra",
                     "Cancelar esta compra (requiere motivo y PIN — auditado)")
                 btn_cancel_oc.clicked.connect(
                     lambda _, cid=compra_dict.get('id', compra_id), d=dlg:
@@ -7188,7 +7187,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
             if estado_actual == "cancelada" and self._tiene_permiso("reabrir"):
                 btn_reabrir = create_secondary_button(
-                    self, "🔄 Reabrir compra",
+                    dlg, "🔄 Reabrir compra",
                     "Reabrir esta compra como pendiente (requiere PIN)")
                 btn_reabrir.clicked.connect(
                     lambda _, cid=compra_dict.get('id', compra_id), d=dlg:
