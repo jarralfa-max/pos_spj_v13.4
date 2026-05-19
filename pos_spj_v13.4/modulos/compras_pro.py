@@ -814,9 +814,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.usuario_actual = usuario
         self._usuario_rol = rol.upper().strip()
         QTimer.singleShot(0, self._aplicar_permisos_ui)
-        # Auto-fill solicitante with the logged-in user
-        if usuario and hasattr(self, 'txt_solicitante'):
-            self.txt_solicitante.setText(usuario)
+        # Auto-fill user fields with the logged-in user
+        if usuario:
+            if hasattr(self, 'txt_solicitante'):
+                self.txt_solicitante.setText(usuario)
+            if hasattr(self, 'qr_comprador'):
+                self.qr_comprador.setText(usuario)
+            if hasattr(self, 'qr_recv_recibe'):
+                self.qr_recv_recibe.setText(usuario)
         # Offer draft restore 1.5 s after login (cart must still be empty)
         QTimer.singleShot(1500, self._check_pending_draft)
 
@@ -897,7 +902,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._build_tab_tradicional(tab_trad)
 
         tab_qr = QWidget()
-        self._tabs.addTab(tab_qr, "📦 Recepción con QR")
+        self._tabs.addTab(tab_qr, "📦 Compra con QR")
         self._build_tab_qr(tab_qr)
 
         tab_hist = QWidget()
@@ -1460,11 +1465,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Secondary row: Borrador + Enviar a recepción
         sec_row = QHBoxLayout()
         sec_row.setSpacing(Spacing.XS)
-        self._btn_draft_save_r = create_secondary_button(self, "💾 Borrador", "Guardar como borrador")
+        self._btn_draft_save_r = create_secondary_button(w, "💾 Borrador", "Guardar como borrador")
         self._btn_draft_save_r.clicked.connect(self._guardar_borrador)
         self._btn_draft_save_r.setMinimumHeight(28)
         self._btn_enviar_recepcion = create_success_button(
-            self, "📨 Enviar a recepción", "Registrar y enviar a almacén")
+            w, "📨 Enviar a recepción", "Registrar y enviar a almacén")
         self._btn_enviar_recepcion.clicked.connect(self._enviar_a_recepcion)
         self._btn_enviar_recepcion.setMinimumHeight(28)
         self._btn_enviar_recepcion.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -1473,7 +1478,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addLayout(sec_row)
 
         # Main action button — large, full-width, prominent
-        self._btn_autorizar = create_success_button(self, "✓ Autorizar compra", "Autorizar y procesar compra")
+        self._btn_autorizar = create_success_button(w, "✓ Autorizar compra", "Autorizar y procesar compra")
         self._btn_autorizar.clicked.connect(self._procesar_compra)
         self._btn_autorizar.setMinimumHeight(40)
         self._btn_autorizar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
