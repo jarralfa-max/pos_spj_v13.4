@@ -198,7 +198,11 @@ class VentaRepository:
                     ) VALUES (?,?,?,?,?,?,?)
                 """, (venta_id, p_id, qty, price, sub, cost, margin))
 
-                # Deduct inventory — EXCLUSIVAMENTE a través de InventoryEngine
+                # Deduct inventory — EXCLUSIVAMENTE a través de InventoryEngine.
+                # LEGACY PATH: Solo se ejecuta si se llama VentaRepository.create_sale()
+                # directamente (no a través de SalesService.execute_sale()).
+                # La ruta oficial descuenta inventario vía SaleInventoryHandler
+                # (SALE_ITEMS_PROCESS, priority=100, dentro del SAVEPOINT).
                 _engine_venta = InventoryEngine(self.db, branch_id, usuario)
                 _engine_venta.process_movement(
                     product_id=p_id,
@@ -285,6 +289,12 @@ class VentaRepository:
                 """, (float(venta["total"]), venta["cliente_id"]))
 
     # ── Caja sync ─────────────────────────────────────────────────────────────
+    # LEGACY PATH: _update_caja es llamado solo por VentaRepository.create_sale(),
+    # que es la ruta del módulo de ventas legacy (directo sin pasar por SalesService).
+    # La ruta oficial es: SalesService.execute_sale() → SALE_ITEMS_PROCESS →
+    #   SaleFinanceHandler.handle() → finance_service.register_income()
+    # Si la venta pasa por SalesService, _update_caja NUNCA es llamado.
+    # NO eliminar: VentaRepository puede ser usado por integraciones externas.
 
     def _update_caja(self, branch_id: int, usuario: str,
                      amount: float, forma_pago: str,

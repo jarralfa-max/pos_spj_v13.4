@@ -138,7 +138,19 @@ class ProcesarVentaUC:
         if stock_error:
             return ResultadoVenta(ok=False, error=stock_error)
 
-        # ── 2. Construir payload para SalesService ────────────────────────────
+        # ── 2. Normalizar método de pago y construir payload ─────────────────
+        try:
+            from core.services.payment_normalization import normalize_payment_method as _npm
+            datos_pago = type(datos_pago)(
+                forma_pago       = _npm(datos_pago.forma_pago),
+                monto_pagado     = datos_pago.monto_pagado,
+                cliente_id       = datos_pago.cliente_id,
+                descuento_global = datos_pago.descuento_global,
+                notas            = datos_pago.notas,
+            )
+        except Exception:
+            pass  # non-critical normalization
+        # ── Construir payload para SalesService ──────────────────────────────
         items_svc = [
             {
                 "product_id":  it.producto_id,

@@ -107,7 +107,14 @@ class SalesService:
         :param items: Lista de diccionarios [{'product_id': 1, 'qty': 1.12, 'unit_price': 100, 'es_compuesto': 0, 'name': 'Pollo'}, ...]
         """
         operation_id = str(uuid.uuid4())
-        
+
+        # ── Normalizar método de pago (UI envía "Crédito" con acento; backend espera "Credito") ──
+        try:
+            from core.services.payment_normalization import normalize_payment_method as _npm
+            payment_method = _npm(payment_method)
+        except Exception:
+            pass  # normalization is non-critical; proceed with original value
+
         # ── Normalizar claves de items (la UI puede usar distintos nombres) ──
         # UI envía: unit_price / qty / id
         # Servicios internos esperan: precio_unitario / cantidad / product_id

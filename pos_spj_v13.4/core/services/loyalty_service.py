@@ -225,6 +225,164 @@ class LoyaltyService:
 
     # ── Consultas ─────────────────────────────────────────────────────────────
 
+    # ── Consultas ricas para la UI ────────────────────────────────────────────
+
+    def preview_redemption(
+        self,
+        cliente_id: int,
+        subtotal: float,
+        puntos_solicitados: int | None = None,
+    ) -> dict:
+        """
+        Devuelve un preview de canje sin efectos secundarios.
+
+        Seguro para llamar antes de confirmar el pago — no registra ni
+        decrementa puntos.  La UI debe usar este método para poblar el
+        diálogo de canje en lugar de calcular los valores localmente.
+
+        Returns:
+            {
+              "enabled":               bool,
+              "cliente_id":            int,
+              "puntos_disponibles":    int,
+              "valor_por_punto":       float,
+              "min_puntos_canje":      int,
+              "max_pct_canje":         float,   # 0.5 = 50%
+              "puntos_maximos_canjeables": int,
+              "descuento_maximo":      float,
+              "puntos_solicitados":    int,
+              "descuento":             float,
+              "total_original":        float,
+              "total_con_descuento":   float,
+              "nivel":                 str,
+              "mensaje":               str,
+            }
+        """
+        if not self.enabled or not cliente_id:
+            return self._preview_empty(cliente_id, subtotal, "Fidelización deshabilitada")
+
+        saldo = self.saldo(cliente_id)
+        valor_por_punto = float(self._cfg("loyalty_valor_estrella", "0.10"))
+        min_pts = int(float(self._cfg("loyalty_min_puntos_canje", "0") or "0"))
+        max_pct = float(self._cfg("loyalty_max_pct_canje", "0.5") or "0.5")
+
+        max_pts_por_pct = int(subtotal * max_pct / valor_por_punto) if valor_por_punto > 0 else 0
+        # If saldo < min_puntos_canje threshold, client cannot redeem at all
+        puede_canjear_minimo = (min_pts == 0 or saldo >= min_pts)
+        puntos_max = min(saldo, max_pts_por_pct) if puede_canjear_minimo else 0
+        descuento_max = round(puntos_max * valor_por_punto, 2)
+
+        puede_canjear = puede_canjear_minimo and puntos_max > 0
+
+        if puntos_solicitados is None:
+            puntos_solicitados = puntos_max if puede_canjear else 0
+        else:
+            puntos_solicitados = max(0, min(puntos_solicitados, puntos_max))
+
+        descuento = round(puntos_solicitados * valor_por_punto, 2)
+        total_con_descuento = round(max(0.0, subtotal - descuento), 2)
+
+        nivel = "Bronce"
+        try:
+            from core.domain.models import LoyaltySnapshot
+            nivel = LoyaltySnapshot.calcular_nivel(saldo)
+        except Exception:
+            pass
+
+        if not puede_canjear and saldo < min_pts and saldo > 0:
+            mensaje = f"Mínimo {min_pts} puntos para canjear (tienes {saldo})"
+        elif puntos_solicitados > 0:
+            mensaje = f"Canje de {puntos_solicitados} pts → -${descuento:.2f}"
+        else:
+            mensaje = ""
+
+        return {
+            "enabled":                  True,
+            "cliente_id":               cliente_id,
+            "puntos_disponibles":       saldo,
+            "valor_por_punto":          valor_por_punto,
+            "min_puntos_canje":         min_pts,
+            "max_pct_canje":            max_pct,
+            "puntos_maximos_canjeables": puntos_max,
+            "descuento_maximo":         descuento_max,
+            "puntos_solicitados":       puntos_solicitados,
+            "descuento":                descuento,
+            "total_original":           subtotal,
+            "total_con_descuento":      total_con_descuento,
+            "nivel":                    nivel,
+            "mensaje":                  mensaje,
+        }
+
+    def _preview_empty(self, cliente_id: int, subtotal: float, mensaje: str) -> dict:
+        return {
+            "enabled":                  False,
+            "cliente_id":               cliente_id or 0,
+            "puntos_disponibles":       0,
+            "valor_por_punto":          0.0,
+            "min_puntos_canje":         0,
+            "max_pct_canje":            0.5,
+            "puntos_maximos_canjeables": 0,
+            "descuento_maximo":         0.0,
+            "puntos_solicitados":       0,
+            "descuento":                0.0,
+            "total_original":           subtotal,
+            "total_con_descuento":      subtotal,
+            "nivel":                    "Bronce",
+            "mensaje":                  mensaje,
+        }
+
+    def get_customer_loyalty_summary(
+        self, cliente_id: int, subtotal: float | None = None
+    ) -> dict:
+        """
+        Resumen completo de fidelización para un cliente.
+
+        Incluye saldo, nivel, historial reciente y — si se provee subtotal —
+        un preview de canje.  Diseñado para poblar sidebars/cards de la UI
+        sin que la UI calcule nada localmente.
+
+        Returns:
+            {
+              "enabled":       bool,
+              "cliente_id":    int,
+              "saldo":         int,
+              "nivel":         str,
+              "ledger":        list[dict],   # últimos 10 movimientos
+              "preview":       dict | None,  # preview_redemption si subtotal dado
+            }
+        """
+        if not self.enabled:
+            return {"enabled": False, "cliente_id": cliente_id or 0,
+                    "saldo": 0, "nivel": "Bronce", "ledger": [], "preview": None}
+
+        saldo = self.saldo(cliente_id)
+        nivel = "Bronce"
+        try:
+            from core.domain.models import LoyaltySnapshot
+            nivel = LoyaltySnapshot.calcular_nivel(saldo)
+        except Exception:
+            pass
+
+        ledger = self.get_ledger_cliente(cliente_id, limit=10)
+        preview = self.preview_redemption(cliente_id, subtotal) if subtotal is not None else None
+
+        return {
+            "enabled":    True,
+            "cliente_id": cliente_id,
+            "saldo":      saldo,
+            "nivel":      nivel,
+            "ledger":     ledger,
+            "preview":    preview,
+        }
+
+    def get_puntos(self, cliente_id: int) -> dict:
+        """
+        Alias de conveniencia (compatible con código existente en sales_service.py).
+        Retorna puntos_totales y puntos_ganados (siempre 0 — saldo estático).
+        """
+        saldo = self.saldo(cliente_id)
+        return {"puntos_totales": saldo, "puntos_ganados": 0, "nivel": "Bronce"}
+
     def compute_redemption_discount(self, pts: int, subtotal: float) -> float:
         """
         Calcula el descuento monetario por canje de `pts` puntos/estrellas.

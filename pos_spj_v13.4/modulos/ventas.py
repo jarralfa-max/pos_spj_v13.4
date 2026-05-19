@@ -3962,32 +3962,49 @@ class ModuloVentas(ModuloBase):
 
             self._abrir_cajon()
 
-            # ── v13.4 Fase 2: Acreditar puntos de fidelización ───────────────
+            # ── v13.4 Fase 2: Actualizar display de puntos de fidelización ─────
+            # NOTA ARQUITECTURA: La acreditación de puntos ya es realizada por:
+            #   1. ProcesarVentaUC.ejecutar() (paso 4, cuando _uc está activo)
+            #   2. wiring.py _loyalty_venta handler en VENTA_COMPLETADA (priority=50)
+            # NO llamar loyalty.acreditar_venta() aquí para evitar triple acreditación.
+            # Solo actualizamos el display consultando el saldo actualizado.
             puntos_resultado = {"estrellas_ganadas": 0, "saldo_actual": 0,
                                 "mensaje_gamificacion": ""}
             try:
                 loyalty = getattr(self.container, 'loyalty_service', None)
                 if loyalty and cliente_id:
-                    cli_tel = self.cliente_actual.get('telefono', '') if self.cliente_actual else ''
-                    cli_nom = self.cliente_actual.get('nombre', '') if self.cliente_actual else ''
-                    puntos_resultado = loyalty.acreditar_venta(
-                        cliente_id=cliente_id,
-                        venta_id=folio,
-                        cajero=usuario,
-                        total=self.totales['total_final'],
-                        telefono=cli_tel,
-                        nombre=cli_nom)
+                    # Si el resultado del UC tiene datos de puntos, usarlos directamente
+                    _uc_pts = getattr(_r, 'puntos_ganados', None) if '_r' in dir() else None
+                    if _uc_pts is not None:
+                        puntos_resultado = {
+                            "estrellas_ganadas": getattr(_r, 'puntos_ganados', 0),
+                            "saldo_actual": getattr(_r, 'puntos_totales', 0),
+                            "mensaje_gamificacion": "",
+                        }
+                    else:
+                        # Fallback: consultar saldo sin acreditar
+                        _saldo_query = loyalty.saldo(cliente_id)
+                        puntos_resultado["saldo_actual"] = _saldo_query
                     # Actualizar display de puntos en UI
                     saldo = puntos_resultado.get("saldo_actual", 0)
-                    self.lbl_puntos_venta.setText(
-                        f"⭐ +{puntos_resultado.get('estrellas_ganadas', 0)} | Saldo: {saldo}")
+                    _pts_ganados = puntos_resultado.get('estrellas_ganadas', 0)
+                    if _pts_ganados > 0:
+                        self.lbl_puntos_venta.setText(
+                            f"⭐ +{_pts_ganados} | Saldo: {saldo}")
+                    else:
+                        self.lbl_puntos_venta.setText(f"⭐ Saldo: {saldo}")
             except Exception as _loyalty_e:
-                logger.debug("Loyalty post-venta: %s", _loyalty_e)
+                logger.debug("Loyalty display post-venta: %s", _loyalty_e)
 
             # ── v13.4 Fase 3: Registrar ingreso en Tesorería Central ─────────
+            # treasury_ledger es un libro mayor de gestión (distinto de movimientos_caja).
+            # GUARDRAIL: Mercado Pago solo genera un link de pago — el dinero no ingresa
+            # hasta que se confirme el pago vía webhook. No registrar como ingreso aquí.
+            _forma_pago_treasury = datos_pago.get('forma_pago', '')
+            _mp_link_only = (_forma_pago_treasury == 'Mercado Pago')
             try:
                 treasury = getattr(self.container, 'treasury_service', None)
-                if treasury and treasury.enabled:
+                if treasury and treasury.enabled and not _mp_link_only:
                     treasury.registrar_ingreso(
                         categoria="venta",
                         concepto=f"Venta {folio}",
@@ -3995,6 +4012,10 @@ class ModuloVentas(ModuloBase):
                         sucursal_id=self.sucursal_id,
                         referencia=str(folio),
                         usuario=usuario)
+                elif treasury and _mp_link_only:
+                    logger.debug(
+                        "Treasury: ingreso Mercado Pago omitido (link generado, "
+                        "pago pendiente de confirmación webhook) folio=%s", folio)
             except Exception as _t_e:
                 logger.debug("Treasury post-venta: %s", _t_e)
 
