@@ -21,7 +21,7 @@ class TurnoNoEncontradoError(Exception):
     pass
 
 
-class TurnoYaAbiertroError(Exception):
+class TurnoYaAbiertoError(Exception):
     pass
 
 
@@ -75,10 +75,10 @@ class CajaApplicationService:
     # ── Abrir turno ───────────────────────────────────────────────────────────
 
     def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> int:
-        """Abre un nuevo turno. Lanza TurnoYaAbiertroError si ya hay uno abierto."""
+        """Abre un nuevo turno. Lanza TurnoYaAbiertoError si ya hay uno abierto."""
         existing = self.get_estado_turno(sucursal_id, usuario)
         if existing:
-            raise TurnoYaAbiertroError("Ya hay un turno abierto para este cajero.")
+            raise TurnoYaAbiertoError("Ya hay un turno abierto para este cajero.")
 
         cur = self.db.execute(
             """INSERT INTO turnos_caja
@@ -399,17 +399,17 @@ class CajaApplicationService:
         try:
             self.db.execute(f"SAVEPOINT {sp}")
 
-            # 7a. Insertar en cierres_caja
+            # 7a. Insertar en cierres_caja (turno_id added by migration 080)
             cur = self.db.execute(
                 """INSERT INTO cierres_caja
-                   (uuid, tipo, sucursal_id, usuario, turno,
+                   (uuid, tipo, sucursal_id, usuario, turno, turno_id,
                     fecha_apertura, fecha_cierre,
                     total_ventas, num_ventas,
                     total_efectivo, total_tarjeta, total_transferencia, total_otros,
                     efectivo_contado, fondo_inicial, diferencia, comentarios, estado)
-                   VALUES (?,?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?,'cerrado')""",
+                   VALUES (?,?,?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?,'cerrado')""",
                 (
-                    cierre_uuid, "Z", sucursal_id, usuario, cajero,
+                    cierre_uuid, "Z", sucursal_id, usuario, cajero, turno_id,
                     fecha_apertura,
                     round(total_ventas, 2), num_ventas,
                     round(total_efectivo, 2), round(total_tarjeta, 2),

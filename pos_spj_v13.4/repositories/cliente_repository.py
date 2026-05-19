@@ -31,17 +31,29 @@ class ClienteRepository:
         return dict(row) if row else None
 
     def buscar(self, termino: str, limit: int = 50) -> list:
+        """Busca clientes activos por nombre, teléfono, email, qr o fidelidad."""
         q = f"%{termino}%"
         rows = self.db.execute("""
-            SELECT id, nombre, telefono, email, puntos, codigo_fidelidad,
-                   activo, fecha_registro
+            SELECT *
             FROM clientes
             WHERE (nombre LIKE ? OR telefono LIKE ? OR email LIKE ?
-                   OR codigo_fidelidad LIKE ?)
+                   OR COALESCE(codigo_qr,'') LIKE ?
+                   OR COALESCE(codigo_fidelidad,'') LIKE ?
+                   OR CAST(id AS TEXT) = ?)
               AND activo = 1
             ORDER BY nombre LIMIT ?
-        """, (q, q, q, q, limit)).fetchall()
+        """, (q, q, q, q, q, termino, limit)).fetchall()
         return [dict(r) for r in rows]
+
+    def get_by_scanner(self, codigo: str) -> Optional[dict]:
+        """Busca cliente activo por ID numérico, teléfono, código QR o código de fidelidad."""
+        row = self.db.execute(
+            """SELECT * FROM clientes
+               WHERE (CAST(id AS TEXT)=? OR telefono=? OR codigo_qr=? OR codigo_fidelidad=?)
+                 AND activo=1 LIMIT 1""",
+            (codigo, codigo, codigo, codigo),
+        ).fetchone()
+        return dict(row) if row else None
 
     def get_all(self, solo_activos: bool = True, limit: int = 200) -> list:
         sql = "SELECT * FROM clientes"

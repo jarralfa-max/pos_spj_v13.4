@@ -356,8 +356,8 @@ class ModuloCaja(QWidget, RefreshMixin):
         bar.setObjectName("cajaKpiBar")
         bar.setFixedHeight(64)
         bar.setStyleSheet(
-            f"QFrame#cajaKpiBar {{ background:{Colors.SURFACE_DARK if hasattr(Colors,'SURFACE_DARK') else '#1E293B'};"
-            f" border-radius:8px; border:1px solid #334155; margin-bottom:4px; }}"
+            f"QFrame#cajaKpiBar {{ background:{Colors.NEUTRAL.DARK_CARD};"
+            f" border-radius:8px; border:1px solid {Colors.NEUTRAL.DARK_BORDER}; margin-bottom:4px; }}"
         )
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(20, 8, 20, 8)
@@ -392,7 +392,7 @@ class ModuloCaja(QWidget, RefreshMixin):
                 s = QFrame()
                 s.setFrameShape(QFrame.VLine)
                 s.setFixedWidth(1)
-                s.setStyleSheet("background:#334155; border:none;")
+                s.setStyleSheet(f"background:{Colors.NEUTRAL.DARK_BORDER}; border:none;")
                 lay.addWidget(s)
                 lay.addSpacing(20)
             c = QVBoxLayout()
@@ -400,7 +400,7 @@ class ModuloCaja(QWidget, RefreshMixin):
             v = QLabel(val)
             v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
             l = QLabel(lbl.upper())
-            l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
+            l.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
             c.addWidget(v)
             c.addWidget(l)
             lay.addLayout(c)
@@ -501,10 +501,7 @@ class ModuloCaja(QWidget, RefreshMixin):
 
         try:
             svc = self._caja_svc
-            if svc:
-                turno = svc.get_estado_turno(self.sucursal_id, self.usuario_actual)
-            else:
-                turno = self.container.finance_service.get_estado_turno(self.sucursal_id, self.usuario_actual)
+            turno = svc.get_estado_turno(self.sucursal_id, self.usuario_actual) if svc else None
 
             if turno:
                 self.turno_actual = turno['id']
@@ -569,8 +566,6 @@ class ModuloCaja(QWidget, RefreshMixin):
                 svc = self._caja_svc
                 if svc:
                     svc.abrir_turno(self.sucursal_id, self.usuario_actual, fondo)
-                else:
-                    self.container.finance_service.abrir_turno(self.sucursal_id, self.usuario_actual, fondo)
 
                 Toast.success(self, "Turno abierto", f"Fondo inicial: ${fondo:.2f}")
 
@@ -604,10 +599,6 @@ class ModuloCaja(QWidget, RefreshMixin):
             svc = self._caja_svc
             if svc:
                 svc.registrar_movimiento_manual(
-                    self.turno_actual, self.sucursal_id, self.usuario_actual, tipo, monto, concepto
-                )
-            else:
-                self.container.finance_service.registrar_movimiento_manual(
                     self.turno_actual, self.sucursal_id, self.usuario_actual, tipo, monto, concepto
                 )
 
@@ -804,10 +795,7 @@ class ModuloCaja(QWidget, RefreshMixin):
 
         svc = self._caja_svc
         try:
-            if svc:
-                rows_raw = svc.get_movimientos_turno(self.turno_actual, self.rol_actual)
-            else:
-                rows_raw = self.container.finance_service.get_movimientos_turno(self.turno_actual)
+            rows_raw = svc.get_movimientos_turno(self.turno_actual, self.rol_actual) if svc else []
         except Exception:
             rows_raw = []
 
@@ -832,9 +820,9 @@ class ModuloCaja(QWidget, RefreshMixin):
                 it = QTableWidgetItem(val)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if tipo == "VENTA":
-                    it.setForeground(QColor('#27ae60'))
+                    it.setForeground(QColor(Colors.SUCCESS_BASE))
                 elif tipo in ("RETIRO", "GASTO"):
-                    it.setForeground(QColor('#e74c3c'))
+                    it.setForeground(QColor(Colors.DANGER_BASE))
                 self._tbl_movs.setItem(ri, ci, it)
 
             if tipo == "VENTA":      ventas   += monto
@@ -848,10 +836,6 @@ class ModuloCaja(QWidget, RefreshMixin):
                 turno = svc.get_estado_turno(self.sucursal_id, self.usuario_actual)
                 if turno:
                     fondo = float(turno.get('fondo_inicial', 0) or 0)
-            else:
-                row = self.container.finance_service.get_estado_turno(self.sucursal_id, self.usuario_actual)
-                if row:
-                    fondo = float(row.get('fondo_inicial', 0) or 0)
         except Exception:
             pass
 

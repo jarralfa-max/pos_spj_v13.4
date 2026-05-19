@@ -68,6 +68,9 @@ class ModuloClientes(ModuloBase):
         kpis = [("Total Clientes","—",_C.PRIMARY_BASE),("Activos","—",_C.SUCCESS_BASE),
                 ("Con Tarjeta","—",_C.INFO_BASE),("Puntos Totales","—",_C.WARNING_BASE)]
         try:
+            # self.conexion is always the raw DB connection:
+            # set to container.db (AppContainer) or the direct connection passed at init.
+            # ClienteRepository.get_stats() is per-customer, not aggregate — use DB directly here.
             db = self.conexion
             r = db.execute("SELECT COUNT(*), SUM(CASE WHEN activo=1 THEN 1 ELSE 0 END) FROM clientes").fetchone()
             kpis[0] = ("Total Clientes", str(r[0] or 0), _C.PRIMARY_BASE)
