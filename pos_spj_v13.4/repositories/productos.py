@@ -74,10 +74,34 @@ class ProductoRepository:
         return None
 
     def get_categories(self):
-        # CORRECCIÓN: Ya utilizaba cursor correctamente
         cursor = self.db.cursor()
-        cursor.execute("SELECT DISTINCT categoria FROM productos WHERE categoria IS NOT NULL AND categoria != ''")
-        return [r[0] for r in cursor.fetchall()]
+        cursor.execute(
+            "SELECT DISTINCT COALESCE(categoria,'') FROM productos "
+            "WHERE COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1 "
+            "AND categoria IS NOT NULL AND categoria != '' "
+            "ORDER BY categoria"
+        )
+        return [r[0] for r in cursor.fetchall() if r[0]]
+
+    def get_by_barcode(self, codigo: str) -> Optional[Dict]:
+        """Busca producto activo por código de barras, código interno o ID."""
+        cursor = self.db.cursor()
+        cursor.execute(
+            """SELECT id, nombre, precio_venta, precio_kilo,
+                      existencia, unidad, tipo, imagen_path,
+                      categoria, descripcion,
+                      COALESCE(codigo_barras,'') as codigo_barras
+               FROM productos
+               WHERE (COALESCE(codigo_barras,'')=? OR COALESCE(codigo,'')=? OR CAST(id AS TEXT)=?)
+                 AND COALESCE(activo,1)=1 AND COALESCE(oculto,0)=0
+               LIMIT 1""",
+            (codigo, codigo, codigo),
+        )
+        row = cursor.fetchone()
+        if row:
+            cols = [c[0] for c in cursor.description]
+            return dict(zip(cols, row))
+        return None
 
     def get_for_sale(self, search: str = "") -> List[Dict]:
         params: List = []

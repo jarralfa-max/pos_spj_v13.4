@@ -917,11 +917,14 @@ class _DialogoAsignarTarjeta(QDialog):
 
     def _buscar_cliente_existente(self):
         texto = self.txt_buscar_cliente.text().strip()
-        if not texto: return
-        rows = self.conexion.execute(
-            "SELECT id, nombre, telefono FROM clientes WHERE (nombre LIKE ? OR telefono LIKE ?) AND activo=1 LIMIT 5",
-            (f"%{texto}%", f"%{texto}%")
-        ).fetchall()
+        if not texto:
+            return
+        try:
+            from repositories.cliente_repository import ClienteRepository
+            cli_repo = ClienteRepository(self.conexion)
+            rows = cli_repo.buscar(texto, limit=5)
+        except Exception:
+            rows = []
         if not rows:
             self.lbl_cliente_encontrado.setText("❌ No encontrado")
             self.lbl_cliente_encontrado.setVisible(True)
@@ -931,15 +934,20 @@ class _DialogoAsignarTarjeta(QDialog):
         if len(rows) == 1:
             self._seleccionar_cliente(rows[0])
         else:
-            items = [f"{r[1]} — {r[2] or ''}" for r in rows]
+            items = [f"{r['nombre']} — {r.get('telefono','')}" for r in rows]
             item, ok = QInputDialog.getItem(self, "Seleccionar cliente", "Múltiples resultados:", items, 0, False)
             if ok:
                 idx = items.index(item)
                 self._seleccionar_cliente(rows[idx])
 
     def _seleccionar_cliente(self, row):
-        self._cliente_id_sel = row[0]
-        self.lbl_cliente_encontrado.setText(f"✓ {row[1]}  {row[2] or ''}")
+        # row may be a dict (from ClienteRepository.buscar) or a tuple (legacy)
+        if isinstance(row, dict):
+            self._cliente_id_sel = row['id']
+            self.lbl_cliente_encontrado.setText(f"✓ {row['nombre']}  {row.get('telefono','')}")
+        else:
+            self._cliente_id_sel = row[0]
+            self.lbl_cliente_encontrado.setText(f"✓ {row[1]}  {row[2] or ''}")
         self.lbl_cliente_encontrado.setVisible(True)
         self.btn_asignar_existente.setEnabled(True)
 
@@ -957,12 +965,11 @@ class _DialogoAsignarTarjeta(QDialog):
         import uuid as _uuid
         qr_code = _uuid.uuid4().hex[:12].upper()
         try:
-            cur = self.conexion.execute(
-                "INSERT INTO clientes (nombre, telefono, codigo_qr, activo, puntos) VALUES (?,?,?,1,0)",
-                (nombre, telefono or None, qr_code)
+            from repositories.cliente_repository import ClienteRepository
+            cli_repo = ClienteRepository(self.conexion)
+            cliente_id = cli_repo.crear(
+                nombre=nombre, telefono=telefono or "", codigo_fidelidad=qr_code
             )
-            cliente_id = cur.lastrowid
-            self.conexion.commit()
             self.resultado = {'cliente_id': cliente_id, 'nuevo': True}
             self.accept()
         except Exception as exc:
@@ -1082,7 +1089,7 @@ class ModuloVentas(ModuloBase):
         super().__init__(container.db, parent)
         
         self.container = container
-        self.conexion = container.db  # Mantenemos compatibilidad con consultas legacy
+        self.conexion = container.db  # alias legacy — usar repos para SQL nuevo
         
         # Estructuras de Venta
         self.compra_actual: List[Dict[str, Any]] = []
@@ -1178,6 +1185,14 @@ class ModuloVentas(ModuloBase):
         except Exception as e:
             logger.error(f"❌ Error aplicando tema: {e}")
 
+    @property
+    def _cli_repo(self):
+        return getattr(self.container, 'cliente_repo', None)
+
+    @property
+    def _prod_repo(self):
+        return getattr(self.container, 'producto_repo', None)
+
     def set_usuario_actual(self, usuario: str, rol: str) -> None:
         """Activa/desactiva botones según el rol del usuario logueado."""
         self.usuario_actual = usuario
@@ -1209,9 +1224,13 @@ class ModuloVentas(ModuloBase):
 
     def actualizar_completer_model(self):
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT nombre, COALESCE(codigo_barras,'') FROM productos WHERE COALESCE(oculto,0) = 0")
-            productos = cursor.fetchall()
+            prod_repo = self._prod_repo
+            if prod_repo:
+                productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
+            else:
+                cursor = self.conexion.cursor()
+                cursor.execute("SELECT nombre, COALESCE(codigo_barras,'') FROM productos WHERE COALESCE(oculto,0) = 0")
+                productos = cursor.fetchall()
             sugerencias = []
             for nombre, codigo in productos:
                 sugerencias.append(nombre)
@@ -1219,8 +1238,8 @@ class ModuloVentas(ModuloBase):
                     sugerencias.append(codigo)
             self.completer_model.setStringList(sugerencias)
             self.productos_cache = productos
-        except sqlite3.Error as e:
-            logger.error(f"Error actualizando completer: {e}")
+        except Exception as e:
+            logger.error("Error actualizando completer: %s", e)
 
     def conectar_eventos(self):
         self.txt_busqueda.returnPressed.connect(self.buscar_productos)
@@ -1966,16 +1985,20 @@ class ModuloVentas(ModuloBase):
 
         categorias = [""]  # "" = Todos
         try:
-            rows = self.conexion.execute(
-                "SELECT DISTINCT COALESCE(categoria,'') FROM productos "
-                "WHERE COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1 "
-                "AND categoria IS NOT NULL AND categoria != '' "
-                "ORDER BY categoria"
-            ).fetchall()
-            for row in rows:
-                cat = row[0] if not hasattr(row, 'keys') else row['COALESCE(categoria,\'\')']
-                if cat:
-                    categorias.append(cat)
+            prod_repo = self._prod_repo
+            if prod_repo:
+                categorias += prod_repo.get_categories()
+            else:
+                rows = self.conexion.execute(
+                    "SELECT DISTINCT COALESCE(categoria,'') FROM productos "
+                    "WHERE COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1 "
+                    "AND categoria IS NOT NULL AND categoria != '' "
+                    "ORDER BY categoria"
+                ).fetchall()
+                for row in rows:
+                    cat = row[0] if not hasattr(row, 'keys') else row['COALESCE(categoria,\'\')']
+                    if cat:
+                        categorias.append(cat)
         except Exception as e:
             logger.debug("_cargar_categorias: %s", e)
 
@@ -2312,13 +2335,11 @@ class ModuloVentas(ModuloBase):
                         puntos = 0
                         nivel = "Bronce"
                         try:
-                            row_pts = self.conexion.execute(
-                                "SELECT COALESCE(puntos,0), COALESCE(nivel,'Bronce') "
-                                "FROM clientes WHERE id=?",
-                                (qr_result.client_id,)).fetchone()
-                            if row_pts:
-                                puntos = int(row_pts[0])
-                                nivel = row_pts[1]
+                            _cli = self._cli_repo
+                            _row = _cli.get_by_id(qr_result.client_id) if _cli else None
+                            if _row:
+                                puntos = int(_row.get('puntos', 0) or 0)
+                                nivel = _row.get('nivel', 'Bronce') or 'Bronce'
                         except Exception:
                             pass
                         self._cargar_cliente_en_venta(
@@ -2364,23 +2385,16 @@ class ModuloVentas(ModuloBase):
                               cliente_id=row_tarj['cliente_id'])
                     return
 
-                # 1b. Buscar cliente por ID o teléfono (NO por nombre LIKE)
-                row_cli = self.conexion.execute(
-                    """SELECT id, nombre, COALESCE(telefono,'') as telefono,
-                              COALESCE(puntos,0) as puntos,
-                              COALESCE(nivel,'Bronce') as nivel
-                       FROM clientes
-                       WHERE CAST(id AS TEXT)=? OR telefono=? OR codigo_qr=?
-                       LIMIT 1""",
-                    (codigo, codigo, codigo)
-                ).fetchone()
+                # 1b. Buscar cliente por ID, teléfono o código QR
+                _cli = self._cli_repo
+                row_cli = _cli.get_by_scanner(codigo) if _cli else None
                 if row_cli:
                     self._cargar_cliente_en_venta(
                         cliente_id=row_cli['id'],
                         nombre=row_cli['nombre'],
-                        telefono=row_cli['telefono'],
-                        puntos=int(row_cli['puntos']),
-                        nivel=row_cli['nivel'],
+                        telefono=row_cli.get('telefono', '') or "",
+                        puntos=int(row_cli.get('puntos', 0) or 0),
+                        nivel=row_cli.get('nivel', 'Bronce') or 'Bronce',
                     )
                     _log_scan("client_id", "cliente_cargado",
                               cliente_id=row_cli['id'])
@@ -2409,17 +2423,8 @@ class ModuloVentas(ModuloBase):
             # CONTEXTO PRODUCTO — el foco estaba en "Buscar Producto"
             # ════════════════════════════════════════════════════════════════
             if ctx == "producto":
-                row_prod = self.conexion.execute(
-                    """SELECT id, nombre, precio_venta, precio_kilo,
-                              existencia, unidad, tipo, imagen_path,
-                              categoria, descripcion,
-                              COALESCE(codigo_barras,'') as codigo_barras
-                       FROM productos
-                       WHERE (COALESCE(codigo_barras,'')=? OR codigo=? OR CAST(id AS TEXT)=?)
-                         AND COALESCE(activo,1)=1 AND COALESCE(oculto,0)=0
-                       LIMIT 1""",
-                    (codigo, codigo, codigo)
-                ).fetchone()
+                _prod = self._prod_repo
+                row_prod = _prod.get_by_barcode(codigo) if _prod else None
                 if row_prod:
                     self.agregar_al_carrito(dict(row_prod))
                     self._mostrar_notif_scanner(
@@ -2443,17 +2448,8 @@ class ModuloVentas(ModuloBase):
             # Orden: producto → tarjeta → UUID contenedor → búsqueda
             # ════════════════════════════════════════════════════════════════
             # ── 1. Producto ──────────────────────────────────────────────────
-            row_prod = self.conexion.execute(
-                """SELECT id, nombre, precio_venta, precio_kilo,
-                          existencia, unidad, tipo, imagen_path,
-                          categoria, descripcion,
-                          COALESCE(codigo_barras,'') as codigo_barras
-                   FROM productos
-                   WHERE (COALESCE(codigo_barras,'')=? OR codigo=? OR CAST(id AS TEXT)=?)
-                     AND COALESCE(activo,1)=1 AND COALESCE(oculto,0)=0
-                   LIMIT 1""",
-                (codigo, codigo, codigo)
-            ).fetchone()
+            _prod = self._prod_repo
+            row_prod = _prod.get_by_barcode(codigo) if _prod else None
             if row_prod:
                 self.agregar_al_carrito(dict(row_prod))
                 self._mostrar_notif_scanner(f"📦 {row_prod['nombre']}", "product")
@@ -2737,20 +2733,19 @@ class ModuloVentas(ModuloBase):
                 return
 
             if tarjeta.estado == "asignada" and tarjeta.id_cliente:
-                row = self.conexion.execute(
-                    "SELECT id, nombre, telefono, email, direccion, rfc, puntos, codigo_qr, saldo "
-                    "FROM clientes WHERE id = ? AND activo = 1",
-                    (tarjeta.id_cliente,)
-                ).fetchone()
-                if row:
+                _cli = self._cli_repo
+                row = _cli.get_by_id(tarjeta.id_cliente) if _cli else None
+                if row and row.get('activo', 1):
                     self.cliente_actual = {
-                        'id': row[0], 'nombre': row[1], 'telefono': row[2],
-                        'email': row[3], 'direccion': row[4], 'rfc': row[5],
-                        'puntos': row[6], 'codigo_qr': row[7], 'saldo': row[8] or 0.0,
+                        'id': row['id'], 'nombre': row['nombre'],
+                        'telefono': row.get('telefono', ''), 'email': row.get('email', ''),
+                        'direccion': row.get('direccion', ''), 'rfc': row.get('rfc', ''),
+                        'puntos': row.get('puntos', 0), 'codigo_qr': row.get('codigo_qr', ''),
+                        'saldo': row.get('saldo', 0.0) or 0.0,
                     }
                     self._actualizar_ui_cliente()
                     if hasattr(self, 'lbl_puntos_cliente'):
-                        self.lbl_puntos_cliente.setText(f"Puntos: {row[6]} | Nivel: {tarjeta.nivel}")
+                        self.lbl_puntos_cliente.setText(f"Puntos: {row.get('puntos',0)} | Nivel: {tarjeta.nivel}")
                     return
 
             dialogo = _DialogoAsignarTarjeta(tarjeta, self.conexion, self)
@@ -2759,16 +2754,15 @@ class ModuloVentas(ModuloBase):
                 if resultado and resultado.get('cliente_id'):
                     cliente_id = resultado['cliente_id']
                     eng.asignar_tarjeta(tarjeta.id, cliente_id, motivo="asignacion_en_venta")
-                    row = self.conexion.execute(
-                        "SELECT id, nombre, telefono, email, direccion, rfc, puntos, codigo_qr, saldo "
-                        "FROM clientes WHERE id = ?",
-                        (cliente_id,)
-                    ).fetchone()
+                    _cli = self._cli_repo
+                    row = _cli.get_by_id(cliente_id) if _cli else None
                     if row:
                         self.cliente_actual = {
-                            'id': row[0], 'nombre': row[1], 'telefono': row[2],
-                            'email': row[3], 'direccion': row[4], 'rfc': row[5],
-                            'puntos': row[6], 'codigo_qr': row[7], 'saldo': row[8] or 0.0,
+                            'id': row['id'], 'nombre': row['nombre'],
+                            'telefono': row.get('telefono', ''), 'email': row.get('email', ''),
+                            'direccion': row.get('direccion', ''), 'rfc': row.get('rfc', ''),
+                            'puntos': row.get('puntos', 0), 'codigo_qr': row.get('codigo_qr', ''),
+                            'saldo': row.get('saldo', 0.0) or 0.0,
                         }
                         self._actualizar_ui_cliente()
         except ImportError:
@@ -3475,20 +3469,12 @@ class ModuloVentas(ModuloBase):
         if not texto:
             return
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute(
-                """SELECT nombre, COALESCE(telefono,'') FROM clientes
-                   WHERE (nombre LIKE ? OR telefono LIKE ? OR email LIKE ?
-                          OR codigo_qr LIKE ? OR CAST(id AS TEXT) = ?)
-                   AND activo = 1
-                   ORDER BY nombre LIMIT 12""",
-                (f"%{texto}%", f"%{texto}%", f"%{texto}%", f"%{texto}%", texto)
-            )
-            rows = cursor.fetchall()
+            _cli = self._cli_repo
+            rows = _cli.buscar(texto, limit=12) if _cli else []
         except Exception:
             return
         suggestions = [
-            f"{r[0]}  ·  {r[1]}" if r[1] else r[0]
+            f"{r['nombre']}  ·  {r['telefono']}" if r.get('telefono') else r['nombre']
             for r in rows
         ]
         if self._cliente_completer_model is None:
@@ -3517,23 +3503,22 @@ class ModuloVentas(ModuloBase):
         if not termino:
             self.limpiar_cliente()
             return
-            
+
         try:
-            cursor = self.conexion.cursor()
-            query = """
-                SELECT id, nombre, telefono, email, direccion, rfc, puntos, codigo_qr, saldo
-                FROM clientes 
-                WHERE (id = ? OR nombre LIKE ? OR telefono LIKE ? OR codigo_qr = ? OR email LIKE ?)
-                AND activo = 1 LIMIT 1
-            """
-            cursor.execute(query, (termino, f'%{termino}%', f'%{termino}%', termino, f'%{termino}%'))
-            cliente = cursor.fetchone()
-            
+            _cli = self._cli_repo
+            clientes = _cli.buscar(termino, limit=1) if _cli else []
+            cliente = clientes[0] if clientes else None
+
             if cliente:
                 self.cliente_actual = {
-                    'id': cliente[0], 'nombre': cliente[1], 'telefono': cliente[2],
-                    'email': cliente[3], 'direccion': cliente[4], 'rfc': cliente[5],
-                    'puntos': cliente[6], 'codigo_qr': cliente[7], 'saldo': cliente[8]
+                    'id': cliente['id'], 'nombre': cliente['nombre'],
+                    'telefono': cliente.get('telefono', ''),
+                    'email': cliente.get('email', ''),
+                    'direccion': cliente.get('direccion', ''),
+                    'rfc': cliente.get('rfc', ''),
+                    'puntos': cliente.get('puntos', 0),
+                    'codigo_qr': cliente.get('codigo_qr', ''),
+                    'saldo': cliente.get('saldo', 0.0) or 0.0,
                 }
                 self.actualizar_info_cliente()
                 self.txt_cliente.clear()
@@ -3593,56 +3578,72 @@ class ModuloVentas(ModuloBase):
 
     def guardar_nuevo_cliente(self, cliente_data: Dict[str, Any]):
         try:
-            cursor = self.conexion.cursor()
             tarjeta_id = cliente_data.get('tarjeta_id', '')
-            
-            # v13.4: Si se proporcionó un ID de tarjeta, verificar si el cliente ya existe
+
+            # Si se proporcionó tarjeta, verificar si ya está asignada a otro cliente
             if tarjeta_id:
-                # Buscar si la tarjeta ya está asignada a un cliente
-                existing = cursor.execute(
+                existing = self.conexion.execute(
                     "SELECT c.id, c.nombre FROM clientes c "
                     "JOIN tarjetas_fidelidad t ON t.id_cliente = c.id "
                     "WHERE t.codigo = ? AND t.activa = 1 LIMIT 1",
-                    (tarjeta_id,)).fetchone()
+                    (tarjeta_id,)
+                ).fetchone()
                 if existing:
-                    # Tarjeta ya asignada — cargar ese cliente
-                    self.seleccionar_cliente(existing[0] if not hasattr(existing, 'keys') else existing['id'])
-                    self.mostrar_mensaje("Info", f"Tarjeta ya asignada a: {existing[1] if not hasattr(existing, 'keys') else existing['nombre']}")
+                    eid = existing['id'] if hasattr(existing, 'keys') else existing[0]
+                    enombre = existing['nombre'] if hasattr(existing, 'keys') else existing[1]
+                    self.seleccionar_cliente(eid)
+                    self.mostrar_mensaje("Info", f"Tarjeta ya asignada a: {enombre}")
                     return
-            
+
             codigo_qr = tarjeta_id or (
                 f"CLI_{datetime.now().strftime('%Y%m%d%H%M%S')}" if cliente_data['generar_tarjeta'] else None)
-            
-            cursor.execute("""
-                INSERT INTO clientes (nombre, telefono, email, direccion, puntos, codigo_qr, activo)
-                VALUES (?, ?, ?, ?, 0, ?, 1)
-            """, (cliente_data['nombre'], cliente_data['telefono'], cliente_data['email'], 
-                  cliente_data['direccion'], codigo_qr))
-            
-            cliente_id = cursor.lastrowid
-            
-            # v13.4: Si hay tarjeta_id, crear registro en tarjetas_fidelidad
+
+            _cli = self._cli_repo
+            if _cli:
+                cliente_id = _cli.crear(
+                    nombre=cliente_data['nombre'],
+                    telefono=cliente_data.get('telefono', ''),
+                    email=cliente_data.get('email', ''),
+                    direccion=cliente_data.get('direccion', ''),
+                    codigo_fidelidad=codigo_qr,
+                )
+            else:
+                cursor = self.conexion.cursor()
+                cursor.execute(
+                    "INSERT INTO clientes (nombre, telefono, email, direccion, puntos, codigo_qr, activo) "
+                    "VALUES (?, ?, ?, ?, 0, ?, 1)",
+                    (cliente_data['nombre'], cliente_data.get('telefono', ''),
+                     cliente_data.get('email', ''), cliente_data.get('direccion', ''), codigo_qr),
+                )
+                cliente_id = cursor.lastrowid
+                self.conexion.commit()
+
+            # Asignar tarjeta de fidelidad si se proporcionó código
             if tarjeta_id:
                 try:
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO tarjetas_fidelidad 
-                            (codigo, id_cliente, nivel, activa, fecha_emision)
-                        VALUES (?, ?, 'Bronce', 1, datetime('now'))
-                    """, (tarjeta_id, cliente_id))
+                    self.conexion.execute(
+                        "INSERT OR IGNORE INTO tarjetas_fidelidad "
+                        "(codigo, id_cliente, nivel, activa, fecha_emision) "
+                        "VALUES (?, ?, 'Bronce', 1, datetime('now'))",
+                        (tarjeta_id, cliente_id),
+                    )
+                    try:
+                        self.conexion.commit()
+                    except Exception:
+                        pass
                 except Exception:
                     pass
-            
-            self.conexion.commit()
-            
+
             self.cliente_actual = {
-                'id': cliente_id, 'nombre': cliente_data['nombre'], 'telefono': cliente_data['telefono'],
-                'email': cliente_data['email'], 'direccion': cliente_data['direccion'],
-                'puntos': 0, 'codigo_qr': codigo_qr, 'saldo': 0.0
+                'id': cliente_id, 'nombre': cliente_data['nombre'],
+                'telefono': cliente_data.get('telefono', ''),
+                'email': cliente_data.get('email', ''),
+                'direccion': cliente_data.get('direccion', ''),
+                'puntos': 0, 'codigo_qr': codigo_qr, 'saldo': 0.0,
             }
             self.actualizar_info_cliente()
             self.mostrar_mensaje("Éxito", f"Cliente '{cliente_data['nombre']}' agregado.")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al guardar cliente: {str(e)}", QMessageBox.Critical)
 
     def limpiar_cliente(self):
@@ -3829,15 +3830,13 @@ class ModuloVentas(ModuloBase):
                     except Exception as _cv_e:
                         logger.warning("validate_credit: %s", _cv_e)
                 elif not _ccs:
-                    # Fallback: direct query with canonical columns
+                    # Fallback: read credit fields via ClienteRepository
                     try:
-                        _row = self.container.db.execute(
-                            "SELECT COALESCE(credit_balance,0), COALESCE(credit_limit,0) "
-                            "FROM clientes WHERE id=?",
-                            (self.cliente_actual['id'],)
-                        ).fetchone()
-                        if _row:
-                            _used, _limit = float(_row[0]), float(_row[1])
+                        _cli = self._cli_repo
+                        _cdata = _cli.get_by_id(self.cliente_actual['id']) if _cli else None
+                        if _cdata:
+                            _used = float(_cdata.get('credit_balance', 0) or 0)
+                            _limit = float(_cdata.get('credit_limit', 0) or 0)
                             if _limit > 0 and (_used + _financed) > _limit:
                                 _disp = max(0.0, _limit - _used)
                                 QMessageBox.critical(
@@ -3935,10 +3934,9 @@ class ModuloVentas(ModuloBase):
                     client_id=cliente_id,
                     notes=f"Venta POS Mostrador. Cajero: {usuario}.",
                 )
-                row = self.container.db.execute(
-                    "SELECT id FROM ventas WHERE folio=? ORDER BY id DESC LIMIT 1", (folio,)
-                ).fetchone()
-                self._ultima_venta_id = row[0] if row else None
+                _sale = getattr(self.container, 'sales_repo', None)
+                _sr = _sale.get_sale_by_folio(folio) if _sale else None
+                self._ultima_venta_id = _sr['id'] if _sr else None
                 if hasattr(self,'btn_reimprimir'):
                     self.btn_reimprimir.setEnabled(bool(self._ultima_venta_id))
 

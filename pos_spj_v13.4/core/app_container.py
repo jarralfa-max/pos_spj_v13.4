@@ -13,6 +13,7 @@ from repositories.finance_repository import FinanceRepository
 from repositories.sales_repository import SalesRepository
 from repositories.purchase_repository import PurchaseRepository
 from repositories.caja import CajaRepository
+from repositories.productos import ProductoRepository
 # Si tienes estos, descoméntalos; si no, coméntalos para que no den error:
 from repositories.promotion_repository import PromotionRepository
 # [REFACTOR FASE 2] BIRepository eliminado - toda la lógica migrada a AnalyticsEngine
@@ -97,6 +98,7 @@ class AppContainer:
         self.sync_repo = SyncRepository(self.db)
         from repositories.cliente_repository import ClienteRepository
         self.cliente_repo = ClienteRepository(self.db)
+        self.producto_repo = ProductoRepository(self.db)
 
         # MercadoPago (pagos digitales con link)
         try:

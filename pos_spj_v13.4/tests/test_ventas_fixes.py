@@ -190,7 +190,73 @@ class TestNoDuplicateScannerBlock(unittest.TestCase):
             self.fail(f"SyntaxError in ventas.py after refactor: {e}")
 
 
-# ── 5. Smoke test: UnifiedInventoryService is importable ─────────────────────
+# ── 5. Phase 4: repository usage in ventas.py ────────────────────────────────
+
+class TestVentasPhase4Repos(unittest.TestCase):
+    """Verify that Phase 4 repository replacements are in place in ventas.py."""
+
+    _VENTAS_PATH = Path(__file__).parent.parent / "modulos" / "ventas.py"
+
+    def _source(self) -> str:
+        return self._VENTAS_PATH.read_text(encoding="utf-8")
+
+    def test_cliente_repo_property_exists(self):
+        src = self._source()
+        self.assertIn("def _cli_repo", src,
+                      "_cli_repo property missing from ModuloVentas")
+
+    def test_producto_repo_property_exists(self):
+        src = self._source()
+        self.assertIn("def _prod_repo", src,
+                      "_prod_repo property missing from ModuloVentas")
+
+    def test_buscar_cliente_uses_repo(self):
+        src = self._source()
+        self.assertIn("_cli.buscar(termino", src,
+                      "buscar_cliente() still uses direct SQL instead of ClienteRepository.buscar()")
+
+    def test_get_by_barcode_used_for_scanner(self):
+        src = self._source()
+        self.assertIn("get_by_barcode(codigo)", src,
+                      "Scanner product lookup still uses direct SQL instead of get_by_barcode()")
+
+    def test_get_by_scanner_used_for_client_scanner(self):
+        src = self._source()
+        self.assertIn("get_by_scanner(codigo)", src,
+                      "Scanner client lookup still uses direct SQL instead of get_by_scanner()")
+
+    def test_guardar_nuevo_cliente_uses_repo(self):
+        src = self._source()
+        self.assertIn("_cli.crear(", src,
+                      "guardar_nuevo_cliente() still uses direct INSERT instead of ClienteRepository.crear()")
+
+    def test_get_by_id_used_for_tarjeta_client_load(self):
+        src = self._source()
+        self.assertIn("_cli.get_by_id(", src,
+                      "procesar_tarjeta_escaneo() still uses direct SQL instead of get_by_id()")
+
+    def test_categories_use_repo(self):
+        src = self._source()
+        self.assertIn("prod_repo.get_categories()", src,
+                      "_cargar_categorias() still uses direct SQL instead of get_categories()")
+
+    def test_ClienteRepository_has_get_by_scanner(self):
+        from repositories.cliente_repository import ClienteRepository
+        self.assertTrue(hasattr(ClienteRepository, "get_by_scanner"))
+
+    def test_ProductoRepository_has_get_by_barcode(self):
+        from repositories.productos import ProductoRepository
+        self.assertTrue(hasattr(ProductoRepository, "get_by_barcode"))
+
+    def test_ProductoRepository_wired_in_container(self):
+        src = Path(__file__).parent.parent.joinpath("core/app_container.py").read_text()
+        self.assertIn("ProductoRepository", src,
+                      "ProductoRepository not imported in app_container.py")
+        self.assertIn("producto_repo", src,
+                      "producto_repo not wired in AppContainer")
+
+
+# ── 6. Smoke test: UnifiedInventoryService is importable ─────────────────────
 
 class TestInventoryServiceImport(unittest.TestCase):
     def test_import(self):
