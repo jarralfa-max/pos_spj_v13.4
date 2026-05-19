@@ -703,12 +703,13 @@ class ModuloCaja(QWidget, RefreshMixin):
         lyt.setContentsMargins(0, 0, 0, 0)
         lyt.setSpacing(Spacing.LG)
 
-        self._kpi_fondo   = _CajaKPICard("Fondo inicial",   "—", "💰", "primary")
-        self._kpi_ventas  = _CajaKPICard("Ventas turno",    "—", "📈", "success")
+        self._kpi_fondo   = _CajaKPICard("Fondo inicial",    "—", "💰", "primary")
+        self._kpi_ventas  = _CajaKPICard("Efectivo ventas", "—", "💵", "success")
+        self._kpi_total   = _CajaKPICard("Ventas totales",  "—", "📈", "info")
         self._kpi_movs    = _CajaKPICard("Movimientos",     "—", "⚖️",  "warning")
-        self._kpi_cortes  = _CajaKPICard("Cortes hoy",      "—", "🔒", "info")
+        self._kpi_cortes  = _CajaKPICard("Cortes hoy",      "—", "🔒", "danger")
 
-        for card in (self._kpi_fondo, self._kpi_ventas,
+        for card in (self._kpi_fondo, self._kpi_ventas, self._kpi_total,
                      self._kpi_movs, self._kpi_cortes):
             lyt.addWidget(card)
 
@@ -1273,7 +1274,8 @@ class ModuloCaja(QWidget, RefreshMixin):
                 return
             kpi = svc.get_caja_kpis(self.sucursal_id, self.usuario_actual)
             self._kpi_fondo.set_valor(f"${float(kpi.get('fondo_inicial', 0)):,.0f}")
-            self._kpi_ventas.set_valor(f"${float(kpi.get('total_ventas_turno', 0)):,.0f}")
+            self._kpi_ventas.set_valor(f"${float(kpi.get('total_efectivo_turno', 0)):,.0f}")
+            self._kpi_total.set_valor(f"${float(kpi.get('total_ventas_turno', 0)):,.0f}")
             self._kpi_movs.set_valor(str(kpi.get('num_movimientos_hoy', 0)))
             self._kpi_cortes.set_valor(str(kpi.get('num_cortes_hoy', 0)))
         except Exception as e:
