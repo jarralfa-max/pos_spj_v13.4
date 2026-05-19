@@ -919,6 +919,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         apply_spj_buttons(self)
         self._normalizar_botones_ui()
+        self._purge_orphan_children()
     def _remove_accidental_po_tabs(self) -> None:
         """Fail-safe: Compras no debe exponer una pestaña superior dedicada a PO."""
         if not hasattr(self, '_tabs'):
@@ -945,6 +946,34 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 continue
             if btn.minimumHeight() < 32:
                 btn.setMinimumHeight(32)
+
+    def _purge_orphan_children(self) -> None:
+        """Hide any visible QWidget direct children of self that are NOT managed by
+        the root layout. These are layout-orphan widgets that render at (0,0) and
+        overlap the module title."""
+        root_lay = self.layout()
+        # Collect widgets that ARE in the root layout
+        managed: set = set()
+        if root_lay:
+            for i in range(root_lay.count()):
+                item = root_lay.itemAt(i)
+                if item and item.widget():
+                    managed.add(item.widget())
+        for child in self.children():
+            if not isinstance(child, QWidget):
+                continue
+            if child in managed:
+                continue
+            if child.isWindow():
+                continue
+            if child.isVisible():
+                logger.warning(
+                    "compras_pro: hiding orphan child %s '%s' at pos %s",
+                    type(child).__name__,
+                    child.objectName() or getattr(child, 'text', lambda: '')(),
+                    child.pos(),
+                )
+                child.hide()
 
     def _crear_stats_compras(self) -> QWidget:
         """Barra de KPIs: compras del mes, proveedores activos, órdenes pendientes, gasto."""
