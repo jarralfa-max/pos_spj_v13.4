@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox,
     QTableWidget, QTableWidgetItem, QDialog, QHeaderView,
     QAbstractItemView, QFrame, QGridLayout, QTabWidget,
-    QInputDialog, QStackedWidget, QSizePolicy, QScrollArea,
+    QInputDialog, QStackedWidget, QSizePolicy,
 )
 from PyQt5.QtCore import Qt
 from datetime import datetime
@@ -340,61 +340,41 @@ class DialogoCorteZCiego(QDialog):
         sub.setObjectName("subheading")
         lay.addWidget(sub)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
+        self._tbl_den = create_table_with_columns(
+            w,
+            columns=["Denominación", "Cantidad (pzas)", "Subtotal"],
+            show_grid=False,
+            alternating_colors=True,
+        )
+        hh = self._tbl_den.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self._tbl_den.verticalHeader().setVisible(False)
+        self._tbl_den.setRowCount(len(self.DENOMINACIONES))
 
-        grid_frame = QFrame()
-        grid_frame.setObjectName("kpiCard")
-        grid = QGridLayout(grid_frame)
-        grid.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        grid.setHorizontalSpacing(Spacing.LG)
-        grid.setVerticalSpacing(Spacing.MD)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(4, 1)
-
-        self._den_spins  = {}
-        self._den_labels = {}
-        for i, (label, valor) in enumerate(self.DENOMINACIONES):
-            row_idx = i // 2
-            col     = (i % 2) * 4
-
-            lbl_den = QLabel(f"<b>{label}</b>")
-            lbl_den.setMinimumWidth(56)
-            lbl_den.setStyleSheet("background: transparent; border: none;")
-            grid.addWidget(lbl_den, row_idx, col)
+        self._den_spins = {}
+        for row, (label, valor) in enumerate(self.DENOMINACIONES):
+            it = QTableWidgetItem(label)
+            it.setFlags(Qt.ItemIsEnabled)
+            self._tbl_den.setItem(row, 0, it)
 
             spin = QDoubleSpinBox()
             spin.setRange(0, 9999)
             spin.setDecimals(0)
-            spin.setSuffix(" pzas")
-            spin.setMinimumWidth(100)
             spin.setObjectName("inputField")
             spin.valueChanged.connect(self._recalcular_arqueo)
             self._den_spins[valor] = spin
-            grid.addWidget(spin, row_idx, col + 1)
+            self._tbl_den.setCellWidget(row, 1, spin)
 
-            lbl_sub = QLabel("$0.00")
-            lbl_sub.setMinimumWidth(76)
-            lbl_sub.setStyleSheet(
-                f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
-                f" background: transparent; border: none;"
-            )
-            self._den_labels[valor] = lbl_sub
-            grid.addWidget(lbl_sub, row_idx, col + 2)
+            it_sub = QTableWidgetItem("$0.00")
+            it_sub.setFlags(Qt.ItemIsEnabled)
+            it_sub.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self._tbl_den.setItem(row, 2, it_sub)
 
-            if i % 2 == 0 and i < len(self.DENOMINACIONES) - 1:
-                sep = QFrame()
-                sep.setFrameShape(QFrame.VLine)
-                sep.setStyleSheet(
-                    f"background: {Colors.NEUTRAL.SLATE_200}; border: none;"
-                )
-                grid.addWidget(sep, row_idx, 3, 1, 1)
+            self._tbl_den.setRowHeight(row, 34)
 
-            grid.setRowMinimumHeight(row_idx, 32)
-
-        scroll.setWidget(grid_frame)
-        lay.addWidget(scroll, 1)
+        lay.addWidget(self._tbl_den, 1)
 
         total_frame = QFrame()
         total_frame.setStyleSheet(
@@ -421,10 +401,13 @@ class DialogoCorteZCiego(QDialog):
 
     def _recalcular_arqueo(self):
         total = 0.0
-        for valor, spin in self._den_spins.items():
-            sub = float(valor) * spin.value()
+        for row, (_, valor) in enumerate(self.DENOMINACIONES):
+            spin = self._den_spins.get(valor)
+            sub  = float(valor) * (spin.value() if spin else 0)
             total += sub
-            self._den_labels[valor].setText(f"${sub:,.2f}")
+            it = self._tbl_den.item(row, 2)
+            if it:
+                it.setText(f"${sub:,.2f}")
         self.total_contado = total
         self.lbl_total_arq.setText(f"${total:,.2f}")
 
@@ -709,7 +692,7 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def _build_turno_card(self) -> QFrame:
         card = QFrame(self)
-        card.setObjectName("kpiCard")
+        card.setObjectName("sectionCard")
         lay = QHBoxLayout(card)
         lay.setContentsMargins(Spacing.XL, Spacing.LG, Spacing.XL, Spacing.LG)
         lay.setSpacing(Spacing.LG)
@@ -752,7 +735,7 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def _build_quick_actions(self) -> QFrame:
         bar = QFrame(self)
-        bar.setObjectName("kpiCard")
+        bar.setObjectName("sectionCard")
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(Spacing.XL, Spacing.MD, Spacing.XL, Spacing.MD)
         lay.setSpacing(Spacing.MD)
@@ -832,8 +815,8 @@ class ModuloCaja(QWidget, RefreshMixin):
         cols_layout = QHBoxLayout()
         cols_layout.setSpacing(Spacing.LG)
 
-        left_frame  = QFrame(); left_frame.setObjectName("kpiCard")
-        right_frame = QFrame(); right_frame.setObjectName("kpiCard")
+        left_frame  = QFrame(); left_frame.setObjectName("sectionCard")
+        right_frame = QFrame(); right_frame.setObjectName("sectionCard")
         for f in (left_frame, right_frame):
             f.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             f.setMinimumWidth(260)
@@ -1028,96 +1011,72 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     # ── Tab: Arqueo ───────────────────────────────────────────────────────────
 
+    _DENOMINACIONES = [
+        ("$1,000", 1000.0), ("$500", 500.0), ("$200", 200.0), ("$100", 100.0),
+        ("$50", 50.0),  ("$20", 20.0),  ("$10", 10.0),  ("$5", 5.0),
+        ("$2", 2.0),    ("$1", 1.0),    ("$0.50", 0.5),
+    ]
+
     def _build_tab_arqueo(self) -> None:
         lay = QVBoxLayout(self._tab_arqueo)
         lay.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        lay.setSpacing(Spacing.LG)
+        lay.setSpacing(Spacing.MD)
 
-        info = create_label(
+        lay.addWidget(create_label(
             self,
             "Cuenta los billetes y monedas del cajón para verificar el cierre.",
             "caption",
+        ))
+
+        self._tbl_arqueo = create_table_with_columns(
+            self,
+            columns=["Denominación", "Cantidad (pzas)", "Subtotal"],
+            show_grid=False,
+            alternating_colors=True,
         )
-        lay.addWidget(info)
+        hh = self._tbl_arqueo.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self._tbl_arqueo.verticalHeader().setVisible(False)
+        self._tbl_arqueo.setRowCount(len(self._DENOMINACIONES))
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        grid_frame = QFrame()
-        grid_frame.setObjectName("kpiCard")
-        grid = QGridLayout(grid_frame)
-        grid.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
-        grid.setHorizontalSpacing(Spacing.XL)
-        grid.setVerticalSpacing(Spacing.LG)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(4, 1)
-
-        DENOMINACIONES = [
-            ("$1,000", 1000), ("$500", 500), ("$200", 200), ("$100", 100),
-            ("$50", 50), ("$20", 20), ("$10", 10), ("$5", 5),
-            ("$2", 2), ("$1", 1), ("$0.50", 0.5),
-        ]
-        self._arqueo_spins      = {}
-        self._arqueo_sub_labels = {}
-
-        for i, (label, valor) in enumerate(DENOMINACIONES):
-            col     = (i % 2) * 4   # cols 0-2 left block, cols 4-6 right block
-            row_idx = i // 2
-
-            lbl_den = QLabel(label)
-            lbl_den.setObjectName("subheading")
-            lbl_den.setMinimumWidth(60)
-            grid.addWidget(lbl_den, row_idx, col)
+        self._arqueo_spins = {}
+        for row, (label, valor) in enumerate(self._DENOMINACIONES):
+            it_den = QTableWidgetItem(label)
+            it_den.setFlags(Qt.ItemIsEnabled)
+            self._tbl_arqueo.setItem(row, 0, it_den)
 
             spin = QDoubleSpinBox()
             spin.setRange(0, 9999)
             spin.setDecimals(0)
-            spin.setSuffix(" pzas")
-            spin.setMinimumWidth(110)
             spin.setObjectName("inputField")
             spin.valueChanged.connect(self._calcular_arqueo)
             self._arqueo_spins[valor] = spin
-            grid.addWidget(spin, row_idx, col + 1)
+            self._tbl_arqueo.setCellWidget(row, 1, spin)
 
-            lbl_sub = QLabel("$0.00")
-            lbl_sub.setObjectName(f"lbl_arq_{valor}")
-            lbl_sub.setMinimumWidth(80)
-            lbl_sub.setStyleSheet(
-                f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
-                f" background: transparent; border: none;"
-            )
-            self._arqueo_sub_labels[valor] = lbl_sub
-            grid.addWidget(lbl_sub, row_idx, col + 2)
+            it_sub = QTableWidgetItem("$0.00")
+            it_sub.setFlags(Qt.ItemIsEnabled)
+            it_sub.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self._tbl_arqueo.setItem(row, 2, it_sub)
 
-            # vertical separator between left and right blocks
-            if i % 2 == 0 and i < len(DENOMINACIONES) - 1:
-                sep = QFrame()
-                sep.setFrameShape(QFrame.VLine)
-                sep.setStyleSheet(
-                    f"background: {Colors.NEUTRAL.SLATE_200}; border: none;"
-                )
-                grid.addWidget(sep, row_idx, 3, 1, 1)
+            self._tbl_arqueo.setRowHeight(row, 36)
 
-            grid.setRowMinimumHeight(row_idx, 34)
+        lay.addWidget(self._tbl_arqueo, 1)
 
-        scroll.setWidget(grid_frame)
-        lay.addWidget(scroll)
-
-        total_row = QHBoxLayout()
-        total_row.addStretch()
+        bot = QHBoxLayout()
         self.lbl_diferencia_arqueo = QLabel("")
         self.lbl_diferencia_arqueo.setObjectName("badge-neutral")
         self.lbl_total_arqueo = QLabel("Total contado: $0.00")
         self.lbl_total_arqueo.setObjectName("subheading")
-        total_row.addWidget(self.lbl_diferencia_arqueo)
-        total_row.addWidget(self.lbl_total_arqueo)
-        lay.addLayout(total_row)
+        bot.addWidget(self.lbl_diferencia_arqueo)
+        bot.addStretch()
+        bot.addWidget(self.lbl_total_arqueo)
+        lay.addLayout(bot)
 
         btn_limpiar = create_secondary_button(self, "🔄 Limpiar", "Limpiar conteo de arqueo")
         btn_limpiar.clicked.connect(self._limpiar_arqueo)
         lay.addWidget(btn_limpiar, 0, Qt.AlignLeft)
-        lay.addStretch()
 
     def _init_arqueo(self) -> None:
         self._calcular_arqueo()
@@ -1125,12 +1084,13 @@ class ModuloCaja(QWidget, RefreshMixin):
     def _calcular_arqueo(self) -> None:
         try:
             total = 0.0
-            for valor, spin in self._arqueo_spins.items():
-                subtotal = float(valor) * spin.value()
+            for row, (_, valor) in enumerate(self._DENOMINACIONES):
+                spin     = self._arqueo_spins.get(valor)
+                subtotal = float(valor) * (spin.value() if spin else 0)
                 total   += subtotal
-                lbl = self._arqueo_sub_labels.get(valor)
-                if lbl:
-                    lbl.setText(f"${subtotal:,.2f}")
+                it = self._tbl_arqueo.item(row, 2)
+                if it:
+                    it.setText(f"${subtotal:,.2f}")
             self.lbl_total_arqueo.setText(f"Total contado: ${total:,.2f}")
 
             if self.turno_actual:
