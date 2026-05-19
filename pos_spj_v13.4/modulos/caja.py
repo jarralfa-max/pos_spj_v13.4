@@ -832,9 +832,14 @@ class ModuloCaja(QWidget, RefreshMixin):
         outer.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
         outer.setSpacing(0)
 
-        # Centered max-width container so cards don't stretch on large screens
+        # Wrapper row: stretches on sides so content stays centered and fills up to maxWidth
+        h_row = QHBoxLayout()
+        h_row.setContentsMargins(0, 0, 0, 0)
+        h_row.setSpacing(0)
+
         content = QWidget()
-        content.setMaximumWidth(920)
+        content.setMaximumWidth(1200)
+        content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         lay = QVBoxLayout(content)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(Spacing.LG)
@@ -850,24 +855,26 @@ class ModuloCaja(QWidget, RefreshMixin):
         right_frame = QFrame(); right_frame.setObjectName("sectionCard")
         for f in (left_frame, right_frame):
             f.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            f.setMinimumWidth(260)
-            f.setMaximumWidth(440)
+            f.setMinimumWidth(320)
+
         left_form  = QFormLayout(left_frame)
         right_form = QFormLayout(right_frame)
         for frm in (left_form, right_form):
             frm.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
             frm.setSpacing(Spacing.LG)
-            frm.setLabelAlignment(Qt.AlignRight)
+            frm.setLabelAlignment(Qt.AlignLeft)
             frm.setHorizontalSpacing(Spacing.XL)
+            frm.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
         def _make_row(label_txt: str, attr: str, form: "QFormLayout"):
             lbl_key = QLabel(label_txt)
+            lbl_key.setMinimumWidth(130)
             lbl_key.setStyleSheet(
                 f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
                 f" background: transparent; border: none;"
             )
             lbl_val = QLabel("—")
-            lbl_val.setMinimumHeight(30)
+            lbl_val.setMinimumHeight(32)
             lbl_val.setStyleSheet(
                 f"font-size: {Typography.SIZE_XXL}; font-weight: {Typography.WEIGHT_SEMIBOLD};"
                 f" background: transparent; border: none;"
@@ -894,7 +901,8 @@ class ModuloCaja(QWidget, RefreshMixin):
         btn_refresh.clicked.connect(self._cargar_resumen_turno)
         lay.addWidget(btn_refresh, 0, Qt.AlignLeft)
 
-        outer.addWidget(content, 0, Qt.AlignTop | Qt.AlignLeft)
+        h_row.addWidget(content, 1)
+        outer.addLayout(h_row)
         outer.addStretch()
 
     def _cargar_resumen_turno(self) -> None:
