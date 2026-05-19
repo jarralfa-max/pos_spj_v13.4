@@ -175,13 +175,16 @@ class CajaApplicationService:
                 row_v = self.db.execute(
                     """SELECT COALESCE(SUM(total), 0)
                        FROM ventas
-                       WHERE sucursal_id=? AND cajero=? AND estado='completada'
-                         AND fecha >= (SELECT fecha_apertura FROM turnos_caja WHERE id=?)""",
-                    (sucursal_id, usuario, turno["id"]),
+                       WHERE estado='completada'
+                         AND (turno_id=?
+                              OR (sucursal_id=? AND usuario=?
+                                  AND fecha >= (SELECT fecha_apertura
+                                                FROM turnos_caja WHERE id=?)))""",
+                    (turno["id"], sucursal_id, usuario, turno["id"]),
                 ).fetchone()
                 kpis["total_ventas_turno"] = float(row_v[0] or 0) if row_v else 0.0
         except Exception as e:
-            logger.debug("kpis ventas: %s", e)
+            logger.warning("kpis ventas: %s", e)
         try:
             row_m = self.db.execute(
                 "SELECT COUNT(*) FROM movimientos_caja WHERE DATE(fecha)=DATE('now') AND sucursal_id=?",
