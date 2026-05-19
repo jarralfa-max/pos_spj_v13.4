@@ -77,6 +77,23 @@ class UnifiedInventoryService:
     def get_stock(self, producto_id, sucursal_id=None):
         r=self.conn.execute("SELECT COALESCE(existencia,0) FROM productos WHERE id=?",(producto_id,)).fetchone()
         return float(r[0]) if r else 0.0
+
+    def get_stock_sucursal(self, producto_id, branch_id=None):
+        """Retorna stock del producto, priorizando branch_inventory si existe."""
+        sid = branch_id or self.sucursal_id
+        try:
+            row = self.conn.execute(
+                """SELECT COALESCE(bi.quantity, p.existencia, 0)
+                   FROM productos p
+                   LEFT JOIN branch_inventory bi
+                          ON bi.product_id = p.id AND bi.branch_id = ?
+                   WHERE p.id = ?""",
+                (sid, producto_id),
+            ).fetchone()
+            return float(row[0]) if row else 0.0
+        except Exception:
+            return self.get_stock(producto_id)
+
     def get_low_stock(self, sucursal_id=None):
         return [dict(r) for r in self.conn.execute(
             "SELECT id,nombre,existencia,stock_minimo,unidad FROM productos WHERE activo=1 AND existencia<=stock_minimo AND stock_minimo>0"

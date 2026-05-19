@@ -2514,96 +2514,8 @@ class ModuloVentas(ModuloBase):
             import logging
             logging.getLogger(__name__).warning("_procesar_scanner_con_codigo: %s", e)
 
-        try:
-            # ── 1. Intentar como producto (barcode o código interno) ─────────
-            row_prod = self.conexion.execute(
-                """SELECT id, nombre, precio_venta, precio_kilo,
-                          existencia, unidad, tipo,
-                          imagen_path, categoria, descripcion,
-                          COALESCE(codigo_barras,'') as codigo_barras
-                   FROM productos
-                   WHERE (COALESCE(codigo_barras,'') = ? OR codigo = ? OR CAST(id AS TEXT)=?)
-                     AND COALESCE(activo,1)=1 AND COALESCE(oculto,0)=0
-                   LIMIT 1""",
-                (codigo, codigo, codigo)
-            ).fetchone()
-
-            if row_prod:
-                prod_data = {
-                    'id':          row_prod['id'],
-                    'nombre':      row_prod['nombre'],
-                    'precio':      row_prod['precio_venta'],
-                    'precio_kilo': row_prod['precio_kilo'],
-                    'existencia':  row_prod['existencia'],
-                    'unidad':      row_prod['unidad'],
-                    'tipo':        row_prod['tipo'],
-                    'imagen_path': row_prod['imagen_path'],
-                    'categoria':   row_prod['categoria'],
-                    'descripcion': row_prod['descripcion'],
-                    'codigo_barras': row_prod['codigo_barras'],
-                }
-                self.agregar_al_carrito(prod_data)
-                self._mostrar_notif_scanner(f"📦 {prod_data['nombre']}", "product")
-                return
-
-            # ── 2. Intentar como tarjeta de fidelidad ───────────────────────
-            row_tarj = self.conexion.execute(
-                """SELECT t.id, t.codigo, t.nivel,
-                          c.id as cliente_id, c.nombre as cliente_nombre,
-                          c.telefono, COALESCE(c.puntos,0) as puntos
-                   FROM tarjetas_fidelidad t
-                   JOIN clientes c ON c.id = t.id_cliente
-                   WHERE t.codigo = ? AND t.activa = 1
-                   LIMIT 1""",
-                (codigo,)
-            ).fetchone()
-
-            if row_tarj:
-                # Load client into current sale
-                if hasattr(self, 'set_cliente_venta'):
-                    self.set_cliente_venta(
-                        cliente_id=row_tarj['cliente_id'],
-                        nombre=row_tarj['cliente_nombre'],
-                        telefono=row_tarj['telefono'] or "",
-                    )
-                nivel_icons = {"Bronce":"🥉","Plata":"🥈","Oro":"🥇","Diamante":"💎"}
-                nivel = row_tarj['nivel'] or "Bronce"
-                icon  = nivel_icons.get(nivel, "⭐")
-                self._mostrar_notif_scanner(
-                    f"{icon} Tarjeta {nivel}: {row_tarj['cliente_nombre']} — {int(row_tarj['puntos'])} pts",
-                    "card"
-                )
-                return
-
-            # ── 3. Intentar como QR de contenedor (UUID format) ─────────────
-            import re as _re
-            if _re.match(
-                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-                codigo
-            ):
-                try:
-                    row_cont = self.conexion.execute(
-                        "SELECT uuid_qr, descripcion, sucursal_id FROM trazabilidad_qr WHERE uuid_qr=? LIMIT 1",
-                        (codigo,)
-                    ).fetchone()
-                    if row_cont:
-                        self._mostrar_notif_scanner(
-                            f"📦 Contenedor: {row_cont['descripcion'] or codigo[:8]}...",
-                            "container"
-                        )
-                        return
-                except Exception:
-                    pass
-
-            # ── 4. No encontrado → poner en buscador para búsqueda manual ───
-            if hasattr(self, 'txt_busqueda'):
-                self.txt_busqueda.setText(codigo)
-                self.buscar_productos()
-            self._mostrar_notif_scanner(f"🔍 Buscando: {codigo}", "search")
-
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning("_procesar_buffer_scanner: %s", e)
+        # Fallback idéntico eliminado — self.conexion == container.db, misma conexión.
+        # Si el bloque principal falla, el fallback fallaría igual. Ver bloque try anterior.
 
     def _set_scan_context(self, context: str, active_field) -> None:
         """
@@ -3317,16 +3229,14 @@ class ModuloVentas(ModuloBase):
                         'total': total_item
                     }
                 # Verificar stock antes de agregar al carrito
-                # v13.4: Lee stock de branch_inventory para la sucursal activa
+                # v13.4: Delegado a inventory_service para mantener abstracción de capa
                 try:
-                    stock_row = self.container.db.execute(
-                        "SELECT COALESCE(bi.quantity, p.existencia, 0) "
-                        "FROM productos p "
-                        "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
-                        "WHERE p.id=?",
-                        (self.sucursal_id, producto['id'])
-                    ).fetchone()
-                    stock_actual = float(stock_row[0]) if stock_row and stock_row[0] else 0
+                    _inv = getattr(self.container, 'inventory_service', None)
+                    if _inv:
+                        stock_actual = float(_inv.get_stock_sucursal(
+                            producto['id'], self.sucursal_id) or 0)
+                    else:
+                        stock_actual = float(producto.get('existencia', 0))
                     if stock_actual <= 0 and not producto.get('es_compuesto', 0):
                         resp = QMessageBox.question(
                             self, "⚠️ Sin stock",
@@ -3502,12 +3412,9 @@ class ModuloVentas(ModuloBase):
         descuento_total = round(precio_base - subtotal, 2)
 
         # IVA: carnes y alimentos basicos = 0% en Mexico (LIVA Art. 2-A)
-        # Read from configuraciones; default 0.0
+        # Delegado a ConfigService — sin SQL directo en UI
         try:
-            _iva_row = self.container.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='tasa_iva'"
-            ).fetchone()
-            tasa_iva = float(_iva_row[0]) if _iva_row else 0.0
+            tasa_iva = float(self.container.config_service.get('tasa_iva', 0.0) or 0.0)
         except Exception:
             tasa_iva = 0.0
         impuestos = subtotal * tasa_iva
