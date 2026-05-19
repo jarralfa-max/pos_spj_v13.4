@@ -1103,7 +1103,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         self._proveedor_id_selected = None
         self._proveedores_cache = []
-        self.txt_proveedor = create_input(self, "Buscar proveedor…")
+        self.txt_proveedor = create_input(None, "Buscar proveedor…")
         self.txt_proveedor.setMinimumWidth(280)
         self._prov_model = QStringListModel(self)
         self._prov_completer = QCompleter(self._prov_model, self)
@@ -1144,7 +1144,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_cred_disp = self._inp_cred
 
         # Condiciones combo (editable — applies to this purchase)
-        self._cmb_cond_prov = create_combo(self)
+        self._cmb_cond_prov = create_combo()
         for c in ["30 Días Crédito", "Contado / Contra Entrega",
                   "15 Días Crédito", "60 Días Crédito"]:
             self._cmb_cond_prov.addItem(c)
@@ -1186,13 +1186,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         )
 
         # Build all widgets
-        self.txt_factura = create_input(self, "Ej. FAC-001 / REM-00129")
+        self.txt_factura = create_input(None, "Ej. FAC-001 / REM-00129")
 
         self._adjunto_path: str = ""
         self._lbl_adjunto = QLabel("Sin archivo")
         self._lbl_adjunto.setObjectName("caption")
         self._lbl_adjunto.hide()
-        btn_adjunto = create_secondary_button(self, "📎", "Adjuntar PDF o imagen de factura")
+        btn_adjunto = create_secondary_button(None, "📎", "Adjuntar PDF o imagen de factura")
         btn_adjunto.setFixedSize(28, 28)
         btn_adjunto.clicked.connect(self._adjuntar_factura)
         _fac_row = QHBoxLayout()
@@ -1207,25 +1207,25 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Commercial document type (Factura / Remisión / Nota) — distinct from
         # the workflow doctype toolbar (DIRECT / PR / PO) shown above the cards.
-        self._cmb_tipo_doc = create_combo(self)
+        self._cmb_tipo_doc = create_combo()
         for t in ["Factura", "Remisión", "Nota de Entrada"]:
             self._cmb_tipo_doc.addItem(t)
 
-        self.cmb_sucursal_destino = create_combo(self)
+        self.cmb_sucursal_destino = create_combo()
         self.cmb_sucursal_destino.setToolTip("Sucursal destino del inventario")
         self._cargar_sucursales_compra()
 
-        self._cmb_moneda = create_combo(self)
+        self._cmb_moneda = create_combo()
         for code, label in [("MXN", "MXN - Pesos"),
                             ("USD", "USD - Dólares"),
                             ("EUR", "EUR - Euros")]:
             self._cmb_moneda.addItem(label, code)
 
-        self._cmb_prioridad = create_combo(self)
+        self._cmb_prioridad = create_combo()
         for p in ["ALTA", "MEDIA", "BAJA"]:
             self._cmb_prioridad.addItem(p)
 
-        self.txt_solicitante = create_input(self, "Nombre del solicitante")
+        self.txt_solicitante = create_input(None, "Nombre del solicitante")
         if self.usuario_actual:
             self.txt_solicitante.setText(self.usuario_actual)
 
@@ -1314,15 +1314,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._lbl_cart_count = QLabel("0 items")
         self._lbl_cart_count.setObjectName("captionMuted")
 
-        btn_clear = create_danger_button(self, "Limpiar", "Vaciar carrito de compras")
+        btn_clear = create_danger_button(None, "Limpiar", "Vaciar carrito de compras")
         btn_clear.setFixedHeight(26)
         btn_clear.clicked.connect(self._limpiar_carrito)
-        btn_del_sel = create_danger_button(self, "Eliminar sel.", "Eliminar filas seleccionadas")
+        btn_del_sel = create_danger_button(None, "Eliminar sel.", "Eliminar filas seleccionadas")
         btn_del_sel.setFixedHeight(26)
         btn_del_sel.clicked.connect(self._eliminar_seleccionados)
-        btn_draft_save = create_secondary_button(self, "Borrador", "Guardar carrito como borrador")
+        btn_draft_save = create_secondary_button(None, "Borrador", "Guardar carrito como borrador")
         btn_draft_save.setFixedHeight(26)
-        btn_draft_load = create_secondary_button(self, "Recuperar", "Cargar último borrador guardado")
+        btn_draft_load = create_secondary_button(None, "Recuperar", "Cargar último borrador guardado")
         btn_draft_load.setFixedHeight(26)
         btn_draft_save.clicked.connect(self._guardar_borrador)
         btn_draft_load.clicked.connect(self._cargar_borrador)
@@ -1805,7 +1805,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         self.qr_codigo = QLineEdit(); self.qr_codigo.setReadOnly(True)
         self.qr_codigo.setObjectName("monoInput")
-        btn_regen = create_secondary_button(self, "🔄 Regenerar", "Genera nuevo ID")
+        btn_regen = create_secondary_button(None, "🔄 Regenerar", "Genera nuevo ID")
         btn_regen.clicked.connect(self._qr_regenerar_codigo)
         row_id = QHBoxLayout(); row_id.addWidget(self.qr_codigo, 1); row_id.addWidget(btn_regen)
         form.addRow("ID contenedor:", self._wrap(row_id))
@@ -1895,8 +1895,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         c3.addStretch()
 
         row_btns = QHBoxLayout()
-        btn_pdf = create_secondary_button(self, "📄 PDF", "Guardar etiqueta como PDF")
-        btn_print = create_primary_button(self, "🖨️ Imprimir", "Imprimir etiqueta")
+        btn_pdf = create_secondary_button(None, "📄 PDF", "Guardar etiqueta como PDF")
+        btn_print = create_primary_button(None, "🖨️ Imprimir", "Imprimir etiqueta")
         btn_pdf.clicked.connect(self._qr_exportar_pdf)
         btn_print.clicked.connect(self._qr_imprimir)
         row_btns.addWidget(btn_pdf); row_btns.addWidget(btn_print)
@@ -2125,7 +2125,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_scan_input.setObjectName("scanInput")
         self.qr_scan_input.returnPressed.connect(self._qr_cargar_por_codigo)
         cl.addWidget(self.qr_scan_input)
-        btn_scan = create_primary_button(self, "→ Cargar", "")
+        btn_scan = create_primary_button(None, "→ Cargar", "")
         btn_scan.setFixedWidth(200)
         btn_scan.clicked.connect(self._qr_cargar_por_codigo)
         cl.addWidget(btn_scan, 0, Qt.AlignHCenter)
@@ -2229,7 +2229,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.qr_buscador_input.returnPressed.connect(self._qr_agregar_producto_manual)
             except Exception:
                 pass
-            btn_add = create_primary_button(self, "➕ Agregar", "")
+            btn_add = create_primary_button(None, "➕ Agregar", "")
             btn_add.clicked.connect(self._qr_agregar_producto_manual)
             row_busc.addWidget(self.qr_buscador_input, 1); row_busc.addWidget(btn_add)
             cf.addLayout(row_busc)
@@ -2275,9 +2275,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         cf.addLayout(form_pago)
 
         footer = QHBoxLayout()
-        btn_borrador = create_secondary_button(self, "Guardar borrador", "")
-        btn_continuar = create_secondary_button(self, "Guardar y continuar", "")
-        btn_guardar = create_success_button(self, "✓ Guardar y enviar a recepción", "")
+        btn_borrador = create_secondary_button(None, "Guardar borrador", "")
+        btn_continuar = create_secondary_button(None, "Guardar y continuar", "")
+        btn_guardar = create_success_button(None, "✓ Guardar y enviar a recepción", "")
         btn_guardar.clicked.connect(self._qr_guardar_asignacion)
         footer.addWidget(btn_borrador); footer.addWidget(btn_continuar)
         footer.addStretch(); footer.addWidget(btn_guardar)
@@ -2647,7 +2647,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_recv_scan.setObjectName("scanInput")
         self.qr_recv_scan.setProperty("variant","success")
         self.qr_recv_scan.returnPressed.connect(self._qr_recv_cargar)
-        btn_recv_scan = create_primary_button(self,"→ Cargar","")
+        btn_recv_scan = create_primary_button(None,"→ Cargar","")
         btn_recv_scan.clicked.connect(self._qr_recv_cargar)
         scan_row.addWidget(self.qr_recv_scan,1); scan_row.addWidget(btn_recv_scan)
         cl.addLayout(scan_row)
@@ -2757,10 +2757,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Footer buttons
         footer = QHBoxLayout()
-        btn_save = create_secondary_button(self, "Guardar recepción", "")
+        btn_save = create_secondary_button(None, "Guardar recepción", "")
         btn_save.clicked.connect(lambda: self._qr_confirmar_recepcion(parcial=True))
-        btn_incid = create_secondary_button(self, "⚠ Marcar incidencias", "")
-        btn_confirmar = create_success_button(self, "✓ Confirmar recepción parcial", "")
+        btn_incid = create_secondary_button(None, "⚠ Marcar incidencias", "")
+        btn_confirmar = create_success_button(None, "✓ Confirmar recepción parcial", "")
         btn_confirmar.clicked.connect(self._qr_confirmar_recepcion)
         footer.addWidget(btn_save); footer.addWidget(btn_incid)
         footer.addStretch(); footer.addWidget(btn_confirmar)
@@ -3561,9 +3561,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_hist_filtro.setPlaceholderText("🔎 Buscar contenedor…")
         self.qr_hist_filtro.setMaximumWidth(200)
         fb.addWidget(self.qr_hist_filtro)
-        btn_filtrar = create_primary_button(self, "Buscar", "")
+        btn_filtrar = create_primary_button(None, "Buscar", "")
         btn_filtrar.clicked.connect(self._cargar_historico_qr)
-        btn_export = create_secondary_button(self, "📤 Exportar", "Exportar a CSV")
+        btn_export = create_secondary_button(None, "📤 Exportar", "Exportar a CSV")
         btn_export.clicked.connect(self._qr_exportar_historico)
         fb.addWidget(btn_filtrar); fb.addStretch(); fb.addWidget(btn_export)
         lay.addWidget(filt_card)
@@ -3739,9 +3739,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.setSpacing(8)
 
         hdr = QHBoxLayout()
-        hdr.addWidget(create_subheading(self, "Recepción con QR / Asignar compra"))
+        hdr.addWidget(create_subheading(None, "Recepción con QR / Asignar compra"))
         hdr.addStretch()
-        btn_reload = create_secondary_button(self, "🔄 Recargar", "Recargar pestaña de recepción QR")
+        btn_reload = create_secondary_button(None, "🔄 Recargar", "Recargar pestaña de recepción QR")
         hdr.addWidget(btn_reload)
         lay.addLayout(hdr)
 
@@ -3849,11 +3849,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         new_actions_row = QHBoxLayout()
         new_actions_row.setSpacing(Spacing.XS)
         self._btn_nueva_compra_direct = create_secondary_button(
-            self, "🛒 Nueva Compra", "Iniciar nueva compra directa (efecto inmediato en inventario)")
+            None, "🛒 Nueva Compra", "Iniciar nueva compra directa (efecto inmediato en inventario)")
         self._btn_nueva_compra_direct.setFixedHeight(28)
         self._btn_nueva_compra_direct.clicked.connect(self._nueva_compra_directa)
         self._btn_nueva_pr_doc = create_primary_button(
-            self, "✚ Nueva PR", "Nueva solicitud de compra (requiere aprobación)")
+            None, "✚ Nueva PR", "Nueva solicitud de compra (requiere aprobación)")
         self._btn_nueva_pr_doc.setFixedHeight(28)
         self._btn_nueva_pr_doc.clicked.connect(self._nueva_pr_flow)
         new_actions_row.addWidget(self._btn_nueva_compra_direct, 1)
@@ -3977,32 +3977,32 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         accs.setContentsMargins(0, Spacing.XS, 0, 0)
         accs.setSpacing(Spacing.XS)
 
-        self._btn_aprobar_pr = create_success_button(self, "✓ Aprobar PR", "Aprobar solicitud")
+        self._btn_aprobar_pr = create_success_button(None, "✓ Aprobar PR", "Aprobar solicitud")
         self._btn_aprobar_pr.setFixedHeight(30)
         self._btn_aprobar_pr.setEnabled(False)
         self._btn_aprobar_pr.setObjectName("btnAprobarPR")
         self._btn_aprobar_pr.clicked.connect(self._accion_aprobar_pr)
 
-        self._btn_rechazar_pr = create_danger_button(self, "✗ Rechazar", "Rechazar solicitud")
+        self._btn_rechazar_pr = create_danger_button(None, "✗ Rechazar", "Rechazar solicitud")
         self._btn_rechazar_pr.setFixedHeight(30)
         self._btn_rechazar_pr.setEnabled(False)
         self._btn_rechazar_pr.setObjectName("btnRechazarPR")
         self._btn_rechazar_pr.clicked.connect(self._accion_rechazar_pr)
 
-        self._btn_editar_doc = create_secondary_button(self, "✏ Editar", "Editar documento")
+        self._btn_editar_doc = create_secondary_button(None, "✏ Editar", "Editar documento")
         self._btn_editar_doc.setFixedHeight(30)
         self._btn_editar_doc.setEnabled(False)
         self._btn_editar_doc.setObjectName("btnEditarDoc")
         self._btn_editar_doc.clicked.connect(self._accion_editar_doc)
 
-        self._btn_conv_po = create_primary_button(self, "→ Conv. a PO", "Convertir a Orden de Compra")
+        self._btn_conv_po = create_primary_button(None, "→ Conv. a PO", "Convertir a Orden de Compra")
         self._btn_conv_po.setFixedHeight(30)
         self._btn_conv_po.setEnabled(False)
         self._btn_conv_po.setObjectName("btnConvPO")
         self._btn_conv_po.clicked.connect(self._accion_convertir_a_po)
 
         self._btn_enviar_rec_doc = create_success_button(
-            self, "↗ Enviar a Recepción", "Enviar a recepción física")
+            None, "↗ Enviar a Recepción", "Enviar a recepción física")
         self._btn_enviar_rec_doc.setFixedHeight(32)
         self._btn_enviar_rec_doc.setEnabled(False)
         self._btn_enviar_rec_doc.setObjectName("btnEnviarRecDoc")
@@ -4019,7 +4019,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         inner.addWidget(self._doc_acciones_frame)
 
         # Refresh button
-        btn_rf = create_secondary_button(self, "↺ Actualizar documentos", "Recargar lista")
+        btn_rf = create_secondary_button(None, "↺ Actualizar documentos", "Recargar lista")
         btn_rf.setFixedHeight(26)
         btn_rf.clicked.connect(self._cargar_docs_erp)
         inner.addWidget(btn_rf)
@@ -4711,10 +4711,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         pay_col.setColumnStretch(0, 1)
         pay_col.setColumnStretch(1, 1)
 
-        self.cmb_pago = create_combo(self)
+        self.cmb_pago = create_combo()
         for label, data in _PAGO_ITEMS:
             self.cmb_pago.addItem(label, data)
-        self._cmb_condicion_pago = create_combo(self)
+        self._cmb_condicion_pago = create_combo()
         self._cmb_condicion_pago.addItems(["Liquidado", "Crédito", "Parcial"])
         self._spin_plazo_dias = QSpinBox()
         self._spin_plazo_dias.setRange(0, 365)
@@ -6315,8 +6315,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         lay.addWidget(browser)
 
         btn_row = QHBoxLayout()
-        btn_cancel = create_secondary_button(self, "✕ Cancelar", "Cancelar y cerrar")
-        btn_ok = create_success_button(self, "✅ Confirmar y Procesar", "Confirmar edición de compra")
+        btn_cancel = create_secondary_button(None, "✕ Cancelar", "Cancelar y cerrar")
+        btn_ok = create_success_button(None, "✅ Confirmar y Procesar", "Confirmar edición de compra")
         btn_cancel.clicked.connect(dlg.reject)
         btn_ok.clicked.connect(dlg.accept)
         btn_row.addWidget(btn_cancel); btn_row.addStretch(); btn_row.addWidget(btn_ok)
@@ -6427,16 +6427,16 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Toolbar row
         hdr = QHBoxLayout()
-        hdr.addWidget(create_subheading(self, "Historial de Compras"))
+        hdr.addWidget(create_subheading(None, "Historial de Compras"))
         hdr.addStretch()
         _today = QDate.currentDate()
         self._hist_desde = QDateEdit(QDate(_today.year(), _today.month(), 1))
         self._hist_desde.setCalendarPopup(True)
         self._hist_hasta = QDateEdit(_today)
         self._hist_hasta.setCalendarPopup(True)
-        btn_ref = create_primary_button(self, "🔄", "Actualizar historial")
+        btn_ref = create_primary_button(None, "🔄", "Actualizar historial")
         btn_ref.clicked.connect(self._cargar_historial_compras)
-        btn_export = create_secondary_button(self, "📥 CSV", "Exportar a CSV")
+        btn_export = create_secondary_button(None, "📥 CSV", "Exportar a CSV")
         btn_export.clicked.connect(self._exportar_historial_csv)
         self._btn_export_csv = btn_export
         hdr.addWidget(QLabel("Desde:"))
@@ -6455,7 +6455,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         preset_row.addWidget(_lbl_pre)
         for label, days in [("Hoy", 0), ("7 días", 7), ("Este mes", -1),
                              ("Trim.", -3), ("Año", -12)]:
-            btn = create_secondary_button(self, label, f"Ver {label}")
+            btn = create_secondary_button(None, label, f"Ver {label}")
             btn.clicked.connect(lambda _, d=days: self._hist_set_preset(d))
             preset_row.addWidget(btn)
         preset_row.addStretch()
@@ -6507,8 +6507,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         # Pagination
         pag_row = QHBoxLayout()
-        self._btn_pag_prev = create_secondary_button(self, "◀ Anterior", "Página anterior")
-        self._btn_pag_next = create_secondary_button(self, "Siguiente ▶", "Página siguiente")
+        self._btn_pag_prev = create_secondary_button(None, "◀ Anterior", "Página anterior")
+        self._btn_pag_next = create_secondary_button(None, "Siguiente ▶", "Página siguiente")
         self._lbl_pagina   = QLabel("Pág. 1")
         self._lbl_pagina.setObjectName("caption")
         self._hist_page    = 0
@@ -6686,14 +6686,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 tip = f"PO #{po_id}"
                 if po_estado:
                     tip += f" · {po_estado}"
-                tipo_badge = create_badge(self, "📦 PO", "primary")
+                tipo_badge = create_badge(None, "📦 PO", "primary")
                 tipo_badge.setToolTip(tip)
             else:
-                tipo_badge = create_badge(self, "🛒 Directa", "neutral")
+                tipo_badge = create_badge(None, "🛒 Directa", "neutral")
             self._tbl_hist.setCellWidget(ri, 7, tipo_badge)
             total_periodo += monto
             # col 8 — Ver btn
-            btn_det = create_secondary_button(self, "🔍 Ver",
+            btn_det = create_secondary_button(None, "🔍 Ver",
                                               "Ver detalles de esta compra")
             btn_det.clicked.connect(
                 lambda _, cid=cid_, pnm=pnm_:
@@ -7113,9 +7113,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             btn_row = QHBoxLayout()
             estado_actual = str(compra_dict.get('estado', '')).lower()
 
-            btn_print  = create_primary_button(self, "🖨️ Imprimir",
+            btn_print  = create_primary_button(None, "🖨️ Imprimir",
                                                "Imprimir comprobante de compra")
-            btn_close2 = create_secondary_button(self, "Cerrar", "Cerrar vista previa")
+            btn_close2 = create_secondary_button(None, "Cerrar", "Cerrar vista previa")
 
             def _do_print2():
                 printer = QPrinter(QPrinter.HighResolution)
