@@ -56,6 +56,7 @@ def db():
             sucursal_id         INTEGER DEFAULT 1,
             usuario             TEXT,
             turno               TEXT,
+            turno_id            INTEGER,
             fecha_apertura      DATETIME,
             fecha_cierre        DATETIME DEFAULT (datetime('now')),
             total_ventas        REAL DEFAULT 0,
@@ -132,9 +133,9 @@ def test_abrir_turno_retorna_id(svc):
 
 
 def test_no_permitir_doble_turno_abierto(svc):
-    from application.services.caja_application_service import TurnoYaAbiertroError
+    from application.services.caja_application_service import TurnoYaAbiertoError
     svc.abrir_turno(1, "cajero2", 300.0)
-    with pytest.raises(TurnoYaAbiertroError):
+    with pytest.raises(TurnoYaAbiertoError):
         svc.abrir_turno(1, "cajero2", 100.0)
 
 

@@ -182,3 +182,21 @@ estado, reintentos, total, error_msg, created_at, finished_at).
     (prioridad 50) para generar asiento contable en cada venta.
   - `_wire_merma_inventario`: `MERMA_CREATED` → `inventory_service.ajustar_merma`
     (prioridad 80) para descontar stock físico ante mermas vía evento.
+
+---
+
+## 080 — Caja turno_id FK + índices de rendimiento (2026-05-19)
+
+**Migración**: `080_caja_turno_id_link.py`
+
+**Contexto**: Fase 3/4 del refactor del módulo de caja (clean architecture).
+`CajaApplicationService.generar_corte_z()` ahora persiste `turno_id` en
+`cierres_caja` para permitir trazabilidad directa entre un corte Z y su turno.
+
+**Cambios de esquema**:
+- `cierres_caja`: columna `turno_id INTEGER` (nullable, retrocompatible)
+- Índice `idx_cierres_turno` sobre `cierres_caja(turno_id)`
+- Índice `idx_mov_caja_turno` sobre `movimientos_caja(turno_id)`
+- Índice `idx_mov_caja_fecha` sobre `movimientos_caja(sucursal_id, fecha)`
+
+**Riesgo**: Bajo. Solo agrega columna nullable e índices.
