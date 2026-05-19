@@ -39,7 +39,7 @@ class _CajaKPICard(QFrame):
 
         self.setObjectName("kpiCard")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(86)
+        self.setMinimumHeight(96)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -54,8 +54,8 @@ class _CajaKPICard(QFrame):
         outer.addWidget(bar)
 
         body = QHBoxLayout()
-        body.setContentsMargins(14, 10, 14, 10)
-        body.setSpacing(8)
+        body.setContentsMargins(16, 12, 16, 12)
+        body.setSpacing(10)
         outer.addLayout(body)
 
         col = QVBoxLayout()
@@ -643,8 +643,8 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def init_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        root.setSpacing(Spacing.MD)
+        root.setContentsMargins(Spacing.XL, Spacing.LG, Spacing.XL, Spacing.LG)
+        root.setSpacing(Spacing.LG)
 
         root.addWidget(self._build_header())
         root.addWidget(self._build_kpi_bar())
@@ -668,7 +668,7 @@ class ModuloCaja(QWidget, RefreshMixin):
         container = QWidget(self)
         lyt = QHBoxLayout(container)
         lyt.setContentsMargins(0, 0, 0, 0)
-        lyt.setSpacing(Spacing.MD)
+        lyt.setSpacing(Spacing.LG)
 
         self._kpi_fondo   = _CajaKPICard("Fondo inicial",   "—", "💰", "primary")
         self._kpi_ventas  = _CajaKPICard("Ventas turno",    "—", "📈", "success")
@@ -685,15 +685,15 @@ class ModuloCaja(QWidget, RefreshMixin):
         card = QFrame(self)
         card.setObjectName("kpiCard")
         lay = QHBoxLayout(card)
-        lay.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
-        lay.setSpacing(Spacing.MD)
+        lay.setContentsMargins(Spacing.XL, Spacing.LG, Spacing.XL, Spacing.LG)
+        lay.setSpacing(Spacing.LG)
 
         self._lbl_turno_icono = QLabel("⏸")
-        self._lbl_turno_icono.setFixedSize(40, 40)
+        self._lbl_turno_icono.setFixedSize(48, 48)
         self._lbl_turno_icono.setAlignment(Qt.AlignCenter)
         self._lbl_turno_icono.setStyleSheet(
-            f"font-size: 20px; background: {Colors.NEUTRAL.SLATE_100};"
-            f" border-radius: 20px; border: none;"
+            f"font-size: 22px; background: {Colors.NEUTRAL.SLATE_100};"
+            f" border-radius: 24px; border: none;"
         )
         lay.addWidget(self._lbl_turno_icono)
 
@@ -728,8 +728,8 @@ class ModuloCaja(QWidget, RefreshMixin):
         bar = QFrame(self)
         bar.setObjectName("kpiCard")
         lay = QHBoxLayout(bar)
-        lay.setContentsMargins(Spacing.LG, Spacing.SM, Spacing.LG, Spacing.SM)
-        lay.setSpacing(Spacing.SM)
+        lay.setContentsMargins(Spacing.XL, Spacing.MD, Spacing.XL, Spacing.MD)
+        lay.setSpacing(Spacing.MD)
 
         lbl = QLabel("Acciones rápidas:")
         lbl.setStyleSheet(
@@ -795,48 +795,54 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def _build_tab_resumen(self) -> None:
         lay = QVBoxLayout(self._tab_resumen)
-        lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
-        lay.setSpacing(Spacing.MD)
+        lay.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
+        lay.setSpacing(Spacing.LG)
 
         hdr = QLabel("Resumen del Turno Activo")
         hdr.setObjectName("subheading")
         lay.addWidget(hdr)
 
-        grid_frame = QFrame()
-        grid_frame.setObjectName("kpiCard")
-        grid = QGridLayout(grid_frame)
-        grid.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        grid.setSpacing(Spacing.MD)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(3, 1)
+        # Two-column card layout: left column + right column
+        cols_layout = QHBoxLayout()
+        cols_layout.setSpacing(Spacing.LG)
 
-        fields = [
-            ("Cajero:",         "_res_cajero"),
-            ("Turno abierto:",  "_res_apertura"),
-            ("Fondo inicial:",  "_res_fondo"),
-            ("Ventas totales:", "_res_ventas"),
-            ("Ingresos extra:", "_res_ingresos"),
-            ("Retiros:",        "_res_retiros"),
-            ("Efectivo esperado:", "_res_esperado"),
-        ]
-        for i, (label_txt, attr) in enumerate(fields):
-            row = i // 2
-            col = (i % 2) * 2
+        left_frame  = QFrame(); left_frame.setObjectName("kpiCard")
+        right_frame = QFrame(); right_frame.setObjectName("kpiCard")
+        left_form   = QFormLayout(left_frame)
+        right_form  = QFormLayout(right_frame)
+        for frm in (left_form, right_form):
+            frm.setContentsMargins(Spacing.XL, Spacing.LG, Spacing.XL, Spacing.LG)
+            frm.setSpacing(Spacing.LG)
+            frm.setLabelAlignment(Qt.AlignRight)
+            frm.setHorizontalSpacing(Spacing.LG)
+
+        def _make_row(label_txt: str, attr: str, form: "QFormLayout"):
             lbl_key = QLabel(label_txt)
             lbl_key.setStyleSheet(
                 f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
                 f" background: transparent; border: none;"
             )
             lbl_val = QLabel("—")
+            lbl_val.setMinimumHeight(26)
             lbl_val.setStyleSheet(
-                f"font-size: {Typography.SIZE_LG}; font-weight: {Typography.WEIGHT_SEMIBOLD};"
+                f"font-size: {Typography.SIZE_XL}; font-weight: {Typography.WEIGHT_SEMIBOLD};"
                 f" background: transparent; border: none;"
             )
-            grid.addWidget(lbl_key, row, col)
-            grid.addWidget(lbl_val, row, col + 1)
+            form.addRow(lbl_key, lbl_val)
             setattr(self, attr, lbl_val)
 
-        lay.addWidget(grid_frame)
+        _make_row("Cajero:",          "_res_cajero",    left_form)
+        _make_row("Turno abierto:",   "_res_apertura",  left_form)
+        _make_row("Fondo inicial:",   "_res_fondo",     left_form)
+        _make_row("Ingresos extra:",  "_res_ingresos",  left_form)
+
+        _make_row("Ventas totales:",      "_res_ventas",    right_form)
+        _make_row("Retiros:",             "_res_retiros",   right_form)
+        _make_row("Efectivo esperado:",   "_res_esperado",  right_form)
+
+        cols_layout.addWidget(left_frame, 1)
+        cols_layout.addWidget(right_frame, 1)
+        lay.addLayout(cols_layout)
 
         btn_refresh = create_secondary_button(
             self, "↻ Actualizar resumen", "Recargar resumen del turno"
@@ -879,8 +885,8 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def _build_tab_movimientos(self) -> None:
         lay = QVBoxLayout(self._tab_movs)
-        lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
-        lay.setSpacing(Spacing.SM)
+        lay.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lay.setSpacing(Spacing.MD)
 
         hdr = QHBoxLayout()
         lbl = QLabel("Movimientos de efectivo del turno activo")
@@ -995,8 +1001,8 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def _build_tab_arqueo(self) -> None:
         lay = QVBoxLayout(self._tab_arqueo)
-        lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
-        lay.setSpacing(Spacing.MD)
+        lay.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lay.setSpacing(Spacing.LG)
 
         info = create_label(
             self,
@@ -1008,8 +1014,8 @@ class ModuloCaja(QWidget, RefreshMixin):
         grid_frame = QFrame()
         grid_frame.setObjectName("kpiCard")
         grid = QGridLayout(grid_frame)
-        grid.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
-        grid.setSpacing(Spacing.SM)
+        grid.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        grid.setSpacing(Spacing.MD)
 
         DENOMINACIONES = [
             ("$1,000", 1000), ("$500", 500), ("$200", 200), ("$100", 100),
@@ -1099,8 +1105,8 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def _build_tab_historial(self) -> None:
         lay = QVBoxLayout(self._tab_hist)
-        lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
-        lay.setSpacing(Spacing.SM)
+        lay.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        lay.setSpacing(Spacing.MD)
 
         lay.addWidget(create_subheading(self, "Historial de cortes Z y X de esta sucursal"))
 
@@ -1168,25 +1174,29 @@ class ModuloCaja(QWidget, RefreshMixin):
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         try:
-            self.verificar_estado_caja()
+            self.verificar_estado_caja()   # also calls _refresh_kpi_bar
             if self.turno_actual:
                 self._cargar_movimientos_turno()
+                self._refresh_kpi_bar()
         except Exception:
             pass
 
     # ── KPI bar refresh ───────────────────────────────────────────────────────
 
     def _refresh_kpi_bar(self) -> None:
+        import logging
+        _log = logging.getLogger(__name__)
         try:
             svc = self._caja_svc
-            if svc and self.usuario_actual:
-                kpi = svc.get_caja_kpis(self.sucursal_id, self.usuario_actual)
-                self._kpi_fondo.set_valor(f"${float(kpi.get('fondo_inicial', 0)):,.0f}")
-                self._kpi_ventas.set_valor(f"${float(kpi.get('total_ventas_turno', 0)):,.0f}")
-                self._kpi_movs.set_valor(str(kpi.get('num_movimientos_hoy', 0)))
-                self._kpi_cortes.set_valor(str(kpi.get('num_cortes_hoy', 0)))
-        except Exception:
-            pass
+            if not svc or not self.usuario_actual:
+                return
+            kpi = svc.get_caja_kpis(self.sucursal_id, self.usuario_actual)
+            self._kpi_fondo.set_valor(f"${float(kpi.get('fondo_inicial', 0)):,.0f}")
+            self._kpi_ventas.set_valor(f"${float(kpi.get('total_ventas_turno', 0)):,.0f}")
+            self._kpi_movs.set_valor(str(kpi.get('num_movimientos_hoy', 0)))
+            self._kpi_cortes.set_valor(str(kpi.get('num_cortes_hoy', 0)))
+        except Exception as e:
+            _log.warning("_refresh_kpi_bar: %s", e)
 
     # ── Turno state ───────────────────────────────────────────────────────────
 
@@ -1202,8 +1212,8 @@ class ModuloCaja(QWidget, RefreshMixin):
 
                 self._lbl_turno_icono.setText("✅")
                 self._lbl_turno_icono.setStyleSheet(
-                    f"font-size: 20px; background: {Colors.SUCCESS.BG_SOFT};"
-                    f" border-radius: 20px; border: none;"
+                    f"font-size: 22px; background: {Colors.SUCCESS.BG_SOFT};"
+                    f" border-radius: 24px; border: none;"
                 )
                 self._lbl_turno_status.setText(
                     f"TURNO ABIERTO  —  Fondo: ${turno['fondo_inicial']:.2f}"
@@ -1224,8 +1234,8 @@ class ModuloCaja(QWidget, RefreshMixin):
 
                 self._lbl_turno_icono.setText("❌")
                 self._lbl_turno_icono.setStyleSheet(
-                    f"font-size: 20px; background: {Colors.DANGER.BG_SOFT};"
-                    f" border-radius: 20px; border: none;"
+                    f"font-size: 22px; background: {Colors.DANGER.BG_SOFT};"
+                    f" border-radius: 24px; border: none;"
                 )
                 self._lbl_turno_status.setText("CAJA CERRADA — Sin turno activo")
                 self._lbl_turno_status.setStyleSheet(
