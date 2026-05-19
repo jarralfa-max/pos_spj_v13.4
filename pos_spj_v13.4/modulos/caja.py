@@ -14,10 +14,15 @@ from PyQt5.QtWidgets import (
     QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox,
     QTableWidget, QTableWidgetItem, QDialog, QHeaderView,
     QAbstractItemView, QFrame, QGridLayout, QTabWidget,
-    QInputDialog, QStackedWidget, QSizePolicy,
+    QInputDialog, QStackedWidget, QSizePolicy, QScrollArea,
 )
 from PyQt5.QtCore import Qt
 from datetime import datetime
+
+# Icon font-size used inside circular badges — no token at this size
+_ICON_FONT_SIZE = "18px"
+# Large numeric display (KPI totals, arqueo total)
+_KPI_FONT_LARGE = "20px"
 
 
 # ── KPI card — mirrors _InvKPICard from inventario_local.py ──────────────────
@@ -82,7 +87,7 @@ class _CajaKPICard(QFrame):
         lbl_icon.setFixedSize(36, 36)
         lbl_icon.setAlignment(Qt.AlignCenter)
         lbl_icon.setStyleSheet(
-            f"font-size: 18px; background: {_accent}1A;"
+            f"font-size: {_ICON_FONT_SIZE}; background: {_accent}1A;"
             f" border-radius: 18px; border: none;"
         )
         body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
@@ -199,7 +204,8 @@ class DialogoCorteZCiego(QDialog):
         self.resultado     = None
 
         self.setWindowTitle("🔒 Corte Z — Conteo a Ciegas")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(580)
         self.setModal(True)
         self._build()
 
@@ -327,17 +333,25 @@ class DialogoCorteZCiego(QDialog):
     def _page_arqueo(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(Spacing.MD)
 
         sub = QLabel("Cuenta los billetes y monedas del cajón")
         sub.setObjectName("subheading")
         lay.addWidget(sub)
 
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
         grid_frame = QFrame()
         grid_frame.setObjectName("kpiCard")
         grid = QGridLayout(grid_frame)
-        grid.setSpacing(Spacing.SM)
-        grid.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
+        grid.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        grid.setHorizontalSpacing(Spacing.LG)
+        grid.setVerticalSpacing(Spacing.MD)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(4, 1)
 
         self._den_spins  = {}
         self._den_labels = {}
@@ -346,6 +360,7 @@ class DialogoCorteZCiego(QDialog):
             col     = (i % 2) * 4
 
             lbl_den = QLabel(f"<b>{label}</b>")
+            lbl_den.setMinimumWidth(56)
             lbl_den.setStyleSheet("background: transparent; border: none;")
             grid.addWidget(lbl_den, row_idx, col)
 
@@ -353,14 +368,14 @@ class DialogoCorteZCiego(QDialog):
             spin.setRange(0, 9999)
             spin.setDecimals(0)
             spin.setSuffix(" pzas")
-            spin.setFixedWidth(100)
+            spin.setMinimumWidth(100)
             spin.setObjectName("inputField")
             spin.valueChanged.connect(self._recalcular_arqueo)
             self._den_spins[valor] = spin
             grid.addWidget(spin, row_idx, col + 1)
 
             lbl_sub = QLabel("$0.00")
-            lbl_sub.setFixedWidth(80)
+            lbl_sub.setMinimumWidth(76)
             lbl_sub.setStyleSheet(
                 f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
                 f" background: transparent; border: none;"
@@ -368,7 +383,18 @@ class DialogoCorteZCiego(QDialog):
             self._den_labels[valor] = lbl_sub
             grid.addWidget(lbl_sub, row_idx, col + 2)
 
-        lay.addWidget(grid_frame)
+            if i % 2 == 0 and i < len(self.DENOMINACIONES) - 1:
+                sep = QFrame()
+                sep.setFrameShape(QFrame.VLine)
+                sep.setStyleSheet(
+                    f"background: {Colors.NEUTRAL.SLATE_200}; border: none;"
+                )
+                grid.addWidget(sep, row_idx, 3, 1, 1)
+
+            grid.setRowMinimumHeight(row_idx, 32)
+
+        scroll.setWidget(grid_frame)
+        lay.addWidget(scroll, 1)
 
         total_frame = QFrame()
         total_frame.setStyleSheet(
@@ -376,7 +402,7 @@ class DialogoCorteZCiego(QDialog):
             f" border: 1px solid {Colors.SUCCESS.BORDER};"
         )
         total_lay = QHBoxLayout(total_frame)
-        total_lay.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
+        total_lay.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         total_lbl = QLabel("Total contado:")
         total_lbl.setStyleSheet(
             f"color: {Colors.SUCCESS.ACTIVE}; font-weight: {Typography.WEIGHT_SEMIBOLD};"
@@ -384,7 +410,7 @@ class DialogoCorteZCiego(QDialog):
         )
         self.lbl_total_arq = QLabel("$0.00")
         self.lbl_total_arq.setStyleSheet(
-            f"color: {Colors.SUCCESS.ACTIVE}; font-size: 20px;"
+            f"color: {Colors.SUCCESS.ACTIVE}; font-size: {_KPI_FONT_LARGE};"
             f" font-weight: {Typography.WEIGHT_BOLD}; background: transparent; border: none;"
         )
         total_lay.addWidget(total_lbl)
@@ -546,7 +572,7 @@ class DialogoCorteZCiego(QDialog):
 
             html = (
                 f"<h3 style='color:{dif_color};'>{dif_txt}</h3>"
-                f"<table width='100%' cellspacing='6' style='font-size:13px;text-align:left;'>"
+                f"<table width='100%' cellspacing='6' style='font-size:{Typography.SIZE_LG};text-align:left;'>"
                 f"<tr><td>Ventas del turno:</td>"
                 f"<td align='right'><b>${resultado.get('total_ventas', resultado.get('ventas_totales',0)):,.2f}</b></td></tr>"
                 f"{breakdown_rows}"
@@ -808,13 +834,16 @@ class ModuloCaja(QWidget, RefreshMixin):
 
         left_frame  = QFrame(); left_frame.setObjectName("kpiCard")
         right_frame = QFrame(); right_frame.setObjectName("kpiCard")
-        left_form   = QFormLayout(left_frame)
-        right_form  = QFormLayout(right_frame)
+        for f in (left_frame, right_frame):
+            f.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            f.setMinimumWidth(260)
+        left_form  = QFormLayout(left_frame)
+        right_form = QFormLayout(right_frame)
         for frm in (left_form, right_form):
-            frm.setContentsMargins(Spacing.XL, Spacing.LG, Spacing.XL, Spacing.LG)
+            frm.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
             frm.setSpacing(Spacing.LG)
             frm.setLabelAlignment(Qt.AlignRight)
-            frm.setHorizontalSpacing(Spacing.LG)
+            frm.setHorizontalSpacing(Spacing.XL)
 
         def _make_row(label_txt: str, attr: str, form: "QFormLayout"):
             lbl_key = QLabel(label_txt)
@@ -823,9 +852,9 @@ class ModuloCaja(QWidget, RefreshMixin):
                 f" background: transparent; border: none;"
             )
             lbl_val = QLabel("—")
-            lbl_val.setMinimumHeight(26)
+            lbl_val.setMinimumHeight(30)
             lbl_val.setStyleSheet(
-                f"font-size: {Typography.SIZE_XL}; font-weight: {Typography.WEIGHT_SEMIBOLD};"
+                f"font-size: {Typography.SIZE_XXL}; font-weight: {Typography.WEIGHT_SEMIBOLD};"
                 f" background: transparent; border: none;"
             )
             form.addRow(lbl_key, lbl_val)
@@ -1011,11 +1040,18 @@ class ModuloCaja(QWidget, RefreshMixin):
         )
         lay.addWidget(info)
 
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
         grid_frame = QFrame()
         grid_frame.setObjectName("kpiCard")
         grid = QGridLayout(grid_frame)
-        grid.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
-        grid.setSpacing(Spacing.MD)
+        grid.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
+        grid.setHorizontalSpacing(Spacing.XL)
+        grid.setVerticalSpacing(Spacing.LG)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(4, 1)
 
         DENOMINACIONES = [
             ("$1,000", 1000), ("$500", 500), ("$200", 200), ("$100", 100),
@@ -1026,18 +1062,19 @@ class ModuloCaja(QWidget, RefreshMixin):
         self._arqueo_sub_labels = {}
 
         for i, (label, valor) in enumerate(DENOMINACIONES):
-            col     = (i % 2) * 3
+            col     = (i % 2) * 4   # cols 0-2 left block, cols 4-6 right block
             row_idx = i // 2
 
             lbl_den = QLabel(label)
             lbl_den.setObjectName("subheading")
+            lbl_den.setMinimumWidth(60)
             grid.addWidget(lbl_den, row_idx, col)
 
             spin = QDoubleSpinBox()
             spin.setRange(0, 9999)
             spin.setDecimals(0)
             spin.setSuffix(" pzas")
-            spin.setFixedWidth(100)
+            spin.setMinimumWidth(110)
             spin.setObjectName("inputField")
             spin.valueChanged.connect(self._calcular_arqueo)
             self._arqueo_spins[valor] = spin
@@ -1045,10 +1082,27 @@ class ModuloCaja(QWidget, RefreshMixin):
 
             lbl_sub = QLabel("$0.00")
             lbl_sub.setObjectName(f"lbl_arq_{valor}")
+            lbl_sub.setMinimumWidth(80)
+            lbl_sub.setStyleSheet(
+                f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
+                f" background: transparent; border: none;"
+            )
             self._arqueo_sub_labels[valor] = lbl_sub
             grid.addWidget(lbl_sub, row_idx, col + 2)
 
-        lay.addWidget(grid_frame)
+            # vertical separator between left and right blocks
+            if i % 2 == 0 and i < len(DENOMINACIONES) - 1:
+                sep = QFrame()
+                sep.setFrameShape(QFrame.VLine)
+                sep.setStyleSheet(
+                    f"background: {Colors.NEUTRAL.SLATE_200}; border: none;"
+                )
+                grid.addWidget(sep, row_idx, 3, 1, 1)
+
+            grid.setRowMinimumHeight(row_idx, 34)
+
+        scroll.setWidget(grid_frame)
+        lay.addWidget(scroll)
 
         total_row = QHBoxLayout()
         total_row.addStretch()
@@ -1445,7 +1499,7 @@ class ModuloCaja(QWidget, RefreshMixin):
     def _generar_html_corte_simple(self, datos: dict, cierre_id: int) -> str:
         dif = float(datos.get('diferencia', 0))
         if dif < -0.01:
-            dif_txt = f"<span style='color:red;'>FALTANTE: ${abs(dif):.2f}</span>"
+            dif_txt = f"<span style='color:{Colors.DANGER.BASE};'>FALTANTE: ${abs(dif):.2f}</span>"
         elif dif > 0.01:
             dif_txt = f"SOBRANTE: ${dif:.2f}"
         else:
