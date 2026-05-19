@@ -204,7 +204,7 @@ class DialogoCorteZCiego(QDialog):
         self.resultado     = None
 
         self.setWindowTitle("🔒 Corte Z — Conteo a Ciegas")
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(740)
         self.setMinimumHeight(580)
         self.setModal(True)
         self._build()
@@ -340,41 +340,65 @@ class DialogoCorteZCiego(QDialog):
         sub.setObjectName("subheading")
         lay.addWidget(sub)
 
-        self._tbl_den = create_table_with_columns(
-            w,
-            columns=["Denominación", "Cantidad (pzas)", "Subtotal"],
-            show_grid=False,
-            alternating_colors=True,
-        )
-        hh = self._tbl_den.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self._tbl_den.verticalHeader().setVisible(False)
-        self._tbl_den.setRowCount(len(self.DENOMINACIONES))
+        # 3 denominations per row: [Den | Spin | Sub] | sep | [Den | Spin | Sub] | sep | [Den | Spin | Sub]
+        grid_frame = QFrame()
+        grid_frame.setObjectName("sectionCard")
+        grid = QGridLayout(grid_frame)
+        grid.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
+        grid.setHorizontalSpacing(Spacing.SM)
+        grid.setVerticalSpacing(Spacing.SM)
 
-        self._den_spins = {}
-        for row, (label, valor) in enumerate(self.DENOMINACIONES):
-            it = QTableWidgetItem(label)
-            it.setFlags(Qt.ItemIsEnabled)
-            self._tbl_den.setItem(row, 0, it)
+        for col in (1, 5, 9):
+            grid.setColumnStretch(col, 1)
+        for col in (0, 4, 8):
+            grid.setColumnMinimumWidth(col, 52)
+        for col in (2, 6, 10):
+            grid.setColumnMinimumWidth(col, 60)
+
+        self._den_spins      = {}
+        self._den_sub_labels = {}
+
+        for i, (label, valor) in enumerate(self.DENOMINACIONES):
+            row      = i // 3
+            group    = i % 3
+            col_base = group * 4
+
+            lbl_den = QLabel(label)
+            lbl_den.setStyleSheet(
+                f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
+                f" font-size: {Typography.SIZE_SM};"
+                f" background: transparent; border: none;"
+            )
+            grid.addWidget(lbl_den, row, col_base)
 
             spin = QDoubleSpinBox()
             spin.setRange(0, 9999)
             spin.setDecimals(0)
+            spin.setSuffix(" pzas")
             spin.setObjectName("inputField")
             spin.valueChanged.connect(self._recalcular_arqueo)
             self._den_spins[valor] = spin
-            self._tbl_den.setCellWidget(row, 1, spin)
+            grid.addWidget(spin, row, col_base + 1)
 
-            it_sub = QTableWidgetItem("$0.00")
-            it_sub.setFlags(Qt.ItemIsEnabled)
-            it_sub.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._tbl_den.setItem(row, 2, it_sub)
+            lbl_sub = QLabel("$0.00")
+            lbl_sub.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl_sub.setStyleSheet(
+                f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
+                f" background: transparent; border: none;"
+            )
+            self._den_sub_labels[valor] = lbl_sub
+            grid.addWidget(lbl_sub, row, col_base + 2)
 
-            self._tbl_den.setRowHeight(row, 34)
+            grid.setRowMinimumHeight(row, 30)
 
-        lay.addWidget(self._tbl_den, 1)
+        num_rows = -(-len(self.DENOMINACIONES) // 3)
+        for sep_col in (3, 7):
+            sep = QFrame()
+            sep.setFrameShape(QFrame.VLine)
+            sep.setStyleSheet(f"background: {Colors.NEUTRAL.SLATE_200}; border: none;")
+            grid.addWidget(sep, 0, sep_col, num_rows, 1)
+
+        lay.addWidget(grid_frame)
 
         total_frame = QFrame()
         total_frame.setStyleSheet(
@@ -803,15 +827,21 @@ class ModuloCaja(QWidget, RefreshMixin):
     # ── Tab: Resumen ──────────────────────────────────────────────────────────
 
     def _build_tab_resumen(self) -> None:
-        lay = QVBoxLayout(self._tab_resumen)
-        lay.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
+        outer = QVBoxLayout(self._tab_resumen)
+        outer.setContentsMargins(Spacing.XL, Spacing.XL, Spacing.XL, Spacing.XL)
+        outer.setSpacing(0)
+
+        # Centered max-width container so cards don't stretch on large screens
+        content = QWidget()
+        content.setMaximumWidth(920)
+        lay = QVBoxLayout(content)
+        lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(Spacing.LG)
 
         hdr = QLabel("Resumen del Turno Activo")
         hdr.setObjectName("subheading")
         lay.addWidget(hdr)
 
-        # Two-column card layout: left column + right column
         cols_layout = QHBoxLayout()
         cols_layout.setSpacing(Spacing.LG)
 
@@ -820,6 +850,7 @@ class ModuloCaja(QWidget, RefreshMixin):
         for f in (left_frame, right_frame):
             f.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             f.setMinimumWidth(260)
+            f.setMaximumWidth(440)
         left_form  = QFormLayout(left_frame)
         right_form = QFormLayout(right_frame)
         for frm in (left_form, right_form):
@@ -843,14 +874,14 @@ class ModuloCaja(QWidget, RefreshMixin):
             form.addRow(lbl_key, lbl_val)
             setattr(self, attr, lbl_val)
 
-        _make_row("Cajero:",          "_res_cajero",    left_form)
-        _make_row("Turno abierto:",   "_res_apertura",  left_form)
-        _make_row("Fondo inicial:",   "_res_fondo",     left_form)
-        _make_row("Ingresos extra:",  "_res_ingresos",  left_form)
+        _make_row("Cajero:",         "_res_cajero",   left_form)
+        _make_row("Turno abierto:",  "_res_apertura", left_form)
+        _make_row("Fondo inicial:",  "_res_fondo",    left_form)
+        _make_row("Ingresos extra:", "_res_ingresos", left_form)
 
-        _make_row("Ventas totales:",      "_res_ventas",    right_form)
-        _make_row("Retiros:",             "_res_retiros",   right_form)
-        _make_row("Efectivo esperado:",   "_res_esperado",  right_form)
+        _make_row("Ventas totales:",    "_res_ventas",   right_form)
+        _make_row("Retiros:",           "_res_retiros",  right_form)
+        _make_row("Efectivo esperado:", "_res_esperado", right_form)
 
         cols_layout.addWidget(left_frame, 1)
         cols_layout.addWidget(right_frame, 1)
@@ -861,7 +892,9 @@ class ModuloCaja(QWidget, RefreshMixin):
         )
         btn_refresh.clicked.connect(self._cargar_resumen_turno)
         lay.addWidget(btn_refresh, 0, Qt.AlignLeft)
-        lay.addStretch()
+
+        outer.addWidget(content, 0, Qt.AlignTop | Qt.AlignLeft)
+        outer.addStretch()
 
     def _cargar_resumen_turno(self) -> None:
         svc = self._caja_svc
@@ -1028,41 +1061,74 @@ class ModuloCaja(QWidget, RefreshMixin):
             "caption",
         ))
 
-        self._tbl_arqueo = create_table_with_columns(
-            self,
-            columns=["Denominación", "Cantidad (pzas)", "Subtotal"],
-            show_grid=False,
-            alternating_colors=True,
-        )
-        hh = self._tbl_arqueo.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self._tbl_arqueo.verticalHeader().setVisible(False)
-        self._tbl_arqueo.setRowCount(len(self._DENOMINACIONES))
+        # 3 denominations per row → 9 data columns + 2 separator columns = 11 cols
+        # Layout: [Den | Spin | Sub] | sep | [Den | Spin | Sub] | sep | [Den | Spin | Sub]
+        grid_frame = QFrame()
+        grid_frame.setObjectName("sectionCard")
+        grid = QGridLayout(grid_frame)
+        grid.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
+        grid.setHorizontalSpacing(Spacing.MD)
+        grid.setVerticalSpacing(Spacing.MD)
 
-        self._arqueo_spins = {}
-        for row, (label, valor) in enumerate(self._DENOMINACIONES):
-            it_den = QTableWidgetItem(label)
-            it_den.setFlags(Qt.ItemIsEnabled)
-            self._tbl_arqueo.setItem(row, 0, it_den)
+        # Column stretch: spin columns expand, others fixed
+        for col in (1, 5, 9):
+            grid.setColumnStretch(col, 1)
+        for col in (0, 4, 8):
+            grid.setColumnMinimumWidth(col, 58)
+        for col in (2, 6, 10):
+            grid.setColumnMinimumWidth(col, 68)
+
+        self._arqueo_spins      = {}
+        self._arqueo_sub_labels = {}
+
+        COLS_PER_GROUP = 3   # den + spin + sub
+        SEP_COLS       = [3, 7]
+
+        for i, (label, valor) in enumerate(self._DENOMINACIONES):
+            row   = i // 3
+            group = i % 3
+            # col_base: group 0→0, group 1→4, group 2→8 (separator at 3 and 7)
+            col_base = group * 4
+
+            lbl_den = QLabel(label)
+            lbl_den.setStyleSheet(
+                f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
+                f" font-size: {Typography.SIZE_MD};"
+                f" background: transparent; border: none;"
+            )
+            grid.addWidget(lbl_den, row, col_base)
 
             spin = QDoubleSpinBox()
             spin.setRange(0, 9999)
             spin.setDecimals(0)
+            spin.setSuffix(" pzas")
             spin.setObjectName("inputField")
             spin.valueChanged.connect(self._calcular_arqueo)
             self._arqueo_spins[valor] = spin
-            self._tbl_arqueo.setCellWidget(row, 1, spin)
+            grid.addWidget(spin, row, col_base + 1)
 
-            it_sub = QTableWidgetItem("$0.00")
-            it_sub.setFlags(Qt.ItemIsEnabled)
-            it_sub.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-            self._tbl_arqueo.setItem(row, 2, it_sub)
+            lbl_sub = QLabel("$0.00")
+            lbl_sub.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            lbl_sub.setStyleSheet(
+                f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_SM};"
+                f" background: transparent; border: none;"
+            )
+            self._arqueo_sub_labels[valor] = lbl_sub
+            grid.addWidget(lbl_sub, row, col_base + 2)
 
-            self._tbl_arqueo.setRowHeight(row, 36)
+            grid.setRowMinimumHeight(row, 36)
 
-        lay.addWidget(self._tbl_arqueo, 1)
+        # Add vertical separators between groups (span all rows)
+        num_rows = -(-len(self._DENOMINACIONES) // 3)  # ceil div
+        for sep_col in SEP_COLS:
+            sep = QFrame()
+            sep.setFrameShape(QFrame.VLine)
+            sep.setStyleSheet(
+                f"background: {Colors.NEUTRAL.SLATE_200}; border: none;"
+            )
+            grid.addWidget(sep, 0, sep_col, num_rows, 1)
+
+        lay.addWidget(grid_frame)
 
         bot = QHBoxLayout()
         self.lbl_diferencia_arqueo = QLabel("")
@@ -1077,6 +1143,7 @@ class ModuloCaja(QWidget, RefreshMixin):
         btn_limpiar = create_secondary_button(self, "🔄 Limpiar", "Limpiar conteo de arqueo")
         btn_limpiar.clicked.connect(self._limpiar_arqueo)
         lay.addWidget(btn_limpiar, 0, Qt.AlignLeft)
+        lay.addStretch()
 
     def _init_arqueo(self) -> None:
         self._calcular_arqueo()
@@ -1084,13 +1151,13 @@ class ModuloCaja(QWidget, RefreshMixin):
     def _calcular_arqueo(self) -> None:
         try:
             total = 0.0
-            for row, (_, valor) in enumerate(self._DENOMINACIONES):
+            for _, valor in self._DENOMINACIONES:
                 spin     = self._arqueo_spins.get(valor)
                 subtotal = float(valor) * (spin.value() if spin else 0)
                 total   += subtotal
-                it = self._tbl_arqueo.item(row, 2)
-                if it:
-                    it.setText(f"${subtotal:,.2f}")
+                lbl = self._arqueo_sub_labels.get(valor)
+                if lbl:
+                    lbl.setText(f"${subtotal:,.2f}")
             self.lbl_total_arqueo.setText(f"Total contado: ${total:,.2f}")
 
             if self.turno_actual:
