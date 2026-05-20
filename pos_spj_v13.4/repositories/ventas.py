@@ -1,8 +1,21 @@
 
 # repositories/ventas.py
-# ── VentaRepository — Enterprise Repository Layer ────────────────────────────
-# Enforces: operation_id idempotency, credit validation,
-#           immediate caja accumulator update, no orphan sales.
+# ── VentaRepository — LEGACY (conservado para compatibilidad) ─────────────────
+#
+# ⚠️  RUTA OFICIAL: AppContainer → SalesService → SalesRepository
+#
+# Esta clase YA NO ES la ruta principal de ventas en producción.
+# AppContainer (core/app_container.py) inyecta SalesRepository, no VentaRepository.
+#
+# VentaRepository duplicaría inventario (_update_inventario), caja (_update_caja)
+# y eventos (VENTA_COMPLETADA) si se usara junto con SalesService.
+#
+# Mantener únicamente para:
+#   - Tests de regresión legacy (tests/test_sales_no_duplication.py)
+#   - Migraciones/scripts de datos históricos
+#   - Referencia de lógica old-style durante fase de transición ERP
+#
+# TODO (FASE 6): eliminar cuando todos los módulos usen SalesService exclusivamente.
 from __future__ import annotations
 
 import logging

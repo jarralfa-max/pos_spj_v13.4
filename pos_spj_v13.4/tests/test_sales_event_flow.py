@@ -170,3 +170,63 @@ class TestTreasuryHandlerSkipsDeferred:
         self._run_treasury_handler_logic(
             {"payment_method": "Efectivo", "total": 0.0, "folio": "V5"}, ts)
         ts.registrar_ingreso.assert_not_called()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# domain_events.py constants completeness
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestDomainEventsConstants:
+    """All critical event constants must be importable from domain_events."""
+
+    def test_sale_events_defined(self):
+        from core.events.domain_events import (
+            SALE_ITEMS_PROCESS, SALE_CREATED,
+            VENTA_CANCELADA, PUNTOS_ACUMULADOS, NIVEL_CAMBIADO,
+        )
+        assert SALE_ITEMS_PROCESS == "sale_items_process"
+        assert SALE_CREATED == "VENTA_COMPLETADA"
+        assert VENTA_CANCELADA == "VENTA_CANCELADA"
+        assert PUNTOS_ACUMULADOS == "PUNTOS_ACUMULADOS"
+        assert NIVEL_CAMBIADO == "NIVEL_CAMBIADO"
+
+    def test_reserve_events_defined(self):
+        from core.events.domain_events import (
+            VENTA_SUSPENDIDA, STOCK_RESERVADO,
+            VENTA_CONFIRMADA_RESERVA, STOCK_DESCONTADO_RESERVA,
+            STOCK_ACTUALIZADO, VENTA_SUSPENDIDA_CANCELADA, STOCK_RESERVA_LIBERADA,
+        )
+        assert VENTA_SUSPENDIDA == "venta_suspendida"
+        assert STOCK_RESERVADO == "stock_reservado"
+        assert VENTA_CONFIRMADA_RESERVA == "venta_confirmada"
+        assert STOCK_DESCONTADO_RESERVA == "stock_descontado"
+        assert STOCK_ACTUALIZADO == "stock_actualizado"
+        assert VENTA_SUSPENDIDA_CANCELADA == "venta_suspendida_cancelada"
+        assert STOCK_RESERVA_LIBERADA == "stock_reserva_liberada"
+
+    def test_no_string_literals_for_reserve_events_in_ventas(self):
+        """ventas.py must not use raw string literals for the reserve/confirm events."""
+        import pathlib
+        src = pathlib.Path(__file__).parent.parent / "modulos" / "ventas.py"
+        text = src.read_text()
+        forbidden = [
+            'publish("venta_suspendida"',
+            'publish("stock_reservado"',
+            'publish("venta_confirmada"',
+            'publish("stock_descontado"',
+            'publish("stock_actualizado"',
+            'publish("venta_suspendida_cancelada"',
+            'publish("stock_reserva_liberada"',
+        ]
+        for f in forbidden:
+            assert f not in text, f"String literal event found in ventas.py: {f}"
+
+    def test_ventas_py_no_direct_treasury_call(self):
+        """ventas.py must not call treasury.registrar_ingreso() directly."""
+        import pathlib
+        src = pathlib.Path(__file__).parent.parent / "modulos" / "ventas.py"
+        text = src.read_text()
+        assert "treasury.registrar_ingreso(" not in text, (
+            "ventas.py still has direct treasury.registrar_ingreso() call — "
+            "should be handled by _treasury_venta handler in wiring.py"
+        )

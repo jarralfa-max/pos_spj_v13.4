@@ -2961,12 +2961,15 @@ class ModuloVentas(ModuloBase):
             html = re.sub(r'src="(data:image/[^"]+)"', _register_b64_image, html)
             doc.setHtml(html)
 
-            # Leer config de papel
+            # Leer config de papel — usa config_service para evitar SQL directo en UI
             paper_w = 80; paper_h = 297; margin_top = 5; margin_side = 3
             try:
-                db = self.container.db
+                _cs = getattr(self.container, 'config_service', None)
                 def _pcfg(k, d=""):
-                    r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
+                    if _cs:
+                        v = _cs.get(k, d)
+                        return v if v else d
+                    r = self.container.db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
                     return r[0] if r and r[0] else d
                 try: paper_w = int(_pcfg('ticket_paper_width', '80'))
                 except: pass
@@ -3696,8 +3699,9 @@ class ModuloVentas(ModuloBase):
         }
         try:
             from core.events.event_bus import get_bus
-            get_bus().publish("venta_suspendida", {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
-            get_bus().publish("stock_reservado", {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
+            from core.events.domain_events import VENTA_SUSPENDIDA, STOCK_RESERVADO
+            get_bus().publish(VENTA_SUSPENDIDA, {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
+            get_bus().publish(STOCK_RESERVADO, {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
         except Exception:
             pass
         self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
@@ -4033,21 +4037,25 @@ class ModuloVentas(ModuloBase):
                 self._stock_reservas.liberar(self._reserva_activa_id, motivo="confirmada")
                 try:
                     from core.events.event_bus import get_bus
-                    get_bus().publish("venta_confirmada", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
-                    get_bus().publish("stock_descontado", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
+                    from core.events.domain_events import (
+                        VENTA_CONFIRMADA_RESERVA, STOCK_DESCONTADO_RESERVA, STOCK_ACTUALIZADO,
+                    )
+                    get_bus().publish(VENTA_CONFIRMADA_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
+                    get_bus().publish(STOCK_DESCONTADO_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
                 except Exception:
                     pass
                 self._reserva_activa_id = None
             # Publicar actualización de stock para etiquetas/inventario sin reiniciar
             try:
                 from core.events.event_bus import get_bus, AJUSTE_INVENTARIO
+                from core.events.domain_events import STOCK_ACTUALIZADO
                 get_bus().publish(AJUSTE_INVENTARIO, {
                     "event_type": "stock_actualizado",
                     "motivo": "venta_confirmada",
                     "sucursal_id": self.sucursal_id,
                     "folio": folio,
                 })
-                get_bus().publish("stock_actualizado", {
+                get_bus().publish(STOCK_ACTUALIZADO, {
                     "sucursal_id": self.sucursal_id,
                     "folio": folio,
                 })
@@ -4133,9 +4141,12 @@ class ModuloVentas(ModuloBase):
         empresa_tel = ""
 
         try:
-            db = self.container.db
+            _cs = getattr(self.container, 'config_service', None)
             def _cfg(k, d=""):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
+                if _cs:
+                    v = _cs.get(k, d)
+                    return v if v else d
+                r = self.container.db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
                 return r[0] if r and r[0] else d
 
             # Plantilla del diseñador
@@ -4290,8 +4301,9 @@ class ModuloVentas(ModuloBase):
             try:
                 self._stock_reservas.liberar(self._reserva_activa_id, motivo="cancelada")
                 from core.events.event_bus import get_bus
-                get_bus().publish("venta_suspendida_cancelada", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
-                get_bus().publish("stock_reserva_liberada", {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
+                from core.events.domain_events import VENTA_SUSPENDIDA_CANCELADA, STOCK_RESERVA_LIBERADA
+                get_bus().publish(VENTA_SUSPENDIDA_CANCELADA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
+                get_bus().publish(STOCK_RESERVA_LIBERADA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
             except Exception:
                 pass
             self._reserva_activa_id = None
