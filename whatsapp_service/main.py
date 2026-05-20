@@ -27,7 +27,8 @@ logging.basicConfig(
 logger = logging.getLogger("wa.main")
 
 # ── Agregar ERP al path (para importar EventBus si existe) ────────────────────
-ERP_ROOT = str(Path(__file__).parent.parent / "spj_pos_v13.30")
+# ERP inner package path: <repo>/pos_spj_v13.4/pos_spj_v13.4
+ERP_ROOT = str(Path(__file__).parent.parent / "pos_spj_v13.4" / "pos_spj_v13.4")
 if os.path.exists(ERP_ROOT) and ERP_ROOT not in sys.path:
     sys.path.insert(0, ERP_ROOT)
 

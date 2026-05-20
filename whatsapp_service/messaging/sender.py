@@ -10,7 +10,8 @@ import logging
 import re
 from typing import List, Dict, Optional, Tuple
 
-from config.settings import WA_API_URL, WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID, ERP_DB_PATH
+from config.settings import (WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID, ERP_DB_PATH,
+                             get_wa_api_url)
 from models.message import OutgoingMessage
 
 logger = logging.getLogger("wa.sender")
@@ -122,7 +123,7 @@ async def send_message(msg: OutgoingMessage, sucursal_id: Optional[int] = None) 
             payload = _build_text(msg)
 
         # Construir URL y headers
-        url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
+        url = get_wa_api_url(phone_id)
         headers = _build_headers(token)
 
         # Enviar petición
@@ -197,7 +198,7 @@ async def send_template(to: str, template_name: str,
         if components:
             payload["template"]["components"] = components
 
-        url = f"https://graph.facebook.com/v21.0/{phone_id}/messages"
+        url = get_wa_api_url(phone_id)
         headers = _build_headers(token)
 
         async with httpx.AsyncClient(timeout=10.0) as client:
