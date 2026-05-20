@@ -336,9 +336,8 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             except Exception as exc:
                 logger.warning("crear_pedido_wa via API failed: %s — fallback to DB", exc)
 
-        # TODO(FASE6): Fallback SQLite directo — modo desarrollo.
-        # Cuando exista endpoint REST /api/v1/pedidos completo en el ERP
-        # este bloque debe eliminarse. Ver WHATSAPP_AUDIT.md §TODOs.
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/pedidos
         import uuid
         folio = f"WA-{uuid.uuid4().hex[:8].upper()}"
         total = sum(it["cantidad"] * it["precio_unitario"] for it in items)
@@ -433,9 +432,31 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def crear_cotizacion_wa(self, items: List[Dict], cliente_id: int,
                             sucursal_id: int, usuario: str = "whatsapp") -> Dict:
-        # TODO(FASE6): No hay use case REST para cotizaciones aún.
-        # Usar ERP use_cases/cotizacion.py cuando exista endpoint REST.
-        # Ver WHATSAPP_AUDIT.md §TODOs.
+        if self._use_api:
+            try:
+                api_items = [
+                    {"producto_id": it["producto_id"],
+                     "nombre":      it.get("nombre", ""),
+                     "cantidad":    float(it["cantidad"]),
+                     "precio_unitario": float(it["precio_unitario"])}
+                    for it in items
+                ]
+                data = self._api_post("/api/v1/cotizaciones", {
+                    "cliente_id":  cliente_id,
+                    "items":       api_items,
+                    "sucursal_id": sucursal_id,
+                    "usuario":     usuario,
+                })
+                return {
+                    "cotizacion_id": data["cotizacion_id"],
+                    "folio":         data["folio"],
+                    "total":         data["total"],
+                }
+            except Exception as exc:
+                logger.warning("crear_cotizacion_wa via API failed: %s — fallback to DB", exc)
+
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/cotizaciones
         import uuid
         folio = f"CWA-{uuid.uuid4().hex[:6].upper()}"
         total = sum(it["cantidad"] * it["precio_unitario"] for it in items)
@@ -490,8 +511,17 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def registrar_anticipo(self, venta_id: int, monto: float,
                            metodo: str = "mercadopago") -> int:
-        # TODO(FASE6): No hay use case REST para anticipos aún.
-        # Ver WHATSAPP_AUDIT.md §TODOs.
+        if self._use_api:
+            try:
+                data = self._api_post("/api/v1/anticipos", {
+                    "venta_id": venta_id, "monto": monto, "metodo": metodo,
+                })
+                return data["anticipo_id"]
+            except Exception as exc:
+                logger.warning("registrar_anticipo via API failed: %s — fallback to DB", exc)
+
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/anticipos
         cursor = self.db.execute("""
             INSERT INTO anticipos (venta_id, monto, metodo, estado, fecha)
             VALUES (?, ?, ?, 'pendiente', datetime('now'))
@@ -602,6 +632,21 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     def confirmar_pago_anticipo(self, venta_id: int, monto: float,
                                  referencia: str = "",
                                  metodo: str = "mercadopago") -> bool:
+        if self._use_api:
+            try:
+                # Obtener anticipo_id del venta_id
+                row = self.db.execute(
+                    "SELECT id FROM anticipos WHERE venta_id=? AND estado='pendiente' LIMIT 1",
+                    (venta_id,)
+                ).fetchone()
+                if row:
+                    self._api_post(f"/api/v1/anticipos/{row[0]}/confirmar", {
+                        "monto": monto, "referencia": referencia, "metodo": metodo,
+                    })
+                    return True
+            except Exception as exc:
+                logger.warning("confirmar_pago_anticipo via API failed: %s — fallback to DB", exc)
+
         try:
             self.db.execute("""
                 UPDATE anticipos SET estado='pagado', fecha_pago=datetime('now'),
@@ -649,7 +694,18 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     def generar_orden_compra(self, producto_id: int, cantidad: float,
                               sucursal_id: int,
                               notas: str = "OC automática desde WA") -> Optional[int]:
-        # TODO(FASE6): No hay use case REST para OC aún. Ver WHATSAPP_AUDIT.md §TODOs.
+        if self._use_api:
+            try:
+                data = self._api_post("/api/v1/ordenes-compra", {
+                    "producto_id": producto_id, "cantidad": cantidad,
+                    "sucursal_id": sucursal_id, "notas": notas,
+                })
+                return data["orden_id"]
+            except Exception as exc:
+                logger.warning("generar_orden_compra via API failed: %s — fallback to DB", exc)
+
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: POST /api/v1/ordenes-compra
         try:
             prod = self.db.execute(
                 "SELECT nombre, proveedor_id FROM productos WHERE id=?",
