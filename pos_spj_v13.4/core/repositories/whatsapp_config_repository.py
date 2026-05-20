@@ -83,6 +83,24 @@ class WhatsAppConfigRepository:
         except Exception:
             return default
 
+    def get_configs(self, keys: list, defaults: dict) -> dict:
+        """Carga varias claves wa_* en una sola query."""
+        prefixed = [f"wa_{k}" for k in keys]
+        result = dict(defaults)
+        try:
+            rows = self._db.execute(
+                f"SELECT clave, valor FROM configuraciones "
+                f"WHERE clave IN ({','.join('?' * len(prefixed))})",
+                prefixed,
+            ).fetchall()
+            for clave, valor in rows:
+                key_bare = clave[3:] if clave.startswith("wa_") else clave
+                if key_bare in result:
+                    result[key_bare] = valor
+        except Exception as e:
+            logger.debug("get_configs: %s", e)
+        return result
+
     def set_config(self, key: str, value: str) -> None:
         self._db.execute(
             "INSERT INTO configuraciones(clave,valor) VALUES(?,?) "

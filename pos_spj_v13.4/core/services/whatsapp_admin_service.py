@@ -21,7 +21,6 @@ class WhatsAppAdminService:
         self._cfg_repo = WhatsAppConfigRepository(db)
         self._hist_repo = WhatsAppHistoryRepository(db)
         self._met_repo = WhatsAppMetricsRepository(db)
-        self._db = db
 
     # ── Números por sucursal ──────────────────────────────────────────────────
 
@@ -51,17 +50,29 @@ class WhatsAppAdminService:
 
     # ── Configuración del bot ─────────────────────────────────────────────────
 
+    _BOT_DEFAULTS = {
+        "bot_nombre":     "Asistente SPJ",
+        "bot_activo":     "0",
+        "rasa_activo":    "0",
+        "rasa_url":       "http://localhost:5005",
+        "timeout":        "30",
+        "msg_bienvenida": "Hola, bienvenido a nuestro servicio.",
+        "cotizaciones":   "1",
+        "rrhh_notif":     "1",
+    }
+
     def get_bot_config(self) -> Dict:
-        g = self._cfg_repo.get_config
+        raw = self._cfg_repo.get_configs(
+            list(self._BOT_DEFAULTS.keys()), dict(self._BOT_DEFAULTS))
         return {
-            "bot_nombre":     g("bot_nombre", "Asistente SPJ"),
-            "bot_activo":     g("bot_activo", "0") == "1",
-            "rasa_activo":    g("rasa_activo", "0") == "1",
-            "rasa_url":       g("rasa_url", "http://localhost:5005"),
-            "timeout":        int(g("timeout", "30")),
-            "msg_bienvenida": g("msg_bienvenida", "Hola, bienvenido a nuestro servicio."),
-            "cotizaciones":   g("cotizaciones", "1") == "1",
-            "rrhh_notif":     g("rrhh_notif", "1") == "1",
+            "bot_nombre":     raw["bot_nombre"],
+            "bot_activo":     raw["bot_activo"] == "1",
+            "rasa_activo":    raw["rasa_activo"] == "1",
+            "rasa_url":       raw["rasa_url"],
+            "timeout":        int(raw["timeout"]),
+            "msg_bienvenida": raw["msg_bienvenida"],
+            "cotizaciones":   raw["cotizaciones"] == "1",
+            "rrhh_notif":     raw["rrhh_notif"] == "1",
         }
 
     def save_bot_config(self, config: Dict) -> None:
@@ -80,6 +91,10 @@ class WhatsAppAdminService:
 
     def get_config_value(self, key: str, default: str = "") -> str:
         return self._cfg_repo.get_config(key, default)
+
+    def save_webhook_config(self, verify_token: str) -> None:
+        self._cfg_repo.set_config_raw("wa_verify_token", verify_token)
+        self._cfg_repo.commit()
 
     # ── Historial ─────────────────────────────────────────────────────────────
 

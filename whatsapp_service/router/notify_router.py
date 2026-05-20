@@ -8,28 +8,13 @@ Si INTERNAL_API_KEY está vacío (desarrollo), la auth se omite con advertencia.
 """
 from __future__ import annotations
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
-
-from config.settings import INTERNAL_API_KEY
+from messaging.sender import send_text
+from middleware.auth import require_internal_key
 
 logger = logging.getLogger("wa.notify")
-
-if not INTERNAL_API_KEY:
-    logger.warning(
-        "INTERNAL_API_KEY no configurado — endpoints /api/notify sin autenticación (modo dev)"
-    )
-
 router = APIRouter(prefix="/api/notify", tags=["notify"])
-
-
-def _require_internal_key(x_internal_key: Optional[str] = Header(None)):
-    """Valida la API key interna si está configurada."""
-    if not INTERNAL_API_KEY:
-        return  # Dev mode: skip auth
-    if not x_internal_key or x_internal_key != INTERNAL_API_KEY:
-        raise HTTPException(status_code=401, detail="X-Internal-Key inválida o ausente")
 
 
 class PedidoListoRequest(BaseModel):
@@ -57,7 +42,6 @@ class SendMessageRequest(BaseModel):
 
 async def _send(phone: str, text: str) -> bool:
     try:
-        from messaging.sender import send_text
         await send_text(phone, text)
         return True
     except Exception as e:
@@ -65,7 +49,7 @@ async def _send(phone: str, text: str) -> bool:
         return False
 
 
-@router.post("/pedido-listo", dependencies=[Depends(_require_internal_key)])
+@router.post("/pedido-listo", dependencies=[Depends(require_internal_key)])
 async def pedido_listo(req: PedidoListoRequest):
     suc = f" en {req.sucursal}" if req.sucursal else ""
     ok = await _send(req.phone,
@@ -73,7 +57,7 @@ async def pedido_listo(req: PedidoListoRequest):
     return {"ok": ok}
 
 
-@router.post("/anticipo", dependencies=[Depends(_require_internal_key)])
+@router.post("/anticipo", dependencies=[Depends(require_internal_key)])
 async def anticipo_requerido(req: AnticipoRequest):
     ok = await _send(req.phone,
         f"💳 Tu pedido *{req.folio}* requiere un anticipo de *${req.monto:.2f}*.\n"
@@ -81,7 +65,7 @@ async def anticipo_requerido(req: AnticipoRequest):
     return {"ok": ok}
 
 
-@router.post("/cotizacion", dependencies=[Depends(_require_internal_key)])
+@router.post("/cotizacion", dependencies=[Depends(require_internal_key)])
 async def cotizacion_lista(req: CotizacionRequest):
     ok = await _send(req.phone,
         f"📋 Tu cotización *{req.folio}* está lista.\n"
@@ -91,11 +75,9 @@ async def cotizacion_lista(req: CotizacionRequest):
 
 
 @router.post("/send", include_in_schema=False,
-             dependencies=[Depends(_require_internal_key)])
+             dependencies=[Depends(require_internal_key)])
 async def send_message(req: SendMessageRequest):
-    from messaging.sender import send_text
-    try:
-        await send_text(req.phone, req.message)
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    ok = await _send(req.phone, req.message)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Error al enviar mensaje")
+    return {"ok": True}

@@ -216,7 +216,7 @@ class ModuloWhatsApp(QWidget):
             f"color:{Colors.INFO_BASE};font-size:11px;padding:6px;")
         lw.addWidget(note)
         lw.addStretch()
-        self._actualizar_webhook_status()
+        QTimer.singleShot(0, self._actualizar_webhook_status)
         return w
 
     # ── Tab: Historial ────────────────────────────────────────────────────────
@@ -267,7 +267,7 @@ class ModuloWhatsApp(QWidget):
         btn_refresh_m.clicked.connect(self._cargar_metricas)
         lmt.addWidget(btn_refresh_m)
         lmt.addStretch()
-        self._cargar_metricas()
+        QTimer.singleShot(0, self._cargar_metricas)
         return w
 
     # ── Números: carga / diálogo / eliminar ───────────────────────────────────
@@ -284,6 +284,7 @@ class ModuloWhatsApp(QWidget):
 
     def _dialogo_numero(self, editar=False):
         row_id = None
+        ex = None
         if editar:
             row = self.tbl_numeros.currentRow()
             if row < 0:
@@ -350,7 +351,6 @@ class ModuloWhatsApp(QWidget):
                     cmb_prov.setCurrentIndex(idx)
                 txt_numero.set_phone(ex[3] or "")
                 txt_phone_id.setText(ex[4] or "")
-                # Show masked placeholder — do not pre-fill actual token
                 txt_token.setPlaceholderText(
                     "(token guardado — introduce nuevo para cambiar)")
                 txt_sid.setText(ex[6] or "")
@@ -369,9 +369,7 @@ class ModuloWhatsApp(QWidget):
         suc_nombre = cmb_suc.currentText() if suc_id else None
         token_val  = txt_token.text().strip()
 
-        # If editing and token is empty, keep the existing token (don't overwrite)
         if row_id and not token_val:
-            ex = self._svc.get_numero_by_id(row_id)
             token_val = ex[5] if ex else ""
 
         try:
@@ -421,7 +419,6 @@ class ModuloWhatsApp(QWidget):
             self.txt_msg_bienvenida.setPlainText(cfg["msg_bienvenida"])
             self.chk_cotizaciones.setChecked(cfg["cotizaciones"])
             self.chk_clientes_rrhh.setChecked(cfg["rrhh_notif"])
-            # Also load webhook config
             self.txt_verify_token.setText(
                 self._svc.get_config_value("verify_token", "spj_verify"))
         except Exception as e:
@@ -449,8 +446,7 @@ class ModuloWhatsApp(QWidget):
     # ── Historial ─────────────────────────────────────────────────────────────
 
     def _cargar_historial(self):
-        buscar = (self.txt_buscar_wa.text().strip()
-                  if hasattr(self, "txt_buscar_wa") else "")
+        buscar = self.txt_buscar_wa.text().strip()
         rows = self._svc.get_history(buscar)
         self.tbl_hist.setRowCount(0)
         for i, r in enumerate(rows):
@@ -522,8 +518,7 @@ class ModuloWhatsApp(QWidget):
             if wa_hook:
                 wa_hook._port = puerto
                 wa_hook.start()
-                self._svc._cfg_repo.set_config_raw("wa_verify_token", verify)
-                self._svc._cfg_repo.commit()
+                self._svc.save_webhook_config(verify)
                 self._actualizar_webhook_status()
                 QMessageBox.information(self, "✅",
                                         f"Webhook iniciado en puerto {puerto}")

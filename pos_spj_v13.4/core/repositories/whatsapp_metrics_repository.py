@@ -14,19 +14,26 @@ class WhatsAppMetricsRepository:
         self._db = db
 
     def get_metrics(self) -> Dict:
-        tot = self._scalar("SELECT COUNT(*) FROM pedidos_whatsapp", 0)
-        hoy = self._scalar(
-            "SELECT COUNT(*) FROM pedidos_whatsapp WHERE DATE(fecha)=DATE('now')", 0)
-        pend = self._scalar(
-            "SELECT COUNT(*) FROM pedidos_whatsapp WHERE estado='pendiente'", 0)
-        total_v = self._scalar(
-            "SELECT COALESCE(SUM(total),0) FROM pedidos_whatsapp "
-            "WHERE estado NOT IN ('cancelado','rechazado')", 0.0)
+        try:
+            row = self._db.execute("""
+                SELECT
+                    COUNT(*),
+                    COUNT(CASE WHEN DATE(fecha)=DATE('now') THEN 1 END),
+                    COUNT(CASE WHEN estado='pendiente' THEN 1 END),
+                    COALESCE(SUM(CASE WHEN estado NOT IN ('cancelado','rechazado')
+                                      THEN total END), 0)
+                FROM pedidos_whatsapp
+            """).fetchone()
+            tot, hoy, pend, total_v = (row or (0, 0, 0, 0.0))
+        except Exception as e:
+            logger.debug("get_metrics pedidos: %s", e)
+            tot = hoy = pend = 0
+            total_v = 0.0
         sesiones = self._scalar("SELECT COUNT(*) FROM bot_sessions", 0)
         return {
-            "total": tot,
-            "hoy": hoy,
-            "pendientes": pend,
+            "total": int(tot),
+            "hoy": int(hoy),
+            "pendientes": int(pend),
             "valor_total": float(total_v),
             "sesiones": sesiones,
         }
