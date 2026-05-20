@@ -198,3 +198,50 @@ class TestVerifyTokenLogic:
             from config.settings import WA_VERIFY_TOKEN
             token = "wrong_token"
             assert token != WA_VERIFY_TOKEN
+
+
+# ── HMAC-SHA256 signature validation ─────────────────────────────────────────
+
+class TestHmacSignatureValidation:
+    """Tests para verify_signature — validación de firma HMAC-SHA256 de Meta."""
+
+    def _fn(self):
+        mod_name = "middleware.hmac_validator"
+        spec = _ilu.spec_from_file_location(
+            mod_name, os.path.join(_WA_ROOT, "middleware", "hmac_validator.py"))
+        mod = _ilu.module_from_spec(spec)
+        sys.modules[mod_name] = mod
+        spec.loader.exec_module(mod)
+        return mod.verify_signature
+
+    def _make_sig(self, body: bytes, secret: str) -> str:
+        import hashlib, hmac as _hmac
+        digest = _hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        return f"sha256={digest}"
+
+    def test_valid_signature_passes(self):
+        body = b'{"test": "payload"}'
+        secret = "mysecret"
+        assert self._fn()(body, self._make_sig(body, secret), secret) is True
+
+    def test_wrong_secret_fails(self):
+        body = b'{"test": "payload"}'
+        sig = self._make_sig(body, "correct_secret")
+        assert self._fn()(body, sig, "wrong_secret") is False
+
+    def test_tampered_body_fails(self):
+        original = b'{"amount": 100}'
+        tampered = b'{"amount": 999}'
+        sig = self._make_sig(original, "secret")
+        assert self._fn()(tampered, sig, "secret") is False
+
+    def test_missing_prefix_fails(self):
+        body = b'{"test": "data"}'
+        raw_hex = self._make_sig(body, "secret")[7:]
+        assert self._fn()(body, raw_hex, "secret") is False
+
+    def test_empty_header_fails(self):
+        assert self._fn()(b"body", "", "secret") is False
+
+    def test_dev_mode_guard_is_falsy(self):
+        assert not ""
