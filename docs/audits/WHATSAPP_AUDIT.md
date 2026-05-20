@@ -171,12 +171,9 @@ Eventos principales emitidos por `WAEventEmitter`:
 | T6 | ERP API Gateway | ✅ `/api/v1/cotizaciones`, `/api/v1/anticipos`, `/api/v1/ordenes-compra` implementados |
 | T7 | Cola de mensajes con retries | ✅ Backoff exponencial `60 * 2^n` (máx 960s), dead-letter, migración 081 |
 
-### 🟡 TODOs pendientes
+### ✅ Sin TODOs pendientes
 
-| # | Módulo | Descripción |
-|---|--------|-------------|
-| T4 | `ERPBridge.generar_orden_compra()` | Bridge WA→REST no implementado. Endpoint `POST /api/v1/ordenes-compra` existe. |
-| T5 | `ERPBridge.crear_cotizacion_wa()` convertir a venta | `PATCH /api/v1/cotizaciones/{id}/convertir` existe pero bridge no lo llama. |
+Todos los métodos del `ERPBridge` tienen REST-first con fallback SQLite documentado.
 
 ---
 

@@ -554,6 +554,24 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def convertir_cotizacion_a_venta(self, cotizacion_id: int,
                                      usuario: str = "whatsapp") -> Optional[Dict]:
+        if self._use_api:
+            try:
+                data = self._api_patch(
+                    f"/api/v1/cotizaciones/{cotizacion_id}/convertir",
+                    usuario=usuario,
+                )
+                return {
+                    "venta_id":      data["venta_id"],
+                    "folio":         data.get("folio", ""),
+                    "total":         data.get("total", 0),
+                    "cotizacion_id": cotizacion_id,
+                }
+            except Exception as exc:
+                logger.warning(
+                    "convertir_cotizacion_a_venta via API failed: %s — fallback to DB", exc)
+
+        # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
+        # Endpoint REST disponible: PATCH /api/v1/cotizaciones/{id}/convertir
         cot = self.db.execute(
             "SELECT * FROM cotizaciones WHERE id=? AND estado='pendiente'",
             (cotizacion_id,)
