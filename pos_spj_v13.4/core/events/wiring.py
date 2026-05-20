@@ -168,6 +168,34 @@ def _wire_venta(bus, container) -> None:
     bus.subscribe(VENTA_COMPLETADA, _audit_venta,
                   priority=30, label="audit_venta")
 
+    # Prioridad 20: Treasury management ledger (post-commit, async)
+    # Deferred payment methods (credit, MercadoPago) are excluded — income is
+    # recorded only after explicit confirmation (webhook / cobro manual).
+    def _treasury_venta(data: dict) -> None:
+        _DEFERRED_PAY = {"Credito", "Mercado Pago"}
+        forma_pago = str(data.get("payment_method", data.get("forma_pago", "")))
+        if forma_pago in _DEFERRED_PAY:
+            return
+        total = float(data.get("total", 0))
+        if total <= 0:
+            return
+        try:
+            ts = getattr(container, "treasury_service", None)
+            if ts and getattr(ts, "enabled", False):
+                ts.registrar_ingreso(
+                    categoria  = "venta",
+                    concepto   = f"Venta {data.get('folio', data.get('venta_id', ''))}",
+                    monto      = total,
+                    sucursal_id= int(data.get("sucursal_id", 1)),
+                    referencia = str(data.get("folio", "")),
+                    usuario    = str(data.get("usuario", "sistema")),
+                )
+        except Exception as _te:
+            logger.debug("treasury_venta handler: %s", _te)
+
+    bus.subscribe(VENTA_COMPLETADA, _treasury_venta,
+                  priority=20, label="treasury_venta")
+
     # VENTA_CANCELADA → GL reversal (post-commit, async — sale already cancelled)
     fs = getattr(container, "finance_service", None)
     db = getattr(container, "db", None)

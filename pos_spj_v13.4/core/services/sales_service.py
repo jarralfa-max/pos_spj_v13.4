@@ -371,12 +371,14 @@ class SalesService:
                 except Exception as _outbox_err:
                     logger.warning("Outbox persist failed (venta %s): %s", sale_id, _outbox_err)
                 get_bus().publish(VENTA_COMPLETADA, {
-                    "venta_id":   sale_id,
-                    "folio":      folio,
-                    "branch_id":  branch_id,
-                    "total":      total_a_pagar,
-                    "usuario":    user,
-                    "cliente_id": client_id,
+                    "venta_id":      sale_id,
+                    "folio":         folio,
+                    "branch_id":     branch_id,
+                    "sucursal_id":   branch_id,
+                    "total":         total_a_pagar,
+                    "usuario":       user,
+                    "cliente_id":    client_id,
+                    "payment_method": payment_method,
                 }, async_=True)
             except Exception as _eb_err:
                 logger.debug("EventBus publish: %s", _eb_err)  # nunca cancela la venta

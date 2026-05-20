@@ -3996,28 +3996,10 @@ class ModuloVentas(ModuloBase):
             except Exception as _loyalty_e:
                 logger.debug("Loyalty display post-venta: %s", _loyalty_e)
 
-            # ── v13.4 Fase 3: Registrar ingreso en Tesorería Central ─────────
-            # treasury_ledger es un libro mayor de gestión (distinto de movimientos_caja).
-            # GUARDRAIL: Mercado Pago solo genera un link de pago — el dinero no ingresa
-            # hasta que se confirme el pago vía webhook. No registrar como ingreso aquí.
-            _forma_pago_treasury = datos_pago.get('forma_pago', '')
-            _mp_link_only = (_forma_pago_treasury == 'Mercado Pago')
-            try:
-                treasury = getattr(self.container, 'treasury_service', None)
-                if treasury and treasury.enabled and not _mp_link_only:
-                    treasury.registrar_ingreso(
-                        categoria="venta",
-                        concepto=f"Venta {folio}",
-                        monto=self.totales['total_final'],
-                        sucursal_id=self.sucursal_id,
-                        referencia=str(folio),
-                        usuario=usuario)
-                elif treasury and _mp_link_only:
-                    logger.debug(
-                        "Treasury: ingreso Mercado Pago omitido (link generado, "
-                        "pago pendiente de confirmación webhook) folio=%s", folio)
-            except Exception as _t_e:
-                logger.debug("Treasury post-venta: %s", _t_e)
+            # ── v13.4 Fase 3: Tesorería Central ──────────────────────────────
+            # Movida a handler _treasury_venta en core/events/wiring.py (VENTA_COMPLETADA,
+            # priority=20). La UI ya no llama directamente al treasury_service.
+            # El handler ya excluye Mercado Pago y Crédito automáticamente.
 
             # Build ticket data BEFORE cancelar_venta clears compra_actual
             _items_snapshot = list(self.compra_actual)
