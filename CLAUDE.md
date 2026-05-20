@@ -326,10 +326,10 @@ Prioridad de extracción para Fase 3/4:
 | `modulos/ventas.py` | `use_cases/venta.py` | ⚠️ Parcial — UC existe, UI no delega |
 | `modulos/clientes.py` | `use_cases/cliente.py` | ⚠️ Parcial — UC v13.5 listo |
 | `modulos/compras.py` | `use_cases/compra.py` | ⚠️ Parcial — UC v13.5 listo |
-| `modulos/inventario.py` | Pendiente | 🔴 Sin UC |
-| `modulos/produccion.py` | Pendiente | 🔴 Sin UC |
+| `modulos/inventario_local.py` | `core/use_cases/inventario.py` | ⚠️ UC listo + 17 tests — UI aún no delega |
+| `modulos/produccion.py` | `core/use_cases/produccion.py` | ⚠️ UC listo + 14 tests — UI aún no delega |
 | `modulos/rrhh.py` | `use_cases/nomina.py` | ⚠️ Parcial — UC v13.5 listo |
-| `modulos/finanzas.py` | Pendiente | 🔴 Sin UC |
+| `modulos/finanzas.py` | `core/use_cases/finanzas.py` | ⚠️ UC listo + 9 tests — UI aún no delega |
 
 ---
 
