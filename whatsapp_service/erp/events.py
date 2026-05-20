@@ -6,6 +6,7 @@ Cada evento incluye: sucursal_id, prioridad, timestamp.
 CORRECCIÓN (FASE WA): WAEventEmitter usa ERP's bus.publish(), NO emit().
 """
 from __future__ import annotations
+import json
 import logging
 from datetime import datetime
 from typing import Callable, Dict, Any, Optional
@@ -101,7 +102,7 @@ class WAEventEmitter:
                     INSERT INTO wa_event_log (event_type, data_json,
                         sucursal_id, prioridad, timestamp)
                     VALUES (?, ?, ?, ?, datetime('now'))
-                """, (event_type, str(event_data)[:2000],
+                """, (event_type, json.dumps(event_data, default=str)[:4000],
                       sucursal_id, prioridad))
                 try:
                     self.db.commit()

@@ -18,17 +18,20 @@ _DEFAULT_WA_URL = "http://localhost:8000"
 class WhatsAppClient:
     """Cliente HTTP liviano (sin dependencias externas) para el microservicio WA."""
 
-    def __init__(self, base_url: str = _DEFAULT_WA_URL, timeout: int = 5):
+    def __init__(self, base_url: str = _DEFAULT_WA_URL, timeout: int = 5,
+                 api_key: str = ""):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._api_key = api_key
 
     def _post(self, path: str, payload: dict) -> Optional[dict]:
         url = f"{self.base_url}{path}"
         data = json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["X-Internal-Key"] = self._api_key
         req = urllib.request.Request(
-            url, data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+            url, data=data, headers=headers, method="POST",
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
@@ -71,7 +74,7 @@ class WhatsAppClient:
         return result is not None and result.get("ok", False)
 
     def enviar_mensaje(self, phone: str, mensaje: str) -> bool:
-        result = self._post("/api/send", {"phone": phone, "message": mensaje})
+        result = self._post("/api/notify/send", {"phone": phone, "message": mensaje})
         return result is not None and result.get("ok", False)
 
     # ── Consultas ─────────────────────────────────────────────────────────────

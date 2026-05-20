@@ -27,7 +27,7 @@ logging.basicConfig(
 logger = logging.getLogger("wa.main")
 
 # ── Agregar ERP al path (para importar EventBus si existe) ────────────────────
-ERP_ROOT = str(Path(__file__).parent.parent / "spj_pos_v13.30")
+ERP_ROOT = str(Path(__file__).parent.parent / "pos_spj_v13.4")
 if os.path.exists(ERP_ROOT) and ERP_ROOT not in sys.path:
     sys.path.insert(0, ERP_ROOT)
 
@@ -109,7 +109,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="SPJ POS — WhatsApp Service",
     version="1.0.0",
-    description="Microservicio de WhatsApp para ERP SPJ POS v13.30",
+    description="Microservicio de WhatsApp para ERP SPJ POS v13.4",
     lifespan=lifespan,
 )
 

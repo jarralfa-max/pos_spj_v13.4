@@ -10,7 +10,10 @@ WA_API_VERSION = os.getenv("WA_API_VERSION", "v21.0")
 WA_PHONE_NUMBER_ID = os.getenv("WA_PHONE_NUMBER_ID")
 WA_ACCESS_TOKEN = os.getenv("WA_ACCESS_TOKEN")
 WA_VERIFY_TOKEN = os.getenv("WA_VERIFY_TOKEN")
-WA_API_URL = f"https://graph.facebook.com/{WA_API_VERSION}/{WA_PHONE_NUMBER_ID}/messages"
+WA_API_URL = (
+    f"https://graph.facebook.com/{WA_API_VERSION}/{WA_PHONE_NUMBER_ID}/messages"
+    if WA_PHONE_NUMBER_ID else None
+)
 
 # ── ERP Connection ────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -31,6 +34,9 @@ MAX_FAILED_INTENTS = int(os.getenv("MAX_FAILED_INTENTS", "3"))
 # ── Conversation ──────────────────────────────────────────────────────────────
 CONVERSATION_TIMEOUT_MINUTES = int(os.getenv("CONVERSATION_TIMEOUT_MINUTES", "30"))
 CONTEXT_DB_PATH = os.getenv("CONTEXT_DB_PATH", str(Path(__file__).parent.parent / "data" / "conversations.db"))
+
+# ── Internal API security ─────────────────────────────────────────────────────
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
