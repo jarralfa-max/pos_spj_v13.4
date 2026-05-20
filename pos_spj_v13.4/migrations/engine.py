@@ -13,8 +13,8 @@ _Migration = namedtuple("_Migration", ["version", "module"])
 
 # Orden estricto de ejecución — NO reordenar
 MIGRATIONS = [
-    _Migration("m000", "migrations.m000_base_schema"),
-    _Migration("m001", "migrations.m001_enterprise_ajustes"),
+    _Migration("000", "migrations.m000_base_schema"),
+    _Migration("001", "migrations.m001_enterprise_ajustes"),
     _Migration("016",  "migrations.standalone.016_concurrency_events"),
     _Migration("018",  "migrations.standalone.018_sync_industrial_extension"),
     _Migration("019",  "migrations.standalone.019_margin_protection"),

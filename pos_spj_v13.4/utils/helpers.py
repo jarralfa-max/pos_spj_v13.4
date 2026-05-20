@@ -46,7 +46,12 @@ def safe_int(valor, default: int = 0) -> int:
 
 
 def redondear_precio(valor) -> float:
-    return round(safe_float(valor), 2)
+    from decimal import Decimal, ROUND_HALF_UP
+    try:
+        v = safe_float(valor)
+        return float(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+    except Exception:
+        return 0.0
 
 
 # ═══════════════════════════════════════════════════════════════

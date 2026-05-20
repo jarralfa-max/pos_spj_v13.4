@@ -70,6 +70,73 @@ def mem_db():
             (3, 'Papas', 35.0, 10.0, 5.0),
             (4, 'Producto Sin Stock', 50.0, 0.0, 5.0);
         INSERT INTO clientes(id, nombre, puntos) VALUES (1, 'Juan Perez', 100);
+        CREATE TABLE IF NOT EXISTS pedidos_whatsapp (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero TEXT,
+            uuid TEXT,
+            numero_whatsapp TEXT,
+            telefono_cliente TEXT,
+            cliente_id INTEGER,
+            cliente_nombre TEXT,
+            estado TEXT DEFAULT 'pendiente',
+            tipo_entrega TEXT DEFAULT 'mostrador',
+            forma_pago TEXT DEFAULT 'efectivo',
+            subtotal REAL DEFAULT 0,
+            total REAL DEFAULT 0,
+            anticipo REAL DEFAULT 0,
+            notas TEXT,
+            programado INTEGER DEFAULT 0,
+            hora_deseada TEXT DEFAULT '',
+            usuario_registro TEXT,
+            sucursal_id INTEGER DEFAULT 1,
+            fecha DATETIME DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS pedidos_whatsapp_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pedido_id INTEGER,
+            producto_id INTEGER,
+            nombre TEXT,
+            cantidad REAL,
+            precio REAL,
+            subtotal REAL
+        );
+        CREATE TABLE IF NOT EXISTS cotizaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero TEXT,
+            uuid TEXT, folio TEXT UNIQUE, cliente_id INTEGER,
+            cliente_nombre TEXT, subtotal REAL DEFAULT 0,
+            descuento REAL DEFAULT 0, total REAL DEFAULT 0,
+            estado TEXT DEFAULT 'pendiente', notas TEXT,
+            vigencia_dias INTEGER DEFAULT 7, fecha_vencimiento DATE,
+            venta_id INTEGER, usuario TEXT, sucursal_id INTEGER DEFAULT 1,
+            fecha DATETIME DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS cotizaciones_detalle (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cotizacion_id INTEGER, producto_id INTEGER, nombre TEXT,
+            cantidad REAL, unidad TEXT DEFAULT 'kg',
+            precio_unitario REAL, descuento REAL DEFAULT 0,
+            descuento_pct REAL DEFAULT 0, subtotal REAL
+        );
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entidad TEXT, entidad_id INTEGER, accion TEXT,
+            detalle TEXT, usuario TEXT, sucursal_id INTEGER DEFAULT 1,
+            fecha DATETIME DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS sync_outbox (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uuid TEXT UNIQUE,
+            tabla TEXT, operacion TEXT, registro_id INTEGER,
+            payload TEXT, sucursal_id INTEGER DEFAULT 1,
+            lamport_ts INTEGER DEFAULT 0,
+            synced INTEGER DEFAULT 0,
+            fecha DATETIME DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS sync_state (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
     """)
     conn.commit()
     return conn
@@ -157,6 +224,7 @@ def full_db():
         );
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero TEXT,
             uuid TEXT, folio TEXT UNIQUE, cliente_id INTEGER,
             cliente_nombre TEXT, subtotal REAL DEFAULT 0,
             descuento REAL DEFAULT 0, total REAL DEFAULT 0,
@@ -169,7 +237,8 @@ def full_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cotizacion_id INTEGER, producto_id INTEGER, nombre TEXT,
             cantidad REAL, unidad TEXT DEFAULT 'kg',
-            precio_unitario REAL, descuento_pct REAL DEFAULT 0, subtotal REAL
+            precio_unitario REAL, descuento REAL DEFAULT 0,
+            descuento_pct REAL DEFAULT 0, subtotal REAL
         );
         CREATE TABLE IF NOT EXISTS productos (
             id INTEGER PRIMARY KEY, nombre TEXT NOT NULL,
