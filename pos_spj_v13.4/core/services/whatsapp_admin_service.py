@@ -13,7 +13,7 @@ logger = logging.getLogger("spj.service.wa_admin")
 
 class WhatsAppAdminService:
     def __init__(self, conn):
-        self.conn = conn
+        self._conn = conn
         self._cfg_repo = WhatsAppConfigRepository(conn)
         self._hist_repo = WhatsAppHistoryRepository(conn)
         self._metrics_repo = WhatsAppMetricsRepository(conn)
@@ -42,16 +42,6 @@ class WhatsAppAdminService:
 
     def save_bot_config(self, cfg: Dict[str, str]) -> None:
         self._cfg_repo.set_config_batch(cfg)
-        # Keep legacy key rasa_url in sync
-        if "rasa_url" in cfg:
-            try:
-                self.conn.execute(
-                    "INSERT INTO configuraciones(clave,valor) VALUES('rasa_url',?) "
-                    "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
-                    (cfg["rasa_url"],))
-                self.conn.commit()
-            except Exception:
-                pass
 
     # ── Historial ──────────────────────────────────────────────────────────────
 
@@ -74,7 +64,7 @@ class WhatsAppAdminService:
         """Delega al WhatsAppService canónico."""
         try:
             from core.services.whatsapp_service import WhatsAppService
-            svc = WhatsAppService(self.conn)
+            svc = WhatsAppService(self._conn)
             if hasattr(svc, "test_connection"):
                 return svc.test_connection()
             # Verificación mínima: credenciales cargadas

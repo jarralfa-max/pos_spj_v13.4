@@ -12,6 +12,7 @@ Cubre:
 - repository sin SQL injection
 """
 from __future__ import annotations
+import asyncio
 import json
 import sqlite3
 import sys
@@ -22,13 +23,21 @@ from typing import Optional
 import pytest
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-_HERE = os.path.dirname(__file__)
-_ROOT = os.path.dirname(_HERE)
-sys.path.insert(0, _ROOT)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_HERE)             # pos_spj_v13.4/pos_spj_v13.4/
+_REPO = os.path.dirname(_ROOT)             # pos_spj_v13.4/
+WA_SVC_PATH = os.path.join(_REPO, "whatsapp_service")
 
-WA_SVC_PATH = os.path.join(os.path.dirname(os.path.dirname(_HERE)), "whatsapp_service")
-if WA_SVC_PATH not in sys.path:
-    sys.path.insert(0, WA_SVC_PATH)
+# WA service path must come before ERP root to avoid config.py shadowing config/
+for _p in (WA_SVC_PATH, _ROOT):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+# Purge stale config cache that may have been set by conftest before our path fix
+for _k in list(sys.modules.keys()):
+    if _k == "config" or _k.startswith("config."):
+        del sys.modules[_k]
+
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -59,32 +68,60 @@ def mem_db():
 # 1. Webhook verification
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _import_wa_settings():
+    """
+    Load config.settings from whatsapp_service by file path, then inject it into
+    sys.modules so lazy 'from config.settings import X' calls in WA code resolve
+    correctly, bypassing the ERP-root config.py module.
+    """
+    import importlib.util
+    import types
+    settings_path = os.path.join(WA_SVC_PATH, "config", "settings.py")
+    spec = importlib.util.spec_from_file_location("wa_config_settings", settings_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    # Build a fake config package that exposes settings as a submodule
+    fake_pkg = types.ModuleType("config")
+    fake_pkg.settings = mod
+    sys.modules["config"] = fake_pkg
+    sys.modules["config.settings"] = mod
+    return mod
+
+
 class TestWebhookVerification:
+
+    def _run(self, coro):
+        return asyncio.get_event_loop().run_until_complete(coro)
+
+    def _get_verify_webhook(self):
+        """Import verify_webhook — call AFTER _import_wa_settings."""
+        for k in list(sys.modules.keys()):
+            if k in ("webhook.whatsapp", "middleware.rate_limiter"):
+                del sys.modules[k]
+        from webhook.whatsapp import verify_webhook
+        return verify_webhook
 
     def test_correct_token_returns_challenge(self):
         """GET /webhook con token correcto devuelve challenge."""
-        with patch("config.settings.WA_VERIFY_TOKEN", "correct_token"):
-            from webhook.whatsapp import verify_webhook
-            import asyncio
-            from fastapi.responses import Response
-
+        wa_settings = _import_wa_settings()   # sets sys.modules["config.*"] first
+        verify_webhook = self._get_verify_webhook()  # imports after, keeps config
+        with patch.object(wa_settings, "WA_VERIFY_TOKEN", "correct_token"):
             async def run():
                 return await verify_webhook(
                     mode="subscribe", token="correct_token", challenge="abc123")
-            resp = asyncio.get_event_loop().run_until_complete(run())
+            resp = self._run(run())
             assert resp.body == b"abc123"
             assert resp.status_code == 200
 
     def test_wrong_token_returns_403(self):
         """GET /webhook con token incorrecto devuelve 403."""
-        with patch("config.settings.WA_VERIFY_TOKEN", "correct_token"):
-            from webhook.whatsapp import verify_webhook
-            import asyncio
-
+        wa_settings = _import_wa_settings()
+        verify_webhook = self._get_verify_webhook()
+        with patch.object(wa_settings, "WA_VERIFY_TOKEN", "correct_token"):
             async def run():
                 return await verify_webhook(
                     mode="subscribe", token="wrong_token", challenge="abc123")
-            resp = asyncio.get_event_loop().run_until_complete(run())
+            resp = self._run(run())
             assert resp.status_code == 403
 
 
@@ -104,13 +141,13 @@ class TestMessageParsing:
             if itype == "button_reply":
                 msg["interactive"] = {
                     "type": "button_reply",
-                    "button_reply": {"id": kwargs.get("id","btn_1"),
-                                     "title": kwargs.get("title","Opción 1")}}
+                    "button_reply": {"id": kwargs.get("id", "btn_1"),
+                                     "title": kwargs.get("title", "Opción 1")}}
             else:
                 msg["interactive"] = {
                     "type": "list_reply",
-                    "list_reply": {"id": kwargs.get("id","item_1"),
-                                   "title": kwargs.get("title","Item 1")}}
+                    "list_reply": {"id": kwargs.get("id", "item_1"),
+                                   "title": kwargs.get("title", "Item 1")}}
         payload = {"object": "whatsapp_business_account", "entry": [{"changes": [
             {"value": {"messages": [msg],
                        "metadata": {"phone_number_id": "pn_001"}}}]}]}
@@ -176,7 +213,6 @@ class TestRateLimit:
     def test_over_limit_is_blocked(self):
         from middleware.rate_limiter import RateLimiter
         rl = RateLimiter()
-        # Exhaust limit
         for _ in range(100):
             rl.is_allowed("+52_test_rate_2")
         result = rl.is_allowed("+52_test_rate_2")
@@ -189,15 +225,14 @@ class TestRateLimit:
 
 class TestSenderNoCredentials:
 
-    @pytest.mark.asyncio
-    async def test_send_raises_without_credentials(self):
+    def test_send_raises_without_credentials(self):
         """_get_whatsapp_config sin BD ni .env debe lanzar ValueError."""
-        with patch("messaging.sender.WA_ACCESS_TOKEN", None), \
-             patch("messaging.sender.WA_PHONE_NUMBER_ID", None), \
-             patch("messaging.sender.ERP_DB_PATH", "/nonexistent/path.db"):
-            from messaging.sender import _get_whatsapp_config
+        import messaging.sender as _sender  # pre-import so patch target resolves
+        with patch.object(_sender, "WA_ACCESS_TOKEN", None), \
+             patch.object(_sender, "WA_PHONE_NUMBER_ID", None), \
+             patch.object(_sender, "ERP_DB_PATH", "/nonexistent/path.db"):
             with pytest.raises(ValueError):
-                _get_whatsapp_config(sucursal_id=None)
+                _sender._get_whatsapp_config(sucursal_id=None)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -206,20 +241,22 @@ class TestSenderNoCredentials:
 
 class TestSenderMockHttp:
 
-    @pytest.mark.asyncio
-    async def test_send_text_calls_graph_api(self):
-        with patch("messaging.sender._get_whatsapp_config",
-                   return_value=("token_test", "phone_id_test")):
+    def test_send_text_calls_graph_api(self):
+        import messaging.sender as _sender  # pre-import
+        _fake_url = "https://graph.facebook.com/v21.0/phone_id_test/messages"
+        with patch.object(_sender, "_get_whatsapp_config",
+                          return_value=("token_test", "phone_id_test")), \
+             patch.object(_sender, "get_wa_api_url", return_value=_fake_url):
             mock_resp = MagicMock()
             mock_resp.status_code = 200
-            mock_client = AsyncMock()
+            mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_client.post = AsyncMock(return_value=mock_resp)
 
             with patch("httpx.AsyncClient", return_value=mock_client):
-                from messaging.sender import send_text
-                result = await send_text("+521234567890", "Hola test")
+                result = asyncio.get_event_loop().run_until_complete(
+                    _sender.send_text("+521234567890", "Hola test"))
                 assert result is True
                 mock_client.post.assert_called_once()
 
@@ -295,7 +332,6 @@ class TestCredentialValidation:
         masked = svc._mask_token("EAABCDEF1234567890XYZ")
         assert "EAAB" in masked
         assert len(masked) == len("EAABCDEF1234567890XYZ")
-        # Middle section should be masked
         assert "****" in masked
 
 
@@ -317,10 +353,8 @@ class TestRepositoryNoInjection:
 
         from core.repositories.whatsapp_history_repository import WhatsAppHistoryRepository
         repo = WhatsAppHistoryRepository(mem_db)
-        # SQL injection attempt
         evil = "' OR '1'='1"
         rows = repo.get_history(search=evil)
-        # Should return empty (no match) without raising
         assert isinstance(rows, list)
 
     def test_config_set_and_get_roundtrip(self, mem_db):
