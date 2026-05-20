@@ -176,11 +176,12 @@ class TestNominaConRetenciones:
 
     def _make_svc_with_db(self):
         conn = _db_with_personal()
-        # 8 horas trabajadas, 5 días
+        # 8 horas trabajadas, 5 días del período solicitado (abril 2026)
+        fechas_abril = ["2026-04-07","2026-04-08","2026-04-09","2026-04-10","2026-04-11"]
         conn.executemany(
-            "INSERT INTO asistencias(personal_id, estado, horas_trabajadas) "
-            "VALUES(1,'PRESENTE',8)",
-            [()] * 5
+            "INSERT INTO asistencias(personal_id, fecha, estado, horas_trabajadas) "
+            "VALUES(1,?,'PRESENTE',8)",
+            [(f,) for f in fechas_abril]
         )
         conn.commit()
         from core.services.rrhh_service import RRHHService

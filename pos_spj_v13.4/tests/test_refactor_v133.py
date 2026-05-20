@@ -371,7 +371,7 @@ class TestEventBusSmoke:
         bus = EventBus.__new__(EventBus)
         bus._handlers = {}
         bus._lock = __import__("threading").RLock()
-        bus._executor = __import__("concurrent.futures").ThreadPoolExecutor(
+        bus._executor = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
             max_workers=1
         )
 
@@ -386,7 +386,7 @@ class TestEventBusSmoke:
         bus = EventBus.__new__(EventBus)
         bus._handlers = {}
         bus._lock = __import__("threading").RLock()
-        bus._executor = __import__("concurrent.futures").ThreadPoolExecutor(
+        bus._executor = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
             max_workers=1
         )
 
@@ -401,7 +401,7 @@ class TestEventBusSmoke:
         bus = EventBus.__new__(EventBus)
         bus._handlers = {}
         bus._lock = __import__("threading").RLock()
-        bus._executor = __import__("concurrent.futures").ThreadPoolExecutor(
+        bus._executor = __import__("concurrent.futures", fromlist=["ThreadPoolExecutor"]).ThreadPoolExecutor(
             max_workers=1
         )
 

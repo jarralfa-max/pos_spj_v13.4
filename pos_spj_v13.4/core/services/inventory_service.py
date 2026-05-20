@@ -12,8 +12,11 @@ class InventoryService:
     Toda entrada o salida registra un movimiento inmutable y actualiza el caché de stock.
     """
 
-    def __init__(self, db_conn, inventory_repo):
+    def __init__(self, db_conn, inventory_repo=None):
         self.db = db_conn
+        if inventory_repo is None:
+            from repositories.inventory_repository import InventoryRepository
+            inventory_repo = InventoryRepository(db_conn)
         self.repo = inventory_repo
         logger.warning(
             "DEPRECATED: InventoryService is deprecated. "

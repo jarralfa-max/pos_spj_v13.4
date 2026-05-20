@@ -28,8 +28,11 @@ class SaleFinanceHandler:
         payment_method = str(payload.get("payment_method", "Efectivo"))
         total          = float(payload.get("total", 0))
 
-        # Credit sales: income is deferred — CustomerCreditService handles CxC post-commit.
-        if payment_method == "Credito" or total <= 0:
+        # Credit sales: income is deferred — CreditSaleFinanceHandler handles CxC.
+        # MercadoPago: only a payment link is generated here — income registered
+        # only after webhook confirmation. Do NOT record as collected income now.
+        _DEFERRED = {"Credito", "Mercado Pago"}
+        if payment_method in _DEFERRED or total <= 0:
             return
 
         try:

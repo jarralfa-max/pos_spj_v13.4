@@ -63,7 +63,9 @@ class SyncResult:
 
 try:
     from PyQt5.QtCore import QThread, pyqtSignal, QObject
-    _USE_QTHREAD = True
+    # Guard against MagicMock injection in headless/CI environments:
+    # if PyQt5 is mocked, QThread will be a Mock (not a real type).
+    _USE_QTHREAD = isinstance(QThread, type)
 except ImportError:
     _USE_QTHREAD = False
 

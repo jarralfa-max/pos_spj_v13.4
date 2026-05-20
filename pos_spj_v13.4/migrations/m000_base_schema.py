@@ -2758,6 +2758,26 @@ def _ensure_extra_columns(conn):
     ensure_column(conn, "event_log", "payload_hash TEXT")
     ensure_column(conn, "event_log", "origin_device_id TEXT DEFAULT 'local'")
     ensure_column(conn, "event_log", "device_version INTEGER DEFAULT 0")
+    ensure_column(conn, "event_log", "operation_id TEXT DEFAULT ''")
+
+    # pedidos_whatsapp — columnas añadidas post-base
+    ensure_column(conn, "pedidos_whatsapp", "numero TEXT")
+    ensure_column(conn, "pedidos_whatsapp", "anticipo REAL DEFAULT 0")
+    ensure_column(conn, "pedidos_whatsapp", "programado INTEGER DEFAULT 0")
+    ensure_column(conn, "pedidos_whatsapp", "hora_deseada TEXT DEFAULT ''")
+    ensure_column(conn, "pedidos_whatsapp", "usuario_registro TEXT")
+    ensure_column(conn, "pedidos_whatsapp", "telefono_cliente TEXT")
+
+    # cotizaciones — columnas añadidas post-base
+    ensure_column(conn, "cotizaciones", "numero TEXT")
+
+    # cotizaciones_detalle — columnas añadidas post-base
+    ensure_column(conn, "cotizaciones_detalle", "descuento REAL DEFAULT 0")
+
+    # pedidos_whatsapp_items — columnas añadidas post-base
+    ensure_column(conn, "pedidos_whatsapp_items", "nombre TEXT")
+    ensure_column(conn, "pedidos_whatsapp_items", "precio REAL DEFAULT 0")
+    ensure_column(conn, "pedidos_whatsapp_items", "cantidad REAL DEFAULT 0")
 
     # batch_movements
     ensure_column(conn, "batch_movements", "reservation_id TEXT")

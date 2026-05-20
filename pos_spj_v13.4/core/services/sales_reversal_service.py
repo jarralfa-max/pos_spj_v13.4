@@ -157,24 +157,33 @@ class SalesReversalService:
         return [dict(r) for r in rows]
 
     def _get_caja_abierta(self, conn, branch_id: int) -> Optional[int]:
-        row = conn.execute("""
-            SELECT id FROM cajas
-            WHERE sucursal_id = ? AND estado = 'ABIERTA'
-            ORDER BY fecha_apertura DESC LIMIT 1
-        """, (branch_id,)).fetchone()
-        return row["id"] if row else None
+        try:
+            row = conn.execute("""
+                SELECT id FROM cajas
+                WHERE sucursal_id = ? AND estado = 'ABIERTA'
+                ORDER BY fecha_apertura DESC LIMIT 1
+            """, (branch_id,)).fetchone()
+            return row["id"] if row else None
+        except Exception:
+            return None
 
     def _get_payment_method(self, conn, sale_id: int) -> str:
         """Obtiene el método de pago principal de la venta."""
-        row = conn.execute(
-            "SELECT method FROM payments WHERE venta_id = ? ORDER BY id ASC LIMIT 1",
-            (sale_id,)
-        ).fetchone()
-        if row:
-            return row["method"]
+        try:
+            row = conn.execute(
+                "SELECT method FROM payments WHERE venta_id = ? ORDER BY id ASC LIMIT 1",
+                (sale_id,)
+            ).fetchone()
+            if row:
+                return row["method"]
+        except Exception:
+            pass
         # Fallback a forma_pago en ventas
-        row2 = conn.execute("SELECT forma_pago FROM ventas WHERE id = ?", (sale_id,)).fetchone()
-        return row2["forma_pago"] if row2 else "Efectivo"
+        try:
+            row2 = conn.execute("SELECT forma_pago FROM ventas WHERE id = ?", (sale_id,)).fetchone()
+            return row2["forma_pago"] if row2 else "Efectivo"
+        except Exception:
+            return "Efectivo"
 
     def _insertar_movimiento_caja(self, conn, tipo: str, monto: float,
                                    descripcion: str, usuario: str,

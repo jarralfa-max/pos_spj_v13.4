@@ -13,6 +13,9 @@ from core.events.event_bus import (
     COMPRA_REGISTRADA     as PURCHASE_CREATED,   # "COMPRA_REGISTRADA"
     PRODUCCION_COMPLETADA as PRODUCTION_EXECUTED, # "PRODUCCION_COMPLETADA"
     AJUSTE_INVENTARIO     as STOCK_UPDATED,       # "AJUSTE_INVENTARIO"
+    VENTA_CANCELADA,                              # "VENTA_CANCELADA"
+    PUNTOS_ACUMULADOS,                            # "PUNTOS_ACUMULADOS"
+    NIVEL_CAMBIADO,                               # "NIVEL_CAMBIADO"
 )
 
 # Nuevos eventos ERP (lowercase — no existen en event_bus.py)
@@ -42,6 +45,16 @@ from core.events.event_bus import (
 # Internal sync event — inventory handler runs inside transfer SAVEPOINT.
 TRANSFER_ITEMS_PROCESS = "transfer_items_process"
 
+# Reserva de stock (ventas suspendidas / pedidos anticipados).
+# No existen en event_bus.py — son eventos de UI/orquestación, sin handlers críticos.
+VENTA_SUSPENDIDA          = "venta_suspendida"
+STOCK_RESERVADO           = "stock_reservado"
+VENTA_CONFIRMADA_RESERVA  = "venta_confirmada"           # confirma reserva previa
+STOCK_DESCONTADO_RESERVA  = "stock_descontado"           # stock de reserva confirmado
+STOCK_ACTUALIZADO         = "stock_actualizado"          # refresco visual post-venta
+VENTA_SUSPENDIDA_CANCELADA = "venta_suspendida_cancelada"
+STOCK_RESERVA_LIBERADA    = "stock_reserva_liberada"
+
 __all__ = [
     "SALE_CREATED",
     "PURCHASE_CREATED",
@@ -56,4 +69,15 @@ __all__ = [
     "TRANSFER_CREATED",
     "TRANSFER_COMPLETED",
     "TRANSFER_ITEMS_PROCESS",
+    "VENTA_CANCELADA",
+    "PUNTOS_ACUMULADOS",
+    "NIVEL_CAMBIADO",
+    "VENTA_SUSPENDIDA",
+    "STOCK_RESERVADO",
+    "VENTA_CONFIRMADA_RESERVA",
+    "STOCK_DESCONTADO_RESERVA",
+    "STOCK_ACTUALIZADO",
+    "VENTA_SUSPENDIDA_CANCELADA",
+    "STOCK_RESERVA_LIBERADA",
 ]
+

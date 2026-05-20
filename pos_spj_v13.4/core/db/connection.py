@@ -195,30 +195,49 @@ def execute_with_retry(
 # TRANSACCIONES
 # ─────────────────────────────────────────────────────────────
 
+# Per-connection reentrant lock — serializes SAVEPOINT operations when a single
+# sqlite3.Connection is shared across multiple threads (test scenarios and
+# write-heavy workloads where WAL alone is insufficient).
+_conn_locks: dict = {}
+_conn_locks_guard = threading.Lock()
+
+
+def _get_conn_lock(conn: sqlite3.Connection) -> threading.RLock:
+    key = id(conn)
+    with _conn_locks_guard:
+        lock = _conn_locks.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _conn_locks[key] = lock
+        return lock
+
+
 @contextmanager
 def transaction(conn: sqlite3.Connection):
     """
     Context manager para transacciones seguras.
     Permite transacciones anidadas usando SAVEPOINT.
+    Adquiere un RLock por conexión para serializar acceso multi-hilo.
     """
 
     import uuid
 
     sp = f"sp_{uuid.uuid4().hex[:8]}"
+    lock = _get_conn_lock(conn)
 
-    conn.execute(f"SAVEPOINT {sp}")
+    with lock:
+        conn.execute(f"SAVEPOINT {sp}")
 
-    try:
-        yield conn
-        conn.execute(f"RELEASE SAVEPOINT {sp}")
-
-    except Exception:
         try:
-            conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-        except Exception:
-            pass
+            yield conn
+            conn.execute(f"RELEASE SAVEPOINT {sp}")
 
-        raise
+        except Exception:
+            try:
+                conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+            except Exception:
+                pass
+            raise
 
 
 # ─────────────────────────────────────────────────────────────

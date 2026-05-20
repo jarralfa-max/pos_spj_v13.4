@@ -57,6 +57,12 @@ CREATE TABLE IF NOT EXISTS detalle_ventas (
     cantidad REAL, precio_unitario REAL, subtotal REAL,
     unidad TEXT DEFAULT 'kg'
 );
+CREATE TABLE IF NOT EXISTS detalles_venta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    venta_id INTEGER, producto_id INTEGER, nombre TEXT,
+    cantidad REAL, precio_unitario REAL, subtotal REAL,
+    unidad TEXT DEFAULT 'kg'
+);
 CREATE TABLE IF NOT EXISTS cotizaciones (
     id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT, cliente_id INTEGER,
     cliente_nombre TEXT, total REAL, estado TEXT DEFAULT 'pendiente',

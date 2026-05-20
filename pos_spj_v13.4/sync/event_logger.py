@@ -82,6 +82,7 @@ class EventLogger:
                 origin_device_id TEXT    DEFAULT '',
                 device_version   INTEGER DEFAULT 0,
                 event_version    INTEGER NOT NULL DEFAULT 1,
+                operation_id     TEXT    DEFAULT '',
                 synced           INTEGER DEFAULT 0,
                 sync_intentos    INTEGER DEFAULT 0,
                 sync_error       TEXT,

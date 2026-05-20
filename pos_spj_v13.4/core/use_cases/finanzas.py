@@ -101,16 +101,42 @@ class GestionarFinanzasUC:
             logger.error("consultar_balance: %s", exc)
             return ResultadoBalance(ok=False, error=str(exc))
 
-    def registrar_asiento_manual(self, dto: AsientoManualDTO) -> int:
+    def registrar_asiento_manual(
+        self,
+        cuenta_debe_o_dto,
+        cuenta_haber: str = "",
+        descripcion: str = "",
+        monto: float = 0.0,
+        sucursal_id: int = 1,
+        usuario: str = "admin",
+    ) -> dict:
+        """Registra un asiento manual. Acepta AsientoManualDTO o args individuales."""
+        # Normalizar: puede recibir un DTO o args individuales
+        if isinstance(cuenta_debe_o_dto, AsientoManualDTO):
+            dto = cuenta_debe_o_dto
+        else:
+            dto = AsientoManualDTO(
+                cuenta_debe=cuenta_debe_o_dto,
+                cuenta_haber=cuenta_haber,
+                descripcion=descripcion,
+                monto=monto,
+                sucursal_id=sucursal_id,
+                usuario=usuario,
+            )
         if not self._finance:
-            raise RuntimeError("finance_service no disponible")
+            return {"ok": False, "error": "finance_service no disponible", "asiento_id": 0}
         if dto.monto <= 0:
-            raise ValueError("monto debe ser mayor a cero")
-        return int(self._finance.registrar_asiento(
-            cuenta_debe=dto.cuenta_debe,
-            cuenta_haber=dto.cuenta_haber,
-            monto=dto.monto,
-            descripcion=dto.descripcion,
-            usuario=dto.usuario,
-            sucursal_id=dto.sucursal_id,
-        ) or 0)
+            return {"ok": False, "error": "monto debe ser mayor a cero", "asiento_id": 0}
+        try:
+            asiento_id = int(self._finance.registrar_asiento(
+                cuenta_debe=dto.cuenta_debe,
+                cuenta_haber=dto.cuenta_haber,
+                monto=dto.monto,
+                descripcion=dto.descripcion,
+                usuario=dto.usuario,
+                sucursal_id=dto.sucursal_id,
+            ) or 0)
+            return {"ok": True, "asiento_id": asiento_id}
+        except Exception as exc:
+            logger.error("registrar_asiento_manual: %s", exc)
+            return {"ok": False, "error": str(exc), "asiento_id": 0}

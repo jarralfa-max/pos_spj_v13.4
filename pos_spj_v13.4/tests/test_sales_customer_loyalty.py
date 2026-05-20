@@ -86,6 +86,7 @@ def db_checkout():
         CREATE TABLE clientes (
             id INTEGER PRIMARY KEY, nombre TEXT,
             credit_limit REAL DEFAULT 0, credit_balance REAL DEFAULT 0,
+            saldo REAL DEFAULT 0,
             puntos INTEGER DEFAULT 0, activo INTEGER DEFAULT 1
         );
         CREATE TABLE historico_puntos (
@@ -113,6 +114,43 @@ def db_checkout():
         INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad) VALUES
             (1, 1, 50.0),
             (2, 1, 200.0);
+
+        CREATE TABLE cuentas_por_cobrar (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id INTEGER,
+            venta_id INTEGER UNIQUE,
+            folio TEXT,
+            monto_original REAL,
+            saldo_pendiente REAL,
+            sucursal_id INTEGER DEFAULT 1,
+            estado TEXT DEFAULT 'pendiente',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE loyalty_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id INTEGER, tipo TEXT, puntos INTEGER,
+            monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0,
+            referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '',
+            sucursal_id INTEGER DEFAULT 1, usuario TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE loyalty_pasivo_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT, tipo TEXT, estrellas INTEGER DEFAULT 0,
+            valor_unitario REAL DEFAULT 0.10, monto_total REAL DEFAULT 0,
+            referencia TEXT DEFAULT '', sucursal_id INTEGER DEFAULT 1
+        );
+        CREATE TABLE configuraciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clave TEXT UNIQUE, valor TEXT
+        );
+        CREATE TABLE outbox_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT, payload TEXT,
+            aggregate_type TEXT, aggregate_id INTEGER,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
 
         INSERT INTO clientes(id, nombre, credit_limit, credit_balance, puntos, activo) VALUES
             (1, 'Juan Perez',  500.0,  0.0, 100, 1),
@@ -193,14 +231,27 @@ def sales_svc_checkout(db_checkout):
 
     inv_svc         = InventoryService(db_checkout, inv_repo)
     loyalty_svc     = MockLoyaltyService()
-    customer_svc    = CustomerCreditService(db_checkout, finance_service=_FakeFinance())
+    finance_svc     = _FakeFinance()
+    customer_svc    = CustomerCreditService(db_checkout, finance_service=finance_svc)
 
-    return SalesService(
+    # Wire CreditSaleFinanceHandler so credit sales create CxC rows atomically
+    from core.events.event_bus import get_bus
+    from core.events.domain_events import SALE_ITEMS_PROCESS
+    from core.events.handlers.finance_handler import CreditSaleFinanceHandler, SaleFinanceHandler
+    bus = get_bus()
+    credit_handler = CreditSaleFinanceHandler(db_conn=db_checkout, finance_service=finance_svc)
+    sale_finance_handler = SaleFinanceHandler(finance_service=finance_svc)
+    bus.subscribe(SALE_ITEMS_PROCESS, credit_handler.handle,
+                  priority=85, label="test_sale_credit_cxc")
+    bus.subscribe(SALE_ITEMS_PROCESS, sale_finance_handler.handle,
+                  priority=90, label="test_sale_finance_income")
+
+    svc = SalesService(
         db_conn                = db_checkout,
         sales_repo             = sales_repo,
         recipe_repo            = recipe_repo,
         inventory_service      = inv_svc,
-        finance_service        = _FakeFinance(),
+        finance_service        = finance_svc,
         loyalty_service        = loyalty_svc,
         promotion_engine       = None,
         sync_service           = None,
@@ -210,6 +261,13 @@ def sales_svc_checkout(db_checkout):
         feature_flag_service   = _FakeFlags(),
         customer_service       = customer_svc,
     )
+    yield svc
+    # Cleanup: remove test handlers from the bus to prevent cross-test pollution
+    try:
+        bus.unsubscribe(SALE_ITEMS_PROCESS, credit_handler.handle)
+        bus.unsubscribe(SALE_ITEMS_PROCESS, sale_finance_handler.handle)
+    except Exception:
+        pass
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
