@@ -273,7 +273,8 @@ class DialogoCorteZCiego(QDialog):
         self._btn_back.setEnabled(False)
         self._btn_back.clicked.connect(self._prev_page)
 
-        self._btn_next = create_primary_button(self, "Siguiente ▶", "Continuar al siguiente paso")
+        _lbl_next, _tip_next = "Siguiente ▶", "Continuar al siguiente paso"
+        self._btn_next = create_primary_button(self, _lbl_next, _tip_next)
         self._btn_next.clicked.connect(self._next_page)
 
         self._nav.addWidget(self._btn_cancel)

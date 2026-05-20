@@ -119,12 +119,12 @@ class ProcesarPedidoWAUC:
             cur = self._db.execute(
                 """
                 INSERT INTO pedidos_whatsapp
-                    (numero, telefono_cliente, sucursal_id, total, anticipo,
+                    (numero, telefono_cliente, numero_whatsapp, sucursal_id, total, anticipo,
                      estado, programado, hora_deseada, notas, usuario_registro,
                      fecha)
-                VALUES (?,?,?,?,?,'pendiente',?,?,?,?,datetime('now'))
+                VALUES (?,?,?,?,?,?,'pendiente',?,?,?,?,datetime('now'))
                 """,
-                (numero_pedido, cliente_tel, sucursal_id, total, anticipo,
+                (numero_pedido, cliente_tel, cliente_tel, sucursal_id, total, anticipo,
                  int(programado), hora_deseada, notas, usuario)
             )
             pedido_id = cur.lastrowid

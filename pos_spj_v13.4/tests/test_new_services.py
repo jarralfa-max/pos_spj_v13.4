@@ -92,6 +92,24 @@ def db():
             cliente_id INTEGER, puntos REAL DEFAULT 0, venta_id INTEGER,
             operacion TEXT, fecha DATETIME DEFAULT (datetime('now')));
         CREATE TABLE clientes(id INTEGER PRIMARY KEY, nombre TEXT, puntos REAL DEFAULT 0);
+        CREATE TABLE inventario_actual(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER, sucursal_id INTEGER DEFAULT 1,
+            cantidad REAL DEFAULT 0, costo_promedio REAL DEFAULT 0,
+            ultima_actualizacion DATETIME DEFAULT (datetime('now')),
+            UNIQUE(producto_id, sucursal_id));
+        INSERT INTO inventario_actual(producto_id,sucursal_id,cantidad) VALUES(1,1,50),(2,1,30);
+        CREATE TABLE movimientos_caja(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT, monto REAL, descripcion TEXT, usuario TEXT,
+            venta_id INTEGER, forma_pago TEXT, caja_id INTEGER DEFAULT 1,
+            reference_id INTEGER, reference_type TEXT, operation_id TEXT,
+            fecha DATETIME DEFAULT (datetime('now')));
+        CREATE TABLE financial_event_log(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT, monto REAL, descripcion TEXT, cuenta_debe TEXT,
+            cuenta_haber TEXT, referencia_id INTEGER, usuario TEXT,
+            sucursal_id INTEGER DEFAULT 1, fecha DATETIME DEFAULT (datetime('now')));
     """)
     yield conn
     conn.close()
@@ -137,7 +155,7 @@ class TestAnalyticsEngine:
         # Nota: bi_repository y bi_service fueron eliminados en v13.4
         # Tests ahora usan analytics_engine directamente
         from core.services.analytics.analytics_engine import AnalyticsEngine
-        return AnalyticsEngine(None)  # type: ignore
+        return AnalyticsEngine(db)
 
     def _ventas(self, db):
         db.executescript("""

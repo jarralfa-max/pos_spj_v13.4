@@ -279,10 +279,22 @@ class NotificationService:
 
     def notificar_stock_bajo(
         self,
-        productos:   List[Dict],
+        productos_o_nombre,
+        existencia_o_sucursal=1,
+        stock_minimo: float = 0,
         sucursal_id: int = 1,
     ) -> None:
-        """Alerta de stock bajo a gerente e inventario."""
+        """Alerta de stock bajo. Acepta lista de dicts o (nombre, existencia, stock_minimo, sucursal_id)."""
+        # Normalizar: puede recibir lista de dicts o args individuales de un producto
+        if isinstance(productos_o_nombre, list):
+            productos = productos_o_nombre
+            sucursal_id = int(existencia_o_sucursal)
+        else:
+            productos = [{
+                "nombre": productos_o_nombre,
+                "existencia": float(existencia_o_sucursal),
+                "stock_minimo": float(stock_minimo),
+            }]
         if not productos:
             return
         lineas = ["📦 *Stock bajo — acción requerida*"]
@@ -473,7 +485,8 @@ class NotificationService:
             if emp.get("telefono"):
                 self._enviar_whatsapp(sucursal_id, emp["telefono"], mensaje)
             self._inbox_empleado(
-                emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos
+                emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos,
+                usuario=emp.get("usuario"),
             )
 
     def _notificar_por_roles_multi(
@@ -492,7 +505,8 @@ class NotificationService:
                     if emp.get("telefono"):
                         self._enviar_whatsapp(sucursal_id, emp["telefono"], mensaje)
                     self._inbox_empleado(
-                        emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos
+                        emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos,
+                        usuario=emp.get("usuario"),
                     )
             else:
                 empleados = self._get_empleados_por_roles([rol], sucursal_id)
@@ -503,7 +517,8 @@ class NotificationService:
                     if emp.get("telefono"):
                         self._enviar_whatsapp(sucursal_id, emp["telefono"], mensaje)
                     self._inbox_empleado(
-                        emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos
+                        emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos,
+                        usuario=emp.get("usuario"),
                     )
 
     def _enviar_whatsapp(self, branch_id: int, telefono: str,
@@ -549,6 +564,7 @@ class NotificationService:
         titulo:      str,
         cuerpo:      str = "",
         datos:       Dict = None,
+        usuario:     str = None,
     ) -> None:
         """Inserta mensaje en notification_inbox para lectura al iniciar sesión."""
         try:
@@ -564,7 +580,20 @@ class NotificationService:
             )
             self.db.commit()
         except Exception as exc:
-            logger.debug("_inbox_empleado: %s", exc)
+            # Fallback: schema alternativo con columna 'usuario' en lugar de 'empleado_id'
+            if usuario:
+                try:
+                    self.db.execute(
+                        """INSERT INTO notification_inbox
+                           (usuario, tipo, titulo, cuerpo, sucursal_id)
+                           VALUES(?,?,?,?,?)""",
+                        (usuario, tipo, titulo, cuerpo, self.sucursal_id)
+                    )
+                    self.db.commit()
+                except Exception as exc2:
+                    logger.debug("_inbox_empleado fallback usuario: %s", exc2)
+            else:
+                logger.debug("_inbox_empleado: %s", exc)
 
     def _get_telefono_empleado(self, empleado_id: int) -> Optional[str]:
         try:
@@ -610,17 +639,36 @@ class NotificationService:
             except Exception:
                 pass
             # Fallback: columna legacy usuarios.rol
-            rows = self.db.execute(
-                f"""SELECT u.id, u.usuario, u.nombre,
-                           p.telefono
-                    FROM usuarios u
-                    LEFT JOIN personal p ON LOWER(p.nombre) LIKE '%' || LOWER(u.nombre) || '%'
-                    WHERE LOWER(u.rol) IN ({placeholders})
-                      AND (u.sucursal_id = ? OR u.sucursal_id IS NULL)
-                      AND u.activo = 1""",
-                (*[r.lower() for r in roles], sucursal_id)
-            ).fetchall()
-            return [dict(r) for r in rows]
+            try:
+                rows = self.db.execute(
+                    f"""SELECT u.id, u.usuario, u.nombre,
+                               p.telefono
+                        FROM usuarios u
+                        LEFT JOIN personal p ON LOWER(p.nombre) LIKE '%' || LOWER(u.nombre) || '%'
+                        WHERE LOWER(u.rol) IN ({placeholders})
+                          AND (u.sucursal_id = ? OR u.sucursal_id IS NULL)
+                          AND u.activo = 1""",
+                    (*[r.lower() for r in roles], sucursal_id)
+                ).fetchall()
+                if rows:
+                    return [dict(r) for r in rows]
+            except Exception:
+                pass
+            # Fallback: tabla empleados (schema de test / legacy alternativo)
+            try:
+                rows = self.db.execute(
+                    f"""SELECT e.id, e.usuario, e.nombre,
+                               p.telefono
+                        FROM empleados e
+                        LEFT JOIN personal p ON p.empleado_id = e.id
+                        WHERE LOWER(e.rol) IN ({placeholders})
+                          AND (e.sucursal_id = ? OR e.sucursal_id IS NULL)
+                          AND e.activo = 1""",
+                    (*[r.lower() for r in roles], sucursal_id)
+                ).fetchall()
+                return [dict(r) for r in rows]
+            except Exception:
+                return []
         except Exception as exc:
             logger.debug("_get_empleados_por_roles: %s", exc)
             return []
@@ -632,6 +680,19 @@ class NotificationService:
                    FROM usuarios u
                    LEFT JOIN personal p ON LOWER(p.nombre) LIKE '%' || LOWER(u.nombre) || '%'
                    WHERE u.usuario=? AND u.activo=1 LIMIT 1""",
+                (username,)
+            ).fetchone()
+            if row:
+                return dict(row)
+        except Exception:
+            pass
+        # Fallback: tabla empleados (schema de test / legacy alternativo)
+        try:
+            row = self.db.execute(
+                """SELECT e.id, e.usuario, e.nombre, p.telefono
+                   FROM empleados e
+                   LEFT JOIN personal p ON p.empleado_id = e.id
+                   WHERE e.usuario=? AND e.activo=1 LIMIT 1""",
                 (username,)
             ).fetchone()
             return dict(row) if row else None

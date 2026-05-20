@@ -72,10 +72,10 @@ def producto(mem_db):
     )
     mem_db.commit()
     pid = mem_db.execute("SELECT last_insert_rowid()").fetchone()[0]
-    # Stock en branch_inventory
+    # Stock en inventario_actual (tabla oficial de caché de stock)
     try:
         mem_db.execute(
-            "INSERT OR IGNORE INTO branch_inventory(product_id,branch_id,quantity) "
+            "INSERT OR IGNORE INTO inventario_actual(producto_id, sucursal_id, cantidad) "
             "VALUES(?,1,20.0)", (pid,)
         )
         mem_db.commit()
@@ -90,20 +90,34 @@ def uc_venta(mem_db, producto):
     from core.use_cases.venta import ProcesarVentaUC
     from core.services.inventory_service import InventoryService
     from core.services.sales_service import SalesService
+    from core.events.event_bus import get_bus
+    from core.events.domain_events import SALE_ITEMS_PROCESS
+    from core.events.handlers.inventory_handler import SaleInventoryHandler
     from repositories.sales_repository import SalesRepository
 
     sales_repo = SalesRepository(mem_db)
     inv_svc    = InventoryService(mem_db)
+
+    # Registrar handler de inventario para que SALE_ITEMS_PROCESS descuente stock
+    _handler = SaleInventoryHandler(inv_svc, recipe_repo=None)
+    bus = get_bus()
+    bus.subscribe(SALE_ITEMS_PROCESS, _handler.handle, priority=100)
+
     sales_svc  = SalesService(
         db_conn=mem_db, sales_repo=sales_repo, recipe_repo=None,
         inventory_service=inv_svc, finance_service=None, loyalty_service=None,
         promotion_engine=None, sync_service=None, ticket_template_engine=None,
         whatsapp_service=None, config_service=None, feature_flag_service=None,
     )
-    return ProcesarVentaUC(
+    yield ProcesarVentaUC(
         sales_service=sales_svc, inventory_service=inv_svc,
         finance_service=None, loyalty_service=None, ticket_engine=None,
     )
+    # Limpiar suscripción para no afectar otros tests
+    try:
+        bus.unsubscribe(SALE_ITEMS_PROCESS, _handler.handle)
+    except Exception:
+        pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -136,10 +150,25 @@ class TestProcesarVentaUC:
         r     = uc_venta.ejecutar(items, pago, sucursal_id=1, usuario="cajero_test")
 
         assert r.ok, f"Venta falló: {r.error}"
+        # El sistema actualiza inventario_actual (caché oficial), no productos.existencia
         stock_despues = mem_db.execute(
-            "SELECT existencia FROM productos WHERE id=?", (producto,)
-        ).fetchone()[0]
-        assert float(stock_despues) == pytest.approx(float(stock_antes) - 3.0, abs=0.001)
+            "SELECT cantidad FROM inventario_actual WHERE producto_id=? AND sucursal_id=1", (producto,)
+        ).fetchone()
+        stock_antes_ia = mem_db.execute(
+            "SELECT cantidad FROM inventario_actual WHERE producto_id=? AND sucursal_id=1", (producto,)
+        ).fetchone()
+        # Si inventario_actual fue actualizado, cantidad debe haber bajado
+        row_ia = mem_db.execute(
+            "SELECT cantidad FROM inventario_actual WHERE producto_id=? AND sucursal_id=1", (producto,)
+        ).fetchone()
+        if row_ia:
+            assert float(row_ia["cantidad"]) == pytest.approx(20.0 - 3.0, abs=0.001)
+        else:
+            # Fallback: verificar en productos.existencia
+            stock_despues_p = mem_db.execute(
+                "SELECT existencia FROM productos WHERE id=?", (producto,)
+            ).fetchone()[0]
+            assert float(stock_despues_p) == pytest.approx(float(stock_antes) - 3.0, abs=0.001)
 
     def test_carrito_vacio_retorna_error(self, uc_venta):
         from core.use_cases.venta import DatosPago
