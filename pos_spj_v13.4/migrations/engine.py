@@ -79,6 +79,7 @@ MIGRATIONS = [
     _Migration("078",  "migrations.standalone.078_compras_po_link"),               # Phase 3: vincular compras con PO (nullable FK)
     _Migration("079",  "migrations.standalone.079_proveedores_condicion_pago"),    # Bugfix: normalizar condicion_pago en proveedores
     _Migration("080",  "migrations.standalone.080_caja_turno_id_link"),           # Caja: turno_id FK en cierres_caja + índices de rendimiento
+    _Migration("081",  "migrations.standalone.081_wa_queue_backoff"),             # WA: proxima_revision + índice para backoff exponencial
 ]
 
 def _ensure_tracking_table(conn):
