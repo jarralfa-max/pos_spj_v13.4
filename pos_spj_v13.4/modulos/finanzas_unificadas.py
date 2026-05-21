@@ -550,45 +550,65 @@ class _SeccionResumen(QWidget):
 
     def recargar(self):
         m = self._m
-        # KPI caja
+        # KPI caja — balance_general() returns a nested dict
         try:
             if m._ts and hasattr(m._ts, "balance_general"):
                 bal = m._ts.balance_general()
-                self._kpi_caja.set_value(f"${float(bal):,.2f}", Colors.SUCCESS_BASE)
+                caja_val = float(bal.get("activo", {}).get("caja_bancos", 0) or 0)
+                self._kpi_caja.set_value(f"${caja_val:,.2f}", Colors.SUCCESS_BASE)
+                cxc_val  = float(bal.get("activo", {}).get("cuentas_cobrar", 0) or 0)
+                cxp_val  = float(bal.get("pasivo", {}).get("cuentas_pagar", 0) or 0)
+                self._kpi_cxc.set_value(f"${cxc_val:,.2f}", Colors.WARNING_BASE)
+                self._kpi_cxp.set_value(f"${cxp_val:,.2f}", Colors.DANGER_BASE)
             elif m._dash_svc:
                 data = m._dash_svc.get_quick_kpis()
-                self._kpi_caja.set_value(f"${data.get('saldo_tesoreria',0):,.2f}", Colors.SUCCESS_BASE)
-                self._kpi_cxc.set_value(f"${data.get('cxc_pendiente',0):,.2f}", Colors.WARNING_BASE)
-                self._kpi_cxp.set_value(f"${data.get('cxp_pendiente',0):,.2f}", Colors.DANGER_BASE)
-                self._kpi_flujo.set_value(f"${data.get('flujo_mes',0):,.2f}", Colors.PRIMARY_BASE)
+                self._kpi_caja.set_value(f"${data.get('saldo_tesoreria', 0):,.2f}", Colors.SUCCESS_BASE)
+                self._kpi_cxc.set_value(f"${data.get('cxc_pendiente', 0):,.2f}", Colors.WARNING_BASE)
+                self._kpi_cxp.set_value(f"${data.get('cxp_pendiente', 0):,.2f}", Colors.DANGER_BASE)
+                self._kpi_flujo.set_value(f"${data.get('flujo_mes', 0):,.2f}", Colors.PRIMARY_BASE)
         except Exception as e:
             logger.warning("_SeccionResumen KPI caja: %s", e)
 
-        # CxC y CxP separados si hay servicios específicos
+        # Flujo y capital via kpis_financieros()
         try:
-            if m._ts:
+            if m._ts and hasattr(m._ts, "kpis_financieros"):
                 kpis = m._ts.kpis_financieros()
-                self._kpi_cxc.set_value(f"${float(kpis.get('cxc_pendiente',0) or 0):,.2f}", Colors.WARNING_BASE)
-                self._kpi_cxp.set_value(f"${float(kpis.get('cxp_pendiente',0) or 0):,.2f}", Colors.DANGER_BASE)
+                flujo = float(kpis.get("flujo_mes", 0) or kpis.get("utilidad_mes", 0) or 0)
+                self._kpi_flujo.set_value(f"${flujo:,.2f}", Colors.PRIMARY_BASE)
+                cap = float(kpis.get("capital_invertido", 0) or 0)
+                if cap:
+                    self._kpi_capital.set_value(f"${cap:,.2f}", Colors.ACCENT_BASE)
         except Exception as e:
-            logger.warning("_SeccionResumen KPI CxC/CxP: %s", e)
+            logger.warning("_SeccionResumen KPI flujo: %s", e)
 
-        # Actividad reciente
+        # Actividad reciente — usa journal_entries (mig 083) como fallback confiable
         try:
             rows = []
             if m._tm_svc and hasattr(m._tm_svc, "get_movimientos"):
                 rows = m._tm_svc.get_movimientos(limit=20)
-            elif m._erp and hasattr(m._erp, "get_ledger"):
-                rows = m._erp.get_ledger(sucursal_id=m.sucursal_id)[:20]
+            if not rows and m._je_svc and hasattr(m._je_svc, "get_recientes"):
+                rows = m._je_svc.get_recientes(limit=20)
+            if not rows:
+                # Fallback directo a journal_entries (existe desde mig 083)
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    cur = db.execute(
+                        "SELECT created_at, event_type, source_module, source_folio, "
+                        "amount, user FROM journal_entries "
+                        "ORDER BY created_at DESC LIMIT 20"
+                    )
+                    rows = [dict(zip(
+                        ["fecha", "tipo", "modulo", "concepto", "monto", "usuario"], r
+                    )) for r in cur.fetchall()]
             self._tbl_actividad.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 vals = [
-                    str(r.get("fecha") or r.get("timestamp", ""))[:10],
-                    str(r.get("tipo") or r.get("evento", "")),
-                    str(r.get("concepto") or r.get("descripcion", "")),
-                    str(r.get("modulo") or r.get("modulo_origen", "")),
-                    f"${float(r.get('monto', 0)):,.2f}",
-                    str(r.get("usuario", "")),
+                    str(r.get("fecha") or r.get("created_at", ""))[:10],
+                    str(r.get("tipo") or r.get("event_type", "")),
+                    str(r.get("concepto") or r.get("source_folio") or r.get("descripcion", "")),
+                    str(r.get("modulo") or r.get("source_module") or r.get("modulo_origen", "")),
+                    f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
+                    str(r.get("usuario") or r.get("user", "")),
                 ]
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
