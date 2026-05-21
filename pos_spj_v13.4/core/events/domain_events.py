@@ -98,5 +98,36 @@ __all__ = [
     "FINANCIAL_MOVEMENT_REGISTERED",
     "JOURNAL_ENTRY_REGISTERED",
     "PAYROLL_PAID",
+    # Eventos de trazabilidad financiera end-to-end (migración 083)
+    "PAYMENT_CONFIRMED",
+    "PAYROLL_GENERATED",
+    "WASTE_RECORDED",
+    "LOYALTY_POINTS_EARNED",
+    "LOYALTY_POINTS_REDEEMED",
+    "DELIVERY_PAYMENT_CONFIRMED",
+    "DRIVER_SETTLEMENT_CREATED",
+    "FIXED_ASSET_PURCHASED",
+    "FIXED_ASSET_DEPRECIATED",
+    "MAINTENANCE_REGISTERED",
+    "MAINTENANCE_PAID",
+    "OPERATING_SUPPLY_PURCHASED",
+    "FINANCIAL_TRACE_COMPLETED",
+    "FINANCIAL_TRACE_FAILED",
 ]
+
+# ── Eventos de trazabilidad financiera end-to-end (migración 083) ─────────────
+PAYMENT_CONFIRMED          = "payment_confirmed"         # cobro CxC o pago CxP confirmado
+PAYROLL_GENERATED          = "payroll_generated"         # nómina generada (obligación creada)
+WASTE_RECORDED             = "waste_recorded"            # merma registrada
+LOYALTY_POINTS_EARNED      = "loyalty_points_earned"     # puntos ganados
+LOYALTY_POINTS_REDEEMED    = "loyalty_points_redeemed"   # puntos canjeados
+DELIVERY_PAYMENT_CONFIRMED = "delivery_payment_confirmed" # cobro delivery confirmado
+DRIVER_SETTLEMENT_CREATED  = "driver_settlement_created" # corte de repartidor
+FIXED_ASSET_PURCHASED      = "fixed_asset_purchased"     # activo fijo adquirido
+FIXED_ASSET_DEPRECIATED    = "fixed_asset_depreciated"   # depreciación mensual registrada
+MAINTENANCE_REGISTERED     = "maintenance_registered"    # mantenimiento registrado
+MAINTENANCE_PAID           = "maintenance_paid"          # mantenimiento pagado
+OPERATING_SUPPLY_PURCHASED = "operating_supply_purchased" # insumo operativo comprado
+FINANCIAL_TRACE_COMPLETED  = "financial_trace_completed" # traza financiera completada OK
+FINANCIAL_TRACE_FAILED     = "financial_trace_failed"    # traza financiera falló
 
