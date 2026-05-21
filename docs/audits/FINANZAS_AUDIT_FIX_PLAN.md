@@ -62,12 +62,12 @@
 | FASE 2 | Sacar SQL de UI — crear `FinancialDashboardService` | 🔴 Crítica | ✅ Completa |
 | FASE 3 | Mover validación de proveedor a servicio | 🟡 Alta | ✅ Completa |
 | FASE 4 | Corregir bug `pagar_nomina` con `metodo_pago` | 🔴 Crítica | ✅ Completa |
-| FASE 5 | Crear servicios pequeños sin romper fachada | 🟡 Alta | 🔄 Parcial (AccountsPayable/Receivable) |
+| FASE 5 | Crear servicios pequeños sin romper fachada | 🟡 Alta | ✅ Completa (GL + AP + AR + 34 tests) |
 | FASE 6 | Documentar tablas canónicas | 🟡 Alta | ✅ Completa |
 | FASE 7 | Constantes de eventos financieros | 🟢 Media | ✅ Completa |
-| FASE 8 | Evitar doble asiento / doble CxP / CxC | 🟡 Alta | ✅ Analizado, sin doble asiento activo |
-| FASE 9 | Transacciones atómicas | 🟢 Media | 🔄 Documentado, corrección parcial |
-| FASE 10 | Frontend en español | 🟢 Baja | ✅ Ya correcto |
+| FASE 8 | Evitar doble asiento / doble CxP / CxC | 🟡 Alta | ✅ Analizado + tests documentan rutas |
+| FASE 9 | Transacciones atómicas | 🟢 Media | ✅ Commits internos removidos de sub-servicios |
+| FASE 10 | Frontend en español | 🟢 Baja | ✅ Verificado — todo en español |
 
 ---
 
