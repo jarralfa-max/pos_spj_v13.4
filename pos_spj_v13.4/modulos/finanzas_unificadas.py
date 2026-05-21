@@ -139,6 +139,10 @@ class _FinKpiCard(QFrame):
 
         self._lbl_value = QLabel(value)
         self._lbl_value.setObjectName("kpiValue")
+        self._lbl_value.setStyleSheet(
+            "font-size: 22px; font-weight: 700; letter-spacing: -0.02em;"
+            " background: transparent; border: none;"
+        )
         col.addWidget(self._lbl_value)
         body.addLayout(col, 1)
 
@@ -894,6 +898,33 @@ class _SeccionCapital(QWidget):
         # Tabla de movimientos
         grp_tbl = QGroupBox("Historial de movimientos de capital")
         t_lay = QVBoxLayout(grp_tbl)
+
+        filtros_cap = QHBoxLayout()
+        self._cmb_tipo_cap = QComboBox()
+        self._cmb_tipo_cap.addItems(["Todos", "Inyección", "Retiro"])
+        self._cmb_tipo_cap.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_periodo_cap = QComboBox()
+        self._cmb_periodo_cap.addItems(["Todo", "Hoy", "Esta semana", "Este mes", "Último trimestre"])
+        self._cmb_periodo_cap.currentIndexChanged.connect(self._filtrar)
+
+        self._txt_buscar_cap = QLineEdit()
+        self._txt_buscar_cap.setPlaceholderText("Buscar por socio, concepto o referencia...")
+        self._txt_buscar_cap.textChanged.connect(self._filtrar)
+
+        btn_exp_cap = QPushButton("📤 Exportar")
+        btn_exp_cap.setObjectName("secondaryBtn")
+        btn_exp_cap.setCursor(Qt.PointingHandCursor)
+        btn_exp_cap.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        filtros_cap.addWidget(QLabel("Tipo:"))
+        filtros_cap.addWidget(self._cmb_tipo_cap)
+        filtros_cap.addWidget(QLabel("Período:"))
+        filtros_cap.addWidget(self._cmb_periodo_cap)
+        filtros_cap.addWidget(self._txt_buscar_cap, 1)
+        filtros_cap.addWidget(btn_exp_cap)
+        t_lay.addLayout(filtros_cap)
+
         self._tbl = _FinTable(
             ["Fecha", "Tipo", "Socio/Origen", "Concepto", "Método",
              "Monto", "Referencia", "Estado"])
@@ -902,6 +933,38 @@ class _SeccionCapital(QWidget):
         lay.addWidget(grp_tbl)
 
         lay.addStretch()
+
+    def _filtrar(self):
+        from datetime import date, timedelta
+        tipo_f  = self._cmb_tipo_cap.currentText()
+        periodo = self._cmb_periodo_cap.currentText()
+        txt     = self._txt_buscar_cap.text().lower()
+        hoy     = date.today()
+        fecha_min = None
+        if periodo == "Hoy":
+            fecha_min = hoy.isoformat()
+        elif periodo == "Esta semana":
+            fecha_min = (hoy - timedelta(days=7)).isoformat()
+        elif periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
+        for i in range(self._tbl.rowCount()):
+            tipo_cell = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            socio     = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
+            concepto  = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            ref       = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            fecha     = (self._tbl.item(i, 0) or QTableWidgetItem()).text()[:10]
+            show = True
+            if tipo_f == "Inyección" and "injection" not in tipo_cell and "inyecci" not in tipo_cell:
+                show = False
+            elif tipo_f == "Retiro" and "withdrawal" not in tipo_cell and "retiro" not in tipo_cell:
+                show = False
+            if txt and not any(txt in s for s in (socio, concepto, ref)):
+                show = False
+            if fecha_min and fecha < fecha_min:
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def _abrir_dialog(self, tipo: str):
         dlg = _DialogoCapitalMovimiento(tipo, self)
@@ -1452,13 +1515,25 @@ class _SeccionMovimientos(QWidget):
         self._cmb_tipo.addItems(["Todos", "ingreso", "egreso"])
         self._cmb_tipo.currentIndexChanged.connect(self._filtrar)
 
+        self._cmb_periodo = QComboBox()
+        self._cmb_periodo.addItems(["Todo", "Hoy", "Esta semana", "Este mes", "Último trimestre"])
+        self._cmb_periodo.currentIndexChanged.connect(self._filtrar)
+
         self._txt_buscar = QLineEdit()
         self._txt_buscar.setPlaceholderText("Buscar por concepto o referencia...")
         self._txt_buscar.textChanged.connect(self._filtrar)
 
+        btn_exp_movs = QPushButton("📤 Exportar")
+        btn_exp_movs.setObjectName("secondaryBtn")
+        btn_exp_movs.setCursor(Qt.PointingHandCursor)
+        btn_exp_movs.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
         filtros.addWidget(QLabel("Tipo:"))
         filtros.addWidget(self._cmb_tipo)
+        filtros.addWidget(QLabel("Período:"))
+        filtros.addWidget(self._cmb_periodo)
         filtros.addWidget(self._txt_buscar, 1)
+        filtros.addWidget(btn_exp_movs)
         lay.addLayout(filtros)
 
         self._tbl = _FinTable(
@@ -1468,16 +1543,31 @@ class _SeccionMovimientos(QWidget):
         lay.addStretch()
 
     def _filtrar(self):
-        tipo_fil = self._cmb_tipo.currentText()
-        txt = self._txt_buscar.text().lower()
+        from datetime import date, timedelta
+        tipo_fil  = self._cmb_tipo.currentText()
+        periodo   = self._cmb_periodo.currentText()
+        txt       = self._txt_buscar.text().lower()
+        hoy       = date.today()
+        fecha_min = None
+        if periodo == "Hoy":
+            fecha_min = hoy.isoformat()
+        elif periodo == "Esta semana":
+            fecha_min = (hoy - timedelta(days=7)).isoformat()
+        elif periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
         for i in range(self._tbl.rowCount()):
             tipo  = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
             conc  = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
             ref   = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            fecha = (self._tbl.item(i, 0) or QTableWidgetItem()).text()[:10]
             show  = True
             if tipo_fil != "Todos" and tipo != tipo_fil.lower():
                 show = False
             if txt and txt not in conc and txt not in ref:
+                show = False
+            if fecha_min and fecha < fecha_min:
                 show = False
             self._tbl.setRowHidden(i, not show)
 
@@ -1587,11 +1677,68 @@ class _SeccionAsientosContables(QWidget):
         nota.setObjectName("caption")
         lay.addWidget(nota)
 
+        # Filtros
+        filtros_ac = QHBoxLayout()
+        self._txt_buscar_ac = QLineEdit()
+        self._txt_buscar_ac.setPlaceholderText("Buscar por evento, cuenta o referencia...")
+        self._txt_buscar_ac.textChanged.connect(self._filtrar)
+
+        self._cmb_periodo_ac = QComboBox()
+        self._cmb_periodo_ac.addItems(["Todo", "Hoy", "Esta semana", "Este mes", "Último trimestre"])
+        self._cmb_periodo_ac.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_estado_ac = QComboBox()
+        self._cmb_estado_ac.addItems(["Todos", "Confirmado", "Borrador", "Reversado"])
+        self._cmb_estado_ac.currentIndexChanged.connect(self._filtrar)
+
+        filtros_ac.addWidget(QLabel("Período:"))
+        filtros_ac.addWidget(self._cmb_periodo_ac)
+        filtros_ac.addWidget(QLabel("Estado:"))
+        filtros_ac.addWidget(self._cmb_estado_ac)
+        filtros_ac.addWidget(self._txt_buscar_ac, 1)
+        lay.addLayout(filtros_ac)
+
         self._tbl = _FinTable(
             ["Fecha", "Evento", "Módulo", "Cuenta debe", "Cuenta haber", "Monto", "Referencia", "Usuario"])
         self._tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         lay.addWidget(self._tbl)
         lay.addStretch()
+
+    def _filtrar(self):
+        from datetime import date, timedelta
+        txt      = self._txt_buscar_ac.text().lower()
+        periodo  = self._cmb_periodo_ac.currentText()
+        estado   = self._cmb_estado_ac.currentText()
+        hoy      = date.today()
+        fecha_min = None
+        if periodo == "Hoy":
+            fecha_min = hoy.isoformat()
+        elif periodo == "Esta semana":
+            fecha_min = (hoy - timedelta(days=7)).isoformat()
+        elif periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
+        for i in range(self._tbl.rowCount()):
+            evento = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            mod    = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
+            cd     = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            ch     = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            ref    = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            usr    = (self._tbl.item(i, 7) or QTableWidgetItem()).text().lower()
+            fecha  = (self._tbl.item(i, 0) or QTableWidgetItem()).text()[:10]
+            show   = True
+            if txt and not any(txt in s for s in (evento, mod, cd, ch, ref, usr)):
+                show = False
+            if fecha_min and fecha < fecha_min:
+                show = False
+            if estado == "Confirmado" and any(k in evento for k in ("reversal", "reversado", "borrador", "draft")):
+                show = False
+            elif estado == "Borrador" and not any(k in evento for k in ("borrador", "draft")):
+                show = False
+            elif estado == "Reversado" and not any(k in evento for k in ("reversal", "reversado", "anulado")):
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def _dialogo_nuevo_asiento(self):
         m = self._m
@@ -1748,12 +1895,66 @@ class _SeccionNomina(QWidget):
         # Tabla de nómina
         grp_tbl = QGroupBox("Historial de nómina")
         t_lay = QVBoxLayout(grp_tbl)
+
+        filtros_nom = QHBoxLayout()
+        self._cmb_estado_nom = QComboBox()
+        self._cmb_estado_nom.addItems(["Todos", "Pagada", "Pendiente", "Procesando"])
+        self._cmb_estado_nom.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_periodo_nom = QComboBox()
+        self._cmb_periodo_nom.addItems(["Todo", "Este mes", "Último trimestre", "Este año"])
+        self._cmb_periodo_nom.currentIndexChanged.connect(self._filtrar)
+
+        self._txt_buscar_nom = QLineEdit()
+        self._txt_buscar_nom.setPlaceholderText("Buscar por empleado o período...")
+        self._txt_buscar_nom.textChanged.connect(self._filtrar)
+
+        btn_exp_nom = QPushButton("📤 Exportar")
+        btn_exp_nom.setObjectName("secondaryBtn")
+        btn_exp_nom.setCursor(Qt.PointingHandCursor)
+        btn_exp_nom.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        filtros_nom.addWidget(QLabel("Estado:"))
+        filtros_nom.addWidget(self._cmb_estado_nom)
+        filtros_nom.addWidget(QLabel("Período:"))
+        filtros_nom.addWidget(self._cmb_periodo_nom)
+        filtros_nom.addWidget(self._txt_buscar_nom, 1)
+        filtros_nom.addWidget(btn_exp_nom)
+        t_lay.addLayout(filtros_nom)
+
         self._tbl = _FinTable(
             ["Período", "Empleado", "Neto", "Método", "Estado", "Fecha pago"])
         self._tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         t_lay.addWidget(self._tbl)
         lay.addWidget(grp_tbl)
         lay.addStretch()
+
+    def _filtrar(self):
+        from datetime import date, timedelta
+        txt     = self._txt_buscar_nom.text().lower()
+        estado  = self._cmb_estado_nom.currentText()
+        periodo = self._cmb_periodo_nom.currentText()
+        hoy     = date.today()
+        fecha_min = None
+        if periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
+        elif periodo == "Este año":
+            fecha_min = hoy.replace(month=1, day=1).isoformat()
+        for i in range(self._tbl.rowCount()):
+            emp      = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            per_cell = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
+            est_cell = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            fecha    = (self._tbl.item(i, 5) or QTableWidgetItem()).text()[:10]
+            show = True
+            if txt and txt not in emp and txt not in per_cell:
+                show = False
+            if estado != "Todos" and estado.lower() not in est_cell:
+                show = False
+            if fecha_min and fecha and fecha < fecha_min:
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def _registrar_gasto(self):
         m = self._m
@@ -2111,14 +2312,8 @@ class _SeccionReportes(QWidget):
             c_lay.addWidget(lbl)
 
             btns_row = QHBoxLayout()
-            btn_ver  = QPushButton("Ver")
-            btn_ver.setObjectName("primaryBtn")
-            btn_ver.setCursor(Qt.PointingHandCursor)
-            btn_ver.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-            btn_exp  = QPushButton("Exportar")
-            btn_exp.setObjectName("secondaryBtn")
-            btn_exp.setCursor(Qt.PointingHandCursor)
-            btn_exp.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            btn_ver = _compact_btn("Ver", "primary")
+            btn_exp = _compact_btn("Exportar", "secondary")
             btns_row.addWidget(btn_ver); btns_row.addWidget(btn_exp); btns_row.addStretch()
             c_lay.addLayout(btns_row)
 
@@ -2200,6 +2395,7 @@ class ModuloFinanzasUnificadas(QWidget):
 
     def __init__(self, container, parent=None):
         super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.container     = container
         self.sucursal_id   = 1
         self.usuario_actual = ""
