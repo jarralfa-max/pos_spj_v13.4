@@ -1,9 +1,15 @@
 # core/events/handlers/finance_handler.py — SPJ ERP v13.4  Phase 1 + Phase 6
 """
 SaleFinanceHandler      — registers cash income when SALE_ITEMS_PROCESS fires (sync, inside SAVEPOINT).
-SaleCreatedFinanceHandler — registers income journal entry when SALE_CREATED fires (post-transaction).
+CreditSaleFinanceHandler — creates CxC + GL entry for credit sales (sync, inside SAVEPOINT, p=85).
+SaleCancelledFinanceHandler — reverses CxC/income when VENTA_CANCELADA fires (post-commit).
 
 Phase 6: finance reacts to events only; direct finance mutations replaced by handlers.
+
+NOTE: SaleCreatedFinanceHandler was removed (2026-05-21 audit).
+It was dead code — never subscribed in wiring.py — and would have caused double GL entries
+if activated alongside SaleFinanceHandler (p=90). Removed per CLAUDE.md rule: eliminate
+dead code detected in audit. See: docs/audits/FINANZAS_AUDIT_FIX_PLAN.md A-04.
 """
 from __future__ import annotations
 
@@ -49,43 +55,6 @@ class SaleFinanceHandler:
         except Exception as exc:
             logger.error("SaleFinanceHandler.handle: %s", exc)
             raise  # re-raise so wiring can log the failure
-
-
-class SaleCreatedFinanceHandler:
-    """
-    Subscribes to SALE_CREATED (= VENTA_COMPLETADA) post-transaction.
-    Records the income journal entry via FinanceService.registrar_ingreso().
-
-    Runs after the sale SAVEPOINT is committed, so it is not atomic with the
-    sale row — this is intentional (post-commit downstream finance recording).
-    Priority=50 in wiring (same slot as legacy venta_ledger inline lambda).
-
-    Credit sales and zero-total sales are skipped.
-    """
-
-    def __init__(self, finance_service):
-        self._finance = finance_service
-
-    def handle(self, payload: Dict[str, Any]) -> None:
-        total = float(payload.get("total", 0))
-        if total <= 0:
-            return
-        if not hasattr(self._finance, "registrar_ingreso"):
-            return
-        try:
-            self._finance.registrar_ingreso(
-                concepto     = f"Venta #{payload.get('folio', payload.get('venta_id', ''))}",
-                monto        = total,
-                referencia_id= payload.get("venta_id"),
-                usuario_id   = payload.get("usuario_id"),
-                sucursal_id  = int(payload.get("sucursal_id", 1)),
-                metadata     = {
-                    "folio":      payload.get("folio"),
-                    "cliente_id": payload.get("cliente_id"),
-                },
-            )
-        except Exception as exc:
-            logger.warning("SaleCreatedFinanceHandler: %s", exc)
 
 
 class CreditSaleFinanceHandler:
@@ -205,11 +174,13 @@ class SaleCancelledFinanceHandler:
                     (sale_id, sucursal_id),
                 )
                 if cliente_id:
+                    # Both columns must stay in lockstep (credit_balance=service layer, saldo=legacy UI)
                     self._db.execute(
                         "UPDATE clientes "
-                        "SET credit_balance = MAX(0, COALESCE(credit_balance,0) - ?) "
+                        "SET credit_balance = MAX(0, COALESCE(credit_balance,0) - ?), "
+                        "    saldo          = MAX(0, COALESCE(saldo,0) - ?) "
                         "WHERE id = ?",
-                        (total, cliente_id),
+                        (total, total, cliente_id),
                     )
                 try:
                     self._db.commit()

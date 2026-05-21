@@ -45,82 +45,10 @@ class TreasuryService:
         return True
 
     def _ensure_tables(self):
-        try:
-            self.db.executescript("""
-                CREATE TABLE IF NOT EXISTS treasury_capital (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    fecha TEXT DEFAULT (datetime('now')),
-                    tipo TEXT NOT NULL,
-                    monto REAL NOT NULL,
-                    descripcion TEXT DEFAULT '',
-                    usuario TEXT DEFAULT '',
-                    sucursal_id INTEGER DEFAULT 0
-                );
-                CREATE TABLE IF NOT EXISTS treasury_ledger (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    fecha TEXT DEFAULT (datetime('now')),
-                    tipo TEXT NOT NULL,
-                    categoria TEXT NOT NULL,
-                    concepto TEXT DEFAULT '',
-                    ingreso REAL DEFAULT 0,
-                    egreso REAL DEFAULT 0,
-                    sucursal_id INTEGER DEFAULT 1,
-                    referencia TEXT DEFAULT '',
-                    usuario TEXT DEFAULT ''
-                );
-                CREATE INDEX IF NOT EXISTS idx_tl_fecha ON treasury_ledger(fecha);
-                CREATE INDEX IF NOT EXISTS idx_tl_cat ON treasury_ledger(categoria);
-                CREATE TABLE IF NOT EXISTS treasury_gastos_fijos (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    categoria TEXT NOT NULL,
-                    nombre TEXT NOT NULL,
-                    monto_mensual REAL NOT NULL,
-                    dia_pago INTEGER DEFAULT 1,
-                    sucursal_id INTEGER DEFAULT 0,
-                    activo INTEGER DEFAULT 1
-                );
-                CREATE TABLE IF NOT EXISTS gastos_futuros (
-                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id INTEGER DEFAULT 1,
-                    concepto   TEXT NOT NULL,
-                    categoria  TEXT,
-                    monto      REAL NOT NULL,
-                    fecha_prog DATE NOT NULL,
-                    estado     TEXT DEFAULT 'pendiente',
-                    notas      TEXT,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-                CREATE INDEX IF NOT EXISTS idx_gf_estado ON gastos_futuros(estado);
-                CREATE INDEX IF NOT EXISTS idx_gf_fecha ON gastos_futuros(fecha_prog);
-                CREATE TABLE IF NOT EXISTS pagos_cobros (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    folio TEXT UNIQUE,
-                    tipo_operacion TEXT NOT NULL,
-                    tercero_id INTEGER,
-                    tercero_tipo TEXT NOT NULL,
-                    monto_total REAL NOT NULL,
-                    forma_pago TEXT DEFAULT 'efectivo',
-                    cuenta_origen TEXT DEFAULT '',
-                    fecha TEXT DEFAULT (datetime('now')),
-                    usuario_id TEXT DEFAULT '',
-                    estado TEXT DEFAULT 'aplicado',
-                    referencia TEXT DEFAULT '',
-                    created_at TEXT DEFAULT (datetime('now')),
-                    updated_at TEXT DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS pagos_cobros_aplicaciones (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    pago_cobro_id INTEGER NOT NULL,
-                    documento_id INTEGER NOT NULL,
-                    tipo_documento TEXT NOT NULL,
-                    monto_aplicado REAL NOT NULL,
-                    saldo_anterior_documento REAL NOT NULL,
-                    saldo_posterior_documento REAL NOT NULL,
-                    created_at TEXT DEFAULT (datetime('now'))
-                );
-            """)
-        except Exception as e:
-            logger.debug("_ensure_tables: %s", e)
+        # Tables are now created by migration 082_treasury_tables.py.
+        # This method is kept as a no-op for backwards compatibility with any
+        # callers that invoke it directly; it will be removed in a future cleanup.
+        pass
 
     # ══════════════════════════════════════════════════════════════════════════
     #  Capital — inyecciones y retiros
@@ -865,15 +793,18 @@ class TreasuryService:
         Balance general simplificado al cierre del periodo.
         Activo = Pasivo + Capital  (ecuación contable fundamental).
         """
-        fc = fecha_corte or ""
-        dt_filter = f"AND DATE(fecha) <= '{fc}'" if fc else ""
+        fc = (fecha_corte or "").strip()
+        # Parametrized date filters — NEVER interpolate user input into SQL
+        tl_in_sql  = "WHERE tipo='ingreso'" + (" AND DATE(fecha) <= ?" if fc else "")
+        tl_eg_sql  = "WHERE tipo='egreso'"  + (" AND DATE(fecha) <= ?" if fc else "")
+        cap_inj_sql = "WHERE tipo='inyeccion'" + (" AND DATE(fecha) <= ?" if fc else "")
+        cap_ret_sql = "WHERE tipo='retiro'"    + (" AND DATE(fecha) <= ?" if fc else "")
+        dp = [fc] if fc else []
 
         # ── ACTIVO ────────────────────────────────────────────────────────────
         caja = max(0.0,
-            self._q(f"SELECT COALESCE(SUM(ingreso),0) FROM treasury_ledger"
-                    f" WHERE tipo='ingreso' {dt_filter}")
-            - self._q(f"SELECT COALESCE(SUM(egreso),0) FROM treasury_ledger"
-                      f" WHERE tipo='egreso' {dt_filter}")
+            self._q(f"SELECT COALESCE(SUM(ingreso),0) FROM treasury_ledger {tl_in_sql}", dp)
+            - self._q(f"SELECT COALESCE(SUM(egreso),0) FROM treasury_ledger {tl_eg_sql}", dp)
         )
         cxc = self._q(
             "SELECT COALESCE(SUM(balance),0) FROM accounts_receivable "
@@ -900,11 +831,9 @@ class TreasuryService:
 
         # ── CAPITAL ───────────────────────────────────────────────────────────
         aportaciones = self._q(
-            "SELECT COALESCE(SUM(monto),0) FROM treasury_capital "
-            f"WHERE tipo='inyeccion' {dt_filter}")
+            f"SELECT COALESCE(SUM(monto),0) FROM treasury_capital {cap_inj_sql}", dp)
         retiros = abs(self._q(
-            "SELECT COALESCE(SUM(monto),0) FROM treasury_capital "
-            f"WHERE tipo='retiro' {dt_filter}"))
+            f"SELECT COALESCE(SUM(monto),0) FROM treasury_capital {cap_ret_sql}", dp))
         utilidad = total_activo - total_pasivo - (aportaciones - retiros)
         total_capital = aportaciones - retiros + utilidad
 

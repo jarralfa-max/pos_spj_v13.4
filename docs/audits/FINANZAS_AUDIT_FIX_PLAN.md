@@ -119,7 +119,18 @@ Ver `docs/architecture/FINANCE_CANONICAL_TABLES.md` para detalles completos.
 
 ---
 
-## 7. NOTAS DE ATOMICIDAD
+## 7. HALLAZGOS ADICIONALES — SEGUNDA AUDITORÍA (2026-05-21)
+
+| ID | Hallazgo | Archivo | Estado |
+|----|----------|---------|--------|
+| R-01 | Inyección SQL en `balance_general()` — f-string con `fecha_corte` | `treasury_service.py` | ✅ Corregido — queries parametrizadas |
+| R-02 | `SaleCancelledFinanceHandler` actualizaba `credit_balance` pero no `saldo` | `finance_handler.py` | ✅ Corregido — ambas columnas sincronizadas |
+| R-03 | `SaleCreatedFinanceHandler` — código muerto que causaría doble asiento | `finance_handler.py` | ✅ Eliminado |
+| R-04 | `registrar_asiento_manual` usaba `cuenta_debe=`/`descripcion=` (parámetros incorrectos) | `core/use_cases/finanzas.py` | ✅ Corregido → `debe=`/`concepto=` |
+| R-05 | `_ensure_tables()` creaba 6 tablas en runtime | `treasury_service.py` | ✅ Movido a migración 082 |
+| R-06 | `core/events/handlers/__init__.py` exportaba handler eliminado | `__init__.py` | ✅ Corregido |
+
+## 8. NOTAS DE ATOMICIDAD
 
 - `pagar_nomina` hace `self.db.commit()` al final — no dentro de SAVEPOINT. Si hay transacción abierta del caller, este commit puede romper atomicidad. **Riesgo documentado; corrección futura en FASE 9.**
 - `SaleCancelledFinanceHandler` (post-commit) llama `self._db.commit()` interno para el UPDATE de `cuentas_por_cobrar`. Esto es aceptable porque es post-transacción de venta.

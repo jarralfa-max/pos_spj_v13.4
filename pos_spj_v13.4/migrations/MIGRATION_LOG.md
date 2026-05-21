@@ -256,3 +256,47 @@ métodos públicos como wrappers de compatibilidad hacia atrás (facade pattern)
 - `tests/test_finance_sub_services.py` — 34 tests (GL, AP, AR, delegación de fachada, FASE 8)
 
 **Riesgo**: Bajo. Wrappers legacy preservados. Sin cambio de schema. Sin cambio de UI visible.
+
+---
+
+## Segunda auditoría Finanzas — hallazgos R-01 a R-06 (2026-05-21)
+
+**Rama**: `claude/fix-finance-audit-AVOoY`
+
+**Correcciones**:
+
+- **R-01 — SQL injection en `TreasuryService.balance_general()`**
+  `dt_filter = f"AND DATE(fecha) <= '{fc}'"` reemplazado por queries parametrizadas:
+  condición condicional construida sobre columnas SQL fijas (`WHERE tipo='ingreso' AND DATE(fecha) <= ?`)
+  con `dp = [fc] if fc else []`. Nunca se interpola input del usuario.
+
+- **R-02 — Desync credit_balance/saldo en cancelaciones de crédito**
+  `SaleCancelledFinanceHandler` actualizaba `credit_balance` pero olvidaba actualizar `saldo`.
+  Ahora actualiza ambas columnas (`credit_balance` y `saldo`) en el mismo UPDATE, manteniendo
+  la invariante de sincronización definida en `CreditSaleFinanceHandler`.
+
+- **R-03 — Dead code `SaleCreatedFinanceHandler` eliminado**
+  Clase nunca suscrita en `wiring.py`. Si se hubiese activado habría causado doble asiento
+  de ingresos junto a `SaleFinanceHandler` (priority=90). Removida per CLAUDE.md: eliminar
+  código muerto detectado en auditoría. Referencia: A-04 en FINANZAS_AUDIT_FIX_PLAN.md.
+
+- **R-04 — Parámetros incorrectos en `GestionarFinanzasUC.registrar_asiento_manual()`**
+  Llamada a `finance_service.registrar_asiento()` usaba `cuenta_debe=`, `cuenta_haber=`, `descripcion=`
+  (API legacy que ya no existe). Corregido a `debe=`, `haber=`, `concepto=`.
+
+- **R-05 — A-02: `TreasuryService._ensure_tables()` movida a migración**
+  Las 6 tablas (treasury_capital, treasury_ledger, treasury_gastos_fijos, gastos_futuros,
+  pagos_cobros, pagos_cobros_aplicaciones) ahora se crean via `migrations/standalone/082_treasury_tables.py`.
+  `_ensure_tables()` es ahora un no-op por compatibilidad con callers legacy.
+
+- **R-06 — `core/events/handlers/__init__.py` actualizados**
+  Removida exportación de `SaleCreatedFinanceHandler` que causaba ImportError al importar el módulo.
+
+**Nuevos tests** (23 tests en `tests/test_finance_remaining_fixes.py`):
+- TestBalanceGeneralSQLInjection (5 tests) — verifica query parametrizada y rechazo de injection
+- TestSaleCancelledHandlerSaldoSync (5 tests) — verifica sincronía credit_balance/saldo
+- TestSaleCreatedHandlerRemoved (3 tests) — verifica eliminación de código muerto
+- TestFinanzasUCParametros (3 tests) — verifica parámetros correctos en llamadas a registrar_asiento
+- TestMigracion082TreasuryTables (7 tests) — verifica creación e idempotencia de tablas
+
+**Total suite finanzas**: 117 tests pasando.
