@@ -161,17 +161,19 @@ Eventos principales emitidos por `WAEventEmitter`:
 | R9 | Prioridad `≤ 2` para crítico (invertida vs spec) | ✅ Corregido a `≥ 80` |
 | R10 | Métodos huérfanos (webhook) sin widgets | ✅ Tab Webhook agregado con widgets |
 
-### 🟡 TODOs pendientes (FASE 6)
+### ✅ TODOs resueltos
 
-| # | Módulo | Descripción |
-|---|--------|-------------|
-| T1 | `ERPBridge.crear_cotizacion_wa()` | No hay use case REST. Fallback SQLite documentado. |
-| T2 | `ERPBridge.registrar_anticipo()` | No hay use case REST. Fallback SQLite documentado. |
-| T3 | `ERPBridge.confirmar_pago_anticipo()` | No hay use case REST. Fallback SQLite documentado. |
-| T4 | `ERPBridge.generar_orden_compra()` | No hay use case REST. Fallback SQLite documentado. |
-| T5 | `ERPBridge.crear_cotizacion_wa()` convertir a venta | No hay use case REST. |
-| T6 | ERP API Gateway | Implementar `/api/v1/pedidos`, `/api/v1/cotizaciones`, `/api/v1/anticipos` |
-| T7 | Cola de mensajes con retries | Pendiente (Fase 6 — messaging queue) |
+| # | Módulo | Estado |
+|---|--------|--------|
+| T1 | `ERPBridge.crear_cotizacion_wa()` | ✅ REST-first via `POST /api/v1/cotizaciones` + SQLite fallback |
+| T2 | `ERPBridge.registrar_anticipo()` | ✅ REST-first via `POST /api/v1/anticipos` + SQLite fallback |
+| T3 | `ERPBridge.confirmar_pago_anticipo()` | ✅ REST-first via `PATCH /api/v1/anticipos/{id}/confirmar` + SQLite fallback |
+| T6 | ERP API Gateway | ✅ `/api/v1/cotizaciones`, `/api/v1/anticipos`, `/api/v1/ordenes-compra` implementados |
+| T7 | Cola de mensajes con retries | ✅ Backoff exponencial `60 * 2^n` (máx 960s), dead-letter, migración 081 |
+
+### ✅ Sin TODOs pendientes
+
+Todos los métodos del `ERPBridge` tienen REST-first con fallback SQLite documentado.
 
 ---
 
@@ -184,6 +186,14 @@ En producción debe configurarse `ERP_API_URL + ERP_API_KEY` y los endpoints
 REST del ERP deben existir para que las escrituras vayan por use cases.
 
 Código marcado con `# TODO(FASE6): Fallback SQLite directo — modo desarrollo.`
+
+### Cola de mensajes (migración 081)
+
+`whatsapp_queue` tiene columna `proxima_revision` (TEXT ISO‑8601).
+Backoff exponencial: `min(60 * 2^intentos, 960)` segundos.
+Máx 5 reintentos → estado `fallido` (dead-letter).
+Worker usa `seconds_until_next()` para sleep dinámico (0–300 s).
+Índice: `idx_wa_queue_revision ON whatsapp_queue(estado, proxima_revision)`.
 
 ---
 

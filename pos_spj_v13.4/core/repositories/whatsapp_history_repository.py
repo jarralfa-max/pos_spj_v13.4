@@ -2,7 +2,7 @@
 """Historial unificado de mensajes WhatsApp. Abstrae múltiples tablas legacy."""
 from __future__ import annotations
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 logger = logging.getLogger("spj.repo.wa_history")
 
@@ -91,7 +91,3 @@ class WhatsAppHistoryRepository:
             ).fetchall()
         return [{"fecha": r[0], "numero": r[1], "direccion": r[2],
                  "mensaje": r[3], "estado": r[4]} for r in rows]
-
-
-# Typing fix for Optional used inside class methods
-from typing import Optional

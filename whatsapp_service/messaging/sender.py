@@ -10,8 +10,15 @@ import logging
 import re
 from typing import List, Dict, Optional, Tuple
 
-from config.settings import (WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID, ERP_DB_PATH,
-                             get_wa_api_url)
+try:
+    from config.settings import (WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID, ERP_DB_PATH,
+                                 get_wa_api_url)
+except (ImportError, AttributeError):
+    WA_ACCESS_TOKEN = None
+    WA_PHONE_NUMBER_ID = None
+    ERP_DB_PATH = None
+    def get_wa_api_url(phone_number_id=None):  # type: ignore[misc]
+        raise ValueError("config.settings not available")
 from models.message import OutgoingMessage
 
 logger = logging.getLogger("wa.sender")
