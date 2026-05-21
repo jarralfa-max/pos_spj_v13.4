@@ -1171,13 +1171,14 @@ class FinanceService:
         NO hace commit — el caller es responsable.
         """
         # DEPRECATED: usar GeneralLedgerService.registrar_asiento()
-        if self._gl:
-            return self._gl.registrar_asiento(
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.registrar_asiento(
                 debe=debe, haber=haber, concepto=concepto, monto=monto,
                 modulo=modulo, referencia_id=referencia_id, usuario_id=usuario_id,
                 sucursal_id=sucursal_id, evento=evento, metadata=metadata,
             )
-        # Fallback si GeneralLedgerService no está disponible
+        # Fallback si GeneralLedgerService no está disponible (o __init__ bypass)
         import json as _json
         try:
             cur = self.db.execute(
@@ -1206,8 +1207,9 @@ class FinanceService:
         DEPRECATED: usar GeneralLedgerService.obtener_ledger()
         """
         # DEPRECATED: usar GeneralLedgerService.obtener_ledger()
-        if self._gl:
-            return self._gl.obtener_ledger(cuenta, fecha_desde, fecha_hasta)
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.obtener_ledger(cuenta, fecha_desde, fecha_hasta)
         params: list = [cuenta, cuenta]
         where = "(cuenta_debe=? OR cuenta_haber=?)"
         if fecha_desde:
@@ -1231,8 +1233,9 @@ class FinanceService:
         eventos: Optional[List[str]] = None,
     ) -> Dict:
         """Fachada legacy. DEPRECATED: usar GeneralLedgerService.generar_poliza_periodo()"""
-        if self._gl:
-            return self._gl.generar_poliza_periodo(
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.generar_poliza_periodo(
                 fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
                 sucursal_id=sucursal_id, cuentas=cuentas, eventos=eventos,
             )
@@ -1252,8 +1255,9 @@ class FinanceService:
         formato: str = "json",
     ) -> str:
         """Fachada legacy. DEPRECATED: usar GeneralLedgerService.exportar_poliza_periodo()"""
-        if self._gl:
-            return self._gl.exportar_poliza_periodo(
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.exportar_poliza_periodo(
                 fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
                 sucursal_id=sucursal_id, cuentas=cuentas,
                 eventos=eventos, formato=formato,

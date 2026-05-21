@@ -81,6 +81,7 @@ MIGRATIONS = [
     _Migration("080",  "migrations.standalone.080_caja_turno_id_link"),           # Caja: turno_id FK en cierres_caja + índices de rendimiento
     _Migration("081",  "migrations.standalone.081_wa_queue_backoff"),             # WA: proxima_revision + índice para backoff exponencial
     _Migration("082",  "migrations.standalone.082_treasury_tables"),              # Tesorería: formalizar tablas de TreasuryService._ensure_tables()
+    _Migration("083",  "migrations.standalone.083_financial_traceability_tables"), # Trazabilidad financiera end-to-end: 9 tablas canónicas
 ]
 
 def _ensure_tracking_table(conn):
