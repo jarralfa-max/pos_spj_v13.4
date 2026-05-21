@@ -706,10 +706,34 @@ class _SeccionCajayConciliacion(QWidget):
         m = self._m
         try:
             rows = []
+            # Intentar servicios primero
             if m._recon_svc and hasattr(m._recon_svc, "get_conciliaciones"):
                 rows = m._recon_svc.get_conciliaciones(limit=100)
-            elif m._erp and hasattr(m._erp, "get_conciliaciones"):
-                rows = m._erp.get_conciliaciones(sucursal_id=m.sucursal_id)
+            # Fallback directo a cierres_caja (existe desde m000)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT fecha_cierre, sucursal_id, usuario, turno, "
+                            "total_ventas, total_efectivo "
+                            "FROM cierres_caja "
+                            "ORDER BY fecha_cierre DESC LIMIT 100"
+                        )
+                        rows = [
+                            {
+                                "fecha":           r[0],
+                                "caja":            str(r[1]),
+                                "cajero":          str(r[2] or ""),
+                                "saldo_real":      float(r[5] or 0),
+                                "saldo_sistema":   float(r[4] or 0),
+                                "diferencia":      round(float(r[5] or 0) - float(r[4] or 0), 2),
+                                "estado":          "conciliado",
+                            }
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        rows = []
 
             cortes_ok = 0
             difs = 0
@@ -733,10 +757,8 @@ class _SeccionCajayConciliacion(QWidget):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     self._tbl.setItem(ri, ci, it)
-                # Badge en columna estado
                 badge = _FinStatusBadge(r.get("estado", ""))
                 self._tbl.setCellWidget(ri, 6, badge)
-                # Botón ver
                 btn_ver = _compact_btn("Ver", "outline")
                 self._tbl.setCellWidget(ri, 7, btn_ver)
 
@@ -1465,36 +1487,61 @@ class _SeccionMovimientos(QWidget):
             rows = []
             if m._tm_svc and hasattr(m._tm_svc, "get_movimientos"):
                 rows = m._tm_svc.get_movimientos(sucursal_id=m.sucursal_id, limit=200)
-            elif m._erp and hasattr(m._erp, "get_ledger"):
-                rows = m._erp.get_ledger(sucursal_id=m.sucursal_id)[:200]
-            elif m._ts and hasattr(m._ts, "kpis_financieros"):
-                # fallback: sin movimientos detallados disponibles
-                rows = []
+            # Fallback directo a treasury_ledger (existe desde mig 082)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT fecha, tipo, categoria, concepto, referencia, "
+                            "ingreso, egreso, usuario "
+                            "FROM treasury_ledger "
+                            "ORDER BY fecha DESC LIMIT 200"
+                        )
+                        rows = [
+                            {
+                                "fecha":     r[0],
+                                "tipo":      r[1],
+                                "categoria": r[2],
+                                "concepto":  r[3],
+                                "referencia":r[4],
+                                "ingreso":   float(r[5] or 0),
+                                "egreso":    float(r[6] or 0),
+                                "usuario":   r[7],
+                            }
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        rows = []
 
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
-                tipo = str(r.get("tipo") or r.get("evento", ""))
-                monto_val = float(r.get("monto", 0) or 0)
-                entrada = f"${monto_val:,.2f}" if "ingreso" in tipo.lower() or "entrada" in tipo.lower() else ""
-                salida  = f"${monto_val:,.2f}" if "egreso" in tipo.lower() or "salida" in tipo.lower() else ""
-                if not entrada and not salida:
-                    entrada = f"${monto_val:,.2f}"
+                ingreso = float(r.get("ingreso", 0) or 0)
+                egreso  = float(r.get("egreso",  0) or 0)
+                # Compatibilidad con formato "monto" de otros servicios
+                if ingreso == 0 and egreso == 0:
+                    monto_val = float(r.get("monto", 0) or 0)
+                    tipo = str(r.get("tipo") or r.get("evento", ""))
+                    ingreso = monto_val if "ingreso" in tipo.lower() or "entrada" in tipo.lower() else 0
+                    egreso  = monto_val if "egreso"  in tipo.lower() or "salida"  in tipo.lower() else 0
+                    if not ingreso and not egreso:
+                        ingreso = monto_val
 
                 vals = [
                     str(r.get("fecha") or r.get("timestamp", ""))[:10],
-                    tipo,
+                    str(r.get("tipo") or r.get("evento", "")),
                     str(r.get("categoria") or r.get("modulo_origen", "")),
                     str(r.get("concepto") or r.get("descripcion", "")),
                     str(r.get("referencia") or r.get("ref", "")),
-                    entrada,
-                    salida,
+                    f"${ingreso:,.2f}" if ingreso else "",
+                    f"${egreso:,.2f}"  if egreso  else "",
                     f"${float(r.get('saldo', 0) or 0):,.2f}",
-                    str(r.get("usuario", "")),
+                    str(r.get("usuario") or r.get("user", "")),
                 ]
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    if ci in (5, 6) and v:
+                    if ci in (5, 6, 7) and v:
                         it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     self._tbl.setItem(ri, ci, it)
         except Exception as e:
@@ -1597,24 +1644,50 @@ class _SeccionAsientosContables(QWidget):
             rows = []
             if m._je_svc and hasattr(m._je_svc, "get_asientos"):
                 rows = m._je_svc.get_asientos(sucursal_id=m.sucursal_id, limit=200)
-            elif m._erp and hasattr(m._erp, "get_ledger"):
-                rows = m._erp.get_ledger(sucursal_id=m.sucursal_id)[:200]
+            # Fallback directo a journal_entries (existe desde mig 083)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT created_at, event_type, source_module, "
+                            "debit_account, credit_account, amount, source_folio, user "
+                            "FROM journal_entries "
+                            "ORDER BY created_at DESC LIMIT 200"
+                        )
+                        rows = [
+                            {
+                                "fecha":       r[0],
+                                "evento":      r[1],
+                                "modulo":      r[2],
+                                "cuenta_debe": r[3],
+                                "cuenta_haber":r[4],
+                                "monto":       float(r[5] or 0),
+                                "referencia":  r[6],
+                                "usuario":     r[7],
+                            }
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        rows = []
 
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 vals = [
-                    str(r.get("fecha") or r.get("timestamp", ""))[:10],
-                    str(r.get("evento") or r.get("descripcion", "")),
-                    str(r.get("modulo") or r.get("modulo_origen", "")),
-                    str(r.get("cuenta_debe", "")),
-                    str(r.get("cuenta_haber", "")),
-                    f"${float(r.get('monto', 0) or 0):,.2f}",
-                    str(r.get("referencia", "")),
-                    str(r.get("usuario", "")),
+                    str(r.get("fecha") or r.get("created_at", ""))[:10],
+                    str(r.get("evento") or r.get("event_type", "")),
+                    str(r.get("modulo") or r.get("source_module", "")),
+                    str(r.get("cuenta_debe") or r.get("debit_account", "")),
+                    str(r.get("cuenta_haber") or r.get("credit_account", "")),
+                    f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
+                    str(r.get("referencia") or r.get("source_folio", "")),
+                    str(r.get("usuario") or r.get("user", "")),
                 ]
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci == 5 and v:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                     self._tbl.setItem(ri, ci, it)
         except Exception as e:
             logger.warning("_SeccionAsientosContables.recargar: %s", e)
