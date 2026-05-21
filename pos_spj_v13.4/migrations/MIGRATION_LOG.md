@@ -200,3 +200,103 @@ estado, reintentos, total, error_msg, created_at, finished_at).
 - Índice `idx_mov_caja_fecha` sobre `movimientos_caja(sucursal_id, fecha)`
 
 **Riesgo**: Bajo. Solo agrega columna nullable e índices.
+
+---
+
+## FASE 5 Auditoría Finanzas — Extracción de sub-servicios (2026-05-21)
+
+**Rama**: `claude/fix-finance-audit-AVOoY`
+
+**Contexto**: Auditoría profunda del módulo Finanzas. `FinanceService` (1,921 líneas)
+se descompone en tres sub-servicios especializados. FinanceService conserva todos los
+métodos públicos como wrappers de compatibilidad hacia atrás (facade pattern).
+
+**Nuevos archivos**:
+
+- `core/services/finance/general_ledger_service.py` — Motor de libro mayor.
+  `registrar_asiento()` NO hace commit (el caller decide cuándo confirmar).
+  Métodos: `registrar_asiento`, `obtener_ledger`, `generar_poliza_periodo`, `exportar_poliza_periodo`.
+
+- `core/services/finance/accounts_payable_service.py` — CxP canónico.
+  Opera sobre tabla `accounts_payable`. `crear_cxp` y `abonar_cxp` hacen commit propio
+  (operaciones autónomas). Métodos: `listar`, `summary`, `crear_cxp`, `abonar_cxp`, `historial_pagos`.
+
+- `core/services/finance/accounts_receivable_service.py` — CxC canónico.
+  Opera sobre tabla `accounts_receivable`. `crear_cxc` y `cobrar_cxc` hacen commit propio.
+  Métodos: `listar`, `summary`, `crear_cxc`, `cobrar_cxc`.
+
+**Cambios en servicios existentes**:
+
+- `core/services/enterprise/finance_service.py`:
+  - Bug fix FASE 4: `pagar_nomina` usaba `'efectivo'` hardcodeado → corregido a `metodo_pago`
+  - `__init__` inicializa `self._gl` (GeneralLedger), `self._aps` (AP), `self._ars` (AR)
+  - `registrar_asiento` delega a `self._gl.registrar_asiento()` con fallback SQL
+  - `crear_cxp / abonar_cxp / cuentas_por_pagar` delegan a `self._aps` (marcados DEPRECATED)
+  - `crear_cxc / cobrar_cxc / cuentas_por_cobrar` delegan a `self._ars` (marcados DEPRECATED)
+  - `obtener_ledger / generar_poliza_periodo / exportar_poliza_periodo` delegan a `self._gl`
+  - `registrar_movimiento_manual`: removido `self.db.commit()` interno (era llamado dentro SAVEPOINT)
+
+- `core/services/finance/third_party_service.py`:
+  - Agregado `check_duplicate_proveedor(nombre, rfc, telefono, exclude_id)` para validación
+    centralizada (antes estaba en `DialogoProveedor` en la UI).
+
+- `core/events/domain_events.py`:
+  - Agregadas 7 constantes de eventos financieros con aliases en inglés sobre strings legacy.
+
+- `core/services/finance/financial_dashboard_service.py` (nuevo):
+  - `FinancialDashboardService`: elimina SQL directo de `finanzas_unificadas.py`.
+  - Métodos: `get_quick_kpis`, `get_credit_info`, `listar_clientes`, `crear_cliente`.
+
+- `modulos/finanzas_unificadas.py`:
+  - 4 bloques de SQL directo en UI → reemplazados con llamadas a `FinancialDashboardService`.
+  - `DialogoProveedor._guardar()` usa `ThirdPartyService.check_duplicate_proveedor()`.
+
+**Nuevos tests** (60+ tests en rama):
+- `tests/test_finance_audit_fixes.py` — 26 tests (bug fix nómina, dashboard service, sin doble CxP/CxC)
+- `tests/test_finance_sub_services.py` — 34 tests (GL, AP, AR, delegación de fachada, FASE 8)
+
+**Riesgo**: Bajo. Wrappers legacy preservados. Sin cambio de schema. Sin cambio de UI visible.
+
+---
+
+## Segunda auditoría Finanzas — hallazgos R-01 a R-06 (2026-05-21)
+
+**Rama**: `claude/fix-finance-audit-AVOoY`
+
+**Correcciones**:
+
+- **R-01 — SQL injection en `TreasuryService.balance_general()`**
+  `dt_filter = f"AND DATE(fecha) <= '{fc}'"` reemplazado por queries parametrizadas:
+  condición condicional construida sobre columnas SQL fijas (`WHERE tipo='ingreso' AND DATE(fecha) <= ?`)
+  con `dp = [fc] if fc else []`. Nunca se interpola input del usuario.
+
+- **R-02 — Desync credit_balance/saldo en cancelaciones de crédito**
+  `SaleCancelledFinanceHandler` actualizaba `credit_balance` pero olvidaba actualizar `saldo`.
+  Ahora actualiza ambas columnas (`credit_balance` y `saldo`) en el mismo UPDATE, manteniendo
+  la invariante de sincronización definida en `CreditSaleFinanceHandler`.
+
+- **R-03 — Dead code `SaleCreatedFinanceHandler` eliminado**
+  Clase nunca suscrita en `wiring.py`. Si se hubiese activado habría causado doble asiento
+  de ingresos junto a `SaleFinanceHandler` (priority=90). Removida per CLAUDE.md: eliminar
+  código muerto detectado en auditoría. Referencia: A-04 en FINANZAS_AUDIT_FIX_PLAN.md.
+
+- **R-04 — Parámetros incorrectos en `GestionarFinanzasUC.registrar_asiento_manual()`**
+  Llamada a `finance_service.registrar_asiento()` usaba `cuenta_debe=`, `cuenta_haber=`, `descripcion=`
+  (API legacy que ya no existe). Corregido a `debe=`, `haber=`, `concepto=`.
+
+- **R-05 — A-02: `TreasuryService._ensure_tables()` movida a migración**
+  Las 6 tablas (treasury_capital, treasury_ledger, treasury_gastos_fijos, gastos_futuros,
+  pagos_cobros, pagos_cobros_aplicaciones) ahora se crean via `migrations/standalone/082_treasury_tables.py`.
+  `_ensure_tables()` es ahora un no-op por compatibilidad con callers legacy.
+
+- **R-06 — `core/events/handlers/__init__.py` actualizados**
+  Removida exportación de `SaleCreatedFinanceHandler` que causaba ImportError al importar el módulo.
+
+**Nuevos tests** (23 tests en `tests/test_finance_remaining_fixes.py`):
+- TestBalanceGeneralSQLInjection (5 tests) — verifica query parametrizada y rechazo de injection
+- TestSaleCancelledHandlerSaldoSync (5 tests) — verifica sincronía credit_balance/saldo
+- TestSaleCreatedHandlerRemoved (3 tests) — verifica eliminación de código muerto
+- TestFinanzasUCParametros (3 tests) — verifica parámetros correctos en llamadas a registrar_asiento
+- TestMigracion082TreasuryTables (7 tests) — verifica creación e idempotencia de tablas
+
+**Total suite finanzas**: 117 tests pasando.
