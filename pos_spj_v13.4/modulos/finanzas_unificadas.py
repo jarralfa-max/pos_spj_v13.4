@@ -6,6 +6,7 @@
 
 import logging
 import re
+import uuid
 from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
@@ -699,6 +700,67 @@ class _SeccionCajayConciliacion(QWidget):
             logger.warning("_SeccionCajayConciliacion.recargar: %s", e)
 
 
+class _DialogoCapitalMovimiento(QDialog):
+    """Diálogo reutilizable para inyectar o retirar capital."""
+
+    def __init__(self, tipo: str, parent=None):
+        super().__init__(parent)
+        self.tipo   = tipo  # "injection" o "withdrawal"
+        titulo      = "Inyectar Capital" if tipo == "injection" else "Retirar Capital"
+        self.setWindowTitle(titulo)
+        self.setMinimumWidth(400)
+        self.setObjectName("capitalDialog")
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(12)
+        lay.setContentsMargins(20, 20, 20, 20)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+
+        self.spin_monto = QDoubleSpinBox()
+        self.spin_monto.setRange(0.01, 99_999_999)
+        self.spin_monto.setPrefix("$ ")
+        self.spin_monto.setDecimals(2)
+        form.addRow("Monto:", self.spin_monto)
+
+        self.txt_concepto = QLineEdit()
+        self.txt_concepto.setPlaceholderText("Ej: Aportación inicial socio A")
+        form.addRow("Concepto:", self.txt_concepto)
+
+        self.txt_socio = QLineEdit()
+        self.txt_socio.setPlaceholderText("Nombre del socio u origen")
+        form.addRow("Socio / Origen:", self.txt_socio)
+
+        self.cmb_metodo = QComboBox()
+        self.cmb_metodo.addItems(["efectivo", "transferencia", "cheque"])
+        form.addRow("Método de pago:", self.cmb_metodo)
+
+        self.txt_referencia = QLineEdit()
+        self.txt_referencia.setPlaceholderText("Núm. transferencia, cheque, etc.")
+        form.addRow("Referencia:", self.txt_referencia)
+
+        lay.addLayout(form)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Ok).setText(
+            "Inyectar" if tipo == "injection" else "Retirar"
+        )
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+    def valores(self) -> dict:
+        return {
+            "monto":      self.spin_monto.value(),
+            "concepto":   self.txt_concepto.text().strip(),
+            "socio":      self.txt_socio.text().strip(),
+            "metodo":     self.cmb_metodo.currentText(),
+            "referencia": self.txt_referencia.text().strip(),
+        }
+
+
 class _SeccionCapital(QWidget):
     def __init__(self, modulo, parent=None):
         super().__init__(parent)
@@ -710,162 +772,176 @@ class _SeccionCapital(QWidget):
         lay.setContentsMargins(16, 12, 16, 12)
         lay.setSpacing(12)
 
-        lay.addWidget(_FinSectionHeader(
-            "Capital y Patrimonio",
-            "Aportaciones, retiros y capital neto de socios",
-            btn_callback=self.recargar
-        ))
+        # Botones de acción en el header
+        hdr_row = QHBoxLayout()
+        hdr_col = QVBoxLayout()
+        hdr_col.setSpacing(2)
+        lbl_t = QLabel("Capital y Patrimonio")
+        lbl_t.setObjectName("heading")
+        lbl_s = QLabel("Aportaciones, retiros y capital neto de socios")
+        lbl_s.setObjectName("caption")
+        hdr_col.addWidget(lbl_t)
+        hdr_col.addWidget(lbl_s)
+        hdr_row.addLayout(hdr_col)
+        hdr_row.addStretch()
 
-        has_svc = self._m._capital_svc is not None
+        btn_iny = QPushButton("➕ Inyectar Capital")
+        btn_iny.setObjectName("successBtn")
+        btn_iny.setCursor(Qt.PointingHandCursor)
+        btn_iny.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_iny.clicked.connect(lambda: self._abrir_dialog("injection"))
 
-        self._kpi_actual      = _FinKpiCard("Capital actual", "$—")
-        self._kpi_aportaciones= _FinKpiCard("Aportaciones", "$—", Colors.SUCCESS_BASE)
-        self._kpi_retiros     = _FinKpiCard("Retiros", "$—", Colors.DANGER_BASE)
-        self._kpi_neto        = _FinKpiCard("Capital neto", "$—", Colors.PRIMARY_BASE)
-        lay.addWidget(_kpi_row([self._kpi_actual, self._kpi_aportaciones,
-                                self._kpi_retiros, self._kpi_neto]))
+        btn_ret = QPushButton("➖ Retirar Capital")
+        btn_ret.setObjectName("dangerBtn")
+        btn_ret.setCursor(Qt.PointingHandCursor)
+        btn_ret.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_ret.clicked.connect(lambda: self._abrir_dialog("withdrawal"))
 
-        if not has_svc:
-            lay.addWidget(_FinEmptyState(
-                "🏦",
-                "Capital y patrimonio — próximamente",
-                "El servicio de capital no está disponible en esta instalación. "
-                "Los datos se mostrarán automáticamente cuando se active."
-            ))
+        btn_ref = QPushButton("🔄 Actualizar")
+        btn_ref.setObjectName("secondaryBtn")
+        btn_ref.setCursor(Qt.PointingHandCursor)
+        btn_ref.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_ref.clicked.connect(self.recargar)
 
-        # Bloque de inyección/retiro (siempre visible, usa treasury_service)
-        grp_cap = QGroupBox("Inyectar / Retirar Capital (Tesorería)")
-        c_lay = QHBoxLayout(grp_cap)
-
-        self._spin_capital = QDoubleSpinBox()
-        self._spin_capital.setRange(0, 99999999)
-        self._spin_capital.setPrefix("$ ")
-        self._spin_capital.setDecimals(2)
-        self._spin_capital.setMinimumWidth(160)
-
-        self._txt_desc = QLineEdit()
-        self._txt_desc.setPlaceholderText("Descripción (ej: Capital socio A)")
-
-        self._btn_inyectar = QPushButton("➕ Inyectar Capital")
-        self._btn_inyectar.setObjectName("successBtn")
-        self._btn_inyectar.setCursor(Qt.PointingHandCursor)
-        self._btn_inyectar.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        self._btn_inyectar.clicked.connect(self._on_inyectar)
-
-        self._btn_retirar = QPushButton("➖ Retirar Capital")
-        self._btn_retirar.setObjectName("dangerBtn")
-        self._btn_retirar.setCursor(Qt.PointingHandCursor)
-        self._btn_retirar.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        self._btn_retirar.clicked.connect(self._on_retirar)
-
-        if not has_svc and not self._m._ts:
+        if not self._m._capital_svc and not self._m._ts:
             tip = "Disponible cuando se conecte el servicio de capital"
-            for btn in (self._btn_inyectar, self._btn_retirar):
+            for btn in (btn_iny, btn_ret):
                 btn.setEnabled(False)
                 btn.setToolTip(tip)
 
-        c_lay.addWidget(QLabel("Monto:"))
-        c_lay.addWidget(self._spin_capital)
-        c_lay.addWidget(self._txt_desc, 1)
-        c_lay.addWidget(self._btn_inyectar)
-        c_lay.addWidget(self._btn_retirar)
-        lay.addWidget(grp_cap)
+        for btn in (btn_iny, btn_ret, btn_ref):
+            hdr_row.addWidget(btn)
 
-        # Tabla de movimientos de capital
-        grp_tbl = QGroupBox("Movimientos de capital")
+        lay.addLayout(hdr_row)
+
+        # KPIs
+        self._kpi_actual       = _FinKpiCard("Capital actual",     "$—")
+        self._kpi_aportaciones = _FinKpiCard("Aportaciones",       "$—", Colors.SUCCESS_BASE)
+        self._kpi_retiros      = _FinKpiCard("Retiros",            "$—", Colors.DANGER_BASE)
+        self._kpi_neto         = _FinKpiCard("Capital neto",       "$—", Colors.PRIMARY_BASE)
+        lay.addWidget(_kpi_row([self._kpi_actual, self._kpi_aportaciones,
+                                self._kpi_retiros, self._kpi_neto]))
+
+        # Tabla de movimientos
+        grp_tbl = QGroupBox("Historial de movimientos de capital")
         t_lay = QVBoxLayout(grp_tbl)
         self._tbl = _FinTable(
-            ["Fecha", "Tipo", "Socio", "Concepto", "Método", "Monto", "Referencia", "Estado"])
+            ["Fecha", "Tipo", "Socio/Origen", "Concepto", "Método",
+             "Monto", "Referencia", "Estado"])
         self._tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
         t_lay.addWidget(self._tbl)
         lay.addWidget(grp_tbl)
 
-        # Desglose egresos (del servicio de tesorería)
-        grp_eg = QGroupBox("Desglose de egresos del mes")
-        e_lay = QVBoxLayout(grp_eg)
-        self._tbl_egresos = QTableWidget(0, 2)
-        self._tbl_egresos.setHorizontalHeaderLabels(["Concepto", "Monto ($)"])
-        self._tbl_egresos.horizontalHeader().setStretchLastSection(True)
-        self._tbl_egresos.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self._tbl_egresos.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_egresos.verticalHeader().setVisible(False)
-        e_lay.addWidget(self._tbl_egresos)
-        lay.addWidget(grp_eg)
-
         lay.addStretch()
 
-    def _on_inyectar(self):
-        monto = self._spin_capital.value()
-        desc  = self._txt_desc.text().strip()
-        if monto <= 0:
+    def _abrir_dialog(self, tipo: str):
+        dlg = _DialogoCapitalMovimiento(tipo, self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        v = dlg.valores()
+        if v["monto"] <= 0:
             QMessageBox.warning(self, "Aviso", "Ingresa un monto mayor a $0.")
             return
-        if not desc:
-            QMessageBox.warning(self, "Aviso", "Ingresa una descripción.")
-            return
-        if not self._m._ts:
-            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
-            return
-        try:
-            self._m._ts.inyectar_capital(monto, desc, self._m.usuario_actual)
-            Toast.success(self, "Capital inyectado", f"${monto:,.2f}")
-            self._spin_capital.setValue(0)
-            self._txt_desc.clear()
-            self.recargar()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
 
-    def _on_retirar(self):
-        monto = self._spin_capital.value()
-        desc  = self._txt_desc.text().strip()
-        if monto <= 0:
-            QMessageBox.warning(self, "Aviso", "Ingresa un monto mayor a $0.")
-            return
-        if not desc:
-            QMessageBox.warning(self, "Aviso", "Ingresa una descripción.")
-            return
-        if not self._m._ts:
-            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
-            return
-        try:
-            self._m._ts.retirar_capital(monto, desc, self._m.usuario_actual)
-            Toast.success(self, "Capital retirado", f"${monto:,.2f}")
-            self._spin_capital.setValue(0)
-            self._txt_desc.clear()
-            self.recargar()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+        m = self._m
+        # Preferir CapitalService (migration 084) si está disponible
+        if m._capital_svc:
+            try:
+                op_id = f"CAP-UI-{uuid.uuid4().hex[:12].upper()}"
+                fn = (m._capital_svc.inject_capital if tipo == "injection"
+                      else m._capital_svc.withdraw_capital)
+                fn(
+                    operation_id=op_id,
+                    amount=v["monto"],
+                    concept=v["concepto"] or ("Inyección de capital" if tipo == "injection"
+                                              else "Retiro de capital"),
+                    partner_name=v["socio"],
+                    payment_method=v["metodo"],
+                    reference=v["referencia"],
+                    branch_id=m.sucursal_id,
+                    user=m.usuario_actual or "sistema",
+                )
+                lbl = "Capital inyectado" if tipo == "injection" else "Capital retirado"
+                Toast.success(self, lbl, f"${v['monto']:,.2f}")
+                self.recargar()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e))
+        elif m._ts:
+            # Fallback a TreasuryService si no hay CapitalService
+            try:
+                desc = v["concepto"] or ("Inyección de capital" if tipo == "injection"
+                                         else "Retiro de capital")
+                if tipo == "injection":
+                    m._ts.inyectar_capital(v["monto"], desc, m.usuario_actual)
+                else:
+                    m._ts.retirar_capital(v["monto"], desc, m.usuario_actual)
+                lbl = "Capital inyectado" if tipo == "injection" else "Capital retirado"
+                Toast.success(self, lbl, f"${v['monto']:,.2f}")
+                self.recargar()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e))
+        else:
+            QMessageBox.warning(self, "Error", "Servicio de capital no disponible.")
 
     def recargar(self):
         m = self._m
+        # Usar CapitalService.get_summary() si está disponible
         try:
-            if m._ts:
+            if m._capital_svc:
+                summary = m._capital_svc.get_summary(branch_id=m.sucursal_id)
+                self._kpi_actual.set_value(
+                    f"${summary.get('capital_actual', 0):,.2f}")
+                self._kpi_aportaciones.set_value(
+                    f"${summary.get('total_inyectado', 0):,.2f}", Colors.SUCCESS_BASE)
+                self._kpi_retiros.set_value(
+                    f"${summary.get('total_retirado', 0):,.2f}", Colors.DANGER_BASE)
+                neto = summary.get("capital_actual", 0)
+                self._kpi_neto.set_value(f"${neto:,.2f}", Colors.PRIMARY_BASE)
+            elif m._ts:
                 kpis = m._ts.kpis_financieros()
-                self._kpi_actual.set_value(f"${float(kpis.get('capital_invertido',0)):,.2f}")
-                self._kpi_neto.set_value(f"${float(kpis.get('capital_disponible',0)):,.2f}", Colors.PRIMARY_BASE)
-                # Egresos
-                eg = kpis.get("egresos", {})
-                items = [
-                    ("Compras de inventario",           eg.get("compras_inventario", 0)),
-                    ("Gastos fijos",                    eg.get("gastos_fijos", 0)),
-                    ("Gastos operativos",                eg.get("gastos_operativos", 0)),
-                    ("Nómina / RRHH",                   eg.get("nomina_rrhh", 0)),
-                    ("Otros gastos",                    eg.get("gastos_otros", 0)),
-                    ("Merma",                           eg.get("merma", 0)),
-                    ("Depreciación activos",             eg.get("depreciacion_activos", 0)),
-                    ("Comisión MercadoPago",             eg.get("mercadopago", 0)),
-                    ("Comisión Delivery",                eg.get("delivery", 0)),
-                    ("─────────────────────",           0),
-                    ("TOTAL EGRESOS",                   eg.get("total_egresos", 0)),
-                ]
-                self._tbl_egresos.setRowCount(len(items))
-                for i, (concepto, monto) in enumerate(items):
-                    self._tbl_egresos.setItem(i, 0, QTableWidgetItem(concepto))
-                    m_item = QTableWidgetItem(f"${monto:,.2f}" if monto else "")
-                    m_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                    self._tbl_egresos.setItem(i, 1, m_item)
+                inv = float(kpis.get("capital_invertido", 0) or 0)
+                disp = float(kpis.get("capital_disponible", 0) or 0)
+                self._kpi_actual.set_value(f"${inv:,.2f}")
+                self._kpi_neto.set_value(f"${disp:,.2f}", Colors.PRIMARY_BASE)
         except Exception as e:
-            logger.warning("_SeccionCapital.recargar: %s", e)
+            logger.warning("_SeccionCapital KPIs: %s", e)
+
+        # Historial via CapitalService.get_history()
+        try:
+            rows = []
+            if m._capital_svc:
+                rows = m._capital_svc.get_history(branch_id=m.sucursal_id, limit=100)
+            self._tbl.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                tipo_raw = r.get("movement_type", "")
+                tipo_lbl = {
+                    "injection":       "Inyección",
+                    "withdrawal":      "Retiro",
+                    "adjustment":      "Ajuste",
+                    "opening_balance": "Balance inicial",
+                }.get(tipo_raw, tipo_raw)
+                vals = [
+                    str(r.get("created_at", ""))[:10],
+                    tipo_lbl,
+                    str(r.get("partner_name", "")),
+                    str(r.get("concept", "")),
+                    str(r.get("payment_method", "")),
+                    f"${float(r.get('amount', 0)):,.2f}",
+                    str(r.get("reference", "")),
+                    str(r.get("status", "")),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl.setItem(ri, ci, it)
+                # Status badge en col 7
+                status = str(r.get("status", ""))
+                badge = _FinStatusBadge(status)
+                self._tbl.setCellWidget(ri, 7, badge)
+            if not rows and m._capital_svc is None:
+                self._tbl.setRowCount(0)
+        except Exception as e:
+            logger.warning("_SeccionCapital historial: %s", e)
 
 
 class _SeccionCuentasPorCobrar(QWidget):
