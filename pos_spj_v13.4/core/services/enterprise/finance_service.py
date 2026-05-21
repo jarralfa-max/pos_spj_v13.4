@@ -974,9 +974,9 @@ class FinanceService:
             INSERT INTO nomina_pagos
                 (empleado_id, periodo_inicio, periodo_fin, salario_base,
                  bonos, deducciones, total, metodo_pago, estado, usuario, notas)
-            VALUES (?,?,?,?,?,?,?,'efectivo','pagado',?,?)
+            VALUES (?,?,?,?,?,?,?,?,'pagado',?,?)
         """, (empleado_id, periodo_inicio, periodo_fin, salario_base,
-              bonos, deducciones, total, usuario, notas))
+              bonos, deducciones, total, metodo_pago, usuario, notas))
         self.registrar_asiento(
             debe="gasto_nomina",
             haber="caja_bancos",

@@ -192,9 +192,15 @@ class DialogoProveedor(QDialog):
             )
             return
         
-        # VERIFICAR DUPLICADOS ANTES DE GUARDAR
+        # Verificar duplicados vía servicio (lógica centralizada en ThirdPartyService)
         rfc = self.txt_rfc.text().strip()
-        motivo_duplicado = self._verificar_duplicado(nombre, rfc, tel)
+        if hasattr(self._tps, "check_duplicate_proveedor"):
+            motivo_duplicado = self._tps.check_duplicate_proveedor(
+                nombre=nombre, rfc=rfc, telefono=tel,
+                exclude_id=self.proveedor_id,
+            )
+        else:
+            motivo_duplicado = self._verificar_duplicado(nombre, rfc, tel)
         
         if motivo_duplicado:
             QMessageBox.critical(
@@ -370,6 +376,13 @@ class ModuloFinanzasUnificadas(QWidget):
         self._analytics = getattr(container, "analytics_engine", None)
         self._erp = getattr(container, "erp_financial_service", None)
         self._tabs = None
+        # Servicio de dashboard — evita SQL directo en la UI
+        try:
+            from core.services.finance.financial_dashboard_service import FinancialDashboardService
+            _db = getattr(container, "db", None)
+            self._dash_svc = FinancialDashboardService(db=_db, treasury_service=self._ts)
+        except Exception:
+            self._dash_svc = None
         self._setup_ui()
         self._wire_live_refresh()
         self._wire_kpi_auto_refresh()
@@ -494,7 +507,7 @@ class ModuloFinanzasUnificadas(QWidget):
         lay.setContentsMargins(20, 8, 20, 8)
         lay.setSpacing(0)
 
-        # Intentar cargar datos reales
+        # Cargar KPIs vía servicio (sin SQL directo en UI)
         kpis = [
             ("CxC Pendiente", "$0",    Colors.WARNING_BASE),
             ("CxP Pendiente", "$0",    Colors.DANGER_BASE),
@@ -502,14 +515,12 @@ class ModuloFinanzasUnificadas(QWidget):
             ("Flujo del mes",  "$0",   Colors.PRIMARY_BASE),
         ]
         try:
-            db = self.conexion if hasattr(self, 'conexion') else None
-            if db:
-                r = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_cobrar WHERE estado='pendiente'").fetchone()
-                kpis[0] = ("CxC Pendiente", f"${float(r[0]):,.0f}", Colors.WARNING_BASE)
-                r2 = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_pagar WHERE estado='pendiente'").fetchone()
-                kpis[1] = ("CxP Pendiente", f"${float(r2[0]):,.0f}", Colors.DANGER_BASE)
-                r3 = db.execute("SELECT COALESCE(SUM(saldo),0) FROM cuentas_bancarias WHERE activa=1").fetchone()
-                kpis[2] = ("Saldo Tesorería", f"${float(r3[0]):,.0f}", Colors.SUCCESS_BASE)
+            if getattr(self, "_dash_svc", None):
+                data = self._dash_svc.get_quick_kpis()
+                kpis[0] = ("CxC Pendiente",  f"${data['cxc_pendiente']:,.0f}",   Colors.WARNING_BASE)
+                kpis[1] = ("CxP Pendiente",  f"${data['cxp_pendiente']:,.0f}",   Colors.DANGER_BASE)
+                kpis[2] = ("Saldo Tesorería",f"${data['saldo_tesoreria']:,.0f}",  Colors.SUCCESS_BASE)
+                kpis[3] = ("Flujo del mes",  f"${data['flujo_mes']:,.0f}",        Colors.PRIMARY_BASE)
         except Exception:
             pass
 
@@ -1212,16 +1223,15 @@ class ModuloFinanzasUnificadas(QWidget):
             QMessageBox.warning(self, "Validación", "Seleccione un cliente válido desde la búsqueda.")
             return
 
-        # Validar límite de crédito antes de crear CxC
+        # Validar límite de crédito vía servicio (sin SQL directo en UI)
         try:
-            row_cli = self.container.db.execute(
-                "SELECT COALESCE(saldo,0), COALESCE(limite_credito,0), COALESCE(nombre,'') FROM clientes WHERE id=?",
-                (cliente_id,)
-            ).fetchone()
-            saldo_actual = float(row_cli[0] or 0) if row_cli else 0.0
-            limite = float(row_cli[1] or 0) if row_cli else 0.0
-            nombre_cli = str(row_cli[2] or "") if row_cli else ""
-            monto_nuevo = float(monto.value())
+            if not getattr(self, "_dash_svc", None):
+                raise RuntimeError("FinancialDashboardService no disponible.")
+            info_cli = self._dash_svc.get_credit_info(cliente_id)
+            saldo_actual = info_cli["saldo_actual"]
+            limite       = info_cli["limite_credito"]
+            nombre_cli   = info_cli["nombre"]
+            monto_nuevo  = float(monto.value())
             if limite <= 0:
                 QMessageBox.warning(
                     self, "Límite de crédito",
@@ -1277,27 +1287,28 @@ class ModuloFinanzasUnificadas(QWidget):
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         if dlg.exec_() != QDialog.Accepted:
             return
-        if not nombre.text().strip():
+        nombre_val = nombre.text().strip()
+        if not nombre_val:
             QMessageBox.warning(self, "Aviso", "El nombre del cliente es obligatorio.")
             return
-        self.container.db.execute(
-            "INSERT INTO clientes(nombre, telefono, email, activo, sucursal_id, fecha_registro) "
-            "VALUES (?,?,?,?,?,datetime('now'))",
-            (nombre.text().strip(), tel.text().strip(), email.text().strip(), 1, self.sucursal_id or 1)
-        )
         try:
-            self.container.db.commit()
-        except Exception:
-            pass
+            if not getattr(self, "_dash_svc", None):
+                raise RuntimeError("FinancialDashboardService no disponible.")
+            self._dash_svc.crear_cliente(
+                nombre=nombre_val,
+                telefono=tel.text().strip(),
+                email=email.text().strip(),
+                sucursal_id=self.sucursal_id or 1,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No fue posible crear el cliente:\n{exc}")
+            return
         self._cargar_cuentas_cobrar()
 
     def _listar_clientes(self):
-        if not hasattr(self.container, "db"):
-            return []
-        rows = self.container.db.execute(
-            "SELECT id, nombre FROM clientes WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 500"
-        ).fetchall()
-        return [{"id": r[0], "nombre": r[1]} for r in rows]
+        if getattr(self, "_dash_svc", None):
+            return self._dash_svc.listar_clientes(sucursal_id=self.sucursal_id)
+        return []
 
     def _build_autocomplete_selector(self, items: List[Dict[str, Any]], placeholder: str = ""):
         """

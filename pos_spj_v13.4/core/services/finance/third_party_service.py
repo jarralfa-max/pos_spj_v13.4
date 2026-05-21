@@ -214,6 +214,55 @@ class UnifiedThirdPartyService:
             logger.warning("search_proveedores failed: %s", e)
             return []
 
+    def check_duplicate_proveedor(
+        self,
+        nombre: str,
+        rfc: str = "",
+        telefono: str = "",
+        exclude_id: Optional[int] = None,
+    ) -> Optional[str]:
+        """
+        Verifica si existe un proveedor duplicado por nombre, RFC o teléfono.
+
+        Retorna el motivo del duplicado (str) o None si no hay duplicado.
+        `exclude_id` permite excluir el propio proveedor en edición.
+
+        Normalización: mayúsculas, sin espacios extra, solo dígitos en teléfono.
+        """
+        def _norm(text: str) -> str:
+            return " ".join((text or "").upper().strip().split())
+
+        def _digits(text: str) -> str:
+            import re
+            return re.sub(r"\D", "", str(text or ""))
+
+        nombre_norm = _norm(nombre)
+        rfc_norm    = _norm(rfc)
+        tel_digits  = _digits(telefono)
+
+        try:
+            cur = self._db.execute(
+                "SELECT id, nombre, rfc, telefono FROM proveedores WHERE activo=1 LIMIT 500"
+            )
+            rows = cur.fetchall()
+            cols = [d[0] for d in (cur.description or [])]
+            proveedores = [dict(zip(cols, r)) for r in rows]
+        except Exception:
+            return None
+
+        for prov in proveedores:
+            if exclude_id is not None and prov.get("id") == exclude_id:
+                continue
+            if nombre_norm and _norm(prov.get("nombre", "")) == nombre_norm:
+                return f"Ya existe un proveedor con el nombre '{nombre_norm}' (ID {prov.get('id')})."
+            if rfc_norm and _norm(prov.get("rfc", "")) == rfc_norm:
+                return f"Ya existe un proveedor con RFC '{rfc_norm}' (ID {prov.get('id')})."
+            if tel_digits and len(tel_digits) >= 7:
+                prov_tel = _digits(prov.get("telefono", ""))
+                if prov_tel and prov_tel == tel_digits:
+                    return f"Ya existe un proveedor con ese teléfono (ID {prov.get('id')})."
+        return None
+
     # ══════════════════════════════════════════════════════════════════════════
     #  HISTORIAL DE PRECIOS POR PROVEEDOR
     # ══════════════════════════════════════════════════════════════════════════

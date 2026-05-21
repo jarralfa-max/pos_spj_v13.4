@@ -55,6 +55,17 @@ STOCK_ACTUALIZADO         = "stock_actualizado"          # refresco visual post-
 VENTA_SUSPENDIDA_CANCELADA = "venta_suspendida_cancelada"
 STOCK_RESERVA_LIBERADA    = "stock_reserva_liberada"
 
+# ── Eventos financieros canónicos (FASE 7) ────────────────────────────────────
+# Aliases en inglés para nuevos handlers; los strings legacy (CXP_CREADA, etc.)
+# se mantienen en event_bus.py para backward compatibility.
+ACCOUNT_PAYABLE_CREATED        = "CXP_CREADA"          # alias de legacy español
+ACCOUNT_PAYABLE_PAID           = "CXP_PAGADA"
+ACCOUNT_RECEIVABLE_CREATED     = "CXC_CREADA"          # alias de legacy español
+ACCOUNT_RECEIVABLE_COLLECTED   = "CXC_COBRADA"
+FINANCIAL_MOVEMENT_REGISTERED  = "MOVIMIENTO_FINANCIERO"
+JOURNAL_ENTRY_REGISTERED       = "ASIENTO_REGISTRADO"
+PAYROLL_PAID                   = "NOMINA_PAGADA"
+
 __all__ = [
     "SALE_CREATED",
     "PURCHASE_CREATED",
@@ -79,5 +90,13 @@ __all__ = [
     "STOCK_ACTUALIZADO",
     "VENTA_SUSPENDIDA_CANCELADA",
     "STOCK_RESERVA_LIBERADA",
+    # Eventos financieros canónicos (FASE 7)
+    "ACCOUNT_PAYABLE_CREATED",
+    "ACCOUNT_PAYABLE_PAID",
+    "ACCOUNT_RECEIVABLE_CREATED",
+    "ACCOUNT_RECEIVABLE_COLLECTED",
+    "FINANCIAL_MOVEMENT_REGISTERED",
+    "JOURNAL_ENTRY_REGISTERED",
+    "PAYROLL_PAID",
 ]
 
