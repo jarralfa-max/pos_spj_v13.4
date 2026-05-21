@@ -23,7 +23,7 @@ from PyQt5.QtCore import Qt, QTimer, QDate
 from PyQt5.QtGui import QFont, QColor
 
 from modulos.ui_components import PageHeader, Toast
-from modulos.design_tokens import Colors
+from modulos.design_tokens import Colors, Typography
 
 logger = logging.getLogger("spj.finanzas_unificadas")
 
@@ -97,35 +97,58 @@ class _FinSectionHeader(QWidget):
 
 
 class _FinKpiCard(QFrame):
-    """Tarjeta KPI: etiqueta arriba, valor grande abajo, color semántico."""
+    """KPI card — mismo estilo que _InvKPICard del módulo de inventario.
+    Usa objectName('kpiCard') para ser estilizado por el QSS global del tema."""
 
     def __init__(self, label: str, value: str = "—", color: str = None, parent=None):
         super().__init__(parent)
-        self.setObjectName("finKpiCard")
-        self.setFrameShape(QFrame.StyledPanel)
-        self.setMinimumWidth(140)
+        self.setObjectName("kpiCard")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(86)
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(12, 10, 12, 10)
-        lay.setSpacing(4)
+        _accent = color or Colors.PRIMARY_BASE
 
-        self._lbl_label = QLabel(label.upper())
-        self._lbl_label.setObjectName("caption")
-        self._lbl_label.setAlignment(Qt.AlignCenter)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Barra de acento superior (3 px)
+        self._bar = QFrame()
+        self._bar.setFixedHeight(3)
+        self._bar.setStyleSheet(
+            f"background:{_accent}; border:none;"
+            f" border-top-left-radius:8px; border-top-right-radius:8px;"
+        )
+        outer.addWidget(self._bar)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(14, 10, 14, 10)
+        body.setSpacing(6)
+        outer.addLayout(body)
+
+        col = QVBoxLayout()
+        col.setSpacing(3)
+
+        lbl_t = QLabel(label.upper())
+        lbl_t.setStyleSheet(
+            f"color:{Colors.NEUTRAL.SLATE_500}; font-size:{Typography.SIZE_XS};"
+            f" font-weight:{Typography.WEIGHT_SEMIBOLD}; letter-spacing:0.08em;"
+            f" background:transparent; border:none;"
+        )
+        col.addWidget(lbl_t)
 
         self._lbl_value = QLabel(value)
         self._lbl_value.setObjectName("kpiValue")
-        self._lbl_value.setAlignment(Qt.AlignCenter)
-        if color:
-            self._lbl_value.setStyleSheet(f"color:{color}; font-size:18px; font-weight:700;")
-
-        lay.addWidget(self._lbl_label)
-        lay.addWidget(self._lbl_value)
+        col.addWidget(self._lbl_value)
+        body.addLayout(col, 1)
 
     def set_value(self, value: str, color: str = None):
         self._lbl_value.setText(value)
         if color:
-            self._lbl_value.setStyleSheet(f"color:{color}; font-size:18px; font-weight:700;")
+            self._bar.setStyleSheet(
+                f"background:{color}; border:none;"
+                f" border-top-left-radius:8px; border-top-right-radius:8px;"
+            )
 
 
 class _FinStatusBadge(QLabel):
@@ -176,20 +199,23 @@ class _FinEmptyState(QWidget):
 
 
 class _FinTable(QTableWidget):
-    """Tabla estándar con headers, scroll, selección por fila."""
+    """Tabla estándar con headers, scroll, selección por fila.
+    Altura de fila = 34px — suficiente para botones de 28px."""
 
     def __init__(self, headers: List[str], parent=None):
         super().__init__(0, len(headers), parent)
         self.setHorizontalHeaderLabels(headers)
         hh = self.horizontalHeader()
         hh.setStretchLastSection(False)
-        # Stretch primera columna no-acción por defecto
         if headers:
             hh.setSectionResizeMode(0, QHeaderView.Stretch)
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setAlternatingRowColors(True)
-        self.verticalHeader().setVisible(False)
+        vh = self.verticalHeader()
+        vh.setVisible(False)
+        vh.setDefaultSectionSize(34)   # fila de 34px → botones de ≤28px caben
+        vh.setMinimumSectionSize(34)
         self.setShowGrid(True)
 
 
@@ -206,15 +232,16 @@ def _kpi_row(cards: List[_FinKpiCard]) -> QWidget:
 
 
 def _compact_btn(text: str, variant: str = "primary") -> QPushButton:
+    """Botón compacto para celdas de tabla.  Alto fijo 28 px ≤ fila 34 px."""
     variant_map = {
         "primary": "primaryBtn", "success": "successBtn",
         "danger": "dangerBtn", "warning": "warningBtn",
         "outline": "outlineBtn", "secondary": "secondaryBtn",
     }
     btn = QPushButton(text)
-    btn.setFixedHeight(26)
-    btn.setMinimumWidth(70)
-    btn.setMaximumWidth(120)
+    btn.setFixedHeight(28)
+    btn.setMinimumWidth(64)
+    btn.setMaximumWidth(110)
     btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
     btn.setCursor(Qt.PointingHandCursor)
     btn.setObjectName(variant_map.get(variant, "primaryBtn"))
@@ -487,7 +514,7 @@ class _SeccionResumen(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -626,7 +653,7 @@ class _SeccionCajayConciliacion(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -789,7 +816,7 @@ class _SeccionCapital(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         # Botones de acción en el header
@@ -972,7 +999,7 @@ class _SeccionCuentasPorCobrar(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -1220,7 +1247,7 @@ class _SeccionCuentasPorPagar(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -1388,7 +1415,7 @@ class _SeccionMovimientos(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -1482,7 +1509,7 @@ class _SeccionAsientosContables(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         hdr = _FinSectionHeader(
@@ -1601,7 +1628,7 @@ class _SeccionNomina(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -1715,7 +1742,7 @@ class _SeccionProveedores(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         hdr_row = QHBoxLayout()
@@ -1909,7 +1936,7 @@ class _SeccionClientesCredito(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -1968,7 +1995,7 @@ class _SeccionReportes(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -2036,7 +2063,7 @@ class _SeccionConfiguracion(QWidget):
 
     def _build(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(12)
 
         lay.addWidget(_FinSectionHeader(
@@ -2218,33 +2245,44 @@ class ModuloFinanzasUnificadas(QWidget):
         )
         root.addWidget(header)
 
-        # Splitter: sidebar | stack
+        # Splitter: sidebar | stack — sin handle visible, sin márgenes laterales
         splitter = QSplitter(Qt.Horizontal)
-        splitter.setHandleWidth(1)
+        splitter.setHandleWidth(0)
+        splitter.setContentsMargins(0, 0, 0, 0)
 
         # ── Sidebar ──────────────────────────────────────────────────────────
+        # Siempre oscuro (SidebarColors) independientemente del tema activo.
+        # El inline setStyleSheet sobre el propio widget tiene máxima prioridad
+        # sobre el QSS global, garantizando color consistente en light/dark.
         self._nav = QListWidget()
         self._nav.setObjectName("finSidebar")
-        self._nav.setFixedWidth(180)
+        self._nav.setFixedWidth(176)
+        self._nav.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         self._nav.setStyleSheet(
             f"QListWidget#finSidebar {{"
-            f"  background:{Colors.SIDEBAR.BG};"
-            f"  border:none;"
-            f"  color:{Colors.SIDEBAR.TEXT};"
-            f"  font-size:12px;"
-            f"  outline:none;"
+            f"  background: {Colors.SIDEBAR.BG};"
+            f"  border: none;"
+            f"  border-right: 1px solid {Colors.NEUTRAL.SLATE_800};"
+            f"  color: {Colors.SIDEBAR.TEXT};"
+            f"  font-family: {Typography.FONT_FAMILY};"
+            f"  font-size: {Typography.SIZE_MD};"
+            f"  outline: none;"
+            f"  padding-top: 4px;"
             f"}}"
             f"QListWidget#finSidebar::item {{"
-            f"  padding:10px 14px;"
-            f"  border-left:3px solid transparent;"
+            f"  padding: 9px 12px 9px 16px;"
+            f"  border-left: 3px solid transparent;"
+            f"  color: {Colors.SIDEBAR.TEXT};"
             f"}}"
             f"QListWidget#finSidebar::item:hover {{"
-            f"  background:{Colors.SIDEBAR.HOVER};"
+            f"  background: {Colors.SIDEBAR.HOVER};"
+            f"  color: {Colors.NEUTRAL.WHITE};"
             f"}}"
             f"QListWidget#finSidebar::item:selected {{"
-            f"  background:{Colors.SIDEBAR.ACTIVE};"
-            f"  border-left:3px solid {Colors.PRIMARY_BASE};"
-            f"  color:{Colors.NEUTRAL.WHITE};"
+            f"  background: {Colors.NEUTRAL.SLATE_700};"
+            f"  border-left: 3px solid {Colors.PRIMARY_BASE};"
+            f"  color: {Colors.NEUTRAL.WHITE};"
+            f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
             f"}}"
         )
         for label, icon in _SECCIONES:
@@ -2252,19 +2290,18 @@ class ModuloFinanzasUnificadas(QWidget):
             self._nav.addItem(item)
         self._nav.currentRowChanged.connect(self._on_section_changed)
 
-        # ── Stack ────────────────────────────────────────────────────────────
+        # ── Stack — sin márgenes extra, ocupa todo el espacio restante ───────
         self._stack = QStackedWidget()
-        # Rellenar con placeholders
+        self._stack.setContentsMargins(0, 0, 0, 0)
         for _ in _SECCIONES:
-            placeholder = QWidget()
-            self._stack.addWidget(placeholder)
+            self._stack.addWidget(QWidget())
 
         splitter.addWidget(self._nav)
         splitter.addWidget(self._stack)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
 
-        root.addWidget(splitter)
+        root.addWidget(splitter, 1)   # stretch=1: llena el alto restante
 
         # Seleccionar primera sección
         self._nav.setCurrentRow(0)
