@@ -13,29 +13,10 @@ from PyQt5.QtWidgets import (
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.spj_styles import spj_btn, apply_object_names
+from modulos.whatsapp.panels._panel_styles import group_box_style
 from modulos.whatsapp.widgets import StatusBadge
 
 logger = logging.getLogger("spj.ui.wa.diagnostics_panel")
-
-
-def _group_style() -> str:
-    return (
-        f"QGroupBox {{"
-        f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-        f"  border-radius: {Borders.RADIUS_XL}px;"
-        f"  margin-top: {Spacing.SM}px;"
-        f"  padding-top: {Spacing.SM}px;"
-        f"  background: {Colors.NEUTRAL.WHITE};"
-        f"}}"
-        f"QGroupBox::title {{"
-        f"  subcontrol-origin: margin;"
-        f"  subcontrol-position: top left;"
-        f"  padding: 0 {Spacing.SM}px;"
-        f"  color: {Colors.NEUTRAL.SLATE_600};"
-        f"  font-size: {Typography.SIZE_MD};"
-        f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
-        f"}}"
-    )
 
 
 class _CheckRow(QWidget):
@@ -49,10 +30,7 @@ class _CheckRow(QWidget):
 
         lbl = QLabel(label)
         lbl.setMinimumWidth(200)
-        lbl.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_700};"
-            f"font-size: {Typography.SIZE_MD};"
-        )
+        lbl.setStyleSheet(f"font-size: {Typography.SIZE_MD};")
         self._badge = StatusBadge("—", "neutral")
 
         lay.addWidget(lbl)
@@ -92,7 +70,7 @@ class DiagnosticsPanel(QWidget):
 
         # ── Pruebas de conectividad ───────────────────────────────────────────
         grp_checks = QGroupBox("Pruebas de conectividad")
-        grp_checks.setStyleSheet(_group_style())
+        grp_checks.setStyleSheet(group_box_style())
         lay_ch = QVBoxLayout(grp_checks)
         lay_ch.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         lay_ch.setSpacing(Spacing.SM)
@@ -119,7 +97,7 @@ class DiagnosticsPanel(QWidget):
 
         # ── Log de diagnóstico ────────────────────────────────────────────────
         grp_log = QGroupBox("Log de diagnóstico")
-        grp_log.setStyleSheet(_group_style())
+        grp_log.setStyleSheet(group_box_style())
         lay_log = QVBoxLayout(grp_log)
         lay_log.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
 
@@ -150,7 +128,7 @@ class DiagnosticsPanel(QWidget):
 
         # ── Info de versión ───────────────────────────────────────────────────
         grp_ver = QGroupBox("Información del sistema")
-        grp_ver.setStyleSheet(_group_style())
+        grp_ver.setStyleSheet(group_box_style())
         lay_ver = QVBoxLayout(grp_ver)
         lay_ver.setContentsMargins(Spacing.LG, Spacing.SM, Spacing.LG, Spacing.SM)
 
@@ -205,7 +183,16 @@ class DiagnosticsPanel(QWidget):
                 self._log_line(f"⚠️  Microservicio WA — HTTP {resp.status}")
         except Exception as exc:
             self._row_ms.set_error("No disponible")
-            self._log_line(f"❌ Microservicio WA — No disponible: {exc}")
+            error_msg = str(exc)
+            if "10061" in error_msg or "refused" in error_msg.lower():
+                self._log_line(
+                    f"ℹ️  Microservicio WA — No está corriendo\n"
+                    f"   Para iniciarlo manualmente:\n"
+                    f"     cd whatsapp_service\n"
+                    f"     uvicorn main:app --port 8000 --reload"
+                )
+            else:
+                self._log_line(f"❌ Microservicio WA — Error: {exc}")
 
     def _check_rasa(self) -> None:
         self._row_rasa.set_loading()

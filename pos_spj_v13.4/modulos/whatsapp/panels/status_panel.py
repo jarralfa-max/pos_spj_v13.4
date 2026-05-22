@@ -4,21 +4,22 @@ from __future__ import annotations
 
 import logging
 
-from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QGridLayout, QGroupBox, QHBoxLayout, QLabel,
     QPushButton, QVBoxLayout, QWidget,
 )
 
-from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.design_tokens import Colors, Spacing, Typography
+from modulos.kpi_card import KPICard
 from modulos.spj_styles import spj_btn, apply_object_names
-from modulos.whatsapp.widgets import ConnectionBadge, MetricCard, StatusBadge
+from modulos.whatsapp.panels._panel_styles import group_box_style
+from modulos.whatsapp.widgets import ConnectionBadge, StatusBadge
 
 logger = logging.getLogger("spj.ui.wa.status_panel")
 
 
 class StatusPanel(QWidget):
-    """Panel resumen: estado de conexión + 6 métricas clave."""
+    """Panel resumen: estado de conexión + 6 KPIs clave."""
 
     def __init__(self, svc, parent=None) -> None:
         super().__init__(parent)
@@ -34,7 +35,7 @@ class StatusPanel(QWidget):
         root.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
         root.setSpacing(Spacing.LG)
 
-        # ── Fila superior: estado de conexión + acciones ──────────────────────
+        # ── Fila superior ─────────────────────────────────────────────────────
         hdr = QHBoxLayout()
         hdr.setSpacing(Spacing.MD)
 
@@ -42,7 +43,6 @@ class StatusPanel(QWidget):
         lbl_section.setStyleSheet(
             f"font-size: {Typography.SIZE_XXL};"
             f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f"color: {Colors.NEUTRAL.SLATE_800};"
         )
         hdr.addWidget(lbl_section)
         hdr.addStretch()
@@ -59,7 +59,7 @@ class StatusPanel(QWidget):
 
         # ── Tarjeta de estado de conexión ─────────────────────────────────────
         grp_conn = QGroupBox("Conexión WhatsApp Business")
-        grp_conn.setStyleSheet(self._group_style())
+        grp_conn.setStyleSheet(group_box_style())
         lay_conn = QVBoxLayout(grp_conn)
         lay_conn.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
         lay_conn.setSpacing(Spacing.SM)
@@ -88,19 +88,19 @@ class StatusPanel(QWidget):
         lay_conn.addWidget(self._lbl_detail)
         root.addWidget(grp_conn)
 
-        # ── Grid de métricas ──────────────────────────────────────────────────
+        # ── Grid de KPIs — mismo patrón que módulo inventario ─────────────────
         grp_metrics = QGroupBox("Métricas de actividad")
-        grp_metrics.setStyleSheet(self._group_style())
+        grp_metrics.setStyleSheet(group_box_style())
         grid = QGridLayout(grp_metrics)
         grid.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
         grid.setSpacing(Spacing.MD)
 
-        self._card_hoy     = MetricCard("Mensajes hoy",       "—", accent=Colors.PRIMARY.BASE)
-        self._card_total   = MetricCard("Total histórico",    "—", accent=Colors.NEUTRAL.SLATE_600)
-        self._card_pedidos = MetricCard("Pedidos WA",         "—", accent=Colors.INFO.BASE)
-        self._card_cola    = MetricCard("Cola pendiente",     "—", accent=Colors.WARNING.BASE)
-        self._card_sesion  = MetricCard("Sesiones activas",   "—", accent=Colors.ACCENT.BASE)
-        self._card_valor   = MetricCard("Valor generado",     "—", accent=Colors.SUCCESS.BASE)
+        self._card_hoy     = KPICard("Mensajes hoy",    "—", "💬", "primary")
+        self._card_total   = KPICard("Total histórico", "—", "📊", "info")
+        self._card_pedidos = KPICard("Pedidos WA",      "—", "🛒", "success")
+        self._card_cola    = KPICard("Cola pendiente",  "—", "⏳", "warning")
+        self._card_sesion  = KPICard("Sesiones activas","—", "👥", "info")
+        self._card_valor   = KPICard("Valor generado",  "—", "💰", "success")
 
         for col, card in enumerate([
             self._card_hoy, self._card_total, self._card_pedidos
@@ -115,7 +115,7 @@ class StatusPanel(QWidget):
 
         # ── Estado del bot ────────────────────────────────────────────────────
         grp_bot = QGroupBox("Estado del bot")
-        grp_bot.setStyleSheet(self._group_style())
+        grp_bot.setStyleSheet(group_box_style())
         lay_bot = QHBoxLayout(grp_bot)
         lay_bot.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
         lay_bot.setSpacing(Spacing.LG)
@@ -144,13 +144,13 @@ class StatusPanel(QWidget):
     def refresh(self) -> None:
         try:
             m = self._svc.get_metrics()
-            self._card_hoy.set_value(str(m.get("mensajes_hoy", m.get("pedidos_hoy", "—"))))
-            self._card_total.set_value(str(m.get("total_mensajes", m.get("total_pedidos", "—"))))
-            self._card_pedidos.set_value(str(m.get("pedidos_hoy", "—")))
-            self._card_cola.set_value(str(m.get("cola_pendiente", m.get("pendientes", "—"))))
-            self._card_sesion.set_value(str(m.get("sesiones_activas", "—")))
+            self._card_hoy.set_valor(str(m.get("mensajes_hoy", m.get("pedidos_hoy", "—"))))
+            self._card_total.set_valor(str(m.get("total_mensajes", m.get("total_pedidos", "—"))))
+            self._card_pedidos.set_valor(str(m.get("pedidos_hoy", "—")))
+            self._card_cola.set_valor(str(m.get("cola_pendiente", m.get("pendientes", "—"))))
+            self._card_sesion.set_valor(str(m.get("sesiones_activas", "—")))
             valor = m.get("valor_total", 0)
-            self._card_valor.set_value(f"${float(valor):,.0f}" if valor else "—")
+            self._card_valor.set_valor(f"${float(valor):,.0f}" if valor else "—")
 
             bot_activo = m.get("bot_activo", False)
             rasa_activo = bool(
@@ -198,23 +198,3 @@ class StatusPanel(QWidget):
             self._badge_conn.set_connected(False, "Error")
             self._badge_wa.set_status("Error", "error")
             self._lbl_detail.setText(str(exc))
-
-    @staticmethod
-    def _group_style() -> str:
-        return (
-            f"QGroupBox {{"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius: {Borders.RADIUS_XL}px;"
-            f"  margin-top: {Spacing.SM}px;"
-            f"  padding-top: {Spacing.SM}px;"
-            f"  background: {Colors.NEUTRAL.WHITE};"
-            f"}}"
-            f"QGroupBox::title {{"
-            f"  subcontrol-origin: margin;"
-            f"  subcontrol-position: top left;"
-            f"  padding: 0 {Spacing.SM}px;"
-            f"  color: {Colors.NEUTRAL.SLATE_600};"
-            f"  font-size: {Typography.SIZE_MD};"
-            f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f"}}"
-        )

@@ -56,7 +56,7 @@ class KPICard(QFrame):
         self.lbl_valor = QLabel(valor)
         self.lbl_valor.setObjectName("kpiValue")
         self.lbl_valor.setStyleSheet(
-            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
+            f"font-size: {Typography.SIZE_DISPLAY}; font-weight: {Typography.WEIGHT_BOLD};"
             f" letter-spacing: -0.02em; background: transparent; border: none;"
         )
         col.addWidget(self.lbl_valor)
@@ -66,7 +66,7 @@ class KPICard(QFrame):
         lbl_icon.setFixedSize(36, 36)
         lbl_icon.setAlignment(Qt.AlignCenter)
         lbl_icon.setStyleSheet(
-            f"font-size: 18px; background: {_accent}1A;"
+            f"font-size: {Typography.SIZE_XXXL}; background: {_accent}1A;"
             f" border-radius: 18px; border: none;"
         )
         body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)

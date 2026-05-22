@@ -12,29 +12,10 @@ from PyQt5.QtWidgets import (
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.spj_styles import spj_btn, apply_object_names
+from modulos.whatsapp.panels._panel_styles import group_box_style, input_style
 from modulos.whatsapp.widgets import ConnectionBadge, ErrorPanel
 
 logger = logging.getLogger("spj.ui.wa.webhook_panel")
-
-
-def _group_style() -> str:
-    return (
-        f"QGroupBox {{"
-        f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-        f"  border-radius: {Borders.RADIUS_XL}px;"
-        f"  margin-top: {Spacing.SM}px;"
-        f"  padding-top: {Spacing.SM}px;"
-        f"  background: {Colors.NEUTRAL.WHITE};"
-        f"}}"
-        f"QGroupBox::title {{"
-        f"  subcontrol-origin: margin;"
-        f"  subcontrol-position: top left;"
-        f"  padding: 0 {Spacing.SM}px;"
-        f"  color: {Colors.NEUTRAL.SLATE_600};"
-        f"  font-size: {Typography.SIZE_MD};"
-        f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
-        f"}}"
-    )
 
 
 class WebhookPanel(QWidget):
@@ -61,7 +42,7 @@ class WebhookPanel(QWidget):
         root.addWidget(self._err)
 
         grp_status = QGroupBox("Estado del webhook")
-        grp_status.setStyleSheet(_group_style())
+        grp_status.setStyleSheet(group_box_style())
         lay_st = QVBoxLayout(grp_status)
         lay_st.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
 
@@ -71,7 +52,7 @@ class WebhookPanel(QWidget):
 
         # Configuración local
         grp_cfg = QGroupBox("Servidor webhook local (Meta → ERP)")
-        grp_cfg.setStyleSheet(_group_style())
+        grp_cfg.setStyleSheet(group_box_style())
         fm = QFormLayout(grp_cfg)
         fm.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
         fm.setSpacing(Spacing.MD)
@@ -92,7 +73,7 @@ class WebhookPanel(QWidget):
 
         # Acciones
         grp_act = QGroupBox("Acciones")
-        grp_act.setStyleSheet(_group_style())
+        grp_act.setStyleSheet(group_box_style())
         btn_lay = QHBoxLayout(grp_act)
         btn_lay.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         btn_lay.setSpacing(Spacing.SM)
@@ -120,7 +101,7 @@ class WebhookPanel(QWidget):
 
         # Info Meta
         grp_meta_info = QGroupBox("Configuración en Meta for Developers")
-        grp_meta_info.setStyleSheet(_group_style())
+        grp_meta_info.setStyleSheet(group_box_style())
         lay_mi = QVBoxLayout(grp_meta_info)
         lay_mi.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
         tip = QLabel(
@@ -242,13 +223,4 @@ class WebhookPanel(QWidget):
 
     @staticmethod
     def _input_style() -> str:
-        return (
-            f"QLineEdit {{"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_300};"
-            f"  border-radius: {Borders.RADIUS_LG}px;"
-            f"  padding: {Spacing.XS}px {Spacing.SM}px;"
-            f"  font-size: {Typography.SIZE_MD};"
-            f"  background: {Colors.NEUTRAL.WHITE};"
-            f"}}"
-            f"QLineEdit:focus {{ border-color: {Colors.PRIMARY.BASE}; }}"
-        )
+        return input_style()

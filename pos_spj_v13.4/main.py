@@ -212,6 +212,16 @@ def inicializar_sistema():
             f"No se pudo inicializar el sistema:\n\n{e}")
         sys.exit(1)
 
+    # Intenta arrancar el microservicio WhatsApp en segundo plano
+    try:
+        from core.services.microservice_launcher import launch_microservice_async
+        from pathlib import Path
+        app_root = Path(__file__).parent.parent
+        launch_microservice_async(app_root)
+        logger.info("Verificando microservicio WhatsApp...")
+    except Exception as e:
+        logger.debug("Launcher de microservicio no disponible: %s", e)
+
     try:
         if hasattr(container, "whatsapp_webhook"):
             container.whatsapp_webhook.start()

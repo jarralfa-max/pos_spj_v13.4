@@ -75,17 +75,18 @@ class PolicyTable(QWidget):
         lay.addWidget(self._tbl)
 
     def _populate(self) -> None:
+        from PyQt5.QtGui import QColor
         self._tbl.setRowCount(len(_WA_POLICY))
         for row, (tipo, wa_col, inbox_col) in enumerate(_WA_POLICY):
             allowed = wa_col.startswith("✅")
             self._tbl.setItem(row, 0, QTableWidgetItem(tipo))
             wa_item = QTableWidgetItem(wa_col)
             wa_item.setForeground(
-                Qt.darkGreen if allowed else Qt.red  # type: ignore[attr-defined]
+                QColor(Colors.SUCCESS.BASE if allowed else Colors.DANGER.BASE)
             )
             wa_item.setTextAlignment(Qt.AlignCenter)
             inbox_item = QTableWidgetItem(inbox_col)
-            inbox_item.setForeground(Qt.darkGreen)  # type: ignore[attr-defined]
+            inbox_item.setForeground(QColor(Colors.SUCCESS.BASE))
             inbox_item.setTextAlignment(Qt.AlignCenter)
             self._tbl.setItem(row, 1, wa_item)
             self._tbl.setItem(row, 2, inbox_item)

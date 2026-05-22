@@ -10,6 +10,7 @@ Compras a Proveedores.
 from __future__ import annotations
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.kpi_card import KPICard
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
     create_danger_button, create_input, create_combo, create_card,
@@ -119,51 +120,9 @@ class _TabsProxy(QObject):
         return self._bar.currentIndex()
 
 
-class _PurchaseKPICard(QFrame):
-    """KPI card for Compra Tradicional tab — mirrors _InvKPICard pattern."""
-
-    def __init__(self, titulo, valor="—", icono="📦", variant="primary", parent=None):
-        super().__init__(parent)
-        _accent = {
-            "primary": Colors.PRIMARY.BASE,
-            "success": Colors.SUCCESS.BASE,
-            "danger":  Colors.DANGER.BASE,
-            "warning": Colors.WARNING.BASE,
-            "info":    Colors.INFO.BASE,
-        }.get(variant, Colors.PRIMARY.BASE)
-        self.setObjectName("kpiCard")
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(86)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-        bar = QFrame(self)
-        bar.setFixedHeight(3)
-        bar.setObjectName("kpiAccentBar")
-        bar.setProperty("variant", variant)
-        outer.addWidget(bar)
-        body = QHBoxLayout()
-        body.setContentsMargins(14, 10, 14, 10)
-        body.setSpacing(8)
-        outer.addLayout(body)
-        col = QVBoxLayout()
-        col.setSpacing(2)
-        lbl_t = QLabel(titulo.upper())
-        lbl_t.setObjectName("kpiCaption")
-        col.addWidget(lbl_t)
-        self.lbl_valor = QLabel(valor)
-        self.lbl_valor.setObjectName("kpiValue")
-        col.addWidget(self.lbl_valor)
-        body.addLayout(col, 1)
-        lbl_icon = QLabel(icono)
-        lbl_icon.setFixedSize(36, 36)
-        lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setObjectName("kpiIcon")
-        lbl_icon.setProperty("variant", variant)
-        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
-
-    def set_valor(self, v: str):
-        self.lbl_valor.setText(v)
+# ── KPI card alias ────────────────────────────────────────────────────────────
+# Use shared KPICard from kpi_card.py for consistent styling across all modules
+_PurchaseKPICard = KPICard
 
 
 class PurchaseKpiBar(QFrame):
