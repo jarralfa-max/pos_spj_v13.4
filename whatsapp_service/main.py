@@ -26,7 +26,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger("wa.main")
 
-# ── Agregar ERP al path (para importar EventBus si existe) ────────────────────
+# ── Configurar Python path ───────────────────────────────────────────────────
+# Agregar el directorio de whatsapp_service para imports locales
+WA_SERVICE_ROOT = str(Path(__file__).parent)
+if WA_SERVICE_ROOT not in sys.path:
+    sys.path.insert(0, WA_SERVICE_ROOT)
+
+# Agregar ERP al path (para importar EventBus si existe)
 # ERP inner package path: <repo>/pos_spj_v13.4/pos_spj_v13.4
 ERP_ROOT = str(Path(__file__).parent.parent / "pos_spj_v13.4" / "pos_spj_v13.4")
 if os.path.exists(ERP_ROOT) and ERP_ROOT not in sys.path:
