@@ -59,3 +59,20 @@ def input_style() -> str:
         f"  border-color: {Colors.PRIMARY.BASE};"
         f"}}"
     )
+
+
+def table_style() -> str:
+    """QTableWidget + QHeaderView style — theme-aware, no hardcoded colors."""
+    dark = _is_dark()
+    header_bg     = Colors.NEUTRAL.SLATE_700 if dark else Colors.NEUTRAL.SLATE_100
+    header_border = Colors.NEUTRAL.SLATE_600 if dark else Colors.NEUTRAL.SLATE_200
+    return (
+        f"QTableWidget {{ font-size: {Typography.SIZE_MD}; }}"
+        f"QHeaderView::section {{"
+        f"  background: {header_bg};"
+        f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
+        f"  padding: {Spacing.XS}px {Spacing.SM}px;"
+        f"  border: none;"
+        f"  border-bottom: 1px solid {header_border};"
+        f"}}"
+    )

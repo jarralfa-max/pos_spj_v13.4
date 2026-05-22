@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (
 
 from modulos.design_tokens import Colors, Spacing, Typography
 from modulos.spj_styles import spj_btn, apply_object_names
+from modulos.whatsapp.panels._panel_styles import input_style
 from modulos.whatsapp.widgets import EmptyState, ErrorPanel
 
 logger = logging.getLogger("spj.ui.wa.history_panel")
@@ -40,14 +41,7 @@ class HistoryPanel(QWidget):
 
         self._inp_search = QLineEdit()
         self._inp_search.setPlaceholderText("Buscar por número, mensaje o estado…")
-        self._inp_search.setStyleSheet(
-            f"QLineEdit {{"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_300};"
-            f"  border-radius: 6px;"
-            f"  padding: 4px 8px;"
-            f"  font-size: {Typography.SIZE_MD};"
-            f"}}"
-        )
+        self._inp_search.setStyleSheet(input_style())
         self._inp_search.returnPressed.connect(self._load)
 
         self._cmb_dir = QComboBox()
