@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
 )
 
 from modulos.design_tokens import Colors, Spacing, Typography
+from modulos.whatsapp.panels._panel_styles import table_style
 
 
 _WA_POLICY: list[tuple[str, str, str]] = [
@@ -62,15 +63,7 @@ class PolicyTable(QWidget):
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
         hh.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self._tbl.setStyleSheet(
-            f"QTableWidget {{ font-size: {Typography.SIZE_MD}; }}"
-            f"QHeaderView::section {{"
-            f"  background: {Colors.NEUTRAL.SLATE_100};"
-            f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f"  padding: {Spacing.XS}px {Spacing.SM}px;"
-            f"  border: none; border-bottom: 1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"}}"
-        )
+        self._tbl.setStyleSheet(table_style())
         self._populate()
         lay.addWidget(self._tbl)
 
