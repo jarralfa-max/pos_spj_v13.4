@@ -114,38 +114,61 @@ class ProductionFinanceHandler:
         finished_cost = 0.0
         waste_cost    = 0.0
 
-        # ── Prefer DB query over sparse event payload ─────────────────────────
-        if self._db and batch_id:
-            try:
-                from core.services.finance.production_cost_service import (
-                    ProductionCostService,
-                )
-                svc     = ProductionCostService(self._db)
-                summary = svc.compute_batch_costs(batch_id)
-                raw_cost      = summary.raw_material_cost
-                finished_cost = summary.finished_goods_cost
-                waste_cost    = summary.waste_cost
-                sucursal_id   = summary.branch_id
-                n_updated = svc.update_average_costs(batch_id)
-                logger.debug(
-                    "ProductionFinanceHandler: cost computed batch=%s "
-                    "raw=%.4f finished=%.4f waste=%.4f costo_promedio_updated=%d",
-                    batch_id, raw_cost, finished_cost, waste_cost, n_updated,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "ProductionFinanceHandler: cost query failed for batch=%s: %s — "
-                    "falling back to event payload",
-                    batch_id, exc,
-                )
+        # ── 1. Prefer normalized payload costs (FASE 8) ───────────────────────
+        # make_produccion_completada_payload() always includes a "costs" dict.
+        # If the publisher computed real values, use them directly.
+        costs_in_payload = payload.get("costs")
+        if isinstance(costs_in_payload, dict):
+            raw_cost      = float(costs_in_payload.get("raw_material_cost", 0))
+            finished_cost = float(costs_in_payload.get("finished_goods_cost", 0))
+            waste_cost    = float(costs_in_payload.get("waste_cost", 0))
 
-        # ── Fallback: cost_allocations dict in payload (legacy / no-db path) ──
+        # ── 2. DB fallback: batch path when payload costs are zero ────────────
+        # Handles the case where the event was published before FASE 8 or the
+        # publisher could not compute costs (e.g. no precio_compra on the product).
+        if raw_cost <= 0 and finished_cost <= 0 and waste_cost <= 0:
+            if self._db and batch_id:
+                try:
+                    from core.services.finance.production_cost_service import (
+                        ProductionCostService,
+                    )
+                    svc     = ProductionCostService(self._db)
+                    summary = svc.compute_batch_costs(batch_id)
+                    raw_cost      = summary.raw_material_cost
+                    finished_cost = summary.finished_goods_cost
+                    waste_cost    = summary.waste_cost
+                    sucursal_id   = summary.branch_id
+                    logger.debug(
+                        "ProductionFinanceHandler: cost from DB batch=%s "
+                        "raw=%.4f finished=%.4f waste=%.4f",
+                        batch_id, raw_cost, finished_cost, waste_cost,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "ProductionFinanceHandler: DB cost query failed batch=%s: %s",
+                        batch_id, exc,
+                    )
+
+        # ── 3. Legacy fallback: old-style cost_allocations dict in payload ────
         if raw_cost <= 0 and finished_cost <= 0 and waste_cost <= 0:
             cost_allocs = payload.get("cost_allocations")
             if isinstance(cost_allocs, dict):
                 raw_cost      = float(cost_allocs.get("raw_material_cost", 0))
                 finished_cost = float(cost_allocs.get("finished_goods_cost", 0))
                 waste_cost    = float(cost_allocs.get("waste_cost", 0))
+
+        # ── Update costo_promedio when DB is available (batch path) ──────────
+        if self._db and batch_id and (raw_cost > 0 or finished_cost > 0):
+            try:
+                from core.services.finance.production_cost_service import (
+                    ProductionCostService,
+                )
+                n = ProductionCostService(self._db).update_average_costs(batch_id)
+                logger.debug(
+                    "ProductionFinanceHandler: costo_promedio updated for %d products", n
+                )
+            except Exception as exc:
+                logger.debug("ProductionFinanceHandler: update_average_costs skipped: %s", exc)
 
         if raw_cost <= 0 and finished_cost <= 0 and waste_cost <= 0:
             logger.debug(

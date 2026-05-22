@@ -145,24 +145,44 @@ class GestionarProduccionUC:
             logger.error("cerrar_lote engine: %s", e)
             return ResultadoProduccion(ok=False, error=str(e))
 
-        # ── Publicar evento ───────────────────────────────────────────────
+        # ── Publicar evento con payload normalizado (FASE 8) ─────────────
         if self._bus:
             try:
-                # FIX BUG-4: YieldResult tiene usable_pct, no yield_pct
-                rendimiento_pub = (
-                    result.yield_result.usable_pct
-                    if result.yield_result else 0.0
+                yr = result.yield_result
+                rendimiento_pub = yr.usable_pct if yr else 0.0
+                waste_pct_pub   = yr.waste_pct  if yr else 0.0
+
+                # Read actual costs from production_cost_ledger (populated by
+                # CostAllocator inside close_batch).  Errors are non-fatal.
+                raw_cost = finished_cost = waste_cost = 0.0
+                try:
+                    _db = getattr(self._engine, "db", None)
+                    if _db:
+                        from core.services.finance.production_cost_service import (
+                            ProductionCostService,
+                        )
+                        _cs = ProductionCostService(_db)
+                        _summary = _cs.compute_batch_costs(batch_id)
+                        raw_cost      = _summary.raw_material_cost
+                        finished_cost = _summary.finished_goods_cost
+                        waste_cost    = _summary.waste_cost
+                except Exception as _ce:
+                    logger.debug("cerrar_lote: cost query skipped: %s", _ce)
+
+                from core.events.event_factory import make_produccion_completada_payload
+                payload = make_produccion_completada_payload(
+                    batch_id            = batch_id,
+                    folio               = result.folio,
+                    operation_id        = operation_id,
+                    sucursal_id         = sucursal_id,
+                    usuario             = usuario,
+                    rendimiento_pct     = rendimiento_pub,
+                    waste_pct           = waste_pct_pub,
+                    raw_material_cost   = raw_cost,
+                    finished_goods_cost = finished_cost,
+                    waste_cost          = waste_cost,
                 )
-                self._bus.publish("PRODUCCION_COMPLETADA", {
-                    "batch_id": batch_id,
-                    "folio": result.folio,
-                    "rendimiento_pct": rendimiento_pub,
-                    "movimientos": result.inventory_movements,
-                    "cost_allocations": result.cost_allocations,
-                    "sucursal_id": sucursal_id,
-                    "usuario": usuario,
-                    "operation_id": operation_id,
-                })
+                self._bus.publish("PRODUCCION_COMPLETADA", payload)
             except Exception as e:
                 logger.warning("EventBus post-produccion: %s", e)
 
