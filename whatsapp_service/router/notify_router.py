@@ -4,9 +4,9 @@ Endpoints que el POS core llama para enviar mensajes proactivos al cliente.
 Rutas: /api/notify/pedido-listo, /api/notify/anticipo,
        /api/notify/cotizacion, /api/notify/send
 
-Autenticación interna: header X-Internal-Key debe coincidir con WA_INTERNAL_API_KEY.
-Si WA_INTERNAL_API_KEY está vacío se registra un warning pero no se bloquea
-(modo dev sin configurar — cambiar en producción).
+Autenticación interna: header X-Internal-Key debe coincidir con la clave interna
+configurada desde el módulo WhatsApp (`configuraciones.wa_internal_api_key`).
+El .env queda como respaldo técnico.
 """
 from __future__ import annotations
 import logging
@@ -20,16 +20,29 @@ router = APIRouter(prefix="/api/notify", tags=["notify"])
 
 # ── Auth guard ────────────────────────────────────────────────────────────────
 
+def _resolve_internal_key() -> str:
+    """Resuelve la clave interna preferentemente desde la configuración ERP."""
+    try:
+        from config.settings import get_internal_api_key
+        return get_internal_api_key() or ""
+    except Exception:
+        try:
+            from config.settings import WA_INTERNAL_API_KEY, INTERNAL_API_KEY
+            return WA_INTERNAL_API_KEY or INTERNAL_API_KEY or ""
+        except Exception:
+            return ""
+
+
 def _check_internal_key(x_internal_key: Optional[str]) -> None:
     """Valida la API key interna. Lanza 403 si es inválida."""
-    from config.settings import WA_INTERNAL_API_KEY
-    if not WA_INTERNAL_API_KEY:
+    internal_key = _resolve_internal_key()
+    if not internal_key:
         logger.warning(
-            "WA_INTERNAL_API_KEY not configured — notify endpoints are unprotected. "
-            "Set WA_INTERNAL_API_KEY in .env for production."
+            "Internal API key not configured — notify endpoints are unprotected. "
+            "Configure it from the WhatsApp module for production."
         )
         return  # Dev mode: allow through with warning
-    if not x_internal_key or x_internal_key != WA_INTERNAL_API_KEY:
+    if not x_internal_key or x_internal_key != internal_key:
         logger.warning("notify_router: unauthorized request — bad X-Internal-Key")
         raise HTTPException(status_code=403, detail="Unauthorized")
 
