@@ -1284,9 +1284,13 @@ class _SeccionCapital(QWidget):
         lay.addWidget(_kpi_row([self._kpi_actual, self._kpi_aportaciones,
                                 self._kpi_retiros, self._kpi_neto]))
 
-        # Tabla de movimientos
-        grp_tbl = QGroupBox("Historial de movimientos de capital")
-        t_lay = QVBoxLayout(grp_tbl)
+        # Historial de movimientos
+        lbl_hist = QLabel("HISTORIAL DE CAPITAL")
+        lbl_hist.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 700;"
+            " letter-spacing: 1px;"
+        )
+        lay.addWidget(lbl_hist)
 
         filtros_cap = QHBoxLayout()
         self._cmb_tipo_cap = QComboBox()
@@ -1312,16 +1316,13 @@ class _SeccionCapital(QWidget):
         filtros_cap.addWidget(self._cmb_periodo_cap)
         filtros_cap.addWidget(self._txt_buscar_cap, 1)
         filtros_cap.addWidget(btn_exp_cap)
-        t_lay.addLayout(filtros_cap)
+        lay.addLayout(filtros_cap)
 
         self._tbl = _FinTable(
             ["Fecha", "Tipo", "Socio/Origen", "Concepto", "Método",
              "Monto", "Referencia", "Estado"])
         self._tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        t_lay.addWidget(self._tbl)
-        lay.addWidget(grp_tbl)
-
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         from datetime import date, timedelta
@@ -1427,11 +1428,34 @@ class _SeccionCapital(QWidget):
         except Exception as e:
             logger.warning("_SeccionCapital KPIs: %s", e)
 
-        # Historial via CapitalService.get_history()
+        # Historial via CapitalService.get_history() con fallback directo a DB
         try:
             rows = []
             if m._capital_svc:
                 rows = m._capital_svc.get_history(branch_id=m.sucursal_id, limit=100)
+
+            # Fallback: consulta directa a capital_movements (mig 084)
+            if not rows:
+                db = None
+                if hasattr(m, "container") and m.container:
+                    db = getattr(m.container, "db", None)
+                if db is None and hasattr(m, "_db"):
+                    db = m._db
+                if db is None and hasattr(m, "db"):
+                    db = m.db
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT created_at, movement_type, partner_name, concept, "
+                            "payment_method, amount, reference, status "
+                            "FROM capital_movements ORDER BY created_at DESC LIMIT 100"
+                        )
+                        cols = ["created_at", "movement_type", "partner_name", "concept",
+                                "payment_method", "amount", "reference", "status"]
+                        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+                    except Exception:
+                        pass
+
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 tipo_raw = r.get("movement_type", "")
@@ -1447,7 +1471,7 @@ class _SeccionCapital(QWidget):
                     str(r.get("partner_name", "")),
                     str(r.get("concept", "")),
                     str(r.get("payment_method", "")),
-                    f"${float(r.get('amount', 0)):,.2f}",
+                    f"${float(r.get('amount', 0) or 0):,.2f}",
                     str(r.get("reference", "")),
                     str(r.get("status", "")),
                 ]
@@ -1459,8 +1483,6 @@ class _SeccionCapital(QWidget):
                 status = str(r.get("status", ""))
                 badge = _FinStatusBadge(status)
                 self._tbl.setCellWidget(ri, 7, badge)
-            if not rows and m._capital_svc is None:
-                self._tbl.setRowCount(0)
         except Exception as e:
             logger.warning("_SeccionCapital historial: %s", e)
 
