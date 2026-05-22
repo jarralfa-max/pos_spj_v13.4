@@ -9,6 +9,14 @@ Características:
 - Retry automático ante "database is locked"
 - Transacciones seguras con SAVEPOINT
 - Compatibilidad backward con código legacy
+
+Ruta canónica de BD:
+    <paquete ERP>/data/spj_pos_database.db
+
+IMPORTANTE:
+El default de este módulo debe coincidir con `main.py`. Así evitamos que
+servicios que llamen `get_connection()` antes del bootstrap creen otra BD
+como `data/spj.db` o `spj_pos_database.db` fuera de `/data`.
 """
 
 from __future__ import annotations
@@ -27,8 +35,11 @@ logger = logging.getLogger("spj.connection")
 # ─────────────────────────────────────────────────────────────
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+CANONICAL_DB_FILENAME = "spj_pos_database.db"
+CANONICAL_DB_PATH = os.path.join(DATA_DIR, CANONICAL_DB_FILENAME)
 
-_DB_PATH = os.path.join(BASE_DIR, "data", "spj.db")
+_DB_PATH = CANONICAL_DB_PATH
 _TIMEOUT = 5.0
 _MAX_RETRY = 5
 
@@ -40,12 +51,22 @@ _tls = threading.local()  # thread-local storage
 # ─────────────────────────────────────────────────────────────
 
 def set_db_path(path: str) -> None:
+    """Registra la ruta de BD para el pool de conexiones.
+
+    Se recomienda pasar siempre la ruta canónica:
+    `<paquete ERP>/data/spj_pos_database.db`.
+    """
     global _DB_PATH
     _DB_PATH = path
 
 
 def get_db_path() -> str:
     return _DB_PATH
+
+
+def get_canonical_db_path() -> str:
+    """Devuelve la ruta única esperada para la BD del ERP."""
+    return CANONICAL_DB_PATH
 
 
 # ─────────────────────────────────────────────────────────────
@@ -81,8 +102,9 @@ def _new_connection(path: str) -> sqlite3.Connection:
     )
 
     logger.debug(
-        "Nueva conexión DB para hilo %s",
-        threading.current_thread().name
+        "Nueva conexión DB para hilo %s: %s",
+        threading.current_thread().name,
+        path,
     )
 
     return conn
@@ -259,30 +281,39 @@ class DatabaseWrapper:
     def __init__(self, conn: sqlite3.Connection):
         object.__setattr__(self, "_conn", conn)
 
-    # ── API extendida ─────────────────────────────────────────
+    # ── Delegación básica ─────────────────────────────────────────────────────
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
 
-    def fetchall(self, sql: str, params=()) -> list:
-        """Ejecuta sql y retorna todas las filas."""
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    # ── Helpers usados por repositorios ───────────────────────────────────────
+    def fetchall(self, sql: str, params: tuple = ()):  # noqa: D401
+        """Ejecuta SQL y devuelve todas las filas."""
         return self._conn.execute(sql, params).fetchall()
 
-    def fetchone(self, sql: str, params=()) -> Optional[sqlite3.Row]:
-        """Ejecuta sql y retorna la primera fila o None."""
+    def fetchone(self, sql: str, params: tuple = ()):  # noqa: D401
+        """Ejecuta SQL y devuelve una fila."""
         return self._conn.execute(sql, params).fetchone()
 
-    def transaction(self, name: str = ""):
-        """Context manager de transacción con SAVEPOINT."""
-        return transaction(self._conn)
+    @contextmanager
+    def transaction(self):
+        with transaction(self._conn) as conn:
+            yield conn
 
-    # ── Delegación total a sqlite3.Connection ────────────────
+    # ── Métodos críticos explícitos para sqlite3-like API ─────────────────────
+    def execute(self, *args, **kwargs):
+        return self._conn.execute(*args, **kwargs)
 
-    def execute(self, sql: str, params=()):
-        return self._conn.execute(sql, params)
+    def executemany(self, *args, **kwargs):
+        return self._conn.executemany(*args, **kwargs)
 
-    def executemany(self, sql: str, params):
-        return self._conn.executemany(sql, params)
-
-    def executescript(self, sql: str):
-        return self._conn.executescript(sql)
+    def executescript(self, *args, **kwargs):
+        return self._conn.executescript(*args, **kwargs)
 
     def commit(self):
         return self._conn.commit()
@@ -292,270 +323,3 @@ class DatabaseWrapper:
 
     def close(self):
         return self._conn.close()
-
-    def cursor(self):
-        return self._conn.cursor()
-
-    @property
-    def row_factory(self):
-        return self._conn.row_factory
-
-    @row_factory.setter
-    def row_factory(self, value):
-        self._conn.row_factory = value
-
-    @property
-    def in_transaction(self):
-        return self._conn.in_transaction
-
-    @property
-    def conn(self) -> sqlite3.Connection:
-        """Exposes the raw sqlite3.Connection for code that needs it directly."""
-        return self._conn
-
-    def __getattr__(self, name: str):
-        return getattr(self._conn, name)
-
-    def __setattr__(self, name: str, value):
-        if name == "_conn":
-            object.__setattr__(self, name, value)
-        else:
-            setattr(self._conn, name, value)
-
-    def __enter__(self):
-        return self._conn.__enter__()
-
-    def __exit__(self, *args):
-        return self._conn.__exit__(*args)
-
-
-def wrap(conn) -> "DatabaseWrapper":
-    """Envuelve una conexión si todavía no es DatabaseWrapper."""
-    if isinstance(conn, DatabaseWrapper):
-        return conn
-    return DatabaseWrapper(conn)
-
-
-# ─────────────────────────────────────────────────────────────
-# v13.4: VALIDACIÓN FAIL-FAST
-# ─────────────────────────────────────────────────────────────
-
-TABLAS_REQUERIDAS = [
-    "usuarios", "productos", "clientes",
-    "ventas", "configuraciones", "inventario",
-]
-
-# Reglas de equivalencia para esquemas donde hubo refactor de nombres.
-_EQUIVALENCIAS_TABLAS = {
-    "inventario": {"inventario", "inventario_actual"},
-}
-
-
-def verificar_tablas(conn) -> None:
-    """Levanta RuntimeError si alguna tabla crítica falta en la DB.
-
-    Se llama desde main.py justo después de ejecutar las migraciones
-    para garantizar un arranque fail-fast antes de inicializar la UI.
-    """
-    cur = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    )
-    existentes = {r[0] for r in cur.fetchall()}
-
-    faltantes = []
-    for tabla in TABLAS_REQUERIDAS:
-        opciones = _EQUIVALENCIAS_TABLAS.get(tabla, {tabla})
-        if not (existentes & opciones):
-            faltantes.append(tabla)
-    if faltantes:
-        raise RuntimeError(
-            f"DB incompleta — tablas faltantes: {faltantes}"
-        )
-
-
-def _column_exists(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
-    try:
-        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-    except Exception:
-        return False
-    for row in rows:
-        # sqlite3.Row o tuple
-        name = row["name"] if isinstance(row, sqlite3.Row) else row[1]
-        if name == column_name:
-            return True
-    return False
-
-
-def migrate_db(conn: sqlite3.Connection) -> None:
-    """
-    Migraciones defensivas de compatibilidad para DB legacy.
-    - Agrega columnas faltantes `created_at` y `activo` donde se usan en queries.
-    - Idempotente y seguro de ejecutar en cada arranque.
-    """
-    compat_columns = {
-        "productos": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "clientes": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "proveedores": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "personal": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "recetas_produccion": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        # Catálogos / configuración
-        "sucursales": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "categorias": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "usuarios": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        # RRHH
-        "empleados": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "puestos": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        # Producción / recetas
-        "recetas": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "receta_componentes": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        # Transferencias
-        "transferencias": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-            ("activo", "INTEGER DEFAULT 1"),
-        ],
-        "transfer_items": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-        ],
-        "mermas": [
-            ("created_at", "TEXT DEFAULT (datetime('now'))"),
-        ],
-    }
-    for table_name, columns in compat_columns.items():
-        table_exists = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-            (table_name,),
-        ).fetchone()
-        if not table_exists:
-            continue
-        for column_name, ddl in columns:
-            if _column_exists(conn, table_name, column_name):
-                continue
-            # SQLite < 3.38 no soporta DEFAULT (datetime('now')) en ALTER TABLE.
-            # Usamos TEXT/INTEGER sin expresión de función para máxima compatibilidad.
-            safe_ddl = ddl.replace("DEFAULT (datetime('now'))", "DEFAULT NULL") \
-                          .replace("DEFAULT (date('now'))", "DEFAULT NULL")
-            try:
-                conn.execute(
-                    f"ALTER TABLE {table_name} ADD COLUMN {column_name} {safe_ddl}"
-                )
-                logger.warning(
-                    "DB compat: columna agregada %s.%s",
-                    table_name,
-                    column_name,
-                )
-            except Exception as _col_err:
-                logger.debug("DB compat: no se pudo agregar %s.%s: %s",
-                             table_name, column_name, _col_err)
-    conn.commit()
-
-
-# ─────────────────────────────────────────────────────────────
-# SHIMS DE COMPATIBILIDAD
-# ─────────────────────────────────────────────────────────────
-
-class _DatabaseShim:
-    """
-    Shim para código legacy que usaba:
-    database.Connection
-    """
-
-    def __init__(self, path: str = None):
-        self._conn = get_connection(path)
-
-    def __getattr__(self, name):
-        return getattr(self._conn, name)
-
-    def __enter__(self):
-        return self._conn
-
-    def __exit__(self, *args):
-        pass
-
-
-Connection = _DatabaseShim
-
-
-class Database:
-    """
-    Clase de compatibilidad para código antiguo que usaba Database().
-    """
-
-    def __init__(self, path: str = None):
-        self.conn = get_connection(path)
-
-    def get_connection(self):
-        return self.conn
-
-    def execute(self, *args, **kwargs):
-        return self.conn.execute(*args, **kwargs)
-
-    def commit(self):
-        self.conn.commit()
-
-    def rollback(self):
-        self.conn.rollback()
-
-    def close(self):
-        close_connection(self.conn)
-
-
-# Alias legacy
-def get_db(path: str = None) -> "DatabaseWrapper":
-    return get_connection(path)
-
-
-# Export público
-DB_PATH = _DB_PATH
-
-
-__all__ = [
-    "BASE_DIR",
-    "DB_PATH",
-    "get_connection",
-    "close_connection",
-    "close_thread_connection",
-    "execute_with_retry",
-    "transaction",
-    "DatabaseWrapper",
-    "wrap",
-    "Connection",
-    "Database",
-    "get_db",
-    "migrate_db",
-]
