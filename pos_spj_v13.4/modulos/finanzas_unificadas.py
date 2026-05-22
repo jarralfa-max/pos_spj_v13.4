@@ -1562,8 +1562,7 @@ class _SeccionCuentasPorCobrar(QWidget):
             ["ID", "Folio", "Cliente", "Monto", "Saldo", "Vencimiento", "Estado", "Acciones"])
         self._tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         estado_fil = self._cmb_estado.currentText()
@@ -1784,23 +1783,36 @@ class _SeccionCuentasPorPagar(QWidget):
         acc.addStretch()
         lay.addLayout(acc)
 
+        filtros_cxp = QHBoxLayout()
+        self._cmb_estado_cxp = QComboBox()
+        self._cmb_estado_cxp.addItems(["Todos", "pendiente", "parcial", "pagado", "vencido"])
+        self._cmb_estado_cxp.currentIndexChanged.connect(self._filtrar)
         self._txt_filtro = QLineEdit()
         self._txt_filtro.setPlaceholderText("Buscar por nombre de proveedor...")
         self._txt_filtro.textChanged.connect(self._filtrar)
-        lay.addWidget(self._txt_filtro)
+        filtros_cxp.addWidget(QLabel("Estado:"))
+        filtros_cxp.addWidget(self._cmb_estado_cxp)
+        filtros_cxp.addWidget(self._txt_filtro, 1)
+        lay.addLayout(filtros_cxp)
 
         self._tbl = _FinTable(
             ["ID", "Fecha", "Folio", "Proveedor", "Concepto", "Saldo", "Estado", "Acciones"])
         self._tbl.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
-        txt = self._txt_filtro.text().lower()
+        txt        = self._txt_filtro.text().lower()
+        estado_fil = self._cmb_estado_cxp.currentText()
         for i in range(self._tbl.rowCount()):
-            nom = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
-            self._tbl.setRowHidden(i, bool(txt) and txt not in nom)
+            nom  = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            est  = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            show = True
+            if txt and txt not in nom:
+                show = False
+            if estado_fil != "Todos" and est != estado_fil.lower():
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def _dialogo_nueva_cxp(self):
         m = self._m
@@ -1957,8 +1969,7 @@ class _SeccionMovimientos(QWidget):
         self._tbl = _FinTable(
             ["Fecha", "Tipo", "Categoría", "Concepto", "Referencia", "Entrada", "Salida", "Saldo", "Usuario"])
         self._tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         from datetime import date, timedelta
@@ -2119,8 +2130,7 @@ class _SeccionAsientosContables(QWidget):
         self._tbl = _FinTable(
             ["Fecha", "Evento", "Módulo", "Cuenta debe", "Cuenta haber", "Monto", "Referencia", "Usuario"])
         self._tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         from datetime import date, timedelta
@@ -2209,7 +2219,7 @@ class _SeccionAsientosContables(QWidget):
             rows = []
             if m._je_svc and hasattr(m._je_svc, "get_asientos"):
                 rows = m._je_svc.get_asientos(sucursal_id=m.sucursal_id, limit=200)
-            # Fallback directo a journal_entries (existe desde mig 083)
+            # Fallback 1: journal_entries (mig 083)
             if not rows:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
@@ -2235,6 +2245,30 @@ class _SeccionAsientosContables(QWidget):
                         ]
                     except Exception:
                         rows = []
+                    # Fallback 2: financial_event_log (desde m000 — siempre presente)
+                    if not rows and db:
+                        try:
+                            cur = db.execute(
+                                "SELECT timestamp, evento, modulo, cuenta_debe, cuenta_haber, "
+                                "monto, referencia_id, usuario_id "
+                                "FROM financial_event_log "
+                                "ORDER BY timestamp DESC LIMIT 200"
+                            )
+                            rows = [
+                                {
+                                    "fecha":       r[0],
+                                    "evento":      r[1],
+                                    "modulo":      r[2],
+                                    "cuenta_debe": r[3],
+                                    "cuenta_haber":r[4],
+                                    "monto":       float(r[5] or 0),
+                                    "referencia":  str(r[6] or ""),
+                                    "usuario":     str(r[7] or ""),
+                                }
+                                for r in cur.fetchall()
+                            ]
+                        except Exception:
+                            rows = []
 
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
