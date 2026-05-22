@@ -878,7 +878,7 @@ class ModuloProduccion(ModuloBase):
             QMessageBox.warning(self, "Error", f"No se pudo abrir editor:\n{e}")
 
     def _receta_desactivar(self):
-        """Desactiva la receta seleccionada (soft delete)."""
+        """Desactiva la receta seleccionada (soft delete) via RecetaRepository."""
         row = self._rec_tabla.currentRow()
         if row < 0:
             return
@@ -890,65 +890,18 @@ class ModuloProduccion(ModuloBase):
             QMessageBox.Yes | QMessageBox.No
         ) != QMessageBox.Yes:
             return
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return
         try:
-            conn.execute("UPDATE product_recipes SET is_active=0 WHERE id=?", (rid,))
-            try:
-                conn.commit()
-            except Exception:
-                pass
+            from repositories.recetas import RecetaRepository
+            conn = self._conexion if hasattr(self, '_conexion') else (
+                self.conexion if hasattr(self, 'conexion') else None)
+            if not conn:
+                return
+            repo = RecetaRepository(conn)
+            repo.deactivate(rid, self._usuario if hasattr(self, '_usuario') else "sistema")
             self._cargar_lista_recetas()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
-    def _nueva_receta_simple(self):
-        """Fallback: crear receta con diálogo simple (sin DialogoReceta)."""
-        from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout,
-            QVBoxLayout, QLineEdit, QComboBox, QDoubleSpinBox, QMessageBox)
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return
-        dlg = QDialog(self); dlg.setWindowTitle("Nueva Receta"); dlg.setMinimumWidth(360)
-        lay = QVBoxLayout(dlg); form = QFormLayout()
-        txt_nombre = QLineEdit(); txt_nombre.setPlaceholderText("Nombre de la receta")
-        cmb_producto = QComboBox()
-        try:
-            prods = conn.execute(
-                "SELECT id, nombre FROM productos WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for p in prods:
-                cmb_producto.addItem(p[1], p[0])
-        except Exception:
-            pass
-        spin_rend = QDoubleSpinBox()
-        spin_rend.setRange(0, 100); spin_rend.setSuffix("%"); spin_rend.setDecimals(1)
-        form.addRow("Nombre *:", txt_nombre)
-        form.addRow("Producto base:", cmb_producto)
-        form.addRow("Rendimiento esperado:", spin_rend)
-        lay.addLayout(form)
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
-        lay.addWidget(btns)
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        nombre = txt_nombre.text().strip()
-        if not nombre:
-            return
-        try:
-            conn.execute(
-                "INSERT INTO product_recipes(nombre_receta, product_id, total_rendimiento, is_active) VALUES(?,?,?,1)",
-                (nombre, cmb_producto.currentData(), spin_rend.value()))
-            try:
-                conn.commit()
-            except Exception:
-                pass
-            self._cargar_lista_recetas()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
 
     def _ver_detalle_receta(self):
         # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
@@ -1407,8 +1360,13 @@ class DialogoReceta(QDialog):
             self._combo_base.addItem(
                 f"{p['nombre']} [{p.get('unidad','kg')}]", p["id"]
             )
+        self._combo_tipo_receta = QComboBox()
+        self._combo_tipo_receta.addItem("SUBPRODUCTO — Para productos procesables", "SUBPRODUCTO")
+        self._combo_tipo_receta.addItem("COMBINACION — Para productos compuestos",  "COMBINACION")
+        self._combo_tipo_receta.addItem("PRODUCCION  — Para productos producidos",  "PRODUCCION")
         fl.addRow("Nombre Receta*:", self._e_nombre)
         fl.addRow("Producto Base*:", self._combo_base)
+        fl.addRow("Tipo Receta*:",   self._combo_tipo_receta)
         lay.addLayout(fl)
 
         # Components table
@@ -1476,6 +1434,10 @@ class DialogoReceta(QDialog):
         self._e_nombre.setText(d.get("nombre_receta", ""))
         idx = self._combo_base.findData(d.get("base_product_id"))
         if idx >= 0: self._combo_base.setCurrentIndex(idx)
+        tipo = (d.get("tipo_receta") or "SUBPRODUCTO").upper()
+        idx_t = self._combo_tipo_receta.findData(tipo)
+        if idx_t >= 0:
+            self._combo_tipo_receta.setCurrentIndex(idx_t)
         self._comp_rows = []
         for c in self._componentes:
             self._comp_rows.append({
@@ -1611,6 +1573,8 @@ class DialogoReceta(QDialog):
                 else:
                     return
 
+        tipo_receta = self._combo_tipo_receta.currentData() or "SUBPRODUCTO"
+
         try:
             if self._data:
                 self._repo.update(self._data["id"], nombre, components, self._usuario)
@@ -1621,6 +1585,7 @@ class DialogoReceta(QDialog):
                     base_product_id=base_id,
                     components=components,
                     usuario=self._usuario,
+                    tipo_receta=tipo_receta,
                 )
                 QMessageBox.information(self, "Éxito", f"Receta #{rid} creada correctamente.")
             self.accept()
@@ -1637,6 +1602,7 @@ class DialogoReceta(QDialog):
                                 "Ya existe una receta activa para este producto base.\n"
                                 "Cierre este diálogo y use el botón «Editar» sobre la receta existente.")
         except RecetaError as exc:
+            # Includes RecetaTypeError (tipo_receta ↔ tipo_producto mismatch)
             QMessageBox.warning(self, "Error en Receta", str(exc))
         except Exception as exc:
             logger.exception("guardar_receta")

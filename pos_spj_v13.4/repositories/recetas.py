@@ -48,36 +48,10 @@ class RecetaRepository:
         from core.db.connection import wrap
         self.db = wrap(db)
 
-        # Ensure required columns exist before detecting them
-        self._ensure_product_recipes_columns()
-
         # Detect all columns in product_recipes
         self._product_columns = self._get_table_columns('product_recipes')
         # Determine which column to use for product reference (prefer product_id if exists)
         self._product_col = self._detect_product_column()
-
-    def _ensure_product_recipes_columns(self) -> None:
-        """Add missing columns to product_recipes so detection never fails."""
-        _missing_cols = [
-            ("product_id",        "INTEGER"),
-            ("base_product_id",   "INTEGER"),
-            ("nombre_receta",     "TEXT"),
-            ("is_active",         "INTEGER NOT NULL DEFAULT 1"),
-            ("activa",            "INTEGER DEFAULT 1"),
-            ("total_rendimiento", "REAL DEFAULT 0"),
-            ("total_merma",       "REAL DEFAULT 0"),
-        ]
-        for col, typedef in _missing_cols:
-            try:
-                self.db.execute(
-                    f"ALTER TABLE product_recipes ADD COLUMN {col} {typedef}"
-                )
-                try:
-                    self.db.execute("COMMIT")
-                except Exception:
-                    pass
-            except Exception:
-                pass  # Column already exists or table doesn't exist yet
 
     def _get_table_columns(self, table_name: str) -> Set[str]:
         """Return a set of column names for the given table."""
@@ -248,12 +222,36 @@ class RecetaRepository:
     # ── Write ────────────────────────────────────────────────────────────────
 
     def create(self, nombre: str, base_product_id: int,
-               components: List[Dict], usuario: str) -> int:
+               components: List[Dict], usuario: str,
+               tipo_receta: str = "SUBPRODUCTO") -> int:
         """
         components: list of dicts with keys:
             component_product_id, rendimiento_pct, merma_pct, orden, descripcion
+
+        tipo_receta must match the producto's tipo_producto:
+            COMBINACION → tipo_producto 'compuesto'
+            SUBPRODUCTO → tipo_producto 'procesable'
+            PRODUCCION  → tipo_producto 'producido'
         """
+        from core.services.recipes.recipe_validation_service import (
+            RecipeValidationService, RecetaTypeError as _RTE,
+        )
+
         component_ids = [c["component_product_id"] for c in components]
+
+        # Validate tipo_receta ↔ tipo_producto compatibility
+        prod_row = self.db.execute(
+            "SELECT tipo_producto FROM productos WHERE id = ?",
+            (base_product_id,)
+        ).fetchone()
+        if prod_row is None:
+            raise RecetaError(f"PRODUCT_NOT_FOUND: {base_product_id}")
+        tipo_producto = (dict(prod_row) if hasattr(prod_row, 'keys') else
+                         {"tipo_producto": prod_row[0]})["tipo_producto"] or "simple"
+        try:
+            RecipeValidationService.validate_tipo_receta_producto(tipo_receta, tipo_producto)
+        except _RTE as exc:
+            raise RecetaError(str(exc)) from exc
 
         # Validate
         self.check_unique_base_product(base_product_id)
@@ -284,6 +282,7 @@ class RecetaRepository:
                 parameters.append(val)
 
         _add('nombre_receta',    nombre.strip())
+        _add('tipo_receta',      tipo_receta.upper())
         _add('total_rendimiento', float(total_rend))
         _add('total_merma',      float(total_merma))
         _add('is_active',        1)
@@ -341,8 +340,9 @@ class RecetaRepository:
             self._rebuild_dependency_graph(receta_id, base_product_id, component_ids)
 
         EventBus().publish(RECETA_CREADA, {
-            "receta_id": receta_id,
-            "base_product_id": base_product_id
+            "receta_id":       receta_id,
+            "base_product_id": base_product_id,
+            "tipo_receta":     tipo_receta.upper(),
         })
         return receta_id
 
