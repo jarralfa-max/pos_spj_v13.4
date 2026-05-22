@@ -85,6 +85,7 @@ MIGRATIONS = [
     _Migration("084",  "migrations.standalone.084_capital_movements"),             # Capital y patrimonio: inyecciones, retiros, balance inicial
     _Migration("085",  "migrations.standalone.085_product_type_flags"),           # FASE 2: flags tipo_producto para validación de recetas
     _Migration("086",  "migrations.standalone.086_whatsapp_order_sales_columns"), # WA: columnas de pedido entrante en ventas
+    _Migration("087",  "migrations.standalone.087_whatsapp_sale_detail_columns"), # WA: columnas de detalle para pedidos entrantes
 ]
 
 def _ensure_tracking_table(conn):
