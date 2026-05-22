@@ -29,25 +29,35 @@ def init_webhook(message_router, number_router, conversation_store):
     _number_router = number_router
     _conversation_store = conversation_store
 
-
 @router.get("/webhook")
 async def verify_webhook(
     mode: str = Query(None, alias="hub.mode"),
     token: str = Query(None, alias="hub.verify_token"),
     challenge: str = Query(None, alias="hub.challenge"),
 ):
-    """Verificación del webhook por Meta."""
-    from config.settings import WA_VERIFY_TOKEN
-    if not WA_VERIFY_TOKEN:
-        logger.error("WA_VERIFY_TOKEN no configurado; verificación rechazada.")
+    """
+    Verificación del webhook por Meta.
+
+    El verify token se lee primero desde la configuración guardada por el
+    módulo WhatsApp en configuraciones.wa_verify_token y después desde .env
+    como respaldo.
+    """
+    from config.settings import get_verify_token
+
+    verify_token = get_verify_token()
+
+    if not verify_token:
+        logger.error("Verify token no configurado; verificación rechazada.")
         return Response(status_code=503)
-    token_ok = bool(token) and hmac.compare_digest(str(token), str(WA_VERIFY_TOKEN))
+
+    token_ok = bool(token) and hmac.compare_digest(str(token), str(verify_token))
+
     if mode == "subscribe" and token_ok:
         logger.info("Webhook verificado exitosamente")
         return Response(content=challenge, media_type="text/plain")
-    logger.warning("Verificación fallida: token=%s", token)
-    return Response(status_code=403)
 
+    logger.warning("Verificación fallida: verify token inválido.")
+    return Response(status_code=403)
 
 @router.post("/webhook")
 async def receive_message(request: Request):
