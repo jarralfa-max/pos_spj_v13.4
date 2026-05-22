@@ -709,6 +709,37 @@ _TPL_OSCURO = f"""
             color: {Colors.NEUTRAL.WHITE};
         }}
 
+        /* ===== FIN SIDEBAR (always dark regardless of theme) ===== */
+        QListWidget#finSidebar {{
+            background-color: #11131b;
+            color: #e1e2ed;
+            border: none;
+            border-right: 1px solid #434655;
+            border-radius: 0;
+            padding: 0;
+            outline: none;
+            font-size: 12px;
+        }}
+        QListWidget#finSidebar::item {{
+            padding: 9px 12px 9px 16px;
+            border-left: 3px solid transparent;
+            border-radius: 0;
+            margin: 0;
+            color: #9ba1b0;
+        }}
+        QListWidget#finSidebar::item:hover {{
+            background-color: #1d1f27;
+            color: #e1e2ed;
+            border-radius: 0;
+        }}
+        QListWidget#finSidebar::item:selected {{
+            background-color: #282a32;
+            border-left: 3px solid #b4c5ff;
+            color: #e1e2ed;
+            font-weight: 600;
+            border-radius: 0;
+        }}
+
         /* ===== TREE WIDGET ===== */
         QTreeWidget {{
             background-color: {Colors.NEUTRAL.SLATE_800};
@@ -1838,6 +1869,37 @@ _TPL_CLARO = f"""
         QListWidget::item:selected {{
             background-color: {Colors.PRIMARY.BASE};
             color: {Colors.NEUTRAL.WHITE};
+        }}
+
+        /* ===== FIN SIDEBAR (always dark regardless of theme) ===== */
+        QListWidget#finSidebar {{
+            background-color: #11131b;
+            color: #e1e2ed;
+            border: none;
+            border-right: 1px solid #434655;
+            border-radius: 0;
+            padding: 0;
+            outline: none;
+            font-size: 12px;
+        }}
+        QListWidget#finSidebar::item {{
+            padding: 9px 12px 9px 16px;
+            border-left: 3px solid transparent;
+            border-radius: 0;
+            margin: 0;
+            color: #9ba1b0;
+        }}
+        QListWidget#finSidebar::item:hover {{
+            background-color: #1d1f27;
+            color: #e1e2ed;
+            border-radius: 0;
+        }}
+        QListWidget#finSidebar::item:selected {{
+            background-color: #282a32;
+            border-left: 3px solid #b4c5ff;
+            color: #e1e2ed;
+            font-weight: 600;
+            border-radius: 0;
         }}
 
         /* ===== TREE WIDGET ===== */
