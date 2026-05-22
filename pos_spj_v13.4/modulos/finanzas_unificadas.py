@@ -2713,20 +2713,22 @@ class _SeccionClientesCredito(QWidget):
             clientes = []
             if m._dash_svc and hasattr(m._dash_svc, "listar_clientes_credito"):
                 clientes = m._dash_svc.listar_clientes_credito(sucursal_id=m.sucursal_id)
-            elif m._dash_svc and hasattr(m._dash_svc, "listar_clientes"):
-                todos = m._dash_svc.listar_clientes(sucursal_id=m.sucursal_id)
-                clientes = [c for c in todos if float(c.get("limite_credito", 0) or 0) > 0]
 
-            # Fallback directo a tabla clientes (siempre presente desde m000)
+            # Fallback directo a tabla clientes — usando columnas reales del schema
+            # (credit_limit / credit_balance son los nombres canónicos; limite_credito es alias legacy)
             if not clientes:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
                     try:
                         cur = db.execute(
-                            "SELECT nombre, COALESCE(limite_credito,0), "
-                            "COALESCE(saldo_credito,0), COALESCE(ultima_compra,'') "
+                            "SELECT nombre, "
+                            "  COALESCE(credit_limit, limite_credito, 0) AS limite, "
+                            "  COALESCE(credit_balance, 0) AS saldo_usado, "
+                            "  COALESCE(ultima_compra, '') AS ultima_compra "
                             "FROM clientes WHERE COALESCE(activo,1)=1 "
-                            "AND COALESCE(limite_credito,0) > 0 "
+                            "AND (COALESCE(credit_limit,0) > 0 "
+                            "  OR COALESCE(limite_credito,0) > 0 "
+                            "  OR COALESCE(allows_credit,0) = 1) "
                             "ORDER BY nombre LIMIT 300"
                         )
                         clientes = [
@@ -2734,14 +2736,16 @@ class _SeccionClientesCredito(QWidget):
                              "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
                             for r in cur.fetchall()
                         ]
-                    except Exception:
-                        pass
-                # Si aún vacío, mostrar todos los clientes activos
+                    except Exception as _fe:
+                        logger.debug("clientes_credito fallback filtrado: %s", _fe)
+                # Si la tabla está vacía o no hay clientes con crédito, mostrar todos
                 if not clientes and db:
                     try:
                         cur = db.execute(
-                            "SELECT nombre, COALESCE(limite_credito,0), "
-                            "COALESCE(saldo_credito,0), COALESCE(ultima_compra,'') "
+                            "SELECT nombre, "
+                            "  COALESCE(credit_limit, limite_credito, 0), "
+                            "  COALESCE(credit_balance, 0), "
+                            "  COALESCE(ultima_compra, '') "
                             "FROM clientes WHERE COALESCE(activo,1)=1 "
                             "ORDER BY nombre LIMIT 200"
                         )
@@ -2750,8 +2754,8 @@ class _SeccionClientesCredito(QWidget):
                              "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
                             for r in cur.fetchall()
                         ]
-                    except Exception:
-                        pass
+                    except Exception as _fe2:
+                        logger.debug("clientes_credito fallback todos: %s", _fe2)
 
             self._tbl.setRowCount(len(clientes))
             for ri, c in enumerate(clientes):
