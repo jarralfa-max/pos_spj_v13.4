@@ -2503,9 +2503,12 @@ class _SeccionProveedores(QWidget):
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
         for i in (1, 2, 3, 4, 5):
             hh.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed)
+        hh.resizeSection(6, 184)
+        self._tbl.verticalHeader().setDefaultSectionSize(40)
         self._tbl.doubleClicked.connect(self._editar_seleccionado)
         self._tbl.itemSelectionChanged.connect(self._on_selected)
-        lay.addWidget(self._tbl)
+        lay.addWidget(self._tbl, 1)
 
         grp_det = QGroupBox("Detalle de proveedor seleccionado")
         d_lay = QVBoxLayout(grp_det)
@@ -2515,7 +2518,6 @@ class _SeccionProveedores(QWidget):
         d_lay.addWidget(self._lbl_detalle)
         d_lay.addWidget(self._lbl_resumen)
         lay.addWidget(grp_det)
-        lay.addStretch()
 
     def _filtrar(self):
         txt = self._txt_buscar.text().lower()
@@ -2641,16 +2643,20 @@ class _SeccionProveedores(QWidget):
 
             btn_w   = QWidget()
             btn_lay = QHBoxLayout(btn_w)
-            btn_lay.setContentsMargins(2, 2, 2, 2)
-            btn_ed  = QPushButton("✏️"); btn_ed.setFixedSize(28, 26)
-            btn_ed.setObjectName("outlineBtn"); btn_ed.setToolTip("Editar")
+            btn_lay.setContentsMargins(4, 2, 4, 2)
+            btn_lay.setSpacing(4)
+            btn_ed  = QPushButton("✏️ Editar")
+            btn_ed.setMinimumSize(78, 28)
+            btn_ed.setObjectName("outlineBtn")
             btn_ed.setCursor(Qt.PointingHandCursor)
             btn_ed.clicked.connect(lambda _, p=pid: self._editar_por_id(p))
-            btn_del = QPushButton("🗑️"); btn_del.setFixedSize(28, 26)
-            btn_del.setObjectName("dangerBtn"); btn_del.setToolTip("Eliminar")
+            btn_del = QPushButton("🗑️ Eliminar")
+            btn_del.setMinimumSize(88, 28)
+            btn_del.setObjectName("dangerBtn")
             btn_del.setCursor(Qt.PointingHandCursor)
             btn_del.clicked.connect(lambda _, p=pid, n=nombre: self._eliminar_proveedor(p, n))
-            btn_lay.addWidget(btn_ed); btn_lay.addWidget(btn_del)
+            btn_lay.addWidget(btn_ed)
+            btn_lay.addWidget(btn_del)
             self._tbl.setCellWidget(ri, 6, btn_w)
 
 
@@ -2671,11 +2677,35 @@ class _SeccionClientesCredito(QWidget):
             btn_callback=self.recargar
         ))
 
+        filtros_cred = QHBoxLayout()
+        self._cmb_estado_cred = QComboBox()
+        self._cmb_estado_cred.addItems(["Todos", "activo", "sin disponible"])
+        self._cmb_estado_cred.currentIndexChanged.connect(self._filtrar)
+        self._txt_buscar_cred = QLineEdit()
+        self._txt_buscar_cred.setPlaceholderText("Buscar cliente por nombre...")
+        self._txt_buscar_cred.textChanged.connect(self._filtrar)
+        filtros_cred.addWidget(QLabel("Estado:"))
+        filtros_cred.addWidget(self._cmb_estado_cred)
+        filtros_cred.addWidget(self._txt_buscar_cred, 1)
+        lay.addLayout(filtros_cred)
+
         self._tbl = _FinTable(
             ["Cliente", "Límite", "Saldo usado", "Disponible", "Estado", "Última compra", "Acciones"])
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        txt      = self._txt_buscar_cred.text().lower()
+        estado_f = self._cmb_estado_cred.currentText()
+        for i in range(self._tbl.rowCount()):
+            nom  = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
+            est  = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            show = True
+            if txt and txt not in nom:
+                show = False
+            if estado_f != "Todos" and est != estado_f.lower():
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def recargar(self):
         m = self._m
@@ -2687,10 +2717,46 @@ class _SeccionClientesCredito(QWidget):
                 todos = m._dash_svc.listar_clientes(sucursal_id=m.sucursal_id)
                 clientes = [c for c in todos if float(c.get("limite_credito", 0) or 0) > 0]
 
+            # Fallback directo a tabla clientes (siempre presente desde m000)
+            if not clientes:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT nombre, COALESCE(limite_credito,0), "
+                            "COALESCE(saldo_credito,0), COALESCE(ultima_compra,'') "
+                            "FROM clientes WHERE COALESCE(activo,1)=1 "
+                            "AND COALESCE(limite_credito,0) > 0 "
+                            "ORDER BY nombre LIMIT 300"
+                        )
+                        clientes = [
+                            {"nombre": r[0], "limite_credito": float(r[1] or 0),
+                             "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        pass
+                # Si aún vacío, mostrar todos los clientes activos
+                if not clientes and db:
+                    try:
+                        cur = db.execute(
+                            "SELECT nombre, COALESCE(limite_credito,0), "
+                            "COALESCE(saldo_credito,0), COALESCE(ultima_compra,'') "
+                            "FROM clientes WHERE COALESCE(activo,1)=1 "
+                            "ORDER BY nombre LIMIT 200"
+                        )
+                        clientes = [
+                            {"nombre": r[0], "limite_credito": float(r[1] or 0),
+                             "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        pass
+
             self._tbl.setRowCount(len(clientes))
             for ri, c in enumerate(clientes):
-                limite    = float(c.get("limite_credito", 0) or 0)
-                saldo     = float(c.get("saldo_credito", 0) or 0)
+                limite     = float(c.get("limite_credito", 0) or 0)
+                saldo      = float(c.get("saldo_credito", 0) or 0)
                 disponible = max(0.0, limite - saldo)
                 estado = "activo" if disponible > 0 else "sin disponible"
                 vals = [
@@ -2765,7 +2831,9 @@ class _SeccionReportes(QWidget):
 
             btns_row = QHBoxLayout()
             btn_ver = _compact_btn("Ver", "primary")
+            btn_ver.clicked.connect(lambda _, t=titulo: self._ver_reporte(t))
             btn_exp = _compact_btn("Exportar", "secondary")
+            btn_exp.clicked.connect(lambda _, t=titulo: self._exportar_reporte(t))
             btns_row.addWidget(btn_ver); btns_row.addWidget(btn_exp); btns_row.addStretch()
             c_lay.addLayout(btns_row)
 
@@ -2773,6 +2841,104 @@ class _SeccionReportes(QWidget):
 
         scroll.setWidget(container)
         lay.addWidget(scroll)
+
+    def _ver_reporte(self, titulo: str):
+        nav_map = {
+            "Flujo de efectivo":      5,
+            "Estado CxC":             3,
+            "Estado CxP":             4,
+            "Conciliación de caja":   1,
+            "Póliza contable":        6,
+            "Nómina pagada":          7,
+            "Capital y aportaciones": 2,
+            "Saldos de proveedores":  8,
+            "Saldos de clientes":     9,
+        }
+        m = self._m
+        if titulo in nav_map:
+            if m._nav:
+                m._nav.setCurrentRow(nav_map[titulo])
+        else:
+            self._reporte_simple(titulo)
+
+    def _exportar_reporte(self, titulo: str):
+        QMessageBox.information(
+            self, "Exportar reporte",
+            f"La exportación de «{titulo}» estará disponible próximamente.\n"
+            "Por ahora puede visualizar los datos con el botón «Ver»."
+        )
+
+    def _reporte_simple(self, titulo: str):
+        m = self._m
+        db = getattr(getattr(m, "container", None), "db", None)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(titulo)
+        dlg.resize(540, 340)
+        lay_d = QVBoxLayout(dlg)
+        lbl = QLabel()
+        lbl.setWordWrap(True)
+        lbl.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        try:
+            if titulo == "Utilidad del período":
+                ingreso = egreso = 0.0
+                if db:
+                    r  = db.execute("SELECT COALESCE(SUM(total),0) FROM ventas WHERE COALESCE(anulado,0)=0").fetchone()
+                    ingreso = float((r or [0])[0] or 0)
+                    r2 = db.execute("SELECT COALESCE(SUM(total),0) FROM compras").fetchone()
+                    egreso  = float((r2 or [0])[0] or 0)
+                utilidad = ingreso - egreso
+                signo = "+" if utilidad >= 0 else ""
+                lbl.setText(
+                    f"Ingresos por ventas:   ${ingreso:>14,.2f}\n"
+                    f"Egresos por compras:   ${egreso:>14,.2f}\n"
+                    f"{'─' * 38}\n"
+                    f"Utilidad neta:         {signo}${abs(utilidad):>13,.2f}"
+                )
+            elif titulo == "Balance general":
+                if m._ts and hasattr(m._ts, "balance_general"):
+                    bal     = m._ts.balance_general()
+                    activo  = float(bal.get("activo",  0) or 0)
+                    pasivo  = float(bal.get("pasivo",  0) or 0)
+                    capital = float(bal.get("capital", 0) or 0)
+                    lbl.setText(
+                        f"Activo total:    ${activo:>14,.2f}\n"
+                        f"Pasivo total:    ${pasivo:>14,.2f}\n"
+                        f"{'─' * 34}\n"
+                        f"Capital:         ${capital:>14,.2f}"
+                    )
+                else:
+                    lbl.setText("Balance general no disponible.\n"
+                                "Verifica que TreasuryService esté activo.")
+            elif titulo == "Gastos por categoría":
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT COALESCE(modulo,'Sin categoría'), SUM(monto) "
+                            "FROM financial_event_log "
+                            "GROUP BY modulo ORDER BY SUM(monto) DESC LIMIT 12"
+                        )
+                        rows = cur.fetchall()
+                        if rows:
+                            lines = [f"{'Categoría':<28} {'Monto':>12}", "─" * 41]
+                            for cat, monto in rows:
+                                lines.append(f"{str(cat):<28} ${float(monto or 0):>11,.2f}")
+                            lbl.setText("\n".join(lines))
+                        else:
+                            lbl.setText("Sin datos de gastos registrados aún.")
+                    except Exception:
+                        lbl.setText("Sin datos disponibles.")
+                else:
+                    lbl.setText("Base de datos no disponible.")
+        except Exception as exc:
+            lbl.setText(f"Error al generar reporte: {exc}")
+
+        lbl.setStyleSheet("font-family: monospace; font-size: 12px; padding: 8px;")
+        lay_d.addWidget(lbl, 1)
+        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.reject)
+        lay_d.addWidget(btns)
+        dlg.exec_()
 
 
 class _SeccionConfiguracion(QWidget):
@@ -2791,51 +2957,224 @@ class _SeccionConfiguracion(QWidget):
             "Categorías, métodos de pago, reglas de conciliación y preferencias"
         ))
 
-        # Categorías financieras
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        cnt = QWidget()
+        s_lay = QVBoxLayout(cnt)
+        s_lay.setSpacing(12)
+
+        # ── Categorías financieras ───────────────────────────────────────────
         grp_cat = QGroupBox("Categorías financieras")
-        g_cat = QVBoxLayout(grp_cat)
-        lbl_cat = QLabel("Administra las categorías para clasificar ingresos y egresos.")
+        gc = QVBoxLayout(grp_cat)
+        lbl_cat = QLabel("Categorías para clasificar ingresos y egresos:")
         lbl_cat.setObjectName("caption")
-        g_cat.addWidget(lbl_cat)
-        lay.addWidget(grp_cat)
+        gc.addWidget(lbl_cat)
 
-        # Métodos de pago
-        grp_met = QGroupBox("Métodos de pago")
-        g_met = QVBoxLayout(grp_met)
-        lbl_met = QLabel("Efectivo, Transferencia, Tarjeta, Cheque, Crédito.")
-        lbl_met.setObjectName("caption")
-        g_met.addWidget(lbl_met)
-        lay.addWidget(grp_met)
+        self._lst_categorias = QListWidget()
+        self._lst_categorias.setMaximumHeight(130)
+        for cat in ["Ventas", "Compras", "Nómina", "Servicios", "Alquiler",
+                    "Mantenimiento", "Impuestos", "Capital", "Otros"]:
+            self._lst_categorias.addItem(cat)
+        gc.addWidget(self._lst_categorias)
 
-        # Reglas de conciliación
+        cat_btns = QHBoxLayout()
+        self._txt_nueva_cat = QLineEdit()
+        self._txt_nueva_cat.setPlaceholderText("Nueva categoría...")
+        btn_add_cat = QPushButton("➕ Agregar")
+        btn_add_cat.setObjectName("successBtn")
+        btn_add_cat.setCursor(Qt.PointingHandCursor)
+        btn_add_cat.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_add_cat.clicked.connect(self._agregar_categoria)
+        btn_del_cat = QPushButton("🗑️ Eliminar")
+        btn_del_cat.setObjectName("dangerBtn")
+        btn_del_cat.setCursor(Qt.PointingHandCursor)
+        btn_del_cat.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_del_cat.clicked.connect(self._eliminar_categoria)
+        cat_btns.addWidget(self._txt_nueva_cat, 1)
+        cat_btns.addWidget(btn_add_cat)
+        cat_btns.addWidget(btn_del_cat)
+        gc.addLayout(cat_btns)
+        s_lay.addWidget(grp_cat)
+
+        # ── Reglas de conciliación ───────────────────────────────────────────
         grp_recon = QGroupBox("Reglas de conciliación")
-        g_recon = QVBoxLayout(grp_recon)
-        m = self._m
-        if m._recon_svc:
-            lbl_recon = QLabel("ReconciliationService disponible. Configura reglas aquí.")
-        else:
-            lbl_recon = QLabel("ReconciliationService no disponible en esta instalación.")
-        lbl_recon.setObjectName("caption")
-        g_recon.addWidget(lbl_recon)
-        lay.addWidget(grp_recon)
+        gr = QFormLayout(grp_recon)
+        self._spin_tolerancia = QDoubleSpinBox()
+        self._spin_tolerancia.setRange(0.0, 9999.0)
+        self._spin_tolerancia.setDecimals(2)
+        self._spin_tolerancia.setPrefix("$ ")
+        self._spin_tolerancia.setValue(0.0)
+        gr.addRow("Tolerancia de diferencia:", self._spin_tolerancia)
+        self._cmb_recon_modo = QComboBox()
+        self._cmb_recon_modo.addItems([
+            "Estricto — diferencia debe ser $0.00",
+            "Tolerante — diferencia ≤ tolerancia configurada",
+            "Manual — siempre pide confirmación al cajero",
+        ])
+        gr.addRow("Modo de conciliación:", self._cmb_recon_modo)
+        btn_save_recon = QPushButton("💾 Guardar reglas")
+        btn_save_recon.setObjectName("primaryBtn")
+        btn_save_recon.setCursor(Qt.PointingHandCursor)
+        btn_save_recon.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_recon.clicked.connect(self._guardar_conciliacion)
+        gr.addRow("", btn_save_recon)
+        s_lay.addWidget(grp_recon)
 
-        # Series / Folios
+        # ── Series y Folios ──────────────────────────────────────────────────
         grp_folios = QGroupBox("Series y Folios")
-        g_folios = QVBoxLayout(grp_folios)
-        lbl_folios = QLabel("Configura las series de folios para cada tipo de documento.")
-        lbl_folios.setObjectName("caption")
-        g_folios.addWidget(lbl_folios)
-        lay.addWidget(grp_folios)
+        gf = QFormLayout(grp_folios)
+        self._txt_serie_factura = QLineEdit("A")
+        self._txt_serie_recibo  = QLineEdit("R")
+        self._txt_serie_nota    = QLineEdit("NC")
+        gf.addRow("Serie de facturas:",          self._txt_serie_factura)
+        gf.addRow("Serie de recibos:",           self._txt_serie_recibo)
+        gf.addRow("Serie de notas de crédito:",  self._txt_serie_nota)
+        btn_save_folios = QPushButton("💾 Guardar series")
+        btn_save_folios.setObjectName("primaryBtn")
+        btn_save_folios.setCursor(Qt.PointingHandCursor)
+        btn_save_folios.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_folios.clicked.connect(self._guardar_folios)
+        gf.addRow("", btn_save_folios)
+        s_lay.addWidget(grp_folios)
 
-        # Preferencias de reportes
+        # ── Preferencias de reportes ─────────────────────────────────────────
         grp_pref = QGroupBox("Preferencias de reportes")
-        g_pref = QVBoxLayout(grp_pref)
-        lbl_pref = QLabel("Moneda, formato de fecha, decimales, zona horaria.")
-        lbl_pref.setObjectName("caption")
-        g_pref.addWidget(lbl_pref)
-        lay.addWidget(grp_pref)
+        gp = QFormLayout(grp_pref)
+        self._cmb_moneda = QComboBox()
+        self._cmb_moneda.addItems(["MXN — Peso mexicano", "USD — Dólar americano", "EUR — Euro"])
+        gp.addRow("Moneda:", self._cmb_moneda)
+        self._cmb_fecha_fmt = QComboBox()
+        self._cmb_fecha_fmt.addItems(["DD/MM/YYYY", "YYYY-MM-DD", "MM/DD/YYYY"])
+        gp.addRow("Formato de fecha:", self._cmb_fecha_fmt)
+        self._spin_decimales = QSpinBox()
+        self._spin_decimales.setRange(0, 4)
+        self._spin_decimales.setValue(2)
+        gp.addRow("Decimales en montos:", self._spin_decimales)
+        btn_save_pref = QPushButton("💾 Guardar preferencias")
+        btn_save_pref.setObjectName("primaryBtn")
+        btn_save_pref.setCursor(Qt.PointingHandCursor)
+        btn_save_pref.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_pref.clicked.connect(self._guardar_preferencias)
+        gp.addRow("", btn_save_pref)
+        s_lay.addWidget(grp_pref)
 
-        lay.addStretch()
+        s_lay.addStretch()
+        scroll.setWidget(cnt)
+        lay.addWidget(scroll, 1)
+        self._cargar_config()
+
+    def _cargar_config(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if not mc:
+            return
+        try:
+            tol = mc.get_value("finance_tolerancia_conciliacion", 0.0)
+            self._spin_tolerancia.setValue(float(tol or 0))
+            modo = str(mc.get_value("finance_modo_conciliacion", "") or "")
+            for i in range(self._cmb_recon_modo.count()):
+                if modo and modo.lower() in self._cmb_recon_modo.itemText(i).lower():
+                    self._cmb_recon_modo.setCurrentIndex(i)
+                    break
+            self._txt_serie_factura.setText(str(mc.get_value("finance_serie_factura", "A") or "A"))
+            self._txt_serie_recibo.setText(str(mc.get_value("finance_serie_recibo",   "R") or "R"))
+            self._txt_serie_nota.setText(str(mc.get_value("finance_serie_nota_credito", "NC") or "NC"))
+            moneda = str(mc.get_value("finance_moneda", "MXN") or "MXN").upper()
+            for i in range(self._cmb_moneda.count()):
+                if moneda in self._cmb_moneda.itemText(i):
+                    self._cmb_moneda.setCurrentIndex(i)
+                    break
+            fmt = str(mc.get_value("finance_formato_fecha", "") or "")
+            for i in range(self._cmb_fecha_fmt.count()):
+                if fmt == self._cmb_fecha_fmt.itemText(i):
+                    self._cmb_fecha_fmt.setCurrentIndex(i)
+                    break
+            dec = mc.get_value("finance_decimales", 2)
+            self._spin_decimales.setValue(int(dec or 2))
+            import json
+            cats_json = mc.get_value("finance_categorias", "")
+            if cats_json:
+                try:
+                    cats = json.loads(str(cats_json))
+                    self._lst_categorias.clear()
+                    for cat in cats:
+                        self._lst_categorias.addItem(str(cat))
+                except Exception:
+                    pass
+        except Exception as exc:
+            logger.debug("_cargar_config: %s", exc)
+
+    def _agregar_categoria(self):
+        txt = self._txt_nueva_cat.text().strip()
+        if not txt:
+            return
+        existing = [self._lst_categorias.item(i).text()
+                    for i in range(self._lst_categorias.count())]
+        if txt in existing:
+            QMessageBox.information(self, "Categoría", "Esa categoría ya existe.")
+            return
+        self._lst_categorias.addItem(txt)
+        self._txt_nueva_cat.clear()
+        self._guardar_categorias()
+
+    def _eliminar_categoria(self):
+        row = self._lst_categorias.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Categoría", "Selecciona una categoría para eliminar.")
+            return
+        self._lst_categorias.takeItem(row)
+        self._guardar_categorias()
+
+    def _guardar_categorias(self):
+        import json
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        cats = [self._lst_categorias.item(i).text()
+                for i in range(self._lst_categorias.count())]
+        if mc:
+            try:
+                mc.set_value("finance_categorias", json.dumps(cats, ensure_ascii=False))
+            except Exception as exc:
+                logger.debug("_guardar_categorias: %s", exc)
+        Toast.success(self, "Categorías guardadas", f"{len(cats)} categorías configuradas.")
+
+    def _guardar_conciliacion(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                mc.set_value("finance_tolerancia_conciliacion", self._spin_tolerancia.value())
+                modo_txt = self._cmb_recon_modo.currentText().split("—")[0].strip()
+                mc.set_value("finance_modo_conciliacion", modo_txt)
+            except Exception as exc:
+                logger.debug("_guardar_conciliacion: %s", exc)
+        Toast.success(self, "Reglas guardadas", "Configuración de conciliación actualizada.")
+
+    def _guardar_folios(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                mc.set_value("finance_serie_factura",      self._txt_serie_factura.text().strip() or "A")
+                mc.set_value("finance_serie_recibo",       self._txt_serie_recibo.text().strip()  or "R")
+                mc.set_value("finance_serie_nota_credito", self._txt_serie_nota.text().strip()    or "NC")
+            except Exception as exc:
+                logger.debug("_guardar_folios: %s", exc)
+        Toast.success(self, "Series guardadas", "Configuración de folios actualizada.")
+
+    def _guardar_preferencias(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                moneda_txt = self._cmb_moneda.currentText().split("—")[0].strip()
+                mc.set_value("finance_moneda",        moneda_txt)
+                mc.set_value("finance_formato_fecha", self._cmb_fecha_fmt.currentText())
+                mc.set_value("finance_decimales",     self._spin_decimales.value())
+            except Exception as exc:
+                logger.debug("_guardar_preferencias: %s", exc)
+        Toast.success(self, "Preferencias guardadas", "Configuración de reportes actualizada.")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
