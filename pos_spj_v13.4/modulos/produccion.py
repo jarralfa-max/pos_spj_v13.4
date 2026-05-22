@@ -114,6 +114,7 @@ class ModuloProduccion(ModuloBase):
         self.usuario_actual  = "Sistema"
         self._db_wrapped     = self.conexion
         self._engine         = RecipeEngine(self._db_wrapped, branch_id=1)
+        self._svc            = self._build_svc()
         self._recetas_cache: List[Dict] = []
         self._init_ui()
         self._subscribe_events()
@@ -121,11 +122,24 @@ class ModuloProduccion(ModuloBase):
 
     # ── Setup ─────────────────────────────────────────────────────────────────
 
+    def _build_svc(self):
+        """Create ProductionApplicationService wrapping the current engine."""
+        try:
+            from core.services.production_application_service import ProductionApplicationService
+            return ProductionApplicationService(
+                recipe_engine     = self._engine,
+                production_uc     = getattr(self.container, 'uc_produccion', None) if self.container else None,
+                production_engine = getattr(self.container, 'production_engine', None) if self.container else None,
+            )
+        except Exception:
+            return None
+
     def set_sucursal(self, sucursal_id: int, sucursal_nombre: str) -> None:
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
         self._db_wrapped = self.conexion
         self._engine = RecipeEngine(self._db_wrapped, branch_id=sucursal_id)
+        self._svc    = self._build_svc()
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
         self.usuario_actual = usuario or "Sistema"
@@ -571,11 +585,13 @@ class ModuloProduccion(ModuloBase):
         receta_nom = rec_row["nombre_receta"]
 
         # Preview before confirming
+        _suc = getattr(self, 'sucursal_id', 1)
+        _usr = getattr(self, 'usuario_actual', '') or getattr(self, 'usuario', 'Sistema')
         try:
-            from core.services.recipe_engine import RecipeEngine
-            engine = RecipeEngine(self.container.db,
-                                  branch_id=getattr(self,'sucursal_id',1))
-            preview = engine.preview_produccion(receta_id, peso)
+            if self._svc is not None:
+                preview = self._svc.preview_receta(receta_id, peso)
+            else:
+                preview = self._engine.preview_produccion(receta_id, peso)
         except Exception as _pe:
             QMessageBox.critical(self, "Error al previsualizar", str(_pe)); return
 
@@ -591,13 +607,22 @@ class ModuloProduccion(ModuloBase):
         if resp != QMessageBox.Yes: return
 
         try:
-            res = engine.ejecutar_produccion(
-                receta_id=receta_id,
-                cantidad_base=peso,
-                usuario=getattr(self,'usuario_actual','') or getattr(self,'usuario','Sistema'),
-                sucursal_id=getattr(self,'sucursal_id',1),
-                notas=f"Lote cárnico produccion.py",
-            )
+            if self._svc is not None:
+                res = self._svc.ejecutar_produccion(
+                    receta_id    = receta_id,
+                    cantidad_base= peso,
+                    usuario      = _usr,
+                    sucursal_id  = _suc,
+                    notas        = "Lote cárnico produccion.py",
+                )
+            else:
+                res = self._engine.ejecutar_produccion(
+                    receta_id=receta_id,
+                    cantidad_base=peso,
+                    usuario=_usr,
+                    sucursal_id=_suc,
+                    notas="Lote cárnico produccion.py",
+                )
             try: get_bus().publish("PRODUCCION_REGISTRADA", {"event_type": "PRODUCCION_REGISTRADA"})
             except Exception: pass
 
@@ -878,7 +903,10 @@ class ModuloProduccion(ModuloBase):
             return
         cant = self._spin_cant.value()
         try:
-            movs = self._engine.preview_produccion(r["id"], cant)
+            if self._svc is not None:
+                movs = self._svc.preview_receta(r["id"], cant)
+            else:
+                movs = self._engine.preview_produccion(r["id"], cant)
         except Exception as exc:
             self._tbl_prev.setRowCount(0)
             self._lbl_resumen.setText(f"⚠ {exc}")
@@ -983,13 +1011,22 @@ class ModuloProduccion(ModuloBase):
         self._btn_ejecutar.setText("⏳ Procesando…")
 
         try:
-            resultado = self._engine.ejecutar_produccion(
-                receta_id=r["id"],
-                cantidad_base=cant,
-                usuario=self.usuario_actual,
-                sucursal_id=self.sucursal_id,
-                notas=self._e_notas.text().strip(),
-            )
+            if self._svc is not None:
+                resultado = self._svc.ejecutar_produccion(
+                    receta_id    = r["id"],
+                    cantidad_base= cant,
+                    usuario      = self.usuario_actual,
+                    sucursal_id  = self.sucursal_id,
+                    notas        = self._e_notas.text().strip(),
+                )
+            else:
+                resultado = self._engine.ejecutar_produccion(
+                    receta_id=r["id"],
+                    cantidad_base=cant,
+                    usuario=self.usuario_actual,
+                    sucursal_id=self.sucursal_id,
+                    notas=self._e_notas.text().strip(),
+                )
             self._btn_ejecutar.setText("▶ EJECUTAR PRODUCCIÓN")
             self._btn_ejecutar.setEnabled(True)
 

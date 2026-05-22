@@ -163,14 +163,63 @@ class ProductionEngine:
         return [dict(r) for r in rows]
 
     def _get_receta_componentes(self, conn, receta_id: int) -> List[dict]:
-        rows = conn.execute("""
-        SELECT rc.*, p.nombre AS prod_nombre
-            FROM receta_componentes rc
-            LEFT JOIN productos p ON p.id = rc.producto_id
-            WHERE rc.receta_id = ?
-            ORDER BY rc.orden
-        """, (receta_id,)).fetchall()
-        return [dict(r) for r in rows]
+        """
+        Load recipe components.
+
+        Primary: product_recipe_components (canonical schema).
+        Aliases normalise columns so callers always see the legacy names:
+          producto_id, prod_nombre, rendimiento_porcentaje, merma_porcentaje.
+        Falls back to receta_componentes only when the canonical table has no rows.
+        """
+        try:
+            rows = conn.execute("""
+                SELECT rc.component_product_id            AS producto_id,
+                       p.nombre                           AS prod_nombre,
+                       COALESCE(rc.rendimiento_pct, 0)   AS rendimiento_porcentaje,
+                       COALESCE(rc.merma_pct, 0)         AS merma_porcentaje,
+                       rc.orden
+                FROM product_recipe_components rc
+                LEFT JOIN productos p ON p.id = rc.component_product_id
+                WHERE rc.recipe_id = ?
+                ORDER BY rc.orden
+            """, (receta_id,)).fetchall()
+            if rows:
+                return [dict(r) for r in rows]
+        except Exception:
+            pass
+
+        # Legacy fallback: receta_componentes (pre-migration schema)
+        try:
+            rows = conn.execute("""
+                SELECT rc.*, p.nombre AS prod_nombre
+                FROM receta_componentes rc
+                LEFT JOIN productos p ON p.id = rc.producto_id
+                WHERE rc.receta_id = ?
+                ORDER BY rc.orden
+            """, (receta_id,)).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    def _get_expected_yield_pct(self, conn, receta_id: int):
+        """
+        Return (rendimiento_esperado_pct, merma_esperada_pct) for a recipe.
+
+        Tries product_recipes (canonical) first, then falls back to recetas
+        (legacy).  Returns (0.0, 0.0) when no matching row exists.
+        """
+        for table in ("product_recipes", "recetas"):
+            try:
+                row = conn.execute(
+                    f"SELECT rendimiento_esperado_pct, merma_esperada_pct "
+                    f"FROM {table} WHERE id=?",
+                    (receta_id,),
+                ).fetchone()
+                if row:
+                    return float(row[0] or 0), float(row[1] or 0)
+            except Exception:
+                continue
+        return 0.0, 0.0
 
     def _publicar_evento(
         self,
@@ -418,13 +467,9 @@ class ProductionEngine:
         exp_usable_pct = 0.0
         exp_waste_pct  = 0.0
         if batch.get("receta_id"):
-            receta = self.db.execute(
-                "SELECT rendimiento_esperado_pct, merma_esperada_pct FROM recetas WHERE id=?",
-                (batch["receta_id"],)
-            ).fetchone()
-            if receta:
-                exp_usable_pct = float(receta["rendimiento_esperado_pct"] or 0)
-                exp_waste_pct  = float(receta["merma_esperada_pct"] or 0)
+            exp_usable_pct, exp_waste_pct = self._get_expected_yield_pct(
+                self.db, batch["receta_id"]
+            )
 
         specs = [
             OutputSpec(
@@ -494,13 +539,9 @@ class ProductionEngine:
             exp_usable_pct = 0.0
             exp_waste_pct  = 0.0
             if batch.get("receta_id"):
-                receta = conn.execute(
-                    "SELECT rendimiento_esperado_pct, merma_esperada_pct FROM recetas WHERE id=?",
-                    (batch["receta_id"],)
-                ).fetchone()
-                if receta:
-                    exp_usable_pct = float(receta["rendimiento_esperado_pct"] or 0)
-                    exp_waste_pct  = float(receta["merma_esperada_pct"] or 0)
+                exp_usable_pct, exp_waste_pct = self._get_expected_yield_pct(
+                    conn, batch["receta_id"]
+                )
 
             specs = [
                 OutputSpec(
