@@ -1,5 +1,6 @@
 # modulos/caja.py
 from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
+from modulos.kpi_card import KPICard
 from modulos.ui_components import (
     create_primary_button, create_secondary_button, create_danger_button,
     create_success_button, create_card, create_input_field,
@@ -19,81 +20,12 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from datetime import datetime
 
-# Icon font-size used inside circular badges — no token at this size
-_ICON_FONT_SIZE = "18px"
 # Large numeric display (KPI totals, arqueo total)
 _KPI_FONT_LARGE = "20px"
 
-
-# ── KPI card — mirrors _InvKPICard from inventario_local.py ──────────────────
-
-class _CajaKPICard(QFrame):
-    """Operational KPI card for caja — theme-aware via objectName kpiCard."""
-
-    def __init__(self, titulo: str, valor: str = "—",
-                 icono: str = "💵", variant: str = "primary",
-                 parent=None):
-        super().__init__(parent)
-        _accent = {
-            "primary": Colors.PRIMARY.BASE,
-            "success": Colors.SUCCESS.BASE,
-            "danger":  Colors.DANGER.BASE,
-            "warning": Colors.WARNING.BASE,
-            "info":    Colors.INFO.BASE,
-        }.get(variant, Colors.PRIMARY.BASE)
-
-        self.setObjectName("kpiCard")
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(96)
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        bar = QFrame(self)
-        bar.setFixedHeight(3)
-        bar.setStyleSheet(
-            f"background: {_accent}; border: none;"
-            f" border-top-left-radius: 12px; border-top-right-radius: 12px;"
-        )
-        outer.addWidget(bar)
-
-        body = QHBoxLayout()
-        body.setContentsMargins(16, 12, 16, 12)
-        body.setSpacing(10)
-        outer.addLayout(body)
-
-        col = QVBoxLayout()
-        col.setSpacing(2)
-
-        lbl_t = QLabel(titulo.upper())
-        lbl_t.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
-            f" font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.08em;"
-            f" background: transparent; border: none;"
-        )
-        col.addWidget(lbl_t)
-
-        self.lbl_valor = QLabel(valor)
-        self.lbl_valor.setObjectName("kpiValue")
-        self.lbl_valor.setStyleSheet(
-            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
-            f" letter-spacing: -0.02em; background: transparent; border: none;"
-        )
-        col.addWidget(self.lbl_valor)
-        body.addLayout(col, 1)
-
-        lbl_icon = QLabel(icono)
-        lbl_icon.setFixedSize(36, 36)
-        lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet(
-            f"font-size: {_ICON_FONT_SIZE}; background: {_accent}1A;"
-            f" border-radius: 18px; border: none;"
-        )
-        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
-
-    def set_valor(self, v: str):
-        self.lbl_valor.setText(v)
+# ── KPI card alias ────────────────────────────────────────────────────────────
+# Use shared KPICard from kpi_card.py for consistent styling across all modules
+_CajaKPICard = KPICard
 
 
 # ── Dialog: registrar ingreso / retiro ────────────────────────────────────────
