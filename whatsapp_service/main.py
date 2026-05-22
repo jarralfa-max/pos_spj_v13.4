@@ -48,6 +48,17 @@ async def lifespan(app: FastAPI):
 
     from config.settings import ERP_DB_PATH, CONTEXT_DB_PATH
 
+    # 0. Ejecutar migraciones del ERP (crear tablas si no existen)
+    try:
+        import sqlite3
+        mig_conn = sqlite3.connect(ERP_DB_PATH)
+        from migrations.engine import up as run_migrations
+        run_migrations(mig_conn)
+        mig_conn.close()
+        logger.info("Migraciones del ERP aplicadas")
+    except Exception as e:
+        logger.warning("No se pudieron aplicar migraciones del ERP: %s", e)
+
     # 1. Conectar al ERP
     from erp.bridge import ERPBridge
     erp = ERPBridge(ERP_DB_PATH)
