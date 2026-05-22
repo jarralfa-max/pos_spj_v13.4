@@ -31,6 +31,10 @@ SALE_ITEMS_PROCESS  = "sale_items_process"
 # Distinct from PRODUCCION_COMPLETADA (async, post-commit, for downstream consumers).
 PRODUCTION_ITEMS_PROCESS = "production_items_process"
 
+# Batch-based production (ProductionEngine.close_batch) — published post-commit with
+# full cost data from production_cost_ledger.  Finance handler reads the ledger via db=.
+PRODUCTION_BATCH_CREATED = "PRODUCTION_BATCH_CREATED"
+
 # Phase 4: internal sync event — inventory handler runs inside purchase SAVEPOINT.
 # Distinct from COMPRA_REGISTRADA (async, post-commit, for downstream consumers).
 PURCHASE_ITEMS_PROCESS = "purchase_items_process"
@@ -76,6 +80,7 @@ __all__ = [
     "EXPENSE_REGISTERED",
     "SALE_ITEMS_PROCESS",
     "PRODUCTION_ITEMS_PROCESS",
+    "PRODUCTION_BATCH_CREATED",
     "PURCHASE_ITEMS_PROCESS",
     "TRANSFER_CREATED",
     "TRANSFER_COMPLETED",

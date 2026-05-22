@@ -75,6 +75,48 @@ class ProductionApplicationService:
             production_engine= getattr(container, "production_engine", None),
         )
 
+    # ── Unified dispatcher ────────────────────────────────────────────────────
+
+    def ejecutar_produccion(
+        self,
+        receta_id: int,
+        cantidad_base: float,
+        usuario: str,
+        sucursal_id: Optional[int] = None,
+        notas: str = "",
+        operation_id: Optional[str] = None,
+        mediciones_reales: Optional[Dict[int, float]] = None,
+    ):
+        """
+        Unified production entry point — routes to the appropriate engine.
+
+        Dispatch rules:
+          recipe types subproducto / combinacion / produccion
+            → RecipeEngine.ejecutar_produccion()  (formula-based, single step)
+          batch-based industrial flow
+            → use the explicit batch methods (abrir_lote / cerrar_lote)
+
+        All three recipe types currently route to RecipeEngine.  The batch
+        workflow (open → add outputs → close) requires explicit multi-step
+        calls and is not collapsible into a single dispatch because output
+        weights are measured on a physical scale between steps.
+
+        Returns ProduccionResultDTO.
+        """
+        logger.info(
+            "ejecutar_produccion: receta=%s cantidad=%.4f usuario=%s suc=%s",
+            receta_id, cantidad_base, usuario, sucursal_id,
+        )
+        return self._recipe.ejecutar_produccion(
+            receta_id         = receta_id,
+            cantidad_base     = cantidad_base,
+            usuario           = usuario,
+            sucursal_id       = sucursal_id,
+            notas             = notas,
+            operation_id      = operation_id,
+            mediciones_reales = mediciones_reales,
+        )
+
     # ── Recipe-based production ───────────────────────────────────────────────
 
     def ejecutar_receta(

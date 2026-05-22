@@ -320,14 +320,24 @@ class RecipeEngine:
                                     conn.execute(
                                         "UPDATE productos SET precio_compra=? WHERE id=?",
                                         (costo_unit, mov["product_id"]))
-                                    # Actualizar costo_promedio en inventario_actual
+                                    # P0-4: UPDATE first; INSERT OR IGNORE covers the case
+                                    # where inventario_actual has no row yet for this branch,
+                                    # so both precio_compra and costo_promedio always align.
                                     conn.execute("""
                                         UPDATE inventario_actual
                                         SET costo_promedio = ?
                                         WHERE producto_id = ? AND sucursal_id = ?
                                     """, (costo_unit, mov["product_id"], suc_id))
+                                    conn.execute("""
+                                        INSERT OR IGNORE INTO inventario_actual
+                                            (producto_id, sucursal_id, costo_promedio, cantidad)
+                                        VALUES (?, ?, ?, 0)
+                                    """, (mov["product_id"], suc_id, costo_unit))
                                 except Exception as _ce:
-                                    logger.warning("cost update failed: %s", _ce)
+                                    logger.warning(
+                                        "cost update failed p=%s suc=%s: %s",
+                                        mov["product_id"], suc_id, _ce,
+                                    )
 
         logger.info(
             "PRODUCCION_OK id=%d receta=%s tipo=%s base=%.4f gen=%.4f cons=%.4f merma=%.4f op=%s",
@@ -346,8 +356,13 @@ class RecipeEngine:
                 _cpkg = float(_cpkg_row[0] if _cpkg_row else 0)
                 _raw_cost = round(_cpkg * total_consumido, 4)
                 _fin_cost = round(_cpkg * total_generado, 4)
-            except Exception:
-                pass
+            except Exception as _cost_err:
+                # P0-1: log so GL auditors know the event will carry zero-cost
+                logger.warning(
+                    "cost_payload: no se pudo leer precio_compra de prod_base=%s — "
+                    "el evento PRODUCCION_COMPLETADA se publicará con raw_material_cost=0: %s",
+                    prod_base_id, _cost_err,
+                )
 
         self._publicar_evento(
             produccion_id, receta, suc_id, movimientos,

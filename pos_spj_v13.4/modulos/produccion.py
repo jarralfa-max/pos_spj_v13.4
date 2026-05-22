@@ -51,6 +51,7 @@ from core.services.recipe_engine import (
     ProduccionDuplicadaError,
 )
 from core.services.recipes import RecipeService
+import core.services.production_query_service as _pqs
 
 logger = logging.getLogger("spj.ui.produccion")
 TIPO_LABELS = {
@@ -113,6 +114,7 @@ class ModuloProduccion(ModuloBase):
         self.usuario_actual  = "Sistema"
         self._db_wrapped     = self.conexion
         self._engine         = RecipeEngine(self._db_wrapped, branch_id=1)
+        self._svc            = self._build_svc()
         self._recetas_cache: List[Dict] = []
         self._init_ui()
         self._subscribe_events()
@@ -120,11 +122,24 @@ class ModuloProduccion(ModuloBase):
 
     # ── Setup ─────────────────────────────────────────────────────────────────
 
+    def _build_svc(self):
+        """Create ProductionApplicationService wrapping the current engine."""
+        try:
+            from core.services.production_application_service import ProductionApplicationService
+            return ProductionApplicationService(
+                recipe_engine     = self._engine,
+                production_uc     = getattr(self.container, 'uc_produccion', None) if self.container else None,
+                production_engine = getattr(self.container, 'production_engine', None) if self.container else None,
+            )
+        except Exception:
+            return None
+
     def set_sucursal(self, sucursal_id: int, sucursal_nombre: str) -> None:
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
         self._db_wrapped = self.conexion
         self._engine = RecipeEngine(self._db_wrapped, branch_id=sucursal_id)
+        self._svc    = self._build_svc()
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
         self.usuario_actual = usuario or "Sistema"
@@ -255,11 +270,7 @@ class ModuloProduccion(ModuloBase):
         return bar
 
     def _actualizar_stats_bar(self) -> None:
-        """
-        Actualiza solo los valores de los QLabels de la stats bar.
-        Dos queries: production_batches (nuevo) con fallback a producciones (legacy).
-        No reconstruye el widget — solo actualiza texto y color.
-        """
+        """Actualiza los QLabels de la stats bar con datos del servicio de query."""
         if not hasattr(self, '_stats_lbl_vals'):
             return
 
@@ -267,59 +278,7 @@ class ModuloProduccion(ModuloBase):
         if not db:
             return
 
-        vals: dict = {}
-
-        # ── Fuente primaria: production_batches + production_yield_analysis ──
-        try:
-            r = db.execute("""
-                SELECT COUNT(*),
-                       COALESCE(SUM(pb.source_weight), 0),
-                       COALESCE(SUM(pb.waste_weight),  0),
-                       COALESCE(AVG(pya.real_yield),   0)
-                FROM production_batches pb
-                LEFT JOIN production_yield_analysis pya ON pya.batch_id = pb.id
-                WHERE pb.estado = 'cerrado'
-                  AND DATE(pb.closed_at) = DATE('now')
-            """).fetchone()
-            vals["producciones_hoy"] = int(r[0] or 0)
-            vals["kg_procesados"]    = float(r[1] or 0)
-            vals["merma_dia"]        = float(r[2] or 0)
-            vals["rendimiento"]      = float(r[3] or 0)
-        except Exception:
-            # Fallback legacy: producciones + produccion_detalle
-            try:
-                r = db.execute("""
-                    SELECT COUNT(*), COALESCE(SUM(cantidad_base), 0)
-                    FROM producciones
-                    WHERE estado = 'completada'
-                      AND DATE(fecha) = DATE('now')
-                """).fetchone()
-                vals["producciones_hoy"] = int(r[0] or 0)
-                vals["kg_procesados"]    = float(r[1] or 0)
-
-                r2 = db.execute("""
-                    SELECT COALESCE(SUM(pd.cantidad_generada), 0)
-                    FROM produccion_detalle pd
-                    JOIN producciones p ON p.id = pd.produccion_id
-                    WHERE pd.tipo = 'merma'
-                      AND DATE(p.fecha) = DATE('now')
-                """).fetchone()
-                vals["merma_dia"] = float(r2[0] or 0)
-
-                kg = vals["kg_procesados"]
-                merma = vals["merma_dia"]
-                vals["rendimiento"] = round((1 - merma / kg) * 100, 1) if kg > 0 else 0.0
-            except Exception:
-                pass
-
-        # ── Lotes activos: aplica en ambos esquemas ───────────────────────────
-        try:
-            r3 = db.execute(
-                "SELECT COUNT(*) FROM lotes WHERE estado='activo'"
-            ).fetchone()
-            vals["lotes_activos"] = int(r3[0] or 0)
-        except Exception:
-            vals["lotes_activos"] = 0
+        vals = _pqs.get_daily_kpis(db)
 
         # ── Formatear y actualizar QLabels ───────────────────────────────────
         kg_p  = vals.get("kg_procesados", 0)
@@ -569,15 +528,12 @@ class ModuloProduccion(ModuloBase):
 
     def _cargar_productos_carnica(self):
         self._car_cmb_producto.clear()
-        try:
-            conn = self._conexion if hasattr(self,'_conexion') else                    (self.conexion if hasattr(self,'conexion') else None)
-            if not conn: return
-            rows = conn.execute(
-                "SELECT id, nombre FROM productos WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for r in rows:
-                self._car_cmb_producto.addItem(r[1] if hasattr(r,'keys') else r[1], r[0] if hasattr(r,'keys') else r[0])
-        except Exception: pass
+        conn = self._conexion if hasattr(self, '_conexion') else (
+            self.conexion if hasattr(self, 'conexion') else None)
+        if not conn:
+            return
+        for r in _pqs.get_productos_activos(conn):
+            self._car_cmb_producto.addItem(r["nombre"], r["id"])
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh al recibir eventos del EventBus."""
@@ -586,23 +542,17 @@ class ModuloProduccion(ModuloBase):
 
     def _cargar_hist_carnica(self):
         from PyQt5.QtWidgets import QTableWidgetItem
-        try:
-            conn = self._conexion if hasattr(self,'_conexion') else                    (self.conexion if hasattr(self,'conexion') else None)
-            if not conn: self._car_tabla.setRowCount(0); return
-            rows = conn.execute("""
-                SELECT COALESCE(fecha_produccion, created_at, '?'), p.nombre,
-                       COALESCE(peso_bruto_kg,0), COALESCE(merma_kg,0),
-                       COALESCE(peso_neto_kg, peso_bruto_kg - merma_kg, 0)
-                FROM recepciones_pollo rp
-                LEFT JOIN productos p ON p.id = rp.producto_id
-                ORDER BY 1 DESC LIMIT 100
-            """).fetchall()
-        except Exception:
-            rows = []
+        conn = self._conexion if hasattr(self, '_conexion') else (
+            self.conexion if hasattr(self, 'conexion') else None)
+        if not conn:
+            self._car_tabla.setRowCount(0)
+            return
+        rows = _pqs.get_historial_carnica(conn)
         self._car_tabla.setRowCount(0)
         for i, r in enumerate(rows):
             self._car_tabla.insertRow(i)
-            for j, v in enumerate(r):
+            for j, v in enumerate([r["fecha"], r["producto"],
+                                    r["peso_bruto"], r["merma"], r["peso_neto"]]):
                 self._car_tabla.setItem(i, j, QTableWidgetItem(str(v) if v else ""))
 
     def _procesar_lote_carnico(self):
@@ -622,10 +572,7 @@ class ModuloProduccion(ModuloBase):
         if not conn: return
 
         # Find active recipe for this base product
-        rec_row = conn.execute(
-            "SELECT id, nombre_receta FROM product_recipes "
-            "WHERE base_product_id=? AND is_active=1 LIMIT 1",
-            (prod_id,)).fetchone()
+        rec_row = _pqs.get_receta_by_product_id(conn, prod_id)
 
         if not rec_row:
             QMessageBox.warning(
@@ -634,15 +581,17 @@ class ModuloProduccion(ModuloBase):
                 "Crea la receta en el módulo Recetas antes de registrar producción.")
             return
 
-        receta_id   = rec_row[0] if not hasattr(rec_row, 'keys') else rec_row['id']
-        receta_nom  = rec_row[1] if not hasattr(rec_row, 'keys') else rec_row['nombre_receta']
+        receta_id  = rec_row["id"]
+        receta_nom = rec_row["nombre_receta"]
 
         # Preview before confirming
+        _suc = getattr(self, 'sucursal_id', 1)
+        _usr = getattr(self, 'usuario_actual', '') or getattr(self, 'usuario', 'Sistema')
         try:
-            from core.services.recipe_engine import RecipeEngine
-            engine = RecipeEngine(self.container.db,
-                                  branch_id=getattr(self,'sucursal_id',1))
-            preview = engine.preview_produccion(receta_id, peso)
+            if self._svc is not None:
+                preview = self._svc.preview_receta(receta_id, peso)
+            else:
+                preview = self._engine.preview_produccion(receta_id, peso)
         except Exception as _pe:
             QMessageBox.critical(self, "Error al previsualizar", str(_pe)); return
 
@@ -658,13 +607,22 @@ class ModuloProduccion(ModuloBase):
         if resp != QMessageBox.Yes: return
 
         try:
-            res = engine.ejecutar_produccion(
-                receta_id=receta_id,
-                cantidad_base=peso,
-                usuario=getattr(self,'usuario_actual','') or getattr(self,'usuario','Sistema'),
-                sucursal_id=getattr(self,'sucursal_id',1),
-                notas=f"Lote cárnico produccion.py",
-            )
+            if self._svc is not None:
+                res = self._svc.ejecutar_produccion(
+                    receta_id    = receta_id,
+                    cantidad_base= peso,
+                    usuario      = _usr,
+                    sucursal_id  = _suc,
+                    notas        = "Lote cárnico produccion.py",
+                )
+            else:
+                res = self._engine.ejecutar_produccion(
+                    receta_id=receta_id,
+                    cantidad_base=peso,
+                    usuario=_usr,
+                    sucursal_id=_suc,
+                    notas="Lote cárnico produccion.py",
+                )
             try: get_bus().publish("PRODUCCION_REGISTRADA", {"event_type": "PRODUCCION_REGISTRADA"})
             except Exception: pass
 
@@ -739,45 +697,7 @@ class ModuloProduccion(ModuloBase):
         if not conn:
             return
 
-        product_expr = self._pr_product_expr()
-
-        rows = []
-        try:
-            rows = conn.execute(f"""
-                SELECT r.id,
-                       COALESCE(r.nombre_receta, '') AS nombre,
-                       COALESCE(r.tipo_receta, 'subproducto') AS tipo_receta,
-                       COALESCE(p.nombre, '—')                AS producto_base,
-                       COALESCE(r.total_rendimiento, r.rendimiento_esperado_pct, 0) AS rendimiento,
-                       (SELECT COUNT(*)
-                        FROM product_recipe_components rc
-                        WHERE rc.recipe_id = r.id)            AS componentes
-                FROM product_recipes r
-                LEFT JOIN productos p ON p.id = {product_expr}
-                WHERE COALESCE(r.is_active, r.activa, 1) = 1
-                ORDER BY r.nombre_receta LIMIT 300
-            """).fetchall()
-        except Exception as _e:
-            logger.warning("_cargar_lista_recetas product_recipes: %s", _e)
-
-        # Fallback a tabla legacy solo si product_recipes devolvió vacío
-        if not rows:
-            try:
-                rows = conn.execute("""
-                    SELECT r.id,
-                           COALESCE(r.nombre, '') AS nombre,
-                           COALESCE(r.tipo_receta, 'subproducto') AS tipo_receta,
-                           COALESCE(p.nombre, '—') AS producto_base,
-                           COALESCE(r.rendimiento_esperado_pct, 0) AS rendimiento,
-                           0 AS componentes
-                    FROM recetas r
-                    LEFT JOIN productos p ON p.id = r.producto_base_id
-                    WHERE COALESCE(r.activo, 1) = 1
-                    ORDER BY r.nombre LIMIT 300
-                """).fetchall()
-            except Exception as _e2:
-                logger.warning("_cargar_lista_recetas legacy: %s", _e2)
-                rows = []
+        rows = _pqs.get_recetas_list(conn)
         self._rec_tabla.setRowCount(0)
         if not rows:
             self._rec_tabla.setRowCount(1)
@@ -790,14 +710,14 @@ class ModuloProduccion(ModuloBase):
         from PyQt5.QtCore import Qt as _Qt
         for i, r in enumerate(rows):
             self._rec_tabla.insertRow(i)
-            tipo = r[2] if len(r) > 2 else "subproducto"
+            tipo = r.get("tipo_receta", "subproducto")
             tipo_color = TIPO_COLOR.get(tipo, Colors.TEXT_SECONDARY)
             vals = [
-                str(r[0]),          # ID (oculto)
-                r[1],               # Nombre
-                r[3],               # Producto base
-                f"{float(r[4]):.1f}%",  # Rendimiento
-                str(r[5]),          # Componentes
+                str(r["id"]),
+                r["nombre"],
+                r["producto_base"],
+                f"{float(r['rendimiento']):.1f}%",
+                str(r["componentes"]),
             ]
             for j, v in enumerate(vals):
                 it = QTableWidgetItem(v)
@@ -805,25 +725,6 @@ class ModuloProduccion(ModuloBase):
                     it.setForeground(QColor(tipo_color))
                     it.setFont(QFont("", -1, QFont.Bold))
                 self._rec_tabla.setItem(i, j, it)
-
-    def _pr_columns(self) -> set:
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return set()
-        try:
-            rows = conn.execute("PRAGMA table_info(product_recipes)").fetchall()
-            return {r[1] for r in rows}
-        except Exception:
-            return set()
-
-    def _pr_product_expr(self) -> str:
-        cols = self._pr_columns()
-        if "product_id" in cols:
-            return "r.product_id"
-        if "base_product_id" in cols:
-            return "r.base_product_id"
-        return "NULL"
 
     def _receta_nueva(self):
         """Abre DialogoReceta para crear receta completa."""
@@ -892,52 +793,32 @@ class ModuloProduccion(ModuloBase):
 
 
     def _ver_detalle_receta(self):
-        # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
         row = self._rec_tabla.currentRow()
-        if row < 0: return
+        if row < 0:
+            return
         rid = int(self._rec_tabla.item(row, 0).text())
         nombre = self._rec_tabla.item(row, 1).text()
-        conn = self._conexion if hasattr(self,'_conexion') else                (self.conexion if hasattr(self,'conexion') else None)
-        if not conn: return
+        conn = self._conexion if hasattr(self, '_conexion') else (
+            self.conexion if hasattr(self, 'conexion') else None)
+        if not conn:
+            return
         try:
-            comps = conn.execute("""
-                SELECT p.nombre,
-                       COALESCE(rc.cantidad, 0) AS cantidad,
-                       COALESCE(rc.unidad, p.unidad, 'kg') AS unidad,
-                       COALESCE(rc.merma_pct, 0) AS merma_pct,
-                       COALESCE(rc.rendimiento_pct, 0) AS rendimiento_pct
-                FROM product_recipe_components rc
-                LEFT JOIN productos p ON p.id = rc.component_product_id
-                WHERE rc.recipe_id=? ORDER BY rc.orden
-            """, (rid,)).fetchall()
+            comps = _pqs.get_recipe_components(conn, rid)
             if not comps:
-                QMessageBox.information(self,"Sin componentes",
-                    f"La receta '{nombre}' no tiene componentes registrados."); return
+                QMessageBox.information(self, "Sin componentes",
+                    f"La receta '{nombre}' no tiene componentes registrados.")
+                return
             txt = f"Receta: {nombre}\n\nComponentes:\n"
             for c in comps:
-                txt += f"  • {c[0]}: {c[1]} {c[2] or 'u'} (merma {c[3]:.1f}%)\n"
-            QMessageBox.information(self,"Detalle receta", txt)
+                txt += f"  • {c['nombre']}: {c['cantidad']} {c['unidad'] or 'u'} (merma {c['merma_pct']:.1f}%)\n"
+            QMessageBox.information(self, "Detalle receta", txt)
         except Exception as e:
-            QMessageBox.critical(self,"Error",str(e))
+            QMessageBox.critical(self, "Error", str(e))
 
 
     def _load_recetas(self) -> None:
         try:
-            product_expr = self._pr_product_expr()
-            rows = self.conexion.execute("""
-                SELECT r.id,
-                       COALESCE(r.nombre_receta, '') AS nombre,
-                       COALESCE(r.tipo_receta, 'produccion') AS tipo_receta,
-                       {product_expr} AS producto_base_id,
-                       COALESCE(r.peso_promedio_kg, 1.0) AS peso_promedio_kg,
-                       COALESCE(r.unidad_base, p.unidad, 'kg') AS unidad_base,
-                       p.nombre AS prod_nombre, p.unidad AS prod_unidad
-                FROM product_recipes r
-                LEFT JOIN productos p ON p.id = {product_expr}
-                WHERE COALESCE(r.is_active, r.activa, 1) = 1
-                ORDER BY tipo_receta, nombre
-            """.format(product_expr=product_expr)).fetchall()
-            self._recetas_cache = [dict(r) for r in rows]
+            self._recetas_cache = _pqs.get_recetas_for_combo(self.conexion)
         except Exception as exc:
             logger.warning("load_recetas: %s", exc)
             self._recetas_cache = []
@@ -1001,19 +882,7 @@ class ModuloProduccion(ModuloBase):
             if not pid:
                 self._lbl_stock.setText("—")
                 return
-            # Fuente primaria: inventario_actual (CPP por sucursal)
-            row = self.conexion.fetchone(
-                "SELECT COALESCE(cantidad, 0) as qty FROM inventario_actual "
-                "WHERE producto_id=? AND sucursal_id=?",
-                (pid, self.sucursal_id)
-            )
-            if row is None:
-                # Fallback: existencia global en productos
-                row = self.conexion.fetchone(
-                    "SELECT COALESCE(existencia, 0) as qty FROM productos WHERE id=?",
-                    (pid,)
-                )
-            stock = float(row["qty"]) if row else 0.0
+            stock = _pqs.get_stock(self.conexion, pid, self.sucursal_id)
             cant = self._spin_cant.value()
             unidad = r.get("unidad_base") or "kg"
             ok = stock >= cant
@@ -1034,31 +903,22 @@ class ModuloProduccion(ModuloBase):
             return
         cant = self._spin_cant.value()
         try:
-            movs = self._engine.preview_produccion(r["id"], cant)
+            if self._svc is not None:
+                movs = self._svc.preview_receta(r["id"], cant)
+            else:
+                movs = self._engine.preview_produccion(r["id"], cant)
         except Exception as exc:
             self._tbl_prev.setRowCount(0)
             self._lbl_resumen.setText(f"⚠ {exc}")
             self._btn_ejecutar.setEnabled(False)
             return
 
-        # Obtener stocks actuales: inventario_actual → fallback productos.existencia
-        stocks = {}
+        # Obtener stocks actuales
         try:
             prod_ids = list({m["product_id"] for m in movs})
-            for pid in prod_ids:
-                row = self.conexion.fetchone(
-                    "SELECT COALESCE(cantidad, 0) AS q FROM inventario_actual "
-                    "WHERE producto_id=? AND sucursal_id=?",
-                    (pid, self.sucursal_id)
-                )
-                if row is None:
-                    row = self.conexion.fetchone(
-                        "SELECT COALESCE(existencia, 0) AS q FROM productos WHERE id=?",
-                        (pid,)
-                    )
-                stocks[pid] = float(row["q"]) if row else 0.0
+            stocks = _pqs.get_stocks_for_products(self.conexion, prod_ids, self.sucursal_id)
         except Exception:
-            pass
+            stocks = {}
 
         self._tbl_prev.setRowCount(len(movs))
         total_in = 0.0; total_out = 0.0
@@ -1151,13 +1011,22 @@ class ModuloProduccion(ModuloBase):
         self._btn_ejecutar.setText("⏳ Procesando…")
 
         try:
-            resultado = self._engine.ejecutar_produccion(
-                receta_id=r["id"],
-                cantidad_base=cant,
-                usuario=self.usuario_actual,
-                sucursal_id=self.sucursal_id,
-                notas=self._e_notas.text().strip(),
-            )
+            if self._svc is not None:
+                resultado = self._svc.ejecutar_produccion(
+                    receta_id    = r["id"],
+                    cantidad_base= cant,
+                    usuario      = self.usuario_actual,
+                    sucursal_id  = self.sucursal_id,
+                    notas        = self._e_notas.text().strip(),
+                )
+            else:
+                resultado = self._engine.ejecutar_produccion(
+                    receta_id=r["id"],
+                    cantidad_base=cant,
+                    usuario=self.usuario_actual,
+                    sucursal_id=self.sucursal_id,
+                    notas=self._e_notas.text().strip(),
+                )
             self._btn_ejecutar.setText("▶ EJECUTAR PRODUCCIÓN")
             self._btn_ejecutar.setEnabled(True)
 

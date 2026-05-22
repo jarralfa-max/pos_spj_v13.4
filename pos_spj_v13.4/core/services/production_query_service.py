@@ -331,6 +331,44 @@ def get_stocks_for_products(
     return {pid: get_stock(db, pid, sucursal_id) for pid in product_ids}
 
 
+def get_productos_activos(db) -> List[Dict[str, Any]]:
+    """Return active products as {id, nombre} for UI dropdowns."""
+    raw = _fetchall(db, "SELECT id, nombre FROM productos WHERE activo=1 ORDER BY nombre")
+    return [
+        {
+            "id":     _col(r, 0, "id"),
+            "nombre": str(_col(r, 1, "nombre") or ""),
+        }
+        for r in raw
+    ]
+
+
+def get_receta_by_product_id(db, product_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Return {id, nombre_receta} for the first active recipe whose base product
+    matches product_id.  Returns None when no recipe exists.
+
+    Tries both product_id and base_product_id column names (schema auto-detect).
+    """
+    for col_name in ("product_id", "base_product_id"):
+        sql = (
+            f"SELECT id, COALESCE(nombre_receta, '') AS nombre_receta "
+            f"FROM product_recipes "
+            f"WHERE {col_name}=? AND COALESCE(is_active, 1)=1 "
+            f"LIMIT 1"
+        )
+        try:
+            row = _fetchone(db, sql, (product_id,))
+            if row is not None:
+                return {
+                    "id":            _col(row, 0, "id"),
+                    "nombre_receta": str(_col(row, 1, "nombre_receta") or ""),
+                }
+        except Exception:
+            continue
+    return None
+
+
 def get_recetas_for_combo(db) -> List[Dict[str, Any]]:
     """
     Return recipes suitable for populating a QComboBox.
