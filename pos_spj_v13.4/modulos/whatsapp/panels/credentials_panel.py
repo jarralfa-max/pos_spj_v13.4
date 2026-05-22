@@ -12,29 +12,10 @@ from PyQt5.QtWidgets import (
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.spj_styles import spj_btn, apply_object_names
+from modulos.whatsapp.panels._panel_styles import group_box_style
 from modulos.whatsapp.widgets import ErrorPanel, MaskedSecretField
 
 logger = logging.getLogger("spj.ui.wa.credentials_panel")
-
-
-def _group_style() -> str:
-    return (
-        f"QGroupBox {{"
-        f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-        f"  border-radius: {Borders.RADIUS_XL}px;"
-        f"  margin-top: {Spacing.SM}px;"
-        f"  padding-top: {Spacing.SM}px;"
-        f"  background: {Colors.NEUTRAL.WHITE};"
-        f"}}"
-        f"QGroupBox::title {{"
-        f"  subcontrol-origin: margin;"
-        f"  subcontrol-position: top left;"
-        f"  padding: 0 {Spacing.SM}px;"
-        f"  color: {Colors.NEUTRAL.SLATE_600};"
-        f"  font-size: {Typography.SIZE_MD};"
-        f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
-        f"}}"
-    )
 
 
 class CredentialsPanel(QWidget):
@@ -84,7 +65,7 @@ class CredentialsPanel(QWidget):
 
         # ── Grupo: Meta Cloud API ─────────────────────────────────────────────
         grp_meta = QGroupBox("Meta Cloud API")
-        grp_meta.setStyleSheet(_group_style())
+        grp_meta.setStyleSheet(group_box_style())
         fm = QFormLayout(grp_meta)
         fm.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
         fm.setSpacing(Spacing.MD)
@@ -109,7 +90,7 @@ class CredentialsPanel(QWidget):
 
         # ── Grupo: Microservicio WhatsApp ─────────────────────────────────────
         grp_ms = QGroupBox("Microservicio WhatsApp (URL interna)")
-        grp_ms.setStyleSheet(_group_style())
+        grp_ms.setStyleSheet(group_box_style())
         fms = QFormLayout(grp_ms)
         fms.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
         fms.setSpacing(Spacing.MD)
