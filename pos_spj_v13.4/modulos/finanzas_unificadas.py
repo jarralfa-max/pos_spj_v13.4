@@ -2714,48 +2714,58 @@ class _SeccionClientesCredito(QWidget):
             if m._dash_svc and hasattr(m._dash_svc, "listar_clientes_credito"):
                 clientes = m._dash_svc.listar_clientes_credito(sucursal_id=m.sucursal_id)
 
-            # Fallback directo a tabla clientes — usando columnas reales del schema
-            # (credit_limit / credit_balance son los nombres canónicos; limite_credito es alias legacy)
+            # Fallback: saldo real desde accounts_receivable (CxC pendientes/parciales)
             if not clientes:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
                     try:
-                        cur = db.execute(
-                            "SELECT nombre, "
-                            "  COALESCE(credit_limit, limite_credito, 0) AS limite, "
-                            "  COALESCE(credit_balance, 0) AS saldo_usado, "
-                            "  COALESCE(ultima_compra, '') AS ultima_compra "
-                            "FROM clientes WHERE COALESCE(activo,1)=1 "
-                            "AND (COALESCE(credit_limit,0) > 0 "
-                            "  OR COALESCE(limite_credito,0) > 0 "
-                            "  OR COALESCE(allows_credit,0) = 1) "
-                            "ORDER BY nombre LIMIT 300"
-                        )
+                        cur = db.execute("""
+                            SELECT c.nombre,
+                                   COALESCE(c.credit_limit, c.limite_credito, 0) AS limite,
+                                   COALESCE((
+                                       SELECT SUM(ar.balance)
+                                       FROM accounts_receivable ar
+                                       WHERE ar.cliente_id = c.id
+                                         AND ar.status IN ('pendiente','parcial')
+                                   ), 0) AS saldo_usado,
+                                   COALESCE(c.ultima_compra, '') AS ultima_compra
+                            FROM clientes c
+                            WHERE COALESCE(c.activo,1)=1
+                              AND (COALESCE(c.credit_limit,0)>0
+                                   OR COALESCE(c.limite_credito,0)>0
+                                   OR COALESCE(c.allows_credit,0)=1)
+                            ORDER BY c.nombre LIMIT 300
+                        """)
                         clientes = [
                             {"nombre": r[0], "limite_credito": float(r[1] or 0),
                              "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
                             for r in cur.fetchall()
                         ]
                     except Exception as _fe:
-                        logger.debug("clientes_credito fallback filtrado: %s", _fe)
-                # Si la tabla está vacía o no hay clientes con crédito, mostrar todos
+                        logger.debug("clientes_credito fallback: %s", _fe)
+
+                # Sin filtro de crédito: clientes con deuda activa en accounts_receivable
                 if not clientes and db:
                     try:
-                        cur = db.execute(
-                            "SELECT nombre, "
-                            "  COALESCE(credit_limit, limite_credito, 0), "
-                            "  COALESCE(credit_balance, 0), "
-                            "  COALESCE(ultima_compra, '') "
-                            "FROM clientes WHERE COALESCE(activo,1)=1 "
-                            "ORDER BY nombre LIMIT 200"
-                        )
+                        cur = db.execute("""
+                            SELECT c.nombre,
+                                   COALESCE(c.credit_limit, c.limite_credito, 0),
+                                   COALESCE(SUM(ar.balance), 0) AS saldo_usado,
+                                   COALESCE(c.ultima_compra, '')
+                            FROM clientes c
+                            JOIN accounts_receivable ar ON ar.cliente_id = c.id
+                            WHERE COALESCE(c.activo,1)=1
+                              AND ar.status IN ('pendiente','parcial')
+                            GROUP BY c.id, c.nombre
+                            ORDER BY saldo_usado DESC LIMIT 200
+                        """)
                         clientes = [
                             {"nombre": r[0], "limite_credito": float(r[1] or 0),
                              "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
                             for r in cur.fetchall()
                         ]
                     except Exception as _fe2:
-                        logger.debug("clientes_credito fallback todos: %s", _fe2)
+                        logger.debug("clientes_credito fallback deuda: %s", _fe2)
 
             self._tbl.setRowCount(len(clientes))
             for ri, c in enumerate(clientes):
