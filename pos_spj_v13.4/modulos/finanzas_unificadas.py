@@ -39,6 +39,14 @@ _P_OUTLINE   = "#434655"   # outline-variant (borders)
 _P_ON_SURF   = "#e1e2ed"   # on-surface (primary text)
 _P_MUTED     = "#9ba1b0"   # muted / secondary text
 
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    """Convierte #RRGGBB → rgba(r,g,b,a) para compatibilidad garantizada en Qt5.
+    El formato #RRGGBBAA no es fiable en todas las versiones de Qt5."""
+    h = hex_color.lstrip("#")
+    return f"rgba({int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)},{alpha:.2f})"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONSTANTES DE SECCIONES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -158,13 +166,13 @@ class _FinKpiCard(QFrame):
         col.addWidget(self._lbl_value)
         body.addLayout(col, 1)
 
-        # Ícono circular con fondo semitransparente (mismo estándar que _InvKPICard)
+        # Ícono circular con fondo semitransparente — idéntico a _InvKPICard
         if icono:
             self._lbl_icon = QLabel(icono)
             self._lbl_icon.setFixedSize(36, 36)
             self._lbl_icon.setAlignment(Qt.AlignCenter)
             self._lbl_icon.setStyleSheet(
-                f"font-size: 18px; background: {_accent}1A;"
+                f"font-size: 18px; background: {_rgba(_accent, 0.10)};"
                 f" border-radius: 18px; border: none;"
             )
             body.addWidget(self._lbl_icon, 0, alignment=Qt.AlignTop)
@@ -216,7 +224,7 @@ class _FinAlertChip(QFrame):
         self._lbl_icon.setFixedSize(36, 36)
         self._lbl_icon.setAlignment(Qt.AlignCenter)
         self._lbl_icon.setStyleSheet(
-            f"font-size: 17px; background: {color}22;"
+            f"font-size: 17px; background: {_rgba(color, 0.13)};"
             f" border-radius: 18px; border: none;"
         )
         main.addWidget(self._lbl_icon, 0, alignment=Qt.AlignVCenter)
@@ -244,7 +252,8 @@ class _FinAlertChip(QFrame):
 
     def _refresh_frame(self, color: str):
         self.setStyleSheet(
-            f"QFrame {{ background: {color}15; border: 1px solid {color}35;"
+            f"QFrame {{ background: {_rgba(color, 0.08)};"
+            f" border: 1px solid {_rgba(color, 0.20)};"
             f" border-left: 3px solid {color}; border-radius: 8px; }}"
         )
 
