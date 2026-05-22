@@ -39,6 +39,14 @@ _P_OUTLINE   = "#434655"   # outline-variant (borders)
 _P_ON_SURF   = "#e1e2ed"   # on-surface (primary text)
 _P_MUTED     = "#9ba1b0"   # muted / secondary text
 
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    """Convierte #RRGGBB → rgba(r,g,b,a) para compatibilidad garantizada en Qt5.
+    El formato #RRGGBBAA no es fiable en todas las versiones de Qt5."""
+    h = hex_color.lstrip("#")
+    return f"rgba({int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)},{alpha:.2f})"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONSTANTES DE SECCIONES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -109,10 +117,10 @@ class _FinSectionHeader(QWidget):
 
 
 class _FinKpiCard(QFrame):
-    """KPI card — mismo estilo que _InvKPICard del módulo de inventario.
-    Usa objectName('kpiCard') para ser estilizado por el QSS global del tema."""
+    """KPI card — idéntico a _InvKPICard: barra de acento + ícono circular."""
 
-    def __init__(self, label: str, value: str = "—", color: str = None, parent=None):
+    def __init__(self, label: str, value: str = "—", color: str = None,
+                 icono: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("kpiCard")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -129,17 +137,17 @@ class _FinKpiCard(QFrame):
         self._bar.setFixedHeight(3)
         self._bar.setStyleSheet(
             f"background:{_accent}; border:none;"
-            f" border-top-left-radius:8px; border-top-right-radius:8px;"
+            f" border-top-left-radius:12px; border-top-right-radius:12px;"
         )
         outer.addWidget(self._bar)
 
         body = QHBoxLayout()
         body.setContentsMargins(14, 10, 14, 10)
-        body.setSpacing(6)
+        body.setSpacing(8)
         outer.addLayout(body)
 
         col = QVBoxLayout()
-        col.setSpacing(3)
+        col.setSpacing(2)
 
         lbl_t = QLabel(label.upper())
         lbl_t.setStyleSheet(
@@ -152,18 +160,29 @@ class _FinKpiCard(QFrame):
         self._lbl_value = QLabel(value)
         self._lbl_value.setObjectName("kpiValue")
         self._lbl_value.setStyleSheet(
-            "font-size: 22px; font-weight: 700; letter-spacing: -0.02em;"
-            " background: transparent; border: none;"
+            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
         )
         col.addWidget(self._lbl_value)
         body.addLayout(col, 1)
+
+        # Ícono circular con fondo semitransparente — idéntico a _InvKPICard
+        if icono:
+            self._lbl_icon = QLabel(icono)
+            self._lbl_icon.setFixedSize(36, 36)
+            self._lbl_icon.setAlignment(Qt.AlignCenter)
+            self._lbl_icon.setStyleSheet(
+                f"font-size: 18px; background: {_rgba(_accent, 0.10)};"
+                f" border-radius: 18px; border: none;"
+            )
+            body.addWidget(self._lbl_icon, 0, alignment=Qt.AlignTop)
 
     def set_value(self, value: str, color: str = None):
         self._lbl_value.setText(value)
         if color:
             self._bar.setStyleSheet(
                 f"background:{color}; border:none;"
-                f" border-top-left-radius:8px; border-top-right-radius:8px;"
+                f" border-top-left-radius:12px; border-top-right-radius:12px;"
             )
 
 
@@ -183,6 +202,70 @@ class _FinStatusBadge(QLabel):
             f"color:{fg}; background:{bg}; border-radius:4px; "
             f"padding:2px 6px; font-size:10px; font-weight:600;"
         )
+
+
+
+class _FinAlertChip(QFrame):
+    """Chip de alerta estilo dashboard — borde semántico + ícono + valor.
+    Misma altura que _FinKpiCard pero más compacto, orientado a conteos de alerta."""
+
+    def __init__(self, icon: str, label: str, color: str = _P_ERROR, parent=None):
+        super().__init__(parent)
+        self._base_color = color
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(68)
+
+        main = QHBoxLayout(self)
+        main.setContentsMargins(14, 10, 14, 10)
+        main.setSpacing(12)
+
+        # Ícono circular con fondo tintado
+        self._lbl_icon = QLabel(icon)
+        self._lbl_icon.setFixedSize(36, 36)
+        self._lbl_icon.setAlignment(Qt.AlignCenter)
+        self._lbl_icon.setStyleSheet(
+            f"font-size: 17px; background: {_rgba(color, 0.13)};"
+            f" border-radius: 18px; border: none;"
+        )
+        main.addWidget(self._lbl_icon, 0, alignment=Qt.AlignVCenter)
+
+        # Columna: etiqueta + valor
+        col = QVBoxLayout()
+        col.setSpacing(1)
+
+        lbl_t = QLabel(label.upper())
+        lbl_t.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.08em; background: transparent; border: none;"
+        )
+        col.addWidget(lbl_t)
+
+        self._lbl_value = QLabel("—")
+        self._lbl_value.setStyleSheet(
+            f"color: {color}; font-size: 19px; font-weight: 700;"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        col.addWidget(self._lbl_value)
+        main.addLayout(col, 1)
+
+        self._refresh_frame(color)
+
+    def _refresh_frame(self, color: str):
+        self.setStyleSheet(
+            f"QFrame {{ background: {_rgba(color, 0.08)};"
+            f" border: 1px solid {_rgba(color, 0.20)};"
+            f" border-left: 3px solid {color}; border-radius: 8px; }}"
+        )
+
+    def set_value(self, text: str, ok: bool = False):
+        """Actualiza el valor. ok=True cambia paleta a sage (sin alerta)."""
+        color = _P_TERTIARY if ok else self._base_color
+        self._lbl_value.setText(text)
+        self._lbl_value.setStyleSheet(
+            f"color: {color}; font-size: 19px; font-weight: 700;"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        self._refresh_frame(color)
 
 
 class _FinEmptyState(QWidget):
@@ -236,14 +319,13 @@ class _FinTable(QTableWidget):
 
 
 def _kpi_row(cards: List[_FinKpiCard]) -> QWidget:
-    """Fila horizontal de KPI cards."""
+    """Fila horizontal de KPI cards — se extienden por todo el ancho en partes iguales."""
     w = QWidget()
     lay = QHBoxLayout(w)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(8)
     for card in cards:
         lay.addWidget(card)
-    lay.addStretch()
     return w
 
 
@@ -540,25 +622,32 @@ class _SeccionResumen(QWidget):
         ))
 
         # KPIs
-        self._kpi_caja    = _FinKpiCard("Caja y bancos", "—", _P_TERTIARY)
-        self._kpi_cxc     = _FinKpiCard("Cuentas por cobrar", "—", _P_SECONDARY)
-        self._kpi_cxp     = _FinKpiCard("Cuentas por pagar", "—", _P_ERROR)
-        self._kpi_flujo   = _FinKpiCard("Flujo neto del período", "—", _P_PRIMARY)
-        self._kpi_capital = _FinKpiCard("Capital actual", "$0.00 (pendiente)", _P_SECONDARY)
+        self._kpi_caja    = _FinKpiCard("Caja y bancos",       "—", _P_TERTIARY,  "💵")
+        self._kpi_cxc     = _FinKpiCard("Cuentas por cobrar",  "—", _P_SECONDARY, "📥")
+        self._kpi_cxp     = _FinKpiCard("Cuentas por pagar",   "—", _P_ERROR,     "📤")
+        self._kpi_flujo   = _FinKpiCard("Flujo neto del período","—",_P_PRIMARY,   "📈")
+        self._kpi_capital = _FinKpiCard("Capital actual", "$0.00 (pendiente)", _P_SECONDARY, "💎")
         lay.addWidget(_kpi_row([self._kpi_caja, self._kpi_cxc, self._kpi_cxp,
                                 self._kpi_flujo, self._kpi_capital]))
 
-        # Panel de alertas
-        grp_alertas = QGroupBox("Alertas y pendientes")
-        a_lay = QHBoxLayout(grp_alertas)
-        self._lbl_cxp_venc = QLabel("CxP vencidas: —")
-        self._lbl_cxc_venc = QLabel("CxC vencidas: —")
-        self._lbl_dif_caja = QLabel("Diferencias de caja: —")
-        for lbl in (self._lbl_cxp_venc, self._lbl_cxc_venc, self._lbl_dif_caja):
-            lbl.setObjectName("caption")
-            a_lay.addWidget(lbl)
-        a_lay.addStretch()
-        lay.addWidget(grp_alertas)
+        # Panel de alertas — chips estilo dashboard
+        lbl_alertas = QLabel("ALERTAS Y PENDIENTES")
+        lbl_alertas.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_alertas)
+
+        a_row = QHBoxLayout()
+        a_row.setSpacing(8)
+        a_row.setContentsMargins(0, 0, 0, 0)
+        self._alert_cxp  = _FinAlertChip("📤", "CxP Vencidas",        _P_ERROR)
+        self._alert_cxc  = _FinAlertChip("📥", "CxC Vencidas",        _P_SECONDARY)
+        self._alert_caja = _FinAlertChip("⚖️",  "Diferencias de Caja", _P_SECONDARY)
+        a_row.addWidget(self._alert_cxp)
+        a_row.addWidget(self._alert_cxc)
+        a_row.addWidget(self._alert_caja)
+        lay.addLayout(a_row)
 
         # Acciones rápidas
         grp_acc = QGroupBox("Acciones rápidas")
@@ -580,16 +669,84 @@ class _SeccionResumen(QWidget):
         btn_asiento.clicked.connect(lambda: self._m._nav_to(6)) # Asientos
         lay.addWidget(grp_acc)
 
-        # Actividad reciente
-        grp_act = QGroupBox("Actividad reciente (últimos 20 movimientos)")
-        act_lay = QVBoxLayout(grp_act)
+        # Actividad reciente — header + filtros + tabla (sin addStretch: ocupa todo el alto)
+        lbl_act = QLabel("ACTIVIDAD RECIENTE")
+        lbl_act.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_act)
+
+        # Barra de filtros
+        fil_row = QHBoxLayout()
+        fil_row.setSpacing(8)
+        fil_row.setContentsMargins(0, 0, 0, 0)
+
+        self._cmb_tipo_act = QComboBox()
+        self._cmb_tipo_act.setFixedWidth(130)
+        self._cmb_tipo_act.addItems(
+            ["Todos los tipos", "Venta", "Compra", "Cierre caja", "Finanzas"])
+        self._cmb_tipo_act.currentIndexChanged.connect(self._filtrar_actividad)
+
+        self._cmb_user_act = QComboBox()
+        self._cmb_user_act.setFixedWidth(130)
+        self._cmb_user_act.addItem("Todos los usuarios")
+        self._cmb_user_act.currentIndexChanged.connect(self._filtrar_actividad)
+
+        self._txt_buscar_act = QLineEdit()
+        self._txt_buscar_act.setPlaceholderText("Buscar concepto, módulo…")
+        self._txt_buscar_act.textChanged.connect(self._filtrar_actividad)
+
+        btn_limpiar = QPushButton("✕ Limpiar")
+        btn_limpiar.setObjectName("outlineBtn")
+        btn_limpiar.setFixedWidth(84)
+        btn_limpiar.setCursor(Qt.PointingHandCursor)
+        btn_limpiar.clicked.connect(self._limpiar_filtros_act)
+
+        fil_row.addWidget(QLabel("Tipo:"))
+        fil_row.addWidget(self._cmb_tipo_act)
+        fil_row.addWidget(QLabel("Usuario:"))
+        fil_row.addWidget(self._cmb_user_act)
+        fil_row.addWidget(self._txt_buscar_act, 1)
+        fil_row.addWidget(btn_limpiar)
+        lay.addLayout(fil_row)
+
+        # Tabla — stretch=1 para que ocupe el espacio vertical restante
         self._tbl_actividad = _FinTable(
             ["Fecha", "Tipo", "Concepto", "Módulo", "Monto", "Usuario"])
         self._tbl_actividad.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        act_lay.addWidget(self._tbl_actividad)
-        lay.addWidget(grp_act)
+        self._tbl_actividad.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        lay.addWidget(self._tbl_actividad, 1)   # stretch=1 → llena el resto de la pantalla
 
-        lay.addStretch()
+        # Cache de filas sin filtrar (para filtrado client-side)
+        self._rows_actividad: List[Dict[str, Any]] = []
+
+    # ── Filtrado client-side ──────────────────────────────────────────────────
+
+    def _filtrar_actividad(self):
+        tipo_fil = self._cmb_tipo_act.currentText()
+        user_fil = self._cmb_user_act.currentText()
+        txt      = self._txt_buscar_act.text().strip().lower()
+
+        for i, r in enumerate(self._rows_actividad):
+            tipo    = str(r.get("tipo", ""))
+            usuario = str(r.get("usuario") or r.get("user", ""))
+            concepto = str(r.get("concepto", "")).lower()
+            modulo   = str(r.get("modulo", "")).lower()
+
+            ocultar = False
+            if tipo_fil != "Todos los tipos" and tipo_fil.lower() not in tipo.lower():
+                ocultar = True
+            if user_fil != "Todos los usuarios" and user_fil.lower() not in usuario.lower():
+                ocultar = True
+            if txt and txt not in concepto and txt not in modulo and txt not in usuario.lower():
+                ocultar = True
+            self._tbl_actividad.setRowHidden(i, ocultar)
+
+    def _limpiar_filtros_act(self):
+        self._cmb_tipo_act.setCurrentIndex(0)
+        self._cmb_user_act.setCurrentIndex(0)
+        self._txt_buscar_act.clear()
 
     def recargar(self):
         m = self._m
@@ -624,39 +781,161 @@ class _SeccionResumen(QWidget):
         except Exception as e:
             logger.warning("_SeccionResumen KPI flujo: %s", e)
 
-        # Actividad reciente — usa journal_entries (mig 083) como fallback confiable
+        # Alertas — consultas directas a tablas garantizadas
+        try:
+            db = getattr(getattr(m, "container", None), "db", None)
+            if db:
+                # CxP vencidas (financial_documents mig083 o fallback 0)
+                cxp_venc = 0
+                try:
+                    cxp_venc = db.execute(
+                        "SELECT COUNT(*) FROM financial_documents"
+                        " WHERE document_type='payable'"
+                        " AND status IN ('pending','partial')"
+                        " AND due_date < date('now')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_cxp.set_value(
+                    f"{cxp_venc} doc{'s' if cxp_venc != 1 else ''}" if cxp_venc
+                    else "✓ Sin vencidas",
+                    ok=(cxp_venc == 0)
+                )
+
+                # CxC vencidas
+                cxc_venc = 0
+                try:
+                    cxc_venc = db.execute(
+                        "SELECT COUNT(*) FROM financial_documents"
+                        " WHERE document_type='receivable'"
+                        " AND status IN ('pending','partial')"
+                        " AND due_date < date('now')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_cxc.set_value(
+                    f"{cxc_venc} doc{'s' if cxc_venc != 1 else ''}" if cxc_venc
+                    else "✓ Sin vencidas",
+                    ok=(cxc_venc == 0)
+                )
+
+                # Diferencias de caja (últimos 30 días, cierres_caja garantizado)
+                dif_caja = 0
+                try:
+                    dif_caja = db.execute(
+                        "SELECT COUNT(*) FROM cierres_caja"
+                        " WHERE ABS(total_ventas - total_efectivo) > 0.01"
+                        " AND fecha_cierre >= date('now','-30 days')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_caja.set_value(
+                    f"{dif_caja} cierre{'s' if dif_caja != 1 else ''}" if dif_caja
+                    else "✓ Sin diferencias",
+                    ok=(dif_caja == 0)
+                )
+        except Exception as e:
+            logger.warning("_SeccionResumen alertas: %s", e)
+
+        # Actividad reciente — múltiples fuentes garantizadas
         try:
             rows = []
             if m._tm_svc and hasattr(m._tm_svc, "get_movimientos"):
                 rows = m._tm_svc.get_movimientos(limit=20)
             if not rows and m._je_svc and hasattr(m._je_svc, "get_recientes"):
                 rows = m._je_svc.get_recientes(limit=20)
+
             if not rows:
-                # Fallback directo a journal_entries (existe desde mig 083)
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
-                    cur = db.execute(
-                        "SELECT created_at, event_type, source_module, source_folio, "
-                        "amount, user FROM journal_entries "
-                        "ORDER BY created_at DESC LIMIT 20"
+                    # Construir UNION desde tablas garantizadas por m000_base_schema
+                    parts: List[str] = []
+
+                    # journal_entries (mig 083) — opcional, puede no existir/estar vacía
+                    try:
+                        db.execute("SELECT 1 FROM journal_entries LIMIT 1")
+                        parts.append(
+                            "SELECT created_at AS fecha, event_type AS tipo,"
+                            " 'Finanzas' AS modulo,"
+                            " COALESCE(source_folio,'') AS concepto,"
+                            " amount AS monto, user AS usuario"
+                            " FROM journal_entries"
+                        )
+                    except Exception:
+                        pass
+
+                    # ventas — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha, 'Venta' AS tipo, 'Ventas' AS modulo,"
+                        " COALESCE(folio,'V-'||id) AS concepto,"
+                        " total AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM ventas WHERE estado != 'cancelada'"
                     )
-                    rows = [dict(zip(
-                        ["fecha", "tipo", "modulo", "concepto", "monto", "usuario"], r
-                    )) for r in cur.fetchall()]
-            self._tbl_actividad.setRowCount(len(rows))
-            for ri, r in enumerate(rows):
-                vals = [
-                    str(r.get("fecha") or r.get("created_at", ""))[:10],
-                    str(r.get("tipo") or r.get("event_type", "")),
-                    str(r.get("concepto") or r.get("source_folio") or r.get("descripcion", "")),
-                    str(r.get("modulo") or r.get("source_module") or r.get("modulo_origen", "")),
-                    f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
-                    str(r.get("usuario") or r.get("user", "")),
-                ]
-                for ci, v in enumerate(vals):
+
+                    # compras — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha, 'Compra' AS tipo, 'Compras' AS modulo,"
+                        " COALESCE(folio,'C-'||id) AS concepto,"
+                        " total AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM compras"
+                    )
+
+                    # cierres_caja — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha_cierre AS fecha, 'Cierre caja' AS tipo,"
+                        " 'Caja' AS modulo,"
+                        " COALESCE(turno,'Cierre-'||id) AS concepto,"
+                        " total_ventas AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM cierres_caja"
+                    )
+
+                    union_sql = " UNION ALL ".join(parts)
+                    cur = db.execute(
+                        f"SELECT * FROM ({union_sql})"
+                        f" ORDER BY fecha DESC LIMIT 20"
+                    )
+                    rows = [
+                        {"fecha": r[0], "tipo": r[1], "modulo": r[2],
+                         "concepto": r[3], "monto": r[4], "usuario": r[5]}
+                        for r in cur.fetchall()
+                    ]
+
+            # Normalizar a dict uniforme y guardar cache
+            self._rows_actividad = [
+                {
+                    "fecha":   str(r.get("fecha") or r.get("created_at", ""))[:10],
+                    "tipo":    str(r.get("tipo") or r.get("event_type", "")),
+                    "concepto":str(r.get("concepto") or r.get("source_folio") or r.get("descripcion", "")),
+                    "modulo":  str(r.get("modulo") or r.get("source_module") or r.get("modulo_origen", "")),
+                    "monto":   f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
+                    "usuario": str(r.get("usuario") or r.get("user", "")),
+                }
+                for r in rows
+            ]
+
+            # Poblar combo de usuarios con valores únicos
+            usuarios = sorted({r["usuario"] for r in self._rows_actividad if r["usuario"]})
+            self._cmb_user_act.blockSignals(True)
+            current_user = self._cmb_user_act.currentText()
+            self._cmb_user_act.clear()
+            self._cmb_user_act.addItem("Todos los usuarios")
+            for u in usuarios:
+                self._cmb_user_act.addItem(u)
+            idx = self._cmb_user_act.findText(current_user)
+            self._cmb_user_act.setCurrentIndex(max(idx, 0))
+            self._cmb_user_act.blockSignals(False)
+
+            # Pintar tabla
+            self._tbl_actividad.setRowCount(len(self._rows_actividad))
+            for ri, r in enumerate(self._rows_actividad):
+                for ci, v in enumerate(
+                    [r["fecha"], r["tipo"], r["concepto"], r["modulo"], r["monto"], r["usuario"]]
+                ):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     self._tbl_actividad.setItem(ri, ci, it)
+
+            self._filtrar_actividad()   # aplicar filtros activos tras recargar
         except Exception as e:
             logger.warning("_SeccionResumen actividad: %s", e)
 
@@ -678,54 +957,132 @@ class _SeccionCajayConciliacion(QWidget):
             btn_callback=self.recargar
         ))
 
-        # KPIs
-        self._kpi_cortes = _FinKpiCard("Cortes recientes", "—")
-        self._kpi_dif    = _FinKpiCard("Diferencias detectadas", "—", _P_SECONDARY)
-        self._kpi_movs   = _FinKpiCard("Movimientos del período", "—", _P_PRIMARY)
+        # KPIs — fill full row equally (sin addStretch en _kpi_row)
+        self._kpi_cortes = _FinKpiCard("Cortes recientes",      "—", _P_PRIMARY,   "📋")
+        self._kpi_dif    = _FinKpiCard("Diferencias detectadas","—", _P_SECONDARY, "⚠️")
+        self._kpi_movs   = _FinKpiCard("Movimientos del período","—", _P_TERTIARY,  "🔄")
         lay.addWidget(_kpi_row([self._kpi_cortes, self._kpi_dif, self._kpi_movs]))
 
-        # Tabla de cortes de caja
-        grp = QGroupBox("Cortes de caja")
-        g_lay = QVBoxLayout(grp)
+        # Label-caps
+        lbl_cortes = QLabel("CORTES DE CAJA")
+        lbl_cortes.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_cortes)
 
-        filtros = QHBoxLayout()
+        # Filtros: caja + cajero + búsqueda libre + exportar
+        fil_row = QHBoxLayout()
+        fil_row.setSpacing(8)
+        fil_row.setContentsMargins(0, 0, 0, 0)
+
+        self._cmb_caja_fil = QComboBox()
+        self._cmb_caja_fil.setFixedWidth(120)
+        self._cmb_caja_fil.addItem("Todas las cajas")
+        self._cmb_caja_fil.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_cajero_fil = QComboBox()
+        self._cmb_cajero_fil.setFixedWidth(140)
+        self._cmb_cajero_fil.addItem("Todos los cajeros")
+        self._cmb_cajero_fil.currentIndexChanged.connect(self._filtrar)
+
         self._txt_buscar = QLineEdit()
-        self._txt_buscar.setPlaceholderText("Buscar por cajero o fecha...")
+        self._txt_buscar.setPlaceholderText("Buscar por fecha o turno…")
         self._txt_buscar.textChanged.connect(self._filtrar)
-        filtros.addWidget(self._txt_buscar)
 
         btn_exp = QPushButton("📤 Exportar")
         btn_exp.setObjectName("secondaryBtn")
         btn_exp.setCursor(Qt.PointingHandCursor)
         btn_exp.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        filtros.addWidget(btn_exp)
-        filtros.addStretch()
-        g_lay.addLayout(filtros)
 
+        fil_row.addWidget(QLabel("Caja:"))
+        fil_row.addWidget(self._cmb_caja_fil)
+        fil_row.addWidget(QLabel("Cajero:"))
+        fil_row.addWidget(self._cmb_cajero_fil)
+        fil_row.addWidget(self._txt_buscar, 1)
+        fil_row.addWidget(btn_exp)
+        lay.addLayout(fil_row)
+
+        # Tabla — stretch=1: ocupa el resto de la pantalla
         self._tbl = _FinTable(
             ["Fecha", "Caja", "Cajero", "Total declarado", "Total esperado", "Diferencia", "Estado", "Acciones"]
         )
         self._tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        g_lay.addWidget(self._tbl)
-        lay.addWidget(grp)
-        lay.addStretch()
+        self._tbl.cellClicked.connect(self._on_row_clicked)
+        lay.addWidget(self._tbl, 1)
+
+        self._rows_caja: List[Dict[str, Any]] = []
 
     def _filtrar(self):
-        txt = self._txt_buscar.text().lower()
+        caja_fil   = self._cmb_caja_fil.currentText()
+        cajero_fil = self._cmb_cajero_fil.currentText()
+        txt        = self._txt_buscar.text().strip().lower()
         for i in range(self._tbl.rowCount()):
+            caja   = (self._tbl.item(i, 1) or QTableWidgetItem()).text()
             cajero = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
             fecha  = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
-            self._tbl.setRowHidden(i, bool(txt) and txt not in cajero and txt not in fecha)
+            hide = False
+            if caja_fil != "Todas las cajas" and caja_fil != caja:
+                hide = True
+            if cajero_fil != "Todos los cajeros" and cajero_fil.lower() not in cajero:
+                hide = True
+            if txt and txt not in cajero and txt not in fecha:
+                hide = True
+            self._tbl.setRowHidden(i, hide)
+
+    def _on_row_clicked(self, row: int, col: int):
+        """cellClicked — NO se dispara al hacer clic en el botón Ver (cell widget),
+        por eso el botón puede ejecutar su acción sin interferencia.
+        Oculta el Ver de la fila clickeada y lo muestra en todas las demás."""
+        for i in range(self._tbl.rowCount()):
+            w = self._tbl.cellWidget(i, 7)
+            if w:
+                w.setVisible(i != row)
+
+    def _ver_cierre(self, r: dict):
+        """Diálogo de detalle de corte de caja."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Detalle del Corte de Caja")
+        dlg.setMinimumWidth(400)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(12)
+
+        dif = float(r.get("diferencia", 0) or 0)
+        color_dif = _P_ERROR if dif < 0 else (_P_SECONDARY if dif > 0 else _P_TERTIARY)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignRight)
+        for label, value, color in [
+            ("Fecha",            str(r.get("fecha",""))[:10],                         None),
+            ("Caja / Sucursal",  str(r.get("caja","")),                               None),
+            ("Cajero",           str(r.get("cajero","")),                              None),
+            ("Turno",            str(r.get("turno","—")),                              None),
+            ("Total declarado",  f"${float(r.get('saldo_real',0)):,.2f}",             None),
+            ("Total esperado",   f"${float(r.get('saldo_sistema',0)):,.2f}",          None),
+            ("Diferencia",       f"${dif:+,.2f}",                                     color_dif),
+            ("Estado",           str(r.get("estado","")),                              None),
+        ]:
+            lbl_v = QLabel(value)
+            style = "font-weight: 600; background: transparent;"
+            if color:
+                style += f" color: {color};"
+            lbl_v.setStyleSheet(style)
+            form.addRow(f"{label}:", lbl_v)
+
+        lay.addLayout(form)
+        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+        dlg.exec_()
 
     def recargar(self):
         m = self._m
         try:
             rows = []
-            # Intentar servicios primero
             if m._recon_svc and hasattr(m._recon_svc, "get_conciliaciones"):
                 rows = m._recon_svc.get_conciliaciones(limit=100)
-            # Fallback directo a cierres_caja (existe desde m000)
             if not rows:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
@@ -733,26 +1090,43 @@ class _SeccionCajayConciliacion(QWidget):
                         cur = db.execute(
                             "SELECT fecha_cierre, sucursal_id, usuario, turno, "
                             "total_ventas, total_efectivo "
-                            "FROM cierres_caja "
-                            "ORDER BY fecha_cierre DESC LIMIT 100"
+                            "FROM cierres_caja ORDER BY fecha_cierre DESC LIMIT 100"
                         )
                         rows = [
                             {
-                                "fecha":           r[0],
-                                "caja":            str(r[1]),
-                                "cajero":          str(r[2] or ""),
-                                "saldo_real":      float(r[5] or 0),
-                                "saldo_sistema":   float(r[4] or 0),
-                                "diferencia":      round(float(r[5] or 0) - float(r[4] or 0), 2),
-                                "estado":          "conciliado",
+                                "fecha":         r[0],
+                                "caja":          str(r[1]),
+                                "cajero":        str(r[2] or ""),
+                                "turno":         str(r[3] or ""),
+                                "saldo_real":    float(r[5] or 0),
+                                "saldo_sistema": float(r[4] or 0),
+                                "diferencia":    round(float(r[5] or 0) - float(r[4] or 0), 2),
+                                "estado":        "conciliado",
                             }
                             for r in cur.fetchall()
                         ]
                     except Exception:
                         rows = []
 
-            cortes_ok = 0
-            difs = 0
+            self._rows_caja = rows
+
+            # Poblar combos (preservar selección actual)
+            for cmb, key, default in [
+                (self._cmb_caja_fil,   "caja",   "Todas las cajas"),
+                (self._cmb_cajero_fil, "cajero", "Todos los cajeros"),
+            ]:
+                valores = sorted({str(r.get(key,"")) for r in rows if r.get(key)})
+                prev = cmb.currentText()
+                cmb.blockSignals(True)
+                cmb.clear()
+                cmb.addItem(default)
+                for v in valores:
+                    cmb.addItem(v)
+                cmb.setCurrentIndex(max(cmb.findText(prev), 0))
+                cmb.blockSignals(False)
+
+            # Pintar tabla
+            cortes_ok = difs = 0
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 dif_val = float(r.get("diferencia", 0) or 0)
@@ -760,27 +1134,30 @@ class _SeccionCajayConciliacion(QWidget):
                     difs += 1
                 else:
                     cortes_ok += 1
-                vals = [
-                    str(r.get("fecha") or r.get("periodo", ""))[:10],
-                    str(r.get("caja") or r.get("cuenta_financiera_id", "")),
-                    str(r.get("cajero") or r.get("creado_por", "")),
-                    f"${float(r.get('saldo_real', 0) or 0):,.2f}",
-                    f"${float(r.get('saldo_sistema', 0) or 0):,.2f}",
+
+                for ci, v in enumerate([
+                    str(r.get("fecha",""))[:10],
+                    str(r.get("caja","")),
+                    str(r.get("cajero","")),
+                    f"${float(r.get('saldo_real',0)):,.2f}",
+                    f"${float(r.get('saldo_sistema',0)):,.2f}",
                     f"${dif_val:+,.2f}",
-                    str(r.get("estado", "")),
-                ]
-                for ci, v in enumerate(vals):
+                ]):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     self._tbl.setItem(ri, ci, it)
-                badge = _FinStatusBadge(r.get("estado", ""))
-                self._tbl.setCellWidget(ri, 6, badge)
+
+                self._tbl.setCellWidget(ri, 6, _FinStatusBadge(r.get("estado","")))
+
                 btn_ver = _compact_btn("Ver", "outline")
+                row_data = dict(r)
+                btn_ver.clicked.connect(lambda _, rd=row_data: self._ver_cierre(rd))
                 self._tbl.setCellWidget(ri, 7, btn_ver)
 
             self._kpi_cortes.set_value(str(cortes_ok + difs))
             self._kpi_dif.set_value(str(difs), _P_SECONDARY if difs else _P_TERTIARY)
             self._kpi_movs.set_value(str(len(rows)))
+            self._filtrar()
         except Exception as e:
             logger.warning("_SeccionCajayConciliacion.recargar: %s", e)
 
@@ -900,16 +1277,20 @@ class _SeccionCapital(QWidget):
         lay.addLayout(hdr_row)
 
         # KPIs
-        self._kpi_actual       = _FinKpiCard("Capital actual",     "$—")
-        self._kpi_aportaciones = _FinKpiCard("Aportaciones",       "$—", _P_TERTIARY)
-        self._kpi_retiros      = _FinKpiCard("Retiros",            "$—", _P_ERROR)
-        self._kpi_neto         = _FinKpiCard("Capital neto",       "$—", _P_PRIMARY)
+        self._kpi_actual       = _FinKpiCard("Capital actual",  "$—", _P_PRIMARY,   "🏦")
+        self._kpi_aportaciones = _FinKpiCard("Aportaciones",    "$—", _P_TERTIARY,  "⬆️")
+        self._kpi_retiros      = _FinKpiCard("Retiros",         "$—", _P_ERROR,     "⬇️")
+        self._kpi_neto         = _FinKpiCard("Capital neto",    "$—", _P_SECONDARY, "📊")
         lay.addWidget(_kpi_row([self._kpi_actual, self._kpi_aportaciones,
                                 self._kpi_retiros, self._kpi_neto]))
 
-        # Tabla de movimientos
-        grp_tbl = QGroupBox("Historial de movimientos de capital")
-        t_lay = QVBoxLayout(grp_tbl)
+        # Historial de movimientos
+        lbl_hist = QLabel("HISTORIAL DE CAPITAL")
+        lbl_hist.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 700;"
+            " letter-spacing: 1px;"
+        )
+        lay.addWidget(lbl_hist)
 
         filtros_cap = QHBoxLayout()
         self._cmb_tipo_cap = QComboBox()
@@ -935,16 +1316,13 @@ class _SeccionCapital(QWidget):
         filtros_cap.addWidget(self._cmb_periodo_cap)
         filtros_cap.addWidget(self._txt_buscar_cap, 1)
         filtros_cap.addWidget(btn_exp_cap)
-        t_lay.addLayout(filtros_cap)
+        lay.addLayout(filtros_cap)
 
         self._tbl = _FinTable(
             ["Fecha", "Tipo", "Socio/Origen", "Concepto", "Método",
              "Monto", "Referencia", "Estado"])
         self._tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        t_lay.addWidget(self._tbl)
-        lay.addWidget(grp_tbl)
-
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         from datetime import date, timedelta
@@ -1050,11 +1428,41 @@ class _SeccionCapital(QWidget):
         except Exception as e:
             logger.warning("_SeccionCapital KPIs: %s", e)
 
-        # Historial via CapitalService.get_history()
+        # Historial via CapitalService.get_history() con fallback directo a DB
         try:
             rows = []
             if m._capital_svc:
                 rows = m._capital_svc.get_history(branch_id=m.sucursal_id, limit=100)
+
+            # Fallback: consulta directa a capital_movements (mig 084) o treasury_capital (legacy)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    # Intento 1: capital_movements (mig 084)
+                    try:
+                        cur = db.execute(
+                            "SELECT created_at, movement_type, partner_name, concept, "
+                            "payment_method, amount, reference, status "
+                            "FROM capital_movements ORDER BY created_at DESC LIMIT 100"
+                        )
+                        cols = ["created_at", "movement_type", "partner_name", "concept",
+                                "payment_method", "amount", "reference", "status"]
+                        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+                    except Exception:
+                        pass
+                    # Intento 2: treasury_capital (tabla legacy de TreasuryService)
+                    if not rows:
+                        try:
+                            cur = db.execute(
+                                "SELECT fecha, tipo, usuario, descripcion, '', monto, '', 'confirmado' "
+                                "FROM treasury_capital ORDER BY fecha DESC LIMIT 100"
+                            )
+                            cols = ["created_at", "movement_type", "partner_name", "concept",
+                                    "payment_method", "amount", "reference", "status"]
+                            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+                        except Exception:
+                            pass
+
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 tipo_raw = r.get("movement_type", "")
@@ -1070,7 +1478,7 @@ class _SeccionCapital(QWidget):
                     str(r.get("partner_name", "")),
                     str(r.get("concept", "")),
                     str(r.get("payment_method", "")),
-                    f"${float(r.get('amount', 0)):,.2f}",
+                    f"${float(r.get('amount', 0) or 0):,.2f}",
                     str(r.get("reference", "")),
                     str(r.get("status", "")),
                 ]
@@ -1082,8 +1490,6 @@ class _SeccionCapital(QWidget):
                 status = str(r.get("status", ""))
                 badge = _FinStatusBadge(status)
                 self._tbl.setCellWidget(ri, 7, badge)
-            if not rows and m._capital_svc is None:
-                self._tbl.setRowCount(0)
         except Exception as e:
             logger.warning("_SeccionCapital historial: %s", e)
 
@@ -1105,10 +1511,10 @@ class _SeccionCuentasPorCobrar(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total   = _FinKpiCard("Total por cobrar", "—", _P_PRIMARY)
-        self._kpi_vencido = _FinKpiCard("Vencido", "—", _P_ERROR)
-        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", _P_SECONDARY)
-        self._kpi_cobrado = _FinKpiCard("Cobrado este mes", "—", _P_TERTIARY)
+        self._kpi_total   = _FinKpiCard("Total por cobrar",  "—", _P_PRIMARY,   "📥")
+        self._kpi_vencido = _FinKpiCard("Vencido",           "—", _P_ERROR,     "🚨")
+        self._kpi_porvenc = _FinKpiCard("Por vencer",        "—", _P_SECONDARY, "🕐")
+        self._kpi_cobrado = _FinKpiCard("Cobrado este mes",  "—", _P_TERTIARY,  "✅")
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
                                 self._kpi_porvenc, self._kpi_cobrado]))
 
@@ -1156,8 +1562,7 @@ class _SeccionCuentasPorCobrar(QWidget):
             ["ID", "Folio", "Cliente", "Monto", "Saldo", "Vencimiento", "Estado", "Acciones"])
         self._tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         estado_fil = self._cmb_estado.currentText()
@@ -1353,10 +1758,10 @@ class _SeccionCuentasPorPagar(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total   = _FinKpiCard("Total por pagar", "—", _P_ERROR)
-        self._kpi_vencido = _FinKpiCard("Vencido", "—", _P_ERROR)
-        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", _P_SECONDARY)
-        self._kpi_pagado  = _FinKpiCard("Pagado este mes", "—", _P_TERTIARY)
+        self._kpi_total   = _FinKpiCard("Total por pagar",  "—", _P_ERROR,     "📤")
+        self._kpi_vencido = _FinKpiCard("Vencido",          "—", _P_ERROR,     "🚨")
+        self._kpi_porvenc = _FinKpiCard("Por vencer",       "—", _P_SECONDARY, "🕐")
+        self._kpi_pagado  = _FinKpiCard("Pagado este mes",  "—", _P_TERTIARY,  "✅")
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
                                 self._kpi_porvenc, self._kpi_pagado]))
 
@@ -1378,23 +1783,36 @@ class _SeccionCuentasPorPagar(QWidget):
         acc.addStretch()
         lay.addLayout(acc)
 
+        filtros_cxp = QHBoxLayout()
+        self._cmb_estado_cxp = QComboBox()
+        self._cmb_estado_cxp.addItems(["Todos", "pendiente", "parcial", "pagado", "vencido"])
+        self._cmb_estado_cxp.currentIndexChanged.connect(self._filtrar)
         self._txt_filtro = QLineEdit()
         self._txt_filtro.setPlaceholderText("Buscar por nombre de proveedor...")
         self._txt_filtro.textChanged.connect(self._filtrar)
-        lay.addWidget(self._txt_filtro)
+        filtros_cxp.addWidget(QLabel("Estado:"))
+        filtros_cxp.addWidget(self._cmb_estado_cxp)
+        filtros_cxp.addWidget(self._txt_filtro, 1)
+        lay.addLayout(filtros_cxp)
 
         self._tbl = _FinTable(
             ["ID", "Fecha", "Folio", "Proveedor", "Concepto", "Saldo", "Estado", "Acciones"])
         self._tbl.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
-        txt = self._txt_filtro.text().lower()
+        txt        = self._txt_filtro.text().lower()
+        estado_fil = self._cmb_estado_cxp.currentText()
         for i in range(self._tbl.rowCount()):
-            nom = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
-            self._tbl.setRowHidden(i, bool(txt) and txt not in nom)
+            nom  = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            est  = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            show = True
+            if txt and txt not in nom:
+                show = False
+            if estado_fil != "Todos" and est != estado_fil.lower():
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def _dialogo_nueva_cxp(self):
         m = self._m
@@ -1551,8 +1969,7 @@ class _SeccionMovimientos(QWidget):
         self._tbl = _FinTable(
             ["Fecha", "Tipo", "Categoría", "Concepto", "Referencia", "Entrada", "Salida", "Saldo", "Usuario"])
         self._tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         from datetime import date, timedelta
@@ -1713,8 +2130,7 @@ class _SeccionAsientosContables(QWidget):
         self._tbl = _FinTable(
             ["Fecha", "Evento", "Módulo", "Cuenta debe", "Cuenta haber", "Monto", "Referencia", "Usuario"])
         self._tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
 
     def _filtrar(self):
         from datetime import date, timedelta
@@ -1803,7 +2219,7 @@ class _SeccionAsientosContables(QWidget):
             rows = []
             if m._je_svc and hasattr(m._je_svc, "get_asientos"):
                 rows = m._je_svc.get_asientos(sucursal_id=m.sucursal_id, limit=200)
-            # Fallback directo a journal_entries (existe desde mig 083)
+            # Fallback 1: journal_entries (mig 083)
             if not rows:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
@@ -1829,6 +2245,30 @@ class _SeccionAsientosContables(QWidget):
                         ]
                     except Exception:
                         rows = []
+                    # Fallback 2: financial_event_log (desde m000 — siempre presente)
+                    if not rows and db:
+                        try:
+                            cur = db.execute(
+                                "SELECT timestamp, evento, modulo, cuenta_debe, cuenta_haber, "
+                                "monto, referencia_id, usuario_id "
+                                "FROM financial_event_log "
+                                "ORDER BY timestamp DESC LIMIT 200"
+                            )
+                            rows = [
+                                {
+                                    "fecha":       r[0],
+                                    "evento":      r[1],
+                                    "modulo":      r[2],
+                                    "cuenta_debe": r[3],
+                                    "cuenta_haber":r[4],
+                                    "monto":       float(r[5] or 0),
+                                    "referencia":  str(r[6] or ""),
+                                    "usuario":     str(r[7] or ""),
+                                }
+                                for r in cur.fetchall()
+                            ]
+                        except Exception:
+                            rows = []
 
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
@@ -1869,9 +2309,9 @@ class _SeccionNomina(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total    = _FinKpiCard("Total del período", "—", _P_PRIMARY)
-        self._kpi_pendiente= _FinKpiCard("Pendiente", "—", _P_SECONDARY)
-        self._kpi_pagada   = _FinKpiCard("Pagada", "—", _P_TERTIARY)
+        self._kpi_total    = _FinKpiCard("Total del período", "—", _P_PRIMARY,   "👥")
+        self._kpi_pendiente= _FinKpiCard("Pendiente",        "—", _P_SECONDARY, "⏳")
+        self._kpi_pagada   = _FinKpiCard("Pagada",           "—", _P_TERTIARY,  "✅")
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_pendiente, self._kpi_pagada]))
 
         # Formulario de gasto operativo
@@ -2063,9 +2503,12 @@ class _SeccionProveedores(QWidget):
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
         for i in (1, 2, 3, 4, 5):
             hh.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed)
+        hh.resizeSection(6, 184)
+        self._tbl.verticalHeader().setDefaultSectionSize(40)
         self._tbl.doubleClicked.connect(self._editar_seleccionado)
         self._tbl.itemSelectionChanged.connect(self._on_selected)
-        lay.addWidget(self._tbl)
+        lay.addWidget(self._tbl, 1)
 
         grp_det = QGroupBox("Detalle de proveedor seleccionado")
         d_lay = QVBoxLayout(grp_det)
@@ -2075,7 +2518,6 @@ class _SeccionProveedores(QWidget):
         d_lay.addWidget(self._lbl_detalle)
         d_lay.addWidget(self._lbl_resumen)
         lay.addWidget(grp_det)
-        lay.addStretch()
 
     def _filtrar(self):
         txt = self._txt_buscar.text().lower()
@@ -2201,16 +2643,20 @@ class _SeccionProveedores(QWidget):
 
             btn_w   = QWidget()
             btn_lay = QHBoxLayout(btn_w)
-            btn_lay.setContentsMargins(2, 2, 2, 2)
-            btn_ed  = QPushButton("✏️"); btn_ed.setFixedSize(28, 26)
-            btn_ed.setObjectName("outlineBtn"); btn_ed.setToolTip("Editar")
+            btn_lay.setContentsMargins(4, 2, 4, 2)
+            btn_lay.setSpacing(4)
+            btn_ed  = QPushButton("✏️ Editar")
+            btn_ed.setMinimumSize(78, 28)
+            btn_ed.setObjectName("outlineBtn")
             btn_ed.setCursor(Qt.PointingHandCursor)
             btn_ed.clicked.connect(lambda _, p=pid: self._editar_por_id(p))
-            btn_del = QPushButton("🗑️"); btn_del.setFixedSize(28, 26)
-            btn_del.setObjectName("dangerBtn"); btn_del.setToolTip("Eliminar")
+            btn_del = QPushButton("🗑️ Eliminar")
+            btn_del.setMinimumSize(88, 28)
+            btn_del.setObjectName("dangerBtn")
             btn_del.setCursor(Qt.PointingHandCursor)
             btn_del.clicked.connect(lambda _, p=pid, n=nombre: self._eliminar_proveedor(p, n))
-            btn_lay.addWidget(btn_ed); btn_lay.addWidget(btn_del)
+            btn_lay.addWidget(btn_ed)
+            btn_lay.addWidget(btn_del)
             self._tbl.setCellWidget(ri, 6, btn_w)
 
 
@@ -2231,11 +2677,35 @@ class _SeccionClientesCredito(QWidget):
             btn_callback=self.recargar
         ))
 
+        filtros_cred = QHBoxLayout()
+        self._cmb_estado_cred = QComboBox()
+        self._cmb_estado_cred.addItems(["Todos", "activo", "sin disponible"])
+        self._cmb_estado_cred.currentIndexChanged.connect(self._filtrar)
+        self._txt_buscar_cred = QLineEdit()
+        self._txt_buscar_cred.setPlaceholderText("Buscar cliente por nombre...")
+        self._txt_buscar_cred.textChanged.connect(self._filtrar)
+        filtros_cred.addWidget(QLabel("Estado:"))
+        filtros_cred.addWidget(self._cmb_estado_cred)
+        filtros_cred.addWidget(self._txt_buscar_cred, 1)
+        lay.addLayout(filtros_cred)
+
         self._tbl = _FinTable(
             ["Cliente", "Límite", "Saldo usado", "Disponible", "Estado", "Última compra", "Acciones"])
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        lay.addWidget(self._tbl)
-        lay.addStretch()
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        txt      = self._txt_buscar_cred.text().lower()
+        estado_f = self._cmb_estado_cred.currentText()
+        for i in range(self._tbl.rowCount()):
+            nom  = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
+            est  = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            show = True
+            if txt and txt not in nom:
+                show = False
+            if estado_f != "Todos" and est != estado_f.lower():
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def recargar(self):
         m = self._m
@@ -2243,14 +2713,64 @@ class _SeccionClientesCredito(QWidget):
             clientes = []
             if m._dash_svc and hasattr(m._dash_svc, "listar_clientes_credito"):
                 clientes = m._dash_svc.listar_clientes_credito(sucursal_id=m.sucursal_id)
-            elif m._dash_svc and hasattr(m._dash_svc, "listar_clientes"):
-                todos = m._dash_svc.listar_clientes(sucursal_id=m.sucursal_id)
-                clientes = [c for c in todos if float(c.get("limite_credito", 0) or 0) > 0]
+
+            # Fallback: saldo real desde accounts_receivable (CxC pendientes/parciales)
+            if not clientes:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute("""
+                            SELECT c.nombre,
+                                   COALESCE(c.credit_limit, c.limite_credito, 0) AS limite,
+                                   COALESCE((
+                                       SELECT SUM(ar.balance)
+                                       FROM accounts_receivable ar
+                                       WHERE ar.cliente_id = c.id
+                                         AND ar.status IN ('pendiente','parcial')
+                                   ), 0) AS saldo_usado,
+                                   COALESCE(c.ultima_compra, '') AS ultima_compra
+                            FROM clientes c
+                            WHERE COALESCE(c.activo,1)=1
+                              AND (COALESCE(c.credit_limit,0)>0
+                                   OR COALESCE(c.limite_credito,0)>0
+                                   OR COALESCE(c.allows_credit,0)=1)
+                            ORDER BY c.nombre LIMIT 300
+                        """)
+                        clientes = [
+                            {"nombre": r[0], "limite_credito": float(r[1] or 0),
+                             "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
+                            for r in cur.fetchall()
+                        ]
+                    except Exception as _fe:
+                        logger.debug("clientes_credito fallback: %s", _fe)
+
+                # Sin filtro de crédito: clientes con deuda activa en accounts_receivable
+                if not clientes and db:
+                    try:
+                        cur = db.execute("""
+                            SELECT c.nombre,
+                                   COALESCE(c.credit_limit, c.limite_credito, 0),
+                                   COALESCE(SUM(ar.balance), 0) AS saldo_usado,
+                                   COALESCE(c.ultima_compra, '')
+                            FROM clientes c
+                            JOIN accounts_receivable ar ON ar.cliente_id = c.id
+                            WHERE COALESCE(c.activo,1)=1
+                              AND ar.status IN ('pendiente','parcial')
+                            GROUP BY c.id, c.nombre
+                            ORDER BY saldo_usado DESC LIMIT 200
+                        """)
+                        clientes = [
+                            {"nombre": r[0], "limite_credito": float(r[1] or 0),
+                             "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
+                            for r in cur.fetchall()
+                        ]
+                    except Exception as _fe2:
+                        logger.debug("clientes_credito fallback deuda: %s", _fe2)
 
             self._tbl.setRowCount(len(clientes))
             for ri, c in enumerate(clientes):
-                limite    = float(c.get("limite_credito", 0) or 0)
-                saldo     = float(c.get("saldo_credito", 0) or 0)
+                limite     = float(c.get("limite_credito", 0) or 0)
+                saldo      = float(c.get("saldo_credito", 0) or 0)
                 disponible = max(0.0, limite - saldo)
                 estado = "activo" if disponible > 0 else "sin disponible"
                 vals = [
@@ -2325,7 +2845,9 @@ class _SeccionReportes(QWidget):
 
             btns_row = QHBoxLayout()
             btn_ver = _compact_btn("Ver", "primary")
+            btn_ver.clicked.connect(lambda _, t=titulo: self._ver_reporte(t))
             btn_exp = _compact_btn("Exportar", "secondary")
+            btn_exp.clicked.connect(lambda _, t=titulo: self._exportar_reporte(t))
             btns_row.addWidget(btn_ver); btns_row.addWidget(btn_exp); btns_row.addStretch()
             c_lay.addLayout(btns_row)
 
@@ -2333,6 +2855,104 @@ class _SeccionReportes(QWidget):
 
         scroll.setWidget(container)
         lay.addWidget(scroll)
+
+    def _ver_reporte(self, titulo: str):
+        nav_map = {
+            "Flujo de efectivo":      5,
+            "Estado CxC":             3,
+            "Estado CxP":             4,
+            "Conciliación de caja":   1,
+            "Póliza contable":        6,
+            "Nómina pagada":          7,
+            "Capital y aportaciones": 2,
+            "Saldos de proveedores":  8,
+            "Saldos de clientes":     9,
+        }
+        m = self._m
+        if titulo in nav_map:
+            if m._nav:
+                m._nav.setCurrentRow(nav_map[titulo])
+        else:
+            self._reporte_simple(titulo)
+
+    def _exportar_reporte(self, titulo: str):
+        QMessageBox.information(
+            self, "Exportar reporte",
+            f"La exportación de «{titulo}» estará disponible próximamente.\n"
+            "Por ahora puede visualizar los datos con el botón «Ver»."
+        )
+
+    def _reporte_simple(self, titulo: str):
+        m = self._m
+        db = getattr(getattr(m, "container", None), "db", None)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(titulo)
+        dlg.resize(540, 340)
+        lay_d = QVBoxLayout(dlg)
+        lbl = QLabel()
+        lbl.setWordWrap(True)
+        lbl.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        try:
+            if titulo == "Utilidad del período":
+                ingreso = egreso = 0.0
+                if db:
+                    r  = db.execute("SELECT COALESCE(SUM(total),0) FROM ventas WHERE COALESCE(anulado,0)=0").fetchone()
+                    ingreso = float((r or [0])[0] or 0)
+                    r2 = db.execute("SELECT COALESCE(SUM(total),0) FROM compras").fetchone()
+                    egreso  = float((r2 or [0])[0] or 0)
+                utilidad = ingreso - egreso
+                signo = "+" if utilidad >= 0 else ""
+                lbl.setText(
+                    f"Ingresos por ventas:   ${ingreso:>14,.2f}\n"
+                    f"Egresos por compras:   ${egreso:>14,.2f}\n"
+                    f"{'─' * 38}\n"
+                    f"Utilidad neta:         {signo}${abs(utilidad):>13,.2f}"
+                )
+            elif titulo == "Balance general":
+                if m._ts and hasattr(m._ts, "balance_general"):
+                    bal     = m._ts.balance_general()
+                    activo  = float(bal.get("activo",  0) or 0)
+                    pasivo  = float(bal.get("pasivo",  0) or 0)
+                    capital = float(bal.get("capital", 0) or 0)
+                    lbl.setText(
+                        f"Activo total:    ${activo:>14,.2f}\n"
+                        f"Pasivo total:    ${pasivo:>14,.2f}\n"
+                        f"{'─' * 34}\n"
+                        f"Capital:         ${capital:>14,.2f}"
+                    )
+                else:
+                    lbl.setText("Balance general no disponible.\n"
+                                "Verifica que TreasuryService esté activo.")
+            elif titulo == "Gastos por categoría":
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT COALESCE(modulo,'Sin categoría'), SUM(monto) "
+                            "FROM financial_event_log "
+                            "GROUP BY modulo ORDER BY SUM(monto) DESC LIMIT 12"
+                        )
+                        rows = cur.fetchall()
+                        if rows:
+                            lines = [f"{'Categoría':<28} {'Monto':>12}", "─" * 41]
+                            for cat, monto in rows:
+                                lines.append(f"{str(cat):<28} ${float(monto or 0):>11,.2f}")
+                            lbl.setText("\n".join(lines))
+                        else:
+                            lbl.setText("Sin datos de gastos registrados aún.")
+                    except Exception:
+                        lbl.setText("Sin datos disponibles.")
+                else:
+                    lbl.setText("Base de datos no disponible.")
+        except Exception as exc:
+            lbl.setText(f"Error al generar reporte: {exc}")
+
+        lbl.setStyleSheet("font-family: monospace; font-size: 12px; padding: 8px;")
+        lay_d.addWidget(lbl, 1)
+        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.reject)
+        lay_d.addWidget(btns)
+        dlg.exec_()
 
 
 class _SeccionConfiguracion(QWidget):
@@ -2351,51 +2971,224 @@ class _SeccionConfiguracion(QWidget):
             "Categorías, métodos de pago, reglas de conciliación y preferencias"
         ))
 
-        # Categorías financieras
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        cnt = QWidget()
+        s_lay = QVBoxLayout(cnt)
+        s_lay.setSpacing(12)
+
+        # ── Categorías financieras ───────────────────────────────────────────
         grp_cat = QGroupBox("Categorías financieras")
-        g_cat = QVBoxLayout(grp_cat)
-        lbl_cat = QLabel("Administra las categorías para clasificar ingresos y egresos.")
+        gc = QVBoxLayout(grp_cat)
+        lbl_cat = QLabel("Categorías para clasificar ingresos y egresos:")
         lbl_cat.setObjectName("caption")
-        g_cat.addWidget(lbl_cat)
-        lay.addWidget(grp_cat)
+        gc.addWidget(lbl_cat)
 
-        # Métodos de pago
-        grp_met = QGroupBox("Métodos de pago")
-        g_met = QVBoxLayout(grp_met)
-        lbl_met = QLabel("Efectivo, Transferencia, Tarjeta, Cheque, Crédito.")
-        lbl_met.setObjectName("caption")
-        g_met.addWidget(lbl_met)
-        lay.addWidget(grp_met)
+        self._lst_categorias = QListWidget()
+        self._lst_categorias.setMaximumHeight(130)
+        for cat in ["Ventas", "Compras", "Nómina", "Servicios", "Alquiler",
+                    "Mantenimiento", "Impuestos", "Capital", "Otros"]:
+            self._lst_categorias.addItem(cat)
+        gc.addWidget(self._lst_categorias)
 
-        # Reglas de conciliación
+        cat_btns = QHBoxLayout()
+        self._txt_nueva_cat = QLineEdit()
+        self._txt_nueva_cat.setPlaceholderText("Nueva categoría...")
+        btn_add_cat = QPushButton("➕ Agregar")
+        btn_add_cat.setObjectName("successBtn")
+        btn_add_cat.setCursor(Qt.PointingHandCursor)
+        btn_add_cat.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_add_cat.clicked.connect(self._agregar_categoria)
+        btn_del_cat = QPushButton("🗑️ Eliminar")
+        btn_del_cat.setObjectName("dangerBtn")
+        btn_del_cat.setCursor(Qt.PointingHandCursor)
+        btn_del_cat.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_del_cat.clicked.connect(self._eliminar_categoria)
+        cat_btns.addWidget(self._txt_nueva_cat, 1)
+        cat_btns.addWidget(btn_add_cat)
+        cat_btns.addWidget(btn_del_cat)
+        gc.addLayout(cat_btns)
+        s_lay.addWidget(grp_cat)
+
+        # ── Reglas de conciliación ───────────────────────────────────────────
         grp_recon = QGroupBox("Reglas de conciliación")
-        g_recon = QVBoxLayout(grp_recon)
-        m = self._m
-        if m._recon_svc:
-            lbl_recon = QLabel("ReconciliationService disponible. Configura reglas aquí.")
-        else:
-            lbl_recon = QLabel("ReconciliationService no disponible en esta instalación.")
-        lbl_recon.setObjectName("caption")
-        g_recon.addWidget(lbl_recon)
-        lay.addWidget(grp_recon)
+        gr = QFormLayout(grp_recon)
+        self._spin_tolerancia = QDoubleSpinBox()
+        self._spin_tolerancia.setRange(0.0, 9999.0)
+        self._spin_tolerancia.setDecimals(2)
+        self._spin_tolerancia.setPrefix("$ ")
+        self._spin_tolerancia.setValue(0.0)
+        gr.addRow("Tolerancia de diferencia:", self._spin_tolerancia)
+        self._cmb_recon_modo = QComboBox()
+        self._cmb_recon_modo.addItems([
+            "Estricto — diferencia debe ser $0.00",
+            "Tolerante — diferencia ≤ tolerancia configurada",
+            "Manual — siempre pide confirmación al cajero",
+        ])
+        gr.addRow("Modo de conciliación:", self._cmb_recon_modo)
+        btn_save_recon = QPushButton("💾 Guardar reglas")
+        btn_save_recon.setObjectName("primaryBtn")
+        btn_save_recon.setCursor(Qt.PointingHandCursor)
+        btn_save_recon.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_recon.clicked.connect(self._guardar_conciliacion)
+        gr.addRow("", btn_save_recon)
+        s_lay.addWidget(grp_recon)
 
-        # Series / Folios
+        # ── Series y Folios ──────────────────────────────────────────────────
         grp_folios = QGroupBox("Series y Folios")
-        g_folios = QVBoxLayout(grp_folios)
-        lbl_folios = QLabel("Configura las series de folios para cada tipo de documento.")
-        lbl_folios.setObjectName("caption")
-        g_folios.addWidget(lbl_folios)
-        lay.addWidget(grp_folios)
+        gf = QFormLayout(grp_folios)
+        self._txt_serie_factura = QLineEdit("A")
+        self._txt_serie_recibo  = QLineEdit("R")
+        self._txt_serie_nota    = QLineEdit("NC")
+        gf.addRow("Serie de facturas:",          self._txt_serie_factura)
+        gf.addRow("Serie de recibos:",           self._txt_serie_recibo)
+        gf.addRow("Serie de notas de crédito:",  self._txt_serie_nota)
+        btn_save_folios = QPushButton("💾 Guardar series")
+        btn_save_folios.setObjectName("primaryBtn")
+        btn_save_folios.setCursor(Qt.PointingHandCursor)
+        btn_save_folios.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_folios.clicked.connect(self._guardar_folios)
+        gf.addRow("", btn_save_folios)
+        s_lay.addWidget(grp_folios)
 
-        # Preferencias de reportes
+        # ── Preferencias de reportes ─────────────────────────────────────────
         grp_pref = QGroupBox("Preferencias de reportes")
-        g_pref = QVBoxLayout(grp_pref)
-        lbl_pref = QLabel("Moneda, formato de fecha, decimales, zona horaria.")
-        lbl_pref.setObjectName("caption")
-        g_pref.addWidget(lbl_pref)
-        lay.addWidget(grp_pref)
+        gp = QFormLayout(grp_pref)
+        self._cmb_moneda = QComboBox()
+        self._cmb_moneda.addItems(["MXN — Peso mexicano", "USD — Dólar americano", "EUR — Euro"])
+        gp.addRow("Moneda:", self._cmb_moneda)
+        self._cmb_fecha_fmt = QComboBox()
+        self._cmb_fecha_fmt.addItems(["DD/MM/YYYY", "YYYY-MM-DD", "MM/DD/YYYY"])
+        gp.addRow("Formato de fecha:", self._cmb_fecha_fmt)
+        self._spin_decimales = QSpinBox()
+        self._spin_decimales.setRange(0, 4)
+        self._spin_decimales.setValue(2)
+        gp.addRow("Decimales en montos:", self._spin_decimales)
+        btn_save_pref = QPushButton("💾 Guardar preferencias")
+        btn_save_pref.setObjectName("primaryBtn")
+        btn_save_pref.setCursor(Qt.PointingHandCursor)
+        btn_save_pref.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_pref.clicked.connect(self._guardar_preferencias)
+        gp.addRow("", btn_save_pref)
+        s_lay.addWidget(grp_pref)
 
-        lay.addStretch()
+        s_lay.addStretch()
+        scroll.setWidget(cnt)
+        lay.addWidget(scroll, 1)
+        self._cargar_config()
+
+    def _cargar_config(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if not mc:
+            return
+        try:
+            tol = mc.get_value("finance_tolerancia_conciliacion", 0.0)
+            self._spin_tolerancia.setValue(float(tol or 0))
+            modo = str(mc.get_value("finance_modo_conciliacion", "") or "")
+            for i in range(self._cmb_recon_modo.count()):
+                if modo and modo.lower() in self._cmb_recon_modo.itemText(i).lower():
+                    self._cmb_recon_modo.setCurrentIndex(i)
+                    break
+            self._txt_serie_factura.setText(str(mc.get_value("finance_serie_factura", "A") or "A"))
+            self._txt_serie_recibo.setText(str(mc.get_value("finance_serie_recibo",   "R") or "R"))
+            self._txt_serie_nota.setText(str(mc.get_value("finance_serie_nota_credito", "NC") or "NC"))
+            moneda = str(mc.get_value("finance_moneda", "MXN") or "MXN").upper()
+            for i in range(self._cmb_moneda.count()):
+                if moneda in self._cmb_moneda.itemText(i):
+                    self._cmb_moneda.setCurrentIndex(i)
+                    break
+            fmt = str(mc.get_value("finance_formato_fecha", "") or "")
+            for i in range(self._cmb_fecha_fmt.count()):
+                if fmt == self._cmb_fecha_fmt.itemText(i):
+                    self._cmb_fecha_fmt.setCurrentIndex(i)
+                    break
+            dec = mc.get_value("finance_decimales", 2)
+            self._spin_decimales.setValue(int(dec or 2))
+            import json
+            cats_json = mc.get_value("finance_categorias", "")
+            if cats_json:
+                try:
+                    cats = json.loads(str(cats_json))
+                    self._lst_categorias.clear()
+                    for cat in cats:
+                        self._lst_categorias.addItem(str(cat))
+                except Exception:
+                    pass
+        except Exception as exc:
+            logger.debug("_cargar_config: %s", exc)
+
+    def _agregar_categoria(self):
+        txt = self._txt_nueva_cat.text().strip()
+        if not txt:
+            return
+        existing = [self._lst_categorias.item(i).text()
+                    for i in range(self._lst_categorias.count())]
+        if txt in existing:
+            QMessageBox.information(self, "Categoría", "Esa categoría ya existe.")
+            return
+        self._lst_categorias.addItem(txt)
+        self._txt_nueva_cat.clear()
+        self._guardar_categorias()
+
+    def _eliminar_categoria(self):
+        row = self._lst_categorias.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Categoría", "Selecciona una categoría para eliminar.")
+            return
+        self._lst_categorias.takeItem(row)
+        self._guardar_categorias()
+
+    def _guardar_categorias(self):
+        import json
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        cats = [self._lst_categorias.item(i).text()
+                for i in range(self._lst_categorias.count())]
+        if mc:
+            try:
+                mc.set_value("finance_categorias", json.dumps(cats, ensure_ascii=False))
+            except Exception as exc:
+                logger.debug("_guardar_categorias: %s", exc)
+        Toast.success(self, "Categorías guardadas", f"{len(cats)} categorías configuradas.")
+
+    def _guardar_conciliacion(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                mc.set_value("finance_tolerancia_conciliacion", self._spin_tolerancia.value())
+                modo_txt = self._cmb_recon_modo.currentText().split("—")[0].strip()
+                mc.set_value("finance_modo_conciliacion", modo_txt)
+            except Exception as exc:
+                logger.debug("_guardar_conciliacion: %s", exc)
+        Toast.success(self, "Reglas guardadas", "Configuración de conciliación actualizada.")
+
+    def _guardar_folios(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                mc.set_value("finance_serie_factura",      self._txt_serie_factura.text().strip() or "A")
+                mc.set_value("finance_serie_recibo",       self._txt_serie_recibo.text().strip()  or "R")
+                mc.set_value("finance_serie_nota_credito", self._txt_serie_nota.text().strip()    or "NC")
+            except Exception as exc:
+                logger.debug("_guardar_folios: %s", exc)
+        Toast.success(self, "Series guardadas", "Configuración de folios actualizada.")
+
+    def _guardar_preferencias(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                moneda_txt = self._cmb_moneda.currentText().split("—")[0].strip()
+                mc.set_value("finance_moneda",        moneda_txt)
+                mc.set_value("finance_formato_fecha", self._cmb_fecha_fmt.currentText())
+                mc.set_value("finance_decimales",     self._spin_decimales.value())
+            except Exception as exc:
+                logger.debug("_guardar_preferencias: %s", exc)
+        Toast.success(self, "Preferencias guardadas", "Configuración de reportes actualizada.")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
