@@ -32,11 +32,16 @@ WA_SERVICE_ROOT = str(Path(__file__).parent)
 if WA_SERVICE_ROOT not in sys.path:
     sys.path.insert(0, WA_SERVICE_ROOT)
 
-# Agregar ERP al path (para importar EventBus si existe)
-# ERP inner package path: <repo>/pos_spj_v13.4/pos_spj_v13.4
-ERP_ROOT = str(Path(__file__).parent.parent / "pos_spj_v13.4" / "pos_spj_v13.4")
-if os.path.exists(ERP_ROOT) and ERP_ROOT not in sys.path:
-    sys.path.insert(0, ERP_ROOT)
+# Agregar ERP al path.
+# Desde <repo>/whatsapp_service/main.py, la app ERP vive en:
+# <repo>/pos_spj_v13.4
+# Ahí existen `migrations`, `core`, `repositories`, etc.
+# NO usar <repo>/pos_spj_v13.4/pos_spj_v13.4 porque rompe imports como
+# `from migrations.engine import up`.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ERP_APP_ROOT = str(REPO_ROOT / "pos_spj_v13.4")
+if os.path.exists(ERP_APP_ROOT) and ERP_APP_ROOT not in sys.path:
+    sys.path.insert(0, ERP_APP_ROOT)
 
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
