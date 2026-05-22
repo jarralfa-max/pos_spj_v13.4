@@ -319,14 +319,13 @@ class _FinTable(QTableWidget):
 
 
 def _kpi_row(cards: List[_FinKpiCard]) -> QWidget:
-    """Fila horizontal de KPI cards."""
+    """Fila horizontal de KPI cards — se extienden por todo el ancho en partes iguales."""
     w = QWidget()
     lay = QHBoxLayout(w)
     lay.setContentsMargins(0, 0, 0, 0)
     lay.setSpacing(8)
     for card in cards:
         lay.addWidget(card)
-    lay.addStretch()
     return w
 
 
@@ -958,54 +957,131 @@ class _SeccionCajayConciliacion(QWidget):
             btn_callback=self.recargar
         ))
 
-        # KPIs
+        # KPIs — fill full row equally (sin addStretch en _kpi_row)
         self._kpi_cortes = _FinKpiCard("Cortes recientes",      "—", _P_PRIMARY,   "📋")
         self._kpi_dif    = _FinKpiCard("Diferencias detectadas","—", _P_SECONDARY, "⚠️")
         self._kpi_movs   = _FinKpiCard("Movimientos del período","—", _P_TERTIARY,  "🔄")
         lay.addWidget(_kpi_row([self._kpi_cortes, self._kpi_dif, self._kpi_movs]))
 
-        # Tabla de cortes de caja
-        grp = QGroupBox("Cortes de caja")
-        g_lay = QVBoxLayout(grp)
+        # Label-caps
+        lbl_cortes = QLabel("CORTES DE CAJA")
+        lbl_cortes.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_cortes)
 
-        filtros = QHBoxLayout()
+        # Filtros: caja + cajero + búsqueda libre + exportar
+        fil_row = QHBoxLayout()
+        fil_row.setSpacing(8)
+        fil_row.setContentsMargins(0, 0, 0, 0)
+
+        self._cmb_caja_fil = QComboBox()
+        self._cmb_caja_fil.setFixedWidth(120)
+        self._cmb_caja_fil.addItem("Todas las cajas")
+        self._cmb_caja_fil.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_cajero_fil = QComboBox()
+        self._cmb_cajero_fil.setFixedWidth(140)
+        self._cmb_cajero_fil.addItem("Todos los cajeros")
+        self._cmb_cajero_fil.currentIndexChanged.connect(self._filtrar)
+
         self._txt_buscar = QLineEdit()
-        self._txt_buscar.setPlaceholderText("Buscar por cajero o fecha...")
+        self._txt_buscar.setPlaceholderText("Buscar por fecha o turno…")
         self._txt_buscar.textChanged.connect(self._filtrar)
-        filtros.addWidget(self._txt_buscar)
 
         btn_exp = QPushButton("📤 Exportar")
         btn_exp.setObjectName("secondaryBtn")
         btn_exp.setCursor(Qt.PointingHandCursor)
         btn_exp.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        filtros.addWidget(btn_exp)
-        filtros.addStretch()
-        g_lay.addLayout(filtros)
 
+        fil_row.addWidget(QLabel("Caja:"))
+        fil_row.addWidget(self._cmb_caja_fil)
+        fil_row.addWidget(QLabel("Cajero:"))
+        fil_row.addWidget(self._cmb_cajero_fil)
+        fil_row.addWidget(self._txt_buscar, 1)
+        fil_row.addWidget(btn_exp)
+        lay.addLayout(fil_row)
+
+        # Tabla — stretch=1: ocupa el resto de la pantalla
         self._tbl = _FinTable(
             ["Fecha", "Caja", "Cajero", "Total declarado", "Total esperado", "Diferencia", "Estado", "Acciones"]
         )
         self._tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        g_lay.addWidget(self._tbl)
-        lay.addWidget(grp)
-        lay.addStretch()
+        self._tbl.itemSelectionChanged.connect(self._on_selection_changed)
+        lay.addWidget(self._tbl, 1)
+
+        self._rows_caja: List[Dict[str, Any]] = []
 
     def _filtrar(self):
-        txt = self._txt_buscar.text().lower()
+        caja_fil   = self._cmb_caja_fil.currentText()
+        cajero_fil = self._cmb_cajero_fil.currentText()
+        txt        = self._txt_buscar.text().strip().lower()
         for i in range(self._tbl.rowCount()):
+            caja   = (self._tbl.item(i, 1) or QTableWidgetItem()).text()
             cajero = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
             fecha  = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
-            self._tbl.setRowHidden(i, bool(txt) and txt not in cajero and txt not in fecha)
+            hide = False
+            if caja_fil != "Todas las cajas" and caja_fil != caja:
+                hide = True
+            if cajero_fil != "Todos los cajeros" and cajero_fil.lower() not in cajero:
+                hide = True
+            if txt and txt not in cajero and txt not in fecha:
+                hide = True
+            self._tbl.setRowHidden(i, hide)
+
+    def _on_selection_changed(self):
+        """Oculta el botón Acciones de la fila seleccionada; lo restaura en las demás."""
+        selected = {idx.row() for idx in self._tbl.selectedIndexes()}
+        for i in range(self._tbl.rowCount()):
+            w = self._tbl.cellWidget(i, 7)
+            if w:
+                w.setVisible(i not in selected)
+
+    def _ver_cierre(self, r: dict):
+        """Diálogo de detalle de corte de caja."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Detalle del Corte de Caja")
+        dlg.setMinimumWidth(400)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(12)
+
+        dif = float(r.get("diferencia", 0) or 0)
+        color_dif = _P_ERROR if dif < 0 else (_P_SECONDARY if dif > 0 else _P_TERTIARY)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignRight)
+        for label, value, color in [
+            ("Fecha",            str(r.get("fecha",""))[:10],                         None),
+            ("Caja / Sucursal",  str(r.get("caja","")),                               None),
+            ("Cajero",           str(r.get("cajero","")),                              None),
+            ("Turno",            str(r.get("turno","—")),                              None),
+            ("Total declarado",  f"${float(r.get('saldo_real',0)):,.2f}",             None),
+            ("Total esperado",   f"${float(r.get('saldo_sistema',0)):,.2f}",          None),
+            ("Diferencia",       f"${dif:+,.2f}",                                     color_dif),
+            ("Estado",           str(r.get("estado","")),                              None),
+        ]:
+            lbl_v = QLabel(value)
+            style = "font-weight: 600; background: transparent;"
+            if color:
+                style += f" color: {color};"
+            lbl_v.setStyleSheet(style)
+            form.addRow(f"{label}:", lbl_v)
+
+        lay.addLayout(form)
+        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+        dlg.exec_()
 
     def recargar(self):
         m = self._m
         try:
             rows = []
-            # Intentar servicios primero
             if m._recon_svc and hasattr(m._recon_svc, "get_conciliaciones"):
                 rows = m._recon_svc.get_conciliaciones(limit=100)
-            # Fallback directo a cierres_caja (existe desde m000)
             if not rows:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
@@ -1013,26 +1089,43 @@ class _SeccionCajayConciliacion(QWidget):
                         cur = db.execute(
                             "SELECT fecha_cierre, sucursal_id, usuario, turno, "
                             "total_ventas, total_efectivo "
-                            "FROM cierres_caja "
-                            "ORDER BY fecha_cierre DESC LIMIT 100"
+                            "FROM cierres_caja ORDER BY fecha_cierre DESC LIMIT 100"
                         )
                         rows = [
                             {
-                                "fecha":           r[0],
-                                "caja":            str(r[1]),
-                                "cajero":          str(r[2] or ""),
-                                "saldo_real":      float(r[5] or 0),
-                                "saldo_sistema":   float(r[4] or 0),
-                                "diferencia":      round(float(r[5] or 0) - float(r[4] or 0), 2),
-                                "estado":          "conciliado",
+                                "fecha":         r[0],
+                                "caja":          str(r[1]),
+                                "cajero":        str(r[2] or ""),
+                                "turno":         str(r[3] or ""),
+                                "saldo_real":    float(r[5] or 0),
+                                "saldo_sistema": float(r[4] or 0),
+                                "diferencia":    round(float(r[5] or 0) - float(r[4] or 0), 2),
+                                "estado":        "conciliado",
                             }
                             for r in cur.fetchall()
                         ]
                     except Exception:
                         rows = []
 
-            cortes_ok = 0
-            difs = 0
+            self._rows_caja = rows
+
+            # Poblar combos (preservar selección actual)
+            for cmb, key, default in [
+                (self._cmb_caja_fil,   "caja",   "Todas las cajas"),
+                (self._cmb_cajero_fil, "cajero", "Todos los cajeros"),
+            ]:
+                valores = sorted({str(r.get(key,"")) for r in rows if r.get(key)})
+                prev = cmb.currentText()
+                cmb.blockSignals(True)
+                cmb.clear()
+                cmb.addItem(default)
+                for v in valores:
+                    cmb.addItem(v)
+                cmb.setCurrentIndex(max(cmb.findText(prev), 0))
+                cmb.blockSignals(False)
+
+            # Pintar tabla
+            cortes_ok = difs = 0
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 dif_val = float(r.get("diferencia", 0) or 0)
@@ -1040,27 +1133,30 @@ class _SeccionCajayConciliacion(QWidget):
                     difs += 1
                 else:
                     cortes_ok += 1
-                vals = [
-                    str(r.get("fecha") or r.get("periodo", ""))[:10],
-                    str(r.get("caja") or r.get("cuenta_financiera_id", "")),
-                    str(r.get("cajero") or r.get("creado_por", "")),
-                    f"${float(r.get('saldo_real', 0) or 0):,.2f}",
-                    f"${float(r.get('saldo_sistema', 0) or 0):,.2f}",
+
+                for ci, v in enumerate([
+                    str(r.get("fecha",""))[:10],
+                    str(r.get("caja","")),
+                    str(r.get("cajero","")),
+                    f"${float(r.get('saldo_real',0)):,.2f}",
+                    f"${float(r.get('saldo_sistema',0)):,.2f}",
                     f"${dif_val:+,.2f}",
-                    str(r.get("estado", "")),
-                ]
-                for ci, v in enumerate(vals):
+                ]):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     self._tbl.setItem(ri, ci, it)
-                badge = _FinStatusBadge(r.get("estado", ""))
-                self._tbl.setCellWidget(ri, 6, badge)
+
+                self._tbl.setCellWidget(ri, 6, _FinStatusBadge(r.get("estado","")))
+
                 btn_ver = _compact_btn("Ver", "outline")
+                row_data = dict(r)
+                btn_ver.clicked.connect(lambda _, rd=row_data: self._ver_cierre(rd))
                 self._tbl.setCellWidget(ri, 7, btn_ver)
 
             self._kpi_cortes.set_value(str(cortes_ok + difs))
             self._kpi_dif.set_value(str(difs), _P_SECONDARY if difs else _P_TERTIARY)
             self._kpi_movs.set_value(str(len(rows)))
+            self._filtrar()
         except Exception as e:
             logger.warning("_SeccionCajayConciliacion.recargar: %s", e)
 
