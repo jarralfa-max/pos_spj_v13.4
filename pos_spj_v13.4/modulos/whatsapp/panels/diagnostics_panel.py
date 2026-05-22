@@ -186,7 +186,16 @@ class DiagnosticsPanel(QWidget):
                 self._log_line(f"⚠️  Microservicio WA — HTTP {resp.status}")
         except Exception as exc:
             self._row_ms.set_error("No disponible")
-            self._log_line(f"❌ Microservicio WA — No disponible: {exc}")
+            error_msg = str(exc)
+            if "10061" in error_msg or "refused" in error_msg.lower():
+                self._log_line(
+                    f"ℹ️  Microservicio WA — No está corriendo\n"
+                    f"   Para iniciarlo manualmente:\n"
+                    f"     cd whatsapp_service\n"
+                    f"     uvicorn main:app --port 8000 --reload"
+                )
+            else:
+                self._log_line(f"❌ Microservicio WA — Error: {exc}")
 
     def _check_rasa(self) -> None:
         self._row_rasa.set_loading()
