@@ -753,10 +753,12 @@ def _wire_production_items_handlers(bus, container) -> None:
     logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
 
     # Production GL: PRODUCCION_COMPLETADA → cost-of-production journal entry
+    # FASE 6: pass db= so the handler can query production_cost_ledger for real
+    # cost numbers and update costo_promedio for each output product.
     fs = getattr(container, "finance_service", None)
     if fs:
         from core.events.event_bus import PRODUCCION_COMPLETADA
-        fin_handler = ProductionFinanceHandler(finance_service=fs)
+        fin_handler = ProductionFinanceHandler(finance_service=fs, db=db)
         bus.subscribe(
             PRODUCCION_COMPLETADA,
             fin_handler.handle,
