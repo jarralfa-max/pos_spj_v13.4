@@ -109,10 +109,10 @@ class _FinSectionHeader(QWidget):
 
 
 class _FinKpiCard(QFrame):
-    """KPI card — mismo estilo que _InvKPICard del módulo de inventario.
-    Usa objectName('kpiCard') para ser estilizado por el QSS global del tema."""
+    """KPI card — idéntico a _InvKPICard: barra de acento + ícono circular."""
 
-    def __init__(self, label: str, value: str = "—", color: str = None, parent=None):
+    def __init__(self, label: str, value: str = "—", color: str = None,
+                 icono: str = "", parent=None):
         super().__init__(parent)
         self.setObjectName("kpiCard")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -129,17 +129,17 @@ class _FinKpiCard(QFrame):
         self._bar.setFixedHeight(3)
         self._bar.setStyleSheet(
             f"background:{_accent}; border:none;"
-            f" border-top-left-radius:8px; border-top-right-radius:8px;"
+            f" border-top-left-radius:12px; border-top-right-radius:12px;"
         )
         outer.addWidget(self._bar)
 
         body = QHBoxLayout()
         body.setContentsMargins(14, 10, 14, 10)
-        body.setSpacing(6)
+        body.setSpacing(8)
         outer.addLayout(body)
 
         col = QVBoxLayout()
-        col.setSpacing(3)
+        col.setSpacing(2)
 
         lbl_t = QLabel(label.upper())
         lbl_t.setStyleSheet(
@@ -152,18 +152,29 @@ class _FinKpiCard(QFrame):
         self._lbl_value = QLabel(value)
         self._lbl_value.setObjectName("kpiValue")
         self._lbl_value.setStyleSheet(
-            "font-size: 22px; font-weight: 700; letter-spacing: -0.02em;"
-            " background: transparent; border: none;"
+            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
         )
         col.addWidget(self._lbl_value)
         body.addLayout(col, 1)
+
+        # Ícono circular con fondo semitransparente (mismo estándar que _InvKPICard)
+        if icono:
+            self._lbl_icon = QLabel(icono)
+            self._lbl_icon.setFixedSize(36, 36)
+            self._lbl_icon.setAlignment(Qt.AlignCenter)
+            self._lbl_icon.setStyleSheet(
+                f"font-size: 18px; background: {_accent}1A;"
+                f" border-radius: 18px; border: none;"
+            )
+            body.addWidget(self._lbl_icon, 0, alignment=Qt.AlignTop)
 
     def set_value(self, value: str, color: str = None):
         self._lbl_value.setText(value)
         if color:
             self._bar.setStyleSheet(
                 f"background:{color}; border:none;"
-                f" border-top-left-radius:8px; border-top-right-radius:8px;"
+                f" border-top-left-radius:12px; border-top-right-radius:12px;"
             )
 
 
@@ -540,11 +551,11 @@ class _SeccionResumen(QWidget):
         ))
 
         # KPIs
-        self._kpi_caja    = _FinKpiCard("Caja y bancos", "—", _P_TERTIARY)
-        self._kpi_cxc     = _FinKpiCard("Cuentas por cobrar", "—", _P_SECONDARY)
-        self._kpi_cxp     = _FinKpiCard("Cuentas por pagar", "—", _P_ERROR)
-        self._kpi_flujo   = _FinKpiCard("Flujo neto del período", "—", _P_PRIMARY)
-        self._kpi_capital = _FinKpiCard("Capital actual", "$0.00 (pendiente)", _P_SECONDARY)
+        self._kpi_caja    = _FinKpiCard("Caja y bancos",       "—", _P_TERTIARY,  "💵")
+        self._kpi_cxc     = _FinKpiCard("Cuentas por cobrar",  "—", _P_SECONDARY, "📥")
+        self._kpi_cxp     = _FinKpiCard("Cuentas por pagar",   "—", _P_ERROR,     "📤")
+        self._kpi_flujo   = _FinKpiCard("Flujo neto del período","—",_P_PRIMARY,   "📈")
+        self._kpi_capital = _FinKpiCard("Capital actual", "$0.00 (pendiente)", _P_SECONDARY, "💎")
         lay.addWidget(_kpi_row([self._kpi_caja, self._kpi_cxc, self._kpi_cxp,
                                 self._kpi_flujo, self._kpi_capital]))
 
@@ -679,9 +690,9 @@ class _SeccionCajayConciliacion(QWidget):
         ))
 
         # KPIs
-        self._kpi_cortes = _FinKpiCard("Cortes recientes", "—")
-        self._kpi_dif    = _FinKpiCard("Diferencias detectadas", "—", _P_SECONDARY)
-        self._kpi_movs   = _FinKpiCard("Movimientos del período", "—", _P_PRIMARY)
+        self._kpi_cortes = _FinKpiCard("Cortes recientes",      "—", _P_PRIMARY,   "📋")
+        self._kpi_dif    = _FinKpiCard("Diferencias detectadas","—", _P_SECONDARY, "⚠️")
+        self._kpi_movs   = _FinKpiCard("Movimientos del período","—", _P_TERTIARY,  "🔄")
         lay.addWidget(_kpi_row([self._kpi_cortes, self._kpi_dif, self._kpi_movs]))
 
         # Tabla de cortes de caja
@@ -900,10 +911,10 @@ class _SeccionCapital(QWidget):
         lay.addLayout(hdr_row)
 
         # KPIs
-        self._kpi_actual       = _FinKpiCard("Capital actual",     "$—")
-        self._kpi_aportaciones = _FinKpiCard("Aportaciones",       "$—", _P_TERTIARY)
-        self._kpi_retiros      = _FinKpiCard("Retiros",            "$—", _P_ERROR)
-        self._kpi_neto         = _FinKpiCard("Capital neto",       "$—", _P_PRIMARY)
+        self._kpi_actual       = _FinKpiCard("Capital actual",  "$—", _P_PRIMARY,   "🏦")
+        self._kpi_aportaciones = _FinKpiCard("Aportaciones",    "$—", _P_TERTIARY,  "⬆️")
+        self._kpi_retiros      = _FinKpiCard("Retiros",         "$—", _P_ERROR,     "⬇️")
+        self._kpi_neto         = _FinKpiCard("Capital neto",    "$—", _P_SECONDARY, "📊")
         lay.addWidget(_kpi_row([self._kpi_actual, self._kpi_aportaciones,
                                 self._kpi_retiros, self._kpi_neto]))
 
@@ -1105,10 +1116,10 @@ class _SeccionCuentasPorCobrar(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total   = _FinKpiCard("Total por cobrar", "—", _P_PRIMARY)
-        self._kpi_vencido = _FinKpiCard("Vencido", "—", _P_ERROR)
-        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", _P_SECONDARY)
-        self._kpi_cobrado = _FinKpiCard("Cobrado este mes", "—", _P_TERTIARY)
+        self._kpi_total   = _FinKpiCard("Total por cobrar",  "—", _P_PRIMARY,   "📥")
+        self._kpi_vencido = _FinKpiCard("Vencido",           "—", _P_ERROR,     "🚨")
+        self._kpi_porvenc = _FinKpiCard("Por vencer",        "—", _P_SECONDARY, "🕐")
+        self._kpi_cobrado = _FinKpiCard("Cobrado este mes",  "—", _P_TERTIARY,  "✅")
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
                                 self._kpi_porvenc, self._kpi_cobrado]))
 
@@ -1353,10 +1364,10 @@ class _SeccionCuentasPorPagar(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total   = _FinKpiCard("Total por pagar", "—", _P_ERROR)
-        self._kpi_vencido = _FinKpiCard("Vencido", "—", _P_ERROR)
-        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", _P_SECONDARY)
-        self._kpi_pagado  = _FinKpiCard("Pagado este mes", "—", _P_TERTIARY)
+        self._kpi_total   = _FinKpiCard("Total por pagar",  "—", _P_ERROR,     "📤")
+        self._kpi_vencido = _FinKpiCard("Vencido",          "—", _P_ERROR,     "🚨")
+        self._kpi_porvenc = _FinKpiCard("Por vencer",       "—", _P_SECONDARY, "🕐")
+        self._kpi_pagado  = _FinKpiCard("Pagado este mes",  "—", _P_TERTIARY,  "✅")
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
                                 self._kpi_porvenc, self._kpi_pagado]))
 
@@ -1869,9 +1880,9 @@ class _SeccionNomina(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total    = _FinKpiCard("Total del período", "—", _P_PRIMARY)
-        self._kpi_pendiente= _FinKpiCard("Pendiente", "—", _P_SECONDARY)
-        self._kpi_pagada   = _FinKpiCard("Pagada", "—", _P_TERTIARY)
+        self._kpi_total    = _FinKpiCard("Total del período", "—", _P_PRIMARY,   "👥")
+        self._kpi_pendiente= _FinKpiCard("Pendiente",        "—", _P_SECONDARY, "⏳")
+        self._kpi_pagada   = _FinKpiCard("Pagada",           "—", _P_TERTIARY,  "✅")
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_pendiente, self._kpi_pagada]))
 
         # Formulario de gasto operativo
