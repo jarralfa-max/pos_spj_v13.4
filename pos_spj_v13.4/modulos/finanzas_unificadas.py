@@ -635,25 +635,69 @@ class _SeccionResumen(QWidget):
         except Exception as e:
             logger.warning("_SeccionResumen KPI flujo: %s", e)
 
-        # Actividad reciente — usa journal_entries (mig 083) como fallback confiable
+        # Actividad reciente — múltiples fuentes garantizadas
         try:
             rows = []
             if m._tm_svc and hasattr(m._tm_svc, "get_movimientos"):
                 rows = m._tm_svc.get_movimientos(limit=20)
             if not rows and m._je_svc and hasattr(m._je_svc, "get_recientes"):
                 rows = m._je_svc.get_recientes(limit=20)
+
             if not rows:
-                # Fallback directo a journal_entries (existe desde mig 083)
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
-                    cur = db.execute(
-                        "SELECT created_at, event_type, source_module, source_folio, "
-                        "amount, user FROM journal_entries "
-                        "ORDER BY created_at DESC LIMIT 20"
+                    # Construir UNION desde tablas garantizadas por m000_base_schema
+                    parts: List[str] = []
+
+                    # journal_entries (mig 083) — opcional, puede no existir/estar vacía
+                    try:
+                        db.execute("SELECT 1 FROM journal_entries LIMIT 1")
+                        parts.append(
+                            "SELECT created_at AS fecha, event_type AS tipo,"
+                            " 'Finanzas' AS modulo,"
+                            " COALESCE(source_folio,'') AS concepto,"
+                            " amount AS monto, user AS usuario"
+                            " FROM journal_entries"
+                        )
+                    except Exception:
+                        pass
+
+                    # ventas — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha, 'Venta' AS tipo, 'Ventas' AS modulo,"
+                        " COALESCE(folio,'V-'||id) AS concepto,"
+                        " total AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM ventas WHERE estado != 'cancelada'"
                     )
-                    rows = [dict(zip(
-                        ["fecha", "tipo", "modulo", "concepto", "monto", "usuario"], r
-                    )) for r in cur.fetchall()]
+
+                    # compras — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha, 'Compra' AS tipo, 'Compras' AS modulo,"
+                        " COALESCE(folio,'C-'||id) AS concepto,"
+                        " total AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM compras"
+                    )
+
+                    # cierres_caja — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha_cierre AS fecha, 'Cierre caja' AS tipo,"
+                        " 'Caja' AS modulo,"
+                        " COALESCE(turno,'Cierre-'||id) AS concepto,"
+                        " total_ventas AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM cierres_caja"
+                    )
+
+                    union_sql = " UNION ALL ".join(parts)
+                    cur = db.execute(
+                        f"SELECT * FROM ({union_sql})"
+                        f" ORDER BY fecha DESC LIMIT 20"
+                    )
+                    rows = [
+                        {"fecha": r[0], "tipo": r[1], "modulo": r[2],
+                         "concepto": r[3], "monto": r[4], "usuario": r[5]}
+                        for r in cur.fetchall()
+                    ]
+
             self._tbl_actividad.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 vals = [
