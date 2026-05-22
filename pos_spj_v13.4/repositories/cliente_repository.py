@@ -62,11 +62,52 @@ class ClienteRepository:
         sql += " ORDER BY nombre LIMIT ?"
         return [dict(r) for r in self.db.execute(sql, (limit,)).fetchall()]
 
+    def get_filtered(self, filtro: str = "todos", limit: int = 500) -> list:
+        """Get clientes with state filter: 'activos', 'inactivos', or 'todos'."""
+        if filtro == "activos":
+            sql = "WHERE activo=1"
+        elif filtro == "inactivos":
+            sql = "WHERE activo=0"
+        else:
+            sql = ""
+        query = f"SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo FROM clientes {sql} ORDER BY nombre LIMIT ?"
+        return [dict(r) for r in self.db.execute(query, (limit,)).fetchall()]
+
+    def buscar_por_termino(self, termino: str, filtro: str = "todos", limit: int = 500) -> list:
+        """Search clientes by name, phone, id or QR with state filter."""
+        if filtro == "activos":
+            estado_sql = "AND activo=1"
+        elif filtro == "inactivos":
+            estado_sql = "AND activo=0"
+        else:
+            estado_sql = ""
+
+        if termino.startswith("CLI-") or termino.startswith("QR-"):
+            codigo = termino.split('-')[-1] if '-' in termino else termino
+            query = f"SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo FROM clientes WHERE (codigo_qr=? OR id=?) {estado_sql} ORDER BY nombre LIMIT ?"
+            return [dict(r) for r in self.db.execute(query, (termino, codigo, limit)).fetchall()]
+        else:
+            like_param = f"%{termino}%"
+            query = f"SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo FROM clientes WHERE (nombre LIKE ? OR COALESCE(apellido,'') LIKE ? OR telefono LIKE ? OR id=?) {estado_sql} ORDER BY nombre LIMIT ?"
+            return [dict(r) for r in self.db.execute(query, (like_param, like_param, like_param, termino, limit)).fetchall()]
+
     def contar(self, solo_activos: bool = True) -> int:
         sql = "SELECT COUNT(*) FROM clientes"
         if solo_activos:
             sql += " WHERE activo=1"
         return self.db.execute(sql).fetchone()[0]
+
+    def get_stats_aggregate(self) -> dict:
+        """Devuelve estadísticas agregadas: total, activos, con tarjeta, puntos totales."""
+        row = self.db.execute("""
+            SELECT
+                COUNT(*) AS total,
+                COUNT(CASE WHEN activo=1 THEN 1 END) AS activos,
+                COUNT(CASE WHEN codigo_qr IS NOT NULL AND activo=1 THEN 1 END) AS con_tarjeta,
+                COALESCE(SUM(CASE WHEN activo=1 THEN puntos ELSE 0 END), 0) AS puntos_totales
+            FROM clientes
+        """).fetchone()
+        return dict(row) if row else {"total": 0, "activos": 0, "con_tarjeta": 0, "puntos_totales": 0}
 
     def existe(self, cliente_id: int) -> bool:
         r = self.db.execute(

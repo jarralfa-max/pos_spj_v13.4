@@ -6,6 +6,7 @@ from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.kpi_card import KPICard
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button, create_secondary_button,
     create_input_field, create_combo, create_card, apply_tooltip, create_heading,
@@ -22,26 +23,23 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdi
                             QTabWidget, QAbstractItemView, QComboBox)
 from PyQt5.QtCore import Qt, QRandomGenerator
 from PyQt5.QtGui import QPixmap, QColor, QIcon
-import sqlite3
 from .base import ModuloBase
 
 
-class ModuloClientes(ModuloBase): 
+class ModuloClientes(ModuloBase):
     def __init__(self, conexion, main_window=None):
         super().__init__(conexion, parent=main_window)
-        # Accept AppContainer or direct db connection
         if hasattr(conexion, 'db'):
             self.container = conexion
             self.conexion  = conexion.db
         else:
             self.container = None
             self.conexion  = conexion
-        # ClienteRepository: capa de datos para operaciones CRUD
         try:
-            from repositories.cliente_repository import ClienteRepository
-            self.repo = ClienteRepository(conexion)
+            from core.services.cliente_service import ClienteService
+            self._svc = ClienteService(self.conexion)
         except Exception:
-            self.repo = None
+            self._svc = None
         self.main_window = main_window
         self.cliente_actual = None
         self.filtro_activo = True
@@ -53,49 +51,32 @@ class ModuloClientes(ModuloBase):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
 
-    def _crear_stats_clientes(self) -> 'QFrame':
+    def _crear_stats_clientes(self) -> QWidget:
         """Barra de KPIs: total clientes, activos, con tarjeta, puntos distribuidos."""
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        from modulos.design_tokens import Colors as _C
-        bar = _F(); bar.setObjectName("statsBarCli")
-        bar.setFixedHeight(64)
-        bar.setStyleSheet(
-            "QFrame#statsBarCli { background:#1E293B; border-radius:8px;"
-            " border:1px solid #334155; }"
-        )
-        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+        container = QWidget()
+        lay = QHBoxLayout(container)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(12)
 
-        kpis = [("Total Clientes","—",_C.PRIMARY_BASE),("Activos","—",_C.SUCCESS_BASE),
-                ("Con Tarjeta","—",_C.INFO_BASE),("Puntos Totales","—",_C.WARNING_BASE)]
+        self._kpi_total = KPICard("Total Clientes", "—", "👥", "primary")
+        self._kpi_activos = KPICard("Activos", "—", "✅", "success")
+        self._kpi_tarjeta = KPICard("Con Tarjeta", "—", "💳", "info")
+        self._kpi_puntos = KPICard("Puntos Totales", "—", "⭐", "warning")
+
+        for card in (self._kpi_total, self._kpi_activos, self._kpi_tarjeta, self._kpi_puntos):
+            lay.addWidget(card)
+
         try:
-            # self.conexion is always the raw DB connection:
-            # set to container.db (AppContainer) or the direct connection passed at init.
-            # ClienteRepository.get_stats() is per-customer, not aggregate — use DB directly here.
-            db = self.conexion
-            r = db.execute("SELECT COUNT(*), SUM(CASE WHEN activo=1 THEN 1 ELSE 0 END) FROM clientes").fetchone()
-            kpis[0] = ("Total Clientes", str(r[0] or 0), _C.PRIMARY_BASE)
-            kpis[1] = ("Activos", str(r[1] or 0), _C.SUCCESS_BASE)
-            r2 = db.execute("SELECT COUNT(*) FROM clientes WHERE codigo_qr IS NOT NULL AND activo=1").fetchone()
-            kpis[2] = ("Con Tarjeta", str(r2[0] or 0), _C.INFO_BASE)
-            r3 = db.execute("SELECT COALESCE(SUM(puntos),0) FROM clientes WHERE activo=1").fetchone()
-            kpis[3] = ("Puntos Totales", f"{int(r3[0] or 0):,}", _C.WARNING_BASE)
-        except Exception: pass
+            if self._svc:
+                stats = self._svc.get_stats()
+                self._kpi_total.set_valor(str(stats.get("total", 0)))
+                self._kpi_activos.set_valor(str(stats.get("activos", 0)))
+                self._kpi_tarjeta.set_valor(str(stats.get("con_tarjeta", 0)))
+                self._kpi_puntos.set_valor(f"{int(stats.get('puntos_totales', 0)):,}")
+        except Exception:
+            pass
 
-        for i, (lbl, val, col) in enumerate(kpis):
-            if i > 0:
-                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
-                s.setStyleSheet("background:#334155; border:none;")
-                lay.addWidget(s); lay.addSpacing(20)
-            c = _V(); c.setSpacing(1)
-            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
-            l = _L(lbl.upper()); l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
-            c.addWidget(v); c.addWidget(l); lay.addLayout(c)
-            if i < 3: lay.addSpacing(20)
-        lay.addStretch()
-        return bar
-        """Establece el usuario actual para el módulo"""
-        self.usuario_actual = usuario
-        self.rol_usuario = rol
+        return container
         
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh client list when sales or loyalty events occur."""
@@ -272,53 +253,41 @@ class ModuloClientes(ModuloBase):
         if hasattr(self, "_loading"):
             self._loading.show()
         try:
-            try:
-                cursor = self.conexion.cursor()
-                
-                filtro = self.combo_filtro.currentText() if self.combo_filtro else "Activos"
-                if filtro == "Activos":
-                    condicion = "WHERE activo = 1"
-                    params = ()
-                elif filtro == "Inactivos":
-                    condicion = "WHERE activo = 0"
-                    params = ()
-                else:
-                    condicion = ""
-                    params = ()
+            filtro = self.combo_filtro.currentText() if self.combo_filtro else "Activos"
+            if filtro == "Activos":
+                filtro_param = "activos"
+            elif filtro == "Inactivos":
+                filtro_param = "inactivos"
+            else:
+                filtro_param = "todos"
 
-                query = f"""
-                    SELECT id, nombre, COALESCE(apellido,'') as apellido, telefono, puntos, nivel_fidelidad, 
-                           COALESCE(saldo,0) as saldo, COALESCE(limite_credito,0) as limite_credito, COALESCE(activo,1) as activo
-                    FROM clientes
-                    {condicion}
-                    ORDER BY nombre
-                """
-                
-                cursor.execute(query, params)
-                clientes = cursor.fetchall()
-            except sqlite3.Error as e:
-                self.mostrar_mensaje("Error", f"Error al cargar clientes: {str(e)}", QMessageBox.Critical)
-                clientes = []
-
-            self.tabla_clientes.setRowCount(len(clientes))
-            for row, cliente in enumerate(clientes):
-                for col, valor in enumerate(cliente):
-                    if col == 8:  # Columna de estado
-                        estado_texto = "Activo" if valor == 1 else "Inactivo"
-                        item = QTableWidgetItem(estado_texto)
-                        if valor != 1:
-                            item.setForeground(QColor('red'))
-                        self.tabla_clientes.setItem(row, col, item)
-                    elif col in [6, 7]:  # Saldo y Límite de crédito
-                        item = QTableWidgetItem(f"${valor:,.2f}" if valor is not None else "$0.00")
-                        self.tabla_clientes.setItem(row, col, item)
-                    else:
-                        self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-            if hasattr(self, "_empty_state"):
-                self._empty_state.setVisible(len(clientes) == 0)
+            clientes = self._svc.get_filtered(filtro_param) if self._svc else []
+            self._mostrar_clientes(clientes)
+        except Exception as e:
+            self.mostrar_mensaje("Error", f"Error al cargar clientes: {str(e)}", QMessageBox.Critical)
         finally:
             if hasattr(self, "_loading"):
                 self._loading.hide()
+
+    def _mostrar_clientes(self, clientes: list) -> None:
+        """Render clients list in table."""
+        self.tabla_clientes.setRowCount(len(clientes))
+        for row, cliente in enumerate(clientes):
+            values = list(cliente.values()) if isinstance(cliente, dict) else cliente
+            for col, valor in enumerate(values):
+                if col == 8:
+                    estado_texto = "Activo" if valor == 1 else "Inactivo"
+                    item = QTableWidgetItem(estado_texto)
+                    if valor != 1:
+                        item.setForeground(QColor('red'))
+                    self.tabla_clientes.setItem(row, col, item)
+                elif col in [6, 7]:
+                    item = QTableWidgetItem(f"${valor:,.2f}" if valor is not None else "$0.00")
+                    self.tabla_clientes.setItem(row, col, item)
+                else:
+                    self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
+        if hasattr(self, "_empty_state"):
+            self._empty_state.setVisible(len(clientes) == 0)
 
     def buscar_clientes(self):
         """Busca clientes según el texto ingresado."""
@@ -330,58 +299,17 @@ class ModuloClientes(ModuloBase):
         if hasattr(self, "_loading"):
             self._loading.show()
         try:
-            cursor = self.conexion.cursor()
-            
-            filtro = self.combo_filtro.currentText()
-            condicion_activo = ""
+            filtro = self.combo_filtro.currentText() if self.combo_filtro else "Activos"
             if filtro == "Activos":
-                condicion_activo = "AND c.activo = 1"
+                filtro_param = "activos"
             elif filtro == "Inactivos":
-                condicion_activo = "AND c.activo = 0"
-
-            # Determinar el tipo de búsqueda
-            if texto.startswith("CLI-") or texto.startswith("QR-"):
-                # Búsqueda por código QR o ID
-                consulta = f"""
-                    SELECT c.id, c.nombre, COALESCE(c.apellido,'') as apellido, c.telefono, 
-                           c.puntos, c.nivel_fidelidad, COALESCE(c.saldo,0) as saldo, COALESCE(c.limite_credito,0) as limite_credito, COALESCE(c.activo,1) as activo
-                    FROM clientes c
-                    WHERE (c.codigo_qr = ? OR c.id = ?)
-                    {condicion_activo}
-                """
-                params = (texto, texto.split('-')[-1] if '-' in texto else texto)
+                filtro_param = "inactivos"
             else:
-                # Búsqueda por nombre, apellido, teléfono o ID (parcial)
-                consulta = f"""
-                    SELECT c.id, c.nombre, COALESCE(c.apellido,'') as apellido, c.telefono, 
-                           c.puntos, c.nivel_fidelidad, COALESCE(c.saldo,0) as saldo, COALESCE(c.limite_credito,0) as limite_credito, COALESCE(c.activo,1) as activo
-                    FROM clientes c
-                    WHERE (c.nombre LIKE ? OR COALESCE(c.apellido,'') LIKE ? OR c.telefono LIKE ? OR c.id = ?)
-                    {condicion_activo}
-                """
-                params = (f"%{texto}%", f"%{texto}%", f"%{texto}%", texto)
+                filtro_param = "todos"
 
-            cursor.execute(consulta, params)
-            clientes = cursor.fetchall()
-
-            self.tabla_clientes.setRowCount(len(clientes))
-            for row, cliente in enumerate(clientes):
-                for col, valor in enumerate(cliente):
-                    if col == 8:  # Columna de estado
-                        estado_texto = "Activo" if valor == 1 else "Inactivo"
-                        item = QTableWidgetItem(estado_texto)
-                        if valor != 1:
-                            item.setForeground(QColor('red'))
-                        self.tabla_clientes.setItem(row, col, item)
-                    elif col in [6, 7]:  # Saldo y Límite de crédito
-                        item = QTableWidgetItem(f"${valor:,.2f}" if valor is not None else "$0.00")
-                        self.tabla_clientes.setItem(row, col, item)
-                    else:
-                        self.tabla_clientes.setItem(row, col, QTableWidgetItem(str(valor) if valor is not None else ""))
-
-            if hasattr(self, "_empty_state"):
-                self._empty_state.setVisible(len(clientes) == 0)
-        except sqlite3.Error as e:
+            clientes = self._svc.search(texto, filtro_param) if self._svc else []
+            self._mostrar_clientes(clientes)
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error en búsqueda: {str(e)}", QMessageBox.Critical)
         finally:
             if hasattr(self, "_loading"):
@@ -409,19 +337,13 @@ class ModuloClientes(ModuloBase):
 
         try:
             id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT * FROM clientes WHERE id = ?", (id_cliente,))
-            cliente_data = cursor.fetchone()
-            
-            if cliente_data:
-                columnas = [description[0] for description in cursor.description]
-                cliente_dict = dict(zip(columnas, cliente_data))
-                
+            cliente_dict = self._svc.get_by_id(id_cliente) if self._svc else None
+
+            if cliente_dict:
                 _uc = getattr(self.container, 'uc_cliente', None) if self.container else None
                 dialogo = DialogoCliente(self.conexion, self, cliente_dict, uc_cliente=_uc)
                 if dialogo.exec_() == QDialog.Accepted:
                     self.cargar_clientes()
-                    # NOTIFICAR EVENTO
                     if hasattr(self.main_window, 'notificar_evento'):
                         self.main_window.notificar_evento('cliente_actualizado', {
                             'id': id_cliente,
@@ -432,7 +354,7 @@ class ModuloClientes(ModuloBase):
 
         except ValueError:
             self.mostrar_mensaje("Error", "ID de cliente inválido.")
-        except sqlite3.Error as e:
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al cargar datos del cliente: {str(e)}", QMessageBox.Critical)
 
     def eliminar_cliente(self):
@@ -445,7 +367,7 @@ class ModuloClientes(ModuloBase):
         try:
             id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
             nombre_cliente = self.tabla_clientes.item(fila_seleccionada, 1).text()
-            
+
             if confirm_action(
                 self,
                 "Confirmar Desactivación",
@@ -454,28 +376,28 @@ class ModuloClientes(ModuloBase):
                 confirm_text="Desactivar",
                 cancel_text="Cancelar",
             ):
-                cursor = self.conexion.cursor()
-                cursor.execute("UPDATE clientes SET activo = 0, fecha_inactivacion = date('now') WHERE id = ?", (id_cliente,))
-                self.conexion.commit()
-                try:
-                    _uid = getattr(self,"usuario_actual",None) or getattr(self,"usuario","Sistema")
-                    _sid = getattr(self,"sucursal_id",1)
-                    _ctr = getattr(self,"container",None)
-                    if _ctr: audit_write(_ctr,modulo="CLIENTES",accion="MODIFICAR_CLIENTE",entidad="clientes",usuario=_uid,detalles="Cliente modificado",sucursal_id=_sid)
-                except Exception: pass
-                self.mostrar_mensaje("Éxito", "Cliente desactivado correctamente.")
-                self.cargar_clientes()
-                # NOTIFICAR EVENTO
-                if hasattr(self.main_window, 'notificar_evento'):
-                    self.main_window.notificar_evento('cliente_eliminado', {
-                        'id': id_cliente,
-                        'modulo': 'clientes'
-                    })
-                    
+                if self._svc and self._svc.dar_de_baja(id_cliente):
+                    try:
+                        _uid = getattr(self, "usuario_actual", None) or getattr(self, "usuario", "Sistema")
+                        _sid = getattr(self, "sucursal_id", 1)
+                        _ctr = getattr(self, "container", None)
+                        if _ctr:
+                            audit_write(_ctr, modulo="CLIENTES", accion="MODIFICAR_CLIENTE",
+                                      entidad="clientes", usuario=_uid, detalles="Cliente dado de baja",
+                                      sucursal_id=_sid)
+                    except Exception:
+                        pass
+                    self.mostrar_mensaje("Éxito", "Cliente desactivado correctamente.")
+                    self.cargar_clientes()
+                    if hasattr(self.main_window, 'notificar_evento'):
+                        self.main_window.notificar_evento('cliente_eliminado', {
+                            'id': id_cliente,
+                            'modulo': 'clientes'
+                        })
+
         except ValueError:
             self.mostrar_mensaje("Error", "ID de cliente inválido.")
-        except sqlite3.Error as e:
-            self.conexion.rollback()
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al desactivar cliente: {str(e)}", QMessageBox.Critical)
 
     def ver_historial_cliente(self):

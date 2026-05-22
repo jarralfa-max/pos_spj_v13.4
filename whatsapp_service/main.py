@@ -110,7 +110,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="SPJ POS — WhatsApp Service",
     version="1.0.0",
-    description="Microservicio de WhatsApp para ERP SPJ POS v13.30",
+    description="Microservicio de WhatsApp para ERP SPJ POS v13.4",
     lifespan=lifespan,
 )
 

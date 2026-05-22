@@ -4,10 +4,12 @@ GET  /webhook → Verificación de Meta
 POST /webhook → Recepción de mensajes
 """
 from __future__ import annotations
+import json
 import logging
 import hmac
 from fastapi import APIRouter, Request, Query, Response
 
+from middleware.hmac_validator import verify_signature
 from models.message import IncomingMessage
 from middleware.rate_limiter import RateLimiter
 
@@ -50,8 +52,17 @@ async def verify_webhook(
 @router.post("/webhook")
 async def receive_message(request: Request):
     """Recibe mensajes entrantes de WhatsApp."""
+    from config.settings import WA_APP_SECRET
+    body = await request.body()
+
+    if WA_APP_SECRET:
+        sig_header = request.headers.get("X-Hub-Signature-256", "")
+        if not verify_signature(body, sig_header, WA_APP_SECRET):
+            logger.warning("Firma HMAC inválida desde %s", request.client.host)
+            return Response(status_code=403)
+
     try:
-        data = await request.json()
+        data = json.loads(body)
     except Exception:
         return {"status": "error", "detail": "invalid json"}
 
