@@ -670,16 +670,84 @@ class _SeccionResumen(QWidget):
         btn_asiento.clicked.connect(lambda: self._m._nav_to(6)) # Asientos
         lay.addWidget(grp_acc)
 
-        # Actividad reciente
-        grp_act = QGroupBox("Actividad reciente (últimos 20 movimientos)")
-        act_lay = QVBoxLayout(grp_act)
+        # Actividad reciente — header + filtros + tabla (sin addStretch: ocupa todo el alto)
+        lbl_act = QLabel("ACTIVIDAD RECIENTE")
+        lbl_act.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_act)
+
+        # Barra de filtros
+        fil_row = QHBoxLayout()
+        fil_row.setSpacing(8)
+        fil_row.setContentsMargins(0, 0, 0, 0)
+
+        self._cmb_tipo_act = QComboBox()
+        self._cmb_tipo_act.setFixedWidth(130)
+        self._cmb_tipo_act.addItems(
+            ["Todos los tipos", "Venta", "Compra", "Cierre caja", "Finanzas"])
+        self._cmb_tipo_act.currentIndexChanged.connect(self._filtrar_actividad)
+
+        self._cmb_user_act = QComboBox()
+        self._cmb_user_act.setFixedWidth(130)
+        self._cmb_user_act.addItem("Todos los usuarios")
+        self._cmb_user_act.currentIndexChanged.connect(self._filtrar_actividad)
+
+        self._txt_buscar_act = QLineEdit()
+        self._txt_buscar_act.setPlaceholderText("Buscar concepto, módulo…")
+        self._txt_buscar_act.textChanged.connect(self._filtrar_actividad)
+
+        btn_limpiar = QPushButton("✕ Limpiar")
+        btn_limpiar.setObjectName("outlineBtn")
+        btn_limpiar.setFixedWidth(84)
+        btn_limpiar.setCursor(Qt.PointingHandCursor)
+        btn_limpiar.clicked.connect(self._limpiar_filtros_act)
+
+        fil_row.addWidget(QLabel("Tipo:"))
+        fil_row.addWidget(self._cmb_tipo_act)
+        fil_row.addWidget(QLabel("Usuario:"))
+        fil_row.addWidget(self._cmb_user_act)
+        fil_row.addWidget(self._txt_buscar_act, 1)
+        fil_row.addWidget(btn_limpiar)
+        lay.addLayout(fil_row)
+
+        # Tabla — stretch=1 para que ocupe el espacio vertical restante
         self._tbl_actividad = _FinTable(
             ["Fecha", "Tipo", "Concepto", "Módulo", "Monto", "Usuario"])
         self._tbl_actividad.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        act_lay.addWidget(self._tbl_actividad)
-        lay.addWidget(grp_act)
+        self._tbl_actividad.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        lay.addWidget(self._tbl_actividad, 1)   # stretch=1 → llena el resto de la pantalla
 
-        lay.addStretch()
+        # Cache de filas sin filtrar (para filtrado client-side)
+        self._rows_actividad: List[Dict[str, Any]] = []
+
+    # ── Filtrado client-side ──────────────────────────────────────────────────
+
+    def _filtrar_actividad(self):
+        tipo_fil = self._cmb_tipo_act.currentText()
+        user_fil = self._cmb_user_act.currentText()
+        txt      = self._txt_buscar_act.text().strip().lower()
+
+        for i, r in enumerate(self._rows_actividad):
+            tipo    = str(r.get("tipo", ""))
+            usuario = str(r.get("usuario") or r.get("user", ""))
+            concepto = str(r.get("concepto", "")).lower()
+            modulo   = str(r.get("modulo", "")).lower()
+
+            ocultar = False
+            if tipo_fil != "Todos los tipos" and tipo_fil.lower() not in tipo.lower():
+                ocultar = True
+            if user_fil != "Todos los usuarios" and user_fil.lower() not in usuario.lower():
+                ocultar = True
+            if txt and txt not in concepto and txt not in modulo and txt not in usuario.lower():
+                ocultar = True
+            self._tbl_actividad.setRowHidden(i, ocultar)
+
+    def _limpiar_filtros_act(self):
+        self._cmb_tipo_act.setCurrentIndex(0)
+        self._cmb_user_act.setCurrentIndex(0)
+        self._txt_buscar_act.clear()
 
     def recargar(self):
         m = self._m
@@ -833,20 +901,42 @@ class _SeccionResumen(QWidget):
                         for r in cur.fetchall()
                     ]
 
-            self._tbl_actividad.setRowCount(len(rows))
-            for ri, r in enumerate(rows):
-                vals = [
-                    str(r.get("fecha") or r.get("created_at", ""))[:10],
-                    str(r.get("tipo") or r.get("event_type", "")),
-                    str(r.get("concepto") or r.get("source_folio") or r.get("descripcion", "")),
-                    str(r.get("modulo") or r.get("source_module") or r.get("modulo_origen", "")),
-                    f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
-                    str(r.get("usuario") or r.get("user", "")),
-                ]
-                for ci, v in enumerate(vals):
+            # Normalizar a dict uniforme y guardar cache
+            self._rows_actividad = [
+                {
+                    "fecha":   str(r.get("fecha") or r.get("created_at", ""))[:10],
+                    "tipo":    str(r.get("tipo") or r.get("event_type", "")),
+                    "concepto":str(r.get("concepto") or r.get("source_folio") or r.get("descripcion", "")),
+                    "modulo":  str(r.get("modulo") or r.get("source_module") or r.get("modulo_origen", "")),
+                    "monto":   f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
+                    "usuario": str(r.get("usuario") or r.get("user", "")),
+                }
+                for r in rows
+            ]
+
+            # Poblar combo de usuarios con valores únicos
+            usuarios = sorted({r["usuario"] for r in self._rows_actividad if r["usuario"]})
+            self._cmb_user_act.blockSignals(True)
+            current_user = self._cmb_user_act.currentText()
+            self._cmb_user_act.clear()
+            self._cmb_user_act.addItem("Todos los usuarios")
+            for u in usuarios:
+                self._cmb_user_act.addItem(u)
+            idx = self._cmb_user_act.findText(current_user)
+            self._cmb_user_act.setCurrentIndex(max(idx, 0))
+            self._cmb_user_act.blockSignals(False)
+
+            # Pintar tabla
+            self._tbl_actividad.setRowCount(len(self._rows_actividad))
+            for ri, r in enumerate(self._rows_actividad):
+                for ci, v in enumerate(
+                    [r["fecha"], r["tipo"], r["concepto"], r["modulo"], r["monto"], r["usuario"]]
+                ):
                     it = QTableWidgetItem(v)
                     it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     self._tbl_actividad.setItem(ri, ci, it)
+
+            self._filtrar_actividad()   # aplicar filtros activos tras recargar
         except Exception as e:
             logger.warning("_SeccionResumen actividad: %s", e)
 
