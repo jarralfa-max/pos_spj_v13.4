@@ -153,6 +153,30 @@ def get_connection(path: Optional[str] = None) -> "DatabaseWrapper":
 
 
 # ─────────────────────────────────────────────────────────────
+# COMPATIBILIDAD LEGACY
+# ─────────────────────────────────────────────────────────────
+
+def wrap(conn) -> "DatabaseWrapper":
+    """Envuelve una conexión SQLite en DatabaseWrapper.
+
+    Muchos servicios legacy importan `wrap` desde `core.db.connection`.
+    Este helper se mantiene para compatibilidad y evita romper imports.
+    """
+    if isinstance(conn, DatabaseWrapper):
+        return conn
+    if hasattr(conn, "_conn") and isinstance(getattr(conn, "_conn"), sqlite3.Connection):
+        return conn
+    if isinstance(conn, sqlite3.Connection):
+        return DatabaseWrapper(conn)
+    return DatabaseWrapper(conn)
+
+
+def unwrap(conn):
+    """Devuelve la conexión SQLite cruda cuando el objeto está envuelto."""
+    return conn._conn if isinstance(conn, DatabaseWrapper) else conn
+
+
+# ─────────────────────────────────────────────────────────────
 # CIERRE DE CONEXIONES
 # ─────────────────────────────────────────────────────────────
 
@@ -244,19 +268,20 @@ def transaction(conn: sqlite3.Connection):
 
     import uuid
 
+    raw_conn = unwrap(conn)
     sp = f"sp_{uuid.uuid4().hex[:8]}"
-    lock = _get_conn_lock(conn)
+    lock = _get_conn_lock(raw_conn)
 
     with lock:
-        conn.execute(f"SAVEPOINT {sp}")
+        raw_conn.execute(f"SAVEPOINT {sp}")
 
         try:
-            yield conn
-            conn.execute(f"RELEASE SAVEPOINT {sp}")
+            yield raw_conn
+            raw_conn.execute(f"RELEASE SAVEPOINT {sp}")
 
         except Exception:
             try:
-                conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                raw_conn.execute(f"ROLLBACK TO SAVEPOINT {sp}")
             except Exception:
                 pass
             raise
@@ -278,7 +303,7 @@ class DatabaseWrapper:
 
     __slots__ = ("_conn",)
 
-    def __init__(self, conn: sqlite3.Connection):
+    def __init__(self, conn):
         object.__setattr__(self, "_conn", conn)
 
     # ── Delegación básica ─────────────────────────────────────────────────────
