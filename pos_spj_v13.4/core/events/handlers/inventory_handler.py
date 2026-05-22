@@ -138,10 +138,11 @@ class SaleInventoryHandler:
         explosion = resolver.resolve_for_sale(product_id, sale_qty, branch_id)
 
         if explosion.cycle_detected:
-            logger.error(
-                "SaleInventoryHandler: BOM cycle detected for product_id=%s "
-                "during sale %s — using fallback deduction of root product",
-                product_id, folio,
+            # P0-3: block the sale — a cyclic BOM cannot produce valid deductions.
+            # Logging alone would let the sale commit with empty or wrong movements.
+            raise ValueError(
+                f"El producto ID={product_id} tiene una receta con referencia circular. "
+                "Corrige la receta en el módulo Recetas antes de vender este producto."
             )
 
         # Resolver falls back to a virtual self-deduction when no recipe exists.

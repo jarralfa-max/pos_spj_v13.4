@@ -758,6 +758,7 @@ def _wire_production_items_handlers(bus, container) -> None:
     fs = getattr(container, "finance_service", None)
     if fs:
         from core.events.event_bus import PRODUCCION_COMPLETADA
+        from core.events.domain_events import PRODUCTION_BATCH_CREATED
         fin_handler = ProductionFinanceHandler(finance_service=fs, db=db)
         bus.subscribe(
             PRODUCCION_COMPLETADA,
@@ -766,6 +767,18 @@ def _wire_production_items_handlers(bus, container) -> None:
             label="production_finance_handler",
         )
         logger.debug("Registered ProductionFinanceHandler on %s", PRODUCCION_COMPLETADA)
+
+        # P0-2: ProductionEngine.close_batch() publishes PRODUCTION_BATCH_CREATED
+        # (not PRODUCCION_COMPLETADA).  Register the same finance handler so batches
+        # also post GL entries — using the same db= path to read production_cost_ledger.
+        batch_fin_handler = ProductionFinanceHandler(finance_service=fs, db=db)
+        bus.subscribe(
+            PRODUCTION_BATCH_CREATED,
+            batch_fin_handler.handle,
+            priority=45,
+            label="production_batch_finance_handler",
+        )
+        logger.debug("Registered ProductionFinanceHandler on %s", PRODUCTION_BATCH_CREATED)
 
 
 # ── Phase 4: PURCHASE_ITEMS_PROCESS + PURCHASE_CREATED handlers ──────────────
