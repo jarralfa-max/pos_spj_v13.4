@@ -61,7 +61,7 @@ class MaskedSecretField(QWidget):
 
         # Botones
         self._btn_replace = QPushButton("Reemplazar")
-        self._btn_cancel  = QPushButton("Cancelar")
+        self._btn_cancel = QPushButton("Cancelar")
         spj_btn(self._btn_replace, "warning")
         spj_btn(self._btn_cancel, "secondary")
         self._btn_cancel.setVisible(False)
@@ -93,6 +93,15 @@ class MaskedSecretField(QWidget):
                 f"font-size: {Typography.SIZE_MD};"
                 f"font-style: italic;"
             )
+
+    def set_new_value(self, value: str) -> None:
+        """Activa edición y coloca un nuevo valor programáticamente.
+
+        Útil para generar secretos desde la UI sin exponer los valores guardados.
+        """
+        self._start_edit()
+        self._inp.setText(value or "")
+        self.value_changed.emit(value or "")
 
     def get_new_value(self) -> str | None:
         """Retorna el nuevo valor ingresado, o None si no se modificó."""
