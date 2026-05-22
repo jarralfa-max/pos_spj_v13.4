@@ -95,6 +95,13 @@ def get_verify_token() -> str:
     """
     return _read_erp_config("verify_token", "") or (WA_VERIFY_TOKEN or "")
 
+def get_internal_api_key() -> str:
+    """Clave interna ERP ↔ microservicio: primero módulo ERP, luego .env."""
+    return (
+        _read_erp_config("internal_api_key", "")
+        or (WA_INTERNAL_API_KEY or "")
+        or (os.getenv("INTERNAL_API_KEY", "") or "")
+    )
 
 def get_wa_api_url(phone_number_id: str = None) -> str:
     """Build Graph API URL lazily to avoid None-interpolation at import time."""
