@@ -87,7 +87,7 @@ class MetricCard(QFrame):
         self._lbl_value = QLabel(value)
         self._lbl_value.setStyleSheet(
             f"color: {self._accent};"
-            f"font-size: 22px;"
+            f"font-size: {Typography.SIZE_DISPLAY};"
             f"font-weight: {Typography.WEIGHT_BOLD};"
             "border: none; background: transparent;"
         )

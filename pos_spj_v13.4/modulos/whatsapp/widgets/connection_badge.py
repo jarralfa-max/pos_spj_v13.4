@@ -44,9 +44,9 @@ class StatusBadge(QLabel):
 class ConnectionBadge(QWidget):
     """Indicador de conexión con punto de color y etiqueta de texto."""
 
-    _DOT_CONNECTED    = f"color: {Colors.SUCCESS.BASE}; font-size: 18px;"
-    _DOT_DISCONNECTED = f"color: {Colors.DANGER.BASE};  font-size: 18px;"
-    _DOT_LOADING      = f"color: {Colors.WARNING.BASE}; font-size: 18px;"
+    _DOT_CONNECTED    = f"color: {Colors.SUCCESS.BASE}; font-size: {Typography.SIZE_XXXL};"
+    _DOT_DISCONNECTED = f"color: {Colors.DANGER.BASE};  font-size: {Typography.SIZE_XXXL};"
+    _DOT_LOADING      = f"color: {Colors.WARNING.BASE}; font-size: {Typography.SIZE_XXXL};"
 
     def __init__(self, text: str = "Desconectado", parent=None) -> None:
         super().__init__(parent)

@@ -30,7 +30,7 @@ class EmptyState(QWidget):
 
         lbl_icon = QLabel(icon)
         lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet(f"font-size: 36px; background: transparent;")
+        lbl_icon.setStyleSheet(f"font-size: {Typography.SIZE_JUMBO}; background: transparent;")
 
         lbl_msg = QLabel(message)
         lbl_msg.setAlignment(Qt.AlignCenter)

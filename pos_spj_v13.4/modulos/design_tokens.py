@@ -222,7 +222,7 @@ class Spacing:
 class Typography:
     """Sistema tipográfico consistente."""
     FONT_FAMILY = "'Segoe UI', 'Inter', 'Roboto', sans-serif"
-    
+
     # Tamaños
     SIZE_XS = "10px"   # Captions, labels secundarios
     SIZE_SM = "11px"   # Botones, inputs, texto pequeño
@@ -230,6 +230,9 @@ class Typography:
     SIZE_LG = "13px"   # Subtítulos, labels importantes
     SIZE_XL = "14px"   # Títulos de sección
     SIZE_XXL = "16px"  # Títulos principales
+    SIZE_XXXL = "18px"  # Iconos grandes, labels grandes
+    SIZE_DISPLAY = "20px"  # Valores de métrica/KPI grandes
+    SIZE_JUMBO = "36px"  # Iconos muy grandes (empty states)
     
     # Pesos
     WEIGHT_NORMAL = 400
