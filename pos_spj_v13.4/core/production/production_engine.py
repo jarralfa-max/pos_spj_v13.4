@@ -568,7 +568,7 @@ class ProductionEngine:
                     "reference_type": "PRODUCTION_BATCH",
                     "user": closed_by,
                     "movements": movements,
-                })
+                }, strict=True)
             else:
                 for _m in movements:
                     inv_eng.process_movement(

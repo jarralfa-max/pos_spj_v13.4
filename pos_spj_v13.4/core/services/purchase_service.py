@@ -90,7 +90,7 @@ class PurchaseService:
                     "user":         user,
                     "usuario":      user,
                     "items":        items,
-                })
+                }, strict=True)
             else:
                 for item in items:
                     try:

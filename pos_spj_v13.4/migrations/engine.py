@@ -83,6 +83,7 @@ MIGRATIONS = [
     _Migration("082",  "migrations.standalone.082_treasury_tables"),              # Tesorería: formalizar tablas de TreasuryService._ensure_tables()
     _Migration("083",  "migrations.standalone.083_financial_traceability_tables"), # Trazabilidad financiera end-to-end: 9 tablas canónicas
     _Migration("084",  "migrations.standalone.084_capital_movements"),             # Capital y patrimonio: inyecciones, retiros, balance inicial
+    _Migration("085",  "migrations.standalone.085_product_type_flags"),           # FASE 2: flags tipo_producto para validación de recetas
 ]
 
 def _ensure_tracking_table(conn):

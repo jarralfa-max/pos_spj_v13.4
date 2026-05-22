@@ -168,7 +168,7 @@ class TransferRepository:
                     "reference_type": "TRANSFER_DISPATCH",
                     "user":           dispatched_by,
                     "movements":      movements,
-                })
+                }, strict=True)
             else:
                 for item in items:
                     # StockInsuficienteError propagates to caller if no stock
@@ -314,7 +314,7 @@ class TransferRepository:
                     "reference_type": "TRANSFER_RECEIVE",
                     "user":           received_by,
                     "movements":      movements,
-                })
+                }, strict=True)
             else:
                 for mov in movements:
                     _engine = InventoryEngine(self.db, dest_branch_id, received_by)
@@ -408,7 +408,7 @@ class TransferRepository:
                     "reference_type": "TRANSFER_CANCEL",
                     "user":           cancelled_by,
                     "movements":      movements,
-                })
+                }, strict=True)
             else:
                 for item in items:
                     _engine = InventoryEngine(self.db, origin_branch_id, cancelled_by)
