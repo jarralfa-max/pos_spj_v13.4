@@ -711,10 +711,10 @@ _TPL_OSCURO = f"""
 
         /* ===== FIN SIDEBAR (always dark regardless of theme) ===== */
         QListWidget#finSidebar {{
-            background-color: #020617;
-            color: #E2E8F0;
+            background-color: #11131b;
+            color: #e1e2ed;
             border: none;
-            border-right: 1px solid #1E293B;
+            border-right: 1px solid #434655;
             border-radius: 0;
             padding: 0;
             outline: none;
@@ -725,17 +725,17 @@ _TPL_OSCURO = f"""
             border-left: 3px solid transparent;
             border-radius: 0;
             margin: 0;
-            color: #E2E8F0;
+            color: #9ba1b0;
         }}
         QListWidget#finSidebar::item:hover {{
-            background-color: #1E293B;
-            color: #FFFFFF;
+            background-color: #1d1f27;
+            color: #e1e2ed;
             border-radius: 0;
         }}
         QListWidget#finSidebar::item:selected {{
-            background-color: #334155;
-            border-left: 3px solid #2563EB;
-            color: #FFFFFF;
+            background-color: #282a32;
+            border-left: 3px solid #b4c5ff;
+            color: #e1e2ed;
             font-weight: 600;
             border-radius: 0;
         }}
@@ -1873,10 +1873,10 @@ _TPL_CLARO = f"""
 
         /* ===== FIN SIDEBAR (always dark regardless of theme) ===== */
         QListWidget#finSidebar {{
-            background-color: #020617;
-            color: #E2E8F0;
+            background-color: #11131b;
+            color: #e1e2ed;
             border: none;
-            border-right: 1px solid #1E293B;
+            border-right: 1px solid #434655;
             border-radius: 0;
             padding: 0;
             outline: none;
@@ -1887,17 +1887,17 @@ _TPL_CLARO = f"""
             border-left: 3px solid transparent;
             border-radius: 0;
             margin: 0;
-            color: #E2E8F0;
+            color: #9ba1b0;
         }}
         QListWidget#finSidebar::item:hover {{
-            background-color: #1E293B;
-            color: #FFFFFF;
+            background-color: #1d1f27;
+            color: #e1e2ed;
             border-radius: 0;
         }}
         QListWidget#finSidebar::item:selected {{
-            background-color: #334155;
-            border-left: 3px solid #2563EB;
-            color: #FFFFFF;
+            background-color: #282a32;
+            border-left: 3px solid #b4c5ff;
+            color: #e1e2ed;
             font-weight: 600;
             border-radius: 0;
         }}

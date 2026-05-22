@@ -27,6 +27,18 @@ from modulos.design_tokens import Colors, Typography
 
 logger = logging.getLogger("spj.finanzas_unificadas")
 
+# ── PRESTIGE ERP Finance color tokens (HTML reference 13 screens) ─────────────
+_P_PRIMARY   = "#b4c5ff"   # periwinkle — primary highlight / neutral KPIs
+_P_SECONDARY = "#e9c170"   # gold — warning / secondary accent
+_P_TERTIARY  = "#aecebc"   # sage green — success / positive states
+_P_ERROR     = "#ffb4ab"   # coral — danger / negative states
+_P_SURFACE   = "#11131b"   # main surface background
+_P_CONTAINER = "#1d1f27"   # surface-container (panels, group boxes)
+_P_HIGH      = "#282a32"   # surface-container-high (table headers, inputs)
+_P_OUTLINE   = "#434655"   # outline-variant (borders)
+_P_ON_SURF   = "#e1e2ed"   # on-surface (primary text)
+_P_MUTED     = "#9ba1b0"   # muted / secondary text
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONSTANTES DE SECCIONES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,17 +59,17 @@ _SECCIONES = [
 ]
 
 _BADGE_COLORS = {
-    "pagado":      ("#16a34a", "#dcfce7"),
-    "cobrado":     ("#16a34a", "#dcfce7"),
-    "conciliado":  ("#16a34a", "#dcfce7"),
-    "pendiente":   ("#d97706", "#fef3c7"),
-    "parcial":     ("#d97706", "#fef3c7"),
-    "vencido":     ("#dc2626", "#fee2e2"),
-    "cancelado":   ("#6b7280", "#f3f4f6"),
-    "diferencia":  ("#d97706", "#fef3c7"),
-    "borrador":    ("#6b7280", "#f3f4f6"),
-    "confirmado":  ("#2563eb", "#dbeafe"),
-    "reversado":   ("#dc2626", "#fee2e2"),
+    "pagado":      (_P_TERTIARY,  "#1a3328"),
+    "cobrado":     (_P_TERTIARY,  "#1a3328"),
+    "conciliado":  (_P_TERTIARY,  "#1a3328"),
+    "pendiente":   (_P_SECONDARY, "#362d0c"),
+    "parcial":     (_P_SECONDARY, "#362d0c"),
+    "vencido":     (_P_ERROR,     "#3a1817"),
+    "cancelado":   (_P_MUTED,     "#252830"),
+    "diferencia":  (_P_SECONDARY, "#362d0c"),
+    "borrador":    (_P_MUTED,     "#252830"),
+    "confirmado":  (_P_PRIMARY,   "#1c2445"),
+    "reversado":   (_P_ERROR,     "#3a1817"),
 }
 
 
@@ -106,7 +118,7 @@ class _FinKpiCard(QFrame):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setMinimumHeight(86)
 
-        _accent = color or Colors.PRIMARY_BASE
+        _accent = color or _P_PRIMARY
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -131,7 +143,7 @@ class _FinKpiCard(QFrame):
 
         lbl_t = QLabel(label.upper())
         lbl_t.setStyleSheet(
-            f"color:{Colors.NEUTRAL.SLATE_500}; font-size:{Typography.SIZE_XS};"
+            f"color:{_P_MUTED}; font-size:11px;"
             f" font-weight:{Typography.WEIGHT_SEMIBOLD}; letter-spacing:0.08em;"
             f" background:transparent; border:none;"
         )
@@ -528,11 +540,11 @@ class _SeccionResumen(QWidget):
         ))
 
         # KPIs
-        self._kpi_caja    = _FinKpiCard("Caja y bancos", "—", Colors.SUCCESS_BASE)
-        self._kpi_cxc     = _FinKpiCard("Cuentas por cobrar", "—", Colors.WARNING_BASE)
-        self._kpi_cxp     = _FinKpiCard("Cuentas por pagar", "—", Colors.DANGER_BASE)
-        self._kpi_flujo   = _FinKpiCard("Flujo neto del período", "—", Colors.PRIMARY_BASE)
-        self._kpi_capital = _FinKpiCard("Capital actual", "$0.00 (pendiente)", Colors.ACCENT_BASE)
+        self._kpi_caja    = _FinKpiCard("Caja y bancos", "—", _P_TERTIARY)
+        self._kpi_cxc     = _FinKpiCard("Cuentas por cobrar", "—", _P_SECONDARY)
+        self._kpi_cxp     = _FinKpiCard("Cuentas por pagar", "—", _P_ERROR)
+        self._kpi_flujo   = _FinKpiCard("Flujo neto del período", "—", _P_PRIMARY)
+        self._kpi_capital = _FinKpiCard("Capital actual", "$0.00 (pendiente)", _P_SECONDARY)
         lay.addWidget(_kpi_row([self._kpi_caja, self._kpi_cxc, self._kpi_cxp,
                                 self._kpi_flujo, self._kpi_capital]))
 
@@ -586,17 +598,17 @@ class _SeccionResumen(QWidget):
             if m._ts and hasattr(m._ts, "balance_general"):
                 bal = m._ts.balance_general()
                 caja_val = float(bal.get("activo", {}).get("caja_bancos", 0) or 0)
-                self._kpi_caja.set_value(f"${caja_val:,.2f}", Colors.SUCCESS_BASE)
+                self._kpi_caja.set_value(f"${caja_val:,.2f}", _P_TERTIARY)
                 cxc_val  = float(bal.get("activo", {}).get("cuentas_cobrar", 0) or 0)
                 cxp_val  = float(bal.get("pasivo", {}).get("cuentas_pagar", 0) or 0)
-                self._kpi_cxc.set_value(f"${cxc_val:,.2f}", Colors.WARNING_BASE)
-                self._kpi_cxp.set_value(f"${cxp_val:,.2f}", Colors.DANGER_BASE)
+                self._kpi_cxc.set_value(f"${cxc_val:,.2f}", _P_SECONDARY)
+                self._kpi_cxp.set_value(f"${cxp_val:,.2f}", _P_ERROR)
             elif m._dash_svc:
                 data = m._dash_svc.get_quick_kpis()
-                self._kpi_caja.set_value(f"${data.get('saldo_tesoreria', 0):,.2f}", Colors.SUCCESS_BASE)
-                self._kpi_cxc.set_value(f"${data.get('cxc_pendiente', 0):,.2f}", Colors.WARNING_BASE)
-                self._kpi_cxp.set_value(f"${data.get('cxp_pendiente', 0):,.2f}", Colors.DANGER_BASE)
-                self._kpi_flujo.set_value(f"${data.get('flujo_mes', 0):,.2f}", Colors.PRIMARY_BASE)
+                self._kpi_caja.set_value(f"${data.get('saldo_tesoreria', 0):,.2f}", _P_TERTIARY)
+                self._kpi_cxc.set_value(f"${data.get('cxc_pendiente', 0):,.2f}", _P_SECONDARY)
+                self._kpi_cxp.set_value(f"${data.get('cxp_pendiente', 0):,.2f}", _P_ERROR)
+                self._kpi_flujo.set_value(f"${data.get('flujo_mes', 0):,.2f}", _P_PRIMARY)
         except Exception as e:
             logger.warning("_SeccionResumen KPI caja: %s", e)
 
@@ -605,10 +617,10 @@ class _SeccionResumen(QWidget):
             if m._ts and hasattr(m._ts, "kpis_financieros"):
                 kpis = m._ts.kpis_financieros()
                 flujo = float(kpis.get("flujo_mes", 0) or kpis.get("utilidad_mes", 0) or 0)
-                self._kpi_flujo.set_value(f"${flujo:,.2f}", Colors.PRIMARY_BASE)
+                self._kpi_flujo.set_value(f"${flujo:,.2f}", _P_PRIMARY)
                 cap = float(kpis.get("capital_invertido", 0) or 0)
                 if cap:
-                    self._kpi_capital.set_value(f"${cap:,.2f}", Colors.ACCENT_BASE)
+                    self._kpi_capital.set_value(f"${cap:,.2f}", _P_SECONDARY)
         except Exception as e:
             logger.warning("_SeccionResumen KPI flujo: %s", e)
 
@@ -668,8 +680,8 @@ class _SeccionCajayConciliacion(QWidget):
 
         # KPIs
         self._kpi_cortes = _FinKpiCard("Cortes recientes", "—")
-        self._kpi_dif    = _FinKpiCard("Diferencias detectadas", "—", Colors.WARNING_BASE)
-        self._kpi_movs   = _FinKpiCard("Movimientos del período", "—", Colors.PRIMARY_BASE)
+        self._kpi_dif    = _FinKpiCard("Diferencias detectadas", "—", _P_SECONDARY)
+        self._kpi_movs   = _FinKpiCard("Movimientos del período", "—", _P_PRIMARY)
         lay.addWidget(_kpi_row([self._kpi_cortes, self._kpi_dif, self._kpi_movs]))
 
         # Tabla de cortes de caja
@@ -767,7 +779,7 @@ class _SeccionCajayConciliacion(QWidget):
                 self._tbl.setCellWidget(ri, 7, btn_ver)
 
             self._kpi_cortes.set_value(str(cortes_ok + difs))
-            self._kpi_dif.set_value(str(difs), Colors.WARNING_BASE if difs else Colors.SUCCESS_BASE)
+            self._kpi_dif.set_value(str(difs), _P_SECONDARY if difs else _P_TERTIARY)
             self._kpi_movs.set_value(str(len(rows)))
         except Exception as e:
             logger.warning("_SeccionCajayConciliacion.recargar: %s", e)
@@ -889,9 +901,9 @@ class _SeccionCapital(QWidget):
 
         # KPIs
         self._kpi_actual       = _FinKpiCard("Capital actual",     "$—")
-        self._kpi_aportaciones = _FinKpiCard("Aportaciones",       "$—", Colors.SUCCESS_BASE)
-        self._kpi_retiros      = _FinKpiCard("Retiros",            "$—", Colors.DANGER_BASE)
-        self._kpi_neto         = _FinKpiCard("Capital neto",       "$—", Colors.PRIMARY_BASE)
+        self._kpi_aportaciones = _FinKpiCard("Aportaciones",       "$—", _P_TERTIARY)
+        self._kpi_retiros      = _FinKpiCard("Retiros",            "$—", _P_ERROR)
+        self._kpi_neto         = _FinKpiCard("Capital neto",       "$—", _P_PRIMARY)
         lay.addWidget(_kpi_row([self._kpi_actual, self._kpi_aportaciones,
                                 self._kpi_retiros, self._kpi_neto]))
 
@@ -1024,17 +1036,17 @@ class _SeccionCapital(QWidget):
                 self._kpi_actual.set_value(
                     f"${summary.get('capital_actual', 0):,.2f}")
                 self._kpi_aportaciones.set_value(
-                    f"${summary.get('total_inyectado', 0):,.2f}", Colors.SUCCESS_BASE)
+                    f"${summary.get('total_inyectado', 0):,.2f}", _P_TERTIARY)
                 self._kpi_retiros.set_value(
-                    f"${summary.get('total_retirado', 0):,.2f}", Colors.DANGER_BASE)
+                    f"${summary.get('total_retirado', 0):,.2f}", _P_ERROR)
                 neto = summary.get("capital_actual", 0)
-                self._kpi_neto.set_value(f"${neto:,.2f}", Colors.PRIMARY_BASE)
+                self._kpi_neto.set_value(f"${neto:,.2f}", _P_PRIMARY)
             elif m._ts:
                 kpis = m._ts.kpis_financieros()
                 inv = float(kpis.get("capital_invertido", 0) or 0)
                 disp = float(kpis.get("capital_disponible", 0) or 0)
                 self._kpi_actual.set_value(f"${inv:,.2f}")
-                self._kpi_neto.set_value(f"${disp:,.2f}", Colors.PRIMARY_BASE)
+                self._kpi_neto.set_value(f"${disp:,.2f}", _P_PRIMARY)
         except Exception as e:
             logger.warning("_SeccionCapital KPIs: %s", e)
 
@@ -1093,10 +1105,10 @@ class _SeccionCuentasPorCobrar(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total   = _FinKpiCard("Total por cobrar", "—", Colors.PRIMARY_BASE)
-        self._kpi_vencido = _FinKpiCard("Vencido", "—", Colors.DANGER_BASE)
-        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", Colors.WARNING_BASE)
-        self._kpi_cobrado = _FinKpiCard("Cobrado este mes", "—", Colors.SUCCESS_BASE)
+        self._kpi_total   = _FinKpiCard("Total por cobrar", "—", _P_PRIMARY)
+        self._kpi_vencido = _FinKpiCard("Vencido", "—", _P_ERROR)
+        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", _P_SECONDARY)
+        self._kpi_cobrado = _FinKpiCard("Cobrado este mes", "—", _P_TERTIARY)
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
                                 self._kpi_porvenc, self._kpi_cobrado]))
 
@@ -1292,7 +1304,7 @@ class _SeccionCuentasPorCobrar(QWidget):
                 deudas = m._ts.get_cuentas_por_cobrar(0)
             self._tbl.setRowCount(len(deudas))
             total = sum(float(d.get("saldo", 0) or 0) for d in deudas)
-            self._kpi_total.set_value(f"${total:,.2f}", Colors.PRIMARY_BASE)
+            self._kpi_total.set_value(f"${total:,.2f}", _P_PRIMARY)
             for row, d in enumerate(deudas):
                 vals = [
                     str(d.get("id", "")),
@@ -1341,10 +1353,10 @@ class _SeccionCuentasPorPagar(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total   = _FinKpiCard("Total por pagar", "—", Colors.DANGER_BASE)
-        self._kpi_vencido = _FinKpiCard("Vencido", "—", Colors.DANGER_BASE)
-        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", Colors.WARNING_BASE)
-        self._kpi_pagado  = _FinKpiCard("Pagado este mes", "—", Colors.SUCCESS_BASE)
+        self._kpi_total   = _FinKpiCard("Total por pagar", "—", _P_ERROR)
+        self._kpi_vencido = _FinKpiCard("Vencido", "—", _P_ERROR)
+        self._kpi_porvenc = _FinKpiCard("Por vencer", "—", _P_SECONDARY)
+        self._kpi_pagado  = _FinKpiCard("Pagado este mes", "—", _P_TERTIARY)
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
                                 self._kpi_porvenc, self._kpi_pagado]))
 
@@ -1460,7 +1472,7 @@ class _SeccionCuentasPorPagar(QWidget):
                 deudas = m._ts.get_cuentas_por_pagar(0)
             self._tbl.setRowCount(len(deudas))
             total = sum(float(d.get("saldo", 0) or 0) for d in deudas)
-            self._kpi_total.set_value(f"${total:,.2f}", Colors.DANGER_BASE)
+            self._kpi_total.set_value(f"${total:,.2f}", _P_ERROR)
             for row, d in enumerate(deudas):
                 vals = [
                     str(d.get("id", "")),
@@ -1857,9 +1869,9 @@ class _SeccionNomina(QWidget):
             btn_callback=self.recargar
         ))
 
-        self._kpi_total    = _FinKpiCard("Total del período", "—", Colors.PRIMARY_BASE)
-        self._kpi_pendiente= _FinKpiCard("Pendiente", "—", Colors.WARNING_BASE)
-        self._kpi_pagada   = _FinKpiCard("Pagada", "—", Colors.SUCCESS_BASE)
+        self._kpi_total    = _FinKpiCard("Total del período", "—", _P_PRIMARY)
+        self._kpi_pendiente= _FinKpiCard("Pendiente", "—", _P_SECONDARY)
+        self._kpi_pagada   = _FinKpiCard("Pagada", "—", _P_TERTIARY)
         lay.addWidget(_kpi_row([self._kpi_total, self._kpi_pendiente, self._kpi_pagada]))
 
         # Formulario de gasto operativo
@@ -2529,10 +2541,10 @@ class ModuloFinanzasUnificadas(QWidget):
         self._nav.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         self._nav.setStyleSheet(
             f"QListWidget#finSidebar {{"
-            f"  background: {Colors.SIDEBAR.BG};"
+            f"  background: {_P_SURFACE};"
             f"  border: none;"
-            f"  border-right: 1px solid {Colors.NEUTRAL.SLATE_800};"
-            f"  color: {Colors.SIDEBAR.TEXT};"
+            f"  border-right: 1px solid {_P_OUTLINE};"
+            f"  color: {_P_ON_SURF};"
             f"  font-family: {Typography.FONT_FAMILY};"
             f"  font-size: {Typography.SIZE_MD};"
             f"  outline: none;"
@@ -2541,16 +2553,16 @@ class ModuloFinanzasUnificadas(QWidget):
             f"QListWidget#finSidebar::item {{"
             f"  padding: 9px 12px 9px 16px;"
             f"  border-left: 3px solid transparent;"
-            f"  color: {Colors.SIDEBAR.TEXT};"
+            f"  color: {_P_MUTED};"
             f"}}"
             f"QListWidget#finSidebar::item:hover {{"
-            f"  background: {Colors.SIDEBAR.HOVER};"
-            f"  color: {Colors.NEUTRAL.WHITE};"
+            f"  background: {_P_CONTAINER};"
+            f"  color: {_P_ON_SURF};"
             f"}}"
             f"QListWidget#finSidebar::item:selected {{"
-            f"  background: {Colors.NEUTRAL.SLATE_700};"
-            f"  border-left: 3px solid {Colors.PRIMARY_BASE};"
-            f"  color: {Colors.NEUTRAL.WHITE};"
+            f"  background: {_P_HIGH};"
+            f"  border-left: 3px solid {_P_PRIMARY};"
+            f"  color: {_P_ON_SURF};"
             f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
             f"}}"
         )
