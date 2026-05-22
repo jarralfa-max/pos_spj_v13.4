@@ -427,6 +427,16 @@ class AppContainer:
             self.uc_produccion = None
             logger.debug("uc_produccion: %s", _uc_p)
 
+        # ── FASE 7: unified production application service ───────────────────
+        try:
+            from core.services.production_application_service import (
+                ProductionApplicationService,
+            )
+            self.produccion_service = ProductionApplicationService.from_container(self)
+        except Exception as _pas_err:
+            self.produccion_service = None
+            logger.debug("produccion_service: %s", _pas_err)
+
         # ── Phase 2/3/4: Ruta canónica + UCs documentales + adaptador recepción ─
         try:
             from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
