@@ -2714,28 +2714,25 @@ class _SeccionClientesCredito(QWidget):
             if m._dash_svc and hasattr(m._dash_svc, "listar_clientes_credito"):
                 clientes = m._dash_svc.listar_clientes_credito(sucursal_id=m.sucursal_id)
 
-            # Fallback: saldo real desde accounts_receivable (CxC pendientes/parciales)
+            # Fallback: mismas columnas que modulos/clientes.py — saldo y limite_credito
+            # son la fuente de verdad; credit_limit/credit_balance son aliases secundarios.
             if not clientes:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
                     try:
-                        cur = db.execute("""
-                            SELECT c.nombre,
-                                   COALESCE(c.credit_limit, c.limite_credito, 0) AS limite,
-                                   COALESCE((
-                                       SELECT SUM(ar.balance)
-                                       FROM accounts_receivable ar
-                                       WHERE ar.cliente_id = c.id
-                                         AND ar.status IN ('pendiente','parcial')
-                                   ), 0) AS saldo_usado,
-                                   COALESCE(c.ultima_compra, '') AS ultima_compra
-                            FROM clientes c
-                            WHERE COALESCE(c.activo,1)=1
-                              AND (COALESCE(c.credit_limit,0)>0
-                                   OR COALESCE(c.limite_credito,0)>0
-                                   OR COALESCE(c.allows_credit,0)=1)
-                            ORDER BY c.nombre LIMIT 300
-                        """)
+                        cur = db.execute(
+                            "SELECT nombre, "
+                            "  COALESCE(limite_credito, credit_limit, 0) AS limite, "
+                            "  COALESCE(saldo, 0) AS saldo_usado, "
+                            "  COALESCE(ultima_compra, '') AS ultima_compra "
+                            "FROM clientes "
+                            "WHERE COALESCE(activo,1)=1 "
+                            "  AND (COALESCE(limite_credito,0)>0 "
+                            "    OR COALESCE(credit_limit,0)>0 "
+                            "    OR COALESCE(allows_credit,0)=1 "
+                            "    OR COALESCE(saldo,0)>0) "
+                            "ORDER BY nombre LIMIT 300"
+                        )
                         clientes = [
                             {"nombre": r[0], "limite_credito": float(r[1] or 0),
                              "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
@@ -2743,29 +2740,6 @@ class _SeccionClientesCredito(QWidget):
                         ]
                     except Exception as _fe:
                         logger.debug("clientes_credito fallback: %s", _fe)
-
-                # Sin filtro de crédito: clientes con deuda activa en accounts_receivable
-                if not clientes and db:
-                    try:
-                        cur = db.execute("""
-                            SELECT c.nombre,
-                                   COALESCE(c.credit_limit, c.limite_credito, 0),
-                                   COALESCE(SUM(ar.balance), 0) AS saldo_usado,
-                                   COALESCE(c.ultima_compra, '')
-                            FROM clientes c
-                            JOIN accounts_receivable ar ON ar.cliente_id = c.id
-                            WHERE COALESCE(c.activo,1)=1
-                              AND ar.status IN ('pendiente','parcial')
-                            GROUP BY c.id, c.nombre
-                            ORDER BY saldo_usado DESC LIMIT 200
-                        """)
-                        clientes = [
-                            {"nombre": r[0], "limite_credito": float(r[1] or 0),
-                             "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
-                            for r in cur.fetchall()
-                        ]
-                    except Exception as _fe2:
-                        logger.debug("clientes_credito fallback deuda: %s", _fe2)
 
             self._tbl.setRowCount(len(clientes))
             for ri, c in enumerate(clientes):
