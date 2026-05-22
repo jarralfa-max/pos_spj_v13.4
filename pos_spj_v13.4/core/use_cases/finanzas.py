@@ -67,11 +67,10 @@ class GestionarFinanzasUC:
                 cuenta_haber = "5200-diferencias" if diferencia > 0 else "1100-caja"
                 try:
                     self._finance.registrar_asiento(
-                        cuenta_debe=cuenta_debe,
-                        cuenta_haber=cuenta_haber,
+                        debe=cuenta_debe,
+                        haber=cuenta_haber,
+                        concepto=f"Diferencia cierre turno {solicitud.turno_id}",
                         monto=abs(diferencia),
-                        descripcion=f"Diferencia cierre turno {solicitud.turno_id}",
-                        usuario=solicitud.usuario,
                         sucursal_id=solicitud.sucursal_id,
                     )
                 except Exception as exc:
@@ -129,11 +128,10 @@ class GestionarFinanzasUC:
             return {"ok": False, "error": "monto debe ser mayor a cero", "asiento_id": 0}
         try:
             asiento_id = int(self._finance.registrar_asiento(
-                cuenta_debe=dto.cuenta_debe,
-                cuenta_haber=dto.cuenta_haber,
+                debe=dto.cuenta_debe,
+                haber=dto.cuenta_haber,
+                concepto=dto.descripcion or f"Asiento manual {dto.cuenta_debe}→{dto.cuenta_haber}",
                 monto=dto.monto,
-                descripcion=dto.descripcion,
-                usuario=dto.usuario,
                 sucursal_id=dto.sucursal_id,
             ) or 0)
             return {"ok": True, "asiento_id": asiento_id}

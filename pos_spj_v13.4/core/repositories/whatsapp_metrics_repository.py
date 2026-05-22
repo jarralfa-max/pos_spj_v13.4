@@ -1,47 +1,34 @@
 # core/repositories/whatsapp_metrics_repository.py
-"""Métricas de pedidos y actividad WhatsApp."""
+"""Métricas WhatsApp desde pedidos_whatsapp y bot_sessions."""
 from __future__ import annotations
 import logging
 from typing import Dict
 
-logger = logging.getLogger("spj.repo.whatsapp_metrics")
+logger = logging.getLogger("spj.repo.wa_metrics")
 
 
 class WhatsAppMetricsRepository:
-    """Consultas de métricas agregadas para el módulo WhatsApp."""
-
-    def __init__(self, db):
-        self._db = db
+    def __init__(self, conn):
+        self.conn = conn
 
     def get_metrics(self) -> Dict:
-        try:
-            row = self._db.execute("""
-                SELECT
-                    COUNT(*),
-                    COUNT(CASE WHEN DATE(fecha)=DATE('now') THEN 1 END),
-                    COUNT(CASE WHEN estado='pendiente' THEN 1 END),
-                    COALESCE(SUM(CASE WHEN estado NOT IN ('cancelado','rechazado')
-                                      THEN total END), 0)
-                FROM pedidos_whatsapp
-            """).fetchone()
-            tot, hoy, pend, total_v = (row or (0, 0, 0, 0.0))
-        except Exception as e:
-            logger.debug("get_metrics pedidos: %s", e)
-            tot = hoy = pend = 0
-            total_v = 0.0
-        sesiones = self._scalar("SELECT COUNT(*) FROM bot_sessions", 0)
-        return {
-            "total": int(tot),
-            "hoy": int(hoy),
-            "pendientes": int(pend),
-            "valor_total": float(total_v),
-            "sesiones": sesiones,
+        m: Dict = {
+            "total_pedidos": 0, "pedidos_hoy": 0,
+            "pendientes": 0, "valor_total": 0.0,
+            "sesiones_activas": 0,
         }
-
-    def _scalar(self, query: str, default):
-        try:
-            row = self._db.execute(query).fetchone()
-            return row[0] if row else default
-        except Exception as e:
-            logger.debug("metrics scalar: %s — %s", query[:50], e)
-            return default
+        queries = [
+            ("SELECT COUNT(*) FROM pedidos_whatsapp",                           "total_pedidos"),
+            ("SELECT COUNT(*) FROM pedidos_whatsapp WHERE DATE(fecha)=DATE('now')", "pedidos_hoy"),
+            ("SELECT COUNT(*) FROM pedidos_whatsapp WHERE estado='pendiente'",  "pendientes"),
+            ("SELECT COALESCE(SUM(total),0) FROM pedidos_whatsapp "
+             "WHERE estado NOT IN ('cancelado','rechazado')",                    "valor_total"),
+            ("SELECT COUNT(*) FROM bot_sessions",                               "sesiones_activas"),
+        ]
+        for sql, key in queries:
+            try:
+                val = self.conn.execute(sql).fetchone()[0]
+                m[key] = float(val) if key == "valor_total" else int(val)
+            except Exception as e:
+                logger.debug("metrics query [%s]: %s", key, e)
+        return m

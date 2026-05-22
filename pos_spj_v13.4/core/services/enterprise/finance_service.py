@@ -101,9 +101,33 @@ class FinanceService:
     def __init__(self, db):
         """
         db: sqlite3.Connection o DatabaseWrapper — se envuelve automáticamente.
+
+        Sub-servicios (FASE 5):
+          _gl  — GeneralLedgerService  (asientos contables)
+          _aps — AccountsPayableService (CxP)
+          _ars — AccountsReceivableService (CxC)
+
+        Los métodos públicos de esta clase se conservan como fachada legacy.
+        El código nuevo debe usar los sub-servicios directamente.
         """
         from core.db.connection import wrap
         self.db = wrap(db)
+        # Sub-servicios inyectados en __init__ para evitar imports circulares
+        try:
+            from core.services.finance.general_ledger_service import GeneralLedgerService
+            self._gl = GeneralLedgerService(db)
+        except Exception:
+            self._gl = None
+        try:
+            from core.services.finance.accounts_payable_service import AccountsPayableService
+            self._aps = AccountsPayableService(db, ledger_service=self)
+        except Exception:
+            self._aps = None
+        try:
+            from core.services.finance.accounts_receivable_service import AccountsReceivableService
+            self._ars = AccountsReceivableService(db, ledger_service=self)
+        except Exception:
+            self._ars = None
 
     def _has_column(self, table: str, column: str) -> bool:
         """Compatibilidad de esquema SQLite (instalaciones legacy)."""
@@ -502,86 +526,45 @@ class FinanceService:
     # CUENTAS POR PAGAR (CXP)
     # ═════════════════════════════════════════════════════════════════════════
 
+    # ── CXP — delegación a AccountsPayableService ─────────────────────────────
+    # DEPRECATED: usar AccountsPayableService directamente para código nuevo.
+
     def cuentas_por_pagar(
         self,
         status_filter: Optional[str] = None,
         supplier_id: Optional[int] = None,
     ) -> List[Dict]:
-        """CXP con aging, proveedor y totales."""
-        conds = ["ap.status IN ('pendiente','parcial')"]
-        params = []
-        if status_filter:
-            conds = [f"ap.status = ?"]
-            params.append(status_filter)
-        if supplier_id:
-            conds.append("ap.supplier_id = ?")
-            params.append(supplier_id)
-
-        where = "WHERE " + " AND ".join(conds) if conds else ""
-        rows = self.db.fetchall(f"""
-            SELECT ap.*,
-                   COALESCE(s.nombre, '—') AS supplier_nombre,
-                   COALESCE(s.telefono,'') AS supplier_telefono
-            FROM accounts_payable ap
-            LEFT JOIN suppliers s ON s.id = ap.supplier_id
-            {where}
-            ORDER BY COALESCE(ap.due_date,'9999-12-31'), ap.created_at DESC
-        """, params)
-
-        result = []
-        for r in rows:
-            d = dict(r)
-            d["aging"] = _aging(d.get("due_date"))
-            d["dias_vencido"] = max(0, (date.today() - date.fromisoformat(
-                str(d["due_date"])[:10])).days) if d.get("due_date") else 0
-            result.append(d)
-        return result
+        # DEPRECATED: usar AccountsPayableService.listar()
+        if self._aps:
+            return self._aps.listar(status_filter=status_filter, supplier_id=supplier_id)
+        return []
 
     def cxp_summary(self) -> Dict:
-        row = self.db.fetchone("""
-            SELECT
-                COALESCE(SUM(CASE WHEN status='pendiente' THEN balance END),0) AS pendiente,
-                COALESCE(SUM(CASE WHEN status='parcial'   THEN balance END),0) AS parcial,
-                COUNT(CASE WHEN status IN ('pendiente','parcial')
-                           AND due_date IS NOT NULL AND due_date < date('now') THEN 1 END) AS vencidas
-            FROM accounts_payable
-        """)
-        return dict(row) if row else {}
+        # DEPRECATED: usar AccountsPayableService.summary()
+        if self._aps:
+            return self._aps.summary()
+        return {}
 
     def crear_cxp(
         self,
         supplier_id: Optional[int],
         concepto: str,
         amount: float,
-        due_date: Optional[str],
+        due_date: Optional[str] = None,
         tipo: str = "factura",
         referencia: Optional[str] = None,
         ref_type: str = "manual",
         usuario: str = "Sistema",
         notas: Optional[str] = None,
     ) -> int:
-        """Crea una nueva CXP. Retorna el id creado."""
-        folio = f"CXP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        cur = self.db.execute("""
-            INSERT INTO accounts_payable
-                (folio, supplier_id, concepto, amount, balance,
-                 due_date, status, tipo, referencia, ref_type, usuario, notas)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-        """, (folio, supplier_id, concepto, amount, amount,
-              due_date, "pendiente", tipo, referencia, ref_type, usuario, notas))
-        ap_id = cur.lastrowid
-        self.registrar_asiento(
-            debe="gastos_operativos",
-            haber="cuentas_por_pagar",
-            concepto=f"CXP {folio}: {concepto}",
-            monto=float(amount or 0),
-            modulo="finanzas",
-            referencia_id=ap_id,
-            evento="CXP_CREADA",
-            metadata={"folio": folio, "supplier_id": supplier_id, "tipo": tipo},
-        )
-        self.db.commit()
-        return ap_id
+        # DEPRECATED: usar AccountsPayableService.crear_cxp()
+        if self._aps:
+            return self._aps.crear_cxp(
+                supplier_id=supplier_id, concepto=concepto, amount=amount,
+                due_date=due_date, tipo=tipo, referencia=referencia,
+                ref_type=ref_type, usuario=usuario, notas=notas,
+            )
+        return 0
 
     def abonar_cxp(
         self,
@@ -591,92 +574,38 @@ class FinanceService:
         usuario: str = "Sistema",
         notas: Optional[str] = None,
     ) -> Dict:
-        """Registra abono a CXP. Actualiza balance y status."""
-        row = self.db.fetchone(
-            "SELECT balance, status FROM accounts_payable WHERE id=?", (ap_id,)
-        )
-        if not row:
-            raise ValueError(f"CXP {ap_id} no encontrada")
-        balance = float(row["balance"])
-        if monto > balance:
-            monto = balance
-
-        nuevo_balance = round(balance - monto, 2)
-        nuevo_status  = "pagado" if nuevo_balance <= 0 else "parcial"
-
-        self.db.execute("""
-            UPDATE accounts_payable
-            SET balance=?, status=?, updated_at=datetime('now')
-            WHERE id=?
-        """, (nuevo_balance, nuevo_status, ap_id))
-
-        self.db.execute("""
-        INSERT INTO ap_payments (ap_id, monto, metodo_pago, usuario, notas)
-            VALUES (?,?,?,?,?)
-        """, (ap_id, monto, metodo_pago, usuario, notas))
-        self.registrar_asiento(
-            debe="cuentas_por_pagar",
-            haber="caja_bancos",
-            concepto=f"Pago CXP #{ap_id}",
-            monto=float(monto or 0),
-            modulo="finanzas",
-            referencia_id=ap_id,
-            evento="CXP_ABONADA",
-            metadata={"metodo_pago": metodo_pago},
-        )
-
-        self.db.commit()
-        return {"nuevo_balance": nuevo_balance, "nuevo_status": nuevo_status}
+        # DEPRECATED: usar AccountsPayableService.abonar_cxp()
+        if self._aps:
+            return self._aps.abonar_cxp(
+                ap_id=ap_id, monto=monto, metodo_pago=metodo_pago,
+                usuario=usuario, notas=notas,
+            )
+        return {}
 
     def historial_pagos_cxp(self, ap_id: int) -> List[Dict]:
-        rows = self.db.fetchall(
-            "SELECT * FROM ap_payments WHERE ap_id=? ORDER BY fecha DESC", (ap_id,)
-        )
-        return [dict(r) for r in rows]
+        # DEPRECATED: usar AccountsPayableService.historial_pagos()
+        if self._aps:
+            return self._aps.historial_pagos(ap_id)
+        return []
 
     # ═════════════════════════════════════════════════════════════════════════
     # CUENTAS POR COBRAR (CXC)
     # ═════════════════════════════════════════════════════════════════════════
 
-    def cuentas_por_cobrar(
-        self, status_filter: Optional[str] = None
-    ) -> List[Dict]:
-        """CXC con aging y datos de cliente."""
-        conds = ["ar.status IN ('pendiente','parcial','vencido')"]
-        params = []
-        if status_filter:
-            conds = [f"ar.status = ?"]
-            params.append(status_filter)
+    # ── CXC — delegación a AccountsReceivableService ──────────────────────────
+    # DEPRECATED: usar AccountsReceivableService directamente para código nuevo.
 
-        where = "WHERE " + " AND ".join(conds)
-        rows = self.db.fetchall(f"""
-            SELECT ar.*,
-                   COALESCE(c.nombre,'') || ' ' || COALESCE(c.apellido_paterno,'')
-                       AS cliente_nombre,
-                   COALESCE(c.telefono,'') AS cliente_telefono
-            FROM accounts_receivable ar
-            LEFT JOIN clientes c ON c.id = ar.cliente_id
-            {where}
-            ORDER BY COALESCE(ar.due_date,'9999-12-31'), ar.created_at DESC
-        """, params)
-
-        result = []
-        for r in rows:
-            d = dict(r)
-            d["aging"] = _aging(d.get("due_date"))
-            d["dias_vencido"] = max(0, (date.today() - date.fromisoformat(
-                str(d["due_date"])[:10])).days) if d.get("due_date") else 0
-            result.append(d)
-        return result
+    def cuentas_por_cobrar(self, status_filter: Optional[str] = None) -> List[Dict]:
+        # DEPRECATED: usar AccountsReceivableService.listar()
+        if self._ars:
+            return self._ars.listar(status_filter=status_filter)
+        return []
 
     def cxc_summary(self) -> Dict:
-        row = self.db.fetchone("""
-            SELECT COALESCE(SUM(balance),0) AS total,
-                   COUNT(*) AS count,
-                   COUNT(CASE WHEN due_date IS NOT NULL AND due_date < date('now') THEN 1 END) AS vencidas
-            FROM accounts_receivable WHERE status IN ('pendiente','parcial','vencido')
-        """)
-        return dict(row) if row else {}
+        # DEPRECATED: usar AccountsReceivableService.summary()
+        if self._ars:
+            return self._ars.summary()
+        return {}
 
     def crear_cxc(
         self,
@@ -687,27 +616,13 @@ class FinanceService:
         venta_id: Optional[int] = None,
         usuario: str = "Sistema",
     ) -> int:
-        folio = f"CXC-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        cur = self.db.execute("""
-            INSERT INTO accounts_receivable
-                (folio, cliente_id, venta_id, concepto, amount, balance,
-                 due_date, status, tipo, usuario)
-            VALUES (?,?,?,?,?,?,?,'pendiente','manual',?)
-        """, (folio, cliente_id, venta_id, concepto, amount, amount,
-              due_date, usuario))
-        ar_id = cur.lastrowid
-        self.registrar_asiento(
-            debe="cuentas_por_cobrar",
-            haber="ventas_credito",
-            concepto=f"CXC {folio}: {concepto}",
-            monto=float(amount or 0),
-            modulo="finanzas",
-            referencia_id=ar_id,
-            evento="CXC_CREADA",
-            metadata={"folio": folio, "cliente_id": cliente_id, "venta_id": venta_id},
-        )
-        self.db.commit()
-        return ar_id
+        # DEPRECATED: usar AccountsReceivableService.crear_cxc()
+        if self._ars:
+            return self._ars.crear_cxc(
+                cliente_id=cliente_id, concepto=concepto, amount=amount,
+                due_date=due_date, venta_id=venta_id, usuario=usuario,
+            )
+        return 0
 
     def cobrar_cxc(
         self,
@@ -717,41 +632,13 @@ class FinanceService:
         usuario: str = "Sistema",
         notas: Optional[str] = None,
     ) -> Dict:
-        row = self.db.fetchone(
-            "SELECT balance FROM accounts_receivable WHERE id=?", (ar_id,)
-        )
-        if not row:
-            raise ValueError(f"CXC {ar_id} no encontrada")
-        balance = float(row["balance"])
-        if monto > balance:
-            monto = balance
-
-        nuevo_balance = round(balance - monto, 2)
-        nuevo_status  = "pagado" if nuevo_balance <= 0 else "parcial"
-
-        self.db.execute("""
-            UPDATE accounts_receivable
-            SET balance=?, status=?, updated_at=datetime('now')
-            WHERE id=?
-        """, (nuevo_balance, nuevo_status, ar_id))
-
-        self.db.execute("""
-        INSERT INTO ar_payments (ar_id, monto, metodo_pago, usuario, notas)
-            VALUES (?,?,?,?,?)
-        """, (ar_id, monto, metodo_pago, usuario, notas))
-        self.registrar_asiento(
-            debe="caja_bancos",
-            haber="cuentas_por_cobrar",
-            concepto=f"Cobro CXC #{ar_id}",
-            monto=float(monto or 0),
-            modulo="finanzas",
-            referencia_id=ar_id,
-            evento="CXC_COBRADA",
-            metadata={"metodo_pago": metodo_pago},
-        )
-
-        self.db.commit()
-        return {"nuevo_balance": nuevo_balance, "nuevo_status": nuevo_status}
+        # DEPRECATED: usar AccountsReceivableService.cobrar_cxc()
+        if self._ars:
+            return self._ars.cobrar_cxc(
+                ar_id=ar_id, monto=monto, metodo_pago=metodo_pago,
+                usuario=usuario, notas=notas,
+            )
+        return {}
 
     # ═════════════════════════════════════════════════════════════════════════
     # PROVEEDORES
@@ -974,9 +861,9 @@ class FinanceService:
             INSERT INTO nomina_pagos
                 (empleado_id, periodo_inicio, periodo_fin, salario_base,
                  bonos, deducciones, total, metodo_pago, estado, usuario, notas)
-            VALUES (?,?,?,?,?,?,?,'efectivo','pagado',?,?)
+            VALUES (?,?,?,?,?,?,?,?,'pagado',?,?)
         """, (empleado_id, periodo_inicio, periodo_fin, salario_base,
-              bonos, deducciones, total, usuario, notas))
+              bonos, deducciones, total, metodo_pago, usuario, notas))
         self.registrar_asiento(
             debe="gasto_nomina",
             haber="caja_bancos",
@@ -991,7 +878,12 @@ class FinanceService:
                 "periodo_fin": periodo_fin,
             },
         )
-        self.db.commit()
+        # FASE 9: commit extraído al caller para no romper SAVEPOINTs activos.
+        # Callers que usan esta función directamente desde UI deben hacer commit.
+        try:
+            self.db.commit()
+        except Exception:
+            pass
         return cur.lastrowid
 
     def costo_nomina_mes(self, date_from: str, date_to: str) -> float:
@@ -1150,8 +1042,8 @@ class FinanceService:
                VALUES (?,?,?,?,?,?, datetime('now'))""",
             (turno_id, sucursal_id, tipo, monto, concepto, usuario)
         )
-        try: self.db.commit()
-        except Exception: pass
+        # FASE 9: no commit aquí — PurchaseService llama este método dentro
+        # de un SAVEPOINT; el commit lo hace PurchaseService al hacer RELEASE.
 
     def generar_corte_z(
         self, turno_id: int, sucursal_id: int,
@@ -1275,11 +1167,18 @@ class FinanceService:
                           evento: str = "ASIENTO_MANUAL",
                           metadata: dict = None) -> int:
         """
-        Registra un asiento contable de doble entrada en financial_event_log.
-        Garantiza debe = haber mediante el campo único monto.
-
-        Returns: id del registro insertado (0 si tabla aún no existe).
+        Fachada legacy de GeneralLedgerService.registrar_asiento().
+        NO hace commit — el caller es responsable.
         """
+        # DEPRECATED: usar GeneralLedgerService.registrar_asiento()
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.registrar_asiento(
+                debe=debe, haber=haber, concepto=concepto, monto=monto,
+                modulo=modulo, referencia_id=referencia_id, usuario_id=usuario_id,
+                sucursal_id=sucursal_id, evento=evento, metadata=metadata,
+            )
+        # Fallback si GeneralLedgerService no está disponible (o __init__ bypass)
         import json as _json
         try:
             cur = self.db.execute(
@@ -1295,9 +1194,6 @@ class FinanceService:
                                 ensure_ascii=False),
                 )
             )
-            # No commit aquí — el llamador es responsable de commitar.
-            # Un commit prematuro rompería SAVEPOINTs activos del llamador
-            # (anular_venta, close_batch, etc.).
             return cur.lastrowid or 0
         except Exception as _e:
             import logging as _lg
@@ -1307,24 +1203,22 @@ class FinanceService:
     def obtener_ledger(self, cuenta: str, fecha_desde: str = None,
                        fecha_hasta: str = None) -> list:
         """
-        Retorna asientos de financial_event_log filtrados por cuenta
-        (debe O haber) y rango de fechas opcional.
+        Retorna asientos de financial_event_log filtrados por cuenta.
+        DEPRECATED: usar GeneralLedgerService.obtener_ledger()
         """
-        params: list = []
+        # DEPRECATED: usar GeneralLedgerService.obtener_ledger()
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.obtener_ledger(cuenta, fecha_desde, fecha_hasta)
+        params: list = [cuenta, cuenta]
         where = "(cuenta_debe=? OR cuenta_haber=?)"
-        params += [cuenta, cuenta]
-
         if fecha_desde:
-            where += " AND timestamp >= ?"
-            params.append(fecha_desde)
+            where += " AND timestamp >= ?"; params.append(fecha_desde)
         if fecha_hasta:
-            where += " AND timestamp <= ?"
-            params.append(fecha_hasta)
-
+            where += " AND timestamp <= ?"; params.append(fecha_hasta)
         try:
             rows = self.db.execute(
-                f"SELECT * FROM financial_event_log WHERE {where} ORDER BY timestamp",
-                params
+                f"SELECT * FROM financial_event_log WHERE {where} ORDER BY timestamp", params
             ).fetchall()
             return [dict(r) for r in rows]
         except Exception:
@@ -1338,74 +1232,17 @@ class FinanceService:
         cuentas: Optional[List[str]] = None,
         eventos: Optional[List[str]] = None,
     ) -> Dict:
-        """
-        Genera una póliza contable consolidada por período.
-        Retorna movimientos, sumas Debe/Haber y validación de balance.
-        Compatible con SQLite (usa DATE(timestamp)).
-        """
-        where = ["DATE(timestamp) BETWEEN DATE(?) AND DATE(?)"]
-        params: list = [fecha_desde, fecha_hasta]
-        if sucursal_id is not None:
-            where.append("sucursal_id = ?")
-            params.append(sucursal_id)
-        if cuentas:
-            placeholders = ",".join("?" for _ in cuentas)
-            where.append(f"(cuenta_debe IN ({placeholders}) OR cuenta_haber IN ({placeholders}))")
-            params.extend(cuentas)
-            params.extend(cuentas)
-        if eventos:
-            placeholders = ",".join("?" for _ in eventos)
-            where.append(f"evento IN ({placeholders})")
-            params.extend(eventos)
-
-        try:
-            rows = self.db.execute(
-                f"""
-                SELECT id, timestamp, evento, modulo, referencia_id, monto,
-                       cuenta_debe, cuenta_haber, usuario_id, sucursal_id, metadata
-                FROM financial_event_log
-                WHERE {' AND '.join(where)}
-                ORDER BY timestamp, id
-                """,
-                params
-            ).fetchall()
-        except Exception:
-            rows = []
-
-        movimientos = []
-        total_debe = 0.0
-        total_haber = 0.0
-        for r in rows:
-            d = dict(r)
-            monto = float(d.get("monto") or 0.0)
-            total_debe += monto
-            total_haber += monto
-            movimientos.append({
-                "id": d.get("id"),
-                "fecha": d.get("timestamp"),
-                "evento": d.get("evento"),
-                "modulo": d.get("modulo"),
-                "referencia_id": d.get("referencia_id"),
-                "debe": d.get("cuenta_debe"),
-                "haber": d.get("cuenta_haber"),
-                "monto": round(monto, 2),
-                "sucursal_id": d.get("sucursal_id"),
-                "metadata": d.get("metadata"),
-            })
-
-        desbalance = round(total_debe - total_haber, 4)
+        """Fachada legacy. DEPRECATED: usar GeneralLedgerService.generar_poliza_periodo()"""
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.generar_poliza_periodo(
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                sucursal_id=sucursal_id, cuentas=cuentas, eventos=eventos,
+            )
         return {
-            "fecha_desde": fecha_desde,
-            "fecha_hasta": fecha_hasta,
-            "sucursal_id": sucursal_id,
-            "cuentas": cuentas or [],
-            "eventos": eventos or [],
-            "num_asientos": len(movimientos),
-            "total_debe": round(total_debe, 2),
-            "total_haber": round(total_haber, 2),
-            "balanceado": abs(desbalance) < 0.0001,
-            "desbalance": desbalance,
-            "movimientos": movimientos,
+            "fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta,
+            "num_asientos": 0, "total_debe": 0.0, "total_haber": 0.0,
+            "balanceado": True, "desbalance": 0.0, "movimientos": [],
         }
 
     def exportar_poliza_periodo(
@@ -1417,16 +1254,17 @@ class FinanceService:
         eventos: Optional[List[str]] = None,
         formato: str = "json",
     ) -> str:
-        """
-        Exporta póliza por período a JSON o CSV (texto).
-        Diseñado para integraciones y auditoría sin depender de librerías externas.
-        """
+        """Fachada legacy. DEPRECATED: usar GeneralLedgerService.exportar_poliza_periodo()"""
+        _gl = getattr(self, "_gl", None)
+        if _gl:
+            return _gl.exportar_poliza_periodo(
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                sucursal_id=sucursal_id, cuentas=cuentas,
+                eventos=eventos, formato=formato,
+            )
         poliza = self.generar_poliza_periodo(
-            fecha_desde=fecha_desde,
-            fecha_hasta=fecha_hasta,
-            sucursal_id=sucursal_id,
-            cuentas=cuentas,
-            eventos=eventos,
+            fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+            sucursal_id=sucursal_id, cuentas=cuentas, eventos=eventos,
         )
         fmt = (formato or "json").strip().lower()
         if fmt == "json":

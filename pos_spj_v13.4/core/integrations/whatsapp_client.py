@@ -19,17 +19,17 @@ class WhatsAppClient:
     """Cliente HTTP liviano (sin dependencias externas) para el microservicio WA."""
 
     def __init__(self, base_url: str = _DEFAULT_WA_URL, timeout: int = 5,
-                 api_key: str = ""):
+                 internal_key: str = ""):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._api_key = api_key
+        self._internal_key = internal_key
 
     def _post(self, path: str, payload: dict) -> Optional[dict]:
         url = f"{self.base_url}{path}"
         data = json.dumps(payload).encode("utf-8")
         headers = {"Content-Type": "application/json"}
-        if self._api_key:
-            headers["X-Internal-Key"] = self._api_key
+        if self._internal_key:
+            headers["X-Internal-Key"] = self._internal_key
         req = urllib.request.Request(
             url, data=data, headers=headers, method="POST",
         )

@@ -74,6 +74,9 @@ def wire_all(container: "AppContainer") -> None:
     _wire_driver_settlement_handler(bus, container)
     _wire_notification_handler(bus, container)
 
+    # migración 083: trazabilidad financiera end-to-end (priority=20, post-commit)
+    _wire_financial_trace_handlers(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
 
@@ -1017,3 +1020,79 @@ def _wire_notification_handler(bus, container) -> None:
     )
     logger.debug("Registered DeliveryNotificationDispatchHandler on %s",
                  CUSTOMER_NOTIFICATION_REQUESTED)
+
+
+# ── migración 083: trazabilidad financiera end-to-end ────────────────────────
+
+def _wire_financial_trace_handlers(bus, container) -> None:
+    """
+    Registra los handlers de trazabilidad financiera end-to-end.
+
+    Escuchan eventos post-commit (priority=20) y delegan a FinancialTraceService,
+    que escribe en las tablas canónicas de migración 083:
+      financial_documents, treasury_movements, journal_entries,
+      financial_trace_log, reconciliation_records.
+
+    No interfieren con handlers críticos (p=85-100) porque son post-commit.
+    Cada handler captura su propia excepción — un fallo de traza no corta el flujo.
+    """
+    from core.events.event_bus import (
+        VENTA_COMPLETADA,
+        COMPRA_REGISTRADA,
+        PUNTOS_ACUMULADOS,
+    )
+    from core.events.domain_events import (
+        PAYMENT_CONFIRMED,
+        PAYROLL_PAID,
+        WASTE_RECORDED,
+        DELIVERY_PAYMENT_CONFIRMED,
+        DRIVER_SETTLEMENT_CREATED,
+        MAINTENANCE_REGISTERED,
+        OPERATING_SUPPLY_PURCHASED,
+    )
+    from core.events.handlers.financial_trace_handler import (
+        SaleTraceHandler,
+        PurchaseTraceHandler,
+        PaymentTraceHandler,
+        PayrollTraceHandler,
+        WasteTraceHandler,
+        LoyaltyTraceHandler,
+        DeliveryPaymentHandler,
+        DriverSettlementHandler,
+        MaintenanceTraceHandler,
+        SupplyTraceHandler,
+        _build_trace_service,
+    )
+
+    db = getattr(container, "db", None)
+    if not db:
+        logger.debug("_wire_financial_trace_handlers: no container.db — skipping")
+        return
+
+    # Construir sub-servicios desde container (todos opcionales)
+    finance_services = {
+        "journal_service":          getattr(container, "journal_entry_service", None),
+        "document_service":         getattr(container, "financial_document_service", None),
+        "treasury_movement_service": getattr(container, "treasury_movement_service", None),
+        "asset_service":            getattr(container, "fixed_asset_service", None),
+        "maintenance_service":      getattr(container, "maintenance_finance_service", None),
+        "supply_service":           getattr(container, "operating_supplies_service", None),
+        "idempotency_service":      getattr(container, "idempotency_service", None),
+    }
+
+    ts = _build_trace_service(db, finance_services)
+
+    _PRIORITY = 20  # post-commit, después de todos los handlers críticos
+
+    bus.subscribe(VENTA_COMPLETADA,           SaleTraceHandler(ts).handle,           priority=_PRIORITY, label="fin_trace_sale")
+    bus.subscribe(COMPRA_REGISTRADA,          PurchaseTraceHandler(ts).handle,        priority=_PRIORITY, label="fin_trace_purchase")
+    bus.subscribe(PAYMENT_CONFIRMED,          PaymentTraceHandler(ts).handle,         priority=_PRIORITY, label="fin_trace_payment")
+    bus.subscribe(PAYROLL_PAID,               PayrollTraceHandler(ts).handle,         priority=_PRIORITY, label="fin_trace_payroll")
+    bus.subscribe(WASTE_RECORDED,             WasteTraceHandler(ts).handle,           priority=_PRIORITY, label="fin_trace_waste")
+    bus.subscribe(PUNTOS_ACUMULADOS,          LoyaltyTraceHandler(ts).handle,         priority=_PRIORITY, label="fin_trace_loyalty")
+    bus.subscribe(DELIVERY_PAYMENT_CONFIRMED, DeliveryPaymentHandler(ts).handle,      priority=_PRIORITY, label="fin_trace_delivery_pay")
+    bus.subscribe(DRIVER_SETTLEMENT_CREATED,  DriverSettlementHandler(ts).handle,     priority=_PRIORITY, label="fin_trace_driver_settle")
+    bus.subscribe(MAINTENANCE_REGISTERED,     MaintenanceTraceHandler(ts).handle,     priority=_PRIORITY, label="fin_trace_maintenance")
+    bus.subscribe(OPERATING_SUPPLY_PURCHASED, SupplyTraceHandler(ts).handle,          priority=_PRIORITY, label="fin_trace_supply")
+
+    logger.debug("Registered 10 FinancialTrace handlers (priority=%d)", _PRIORITY)

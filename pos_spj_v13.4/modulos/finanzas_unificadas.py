@@ -1,37 +1,353 @@
 # modulos/finanzas_unificadas.py — SPJ POS v13.4
 # ── MÓDULO UNIFICADO DE FINANZAS ─────────────────────────────────────────────
-# Fusiona: Tesorería + Finanzas + Proveedores en una sola UI con pestañas
-# Todos consumen core/services/finance/* (single source of truth)
+# Arquitectura: Sidebar (12 secciones) + QStackedWidget (lazy loading)
+# Todas las operaciones consumen core/services/finance/* (single source of truth)
+# NO hay SQL directo en este archivo.
 
 import logging
 import re
+import uuid
 from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QMessageBox, 
+    QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
     QLabel, QPushButton, QLineEdit, QComboBox, QFormLayout, QGroupBox,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QSpinBox, QTextEdit,
-    QDateEdit, QInputDialog, QFrame, QScrollArea, QSplitter, QListWidget,
-    QListWidgetItem, QCompleter, QTimeEdit, QRadioButton, QButtonGroup,
-    QCheckBox, QCalendarWidget, QColorDialog, QFontDialog, QFileDialog,
-    QStatusBar, QProgressBar, QSlider, QDial, QMenu, QAction, QToolBar,
-    QProgressDialog, QSplashScreen, QSystemTrayIcon, QStyleFactory,
-    QApplication, QSizePolicy, QStackedWidget, QGridLayout
+    QDateEdit, QInputDialog, QFrame, QSplitter, QListWidget,
+    QListWidgetItem, QCompleter, QCheckBox,
+    QSizePolicy, QStackedWidget, QGridLayout, QScrollArea
 )
 from PyQt5.QtCore import Qt, QTimer, QDate
-from PyQt5.QtGui import QFont, QPixmap, QPalette
-
+from PyQt5.QtGui import QFont, QColor
 
 from modulos.ui_components import PageHeader, Toast
-from modulos.design_tokens import Colors
+from modulos.design_tokens import Colors, Typography
 
 logger = logging.getLogger("spj.finanzas_unificadas")
 
+# ── PRESTIGE ERP Finance color tokens (HTML reference 13 screens) ─────────────
+_P_PRIMARY   = "#b4c5ff"   # periwinkle — primary highlight / neutral KPIs
+_P_SECONDARY = "#e9c170"   # gold — warning / secondary accent
+_P_TERTIARY  = "#aecebc"   # sage green — success / positive states
+_P_ERROR     = "#ffb4ab"   # coral — danger / negative states
+_P_SURFACE   = "#11131b"   # main surface background
+_P_CONTAINER = "#1d1f27"   # surface-container (panels, group boxes)
+_P_HIGH      = "#282a32"   # surface-container-high (table headers, inputs)
+_P_OUTLINE   = "#434655"   # outline-variant (borders)
+_P_ON_SURF   = "#e1e2ed"   # on-surface (primary text)
+_P_MUTED     = "#9ba1b0"   # muted / secondary text
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    """Convierte #RRGGBB → rgba(r,g,b,a) para compatibilidad garantizada en Qt5.
+    El formato #RRGGBBAA no es fiable en todas las versiones de Qt5."""
+    h = hex_color.lstrip("#")
+    return f"rgba({int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)},{alpha:.2f})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  CONSTANTES DE SECCIONES
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SECCIONES = [
+    ("Resumen",             "📊"),
+    ("Caja y conciliación", "💰"),
+    ("Capital",             "🏦"),
+    ("Cuentas por cobrar",  "📥"),
+    ("Cuentas por pagar",   "📤"),
+    ("Movimientos",         "🔄"),
+    ("Asientos contables",  "📒"),
+    ("Nómina",              "👥"),
+    ("Proveedores",         "🏭"),
+    ("Clientes con crédito","🤝"),
+    ("Reportes",            "📈"),
+    ("Configuración",       "⚙️"),
+]
+
+_BADGE_COLORS = {
+    "pagado":      (_P_TERTIARY,  "#1a3328"),
+    "cobrado":     (_P_TERTIARY,  "#1a3328"),
+    "conciliado":  (_P_TERTIARY,  "#1a3328"),
+    "pendiente":   (_P_SECONDARY, "#362d0c"),
+    "parcial":     (_P_SECONDARY, "#362d0c"),
+    "vencido":     (_P_ERROR,     "#3a1817"),
+    "cancelado":   (_P_MUTED,     "#252830"),
+    "diferencia":  (_P_SECONDARY, "#362d0c"),
+    "borrador":    (_P_MUTED,     "#252830"),
+    "confirmado":  (_P_PRIMARY,   "#1c2445"),
+    "reversado":   (_P_ERROR,     "#3a1817"),
+}
+
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  DIÁLOGO DE PROVEEDOR CON VALIDACIÓN DE DUPLICADOS
+#  COMPONENTES REUTILIZABLES DE FINANZAS
+# ═════════════════════════════════════════════════════════════════════════════
+
+class _FinSectionHeader(QWidget):
+    """Header reutilizable: título, subtítulo y botón Actualizar."""
+
+    def __init__(self, title: str, subtitle: str = "", btn_text: str = "🔄 Actualizar",
+                 btn_callback=None, parent=None):
+        super().__init__(parent)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(8)
+
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        lbl_title = QLabel(title)
+        lbl_title.setObjectName("heading")
+        col.addWidget(lbl_title)
+        if subtitle:
+            lbl_sub = QLabel(subtitle)
+            lbl_sub.setObjectName("caption")
+            col.addWidget(lbl_sub)
+        lay.addLayout(col)
+        lay.addStretch()
+
+        if btn_text and btn_callback:
+            btn = QPushButton(btn_text)
+            btn.setObjectName("secondaryBtn")
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            btn.clicked.connect(btn_callback)
+            lay.addWidget(btn)
+
+
+class _FinKpiCard(QFrame):
+    """KPI card — idéntico a _InvKPICard: barra de acento + ícono circular."""
+
+    def __init__(self, label: str, value: str = "—", color: str = None,
+                 icono: str = "", parent=None):
+        super().__init__(parent)
+        self.setObjectName("kpiCard")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(86)
+
+        _accent = color or _P_PRIMARY
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Barra de acento superior (3 px)
+        self._bar = QFrame()
+        self._bar.setFixedHeight(3)
+        self._bar.setStyleSheet(
+            f"background:{_accent}; border:none;"
+            f" border-top-left-radius:12px; border-top-right-radius:12px;"
+        )
+        outer.addWidget(self._bar)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(14, 10, 14, 10)
+        body.setSpacing(8)
+        outer.addLayout(body)
+
+        col = QVBoxLayout()
+        col.setSpacing(2)
+
+        lbl_t = QLabel(label.upper())
+        lbl_t.setStyleSheet(
+            f"color:{_P_MUTED}; font-size:11px;"
+            f" font-weight:{Typography.WEIGHT_SEMIBOLD}; letter-spacing:0.08em;"
+            f" background:transparent; border:none;"
+        )
+        col.addWidget(lbl_t)
+
+        self._lbl_value = QLabel(value)
+        self._lbl_value.setObjectName("kpiValue")
+        self._lbl_value.setStyleSheet(
+            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        col.addWidget(self._lbl_value)
+        body.addLayout(col, 1)
+
+        # Ícono circular con fondo semitransparente — idéntico a _InvKPICard
+        if icono:
+            self._lbl_icon = QLabel(icono)
+            self._lbl_icon.setFixedSize(36, 36)
+            self._lbl_icon.setAlignment(Qt.AlignCenter)
+            self._lbl_icon.setStyleSheet(
+                f"font-size: 18px; background: {_rgba(_accent, 0.10)};"
+                f" border-radius: 18px; border: none;"
+            )
+            body.addWidget(self._lbl_icon, 0, alignment=Qt.AlignTop)
+
+    def set_value(self, value: str, color: str = None):
+        self._lbl_value.setText(value)
+        if color:
+            self._bar.setStyleSheet(
+                f"background:{color}; border:none;"
+                f" border-top-left-radius:12px; border-top-right-radius:12px;"
+            )
+
+
+class _FinStatusBadge(QLabel):
+    """Badge de estado con colores semánticos."""
+
+    def __init__(self, status: str, parent=None):
+        super().__init__(parent)
+        self.set_status(status)
+        self.setAlignment(Qt.AlignCenter)
+
+    def set_status(self, status: str):
+        status_lower = (status or "").lower()
+        fg, bg = _BADGE_COLORS.get(status_lower, ("#374151", "#f3f4f6"))
+        self.setText(status or "—")
+        self.setStyleSheet(
+            f"color:{fg}; background:{bg}; border-radius:4px; "
+            f"padding:2px 6px; font-size:10px; font-weight:600;"
+        )
+
+
+
+class _FinAlertChip(QFrame):
+    """Chip de alerta estilo dashboard — borde semántico + ícono + valor.
+    Misma altura que _FinKpiCard pero más compacto, orientado a conteos de alerta."""
+
+    def __init__(self, icon: str, label: str, color: str = _P_ERROR, parent=None):
+        super().__init__(parent)
+        self._base_color = color
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(68)
+
+        main = QHBoxLayout(self)
+        main.setContentsMargins(14, 10, 14, 10)
+        main.setSpacing(12)
+
+        # Ícono circular con fondo tintado
+        self._lbl_icon = QLabel(icon)
+        self._lbl_icon.setFixedSize(36, 36)
+        self._lbl_icon.setAlignment(Qt.AlignCenter)
+        self._lbl_icon.setStyleSheet(
+            f"font-size: 17px; background: {_rgba(color, 0.13)};"
+            f" border-radius: 18px; border: none;"
+        )
+        main.addWidget(self._lbl_icon, 0, alignment=Qt.AlignVCenter)
+
+        # Columna: etiqueta + valor
+        col = QVBoxLayout()
+        col.setSpacing(1)
+
+        lbl_t = QLabel(label.upper())
+        lbl_t.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.08em; background: transparent; border: none;"
+        )
+        col.addWidget(lbl_t)
+
+        self._lbl_value = QLabel("—")
+        self._lbl_value.setStyleSheet(
+            f"color: {color}; font-size: 19px; font-weight: 700;"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        col.addWidget(self._lbl_value)
+        main.addLayout(col, 1)
+
+        self._refresh_frame(color)
+
+    def _refresh_frame(self, color: str):
+        self.setStyleSheet(
+            f"QFrame {{ background: {_rgba(color, 0.08)};"
+            f" border: 1px solid {_rgba(color, 0.20)};"
+            f" border-left: 3px solid {color}; border-radius: 8px; }}"
+        )
+
+    def set_value(self, text: str, ok: bool = False):
+        """Actualiza el valor. ok=True cambia paleta a sage (sin alerta)."""
+        color = _P_TERTIARY if ok else self._base_color
+        self._lbl_value.setText(text)
+        self._lbl_value.setStyleSheet(
+            f"color: {color}; font-size: 19px; font-weight: 700;"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        self._refresh_frame(color)
+
+
+class _FinEmptyState(QWidget):
+    """Estado vacío: icono + mensaje + descripción opcional."""
+
+    def __init__(self, icon: str = "📭", message: str = "Sin datos",
+                 description: str = "", parent=None):
+        super().__init__(parent)
+        lay = QVBoxLayout(self)
+        lay.setAlignment(Qt.AlignCenter)
+        lay.setSpacing(8)
+
+        lbl_icon = QLabel(icon)
+        lbl_icon.setStyleSheet("font-size:40px;")
+        lbl_icon.setAlignment(Qt.AlignCenter)
+
+        lbl_msg = QLabel(message)
+        lbl_msg.setObjectName("heading")
+        lbl_msg.setAlignment(Qt.AlignCenter)
+
+        lay.addWidget(lbl_icon)
+        lay.addWidget(lbl_msg)
+
+        if description:
+            lbl_desc = QLabel(description)
+            lbl_desc.setObjectName("caption")
+            lbl_desc.setAlignment(Qt.AlignCenter)
+            lbl_desc.setWordWrap(True)
+            lay.addWidget(lbl_desc)
+
+
+class _FinTable(QTableWidget):
+    """Tabla estándar con headers, scroll, selección por fila.
+    Altura de fila = 34px — suficiente para botones de 28px."""
+
+    def __init__(self, headers: List[str], parent=None):
+        super().__init__(0, len(headers), parent)
+        self.setHorizontalHeaderLabels(headers)
+        hh = self.horizontalHeader()
+        hh.setStretchLastSection(False)
+        if headers:
+            hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        self.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setAlternatingRowColors(True)
+        vh = self.verticalHeader()
+        vh.setVisible(False)
+        vh.setDefaultSectionSize(34)   # fila de 34px → botones de ≤28px caben
+        vh.setMinimumSectionSize(34)
+        self.setShowGrid(True)
+
+
+def _kpi_row(cards: List[_FinKpiCard]) -> QWidget:
+    """Fila horizontal de KPI cards — se extienden por todo el ancho en partes iguales."""
+    w = QWidget()
+    lay = QHBoxLayout(w)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(8)
+    for card in cards:
+        lay.addWidget(card)
+    return w
+
+
+def _compact_btn(text: str, variant: str = "primary") -> QPushButton:
+    """Botón compacto para celdas de tabla.  Alto fijo 28 px ≤ fila 34 px."""
+    variant_map = {
+        "primary": "primaryBtn", "success": "successBtn",
+        "danger": "dangerBtn", "warning": "warningBtn",
+        "outline": "outlineBtn", "secondary": "secondaryBtn",
+    }
+    btn = QPushButton(text)
+    btn.setFixedHeight(28)
+    btn.setMinimumWidth(64)
+    btn.setMaximumWidth(110)
+    btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+    btn.setCursor(Qt.PointingHandCursor)
+    btn.setObjectName(variant_map.get(variant, "primaryBtn"))
+    return btn
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  DIÁLOGOS REUTILIZABLES
 # ═════════════════════════════════════════════════════════════════════════════
 
 class DialogoProveedor(QDialog):
@@ -48,48 +364,29 @@ class DialogoProveedor(QDialog):
             self._cargar()
 
     def _build_ui(self):
-        from modulos.spj_phone_widget import PhoneWidget
-        
+        try:
+            from modulos.spj_phone_widget import PhoneWidget
+            self.txt_telefono = PhoneWidget()
+        except Exception:
+            self.txt_telefono = QLineEdit()
+        self.txt_telefono.setPlaceholderText("5512345678 (10 dígitos)")
+
         lay = QVBoxLayout(self)
         form = QFormLayout()
-        
-        self.txt_nombre   = QLineEdit()
-        self.txt_nombre.setPlaceholderText("Razón social o nombre")
-        
-        self.txt_rfc      = QLineEdit()
-        self.txt_rfc.setPlaceholderText("RFC o NIT")
-        
-        self.txt_telefono = PhoneWidget()
-        self.txt_telefono.setPlaceholderText("5512345678 (10 dígitos)")
-        self.txt_telefono.setToolTip("Captura solo los 10 dígitos. El código +52 se agrega automáticamente.")
-        
-        self.txt_email    = QLineEdit()
-        self.txt_email.setPlaceholderText("correo@proveedor.com")
-        
-        self.txt_contacto = QLineEdit()
-        self.txt_contacto.setPlaceholderText("Nombre del contacto")
-        
+
+        self.txt_nombre    = QLineEdit(); self.txt_nombre.setPlaceholderText("Razón social o nombre")
+        self.txt_rfc       = QLineEdit(); self.txt_rfc.setPlaceholderText("RFC o NIT")
+        self.txt_email     = QLineEdit(); self.txt_email.setPlaceholderText("correo@proveedor.com")
+        self.txt_contacto  = QLineEdit(); self.txt_contacto.setPlaceholderText("Nombre del contacto")
         self.cmb_categoria = QComboBox()
-        self.cmb_categoria.addItems(["Productos","Servicios","Insumos","Equipos","Otro"])
-        
-        self.txt_direccion = QTextEdit()
-        self.txt_direccion.setMaximumHeight(60)
-        
-        self.spin_dias   = QSpinBox()
-        self.spin_dias.setRange(0, 180)
-        self.spin_dias.setSuffix(" días")
-        
-        self.spin_limite = QDoubleSpinBox()
-        self.spin_limite.setRange(0, 9999999)
-        self.spin_limite.setPrefix("$")
-        self.spin_limite.setDecimals(2)
-        
-        self.txt_banco   = QLineEdit()
-        self.txt_banco.setPlaceholderText("Banco / CLABE")
-        
-        self.txt_notas   = QTextEdit()
-        self.txt_notas.setMaximumHeight(60)
-        
+        self.cmb_categoria.addItems(["Productos", "Servicios", "Insumos", "Equipos", "Otro"])
+        self.txt_direccion = QTextEdit(); self.txt_direccion.setMaximumHeight(60)
+        self.spin_dias     = QSpinBox(); self.spin_dias.setRange(0, 180); self.spin_dias.setSuffix(" días")
+        self.spin_limite   = QDoubleSpinBox()
+        self.spin_limite.setRange(0, 9999999); self.spin_limite.setPrefix("$"); self.spin_limite.setDecimals(2)
+        self.txt_banco     = QLineEdit(); self.txt_banco.setPlaceholderText("Banco / CLABE")
+        self.txt_notas     = QTextEdit(); self.txt_notas.setMaximumHeight(60)
+
         form.addRow("Nombre *:",     self.txt_nombre)
         form.addRow("RFC / NIT:",    self.txt_rfc)
         form.addRow("Teléfono WA:",  self.txt_telefono)
@@ -101,9 +398,8 @@ class DialogoProveedor(QDialog):
         form.addRow("Límite:",       self.spin_limite)
         form.addRow("Banco/CLABE:",  self.txt_banco)
         form.addRow("Notas:",        self.txt_notas)
-        
         lay.addLayout(form)
-        
+
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         btns.accepted.connect(self._guardar)
         btns.rejected.connect(self.reject)
@@ -116,7 +412,10 @@ class DialogoProveedor(QDialog):
                 return
             self.txt_nombre.setText(prov.get("nombre", ""))
             self.txt_rfc.setText(prov.get("rfc", ""))
-            self.txt_telefono.set_phone(prov.get("telefono", ""))
+            if hasattr(self.txt_telefono, "set_phone"):
+                self.txt_telefono.set_phone(prov.get("telefono", ""))
+            else:
+                self.txt_telefono.setText(prov.get("telefono", ""))
             self.txt_email.setText(prov.get("email", ""))
             self.txt_contacto.setText(prov.get("contacto", ""))
             idx = self.cmb_categoria.findText(prov.get("categoria", "Productos"))
@@ -128,50 +427,33 @@ class DialogoProveedor(QDialog):
             self.txt_banco.setText(prov.get("banco", ""))
             self.txt_notas.setPlainText(prov.get("notas", ""))
         except Exception as e:
-            logger.warning("_cargar error: %s", e)
+            logger.warning("DialogoProveedor._cargar error: %s", e)
 
     def _normalizar_texto(self, texto: str) -> str:
-        """Normaliza texto para comparación: mayúsculas, sin espacios extra."""
         if not texto:
             return ""
         return " ".join(texto.upper().strip().split())
 
     def _verificar_duplicado(self, nombre: str, rfc: str, telefono: str) -> Optional[str]:
-        """
-        Verifica si existe un proveedor duplicado.
-        Retorna el motivo del duplicado o None si no hay duplicado.
-        """
         try:
-            # Obtener todos los proveedores activos
             proveedores = self._tps.get_all_proveedores(activo=True, limit=500)
-            
             nombre_norm = self._normalizar_texto(nombre)
-            rfc_norm = self._normalizar_texto(rfc)
-            # Normalizar teléfono: quitar espacios, guiones, y comparar solo dígitos
-            tel_digits = "".join(c for c in telefono if c.isdigit()) if telefono else ""
-            
+            rfc_norm    = self._normalizar_texto(rfc)
+            tel_digits  = "".join(c for c in telefono if c.isdigit()) if telefono else ""
             for prov in proveedores:
-                # Si estamos editando, saltar el mismo proveedor
-                if self.proveedor_id and prov.get('id') == self.proveedor_id:
+                if self.proveedor_id and prov.get("id") == self.proveedor_id:
                     continue
-                
-                # Comparar nombre
-                if nombre_norm and self._normalizar_texto(prov.get('nombre', '')) == nombre_norm:
+                if nombre_norm and self._normalizar_texto(prov.get("nombre", "")) == nombre_norm:
                     return f"Nombre duplicado: '{prov.get('nombre')}'"
-                
-                # Comparar RFC
-                if rfc_norm and self._normalizar_texto(prov.get('rfc', '')) == rfc_norm:
+                if rfc_norm and self._normalizar_texto(prov.get("rfc", "")) == rfc_norm:
                     return f"RFC duplicado: '{prov.get('rfc')}'"
-                
-                # Comparar teléfono (solo si tiene 10+ dígitos)
-                prov_tel = prov.get('telefono', '')
+                prov_tel = prov.get("telefono", "")
                 prov_tel_digits = "".join(c for c in prov_tel if c.isdigit()) if prov_tel else ""
                 if tel_digits and len(tel_digits) >= 10 and prov_tel_digits == tel_digits:
                     return f"Teléfono duplicado: '{prov_tel}'"
-            
             return None
         except Exception as e:
-            logger.warning("_verificar_duplicado error: %s", e)
+            logger.warning("_verificar_duplicado: %s", e)
             return None
 
     def _guardar(self):
@@ -179,11 +461,12 @@ class DialogoProveedor(QDialog):
         if not nombre:
             QMessageBox.warning(self, "Aviso", "El nombre es obligatorio.")
             return
-        
-        # Obtener teléfono en formato E.164 (+52 + 10 dígitos)
-        tel = self.txt_telefono.get_e164().strip().replace(" ", "")
-        
-        # Validar formato de teléfono: debe ser +52 seguido de exactamente 10 dígitos
+
+        if hasattr(self.txt_telefono, "get_e164"):
+            tel = self.txt_telefono.get_e164().strip().replace(" ", "")
+        else:
+            tel = self.txt_telefono.text().strip()
+
         if tel and not re.match(r"^\+52\d{10}$", tel):
             QMessageBox.warning(
                 self, "Teléfono inválido",
@@ -191,25 +474,25 @@ class DialogoProveedor(QDialog):
                 "El número debe tener exactamente 10 dígitos después del código de país."
             )
             return
-        
-        # VERIFICAR DUPLICADOS ANTES DE GUARDAR
+
         rfc = self.txt_rfc.text().strip()
-        motivo_duplicado = self._verificar_duplicado(nombre, rfc, tel)
-        
-        if motivo_duplicado:
+        if hasattr(self._tps, "check_duplicate_proveedor"):
+            motivo = self._tps.check_duplicate_proveedor(
+                nombre=nombre, rfc=rfc, telefono=tel, exclude_id=self.proveedor_id)
+        else:
+            motivo = self._verificar_duplicado(nombre, rfc, tel)
+
+        if motivo:
             QMessageBox.critical(
                 self, "Proveedor Duplicado",
-                f"No se puede guardar el proveedor.\n\n"
-                f"{motivo_duplicado}\n\n"
+                f"No se puede guardar el proveedor.\n\n{motivo}\n\n"
                 "Por favor verifique los datos e intente con información diferente."
             )
             return
-        
+
         datos = {
-            "nombre": nombre,
-            "rfc": rfc,
-            "telefono": tel,
-            "email": self.txt_email.text().strip(),
+            "nombre": nombre, "rfc": rfc, "telefono": tel,
+            "email":    self.txt_email.text().strip(),
             "contacto": self.txt_contacto.text().strip(),
             "categoria": self.cmb_categoria.currentText(),
             "direccion": self.txt_direccion.toPlainText().strip(),
@@ -218,7 +501,6 @@ class DialogoProveedor(QDialog):
             "banco": self.txt_banco.text().strip(),
             "notas": self.txt_notas.toPlainText().strip(),
         }
-        
         try:
             if self.proveedor_id:
                 self._tps.update_proveedor(self.proveedor_id, datos)
@@ -229,24 +511,16 @@ class DialogoProveedor(QDialog):
             QMessageBox.critical(self, "Error al guardar", str(e))
 
 
-# ═════════════════════════════════════════════════════════════════════════════
-#  DIÁLOGO DE ABONO A CUENTAS POR PAGAR/COBRAR CON BOTÓN "PAGAR TOTAL"
-# ═════════════════════════════════════════════════════════════════════════════
-
 class DialogoAbono(QDialog):
     """Diálogo para abonar a cuentas por pagar o cobrar con opción de pagar total."""
 
     def __init__(self, deuda, tipo="pagar", treasury_service=None, usuario="", parent=None):
-        """
-        tipo: "pagar" para CxP (proveedores), "cobrar" para CxC (clientes)
-        """
         super().__init__(parent)
         self.deuda = deuda
-        self.tipo = tipo
-        self.ts = treasury_service
+        self.tipo  = tipo
+        self.ts    = treasury_service
         self.usuario = usuario
         self.monto_aplicado = 0.0
-        
         titulo = "Abono a Proveedor" if tipo == "pagar" else "Cobro a Cliente"
         self.setWindowTitle(titulo)
         self.setMinimumWidth(400)
@@ -254,42 +528,39 @@ class DialogoAbono(QDialog):
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
-        
-        # Información de la deuda
         lbl_info = QLabel()
         if self.tipo == "pagar":
             lbl_info.setText(
-                f"<b>Proveedor:</b> {self.deuda.get('proveedor', 'N/A')}<br>"
-                f"<b>Folio:</b> {self.deuda.get('folio', 'N/A')}<br>"
-                f"<b>Concepto:</b> {self.deuda.get('concepto', 'N/A')}<br>"
-                f"<b>Saldo Actual:</b> <span style='color:red;font-size:16px;'>${self.deuda.get('saldo', 0):,.2f}</span>"
+                f"<b>Proveedor:</b> {self.deuda.get('proveedor','N/A')}<br>"
+                f"<b>Folio:</b> {self.deuda.get('folio','N/A')}<br>"
+                f"<b>Concepto:</b> {self.deuda.get('concepto','N/A')}<br>"
+                f"<b>Saldo:</b> <span style='color:red;font-size:16px;'>"
+                f"${self.deuda.get('saldo',0):,.2f}</span>"
             )
         else:
             lbl_info.setText(
-                f"<b>Cliente:</b> {self.deuda.get('cliente', 'N/A')}<br>"
-                f"<b>Folio:</b> {self.deuda.get('folio', 'N/A')}<br>"
-                f"<b>Concepto:</b> {self.deuda.get('concepto', 'N/A')}<br>"
-                f"<b>Saldo Actual:</b> <span style='color:green;font-size:16px;'>${self.deuda.get('saldo', 0):,.2f}</span>"
+                f"<b>Cliente:</b> {self.deuda.get('cliente','N/A')}<br>"
+                f"<b>Folio:</b> {self.deuda.get('folio','N/A')}<br>"
+                f"<b>Concepto:</b> {self.deuda.get('concepto','N/A')}<br>"
+                f"<b>Saldo:</b> <span style='color:green;font-size:16px;'>"
+                f"${self.deuda.get('saldo',0):,.2f}</span>"
             )
         lay.addWidget(lbl_info)
-        
-        # Input de monto
+
         form = QFormLayout()
         self.spin_monto = QDoubleSpinBox()
-        self.spin_monto.setRange(0.01, self.deuda.get('saldo', 9999999))
+        self.spin_monto.setRange(0.01, self.deuda.get("saldo", 9999999))
         self.spin_monto.setPrefix("$ ")
         self.spin_monto.setDecimals(2)
-        self.spin_monto.setValue(self.deuda.get('saldo', 0))
+        self.spin_monto.setValue(self.deuda.get("saldo", 0))
         form.addRow("Monto a aplicar:", self.spin_monto)
         lay.addLayout(form)
-        
-        # Checkbox para pagar total
-        self.chk_pagar_total = QCheckBox("✅ Pagar/Pagar Total")
-        self.chk_pagar_total.setChecked(True)
-        self.chk_pagar_total.stateChanged.connect(self._toggle_pagar_total)
-        lay.addWidget(self.chk_pagar_total)
-        
-        # Método de pago
+
+        self.chk_total = QCheckBox("Pagar total")
+        self.chk_total.setChecked(True)
+        self.chk_total.stateChanged.connect(self._toggle_total)
+        lay.addWidget(self.chk_total)
+
         self.cmb_metodo = QComboBox()
         if self.tipo == "pagar":
             self.cmb_metodo.addItems(["Transferencia", "Efectivo", "Cheque"])
@@ -297,46 +568,32 @@ class DialogoAbono(QDialog):
             self.cmb_metodo.addItems(["Efectivo", "Transferencia", "Tarjeta"])
         lay.addWidget(QLabel("Método de pago:"))
         lay.addWidget(self.cmb_metodo)
-        
-        # Botones
+
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(self._aplicar)
         btns.rejected.connect(self.reject)
         lay.addWidget(btns)
 
-    def _toggle_pagar_total(self, state):
-        """Autocompleta el monto con el saldo total cuando se marca pagar total."""
+    def _toggle_total(self, state):
         if state == Qt.Checked:
-            self.spin_monto.setValue(self.deuda.get('saldo', 0))
+            self.spin_monto.setValue(self.deuda.get("saldo", 0))
             self.spin_monto.setEnabled(False)
         else:
             self.spin_monto.setEnabled(True)
 
     def _aplicar(self):
-        monto = self.spin_monto.value()
+        monto  = self.spin_monto.value()
         metodo = self.cmb_metodo.currentText()
-        
         if monto <= 0:
             QMessageBox.warning(self, "Aviso", "El monto debe ser mayor a 0.")
             return
-        
         try:
             if self.tipo == "pagar":
-                self.ts.abonar_cuenta_por_pagar(
-                    self.deuda['id'], monto, metodo, self.usuario
-                )
-                Toast.success(
-                    self.parent() or self, "Abono registrado",
-                    f"Abono de ${monto:,.2f} registrado correctamente.",
-                )
+                self.ts.abonar_cuenta_por_pagar(self.deuda["id"], monto, metodo, self.usuario)
+                Toast.success(self.parent() or self, "Abono registrado", f"${monto:,.2f}")
             else:
-                self.ts.abonar_cuenta_por_cobrar(
-                    self.deuda['id'], monto, metodo, self.usuario
-                )
-                Toast.success(
-                    self.parent() or self, "Pago registrado",
-                    f"Pago de ${monto:,.2f} registrado correctamente.",
-                )
+                self.ts.abonar_cuenta_por_cobrar(self.deuda["id"], monto, metodo, self.usuario)
+                Toast.success(self.parent() or self, "Pago registrado", f"${monto:,.2f}")
             self.monto_aplicado = monto
             self.accept()
         except Exception as e:
@@ -344,927 +601,985 @@ class DialogoAbono(QDialog):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  MÓDULO PRINCIPAL UNIFICADO DE FINANZAS
+#  SECCIONES DEL MÓDULO (LAZY)
 # ═════════════════════════════════════════════════════════════════════════════
 
-class ModuloFinanzasUnificadas(QWidget):
-    """
-    Módulo unificado de Finanzas que integra:
-    - Pestaña 1: Tesorería (flujo de caja, gastos futuros/fijos, CAPEX, CxP, CxC)
-    - Pestaña 2: Finanzas (gastos operativos, nómina)
-    - Pestaña 3: Proveedores (CRUD, historial, evaluación)
-    
-    Todas las operaciones consumen servicios unificados:
-    - core/services/finance/treasury_service.py
-    - core/services/finance/third_party_service.py
-    """
-    
-    def __init__(self, container, parent=None):
+class _SeccionResumen(QWidget):
+    def __init__(self, modulo, parent=None):
         super().__init__(parent)
-        self.container = container
-        self.sucursal_id = 1
-        self.usuario_actual = ""
-        self._ts = getattr(container, 'treasury_service', None)
-        self._tps = getattr(container, 'third_party_service', None)
-        self._fs = getattr(container, 'finance_service', None)
-        self._analytics = getattr(container, "analytics_engine", None)
-        self._erp = getattr(container, "erp_financial_service", None)
-        self._tabs = None
-        self._setup_ui()
-        self._wire_live_refresh()
-        self._wire_kpi_auto_refresh()
-        
-    def set_sucursal(self, sucursal_id: int, nombre: str = ""):
-        self.sucursal_id = sucursal_id
-        self._cargar_datos_actuales()
-    
-    def set_usuario_actual(self, usuario: str, rol: str = ""):
-        self.usuario_actual = usuario
+        self._m = modulo
+        self._build()
 
-    def _wire_live_refresh(self):
-        """Refresca tablas de finanzas en caliente sin reiniciar la app."""
-        try:
-            from core.events.event_bus import get_bus
-            bus = get_bus()
-            bus.subscribe("PROVEEDOR_CREADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_creado")
-            bus.subscribe("PROVEEDOR_ACTUALIZADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_act")
-            bus.subscribe("PROVEEDOR_ELIMINADO", lambda _: QTimer.singleShot(0, self._cargar_proveedores), label="fin.ui.prov_del")
-            bus.subscribe("CXP_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_pagar), label="fin.ui.cxp_creada")
-            bus.subscribe("CXC_CREADA", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cxc_creada")
-            bus.subscribe("CLIENTE_CREADO", lambda _: QTimer.singleShot(0, self._cargar_cuentas_cobrar), label="fin.ui.cliente_creado")
-        except Exception:
-            pass
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
 
-    def _wire_kpi_auto_refresh(self):
-        """Suscribe eventos de negocio para refrescar KPIs del dashboard."""
-        try:
-            self._kpi_timer = QTimer(self)
-            self._kpi_timer.setInterval(15000)
-            self._kpi_timer.timeout.connect(self._refresh_kpis_if_dashboard_visible)
-            self._kpi_timer.start()
-            from core.events.event_bus import get_bus
-            bus = get_bus()
-            for evt in ("VENTA_COMPLETADA", "MOVIMIENTO_FINANCIERO", "CXP_CREADA", "CXC_CREADA", "AJUSTE_INVENTARIO"):
-                bus.subscribe(evt, lambda _d: QTimer.singleShot(0, self._cargar_dashboard_financiero), label=f"fin.ui.kpi.{evt.lower()}")
-        except Exception:
-            pass
+        lay.addWidget(_FinSectionHeader(
+            "Resumen Financiero",
+            "Vista consolidada del estado financiero",
+            btn_callback=self.recargar
+        ))
 
-    def _refresh_kpis_if_dashboard_visible(self):
-        """Evita trabajo innecesario cuando la pestaña dashboard no está visible."""
-        if self._tabs and self._tabs.currentIndex() != 0:
-            return
-        self._cargar_dashboard_financiero()
-    
-    def _setup_ui(self):
-        """Configura la interfaz con pestañas unificadas."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(8)
+        # KPIs
+        self._kpi_caja    = _FinKpiCard("Caja y bancos",       "—", _P_TERTIARY,  "💵")
+        self._kpi_cxc     = _FinKpiCard("Cuentas por cobrar",  "—", _P_SECONDARY, "📥")
+        self._kpi_cxp     = _FinKpiCard("Cuentas por pagar",   "—", _P_ERROR,     "📤")
+        self._kpi_flujo   = _FinKpiCard("Flujo neto del período","—",_P_PRIMARY,   "📈")
+        self._kpi_capital = _FinKpiCard("Capital actual", "$0.00 (pendiente)", _P_SECONDARY, "💎")
+        lay.addWidget(_kpi_row([self._kpi_caja, self._kpi_cxc, self._kpi_cxp,
+                                self._kpi_flujo, self._kpi_capital]))
 
-        # ── PageHeader ────────────────────────────────────────────────────────
-        from modulos.ui_components import PageHeader as _PH
-        _header = _PH(
-            self,
-            title="💰 Finanzas Unificadas",
-            subtitle="Tesorería · Contabilidad · Proveedores — fuente única de verdad",
+        # Panel de alertas — chips estilo dashboard
+        lbl_alertas = QLabel("ALERTAS Y PENDIENTES")
+        lbl_alertas.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
         )
-        layout.addWidget(_header)
+        lay.addWidget(lbl_alertas)
 
-        # ── Barra de KPIs financieros ─────────────────────────────────────────
-        self._fin_kpi_bar = self._crear_fin_kpi_bar()
-        layout.addWidget(self._fin_kpi_bar)
+        a_row = QHBoxLayout()
+        a_row.setSpacing(8)
+        a_row.setContentsMargins(0, 0, 0, 0)
+        self._alert_cxp  = _FinAlertChip("📤", "CxP Vencidas",        _P_ERROR)
+        self._alert_cxc  = _FinAlertChip("📥", "CxC Vencidas",        _P_SECONDARY)
+        self._alert_caja = _FinAlertChip("⚖️",  "Diferencias de Caja", _P_SECONDARY)
+        a_row.addWidget(self._alert_cxp)
+        a_row.addWidget(self._alert_cxc)
+        a_row.addWidget(self._alert_caja)
+        lay.addLayout(a_row)
 
-        # Crear widget de pestañas principal — los colores vienen del QSS
-        # global construido en modulos/qss_builder.py (Oscuro y Claro).
-        tabs = QTabWidget()
-        self._tabs = tabs
-        tabs.setObjectName("finanzasTabs")
-        tabs.setAccessibleName("Módulo Finanzas")
-        tabs.setDocumentMode(False)
-        
-        # Pestaña 0: Dashboard financiero
-        tab_dashboard = self._crear_pestaña_dashboard()
-        tabs.addTab(tab_dashboard, "📊 Dashboard")
-
-        # Pestaña 1: Tesorería (incluye CAPEX, CxP, CxC)
-        tab_tesoreria = self._crear_pestaña_tesoreria()
-        tabs.addTab(tab_tesoreria, "💰 Tesorería")
-        
-        # Pestaña 2: Finanzas
-        tab_finanzas = self._crear_pestaña_finanzas()
-        tabs.addTab(tab_finanzas, "📊 Finanzas")
-        
-        # Pestaña 3: Proveedores
-        tab_proveedores = self._crear_pestaña_proveedores()
-        tabs.addTab(tab_proveedores, "🏭 Proveedores")
-
-        # Pestaña 4: Documentos Financieros ERP
-        tab_docs = self._crear_pestaña_documentos()
-        tabs.addTab(tab_docs, "📄 Documentos")
-
-        # Pestaña 5: Pagos y Cobros ERP
-        tab_pc = self._crear_pestaña_pagos_cobros()
-        tabs.addTab(tab_pc, "💳 Pagos/Cobros")
-
-        # Pestaña 6: Ledger / Libro Financiero
-        tab_ledger = self._crear_pestaña_ledger()
-        tabs.addTab(tab_ledger, "📒 Ledger")
-
-        # Pestaña 7: Conciliación
-        tab_concil = self._crear_pestaña_conciliacion()
-        tabs.addTab(tab_concil, "⚖️ Conciliación")
-
-        layout.addWidget(tabs)
-
-        # Conectar cambio de pestaña para cargar datos
-        tabs.currentChanged.connect(self._on_tab_changed)
-        self._normalizar_botones_ui()
-
-    def _crear_fin_kpi_bar(self) -> 'QFrame':
-        """Barra horizontal con KPIs financieros clave."""
-        from PyQt5.QtWidgets import QFrame as _QF, QHBoxLayout as _QH, QVBoxLayout as _QV, QLabel as _QL
-        bar = _QF()
-        bar.setObjectName("finKpiBar")
-        bar.setStyleSheet(
-            f"QFrame#finKpiBar {{ background:{Colors.NEUTRAL.DARK_CARD if hasattr(Colors.NEUTRAL,'DARK_CARD') else '#1E293B'};"
-            f" border-radius:8px; border:1px solid {Colors.NEUTRAL.DARK_BORDER if hasattr(Colors.NEUTRAL,'DARK_BORDER') else '#334155'}; }}"
-        )
-        bar.setFixedHeight(70)
-        lay = _QH(bar)
-        lay.setContentsMargins(20, 8, 20, 8)
-        lay.setSpacing(0)
-
-        # Intentar cargar datos reales
-        kpis = [
-            ("CxC Pendiente", "$0",    Colors.WARNING_BASE),
-            ("CxP Pendiente", "$0",    Colors.DANGER_BASE),
-            ("Saldo Tesorería","$0",   Colors.SUCCESS_BASE),
-            ("Flujo del mes",  "$0",   Colors.PRIMARY_BASE),
-        ]
-        try:
-            db = self.conexion if hasattr(self, 'conexion') else None
-            if db:
-                r = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_cobrar WHERE estado='pendiente'").fetchone()
-                kpis[0] = ("CxC Pendiente", f"${float(r[0]):,.0f}", Colors.WARNING_BASE)
-                r2 = db.execute("SELECT COALESCE(SUM(saldo_pendiente),0) FROM cuentas_por_pagar WHERE estado='pendiente'").fetchone()
-                kpis[1] = ("CxP Pendiente", f"${float(r2[0]):,.0f}", Colors.DANGER_BASE)
-                r3 = db.execute("SELECT COALESCE(SUM(saldo),0) FROM cuentas_bancarias WHERE activa=1").fetchone()
-                kpis[2] = ("Saldo Tesorería", f"${float(r3[0]):,.0f}", Colors.SUCCESS_BASE)
-        except Exception:
-            pass
-
-        for i, (label, valor, color) in enumerate(kpis):
-            if i > 0:
-                sep = _QF()
-                sep.setFrameShape(_QF.VLine)
-                sep.setFixedWidth(1)
-                sep.setStyleSheet(f"background:{Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; border:none;")
-                lay.addWidget(sep)
-                lay.addSpacing(20)
-            col = _QV()
-            col.setSpacing(2)
-            lbl_v = _QL(valor)
-            lbl_v.setStyleSheet(f"color:{color}; font-size:18px; font-weight:700; background:transparent;")
-            lbl_l = _QL(label.upper())
-            lbl_l.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500}; font-size:9px; font-weight:700; letter-spacing:0.5px; background:transparent;")
-            col.addWidget(lbl_v)
-            col.addWidget(lbl_l)
-            lay.addLayout(col)
-            if i < len(kpis) - 1:
-                lay.addSpacing(20)
-        lay.addStretch()
-        return bar
-
-    def _normalizar_botones_ui(self):
-        """Evita botones full-width; delega colores al QSS global del tema."""
-        for btn in self.findChildren(QPushButton):
-            # Mantener icon-buttons compactos de tablas.
-            if btn.maximumWidth() <= 36 or (btn.minimumWidth() and btn.minimumWidth() <= 36):
-                continue
+        # Acciones rápidas
+        grp_acc = QGroupBox("Acciones rápidas")
+        acc_lay = QHBoxLayout(grp_acc)
+        btn_gasto  = QPushButton("➕ Registrar gasto")
+        btn_cobro  = QPushButton("💰 Aplicar cobro")
+        btn_pago   = QPushButton("💸 Aplicar pago")
+        btn_asiento= QPushButton("📒 Registrar asiento")
+        for btn, obj in [(btn_gasto, "secondaryBtn"), (btn_cobro, "successBtn"),
+                         (btn_pago, "dangerBtn"),   (btn_asiento, "primaryBtn")]:
+            btn.setObjectName(obj)
+            btn.setCursor(Qt.PointingHandCursor)
             btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-            if btn.minimumHeight() < 30:
-                btn.setMinimumHeight(30)
-            # Asignar objectName si aún no tiene uno definido, para que el QSS
-            # global lo estilice correctamente en cualquier tema (claro/oscuro).
-            if not btn.objectName() or btn.objectName() == btn.__class__.__name__:
-                txt = (btn.text() or "").lower()
-                if any(k in txt for k in ("eliminar", "baja", "cancelar", "retirar")):
-                    btn.setObjectName("dangerBtn")
-                elif any(k in txt for k in ("guardar", "nuevo", "inyectar", "cobrar", "pagar")):
-                    btn.setObjectName("primaryBtn")
-                else:
-                    btn.setObjectName("secondaryBtn")
-            # Limpiar cualquier estilo inline hardcodeado que anule el tema global.
-            if btn.styleSheet():
-                btn.setStyleSheet("")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-    
-    def _on_tab_changed(self, index):
-        """Carga datos según la pestaña activa."""
-        if index == 0:
-            self._cargar_dashboard_financiero()
-        elif index == 1:
-            self._cargar_capex()
-            self._cargar_cuentas_pagar()
-            self._cargar_cuentas_cobrar()
-        elif index == 3:
-            self._cargar_proveedores()
-        elif index == 4:
-            self._cargar_documentos_erp()
-        elif index == 5:
-            self._cargar_pagos_cobros_erp()
-        elif index == 6:
-            self._cargar_ledger_erp()
-        elif index == 7:
-            self._cargar_conciliaciones_erp()
+            acc_lay.addWidget(btn)
+        acc_lay.addStretch()
+        btn_gasto.clicked.connect(lambda: self._m._nav_to(7))   # Nómina/Gastos
+        btn_cobro.clicked.connect(lambda: self._m._nav_to(3))   # CxC
+        btn_pago.clicked.connect(lambda:  self._m._nav_to(4))   # CxP
+        btn_asiento.clicked.connect(lambda: self._m._nav_to(6)) # Asientos
+        lay.addWidget(grp_acc)
 
-    def _cargar_datos_actuales(self):
-        """Refresca todos los datos."""
-        self._cargar_dashboard_financiero()
-        self._cargar_capex()
-        self._cargar_cuentas_pagar()
-        self._cargar_cuentas_cobrar()
-        self._cargar_proveedores()
+        # Actividad reciente — header + filtros + tabla (sin addStretch: ocupa todo el alto)
+        lbl_act = QLabel("ACTIVIDAD RECIENTE")
+        lbl_act.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_act)
 
-    def set_active_submodule(self, name: str) -> None:
-        """Selecciona un submódulo interno (compatibilidad con wrappers legacy)."""
-        if not self._tabs:
-            return
-        index_by_name = {
-            "dashboard": 0,
-            "tesoreria": 1,
-            "finanzas": 2,
-            "proveedores": 3,
-        }
-        idx = index_by_name.get((name or "").lower())
-        if idx is not None:
-            self._tabs.setCurrentIndex(idx)
+        # Barra de filtros
+        fil_row = QHBoxLayout()
+        fil_row.setSpacing(8)
+        fil_row.setContentsMargins(0, 0, 0, 0)
 
-    def _crear_pestaña_dashboard(self):
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        grp = QGroupBox("KPIs Financieros")
-        g = QGridLayout(grp)
-        self._kpi_labels = {}
-        kpis = [
-            ("flujo_caja", "Flujo de caja"),
-            ("ingresos_egresos", "Ingresos vs egresos"),
-            ("cxp_aging", "Cuentas por pagar (aging)"),
-            ("cxc_aging", "Cuentas por cobrar (aging)"),
-            ("liquidez", "Liquidez"),
-            ("margen_operativo", "Margen operativo"),
-        ]
-        for i, (key, title) in enumerate(kpis):
-            row, col = divmod(i, 2)
-            cell = QGroupBox(title)
-            cell_l = QVBoxLayout(cell)
-            lbl = QLabel("—")
-            lbl.setObjectName("kpiValue")
-            cell_l.addWidget(lbl, 0, Qt.AlignCenter)
-            self._kpi_labels[key] = lbl
-            g.addWidget(cell, row, col)
-        layout.addWidget(grp)
-        layout.addStretch()
-        return widget
+        self._cmb_tipo_act = QComboBox()
+        self._cmb_tipo_act.setFixedWidth(130)
+        self._cmb_tipo_act.addItems(
+            ["Todos los tipos", "Venta", "Compra", "Cierre caja", "Finanzas"])
+        self._cmb_tipo_act.currentIndexChanged.connect(self._filtrar_actividad)
 
-    def _cargar_dashboard_financiero(self):
-        if not getattr(self, "_kpi_labels", None):
-            return
+        self._cmb_user_act = QComboBox()
+        self._cmb_user_act.setFixedWidth(130)
+        self._cmb_user_act.addItem("Todos los usuarios")
+        self._cmb_user_act.currentIndexChanged.connect(self._filtrar_actividad)
+
+        self._txt_buscar_act = QLineEdit()
+        self._txt_buscar_act.setPlaceholderText("Buscar concepto, módulo…")
+        self._txt_buscar_act.textChanged.connect(self._filtrar_actividad)
+
+        btn_limpiar = QPushButton("✕ Limpiar")
+        btn_limpiar.setObjectName("outlineBtn")
+        btn_limpiar.setFixedWidth(84)
+        btn_limpiar.setCursor(Qt.PointingHandCursor)
+        btn_limpiar.clicked.connect(self._limpiar_filtros_act)
+
+        fil_row.addWidget(QLabel("Tipo:"))
+        fil_row.addWidget(self._cmb_tipo_act)
+        fil_row.addWidget(QLabel("Usuario:"))
+        fil_row.addWidget(self._cmb_user_act)
+        fil_row.addWidget(self._txt_buscar_act, 1)
+        fil_row.addWidget(btn_limpiar)
+        lay.addLayout(fil_row)
+
+        # Tabla — stretch=1 para que ocupe el espacio vertical restante
+        self._tbl_actividad = _FinTable(
+            ["Fecha", "Tipo", "Concepto", "Módulo", "Monto", "Usuario"])
+        self._tbl_actividad.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self._tbl_actividad.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        lay.addWidget(self._tbl_actividad, 1)   # stretch=1 → llena el resto de la pantalla
+
+        # Cache de filas sin filtrar (para filtrado client-side)
+        self._rows_actividad: List[Dict[str, Any]] = []
+
+    # ── Filtrado client-side ──────────────────────────────────────────────────
+
+    def _filtrar_actividad(self):
+        tipo_fil = self._cmb_tipo_act.currentText()
+        user_fil = self._cmb_user_act.currentText()
+        txt      = self._txt_buscar_act.text().strip().lower()
+
+        for i, r in enumerate(self._rows_actividad):
+            tipo    = str(r.get("tipo", ""))
+            usuario = str(r.get("usuario") or r.get("user", ""))
+            concepto = str(r.get("concepto", "")).lower()
+            modulo   = str(r.get("modulo", "")).lower()
+
+            ocultar = False
+            if tipo_fil != "Todos los tipos" and tipo_fil.lower() not in tipo.lower():
+                ocultar = True
+            if user_fil != "Todos los usuarios" and user_fil.lower() not in usuario.lower():
+                ocultar = True
+            if txt and txt not in concepto and txt not in modulo and txt not in usuario.lower():
+                ocultar = True
+            self._tbl_actividad.setRowHidden(i, ocultar)
+
+    def _limpiar_filtros_act(self):
+        self._cmb_tipo_act.setCurrentIndex(0)
+        self._cmb_user_act.setCurrentIndex(0)
+        self._txt_buscar_act.clear()
+
+    def recargar(self):
+        m = self._m
+        # KPI caja — balance_general() returns a nested dict
         try:
-            hoy = date.today().isoformat()
-            sales = self._analytics.sales_metrics(hoy, self.sucursal_id) if self._analytics else {}
-            total_ventas = float(sales.get("total_ventas", 0))
-            kpis = self._ts.kpis_financieros() if self._ts else {}
-            eg = (kpis.get("egresos") or {})
-            total_eg = float(eg.get("total_egresos", 0))
-            self._kpi_labels["flujo_caja"].setText(f"${(total_ventas - total_eg):,.2f}")
-            self._kpi_labels["ingresos_egresos"].setText(f"${total_ventas:,.2f} / ${total_eg:,.2f}")
-            self._kpi_labels["cxp_aging"].setText(f"${float(kpis.get('cxp_pendiente', 0) or 0):,.2f}")
-            self._kpi_labels["cxc_aging"].setText(f"${float(kpis.get('cxc_pendiente', 0) or 0):,.2f}")
-            self._kpi_labels["liquidez"].setText(f"{float(kpis.get('liquidez', 0)):.2f}")
-            self._kpi_labels["margen_operativo"].setText(f"{float(kpis.get('margen_operativo_pct', 0)):.1f}%")
+            if m._ts and hasattr(m._ts, "balance_general"):
+                bal = m._ts.balance_general()
+                caja_val = float(bal.get("activo", {}).get("caja_bancos", 0) or 0)
+                self._kpi_caja.set_value(f"${caja_val:,.2f}", _P_TERTIARY)
+                cxc_val  = float(bal.get("activo", {}).get("cuentas_cobrar", 0) or 0)
+                cxp_val  = float(bal.get("pasivo", {}).get("cuentas_pagar", 0) or 0)
+                self._kpi_cxc.set_value(f"${cxc_val:,.2f}", _P_SECONDARY)
+                self._kpi_cxp.set_value(f"${cxp_val:,.2f}", _P_ERROR)
+            elif m._dash_svc:
+                data = m._dash_svc.get_quick_kpis()
+                self._kpi_caja.set_value(f"${data.get('saldo_tesoreria', 0):,.2f}", _P_TERTIARY)
+                self._kpi_cxc.set_value(f"${data.get('cxc_pendiente', 0):,.2f}", _P_SECONDARY)
+                self._kpi_cxp.set_value(f"${data.get('cxp_pendiente', 0):,.2f}", _P_ERROR)
+                self._kpi_flujo.set_value(f"${data.get('flujo_mes', 0):,.2f}", _P_PRIMARY)
         except Exception as e:
-            logger.warning("_cargar_dashboard_financiero: %s", e)
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  PESTAÑA 1: TESORERÍA (CAPEX, CxP, CxC)
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _crear_pestaña_tesoreria(self):
-        """Crea la pestaña de Tesorería con CAPEX, CxP y CxC."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        # Sub-pestañas para organizar mejor
-        sub_tabs = QTabWidget()
-        
-        # Sub-pestaña CAPEX
-        tab_capex = self._crear_subpestaña_capex()
-        sub_tabs.addTab(tab_capex, "💵 Capital / CAPEX")
-        
-        # Sub-pestaña Cuentas por Pagar
-        tab_cxp = self._crear_subpestaña_cxp()
-        sub_tabs.addTab(tab_cxp, "🧾 Cuentas por Pagar")
-        
-        # Sub-pestaña Cuentas por Cobrar
-        tab_cxc = self._crear_subpestaña_cxc()
-        sub_tabs.addTab(tab_cxc, "💰 Cuentas por Cobrar")
-        
-        layout.addWidget(sub_tabs)
-        return widget
-    
-    def _crear_subpestaña_capex(self):
-        """Crea la sub-pestaña de CAPEX con resumen e inyección/retiro de capital."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        # Resumen de capital
-        grp_resumen = QGroupBox("📊 Resumen de Capital")
-        r_lay = QHBoxLayout(grp_resumen)
-        
-        self._lbl_capital_invertido = QLabel("$0.00")
-        self._lbl_capital_invertido.setObjectName("kpiValue")
-        self._lbl_capital_disponible = QLabel("$0.00")
-        self._lbl_capital_disponible.setObjectName("kpiValue")
-        self._lbl_roi = QLabel("0%")
-        self._lbl_roi.setObjectName("kpiValue")
-        self._lbl_salud = QLabel("")
-        self._lbl_salud.setObjectName("subheading")
-        
-        for lbl_title, lbl_val in [
-            ("Capital Invertido", self._lbl_capital_invertido),
-            ("Capital Disponible", self._lbl_capital_disponible),
-            ("ROI", self._lbl_roi),
-            ("Salud", self._lbl_salud),
-        ]:
-            col = QVBoxLayout()
-            t = QLabel(lbl_title)
-            t.setObjectName("caption")
-            t.setAlignment(Qt.AlignCenter)
-            lbl_val.setAlignment(Qt.AlignCenter)
-            col.addWidget(t)
-            col.addWidget(lbl_val)
-            r_lay.addLayout(col)
-        
-        layout.addWidget(grp_resumen)
-        
-        # Inyectar / Retirar capital
-        grp_capital = QGroupBox("💰 Inyectar / Retirar Capital")
-        c_lay = QHBoxLayout(grp_capital)
-        
-        self._spin_capital = QDoubleSpinBox()
-        self._spin_capital.setRange(0, 99999999)
-        self._spin_capital.setPrefix("$ ")
-        self._spin_capital.setDecimals(2)
-        self._spin_capital.setMinimumWidth(180)
-        
-        self._txt_desc_capital = QLineEdit()
-        self._txt_desc_capital.setPlaceholderText("Descripción (ej: Capital socio A)")
-        
-        btn_inyectar = QPushButton("➕ Inyectar Capital")
-        btn_inyectar.setObjectName("successBtn")
-        btn_inyectar.setCursor(Qt.PointingHandCursor)
-        btn_inyectar.clicked.connect(self._on_inyectar_capital)
+            logger.warning("_SeccionResumen KPI caja: %s", e)
 
-        btn_retirar = QPushButton("➖ Retirar Capital")
-        btn_retirar.setObjectName("dangerBtn")
-        btn_retirar.setCursor(Qt.PointingHandCursor)
-        btn_retirar.clicked.connect(self._on_retirar_capital)
-        
-        c_lay.addWidget(QLabel("Monto:"))
-        c_lay.addWidget(self._spin_capital)
-        c_lay.addWidget(self._txt_desc_capital, 1)
-        c_lay.addWidget(btn_inyectar)
-        c_lay.addWidget(btn_retirar)
-        layout.addWidget(grp_capital)
-        
-        # Desglose de egresos
-        grp_egresos = QGroupBox("📋 Desglose de Egresos del Mes")
-        e_lay = QVBoxLayout(grp_egresos)
-        
-        self._tbl_egresos = QTableWidget(0, 2)
-        self._tbl_egresos.setHorizontalHeaderLabels(["Concepto", "Monto ($)"])
-        self._tbl_egresos.horizontalHeader().setStretchLastSection(True)
-        self._tbl_egresos.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self._tbl_egresos.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        e_lay.addWidget(self._tbl_egresos)
-        layout.addWidget(grp_egresos)
-        
-        layout.addStretch()
-        return widget
-    
-    def _crear_subpestaña_cxp(self):
-        """Crea la sub-pestaña de Cuentas por Pagar con filtro por nombre."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        lbl = QLabel("Facturas y deudas pendientes con proveedores")
-        lbl.setObjectName("caption")
-        layout.addWidget(lbl)
-
-        top = QHBoxLayout()
-        btn_nuevo_cxp = QPushButton("➕ Nueva CxP")
-        btn_nuevo_cxp.setObjectName("primaryBtn")
-        btn_nuevo_cxp.setCursor(Qt.PointingHandCursor)
-        btn_nuevo_cxp.clicked.connect(self._dialogo_nueva_cxp)
-        top.addWidget(btn_nuevo_cxp)
-        btn_pago_global = QPushButton("💳 Pago global")
-        btn_pago_global.clicked.connect(self._dialogo_pago_global_cxp)
-        top.addWidget(btn_pago_global)
-        top.addStretch()
-        layout.addLayout(top)
-        
-        # Filtro por nombre
-        self._txt_filtro_cxp = QLineEdit()
-        self._txt_filtro_cxp.setPlaceholderText("🔍 Buscar por Nombre de Proveedor...")
-        self._txt_filtro_cxp.textChanged.connect(self._filtrar_cxp)
-        layout.addWidget(self._txt_filtro_cxp)
-        
-        # Tabla de CxP
-        self._tabla_cxp = QTableWidget()
-        self._tabla_cxp.setColumnCount(7)
-        self._tabla_cxp.setHorizontalHeaderLabels(
-            ["ID", "Fecha", "Folio", "Proveedor", "Concepto", "Saldo", "Acción"]
-        )
-        self._tabla_cxp.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
-        self._tabla_cxp.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        layout.addWidget(self._tabla_cxp)
-        
-        return widget
-    
-    def _crear_subpestaña_cxc(self):
-        """Crea la sub-pestaña de Cuentas por Cobrar con filtro por nombre."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        lbl = QLabel("Dinero pendiente de cobro a clientes")
-        lbl.setObjectName("caption")
-        layout.addWidget(lbl)
-
-        top = QHBoxLayout()
-        btn_nuevo_cliente = QPushButton("👤 Nuevo cliente")
-        btn_nuevo_cliente.setObjectName("secondaryBtn")
-        btn_nuevo_cliente.setCursor(Qt.PointingHandCursor)
-        btn_nuevo_cliente.clicked.connect(self._dialogo_nuevo_cliente)
-        btn_nuevo_cxc = QPushButton("➕ Nueva CxC")
-        btn_nuevo_cxc.setObjectName("successBtn")
-        btn_nuevo_cxc.setCursor(Qt.PointingHandCursor)
-        btn_nuevo_cxc.clicked.connect(self._dialogo_nueva_cxc)
-        top.addWidget(btn_nuevo_cliente)
-        top.addWidget(btn_nuevo_cxc)
-        btn_cobro_global = QPushButton("💰 Cobro global")
-        btn_cobro_global.clicked.connect(self._dialogo_cobro_global_cxc)
-        top.addWidget(btn_cobro_global)
-        top.addStretch()
-        layout.addLayout(top)
-        
-        # Filtro por nombre
-        self._txt_filtro_cxc = QLineEdit()
-        self._txt_filtro_cxc.setPlaceholderText("🔍 Buscar por Nombre de Cliente...")
-        self._txt_filtro_cxc.textChanged.connect(self._filtrar_cxc)
-        layout.addWidget(self._txt_filtro_cxc)
-        
-        # Tabla de CxC
-        self._tabla_cxc = QTableWidget()
-        self._tabla_cxc.setColumnCount(7)
-        self._tabla_cxc.setHorizontalHeaderLabels(
-            ["ID", "Fecha", "Folio", "Cliente", "Concepto", "Saldo", "Acción"]
-        )
-        self._tabla_cxc.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
-        self._tabla_cxc.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        layout.addWidget(self._tabla_cxc)
-        
-        return widget
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  PESTAÑA 2: FINANZAS
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _crear_pestaña_finanzas(self):
-        """Crea la pestaña de Finanzas (gastos operativos)."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        form_group = QGroupBox("Registrar Nuevo Gasto Operativo")
-        form_layout = QFormLayout(form_group)
-        
-        self.cmb_categoria_gasto = QComboBox()
-        self.cmb_categoria_gasto.addItems([
-            "Servicios (Luz, Agua)", "Renta", "Nómina", 
-            "Mantenimiento", "Papelería", "Impuestos", "Otros"
-        ])
-        
-        self.txt_concepto_gasto = QLineEdit()
-        self.txt_concepto_gasto.setPlaceholderText("Ej. Pago recibo de CFE Diciembre")
-        
-        self.txt_monto_gasto = QDoubleSpinBox()
-        self.txt_monto_gasto.setRange(0.1, 999999.0)
-        self.txt_monto_gasto.setPrefix("$ ")
-        
-        self.cmb_metodo_gasto = QComboBox()
-        self.cmb_metodo_gasto.addItems([
-            "Transferencia", "Efectivo (Caja Chica)", "Tarjeta Corporativa"
-        ])
-        
-        btn_guardar = QPushButton("💾 Guardar Gasto")
-        btn_guardar.setObjectName("dangerBtn")
-        btn_guardar.setCursor(Qt.PointingHandCursor)
-        btn_guardar.clicked.connect(self._registrar_gasto)
-        
-        form_layout.addRow("Categoría:", self.cmb_categoria_gasto)
-        form_layout.addRow("Concepto/Descripción:", self.txt_concepto_gasto)
-        form_layout.addRow("Monto del Gasto:", self.txt_monto_gasto)
-        form_layout.addRow("Método de Pago:", self.cmb_metodo_gasto)
-        form_layout.addRow("", btn_guardar)
-        
-        layout.addWidget(form_group)
-        layout.addStretch()
-        return widget
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  PESTAÑA 3: PROVEEDORES
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _crear_pestaña_proveedores(self):
-        """Crea la pestaña de Proveedores con tabla CRUD."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        
-        # Header con botón nuevo
-        hdr = QHBoxLayout()
-        titulo = QLabel("🏭 Directorio de Proveedores")
-        titulo.setObjectName("heading")
-        btn_nuevo = QPushButton("➕ Nuevo Proveedor")
-        btn_nuevo.setObjectName("successBtn")
-        btn_nuevo.setCursor(Qt.PointingHandCursor)
-        btn_nuevo.clicked.connect(self._nuevo_proveedor)
-        hdr.addWidget(titulo)
-        hdr.addStretch()
-        hdr.addWidget(btn_nuevo)
-        layout.addLayout(hdr)
-        
-        # Búsqueda
-        self._txt_buscar_prov = QLineEdit()
-        self._txt_buscar_prov.setPlaceholderText("🔍 Buscar por nombre, RFC o contacto...")
-        self._txt_buscar_prov.textChanged.connect(self._filtrar_proveedores)
-        layout.addWidget(self._txt_buscar_prov)
-        
-        # Tabla de proveedores
-        self._tabla_proveedores = QTableWidget()
-        self._tabla_proveedores.setColumnCount(7)
-        self._tabla_proveedores.setHorizontalHeaderLabels(
-            ["Nombre", "Teléfono", "Email", "Contacto", "Días crédito", "Saldo", "Acciones"]
-        )
-        hh = self._tabla_proveedores.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        for i in (1, 2, 3, 4, 5):
-            hh.setSectionResizeMode(i, QHeaderView.ResizeToContents)
-        self._tabla_proveedores.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tabla_proveedores.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tabla_proveedores.setAlternatingRowColors(True)
-        self._tabla_proveedores.verticalHeader().setVisible(False)
-        self._tabla_proveedores.doubleClicked.connect(self._editar_proveedor_seleccionado)
-        layout.addWidget(self._tabla_proveedores)
-
-        detail = QGroupBox("Detalle de proveedor seleccionado")
-        dl = QVBoxLayout(detail)
-        self._lbl_proveedor_detalle = QLabel("Selecciona un proveedor para ver sus datos.")
-        self._lbl_proveedor_resumen = QLabel("Resumen de cuentas pendientes: $0.00")
-        self._lbl_proveedor_resumen.setStyleSheet("font-weight:bold;")
-        dl.addWidget(self._lbl_proveedor_detalle)
-        dl.addWidget(self._lbl_proveedor_resumen)
-        layout.addWidget(detail)
-        self._tabla_proveedores.itemSelectionChanged.connect(self._on_proveedor_selected)
-        
-        return widget
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  MÉTODOS DE CAPA / CAPEX
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _cargar_capex(self):
-        """Carga datos reales de capital y egresos."""
-        if not self._ts:
-            return
+        # Flujo y capital via kpis_financieros()
         try:
-            kpis = self._ts.kpis_financieros()
-            self._lbl_capital_invertido.setText(f"${kpis.get('capital_invertido', 0):,.2f}")
-            self._lbl_capital_disponible.setText(f"${kpis.get('capital_disponible', 0):,.2f}")
-            self._lbl_roi.setText(f"{kpis.get('roi_pct', 0):.1f}%")
-            self._lbl_salud.setText(self._ts._salud(kpis) if hasattr(self._ts, '_salud') else "")
-            
-            # Desglose egresos
-            eg = kpis.get("egresos", {})
-            items = [
-                ("Compras de inventario", eg.get("compras_inventario", 0)),
-                ("Gastos fijos (renta, luz, agua, gas)", eg.get("gastos_fijos", 0)),
-                ("Gastos operativos", eg.get("gastos_operativos", 0)),
-                ("Otros gastos", eg.get("gastos_otros", 0)),
-                ("Nómina / RRHH", eg.get("nomina_rrhh", 0)),
-                ("Merma", eg.get("merma", 0)),
-                ("Depreciación activos", eg.get("depreciacion_activos", 0)),
-                ("Comisión MercadoPago", eg.get("mercadopago", 0)),
-                ("Comisión Delivery", eg.get("delivery", 0)),
-                ("─────────────────────", 0),
-                ("TOTAL EGRESOS", eg.get("total_egresos", 0)),
+            if m._ts and hasattr(m._ts, "kpis_financieros"):
+                kpis = m._ts.kpis_financieros()
+                flujo = float(kpis.get("flujo_mes", 0) or kpis.get("utilidad_mes", 0) or 0)
+                self._kpi_flujo.set_value(f"${flujo:,.2f}", _P_PRIMARY)
+                cap = float(kpis.get("capital_invertido", 0) or 0)
+                if cap:
+                    self._kpi_capital.set_value(f"${cap:,.2f}", _P_SECONDARY)
+        except Exception as e:
+            logger.warning("_SeccionResumen KPI flujo: %s", e)
+
+        # Alertas — consultas directas a tablas garantizadas
+        try:
+            db = getattr(getattr(m, "container", None), "db", None)
+            if db:
+                # CxP vencidas (financial_documents mig083 o fallback 0)
+                cxp_venc = 0
+                try:
+                    cxp_venc = db.execute(
+                        "SELECT COUNT(*) FROM financial_documents"
+                        " WHERE document_type='payable'"
+                        " AND status IN ('pending','partial')"
+                        " AND due_date < date('now')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_cxp.set_value(
+                    f"{cxp_venc} doc{'s' if cxp_venc != 1 else ''}" if cxp_venc
+                    else "✓ Sin vencidas",
+                    ok=(cxp_venc == 0)
+                )
+
+                # CxC vencidas
+                cxc_venc = 0
+                try:
+                    cxc_venc = db.execute(
+                        "SELECT COUNT(*) FROM financial_documents"
+                        " WHERE document_type='receivable'"
+                        " AND status IN ('pending','partial')"
+                        " AND due_date < date('now')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_cxc.set_value(
+                    f"{cxc_venc} doc{'s' if cxc_venc != 1 else ''}" if cxc_venc
+                    else "✓ Sin vencidas",
+                    ok=(cxc_venc == 0)
+                )
+
+                # Diferencias de caja (últimos 30 días, cierres_caja garantizado)
+                dif_caja = 0
+                try:
+                    dif_caja = db.execute(
+                        "SELECT COUNT(*) FROM cierres_caja"
+                        " WHERE ABS(total_ventas - total_efectivo) > 0.01"
+                        " AND fecha_cierre >= date('now','-30 days')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_caja.set_value(
+                    f"{dif_caja} cierre{'s' if dif_caja != 1 else ''}" if dif_caja
+                    else "✓ Sin diferencias",
+                    ok=(dif_caja == 0)
+                )
+        except Exception as e:
+            logger.warning("_SeccionResumen alertas: %s", e)
+
+        # Actividad reciente — múltiples fuentes garantizadas
+        try:
+            rows = []
+            if m._tm_svc and hasattr(m._tm_svc, "get_movimientos"):
+                rows = m._tm_svc.get_movimientos(limit=20)
+            if not rows and m._je_svc and hasattr(m._je_svc, "get_recientes"):
+                rows = m._je_svc.get_recientes(limit=20)
+
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    # Construir UNION desde tablas garantizadas por m000_base_schema
+                    parts: List[str] = []
+
+                    # journal_entries (mig 083) — opcional, puede no existir/estar vacía
+                    try:
+                        db.execute("SELECT 1 FROM journal_entries LIMIT 1")
+                        parts.append(
+                            "SELECT created_at AS fecha, event_type AS tipo,"
+                            " 'Finanzas' AS modulo,"
+                            " COALESCE(source_folio,'') AS concepto,"
+                            " amount AS monto, user AS usuario"
+                            " FROM journal_entries"
+                        )
+                    except Exception:
+                        pass
+
+                    # ventas — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha, 'Venta' AS tipo, 'Ventas' AS modulo,"
+                        " COALESCE(folio,'V-'||id) AS concepto,"
+                        " total AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM ventas WHERE estado != 'cancelada'"
+                    )
+
+                    # compras — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha, 'Compra' AS tipo, 'Compras' AS modulo,"
+                        " COALESCE(folio,'C-'||id) AS concepto,"
+                        " total AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM compras"
+                    )
+
+                    # cierres_caja — siempre existe desde m000
+                    parts.append(
+                        "SELECT fecha_cierre AS fecha, 'Cierre caja' AS tipo,"
+                        " 'Caja' AS modulo,"
+                        " COALESCE(turno,'Cierre-'||id) AS concepto,"
+                        " total_ventas AS monto, COALESCE(usuario,'') AS usuario"
+                        " FROM cierres_caja"
+                    )
+
+                    union_sql = " UNION ALL ".join(parts)
+                    cur = db.execute(
+                        f"SELECT * FROM ({union_sql})"
+                        f" ORDER BY fecha DESC LIMIT 20"
+                    )
+                    rows = [
+                        {"fecha": r[0], "tipo": r[1], "modulo": r[2],
+                         "concepto": r[3], "monto": r[4], "usuario": r[5]}
+                        for r in cur.fetchall()
+                    ]
+
+            # Normalizar a dict uniforme y guardar cache
+            self._rows_actividad = [
+                {
+                    "fecha":   str(r.get("fecha") or r.get("created_at", ""))[:10],
+                    "tipo":    str(r.get("tipo") or r.get("event_type", "")),
+                    "concepto":str(r.get("concepto") or r.get("source_folio") or r.get("descripcion", "")),
+                    "modulo":  str(r.get("modulo") or r.get("source_module") or r.get("modulo_origen", "")),
+                    "monto":   f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
+                    "usuario": str(r.get("usuario") or r.get("user", "")),
+                }
+                for r in rows
             ]
-            self._tbl_egresos.setRowCount(len(items))
-            for i, (concepto, monto) in enumerate(items):
-                self._tbl_egresos.setItem(i, 0, QTableWidgetItem(concepto))
-                m_item = QTableWidgetItem(f"${monto:,.2f}" if monto else "")
-                m_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                self._tbl_egresos.setItem(i, 1, m_item)
-        except Exception as e:
-            logger.warning("_cargar_capex: %s", e)
-    
-    def _on_inyectar_capital(self):
-        monto = self._spin_capital.value()
-        desc = self._txt_desc_capital.text().strip()
-        if monto <= 0:
-            QMessageBox.warning(self, "Aviso", "Ingresa un monto mayor a $0.")
-            return
-        if not desc:
-            QMessageBox.warning(self, "Aviso", "Ingresa una descripción.")
-            return
-        if not self._ts:
-            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
-            return
-        try:
-            self._ts.inyectar_capital(monto, desc, self.usuario_actual)
-            Toast.success(self, "Capital inyectado", f"${monto:,.2f}")
-            self._spin_capital.setValue(0)
-            self._txt_desc_capital.clear()
-            self._cargar_capex()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-    
-    def _on_retirar_capital(self):
-        monto = self._spin_capital.value()
-        desc = self._txt_desc_capital.text().strip()
-        if monto <= 0:
-            QMessageBox.warning(self, "Aviso", "Ingresa un monto mayor a $0.")
-            return
-        if not desc:
-            QMessageBox.warning(self, "Aviso", "Ingresa una descripción.")
-            return
-        if not self._ts:
-            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
-            return
-        try:
-            self._ts.retirar_capital(monto, desc, self.usuario_actual)
-            Toast.success(self, "Capital retirado", f"${monto:,.2f}")
-            self._spin_capital.setValue(0)
-            self._txt_desc_capital.clear()
-            self._cargar_capex()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  MÉTODOS DE CUENTAS POR PAGAR (CxP)
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _cargar_cuentas_pagar(self):
-        """Carga la tabla de cuentas por pagar."""
-        if not self._ts:
-            self._tabla_cxp.setRowCount(0)
-            return
-        try:
-            deudas = self._ts.get_cuentas_por_pagar(self.sucursal_id)
-            if not deudas and self.sucursal_id:
-                deudas = self._ts.get_cuentas_por_pagar(0)
-            self._tabla_cxp.setRowCount(len(deudas))
-            for row, deuda in enumerate(deudas):
-                self._tabla_cxp.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
-                self._tabla_cxp.setItem(row, 1, QTableWidgetItem(str(deuda['fecha']).split()[0]))
-                self._tabla_cxp.setItem(row, 2, QTableWidgetItem(deuda['folio']))
-                self._tabla_cxp.setItem(row, 3, QTableWidgetItem(deuda['proveedor'] or 'Varios'))
-                self._tabla_cxp.setItem(row, 4, QTableWidgetItem(deuda['concepto']))
-                
-                saldo_item = QTableWidgetItem(f"${deuda['saldo']:,.2f}")
-                saldo_item.setForeground(Qt.red)
-                saldo_item.setFont(QFont("Arial", 10, QFont.Bold))
-                self._tabla_cxp.setItem(row, 5, saldo_item)
-                
-                btn_pagar = self._create_compact_action_button("💸 Abonar", "primary")
-                btn_pagar.clicked.connect(lambda _, d=deuda: self._dialogo_abono_cxp(d))
-                self._tabla_cxp.setCellWidget(row, 6, btn_pagar)
-        except Exception as e:
-            logger.error(f"Error cargando CxP: {e}")
-    
-    def _filtrar_cxp(self):
-        """Filtra la tabla de CxP por nombre de proveedor."""
-        txt = self._txt_filtro_cxp.text().lower()
-        for i in range(self._tabla_cxp.rowCount()):
-            nom = (self._tabla_cxp.item(i, 3) or QTableWidgetItem()).text().lower()
-            visible = not txt or txt in nom
-            self._tabla_cxp.setRowHidden(i, not visible)
-    
-    def _dialogo_abono_cxp(self, deuda):
-        """Muestra diálogo de abono para CxP."""
-        if not self._ts:
-            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
-            return
-        dlg = DialogoAbono(deuda, tipo="pagar", treasury_service=self._ts, usuario=self.usuario_actual, parent=self)
-        if dlg.exec_() == QDialog.Accepted:
-            self._cargar_cuentas_pagar()
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  MÉTODOS DE CUENTAS POR COBRAR (CxC)
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _cargar_cuentas_cobrar(self):
-        """Carga la tabla de cuentas por cobrar."""
-        if not self._ts:
-            self._tabla_cxc.setRowCount(0)
-            return
-        try:
-            deudas = self._ts.get_cuentas_por_cobrar(self.sucursal_id)
-            if not deudas and self.sucursal_id:
-                deudas = self._ts.get_cuentas_por_cobrar(0)
-            self._tabla_cxc.setRowCount(len(deudas))
-            for row, deuda in enumerate(deudas):
-                self._tabla_cxc.setItem(row, 0, QTableWidgetItem(str(deuda['id'])))
-                self._tabla_cxc.setItem(row, 1, QTableWidgetItem(str(deuda['fecha']).split()[0]))
-                self._tabla_cxc.setItem(row, 2, QTableWidgetItem(deuda['folio']))
-                self._tabla_cxc.setItem(row, 3, QTableWidgetItem(deuda['cliente'] or 'Público'))
-                self._tabla_cxc.setItem(row, 4, QTableWidgetItem(deuda['concepto']))
-                
-                saldo_item = QTableWidgetItem(f"${deuda['saldo']:,.2f}")
-                saldo_item.setForeground(Qt.darkGreen)
-                saldo_item.setFont(QFont("Arial", 10, QFont.Bold))
-                self._tabla_cxc.setItem(row, 5, saldo_item)
-                
-                btn_cobrar = self._create_compact_action_button("💰 Cobrar", "success")
-                btn_cobrar.clicked.connect(lambda _, d=deuda: self._dialogo_abono_cxc(d))
-                self._tabla_cxc.setCellWidget(row, 6, btn_cobrar)
-        except Exception as e:
-            logger.error(f"Error cargando CxC: {e}")
 
-    def _create_compact_action_button(self, text: str, variant: str = "primary") -> QPushButton:
-        """Botón compacto para acciones por fila en tablas — usa objectName para herencia de tema."""
-        variant_map = {
-            "primary": "primaryBtn",
-            "success": "successBtn",
-            "danger": "dangerBtn",
-            "warning": "warningBtn",
-            "outline": "outlineBtn",
-            "secondary": "secondaryBtn",
+            # Poblar combo de usuarios con valores únicos
+            usuarios = sorted({r["usuario"] for r in self._rows_actividad if r["usuario"]})
+            self._cmb_user_act.blockSignals(True)
+            current_user = self._cmb_user_act.currentText()
+            self._cmb_user_act.clear()
+            self._cmb_user_act.addItem("Todos los usuarios")
+            for u in usuarios:
+                self._cmb_user_act.addItem(u)
+            idx = self._cmb_user_act.findText(current_user)
+            self._cmb_user_act.setCurrentIndex(max(idx, 0))
+            self._cmb_user_act.blockSignals(False)
+
+            # Pintar tabla
+            self._tbl_actividad.setRowCount(len(self._rows_actividad))
+            for ri, r in enumerate(self._rows_actividad):
+                for ci, v in enumerate(
+                    [r["fecha"], r["tipo"], r["concepto"], r["modulo"], r["monto"], r["usuario"]]
+                ):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl_actividad.setItem(ri, ci, it)
+
+            self._filtrar_actividad()   # aplicar filtros activos tras recargar
+        except Exception as e:
+            logger.warning("_SeccionResumen actividad: %s", e)
+
+
+class _SeccionCajayConciliacion(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Caja y Conciliación",
+            "Historial de cortes y diferencias detectadas. No duplica módulo de Caja.",
+            btn_callback=self.recargar
+        ))
+
+        # KPIs — fill full row equally (sin addStretch en _kpi_row)
+        self._kpi_cortes = _FinKpiCard("Cortes recientes",      "—", _P_PRIMARY,   "📋")
+        self._kpi_dif    = _FinKpiCard("Diferencias detectadas","—", _P_SECONDARY, "⚠️")
+        self._kpi_movs   = _FinKpiCard("Movimientos del período","—", _P_TERTIARY,  "🔄")
+        lay.addWidget(_kpi_row([self._kpi_cortes, self._kpi_dif, self._kpi_movs]))
+
+        # Label-caps
+        lbl_cortes = QLabel("CORTES DE CAJA")
+        lbl_cortes.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_cortes)
+
+        # Filtros: caja + cajero + búsqueda libre + exportar
+        fil_row = QHBoxLayout()
+        fil_row.setSpacing(8)
+        fil_row.setContentsMargins(0, 0, 0, 0)
+
+        self._cmb_caja_fil = QComboBox()
+        self._cmb_caja_fil.setFixedWidth(120)
+        self._cmb_caja_fil.addItem("Todas las cajas")
+        self._cmb_caja_fil.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_cajero_fil = QComboBox()
+        self._cmb_cajero_fil.setFixedWidth(140)
+        self._cmb_cajero_fil.addItem("Todos los cajeros")
+        self._cmb_cajero_fil.currentIndexChanged.connect(self._filtrar)
+
+        self._txt_buscar = QLineEdit()
+        self._txt_buscar.setPlaceholderText("Buscar por fecha o turno…")
+        self._txt_buscar.textChanged.connect(self._filtrar)
+
+        btn_exp = QPushButton("📤 Exportar")
+        btn_exp.setObjectName("secondaryBtn")
+        btn_exp.setCursor(Qt.PointingHandCursor)
+        btn_exp.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        fil_row.addWidget(QLabel("Caja:"))
+        fil_row.addWidget(self._cmb_caja_fil)
+        fil_row.addWidget(QLabel("Cajero:"))
+        fil_row.addWidget(self._cmb_cajero_fil)
+        fil_row.addWidget(self._txt_buscar, 1)
+        fil_row.addWidget(btn_exp)
+        lay.addLayout(fil_row)
+
+        # Tabla — stretch=1: ocupa el resto de la pantalla
+        self._tbl = _FinTable(
+            ["Fecha", "Caja", "Cajero", "Total declarado", "Total esperado", "Diferencia", "Estado", "Acciones"]
+        )
+        self._tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self._tbl.cellClicked.connect(self._on_row_clicked)
+        lay.addWidget(self._tbl, 1)
+
+        self._rows_caja: List[Dict[str, Any]] = []
+
+    def _filtrar(self):
+        caja_fil   = self._cmb_caja_fil.currentText()
+        cajero_fil = self._cmb_cajero_fil.currentText()
+        txt        = self._txt_buscar.text().strip().lower()
+        for i in range(self._tbl.rowCount()):
+            caja   = (self._tbl.item(i, 1) or QTableWidgetItem()).text()
+            cajero = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
+            fecha  = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
+            hide = False
+            if caja_fil != "Todas las cajas" and caja_fil != caja:
+                hide = True
+            if cajero_fil != "Todos los cajeros" and cajero_fil.lower() not in cajero:
+                hide = True
+            if txt and txt not in cajero and txt not in fecha:
+                hide = True
+            self._tbl.setRowHidden(i, hide)
+
+    def _on_row_clicked(self, row: int, col: int):
+        """cellClicked — NO se dispara al hacer clic en el botón Ver (cell widget),
+        por eso el botón puede ejecutar su acción sin interferencia.
+        Oculta el Ver de la fila clickeada y lo muestra en todas las demás."""
+        for i in range(self._tbl.rowCount()):
+            w = self._tbl.cellWidget(i, 7)
+            if w:
+                w.setVisible(i != row)
+
+    def _ver_cierre(self, r: dict):
+        """Diálogo de detalle de corte de caja."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Detalle del Corte de Caja")
+        dlg.setMinimumWidth(400)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(12)
+
+        dif = float(r.get("diferencia", 0) or 0)
+        color_dif = _P_ERROR if dif < 0 else (_P_SECONDARY if dif > 0 else _P_TERTIARY)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignRight)
+        for label, value, color in [
+            ("Fecha",            str(r.get("fecha",""))[:10],                         None),
+            ("Caja / Sucursal",  str(r.get("caja","")),                               None),
+            ("Cajero",           str(r.get("cajero","")),                              None),
+            ("Turno",            str(r.get("turno","—")),                              None),
+            ("Total declarado",  f"${float(r.get('saldo_real',0)):,.2f}",             None),
+            ("Total esperado",   f"${float(r.get('saldo_sistema',0)):,.2f}",          None),
+            ("Diferencia",       f"${dif:+,.2f}",                                     color_dif),
+            ("Estado",           str(r.get("estado","")),                              None),
+        ]:
+            lbl_v = QLabel(value)
+            style = "font-weight: 600; background: transparent;"
+            if color:
+                style += f" color: {color};"
+            lbl_v.setStyleSheet(style)
+            form.addRow(f"{label}:", lbl_v)
+
+        lay.addLayout(form)
+        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+        dlg.exec_()
+
+    def recargar(self):
+        m = self._m
+        try:
+            rows = []
+            if m._recon_svc and hasattr(m._recon_svc, "get_conciliaciones"):
+                rows = m._recon_svc.get_conciliaciones(limit=100)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT fecha_cierre, sucursal_id, usuario, turno, "
+                            "total_ventas, total_efectivo "
+                            "FROM cierres_caja ORDER BY fecha_cierre DESC LIMIT 100"
+                        )
+                        rows = [
+                            {
+                                "fecha":         r[0],
+                                "caja":          str(r[1]),
+                                "cajero":        str(r[2] or ""),
+                                "turno":         str(r[3] or ""),
+                                "saldo_real":    float(r[5] or 0),
+                                "saldo_sistema": float(r[4] or 0),
+                                "diferencia":    round(float(r[5] or 0) - float(r[4] or 0), 2),
+                                "estado":        "conciliado",
+                            }
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        rows = []
+
+            self._rows_caja = rows
+
+            # Poblar combos (preservar selección actual)
+            for cmb, key, default in [
+                (self._cmb_caja_fil,   "caja",   "Todas las cajas"),
+                (self._cmb_cajero_fil, "cajero", "Todos los cajeros"),
+            ]:
+                valores = sorted({str(r.get(key,"")) for r in rows if r.get(key)})
+                prev = cmb.currentText()
+                cmb.blockSignals(True)
+                cmb.clear()
+                cmb.addItem(default)
+                for v in valores:
+                    cmb.addItem(v)
+                cmb.setCurrentIndex(max(cmb.findText(prev), 0))
+                cmb.blockSignals(False)
+
+            # Pintar tabla
+            cortes_ok = difs = 0
+            self._tbl.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                dif_val = float(r.get("diferencia", 0) or 0)
+                if dif_val != 0:
+                    difs += 1
+                else:
+                    cortes_ok += 1
+
+                for ci, v in enumerate([
+                    str(r.get("fecha",""))[:10],
+                    str(r.get("caja","")),
+                    str(r.get("cajero","")),
+                    f"${float(r.get('saldo_real',0)):,.2f}",
+                    f"${float(r.get('saldo_sistema',0)):,.2f}",
+                    f"${dif_val:+,.2f}",
+                ]):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl.setItem(ri, ci, it)
+
+                self._tbl.setCellWidget(ri, 6, _FinStatusBadge(r.get("estado","")))
+
+                btn_ver = _compact_btn("Ver", "outline")
+                row_data = dict(r)
+                btn_ver.clicked.connect(lambda _, rd=row_data: self._ver_cierre(rd))
+                self._tbl.setCellWidget(ri, 7, btn_ver)
+
+            self._kpi_cortes.set_value(str(cortes_ok + difs))
+            self._kpi_dif.set_value(str(difs), _P_SECONDARY if difs else _P_TERTIARY)
+            self._kpi_movs.set_value(str(len(rows)))
+            self._filtrar()
+        except Exception as e:
+            logger.warning("_SeccionCajayConciliacion.recargar: %s", e)
+
+
+class _DialogoCapitalMovimiento(QDialog):
+    """Diálogo reutilizable para inyectar o retirar capital."""
+
+    def __init__(self, tipo: str, parent=None):
+        super().__init__(parent)
+        self.tipo   = tipo  # "injection" o "withdrawal"
+        titulo      = "Inyectar Capital" if tipo == "injection" else "Retirar Capital"
+        self.setWindowTitle(titulo)
+        self.setMinimumWidth(400)
+        self.setObjectName("capitalDialog")
+
+        lay = QVBoxLayout(self)
+        lay.setSpacing(12)
+        lay.setContentsMargins(20, 20, 20, 20)
+
+        form = QFormLayout()
+        form.setSpacing(8)
+
+        self.spin_monto = QDoubleSpinBox()
+        self.spin_monto.setRange(0.01, 99_999_999)
+        self.spin_monto.setPrefix("$ ")
+        self.spin_monto.setDecimals(2)
+        form.addRow("Monto:", self.spin_monto)
+
+        self.txt_concepto = QLineEdit()
+        self.txt_concepto.setPlaceholderText("Ej: Aportación inicial socio A")
+        form.addRow("Concepto:", self.txt_concepto)
+
+        self.txt_socio = QLineEdit()
+        self.txt_socio.setPlaceholderText("Nombre del socio u origen")
+        form.addRow("Socio / Origen:", self.txt_socio)
+
+        self.cmb_metodo = QComboBox()
+        self.cmb_metodo.addItems(["efectivo", "transferencia", "cheque"])
+        form.addRow("Método de pago:", self.cmb_metodo)
+
+        self.txt_referencia = QLineEdit()
+        self.txt_referencia.setPlaceholderText("Núm. transferencia, cheque, etc.")
+        form.addRow("Referencia:", self.txt_referencia)
+
+        lay.addLayout(form)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Ok).setText(
+            "Inyectar" if tipo == "injection" else "Retirar"
+        )
+        btns.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        lay.addWidget(btns)
+
+    def valores(self) -> dict:
+        return {
+            "monto":      self.spin_monto.value(),
+            "concepto":   self.txt_concepto.text().strip(),
+            "socio":      self.txt_socio.text().strip(),
+            "metodo":     self.cmb_metodo.currentText(),
+            "referencia": self.txt_referencia.text().strip(),
         }
-        btn = QPushButton(text)
-        btn.setFixedHeight(26)
-        btn.setMinimumWidth(80)
-        btn.setMaximumWidth(110)
-        btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setObjectName(variant_map.get(variant, "primaryBtn"))
-        return btn
-    
-    def _filtrar_cxc(self):
-        """Filtra la tabla de CxC por nombre de cliente."""
-        txt = self._txt_filtro_cxc.text().lower()
-        for i in range(self._tabla_cxc.rowCount()):
-            nom = (self._tabla_cxc.item(i, 3) or QTableWidgetItem()).text().lower()
-            visible = not txt or txt in nom
-            self._tabla_cxc.setRowHidden(i, not visible)
-    
-    def _dialogo_abono_cxc(self, deuda):
-        """Muestra diálogo de cobro para CxC."""
-        if not self._ts:
-            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
-            return
-        dlg = DialogoAbono(deuda, tipo="cobrar", treasury_service=self._ts, usuario=self.usuario_actual, parent=self)
-        if dlg.exec_() == QDialog.Accepted:
-            self._cargar_cuentas_cobrar()
 
-    def _dialogo_nueva_cxp(self):
-        if not self._fs and not hasattr(self.container, "db"):
-            QMessageBox.warning(self, "Error", "Servicios financieros no disponibles.")
-            return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Nueva Cuenta por Pagar")
-        lay = QFormLayout(dlg)
-        proveedores = self._tps.get_all_proveedores(activo=True, limit=500) if self._tps else []
-        txt_proveedor, selected_supplier_id = self._build_autocomplete_selector(
-            [{"id": p.get("id"), "label": p.get("nombre", "—")} for p in proveedores],
-            placeholder="Buscar proveedor por nombre…"
+
+class _SeccionCapital(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        # Botones de acción en el header
+        hdr_row = QHBoxLayout()
+        hdr_col = QVBoxLayout()
+        hdr_col.setSpacing(2)
+        lbl_t = QLabel("Capital y Patrimonio")
+        lbl_t.setObjectName("heading")
+        lbl_s = QLabel("Aportaciones, retiros y capital neto de socios")
+        lbl_s.setObjectName("caption")
+        hdr_col.addWidget(lbl_t)
+        hdr_col.addWidget(lbl_s)
+        hdr_row.addLayout(hdr_col)
+        hdr_row.addStretch()
+
+        btn_iny = QPushButton("➕ Inyectar Capital")
+        btn_iny.setObjectName("successBtn")
+        btn_iny.setCursor(Qt.PointingHandCursor)
+        btn_iny.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_iny.clicked.connect(lambda: self._abrir_dialog("injection"))
+
+        btn_ret = QPushButton("➖ Retirar Capital")
+        btn_ret.setObjectName("dangerBtn")
+        btn_ret.setCursor(Qt.PointingHandCursor)
+        btn_ret.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_ret.clicked.connect(lambda: self._abrir_dialog("withdrawal"))
+
+        btn_ref = QPushButton("🔄 Actualizar")
+        btn_ref.setObjectName("secondaryBtn")
+        btn_ref.setCursor(Qt.PointingHandCursor)
+        btn_ref.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_ref.clicked.connect(self.recargar)
+
+        if not self._m._capital_svc and not self._m._ts:
+            tip = "Disponible cuando se conecte el servicio de capital"
+            for btn in (btn_iny, btn_ret):
+                btn.setEnabled(False)
+                btn.setToolTip(tip)
+
+        for btn in (btn_iny, btn_ret, btn_ref):
+            hdr_row.addWidget(btn)
+
+        lay.addLayout(hdr_row)
+
+        # KPIs
+        self._kpi_actual       = _FinKpiCard("Capital actual",  "$—", _P_PRIMARY,   "🏦")
+        self._kpi_aportaciones = _FinKpiCard("Aportaciones",    "$—", _P_TERTIARY,  "⬆️")
+        self._kpi_retiros      = _FinKpiCard("Retiros",         "$—", _P_ERROR,     "⬇️")
+        self._kpi_neto         = _FinKpiCard("Capital neto",    "$—", _P_SECONDARY, "📊")
+        lay.addWidget(_kpi_row([self._kpi_actual, self._kpi_aportaciones,
+                                self._kpi_retiros, self._kpi_neto]))
+
+        # Historial de movimientos
+        lbl_hist = QLabel("HISTORIAL DE CAPITAL")
+        lbl_hist.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 700;"
+            " letter-spacing: 1px;"
         )
-        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
-        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
-        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(30))
-        lay.addRow("Proveedor:", txt_proveedor); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        lay.addRow(btns)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        lay.addWidget(lbl_hist)
+
+        filtros_cap = QHBoxLayout()
+        self._cmb_tipo_cap = QComboBox()
+        self._cmb_tipo_cap.addItems(["Todos", "Inyección", "Retiro"])
+        self._cmb_tipo_cap.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_periodo_cap = QComboBox()
+        self._cmb_periodo_cap.addItems(["Todo", "Hoy", "Esta semana", "Este mes", "Último trimestre"])
+        self._cmb_periodo_cap.currentIndexChanged.connect(self._filtrar)
+
+        self._txt_buscar_cap = QLineEdit()
+        self._txt_buscar_cap.setPlaceholderText("Buscar por socio, concepto o referencia...")
+        self._txt_buscar_cap.textChanged.connect(self._filtrar)
+
+        btn_exp_cap = QPushButton("📤 Exportar")
+        btn_exp_cap.setObjectName("secondaryBtn")
+        btn_exp_cap.setCursor(Qt.PointingHandCursor)
+        btn_exp_cap.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        filtros_cap.addWidget(QLabel("Tipo:"))
+        filtros_cap.addWidget(self._cmb_tipo_cap)
+        filtros_cap.addWidget(QLabel("Período:"))
+        filtros_cap.addWidget(self._cmb_periodo_cap)
+        filtros_cap.addWidget(self._txt_buscar_cap, 1)
+        filtros_cap.addWidget(btn_exp_cap)
+        lay.addLayout(filtros_cap)
+
+        self._tbl = _FinTable(
+            ["Fecha", "Tipo", "Socio/Origen", "Concepto", "Método",
+             "Monto", "Referencia", "Estado"])
+        self._tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        from datetime import date, timedelta
+        tipo_f  = self._cmb_tipo_cap.currentText()
+        periodo = self._cmb_periodo_cap.currentText()
+        txt     = self._txt_buscar_cap.text().lower()
+        hoy     = date.today()
+        fecha_min = None
+        if periodo == "Hoy":
+            fecha_min = hoy.isoformat()
+        elif periodo == "Esta semana":
+            fecha_min = (hoy - timedelta(days=7)).isoformat()
+        elif periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
+        for i in range(self._tbl.rowCount()):
+            tipo_cell = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            socio     = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
+            concepto  = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            ref       = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            fecha     = (self._tbl.item(i, 0) or QTableWidgetItem()).text()[:10]
+            show = True
+            if tipo_f == "Inyección" and "injection" not in tipo_cell and "inyecci" not in tipo_cell:
+                show = False
+            elif tipo_f == "Retiro" and "withdrawal" not in tipo_cell and "retiro" not in tipo_cell:
+                show = False
+            if txt and not any(txt in s for s in (socio, concepto, ref)):
+                show = False
+            if fecha_min and fecha < fecha_min:
+                show = False
+            self._tbl.setRowHidden(i, not show)
+
+    def _abrir_dialog(self, tipo: str):
+        dlg = _DialogoCapitalMovimiento(tipo, self)
         if dlg.exec_() != QDialog.Accepted:
             return
-        supplier_id = selected_supplier_id.get("id")
-        if not supplier_id:
-            QMessageBox.warning(self, "Validación", "Seleccione un proveedor válido desde la búsqueda.")
-            return
-        if not self._fs or not hasattr(self._fs, "crear_cxp"):
-            QMessageBox.critical(
-                self, "Error de configuración",
-                "FinanceService no disponible. La cuenta por pagar NO puede crearse sin el "
-                "motor financiero centralizado. Contacte al administrador del sistema."
-            )
-            return
-        try:
-            self._fs.crear_cxp(
-                supplier_id=supplier_id,
-                concepto=txt.text().strip() or "Cuenta por pagar",
-                amount=float(monto.value()),
-                due_date=due.date().toString("yyyy-MM-dd"),
-                usuario=self.usuario_actual or "Sistema",
-            )
-        except Exception as exc:
-            logger.error("crear_cxp falló: %s", exc)
-            QMessageBox.critical(
-                self, "Error",
-                f"No fue posible registrar la cuenta por pagar:\n{exc}"
-            )
-            return
-        self._cargar_cuentas_pagar()
-
-    def _dialogo_nueva_cxc(self):
-        if not self._fs and not hasattr(self.container, "db"):
-            QMessageBox.warning(self, "Error", "Servicios financieros no disponibles.")
-            return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Nueva Cuenta por Cobrar")
-        lay = QFormLayout(dlg)
-        clientes = self._listar_clientes()
-        txt_cliente, selected_cliente_id = self._build_autocomplete_selector(
-            [{"id": c.get("id"), "label": c.get("nombre", "—")} for c in clientes],
-            placeholder="Buscar cliente por nombre…"
-        )
-        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
-        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
-        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(15))
-        lay.addRow("Cliente:", txt_cliente); lay.addRow("Concepto:", txt); lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        lay.addRow(btns)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        cliente_id = selected_cliente_id.get("id")
-        if not cliente_id:
-            QMessageBox.warning(self, "Validación", "Seleccione un cliente válido desde la búsqueda.")
+        v = dlg.valores()
+        if v["monto"] <= 0:
+            QMessageBox.warning(self, "Aviso", "Ingresa un monto mayor a $0.")
             return
 
-        # Validar límite de crédito antes de crear CxC
-        try:
-            row_cli = self.container.db.execute(
-                "SELECT COALESCE(saldo,0), COALESCE(limite_credito,0), COALESCE(nombre,'') FROM clientes WHERE id=?",
-                (cliente_id,)
-            ).fetchone()
-            saldo_actual = float(row_cli[0] or 0) if row_cli else 0.0
-            limite = float(row_cli[1] or 0) if row_cli else 0.0
-            nombre_cli = str(row_cli[2] or "") if row_cli else ""
-            monto_nuevo = float(monto.value())
-            if limite <= 0:
-                QMessageBox.warning(
-                    self, "Límite de crédito",
-                    f"El cliente '{nombre_cli or cliente_id}' no tiene límite de crédito configurado."
+        m = self._m
+        # Preferir CapitalService (migration 084) si está disponible
+        if m._capital_svc:
+            try:
+                op_id = f"CAP-UI-{uuid.uuid4().hex[:12].upper()}"
+                fn = (m._capital_svc.inject_capital if tipo == "injection"
+                      else m._capital_svc.withdraw_capital)
+                fn(
+                    operation_id=op_id,
+                    amount=v["monto"],
+                    concept=v["concepto"] or ("Inyección de capital" if tipo == "injection"
+                                              else "Retiro de capital"),
+                    partner_name=v["socio"],
+                    payment_method=v["metodo"],
+                    reference=v["referencia"],
+                    branch_id=m.sucursal_id,
+                    user=m.usuario_actual or "sistema",
                 )
-                return
-            if saldo_actual + monto_nuevo > limite + 0.01:
-                disponible = max(0.0, limite - saldo_actual)
-                QMessageBox.warning(
-                    self, "Límite excedido",
-                    f"Saldo actual: ${saldo_actual:,.2f}\n"
-                    f"Límite: ${limite:,.2f}\n"
-                    f"Disponible: ${disponible:,.2f}\n\n"
-                    f"La nueva CxC (${monto_nuevo:,.2f}) excede el límite."
-                )
-                return
-        except Exception as exc:
-            logger.warning("validación límite crédito CxC falló: %s", exc)
-            QMessageBox.warning(self, "Validación", "No fue posible validar el límite de crédito del cliente.")
-            return
-        if not self._fs or not hasattr(self._fs, "crear_cxc"):
-            QMessageBox.critical(
-                self,
-                "Error de configuración",
-                "FinanceService no disponible. La cuenta por cobrar NO puede crearse "
-                "sin registro contable de doble entrada. Contacte soporte.",
-            )
-            return
+                lbl = "Capital inyectado" if tipo == "injection" else "Capital retirado"
+                Toast.success(self, lbl, f"${v['monto']:,.2f}")
+                self.recargar()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e))
+        elif m._ts:
+            # Fallback a TreasuryService si no hay CapitalService
+            try:
+                desc = v["concepto"] or ("Inyección de capital" if tipo == "injection"
+                                         else "Retiro de capital")
+                if tipo == "injection":
+                    m._ts.inyectar_capital(v["monto"], desc, m.usuario_actual)
+                else:
+                    m._ts.retirar_capital(v["monto"], desc, m.usuario_actual)
+                lbl = "Capital inyectado" if tipo == "injection" else "Capital retirado"
+                Toast.success(self, lbl, f"${v['monto']:,.2f}")
+                self.recargar()
+            except Exception as e:
+                QMessageBox.critical(self, "Error", str(e))
+        else:
+            QMessageBox.warning(self, "Error", "Servicio de capital no disponible.")
+
+    def recargar(self):
+        m = self._m
+        # Usar CapitalService.get_summary() si está disponible
         try:
-            self._fs.crear_cxc(
-                cliente_id=cliente_id,
-                concepto=txt.text().strip() or "Cuenta por cobrar",
-                amount=float(monto.value()),
-                due_date=due.date().toString("yyyy-MM-dd"),
-                usuario=self.usuario_actual or "Sistema",
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Error", f"No fue posible registrar la cuenta por cobrar: {exc}")
-            return
-        self._cargar_cuentas_cobrar()
+            if m._capital_svc:
+                summary = m._capital_svc.get_summary(branch_id=m.sucursal_id)
+                self._kpi_actual.set_value(
+                    f"${summary.get('capital_actual', 0):,.2f}")
+                self._kpi_aportaciones.set_value(
+                    f"${summary.get('total_inyectado', 0):,.2f}", _P_TERTIARY)
+                self._kpi_retiros.set_value(
+                    f"${summary.get('total_retirado', 0):,.2f}", _P_ERROR)
+                neto = summary.get("capital_actual", 0)
+                self._kpi_neto.set_value(f"${neto:,.2f}", _P_PRIMARY)
+            elif m._ts:
+                kpis = m._ts.kpis_financieros()
+                inv = float(kpis.get("capital_invertido", 0) or 0)
+                disp = float(kpis.get("capital_disponible", 0) or 0)
+                self._kpi_actual.set_value(f"${inv:,.2f}")
+                self._kpi_neto.set_value(f"${disp:,.2f}", _P_PRIMARY)
+        except Exception as e:
+            logger.warning("_SeccionCapital KPIs: %s", e)
+
+        # Historial via CapitalService.get_history() con fallback directo a DB
+        try:
+            rows = []
+            if m._capital_svc:
+                rows = m._capital_svc.get_history(branch_id=m.sucursal_id, limit=100)
+
+            # Fallback: consulta directa a capital_movements (mig 084) o treasury_capital (legacy)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    # Intento 1: capital_movements (mig 084)
+                    try:
+                        cur = db.execute(
+                            "SELECT created_at, movement_type, partner_name, concept, "
+                            "payment_method, amount, reference, status "
+                            "FROM capital_movements ORDER BY created_at DESC LIMIT 100"
+                        )
+                        cols = ["created_at", "movement_type", "partner_name", "concept",
+                                "payment_method", "amount", "reference", "status"]
+                        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+                    except Exception:
+                        pass
+                    # Intento 2: treasury_capital (tabla legacy de TreasuryService)
+                    if not rows:
+                        try:
+                            cur = db.execute(
+                                "SELECT fecha, tipo, usuario, descripcion, '', monto, '', 'confirmado' "
+                                "FROM treasury_capital ORDER BY fecha DESC LIMIT 100"
+                            )
+                            cols = ["created_at", "movement_type", "partner_name", "concept",
+                                    "payment_method", "amount", "reference", "status"]
+                            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+                        except Exception:
+                            pass
+
+            self._tbl.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                tipo_raw = r.get("movement_type", "")
+                tipo_lbl = {
+                    "injection":       "Inyección",
+                    "withdrawal":      "Retiro",
+                    "adjustment":      "Ajuste",
+                    "opening_balance": "Balance inicial",
+                }.get(tipo_raw, tipo_raw)
+                vals = [
+                    str(r.get("created_at", ""))[:10],
+                    tipo_lbl,
+                    str(r.get("partner_name", "")),
+                    str(r.get("concept", "")),
+                    str(r.get("payment_method", "")),
+                    f"${float(r.get('amount', 0) or 0):,.2f}",
+                    str(r.get("reference", "")),
+                    str(r.get("status", "")),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl.setItem(ri, ci, it)
+                # Status badge en col 7
+                status = str(r.get("status", ""))
+                badge = _FinStatusBadge(status)
+                self._tbl.setCellWidget(ri, 7, badge)
+        except Exception as e:
+            logger.warning("_SeccionCapital historial: %s", e)
+
+
+class _SeccionCuentasPorCobrar(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Cuentas por Cobrar",
+            "Facturas y deudas pendientes de cobro a clientes",
+            btn_callback=self.recargar
+        ))
+
+        self._kpi_total   = _FinKpiCard("Total por cobrar",  "—", _P_PRIMARY,   "📥")
+        self._kpi_vencido = _FinKpiCard("Vencido",           "—", _P_ERROR,     "🚨")
+        self._kpi_porvenc = _FinKpiCard("Por vencer",        "—", _P_SECONDARY, "🕐")
+        self._kpi_cobrado = _FinKpiCard("Cobrado este mes",  "—", _P_TERTIARY,  "✅")
+        lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
+                                self._kpi_porvenc, self._kpi_cobrado]))
+
+        # Acciones y filtros
+        acc = QHBoxLayout()
+        btn_nuevo_cli = QPushButton("👤 Nuevo cliente")
+        btn_nuevo_cli.setObjectName("secondaryBtn")
+        btn_nuevo_cli.setCursor(Qt.PointingHandCursor)
+        btn_nuevo_cli.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_nuevo_cli.clicked.connect(self._dialogo_nuevo_cliente)
+
+        btn_nueva_cxc = QPushButton("➕ Nueva CxC")
+        btn_nueva_cxc.setObjectName("successBtn")
+        btn_nueva_cxc.setCursor(Qt.PointingHandCursor)
+        btn_nueva_cxc.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_nueva_cxc.clicked.connect(self._dialogo_nueva_cxc)
+
+        btn_cobro_global = QPushButton("💰 Cobro global")
+        btn_cobro_global.setObjectName("primaryBtn")
+        btn_cobro_global.setCursor(Qt.PointingHandCursor)
+        btn_cobro_global.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_cobro_global.clicked.connect(self._dialogo_cobro_global)
+
+        acc.addWidget(btn_nuevo_cli)
+        acc.addWidget(btn_nueva_cxc)
+        acc.addWidget(btn_cobro_global)
+        acc.addStretch()
+        lay.addLayout(acc)
+
+        filtros = QHBoxLayout()
+        self._cmb_estado = QComboBox()
+        self._cmb_estado.addItems(["Todos", "pendiente", "parcial", "pagado", "vencido"])
+        self._cmb_estado.currentIndexChanged.connect(self._filtrar)
+
+        self._txt_buscar = QLineEdit()
+        self._txt_buscar.setPlaceholderText("Buscar por cliente...")
+        self._txt_buscar.textChanged.connect(self._filtrar)
+
+        filtros.addWidget(QLabel("Estado:"))
+        filtros.addWidget(self._cmb_estado)
+        filtros.addWidget(self._txt_buscar, 1)
+        lay.addLayout(filtros)
+
+        self._tbl = _FinTable(
+            ["ID", "Folio", "Cliente", "Monto", "Saldo", "Vencimiento", "Estado", "Acciones"])
+        self._tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        estado_fil = self._cmb_estado.currentText()
+        txt = self._txt_buscar.text().lower()
+        for i in range(self._tbl.rowCount()):
+            cli   = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
+            est   = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            show  = True
+            if txt and txt not in cli:
+                show = False
+            if estado_fil != "Todos" and est != estado_fil.lower():
+                show = False
+            self._tbl.setRowHidden(i, not show)
 
     def _dialogo_nuevo_cliente(self):
-        if not hasattr(self.container, "db"):
+        m = self._m
+        if not hasattr(m.container, "db"):
             QMessageBox.warning(self, "Error", "DB no disponible.")
             return
         dlg = QDialog(self)
@@ -1277,40 +1592,1700 @@ class ModuloFinanzasUnificadas(QWidget):
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         if dlg.exec_() != QDialog.Accepted:
             return
-        if not nombre.text().strip():
+        nombre_val = nombre.text().strip()
+        if not nombre_val:
             QMessageBox.warning(self, "Aviso", "El nombre del cliente es obligatorio.")
             return
-        self.container.db.execute(
-            "INSERT INTO clientes(nombre, telefono, email, activo, sucursal_id, fecha_registro) "
-            "VALUES (?,?,?,?,?,datetime('now'))",
-            (nombre.text().strip(), tel.text().strip(), email.text().strip(), 1, self.sucursal_id or 1)
-        )
         try:
-            self.container.db.commit()
+            if not getattr(m, "_dash_svc", None):
+                raise RuntimeError("FinancialDashboardService no disponible.")
+            m._dash_svc.crear_cliente(
+                nombre=nombre_val,
+                telefono=tel.text().strip(),
+                email=email.text().strip(),
+                sucursal_id=m.sucursal_id or 1,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No fue posible crear el cliente:\n{exc}")
+            return
+        self.recargar()
+
+    def _dialogo_nueva_cxc(self):
+        m = self._m
+        if not m._fs and not hasattr(m.container, "db"):
+            QMessageBox.warning(self, "Error", "Servicios financieros no disponibles.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva Cuenta por Cobrar")
+        lay = QFormLayout(dlg)
+        clientes = m._dash_svc.listar_clientes(sucursal_id=m.sucursal_id) if m._dash_svc else []
+        txt_cliente, sel_cli = m._build_autocomplete_selector(
+            [{"id": c.get("id"), "label": c.get("nombre", "—")} for c in clientes],
+            placeholder="Buscar cliente por nombre…"
+        )
+        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
+        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
+        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(15))
+        lay.addRow("Cliente:", txt_cliente); lay.addRow("Concepto:", txt)
+        lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        cliente_id = sel_cli.get("id")
+        if not cliente_id:
+            QMessageBox.warning(self, "Validación", "Seleccione un cliente válido.")
+            return
+        # Validar límite de crédito
+        try:
+            if not m._dash_svc:
+                raise RuntimeError("FinancialDashboardService no disponible.")
+            info = m._dash_svc.get_credit_info(cliente_id)
+            saldo_actual = info["saldo_actual"]
+            limite = info["limite_credito"]
+            monto_nuevo = float(monto.value())
+            if limite <= 0:
+                QMessageBox.warning(self, "Sin límite de crédito",
+                    f"El cliente no tiene límite de crédito configurado.")
+                return
+            if saldo_actual + monto_nuevo > limite + 0.01:
+                disponible = max(0.0, limite - saldo_actual)
+                QMessageBox.warning(self, "Límite excedido",
+                    f"Saldo actual: ${saldo_actual:,.2f}\n"
+                    f"Límite: ${limite:,.2f}\nDisponible: ${disponible:,.2f}\n\n"
+                    f"La nueva CxC (${monto_nuevo:,.2f}) excede el límite.")
+                return
+        except Exception as exc:
+            logger.warning("validación límite crédito: %s", exc)
+            QMessageBox.warning(self, "Validación", "No fue posible validar el límite de crédito.")
+            return
+        if not m._fs or not hasattr(m._fs, "crear_cxc"):
+            QMessageBox.critical(self, "Error", "FinanceService no disponible.")
+            return
+        try:
+            m._fs.crear_cxc(
+                cliente_id=cliente_id,
+                concepto=txt.text().strip() or "Cuenta por cobrar",
+                amount=float(monto.value()),
+                due_date=due.date().toString("yyyy-MM-dd"),
+                usuario=m.usuario_actual or "Sistema",
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", str(exc))
+            return
+        self.recargar()
+
+    def _dialogo_cobro_global(self):
+        m = self._m
+        if not m._ts:
+            return
+        clientes = m._dash_svc.listar_clientes(sucursal_id=m.sucursal_id) if m._dash_svc else []
+        if not clientes:
+            QMessageBox.information(self, "Sin clientes", "No hay clientes activos.")
+            return
+        nombres = [f"{c.get('id')} - {c.get('nombre','')}" for c in clientes]
+        seleccionado, ok = QInputDialog.getItem(self, "Cliente", "Selecciona cliente:", nombres, 0, False)
+        if not ok:
+            return
+        tercero_id = int(str(seleccionado).split(" - ", 1)[0])
+        monto, ok2 = QInputDialog.getDouble(self, "Cobro global CxC", "Monto total:", 0.0, 0.0, 999999999.0, 2)
+        if not ok2 or monto <= 0:
+            return
+        metodo, ok3 = QInputDialog.getItem(self, "Método", "Forma de cobro:", ["Efectivo", "Transferencia", "Tarjeta"], 0, False)
+        if not ok3:
+            return
+        m._ts.aplicar_pago_global("cliente", monto, metodo=metodo, usuario=m.usuario_actual, tercero_id=tercero_id)
+        self.recargar()
+
+    def recargar(self):
+        m = self._m
+        if not m._ts:
+            self._tbl.setRowCount(0)
+            return
+        try:
+            deudas = m._ts.get_cuentas_por_cobrar(m.sucursal_id)
+            if not deudas and m.sucursal_id:
+                deudas = m._ts.get_cuentas_por_cobrar(0)
+            self._tbl.setRowCount(len(deudas))
+            total = sum(float(d.get("saldo", 0) or 0) for d in deudas)
+            self._kpi_total.set_value(f"${total:,.2f}", _P_PRIMARY)
+            for row, d in enumerate(deudas):
+                vals = [
+                    str(d.get("id", "")),
+                    str(d.get("folio", "")),
+                    str(d.get("cliente") or "Público"),
+                    f"${float(d.get('monto', d.get('saldo', 0)) or 0):,.2f}",
+                    f"${float(d.get('saldo', 0) or 0):,.2f}",
+                    str(d.get("vencimiento") or d.get("fecha_vencimiento", ""))[:10],
+                    str(d.get("estado", "pendiente")),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl.setItem(row, ci, it)
+                badge = _FinStatusBadge(d.get("estado", "pendiente"))
+                self._tbl.setCellWidget(row, 6, badge)
+                btn_cobrar = _compact_btn("💰 Cobrar", "success")
+                btn_cobrar.clicked.connect(lambda _, dd=d: self._cobrar(dd))
+                self._tbl.setCellWidget(row, 7, btn_cobrar)
+        except Exception as e:
+            logger.error("_SeccionCuentasPorCobrar.recargar: %s", e)
+
+    def _cobrar(self, deuda):
+        m = self._m
+        if not m._ts:
+            return
+        dlg = DialogoAbono(deuda, tipo="cobrar", treasury_service=m._ts, usuario=m.usuario_actual, parent=self)
+        if dlg.exec_() == QDialog.Accepted:
+            self.recargar()
+
+
+class _SeccionCuentasPorPagar(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Cuentas por Pagar",
+            "Facturas y deudas pendientes con proveedores",
+            btn_callback=self.recargar
+        ))
+
+        self._kpi_total   = _FinKpiCard("Total por pagar",  "—", _P_ERROR,     "📤")
+        self._kpi_vencido = _FinKpiCard("Vencido",          "—", _P_ERROR,     "🚨")
+        self._kpi_porvenc = _FinKpiCard("Por vencer",       "—", _P_SECONDARY, "🕐")
+        self._kpi_pagado  = _FinKpiCard("Pagado este mes",  "—", _P_TERTIARY,  "✅")
+        lay.addWidget(_kpi_row([self._kpi_total, self._kpi_vencido,
+                                self._kpi_porvenc, self._kpi_pagado]))
+
+        acc = QHBoxLayout()
+        btn_nueva_cxp = QPushButton("➕ Nueva CxP")
+        btn_nueva_cxp.setObjectName("primaryBtn")
+        btn_nueva_cxp.setCursor(Qt.PointingHandCursor)
+        btn_nueva_cxp.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_nueva_cxp.clicked.connect(self._dialogo_nueva_cxp)
+
+        btn_pago_global = QPushButton("💳 Pago global")
+        btn_pago_global.setObjectName("secondaryBtn")
+        btn_pago_global.setCursor(Qt.PointingHandCursor)
+        btn_pago_global.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_pago_global.clicked.connect(self._dialogo_pago_global)
+
+        acc.addWidget(btn_nueva_cxp)
+        acc.addWidget(btn_pago_global)
+        acc.addStretch()
+        lay.addLayout(acc)
+
+        filtros_cxp = QHBoxLayout()
+        self._cmb_estado_cxp = QComboBox()
+        self._cmb_estado_cxp.addItems(["Todos", "pendiente", "parcial", "pagado", "vencido"])
+        self._cmb_estado_cxp.currentIndexChanged.connect(self._filtrar)
+        self._txt_filtro = QLineEdit()
+        self._txt_filtro.setPlaceholderText("Buscar por nombre de proveedor...")
+        self._txt_filtro.textChanged.connect(self._filtrar)
+        filtros_cxp.addWidget(QLabel("Estado:"))
+        filtros_cxp.addWidget(self._cmb_estado_cxp)
+        filtros_cxp.addWidget(self._txt_filtro, 1)
+        lay.addLayout(filtros_cxp)
+
+        self._tbl = _FinTable(
+            ["ID", "Fecha", "Folio", "Proveedor", "Concepto", "Saldo", "Estado", "Acciones"])
+        self._tbl.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        txt        = self._txt_filtro.text().lower()
+        estado_fil = self._cmb_estado_cxp.currentText()
+        for i in range(self._tbl.rowCount()):
+            nom  = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            est  = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            show = True
+            if txt and txt not in nom:
+                show = False
+            if estado_fil != "Todos" and est != estado_fil.lower():
+                show = False
+            self._tbl.setRowHidden(i, not show)
+
+    def _dialogo_nueva_cxp(self):
+        m = self._m
+        if not m._fs and not hasattr(m.container, "db"):
+            QMessageBox.warning(self, "Error", "Servicios financieros no disponibles.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva Cuenta por Pagar")
+        lay = QFormLayout(dlg)
+        proveedores = m._tps.get_all_proveedores(activo=True, limit=500) if m._tps else []
+        txt_prov, sel_prov = m._build_autocomplete_selector(
+            [{"id": p.get("id"), "label": p.get("nombre", "—")} for p in proveedores],
+            placeholder="Buscar proveedor por nombre…"
+        )
+        txt = QLineEdit(); txt.setPlaceholderText("Concepto")
+        monto = QDoubleSpinBox(); monto.setRange(0.01, 999999999); monto.setPrefix("$ "); monto.setDecimals(2)
+        due = QDateEdit(); due.setCalendarPopup(True); due.setDate(QDate.currentDate().addDays(30))
+        lay.addRow("Proveedor:", txt_prov); lay.addRow("Concepto:", txt)
+        lay.addRow("Monto:", monto); lay.addRow("Vence:", due)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        supplier_id = sel_prov.get("id")
+        if not supplier_id:
+            QMessageBox.warning(self, "Validación", "Seleccione un proveedor válido.")
+            return
+        if not m._fs or not hasattr(m._fs, "crear_cxp"):
+            QMessageBox.critical(self, "Error", "FinanceService no disponible.")
+            return
+        try:
+            m._fs.crear_cxp(
+                supplier_id=supplier_id,
+                concepto=txt.text().strip() or "Cuenta por pagar",
+                amount=float(monto.value()),
+                due_date=due.date().toString("yyyy-MM-dd"),
+                usuario=m.usuario_actual or "Sistema",
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", str(exc))
+            return
+        self.recargar()
+
+    def _dialogo_pago_global(self):
+        m = self._m
+        if not m._ts:
+            return
+        proveedores = m._tps.get_all_proveedores(activo=True, limit=500) if m._tps else []
+        if not proveedores:
+            QMessageBox.information(self, "Sin proveedores", "No hay proveedores activos.")
+            return
+        nombres = [f"{p.get('id')} - {p.get('nombre','')}" for p in proveedores]
+        sel, ok = QInputDialog.getItem(self, "Proveedor", "Selecciona proveedor:", nombres, 0, False)
+        if not ok:
+            return
+        tercero_id = int(str(sel).split(" - ", 1)[0])
+        monto, ok2 = QInputDialog.getDouble(self, "Pago global CxP", "Monto total:", 0.0, 0.0, 999999999.0, 2)
+        if not ok2 or monto <= 0:
+            return
+        metodo, ok3 = QInputDialog.getItem(self, "Método", "Forma de pago:", ["Transferencia", "Efectivo", "Cheque"], 0, False)
+        if not ok3:
+            return
+        m._ts.aplicar_pago_global("proveedor", monto, metodo=metodo, usuario=m.usuario_actual, tercero_id=tercero_id)
+        self.recargar()
+
+    def recargar(self):
+        m = self._m
+        if not m._ts:
+            self._tbl.setRowCount(0)
+            return
+        try:
+            deudas = m._ts.get_cuentas_por_pagar(m.sucursal_id)
+            if not deudas and m.sucursal_id:
+                deudas = m._ts.get_cuentas_por_pagar(0)
+            self._tbl.setRowCount(len(deudas))
+            total = sum(float(d.get("saldo", 0) or 0) for d in deudas)
+            self._kpi_total.set_value(f"${total:,.2f}", _P_ERROR)
+            for row, d in enumerate(deudas):
+                vals = [
+                    str(d.get("id", "")),
+                    str(d.get("fecha", ""))[:10],
+                    str(d.get("folio", "")),
+                    str(d.get("proveedor") or "Varios"),
+                    str(d.get("concepto", "")),
+                    f"${float(d.get('saldo', 0) or 0):,.2f}",
+                    str(d.get("estado", "pendiente")),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl.setItem(row, ci, it)
+                badge = _FinStatusBadge(d.get("estado", "pendiente"))
+                self._tbl.setCellWidget(row, 6, badge)
+                btn_pagar = _compact_btn("💸 Abonar", "primary")
+                btn_pagar.clicked.connect(lambda _, dd=d: self._abonar(dd))
+                self._tbl.setCellWidget(row, 7, btn_pagar)
+        except Exception as e:
+            logger.error("_SeccionCuentasPorPagar.recargar: %s", e)
+
+    def _abonar(self, deuda):
+        m = self._m
+        if not m._ts:
+            return
+        dlg = DialogoAbono(deuda, tipo="pagar", treasury_service=m._ts, usuario=m.usuario_actual, parent=self)
+        if dlg.exec_() == QDialog.Accepted:
+            self.recargar()
+
+
+class _SeccionMovimientos(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Movimientos",
+            "Registro de entradas y salidas de tesorería",
+            btn_callback=self.recargar
+        ))
+
+        # Filtros
+        filtros = QHBoxLayout()
+        self._cmb_tipo = QComboBox()
+        self._cmb_tipo.addItems(["Todos", "ingreso", "egreso"])
+        self._cmb_tipo.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_periodo = QComboBox()
+        self._cmb_periodo.addItems(["Todo", "Hoy", "Esta semana", "Este mes", "Último trimestre"])
+        self._cmb_periodo.currentIndexChanged.connect(self._filtrar)
+
+        self._txt_buscar = QLineEdit()
+        self._txt_buscar.setPlaceholderText("Buscar por concepto o referencia...")
+        self._txt_buscar.textChanged.connect(self._filtrar)
+
+        btn_exp_movs = QPushButton("📤 Exportar")
+        btn_exp_movs.setObjectName("secondaryBtn")
+        btn_exp_movs.setCursor(Qt.PointingHandCursor)
+        btn_exp_movs.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        filtros.addWidget(QLabel("Tipo:"))
+        filtros.addWidget(self._cmb_tipo)
+        filtros.addWidget(QLabel("Período:"))
+        filtros.addWidget(self._cmb_periodo)
+        filtros.addWidget(self._txt_buscar, 1)
+        filtros.addWidget(btn_exp_movs)
+        lay.addLayout(filtros)
+
+        self._tbl = _FinTable(
+            ["Fecha", "Tipo", "Categoría", "Concepto", "Referencia", "Entrada", "Salida", "Saldo", "Usuario"])
+        self._tbl.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        from datetime import date, timedelta
+        tipo_fil  = self._cmb_tipo.currentText()
+        periodo   = self._cmb_periodo.currentText()
+        txt       = self._txt_buscar.text().lower()
+        hoy       = date.today()
+        fecha_min = None
+        if periodo == "Hoy":
+            fecha_min = hoy.isoformat()
+        elif periodo == "Esta semana":
+            fecha_min = (hoy - timedelta(days=7)).isoformat()
+        elif periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
+        for i in range(self._tbl.rowCount()):
+            tipo  = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            conc  = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            ref   = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            fecha = (self._tbl.item(i, 0) or QTableWidgetItem()).text()[:10]
+            show  = True
+            if tipo_fil != "Todos" and tipo != tipo_fil.lower():
+                show = False
+            if txt and txt not in conc and txt not in ref:
+                show = False
+            if fecha_min and fecha < fecha_min:
+                show = False
+            self._tbl.setRowHidden(i, not show)
+
+    def recargar(self):
+        m = self._m
+        try:
+            rows = []
+            if m._tm_svc and hasattr(m._tm_svc, "get_movimientos"):
+                rows = m._tm_svc.get_movimientos(sucursal_id=m.sucursal_id, limit=200)
+            # Fallback directo a treasury_ledger (existe desde mig 082)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT fecha, tipo, categoria, concepto, referencia, "
+                            "ingreso, egreso, usuario "
+                            "FROM treasury_ledger "
+                            "ORDER BY fecha DESC LIMIT 200"
+                        )
+                        rows = [
+                            {
+                                "fecha":     r[0],
+                                "tipo":      r[1],
+                                "categoria": r[2],
+                                "concepto":  r[3],
+                                "referencia":r[4],
+                                "ingreso":   float(r[5] or 0),
+                                "egreso":    float(r[6] or 0),
+                                "usuario":   r[7],
+                            }
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        rows = []
+
+            self._tbl.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                ingreso = float(r.get("ingreso", 0) or 0)
+                egreso  = float(r.get("egreso",  0) or 0)
+                # Compatibilidad con formato "monto" de otros servicios
+                if ingreso == 0 and egreso == 0:
+                    monto_val = float(r.get("monto", 0) or 0)
+                    tipo = str(r.get("tipo") or r.get("evento", ""))
+                    ingreso = monto_val if "ingreso" in tipo.lower() or "entrada" in tipo.lower() else 0
+                    egreso  = monto_val if "egreso"  in tipo.lower() or "salida"  in tipo.lower() else 0
+                    if not ingreso and not egreso:
+                        ingreso = monto_val
+
+                vals = [
+                    str(r.get("fecha") or r.get("timestamp", ""))[:10],
+                    str(r.get("tipo") or r.get("evento", "")),
+                    str(r.get("categoria") or r.get("modulo_origen", "")),
+                    str(r.get("concepto") or r.get("descripcion", "")),
+                    str(r.get("referencia") or r.get("ref", "")),
+                    f"${ingreso:,.2f}" if ingreso else "",
+                    f"${egreso:,.2f}"  if egreso  else "",
+                    f"${float(r.get('saldo', 0) or 0):,.2f}",
+                    str(r.get("usuario") or r.get("user", "")),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci in (5, 6, 7) and v:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self._tbl.setItem(ri, ci, it)
+        except Exception as e:
+            logger.warning("_SeccionMovimientos.recargar: %s", e)
+
+
+class _SeccionAsientosContables(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        hdr = _FinSectionHeader(
+            "Asientos Contables",
+            "Registro de doble entrada inmutable. No se edita ni se borra.",
+            btn_callback=self.recargar
+        )
+        lay.addWidget(hdr)
+
+        acc = QHBoxLayout()
+        btn_nuevo = QPushButton("➕ Registrar asiento manual")
+        btn_nuevo.setObjectName("primaryBtn")
+        btn_nuevo.setCursor(Qt.PointingHandCursor)
+        btn_nuevo.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_nuevo.clicked.connect(self._dialogo_nuevo_asiento)
+
+        btn_export = QPushButton("📤 Exportar")
+        btn_export.setObjectName("secondaryBtn")
+        btn_export.setCursor(Qt.PointingHandCursor)
+        btn_export.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        acc.addWidget(btn_nuevo)
+        acc.addWidget(btn_export)
+        acc.addStretch()
+        lay.addLayout(acc)
+
+        nota = QLabel("Registro inmutable de todos los eventos financieros.")
+        nota.setObjectName("caption")
+        lay.addWidget(nota)
+
+        # Filtros
+        filtros_ac = QHBoxLayout()
+        self._txt_buscar_ac = QLineEdit()
+        self._txt_buscar_ac.setPlaceholderText("Buscar por evento, cuenta o referencia...")
+        self._txt_buscar_ac.textChanged.connect(self._filtrar)
+
+        self._cmb_periodo_ac = QComboBox()
+        self._cmb_periodo_ac.addItems(["Todo", "Hoy", "Esta semana", "Este mes", "Último trimestre"])
+        self._cmb_periodo_ac.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_estado_ac = QComboBox()
+        self._cmb_estado_ac.addItems(["Todos", "Confirmado", "Borrador", "Reversado"])
+        self._cmb_estado_ac.currentIndexChanged.connect(self._filtrar)
+
+        filtros_ac.addWidget(QLabel("Período:"))
+        filtros_ac.addWidget(self._cmb_periodo_ac)
+        filtros_ac.addWidget(QLabel("Estado:"))
+        filtros_ac.addWidget(self._cmb_estado_ac)
+        filtros_ac.addWidget(self._txt_buscar_ac, 1)
+        lay.addLayout(filtros_ac)
+
+        self._tbl = _FinTable(
+            ["Fecha", "Evento", "Módulo", "Cuenta debe", "Cuenta haber", "Monto", "Referencia", "Usuario"])
+        self._tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        from datetime import date, timedelta
+        txt      = self._txt_buscar_ac.text().lower()
+        periodo  = self._cmb_periodo_ac.currentText()
+        estado   = self._cmb_estado_ac.currentText()
+        hoy      = date.today()
+        fecha_min = None
+        if periodo == "Hoy":
+            fecha_min = hoy.isoformat()
+        elif periodo == "Esta semana":
+            fecha_min = (hoy - timedelta(days=7)).isoformat()
+        elif periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
+        for i in range(self._tbl.rowCount()):
+            evento = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            mod    = (self._tbl.item(i, 2) or QTableWidgetItem()).text().lower()
+            cd     = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            ch     = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            ref    = (self._tbl.item(i, 6) or QTableWidgetItem()).text().lower()
+            usr    = (self._tbl.item(i, 7) or QTableWidgetItem()).text().lower()
+            fecha  = (self._tbl.item(i, 0) or QTableWidgetItem()).text()[:10]
+            show   = True
+            if txt and not any(txt in s for s in (evento, mod, cd, ch, ref, usr)):
+                show = False
+            if fecha_min and fecha < fecha_min:
+                show = False
+            if estado == "Confirmado" and any(k in evento for k in ("reversal", "reversado", "borrador", "draft")):
+                show = False
+            elif estado == "Borrador" and not any(k in evento for k in ("borrador", "draft")):
+                show = False
+            elif estado == "Reversado" and not any(k in evento for k in ("reversal", "reversado", "anulado")):
+                show = False
+            self._tbl.setRowHidden(i, not show)
+
+    def _dialogo_nuevo_asiento(self):
+        m = self._m
+        if not m._je_svc and not m._fs:
+            QMessageBox.warning(self, "Error", "Servicio de asientos no disponible.")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nuevo Asiento Contable")
+        lay = QFormLayout(dlg)
+        txt_evento  = QLineEdit(); txt_evento.setPlaceholderText("Descripción del evento")
+        txt_debe    = QLineEdit(); txt_debe.setPlaceholderText("Cuenta debe (ej: 1100)")
+        txt_haber   = QLineEdit(); txt_haber.setPlaceholderText("Cuenta haber (ej: 2100)")
+        spin_monto  = QDoubleSpinBox(); spin_monto.setRange(0.01, 999999999); spin_monto.setPrefix("$"); spin_monto.setDecimals(2)
+        txt_ref     = QLineEdit(); txt_ref.setPlaceholderText("Referencia opcional")
+        lay.addRow("Evento:", txt_evento)
+        lay.addRow("Cuenta debe:", txt_debe)
+        lay.addRow("Cuenta haber:", txt_haber)
+        lay.addRow("Monto:", spin_monto)
+        lay.addRow("Referencia:", txt_ref)
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        lay.addRow(btns)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        try:
+            if m._je_svc and hasattr(m._je_svc, "registrar"):
+                m._je_svc.registrar(
+                    evento=txt_evento.text().strip(),
+                    cuenta_debe=txt_debe.text().strip(),
+                    cuenta_haber=txt_haber.text().strip(),
+                    monto=float(spin_monto.value()),
+                    referencia=txt_ref.text().strip(),
+                    usuario=m.usuario_actual or "Sistema",
+                )
+            elif m._fs and hasattr(m._fs, "registrar_asiento"):
+                m._fs.registrar_asiento(
+                    evento=txt_evento.text().strip(),
+                    cuenta_debe=txt_debe.text().strip(),
+                    cuenta_haber=txt_haber.text().strip(),
+                    monto=float(spin_monto.value()),
+                    referencia=txt_ref.text().strip(),
+                )
+            self.recargar()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def recargar(self):
+        m = self._m
+        try:
+            rows = []
+            if m._je_svc and hasattr(m._je_svc, "get_asientos"):
+                rows = m._je_svc.get_asientos(sucursal_id=m.sucursal_id, limit=200)
+            # Fallback 1: journal_entries (mig 083)
+            if not rows:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT created_at, event_type, source_module, "
+                            "debit_account, credit_account, amount, source_folio, user "
+                            "FROM journal_entries "
+                            "ORDER BY created_at DESC LIMIT 200"
+                        )
+                        rows = [
+                            {
+                                "fecha":       r[0],
+                                "evento":      r[1],
+                                "modulo":      r[2],
+                                "cuenta_debe": r[3],
+                                "cuenta_haber":r[4],
+                                "monto":       float(r[5] or 0),
+                                "referencia":  r[6],
+                                "usuario":     r[7],
+                            }
+                            for r in cur.fetchall()
+                        ]
+                    except Exception:
+                        rows = []
+                    # Fallback 2: financial_event_log (desde m000 — siempre presente)
+                    if not rows and db:
+                        try:
+                            cur = db.execute(
+                                "SELECT timestamp, evento, modulo, cuenta_debe, cuenta_haber, "
+                                "monto, referencia_id, usuario_id "
+                                "FROM financial_event_log "
+                                "ORDER BY timestamp DESC LIMIT 200"
+                            )
+                            rows = [
+                                {
+                                    "fecha":       r[0],
+                                    "evento":      r[1],
+                                    "modulo":      r[2],
+                                    "cuenta_debe": r[3],
+                                    "cuenta_haber":r[4],
+                                    "monto":       float(r[5] or 0),
+                                    "referencia":  str(r[6] or ""),
+                                    "usuario":     str(r[7] or ""),
+                                }
+                                for r in cur.fetchall()
+                            ]
+                        except Exception:
+                            rows = []
+
+            self._tbl.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                vals = [
+                    str(r.get("fecha") or r.get("created_at", ""))[:10],
+                    str(r.get("evento") or r.get("event_type", "")),
+                    str(r.get("modulo") or r.get("source_module", "")),
+                    str(r.get("cuenta_debe") or r.get("debit_account", "")),
+                    str(r.get("cuenta_haber") or r.get("credit_account", "")),
+                    f"${float(r.get('monto', 0) or r.get('amount', 0) or 0):,.2f}",
+                    str(r.get("referencia") or r.get("source_folio", "")),
+                    str(r.get("usuario") or r.get("user", "")),
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    if ci == 5 and v:
+                        it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                    self._tbl.setItem(ri, ci, it)
+        except Exception as e:
+            logger.warning("_SeccionAsientosContables.recargar: %s", e)
+
+
+class _SeccionNomina(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Nómina",
+            "Pagos de nómina y gastos operativos del período",
+            btn_callback=self.recargar
+        ))
+
+        self._kpi_total    = _FinKpiCard("Total del período", "—", _P_PRIMARY,   "👥")
+        self._kpi_pendiente= _FinKpiCard("Pendiente",        "—", _P_SECONDARY, "⏳")
+        self._kpi_pagada   = _FinKpiCard("Pagada",           "—", _P_TERTIARY,  "✅")
+        lay.addWidget(_kpi_row([self._kpi_total, self._kpi_pendiente, self._kpi_pagada]))
+
+        # Formulario de gasto operativo
+        grp_gasto = QGroupBox("Registrar nuevo gasto operativo")
+        g_lay = QFormLayout(grp_gasto)
+
+        self.cmb_categoria = QComboBox()
+        self.cmb_categoria.addItems([
+            "Servicios (Luz, Agua)", "Renta", "Nómina",
+            "Mantenimiento", "Papelería", "Impuestos", "Otros"
+        ])
+        self.txt_concepto = QLineEdit()
+        self.txt_concepto.setPlaceholderText("Ej: Pago recibo CFE Diciembre")
+        self.spin_monto = QDoubleSpinBox()
+        self.spin_monto.setRange(0.1, 999999.0)
+        self.spin_monto.setPrefix("$ ")
+        self.cmb_metodo = QComboBox()
+        self.cmb_metodo.addItems(["Transferencia", "Efectivo (Caja Chica)", "Tarjeta Corporativa"])
+
+        btn_guardar = QPushButton("💾 Guardar gasto")
+        btn_guardar.setObjectName("dangerBtn")
+        btn_guardar.setCursor(Qt.PointingHandCursor)
+        btn_guardar.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_guardar.clicked.connect(self._registrar_gasto)
+
+        g_lay.addRow("Categoría:", self.cmb_categoria)
+        g_lay.addRow("Concepto:", self.txt_concepto)
+        g_lay.addRow("Monto:", self.spin_monto)
+        g_lay.addRow("Método de pago:", self.cmb_metodo)
+        g_lay.addRow("", btn_guardar)
+        lay.addWidget(grp_gasto)
+
+        # Tabla de nómina
+        grp_tbl = QGroupBox("Historial de nómina")
+        t_lay = QVBoxLayout(grp_tbl)
+
+        filtros_nom = QHBoxLayout()
+        self._cmb_estado_nom = QComboBox()
+        self._cmb_estado_nom.addItems(["Todos", "Pagada", "Pendiente", "Procesando"])
+        self._cmb_estado_nom.currentIndexChanged.connect(self._filtrar)
+
+        self._cmb_periodo_nom = QComboBox()
+        self._cmb_periodo_nom.addItems(["Todo", "Este mes", "Último trimestre", "Este año"])
+        self._cmb_periodo_nom.currentIndexChanged.connect(self._filtrar)
+
+        self._txt_buscar_nom = QLineEdit()
+        self._txt_buscar_nom.setPlaceholderText("Buscar por empleado o período...")
+        self._txt_buscar_nom.textChanged.connect(self._filtrar)
+
+        btn_exp_nom = QPushButton("📤 Exportar")
+        btn_exp_nom.setObjectName("secondaryBtn")
+        btn_exp_nom.setCursor(Qt.PointingHandCursor)
+        btn_exp_nom.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+
+        filtros_nom.addWidget(QLabel("Estado:"))
+        filtros_nom.addWidget(self._cmb_estado_nom)
+        filtros_nom.addWidget(QLabel("Período:"))
+        filtros_nom.addWidget(self._cmb_periodo_nom)
+        filtros_nom.addWidget(self._txt_buscar_nom, 1)
+        filtros_nom.addWidget(btn_exp_nom)
+        t_lay.addLayout(filtros_nom)
+
+        self._tbl = _FinTable(
+            ["Período", "Empleado", "Neto", "Método", "Estado", "Fecha pago"])
+        self._tbl.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        t_lay.addWidget(self._tbl)
+        lay.addWidget(grp_tbl)
+        lay.addStretch()
+
+    def _filtrar(self):
+        from datetime import date, timedelta
+        txt     = self._txt_buscar_nom.text().lower()
+        estado  = self._cmb_estado_nom.currentText()
+        periodo = self._cmb_periodo_nom.currentText()
+        hoy     = date.today()
+        fecha_min = None
+        if periodo == "Este mes":
+            fecha_min = hoy.replace(day=1).isoformat()
+        elif periodo == "Último trimestre":
+            fecha_min = (hoy - timedelta(days=90)).isoformat()
+        elif periodo == "Este año":
+            fecha_min = hoy.replace(month=1, day=1).isoformat()
+        for i in range(self._tbl.rowCount()):
+            emp      = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            per_cell = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
+            est_cell = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            fecha    = (self._tbl.item(i, 5) or QTableWidgetItem()).text()[:10]
+            show = True
+            if txt and txt not in emp and txt not in per_cell:
+                show = False
+            if estado != "Todos" and estado.lower() not in est_cell:
+                show = False
+            if fecha_min and fecha and fecha < fecha_min:
+                show = False
+            self._tbl.setRowHidden(i, not show)
+
+    def _registrar_gasto(self):
+        m = self._m
+        concepto = self.txt_concepto.text().strip()
+        monto    = self.spin_monto.value()
+        if not concepto:
+            QMessageBox.warning(self, "Aviso", "Debe ingresar el concepto del gasto.")
+            return
+        if not m._ts:
+            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
+            return
+        try:
+            m._ts.registrar_gasto_opex(
+                categoria=self.cmb_categoria.currentText(),
+                concepto=concepto,
+                monto=monto,
+                metodo_pago=self.cmb_metodo.currentText(),
+                usuario=m.usuario_actual,
+                sucursal_id=m.sucursal_id,
+            )
+            Toast.success(self, "Gasto registrado", "Asentado en contabilidad.")
+            self.txt_concepto.clear()
+            self.spin_monto.setValue(0.1)
+            self.recargar()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def recargar(self):
+        m = self._m
+        try:
+            rows = []
+            if m._ts and hasattr(m._ts, "get_nomina"):
+                rows = m._ts.get_nomina(sucursal_id=m.sucursal_id)
+            self._tbl.setRowCount(len(rows))
+            for ri, r in enumerate(rows):
+                vals = [
+                    str(r.get("periodo", "")),
+                    str(r.get("empleado", "")),
+                    f"${float(r.get('neto', 0) or 0):,.2f}",
+                    str(r.get("metodo", "")),
+                    str(r.get("estado", "")),
+                    str(r.get("fecha_pago", ""))[:10],
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl.setItem(ri, ci, it)
+                badge = _FinStatusBadge(r.get("estado", ""))
+                self._tbl.setCellWidget(ri, 4, badge)
+        except Exception as e:
+            logger.warning("_SeccionNomina.recargar: %s", e)
+
+
+class _SeccionProveedores(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        hdr_row = QHBoxLayout()
+        hdr_row.addWidget(_FinSectionHeader(
+            "Directorio de Proveedores",
+            "CRUD de proveedores — categorías, crédito, contacto",
+        ))
+        btn_nuevo = QPushButton("➕ Nuevo Proveedor")
+        btn_nuevo.setObjectName("successBtn")
+        btn_nuevo.setCursor(Qt.PointingHandCursor)
+        btn_nuevo.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_nuevo.clicked.connect(self._nuevo_proveedor)
+        hdr_row.addWidget(btn_nuevo)
+
+        btn_refr = QPushButton("🔄 Actualizar")
+        btn_refr.setObjectName("secondaryBtn")
+        btn_refr.setCursor(Qt.PointingHandCursor)
+        btn_refr.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_refr.clicked.connect(self.recargar)
+        hdr_row.addWidget(btn_refr)
+
+        lay.addLayout(hdr_row)
+
+        self._txt_buscar = QLineEdit()
+        self._txt_buscar.setPlaceholderText("Buscar por nombre, RFC o contacto...")
+        self._txt_buscar.textChanged.connect(self._filtrar)
+        lay.addWidget(self._txt_buscar)
+
+        self._tbl = _FinTable(
+            ["Nombre", "Teléfono", "Email", "Contacto", "Días crédito", "Saldo", "Acciones"])
+        hh = self._tbl.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.Stretch)
+        for i in (1, 2, 3, 4, 5):
+            hh.setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(6, QHeaderView.Fixed)
+        hh.resizeSection(6, 184)
+        self._tbl.verticalHeader().setDefaultSectionSize(40)
+        self._tbl.doubleClicked.connect(self._editar_seleccionado)
+        self._tbl.itemSelectionChanged.connect(self._on_selected)
+        lay.addWidget(self._tbl, 1)
+
+        grp_det = QGroupBox("Detalle de proveedor seleccionado")
+        d_lay = QVBoxLayout(grp_det)
+        self._lbl_detalle  = QLabel("Selecciona un proveedor para ver sus datos.")
+        self._lbl_resumen  = QLabel("Resumen de cuentas pendientes: $0.00")
+        self._lbl_resumen.setStyleSheet("font-weight:bold;")
+        d_lay.addWidget(self._lbl_detalle)
+        d_lay.addWidget(self._lbl_resumen)
+        lay.addWidget(grp_det)
+
+    def _filtrar(self):
+        txt = self._txt_buscar.text().lower()
+        for i in range(self._tbl.rowCount()):
+            nom = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
+            tel = (self._tbl.item(i, 1) or QTableWidgetItem()).text().lower()
+            con = (self._tbl.item(i, 3) or QTableWidgetItem()).text().lower()
+            self._tbl.setRowHidden(i, bool(txt) and txt not in nom and txt not in tel and txt not in con)
+
+    def _on_selected(self):
+        row = self._tbl.currentRow()
+        if row < 0:
+            self._lbl_detalle.setText("Selecciona un proveedor para ver sus datos.")
+            self._lbl_resumen.setText("Resumen de cuentas pendientes: $0.00")
+            return
+        it = self._tbl.item(row, 0)
+        pid = it.data(Qt.UserRole) if it else None
+        if not pid:
+            return
+        m = self._m
+        try:
+            prov = m._tps.get_proveedor(int(pid)) if m._tps else None
+            if prov:
+                self._lbl_detalle.setText(
+                    f"Nombre: {prov.get('nombre','-')} | RFC: {prov.get('rfc','-')} | "
+                    f"Tel: {prov.get('telefono','-')} | Email: {prov.get('email','-')}")
+            deudas = [d for d in (m._ts.get_cuentas_por_pagar(0) if m._ts else [])
+                      if int(d.get("proveedor_id") or 0) == int(pid)]
+            saldo = sum(float(d.get("saldo", 0) or 0) for d in deudas)
+            if saldo <= 0:
+                self._lbl_resumen.setText("Sin cuentas pendientes.")
+            else:
+                self._lbl_resumen.setText(f"Cuentas pendientes: ${saldo:,.2f} en {len(deudas)} documento(s).")
+        except Exception as exc:
+            logger.warning("_SeccionProveedores._on_selected: %s", exc)
+
+    def _nuevo_proveedor(self):
+        m = self._m
+        if not m._tps:
+            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
+            return
+        dlg = DialogoProveedor(m._tps, parent=self)
+        if dlg.exec_() == QDialog.Accepted:
+            self.recargar()
+
+    def _editar_seleccionado(self):
+        row = self._tbl.currentRow()
+        if row < 0:
+            return
+        it = self._tbl.item(row, 0)
+        pid = it.data(Qt.UserRole) if it else None
+        if not pid:
+            return
+        self._editar_por_id(pid)
+
+    def _editar_por_id(self, pid):
+        m = self._m
+        if not m._tps:
+            return
+        dlg = DialogoProveedor(m._tps, pid, parent=self)
+        if dlg.exec_() == QDialog.Accepted:
+            self.recargar()
+
+    def _eliminar_proveedor(self, pid, nombre):
+        resp = QMessageBox.question(
+            self, "Eliminar proveedor",
+            f"¿Eliminar a '{nombre}'?\nEsta acción no se puede deshacer.",
+            QMessageBox.Yes | QMessageBox.No)
+        if resp != QMessageBox.Yes:
+            return
+        m = self._m
+        if not m._tps:
+            return
+        try:
+            m._tps.delete_proveedor(pid, soft=True)
+            self.recargar()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    def recargar(self):
+        m = self._m
+        rows = []
+        if m._tps:
+            try:
+                rows = m._tps.get_all_proveedores(activo=True, limit=300)
+            except Exception as e:
+                logger.warning("_SeccionProveedores.recargar tps: %s", e)
+
+        # Fallback defensivo si el servicio falla pero hay db
+        if not rows and hasattr(m.container, "db"):
+            try:
+                cur = m.container.db.execute(
+                    "SELECT id,nombre,telefono,email,contacto,"
+                    "COALESCE(condiciones_pago,0) FROM proveedores "
+                    "WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 300"
+                )
+                rows = [
+                    {"id": r[0], "nombre": r[1], "telefono": r[2], "email": r[3],
+                     "contacto": r[4], "condiciones_pago": r[5], "saldo_pendiente": 0.0}
+                    for r in cur.fetchall()
+                ]
+            except Exception as e:
+                logger.warning("_SeccionProveedores.recargar fallback: %s", e)
+
+        self._tbl.setRowCount(len(rows))
+        for ri, r in enumerate(rows):
+            pid    = r.get("id")
+            nombre = r.get("nombre", "")
+            vals = [
+                nombre,
+                r.get("telefono", ""),
+                r.get("email", ""),
+                r.get("contacto", ""),
+                f"{int(r.get('condiciones_pago', 0) or 0)} días",
+                f"${float(r.get('saldo_pendiente', 0) or 0):,.2f}",
+            ]
+            for ci, v in enumerate(vals):
+                it = QTableWidgetItem(str(v))
+                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                if ci == 0:
+                    it.setData(Qt.UserRole, pid)
+                self._tbl.setItem(ri, ci, it)
+
+            btn_w   = QWidget()
+            btn_lay = QHBoxLayout(btn_w)
+            btn_lay.setContentsMargins(4, 2, 4, 2)
+            btn_lay.setSpacing(4)
+            btn_ed  = QPushButton("✏️ Editar")
+            btn_ed.setMinimumSize(78, 28)
+            btn_ed.setObjectName("outlineBtn")
+            btn_ed.setCursor(Qt.PointingHandCursor)
+            btn_ed.clicked.connect(lambda _, p=pid: self._editar_por_id(p))
+            btn_del = QPushButton("🗑️ Eliminar")
+            btn_del.setMinimumSize(88, 28)
+            btn_del.setObjectName("dangerBtn")
+            btn_del.setCursor(Qt.PointingHandCursor)
+            btn_del.clicked.connect(lambda _, p=pid, n=nombre: self._eliminar_proveedor(p, n))
+            btn_lay.addWidget(btn_ed)
+            btn_lay.addWidget(btn_del)
+            self._tbl.setCellWidget(ri, 6, btn_w)
+
+
+class _SeccionClientesCredito(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Clientes con Crédito",
+            "Límites, saldos utilizados y disponibles",
+            btn_callback=self.recargar
+        ))
+
+        filtros_cred = QHBoxLayout()
+        self._cmb_estado_cred = QComboBox()
+        self._cmb_estado_cred.addItems(["Todos", "activo", "sin disponible"])
+        self._cmb_estado_cred.currentIndexChanged.connect(self._filtrar)
+        self._txt_buscar_cred = QLineEdit()
+        self._txt_buscar_cred.setPlaceholderText("Buscar cliente por nombre...")
+        self._txt_buscar_cred.textChanged.connect(self._filtrar)
+        filtros_cred.addWidget(QLabel("Estado:"))
+        filtros_cred.addWidget(self._cmb_estado_cred)
+        filtros_cred.addWidget(self._txt_buscar_cred, 1)
+        lay.addLayout(filtros_cred)
+
+        self._tbl = _FinTable(
+            ["Cliente", "Límite", "Saldo usado", "Disponible", "Estado", "Última compra", "Acciones"])
+        self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        lay.addWidget(self._tbl, 1)
+
+    def _filtrar(self):
+        txt      = self._txt_buscar_cred.text().lower()
+        estado_f = self._cmb_estado_cred.currentText()
+        for i in range(self._tbl.rowCount()):
+            nom  = (self._tbl.item(i, 0) or QTableWidgetItem()).text().lower()
+            est  = (self._tbl.item(i, 4) or QTableWidgetItem()).text().lower()
+            show = True
+            if txt and txt not in nom:
+                show = False
+            if estado_f != "Todos" and est != estado_f.lower():
+                show = False
+            self._tbl.setRowHidden(i, not show)
+
+    def recargar(self):
+        m = self._m
+        try:
+            clientes = []
+            if m._dash_svc and hasattr(m._dash_svc, "listar_clientes_credito"):
+                clientes = m._dash_svc.listar_clientes_credito(sucursal_id=m.sucursal_id)
+
+            # Fallback: saldo real desde accounts_receivable (CxC pendientes/parciales)
+            if not clientes:
+                db = getattr(getattr(m, "container", None), "db", None)
+                if db:
+                    try:
+                        cur = db.execute("""
+                            SELECT c.nombre,
+                                   COALESCE(c.credit_limit, c.limite_credito, 0) AS limite,
+                                   COALESCE((
+                                       SELECT SUM(ar.balance)
+                                       FROM accounts_receivable ar
+                                       WHERE ar.cliente_id = c.id
+                                         AND ar.status IN ('pendiente','parcial')
+                                   ), 0) AS saldo_usado,
+                                   COALESCE(c.ultima_compra, '') AS ultima_compra
+                            FROM clientes c
+                            WHERE COALESCE(c.activo,1)=1
+                              AND (COALESCE(c.credit_limit,0)>0
+                                   OR COALESCE(c.limite_credito,0)>0
+                                   OR COALESCE(c.allows_credit,0)=1)
+                            ORDER BY c.nombre LIMIT 300
+                        """)
+                        clientes = [
+                            {"nombre": r[0], "limite_credito": float(r[1] or 0),
+                             "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
+                            for r in cur.fetchall()
+                        ]
+                    except Exception as _fe:
+                        logger.debug("clientes_credito fallback: %s", _fe)
+
+                # Sin filtro de crédito: clientes con deuda activa en accounts_receivable
+                if not clientes and db:
+                    try:
+                        cur = db.execute("""
+                            SELECT c.nombre,
+                                   COALESCE(c.credit_limit, c.limite_credito, 0),
+                                   COALESCE(SUM(ar.balance), 0) AS saldo_usado,
+                                   COALESCE(c.ultima_compra, '')
+                            FROM clientes c
+                            JOIN accounts_receivable ar ON ar.cliente_id = c.id
+                            WHERE COALESCE(c.activo,1)=1
+                              AND ar.status IN ('pendiente','parcial')
+                            GROUP BY c.id, c.nombre
+                            ORDER BY saldo_usado DESC LIMIT 200
+                        """)
+                        clientes = [
+                            {"nombre": r[0], "limite_credito": float(r[1] or 0),
+                             "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}
+                            for r in cur.fetchall()
+                        ]
+                    except Exception as _fe2:
+                        logger.debug("clientes_credito fallback deuda: %s", _fe2)
+
+            self._tbl.setRowCount(len(clientes))
+            for ri, c in enumerate(clientes):
+                limite     = float(c.get("limite_credito", 0) or 0)
+                saldo      = float(c.get("saldo_credito", 0) or 0)
+                disponible = max(0.0, limite - saldo)
+                estado = "activo" if disponible > 0 else "sin disponible"
+                vals = [
+                    str(c.get("nombre", "")),
+                    f"${limite:,.2f}",
+                    f"${saldo:,.2f}",
+                    f"${disponible:,.2f}",
+                    estado,
+                    str(c.get("ultima_compra", ""))[:10],
+                ]
+                for ci, v in enumerate(vals):
+                    it = QTableWidgetItem(v)
+                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    self._tbl.setItem(ri, ci, it)
+                badge = _FinStatusBadge(estado)
+                self._tbl.setCellWidget(ri, 4, badge)
+                btn_hist = _compact_btn("Historial", "outline")
+                self._tbl.setCellWidget(ri, 6, btn_hist)
+        except Exception as e:
+            logger.warning("_SeccionClientesCredito.recargar: %s", e)
+
+
+class _SeccionReportes(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Reportes Financieros",
+            "Genera y exporta reportes del período"
+        ))
+
+        reportes = [
+            ("Flujo de efectivo",       "Estado de entradas y salidas de caja"),
+            ("Estado CxC",              "Cuentas por cobrar pendientes y vencidas"),
+            ("Estado CxP",              "Cuentas por pagar pendientes y vencidas"),
+            ("Utilidad del período",    "Ingresos menos egresos totales"),
+            ("Conciliación de caja",    "Diferencias entre sistema y conteo físico"),
+            ("Póliza contable",         "Asientos contables del período"),
+            ("Gastos por categoría",    "Desglose de egresos por categoría"),
+            ("Nómina pagada",           "Detalle de pagos de nómina"),
+            ("Capital y aportaciones",  "Movimientos de capital de socios"),
+            ("Saldos de proveedores",   "Resumen de deuda con proveedores"),
+            ("Saldos de clientes",      "Resumen de saldos de clientes con crédito"),
+            ("Balance general",         "Activo, pasivo y capital"),
+        ]
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        container = QWidget()
+        grid = QGridLayout(container)
+        grid.setSpacing(12)
+        grid.setContentsMargins(0, 0, 0, 0)
+
+        for i, (titulo, desc) in enumerate(reportes):
+            row, col = divmod(i, 3)
+            card = QGroupBox(titulo)
+            c_lay = QVBoxLayout(card)
+            c_lay.setSpacing(6)
+
+            lbl = QLabel(desc)
+            lbl.setObjectName("caption")
+            lbl.setWordWrap(True)
+            c_lay.addWidget(lbl)
+
+            btns_row = QHBoxLayout()
+            btn_ver = _compact_btn("Ver", "primary")
+            btn_ver.clicked.connect(lambda _, t=titulo: self._ver_reporte(t))
+            btn_exp = _compact_btn("Exportar", "secondary")
+            btn_exp.clicked.connect(lambda _, t=titulo: self._exportar_reporte(t))
+            btns_row.addWidget(btn_ver); btns_row.addWidget(btn_exp); btns_row.addStretch()
+            c_lay.addLayout(btns_row)
+
+            grid.addWidget(card, row, col)
+
+        scroll.setWidget(container)
+        lay.addWidget(scroll)
+
+    def _ver_reporte(self, titulo: str):
+        nav_map = {
+            "Flujo de efectivo":      5,
+            "Estado CxC":             3,
+            "Estado CxP":             4,
+            "Conciliación de caja":   1,
+            "Póliza contable":        6,
+            "Nómina pagada":          7,
+            "Capital y aportaciones": 2,
+            "Saldos de proveedores":  8,
+            "Saldos de clientes":     9,
+        }
+        m = self._m
+        if titulo in nav_map:
+            if m._nav:
+                m._nav.setCurrentRow(nav_map[titulo])
+        else:
+            self._reporte_simple(titulo)
+
+    def _exportar_reporte(self, titulo: str):
+        QMessageBox.information(
+            self, "Exportar reporte",
+            f"La exportación de «{titulo}» estará disponible próximamente.\n"
+            "Por ahora puede visualizar los datos con el botón «Ver»."
+        )
+
+    def _reporte_simple(self, titulo: str):
+        m = self._m
+        db = getattr(getattr(m, "container", None), "db", None)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(titulo)
+        dlg.resize(540, 340)
+        lay_d = QVBoxLayout(dlg)
+        lbl = QLabel()
+        lbl.setWordWrap(True)
+        lbl.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        try:
+            if titulo == "Utilidad del período":
+                ingreso = egreso = 0.0
+                if db:
+                    r  = db.execute("SELECT COALESCE(SUM(total),0) FROM ventas WHERE COALESCE(anulado,0)=0").fetchone()
+                    ingreso = float((r or [0])[0] or 0)
+                    r2 = db.execute("SELECT COALESCE(SUM(total),0) FROM compras").fetchone()
+                    egreso  = float((r2 or [0])[0] or 0)
+                utilidad = ingreso - egreso
+                signo = "+" if utilidad >= 0 else ""
+                lbl.setText(
+                    f"Ingresos por ventas:   ${ingreso:>14,.2f}\n"
+                    f"Egresos por compras:   ${egreso:>14,.2f}\n"
+                    f"{'─' * 38}\n"
+                    f"Utilidad neta:         {signo}${abs(utilidad):>13,.2f}"
+                )
+            elif titulo == "Balance general":
+                if m._ts and hasattr(m._ts, "balance_general"):
+                    bal     = m._ts.balance_general()
+                    activo  = float(bal.get("activo",  0) or 0)
+                    pasivo  = float(bal.get("pasivo",  0) or 0)
+                    capital = float(bal.get("capital", 0) or 0)
+                    lbl.setText(
+                        f"Activo total:    ${activo:>14,.2f}\n"
+                        f"Pasivo total:    ${pasivo:>14,.2f}\n"
+                        f"{'─' * 34}\n"
+                        f"Capital:         ${capital:>14,.2f}"
+                    )
+                else:
+                    lbl.setText("Balance general no disponible.\n"
+                                "Verifica que TreasuryService esté activo.")
+            elif titulo == "Gastos por categoría":
+                if db:
+                    try:
+                        cur = db.execute(
+                            "SELECT COALESCE(modulo,'Sin categoría'), SUM(monto) "
+                            "FROM financial_event_log "
+                            "GROUP BY modulo ORDER BY SUM(monto) DESC LIMIT 12"
+                        )
+                        rows = cur.fetchall()
+                        if rows:
+                            lines = [f"{'Categoría':<28} {'Monto':>12}", "─" * 41]
+                            for cat, monto in rows:
+                                lines.append(f"{str(cat):<28} ${float(monto or 0):>11,.2f}")
+                            lbl.setText("\n".join(lines))
+                        else:
+                            lbl.setText("Sin datos de gastos registrados aún.")
+                    except Exception:
+                        lbl.setText("Sin datos disponibles.")
+                else:
+                    lbl.setText("Base de datos no disponible.")
+        except Exception as exc:
+            lbl.setText(f"Error al generar reporte: {exc}")
+
+        lbl.setStyleSheet("font-family: monospace; font-size: 12px; padding: 8px;")
+        lay_d.addWidget(lbl, 1)
+        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.reject)
+        lay_d.addWidget(btns)
+        dlg.exec_()
+
+
+class _SeccionConfiguracion(QWidget):
+    def __init__(self, modulo, parent=None):
+        super().__init__(parent)
+        self._m = modulo
+        self._build()
+
+    def _build(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(12)
+
+        lay.addWidget(_FinSectionHeader(
+            "Configuración Financiera",
+            "Categorías, métodos de pago, reglas de conciliación y preferencias"
+        ))
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        cnt = QWidget()
+        s_lay = QVBoxLayout(cnt)
+        s_lay.setSpacing(12)
+
+        # ── Categorías financieras ───────────────────────────────────────────
+        grp_cat = QGroupBox("Categorías financieras")
+        gc = QVBoxLayout(grp_cat)
+        lbl_cat = QLabel("Categorías para clasificar ingresos y egresos:")
+        lbl_cat.setObjectName("caption")
+        gc.addWidget(lbl_cat)
+
+        self._lst_categorias = QListWidget()
+        self._lst_categorias.setMaximumHeight(130)
+        for cat in ["Ventas", "Compras", "Nómina", "Servicios", "Alquiler",
+                    "Mantenimiento", "Impuestos", "Capital", "Otros"]:
+            self._lst_categorias.addItem(cat)
+        gc.addWidget(self._lst_categorias)
+
+        cat_btns = QHBoxLayout()
+        self._txt_nueva_cat = QLineEdit()
+        self._txt_nueva_cat.setPlaceholderText("Nueva categoría...")
+        btn_add_cat = QPushButton("➕ Agregar")
+        btn_add_cat.setObjectName("successBtn")
+        btn_add_cat.setCursor(Qt.PointingHandCursor)
+        btn_add_cat.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_add_cat.clicked.connect(self._agregar_categoria)
+        btn_del_cat = QPushButton("🗑️ Eliminar")
+        btn_del_cat.setObjectName("dangerBtn")
+        btn_del_cat.setCursor(Qt.PointingHandCursor)
+        btn_del_cat.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_del_cat.clicked.connect(self._eliminar_categoria)
+        cat_btns.addWidget(self._txt_nueva_cat, 1)
+        cat_btns.addWidget(btn_add_cat)
+        cat_btns.addWidget(btn_del_cat)
+        gc.addLayout(cat_btns)
+        s_lay.addWidget(grp_cat)
+
+        # ── Reglas de conciliación ───────────────────────────────────────────
+        grp_recon = QGroupBox("Reglas de conciliación")
+        gr = QFormLayout(grp_recon)
+        self._spin_tolerancia = QDoubleSpinBox()
+        self._spin_tolerancia.setRange(0.0, 9999.0)
+        self._spin_tolerancia.setDecimals(2)
+        self._spin_tolerancia.setPrefix("$ ")
+        self._spin_tolerancia.setValue(0.0)
+        gr.addRow("Tolerancia de diferencia:", self._spin_tolerancia)
+        self._cmb_recon_modo = QComboBox()
+        self._cmb_recon_modo.addItems([
+            "Estricto — diferencia debe ser $0.00",
+            "Tolerante — diferencia ≤ tolerancia configurada",
+            "Manual — siempre pide confirmación al cajero",
+        ])
+        gr.addRow("Modo de conciliación:", self._cmb_recon_modo)
+        btn_save_recon = QPushButton("💾 Guardar reglas")
+        btn_save_recon.setObjectName("primaryBtn")
+        btn_save_recon.setCursor(Qt.PointingHandCursor)
+        btn_save_recon.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_recon.clicked.connect(self._guardar_conciliacion)
+        gr.addRow("", btn_save_recon)
+        s_lay.addWidget(grp_recon)
+
+        # ── Series y Folios ──────────────────────────────────────────────────
+        grp_folios = QGroupBox("Series y Folios")
+        gf = QFormLayout(grp_folios)
+        self._txt_serie_factura = QLineEdit("A")
+        self._txt_serie_recibo  = QLineEdit("R")
+        self._txt_serie_nota    = QLineEdit("NC")
+        gf.addRow("Serie de facturas:",          self._txt_serie_factura)
+        gf.addRow("Serie de recibos:",           self._txt_serie_recibo)
+        gf.addRow("Serie de notas de crédito:",  self._txt_serie_nota)
+        btn_save_folios = QPushButton("💾 Guardar series")
+        btn_save_folios.setObjectName("primaryBtn")
+        btn_save_folios.setCursor(Qt.PointingHandCursor)
+        btn_save_folios.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_folios.clicked.connect(self._guardar_folios)
+        gf.addRow("", btn_save_folios)
+        s_lay.addWidget(grp_folios)
+
+        # ── Preferencias de reportes ─────────────────────────────────────────
+        grp_pref = QGroupBox("Preferencias de reportes")
+        gp = QFormLayout(grp_pref)
+        self._cmb_moneda = QComboBox()
+        self._cmb_moneda.addItems(["MXN — Peso mexicano", "USD — Dólar americano", "EUR — Euro"])
+        gp.addRow("Moneda:", self._cmb_moneda)
+        self._cmb_fecha_fmt = QComboBox()
+        self._cmb_fecha_fmt.addItems(["DD/MM/YYYY", "YYYY-MM-DD", "MM/DD/YYYY"])
+        gp.addRow("Formato de fecha:", self._cmb_fecha_fmt)
+        self._spin_decimales = QSpinBox()
+        self._spin_decimales.setRange(0, 4)
+        self._spin_decimales.setValue(2)
+        gp.addRow("Decimales en montos:", self._spin_decimales)
+        btn_save_pref = QPushButton("💾 Guardar preferencias")
+        btn_save_pref.setObjectName("primaryBtn")
+        btn_save_pref.setCursor(Qt.PointingHandCursor)
+        btn_save_pref.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        btn_save_pref.clicked.connect(self._guardar_preferencias)
+        gp.addRow("", btn_save_pref)
+        s_lay.addWidget(grp_pref)
+
+        s_lay.addStretch()
+        scroll.setWidget(cnt)
+        lay.addWidget(scroll, 1)
+        self._cargar_config()
+
+    def _cargar_config(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if not mc:
+            return
+        try:
+            tol = mc.get_value("finance_tolerancia_conciliacion", 0.0)
+            self._spin_tolerancia.setValue(float(tol or 0))
+            modo = str(mc.get_value("finance_modo_conciliacion", "") or "")
+            for i in range(self._cmb_recon_modo.count()):
+                if modo and modo.lower() in self._cmb_recon_modo.itemText(i).lower():
+                    self._cmb_recon_modo.setCurrentIndex(i)
+                    break
+            self._txt_serie_factura.setText(str(mc.get_value("finance_serie_factura", "A") or "A"))
+            self._txt_serie_recibo.setText(str(mc.get_value("finance_serie_recibo",   "R") or "R"))
+            self._txt_serie_nota.setText(str(mc.get_value("finance_serie_nota_credito", "NC") or "NC"))
+            moneda = str(mc.get_value("finance_moneda", "MXN") or "MXN").upper()
+            for i in range(self._cmb_moneda.count()):
+                if moneda in self._cmb_moneda.itemText(i):
+                    self._cmb_moneda.setCurrentIndex(i)
+                    break
+            fmt = str(mc.get_value("finance_formato_fecha", "") or "")
+            for i in range(self._cmb_fecha_fmt.count()):
+                if fmt == self._cmb_fecha_fmt.itemText(i):
+                    self._cmb_fecha_fmt.setCurrentIndex(i)
+                    break
+            dec = mc.get_value("finance_decimales", 2)
+            self._spin_decimales.setValue(int(dec or 2))
+            import json
+            cats_json = mc.get_value("finance_categorias", "")
+            if cats_json:
+                try:
+                    cats = json.loads(str(cats_json))
+                    self._lst_categorias.clear()
+                    for cat in cats:
+                        self._lst_categorias.addItem(str(cat))
+                except Exception:
+                    pass
+        except Exception as exc:
+            logger.debug("_cargar_config: %s", exc)
+
+    def _agregar_categoria(self):
+        txt = self._txt_nueva_cat.text().strip()
+        if not txt:
+            return
+        existing = [self._lst_categorias.item(i).text()
+                    for i in range(self._lst_categorias.count())]
+        if txt in existing:
+            QMessageBox.information(self, "Categoría", "Esa categoría ya existe.")
+            return
+        self._lst_categorias.addItem(txt)
+        self._txt_nueva_cat.clear()
+        self._guardar_categorias()
+
+    def _eliminar_categoria(self):
+        row = self._lst_categorias.currentRow()
+        if row < 0:
+            QMessageBox.information(self, "Categoría", "Selecciona una categoría para eliminar.")
+            return
+        self._lst_categorias.takeItem(row)
+        self._guardar_categorias()
+
+    def _guardar_categorias(self):
+        import json
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        cats = [self._lst_categorias.item(i).text()
+                for i in range(self._lst_categorias.count())]
+        if mc:
+            try:
+                mc.set_value("finance_categorias", json.dumps(cats, ensure_ascii=False))
+            except Exception as exc:
+                logger.debug("_guardar_categorias: %s", exc)
+        Toast.success(self, "Categorías guardadas", f"{len(cats)} categorías configuradas.")
+
+    def _guardar_conciliacion(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                mc.set_value("finance_tolerancia_conciliacion", self._spin_tolerancia.value())
+                modo_txt = self._cmb_recon_modo.currentText().split("—")[0].strip()
+                mc.set_value("finance_modo_conciliacion", modo_txt)
+            except Exception as exc:
+                logger.debug("_guardar_conciliacion: %s", exc)
+        Toast.success(self, "Reglas guardadas", "Configuración de conciliación actualizada.")
+
+    def _guardar_folios(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                mc.set_value("finance_serie_factura",      self._txt_serie_factura.text().strip() or "A")
+                mc.set_value("finance_serie_recibo",       self._txt_serie_recibo.text().strip()  or "R")
+                mc.set_value("finance_serie_nota_credito", self._txt_serie_nota.text().strip()    or "NC")
+            except Exception as exc:
+                logger.debug("_guardar_folios: %s", exc)
+        Toast.success(self, "Series guardadas", "Configuración de folios actualizada.")
+
+    def _guardar_preferencias(self):
+        m  = self._m
+        mc = getattr(getattr(m, "container", None), "module_config", None)
+        if mc:
+            try:
+                moneda_txt = self._cmb_moneda.currentText().split("—")[0].strip()
+                mc.set_value("finance_moneda",        moneda_txt)
+                mc.set_value("finance_formato_fecha", self._cmb_fecha_fmt.currentText())
+                mc.set_value("finance_decimales",     self._spin_decimales.value())
+            except Exception as exc:
+                logger.debug("_guardar_preferencias: %s", exc)
+        Toast.success(self, "Preferencias guardadas", "Configuración de reportes actualizada.")
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  MÓDULO PRINCIPAL
+# ═════════════════════════════════════════════════════════════════════════════
+
+class ModuloFinanzasUnificadas(QWidget):
+    """Centro financiero ERP con navegación lateral (12 secciones)."""
+
+    def __init__(self, container, parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.container     = container
+        self.sucursal_id   = 1
+        self.usuario_actual = ""
+
+        # Servicios existentes
+        self._ts      = getattr(container, "treasury_service", None)
+        self._tps     = getattr(container, "third_party_service", None)
+        self._fs      = getattr(container, "finance_service", None)
+        self._analytics = getattr(container, "analytics_engine", None)
+        self._erp     = getattr(container, "erp_financial_service", None)
+
+        # Servicios nuevos mig 083
+        self._je_svc    = getattr(container, "journal_entry_service", None)
+        self._fd_svc    = getattr(container, "financial_document_service", None)
+        self._tm_svc    = getattr(container, "treasury_movement_service", None)
+        self._recon_svc = getattr(container, "reconciliation_service", None)
+
+        # Capital (puede no existir)
+        self._capital_svc = getattr(container, "capital_service", None)
+
+        # Dashboard service
+        try:
+            from core.services.finance.financial_dashboard_service import FinancialDashboardService
+            _db = getattr(container, "db", None)
+            self._dash_svc = FinancialDashboardService(db=_db, treasury_service=self._ts)
         except Exception:
-            pass
-        self._cargar_cuentas_cobrar()
+            self._dash_svc = None
 
-    def _listar_clientes(self):
-        if not hasattr(self.container, "db"):
-            return []
-        rows = self.container.db.execute(
-            "SELECT id, nombre FROM clientes WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 500"
-        ).fetchall()
-        return [{"id": r[0], "nombre": r[1]} for r in rows]
+        # Lazy-build state
+        self._section_built   = [False] * 12
+        self._section_widgets = [None] * 12
 
-    def _build_autocomplete_selector(self, items: List[Dict[str, Any]], placeholder: str = ""):
-        """
-        Crea selector por barra de búsqueda + autocompletar.
-        Retorna (QLineEdit, selected_ref_dict) donde selected_ref_dict['id'] guarda el seleccionado.
-        """
+        # Referencia al nav sidebar (para _nav_to)
+        self._nav = None
+
+        self._setup_ui()
+        self._wire_live_refresh()
+        self._wire_kpi_auto_refresh()
+
+    # ─── Métodos públicos ────────────────────────────────────────────────────
+
+    def set_sucursal(self, sucursal_id: int, nombre: str = ""):
+        self.sucursal_id = sucursal_id
+        self._cargar_datos_actuales()
+
+    def set_usuario_actual(self, usuario: str, rol: str = ""):
+        self.usuario_actual = usuario
+
+    def set_active_submodule(self, name: str) -> None:
+        """Selecciona sección por nombre (compatibilidad con wrappers)."""
+        mapping = {
+            "resumen": 0, "dashboard": 0,
+            "caja": 1, "conciliacion": 1,
+            "capital": 2,
+            "cxc": 3, "cobrar": 3,
+            "cxp": 4, "pagar": 4,
+            "movimientos": 5, "tesoreria": 5,
+            "asientos": 6, "ledger": 6,
+            "nomina": 7, "finanzas": 7,
+            "proveedores": 8,
+            "clientes": 9,
+            "reportes": 10,
+            "configuracion": 11,
+        }
+        idx = mapping.get((name or "").lower())
+        if idx is not None:
+            self._nav_to(idx)
+
+    def _cargar_datos_actuales(self):
+        """Refresca la sección activa."""
+        if self._nav is None:
+            return
+        idx = self._nav.currentRow()
+        self._reload_section(idx)
+
+    # ─── Acceso a autocomplete selector (usado en secciones) ─────────────────
+
+    def _build_autocomplete_selector(self, items: List[Dict[str, Any]],
+                                     placeholder: str = ""):
         txt = QLineEdit()
         txt.setPlaceholderText(placeholder or "Buscar…")
         selected_ref: Dict[str, Any] = {"id": None}
         if not items:
             return txt, selected_ref
-
-        options = [f"{it.get('id')} - {it.get('label','')}" for it in items]
+        options   = [f"{it.get('id')} - {it.get('label','')}" for it in items]
         index_map = {opt: int(it.get("id")) for opt, it in zip(options, items)}
         completer = QCompleter(options)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
@@ -1323,646 +3298,193 @@ class ModuloFinanzasUnificadas(QWidget):
 
         completer.activated[str].connect(_on_activate)
 
-        def _sync_manual():
+        def _sync():
             selected_ref["id"] = index_map.get(txt.text().strip())
 
-        txt.editingFinished.connect(_sync_manual)
+        txt.editingFinished.connect(_sync)
         return txt, selected_ref
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  MÉTODOS DE GASTOS OPERATIVOS
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _registrar_gasto(self):
-        """Registra un nuevo gasto operativo."""
-        concepto = self.txt_concepto_gasto.text().strip()
-        monto = self.txt_monto_gasto.value()
-        
-        if not concepto:
-            QMessageBox.warning(self, "Aviso", "Debe ingresar el concepto del gasto.")
-            return
-        
-        if not self._ts:
-            QMessageBox.warning(self, "Error", "TreasuryService no disponible.")
-            return
-        
-        try:
-            self._ts.registrar_gasto_opex(
-                categoria=self.cmb_categoria_gasto.currentText(),
-                concepto=concepto,
-                monto=monto,
-                metodo_pago=self.cmb_metodo_gasto.currentText(),
-                usuario=self.usuario_actual,
-                sucursal_id=self.sucursal_id
-            )
-            Toast.success(self, "Gasto registrado", "Asentado en contabilidad.")
-            self.txt_concepto_gasto.clear()
-            self.txt_monto_gasto.setValue(0.1)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-    
-    # ──────────────────────────────────────────────────────────────────────────
-    #  MÉTODOS DE PROVEEDORES
-    # ──────────────────────────────────────────────────────────────────────────
-    
-    def _cargar_proveedores(self):
-        """Carga la tabla de proveedores."""
-        if not self._tps:
-            self._tabla_proveedores.setRowCount(0)
-            return
-        try:
-            rows = self._tps.get_all_proveedores(activo=True, limit=300)
-        except Exception as e:
-            logger.warning("_cargar_proveedores: %s", e)
-            rows = []
 
-        # fallback defensivo para no bloquear la UX si falla el servicio unificado
-        if not rows and hasattr(self.container, "db"):
+    # ─── Setup UI ────────────────────────────────────────────────────────────
+
+    def _setup_ui(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # PageHeader
+        header = PageHeader(
+            self,
+            title="Finanzas",
+            subtitle="Tesorería · Contabilidad · Proveedores — fuente única de verdad",
+        )
+        root.addWidget(header)
+
+        # Splitter: sidebar | stack — sin handle visible, sin márgenes laterales
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setHandleWidth(0)
+        splitter.setContentsMargins(0, 0, 0, 0)
+
+        # ── Sidebar ──────────────────────────────────────────────────────────
+        # Siempre oscuro (SidebarColors) independientemente del tema activo.
+        # El inline setStyleSheet sobre el propio widget tiene máxima prioridad
+        # sobre el QSS global, garantizando color consistente en light/dark.
+        self._nav = QListWidget()
+        self._nav.setObjectName("finSidebar")
+        self._nav.setFixedWidth(176)
+        self._nav.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        self._nav.setStyleSheet(
+            f"QListWidget#finSidebar {{"
+            f"  background: {_P_SURFACE};"
+            f"  border: none;"
+            f"  border-right: 1px solid {_P_OUTLINE};"
+            f"  color: {_P_ON_SURF};"
+            f"  font-family: {Typography.FONT_FAMILY};"
+            f"  font-size: {Typography.SIZE_MD};"
+            f"  outline: none;"
+            f"  padding-top: 4px;"
+            f"}}"
+            f"QListWidget#finSidebar::item {{"
+            f"  padding: 9px 12px 9px 16px;"
+            f"  border-left: 3px solid transparent;"
+            f"  color: {_P_MUTED};"
+            f"}}"
+            f"QListWidget#finSidebar::item:hover {{"
+            f"  background: {_P_CONTAINER};"
+            f"  color: {_P_ON_SURF};"
+            f"}}"
+            f"QListWidget#finSidebar::item:selected {{"
+            f"  background: {_P_HIGH};"
+            f"  border-left: 3px solid {_P_PRIMARY};"
+            f"  color: {_P_ON_SURF};"
+            f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
+            f"}}"
+        )
+        for label, icon in _SECCIONES:
+            item = QListWidgetItem(f"  {icon}  {label}")
+            self._nav.addItem(item)
+        self._nav.currentRowChanged.connect(self._on_section_changed)
+
+        # ── Stack — sin márgenes extra, ocupa todo el espacio restante ───────
+        self._stack = QStackedWidget()
+        self._stack.setContentsMargins(0, 0, 0, 0)
+        for _ in _SECCIONES:
+            self._stack.addWidget(QWidget())
+
+        splitter.addWidget(self._nav)
+        splitter.addWidget(self._stack)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+
+        root.addWidget(splitter, 1)   # stretch=1: llena el alto restante
+
+        # Seleccionar primera sección
+        self._nav.setCurrentRow(0)
+
+    def _nav_to(self, index: int):
+        """Navega programáticamente a una sección."""
+        if 0 <= index < 12:
+            self._nav.setCurrentRow(index)
+
+    def _on_section_changed(self, index: int):
+        if index < 0:
+            return
+        self._ensure_section_built(index)
+        self._stack.setCurrentIndex(index)
+        self._reload_section(index)
+
+    def _ensure_section_built(self, index: int):
+        if self._section_built[index]:
+            return
+        builders = [
+            lambda: _SeccionResumen(self),
+            lambda: _SeccionCajayConciliacion(self),
+            lambda: _SeccionCapital(self),
+            lambda: _SeccionCuentasPorCobrar(self),
+            lambda: _SeccionCuentasPorPagar(self),
+            lambda: _SeccionMovimientos(self),
+            lambda: _SeccionAsientosContables(self),
+            lambda: _SeccionNomina(self),
+            lambda: _SeccionProveedores(self),
+            lambda: _SeccionClientesCredito(self),
+            lambda: _SeccionReportes(self),
+            lambda: _SeccionConfiguracion(self),
+        ]
+        widget = builders[index]()
+        self._section_widgets[index] = widget
+        self._stack.removeWidget(self._stack.widget(index))
+        self._stack.insertWidget(index, widget)
+        self._section_built[index] = True
+
+    def _reload_section(self, index: int):
+        if not self._section_built[index]:
+            return
+        w = self._section_widgets[index]
+        if w and hasattr(w, "recargar"):
             try:
-                cur = self.container.db.execute(
-                    "SELECT id,nombre,telefono,email,contacto,"
-                    "COALESCE(condiciones_pago,0) FROM proveedores "
-                    "WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 300"
-                )
-                rows = [
-                    {
-                        "id": r[0], "nombre": r[1], "telefono": r[2], "email": r[3],
-                        "contacto": r[4], "condiciones_pago": r[5], "saldo_pendiente": 0.0
-                    }
-                    for r in cur.fetchall()
-                ]
+                w.recargar()
             except Exception as e:
-                logger.warning("_cargar_proveedores fallback: %s", e)
-        
-        self._tabla_proveedores.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            pid, nombre = r.get('id'), r.get('nombre', '')
-            vals = [
-                nombre,
-                r.get('telefono', ''),
-                r.get('email', ''),
-                r.get('contacto', ''),
-                f"{int(r.get('condiciones_pago', 0) or 0)} días",
-                f"${float(r.get('saldo_pendiente', 0) or 0):,.2f}"
-            ]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(str(v))
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci == 0:
-                    it.setData(Qt.UserRole, pid)
-                self._tabla_proveedores.setItem(ri, ci, it)
-            
-            # Botones de acción
-            btn_w = QWidget()
-            btn_lay = QHBoxLayout(btn_w)
-            btn_lay.setContentsMargins(2, 2, 2, 2)
-            
-            btn_ed = QPushButton("✏️")
-            btn_ed.setFixedSize(28, 26)
-            btn_ed.setObjectName("outlineBtn")
-            btn_ed.setToolTip("Editar")
-            btn_ed.setCursor(Qt.PointingHandCursor)
-            btn_ed.clicked.connect(lambda _, pid=pid: self._editar_por_id(pid))
+                logger.warning("_reload_section[%d]: %s", index, e)
 
-            btn_del = QPushButton("🗑️")
-            btn_del.setFixedSize(28, 26)
-            btn_del.setObjectName("dangerBtn")
-            btn_del.setToolTip("Eliminar")
-            btn_del.setCursor(Qt.PointingHandCursor)
-            btn_del.clicked.connect(lambda _, pid=pid, nom=nombre: self._eliminar_proveedor(pid, nom))
-            
-            btn_lay.addWidget(btn_ed)
-            btn_lay.addWidget(btn_del)
-            self._tabla_proveedores.setCellWidget(ri, 6, btn_w)
-    
-    def _filtrar_proveedores(self):
-        """Filtra la tabla de proveedores por nombre, RFC o contacto."""
-        txt = self._txt_buscar_prov.text().lower()
-        for i in range(self._tabla_proveedores.rowCount()):
-            nom = (self._tabla_proveedores.item(i, 0) or QTableWidgetItem()).text().lower()
-            tel = (self._tabla_proveedores.item(i, 1) or QTableWidgetItem()).text().lower()
-            con = (self._tabla_proveedores.item(i, 3) or QTableWidgetItem()).text().lower()
-            visible = not txt or txt in nom or txt in tel or txt in con
-            self._tabla_proveedores.setRowHidden(i, not visible)
+    # ─── Eventos del bus ─────────────────────────────────────────────────────
 
-    def _on_proveedor_selected(self):
-        row = self._tabla_proveedores.currentRow()
-        if row < 0:
-            self._lbl_proveedor_detalle.setText("Selecciona un proveedor para ver sus datos.")
-            self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: $0.00")
-            return
-        it = self._tabla_proveedores.item(row, 0)
-        proveedor_id = it.data(Qt.UserRole) if it else None
-        if not proveedor_id:
-            self._lbl_proveedor_detalle.setText("Proveedor no identificado.")
-            self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: $0.00")
-            return
+    def _wire_live_refresh(self):
         try:
-            prov = self._tps.get_proveedor(int(proveedor_id)) if self._tps else None
-            if prov:
-                self._lbl_proveedor_detalle.setText(
-                    f"Nombre: {prov.get('nombre','-')} | RFC: {prov.get('rfc','-')} | "
-                    f"Tel: {prov.get('telefono','-')} | Email: {prov.get('email','-')}"
-                )
-            else:
-                self._lbl_proveedor_detalle.setText("No se encontraron datos generales del proveedor.")
-            deudas = [d for d in (self._ts.get_cuentas_por_pagar(0) if self._ts else [])
-                      if int(d.get("proveedor_id") or 0) == int(proveedor_id)]
-            saldo = sum(float(d.get("saldo", 0) or 0) for d in deudas)
-            if saldo <= 0:
-                self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: Sin cuentas pendientes.")
-            else:
-                self._lbl_proveedor_resumen.setText(
-                    f"Resumen de cuentas pendientes: ${saldo:,.2f} en {len(deudas)} documento(s)."
-                )
-        except Exception as exc:
-            logger.warning("_on_proveedor_selected: %s", exc)
-            self._lbl_proveedor_detalle.setText("No fue posible cargar el detalle del proveedor.")
-            self._lbl_proveedor_resumen.setText("Resumen de cuentas pendientes: $0.00")
+            from core.events.event_bus import get_bus
+            bus = get_bus()
+            bus.subscribe("PROVEEDOR_CREADO",     lambda _: QTimer.singleShot(0, lambda: self._reload_section(8)),  label="fin.ui.prov_creado")
+            bus.subscribe("PROVEEDOR_ACTUALIZADO",lambda _: QTimer.singleShot(0, lambda: self._reload_section(8)),  label="fin.ui.prov_act")
+            bus.subscribe("PROVEEDOR_ELIMINADO",  lambda _: QTimer.singleShot(0, lambda: self._reload_section(8)),  label="fin.ui.prov_del")
+            bus.subscribe("CXP_CREADA",           lambda _: QTimer.singleShot(0, lambda: self._reload_section(4)),  label="fin.ui.cxp_creada")
+            bus.subscribe("CXC_CREADA",           lambda _: QTimer.singleShot(0, lambda: self._reload_section(3)),  label="fin.ui.cxc_creada")
+            bus.subscribe("CLIENTE_CREADO",       lambda _: QTimer.singleShot(0, lambda: self._reload_section(3)),  label="fin.ui.cliente_creado")
+        except Exception:
+            pass
 
-    def _dialogo_pago_global_cxp(self):
-        if not self._ts:
-            return
-        proveedores = self._tps.get_all_proveedores(activo=True, limit=500) if self._tps else []
-        if not proveedores:
-            QMessageBox.information(self, "Sin proveedores", "No hay proveedores activos para aplicar pago global.")
-            return
-        nombres = [f"{p.get('id')} - {p.get('nombre','')}" for p in proveedores]
-        seleccionado, ok_sel = QInputDialog.getItem(self, "Proveedor", "Selecciona proveedor:", nombres, 0, False)
-        if not ok_sel:
-            return
-        tercero_id = int(str(seleccionado).split(" - ", 1)[0])
-        monto, ok = QInputDialog.getDouble(self, "Pago global CxP", "Monto total a aplicar:", 0.0, 0.0, 999999999.0, 2)
-        if not ok or monto <= 0:
-            return
-        metodo, ok2 = QInputDialog.getItem(self, "Método", "Forma de pago:", ["Transferencia", "Efectivo", "Cheque"], 0, False)
-        if not ok2:
-            return
-        self._ts.aplicar_pago_global("proveedor", monto, metodo=metodo, usuario=self.usuario_actual, tercero_id=tercero_id)
-        self._cargar_cuentas_pagar()
-        self._cargar_dashboard_financiero()
-
-    def _dialogo_cobro_global_cxc(self):
-        if not self._ts:
-            return
-        clientes = self._listar_clientes()
-        if not clientes:
-            QMessageBox.information(self, "Sin clientes", "No hay clientes activos para aplicar cobro global.")
-            return
-        nombres = [f"{c.get('id')} - {c.get('nombre','')}" for c in clientes]
-        seleccionado, ok_sel = QInputDialog.getItem(self, "Cliente", "Selecciona cliente:", nombres, 0, False)
-        if not ok_sel:
-            return
-        tercero_id = int(str(seleccionado).split(" - ", 1)[0])
-        monto, ok = QInputDialog.getDouble(self, "Cobro global CxC", "Monto total a aplicar:", 0.0, 0.0, 999999999.0, 2)
-        if not ok or monto <= 0:
-            return
-        metodo, ok2 = QInputDialog.getItem(self, "Método", "Forma de cobro:", ["Efectivo", "Transferencia", "Tarjeta"], 0, False)
-        if not ok2:
-            return
-        self._ts.aplicar_pago_global("cliente", monto, metodo=metodo, usuario=self.usuario_actual, tercero_id=tercero_id)
-        self._cargar_cuentas_cobrar()
-        self._cargar_dashboard_financiero()
-    
-    def _nuevo_proveedor(self):
-        """Abre diálogo para crear nuevo proveedor."""
-        if not self._tps:
-            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
-            return
-        dlg = DialogoProveedor(self._tps, parent=self)
-        if dlg.exec_() == QDialog.Accepted:
-            self._cargar_proveedores()
-    
-    def _editar_por_id(self, proveedor_id: int):
-        """Abre diálogo para editar proveedor por ID."""
-        if not self._tps:
-            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
-            return
-        dlg = DialogoProveedor(self._tps, proveedor_id, parent=self)
-        if dlg.exec_() == QDialog.Accepted:
-            self._cargar_proveedores()
-    
-    def _editar_proveedor_seleccionado(self):
-        """Edita el proveedor seleccionado en la tabla."""
-        row = self._tabla_proveedores.currentRow()
-        if row < 0:
-            return
-        pid_item = self._tabla_proveedores.item(row, 0)
-        if not pid_item:
-            return
-        proveedor_id = pid_item.data(Qt.UserRole)
-        if not proveedor_id:
-            return
-        self._editar_por_id(proveedor_id)
-    
-    def _eliminar_proveedor(self, proveedor_id: int, nombre: str):
-        """Elimina un proveedor."""
-        resp = QMessageBox.question(
-            self, "Eliminar proveedor",
-            f"¿Eliminar a '{nombre}'?\nEsta acción no se puede deshacer.",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if resp != QMessageBox.Yes:
-            return
-        if not self._tps:
-            QMessageBox.warning(self, "Error", "Servicio de proveedores no disponible.")
-            return
+    def _wire_kpi_auto_refresh(self):
         try:
-            self._tps.delete_proveedor(proveedor_id, soft=True)
-            self._cargar_proveedores()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            self._kpi_timer = QTimer(self)
+            self._kpi_timer.setInterval(15000)
+            self._kpi_timer.timeout.connect(self._refresh_kpis_if_visible)
+            self._kpi_timer.start()
+            from core.events.event_bus import get_bus
+            bus = get_bus()
+            for evt in ("VENTA_COMPLETADA", "MOVIMIENTO_FINANCIERO", "CXP_CREADA", "CXC_CREADA", "AJUSTE_INVENTARIO"):
+                bus.subscribe(evt, lambda _d: QTimer.singleShot(0, lambda: self._reload_section(0)),
+                              label=f"fin.ui.kpi.{evt.lower()}")
+        except Exception:
+            pass
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  PESTAÑA 4: DOCUMENTOS FINANCIEROS ERP
-    # ─────────────────────────────────────────────────────────────────────────
+    def _refresh_kpis_if_visible(self):
+        if self._nav and self._nav.currentRow() == 0:
+            self._reload_section(0)
 
-    def _crear_pestaña_documentos(self):
-        w = QWidget()
-        lay = QVBoxLayout(w)
+    # ─── Métodos legacy (compatibilidad interna) ──────────────────────────────
 
-        hdr = QHBoxLayout()
-        lbl = QLabel("📄 Documentos Financieros")
-        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
-        btn_nuevo = QPushButton("➕ Nuevo Documento")
-        btn_nuevo.setStyleSheet(
-            "background:#2563EB;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
-        )
-        btn_nuevo.clicked.connect(self._dialogo_nuevo_documento)
-        hdr.addWidget(lbl); hdr.addStretch(); hdr.addWidget(btn_nuevo)
-        lay.addLayout(hdr)
+    def _cargar_proveedores(self):
+        """Compatibilidad: recarga sección proveedores."""
+        self._reload_section(8)
 
-        filtros = QHBoxLayout()
-        self._cmb_tipo_doc = QComboBox()
-        self._cmb_tipo_doc.addItem("Todos los tipos", "")
-        for t in ["venta", "compra", "devolucion_venta", "devolucion_compra",
-                  "nota_credito", "nota_debito", "merma", "produccion", "ajuste", "anticipo"]:
-            self._cmb_tipo_doc.addItem(t, t)
-        self._cmb_estado_doc = QComboBox()
-        self._cmb_estado_doc.addItem("Todos los estados", "")
-        for s in ["borrador", "confirmado", "parcial", "pagado", "cancelado", "reversado"]:
-            self._cmb_estado_doc.addItem(s, s)
-        btn_filtrar = QPushButton("🔍 Filtrar")
-        btn_filtrar.clicked.connect(self._cargar_documentos_erp)
-        filtros.addWidget(QLabel("Tipo:")); filtros.addWidget(self._cmb_tipo_doc)
-        filtros.addWidget(QLabel("Estado:")); filtros.addWidget(self._cmb_estado_doc)
-        filtros.addWidget(btn_filtrar); filtros.addStretch()
-        lay.addLayout(filtros)
+    def _cargar_cuentas_pagar(self):
+        """Compatibilidad: recarga sección CxP."""
+        self._reload_section(4)
 
-        self._tbl_docs = QTableWidget()
-        self._tbl_docs.setColumnCount(8)
-        self._tbl_docs.setHorizontalHeaderLabels(
-            ["ID", "Folio", "Tipo", "Módulo", "Fecha", "Total", "Saldo", "Estado"]
-        )
-        self._tbl_docs.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self._tbl_docs.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_docs.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_docs.setAlternatingRowColors(True)
-        self._tbl_docs.verticalHeader().setVisible(False)
-        lay.addWidget(self._tbl_docs)
+    def _cargar_cuentas_cobrar(self):
+        """Compatibilidad: recarga sección CxC."""
+        self._reload_section(3)
 
-        # KPI bar
-        kpi_bar = QHBoxLayout()
-        self._lbl_doc_total_pend = QLabel("CxC pendiente: $0.00")
-        self._lbl_doc_total_pend.setStyleSheet("font-weight:bold;color:#2563EB;")
-        self._lbl_doc_cxp_pend = QLabel("CxP pendiente: $0.00")
-        self._lbl_doc_cxp_pend.setStyleSheet("font-weight:bold;color:#DC2626;")
-        self._lbl_doc_vencidos = QLabel("Vencidos: 0")
-        self._lbl_doc_vencidos.setStyleSheet("font-weight:bold;color:#D97706;")
-        kpi_bar.addWidget(self._lbl_doc_total_pend)
-        kpi_bar.addWidget(QLabel(" | "))
-        kpi_bar.addWidget(self._lbl_doc_cxp_pend)
-        kpi_bar.addWidget(QLabel(" | "))
-        kpi_bar.addWidget(self._lbl_doc_vencidos)
-        kpi_bar.addStretch()
-        lay.addLayout(kpi_bar)
-        return w
+    def _cargar_dashboard_financiero(self):
+        """Compatibilidad: recarga sección resumen."""
+        self._reload_section(0)
 
-    def _cargar_documentos_erp(self):
-        if not self._erp:
-            return
-        try:
-            tipo = self._cmb_tipo_doc.currentData() if hasattr(self, "_cmb_tipo_doc") else None
-            estado = self._cmb_estado_doc.currentData() if hasattr(self, "_cmb_estado_doc") else None
-            docs = self._erp.get_documentos(
-                tipo=tipo or None, estado=estado or None, sucursal_id=self.sucursal_id
-            )
-            self._tbl_docs.setRowCount(len(docs))
-            for ri, d in enumerate(docs):
-                vals = [str(d["id"]), d["folio"], d["tipo_documento"],
-                        d["modulo_origen"], str(d["fecha_emision"])[:10],
-                        f"${float(d['total']):,.2f}", f"${float(d['saldo_pendiente']):,.2f}",
-                        d["estado"]]
-                for ci, v in enumerate(vals):
-                    it = QTableWidgetItem(v)
-                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    if ci == 7:
-                        color = {"pagado": Colors.SUCCESS_BASE, "cancelado": Colors.DANGER_BASE,
-                                 "confirmado": Colors.PRIMARY_BASE, "parcial": Colors.WARNING_BASE}.get(v, "")
-                        if color:
-                            it.setForeground(QFont())
-                            it.setData(Qt.ForegroundRole,
-                                       __import__("PyQt5.QtGui", fromlist=["QColor"]).QColor(color))
-                    self._tbl_docs.setItem(ri, ci, it)
-            kpis = self._erp.kpis_erp(self.sucursal_id)
-            if hasattr(self, "_lbl_doc_total_pend"):
-                self._lbl_doc_total_pend.setText(
-                    f"CxC pendiente: ${kpis.get('cxc_pendiente', 0):,.2f}")
-                self._lbl_doc_cxp_pend.setText(
-                    f"CxP pendiente: ${kpis.get('cxp_pendiente', 0):,.2f}")
-                self._lbl_doc_vencidos.setText(
-                    f"Vencidos: {kpis.get('documentos_vencidos', 0)}")
-        except Exception as e:
-            logger.warning("_cargar_documentos_erp: %s", e)
-
-    def _dialogo_nuevo_documento(self):
-        if not self._erp:
-            QMessageBox.warning(self, "Error", "ERPFinancialService no disponible.")
-            return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Nuevo Documento Financiero")
-        lay = QFormLayout(dlg)
-
-        cmb_tipo = QComboBox()
-        for t in ["venta", "compra", "nota_credito", "nota_debito", "ajuste", "anticipo"]:
-            cmb_tipo.addItem(t)
-        txt_modulo = QLineEdit("manual")
-        spin_total = QDoubleSpinBox()
-        spin_total.setRange(0.01, 999999999); spin_total.setPrefix("$")
-        txt_ref = QLineEdit(); txt_ref.setPlaceholderText("Referencia opcional")
-        lay.addRow("Tipo:", cmb_tipo)
-        lay.addRow("Módulo origen:", txt_modulo)
-        lay.addRow("Total:", spin_total)
-        lay.addRow("Referencia:", txt_ref)
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        lay.addRow(btns)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        try:
-            doc_id = self._erp.crear_documento(
-                tipo=cmb_tipo.currentText(),
-                total=float(spin_total.value()),
-                modulo_origen=txt_modulo.text().strip() or "manual",
-                sucursal_id=self.sucursal_id,
-            )
-            self._erp.confirmar_documento(doc_id)
-            self._cargar_documentos_erp()
-            QMessageBox.information(self, "Éxito", f"Documento creado (ID: {doc_id})")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    # ─────────────────────────────────────────────────────────────────────────
-    #  PESTAÑA 5: PAGOS Y COBROS ERP
-    # ─────────────────────────────────────────────────────────────────────────
-
-    def _crear_pestaña_pagos_cobros(self):
-        w = QWidget()
-        lay = QVBoxLayout(w)
-
-        hdr = QHBoxLayout()
-        lbl = QLabel("💳 Pagos y Cobros")
-        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
-        btn_cobrar = QPushButton("💰 Registrar Cobro")
-        btn_cobrar.setStyleSheet(
-            "background:#16A34A;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
-        )
-        btn_cobrar.clicked.connect(lambda: self._dialogo_pago_cobro("cobro_cliente"))
-        btn_pagar = QPushButton("💸 Registrar Pago")
-        btn_pagar.setStyleSheet(
-            "background:#DC2626;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
-        )
-        btn_pagar.clicked.connect(lambda: self._dialogo_pago_cobro("pago_proveedor"))
-        hdr.addWidget(lbl); hdr.addStretch()
-        hdr.addWidget(btn_cobrar); hdr.addWidget(btn_pagar)
-        lay.addLayout(hdr)
-
-        self._tbl_pc = QTableWidget()
-        self._tbl_pc.setColumnCount(7)
-        self._tbl_pc.setHorizontalHeaderLabels(
-            ["ID", "Folio", "Operación", "Monto", "Forma Pago", "Fecha", "Estado"]
-        )
-        self._tbl_pc.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self._tbl_pc.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_pc.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_pc.setAlternatingRowColors(True)
-        self._tbl_pc.verticalHeader().setVisible(False)
-        lay.addWidget(self._tbl_pc)
-
-        kpi = QHBoxLayout()
-        self._lbl_flujo_neto = QLabel("Flujo neto mes: $0.00")
-        self._lbl_flujo_neto.setStyleSheet("font-weight:bold;font-size:13px;")
-        kpi.addWidget(self._lbl_flujo_neto); kpi.addStretch()
-        lay.addLayout(kpi)
-        return w
-
-    def _cargar_pagos_cobros_erp(self):
-        if not self._erp:
-            return
-        try:
-            rows = self._erp.get_pagos_cobros(sucursal_id=self.sucursal_id)
-            self._tbl_pc.setRowCount(len(rows))
-            for ri, r in enumerate(rows):
-                vals = [str(r["id"]), r["folio"], r["tipo_operacion"],
-                        f"${float(r['monto_total']):,.2f}", r["forma_pago"],
-                        str(r["fecha"])[:10], r["estado"]]
-                for ci, v in enumerate(vals):
-                    it = QTableWidgetItem(v)
-                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    self._tbl_pc.setItem(ri, ci, it)
-            kpis = self._erp.kpis_erp(self.sucursal_id)
-            flujo = kpis.get("flujo_neto", 0)
-            color = Colors.SUCCESS_BASE if flujo >= 0 else Colors.DANGER_BASE
-            if hasattr(self, "_lbl_flujo_neto"):
-                self._lbl_flujo_neto.setText(f"Flujo neto mes: ${flujo:,.2f}")
-                self._lbl_flujo_neto.setStyleSheet(
-                    f"font-weight:bold;font-size:13px;color:{color};"
-                )
-        except Exception as e:
-            logger.warning("_cargar_pagos_cobros_erp: %s", e)
-
-    def _dialogo_pago_cobro(self, tipo_op: str):
-        if not self._erp:
-            QMessageBox.warning(self, "Error", "ERPFinancialService no disponible.")
-            return
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"Registrar {'Cobro' if 'cobro' in tipo_op else 'Pago'}")
-        lay = QFormLayout(dlg)
-        spin_monto = QDoubleSpinBox()
-        spin_monto.setRange(0.01, 999999999); spin_monto.setPrefix("$")
-        cmb_forma = QComboBox()
-        cmb_forma.addItems(["efectivo", "tarjeta", "transferencia", "credito", "mixto"])
-        txt_obs = QLineEdit(); txt_obs.setPlaceholderText("Observaciones")
-        lay.addRow("Monto:", spin_monto)
-        lay.addRow("Forma de pago:", cmb_forma)
-        lay.addRow("Observaciones:", txt_obs)
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        lay.addRow(btns)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        try:
-            pc_id = self._erp.registrar_pago_cobro(
-                tipo=tipo_op,
-                monto=float(spin_monto.value()),
-                forma_pago=cmb_forma.currentText(),
-                sucursal_id=self.sucursal_id,
-                observaciones=txt_obs.text().strip(),
-            )
-            self._erp.registrar_movimiento(
-                tipo="entrada" if "cobro" in tipo_op else "salida",
-                monto=float(spin_monto.value()),
-                origen_modulo="finanzas",
-                origen_id=pc_id,
-                sucursal_id=self.sucursal_id,
-            )
-            self._cargar_pagos_cobros_erp()
-            QMessageBox.information(self, "Éxito", f"Operación registrada (ID: {pc_id})")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    # ─────────────────────────────────────────────────────────────────────────
-    #  PESTAÑA 6: LEDGER FINANCIERO
-    # ─────────────────────────────────────────────────────────────────────────
-
-    def _crear_pestaña_ledger(self):
-        w = QWidget()
-        lay = QVBoxLayout(w)
-
-        hdr = QHBoxLayout()
-        lbl = QLabel("📒 Ledger / Libro Financiero")
-        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
-        btn_ref = QPushButton("🔄 Actualizar")
-        btn_ref.clicked.connect(self._cargar_ledger_erp)
-        hdr.addWidget(lbl); hdr.addStretch(); hdr.addWidget(btn_ref)
-        lay.addLayout(hdr)
-
-        nota = QLabel("Registro inmutable de todos los eventos financieros. No se edita ni se borra.")
-        nota.setStyleSheet("color:#64748B;font-size:11px;font-style:italic;")
-        lay.addWidget(nota)
-
-        self._tbl_ledger = QTableWidget()
-        self._tbl_ledger.setColumnCount(7)
-        self._tbl_ledger.setHorizontalHeaderLabels(
-            ["ID", "Evento", "Entidad", "Monto", "Módulo", "Timestamp", "Ref."]
-        )
-        self._tbl_ledger.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self._tbl_ledger.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_ledger.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_ledger.setAlternatingRowColors(True)
-        self._tbl_ledger.verticalHeader().setVisible(False)
-        lay.addWidget(self._tbl_ledger)
-        return w
-
-    def _cargar_ledger_erp(self):
-        if not self._erp:
-            return
-        try:
-            rows = self._erp.get_ledger(sucursal_id=self.sucursal_id)
-            self._tbl_ledger.setRowCount(len(rows))
-            for ri, r in enumerate(rows):
-                vals = [str(r["id"]), r["evento"],
-                        f"{r['entidad_tipo'] or ''}:{r['entidad_id'] or ''}",
-                        f"${float(r['monto']):,.2f}", r["modulo_origen"] or "",
-                        str(r["timestamp"])[:19], r["referencia"] or ""]
-                for ci, v in enumerate(vals):
-                    it = QTableWidgetItem(v)
-                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    self._tbl_ledger.setItem(ri, ci, it)
-        except Exception as e:
-            logger.warning("_cargar_ledger_erp: %s", e)
-
-    # ─────────────────────────────────────────────────────────────────────────
-    #  PESTAÑA 7: CONCILIACIÓN
-    # ─────────────────────────────────────────────────────────────────────────
-
-    def _crear_pestaña_conciliacion(self):
-        w = QWidget()
-        lay = QVBoxLayout(w)
-
-        hdr = QHBoxLayout()
-        lbl = QLabel("⚖️ Conciliación Financiera")
-        lbl.setStyleSheet("font-size:15px;font-weight:bold;")
-        btn_nueva = QPushButton("➕ Nueva Conciliación")
-        btn_nueva.setStyleSheet(
-            "background:#7C3AED;color:white;font-weight:bold;padding:6px 14px;border-radius:4px;"
-        )
-        btn_nueva.clicked.connect(self._dialogo_nueva_conciliacion)
-        hdr.addWidget(lbl); hdr.addStretch(); hdr.addWidget(btn_nueva)
-        lay.addLayout(hdr)
-
-        nota = QLabel("Después del cierre no se editan operaciones; sólo reversas controladas.")
-        nota.setStyleSheet("color:#64748B;font-size:11px;font-style:italic;")
-        lay.addWidget(nota)
-
-        self._tbl_concil = QTableWidget()
-        self._tbl_concil.setColumnCount(8)
-        self._tbl_concil.setHorizontalHeaderLabels(
-            ["ID", "Folio", "Cuenta", "Periodo", "Saldo Sistema", "Saldo Real", "Diferencia", "Estado"]
-        )
-        self._tbl_concil.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self._tbl_concil.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_concil.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_concil.setAlternatingRowColors(True)
-        self._tbl_concil.verticalHeader().setVisible(False)
-        lay.addWidget(self._tbl_concil)
-        return w
-
-    def _cargar_conciliaciones_erp(self):
-        if not self._erp:
-            return
-        try:
-            rows = self._erp.get_conciliaciones(sucursal_id=self.sucursal_id)
-            self._tbl_concil.setRowCount(len(rows))
-            for ri, r in enumerate(rows):
-                vals = [str(r["id"]), r["folio"], str(r["cuenta_financiera_id"] or "—"),
-                        r["periodo"], f"${float(r['saldo_sistema']):,.2f}",
-                        f"${float(r['saldo_real']):,.2f}",
-                        f"${float(r['diferencia']):+,.2f}", r["estado"]]
-                for ci, v in enumerate(vals):
-                    it = QTableWidgetItem(v)
-                    it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                    self._tbl_concil.setItem(ri, ci, it)
-        except Exception as e:
-            logger.warning("_cargar_conciliaciones_erp: %s", e)
-
-    def _dialogo_nueva_conciliacion(self):
-        if not self._erp:
-            QMessageBox.warning(self, "Error", "ERPFinancialService no disponible.")
-            return
-        dlg = QDialog(self)
-        dlg.setWindowTitle("Nueva Conciliación")
-        lay = QFormLayout(dlg)
-        txt_periodo = QLineEdit(date.today().strftime("%Y-%m"))
-        txt_periodo.setPlaceholderText("YYYY-MM")
-        spin_sistema = QDoubleSpinBox()
-        spin_sistema.setRange(-999999999, 999999999); spin_sistema.setPrefix("$")
-        spin_real = QDoubleSpinBox()
-        spin_real.setRange(-999999999, 999999999); spin_real.setPrefix("$")
-        txt_notas = QLineEdit(); txt_notas.setPlaceholderText("Notas")
-        lay.addRow("Periodo:", txt_periodo)
-        lay.addRow("Saldo sistema:", spin_sistema)
-        lay.addRow("Saldo real contado:", spin_real)
-        lay.addRow("Notas:", txt_notas)
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        lay.addRow(btns)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        try:
-            self._erp.crear_conciliacion(
-                cuenta_id=1,
-                periodo=txt_periodo.text().strip(),
-                saldo_sistema=float(spin_sistema.value()),
-                saldo_real=float(spin_real.value()),
-                sucursal_id=self.sucursal_id,
-                notas=txt_notas.text().strip(),
-            )
-            self._cargar_conciliaciones_erp()
-            QMessageBox.information(self, "Éxito", "Conciliación registrada.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+    def _normalizar_botones_ui(self):
+        """Compatibilidad: normaliza botones en la UI."""
+        for btn in self.findChildren(QPushButton):
+            if btn.maximumWidth() <= 36:
+                continue
+            btn.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+            if btn.minimumHeight() < 30:
+                btn.setMinimumHeight(30)
 
 
-# Alias para compatibilidad con main_window.py
+# Alias de compatibilidad
 ModuloFinanzas = ModuloFinanzasUnificadas

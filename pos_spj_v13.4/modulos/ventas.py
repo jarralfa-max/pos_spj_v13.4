@@ -454,6 +454,8 @@ class DialogoPago(QDialog):
         self.setModal(True)
         self.setMinimumSize(460, 400)
         self.resize(500, 460)
+        # ISSUE 4 FIX: objectName para que el QSS global pueda estilizar el diálogo
+        self.setObjectName("paymentDialog")
         self.total_a_pagar = float(total_a_pagar) if total_a_pagar is not None else 0.0
         self.total_original = self.total_a_pagar
         self.efectivo_recibido = 0.0
@@ -1539,6 +1541,8 @@ class ModuloVentas(ModuloBase):
         self.tabla_compra.setMinimumHeight(3 * 48 + 28)
         self.tabla_compra.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.tabla_compra.setFrameShape(QFrame.NoFrame)
+        # ISSUE 1 FIX: Padding inferior para que la última fila no quede tapada por el panel de totales
+        self.tabla_compra.setContentsMargins(0, 0, 0, 4)
         carrito_layout.addWidget(self.tabla_compra, 1)
 
         # Empty-cart placeholder
@@ -1807,19 +1811,24 @@ class ModuloVentas(ModuloBase):
         desc_lay = QHBoxLayout(desc_frame)
         desc_lay.setContentsMargins(8, 5, 8, 5)
         desc_lay.setSpacing(5)
+        # ISSUE 3 FIX: Descuentos → ROJO BRILLANTE (#ef4444) según tokens semánticos
+        # variant="danger" activa el selector QPushButton[variant="danger"] del QSS global
         for pct in [5, 10, 15, 20]:
             btn_d = QPushButton(f"{pct}%")
             btn_d.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             btn_d.setMinimumHeight(30)
             btn_d.setToolTip(f"Aplicar {pct}% de descuento al ítem seleccionado")
             btn_d.setObjectName("posDiscountBtn")
+            btn_d.setProperty("variant", "danger")
             btn_d.clicked.connect(lambda _, p=pct: self._descuento_rapido(p))
             desc_lay.addWidget(btn_d)
+        # ISSUE 3 FIX: "Personalizado" → AZUL (variant=primary = editar/configurar)
         btn_custom = QPushButton("Personalizado")
         btn_custom.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         btn_custom.setMinimumHeight(30)
         btn_custom.setToolTip("Descuento personalizado")
         btn_custom.setObjectName("posDiscountCustomBtn")
+        btn_custom.setProperty("variant", "primary")
         btn_custom.clicked.connect(lambda: self._descuento_custom())
         desc_lay.addWidget(btn_custom)
         layout_derecho.addWidget(desc_frame)
@@ -3217,13 +3226,15 @@ class ModuloVentas(ModuloBase):
                             break
                 else:
                     total_item = round(cantidad * producto['precio'], 2)
+                    import uuid as _uuid_mod
                     item_compra = {
                         'id': producto['id'],
                         'nombre': f"{producto['nombre']} (adicional)",
                         'cantidad': cantidad,
                         'unidad': producto['unidad'],
                         'precio_unitario': producto['precio'],
-                        'total': total_item
+                        'total': total_item,
+                        '_uid': _uuid_mod.uuid4().hex,  # ISSUE 2 FIX
                     }
                 # Verificar stock antes de agregar al carrito
                 # v13.4: Delegado a inventory_service para mantener abstracción de capa
@@ -3256,6 +3267,7 @@ class ModuloVentas(ModuloBase):
                 return
                 
         total_item = round(cantidad * producto['precio'], 2)
+        import uuid as _uuid_mod
         item_compra = {
             'id': producto['id'],
             'nombre': producto['nombre'],
@@ -3264,8 +3276,11 @@ class ModuloVentas(ModuloBase):
             'precio_unitario': producto['precio'],
             'total': total_item,
             'codigo': producto.get('codigo', '') or producto.get('codigo_barras', ''),
+            # ISSUE 2 FIX: Identificador estable para que el descuento pertenezca
+            # al ítem, no al índice de fila. Sobrevive cualquier pop/reordenamiento.
+            '_uid': _uuid_mod.uuid4().hex,
         }
-        
+
         self.compra_actual.append(item_compra)
         self.actualizar_tabla_compra()
         self.limpiar_seleccion_producto()
@@ -3309,12 +3324,15 @@ class ModuloVentas(ModuloBase):
             self.tabla_compra.setItem(row, 2, precio_item)
 
             # Descuento — clicable via cellClicked (col 3)
+            # ISSUE 2 FIX: Almacenar _uid del ítem en UserRole para que el clic
+            # encuentre el ítem correcto aunque cambie el índice de fila.
             desc_pct = float(item.get('descuento_pct', 0))
             if desc_pct > 0:
                 disc_item = QTableWidgetItem(f"-{desc_pct:.0f}%")
                 disc_item.setForeground(QBrush(QColor(Colors.DANGER_HOVER)))
                 disc_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
                 disc_item.setToolTip("Clic para quitar el descuento")
+                disc_item.setData(Qt.UserRole, item.get('_uid', ''))
                 self.tabla_compra.removeCellWidget(row, 3)
                 self.tabla_compra.setItem(row, 3, disc_item)
             else:
@@ -3341,13 +3359,38 @@ class ModuloVentas(ModuloBase):
             btn_eliminar.clicked.connect(lambda checked, r=row: self.eliminar_producto_carrito(r))
             self.tabla_compra.setCellWidget(row, 6, btn_eliminar)
 
+        # ISSUE 1 FIX: Desplazar al último ítem para que siempre sea visible
+        if self.compra_actual:
+            self.tabla_compra.scrollToBottom()
+
         self.calcular_totales()
 
     def _on_cart_cell_clicked(self, row: int, col: int) -> None:
-        """Handles click on cart table cells. Column 3 = discount badge (remove on click)."""
-        if col == 3 and 0 <= row < len(self.compra_actual):
+        """Handles click on cart table cells. Column 3 = discount badge (remove on click).
+        ISSUE 2 FIX: Usa _uid almacenado en UserRole para identificar el ítem de forma
+        estable, independientemente de su posición actual en la tabla."""
+        if col != 3:
+            return
+        # Recuperar el _uid del ítem desde la celda (immune a reordenamiento)
+        cell = self.tabla_compra.item(row, 3)
+        uid = cell.data(Qt.UserRole) if cell else None
+        if uid:
+            self._quitar_descuento_por_uid(uid)
+        elif 0 <= row < len(self.compra_actual):
+            # Fallback para ítems legacy sin _uid
             if float(self.compra_actual[row].get('descuento_pct', 0)) > 0:
                 self._quitar_descuento_item(row)
+
+    def _quitar_descuento_por_uid(self, uid: str) -> None:
+        """ISSUE 2 FIX: Quita el descuento buscando por _uid, no por índice de fila."""
+        for item in self.compra_actual:
+            if item.get('_uid') == uid:
+                precio_original = item.get('precio_original', item['precio_unitario'])
+                item['precio_unitario'] = precio_original
+                item['descuento_pct'] = 0
+                item['total'] = round(item['cantidad'] * precio_original, 2)
+                self.actualizar_tabla_compra()
+                return
 
     def _quitar_descuento_item(self, row: int):
         """Quita el descuento de un item del carrito y restaura el precio original."""
@@ -3465,11 +3508,15 @@ class ModuloVentas(ModuloBase):
             self._cliente_debounce.stop()
 
     def _actualizar_sugerencias_cliente(self) -> None:
-        """Query DB for matching customers and populate the QCompleter popup."""
+        """Query DB for matching customers and populate the QCompleter popup.
+        ISSUE 5 FIX: Funciona desde 1 carácter con MatchContains en cualquier parte
+        del nombre/teléfono. setMinimumContentsLength(1) asegura que el popup
+        aparezca con texto parcial."""
         from PyQt5.QtWidgets import QCompleter
         from PyQt5.QtCore import QStringListModel
         texto = self.txt_cliente.text().strip()
-        if not texto:
+        # ISSUE 5 FIX: Disparar con 1+ caracteres (antes podía requerir más)
+        if len(texto) < 1:
             return
         try:
             _cli = self._cli_repo
@@ -3484,9 +3531,12 @@ class ModuloVentas(ModuloBase):
             self._cliente_completer_model = QStringListModel(self)
             self._cliente_completer = QCompleter(self._cliente_completer_model, self)
             self._cliente_completer.setCaseSensitivity(Qt.CaseInsensitive)
+            # ISSUE 5 FIX: MatchContains → busca en cualquier parte del texto
             self._cliente_completer.setFilterMode(Qt.MatchContains)
             self._cliente_completer.setCompletionMode(QCompleter.PopupCompletion)
             self._cliente_completer.setMaxVisibleItems(10)
+            # ISSUE 5 FIX: Activar popup desde 1 carácter
+            self._cliente_completer.setMinimumContentsLength(1)
             self.txt_cliente.setCompleter(self._cliente_completer)
             self._cliente_completer.activated.connect(self._seleccionar_cliente_autocomplete)
         self._cliente_completer_model.setStringList(suggestions)

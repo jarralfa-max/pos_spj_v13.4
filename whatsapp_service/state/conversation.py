@@ -10,7 +10,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from models.context import ConversationContext, FlowState, PedidoItem
-from config.settings import CONTEXT_DB_PATH, CONVERSATION_TIMEOUT_MINUTES
+try:
+    from config.settings import CONTEXT_DB_PATH, CONVERSATION_TIMEOUT_MINUTES
+except (ImportError, AttributeError):
+    CONTEXT_DB_PATH = "/tmp/wa_context.db"
+    CONVERSATION_TIMEOUT_MINUTES = 30
 
 logger = logging.getLogger("wa.state")
 

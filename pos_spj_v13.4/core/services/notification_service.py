@@ -476,13 +476,21 @@ class NotificationService:
         sucursal_id: int,
         datos:       Dict = None,
     ) -> None:
-        """Envía la notificación a todos los empleados con roles autorizados para ese tipo."""
+        """
+        Envía la notificación al inbox ERP de los empleados autorizados.
+        WhatsApp solo si NotificationPolicyService lo permite para este tipo.
+        """
+        from core.services.notifications.notification_policy_service import (
+            NotificationPolicyService)
+        wa_permitido = NotificationPolicyService().is_wa_allowed_for_staff(tipo)
+
         roles_destino = _ROL_MATRIX.get(tipo, [])
         if not roles_destino:
             return
         empleados = self._get_empleados_por_roles(roles_destino, sucursal_id)
         for emp in empleados:
-            if emp.get("telefono"):
+            # WhatsApp solo si política permite
+            if wa_permitido and emp.get("telefono"):
                 self._enviar_whatsapp(sucursal_id, emp["telefono"], mensaje)
             self._inbox_empleado(
                 emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos,
@@ -497,12 +505,19 @@ class NotificationService:
         cajero_username:   str = "",
         datos:             Dict = None,
     ) -> None:
-        """Envía mensajes diferenciados por rol (ej: cajero ve resumen, admin ve detalles)."""
+        """
+        Envía mensajes diferenciados por rol.
+        WhatsApp solo si NotificationPolicyService lo permite para este tipo.
+        """
+        from core.services.notifications.notification_policy_service import (
+            NotificationPolicyService)
+        wa_permitido = NotificationPolicyService().is_wa_allowed_for_staff(tipo)
+
         for rol, mensaje in mensajes_por_rol.items():
             if rol == "cajero" and cajero_username:
                 emp = self._get_empleado_por_usuario(cajero_username)
                 if emp:
-                    if emp.get("telefono"):
+                    if wa_permitido and emp.get("telefono"):
                         self._enviar_whatsapp(sucursal_id, emp["telefono"], mensaje)
                     self._inbox_empleado(
                         emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos,
@@ -511,10 +526,9 @@ class NotificationService:
             else:
                 empleados = self._get_empleados_por_roles([rol], sucursal_id)
                 for emp in empleados:
-                    # No duplicar al cajero si ya fue notificado arriba
                     if cajero_username and emp.get("usuario") == cajero_username:
                         continue
-                    if emp.get("telefono"):
+                    if wa_permitido and emp.get("telefono"):
                         self._enviar_whatsapp(sucursal_id, emp["telefono"], mensaje)
                     self._inbox_empleado(
                         emp["id"], tipo, self._titulo_de_tipo(tipo), datos=datos,

@@ -113,11 +113,17 @@ from api.routers.ventas import router as ventas_router
 from api.routers.inventario import router as inventario_router
 from api.routers.clientes import router as clientes_router
 from api.routers.pedidos import router as pedidos_router
+from api.routers.cotizaciones import router as cotizaciones_router
+from api.routers.anticipos import router as anticipos_router
+from api.routers.ordenes_compra import router as ordenes_compra_router
 
-app.include_router(ventas_router,    prefix="/api/v1")
-app.include_router(inventario_router, prefix="/api/v1")
-app.include_router(clientes_router,  prefix="/api/v1")
-app.include_router(pedidos_router,   prefix="/api/v1")
+app.include_router(ventas_router,         prefix="/api/v1")
+app.include_router(inventario_router,     prefix="/api/v1")
+app.include_router(clientes_router,       prefix="/api/v1")
+app.include_router(pedidos_router,        prefix="/api/v1")
+app.include_router(cotizaciones_router,   prefix="/api/v1")
+app.include_router(anticipos_router,      prefix="/api/v1")
+app.include_router(ordenes_compra_router, prefix="/api/v1")
 
 
 # ── Health / root ─────────────────────────────────────────────────────────────
@@ -154,5 +160,8 @@ async def root():
             "/api/v1/inventario",
             "/api/v1/clientes",
             "/api/v1/pedidos",
+            "/api/v1/cotizaciones",
+            "/api/v1/anticipos",
+            "/api/v1/ordenes-compra",
         ],
     }
