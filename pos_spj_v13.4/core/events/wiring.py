@@ -687,11 +687,11 @@ def _wire_sale_handlers(bus, container) -> None:
     from core.events.handlers.finance_handler import SaleFinanceHandler
 
     inv      = getattr(container, "inventory_service", None)
-    recipes  = getattr(container, "recipe_repo", None)
     fs       = getattr(container, "finance_service", None)
+    db       = getattr(container, "db", None)
 
     if inv:
-        inv_handler = SaleInventoryHandler(inventory_service=inv, recipe_repo=recipes)
+        inv_handler = SaleInventoryHandler(inventory_service=inv, db=db)
         bus.subscribe(
             SALE_ITEMS_PROCESS,
             inv_handler.handle,
