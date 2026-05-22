@@ -30,6 +30,7 @@ from modulos.ui_components import (
     LoadingIndicator, EmptyStateWidget, PageHeader, Toast, apply_tooltip,
 )
 from modulos.spj_refresh_mixin import RefreshMixin
+from modulos.kpi_card import KPICard
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
     AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
@@ -121,75 +122,8 @@ def _classify_stock(stock: float, minimo: float) -> str:
 
 
 # ── KPI hero card ─────────────────────────────────────────────────────────────
-
-class _InvKPICard(QFrame):
-    """Operational KPI card — theme-aware via objectName kpiCard."""
-
-    def __init__(self, titulo: str, valor: str = "—",
-                 icono: str = "📦", variant: str = "primary",
-                 parent=None):
-        super().__init__(parent)
-        _accent = {
-            "primary": Colors.PRIMARY.BASE,
-            "success": Colors.SUCCESS.BASE,
-            "danger":  Colors.DANGER.BASE,
-            "warning": Colors.WARNING.BASE,
-            "info":    Colors.INFO.BASE,
-        }.get(variant, Colors.PRIMARY.BASE)
-
-        self.setObjectName("kpiCard")
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.setMinimumHeight(86)
-
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        # Accent bar
-        bar = QFrame(self)
-        bar.setFixedHeight(3)
-        bar.setStyleSheet(
-            f"background: {_accent}; border: none;"
-            f" border-top-left-radius: 12px; border-top-right-radius: 12px;"
-        )
-        outer.addWidget(bar)
-
-        body = QHBoxLayout()
-        body.setContentsMargins(14, 10, 14, 10)
-        body.setSpacing(8)
-        outer.addLayout(body)
-
-        col = QVBoxLayout()
-        col.setSpacing(2)
-
-        lbl_t = QLabel(titulo.upper())
-        lbl_t.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_500}; font-size: {Typography.SIZE_XS};"
-            f" font-weight: {Typography.WEIGHT_SEMIBOLD}; letter-spacing: 0.08em;"
-            f" background: transparent; border: none;"
-        )
-        col.addWidget(lbl_t)
-
-        self.lbl_valor = QLabel(valor)
-        self.lbl_valor.setObjectName("kpiValue")
-        self.lbl_valor.setStyleSheet(
-            f"font-size: 22px; font-weight: {Typography.WEIGHT_BOLD};"
-            f" letter-spacing: -0.02em; background: transparent; border: none;"
-        )
-        col.addWidget(self.lbl_valor)
-        body.addLayout(col, 1)
-
-        lbl_icon = QLabel(icono)
-        lbl_icon.setFixedSize(36, 36)
-        lbl_icon.setAlignment(Qt.AlignCenter)
-        lbl_icon.setStyleSheet(
-            f"font-size: 18px; background: {_accent}1A;"
-            f" border-radius: 18px; border: none;"
-        )
-        body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
-
-    def set_valor(self, v: str):
-        self.lbl_valor.setText(v)
+# Alias for backward compatibility
+_InvKPICard = KPICard
 
 
 # ── Audit movement row ────────────────────────────────────────────────────────

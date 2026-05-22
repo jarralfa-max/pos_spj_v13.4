@@ -6,6 +6,7 @@ from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.kpi_card import KPICard
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button, create_secondary_button,
     create_input_field, create_combo, create_card, apply_tooltip, create_heading,
@@ -50,44 +51,32 @@ class ModuloClientes(ModuloBase):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
 
-    def _crear_stats_clientes(self) -> 'QFrame':
+    def _crear_stats_clientes(self) -> QWidget:
         """Barra de KPIs: total clientes, activos, con tarjeta, puntos distribuidos."""
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        from modulos.design_tokens import Colors as _C
-        bar = _F(); bar.setObjectName("statsBarCli")
-        bar.setFixedHeight(64)
-        bar.setStyleSheet(
-            "QFrame#statsBarCli { background:#1E293B; border-radius:8px;"
-            " border:1px solid #334155; }"
-        )
-        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
+        container = QWidget()
+        lay = QHBoxLayout(container)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(12)
 
-        kpis = [("Total Clientes","—",_C.PRIMARY_BASE),("Activos","—",_C.SUCCESS_BASE),
-                ("Con Tarjeta","—",_C.INFO_BASE),("Puntos Totales","—",_C.WARNING_BASE)]
+        self._kpi_total = KPICard("Total Clientes", "—", "👥", "primary")
+        self._kpi_activos = KPICard("Activos", "—", "✅", "success")
+        self._kpi_tarjeta = KPICard("Con Tarjeta", "—", "💳", "info")
+        self._kpi_puntos = KPICard("Puntos Totales", "—", "⭐", "warning")
+
+        for card in (self._kpi_total, self._kpi_activos, self._kpi_tarjeta, self._kpi_puntos):
+            lay.addWidget(card)
+
         try:
             if self._svc:
                 stats = self._svc.get_stats()
-                kpis[0] = ("Total Clientes", str(stats.get("total", 0)), _C.PRIMARY_BASE)
-                kpis[1] = ("Activos", str(stats.get("activos", 0)), _C.SUCCESS_BASE)
-                kpis[2] = ("Con Tarjeta", str(stats.get("con_tarjeta", 0)), _C.INFO_BASE)
-                kpis[3] = ("Puntos Totales", f"{int(stats.get('puntos_totales', 0)):,}", _C.WARNING_BASE)
-        except Exception: pass
+                self._kpi_total.set_valor(str(stats.get("total", 0)))
+                self._kpi_activos.set_valor(str(stats.get("activos", 0)))
+                self._kpi_tarjeta.set_valor(str(stats.get("con_tarjeta", 0)))
+                self._kpi_puntos.set_valor(f"{int(stats.get('puntos_totales', 0)):,}")
+        except Exception:
+            pass
 
-        for i, (lbl, val, col) in enumerate(kpis):
-            if i > 0:
-                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
-                s.setStyleSheet("background:#334155; border:none;")
-                lay.addWidget(s); lay.addSpacing(20)
-            c = _V(); c.setSpacing(1)
-            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
-            l = _L(lbl.upper()); l.setStyleSheet("color:#64748B;font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
-            c.addWidget(v); c.addWidget(l); lay.addLayout(c)
-            if i < 3: lay.addSpacing(20)
-        lay.addStretch()
-        return bar
-        """Establece el usuario actual para el módulo"""
-        self.usuario_actual = usuario
-        self.rol_usuario = rol
+        return container
         
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh client list when sales or loyalty events occur."""
