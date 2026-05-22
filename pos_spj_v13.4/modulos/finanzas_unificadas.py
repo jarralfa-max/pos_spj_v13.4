@@ -196,6 +196,69 @@ class _FinStatusBadge(QLabel):
         )
 
 
+
+class _FinAlertChip(QFrame):
+    """Chip de alerta estilo dashboard — borde semántico + ícono + valor.
+    Misma altura que _FinKpiCard pero más compacto, orientado a conteos de alerta."""
+
+    def __init__(self, icon: str, label: str, color: str = _P_ERROR, parent=None):
+        super().__init__(parent)
+        self._base_color = color
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setMinimumHeight(68)
+
+        main = QHBoxLayout(self)
+        main.setContentsMargins(14, 10, 14, 10)
+        main.setSpacing(12)
+
+        # Ícono circular con fondo tintado
+        self._lbl_icon = QLabel(icon)
+        self._lbl_icon.setFixedSize(36, 36)
+        self._lbl_icon.setAlignment(Qt.AlignCenter)
+        self._lbl_icon.setStyleSheet(
+            f"font-size: 17px; background: {color}22;"
+            f" border-radius: 18px; border: none;"
+        )
+        main.addWidget(self._lbl_icon, 0, alignment=Qt.AlignVCenter)
+
+        # Columna: etiqueta + valor
+        col = QVBoxLayout()
+        col.setSpacing(1)
+
+        lbl_t = QLabel(label.upper())
+        lbl_t.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.08em; background: transparent; border: none;"
+        )
+        col.addWidget(lbl_t)
+
+        self._lbl_value = QLabel("—")
+        self._lbl_value.setStyleSheet(
+            f"color: {color}; font-size: 19px; font-weight: 700;"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        col.addWidget(self._lbl_value)
+        main.addLayout(col, 1)
+
+        self._refresh_frame(color)
+
+    def _refresh_frame(self, color: str):
+        self.setStyleSheet(
+            f"QFrame {{ background: {color}15; border: 1px solid {color}35;"
+            f" border-left: 3px solid {color}; border-radius: 8px; }}"
+        )
+
+    def set_value(self, text: str, ok: bool = False):
+        """Actualiza el valor. ok=True cambia paleta a sage (sin alerta)."""
+        color = _P_TERTIARY if ok else self._base_color
+        self._lbl_value.setText(text)
+        self._lbl_value.setStyleSheet(
+            f"color: {color}; font-size: 19px; font-weight: 700;"
+            f" letter-spacing: -0.02em; background: transparent; border: none;"
+        )
+        self._refresh_frame(color)
+
+
 class _FinEmptyState(QWidget):
     """Estado vacío: icono + mensaje + descripción opcional."""
 
@@ -559,17 +622,24 @@ class _SeccionResumen(QWidget):
         lay.addWidget(_kpi_row([self._kpi_caja, self._kpi_cxc, self._kpi_cxp,
                                 self._kpi_flujo, self._kpi_capital]))
 
-        # Panel de alertas
-        grp_alertas = QGroupBox("Alertas y pendientes")
-        a_lay = QHBoxLayout(grp_alertas)
-        self._lbl_cxp_venc = QLabel("CxP vencidas: —")
-        self._lbl_cxc_venc = QLabel("CxC vencidas: —")
-        self._lbl_dif_caja = QLabel("Diferencias de caja: —")
-        for lbl in (self._lbl_cxp_venc, self._lbl_cxc_venc, self._lbl_dif_caja):
-            lbl.setObjectName("caption")
-            a_lay.addWidget(lbl)
-        a_lay.addStretch()
-        lay.addWidget(grp_alertas)
+        # Panel de alertas — chips estilo dashboard
+        lbl_alertas = QLabel("ALERTAS Y PENDIENTES")
+        lbl_alertas.setStyleSheet(
+            f"color: {_P_MUTED}; font-size: 10px; font-weight: 600;"
+            f" letter-spacing: 0.10em; background: transparent;"
+        )
+        lay.addWidget(lbl_alertas)
+
+        a_row = QHBoxLayout()
+        a_row.setSpacing(8)
+        a_row.setContentsMargins(0, 0, 0, 0)
+        self._alert_cxp  = _FinAlertChip("📤", "CxP Vencidas",        _P_ERROR)
+        self._alert_cxc  = _FinAlertChip("📥", "CxC Vencidas",        _P_SECONDARY)
+        self._alert_caja = _FinAlertChip("⚖️",  "Diferencias de Caja", _P_SECONDARY)
+        a_row.addWidget(self._alert_cxp)
+        a_row.addWidget(self._alert_cxc)
+        a_row.addWidget(self._alert_caja)
+        lay.addLayout(a_row)
 
         # Acciones rápidas
         grp_acc = QGroupBox("Acciones rápidas")
@@ -634,6 +704,62 @@ class _SeccionResumen(QWidget):
                     self._kpi_capital.set_value(f"${cap:,.2f}", _P_SECONDARY)
         except Exception as e:
             logger.warning("_SeccionResumen KPI flujo: %s", e)
+
+        # Alertas — consultas directas a tablas garantizadas
+        try:
+            db = getattr(getattr(m, "container", None), "db", None)
+            if db:
+                # CxP vencidas (financial_documents mig083 o fallback 0)
+                cxp_venc = 0
+                try:
+                    cxp_venc = db.execute(
+                        "SELECT COUNT(*) FROM financial_documents"
+                        " WHERE document_type='payable'"
+                        " AND status IN ('pending','partial')"
+                        " AND due_date < date('now')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_cxp.set_value(
+                    f"{cxp_venc} doc{'s' if cxp_venc != 1 else ''}" if cxp_venc
+                    else "✓ Sin vencidas",
+                    ok=(cxp_venc == 0)
+                )
+
+                # CxC vencidas
+                cxc_venc = 0
+                try:
+                    cxc_venc = db.execute(
+                        "SELECT COUNT(*) FROM financial_documents"
+                        " WHERE document_type='receivable'"
+                        " AND status IN ('pending','partial')"
+                        " AND due_date < date('now')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_cxc.set_value(
+                    f"{cxc_venc} doc{'s' if cxc_venc != 1 else ''}" if cxc_venc
+                    else "✓ Sin vencidas",
+                    ok=(cxc_venc == 0)
+                )
+
+                # Diferencias de caja (últimos 30 días, cierres_caja garantizado)
+                dif_caja = 0
+                try:
+                    dif_caja = db.execute(
+                        "SELECT COUNT(*) FROM cierres_caja"
+                        " WHERE ABS(total_ventas - total_efectivo) > 0.01"
+                        " AND fecha_cierre >= date('now','-30 days')"
+                    ).fetchone()[0] or 0
+                except Exception:
+                    pass
+                self._alert_caja.set_value(
+                    f"{dif_caja} cierre{'s' if dif_caja != 1 else ''}" if dif_caja
+                    else "✓ Sin diferencias",
+                    ok=(dif_caja == 0)
+                )
+        except Exception as e:
+            logger.warning("_SeccionResumen alertas: %s", e)
 
         # Actividad reciente — múltiples fuentes garantizadas
         try:
