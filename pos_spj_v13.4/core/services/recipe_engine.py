@@ -335,11 +335,28 @@ class RecipeEngine:
             cantidad_base, total_generado, total_consumido, total_merma, op_id,
         )
 
+        # Compute cost totals for the normalized event payload.
+        _raw_cost = 0.0
+        _fin_cost = 0.0
+        if tipo == "subproducto" and total_consumido > 0:
+            try:
+                _cpkg_row = self.db.fetchone(
+                    "SELECT COALESCE(precio_compra, 0) FROM productos WHERE id=?",
+                    (prod_base_id,))
+                _cpkg = float(_cpkg_row[0] if _cpkg_row else 0)
+                _raw_cost = round(_cpkg * total_consumido, 4)
+                _fin_cost = round(_cpkg * total_generado, 4)
+            except Exception:
+                pass
+
         self._publicar_evento(
             produccion_id, receta, suc_id, movimientos,
             total_generado=total_generado,
             total_consumido=total_consumido,
             total_merma=total_merma,
+            operation_id=op_id,
+            raw_material_cost=_raw_cost,
+            finished_goods_cost=_fin_cost,
         )
 
         return ProduccionResultDTO(
@@ -595,14 +612,19 @@ class RecipeEngine:
         total_generado: float = 0.0,
         total_consumido: float = 0.0,
         total_merma: float = 0.0,
+        operation_id: str = "",
+        raw_material_cost: float = 0.0,
+        finished_goods_cost: float = 0.0,
     ):
         try:
             from core.events.event_bus import get_bus
+            from core.events.event_factory import make_produccion_completada_payload
+
             raw_materials = [
                 {
                     "product_id": m["product_id"],
-                    "quantity": abs(m["delta"]),
-                    "type": m.get("movement_type"),
+                    "quantity":   abs(m["delta"]),
+                    "type":       m.get("movement_type"),
                 }
                 for m in movimientos
                 if m.get("delta", 0) < 0
@@ -611,25 +633,40 @@ class RecipeEngine:
             outputs = [
                 {
                     "product_id": m["product_id"],
-                    "quantity": m["delta"],
-                    "type": m.get("movement_type"),
+                    "quantity":   m["delta"],
+                    "type":       m.get("movement_type"),
+                    "is_waste":   m.get("movement_type") == "MERMA_PRODUCCION",
                 }
                 for m in movimientos
                 if m.get("delta", 0) > 0
             ]
-            get_bus().publish("PRODUCCION_COMPLETADA", {
-                "produccion_id": produccion_id,
-                "receta_id": receta["id"],
-                "receta_nombre": _recipe_name(receta),
-                "sucursal_id": sucursal_id,
-                "raw_materials": raw_materials,
-                "outputs": outputs,
-                "yields": {
-                    "total_generado": total_generado,
-                    "total_consumido": total_consumido,
-                    "total_merma": total_merma,
-                },
-                "costs": {},
-            })
+            waste_cost = 0.0  # recipe path does not split waste cost separately
+
+            payload = make_produccion_completada_payload(
+                produccion_id       = produccion_id,
+                folio               = str(receta.get("id", "")),
+                operation_id        = operation_id,
+                sucursal_id         = sucursal_id,
+                usuario             = "",
+                receta_id           = receta.get("id"),
+                receta_nombre       = _recipe_name(receta),
+                rendimiento_pct     = (
+                    round(total_generado / total_consumido * 100, 2)
+                    if total_consumido > 0 else 0.0
+                ),
+                total_generado      = total_generado,
+                total_consumido     = total_consumido,
+                total_merma         = total_merma,
+                waste_pct           = (
+                    round(total_merma / (total_consumido + total_merma) * 100, 2)
+                    if (total_consumido + total_merma) > 0 else 0.0
+                ),
+                raw_materials       = raw_materials,
+                outputs             = outputs,
+                raw_material_cost   = raw_material_cost,
+                finished_goods_cost = finished_goods_cost,
+                waste_cost          = waste_cost,
+            )
+            get_bus().publish("PRODUCCION_COMPLETADA", payload)
         except Exception as e:
             logger.warning("EventBus PRODUCCION falló (no crítico): %s", e)

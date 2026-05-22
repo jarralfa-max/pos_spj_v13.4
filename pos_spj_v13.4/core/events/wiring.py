@@ -687,11 +687,11 @@ def _wire_sale_handlers(bus, container) -> None:
     from core.events.handlers.finance_handler import SaleFinanceHandler
 
     inv      = getattr(container, "inventory_service", None)
-    recipes  = getattr(container, "recipe_repo", None)
     fs       = getattr(container, "finance_service", None)
+    db       = getattr(container, "db", None)
 
     if inv:
-        inv_handler = SaleInventoryHandler(inventory_service=inv, recipe_repo=recipes)
+        inv_handler = SaleInventoryHandler(inventory_service=inv, db=db)
         bus.subscribe(
             SALE_ITEMS_PROCESS,
             inv_handler.handle,
@@ -753,10 +753,12 @@ def _wire_production_items_handlers(bus, container) -> None:
     logger.debug("Registered ProductionInventoryHandler on %s", PRODUCTION_ITEMS_PROCESS)
 
     # Production GL: PRODUCCION_COMPLETADA → cost-of-production journal entry
+    # FASE 6: pass db= so the handler can query production_cost_ledger for real
+    # cost numbers and update costo_promedio for each output product.
     fs = getattr(container, "finance_service", None)
     if fs:
         from core.events.event_bus import PRODUCCION_COMPLETADA
-        fin_handler = ProductionFinanceHandler(finance_service=fs)
+        fin_handler = ProductionFinanceHandler(finance_service=fs, db=db)
         bus.subscribe(
             PRODUCCION_COMPLETADA,
             fin_handler.handle,

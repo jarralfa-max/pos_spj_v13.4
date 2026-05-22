@@ -13,10 +13,14 @@ from .accounting_engine import AccountingEngine
 from .fiscal_engine import FiscalEngine
 from .third_party_service import UnifiedThirdPartyService
 from .treasury_service import TreasuryService
+from .production_cost_service import ProductionCostService, ProductionCostSummary, OutputCostLine
 
 __all__ = [
     "AccountingEngine",
-    "FiscalEngine", 
+    "FiscalEngine",
     "UnifiedThirdPartyService",
     "TreasuryService",
+    "ProductionCostService",
+    "ProductionCostSummary",
+    "OutputCostLine",
 ]
