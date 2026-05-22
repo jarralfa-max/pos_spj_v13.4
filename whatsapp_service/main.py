@@ -140,10 +140,12 @@ app = FastAPI(
 from webhook.whatsapp import router as wa_router
 from webhook.mercadopago import router as mp_router
 from router.notify_router import router as notify_router
+from router.delivery_router import router as delivery_router
 
 app.include_router(wa_router)
 app.include_router(mp_router)
 app.include_router(notify_router)
+app.include_router(delivery_router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
