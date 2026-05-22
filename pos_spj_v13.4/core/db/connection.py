@@ -40,6 +40,7 @@ CANONICAL_DB_FILENAME = "spj_pos_database.db"
 CANONICAL_DB_PATH = os.path.join(DATA_DIR, CANONICAL_DB_FILENAME)
 
 _DB_PATH = CANONICAL_DB_PATH
+DB_PATH = CANONICAL_DB_PATH  # alias legacy importado por core/database.py
 _TIMEOUT = 5.0
 _MAX_RETRY = 5
 
@@ -56,8 +57,9 @@ def set_db_path(path: str) -> None:
     Se recomienda pasar siempre la ruta canónica:
     `<paquete ERP>/data/spj_pos_database.db`.
     """
-    global _DB_PATH
+    global _DB_PATH, DB_PATH
     _DB_PATH = path
+    DB_PATH = path
 
 
 def get_db_path() -> str:
@@ -84,7 +86,7 @@ def _new_connection(path: str) -> sqlite3.Connection:
         path,
         timeout=_TIMEOUT,
         isolation_level=None,
-        check_same_thread=False
+        check_same_thread=False,
     )
 
     conn.row_factory = sqlite3.Row
@@ -108,6 +110,11 @@ def _new_connection(path: str) -> sqlite3.Connection:
     )
 
     return conn
+
+
+def _open_raw(path: Optional[str] = None) -> sqlite3.Connection:
+    """Alias legacy: abre conexión SQLite cruda."""
+    return _new_connection(path or _DB_PATH)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -138,7 +145,7 @@ def get_connection(path: Optional[str] = None) -> "DatabaseWrapper":
         except Exception:
             logger.warning(
                 "Conexión muerta en hilo %s — reconectando",
-                threading.current_thread().name
+                threading.current_thread().name,
             )
             try:
                 raw.close()
@@ -150,6 +157,11 @@ def get_connection(path: Optional[str] = None) -> "DatabaseWrapper":
     wrapped = DatabaseWrapper(raw_conn)
     _tls.conn = wrapped
     return wrapped
+
+
+def get_db(path: Optional[str] = None) -> "DatabaseWrapper":
+    """Alias legacy de get_connection()."""
+    return get_connection(path)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -193,11 +205,14 @@ def close_thread_connection() -> None:
         _tls.conn = None
 
 
-def close_connection(conn: sqlite3.Connection) -> None:
+def close_connection(conn=None) -> None:
     """Cierra una conexión SQLite de forma segura."""
     try:
+        if conn is None:
+            close_thread_connection()
+            return
         if conn:
-            conn.close()
+            unwrap(conn).close()
     except Exception:
         pass
 
@@ -207,32 +222,28 @@ def close_connection(conn: sqlite3.Connection) -> None:
 # ─────────────────────────────────────────────────────────────
 
 def execute_with_retry(
-    conn: sqlite3.Connection,
+    conn,
     sql: str,
     params: tuple = (),
-    retries: int = _MAX_RETRY
+    retries: int = _MAX_RETRY,
 ):
-
+    raw_conn = unwrap(conn)
     delay = 0.05
 
     for attempt in range(retries):
         try:
-            return conn.execute(sql, params)
+            return raw_conn.execute(sql, params)
 
         except sqlite3.OperationalError as e:
-
             if "locked" in str(e).lower() and attempt < retries - 1:
-
                 logger.warning(
                     "DB locked (intento %d/%d) — esperando %.2fs",
                     attempt + 1,
                     retries,
-                    delay
+                    delay,
                 )
-
                 time.sleep(delay)
                 delay = min(delay * 2, 2.0)
-
             else:
                 raise
 
@@ -259,7 +270,7 @@ def _get_conn_lock(conn: sqlite3.Connection) -> threading.RLock:
 
 
 @contextmanager
-def transaction(conn: sqlite3.Connection):
+def transaction(conn):
     """
     Context manager para transacciones seguras.
     Permite transacciones anidadas usando SAVEPOINT.
@@ -348,3 +359,46 @@ class DatabaseWrapper:
 
     def close(self):
         return self._conn.close()
+
+
+# Aliases legacy usados por core/database.py y otros módulos antiguos.
+_DatabaseShim = DatabaseWrapper
+Connection = DatabaseWrapper
+Database = DatabaseWrapper
+
+
+# ─────────────────────────────────────────────────────────────
+# MIGRACIÓN / VALIDACIÓN LEGACY
+# ─────────────────────────────────────────────────────────────
+
+def migrate_db(conn) -> None:
+    """Compatibilidad legacy.
+
+    La migración formal vive en `migrations.engine.up`. Esta función existe para
+    los fallbacks antiguos de `main.py` y scripts.
+    """
+    try:
+        from migrations import engine as migrator
+        migrator.up(unwrap(conn))
+    except Exception as exc:
+        logger.warning("migrate_db fallback no pudo ejecutar migrations.engine: %s", exc)
+
+
+def verificar_tablas(conn) -> bool:
+    """Verificación mínima de BD para compatibilidad legacy."""
+    try:
+        raw = unwrap(conn)
+        raw.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1").fetchone()
+        return True
+    except Exception as exc:
+        logger.warning("verificar_tablas falló: %s", exc)
+        return False
+
+
+__all__ = [
+    "BASE_DIR", "DB_PATH", "CANONICAL_DB_PATH", "get_canonical_db_path",
+    "set_db_path", "get_db_path", "get_connection", "get_db",
+    "close_connection", "close_thread_connection", "execute_with_retry",
+    "transaction", "wrap", "unwrap", "migrate_db", "verificar_tablas",
+    "DatabaseWrapper", "_DatabaseShim", "Connection", "Database", "_open_raw",
+]
