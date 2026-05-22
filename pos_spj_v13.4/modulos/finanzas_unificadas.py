@@ -1009,7 +1009,7 @@ class _SeccionCajayConciliacion(QWidget):
         )
         self._tbl.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
         self._tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self._tbl.itemSelectionChanged.connect(self._on_selection_changed)
+        self._tbl.cellClicked.connect(self._on_row_clicked)
         lay.addWidget(self._tbl, 1)
 
         self._rows_caja: List[Dict[str, Any]] = []
@@ -1031,13 +1031,14 @@ class _SeccionCajayConciliacion(QWidget):
                 hide = True
             self._tbl.setRowHidden(i, hide)
 
-    def _on_selection_changed(self):
-        """Oculta el botón Acciones de la fila seleccionada; lo restaura en las demás."""
-        selected = {idx.row() for idx in self._tbl.selectedIndexes()}
+    def _on_row_clicked(self, row: int, col: int):
+        """cellClicked — NO se dispara al hacer clic en el botón Ver (cell widget),
+        por eso el botón puede ejecutar su acción sin interferencia.
+        Oculta el Ver de la fila clickeada y lo muestra en todas las demás."""
         for i in range(self._tbl.rowCount()):
             w = self._tbl.cellWidget(i, 7)
             if w:
-                w.setVisible(i not in selected)
+                w.setVisible(i != row)
 
     def _ver_cierre(self, r: dict):
         """Diálogo de detalle de corte de caja."""
