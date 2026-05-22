@@ -299,6 +299,7 @@ class WhatsAppService:
         self.queue = MessageQueue(self.conn)
         self.feature_service = feature_service
         self._worker_thread = None
+        self._stop_event = threading.Event()
         if api_url: self.config.api_url = api_url
         if api_token: self.config.api_token = api_token
 
@@ -398,16 +399,28 @@ class WhatsAppService:
 
     # ── Worker ────────────────────────────────────────────────────────────────
     def _ensure_worker(self):
-        if self._worker_thread and self._worker_thread.is_alive(): return
-        self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True, name="WA-Worker")
+        if self._stop_event.is_set():
+            return
+        if self._worker_thread and self._worker_thread.is_alive():
+            return
+        self._worker_thread = threading.Thread(
+            target=self._worker_loop, daemon=True, name="WA-Worker")
         self._worker_thread.start()
 
     def start_worker(self): self._ensure_worker()
 
+    def stop(self):
+        """Signal the worker to stop and wait for it to finish."""
+        self._stop_event.set()
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=5)
+
     def _worker_loop(self):
-        while True:
+        while not self._stop_event.is_set():
             try:
                 for msg in self.queue.get_pending():
+                    if self._stop_event.is_set():
+                        return
                     ok, err = self._send_api(msg["to_number"], msg["message"])
                     if ok:
                         self.queue.mark_sent(msg["id"])
@@ -417,9 +430,17 @@ class WhatsAppService:
                 if dead:
                     logger.warning("[WA dead-letter] %d mensajes sin entregar en cola muerta.", len(dead))
             except Exception as e:
+                if "closed database" in str(e).lower():
+                    logger.debug("WA worker: DB cerrada, terminando")
+                    return
                 logger.warning("WA worker: %s", e)
-            sleep_s = self.queue.seconds_until_next()
-            time.sleep(sleep_s)
+            try:
+                sleep_s = self.queue.seconds_until_next()
+            except Exception as e:
+                if "closed database" in str(e).lower():
+                    return
+                sleep_s = 60.0
+            self._stop_event.wait(sleep_s)
 
     # ── API providers ─────────────────────────────────────────────────────────
     def _send_api(self, to, message):
