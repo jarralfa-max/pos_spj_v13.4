@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
@@ -10,7 +11,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QMessageBox, QPushButton, QVBoxLayout, QWidget,
 )
 
-from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.design_tokens import Spacing
 from modulos.spj_styles import spj_btn, apply_object_names
 from modulos.whatsapp.panels._panel_styles import group_box_style, info_banner_style, input_style
 from modulos.whatsapp.widgets import ErrorPanel, MaskedSecretField
@@ -20,19 +21,19 @@ logger = logging.getLogger("spj.ui.wa.credentials_panel")
 
 class CredentialsPanel(QWidget):
     """
-    Administración de credenciales Meta Cloud API.
+    Administración de credenciales Meta Cloud API y seguridad interna.
 
     Reglas de seguridad:
     - Los tokens nunca se muestran completos
     - Se usa MaskedSecretField para todos los campos sensibles
-    - Todos los cambios se delegan a WhatsAppCredentialService
+    - Todos los cambios se delegan a WhatsAppAdminService
     - Sin SQL directo en esta capa
     """
 
     def __init__(self, cred_svc, svc, parent=None) -> None:
         super().__init__(parent)
         self._cred = cred_svc
-        self._svc  = svc
+        self._svc = svc
         self._build_ui()
         apply_object_names(self)
         self._load()
@@ -46,8 +47,9 @@ class CredentialsPanel(QWidget):
 
         # Alerta informativa
         info = QLabel(
-            "Los tokens se almacenan cifrados. Usa 'Reemplazar' para actualizar "
-            "un valor — los tokens existentes nunca se muestran completos."
+            "Configura aquí las credenciales de Meta y la conexión segura entre "
+            "el ERP y el microservicio WhatsApp. Los secretos existentes nunca "
+            "se muestran completos."
         )
         info.setWordWrap(True)
         info.setStyleSheet(info_banner_style("info"))
@@ -82,7 +84,7 @@ class CredentialsPanel(QWidget):
         root.addWidget(grp_meta)
 
         # ── Grupo: Microservicio WhatsApp ─────────────────────────────────────
-        grp_ms = QGroupBox("Microservicio WhatsApp (URL interna)")
+        grp_ms = QGroupBox("Microservicio WhatsApp (conexión interna)")
         grp_ms.setStyleSheet(group_box_style())
         fms = QFormLayout(grp_ms)
         fms.setContentsMargins(Spacing.LG, Spacing.LG, Spacing.LG, Spacing.LG)
@@ -93,7 +95,28 @@ class CredentialsPanel(QWidget):
         self._inp_ms_url.setPlaceholderText("http://localhost:8000")
         self._inp_ms_url.setStyleSheet(self._input_style())
 
+        self._fld_internal_key = MaskedSecretField("Clave interna ERP ↔ WhatsApp")
+        self._btn_generate_internal_key = QPushButton("Generar clave segura")
+        spj_btn(self._btn_generate_internal_key, "info")
+        self._btn_generate_internal_key.clicked.connect(self._generate_internal_key)
+
+        internal_row = QWidget()
+        internal_lay = QHBoxLayout(internal_row)
+        internal_lay.setContentsMargins(0, 0, 0, 0)
+        internal_lay.setSpacing(Spacing.SM)
+        internal_lay.addWidget(self._fld_internal_key, 1)
+        internal_lay.addWidget(self._btn_generate_internal_key)
+
+        help_internal = QLabel(
+            "Esta clave protege las llamadas ERP → microservicio. Se genera aquí; "
+            "el usuario no necesita editar archivos .env ni conocer programación."
+        )
+        help_internal.setWordWrap(True)
+        help_internal.setStyleSheet(info_banner_style("warning"))
+
         fms.addRow("URL microservicio:", self._inp_ms_url)
+        fms.addRow("Clave interna:", internal_row)
+        fms.addRow("", help_internal)
         root.addWidget(grp_ms)
 
         # ── Botones de acción ─────────────────────────────────────────────────
@@ -122,10 +145,12 @@ class CredentialsPanel(QWidget):
             self._inp_phone_id.setText(phone_id)
 
             # Mostrar si hay token almacenado, sin revelar su valor
-            has_token  = bool(cfg("meta_token", "") or cfg("wa_token", ""))
+            has_token = bool(cfg("meta_token", "") or cfg("wa_token", ""))
             has_verify = bool(cfg("verify_token", ""))
+            has_internal_key = bool(cfg("internal_api_key", ""))
             self._fld_token.set_has_value(has_token)
             self._fld_verify.set_has_value(has_verify)
+            self._fld_internal_key.set_has_value(has_internal_key)
 
             self._inp_waba_id.setText(cfg("waba_id", ""))
             self._inp_ms_url.setText(cfg("microservicio_url", "http://localhost:8000"))
@@ -158,6 +183,10 @@ class CredentialsPanel(QWidget):
             if new_verify:
                 changes["verify_token"] = new_verify
 
+            new_internal_key = self._fld_internal_key.get_new_value()
+            if new_internal_key:
+                changes["internal_api_key"] = new_internal_key
+
             if not changes:
                 QMessageBox.information(self, "Sin cambios", "No hay cambios para guardar.")
                 return
@@ -165,12 +194,32 @@ class CredentialsPanel(QWidget):
             self._svc.save_bot_config(changes)
             self._fld_token.clear_edit()
             self._fld_verify.clear_edit()
+            self._fld_internal_key.clear_edit()
             self._load()
             QMessageBox.information(self, "Guardado", "Credenciales actualizadas correctamente.")
         except Exception as exc:
             logger.warning("CredentialsPanel._save: %s", exc)
             self._err.set_error("No se pudieron guardar las credenciales.", str(exc), show_retry=False)
             QMessageBox.critical(self, "Error", f"No se pudieron guardar las credenciales:\n{exc}")
+
+    def _generate_internal_key(self) -> None:
+        """Genera una clave interna fuerte sin que el usuario toque .env."""
+        try:
+            generated = secrets.token_hex(32)
+            if hasattr(self._fld_internal_key, "set_new_value"):
+                self._fld_internal_key.set_new_value(generated)
+            else:
+                # Compatibilidad con versiones previas de MaskedSecretField
+                self._fld_internal_key._start_edit()  # noqa: SLF001
+                self._fld_internal_key._inp.setText(generated)  # noqa: SLF001
+            QMessageBox.information(
+                self,
+                "Clave generada",
+                "Se generó una clave interna segura. Presiona 'Guardar credenciales' para aplicarla.",
+            )
+        except Exception as exc:
+            logger.warning("_generate_internal_key: %s", exc)
+            self._err.set_error("No se pudo generar la clave interna.", str(exc), show_retry=False)
 
     @staticmethod
     def _input_style() -> str:
