@@ -437,6 +437,34 @@ class AppContainer:
             self.produccion_service = None
             logger.debug("produccion_service: %s", _pas_err)
 
+        # ── FASE 9: production query service (SQL extracted from UI) ─────────
+        try:
+            from core.services.production_query_service import (
+                get_daily_kpis,
+                get_active_lotes_count,
+                get_recetas_list,
+                get_recipe_components,
+                get_historial_carnica,
+                get_stock,
+                get_stocks_for_products,
+                get_recetas_for_combo,
+            )
+            import types as _types
+            _pqs = _types.SimpleNamespace(
+                get_daily_kpis         = lambda *a, **kw: get_daily_kpis(self.db, *a, **kw),
+                get_active_lotes_count = lambda: get_active_lotes_count(self.db),
+                get_recetas_list       = lambda: get_recetas_list(self.db),
+                get_recipe_components  = lambda rid: get_recipe_components(self.db, rid),
+                get_historial_carnica  = lambda limit=100: get_historial_carnica(self.db, limit),
+                get_stock              = lambda pid, suc: get_stock(self.db, pid, suc),
+                get_stocks_for_products= lambda pids, suc: get_stocks_for_products(self.db, pids, suc),
+                get_recetas_for_combo  = lambda: get_recetas_for_combo(self.db),
+            )
+            self.production_query_service = _pqs
+        except Exception as _pqs_err:
+            self.production_query_service = None
+            logger.debug("production_query_service: %s", _pqs_err)
+
         # ── Phase 2/3/4: Ruta canónica + UCs documentales + adaptador recepción ─
         try:
             from application.purchases.traditional_purchase_uc import TraditionalPurchaseUC
