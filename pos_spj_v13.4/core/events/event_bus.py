@@ -226,7 +226,22 @@ class EventBus:
         event_type: str,
         payload:    dict,
         async_:     bool = False,
+        strict:     bool = False,
     ) -> None:
+        """Publica un evento a todos los handlers registrados.
+
+        strict=True — modo transaccional crítico:
+            Si cualquier handler lanza una excepción, se relanza al llamador
+            para que la transacción activa pueda hacer rollback.
+            No debe usarse con async_=True.
+
+        strict=False (default) — modo leniente:
+            Los errores de handlers se loguean pero no se propagan.
+            Comportamiento original — no rompe flujos no críticos.
+        """
+        if strict and async_:
+            raise ValueError("publish(strict=True) no es compatible con async_=True")
+
         with self._lock:
             handlers = list(self._handlers.get(event_type, []))
 
@@ -235,9 +250,9 @@ class EventBus:
             return
 
         if async_:
-            self._executor.submit(self._dispatch, event_type, payload, handlers)
+            self._executor.submit(self._dispatch, event_type, payload, handlers, False)
         else:
-            self._dispatch(event_type, payload, handlers)
+            self._dispatch(event_type, payload, handlers, strict)
 
     def clear_handlers(self, event_type: Optional[str] = None) -> None:
         with self._lock:
@@ -259,10 +274,10 @@ class EventBus:
         event_type: str,
         payload:    dict,
         handlers:   List[Tuple[int, str, Handler]],
+        strict:     bool = False,
     ) -> None:
         for priority, label, handler in handlers:
             try:
-                # Inject event_type into payload so handlers can identify the event
                 enriched = dict(payload) if payload else {}
                 if "event_type" not in enriched:
                     enriched["event_type"] = event_type
@@ -273,6 +288,8 @@ class EventBus:
                     "Handler FALLÓ [%s] → %s: %s",
                     event_type, label, exc, exc_info=True,
                 )
+                if strict:
+                    raise
 
 
 # ── Acceso global (singleton) ─────────────────────────────────────────────────

@@ -294,7 +294,7 @@ class SalesService:
             )
             try:
                 from core.events.event_bus import get_bus
-                get_bus().publish(SALE_ITEMS_PROCESS, _sale_evt_payload, async_=False)
+                get_bus().publish(SALE_ITEMS_PROCESS, _sale_evt_payload, strict=True)
             except Exception as _evt_err:
                 logger.error("SALE_ITEMS_PROCESS dispatch failed (venta %s): %s", operation_id, _evt_err)
                 raise  # propagate so SAVEPOINT rolls back

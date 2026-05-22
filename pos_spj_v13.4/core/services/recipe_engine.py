@@ -242,7 +242,7 @@ class RecipeEngine:
                     "reference_type": "PRODUCCION",
                     "user": usuario,
                     "movements": _movements_payload,
-                })
+                }, strict=True)
             else:
                 for mov in movimientos:
                     inv.process_movement(
