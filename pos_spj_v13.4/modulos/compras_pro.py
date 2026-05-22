@@ -861,7 +861,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._build_tab_tradicional(tab_trad)
 
         tab_qr = QWidget()
-        self._tabs.addTab(tab_qr, "📦 Compra con QR")
+        self._tabs.addTab(tab_qr, "📦 Recepción con QR")
         self._build_tab_qr(tab_qr)
 
         tab_hist = QWidget()
@@ -1017,6 +1017,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         splitter = QSplitter(Qt.Horizontal)
         splitter.setObjectName("purchaseThreeColumnSplitter")
         splitter.setHandleWidth(1)
+        splitter.setStyleSheet(
+            "QSplitter::handle { background: rgba(148,163,184,0.25); }"
+        )
         root.addWidget(splitter, 1)
 
         # Left column — Documental Toolbar (ERP documental)
@@ -1664,7 +1667,19 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         sub_rec = QWidget()
         self._qr_subtabs.addTab(sub_rec, "📦 Recepción con QR")
-        self._build_subtab_recepcion(sub_rec)
+        try:
+            from modulos.recepcion_qr_widget import RecepcionQRWidget
+            self._recv_qr = RecepcionQRWidget(
+                conexion=getattr(self, 'conexion', None),
+                usuario_actual=getattr(self, 'usuario_actual', ''),
+                sucursal_id=getattr(self, 'sucursal_id', 1),
+                container=getattr(self, 'container', None),
+            )
+            rec_lay = QVBoxLayout(sub_rec)
+            rec_lay.setContentsMargins(0, 0, 0, 0)
+            rec_lay.addWidget(wrap_in_scroll_area(self._recv_qr, self), 1)
+        except Exception:
+            self._build_subtab_recepcion(sub_rec)
 
         sub_hst = QWidget()
         self._qr_subtabs.addTab(sub_hst, "📚 Histórico")
@@ -4593,6 +4608,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 Toast.success(self, "↗ Enviada a recepción",
                               f"PO {po_folio} · aparece en lista de recepción (pestaña QR)")
                 self._cargar_docs_erp()
+                if hasattr(self, '_tabs'):
+                    self._tabs.setCurrentIndex(1)
             else:
                 QMessageBox.warning(self, "Error", result.error or "No se pudo enviar a recepción")
         except Exception as e:
@@ -4977,6 +4994,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         }
         active = _STATE_TO_STEP.get(estado.upper() if estado else "", 0)
 
+        _step_colors = {
+            "done":   Colors.SUCCESS_BASE,
+            "active": Colors.PRIMARY_BASE,
+            "idle":   Colors.NEUTRAL.SLATE_400,
+        }
         for i, lbl in enumerate(self._stepper_labels):
             if i < active:
                 state = "done"
@@ -4985,6 +5007,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             else:
                 state = "idle"
             lbl.setProperty("stepperState", state)
+            lbl.setStyleSheet(f"color:{_step_colors[state]};")
             lbl.style().unpolish(lbl)
             lbl.style().polish(lbl)
 
@@ -5288,7 +5311,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _apply_doctype_button_styles(self) -> None:
         for dt, btn in getattr(self, '_doctype_buttons', {}).items():
-            btn.setProperty("active", dt == self._doc_type)
+            active = dt == self._doc_type
+            btn.setProperty("active", active)
+            btn.setStyleSheet(
+                f"QPushButton{{background:{Colors.PRIMARY_BASE};color:#fff;}}"
+                if active else
+                f"QPushButton{{background:{Colors.NEUTRAL.SLATE_100};}}"
+            )
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
@@ -5339,6 +5368,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_btn_autorizar'):
             self._btn_autorizar.setText(btn_txt)
             self._btn_autorizar.setToolTip(btn_tip)
+            self._btn_autorizar.setStyleSheet(
+                f"QPushButton{{background:{btn_color};color:#fff;}}"
+                f"QPushButton:hover{{background:{btn_hover};}}"
+            )
         if hasattr(self, '_btn_enviar_recepcion'):
             self._btn_enviar_recepcion.setVisible(show_enviar)
         if hasattr(self, '_hidden_stepper'):
@@ -6559,6 +6592,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         # Phase 7 — mini documento-timeline (visible solo cuando la compra tiene PO asociada)
         self._hist_timeline_bar = QFrame()
         self._hist_timeline_bar.setObjectName("histTimelineBar")
+        self._hist_timeline_bar.setStyleSheet("background:transparent;")
         self._hist_timeline_bar.setFixedHeight(54)
         self._hist_timeline_lay = QHBoxLayout(self._hist_timeline_bar)
         self._hist_timeline_lay.setContentsMargins(12, 6, 12, 6)
@@ -6724,6 +6758,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         panel.setFixedWidth(190)
         panel.setObjectName("histKpiSidebar")
         panel.setFrameShape(QFrame.StyledPanel)
+        panel.setStyleSheet("background:transparent;")
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(10, 12, 10, 12)
         lay.setSpacing(8)
@@ -6968,10 +7003,17 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             bar.hide()
             return
 
+        _NODE_COLORS = {
+            "done":    Colors.SUCCESS_BASE,
+            "active":  Colors.PRIMARY_BASE,
+            "pending": Colors.NEUTRAL.SLATE_400,
+        }
+
         def _node(icon: str, label: str, sublabel: str,
                   done: bool, active: bool = False) -> QFrame:
-            """Build a timeline node. Uses objectName + property for styling."""
+            """Build a timeline node styled with Colors design tokens."""
             state = "done" if done else ("active" if active else "pending")
+            color = _NODE_COLORS[state]
             f = QFrame()
             f.setObjectName("timelineNode")
             f.setProperty("state", state)
@@ -6981,9 +7023,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             top = QLabel(f"{icon} <b>{label}</b>")
             top.setObjectName("timelineNodeLabel")
             top.setProperty("state", state)
+            top.setStyleSheet(f"color:{color};")
             top.setTextFormat(Qt.RichText)
             sub = QLabel(sublabel)
             sub.setObjectName("timelineNodeSub")
+            sub.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};font-size:10px;")
             fl.addWidget(top)
             fl.addWidget(sub)
             return f

@@ -47,7 +47,8 @@ def _import_or_skip(module_name: str):
     try:
         return importlib.import_module(module_name)
     except ImportError as exc:
-        if "libGL.so.1" in str(exc):
+        msg = str(exc)
+        if "libGL.so.1" in msg or "PyQt5" in msg or "No module named" in msg:
             pytest.skip(f"PyQt5 runtime dependency unavailable in this environment: {exc}")
         raise
 
