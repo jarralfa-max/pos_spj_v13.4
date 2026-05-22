@@ -549,6 +549,17 @@ class AppContainer:
             self.fiscal_engine = None
             logger.debug("FiscalEngine: %s", _fe)
 
+        # ── ERP FASE 9: CapitalService (mig 084) ─────────────────────────────
+        try:
+            from core.services.finance.capital_service import CapitalService
+            self.capital_service = CapitalService(
+                self.db,
+                treasury_service=self.treasury_service,
+            )
+        except Exception as _cs:
+            self.capital_service = None
+            logger.debug("CapitalService: %s", _cs)
+
         # Wire kitchen printer and comisiones to sales_service
         try:
             self.sales_service._hw_svc = self.hardware_service

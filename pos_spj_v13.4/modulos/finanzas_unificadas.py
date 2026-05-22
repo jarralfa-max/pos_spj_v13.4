@@ -1434,16 +1434,11 @@ class _SeccionCapital(QWidget):
             if m._capital_svc:
                 rows = m._capital_svc.get_history(branch_id=m.sucursal_id, limit=100)
 
-            # Fallback: consulta directa a capital_movements (mig 084)
+            # Fallback: consulta directa a capital_movements (mig 084) o treasury_capital (legacy)
             if not rows:
-                db = None
-                if hasattr(m, "container") and m.container:
-                    db = getattr(m.container, "db", None)
-                if db is None and hasattr(m, "_db"):
-                    db = m._db
-                if db is None and hasattr(m, "db"):
-                    db = m.db
+                db = getattr(getattr(m, "container", None), "db", None)
                 if db:
+                    # Intento 1: capital_movements (mig 084)
                     try:
                         cur = db.execute(
                             "SELECT created_at, movement_type, partner_name, concept, "
@@ -1455,6 +1450,18 @@ class _SeccionCapital(QWidget):
                         rows = [dict(zip(cols, row)) for row in cur.fetchall()]
                     except Exception:
                         pass
+                    # Intento 2: treasury_capital (tabla legacy de TreasuryService)
+                    if not rows:
+                        try:
+                            cur = db.execute(
+                                "SELECT fecha, tipo, usuario, descripcion, '', monto, '', 'confirmado' "
+                                "FROM treasury_capital ORDER BY fecha DESC LIMIT 100"
+                            )
+                            cols = ["created_at", "movement_type", "partner_name", "concept",
+                                    "payment_method", "amount", "reference", "status"]
+                            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+                        except Exception:
+                            pass
 
             self._tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
