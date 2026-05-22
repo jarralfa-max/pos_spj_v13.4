@@ -12,6 +12,12 @@ El módulo desktop de WhatsApp guarda credenciales globales en la tabla
 
 El microservicio debe poder arrancar con `.env`, pero en ejecución debe preferir
 la configuración capturada desde el módulo cuando exista.
+
+IMPORTANTE:
+La BD canónica del ERP está en:
+<repo>/pos_spj_v13.4/data/spj_pos_database.db
+
+No debe usarse ni crearse otra BD en la raíz del módulo.
 """
 import os
 import sqlite3
@@ -37,10 +43,11 @@ WA_INTERNAL_API_KEY = os.getenv("WA_INTERNAL_API_KEY", "")
 
 # ── ERP Connection ────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+ERP_CANONICAL_DB_PATH = BASE_DIR / "pos_spj_v13.4" / "data" / "spj_pos_database.db"
 
 ERP_DB_PATH = os.getenv(
     "ERP_DB_PATH",
-    str(BASE_DIR / "pos_spj_v13.4" / "spj_pos_database.db")
+    str(ERP_CANONICAL_DB_PATH)
 )
 
 
