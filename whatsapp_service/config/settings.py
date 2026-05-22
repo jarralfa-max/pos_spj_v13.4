@@ -80,7 +80,8 @@ def get_meta_access_token() -> str:
 
 
 def get_verify_token() -> str:
-    """Verify Token: primero módulo ERP, luego .env.
+    """
+    Verify Token: primero módulo ERP, luego .env.
 
     Esto permite capturar el token desde el panel Meta/Credenciales y que el
     webhook oficial lo use para la validación de Meta.
