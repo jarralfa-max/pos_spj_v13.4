@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.spj_styles import spj_btn, apply_object_names
-from modulos.whatsapp.panels._panel_styles import group_box_style
+from modulos.whatsapp.panels._panel_styles import group_box_style, info_banner_style, input_style
 from modulos.whatsapp.widgets import ErrorPanel, MaskedSecretField
 
 logger = logging.getLogger("spj.ui.wa.credentials_panel")
@@ -50,14 +50,7 @@ class CredentialsPanel(QWidget):
             "un valor — los tokens existentes nunca se muestran completos."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(
-            f"background: {Colors.INFO.BG_SOFT};"
-            f"color: {Colors.INFO.BASE};"
-            f"border: 1px solid {Colors.INFO.BORDER};"
-            f"border-radius: {Borders.RADIUS_LG}px;"
-            f"padding: {Spacing.SM}px {Spacing.MD}px;"
-            f"font-size: {Typography.SIZE_MD};"
-        )
+        info.setStyleSheet(info_banner_style("info"))
         root.addWidget(info)
 
         self._err = ErrorPanel()
@@ -181,15 +174,4 @@ class CredentialsPanel(QWidget):
 
     @staticmethod
     def _input_style() -> str:
-        return (
-            f"QLineEdit {{"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_300};"
-            f"  border-radius: {Borders.RADIUS_LG}px;"
-            f"  padding: {Spacing.XS}px {Spacing.SM}px;"
-            f"  font-size: {Typography.SIZE_MD};"
-            f"  background: {Colors.NEUTRAL.WHITE};"
-            f"}}"
-            f"QLineEdit:focus {{"
-            f"  border-color: {Colors.PRIMARY.BASE};"
-            f"}}"
-        )
+        return input_style()

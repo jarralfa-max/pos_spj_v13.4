@@ -13,6 +13,7 @@ class StatusCard(QFrame):
 
     def __init__(self, title: str, value: str = "—", parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("card")
         self._setup_style()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(Spacing.MD, Spacing.MD, Spacing.MD, Spacing.MD)
@@ -38,13 +39,6 @@ class StatusCard(QFrame):
 
     def _setup_style(self) -> None:
         self.setFrameShape(QFrame.StyledPanel)
-        self.setStyleSheet(
-            f"QFrame {{"
-            f"  background: {Colors.NEUTRAL.WHITE};"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius: {Borders.RADIUS_XL}px;"
-            f"}}"
-        )
 
     def set_value(self, value: str) -> None:
         self._lbl_value.setText(value)
@@ -70,6 +64,7 @@ class MetricCard(QFrame):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("card")
         self._accent = accent or Colors.PRIMARY.BASE
         self._setup_style()
         lay = QVBoxLayout(self)
@@ -106,13 +101,6 @@ class MetricCard(QFrame):
 
     def _setup_style(self) -> None:
         self.setFrameShape(QFrame.StyledPanel)
-        self.setStyleSheet(
-            f"QFrame {{"
-            f"  background: {Colors.NEUTRAL.WHITE};"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"  border-radius: {Borders.RADIUS_XL}px;"
-            f"}}"
-        )
 
     def set_value(self, value: str, subtitle: str = "") -> None:
         self._lbl_value.setText(value)

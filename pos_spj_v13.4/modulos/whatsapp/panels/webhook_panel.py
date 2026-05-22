@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.spj_styles import spj_btn, apply_object_names
-from modulos.whatsapp.panels._panel_styles import group_box_style
+from modulos.whatsapp.panels._panel_styles import group_box_style, input_style
 from modulos.whatsapp.widgets import ConnectionBadge, ErrorPanel
 
 logger = logging.getLogger("spj.ui.wa.webhook_panel")
@@ -223,13 +223,4 @@ class WebhookPanel(QWidget):
 
     @staticmethod
     def _input_style() -> str:
-        return (
-            f"QLineEdit {{"
-            f"  border: 1px solid {Colors.NEUTRAL.SLATE_300};"
-            f"  border-radius: {Borders.RADIUS_LG}px;"
-            f"  padding: {Spacing.XS}px {Spacing.SM}px;"
-            f"  font-size: {Typography.SIZE_MD};"
-            f"  background: {Colors.NEUTRAL.WHITE};"
-            f"}}"
-            f"QLineEdit:focus {{ border-color: {Colors.PRIMARY.BASE}; }}"
-        )
+        return input_style()

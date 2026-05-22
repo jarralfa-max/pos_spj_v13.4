@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.spj_styles import spj_btn, apply_object_names
+from modulos.whatsapp.panels._panel_styles import info_banner_style, input_style
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.whatsapp.widgets import EmptyState, ErrorPanel
 
@@ -22,11 +23,8 @@ logger = logging.getLogger("spj.ui.wa.numbers_panel")
 
 def _group_hdr_style() -> str:
     return (
-        f"QLabel {{"
-        f"  font-size: {Typography.SIZE_XXL};"
-        f"  font-weight: {Typography.WEIGHT_SEMIBOLD};"
-        f"  color: {Colors.NEUTRAL.SLATE_800};"
-        f"}}"
+        f"font-size: {Typography.SIZE_XXL};"
+        f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
     )
 
 
@@ -77,14 +75,7 @@ class NumbersPanel(QWidget):
             "El campo 'token' se almacena cifrado — usa 'Reemplazar' al editar."
         )
         info.setWordWrap(True)
-        info.setStyleSheet(
-            f"background: {Colors.NEUTRAL.SLATE_50};"
-            f"color: {Colors.NEUTRAL.SLATE_500};"
-            f"border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"border-radius: {Borders.RADIUS_LG}px;"
-            f"padding: {Spacing.SM}px {Spacing.MD}px;"
-            f"font-size: {Typography.SIZE_SM};"
-        )
+        info.setStyleSheet(info_banner_style("neutral"))
         root.addWidget(info)
 
         self._err = ErrorPanel()

@@ -53,11 +53,8 @@ class MaskedSecretField(QWidget):
             f"  border-radius: {Borders.RADIUS_LG}px;"
             f"  padding: {Spacing.XS}px {Spacing.SM}px;"
             f"  font-size: {Typography.SIZE_MD};"
-            f"  background: {Colors.NEUTRAL.WHITE};"
             f"}}"
-            f"QLineEdit:focus {{"
-            f"  border-color: {Colors.PRIMARY.BASE};"
-            f"}}"
+            f"QLineEdit:focus {{ border-color: {Colors.PRIMARY.BASE}; }}"
         )
         self._inp.setVisible(False)
         self._inp.textChanged.connect(self._on_text_changed)

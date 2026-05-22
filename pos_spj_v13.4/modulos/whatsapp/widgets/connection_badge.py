@@ -59,7 +59,6 @@ class ConnectionBadge(QWidget):
 
         self._lbl = QLabel(text)
         self._lbl.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_700};"
             f"font-size: {Typography.SIZE_LG};"
             f"font-weight: {Typography.WEIGHT_MEDIUM};"
         )

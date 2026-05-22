@@ -30,10 +30,7 @@ class _CheckRow(QWidget):
 
         lbl = QLabel(label)
         lbl.setMinimumWidth(200)
-        lbl.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_700};"
-            f"font-size: {Typography.SIZE_MD};"
-        )
+        lbl.setStyleSheet(f"font-size: {Typography.SIZE_MD};")
         self._badge = StatusBadge("—", "neutral")
 
         lay.addWidget(lbl)

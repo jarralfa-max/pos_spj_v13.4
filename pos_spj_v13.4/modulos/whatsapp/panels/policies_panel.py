@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.spj_styles import apply_object_names
+from modulos.whatsapp.panels._panel_styles import info_banner_style
 from modulos.whatsapp.widgets import PolicyTable
 
 
@@ -30,7 +31,6 @@ class PoliciesPanel(QWidget):
         lbl_title.setStyleSheet(
             f"font-size: {Typography.SIZE_XXL};"
             f"font-weight: {Typography.WEIGHT_SEMIBOLD};"
-            f"color: {Colors.NEUTRAL.SLATE_800};"
         )
         root.addWidget(lbl_title)
 
@@ -42,9 +42,7 @@ class PoliciesPanel(QWidget):
         )
         lbl_desc.setWordWrap(True)
         lbl_desc.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_600};"
             f"font-size: {Typography.SIZE_MD};"
-            f"line-height: 1.5;"
         )
         root.addWidget(lbl_desc)
 
@@ -57,14 +55,7 @@ class PoliciesPanel(QWidget):
             "<b>✅ Inbox</b> — Siempre registrado en ERP inbox"
         )
         legend_row.setWordWrap(True)
-        legend_row.setStyleSheet(
-            f"background: {Colors.NEUTRAL.SLATE_50};"
-            f"color: {Colors.NEUTRAL.SLATE_600};"
-            f"border: 1px solid {Colors.NEUTRAL.SLATE_200};"
-            f"border-radius: {Borders.RADIUS_LG}px;"
-            f"padding: {Spacing.SM}px {Spacing.MD}px;"
-            f"font-size: {Typography.SIZE_SM};"
-        )
+        legend_row.setStyleSheet(info_banner_style("neutral"))
         root.addWidget(legend_row)
 
         # Tabla de política
@@ -75,8 +66,5 @@ class PoliciesPanel(QWidget):
             "* Para modificar la política, editar "
             "<code>core/services/notifications/notification_policy_service.py</code>."
         )
-        note.setStyleSheet(
-            f"color: {Colors.NEUTRAL.SLATE_400};"
-            f"font-size: {Typography.SIZE_XS};"
-        )
+        note.setStyleSheet(f"font-size: {Typography.SIZE_XS};")
         root.addWidget(note)
