@@ -107,3 +107,29 @@ def test_scheduled_order_notification_uses_warning_and_canonical_event():
 
     events = {r[0] for r in db.execute("SELECT event_type FROM wa_event_log").fetchall()}
     assert "WHATSAPP_SCHEDULED_ORDER_CREATED" in events
+
+
+def test_pos_notifier_event_payload_contains_canonical_aliases():
+    import json
+    db = _db()
+    notifier = POSNotifier(db)
+    notifier.notify_new_whatsapp_order(
+        venta_id=404,
+        folio='WA-TEST-404',
+        cliente_id=77,
+        cliente_nombre='Cliente Alias',
+        total=99.0,
+        sucursal_id=2,
+        tipo_entrega='domicilio',
+    )
+
+    row = db.execute(
+        "SELECT data_json FROM wa_event_log WHERE event_type='WHATSAPP_ORDER_CREATED' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    payload = json.loads(row[0])
+    assert payload["sale_id"] == 404
+    assert payload["branch_id"] == 2
+    assert payload["customer_id"] == 77
+    assert payload["delivery_type"] == "home_delivery"
+    assert payload["workflow_type"] == "delivery"
+    assert payload["source_channel"] == "whatsapp"

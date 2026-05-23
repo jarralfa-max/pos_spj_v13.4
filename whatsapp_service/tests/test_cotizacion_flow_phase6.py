@@ -69,3 +69,26 @@ def test_quote_reject_marks_rejected_and_emits_event(monkeypatch):
     assert result.new_state == FlowState.IDLE
     erp.db.execute.assert_called_with("UPDATE cotizaciones SET estado='rechazada' WHERE id=?", (7,))
     assert events.emit.called
+
+
+def test_quote_accept_without_orchestrator_emits_canonical_events(monkeypatch):
+    flow, erp, events = _mk_flow()
+    flow.orchestrator = None
+    erp.convertir_cotizacion_a_venta.return_value = {"venta_id": 55, "folio": "VTA-55", "total": 210.0}
+
+    ctx = ConversationContext(phone="52155", state=FlowState.COTIZACION_CONFIRMACION)
+    ctx.current_quote_id = 9
+    ctx.current_quote_folio = "COT-9"
+    ctx.cliente_id = 88
+    ctx.sucursal_id = 2
+
+    monkeypatch.setattr("flows.cotizacion_flow.send_text", AsyncMock())
+    monkeypatch.setattr("flows.cotizacion_flow.interactive.send_menu_principal", AsyncMock())
+
+    import asyncio
+    result = asyncio.run(_run(flow, ctx, "quote_accept"))
+
+    assert result.new_state == FlowState.IDLE
+    emitted = [c.args[0] for c in events.emit.call_args_list]
+    assert "WHATSAPP_QUOTE_ACCEPTED" in emitted
+    assert "WHATSAPP_QUOTE_CONVERTED_TO_SALE" in emitted

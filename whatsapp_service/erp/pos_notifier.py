@@ -53,6 +53,8 @@ class POSNotifier:
         items: List[Dict[str, Any]] | None = None,
     ) -> None:
         """Registra evento + notificación POS de nuevo pedido WhatsApp."""
+        delivery_type = "home_delivery" if (tipo_entrega or "").strip().lower() in ("domicilio", "home_delivery") else "pickup"
+        workflow_type = "delivery" if delivery_type == "home_delivery" else "counter"
         payload = {
             "event_type": "WA_PEDIDO_CREADO",
             "venta_id": venta_id,
@@ -66,6 +68,14 @@ class POSNotifier:
             "items": items or [],
             "canal": "whatsapp",
             "timestamp": datetime.now().isoformat(),
+            # canonical internal aliases
+            "sale_id": venta_id,
+            "branch_id": sucursal_id,
+            "customer_id": cliente_id,
+            "customer_name": cliente_nombre or "Cliente WhatsApp",
+            "delivery_type": delivery_type,
+            "workflow_type": workflow_type,
+            "source_channel": "whatsapp",
         }
 
         self._insert_wa_event(EVENT_WHATSAPP_ORDER_CREATED, payload, sucursal_id=sucursal_id, prioridad=90)
@@ -105,6 +115,7 @@ class POSNotifier:
         direccion: str = "",
         items: List[Dict[str, Any]] | None = None,
     ) -> None:
+        delivery_type = "home_delivery" if (tipo_entrega or "").strip().lower() in ("domicilio", "home_delivery") else "pickup"
         payload = {
             "event_type": EVENT_WHATSAPP_SCHEDULED_ORDER_CREATED,
             "venta_id": venta_id,
@@ -119,6 +130,14 @@ class POSNotifier:
             "items": items or [],
             "canal": "whatsapp",
             "timestamp": datetime.now().isoformat(),
+            # canonical internal aliases
+            "sale_id": venta_id,
+            "branch_id": sucursal_id,
+            "customer_id": cliente_id,
+            "customer_name": cliente_nombre or "Cliente WhatsApp",
+            "delivery_type": delivery_type,
+            "workflow_type": "scheduled",
+            "source_channel": "whatsapp",
         }
         self._insert_wa_event(EVENT_WHATSAPP_SCHEDULED_ORDER_CREATED, payload, sucursal_id=sucursal_id, prioridad=90)
         self._insert_wa_event(EVENT_BRANCH_NOTIFICATION_CREATED, payload, sucursal_id=sucursal_id, prioridad=80)

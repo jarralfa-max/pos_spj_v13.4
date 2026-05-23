@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from core.services.delivery_service import DeliveryService
 from repositories.delivery_repository import DeliveryRepository
 from erp.adjustment_approval import AdjustmentApprovalService
+from core.services.order_total_service import OrderTotalService
 
 
 class DummyGeo:
@@ -108,3 +109,65 @@ def test_outside_tolerance_reject_keeps_200_and_delivery_keeps_total():
     svc.update_status(1, "entregado", usuario="tester", responsable="r1")
     row = db.execute("SELECT total FROM delivery_orders WHERE id=1").fetchone()
     assert float(row[0]) == 200.0
+
+
+def test_status_transitions_do_not_recalculate_totals_when_no_adjustment_change():
+    db = _db(); svc = _svc(db); _seed_order(db, "preparacion")
+
+    svc._recalculate_order_total = MagicMock(side_effect=AssertionError("no debe recalcular en entregar/en_ruta"))
+
+    svc.update_status(1, "en_ruta", usuario="tester")
+    svc.update_status(1, "entregado", usuario="tester", responsable="r1")
+
+    row = db.execute("SELECT total FROM delivery_orders WHERE id=1").fetchone()
+    assert float(row[0]) == 200.0
+
+
+def test_within_tolerance_recalculates_once_and_delivery_does_not_recalculate_again():
+    db = _db(); svc = _svc(db); _seed_order(db, "preparacion")
+
+    real_recalc = svc._recalculate_order_total
+    svc._recalculate_order_total = MagicMock(side_effect=real_recalc)
+
+    out = svc.adjust_item_weight(order_id=1, item_id=1, prepared_qty=2.1, prepared_by="op")
+    assert out["applied"] is True
+    assert out["new_total"] == 210.0
+    assert svc._recalculate_order_total.call_count == 1
+
+    svc.update_status(1, "en_ruta", usuario="tester")
+    svc.update_status(1, "entregado", usuario="tester", responsable="r1")
+    assert svc._recalculate_order_total.call_count == 1
+
+
+def test_pending_adjustment_does_not_recalculate_until_customer_response():
+    db = _db(); svc = _svc(db); _seed_order(db, "preparacion")
+
+    svc._recalculate_order_total = MagicMock(side_effect=AssertionError("pendiente no debe recalcular"))
+    out = svc.adjust_item_weight(order_id=1, item_id=1, prepared_qty=2.3, prepared_by="op")
+    assert out["applied"] is False
+
+    row = db.execute("SELECT total, adjustment_pending FROM delivery_orders WHERE id=1").fetchone()
+    assert float(row[0]) == 200.0
+    assert int(row[1]) == 1
+
+
+def test_adjustment_approval_service_recalculates_exactly_once():
+    db = _db(); svc = _svc(db); _seed_order(db, "preparacion")
+    svc.adjust_item_weight(order_id=1, item_id=1, prepared_qty=2.3, prepared_by="op")
+
+    original = OrderTotalService.recalculate_order_total
+    calls = {"n": 0}
+
+    def _tracked(self, order_id):
+        calls["n"] += 1
+        return original(self, order_id)
+
+    OrderTotalService.recalculate_order_total = _tracked
+    try:
+        ap = AdjustmentApprovalService(db)
+        out = ap.respond_latest_for_phone("5512345678", accepted=True)
+        assert out["ok"] is True
+        assert out["total"] == 230.0
+        assert calls["n"] == 1
+    finally:
+        OrderTotalService.recalculate_order_total = original

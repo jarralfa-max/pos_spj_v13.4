@@ -118,3 +118,20 @@ def test_activate_scheduled_order_switches_to_delivery_when_home_delivery():
     row = svc.repository.get_order(oid)
     assert row["estado"] == "pendiente"
     assert (row.get("workflow_type") or "").lower() == "delivery"
+
+
+def test_scheduled_workflow_cannot_jump_to_preparacion_without_activation():
+    svc = DeliveryService(_db(), whatsapp_service=DummyWA(), geocoding_service=DummyGeo())
+    oid = svc.create_order({
+        "cliente_nombre": "Ana",
+        "direccion": "Sucursal Centro",
+        "workflow_type": "scheduled",
+        "delivery_type": "pickup",
+    }, usuario="tester")
+    svc.repository.update_status(oid, "programado", usuario="tester")
+
+    try:
+        svc.update_status(oid, "preparacion", usuario="tester")
+        assert False, "Expected ValueError for scheduled workflow transition"
+    except ValueError as exc:
+        assert "programado" in str(exc).lower()

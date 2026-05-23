@@ -6,7 +6,12 @@ from __future__ import annotations
 from models.context import ConversationContext, FlowState, PedidoItem
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
-from erp.events import WA_COTIZACION_CREADA, WHATSAPP_QUOTE_REJECTED
+from erp.events import (
+    WA_COTIZACION_CREADA,
+    WHATSAPP_QUOTE_REJECTED,
+    WHATSAPP_QUOTE_ACCEPTED,
+    WHATSAPP_QUOTE_CONVERTED_TO_SALE,
+)
 from messaging import interactive
 from messaging.sender import send_text, send_buttons
 
@@ -207,13 +212,27 @@ class CotizacionFlow(BaseFlow):
             if not quote_id:
                 await send_text(ctx.phone, "No encontré una cotización activa para convertir.")
                 return FlowResult(FlowState.IDLE)
+            using_orchestrator = bool(self.orchestrator)
             result = self.orchestrator.convertir_cotizacion_a_venta(
                 cotizacion_id=int(quote_id),
                 cliente_id=ctx.cliente_id or 0,
-            ) if self.orchestrator else self.erp.convertir_cotizacion_a_venta(int(quote_id))
+            ) if using_orchestrator else self.erp.convertir_cotizacion_a_venta(int(quote_id))
             if not result:
                 await send_text(ctx.phone, "La cotización ya no está vigente o no pudo convertirse.")
                 return FlowResult(FlowState.COTIZACION_CONFIRMACION)
+            if not using_orchestrator:
+                self.events.emit(WHATSAPP_QUOTE_ACCEPTED, {
+                    "quote_id": int(quote_id),
+                    "quote_folio": ctx.current_quote_folio,
+                    "customer_id": ctx.cliente_id,
+                }, sucursal_id=ctx.sucursal_id or 1)
+                self.events.emit(WHATSAPP_QUOTE_CONVERTED_TO_SALE, {
+                    "quote_id": int(quote_id),
+                    "quote_folio": ctx.current_quote_folio,
+                    "sale_id": result.get("venta_id") or result.get("id"),
+                    "sale_folio": result.get("folio"),
+                    "customer_id": ctx.cliente_id,
+                }, sucursal_id=ctx.sucursal_id or 1)
             await send_text(
                 ctx.phone,
                 f"✅ Cotización aceptada y convertida a venta.\nFolio venta: *{result.get('folio','')}*\nTotal: *${float(result.get('total',0)):.2f}*"
