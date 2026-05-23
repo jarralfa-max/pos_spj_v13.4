@@ -2,15 +2,15 @@
 """
 Endpoints usados por el ERP/POS para consultar pedidos entrantes desde WhatsApp.
 
-Este router no envía mensajes a Meta. Solo expone lectura de pedidos pendientes
-creados por el flujo conversacional para que el POS pueda notificarlos/mostrarlos.
+Este router no envía mensajes a Meta. Solo expone lectura/sincronización de
+pedidos creados por el flujo conversacional para que el POS pueda mostrarlos y
+actualizar su ciclo de vida.
 
 Contrato importante para el ERP:
 - Cada pedido debe incluir `whatsapp_order_id` estable para deduplicar.
 - Cada pedido debe incluir `venta_id`, cliente, teléfono, dirección e items.
-- Este endpoint solo entrega pedidos NUEVOS de WhatsApp. No debe devolver
-  confirmados/en preparación/en ruta, porque eso provoca recargas/duplicados
-  en el módulo Delivery.
+- /orders/pending solo entrega pedidos NUEVOS de WhatsApp.
+- /orders/status permite que Delivery sincronice cambios de estado sin 404.
 """
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ import logging
 import sqlite3
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Header, HTTPException
+from pydantic import BaseModel
 
 logger = logging.getLogger("wa.delivery")
 router = APIRouter(prefix="/api/delivery", tags=["delivery"])
@@ -36,6 +37,49 @@ def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
         return {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     except Exception:
         return set()
+
+
+def _resolve_internal_key() -> str:
+    try:
+        from config.settings import get_internal_api_key
+        return get_internal_api_key() or ""
+    except Exception:
+        try:
+            from config.settings import WA_INTERNAL_API_KEY, INTERNAL_API_KEY
+            return WA_INTERNAL_API_KEY or INTERNAL_API_KEY or ""
+        except Exception:
+            return ""
+
+
+def _check_internal_key(x_internal_key: Optional[str]) -> None:
+    internal_key = _resolve_internal_key()
+    if not internal_key:
+        logger.warning("Internal API key not configured — delivery status endpoint unprotected in dev mode.")
+        return
+    if not x_internal_key or x_internal_key != internal_key:
+        logger.warning("delivery_router: unauthorized request — bad X-Internal-Key")
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+
+class DeliveryStatusRequest(BaseModel):
+    whatsapp_order_id: str
+    status: str
+    venta_id: Optional[int] = None
+    notes: str = ""
+
+
+def _map_status_to_venta(status: str) -> str:
+    st = (status or "").strip().lower()
+    return {
+        "pendiente": "pendiente_wa",
+        "preparacion": "en_preparacion",
+        "en_preparacion": "en_preparacion",
+        "en_ruta": "en_ruta",
+        "entregado": "entregada",
+        "entregada": "entregada",
+        "cancelado": "cancelada",
+        "cancelada": "cancelada",
+    }.get(st, st)
 
 
 @router.get("/orders/pending")
@@ -91,8 +135,6 @@ async def pending_orders(
         else:
             select_parts.append("'' AS notas")
 
-        # IMPORTANTE: solo pedidos nuevos desde WA. Estados posteriores se manejan
-        # dentro de delivery_orders; no deben volver a importarse como pendientes.
         where = ["COALESCE(v.estado, '') IN ('pendiente_wa')"]
         params: list = []
         if has_canal:
@@ -147,5 +189,54 @@ async def pending_orders(
     except Exception as exc:
         logger.exception("pending_orders failed: %s", exc)
         return {"ok": False, "orders": [], "error": str(exc)}
+    finally:
+        conn.close()
+
+
+@router.post("/orders/status")
+async def sync_order_status(req: DeliveryStatusRequest,
+                            x_internal_key: Optional[str] = Header(None)):
+    """Sincroniza estado de Delivery hacia ventas WhatsApp sin generar mensajes repetidos."""
+    _check_internal_key(x_internal_key)
+    conn = _connect()
+    try:
+        status_venta = _map_status_to_venta(req.status)
+        venta_id = req.venta_id
+        if not venta_id and req.whatsapp_order_id.startswith("venta:"):
+            try:
+                venta_id = int(req.whatsapp_order_id.split(":", 1)[1])
+            except Exception:
+                venta_id = None
+
+        if not venta_id:
+            row = conn.execute(
+                "SELECT venta_id FROM delivery_orders WHERE whatsapp_order_id=? LIMIT 1",
+                (req.whatsapp_order_id,),
+            ).fetchone()
+            venta_id = int(row[0]) if row and row[0] else None
+
+        if not venta_id:
+            return {"ok": False, "error": "venta_id not found"}
+
+        cols = _table_columns(conn, "ventas")
+        if "estado" not in cols:
+            return {"ok": False, "error": "ventas.estado not found"}
+
+        conn.execute("UPDATE ventas SET estado=? WHERE id=?", (status_venta, venta_id))
+        try:
+            conn.execute("""
+                INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
+                SELECT 'DELIVERY_STATUS_SYNC',
+                       json_object('venta_id', id, 'whatsapp_order_id', ?, 'status', ?, 'estado_venta', ?),
+                       COALESCE(sucursal_id,1), 20, datetime('now')
+                FROM ventas WHERE id=?
+            """, (req.whatsapp_order_id, req.status, status_venta, venta_id))
+        except Exception:
+            pass
+        conn.commit()
+        return {"ok": True, "venta_id": venta_id, "estado": status_venta}
+    except Exception as exc:
+        logger.exception("sync_order_status failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
     finally:
         conn.close()
