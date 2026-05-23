@@ -1,6 +1,11 @@
 # flows/pedido_flow.py — Flujo de pedido completo
 """
 State machine: categoría → producto → cantidad → ¿más? → entrega → confirmar
+
+Regla UX importante:
+- Al cancelar o confirmar un pedido NO se vuelve a mandar el menú principal.
+- La conversación queda cerrada en IDLE.
+- El cliente puede reabrirla escribiendo explícitamente: hola, menú, pedido, etc.
 """
 from __future__ import annotations
 from models.context import ConversationContext, FlowState, PedidoItem
@@ -185,8 +190,7 @@ class PedidoFlow(BaseFlow):
 
         if aid == "cancel_pedido":
             ctx.reset_flow()
-            await send_text(ctx.phone, "❌ Pedido cancelado.")
-            await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)
+            await send_text(ctx.phone, "❌ Pedido cancelado. Cuando quieras iniciar otro, escribe *hola* o *pedido*.")
             return FlowResult(FlowState.IDLE)
 
         # Si escribe producto directamente en este paso
@@ -254,8 +258,7 @@ class PedidoFlow(BaseFlow):
 
         if aid == "cancel_pedido":
             ctx.reset_flow()
-            await send_text(ctx.phone, "❌ Pedido cancelado.")
-            await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)
+            await send_text(ctx.phone, "❌ Pedido cancelado. No se registró ninguna venta. Para iniciar otro pedido, escribe *pedido*.")
             return FlowResult(FlowState.IDLE)
 
         if aid == "confirm_pedido":
@@ -273,6 +276,7 @@ class PedidoFlow(BaseFlow):
             total = result["total"]
             venta_id = result["venta_id"]
             suc_id = ctx.sucursal_id or 1
+            ctx.last_venta_id = venta_id
 
             # ── FASE WA: Orquestación completa (OC, anticipo real, delivery) ──
             if self.orchestrator:
@@ -314,11 +318,12 @@ class PedidoFlow(BaseFlow):
                     f"*${anticipo_monto:.2f}*\n"
                     f"Te enviaremos el link de pago.")
 
-            # Confirmar
+            # Confirmar al cliente una sola vez, sin reenviar menú principal.
             await interactive.send_confirmacion_pedido(
                 ctx.phone, ctx.resumen_pedido(), folio)
 
             ctx.reset_flow()
+            ctx.last_venta_id = venta_id
             return FlowResult(FlowState.IDLE)
 
         return FlowResult(FlowState.PEDIDO_CONFIRMACION)
