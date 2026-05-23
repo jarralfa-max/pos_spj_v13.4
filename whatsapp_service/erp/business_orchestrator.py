@@ -28,6 +28,8 @@ from erp.events import (
     STAFF_NOTIFICATION, FORECAST_DEMAND_UPDATED,
     WA_PEDIDO_CREADO, WA_COTIZACION_CREADA, WA_ANTICIPO_REQUERIDO,
     WA_ANTICIPO_PAGADO, WA_VENTA_CONFIRMADA,
+    WHATSAPP_QUOTE_CREATED, WHATSAPP_QUOTE_ACCEPTED,
+    WHATSAPP_QUOTE_REJECTED, WHATSAPP_QUOTE_CONVERTED_TO_SALE,
 )
 
 logger = logging.getLogger("wa.orchestrator")
@@ -83,6 +85,12 @@ class BusinessOrchestrator:
             "total": result["total"],
             "cliente_id": cliente_id,
         }, sucursal_id=self.sucursal_id, prioridad=5)
+        self.events.emit(WHATSAPP_QUOTE_CREATED, {
+            "quote_id": result["cotizacion_id"],
+            "quote_folio": result["folio"],
+            "total": result["total"],
+            "customer_id": cliente_id,
+        }, sucursal_id=self.sucursal_id, prioridad=5)
 
         return result
 
@@ -114,6 +122,18 @@ class BusinessOrchestrator:
 
         self.events.emit(WA_VENTA_CONFIRMADA, {
             "folio": result["folio"], "total": total, "cliente_id": cliente_id,
+        }, sucursal_id=self.sucursal_id, prioridad=2)
+        self.events.emit(WHATSAPP_QUOTE_ACCEPTED, {
+            "quote_id": cotizacion_id,
+            "sale_id": venta_id,
+            "customer_id": cliente_id,
+        }, sucursal_id=self.sucursal_id, prioridad=2)
+        self.events.emit(WHATSAPP_QUOTE_CONVERTED_TO_SALE, {
+            "quote_id": cotizacion_id,
+            "sale_id": venta_id,
+            "folio": result["folio"],
+            "total": total,
+            "customer_id": cliente_id,
         }, sucursal_id=self.sucursal_id, prioridad=2)
 
         # Verificar stock y generar OC si falta

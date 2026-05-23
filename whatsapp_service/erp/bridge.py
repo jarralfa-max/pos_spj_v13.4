@@ -333,7 +333,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 self._notify_pos_new_order(
                     venta_id=data["venta_id"], folio=data["folio"], total=data["total"],
                     cliente_id=cliente_id, sucursal_id=sucursal_id, tipo_entrega=tipo_entrega,
-                    direccion=direccion, items=api_items,
+                    direccion=direccion, items=api_items, fecha_entrega=fecha_entrega,
                 )
                 return {
                     "venta_id": data["venta_id"],
@@ -349,14 +349,26 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         folio = f"WA-{uuid.uuid4().hex[:8].upper()}"
         total = sum(it["cantidad"] * it["precio_unitario"] for it in items)
 
-        cursor = self.db.execute("""
-            INSERT INTO ventas (folio, cliente_id, total, estado,
-                               sucursal_id, tipo_entrega, direccion_entrega,
-                               fecha_entrega_programada, notas, canal, fecha)
-            VALUES (?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, 'whatsapp',
-                    datetime('now'))
-        """, (folio, cliente_id, total, sucursal_id, tipo_entrega,
-              direccion, fecha_entrega, notas))
+        workflow_type = "scheduled" if fecha_entrega else ("counter" if tipo_entrega == "sucursal" else "delivery")
+        try:
+            cursor = self.db.execute("""
+                INSERT INTO ventas (folio, cliente_id, total, estado,
+                                   sucursal_id, tipo_entrega, direccion_entrega,
+                                   fecha_entrega_programada, scheduled_at, workflow_type,
+                                   source_channel, notas, canal, fecha)
+                VALUES (?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, ?,
+                        'whatsapp', ?, 'whatsapp', datetime('now'))
+            """, (folio, cliente_id, total, sucursal_id, tipo_entrega,
+                  direccion, fecha_entrega, fecha_entrega, workflow_type, notas))
+        except Exception:
+            cursor = self.db.execute("""
+                INSERT INTO ventas (folio, cliente_id, total, estado,
+                                   sucursal_id, tipo_entrega, direccion_entrega,
+                                   fecha_entrega_programada, notas, canal, fecha)
+                VALUES (?, ?, ?, 'pendiente_wa', ?, ?, ?, ?, ?, 'whatsapp',
+                        datetime('now'))
+            """, (folio, cliente_id, total, sucursal_id, tipo_entrega,
+                  direccion, fecha_entrega, notas))
         venta_id = cursor.lastrowid
 
         for it in items:
@@ -369,16 +381,31 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                   it["cantidad"] * it["precio_unitario"]))
 
         self.db.commit()
+        if fecha_entrega:
+            try:
+                from core.services.scheduled_demand_service import ScheduledDemandService
+                ScheduledDemandService(self.db).register_scheduled_sale(
+                    sale_id=int(venta_id),
+                    branch_id=int(sucursal_id),
+                    customer_id=int(cliente_id) if cliente_id else None,
+                    folio=folio,
+                    scheduled_at=str(fecha_entrega),
+                    items=items,
+                    source_channel="whatsapp",
+                )
+            except Exception as exc:
+                logger.warning("No se pudo registrar demanda programada para forecast: %s", exc)
         self._notify_pos_new_order(
             venta_id=venta_id, folio=folio, total=total,
             cliente_id=cliente_id, sucursal_id=sucursal_id,
-            tipo_entrega=tipo_entrega, direccion=direccion, items=items,
+            tipo_entrega=tipo_entrega, direccion=direccion, items=items, fecha_entrega=fecha_entrega,
         )
         return {"venta_id": venta_id, "folio": folio, "total": total}
 
     def _notify_pos_new_order(self, *, venta_id: int, folio: str, total: float,
                               cliente_id: int, sucursal_id: int, tipo_entrega: str,
-                              direccion: str = "", items: Optional[List[Dict]] = None) -> None:
+                              direccion: str = "", items: Optional[List[Dict]] = None,
+                              fecha_entrega: str = "") -> None:
         """Puente persistente WA → ERP desktop: evento + inbox POS."""
         try:
             cliente = self.db.execute(
@@ -390,17 +417,52 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             cliente_nombre = "Cliente WhatsApp"
         try:
             from erp.pos_notifier import POSNotifier
-            POSNotifier(self.db).notify_new_whatsapp_order(
-                venta_id=venta_id,
-                folio=folio,
-                cliente_id=cliente_id,
-                cliente_nombre=cliente_nombre,
-                total=total,
-                sucursal_id=sucursal_id,
-                tipo_entrega=tipo_entrega,
-                direccion=direccion,
-                items=items or [],
-            )
+            notifier = POSNotifier(self.db)
+            if fecha_entrega:
+                notifier.notify_scheduled_whatsapp_order(
+                    venta_id=venta_id,
+                    folio=folio,
+                    cliente_id=cliente_id,
+                    cliente_nombre=cliente_nombre,
+                    total=total,
+                    sucursal_id=sucursal_id,
+                    tipo_entrega=tipo_entrega,
+                    scheduled_at=fecha_entrega,
+                    direccion=direccion,
+                    items=items or [],
+                )
+            else:
+                notifier.notify_new_whatsapp_order(
+                    venta_id=venta_id,
+                    folio=folio,
+                    cliente_id=cliente_id,
+                    cliente_nombre=cliente_nombre,
+                    total=total,
+                    sucursal_id=sucursal_id,
+                    tipo_entrega=tipo_entrega,
+                    direccion=direccion,
+                    items=items or [],
+                )
+            # Optional desktop-notification service (ERP process friendly)
+            try:
+                from core.services.desktop_notification_service import DesktopNotificationService
+                dns = DesktopNotificationService(self.db)
+                if fecha_entrega:
+                    dns.notify_scheduled_order(
+                        branch_id=int(sucursal_id),
+                        sale_id=int(venta_id),
+                        folio=folio,
+                        scheduled_at=fecha_entrega,
+                    )
+                else:
+                    dns.notify_new_order(
+                        branch_id=int(sucursal_id),
+                        sale_id=int(venta_id),
+                        folio=folio,
+                        total=float(total or 0),
+                    )
+            except Exception:
+                pass
         except Exception as exc:
             logger.warning("No se pudo notificar pedido WA al ERP: %s", exc)
 

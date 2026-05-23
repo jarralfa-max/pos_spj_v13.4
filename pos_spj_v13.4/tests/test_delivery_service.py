@@ -39,7 +39,12 @@ def _db():
 
 def test_create_and_update_delivery_order():
     svc = DeliveryService(_db(), whatsapp_service=DummyWA(), geocoding_service=DummyGeo())
-    oid = svc.create_order({"cliente_nombre": "Ana", "direccion": "Calle Falsa 123"}, usuario="tester")
+    oid = svc.create_order({
+        "cliente_nombre": "Ana",
+        "direccion": "Calle Falsa 123",
+        "workflow_type": "delivery",
+        "delivery_type": "home_delivery",
+    }, usuario="tester")
     assert oid > 0
 
     orders = svc.list_orders()
@@ -53,9 +58,63 @@ def test_create_and_update_delivery_order():
     assert order["responsable_entrega"] == "carlos"
 
 
+def test_counter_workflow_cannot_transition_to_en_ruta():
+    svc = DeliveryService(_db(), whatsapp_service=DummyWA(), geocoding_service=DummyGeo())
+    oid = svc.create_order({
+        "cliente_nombre": "Ana",
+        "direccion": "Sucursal Centro",
+        "workflow_type": "counter",
+        "delivery_type": "pickup",
+    }, usuario="tester")
+
+    try:
+        svc.update_status(oid, "en_ruta", usuario="tester")
+        assert False, "Expected ValueError for counter workflow en_ruta transition"
+    except ValueError as exc:
+        assert "mostrador" in str(exc).lower()
+
+
 def test_pull_orders_from_whatsapp_upserts():
     svc = DeliveryService(_db(), whatsapp_service=DummyWA(), geocoding_service=DummyGeo())
     svc.pull_orders_from_whatsapp()
     orders = svc.repository.list_orders()
     assert len(orders) == 1
     assert orders[0]["whatsapp_order_id"] == "wa-1"
+
+
+def test_activate_scheduled_order_switches_to_counter_when_pickup():
+    svc = DeliveryService(_db(), whatsapp_service=DummyWA(), geocoding_service=DummyGeo())
+    oid = svc.create_order({
+        "cliente_nombre": "Ana",
+        "direccion": "Sucursal Centro",
+        "workflow_type": "scheduled",
+        "delivery_type": "pickup",
+    }, usuario="tester")
+    svc.repository.update_status(oid, "programado", usuario="tester")
+
+    out = svc.activate_scheduled_order(oid, usuario="tester")
+    assert out["workflow_type"] == "counter"
+    assert out["status"] == "pending"
+
+    row = svc.repository.get_order(oid)
+    assert row["estado"] == "pendiente"
+    assert (row.get("workflow_type") or "").lower() == "counter"
+
+
+def test_activate_scheduled_order_switches_to_delivery_when_home_delivery():
+    svc = DeliveryService(_db(), whatsapp_service=DummyWA(), geocoding_service=DummyGeo())
+    oid = svc.create_order({
+        "cliente_nombre": "Ana",
+        "direccion": "Calle Falsa 123",
+        "workflow_type": "scheduled",
+        "delivery_type": "home_delivery",
+    }, usuario="tester")
+    svc.repository.update_status(oid, "programado", usuario="tester")
+
+    out = svc.activate_scheduled_order(oid, usuario="tester")
+    assert out["workflow_type"] == "delivery"
+    assert out["status"] == "pending"
+
+    row = svc.repository.get_order(oid)
+    assert row["estado"] == "pendiente"
+    assert (row.get("workflow_type") or "").lower() == "delivery"

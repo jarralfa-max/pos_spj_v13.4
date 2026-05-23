@@ -359,6 +359,12 @@ class MenuLateral(QFrame):
         layout_inferior.addWidget(btn_logout)
         
         layout_principal.addWidget(zona_inferior)
+        self._status_badge = QLabel("Pedidos: 0 | Programados: 0 | Ajustes pendientes: 0 | Notificaciones: 0")
+        self._status_badge.setStyleSheet(
+            f"color: {Colors.NEUTRAL.SLATE_300}; font-size: {Typography.SIZE_XS}; padding: 8px;"
+        )
+        self._status_badge.setWordWrap(True)
+        layout_principal.addWidget(self._status_badge)
 
     def _crear_header(self, texto):
         """Crea un título pequeño para agrupar las secciones."""
@@ -516,6 +522,13 @@ class MenuLateral(QFrame):
             return ""
         raw = unicodedata.normalize("NFKD", texto)
         return "".join(c for c in raw if not unicodedata.combining(c)).strip().lower()
+
+    def set_status_badges(self, *, pedidos: int, programados: int, ajustes: int, notificaciones: int) -> None:
+        if hasattr(self, "_status_badge"):
+            self._status_badge.setText(
+                f"Pedidos: {int(pedidos)} | Programados: {int(programados)} | "
+                f"Ajustes pendientes: {int(ajustes)} | Notificaciones: {int(notificaciones)}"
+            )
 
     # ── Colapsar / Expandir ───────────────────────────────────────────────────
     def toggle_collapse(self) -> None:
