@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from repositories.delivery_repository import DeliveryRepository
 from core.services.delivery_whatsapp_service import DeliveryWhatsAppService
 from core.services.geocoding_service import GeocodingService
+from core.services.order_total_service import OrderTotalService
 
 logger = logging.getLogger("spj.services.delivery")
 
@@ -28,6 +29,7 @@ class DeliveryService:
         self.repository = repository or DeliveryRepository(db)
         self.whatsapp_service = whatsapp_service or DeliveryWhatsAppService()
         self.geocoding_service = geocoding_service or GeocodingService()
+        self.order_total_service = OrderTotalService(db)
         self._ensure_adjustment_columns()
 
     def _ensure_adjustment_columns(self) -> None:
@@ -124,6 +126,8 @@ class DeliveryService:
             return False
 
     def update_status(self, order_id: int, status: str, usuario: str, responsable: str = "") -> None:
+        self._validate_workflow_transition(order_id, status)
+
         if status == "entregado" and not responsable:
             raise ValueError("No se puede entregar sin responsable")
 
@@ -188,17 +192,72 @@ class DeliveryService:
         wa_id = order.get("whatsapp_order_id")
         self.whatsapp_service.sync_status(str(wa_id or ""), status)
 
-    def _recalculate_order_total(self, order_id: int) -> float:
-        row = self.db.execute(
-            "SELECT COALESCE(SUM(subtotal), 0) FROM delivery_items WHERE delivery_id=?",
-            (order_id,),
-        ).fetchone()
-        new_total = round(float(row[0]) if row else 0.0, 2)
+    def activate_scheduled_order(self, order_id: int, usuario: str = "sistema") -> Dict[str, Any]:
+        """Activate a scheduled order into its operational flow.
+
+        - scheduled + pickup/sucursal -> counter workflow
+        - scheduled + domicilio/home_delivery -> delivery workflow
+        - status changes from programado/scheduled to pendiente
+        """
+        order = self.repository.get_order(order_id) or {}
+        if not order:
+            raise ValueError("Pedido no encontrado.")
+
+        current_status = (order.get("estado") or "").strip().lower()
+        if current_status not in ("programado", "scheduled"):
+            raise ValueError("Solo se pueden activar pedidos en estado programado.")
+
+        delivery_type = (order.get("delivery_type") or order.get("tipo_entrega") or "").strip().lower()
+        target_workflow = "counter" if delivery_type in ("pickup", "sucursal") else "delivery"
+
         self.db.execute(
-            "UPDATE delivery_orders SET total=?, weight_adjusted=1 WHERE id=?",
-            (new_total, order_id),
+            """
+            UPDATE delivery_orders
+            SET workflow_type=?, estado='pendiente', fecha_actualizacion=datetime('now')
+            WHERE id=?
+            """,
+            (target_workflow, order_id),
         )
-        return new_total
+        try:
+            self.db.execute(
+                "UPDATE ventas SET workflow_type=?, estado='pendiente' WHERE id=?",
+                (target_workflow, order.get("venta_id")),
+            )
+        except Exception:
+            pass
+        self.db.commit()
+
+        self._publish("WHATSAPP_SCHEDULED_ORDER_ACTIVATED", {
+            "order_id": order_id,
+            "workflow_type": target_workflow,
+            "usuario": usuario,
+            "sucursal_id": int(order.get("sucursal_id") or 1),
+            "db": self.db,
+        })
+        return {"order_id": order_id, "workflow_type": target_workflow, "status": "pending"}
+
+    def _validate_workflow_transition(self, order_id: int, target_status: str) -> None:
+        order = self.repository.get_order(order_id) or {}
+        workflow_type = (order.get("workflow_type") or "").strip().lower()
+        delivery_type = (order.get("delivery_type") or "").strip().lower()
+        scheduled_at = order.get("scheduled_at")
+
+        if not workflow_type:
+            if scheduled_at:
+                workflow_type = "scheduled"
+            elif delivery_type in ("pickup", "sucursal"):
+                workflow_type = "counter"
+            else:
+                workflow_type = "delivery"
+
+        if workflow_type == "scheduled" and target_status in ("preparacion", "en_ruta", "entregado"):
+            raise ValueError("Pedido programado: primero debe activarse antes de pasar a flujo operativo.")
+
+        if workflow_type == "counter" and target_status == "en_ruta":
+            raise ValueError("Flujo mostrador no permite estado 'en_ruta'.")
+
+    def _recalculate_order_total(self, order_id: int) -> float:
+        return self.order_total_service.recalculate_order_total(order_id)
 
     def _sync_venta_total(self, order_id: int, new_total: float) -> None:
         try:

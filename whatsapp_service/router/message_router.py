@@ -130,6 +130,20 @@ class MessageRouter:
         logger.info("MSG %s → intent=%s, state=%s",
                      msg.from_number, intent.intent, ctx.state.value)
 
+        # Comando explícito para cambio de sucursal en número global.
+        if intent.intent == "sucursal" and numero_cfg.es_global:
+            sucursales = self.erp.get_sucursales()
+            if ctx.sucursal_id:
+                await interactive.send_text(
+                    ctx.phone,
+                    f"Sucursal actual: *{ctx.sucursal_nombre or ctx.sucursal_id}*.\n"
+                    "Selecciona la sucursal a usar para este pedido."
+                )
+            await interactive.send_seleccion_sucursal(ctx.phone, sucursales)
+            ctx.state = FlowState.SELECTING_BRANCH
+            self.store.save(ctx)
+            return
+
         if intent.intent in ("cancel", "cancelar") and ctx.state != FlowState.IDLE:
             ctx.reset_flow()
             from messaging.sender import send_text

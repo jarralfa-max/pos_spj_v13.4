@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from typing import Dict
+from core.services.order_total_service import OrderTotalService
 
 logger = logging.getLogger("wa.adjustment_approval")
 
@@ -100,12 +101,8 @@ class AdjustmentApprovalService:
             )
             action = "rejected"
 
-        # Recalcular total del pedido con subtotales actuales.
-        total_row = self.db.execute(
-            "SELECT COALESCE(SUM(subtotal), 0) FROM delivery_items WHERE delivery_id=?",
-            (order_id,),
-        ).fetchone()
-        new_total = round(float(total_row[0]) if total_row else 0.0, 2)
+        # Recalcular total del pedido con fuente de verdad única.
+        new_total = OrderTotalService(self.db).recalculate_order_total(order_id)
         pending_left = self.db.execute(
             "SELECT 1 FROM delivery_items WHERE delivery_id=? AND adjustment_status='pending_customer' LIMIT 1",
             (order_id,),
@@ -113,25 +110,21 @@ class AdjustmentApprovalService:
         pending_flag = 1 if pending_left else 0
 
         self.db.execute(
-            "UPDATE delivery_orders SET total=?, adjustment_pending=?, adjustment_blocked_state='' WHERE id=?",
-            (new_total, pending_flag, order_id),
+            "UPDATE delivery_orders SET adjustment_pending=?, adjustment_blocked_state='' WHERE id=?",
+            (pending_flag, order_id),
         )
-        if venta_id:
-            try:
-                self.db.execute("UPDATE ventas SET total=? WHERE id=?", (new_total, venta_id))
-            except Exception:
-                pass
 
+        event_type = "DELIVERY_ADJUSTMENT_ACCEPTED" if accepted else "DELIVERY_ADJUSTMENT_REJECTED"
         try:
             self.db.execute(
                 """
                 INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
-                SELECT 'DELIVERY_ADJUSTMENT_RESPONSE',
+                SELECT ?,
                        json_object('order_id', ?, 'item_id', ?, 'folio', ?, 'response', ?, 'total', ?),
                        COALESCE(sucursal_id,1), 40, datetime('now')
                 FROM delivery_orders WHERE id=?
                 """,
-                (order_id, item_id, folio, action, new_total, order_id),
+                (event_type, order_id, item_id, folio, action, new_total, order_id),
             )
         except Exception:
             pass

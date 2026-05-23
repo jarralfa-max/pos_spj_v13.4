@@ -6,7 +6,12 @@ from __future__ import annotations
 from models.context import ConversationContext, FlowState, PedidoItem
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
-from erp.events import WA_COTIZACION_CREADA
+from erp.events import (
+    WA_COTIZACION_CREADA,
+    WHATSAPP_QUOTE_REJECTED,
+    WHATSAPP_QUOTE_ACCEPTED,
+    WHATSAPP_QUOTE_CONVERTED_TO_SALE,
+)
 from messaging import interactive
 from messaging.sender import send_text, send_buttons
 
@@ -136,8 +141,9 @@ class CotizacionFlow(BaseFlow):
                     cliente_id=ctx.cliente_id or 0,
                     items=items,
                 )
-                # Guardar cotizacion_id en contexto para conversión posterior
-                ctx._cotizacion_id = result.get("cotizacion_id")
+                # Guardar cotizacion_id en contexto persistente para conversión posterior
+                ctx.current_quote_id = result.get("cotizacion_id")
+                ctx.current_quote_folio = result.get("folio", "")
 
                 # Programar recordatorio de confirmación
                 if self.reminders:
@@ -152,19 +158,85 @@ class CotizacionFlow(BaseFlow):
                     items=items,
                     cliente_id=ctx.cliente_id or 0,
                     sucursal_id=suc_id)
+                ctx.current_quote_id = result.get("cotizacion_id")
+                ctx.current_quote_folio = result.get("folio", "")
                 self.events.emit(WA_COTIZACION_CREADA, {
                     "folio": result["folio"],
                     "total": result["total"],
                     "cliente_id": ctx.cliente_id,
                 }, sucursal_id=suc_id)
 
-            await send_text(ctx.phone,
-                f"✅ *Cotización generada*\n\n"
-                f"Folio: *{result['folio']}*\n"
-                f"Total estimado: *${result['total']:.2f}*\n\n"
-                f"Tiene vigencia de 7 días.\n"
-                f"Un asesor te contactará para confirmar.")
+            await send_buttons(
+                ctx.phone,
+                body=(
+                    f"✅ *Cotización generada*\n\n"
+                    f"Folio: *{result['folio']}*\n"
+                    f"Total estimado: *${result['total']:.2f}*\n\n"
+                    "¿Qué deseas hacer ahora?"
+                ),
+                buttons=[
+                    {"id": "quote_accept", "title": "✅ Aceptar cotización"},
+                    {"id": "quote_modify", "title": "✏️ Modificar"},
+                    {"id": "quote_reject", "title": "❌ Rechazar"},
+                ],
+            )
+            return FlowResult(FlowState.COTIZACION_CONFIRMACION)
 
+        if aid == "quote_modify":
+            await send_text(ctx.phone, "✏️ Vamos a modificar la cotización. Agrega o ajusta productos.")
+            categorias = self.erp.get_categorias(ctx.sucursal_id)
+            if categorias:
+                await interactive.send_categorias(ctx.phone, categorias)
+            return FlowResult(FlowState.COTIZACION_ARMANDO)
+
+        if aid == "quote_reject":
+            quote_id = ctx.current_quote_id
+            if quote_id:
+                try:
+                    self.erp.db.execute("UPDATE cotizaciones SET estado='rechazada' WHERE id=?", (quote_id,))
+                    self.erp.db.commit()
+                    self.events.emit(WHATSAPP_QUOTE_REJECTED, {
+                        "quote_id": quote_id,
+                        "quote_folio": ctx.current_quote_folio,
+                        "customer_id": ctx.cliente_id,
+                    }, sucursal_id=ctx.sucursal_id or 1)
+                except Exception:
+                    pass
+            ctx.reset_flow()
+            await send_text(ctx.phone, "❌ Cotización rechazada.")
+            await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)
+            return FlowResult(FlowState.IDLE)
+
+        if aid == "quote_accept":
+            quote_id = ctx.current_quote_id
+            if not quote_id:
+                await send_text(ctx.phone, "No encontré una cotización activa para convertir.")
+                return FlowResult(FlowState.IDLE)
+            using_orchestrator = bool(self.orchestrator)
+            result = self.orchestrator.convertir_cotizacion_a_venta(
+                cotizacion_id=int(quote_id),
+                cliente_id=ctx.cliente_id or 0,
+            ) if using_orchestrator else self.erp.convertir_cotizacion_a_venta(int(quote_id))
+            if not result:
+                await send_text(ctx.phone, "La cotización ya no está vigente o no pudo convertirse.")
+                return FlowResult(FlowState.COTIZACION_CONFIRMACION)
+            if not using_orchestrator:
+                self.events.emit(WHATSAPP_QUOTE_ACCEPTED, {
+                    "quote_id": int(quote_id),
+                    "quote_folio": ctx.current_quote_folio,
+                    "customer_id": ctx.cliente_id,
+                }, sucursal_id=ctx.sucursal_id or 1)
+                self.events.emit(WHATSAPP_QUOTE_CONVERTED_TO_SALE, {
+                    "quote_id": int(quote_id),
+                    "quote_folio": ctx.current_quote_folio,
+                    "sale_id": result.get("venta_id") or result.get("id"),
+                    "sale_folio": result.get("folio"),
+                    "customer_id": ctx.cliente_id,
+                }, sucursal_id=ctx.sucursal_id or 1)
+            await send_text(
+                ctx.phone,
+                f"✅ Cotización aceptada y convertida a venta.\nFolio venta: *{result.get('folio','')}*\nTotal: *${float(result.get('total',0)):.2f}*"
+            )
             ctx.reset_flow()
             await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)
             return FlowResult(FlowState.IDLE)
