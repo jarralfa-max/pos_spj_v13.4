@@ -306,6 +306,8 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         """
         Crea un pedido desde WhatsApp.
         Usa el API Gateway cuando está disponible; cae a SQLite como fallback.
+        Además registra evento/notificación persistente para que el ERP desktop
+        se entere aunque corra en otro proceso.
         """
         if self._use_api:
             try:
@@ -328,6 +330,11 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     "sucursal_id":   sucursal_id,
                     "canal":         "whatsapp",
                 })
+                self._notify_pos_new_order(
+                    venta_id=data["venta_id"], folio=data["folio"], total=data["total"],
+                    cliente_id=cliente_id, sucursal_id=sucursal_id, tipo_entrega=tipo_entrega,
+                    direccion=direccion, items=api_items,
+                )
                 return {
                     "venta_id": data["venta_id"],
                     "folio":    data["folio"],
@@ -362,7 +369,40 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                   it["cantidad"] * it["precio_unitario"]))
 
         self.db.commit()
+        self._notify_pos_new_order(
+            venta_id=venta_id, folio=folio, total=total,
+            cliente_id=cliente_id, sucursal_id=sucursal_id,
+            tipo_entrega=tipo_entrega, direccion=direccion, items=items,
+        )
         return {"venta_id": venta_id, "folio": folio, "total": total}
+
+    def _notify_pos_new_order(self, *, venta_id: int, folio: str, total: float,
+                              cliente_id: int, sucursal_id: int, tipo_entrega: str,
+                              direccion: str = "", items: Optional[List[Dict]] = None) -> None:
+        """Puente persistente WA → ERP desktop: evento + inbox POS."""
+        try:
+            cliente = self.db.execute(
+                "SELECT COALESCE(nombre, '') AS nombre FROM clientes WHERE id=?",
+                (cliente_id,)
+            ).fetchone()
+            cliente_nombre = cliente["nombre"] if cliente and cliente["nombre"] else "Cliente WhatsApp"
+        except Exception:
+            cliente_nombre = "Cliente WhatsApp"
+        try:
+            from erp.pos_notifier import POSNotifier
+            POSNotifier(self.db).notify_new_whatsapp_order(
+                venta_id=venta_id,
+                folio=folio,
+                cliente_id=cliente_id,
+                cliente_nombre=cliente_nombre,
+                total=total,
+                sucursal_id=sucursal_id,
+                tipo_entrega=tipo_entrega,
+                direccion=direccion,
+                items=items or [],
+            )
+        except Exception as exc:
+            logger.warning("No se pudo notificar pedido WA al ERP: %s", exc)
 
     def actualizar_estado_pedido(self, pedido_id: int, estado: str,
                                   notas: str = "") -> bool:
@@ -404,7 +444,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             SELECT producto_id, nombre, cantidad,
                    precio_unitario, COALESCE(unidad, 'kg') as unidad
             FROM detalles_venta WHERE venta_id=?
-        """, (row["id"],)).fetchall()
+        """, (row["id"] ,)).fetchall()
 
         return {
             "venta_id": row["id"], "folio": row["folio"],
