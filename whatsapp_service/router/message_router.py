@@ -9,6 +9,10 @@ Orden de decisión:
 4. ¿Está en medio de un flujo? → Continuar ese flow
 5. ¿Es intención nueva? → Iniciar flow correspondiente
 6. Fallback → MenuFlow
+
+Regla de cierre:
+- Cancelar/terminar un pedido NO debe reenviar menú automáticamente.
+- El cliente reabre conversación solo si manda una intención nueva explícita.
 """
 from __future__ import annotations
 import logging
@@ -85,11 +89,10 @@ class MessageRouter:
                      msg.from_number, intent.intent, ctx.state.value)
 
         # 5. ¿Cancelar en cualquier momento?
-        if intent.intent == "cancel" and ctx.state != FlowState.IDLE:
+        if intent.intent in ("cancel", "cancelar") and ctx.state != FlowState.IDLE:
             ctx.reset_flow()
             from messaging.sender import send_text
-            await send_text(ctx.phone, "❌ Operación cancelada.")
-            await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)
+            await send_text(ctx.phone, "❌ Operación cancelada. Cuando quieras iniciar de nuevo, escribe *hola* o *pedido*.")
             self.store.save(ctx)
             return
 
