@@ -13,6 +13,7 @@ from PyQt5.QtGui import QPixmap
 logger = logging.getLogger("spj.main_window")
 
 from interfaz.menu_lateral import MenuLateral
+from core.services.order_badge_service import OrderBadgeService
 
 # ─────────────────────────────────────────────────────────────────────────────
 # IMPORTACIÓN SEGURA DE TODOS LOS MÓDULOS
@@ -795,6 +796,7 @@ class MainWindow(QMainWindow):
 
         # ── Inbox POS: mostrar mensajes no leídos tras login ──────────────────
         QTimer.singleShot(800, self._mostrar_inbox_login)
+        QTimer.singleShot(500, self._start_badge_refresh)
 
     def _arrancar_session_timeout(self) -> None:
         """Activa el monitor de inactividad (se resetea con mouse/teclado)."""
@@ -925,17 +927,40 @@ class MainWindow(QMainWindow):
     def _on_pedido_nuevo(self, pedido: dict) -> None:
         """Actualiza el badge y muestra notificación cuando llega pedido WA."""
         try:
-            # Contar pedidos sin atender
-            n = self.container.db.execute(
-                "SELECT COUNT(*) FROM pedidos_whatsapp "
-                "WHERE estado IN ('nuevo','confirmado') AND leido=1"
-            ).fetchone()[0]
-            if n > 0:
-                self._btn_pedidos.setTitle(f"📦 Pedidos ({n}) 🔴")
-            else:
-                self._btn_pedidos.setTitle("📦 Pedidos")
+            self._refresh_order_badges()
         except Exception:
             pass
+
+    def _start_badge_refresh(self) -> None:
+        if getattr(self, "_badge_timer", None) is None:
+            self._badge_timer = QTimer(self)
+            self._badge_timer.setInterval(7000)
+            self._badge_timer.timeout.connect(self._refresh_order_badges)
+        self._badge_timer.start()
+        self._refresh_order_badges()
+
+    def _refresh_order_badges(self) -> None:
+        if not self.usuario_actual:
+            return
+        branch_id = int(self.usuario_actual.get("sucursal_id", 1))
+        counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=branch_id)
+
+        active = int(counts.get("orders_active", 0))
+        scheduled = int(counts.get("orders_scheduled", 0))
+        adjustments = int(counts.get("adjustments_pending", 0))
+        unread = int(counts.get("notifications_unread", 0))
+
+        self._btn_pedidos.setTitle(f"📦 Pedidos: {active} · Programados: {scheduled}")
+        if hasattr(self, "menu") and self.menu:
+            try:
+                self.menu.set_status_badges(
+                    pedidos=active,
+                    programados=scheduled,
+                    ajustes=adjustments,
+                    notificaciones=unread,
+                )
+            except Exception:
+                pass
 
     def _on_pago_confirmado(self, pago: dict) -> None:
         """Notifica pago confirmado."""

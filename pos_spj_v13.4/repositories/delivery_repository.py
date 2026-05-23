@@ -37,7 +37,11 @@ class DeliveryRepository:
                 fecha_actualizacion DATETIME,
                 historial_cambios TEXT,
                 driver_id INTEGER,
-                sucursal_id INTEGER DEFAULT 1
+                sucursal_id INTEGER DEFAULT 1,
+                workflow_type TEXT,
+                delivery_type TEXT,
+                scheduled_at DATETIME,
+                source_channel TEXT DEFAULT 'whatsapp'
             )
             """
         )
@@ -87,6 +91,10 @@ class DeliveryRepository:
             "historial_cambios TEXT",
             "driver_id INTEGER",
             "sucursal_id INTEGER DEFAULT 1",
+            "workflow_type TEXT",
+            "delivery_type TEXT",
+            "scheduled_at DATETIME",
+            "source_channel TEXT DEFAULT 'whatsapp'",
         ):
             try:
                 self.db.execute(f"ALTER TABLE delivery_orders ADD COLUMN {col}")
@@ -172,8 +180,8 @@ class DeliveryRepository:
             INSERT INTO delivery_orders(
                 venta_id, folio, whatsapp_order_id, cliente_id, cliente_nombre, cliente_tel,
                 direccion, lat, lng, estado, notas, total, usuario, historial_cambios,
-                sucursal_id
-            ) VALUES(?,?,?,?,?,?,?,?,?,'pendiente',?,?,?,?,?)
+                sucursal_id, workflow_type, delivery_type, scheduled_at, source_channel
+            ) VALUES(?,?,?,?,?,?,?,?,?,'pendiente',?,?,?,?,?,?,?,?,?)
             """,
             (
                 data.get("venta_id"),
@@ -190,6 +198,10 @@ class DeliveryRepository:
                 data.get("usuario", "sistema"),
                 json.dumps(hist, ensure_ascii=False),
                 int(data.get("sucursal_id", 1)),
+                data.get("workflow_type"),
+                data.get("delivery_type"),
+                data.get("scheduled_at"),
+                data.get("source_channel", "whatsapp"),
             ),
         )
         oid = int(cur.lastrowid)
@@ -218,6 +230,10 @@ class DeliveryRepository:
             "cliente_id": payload.get("cliente_id"),
             "cliente_nombre": payload.get("cliente") or payload.get("cliente_nombre"),
             "cliente_tel": payload.get("telefono") or payload.get("cliente_tel") or payload.get("cliente_telefono"),
+            "workflow_type": payload.get("workflow_type"),
+            "delivery_type": payload.get("delivery_type") or payload.get("tipo_entrega"),
+            "scheduled_at": payload.get("scheduled_at") or payload.get("fecha_entrega_programada"),
+            "source_channel": payload.get("source_channel") or "whatsapp",
             "direccion": payload.get("direccion") or payload.get("direccion_entrega") or "Sin dirección",
             "lat": payload.get("lat"),
             "lng": payload.get("lng"),

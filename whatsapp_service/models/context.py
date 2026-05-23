@@ -83,6 +83,8 @@ class ConversationContext:
 
     # Cotización en curso
     cotizacion_items: List[PedidoItem] = field(default_factory=list)
+    current_quote_id: Optional[int] = None
+    current_quote_folio: str = ""
 
     # Temporal: producto seleccionado esperando cantidad
     _producto_temp: Optional[Dict] = field(default_factory=lambda: None)
@@ -104,6 +106,8 @@ class ConversationContext:
         self.pedido_fecha_entrega = ""
         self.pedido_programado = False
         self.cotizacion_items = []
+        self.current_quote_id = None
+        self.current_quote_folio = ""
         self._producto_temp = None
         self.failed_intents = 0
 
