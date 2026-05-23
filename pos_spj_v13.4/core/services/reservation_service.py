@@ -27,8 +27,8 @@ _LOCK = RLock()
 # Weight units treated as variable (must go through prepared_qty adjustment)
 VARIABLE_WEIGHT_UNITS = frozenset({"kg", "g", "lb", "oz", "gr"})
 
-# Tolerance: if |prepared_qty - requested_qty| / requested_qty > threshold → flag
-TOLERANCE_PCT = float(os.environ.get("DELIVERY_WEIGHT_TOLERANCE_PCT", "5")) / 100.0
+# Tolerance by units, not percentage. Default business rule: +-0.2 units.
+TOLERANCE_UNITS = float(os.environ.get("DELIVERY_WEIGHT_TOLERANCE_UNITS", "0.2"))
 
 
 class ReservationService:
@@ -204,18 +204,22 @@ class ReservationService:
         requested_qty: float,
         prepared_qty: float,
         unit_price: float,
+        tolerance_units: float = TOLERANCE_UNITS,
     ) -> dict:
         """Return adjustment metadata for a single item.
 
-        Returns dict with:
-            diff_qty, diff_pct, new_subtotal, tolerance_exceeded
+        Tolerance is measured in absolute units, not percentage.
+        Example: requested=2.0 kg, prepared=2.25 kg, tolerance=0.2 → exceeded.
         """
         diff_qty = prepared_qty - requested_qty
+        diff_abs = abs(diff_qty)
         diff_pct = abs(diff_qty / requested_qty) if requested_qty else 0.0
         new_subtotal = round(prepared_qty * unit_price, 4)
         return {
             "diff_qty": round(diff_qty, 4),
+            "diff_abs": round(diff_abs, 4),
             "diff_pct": round(diff_pct * 100, 2),
             "new_subtotal": new_subtotal,
-            "tolerance_exceeded": diff_pct > TOLERANCE_PCT,
+            "tolerance_units": float(tolerance_units),
+            "tolerance_exceeded": diff_abs > float(tolerance_units),
         }
