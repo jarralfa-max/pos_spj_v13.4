@@ -14,6 +14,12 @@ try:
     from whatsapp_service.models.message import IncomingMessage, MessageType
     from whatsapp_service.models.context import ConversationContext
 except Exception:  # pragma: no cover
+    import sys
+    from pathlib import Path
+    _repo_root = Path(__file__).resolve().parents[5]
+    _wa_root = _repo_root / "whatsapp_service"
+    if str(_wa_root) not in sys.path:
+        sys.path.insert(0, str(_wa_root))
     from ai.intent_resolver import IntentResolver
     from parser.product_matcher import ProductMatcher
     from parser.intent_parser import IntentParser
