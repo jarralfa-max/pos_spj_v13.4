@@ -84,3 +84,24 @@ def test_badge_counts_handle_legacy_ventas_without_workflow_type():
     assert c["orders_scheduled"] == 0  # no canonical column yet
     assert c["adjustments_pending"] == 0
     assert c["notifications_unread"] == 1
+
+
+def test_badge_counts_without_notification_inbox_table_do_not_fail():
+    db = sqlite3.connect(":memory:")
+    db.row_factory = sqlite3.Row
+    db.executescript(
+        """
+        CREATE TABLE delivery_orders (id INTEGER PRIMARY KEY, sucursal_id INTEGER, estado TEXT, adjustment_pending INTEGER DEFAULT 0);
+        CREATE TABLE ventas (id INTEGER PRIMARY KEY, sucursal_id INTEGER, estado TEXT, workflow_type TEXT);
+        """
+    )
+    db.execute("INSERT INTO delivery_orders VALUES (1,1,'pendiente',1)")
+    db.execute("INSERT INTO ventas VALUES (1,1,'programado','scheduled')")
+    db.commit()
+
+    svc = OrderBadgeService(db)
+    c = svc.get_badge_counts(branch_id=1)
+    assert c["orders_active"] == 1
+    assert c["orders_scheduled"] == 1
+    assert c["adjustments_pending"] == 1
+    assert c["notifications_unread"] == 0

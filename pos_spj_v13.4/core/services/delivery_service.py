@@ -68,6 +68,60 @@ class DeliveryService:
     def list_orders(self, estado: Optional[str] = None) -> List[Dict[str, Any]]:
         return self.repository.list_orders(estado=estado)
 
+    def get_valid_actions(
+        self,
+        *,
+        status: str,
+        workflow_type: str = "",
+        adjustment_pending: bool = False,
+        scheduled_at: Optional[str] = None,
+        delivery_type: str = "",
+    ) -> List[Dict[str, str]]:
+        """Return valid UI actions for an order context.
+
+        Backend-facing contract in English so UI does not handcraft action rules.
+        """
+        base = {
+            "pendiente": [
+                {"icon": "👨‍🍳", "label": "Enviar a preparación", "key": "preparacion", "style": "primary"},
+                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
+                {"icon": "🔍", "label": "Ver detalle", "key": "ver_detalle", "style": "secondary"},
+            ],
+            "preparacion": [
+                {"icon": "⚖️", "label": "Ajustar peso", "key": "ajustar_peso", "style": "warning"},
+                {"icon": "🛵", "label": "Enviar a ruta", "key": "en_ruta", "style": "primary"},
+                {"icon": "👤", "label": "Asignar repartidor", "key": "asignar", "style": "primary"},
+                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
+            ],
+            "en_ruta": [
+                {"icon": "✅", "label": "Marcar entregado", "key": "entregado", "style": "success"},
+                {"icon": "📲", "label": "Notificar por WA", "key": "notificar_wa", "style": "secondary"},
+            ],
+            "entregado": [
+                {"icon": "🖨️", "label": "Imprimir ticket", "key": "imprimir", "style": "secondary"},
+            ],
+            "cancelado": [
+                {"icon": "♻️", "label": "Reactivar pedido", "key": "reactivar", "style": "warning"},
+            ],
+        }
+        s = (status or "").strip().lower()
+        wf = (workflow_type or "").strip().lower()
+        actions = list(base.get(s, []))
+        if wf == "counter":
+            actions = [a for a in actions if a["key"] not in ("en_ruta", "asignar")]
+            if s == "preparacion":
+                actions.insert(1, {"icon": "✅", "label": "Marcar entregado", "key": "entregado", "style": "success"})
+        if wf == "scheduled" and s in ("programado", "scheduled"):
+            actions = [
+                {"icon": "▶", "label": "Activar ahora", "key": "activar_programado", "style": "success"},
+                {"icon": "🗓️", "label": "Reprogramar", "key": "reprogramar", "style": "warning"},
+                {"icon": "📈", "label": "Ver forecast", "key": "ver_forecast", "style": "secondary"},
+                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
+            ]
+        if adjustment_pending:
+            actions = [a for a in actions if a["key"] not in ("en_ruta", "entregado")]
+        return actions
+
     def create_order(self, data: Dict[str, Any], usuario: str = "sistema") -> int:
         direccion = (data.get("direccion") or "").strip()
         if not direccion:
@@ -442,12 +496,84 @@ class DeliveryService:
         return self.geocoding_service.autocomplete(query)
 
     def pull_orders_from_whatsapp(self) -> None:
+        pulled = False
         for item in self.whatsapp_service.pull_orders():
             try:
                 oid = self.repository.upsert_order_from_whatsapp(item)
                 self._publish("pedido_whatsapp_recibido", {"order_id": oid, "payload": item})
+                pulled = True
             except Exception as exc:
                 logger.debug("pull_orders_from_whatsapp error: %s", exc)
+        if not pulled:
+            self.sync_pending_sales_to_delivery_orders()
+
+    def sync_pending_sales_to_delivery_orders(self) -> int:
+        """Fallback sync from local ventas -> delivery_orders for WhatsApp pending sales."""
+        try:
+            table_exists = lambda t: bool(self.db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1", (t,)
+            ).fetchone())
+            if not table_exists("ventas") or not table_exists("delivery_orders"):
+                return 0
+            cols_ventas = {r[1] for r in self.db.execute("PRAGMA table_info(ventas)").fetchall()}
+            cols_det = {r[1] for r in self.db.execute("PRAGMA table_info(detalles_venta)").fetchall()} if table_exists("detalles_venta") else set()
+            if "id" not in cols_ventas:
+                return 0
+
+            estado_col = "estado" if "estado" in cols_ventas else None
+            canal_col = "canal" if "canal" in cols_ventas else None
+            where = ["1=1"]
+            params: List[Any] = []
+            if canal_col:
+                where.append("lower(canal)='whatsapp'")
+            if estado_col:
+                where.append("lower(estado) IN ('pendiente','pendiente_wa','en_preparacion','preparacion','en_ruta','programado')")
+            rows = self.db.execute(
+                f"SELECT * FROM ventas WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT 200",
+                tuple(params),
+            ).fetchall()
+            imported = 0
+            for row in rows:
+                data = dict(row)
+                venta_id = data.get("id")
+                if not venta_id:
+                    continue
+                items: List[Dict[str, Any]] = []
+                if cols_det and "venta_id" in cols_det:
+                    det_rows = self.db.execute(
+                        "SELECT producto_id, COALESCE(producto_nombre,'') AS producto_nombre, "
+                        "COALESCE(cantidad,0) AS cantidad, COALESCE(precio_unitario,0) AS precio_unitario, "
+                        "COALESCE(subtotal,0) AS subtotal "
+                        "FROM detalles_venta WHERE venta_id=?",
+                        (venta_id,),
+                    ).fetchall()
+                    items = [dict(r) for r in det_rows]
+
+                payload = {
+                    "id": venta_id,
+                    "venta_id": venta_id,
+                    "folio": data.get("folio") or data.get("codigo"),
+                    "cliente_id": data.get("cliente_id"),
+                    "cliente_nombre": data.get("cliente_nombre") or data.get("cliente"),
+                    "cliente_tel": data.get("cliente_tel") or data.get("telefono") or data.get("cliente_telefono"),
+                    "direccion": data.get("direccion") or data.get("direccion_entrega"),
+                    "total": data.get("total") or 0,
+                    "sucursal_id": data.get("sucursal_id") or 1,
+                    "delivery_type": data.get("delivery_type") or data.get("tipo_entrega"),
+                    "workflow_type": data.get("workflow_type"),
+                    "scheduled_at": data.get("scheduled_at") or data.get("fecha_entrega_programada"),
+                    "items": items,
+                    "source_channel": "whatsapp",
+                }
+                try:
+                    self.repository.upsert_order_from_whatsapp(payload, usuario="sync_local_ventas")
+                    imported += 1
+                except Exception as exc:
+                    logger.debug("sync_pending_sales_to_delivery_orders upsert failed venta_id=%s: %s", venta_id, exc)
+            return imported
+        except Exception as exc:
+            logger.debug("sync_pending_sales_to_delivery_orders failed: %s", exc)
+            return 0
 
     def _safe_wa_notify(self, order: Dict[str, Any], status: str) -> None:
         ok = self.whatsapp_service.notify_status(
