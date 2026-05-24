@@ -1,6 +1,8 @@
 from __future__ import annotations
 import asyncio
+import sys
 from datetime import datetime
+from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QLineEdit,
@@ -90,12 +92,29 @@ class AIIntentPanel(QWidget):
         QMessageBox.information(self, "IA de intención", "Configuración guardada.")
         self._load()
 
+    def _ensure_repo_root_on_path(self) -> str:
+        """Hace visible `whatsapp_service` aunque el ERP corra desde /pos_spj_v13.4.
+
+        Estructura esperada:
+        <repo_root>/whatsapp_service
+        <repo_root>/pos_spj_v13.4/modulos/whatsapp/panels/ai_intent_panel.py
+        """
+        current = Path(__file__).resolve()
+        for parent in current.parents:
+            if (parent / "whatsapp_service").is_dir():
+                repo_root = str(parent)
+                if repo_root not in sys.path:
+                    sys.path.insert(0, repo_root)
+                return repo_root
+        return ""
+
     def _load_ai_dependencies(self):
         """Carga dependencias de IA solo cuando el usuario presiona Probar IA.
 
         Evita que ModuloWhatsApp falle al iniciar si `whatsapp_service.ai` aún
-        no está implementado.
+        no está implementado o si alguna dependencia interna falla.
         """
+        repo_root = self._ensure_repo_root_on_path()
         try:
             from whatsapp_service.ai.intent_resolver import IntentResolver
             from whatsapp_service.parser.product_matcher import ProductMatcher
@@ -116,11 +135,29 @@ class AIIntentPanel(QWidget):
             QMessageBox.warning(
                 self,
                 "IA no disponible",
-                "La capa de IA de intención todavía no está instalada.",
+                "La capa de IA de intención todavía no está instalada o no se pudo cargar.",
+            )
+            detalle = (
+                "No se pudo importar whatsapp_service.ai desde el ERP.\n\n"
+                f"Raíz detectada: {repo_root or 'no encontrada'}\n"
+                f"Detalle técnico: {exc}\n\n"
+                "Verifica que existan:\n"
+                "- whatsapp_service/__init__.py\n"
+                "- whatsapp_service/ai/__init__.py\n"
+                "- whatsapp_service/ai/intent_resolver.py"
+            )
+            self.test_output.setPlainText(detalle)
+            return None
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "IA no disponible",
+                "La capa de IA existe, pero falló al cargar una dependencia interna.",
             )
             self.test_output.setPlainText(
-                "IA no disponible: falta instalar whatsapp_service.ai.\n"
-                f"Detalle técnico: {exc}"
+                "La capa de IA existe, pero falló al cargar una dependencia interna.\n\n"
+                f"Raíz detectada: {repo_root or 'no encontrada'}\n"
+                f"Detalle técnico: {type(exc).__name__}: {exc}"
             )
             return None
 
