@@ -1,36 +1,21 @@
 from __future__ import annotations
 import asyncio
+from datetime import datetime
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QLineEdit,
     QPushButton, QCheckBox, QMessageBox, QPlainTextEdit
 )
 
 from modulos.spj_styles import spj_btn
-try:
-    from whatsapp_service.ai.intent_resolver import IntentResolver
-    from whatsapp_service.parser.product_matcher import ProductMatcher
-    from whatsapp_service.parser.intent_parser import IntentParser
-    from whatsapp_service.parser.llm_local import OllamaClient
-    from whatsapp_service.models.message import IncomingMessage, MessageType
-    from whatsapp_service.models.context import ConversationContext
-except Exception:  # pragma: no cover
-    import sys
-    from pathlib import Path
-    _repo_root = Path(__file__).resolve().parents[5]
-    _wa_root = _repo_root / "whatsapp_service"
-    if str(_wa_root) not in sys.path:
-        sys.path.insert(0, str(_wa_root))
-    from ai.intent_resolver import IntentResolver
-    from parser.product_matcher import ProductMatcher
-    from parser.intent_parser import IntentParser
-    from parser.llm_local import OllamaClient
-    from models.message import IncomingMessage, MessageType
-    from models.context import ConversationContext
-from datetime import datetime
 
 
 class AIIntentPanel(QWidget):
-    """Configuración de IA de intención (UI en español)."""
+    """Configuración de IA de intención (UI en español).
+
+    La capa `whatsapp_service.ai` es opcional. Este panel no debe impedir que
+    cargue ModuloWhatsApp si la IA todavía no está instalada.
+    """
 
     def __init__(self, svc, db, parent=None):
         super().__init__(parent)
@@ -89,7 +74,8 @@ class AIIntentPanel(QWidget):
         if self.chk_enabled.isChecked() and self.chk_fallback.isChecked():
             estado = "IA con fallback"
         self.lbl_status.setText(f"Estado IA: {estado}")
-        self.lbl_last_error.setText(f"Último error: {cfg("ai_last_error", "") or "—"}")
+        last_error = cfg("ai_last_error", "") or "—"
+        self.lbl_last_error.setText(f"Último error: {last_error}")
 
     def _save(self):
         self._svc.save_bot_config({
@@ -104,15 +90,53 @@ class AIIntentPanel(QWidget):
         QMessageBox.information(self, "IA de intención", "Configuración guardada.")
         self._load()
 
+    def _load_ai_dependencies(self):
+        """Carga dependencias de IA solo cuando el usuario presiona Probar IA.
+
+        Evita que ModuloWhatsApp falle al iniciar si `whatsapp_service.ai` aún
+        no está implementado.
+        """
+        try:
+            from whatsapp_service.ai.intent_resolver import IntentResolver
+            from whatsapp_service.parser.product_matcher import ProductMatcher
+            from whatsapp_service.parser.intent_parser import IntentParser
+            from whatsapp_service.parser.llm_local import OllamaClient
+            from whatsapp_service.models.message import IncomingMessage, MessageType
+            from whatsapp_service.models.context import ConversationContext
+            return {
+                "IntentResolver": IntentResolver,
+                "ProductMatcher": ProductMatcher,
+                "IntentParser": IntentParser,
+                "OllamaClient": OllamaClient,
+                "IncomingMessage": IncomingMessage,
+                "MessageType": MessageType,
+                "ConversationContext": ConversationContext,
+            }
+        except ImportError as exc:
+            QMessageBox.warning(
+                self,
+                "IA no disponible",
+                "La capa de IA de intención todavía no está instalada.",
+            )
+            self.test_output.setPlainText(
+                "IA no disponible: falta instalar whatsapp_service.ai.\n"
+                f"Detalle técnico: {exc}"
+            )
+            return None
+
     def _test(self):
-        matcher = ProductMatcher(self._db, sucursal_id=1)
-        parser = IntentParser(matcher, llm_client=OllamaClient())
-        resolver = IntentResolver(parser=parser, db=self._db)
-        msg = IncomingMessage(
+        deps = self._load_ai_dependencies()
+        if not deps:
+            return
+
+        matcher = deps["ProductMatcher"](self._db, sucursal_id=1)
+        parser = deps["IntentParser"](matcher, llm_client=deps["OllamaClient"]())
+        resolver = deps["IntentResolver"](parser=parser, db=self._db)
+        msg = deps["IncomingMessage"](
             message_id="test", from_number="521000000000", phone_number_id="test",
-            timestamp=datetime.now(), type=MessageType.TEXT, text=self.test_input.text().strip()
+            timestamp=datetime.now(), type=deps["MessageType"].TEXT, text=self.test_input.text().strip()
         )
-        ctx = ConversationContext(phone=msg.from_number)
+        ctx = deps["ConversationContext"](phone=msg.from_number)
         parsed = asyncio.run(resolver.resolve(msg, ctx))
         lines = [
             f"Intención detectada: {parsed.intent}",
