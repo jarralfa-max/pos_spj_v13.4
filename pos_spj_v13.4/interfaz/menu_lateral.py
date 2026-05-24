@@ -524,11 +524,24 @@ class MenuLateral(QFrame):
         return "".join(c for c in raw if not unicodedata.combining(c)).strip().lower()
 
     def set_status_badges(self, *, pedidos: int, programados: int, ajustes: int, notificaciones: int) -> None:
+        badge_txt = f"{int(pedidos)}|{int(programados)}|{int(ajustes)}"
         if hasattr(self, "_status_badge"):
             self._status_badge.setText(
                 f"Pedidos: {int(pedidos)} | Programados: {int(programados)} | "
                 f"Ajustes pendientes: {int(ajustes)} | Notificaciones: {int(notificaciones)}"
             )
+        # Keep delivery badge visible even when sidebar is collapsed
+        for btn in getattr(self, "_menu_buttons", []):
+            if str(btn.property("modulo_codigo") or "") != "DELIVERY":
+                continue
+            full_label = str(btn.property("menu_label") or "🚚 Delivery")
+            if getattr(self, "_collapsed", False):
+                btn.setToolTip(f"{full_label}\nPedidos|Prog|Ajustes: {badge_txt}")
+            else:
+                if "·" in full_label:
+                    full_label = full_label.split("·", 1)[0].strip()
+                btn.setText(f"{full_label} · {badge_txt}")
+                btn.setProperty("menu_label", full_label)
 
     # ── Colapsar / Expandir ───────────────────────────────────────────────────
     def toggle_collapse(self) -> None:

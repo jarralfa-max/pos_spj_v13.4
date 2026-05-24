@@ -68,6 +68,60 @@ class DeliveryService:
     def list_orders(self, estado: Optional[str] = None) -> List[Dict[str, Any]]:
         return self.repository.list_orders(estado=estado)
 
+    def get_valid_actions(
+        self,
+        *,
+        status: str,
+        workflow_type: str = "",
+        adjustment_pending: bool = False,
+        scheduled_at: Optional[str] = None,
+        delivery_type: str = "",
+    ) -> List[Dict[str, str]]:
+        """Return valid UI actions for an order context.
+
+        Backend-facing contract in English so UI does not handcraft action rules.
+        """
+        base = {
+            "pendiente": [
+                {"icon": "👨‍🍳", "label": "Enviar a preparación", "key": "preparacion", "style": "primary"},
+                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
+                {"icon": "🔍", "label": "Ver detalle", "key": "ver_detalle", "style": "secondary"},
+            ],
+            "preparacion": [
+                {"icon": "⚖️", "label": "Ajustar peso", "key": "ajustar_peso", "style": "warning"},
+                {"icon": "🛵", "label": "Enviar a ruta", "key": "en_ruta", "style": "primary"},
+                {"icon": "👤", "label": "Asignar repartidor", "key": "asignar", "style": "primary"},
+                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
+            ],
+            "en_ruta": [
+                {"icon": "✅", "label": "Marcar entregado", "key": "entregado", "style": "success"},
+                {"icon": "📲", "label": "Notificar por WA", "key": "notificar_wa", "style": "secondary"},
+            ],
+            "entregado": [
+                {"icon": "🖨️", "label": "Imprimir ticket", "key": "imprimir", "style": "secondary"},
+            ],
+            "cancelado": [
+                {"icon": "♻️", "label": "Reactivar pedido", "key": "reactivar", "style": "warning"},
+            ],
+        }
+        s = (status or "").strip().lower()
+        wf = (workflow_type or "").strip().lower()
+        actions = list(base.get(s, []))
+        if wf == "counter":
+            actions = [a for a in actions if a["key"] not in ("en_ruta", "asignar")]
+            if s == "preparacion":
+                actions.insert(1, {"icon": "✅", "label": "Marcar entregado", "key": "entregado", "style": "success"})
+        if wf == "scheduled" and s in ("programado", "scheduled"):
+            actions = [
+                {"icon": "▶", "label": "Activar ahora", "key": "activar_programado", "style": "success"},
+                {"icon": "🗓️", "label": "Reprogramar", "key": "reprogramar", "style": "warning"},
+                {"icon": "📈", "label": "Ver forecast", "key": "ver_forecast", "style": "secondary"},
+                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
+            ]
+        if adjustment_pending:
+            actions = [a for a in actions if a["key"] not in ("en_ruta", "entregado")]
+        return actions
+
     def create_order(self, data: Dict[str, Any], usuario: str = "sistema") -> int:
         direccion = (data.get("direccion") or "").strip()
         if not direccion:

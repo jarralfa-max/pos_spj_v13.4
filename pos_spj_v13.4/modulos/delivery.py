@@ -26,6 +26,7 @@ _ADDR_DEBOUNCE_MS: int = int(os.environ.get("DELIVERY_SEARCH_DEBOUNCE_MS", "400"
 
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.kpi_card import KPICard
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     create_secondary_button, create_warning_button, create_input, create_combo,
@@ -45,6 +46,7 @@ from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRunnable, QThreadPool, QObject
 from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
 from core.services.delivery_service import DeliveryService
+from core.services.order_badge_service import OrderBadgeService
 logger = logging.getLogger("spj.delivery")
 
 
@@ -133,8 +135,77 @@ class DeliveryActionPolicy:
     }
 
     @classmethod
-    def get_actions(cls, estado: str) -> list:
-        return cls._ACTIONS.get(estado, [])
+    def get_actions(cls, estado: str, *, workflow_type: str = "", adjustment_pending: bool = False) -> list:
+        actions = list(cls._ACTIONS.get(estado, []))
+        wf = (workflow_type or "").strip().lower()
+        if wf == "counter":
+            actions = [a for a in actions if a[2] not in ("en_ruta", "asignar")]
+            if estado == "preparacion":
+                actions.insert(0, ("✅", "Marcar entregado", "entregado", "success"))
+        if wf == "scheduled" and estado in ("programado", "scheduled"):
+            return [
+                ("▶", "Activar ahora", "activar_programado", "success"),
+                ("🗓️", "Reprogramar", "reprogramar", "warning"),
+                ("📈", "Ver forecast", "ver_forecast", "secondary"),
+                ("✖", "Cancelar pedido", "cancelado", "danger"),
+            ]
+        if adjustment_pending:
+            actions = [a for a in actions if a[2] not in ("en_ruta", "entregado")]
+        return actions
+
+
+def _matches_operational_tab(pedido: dict, tab_key: str | None) -> bool:
+    """Operational tabs filter (frontend labels) without leaking SQL/business rules.
+
+    This is UI-level classification only; state transitions remain validated in services.
+    """
+    if not tab_key:
+        return True
+    key = (tab_key or "").strip().lower()
+    estado = str(pedido.get("estado") or "").strip().lower()
+    workflow = str(pedido.get("workflow_type") or "").strip().lower()
+    adj_pending = bool(int(pedido.get("adjustment_pending") or 0))
+    if key == "counter":
+        return workflow == "counter"
+    if key == "delivery":
+        return workflow in ("delivery", "") and estado != "programado"
+    if key == "scheduled":
+        return workflow == "scheduled" or estado in ("programado", "scheduled")
+    if key == "ajustes":
+        return adj_pending
+    if key == "historial":
+        return estado in ("entregado", "cancelado")
+    return True
+
+
+def _matches_scheduled_window(pedido: dict, window_key: str) -> bool:
+    """UI-only scheduled window classification (hoy/mañana/semana/30 días)."""
+    key = (window_key or "all").strip().lower()
+    if key == "all":
+        return True
+    scheduled_at = pedido.get("scheduled_at") or pedido.get("fecha_programada")
+    if not scheduled_at:
+        return False
+    from datetime import datetime, timedelta
+    try:
+        dt = datetime.fromisoformat(str(scheduled_at).replace("Z", "+00:00"))
+    except Exception:
+        return False
+    now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+    d0 = now.date()
+    d1 = d0 + timedelta(days=1)
+    d7 = d0 + timedelta(days=7)
+    d30 = d0 + timedelta(days=30)
+    dd = dt.date()
+    if key == "today":
+        return dd == d0
+    if key == "tomorrow":
+        return dd == d1
+    if key == "week":
+        return d0 <= dd <= d7
+    if key == "month":
+        return d0 <= dd <= d30
+    return True
 
 class AsignarDriverDialog(QDialog):
     def __init__(self, pedido_id, conexion, parent=None):
@@ -676,6 +747,29 @@ class TarjetaPedido(QFrame):
     def __init__(self, pedido: dict, parent=None):
         super().__init__(parent)
         self.pedido = pedido
+        def _status_es(raw: str) -> str:
+            return {
+                "pendiente": "Pendiente",
+                "preparacion": "Preparación",
+                "en_ruta": "En ruta",
+                "entregado": "Entregado",
+                "cancelado": "Cancelado",
+                "programado": "Programado",
+                "scheduled": "Programado",
+            }.get((raw or "").strip().lower(), raw or "Pendiente")
+        def _origin_es(raw: str) -> str:
+            return {
+                "whatsapp": "WhatsApp",
+                "counter": "Mostrador",
+                "quote": "Cotización",
+                "scheduled": "Programado",
+            }.get((raw or "").strip().lower(), "Mostrador")
+        def _workflow_es(raw: str) -> str:
+            return {
+                "counter": "Mostrador",
+                "delivery": "Reparto",
+                "scheduled": "Programado",
+            }.get((raw or "").strip().lower(), "Reparto")
         self.setFrameShape(QFrame.StyledPanel)
         color = ESTADO_COLOR.get(pedido.get("estado","pendiente"), Colors.TEXT_SECONDARY)
         self.setObjectName("cardPedido")
@@ -691,24 +785,42 @@ class TarjetaPedido(QFrame):
         layout = QHBoxLayout(self)
         info = QVBoxLayout()
         
-        titulo = QLabel(f"<b>#{pedido.get('id','')}  {pedido.get('direccion','Sin dirección')[:40]}</b>")
+        folio = str(pedido.get("folio") or f"#{pedido.get('id','')}")
+        titulo = QLabel(f"<b>📦 {folio}</b>")
         titulo.setObjectName("subheading")
-        
         cliente = QLabel(f"Cliente: {pedido.get('cliente_nombre','N/A')}  |  Tel: {pedido.get('cliente_tel','')}")
         cliente.setObjectName("caption")
-        
+        origen_txt = f"Origen: {_origin_es(str(pedido.get('source') or pedido.get('origen') or 'whatsapp'))}"
+        flujo_txt = f"Flujo: {_workflow_es(str(pedido.get('workflow_type') or 'delivery'))}"
+        total = float(pedido.get("total") or pedido.get("monto_total") or 0.0)
+        total_txt = f"Total: ${total:,.2f}"
+        direccion = str(pedido.get("direccion") or "Sin dirección")
+        short_dir = direccion if len(direccion) <= 58 else f"{direccion[:58]}…"
         driver_txt = f"Repartidor: {pedido.get('driver_nombre','Sin asignar')}"
         driver_lbl = QLabel(driver_txt)
         driver_lbl.setObjectName("textMuted")
-        
-        estado_lbl = QLabel(pedido.get("estado","").upper())
+        row_meta = QLabel(f"{origen_txt}  ·  {flujo_txt}  ·  {total_txt}")
+        row_meta.setObjectName("caption")
+        row_addr = QLabel(f"Dirección: {short_dir}")
+        row_addr.setObjectName("textMuted")
+        estado_lbl = QLabel(_status_es(str(pedido.get("estado",""))))
         estado_lbl.setObjectName("badge")
         estado_lbl.setStyleSheet(f"color: {color}; font-weight: bold;")
+        if bool(int(pedido.get("adjustment_pending") or 0)):
+            ajuste_lbl = QLabel("Ajuste pendiente")
+            ajuste_lbl.setObjectName("badge")
+            ajuste_lbl.setStyleSheet(f"color:{Colors.DANGER_BASE}; font-weight:600;")
+        else:
+            ajuste_lbl = None
         
         info.addWidget(titulo)
         info.addWidget(cliente)
+        info.addWidget(row_meta)
+        info.addWidget(row_addr)
         info.addWidget(driver_lbl)
         info.addWidget(estado_lbl)
+        if ajuste_lbl:
+            info.addWidget(ajuste_lbl)
         layout.addLayout(info, 1)
         # Vertical action buttons — driven by DeliveryActionPolicy (no hardcoded logic here)
         btns = QVBoxLayout()
@@ -725,7 +837,29 @@ class TarjetaPedido(QFrame):
             "secondary": create_secondary_button,
         }
 
-        for icon_text, tooltip, accion, style in DeliveryActionPolicy.get_actions(estado):
+        parent_widget = self.parent()
+        if hasattr(parent_widget, "delivery_service"):
+            actions = parent_widget.delivery_service.get_valid_actions(
+                status=estado,
+                workflow_type=pedido.get("workflow_type", ""),
+                adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
+                scheduled_at=pedido.get("scheduled_at"),
+                delivery_type=pedido.get("delivery_type", ""),
+            )
+        else:
+            actions = [
+                {"icon": i, "label": t, "key": a, "style": s}
+                for i, t, a, s in DeliveryActionPolicy.get_actions(
+                    estado,
+                    workflow_type=pedido.get("workflow_type", ""),
+                    adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
+                )
+            ]
+        for action in actions:
+            icon_text = action.get("icon", "")
+            tooltip = action.get("label", "")
+            accion = action.get("key", "")
+            style = action.get("style", "secondary")
             factory = _style_factory.get(style, create_secondary_button)
             b = factory(self, icon_text, tooltip)
             b.setFixedWidth(36)
@@ -744,8 +878,8 @@ class PesoRealDialog(QDialog):
     variable-weight items (kg, g, lb …).  The dialog:
       - lists all variable-weight items with their requested quantity
       - lets the operator enter the actual prepared weight
-      - shows the diff percentage and new subtotal in real-time
-      - flags tolerance exceeded (>5% by default) in warning orange
+      - shows qty diff (units) and new subtotal in real-time
+      - flags tolerance exceeded (±0.2 units by default) in warning orange
       - confirms before accepting when tolerance is exceeded
 
     Theme-aware: uses Colors tokens, no hardcoded colours.
@@ -754,21 +888,21 @@ class PesoRealDialog(QDialog):
     # Emitted after the user confirms — payload: list of {item_id, prepared_qty, reason}
     adjustments_confirmed = pyqtSignal(list)
 
-    def __init__(self, items: list, tolerance_pct: float = 5.0, parent=None):
+    def __init__(self, items: list, tolerance_units: float = 0.2, parent=None):
         """
         Parameters
         ----------
         items:
             List of dicts from delivery_service.get_order_items() — must contain
             at minimum: id, nombre, cantidad, precio_unitario, unidad
-        tolerance_pct:
-            Tolerance threshold in % before warning is shown (default 5.0)
+        tolerance_units:
+            Absolute tolerance in units (kg/u/etc) before warning is shown.
         """
         super().__init__(parent)
-        self._tolerance_pct = tolerance_pct / 100.0
+        self._tolerance_units = float(tolerance_units)
         self._items = items
 
-        self.setWindowTitle("⚖️ Ajuste de Peso Real — Preparación")
+        self.setWindowTitle("Ajustar peso real")
         self.setMinimumSize(620, 400)
         self.setWindowModality(Qt.ApplicationModal)
 
@@ -782,6 +916,9 @@ class PesoRealDialog(QDialog):
             f"font-size:13px; font-weight:600; color:{Colors.TEXT_PRIMARY};"
         )
         root.addWidget(hdr)
+        self._tol_lbl = QLabel(f"Tolerancia: ±{self._tolerance_units:.1f} unidades")
+        self._tol_lbl.setObjectName("caption")
+        root.addWidget(self._tol_lbl)
 
         # ── Try to load HardwareService for scale reading ────────────────────
         self._hw_service = None
@@ -932,7 +1069,7 @@ class PesoRealDialog(QDialog):
         sign = "+" if diff >= 0 else ""
         self._diff_labels[row].setText(f"{sign}{diff:.3g} {unit}")
 
-        exceeded = req_qty and (abs(diff / req_qty) > self._tolerance_pct)
+        exceeded = abs(diff) > self._tolerance_units
         diff_color = Colors.WARNING_BASE if exceeded else Colors.SUCCESS_BASE
         self._diff_labels[row].setStyleSheet(f"color:{diff_color}; font-weight:bold;")
         self._sub_labels[row].setText(f"${prep_qty * price:,.2f}")
@@ -950,11 +1087,11 @@ class PesoRealDialog(QDialog):
             if not req_qty:
                 continue
             prep_qty = self._spin_widgets[row].value()
-            diff_pct = abs((prep_qty - req_qty) / req_qty) * 100
-            if diff_pct > self._tolerance_pct * 100:
+            diff_units = abs(prep_qty - req_qty)
+            if diff_units > self._tolerance_units:
                 warnings.append(
-                    f"⚠️ {item.get('nombre','?')}: diferencia {diff_pct:.1f}% "
-                    f"(tolerancia {self._tolerance_pct * 100:.0f}%)"
+                    f"⚠️ {item.get('nombre','?')}: diferencia {diff_units:.3g} "
+                    f"(tolerancia ±{self._tolerance_units:.1f})"
                 )
         self._warn_lbl.setText("\n".join(warnings))
 
@@ -962,19 +1099,21 @@ class PesoRealDialog(QDialog):
         exceeded_items = []
         for row, item in enumerate(self._items):
             req_qty = float(item.get("cantidad") or 0)
-            if req_qty:
-                prep = self._spin_widgets[row].value()
-                if abs((prep - req_qty) / req_qty) > self._tolerance_pct:
-                    exceeded_items.append(item.get("nombre", f"ítem {row+1}"))
+            prep = self._spin_widgets[row].value()
+            if abs(prep - req_qty) > self._tolerance_units:
+                exceeded_items.append(item.get("nombre", f"ítem {row+1}"))
 
         if exceeded_items:
             resp = QMessageBox.question(
                 self,
-                "Tolerancia excedida",
-                f"Los siguientes productos exceden la tolerancia del "
-                f"{self._tolerance_pct * 100:.0f}%:\n"
+                "Ajuste fuera de tolerancia",
+                f"Los siguientes productos exceden la tolerancia permitida "
+                f"(±{self._tolerance_units:.1f} unidades):\n"
                 + "\n".join(f"  • {n}" for n in exceeded_items)
-                + "\n\n¿Confirmar de todas formas?",
+                + "\n\nEl ajuste supera la tolerancia permitida.\n"
+                  "Se enviará una solicitud al cliente por WhatsApp.\n"
+                  "El pedido quedará bloqueado hasta que el cliente acepte o rechace.\n\n"
+                  "¿Confirmar de todas formas?",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -1013,6 +1152,8 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self.usuario = usuario
         self.delivery_service = DeliveryService(self.conexion)
         self._pedidos_cache = []
+        self._seen_notification_keys: set[str] = set()
+        self._last_notif_rowid: int = 0
         self._init_ui()
         self._init_tables()
         # Wire toast channel so notification service can show toasts
@@ -1059,6 +1200,10 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self._wa_pull_timer = QTimer(self)
         self._wa_pull_timer.timeout.connect(self._pull_wa_orders_bg)
         self._wa_pull_timer.start(120_000)
+        # 10s inbox polling for visual+sound notifications (deduped by dedupe_key/id)
+        self._notif_timer = QTimer(self)
+        self._notif_timer.timeout.connect(self._poll_delivery_notifications)
+        self._notif_timer.start(10_000)
 
         self.cargar_pedidos()
 
@@ -1100,7 +1245,11 @@ class ModuloDelivery(QWidget, RefreshMixin):
         layout = QVBoxLayout(self)
         # Header
         header = QHBoxLayout()
-        title = QLabel("🚚 Módulo Delivery"); title.setObjectName("heading")
+        title = QLabel("🚚 Pedidos y Entregas"); title.setObjectName("heading")
+        self._lbl_wa_status = QLabel("WhatsApp: verificando…")
+        self._lbl_wa_status.setObjectName("caption")
+        self._lbl_oper_context = QLabel("")
+        self._lbl_oper_context.setObjectName("caption")
         btn_nuevo = create_success_button(self, "+ Nuevo Pedido", "Crear nuevo pedido de delivery")
         btn_nuevo.clicked.connect(self.nuevo_pedido)
         btn_driver = create_secondary_button(self, "Gestionar Repartidores", "Administrar repartidores disponibles")
@@ -1121,7 +1270,14 @@ class ModuloDelivery(QWidget, RefreshMixin):
             pass
         btn_refresh = create_secondary_button(self, "🔄 Actualizar", "Recargar lista de pedidos")
         btn_refresh.clicked.connect(self.cargar_pedidos)
-        header.addWidget(title); header.addStretch()
+        title_box = QVBoxLayout()
+        title_box.setContentsMargins(0, 0, 0, 0)
+        title_box.setSpacing(2)
+        title_box.addWidget(title)
+        title_box.addWidget(self._lbl_oper_context)
+        header.addLayout(title_box)
+        header.addStretch()
+        header.addWidget(self._lbl_wa_status)
         header.addWidget(btn_nuevo); header.addWidget(btn_driver)
         header.addWidget(btn_corte); header.addWidget(btn_hist)
         header.addWidget(self.btn_auto_assign); header.addWidget(btn_refresh)
@@ -1130,46 +1286,32 @@ class ModuloDelivery(QWidget, RefreshMixin):
         # ── KPI Stats bar ─────────────────────────────────────────────────
         self._kpi: dict = {}
         kpi_defs = [
-            ("activos",    "🔴 Activos",      Colors.DANGER_BASE),
-            ("nuevos",     "🆕 Nuevos",       Colors.WARNING_BASE),
-            ("cocina",     "👨‍🍳 En Cocina",   Colors.INFO_BASE),
-            ("en_ruta",    "🛵 En Ruta",      Colors.ACCENT_BASE),
-            ("entregados", "✅ Entregados",   Colors.SUCCESS_BASE),
-            ("cobrado",    "💰 Cobrado hoy",  Colors.SUCCESS_BASE),
+            ("nuevos", "Nuevos", "🆕", "warning"),
+            ("preparacion", "En preparación", "👨‍🍳", "info"),
+            ("reparto", "Reparto", "🛵", "primary"),
+            ("programados", "Programados", "🗓️", "primary"),
+            ("ajustes", "Ajustes pendientes", "⚖️", "danger"),
+            ("retrasados", "Retrasados", "⏰", "danger"),
         ]
-        kpi_bar = QHBoxLayout()
-        kpi_bar.setSpacing(6)
-        for key, label, kpi_color in kpi_defs:
-            kpi_frame = QFrame()
-            kpi_frame.setStyleSheet(
-                f"QFrame {{ border:1px solid {kpi_color}; border-radius:8px; }}"
-            )
-            kpi_fl = QVBoxLayout(kpi_frame)
-            kpi_fl.setContentsMargins(10, 4, 10, 4)
-            kpi_fl.setSpacing(1)
-            kpi_n = QLabel("—")
-            kpi_n.setAlignment(Qt.AlignCenter)
-            kpi_n.setStyleSheet(
-                f"color:{kpi_color}; font-size:17px; font-weight:bold; border:none;"
-            )
-            kpi_l = QLabel(label)
-            kpi_l.setAlignment(Qt.AlignCenter)
-            kpi_l.setStyleSheet(
-                f"color:{Colors.NEUTRAL.SLATE_400}; font-size:9px; border:none;"
-            )
-            kpi_fl.addWidget(kpi_n)
-            kpi_fl.addWidget(kpi_l)
-            self._kpi[key] = kpi_n
-            kpi_bar.addWidget(kpi_frame, 1)
-        layout.addLayout(kpi_bar)
+        kpi_row = QWidget(self)
+        kpi_bar = QHBoxLayout(kpi_row)
+        kpi_bar.setContentsMargins(0, 0, 0, 0)
+        kpi_bar.setSpacing(Spacing.SM)
+        for key, title_txt, icono, variant in kpi_defs:
+            card = KPICard(title_txt, "—", icono, variant)
+            self._kpi[key] = card
+            kpi_bar.addWidget(card)
+        self._wire_kpi_interactions()
+        layout.addWidget(kpi_row)
 
         # ── Quick-filter status tabs (Todos | Nuevos | En proceso | Listos | Entregados) ──
         self._filter_tab_defs = [
-            ("Todos",      None,           Colors.TEXT_SECONDARY),
-            ("Nuevos",     "pendiente",    Colors.WARNING_BASE),
-            ("En proceso", "preparacion",  Colors.PRIMARY_BASE),
-            ("Listos",     "en_ruta",      Colors.ACCENT_BASE),
-            ("Entregados", "entregado",    Colors.SUCCESS_BASE),
+            ("Todos", None, Colors.TEXT_SECONDARY),
+            ("Mostrador", "counter", Colors.INFO_BASE),
+            ("Reparto", "delivery", Colors.ACCENT_BASE),
+            ("Programados", "scheduled", Colors.WARNING_BASE),
+            ("Ajustes pendientes", "ajustes", Colors.DANGER_BASE),
+            ("Historial", "historial", Colors.SUCCESS_BASE),
         ]
         self._filter_tab_btns: dict = {}
         tabs_bar = QHBoxLayout()
@@ -1187,6 +1329,15 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self._filter_tab_btns[tab_label] = tb
             tabs_bar.addWidget(tb)
         self._filter_tab_btns["Todos"].setChecked(True)
+        self._scheduled_window_combo = create_combo(
+            self,
+            ["Hoy", "Mañana", "Esta semana", "Próximos 30 días", "Todos"],
+            "Ventana de pedidos programados",
+        )
+        self._scheduled_window_combo.setFixedHeight(28)
+        self._scheduled_window_combo.hide()
+        self._scheduled_window_combo.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        tabs_bar.addWidget(self._scheduled_window_combo)
         tabs_bar.addStretch()
         self.lbl_stats = QLabel()
         self.lbl_stats.setObjectName("caption")
@@ -1195,11 +1346,47 @@ class ModuloDelivery(QWidget, RefreshMixin):
 
         # Hidden combo drives the actual query — tabs sync into it
         self.combo_filtro = create_combo(
-            self, ["Todos", "pendiente", "preparacion", "en_ruta", "entregado", "cancelado"],
+            self,
+            [
+                "Todos", "counter", "delivery", "scheduled", "ajustes", "historial",
+                "pendiente", "preparacion", "en_ruta", "entregado", "cancelado",
+            ],
             "Seleccionar estado para filtrar"
         )
         self.combo_filtro.hide()
         self.combo_filtro.currentTextChanged.connect(self.cargar_pedidos)
+        # ── Filtros rápidos (Fase 9) ───────────────────────────────────────
+        filtros_row = QHBoxLayout()
+        filtros_row.setSpacing(6)
+        self._txt_busqueda = create_input(self, "Buscar folio, cliente o teléfono")
+        self._txt_busqueda.setClearButtonEnabled(True)
+        self._txt_busqueda.textChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        self._flt_estado = create_combo(self, ["Todos", "pendiente", "preparacion", "en_ruta", "entregado", "cancelado"], "Estado")
+        self._flt_estado.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        self._flt_flujo = create_combo(self, ["Todos", "counter", "delivery", "scheduled"], "Flujo")
+        self._flt_flujo.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        self._flt_origen = create_combo(self, ["Todos", "whatsapp", "counter", "quote", "scheduled"], "Origen")
+        self._flt_origen.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        self._flt_fecha = QDateEdit(QDate.currentDate())
+        self._flt_fecha.setCalendarPopup(True)
+        self._flt_fecha.setDisplayFormat("yyyy-MM-dd")
+        self._flt_fecha.dateChanged.connect(lambda _d: self.cargar_pedidos(silent=True))
+        self._flt_fecha_activo = QPushButton("Fecha")
+        self._flt_fecha_activo.setCheckable(True)
+        self._flt_fecha_activo.setChecked(False)
+        self._flt_fecha_activo.toggled.connect(lambda _v: self.cargar_pedidos(silent=True))
+        self._flt_ajustes = QPushButton("Solo ajustes pendientes")
+        self._flt_ajustes.setCheckable(True)
+        self._flt_ajustes.setChecked(False)
+        self._flt_ajustes.toggled.connect(lambda _v: self.cargar_pedidos(silent=True))
+        filtros_row.addWidget(self._txt_busqueda, 3)
+        filtros_row.addWidget(self._flt_estado, 1)
+        filtros_row.addWidget(self._flt_flujo, 1)
+        filtros_row.addWidget(self._flt_origen, 1)
+        filtros_row.addWidget(self._flt_fecha_activo, 0)
+        filtros_row.addWidget(self._flt_fecha, 1)
+        filtros_row.addWidget(self._flt_ajustes, 0)
+        layout.addLayout(filtros_row)
         self._loading = LoadingIndicator("Cargando pedidos delivery…", self)
         self._loading.hide()
         layout.addWidget(self._loading)
@@ -1387,6 +1574,7 @@ if(drivers.length===0){{
     def _on_filter_tab(self, tab_label: str) -> None:
         for lbl, btn in self._filter_tab_btns.items():
             btn.setChecked(lbl == tab_label)
+        self._scheduled_window_combo.setVisible(tab_label == "Programados")
         estado_map = {lbl: e for lbl, e, _ in self._filter_tab_defs}
         target = estado_map.get(tab_label)
         target_txt = "Todos" if target is None else target
@@ -1396,36 +1584,69 @@ if(drivers.length===0){{
         else:
             self.cargar_pedidos()
 
-    def _update_filter_tabs(self, counts: dict) -> None:
-        """Refresh badge numbers on tab buttons after each load."""
+    def _wire_kpi_interactions(self) -> None:
+        """Make KPI cards clickable to filter operational tabs."""
+        from PyQt5.QtCore import Qt as _Qt
+        mapping = {
+            "nuevos": "Todos",
+            "preparacion": "Todos",
+            "reparto": "Reparto",
+            "programados": "Programados",
+            "ajustes": "Ajustes pendientes",
+            "retrasados": "Historial",
+        }
+        for key, card in self._kpi.items():
+            card.setCursor(_Qt.PointingHandCursor)
+            tab_label = mapping.get(key, "Todos")
+            card.mousePressEvent = (lambda _event, lbl=tab_label: self._on_filter_tab(lbl))
+
+    def _get_branch_id_for_counts(self) -> int:
+        try:
+            return int(getattr(self, "sucursal_id", 1) or 1)
+        except Exception:
+            return 1
+
+    def _update_filter_tabs(self, pedidos: list, counts_estado: dict) -> None:
+        """Refresh badge numbers on tab buttons after each load.
+
+        For operational tabs we compute counts from workflow/status context.
+        For legacy status tabs we keep `counts_estado`.
+        """
         estado_map = {lbl: e for lbl, e, _ in self._filter_tab_defs}
-        total = sum(counts.values())
+        total = len(pedidos)
         for tab_label, btn in self._filter_tab_btns.items():
-            estado = estado_map.get(tab_label)
-            n = total if estado is None else counts.get(estado, 0)
+            tab_key = estado_map.get(tab_label)
+            if tab_key is None:
+                n = total
+            elif tab_key in ESTADOS:
+                n = counts_estado.get(tab_key, 0)
+            else:
+                n = sum(1 for p in pedidos if _matches_operational_tab(p, tab_key))
             btn.setText(f"{tab_label} ({n})" if n else tab_label)
 
     def _update_kpi(self, pedidos: list) -> None:
-        """Update KPI stat cards with current counts and financials."""
+        """Update KPI stat cards with persistent + in-memory operational counts."""
         from datetime import date as _date
         hoy = _date.today().isoformat()
-        activos    = sum(1 for p in pedidos if p.get("estado") in ("pendiente", "preparacion", "en_ruta"))
-        nuevos     = sum(1 for p in pedidos if p.get("estado") == "pendiente")
-        cocina     = sum(1 for p in pedidos if p.get("estado") == "preparacion")
-        en_ruta    = sum(1 for p in pedidos if p.get("estado") == "en_ruta")
-        entregados = sum(1 for p in pedidos if p.get("estado") == "entregado")
-        cobrado    = sum(
-            float(p.get("pago_monto") or p.get("total") or 0)
-            for p in pedidos
-            if p.get("estado") == "entregado"
-            and str(p.get("fecha_actualizacion") or p.get("fecha", "")).startswith(hoy)
+        counts = OrderBadgeService(self.conexion).get_badge_counts(
+            branch_id=self._get_branch_id_for_counts()
         )
-        self._kpi["activos"].setText(str(activos))
-        self._kpi["nuevos"].setText(str(nuevos))
-        self._kpi["cocina"].setText(str(cocina))
-        self._kpi["en_ruta"].setText(str(en_ruta))
-        self._kpi["entregados"].setText(str(entregados))
-        self._kpi["cobrado"].setText(f"${cobrado:,.0f}")
+        nuevos = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "pendiente")
+        preparacion = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "preparacion")
+        reparto = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "en_ruta")
+        programados = int(counts.get("orders_scheduled", 0))
+        ajustes = int(counts.get("adjustments_pending", 0))
+        retrasados = sum(
+            1 for p in pedidos
+            if str(p.get("estado") or "").lower() in ("pendiente", "preparacion", "en_ruta")
+            and str(p.get("fecha_actualizacion") or p.get("fecha", ""))[:10] < hoy
+        )
+        self._kpi["nuevos"].set_valor(str(nuevos))
+        self._kpi["preparacion"].set_valor(str(preparacion))
+        self._kpi["reparto"].set_valor(str(reparto))
+        self._kpi["programados"].set_valor(str(programados))
+        self._kpi["ajustes"].set_valor(str(ajustes))
+        self._kpi["retrasados"].set_valor(str(retrasados))
 
     # ═══════════════════════════════════════════════════════════════════════
     # VISTA LISTA + PANEL DETALLE
@@ -1470,16 +1691,19 @@ if(drivers.length===0){{
         self._det_header.setWordWrap(True)
         detalle_lay.addWidget(self._det_header)
 
+        grp_general = QGroupBox("General")
+        grp_general_lay = QVBoxLayout(grp_general)
         self._det_sub = QLabel("")
         self._det_sub.setObjectName("caption")
         self._det_sub.setWordWrap(True)
-        detalle_lay.addWidget(self._det_sub)
+        grp_general_lay.addWidget(self._det_sub)
+        detalle_lay.addWidget(grp_general)
 
         # — Productos —
         grp_items = QGroupBox("Productos del pedido")
         grp_items_lay = QVBoxLayout(grp_items)
-        self._det_tabla = QTableWidget(0, 4)
-        self._det_tabla.setHorizontalHeaderLabels(["Producto","Cant.","Precio","Total"])
+        self._det_tabla = QTableWidget(0, 6)
+        self._det_tabla.setHorizontalHeaderLabels(["Producto","Solicitado","Preparado","Precio","Subtotal","Estado ajuste"])
         self._det_tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self._det_tabla.setEditTriggers(QTableWidget.NoEditTriggers)
         self._det_tabla.setMinimumHeight(80)
@@ -1508,10 +1732,23 @@ if(drivers.length===0){{
         grp_wa_lay.addWidget(self._det_wa_txt)
         detalle_lay.addWidget(grp_wa)
 
-        # — Total / anticipo —
+        # — Totales —
+        grp_tot = QGroupBox("Totales")
+        grp_tot_lay = QVBoxLayout(grp_tot)
         self._det_total = QLabel("")
         self._det_total.setObjectName("subheading")
-        detalle_lay.addWidget(self._det_total)
+        grp_tot_lay.addWidget(self._det_total)
+        detalle_lay.addWidget(grp_tot)
+
+        # — Historial —
+        grp_hist = QGroupBox("Historial")
+        grp_hist_lay = QVBoxLayout(grp_hist)
+        self._det_historial = QTextEdit()
+        self._det_historial.setReadOnly(True)
+        self._det_historial.setMaximumHeight(120)
+        self._det_historial.setPlaceholderText("Sin historial disponible")
+        grp_hist_lay.addWidget(self._det_historial)
+        detalle_lay.addWidget(grp_hist)
 
         # — Acciones contextuales —
         self._det_acciones_layout = QHBoxLayout()
@@ -1540,9 +1777,12 @@ if(drivers.length===0){{
             f"  —  {pedido.get('cliente_nombre','N/A')}"
         )
         self._det_sub.setText(
-            f"📍 {pedido.get('direccion','Sin dirección')}  ·  "
-            f"📞 {pedido.get('cliente_tel','')}  ·  "
-            f"🛵 {pedido.get('driver_nombre','Sin repartidor')}"
+            f"Folio: {pedido.get('folio') or pid}\n"
+            f"Origen: {pedido.get('source') or pedido.get('origen') or 'whatsapp'}  ·  "
+            f"Flujo: {pedido.get('workflow_type') or 'delivery'}\n"
+            f"Estado: {estado}  ·  Sucursal: {pedido.get('sucursal_nombre') or self.sucursal_nombre}\n"
+            f"📍 {pedido.get('direccion','Sin dirección')}\n"
+            f"📞 {pedido.get('cliente_tel','')}  ·  🛵 {pedido.get('driver_nombre','Sin repartidor')}"
         )
 
         # Cargar ítems desde BD: delivery_items primero, luego venta join como fallback
@@ -1550,7 +1790,7 @@ if(drivers.length===0){{
         rows = []
         try:
             rows = self.conexion.execute(
-                "SELECT nombre, cantidad, precio_unitario, subtotal "
+                "SELECT nombre, cantidad, cantidad_preparada, precio_unitario, subtotal, adjustment_status "
                 "FROM delivery_items WHERE delivery_id=? LIMIT 30",
                 (pid,)
             ).fetchall()
@@ -1559,7 +1799,7 @@ if(drivers.length===0){{
         if not rows:
             try:
                 rows = self.conexion.execute(
-                    "SELECT producto_nombre, cantidad, precio_unitario, subtotal "
+                    "SELECT producto_nombre, cantidad, cantidad, precio_unitario, subtotal, '' "
                     "FROM venta_items vi "
                     "JOIN ventas v ON vi.venta_id = v.id "
                     "JOIN delivery_orders d ON d.venta_id = v.id "
@@ -1572,10 +1812,11 @@ if(drivers.length===0){{
             self._det_tabla.insertRow(i)
             for j, val in enumerate(r):
                 cell = QTableWidgetItem(
-                    f"${val:.2f}" if j in (2, 3) else
-                    f"{val:.3g}" if j == 1 else str(val)
+                    f"${val:.2f}" if j in (3, 4) and isinstance(val, (int, float)) else
+                    f"{float(val):.3g}" if j in (1, 2) and val is not None and str(val) != "" else
+                    ("Pendiente" if j == 5 and not val else str(val))
                 )
-                if j == 3:
+                if j == 4:
                     cell.setForeground(QColor(Colors.SUCCESS_BASE))
                 self._det_tabla.setItem(i, j, cell)
 
@@ -1616,6 +1857,25 @@ if(drivers.length===0){{
             f"Total: <b>${total:.2f}</b>  ·  Envío: ${costo:.2f}"
             f"  ·  <span style='color:{color};'>{estado.upper()}</span>"
         )
+        self._det_historial.clear()
+        try:
+            ev = self.conexion.execute(
+                "SELECT to_status, created_at, note FROM delivery_status_events "
+                "WHERE order_id=? ORDER BY created_at ASC LIMIT 20",
+                (pid,)
+            ).fetchall()
+            if ev:
+                self._det_historial.setPlainText(
+                    "\n".join([f"{str(r[1])[:19]} · {r[0]}{(' · ' + str(r[2])) if r[2] else ''}" for r in ev])
+                )
+            else:
+                self._det_historial.setPlainText(
+                    f"Creado · {pedido.get('created_at') or ''}\nEstado actual · {estado}"
+                )
+        except Exception:
+            self._det_historial.setPlainText(
+                f"Creado · {pedido.get('created_at') or ''}\nEstado actual · {estado}"
+            )
 
         # Acciones contextuales
         # Limpiar acciones anteriores
@@ -1630,16 +1890,11 @@ if(drivers.length===0){{
             b.clicked.connect(lambda _, pid=pid, a=label: fn(pid, a))
             self._det_acciones_layout.addWidget(b)
 
-        if estado == "pendiente":
-            b_prep = create_success_button(self, "▶ Preparar", "")
-            b_prep.setFixedHeight(32)
-            b_prep.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "preparar"))
-            self._det_acciones_layout.addWidget(b_prep)
-
-            b_asig = create_primary_button(self, "Asignar repartidor", "")
-            b_asig.setFixedHeight(32)
-            b_asig.clicked.connect(lambda _, p=pid: self.ejecutar_accion(p, "asignar"))
-            self._det_acciones_layout.addWidget(b_asig)
+        if bool(int(pedido.get("adjustment_pending") or 0)):
+            bloqueo = QLabel("No puedes avanzar este pedido hasta que el cliente acepte o rechace el ajuste.")
+            bloqueo.setObjectName("textMuted")
+            bloqueo.setWordWrap(True)
+            self._det_acciones_layout.addWidget(bloqueo)
 
         # Detail view action buttons — use same policy as kanban (no logic duplication)
         _style_factory = {
@@ -1647,7 +1902,17 @@ if(drivers.length===0){{
             "warning": create_warning_button, "danger": create_danger_button,
             "secondary": create_secondary_button,
         }
-        for icon_text, tooltip, accion, style in DeliveryActionPolicy.get_actions(estado):
+        for action in self.delivery_service.get_valid_actions(
+            status=estado,
+            workflow_type=pedido.get("workflow_type", ""),
+            adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
+            scheduled_at=pedido.get("scheduled_at"),
+            delivery_type=pedido.get("delivery_type", ""),
+        ):
+            icon_text = action.get("icon", "")
+            tooltip = action.get("label", "")
+            accion = action.get("key", "")
+            style = action.get("style", "secondary")
             factory = _style_factory.get(style, create_secondary_button)
             b = factory(self, f"{icon_text} {tooltip}", tooltip)
             b.setFixedHeight(32)
@@ -1658,18 +1923,35 @@ if(drivers.length===0){{
 
     def _actualizar_lista_view(self, pedidos: list) -> None:
         """Repopula la QListWidget de la vista lista con los pedidos actuales."""
+        def _status_es(raw: str) -> str:
+            return {
+                "pendiente": "Pendiente",
+                "preparacion": "Preparación",
+                "en_ruta": "En ruta",
+                "entregado": "Entregado",
+                "cancelado": "Cancelado",
+                "programado": "Programado",
+                "scheduled": "Programado",
+            }.get((raw or "").strip().lower(), raw or "Pendiente")
+        def _workflow_es(raw: str) -> str:
+            return {
+                "counter": "Mostrador",
+                "delivery": "Reparto",
+                "scheduled": "Programado",
+            }.get((raw or "").strip().lower(), "Reparto")
         self._lst_pedidos.clear()
         for pedido in pedidos:
             estado = pedido.get("estado", "pendiente")
             color  = ESTADO_COLOR.get(estado, Colors.TEXT_SECONDARY)
             pid    = pedido.get("id", "")
             nombre = pedido.get("cliente_nombre", "N/A")
-            total  = float(pedido.get("total") or 0)
-            notas  = (pedido.get("notas") or "")[:30]
+            total  = float(pedido.get("total") or pedido.get("monto_total") or 0)
+            flujo  = _workflow_es(str(pedido.get("workflow_type") or "delivery"))
+            tel    = str(pedido.get("cliente_tel") or "S/T")
 
             item = QListWidgetItem()
             item.setData(Qt.UserRole, pedido)
-            item.setSizeHint(__import__('PyQt5.QtCore', fromlist=['QSize']).QSize(240, 68))
+            item.setSizeHint(__import__('PyQt5.QtCore', fromlist=['QSize']).QSize(240, 90))
 
             # Widget tarjeta compacta
             card = QFrame()
@@ -1684,7 +1966,7 @@ if(drivers.length===0){{
             row1 = QHBoxLayout()
             lbl_id = QLabel(f"<b>#{pid}</b>")
             lbl_id.setStyleSheet(f"color:{color}; font-size:11px;")
-            lbl_total = QLabel(f"${total:.0f}")
+            lbl_total = QLabel(f"${total:,.2f}")
             lbl_total.setStyleSheet(f"color:{Colors.SUCCESS_BASE}; font-weight:bold; font-size:12px;")
             row1.addWidget(lbl_id)
             row1.addStretch()
@@ -1693,19 +1975,29 @@ if(drivers.length===0){{
             lbl_nombre = QLabel(nombre)
             lbl_nombre.setStyleSheet("font-weight:600; font-size:12px;")
 
+            row2 = QHBoxLayout()
+            lbl_meta = QLabel(f"Tel: {tel}  ·  Flujo: {flujo}")
+            lbl_meta.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500}; font-size:10px;")
+            row2.addWidget(lbl_meta)
+            row2.addStretch()
+
             row3 = QHBoxLayout()
-            lbl_notas = QLabel(notas or "Sin notas")
-            lbl_notas.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500}; font-size:10px;")
-            badge = QLabel(estado.upper())
+            badge = QLabel(_status_es(str(estado)))
             badge.setStyleSheet(
                 f"color:{color}; font-size:9px; font-weight:700;"
                 f" border:1px solid {color}; border-radius:4px; padding:1px 5px;")
-            row3.addWidget(lbl_notas)
+            if bool(int(pedido.get("adjustment_pending") or 0)):
+                adj = QLabel("Ajuste pendiente")
+                adj.setStyleSheet(
+                    f"color:{Colors.DANGER_BASE}; font-size:9px; font-weight:700;"
+                    f" border:1px solid {Colors.DANGER_BASE}; border-radius:4px; padding:1px 5px;")
+                row3.addWidget(adj)
             row3.addStretch()
             row3.addWidget(badge)
 
             card_lay.addLayout(row1)
             card_lay.addWidget(lbl_nombre)
+            card_lay.addLayout(row2)
             card_lay.addLayout(row3)
 
             self._lst_pedidos.addItem(item)
@@ -1829,8 +2121,59 @@ if(drivers.length===0){{
             pass
         try: self.conexion.commit()
         except Exception: pass
+    def _refresh_operational_header(self) -> None:
+        """Update contextual header: branch + WhatsApp status + last refresh."""
+        from datetime import datetime as _dt
+        branch_name = str(getattr(self, "sucursal_nombre", "") or "Sucursal actual")
+        branch_id = self._get_branch_id_for_counts()
+        counts = OrderBadgeService(self.conexion).get_badge_counts(branch_id=branch_id)
+        unread = int(counts.get("notifications_unread", 0))
+        wa_ok = "activo ●" if unread >= 0 else "sin datos"
+        self._lbl_wa_status.setText(f"WhatsApp {wa_ok}")
+        self._lbl_oper_context.setText(
+            f"Sucursal: {branch_name} · Última act: {_dt.now().strftime('%H:%M:%S')}"
+        )
+
+    def _matches_advanced_filters(self, pedido: dict) -> bool:
+        q = str(self._txt_busqueda.text() or "").strip().lower()
+        if q:
+            blob = " ".join([
+                str(pedido.get("folio") or pedido.get("id") or ""),
+                str(pedido.get("cliente_nombre") or ""),
+                str(pedido.get("cliente_tel") or ""),
+            ]).lower()
+            if q not in blob:
+                return False
+        estado = self._flt_estado.currentText()
+        if estado != "Todos" and str(pedido.get("estado") or "").strip().lower() != estado:
+            return False
+        flujo = self._flt_flujo.currentText()
+        if flujo != "Todos" and str(pedido.get("workflow_type") or "").strip().lower() != flujo:
+            return False
+        origen = self._flt_origen.currentText()
+        if origen != "Todos":
+            src = str(pedido.get("source") or pedido.get("origen") or "").strip().lower()
+            if src != origen:
+                return False
+        if self._flt_ajustes.isChecked() and not bool(int(pedido.get("adjustment_pending") or 0)):
+            return False
+        if self._flt_fecha_activo.isChecked():
+            d = self._flt_fecha.date().toString("yyyy-MM-dd")
+            fecha_txt = str(pedido.get("fecha") or pedido.get("created_at") or pedido.get("fecha_solicitud") or "")
+            if d not in fecha_txt:
+                return False
+        return True
+
     def cargar_pedidos(self, silent: bool = False):
         filtro = self.combo_filtro.currentText()
+        scheduled_window_map = {
+            "Hoy": "today",
+            "Mañana": "tomorrow",
+            "Esta semana": "week",
+            "Próximos 30 días": "month",
+            "Todos": "all",
+        }
+        scheduled_window = scheduled_window_map.get(self._scheduled_window_combo.currentText(), "all")
         if not silent:
             self._loading.show()
         kanban_visibles = 0
@@ -1841,12 +2184,17 @@ if(drivers.length===0){{
                 item = col_layout.takeAt(0)
                 if item.widget(): item.widget().deleteLater()
         try:
-            filtro_repo = None if filtro == "Todos" else filtro
+            filtro_repo = filtro if filtro in ESTADOS else None
             pedidos = self.delivery_service.list_orders(filtro_repo)
             self._pedidos_cache = pedidos
 
             # Build lista-view items
-            lista_pedidos = pedidos if filtro == "Todos" else [p for p in pedidos if p.get("estado") == filtro]
+            lista_pedidos = [
+                p for p in pedidos
+                if _matches_operational_tab(p, None if filtro == "Todos" else filtro)
+                and (filtro != "scheduled" or _matches_scheduled_window(p, scheduled_window))
+                and self._matches_advanced_filters(p)
+            ]
             lista_count = len(lista_pedidos)
             self._actualizar_lista_view(lista_pedidos)
 
@@ -1854,7 +2202,11 @@ if(drivers.length===0){{
             for p in pedidos:
                 estado = p.get("estado", "pendiente")
                 counts[estado] = counts.get(estado, 0) + 1
-                if filtro != "Todos" and estado != filtro:
+                if not _matches_operational_tab(p, None if filtro == "Todos" else filtro):
+                    continue
+                if filtro == "scheduled" and not _matches_scheduled_window(p, scheduled_window):
+                    continue
+                if not self._matches_advanced_filters(p):
                     continue
                 if estado in self.columnas:
                     card = TarjetaPedido(p)
@@ -1865,8 +2217,10 @@ if(drivers.length===0){{
             self.lbl_stats.setText(
                 f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pendiente', 'preparacion', 'en_ruta'])}"
             )
-            self._update_filter_tabs(counts)
+            self._update_filter_tabs(pedidos, counts)
             self._update_kpi(pedidos)
+            self._refresh_operational_header()
+            self._poll_delivery_notifications()
             # Empty-state: show only when there are truly 0 orders for the current filter
             self._empty.setVisible(lista_count == 0)
         except Exception as e:
@@ -1875,6 +2229,51 @@ if(drivers.length===0){{
         finally:
             if not silent:
                 self._loading.hide()
+
+    def _poll_delivery_notifications(self) -> None:
+        """Show in-module alerts for new delivery-related inbox notifications.
+
+        Sound is emitted only once per new dedupe key (or inbox row id fallback).
+        """
+        branch_id = self._get_branch_id_for_counts()
+        try:
+            rows = self.conexion.execute(
+                "SELECT id, titulo, mensaje, tipo, dedupe_key, order_id "
+                "FROM notification_inbox "
+                "WHERE COALESCE(sucursal_id,1)=? AND COALESCE(leido,0)=0 "
+                "AND id>? "
+                "ORDER BY id ASC LIMIT 30",
+                (branch_id, int(self._last_notif_rowid or 0)),
+            ).fetchall()
+        except Exception:
+            return
+        if not rows:
+            return
+        for r in rows:
+            notif_id = int(r[0] or 0)
+            title = str(r[1] or "Notificación de pedidos")
+            body = str(r[2] or "")
+            notif_type = str(r[3] or "").lower()
+            dedupe_key = str(r[4] or "").strip() or f"inbox:{notif_id}"
+            order_id = r[5]
+            self._last_notif_rowid = max(self._last_notif_rowid, notif_id)
+            if dedupe_key in self._seen_notification_keys:
+                continue
+            self._seen_notification_keys.add(dedupe_key)
+            # Keep alert surface focused on requested delivery events
+            is_delivery_event = any(k in notif_type for k in (
+                "delivery", "pedido", "scheduled", "ajuste", "anticipo", "cotizacion"
+            )) or ("pedido" in title.lower())
+            if not is_delivery_event:
+                continue
+            Toast.info(self, title, body or "Tienes una notificación nueva.")
+            try:
+                from ui.sonido_alerta import SonidoAlerta
+                SonidoAlerta.play_alert()
+            except Exception:
+                pass
+            if order_id:
+                logger.info("Notificación delivery recibida para pedido=%s dedupe=%s", order_id, dedupe_key)
 
     def ejecutar_accion(self, pedido_id: int, accion: str):
         try:
@@ -1994,6 +2393,18 @@ if(drivers.length===0){{
                 QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
                 return
             elif accion == "ajustar_peso":
+                estado_row = self.conexion.execute(
+                    "SELECT COALESCE(estado,'') FROM delivery_orders WHERE id=?",
+                    (pedido_id,),
+                ).fetchone()
+                estado_actual = str((estado_row[0] if estado_row else "") or "").strip().lower()
+                if estado_actual != "preparacion":
+                    QMessageBox.warning(
+                        self,
+                        "Acción no permitida",
+                        "Solo puedes ajustar peso cuando el pedido está en estado Preparación.",
+                    )
+                    return
                 from core.services.reservation_service import ReservationService
                 items = self.delivery_service.get_order_items(pedido_id)
                 var_items = [it for it in items if ReservationService.is_variable_weight(it.get("unidad", ""))]
@@ -2019,6 +2430,25 @@ if(drivers.length===0){{
                         logger.warning("adjust_item_weight item=%s: %s", adj["item_id"], exc)
                 Toast.success(self, "Peso ajustado", "Pesos actualizados correctamente.")
                 QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
+                return
+            elif accion == "activar_programado":
+                self.delivery_service.activate_scheduled_order(pedido_id, usuario=self.usuario)
+                Toast.success(self, "Pedido activado", "El pedido programado ya está en flujo operativo.")
+                QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
+                return
+            elif accion == "reprogramar":
+                QMessageBox.information(
+                    self,
+                    "Reprogramar",
+                    "La reprogramación avanzada se habilitará en la siguiente fase del módulo.",
+                )
+                return
+            elif accion == "ver_forecast":
+                QMessageBox.information(
+                    self,
+                    "Forecast",
+                    "La vista de forecast operativo se habilitará en la siguiente fase del módulo.",
+                )
                 return
             elif accion == "notificar_wa":
                 row = self.conexion.execute(
@@ -2131,11 +2561,30 @@ if(drivers.length===0){{
                     pago_metodo = cmb_metodo.currentText()
                     pago_monto  = spin_monto.value()
                 
+                try:
+                    self.delivery_service.update_status(
+                        pedido_id,
+                        accion,
+                        usuario=self.usuario,
+                        responsable=(self.usuario if accion == "entregado" else ""),
+                    )
+                except ValueError as ve:
+                    msg = str(ve)
+                    if "ajuste" in msg.lower() and "pendiente" in msg.lower():
+                        QMessageBox.warning(
+                            self,
+                            "Pedido bloqueado por ajuste pendiente",
+                            "No puedes avanzar este pedido hasta que el cliente acepte o rechace el ajuste.",
+                        )
+                    else:
+                        QMessageBox.warning(self, "Acción no permitida", msg)
+                    return
+
                 self.conexion.execute(
-                    f"UPDATE delivery_orders SET estado=?, {fecha_col}=datetime('now'), "
+                    f"UPDATE delivery_orders SET {fecha_col}=datetime('now'), "
                     "pago_metodo=?, pago_monto=? WHERE id=?",
-                    (accion, pago_metodo, pago_monto, pedido_id))
-                
+                    (pago_metodo, pago_monto, pedido_id))
+
                 # Audit the delivery completion
                 if accion == "entregado":
                     try:
@@ -2148,14 +2597,8 @@ if(drivers.length===0){{
                             sucursal_id=getattr(self,'sucursal_id',1),
                             detalles=f"Cobrado: ${pago_monto:.2f} via {pago_metodo}"
                         )
-                    except Exception: pass
-                
-                self.delivery_service.update_status(
-                    pedido_id,
-                    accion,
-                    usuario=self.usuario,
-                    responsable=(self.usuario if accion == "entregado" else ""),
-                )
+                    except Exception:
+                        pass
             try: self.conexion.commit()
             except Exception: pass
             QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))

@@ -34,6 +34,10 @@ from flows.cotizacion_flow import CotizacionFlow
 from flows.pago_flow import PagoFlow
 from messaging import interactive
 from middleware.handoff import HandoffService
+try:
+    from whatsapp_service.ai.intent_resolver import IntentResolver
+except Exception:  # pragma: no cover
+    from ai.intent_resolver import IntentResolver
 
 logger = logging.getLogger("wa.router")
 
@@ -48,6 +52,7 @@ class MessageRouter:
         self.events = events
         self.schedules = schedules
         self.handoff = handoff
+        self.intent_resolver = IntentResolver(parser=parser, db=erp.db)
 
         self.sucursal_flow = SucursalFlow(erp, events)
         self.registro_flow = RegistroFlow(erp, events)
@@ -126,7 +131,7 @@ class MessageRouter:
             ctx.sucursal_id = numero_cfg.sucursal_id
             ctx.sucursal_nombre = numero_cfg.sucursal_nombre
 
-        intent = await self.parser.parse(msg)
+        intent = await self.intent_resolver.resolve(msg, ctx)
         logger.info("MSG %s → intent=%s, state=%s",
                      msg.from_number, intent.intent, ctx.state.value)
 
