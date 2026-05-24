@@ -6,6 +6,7 @@ from modulos.whatsapp.panels.policies_panel import PoliciesPanel
 from modulos.whatsapp.panels.webhook_panel import WebhookPanel
 from modulos.whatsapp.panels.history_panel import HistoryPanel
 from modulos.whatsapp.panels.diagnostics_panel import DiagnosticsPanel
+from modulos.whatsapp.panels.ai_intent_panel import AIIntentPanel
 
 __all__ = [
     "StatusPanel",
@@ -15,4 +16,5 @@ __all__ = [
     "WebhookPanel",
     "HistoryPanel",
     "DiagnosticsPanel",
+    "AIIntentPanel",
 ]
