@@ -1,29 +1,68 @@
-# Delivery Data Loading Fix Audit
+# Auditoría: carga de datos Delivery / Pedidos y Entregas
+
+## Problema
+
+El módulo rediseñado de Delivery abre, pero varias secciones pueden quedar vacías porque la UI quedó conectada a nombres de tablas/columnas que no siempre existen en el esquema real.
 
 ## Flujo actual de carga
-1. `ModuloDelivery.__init__` crea servicios y UI.
-2. Se agenda `QTimer.singleShot(0, _initial_sync_whatsapp_orders)` y luego `cargar_pedidos()`.
-3. `cargar_pedidos()` pide pedidos al servicio/repo y renderiza lista+kanban.
-4. KPIs/notificaciones/header se actualizan de forma auxiliar (safe wrappers).
 
-## Secciones y consultas
-- Lista/Kanban: `DeliveryService.list_orders()` -> `DeliveryRepository.list_orders()` (`delivery_orders` + join `drivers`).
-- Productos detalle: prioridad `delivery_items`; fallback `venta_items` legacy.
-- Historial detalle: prioridad `delivery_order_history`; fallback `delivery_status_events`.
-- Conversación WA: `whatsapp_messages` si existe, fallback a `whatsapp_order_id`+notas.
-- KPIs: `OrderBadgeService`.
-- Notificaciones: `notification_inbox` con dedupe.
+1. `ModuloDelivery.cargar_pedidos()` consulta `DeliveryService.list_orders()`.
+2. `DeliveryService.list_orders()` delega a `DeliveryRepository.list_orders()`.
+3. La fuente principal es `delivery_orders`.
+4. Los pedidos WhatsApp pueden existir primero en `ventas`, por lo que si no se importan a `delivery_orders`, la UI parece vacía.
+5. KPIs, notificaciones, historial, conversación y detalle usan consultas auxiliares que no deben romper la lista principal.
 
-## Tablas/columnas esperadas
-- `delivery_orders`, `delivery_items`, `delivery_order_history`, `drivers`, `driver_locations`, `delivery_driver_cuts`, `ventas`, `detalles_venta`/`venta_items`, `notification_inbox`, `whatsapp_messages`.
+## Hallazgos principales
 
-## Riesgos detectados
-- Carga principal podía vaciarse por errores auxiliares.
-- `_init_tables()` en UI creaba esquema de negocio (`delivery_orders`/`delivery_items`) conflictivo.
-- Ausencia de tablas auxiliares (ej. `notification_inbox`) rompía KPIs si no se protegía.
+### Lista principal
 
-## Plan aplicado
-- Sync inicial WhatsApp antes de primer paint.
-- Logging y wrappers seguros para cargas auxiliares.
-- `OrderBadgeService` con `_table_exists`/`_columns` y degradación a 0.
-- `_init_tables()` reducido a shim de compatibilidad (drivers/location/cuts), sin crear delivery_orders/items.
+Fuente esperada: `delivery_orders`.
+
+Riesgo: si los pedidos están en `ventas` y no fueron sincronizados, la lista queda vacía.
+
+Corrección recomendada: sincronizar ventas WhatsApp pendientes hacia `delivery_orders` desde servicio/repositorio, no desde UI.
+
+### Productos del detalle
+
+La UI consulta `cantidad_preparada`, pero el repositorio usa `prepared_qty`.
+
+Corrección recomendada: helper defensivo que use `COALESCE(prepared_qty, cantidad)` y fallback a `detalles_venta`.
+
+### Historial
+
+La UI consulta `delivery_status_events`, pero el repositorio escribe `delivery_order_history`.
+
+Corrección recomendada: leer primero `delivery_order_history`; usar `delivery_status_events` solo como compatibilidad.
+
+### Conversación WhatsApp
+
+La UI consulta `whatsapp_messages`, pero el microservicio puede guardar conversación en otra BD.
+
+Corrección recomendada: no romper si `whatsapp_messages` no existe. Mostrar fallback: “Sin conversación registrada en ERP”.
+
+### KPIs
+
+`OrderBadgeService` consultaba `notification_inbox` sin verificar existencia.
+
+Corrección aplicada: `OrderBadgeService` ahora valida tablas/columnas y devuelve 0 si faltan.
+
+### Repartidores
+
+La UI usa `drivers`, `driver_locations` y cortes. Deben centralizarse en repositorio/servicio.
+
+Corrección aplicada: se agregó `DriverRepository` y `DriverService` para encapsular acceso y reglas básicas.
+
+## Riesgos
+
+- `delivery.py` todavía contiene creación de tablas en `_init_tables()`.
+- El archivo UI es muy grande y mezcla responsabilidades históricas.
+- La sincronización desde `ventas` a `delivery_orders` debe completarse en servicio para evitar dependencia del timer.
+
+## Plan recomendado
+
+1. Mantener `delivery_orders` como fuente operativa principal.
+2. Sincronizar ventas WhatsApp pendientes antes de pintar la UI.
+3. Hacer helpers defensivos para detalle, historial y conversación.
+4. Evitar que KPIs/notificaciones vacíen la pantalla.
+5. Sacar gradualmente creación de tablas desde UI.
+6. Usar `DriverService` para cargar/asignar repartidores.
