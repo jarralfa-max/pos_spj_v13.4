@@ -47,6 +47,12 @@ from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
 from core.services.delivery_service import DeliveryService
 from core.services.order_badge_service import OrderBadgeService
+from core.utils.delivery_ui_filters import (
+    infer_workflow_for_ui as _infer_workflow_for_ui_fn,
+    matches_operational_tab as _matches_operational_tab_fn,
+    matches_scheduled_window as _matches_scheduled_window_fn,
+)
+from core.services.driver_service import DriverService
 logger = logging.getLogger("spj.delivery")
 
 
@@ -155,57 +161,11 @@ class DeliveryActionPolicy:
 
 
 def _matches_operational_tab(pedido: dict, tab_key: str | None) -> bool:
-    """Operational tabs filter (frontend labels) without leaking SQL/business rules.
-
-    This is UI-level classification only; state transitions remain validated in services.
-    """
-    if not tab_key:
-        return True
-    key = (tab_key or "").strip().lower()
-    estado = str(pedido.get("estado") or "").strip().lower()
-    workflow = str(pedido.get("workflow_type") or "").strip().lower()
-    adj_pending = bool(int(pedido.get("adjustment_pending") or 0))
-    if key == "counter":
-        return workflow == "counter"
-    if key == "delivery":
-        return workflow in ("delivery", "") and estado != "programado"
-    if key == "scheduled":
-        return workflow == "scheduled" or estado in ("programado", "scheduled")
-    if key == "ajustes":
-        return adj_pending
-    if key == "historial":
-        return estado in ("entregado", "cancelado")
-    return True
+    return _matches_operational_tab_fn(pedido, tab_key)
 
 
 def _matches_scheduled_window(pedido: dict, window_key: str) -> bool:
-    """UI-only scheduled window classification (hoy/mañana/semana/30 días)."""
-    key = (window_key or "all").strip().lower()
-    if key == "all":
-        return True
-    scheduled_at = pedido.get("scheduled_at") or pedido.get("fecha_programada")
-    if not scheduled_at:
-        return False
-    from datetime import datetime, timedelta
-    try:
-        dt = datetime.fromisoformat(str(scheduled_at).replace("Z", "+00:00"))
-    except Exception:
-        return False
-    now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
-    d0 = now.date()
-    d1 = d0 + timedelta(days=1)
-    d7 = d0 + timedelta(days=7)
-    d30 = d0 + timedelta(days=30)
-    dd = dt.date()
-    if key == "today":
-        return dd == d0
-    if key == "tomorrow":
-        return dd == d1
-    if key == "week":
-        return d0 <= dd <= d7
-    if key == "month":
-        return d0 <= dd <= d30
-    return True
+    return _matches_scheduled_window_fn(pedido, window_key)
 
 class AsignarDriverDialog(QDialog):
     def __init__(self, pedido_id, conexion, parent=None):
@@ -233,9 +193,11 @@ class AsignarDriverDialog(QDialog):
 
     def _cargar_drivers(self):
         try:
-            rows = self.conexion.execute("SELECT id, nombre FROM drivers WHERE activo=1 ORDER BY nombre").fetchall()
+            branch_id = int(getattr(self.parent(), "sucursal_id", 1) or 1)
+            rows = self.parent().driver_service.list_active_drivers(branch_id) if hasattr(self.parent(), "driver_service") else []
             for r in rows:
-                self.combo_driver.addItem(r[1], r[0])
+                label = f"{r.get("nombre","")} · {r.get("telefono","")} · {r.get("vehiculo","")}"
+                self.combo_driver.addItem(label, r.get("id"))
             if self.combo_driver.count() == 0:
                 self.combo_driver.addItem("Sin repartidores registrados", None)
         except Exception as e:
@@ -1151,6 +1113,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self.conexion  = conexion_o_container
         self.usuario = usuario
         self.delivery_service = DeliveryService(self.conexion)
+        self.driver_service = DriverService(self.conexion)
         self._pedidos_cache = []
         self._seen_notification_keys: set[str] = set()
         self._last_notif_rowid: int = 0
@@ -1205,7 +1168,10 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self._notif_timer.timeout.connect(self._poll_delivery_notifications)
         self._notif_timer.start(10_000)
 
-        self.cargar_pedidos()
+        self._last_wa_sync_error = ""
+        self._last_aux_error = ""
+        QTimer.singleShot(0, self._initial_sync_whatsapp_orders)
+        QTimer.singleShot(10, self.cargar_pedidos)
 
 
     def _pull_wa_orders_bg(self) -> None:
@@ -1217,9 +1183,48 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self.delivery_service.pull_orders_from_whatsapp()
             after_check = self.delivery_service.list_orders()
             if len(after_check) != before:
-                self.cargar_pedidos()
+                QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
         except Exception as exc:
             logger.debug("_pull_wa_orders_bg: %s", exc)
+            self._last_wa_sync_error = str(exc)
+
+    def _initial_sync_whatsapp_orders(self) -> None:
+        """Attempt an initial WA sync before first visual load; never break UI."""
+        try:
+            self.delivery_service.pull_orders_from_whatsapp()
+            self._last_wa_sync_error = ""
+        except Exception as exc:
+            self._last_wa_sync_error = str(exc)
+            logger.debug("_initial_sync_whatsapp_orders: %s", exc)
+
+    def _set_empty_state_message(self, title: str, message: str) -> None:
+        try:
+            self._empty.lbl_title.setText(title)
+            self._empty.lbl_message.setText(message)
+        except Exception:
+            pass
+
+    def _count_pending_whatsapp_sales(self) -> int:
+        """Best-effort diagnostic count: ventas WA pending that may still require sync."""
+        try:
+            exists = self.conexion.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ventas' LIMIT 1"
+            ).fetchone()
+            if not exists:
+                return 0
+            cols = {r[1] for r in self.conexion.execute("PRAGMA table_info(ventas)").fetchall()}
+            if "id" not in cols:
+                return 0
+            where = ["1=1"]
+            if "canal" in cols:
+                where.append("lower(canal)='whatsapp'")
+            if "estado" in cols:
+                where.append("lower(estado) IN ('pendiente','pendiente_wa','en_preparacion','preparacion','en_ruta','programado')")
+            return int(self.conexion.execute(
+                f"SELECT COUNT(*) FROM ventas WHERE {' AND '.join(where)}"
+            ).fetchone()[0] or 0)
+        except Exception:
+            return 0
 
     # ── Interfaz de sesión — compatible con SessionManager ────────────────
     def set_sesion(self, usuario: str, rol: str) -> None:
@@ -1582,7 +1587,7 @@ if(drivers.length===0){{
         if idx >= 0:
             self.combo_filtro.setCurrentIndex(idx)
         else:
-            self.cargar_pedidos()
+            QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
 
     def _wire_kpi_interactions(self) -> None:
         """Make KPI cards clickable to filter operational tabs."""
@@ -1766,6 +1771,128 @@ if(drivers.length===0){{
             return
         self._seleccionar_pedido(self._pedidos_cache[row])
 
+    def _table_exists(self, table_name: str) -> bool:
+        try:
+            row = self.conexion.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                (table_name,),
+            ).fetchone()
+            return bool(row)
+        except Exception:
+            return False
+
+    def _columns_of(self, table_name: str):
+        try:
+            return [r[1] for r in self.conexion.execute(f"PRAGMA table_info({table_name})").fetchall()]
+        except Exception:
+            return []
+
+    def _safe_load_order_items(self, order_id: int, sale_id: Optional[int] = None):
+        """Carga ítems del pedido con degradación segura por diferencias de esquema."""
+        try:
+            if self._table_exists("delivery_items"):
+                cols = set(self._columns_of("delivery_items"))
+                prepared_expr = "COALESCE(prepared_qty, cantidad)" if "prepared_qty" in cols else "cantidad"
+                adjustment_expr = "COALESCE(adjustment_status, '')" if "adjustment_status" in cols else "''"
+                rows = self.conexion.execute(
+                    f"SELECT nombre, cantidad AS requested_qty, {prepared_expr} AS prepared_qty, "
+                    f"precio_unitario, subtotal, {adjustment_expr} AS adjustment_status "
+                    f"FROM delivery_items WHERE delivery_id=? ORDER BY id LIMIT 50",
+                    (order_id,)
+                ).fetchall()
+                if rows:
+                    return rows
+        except Exception as exc:
+            logger.warning("Delivery items load failed for order=%s: %s", order_id, exc)
+
+        if sale_id:
+            try:
+                if self._table_exists("detalles_venta"):
+                    rows = self.conexion.execute(
+                        "SELECT COALESCE(p.nombre, dv.producto_nombre, 'Producto'), dv.cantidad, dv.cantidad, "
+                        "COALESCE(dv.precio_unitario, 0), COALESCE(dv.subtotal, 0), '' "
+                        "FROM detalles_venta dv "
+                        "LEFT JOIN productos p ON p.id = dv.producto_id "
+                        "WHERE dv.venta_id=? LIMIT 50",
+                        (sale_id,),
+                    ).fetchall()
+                    if rows:
+                        return rows
+                if self._table_exists("venta_items"):
+                    rows = self.conexion.execute(
+                        "SELECT COALESCE(vi.producto_nombre, 'Producto'), vi.cantidad, vi.cantidad, "
+                        "COALESCE(vi.precio_unitario, 0), COALESCE(vi.subtotal, 0), '' "
+                        "FROM venta_items vi WHERE vi.venta_id=? LIMIT 50",
+                        (sale_id,),
+                    ).fetchall()
+                    if rows:
+                        return rows
+            except Exception as exc:
+                logger.warning("Delivery item fallback failed for sale=%s: %s", sale_id, exc)
+        return []
+
+    def _safe_load_order_history(self, order_id: int, current_status: str):
+        """Carga historial de pedido con fallback legacy."""
+        try:
+            if self._table_exists("delivery_order_history"):
+                rows = self.conexion.execute(
+                    "SELECT estado_anterior, estado_nuevo, usuario, fecha, observacion "
+                    "FROM delivery_order_history WHERE order_id=? ORDER BY fecha ASC LIMIT 40",
+                    (order_id,),
+                ).fetchall()
+                if rows:
+                    lines = []
+                    for prev_s, new_s, user, when, note in rows:
+                        parts = [str(when or "")[:19], f"{prev_s or '-'} → {new_s or '-'}"]
+                        if user:
+                            parts.append(f"por {user}")
+                        if note:
+                            parts.append(str(note))
+                        lines.append(" · ".join(parts))
+                    return "\n".join(lines)
+        except Exception as exc:
+            logger.warning("Delivery history load failed (new table) order=%s: %s", order_id, exc)
+        try:
+            if self._table_exists("delivery_status_events"):
+                rows = self.conexion.execute(
+                    "SELECT to_status, created_at, note FROM delivery_status_events "
+                    "WHERE order_id=? ORDER BY created_at ASC LIMIT 40",
+                    (order_id,),
+                ).fetchall()
+                if rows:
+                    return "\n".join([f"{str(r[1])[:19]} · {r[0]}{(' · ' + str(r[2])) if r[2] else ''}" for r in rows])
+        except Exception as exc:
+            logger.warning("Delivery history load failed (legacy table) order=%s: %s", order_id, exc)
+        return f"Creado\nEstado actual · {current_status}"
+
+    def _safe_load_whatsapp_conversation(self, order_id: int, pedido: dict) -> str:
+        """Carga conversación WA si existe en DB ERP; si no, entrega fallback no intrusivo."""
+        try:
+            if self._table_exists("whatsapp_messages"):
+                cols = set(self._columns_of("whatsapp_messages"))
+                required = {"pedido_id", "mensaje", "tipo", "fecha"}
+                if required.issubset(cols):
+                    rows = self.conexion.execute(
+                        "SELECT mensaje, tipo, fecha FROM whatsapp_messages "
+                        "WHERE pedido_id=? ORDER BY fecha ASC LIMIT 12",
+                        (order_id,),
+                    ).fetchall()
+                    if rows:
+                        lines = []
+                        for msg_text, msg_tipo, msg_fecha in rows:
+                            is_out = str(msg_tipo or "").lower() in ("enviado", "out", "bot", "sistema")
+                            prefix = "→" if is_out else "←"
+                            hora = str(msg_fecha or "")[-8:][:5]
+                            lines.append(f"[{hora}] {prefix} {msg_text}")
+                        return "\n".join(lines)
+        except Exception as exc:
+            logger.warning("Delivery WA conversation load failed order=%s: %s", order_id, exc)
+        wa_id = pedido.get("whatsapp_order_id") or ""
+        snippet = (pedido.get("notas") or "")[:80]
+        if wa_id:
+            return f"Pedido WA #{wa_id}\n{snippet}" if snippet else f"Pedido WA #{wa_id}"
+        return "Sin conversación registrada en ERP"
+
     def _seleccionar_pedido(self, pedido: dict) -> None:
         """Rellena el panel de detalle con los datos del pedido seleccionado."""
         pid    = pedido.get("id", "")
@@ -1785,29 +1912,9 @@ if(drivers.length===0){{
             f"📞 {pedido.get('cliente_tel','')}  ·  🛵 {pedido.get('driver_nombre','Sin repartidor')}"
         )
 
-        # Cargar ítems desde BD: delivery_items primero, luego venta join como fallback
+        # Cargar ítems desde BD con fallback seguro
         self._det_tabla.setRowCount(0)
-        rows = []
-        try:
-            rows = self.conexion.execute(
-                "SELECT nombre, cantidad, cantidad_preparada, precio_unitario, subtotal, adjustment_status "
-                "FROM delivery_items WHERE delivery_id=? LIMIT 30",
-                (pid,)
-            ).fetchall()
-        except Exception:
-            pass
-        if not rows:
-            try:
-                rows = self.conexion.execute(
-                    "SELECT producto_nombre, cantidad, cantidad, precio_unitario, subtotal, '' "
-                    "FROM venta_items vi "
-                    "JOIN ventas v ON vi.venta_id = v.id "
-                    "JOIN delivery_orders d ON d.venta_id = v.id "
-                    "WHERE d.id = ? LIMIT 20",
-                    (pid,)
-                ).fetchall()
-            except Exception:
-                pass
+        rows = self._safe_load_order_items(pid, pedido.get("venta_id"))
         for i, r in enumerate(rows):
             self._det_tabla.insertRow(i)
             for j, val in enumerate(r):
@@ -1825,31 +1932,7 @@ if(drivers.length===0){{
 
         # WA conversation panel
         self._det_wa_txt.clear()
-        try:
-            wa_rows = self.conexion.execute(
-                "SELECT mensaje, tipo, fecha FROM whatsapp_messages "
-                "WHERE pedido_id=? ORDER BY fecha ASC LIMIT 12",
-                (pid,)
-            ).fetchall()
-            if wa_rows:
-                lines = []
-                for msg_text, msg_tipo, msg_fecha in wa_rows:
-                    is_out = str(msg_tipo or "").lower() in ("enviado", "out", "bot", "sistema")
-                    prefix = "→" if is_out else "←"
-                    hora = str(msg_fecha or "")[-8:][:5]
-                    lines.append(f"[{hora}] {prefix} {msg_text}")
-                self._det_wa_txt.setPlainText("\n".join(lines))
-            else:
-                wa_id = pedido.get("whatsapp_order_id") or ""
-                snippet = notas[:80] if notas else ""
-                if wa_id:
-                    self._det_wa_txt.setPlainText(
-                        f"Pedido WA #{wa_id}\n{snippet}" if snippet else f"Pedido WA #{wa_id}"
-                    )
-                else:
-                    self._det_wa_txt.setPlainText("Sin conversación registrada")
-        except Exception:
-            self._det_wa_txt.setPlainText("Sin conversación disponible")
+        self._det_wa_txt.setPlainText(self._safe_load_whatsapp_conversation(pid, pedido))
 
         total = float(pedido.get("total") or 0)
         costo = float(pedido.get("costo_envio") or 0)
@@ -1858,24 +1941,7 @@ if(drivers.length===0){{
             f"  ·  <span style='color:{color};'>{estado.upper()}</span>"
         )
         self._det_historial.clear()
-        try:
-            ev = self.conexion.execute(
-                "SELECT to_status, created_at, note FROM delivery_status_events "
-                "WHERE order_id=? ORDER BY created_at ASC LIMIT 20",
-                (pid,)
-            ).fetchall()
-            if ev:
-                self._det_historial.setPlainText(
-                    "\n".join([f"{str(r[1])[:19]} · {r[0]}{(' · ' + str(r[2])) if r[2] else ''}" for r in ev])
-                )
-            else:
-                self._det_historial.setPlainText(
-                    f"Creado · {pedido.get('created_at') or ''}\nEstado actual · {estado}"
-                )
-        except Exception:
-            self._det_historial.setPlainText(
-                f"Creado · {pedido.get('created_at') or ''}\nEstado actual · {estado}"
-            )
+        self._det_historial.setPlainText(self._safe_load_order_history(pid, estado))
 
         # Acciones contextuales
         # Limpiar acciones anteriores
@@ -2025,12 +2091,13 @@ if(drivers.length===0){{
                 self, "✅ Auto-Asignación",
                 f"{asignados}/{len(pendientes)} pedidos asignados.",
             )
-            self.cargar_pedidos()
+            QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
         except Exception as e:
             # [spj-dedup] from PyQt5.QtWidgets import QMessageBox
             QMessageBox.critical(self, "Error", str(e))
 
     def _init_tables(self):
+        # Compatibility shim only. Business schema belongs to DeliveryRepository/migrations.
         tables = [
             """CREATE TABLE IF NOT EXISTS drivers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2041,27 +2108,6 @@ if(drivers.length===0){{
                 en_ruta INTEGER DEFAULT 0,
                 sucursal_id INTEGER DEFAULT 1,
                 usuario_id INTEGER
-            )""",
-            """CREATE TABLE IF NOT EXISTS delivery_orders (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid             TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                venta_id         INTEGER,
-                driver_id        INTEGER,
-                cliente_id       INTEGER,
-                cliente_nombre   TEXT,
-                cliente_tel      TEXT,
-                direccion        TEXT,
-                estado           TEXT DEFAULT 'pendiente',
-                notas            TEXT,
-                tiempo_estimado  INTEGER DEFAULT 30,
-                total            REAL DEFAULT 0,
-                costo_envio      REAL DEFAULT 0,
-                pago_metodo      TEXT DEFAULT '',
-                pago_monto       REAL DEFAULT 0,
-                fecha_solicitud  DATETIME DEFAULT (datetime('now')),
-                fecha_asignacion DATETIME,
-                fecha_entrega    DATETIME,
-                sucursal_id      INTEGER DEFAULT 1
             )""",
             """CREATE TABLE IF NOT EXISTS driver_locations (
                 chofer_id INTEGER PRIMARY KEY,
@@ -2086,16 +2132,6 @@ if(drivers.length===0){{
                 sucursal_id      INTEGER DEFAULT 1,
                 notas            TEXT,
                 fecha            DATETIME DEFAULT (datetime('now'))
-            )""",
-            """CREATE TABLE IF NOT EXISTS delivery_items (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                delivery_id      INTEGER NOT NULL,
-                producto_id      INTEGER,
-                nombre           TEXT NOT NULL,
-                cantidad         REAL DEFAULT 1,
-                precio_unitario  REAL DEFAULT 0,
-                subtotal         REAL DEFAULT 0,
-                unidad           TEXT DEFAULT 'u'
             )""",
         ]
         for sql in tables:
@@ -2134,6 +2170,10 @@ if(drivers.length===0){{
             f"Sucursal: {branch_name} · Última act: {_dt.now().strftime('%H:%M:%S')}"
         )
 
+    @staticmethod
+    def _infer_workflow_for_ui(pedido: dict) -> str:
+        return _infer_workflow_for_ui_fn(pedido)
+
     def _matches_advanced_filters(self, pedido: dict) -> bool:
         q = str(self._txt_busqueda.text() or "").strip().lower()
         if q:
@@ -2148,7 +2188,7 @@ if(drivers.length===0){{
         if estado != "Todos" and str(pedido.get("estado") or "").strip().lower() != estado:
             return False
         flujo = self._flt_flujo.currentText()
-        if flujo != "Todos" and str(pedido.get("workflow_type") or "").strip().lower() != flujo:
+        if flujo != "Todos" and self._infer_workflow_for_ui(pedido) != flujo:
             return False
         origen = self._flt_origen.currentText()
         if origen != "Todos":
@@ -2215,16 +2255,41 @@ if(drivers.length===0){{
                     kanban_visibles += 1
 
             self.lbl_stats.setText(
-                f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pendiente', 'preparacion', 'en_ruta'])}"
+                f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pendiente', 'preparacion', 'en_ruta'])} · Total cargados: {len(lista_pedidos)}"
             )
-            self._update_filter_tabs(pedidos, counts)
-            self._update_kpi(pedidos)
-            self._refresh_operational_header()
-            self._poll_delivery_notifications()
-            # Empty-state: show only when there are truly 0 orders for the current filter
-            self._empty.setVisible(lista_count == 0)
+            logger.info("Delivery load: raw=%s filtered=%s filtro=%s", len(pedidos), len(lista_pedidos), filtro)
+            self._safe_update_filter_tabs(pedidos, counts)
+            self._safe_update_kpi(pedidos)
+            self._safe_refresh_operational_header()
+            self._safe_poll_delivery_notifications()
+            # Empty-state diagnostic (non-intrusive).
+            if lista_count == 0:
+                pending_wa_sales = self._count_pending_whatsapp_sales()
+                if pending_wa_sales > 0 and len(pedidos) == 0:
+                    self._set_empty_state_message(
+                        "Sin pedidos importados",
+                        "Hay pedidos WhatsApp en ventas pendientes de importar. Pulsa Actualizar.",
+                    )
+                elif self._last_wa_sync_error:
+                    self._set_empty_state_message(
+                        "Sin conexión a WhatsApp",
+                        "No se pudo consultar el microservicio WhatsApp. Se mostrarán pedidos ya importados.",
+                    )
+                else:
+                    self._set_empty_state_message(
+                        "Sin pedidos",
+                        "No hay pedidos para el filtro seleccionado.",
+                    )
+                self._empty.setVisible(True)
+            else:
+                self._empty.setVisible(False)
         except Exception as e:
             logger.error("cargar_pedidos: %s", e)
+            self._last_aux_error = str(e)
+            self._set_empty_state_message(
+                "Error de carga",
+                "No se pudieron cargar algunos datos auxiliares. Intenta actualizar.",
+            )
             self._empty.setVisible(True)
         finally:
             if not silent:
@@ -2676,7 +2741,7 @@ if(drivers.length===0){{
                 except Exception:
                     pass
 
-            self.cargar_pedidos()
+            QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
             Toast.success(self, "Pedido creado", "Pedido de delivery creado exitosamente.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -2684,7 +2749,8 @@ if(drivers.length===0){{
     def gestionar_drivers(self):
         dlg = GestorDriversDialog(self.conexion, self)
         dlg.exec_()
-        self.cargar_pedidos()
+        QTimer.singleShot(0, self._initial_sync_whatsapp_orders)
+        QTimer.singleShot(10, self.cargar_pedidos)
 
     # ── v13.30: Corte de caja por repartidor ──────────────────────────────────
 

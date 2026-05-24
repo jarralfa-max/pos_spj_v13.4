@@ -21,6 +21,7 @@ from modulos.whatsapp.panels import (
     PoliciesPanel,
     StatusPanel,
     WebhookPanel,
+    AIIntentPanel,
 )
 from core.services.whatsapp_admin_service import WhatsAppAdminService
 from core.services.whatsapp_credential_service import WhatsAppCredentialService
@@ -107,7 +108,11 @@ class ModuloWhatsApp(QWidget):
         self._panel_history = HistoryPanel(self._svc)
         tabs.addTab(self._panel_history, "Historial")
 
-        # ── Panel 7: Diagnóstico ──────────────────────────────────────────────
+        # ── Panel 7: IA de intención ───────────────────────────────────────────
+        self._panel_ai = AIIntentPanel(self._svc, self.container.db)
+        tabs.addTab(self._panel_ai, "IA de intención")
+
+        # ── Panel 8: Diagnóstico ──────────────────────────────────────────────
         self._panel_diag = DiagnosticsPanel(
             self._svc, self._cred, container=self.container
         )
