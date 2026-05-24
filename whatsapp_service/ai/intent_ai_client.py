@@ -5,7 +5,10 @@ import asyncio
 from dataclasses import dataclass
 from typing import Optional
 
-from ai.intent_schema import AIIntentResult
+try:
+    from whatsapp_service.ai.intent_schema import AIIntentResult
+except Exception:  # pragma: no cover
+    from ai.intent_schema import AIIntentResult
 
 
 @dataclass
@@ -62,4 +65,3 @@ class CloudIntentAIClient:
         except Exception as exc:
             err = str(exc).strip() or exc.__class__.__name__
             return AIClientResponse(ok=False, error=err)
-

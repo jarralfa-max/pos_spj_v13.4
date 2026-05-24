@@ -6,12 +6,12 @@ from PyQt5.QtWidgets import (
 )
 
 from modulos.spj_styles import spj_btn
-from ai.intent_resolver import IntentResolver
-from parser.product_matcher import ProductMatcher
-from parser.intent_parser import IntentParser
-from parser.llm_local import OllamaClient
-from models.message import IncomingMessage, MessageType
-from models.context import ConversationContext
+from whatsapp_service.ai.intent_resolver import IntentResolver
+from whatsapp_service.parser.product_matcher import ProductMatcher
+from whatsapp_service.parser.intent_parser import IntentParser
+from whatsapp_service.parser.llm_local import OllamaClient
+from whatsapp_service.models.message import IncomingMessage, MessageType
+from whatsapp_service.models.context import ConversationContext
 from datetime import datetime
 
 
@@ -111,4 +111,3 @@ class AIIntentPanel(QWidget):
         ]
         self.test_output.setPlainText("\n".join(lines))
         self._load()
-

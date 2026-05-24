@@ -34,7 +34,10 @@ from flows.cotizacion_flow import CotizacionFlow
 from flows.pago_flow import PagoFlow
 from messaging import interactive
 from middleware.handoff import HandoffService
-from ai.intent_resolver import IntentResolver
+try:
+    from whatsapp_service.ai.intent_resolver import IntentResolver
+except Exception:  # pragma: no cover
+    from ai.intent_resolver import IntentResolver
 
 logger = logging.getLogger("wa.router")
 
