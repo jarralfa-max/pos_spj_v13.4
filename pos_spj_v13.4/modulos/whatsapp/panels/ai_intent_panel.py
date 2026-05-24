@@ -92,21 +92,35 @@ class AIIntentPanel(QWidget):
         QMessageBox.information(self, "IA de intención", "Configuración guardada.")
         self._load()
 
-    def _ensure_repo_root_on_path(self) -> str:
+    def _save_last_error(self, error: str) -> None:
+        try:
+            self._svc.save_bot_config({"ai_last_error": error[:500]})
+        except Exception:
+            pass
+
+    def _ensure_repo_root_on_path(self) -> tuple[str, str]:
         """Hace visible `whatsapp_service` aunque el ERP corra desde /pos_spj_v13.4.
 
         Estructura esperada:
         <repo_root>/whatsapp_service
         <repo_root>/pos_spj_v13.4/modulos/whatsapp/panels/ai_intent_panel.py
+
+        Se agregan dos rutas:
+        - repo_root: permite `import whatsapp_service...`
+        - service_root: permite imports legacy internos del microservicio como `from parser...`
         """
         current = Path(__file__).resolve()
         for parent in current.parents:
-            if (parent / "whatsapp_service").is_dir():
+            service_dir = parent / "whatsapp_service"
+            if service_dir.is_dir():
                 repo_root = str(parent)
+                service_root = str(service_dir)
                 if repo_root not in sys.path:
                     sys.path.insert(0, repo_root)
-                return repo_root
-        return ""
+                if service_root not in sys.path:
+                    sys.path.insert(0, service_root)
+                return repo_root, service_root
+        return "", ""
 
     def _load_ai_dependencies(self):
         """Carga dependencias de IA solo cuando el usuario presiona Probar IA.
@@ -114,7 +128,7 @@ class AIIntentPanel(QWidget):
         Evita que ModuloWhatsApp falle al iniciar si `whatsapp_service.ai` aún
         no está implementado o si alguna dependencia interna falla.
         """
-        repo_root = self._ensure_repo_root_on_path()
+        repo_root, service_root = self._ensure_repo_root_on_path()
         try:
             from whatsapp_service.ai.intent_resolver import IntentResolver
             from whatsapp_service.parser.product_matcher import ProductMatcher
@@ -122,6 +136,7 @@ class AIIntentPanel(QWidget):
             from whatsapp_service.parser.llm_local import OllamaClient
             from whatsapp_service.models.message import IncomingMessage, MessageType
             from whatsapp_service.models.context import ConversationContext
+            self._save_last_error("")
             return {
                 "IntentResolver": IntentResolver,
                 "ProductMatcher": ProductMatcher,
@@ -132,6 +147,7 @@ class AIIntentPanel(QWidget):
                 "ConversationContext": ConversationContext,
             }
         except ImportError as exc:
+            self._save_last_error(str(exc))
             QMessageBox.warning(
                 self,
                 "IA no disponible",
@@ -139,7 +155,8 @@ class AIIntentPanel(QWidget):
             )
             detalle = (
                 "No se pudo importar whatsapp_service.ai desde el ERP.\n\n"
-                f"Raíz detectada: {repo_root or 'no encontrada'}\n"
+                f"Raíz repo detectada: {repo_root or 'no encontrada'}\n"
+                f"Raíz servicio detectada: {service_root or 'no encontrada'}\n"
                 f"Detalle técnico: {exc}\n\n"
                 "Verifica que existan:\n"
                 "- whatsapp_service/__init__.py\n"
@@ -149,6 +166,7 @@ class AIIntentPanel(QWidget):
             self.test_output.setPlainText(detalle)
             return None
         except Exception as exc:
+            self._save_last_error(f"{type(exc).__name__}: {exc}")
             QMessageBox.warning(
                 self,
                 "IA no disponible",
@@ -156,7 +174,8 @@ class AIIntentPanel(QWidget):
             )
             self.test_output.setPlainText(
                 "La capa de IA existe, pero falló al cargar una dependencia interna.\n\n"
-                f"Raíz detectada: {repo_root or 'no encontrada'}\n"
+                f"Raíz repo detectada: {repo_root or 'no encontrada'}\n"
+                f"Raíz servicio detectada: {service_root or 'no encontrada'}\n"
                 f"Detalle técnico: {type(exc).__name__}: {exc}"
             )
             return None
@@ -164,25 +183,32 @@ class AIIntentPanel(QWidget):
     def _test(self):
         deps = self._load_ai_dependencies()
         if not deps:
+            self._load()
             return
 
-        matcher = deps["ProductMatcher"](self._db, sucursal_id=1)
-        parser = deps["IntentParser"](matcher, llm_client=deps["OllamaClient"]())
-        resolver = deps["IntentResolver"](parser=parser, db=self._db)
-        msg = deps["IncomingMessage"](
-            message_id="test", from_number="521000000000", phone_number_id="test",
-            timestamp=datetime.now(), type=deps["MessageType"].TEXT, text=self.test_input.text().strip()
-        )
-        ctx = deps["ConversationContext"](phone=msg.from_number)
-        parsed = asyncio.run(resolver.resolve(msg, ctx))
-        lines = [
-            f"Intención detectada: {parsed.intent}",
-            f"Confianza: {getattr(parsed, 'confidence', 0):.2f}",
-            f"Productos: {getattr(parsed, 'products', [])}",
-            f"Fecha programada: {getattr(parsed, 'scheduled_at', '')}",
-            f"Tipo de entrega: {getattr(parsed, 'delivery_type', '')}",
-            f"Pregunta de aclaración: {getattr(parsed, 'clarification_question', '')}",
-            f"Fuente: {getattr(parsed, 'source', 'local')}",
-        ]
-        self.test_output.setPlainText("\n".join(lines))
+        try:
+            matcher = deps["ProductMatcher"](self._db, sucursal_id=1)
+            parser = deps["IntentParser"](matcher, llm_client=deps["OllamaClient"]())
+            resolver = deps["IntentResolver"](parser=parser, db=self._db)
+            msg = deps["IncomingMessage"](
+                message_id="test", from_number="521000000000", phone_number_id="test",
+                timestamp=datetime.now(), type=deps["MessageType"].TEXT, text=self.test_input.text().strip()
+            )
+            ctx = deps["ConversationContext"](phone=msg.from_number)
+            parsed = asyncio.run(resolver.resolve(msg, ctx))
+            lines = [
+                f"Intención detectada: {parsed.intent}",
+                f"Confianza: {getattr(parsed, 'confidence', 0):.2f}",
+                f"Productos: {getattr(parsed, 'products', [])}",
+                f"Fecha programada: {getattr(parsed, 'scheduled_at', '')}",
+                f"Tipo de entrega: {getattr(parsed, 'delivery_type', '')}",
+                f"Pregunta de aclaración: {getattr(parsed, 'clarification_question', '')}",
+                f"Fuente: {getattr(parsed, 'source', 'local')}",
+            ]
+            self._save_last_error("")
+            self.test_output.setPlainText("\n".join(lines))
+        except Exception as exc:
+            self._save_last_error(f"{type(exc).__name__}: {exc}")
+            QMessageBox.warning(self, "Error probando IA", "No se pudo completar la prueba de IA.")
+            self.test_output.setPlainText(f"Error probando IA:\n{type(exc).__name__}: {exc}")
         self._load()
