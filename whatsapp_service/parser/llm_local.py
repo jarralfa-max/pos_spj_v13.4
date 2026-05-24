@@ -16,7 +16,15 @@ import httpx
 import json
 import logging
 from typing import Optional, Dict, List
-from config.settings import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+
+try:
+    # Import correcto cuando el ERP importa el microservicio como paquete:
+    # `whatsapp_service.parser.llm_local`.
+    from whatsapp_service.config.settings import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+except ImportError:
+    # Compatibilidad cuando el microservicio corre desde su propia carpeta con
+    # uvicorn main:app y `whatsapp_service` no está en sys.path como paquete raíz.
+    from config.settings import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
 
 logger = logging.getLogger("wa.llm")
 
