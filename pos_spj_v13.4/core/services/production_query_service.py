@@ -22,6 +22,14 @@ import logging
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("spj.services.production_query")
+_TIPOS_VALIDOS = {"subproducto", "combinacion", "produccion"}
+
+
+def _normalize_tipo_receta(value: Any, default: str = "subproducto") -> str:
+    tipo = str(value or "").strip().lower()
+    if tipo in _TIPOS_VALIDOS:
+        return tipo
+    return default
 
 
 def _fetchone(db, sql: str, params=()):
@@ -195,7 +203,7 @@ def get_recetas_list(db) -> List[Dict[str, Any]]:
             {
                 "id":           _col(r, 0, "id"),
                 "nombre":       _col(r, 1, "nombre") or "",
-                "tipo_receta":  _col(r, 2, "tipo_receta") or "subproducto",
+                "tipo_receta":  _normalize_tipo_receta(_col(r, 2, "tipo_receta"), "subproducto"),
                 "producto_base":_col(r, 3, "producto_base") or "—",
                 "rendimiento":  float(_col(r, 4, "rendimiento") or 0),
                 "componentes":  int(_col(r, 5, "componentes") or 0),
@@ -224,7 +232,7 @@ def get_recetas_list(db) -> List[Dict[str, Any]]:
                 {
                     "id":           _col(r, 0, "id"),
                     "nombre":       _col(r, 1, "nombre") or "",
-                    "tipo_receta":  _col(r, 2, "tipo_receta") or "subproducto",
+                    "tipo_receta":  _normalize_tipo_receta(_col(r, 2, "tipo_receta"), "subproducto"),
                     "producto_base":_col(r, 3, "producto_base") or "—",
                     "rendimiento":  float(_col(r, 4, "rendimiento") or 0),
                     "componentes":  int(_col(r, 5, "componentes") or 0),
@@ -397,7 +405,7 @@ def get_recetas_for_combo(db) -> List[Dict[str, Any]]:
         {
             "id":               _col(r, 0, "id"),
             "nombre":           _col(r, 1, "nombre") or "",
-            "tipo_receta":      _col(r, 2, "tipo_receta") or "produccion",
+            "tipo_receta":      _normalize_tipo_receta(_col(r, 2, "tipo_receta"), "produccion"),
             "producto_base_id": _col(r, 3, "producto_base_id"),
             "peso_promedio_kg": float(_col(r, 4, "peso_promedio_kg") or 1.0),
             "unidad_base":      _col(r, 5, "unidad_base") or "kg",

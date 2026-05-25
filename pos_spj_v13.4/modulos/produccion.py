@@ -15,33 +15,27 @@
 #   ✔ Integración con RecipeEngine (atómico, BEGIN IMMEDIATE)
 from __future__ import annotations
 from core.events.event_bus import get_bus
-from core.services.auto_audit import audit_write
-from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Borders, Shadows
+from modulos.design_tokens import Colors, Spacing
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
-    create_secondary_button, create_combo, create_card,
-    create_heading, create_subheading, create_caption, apply_tooltip,
     FilterBar, LoadingIndicator, EmptyStateWidget
 )
 
 import logging
-from datetime import datetime
-from decimal import Decimal
 from typing import Dict, List, Optional
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QComboBox, QDoubleSpinBox, QTableWidget, QTableWidgetItem,
     QAbstractItemView, QHeaderView, QGroupBox, QSplitter,
-    QMessageBox, QTextEdit, QLineEdit, QTabWidget, QFrame,
-    QScrollArea, QProgressBar, QDialog, QFormLayout, QCheckBox
+    QMessageBox, QLineEdit, QTabWidget,
+    QDialog, QFormLayout
+    , QInputDialog
 )
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QFont
 
 from .base import ModuloBase
-from .dialogs.receta_dialog import DialogoReceta
 from core.events.event_bus import EventBus
 from core.services.recipe_engine import (
     RecipeEngine,
@@ -50,7 +44,6 @@ from core.services.recipe_engine import (
     StockInsuficienteProduccionError,
     ProduccionDuplicadaError,
 )
-from core.services.recipes import RecipeService
 import core.services.production_query_service as _pqs
 
 logger = logging.getLogger("spj.ui.produccion")
@@ -66,28 +59,23 @@ TIPO_COLOR = {
 }
 
 
-class _DBWrapperProd:
-    """Minimal DB wrapper for RecipeEngine compatibility with raw sqlite3.Connection."""
-    def __init__(self, conexion):
-        self.conn = conexion
-    def fetchone(self, sql, params=()):
-        return self.conn.execute(sql, params).fetchone()
-    def fetchall(self, sql, params=()):
-        return self.conn.execute(sql, params).fetchall()
-    def execute(self, sql, params=()):
-        return self.conn.execute(sql, params)
-    def commit(self):
-        try: self.conn.commit()
-        except Exception: pass
-    def rollback(self):
-        try: self.conn.rollback()
-        except Exception: pass
-    from contextlib import contextmanager
-    @contextmanager
-    def transaction(self, name=""):
-        from core.db.connection import transaction as _canonical_tx
-        with _canonical_tx(self.conn):
-            yield self
+def _norm_tipo_receta(value: str) -> str:
+    return str(value or "").strip().lower()
+
+
+def _build_lote_balance_preview(movs_teoricos: list, reales: dict[int, float]) -> dict:
+    expected = {}
+    for m in movs_teoricos:
+        if float(m.get("delta", 0)) > 0:
+            expected[int(m["product_id"])] = expected.get(int(m["product_id"]), 0.0) + float(m["delta"])
+    total_exp = sum(expected.values())
+    total_real = sum(float(v or 0) for v in reales.values())
+    return {
+        "expected": expected,
+        "total_expected": total_exp,
+        "total_real": total_real,
+        "difference": round(total_real - total_exp, 4),
+    }
 
 
 class ModuloProduccion(ModuloBase):
@@ -151,7 +139,8 @@ class ModuloProduccion(ModuloBase):
         for evt in ("PRODUCCION_COMPLETADA", "RECETA_CREADA", "RECETA_ACTUALIZADA",
                     "INVENTARIO_ACTUALIZADO"):
             try: EventBus.unsubscribe(evt, self._on_data_changed)
-            except Exception: pass
+            except Exception as e:
+                logger.debug("No se pudo desuscribir evento %s: %s", evt, e)
 
     def _subscribe_events(self) -> None:
         for evt in ("PRODUCCION_COMPLETADA", "RECETA_CREADA", "RECETA_ACTUALIZADA",
@@ -195,7 +184,7 @@ class ModuloProduccion(ModuloBase):
         self._tabs.addTab(self._build_tab_produccion(), "🏭 Ejecutar Producción")
         self._tabs.addTab(self._build_tab_historial(),  "📋 Historial")
         self._tabs.addTab(self._build_tab_carnica(),    "🥩 Cárnica / Lotes")
-        self._tabs.addTab(self._build_tab_recetas(),    "📋 Recetas")
+        # FASE 7: Gestión de recetas se movió a Productos > Tab Receta.
         root.addWidget(self._tabs)
 
     def _crear_stats_produccion(self) -> 'QFrame':
@@ -537,8 +526,10 @@ class ModuloProduccion(ModuloBase):
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh al recibir eventos del EventBus."""
-        try: self._cargar_hist_carnica()
-        except Exception: pass
+        try:
+            self._cargar_hist_carnica()
+        except Exception as exc:
+            logger.debug("No se pudo refrescar historial cárnico: %s", exc)
 
     def _cargar_hist_carnica(self):
         from PyQt5.QtWidgets import QTableWidgetItem
@@ -578,13 +569,13 @@ class ModuloProduccion(ModuloBase):
             QMessageBox.warning(
                 self, "Sin receta",
                 "Este producto no tiene una receta activa.\n"
-                "Crea la receta en el módulo Recetas antes de registrar producción.")
+                "Créala desde Productos > Tab Receta antes de registrar producción.")
             return
 
         receta_id  = rec_row["id"]
         receta_nom = rec_row["nombre_receta"]
 
-        # Preview before confirming
+        # Preview before confirming (teórico)
         _suc = getattr(self, 'sucursal_id', 1)
         _usr = getattr(self, 'usuario_actual', '') or getattr(self, 'usuario', 'Sistema')
         try:
@@ -595,11 +586,26 @@ class ModuloProduccion(ModuloBase):
         except Exception as _pe:
             QMessageBox.critical(self, "Error al previsualizar", str(_pe)); return
 
-        # Build confirmation message
+        # Capturar salida real por componente antes de cerrar lote
+        reales = {}
+        for m in preview:
+            if float(m.get("delta", 0)) <= 0:
+                continue
+            ptxt = f"Peso real de salida para {m['nombre']} (kg):"
+            val, ok = QInputDialog.getDouble(self, "Captura real", ptxt, abs(float(m["delta"])), 0.0, 99999.0, 3)
+            if not ok:
+                return
+            reales[int(m["product_id"])] = float(val)
+
+        bal = _build_lote_balance_preview(preview, reales)
         lines = [f"Receta: {receta_nom}", f"Entrada: {peso:.3f} kg", ""]
         for m in preview:
             arrow = "▼ SALIDA" if m['delta'] < 0 else "▲ ENTRADA"
             lines.append(f"{arrow}  {m['nombre']}: {abs(m['delta']):.3f} kg")
+        lines += ["", "Captura REAL:", *(f"• #{pid}: {kg:.3f} kg" for pid, kg in reales.items())]
+        lines += [f"Teórico total: {bal['total_expected']:.3f} kg",
+                  f"Real total: {bal['total_real']:.3f} kg",
+                  f"Diferencia: {bal['difference']:+.3f} kg"]
 
         resp = QMessageBox.question(self, "Confirmar producción",
             "\n".join(lines) + "\n\n¿Ejecutar?",
@@ -607,36 +613,41 @@ class ModuloProduccion(ModuloBase):
         if resp != QMessageBox.Yes: return
 
         try:
-            if self._svc is not None:
-                res = self._svc.ejecutar_produccion(
-                    receta_id    = receta_id,
-                    cantidad_base= peso,
-                    usuario      = _usr,
-                    sucursal_id  = _suc,
-                    notas        = "Lote cárnico produccion.py",
-                )
-            else:
-                res = self._engine.ejecutar_produccion(
-                    receta_id=receta_id,
-                    cantidad_base=peso,
-                    usuario=_usr,
-                    sucursal_id=_suc,
-                    notas="Lote cárnico produccion.py",
-                )
-            try: get_bus().publish("PRODUCCION_REGISTRADA", {"event_type": "PRODUCCION_REGISTRADA"})
-            except Exception: pass
+            # FASE 8: flujo real por lote (sin ejecutar_produccion directa)
+            if self._svc is None:
+                raise RuntimeError("ProductionApplicationService no disponible para flujo por lote.")
+            opened = self._svc.abrir_lote(
+                producto_origen_id=prod_id,
+                peso_kg=peso,
+                sucursal_id=_suc,
+                usuario=_usr,
+                receta_id=receta_id,
+            )
+            if not getattr(opened, "ok", False):
+                raise RuntimeError(getattr(opened, "error", "No se pudo abrir lote"))
+            batch_id = opened.batch_id
+            for pid, kg in reales.items():
+                self._svc.agregar_subproducto(batch_id=batch_id, producto_id=pid, peso_kg=kg, is_waste=False)
+            merma_kg = max(0.0, peso - bal["total_real"])
+            if merma_kg > 0:
+                self._svc.agregar_subproducto(batch_id=batch_id, producto_id=prod_id, peso_kg=merma_kg, is_waste=True)
+            y = self._svc.preview_lote(batch_id)
+            res = self._svc.cerrar_lote(batch_id=batch_id, sucursal_id=_suc, usuario=_usr)
+            if not getattr(res, "ok", False):
+                raise RuntimeError(getattr(res, "error", "No se pudo cerrar lote"))
+            try:
+                get_bus().publish("PRODUCCION_REGISTRADA", {"event_type": "PRODUCCION_REGISTRADA"})
+            except Exception as exc:
+                logger.debug("No se pudo publicar PRODUCCION_REGISTRADA: %s", exc)
 
             # Build result summary
             result_lines = [
-                f"Producción #{res.produccion_id} registrada",
-                f"Total generado:  {res.total_generado:.3f} kg",
-                f"Total consumido: {res.total_consumido:.3f} kg",
+                f"Lote {res.folio} cerrado",
+                f"Rendimiento: {getattr(res, 'rendimiento_pct', 0):.2f}%",
+                f"Merma registrada: {merma_kg:.3f} kg",
                 "",
+                f"Diferencia esperado vs real: {bal['difference']:+.3f} kg",
             ]
-            for comp in res.componentes:
-                arrow = "▲" if comp.tipo == "entrada" else "▼"
-                result_lines.append(f"{arrow} {comp.nombre}: {comp.cantidad:.3f} kg")
-
             QMessageBox.information(self, "✅ Producción Registrada",
                 "\n".join(result_lines))
             self._cargar_hist_carnica()
@@ -644,176 +655,6 @@ class ModuloProduccion(ModuloBase):
         except Exception as e:
             QMessageBox.critical(self, "Error en producción", str(e))
 
-    def _build_tab_recetas(self) -> QWidget:
-        """Tab de recetas — CRUD completo con DialogoReceta de recetas.py."""
-        from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-            QLabel, QLineEdit, QPushButton, QTableWidget,
-            QTableWidgetItem, QHeaderView, QSplitter, QMessageBox)
-        from PyQt5.QtCore import Qt
-
-        w = QWidget(); lay = QVBoxLayout(w)
-
-        info = QLabel("Gestión de recetas para producción y despiece cárnico. "
-                       "Cada receta define insumos, rendimientos y subproductos.")
-        info.setWordWrap(True)
-        info.setObjectName("caption")
-        lay.addWidget(info)
-
-        # Botones principales
-        btn_row = QHBoxLayout()
-        btn_nueva = create_success_button(self, "➕ Nueva receta", "Crear nueva receta de producción")
-        btn_editar = create_secondary_button(self, "✏️ Editar receta", "Editar receta seleccionada")
-        btn_ver = QPushButton("👁️ Ver detalle")
-        btn_desact = create_danger_button(self, "🗑️ Desactivar", "Desactivar receta seleccionada")
-        btn_refresh = QPushButton("🔄")
-        apply_tooltip(btn_refresh, "Actualizar lista de recetas")
-        btn_row.addWidget(btn_nueva); btn_row.addWidget(btn_editar)
-        btn_row.addWidget(btn_ver); btn_row.addWidget(btn_desact)
-        btn_row.addStretch(); btn_row.addWidget(btn_refresh)
-        lay.addLayout(btn_row)
-
-        # Tabla recetas
-        self._rec_tabla = QTableWidget(); self._rec_tabla.setColumnCount(5)
-        self._rec_tabla.setHorizontalHeaderLabels(
-            ["ID", "Nombre", "Producto base", "Rendimiento", "Componentes"])
-        hh = self._rec_tabla.horizontalHeader()
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
-        self._rec_tabla.setColumnHidden(0, True)
-        self._rec_tabla.setSelectionBehavior(self._rec_tabla.SelectRows)
-        self._rec_tabla.setAlternatingRowColors(True)
-        lay.addWidget(self._rec_tabla)
-
-        btn_nueva.clicked.connect(self._receta_nueva)
-        btn_editar.clicked.connect(self._receta_editar)
-        btn_ver.clicked.connect(self._ver_detalle_receta)
-        btn_desact.clicked.connect(self._receta_desactivar)
-        btn_refresh.clicked.connect(self._cargar_lista_recetas)
-        self._cargar_lista_recetas()
-        return w
-
-    def _cargar_lista_recetas(self):
-        from PyQt5.QtWidgets import QTableWidgetItem
-        conn = self.conexion
-        if not conn:
-            return
-
-        rows = _pqs.get_recetas_list(conn)
-        self._rec_tabla.setRowCount(0)
-        if not rows:
-            self._rec_tabla.setRowCount(1)
-            self._rec_tabla.setSpan(0, 0, 1, self._rec_tabla.columnCount())
-            item = QTableWidgetItem("No hay recetas activas registradas.")
-            item.setForeground(QColor(Colors.TEXT_SECONDARY))
-            self._rec_tabla.setItem(0, 0, item)
-            return
-
-        from PyQt5.QtCore import Qt as _Qt
-        for i, r in enumerate(rows):
-            self._rec_tabla.insertRow(i)
-            tipo = r.get("tipo_receta", "subproducto")
-            tipo_color = TIPO_COLOR.get(tipo, Colors.TEXT_SECONDARY)
-            vals = [
-                str(r["id"]),
-                r["nombre"],
-                r["producto_base"],
-                f"{float(r['rendimiento']):.1f}%",
-                str(r["componentes"]),
-            ]
-            for j, v in enumerate(vals):
-                it = QTableWidgetItem(v)
-                if j == 1:  # Nombre con color de tipo
-                    it.setForeground(QColor(tipo_color))
-                    it.setFont(QFont("", -1, QFont.Bold))
-                self._rec_tabla.setItem(i, j, it)
-
-    def _receta_nueva(self):
-        """Abre DialogoReceta para crear receta completa."""
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return
-        try:
-            service = RecipeService(conn)
-            prods   = service.get_products_for_ui()
-            usuario = getattr(self, 'usuario_actual', 'Sistema') or 'Sistema'
-            dlg = DialogoReceta(service, prods, usuario, parent=self)
-            if dlg.exec_() == dlg.Accepted:
-                self._cargar_lista_recetas()
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"No se pudo abrir editor de recetas:\n{e}")
-
-    def _receta_editar(self):
-        """Abre DialogoReceta para editar la receta seleccionada."""
-        row = self._rec_tabla.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "Aviso", "Selecciona una receta.")
-            return
-        rid = int(self._rec_tabla.item(row, 0).text())
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return
-        try:
-            service = RecipeService(conn)
-            prods   = service.get_products_for_ui()
-            usuario = getattr(self, 'usuario_actual', 'Sistema') or 'Sistema'
-            receta_data, componentes = service.get_recipe_data_for_edit(rid)
-            dlg = DialogoReceta(service, prods, usuario,
-                                receta_data=receta_data,
-                                componentes=componentes, parent=self)
-            if dlg.exec_() == dlg.Accepted:
-                self._cargar_lista_recetas()
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"No se pudo abrir editor:\n{e}")
-
-    def _receta_desactivar(self):
-        """Desactiva la receta seleccionada (soft delete) via RecipeService."""
-        row = self._rec_tabla.currentRow()
-        if row < 0:
-            return
-        rid = int(self._rec_tabla.item(row, 0).text())
-        nombre = self._rec_tabla.item(row, 1).text()
-        if QMessageBox.question(
-            self, "Confirmar",
-            f"¿Desactivar la receta '{nombre}'?",
-            QMessageBox.Yes | QMessageBox.No
-        ) != QMessageBox.Yes:
-            return
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return
-        try:
-            service = RecipeService(conn)
-            usuario = getattr(self, 'usuario_actual', 'sistema') or 'sistema'
-            service.deactivate_recipe(rid, usuario)
-            self._cargar_lista_recetas()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-
-    def _ver_detalle_receta(self):
-        row = self._rec_tabla.currentRow()
-        if row < 0:
-            return
-        rid = int(self._rec_tabla.item(row, 0).text())
-        nombre = self._rec_tabla.item(row, 1).text()
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return
-        try:
-            comps = _pqs.get_recipe_components(conn, rid)
-            if not comps:
-                QMessageBox.information(self, "Sin componentes",
-                    f"La receta '{nombre}' no tiene componentes registrados.")
-                return
-            txt = f"Receta: {nombre}\n\nComponentes:\n"
-            for c in comps:
-                txt += f"  • {c['nombre']}: {c['cantidad']} {c['unidad'] or 'u'} (merma {c['merma_pct']:.1f}%)\n"
-            QMessageBox.information(self, "Detalle receta", txt)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
 
 
     def _load_recetas(self) -> None:
@@ -828,7 +669,8 @@ class ModuloProduccion(ModuloBase):
         self._combo_receta.clear()
         self._combo_receta.addItem("— Seleccionar receta —", None)
         for r in self._recetas_cache:
-            tipo_lbl = TIPO_LABELS.get(r.get("tipo_receta", ""), r.get("tipo_receta", ""))
+            tipo_raw = _norm_tipo_receta(r.get("tipo_receta", ""))
+            tipo_lbl = TIPO_LABELS.get(tipo_raw, tipo_raw)
             self._combo_receta.addItem(
                 f"{r['nombre']}  [{tipo_lbl}]", r["id"]
             )
@@ -856,7 +698,7 @@ class ModuloProduccion(ModuloBase):
             self._lbl_resumen.setText("")
             self._lbl_stock.setText("—")
             return
-        tipo = r.get("tipo_receta", "")
+        tipo = _norm_tipo_receta(r.get("tipo_receta", ""))
         self._lbl_tipo.setText(TIPO_LABELS.get(tipo, tipo))
         self._lbl_tipo.setObjectName("badge")
         peso = r.get("peso_promedio_kg") or 1.0
@@ -989,7 +831,7 @@ class ModuloProduccion(ModuloBase):
             QMessageBox.warning(self, "Validación", "Seleccione una receta.")
             return
         cant = self._spin_cant.value()
-        tipo = r.get("tipo_receta", "")
+        tipo = _norm_tipo_receta(r.get("tipo_receta", ""))
         tipo_lbl = TIPO_LABELS.get(tipo, tipo)
 
         confirm = QMessageBox.question(
@@ -1098,7 +940,7 @@ class ModuloProduccion(ModuloBase):
             if hasattr(self, "_hist_empty"):
                 self._hist_empty.setVisible(len(rows) == 0)
             for ri, r in enumerate(rows):
-                tipo = r.get("tipo_receta", "")
+                tipo = _norm_tipo_receta(r.get("tipo_receta", ""))
                 tipo_color = TIPO_COLOR.get(tipo, Colors.TEXT_SECONDARY)
                 fecha_str = r.get("fecha", "")
                 if fecha_str and "T" in fecha_str:

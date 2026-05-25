@@ -87,19 +87,19 @@ class DialogoReceta(QDialog):
         lay.addLayout(fl)
 
         # Components group
-        grp = QGroupBox("Componentes (suma rendimiento debe ser 100% exacto)")
+        grp = QGroupBox("Componentes (SUBPRODUCTO usa %, COMBINACION/PRODUCCION usan cantidad)")
         gl = QVBoxLayout(grp)
 
         self._tbl_comp = QTableWidget()
-        self._tbl_comp.setColumnCount(6)
+        self._tbl_comp.setColumnCount(8)
         self._tbl_comp.setHorizontalHeaderLabels(
-            ["Componente", "Rendimiento %", "Merma %", "Total %", "Tolerancia %", "Descripción"]
+            ["Componente", "Cantidad", "Unidad", "Rendimiento %", "Merma %", "Total %", "Tolerancia %", "Descripción"]
         )
         self._tbl_comp.verticalHeader().setVisible(False)
         self._tbl_comp.setAlternatingRowColors(True)
         hdr = self._tbl_comp.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
-        for i in (1, 2, 3, 4, 5):
+        for i in (1, 2, 3, 4, 5, 6, 7):
             hdr.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         gl.addWidget(self._tbl_comp)
 
@@ -115,6 +115,9 @@ class DialogoReceta(QDialog):
 
         self._spin_merma = QDoubleSpinBox()
         self._spin_merma.setRange(0, 100); self._spin_merma.setDecimals(3); self._spin_merma.setSuffix(" %")
+        self._spin_cantidad = QDoubleSpinBox()
+        self._spin_cantidad.setRange(0, 99999); self._spin_cantidad.setDecimals(3); self._spin_cantidad.setValue(1.0)
+        self._e_unidad = QLineEdit("kg")
 
         self._spin_tolerancia = QDoubleSpinBox()
         self._spin_tolerancia.setRange(0.1, 20.0); self._spin_tolerancia.setDecimals(1)
@@ -137,6 +140,8 @@ class DialogoReceta(QDialog):
             (self._combo_comp, "Comp:"),
             (QLabel("Rend:"), None), (self._spin_rend, None),
             (QLabel("Merma:"), None), (self._spin_merma, None),
+            (QLabel("Cant:"), None), (self._spin_cantidad, None),
+            (QLabel("Und:"), None), (self._e_unidad, None),
             (QLabel("Toler:"), None), (self._spin_tolerancia, None),
             (self._e_desc, None),
             (btn_add, None), (btn_del, None),
@@ -182,6 +187,10 @@ class DialogoReceta(QDialog):
                 "component_nombre":     c.get("component_nombre", "?"),
                 "rendimiento_pct":      float(c.get("rendimiento_pct", 0)),
                 "merma_pct":            float(c.get("merma_pct", 0)),
+                "cantidad":             float(c.get("cantidad", 0)),
+                "unidad":               c.get("unidad", "kg"),
+                "component_role":       c.get("component_role", ""),
+                "factor_costo":         float(c.get("factor_costo", 1.0)),
                 "tolerancia_pct":       float(c.get("tolerancia_pct", 2.0)),
                 "descripcion":          c.get("descripcion", ""),
                 "orden":                c.get("orden", 0),
@@ -197,10 +206,16 @@ class DialogoReceta(QDialog):
             return
         rend  = self._spin_rend.value()
         merma = self._spin_merma.value()
-        if rend + merma <= 0:
-            QMessageBox.warning(self, "Validación",
-                                "Rendimiento + Merma debe ser mayor a 0%.")
-            return
+        cantidad = self._spin_cantidad.value()
+        tipo = self._combo_tipo_receta.currentData() or "SUBPRODUCTO"
+        if tipo == "SUBPRODUCTO":
+            if rend + merma <= 0:
+                QMessageBox.warning(self, "Validación", "Rendimiento + Merma debe ser mayor a 0%.")
+                return
+        else:
+            if cantidad <= 0:
+                QMessageBox.warning(self, "Validación", "La cantidad del componente debe ser positiva.")
+                return
         base_id = self._combo_base.currentData()
         if comp_id == base_id:
             QMessageBox.warning(self, "Auto-referencia",
@@ -215,6 +230,10 @@ class DialogoReceta(QDialog):
             "component_nombre":     self._combo_comp.currentText(),
             "rendimiento_pct":      rend,
             "merma_pct":            merma,
+            "cantidad":             cantidad,
+            "unidad":               self._e_unidad.text().strip() or "kg",
+            "component_role":       "",
+            "factor_costo":         1.0,
             "tolerancia_pct":       self._spin_tolerancia.value(),
             "descripcion":          self._e_desc.text().strip(),
             "orden":                len(self._comp_rows),
@@ -241,6 +260,8 @@ class DialogoReceta(QDialog):
             tolerancia  = float(r.get("tolerancia_pct", 2.0))
             vals = [
                 r.get("component_nombre", "?"),
+                f"{float(r.get('cantidad', 0)):.3f}",
+                r.get("unidad", "kg"),
                 f"{float(rend):.3f}%",
                 f"{float(merma):.3f}%",
                 f"{fila_total:.3f}%",
@@ -250,7 +271,7 @@ class DialogoReceta(QDialog):
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci in (1, 2, 3, 4):
+                if ci in (1, 3, 4, 5, 6):
                     it.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
                 self._tbl_comp.setItem(ri, ci, it)
 
@@ -281,23 +302,29 @@ class DialogoReceta(QDialog):
             QMessageBox.warning(self, "Validación", "Agregue al menos un componente.")
             return
 
-        total = sum(
-            Decimal(str(c["rendimiento_pct"])) + Decimal(str(c["merma_pct"]))
-            for c in self._comp_rows
-        )
-        if abs(total - Decimal("100.00")) > Decimal("0.01"):
-            QMessageBox.warning(
-                self, "Error de Porcentaje",
-                f"La suma total ({float(total):.3f}%) debe ser exactamente 100%.\n"
-                "Ajuste los porcentajes antes de guardar."
+        tipo_receta = self._combo_tipo_receta.currentData() or "SUBPRODUCTO"
+        if tipo_receta == "SUBPRODUCTO":
+            total = sum(
+                Decimal(str(c["rendimiento_pct"])) + Decimal(str(c["merma_pct"]))
+                for c in self._comp_rows
             )
-            return
+            if abs(total - Decimal("100.00")) > Decimal("0.01"):
+                QMessageBox.warning(
+                    self, "Error de Porcentaje",
+                    f"La suma total ({float(total):.3f}%) debe ser exactamente 100%.\n"
+                    "Ajuste los porcentajes antes de guardar."
+                )
+                return
 
         components = [
             {
                 "component_product_id": c["component_product_id"],
                 "rendimiento_pct":      c["rendimiento_pct"],
                 "merma_pct":            c["merma_pct"],
+                "cantidad":             c.get("cantidad", 0),
+                "unidad":               c.get("unidad", "kg"),
+                "component_role":       c.get("component_role", ""),
+                "factor_costo":         c.get("factor_costo", 1.0),
                 "descripcion":          c.get("descripcion", ""),
                 "orden":                c.get("orden", i),
             }
@@ -320,8 +347,6 @@ class DialogoReceta(QDialog):
                     self._e_nombre.setText(existente.get("nombre_receta", ""))
                 else:
                     return
-
-        tipo_receta = self._combo_tipo_receta.currentData() or "SUBPRODUCTO"
 
         try:
             if self._data:

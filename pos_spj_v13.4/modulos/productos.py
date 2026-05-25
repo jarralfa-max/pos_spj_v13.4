@@ -27,6 +27,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QPixmap
 import logging
+from modulos.dialogs.receta_dialog import DialogoReceta
+from core.services.recipes.recipe_service import RecipeService
 
 logger = logging.getLogger(__name__)
 
@@ -513,12 +515,15 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.tabs.setObjectName("tabWidget")
         
         self.tab_catalogo = QWidget()
+        self.tab_receta = QWidget()
         self.tab_sucursales = QWidget()
 
         self.tabs.addTab(self.tab_catalogo,   "📦 Catálogo de Productos")
+        self.tabs.addTab(self.tab_receta,     "🧪 Receta")
         self.tabs.addTab(self.tab_sucursales, "🏪 Activación por Sucursal")
 
         self.setup_tab_catalogo()
+        self.setup_tab_receta_producto()
         self.setup_tab_sucursales()
         
         layout_principal.addWidget(self.tabs)
@@ -526,6 +531,7 @@ class ModuloProductos(QWidget, RefreshMixin):
 
     def al_cambiar_pestana(self, index):
         if index == 0: self.cargar_catalogo()
+        elif index == 1: self._refresh_tab_receta_producto()
 
     # =========================================================
     # PESTAÑA 1: CATÁLOGO DE PRODUCTOS (CRUD ENTERPRISE)
@@ -607,6 +613,81 @@ class ModuloProductos(QWidget, RefreshMixin):
         )
         self._empty_catalogo.hide()
         layout.addWidget(self._empty_catalogo)
+
+    def setup_tab_receta_producto(self):
+        lay = QVBoxLayout(self.tab_receta)
+        self._lbl_receta_estado = create_subheading(self, "Seleccione un producto en Catálogo.")
+        self._lbl_receta_hint = create_caption(self, "La receta permitida depende de tipo_producto.")
+        self._btn_receta_abrir = create_primary_button(self, "🛠 Gestionar receta", "Crear o editar receta del producto seleccionado")
+        self._btn_receta_abrir.clicked.connect(self._abrir_receta_producto)
+        lay.addWidget(self._lbl_receta_estado)
+        lay.addWidget(self._lbl_receta_hint)
+        lay.addWidget(self._btn_receta_abrir)
+        lay.addStretch()
+        self._refresh_tab_receta_producto()
+
+    def _producto_seleccionado_catalogo(self):
+        if not hasattr(self, "tabla_productos"):
+            return None
+        row = self.tabla_productos.currentRow()
+        if row < 0:
+            return None
+        try:
+            pid = int(self.tabla_productos.item(row, 0).text())
+            db = self.container.db if hasattr(self.container, 'db') else self.conexion
+            r = db.execute("SELECT id,nombre,tipo_producto FROM productos WHERE id=?", (pid,)).fetchone()
+            return dict(r) if r else None
+        except Exception:
+            return None
+
+    def _refresh_tab_receta_producto(self):
+        p = self._producto_seleccionado_catalogo()
+        if not p:
+            self._lbl_receta_estado.setText("Seleccione un producto en Catálogo.")
+            self._lbl_receta_hint.setText("SIMPLE: sin receta. COMPUESTO/PROCESABLE/PRODUCIDO: con receta.")
+            self._btn_receta_abrir.setEnabled(False)
+            return
+        tipo = (p.get("tipo_producto") or "simple").lower()
+        self._btn_receta_abrir.setEnabled(tipo != "simple")
+        rules = {
+            "simple": "No permite receta.",
+            "compuesto": "Permite receta COMBINACION.",
+            "procesable": "Permite receta SUBPRODUCTO (despiece).",
+            "producido": "Permite receta PRODUCCION.",
+            "subproducto": "Muestra origen/usos; gestión de receta permitida según configuración.",
+        }
+        self._lbl_receta_estado.setText(f"Producto: {p['nombre']} ({tipo.upper()})")
+        self._lbl_receta_hint.setText(rules.get(tipo, "Revise configuración de receta para este tipo."))
+
+    def _abrir_receta_producto(self):
+        p = self._producto_seleccionado_catalogo()
+        if not p:
+            QMessageBox.information(self, "Receta", "Seleccione un producto en Catálogo.")
+            return
+        tipo = (p.get("tipo_producto") or "simple").lower()
+        if tipo == "simple":
+            QMessageBox.information(self, "Receta no permitida", "La UI no permite crear receta para producto SIMPLE.")
+            return
+        db = self.container.db if hasattr(self.container, 'db') else self.conexion
+        svc = RecipeService(db)
+        prods = svc.get_products_for_ui()
+        receta, comps = None, []
+        existente = svc.get_recipe_for_product(p["id"])
+        if existente:
+            receta, comps = svc.get_recipe_data_for_edit(existente["id"])
+        dlg = DialogoReceta(svc, prods, getattr(self, "usuario_actual", "Sistema"),
+                            receta_data=receta, componentes=comps, parent=self)
+        tipo_target = {"compuesto": "COMBINACION", "procesable": "SUBPRODUCTO", "producido": "PRODUCCION", "subproducto": "SUBPRODUCTO"}.get(tipo, "SUBPRODUCTO")
+        i_tipo = dlg._combo_tipo_receta.findData(tipo_target)
+        if i_tipo >= 0:
+            dlg._combo_tipo_receta.setCurrentIndex(i_tipo)
+        i_base = dlg._combo_base.findData(p["id"])
+        if i_base >= 0:
+            dlg._combo_base.setCurrentIndex(i_base)
+        dlg._combo_tipo_receta.setEnabled(False)
+        dlg._combo_base.setEnabled(False)
+        if dlg.exec_() == QDialog.Accepted:
+            self._refresh_tab_receta_producto()
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh catalog on product or purchase events."""
