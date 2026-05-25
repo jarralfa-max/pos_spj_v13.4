@@ -117,35 +117,34 @@ class TestSelfReference:
 
 class TestPercentageValidation:
 
-    def test_suma_exacta_100_ok(self):
+    def test_subproducto_suma_100_ok(self):
         svc.validate_percentages([
-            {"porcentaje": 60.0},
-            {"porcentaje": 40.0},
-        ])
+            {"rendimiento_pct": 60.0, "merma_pct": 0.0},
+            {"rendimiento_pct": 35.0, "merma_pct": 5.0},
+        ], "SUBPRODUCTO")
 
-    def test_suma_100_con_tolerancia_ok(self):
-        # 0.005 dentro del margen 0.01
-        svc.validate_percentages([
-            {"porcentaje": 60.003},
-            {"porcentaje": 39.997},
-        ])
-
-    def test_suma_menor_100_raises(self):
+    def test_subproducto_suma_menor_100_raises(self):
         with pytest.raises(RecetaTypeError, match="100"):
             svc.validate_percentages([
-                {"porcentaje": 50.0},
-                {"porcentaje": 30.0},
-            ])
+                {"rendimiento_pct": 50.0, "merma_pct": 0.0},
+                {"rendimiento_pct": 30.0, "merma_pct": 0.0},
+            ], "SUBPRODUCTO")
 
-    def test_suma_mayor_100_raises(self):
-        with pytest.raises(RecetaTypeError, match="100"):
-            svc.validate_percentages([
-                {"porcentaje": 70.0},
-                {"porcentaje": 40.0},
-            ])
+    def test_combinacion_no_exige_100_pero_si_cantidades_positivas(self):
+        svc.validate_percentages([
+            {"cantidad": 1.5, "rendimiento_pct": 1.0},
+            {"cantidad": 0.2, "rendimiento_pct": 99.0},
+        ], "COMBINACION")
 
-    def test_lista_vacia_ok(self):
-        svc.validate_percentages([])
+    def test_combinacion_cantidad_cero_raises(self):
+        with pytest.raises(RecetaTypeError, match="cantidades positivas"):
+            svc.validate_percentages([{"cantidad": 0}], "COMBINACION")
+
+    def test_produccion_no_exige_100_y_acepta_merma_opcional(self):
+        svc.validate_percentages([
+            {"cantidad": 2.0, "merma_pct": 0.0},
+            {"cantidad": 1.0},
+        ], "PRODUCCION")
 
 
 # ── Helpers de inferencia ─────────────────────────────────────────────────────

@@ -187,3 +187,80 @@ class ProductionCostService:
             batch_id, updated,
         )
         return updated
+
+    def allocate_recipe_run_costs(
+        self,
+        conn,
+        produccion_id: int,
+        sucursal_id: int,
+        recipe_type: str,
+        movimientos: list[dict],
+        componentes_db: list[dict],
+        base_product_id: int,
+    ) -> dict:
+        """
+        Costing for RecipeEngine path (single-step production).
+        Creates/uses production_cost_ledger rows and updates product/inventory costs once.
+        """
+        try:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS production_cost_ledger ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT, output_id TEXT, "
+                "product_id INTEGER, weight REAL, pct_utilizable REAL DEFAULT 0, "
+                "cost_total REAL, cost_per_kg REAL, operation_id TEXT, "
+                "sucursal_id INTEGER, usuario TEXT, base_product_id INTEGER, is_waste INTEGER DEFAULT 0)"
+            )
+        except Exception:
+            pass
+
+        raw = conn.execute("SELECT COALESCE(precio_compra,0) FROM productos WHERE id=?", (base_product_id,)).fetchone()
+        raw_cpk = float(raw[0] if raw else 0.0)
+        raw_qty = sum(abs(float(m["delta"])) for m in movimientos if float(m.get("delta", 0)) < 0 and m.get("movement_type") != "MERMA_PRODUCCION")
+        raw_cost = round(raw_cpk * raw_qty, 4)
+
+        outputs = [m for m in movimientos if float(m.get("delta", 0)) > 0 and m.get("movement_type") == "PRODUCCION_ENTRADA"]
+        waste = [m for m in movimientos if m.get("movement_type") == "MERMA_PRODUCCION"]
+        waste_qty = sum(abs(float(m["delta"])) for m in waste)
+        finished_qty = sum(float(m["delta"]) for m in outputs)
+        total_basis = finished_qty + waste_qty
+        if total_basis <= 0:
+            return {"raw_material_cost": raw_cost, "finished_goods_cost": 0.0, "waste_cost": 0.0}
+
+        waste_mode = "absorb"
+        try:
+            r = conn.execute("SELECT valor FROM configuraciones WHERE clave='production_waste_mode' LIMIT 1").fetchone()
+            if r and str(r[0]).strip().lower() in ("separate", "separado", "expense"):
+                waste_mode = "separate"
+        except Exception:
+            pass
+
+        waste_cost = 0.0 if waste_mode == "absorb" else round(raw_cost * (waste_qty / total_basis), 4)
+        finished_pool = round(raw_cost - waste_cost, 4)
+
+        factor_map = {int(c.get("producto_id") or c.get("component_product_id") or 0): float(c.get("factor_costo") or 1.0) for c in componentes_db}
+        basis = []
+        for o in outputs:
+            pid = int(o["product_id"]); q = float(o["delta"]); factor = factor_map.get(pid, 1.0)
+            basis.append((pid, q, max(0.0001, q * factor)))
+        basis_total = sum(b for _, _, b in basis) or 1.0
+        finished_cost = 0.0
+        for pid, q, b in basis:
+            alloc = round(finished_pool * (b / basis_total), 4)
+            cpk = round(alloc / q, 4) if q > 0 else 0.0
+            finished_cost += alloc
+            conn.execute("INSERT INTO production_cost_ledger(batch_id, output_id, product_id, weight, pct_utilizable, cost_total, cost_per_kg) VALUES (?,?,?,?,?,?,?)",
+                         (str(produccion_id), f"P{produccion_id}_{pid}", pid, q, 100.0, alloc, cpk))
+            conn.execute("UPDATE productos SET precio_compra=? WHERE id=?", (cpk, pid))
+            conn.execute("UPDATE productos SET costo=? WHERE id=?", (cpk, pid))
+            conn.execute("INSERT OR IGNORE INTO inventario_actual(producto_id,sucursal_id,cantidad,costo_promedio) VALUES (?,?,0,?)", (pid, sucursal_id, cpk))
+            conn.execute("UPDATE inventario_actual SET costo_promedio=? WHERE producto_id=? AND sucursal_id=?", (cpk, pid, sucursal_id))
+        if waste_cost > 0 and waste_qty > 0:
+            conn.execute(
+                "INSERT INTO production_cost_ledger(batch_id, output_id, product_id, weight, pct_utilizable, cost_total, cost_per_kg, is_waste) VALUES (?,?,?,?,?,?,?,1)",
+                (str(produccion_id), f"P{produccion_id}_WASTE", base_product_id, waste_qty, 0.0, waste_cost, round(waste_cost / waste_qty, 4)),
+            )
+        return {
+            "raw_material_cost": round(raw_cost, 4),
+            "finished_goods_cost": round(finished_cost, 4),
+            "waste_cost": round(waste_cost, 4),
+        }

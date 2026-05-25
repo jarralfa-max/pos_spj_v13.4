@@ -50,8 +50,10 @@ class RecetaRepository:
 
         # Detect all columns in product_recipes
         self._product_columns = self._get_table_columns('product_recipes')
+        self._component_columns = self._get_table_columns('product_recipe_components')
         # Determine which column to use for product reference (prefer product_id if exists)
         self._product_col = self._detect_product_column()
+        self._ensure_component_columns()
 
     def _get_table_columns(self, table_name: str) -> Set[str]:
         """Return a set of column names for the given table."""
@@ -101,9 +103,16 @@ class RecetaRepository:
         return dict(row) if row else None
 
     def get_components(self, receta_id: int) -> List[Dict]:
-        rows = self.db.execute("""
+        unidad_expr = "COALESCE(rc.unidad, p.unidad, 'kg')" if "unidad" in self._component_columns else "COALESCE(p.unidad, 'kg')"
+        cantidad_expr = "COALESCE(rc.cantidad, 0)" if "cantidad" in self._component_columns else "0"
+        role_expr = "COALESCE(rc.component_role, '')" if "component_role" in self._component_columns else "''"
+        factor_expr = "COALESCE(rc.factor_costo, 1.0)" if "factor_costo" in self._component_columns else "1.0"
+        rows = self.db.execute(f"""
             SELECT rc.id, rc.recipe_id, rc.component_product_id,
-                   p.nombre AS component_nombre, p.unidad,
+                   p.nombre AS component_nombre, {unidad_expr} AS unidad,
+                   {cantidad_expr} AS cantidad,
+                   {role_expr} AS component_role,
+                   {factor_expr} AS factor_costo,
                    rc.rendimiento_pct, rc.merma_pct, rc.orden, rc.descripcion
             FROM product_recipe_components rc
             LEFT JOIN productos p ON p.id = rc.component_product_id
@@ -162,30 +171,40 @@ class RecetaRepository:
                 if r["component_product_id"] not in visited:
                     queue.append(r["component_product_id"])
 
-    def validate_percentages(self, components: List[Dict]) -> None:
-        """Validates sum(rendimiento_pct + merma_pct) <= 100.00 per component,
-        and total receta sea exactamente 100% (± tolerancia)."""
+    def validate_percentages(self, components: List[Dict], tipo_receta: str = "SUBPRODUCTO") -> None:
+        """Validación por tipo de receta (FASE 3)."""
+        tipo = (tipo_receta or "SUBPRODUCTO").upper().strip()
+        if tipo not in {"SUBPRODUCTO", "COMBINACION", "PRODUCCION"}:
+            raise RecetaPercentageError(f"TIPO_RECETA_INVALIDO: {tipo_receta}")
+
         total = Decimal("0")
         for comp in components:
             rend = Decimal(str(comp.get("rendimiento_pct", 0)))
             merma = Decimal(str(comp.get("merma_pct", 0)))
-            if rend < 0 or merma < 0:
-                raise RecetaPercentageError("NEGATIVE_PERCENTAGE")
-            row_total = rend + merma
-            if row_total > MAX_TOTAL:
-                raise RecetaPercentageError(
-                    f"COMPONENT_EXCEEDS_100: rend={rend} merma={merma}"
-                )
-            total += rend
+            cantidad = Decimal(str(comp.get("cantidad", 0)))
 
-        if total > MAX_TOTAL + TOLERANCE:
-            raise RecetaPercentageError(
-                f"TOTAL_RENDIMIENTO_EXCEEDS_100: {total}"
-            )
-        if abs(total - MAX_TOTAL) > TOLERANCE:
-            raise RecetaPercentageError(
-                f"TOTAL_RENDIMIENTO_MUST_BE_100: {total}"
-            )
+            if tipo == "SUBPRODUCTO":
+                if rend < 0 or merma < 0:
+                    raise RecetaPercentageError("NEGATIVE_PERCENTAGE")
+                row_total = rend + merma
+                if row_total > MAX_TOTAL:
+                    raise RecetaPercentageError(
+                        f"COMPONENT_EXCEEDS_100: rend={rend} merma={merma}"
+                    )
+                total += row_total
+            else:
+                if cantidad <= 0:
+                    raise RecetaPercentageError(f"{tipo}_CANTIDAD_DEBE_SER_POSITIVA")
+
+        if tipo == "SUBPRODUCTO":
+            if total > MAX_TOTAL + TOLERANCE:
+                raise RecetaPercentageError(
+                    f"TOTAL_RENDIMIENTO_EXCEEDS_100: {total}"
+                )
+            if abs(total - MAX_TOTAL) > TOLERANCE:
+                raise RecetaPercentageError(
+                    f"TOTAL_RENDIMIENTO_MUST_BE_100: {total}"
+                )
 
     def check_unique_base_product(self, base_product_id: int,
                                    exclude_id: Optional[int] = None) -> None:
@@ -218,6 +237,24 @@ class RecetaRepository:
                 ).fetchone()
             if not row:
                 raise RecetaError(f"COMPONENT_NOT_FOUND: {cid}")
+
+    def _ensure_component_columns(self) -> None:
+        alters = []
+        if "cantidad" not in self._component_columns:
+            alters.append("ALTER TABLE product_recipe_components ADD COLUMN cantidad REAL DEFAULT 0")
+        if "unidad" not in self._component_columns:
+            alters.append("ALTER TABLE product_recipe_components ADD COLUMN unidad TEXT DEFAULT 'kg'")
+        if "component_role" not in self._component_columns:
+            alters.append("ALTER TABLE product_recipe_components ADD COLUMN component_role TEXT DEFAULT ''")
+        if "factor_costo" not in self._component_columns:
+            alters.append("ALTER TABLE product_recipe_components ADD COLUMN factor_costo REAL DEFAULT 1.0")
+        for sql in alters:
+            try:
+                self.db.execute(sql)
+            except Exception as exc:
+                logger.warning("No se pudo aplicar migración idempotente de componentes: %s", exc)
+        if alters:
+            self._component_columns = self._get_table_columns('product_recipe_components')
 
     # ── Write ────────────────────────────────────────────────────────────────
 
@@ -257,7 +294,7 @@ class RecetaRepository:
         self.check_unique_base_product(base_product_id)
         self.validate_no_cycle(base_product_id, component_ids)
         self.validate_component_products_exist(component_ids)
-        self.validate_percentages(components)
+        self.validate_percentages(components, tipo_receta)
 
         total_rend = sum(
             Decimal(str(c.get("rendimiento_pct", 0))) for c in components
@@ -324,14 +361,18 @@ class RecetaRepository:
                 self.db.execute("""
                     INSERT INTO product_recipe_components (
                         recipe_id, component_product_id,
-                        rendimiento_pct, merma_pct,
+                        rendimiento_pct, merma_pct, cantidad, unidad, component_role, factor_costo,
                         tolerancia_pct, orden, descripcion
-                    ) VALUES (?,?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """, (
                     receta_id,
                     comp["component_product_id"],
                     float(Decimal(str(comp.get("rendimiento_pct", 0)))),
                     float(Decimal(str(comp.get("merma_pct", 0)))),
+                    float(Decimal(str(comp.get("cantidad", 0)))),
+                    (comp.get("unidad") or "kg"),
+                    (comp.get("component_role") or ""),
+                    float(Decimal(str(comp.get("factor_costo", 1.0)))),
                     float(comp.get("tolerancia_pct", 2.0)),
                     comp.get("orden", i),
                     comp.get("descripcion", ""),
@@ -355,9 +396,24 @@ class RecetaRepository:
         base_product_id = existing["base_product_id"]
         component_ids = [c["component_product_id"] for c in components]
 
+        from core.services.recipes.recipe_validation_service import (
+            RecipeValidationService, RecetaTypeError as _RTE,
+        )
+
+        tipo_receta = (existing.get("tipo_receta") or "SUBPRODUCTO").upper().strip()
+        prod_row = self.db.execute(
+            "SELECT tipo_producto FROM productos WHERE id = ?",
+            (base_product_id,)
+        ).fetchone()
+        tipo_producto = (dict(prod_row) if hasattr(prod_row, "keys") else {"tipo_producto": prod_row[0]})["tipo_producto"] if prod_row else "simple"
+        try:
+            RecipeValidationService.validate_tipo_receta_producto(tipo_receta, tipo_producto)
+        except _RTE as exc:
+            raise RecetaError(str(exc)) from exc
+
         self.validate_no_cycle(base_product_id, component_ids)
         self.validate_component_products_exist(component_ids)
-        self.validate_percentages(components)
+        self.validate_percentages(components, tipo_receta)
 
         total_rend = sum(
             Decimal(str(c.get("rendimiento_pct", 0))) for c in components
@@ -392,14 +448,18 @@ class RecetaRepository:
                 self.db.execute("""
                     INSERT INTO product_recipe_components (
                         recipe_id, component_product_id,
-                        rendimiento_pct, merma_pct,
+                        rendimiento_pct, merma_pct, cantidad, unidad, component_role, factor_costo,
                         tolerancia_pct, orden, descripcion
-                    ) VALUES (?,?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """, (
                     receta_id,
                     comp["component_product_id"],
                     float(Decimal(str(comp.get("rendimiento_pct", 0)))),
                     float(Decimal(str(comp.get("merma_pct", 0)))),
+                    float(Decimal(str(comp.get("cantidad", 0)))),
+                    (comp.get("unidad") or "kg"),
+                    (comp.get("component_role") or ""),
+                    float(Decimal(str(comp.get("factor_costo", 1.0)))),
                     float(comp.get("tolerancia_pct", 2.0)),
                     comp.get("orden", i),
                     comp.get("descripcion", ""),

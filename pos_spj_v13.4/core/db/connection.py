@@ -337,7 +337,8 @@ class DatabaseWrapper:
         return self._conn.execute(sql, params).fetchone()
 
     @contextmanager
-    def transaction(self):
+    def transaction(self, name: str = ""):
+        _ = name  # compat legacy: permite etiquetas de transacción sin uso operativo
         with transaction(self._conn) as conn:
             yield conn
 

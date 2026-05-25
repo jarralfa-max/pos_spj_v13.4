@@ -58,6 +58,18 @@ class ProduccionDuplicadaError(RecipeEngineError):
     pass
 
 
+VALID_RECIPE_TYPES = {"subproducto", "combinacion", "produccion"}
+
+
+def normalize_recipe_type(tipo: object) -> str:
+    t = str(tipo or "").strip().lower()
+    if t in VALID_RECIPE_TYPES:
+        return t
+    raise RecipeEngineError(
+        f"TIPO_RECETA_INVALIDO: '{tipo}'. Valores permitidos: SUBPRODUCTO, COMBINACION, PRODUCCION"
+    )
+
+
 @dataclass
 class ComponenteResultado:
     producto_id: int
@@ -125,7 +137,7 @@ class RecipeEngine:
             if not receta:
                 raise RecetaNoEncontradaError(f"RECETA_NO_ENCONTRADA: id={receta_id}")
             receta = dict(receta)
-            tipo = receta.get("tipo_receta", "subproducto")
+            tipo = normalize_recipe_type(receta.get("tipo_receta", "subproducto"))
             prod_base_id = receta.get("base_product_id") or receta.get("product_id")
             peso_prom = float(receta.get("peso_promedio_kg") or 1.0)
 
@@ -161,6 +173,10 @@ class RecipeEngine:
             movimientos = self._calcular_movimientos(
                 tipo, receta, componentes_db, cantidad_base, peso_prom,
                 prod_base_id, prod_base_nombre)
+            if not movimientos:
+                raise RecipeEngineError(
+                    f"RECETA_SIN_MOVIMIENTOS: receta_id={receta_id} tipo={tipo}"
+                )
 
             # 3b. Aplicar mediciones reales + validar tolerancia
             if mediciones_reales:
@@ -298,46 +314,16 @@ class RecipeEngine:
                     tipo=tipo_det,
                 ))
 
-            # 7. FIX FALLA-2: Costo real por kg (no por piezas)
-            # costo_base_total = precio_compra_kg × total_kg_entrada
-            if tipo == "subproducto" and total_consumido > 0:
-                costo_row = conn.execute(
-                    "SELECT COALESCE(precio_compra, 0) FROM productos WHERE id=?",
-                    (prod_base_id,)).fetchone()
-                costo_por_kg = float(costo_row[0] if costo_row else 0)
-                # total_kg real consumido (ya en kg porque el movimiento de salida usa kg)
-                total_kg_entrada = total_consumido
-                costo_base_total = costo_por_kg * total_kg_entrada
-
-                if costo_base_total > 0 and total_generado > 0:
-                    for mov in movimientos:
-                        if mov["delta"] > 0 and mov.get("movement_type") == "PRODUCCION_ENTRADA":
-                            costo_unit = round(
-                                (costo_base_total * (mov["delta"] / total_generado)) / mov["delta"], 4
-                            )
-                            if costo_unit > 0:
-                                try:
-                                    conn.execute(
-                                        "UPDATE productos SET precio_compra=? WHERE id=?",
-                                        (costo_unit, mov["product_id"]))
-                                    # P0-4: UPDATE first; INSERT OR IGNORE covers the case
-                                    # where inventario_actual has no row yet for this branch,
-                                    # so both precio_compra and costo_promedio always align.
-                                    conn.execute("""
-                                        UPDATE inventario_actual
-                                        SET costo_promedio = ?
-                                        WHERE producto_id = ? AND sucursal_id = ?
-                                    """, (costo_unit, mov["product_id"], suc_id))
-                                    conn.execute("""
-                                        INSERT OR IGNORE INTO inventario_actual
-                                            (producto_id, sucursal_id, costo_promedio, cantidad)
-                                        VALUES (?, ?, ?, 0)
-                                    """, (mov["product_id"], suc_id, costo_unit))
-                                except Exception as _ce:
-                                    logger.warning(
-                                        "cost update failed p=%s suc=%s: %s",
-                                        mov["product_id"], suc_id, _ce,
-                                    )
+            from core.services.finance.production_cost_service import ProductionCostService
+            cost_allocs = ProductionCostService(self.db).allocate_recipe_run_costs(
+                conn=conn,
+                produccion_id=produccion_id,
+                sucursal_id=suc_id,
+                recipe_type=tipo,
+                movimientos=movimientos,
+                componentes_db=componentes_db,
+                base_product_id=prod_base_id,
+            )
 
         logger.info(
             "PRODUCCION_OK id=%d receta=%s tipo=%s base=%.4f gen=%.4f cons=%.4f merma=%.4f op=%s",
@@ -346,23 +332,9 @@ class RecipeEngine:
         )
 
         # Compute cost totals for the normalized event payload.
-        _raw_cost = 0.0
-        _fin_cost = 0.0
-        if tipo == "subproducto" and total_consumido > 0:
-            try:
-                _cpkg_row = self.db.fetchone(
-                    "SELECT COALESCE(precio_compra, 0) FROM productos WHERE id=?",
-                    (prod_base_id,))
-                _cpkg = float(_cpkg_row[0] if _cpkg_row else 0)
-                _raw_cost = round(_cpkg * total_consumido, 4)
-                _fin_cost = round(_cpkg * total_generado, 4)
-            except Exception as _cost_err:
-                # P0-1: log so GL auditors know the event will carry zero-cost
-                logger.warning(
-                    "cost_payload: no se pudo leer precio_compra de prod_base=%s — "
-                    "el evento PRODUCCION_COMPLETADA se publicará con raw_material_cost=0: %s",
-                    prod_base_id, _cost_err,
-                )
+        _raw_cost = float(cost_allocs.get("raw_material_cost", 0.0))
+        _fin_cost = float(cost_allocs.get("finished_goods_cost", 0.0))
+        _waste_cost = float(cost_allocs.get("waste_cost", 0.0))
 
         self._publicar_evento(
             produccion_id, receta, suc_id, movimientos,
@@ -372,6 +344,7 @@ class RecipeEngine:
             operation_id=op_id,
             raw_material_cost=_raw_cost,
             finished_goods_cost=_fin_cost,
+            waste_cost=_waste_cost,
         )
 
         return ProduccionResultDTO(
@@ -392,6 +365,7 @@ class RecipeEngine:
                               prod_base_id=None, prod_base_nombre=""):
         movimientos = []
 
+        tipo = normalize_recipe_type(tipo)
         if tipo == "subproducto":
             # total_kg: la materia prima se pesa en kg
             total_kg = cantidad_base * peso_prom
@@ -574,7 +548,8 @@ class RecipeEngine:
         _base_nombre = _base_row["nombre"] if _base_row else f"#{_base_id}"
 
         return self._calcular_movimientos(
-            receta["tipo_receta"], receta, [dict(r) for r in comps],
+            normalize_recipe_type(receta.get("tipo_receta", "subproducto")),
+            receta, [dict(r) for r in comps],
             cantidad_base, float(receta.get("peso_promedio_kg") or 1.0),
             _base_id, _base_nombre,
         )
@@ -630,6 +605,7 @@ class RecipeEngine:
         operation_id: str = "",
         raw_material_cost: float = 0.0,
         finished_goods_cost: float = 0.0,
+        waste_cost: float = 0.0,
     ):
         try:
             from core.events.event_bus import get_bus
@@ -655,8 +631,6 @@ class RecipeEngine:
                 for m in movimientos
                 if m.get("delta", 0) > 0
             ]
-            waste_cost = 0.0  # recipe path does not split waste cost separately
-
             payload = make_produccion_completada_payload(
                 produccion_id       = produccion_id,
                 folio               = str(receta.get("id", "")),

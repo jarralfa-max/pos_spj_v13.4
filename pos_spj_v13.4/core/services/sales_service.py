@@ -7,6 +7,7 @@ from datetime import datetime
 
 from core.events.domain_events import SALE_ITEMS_PROCESS
 from core.events.event_factory import make_sale_payload
+from core.services.sales_fulfillment_service import SaleFulfillmentService
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class SalesService:
         self.config_service = config_service
         self.feature_flag_service = feature_flag_service
         self.customer_service = customer_service
+        self._fulfillment = SaleFulfillmentService(db_conn)
 
     def _generate_unique_sale_folio(self) -> str:
         """
@@ -79,23 +81,56 @@ class SalesService:
         Why before the SAVEPOINT: guarantees a clean raise (no partial DB state)
         even when SALE_ITEMS_PROCESS handlers run inside the transaction.
         """
-        if not self.inventory_service or not hasattr(self.inventory_service, "get_stock"):
+        if not items:
             return
         for item in items:
-            if item.get("es_compuesto", 0) or float(item.get("qty", 0)) <= 0:
+            if float(item.get("qty", 0)) <= 0:
                 continue
             try:
-                available = self.inventory_service.get_stock(item["product_id"], branch_id)
-                needed    = float(item["qty"])
-                if available < needed:
-                    raise RuntimeError(
-                        f"Stock insuficiente para '{item.get('nombre', item.get('name', item['product_id']))}': "
-                        f"disponible {available:.3f}, requerido {needed:.3f}"
-                    )
+                self._fulfillment.resolve_item(item["product_id"], float(item["qty"]), branch_id)
             except RuntimeError:
                 raise
-            except Exception:
-                pass  # non-critical pre-check; handler will enforce on deduction
+            except ValueError as e:
+                raise RuntimeError(str(e))
+            except Exception as exc:
+                logger.error(
+                    "Pre-validación de stock/fulfillment falló para product_id=%s qty=%s branch_id=%s: %s",
+                    item.get("product_id"), item.get("qty"), branch_id, exc
+                )
+                raise RuntimeError(
+                    "No se pudo validar inventario antes de la venta. Intenta nuevamente."
+                ) from exc
+
+    def _resolve_sale_items(self, items: list, branch_id: int) -> list:
+        resolved = []
+        for item in items:
+            pid = int(item["product_id"])
+            qty = float(item["qty"])
+            lines = self._fulfillment.resolve_item(pid, qty, branch_id)
+            for ln in lines:
+                resolved.append({
+                    "product_id": ln.product_id,
+                    "qty": ln.qty,
+                    "cantidad": ln.qty,
+                    "unit_price": item.get("unit_price", 0),
+                    "precio_unitario": item.get("precio_unitario", item.get("unit_price", 0)),
+                    "nombre": item.get("nombre", ln.name),
+                    "unidad": item.get("unidad", "kg"),
+                    "es_compuesto": 0,
+                    "fulfillment_mode": ln.mode,
+                    "source_product_id": ln.source_product_id,
+                    "sold_product_id": pid,
+                })
+        # merge duplicates from nested recipes
+        merged = {}
+        for r in resolved:
+            key = r["product_id"]
+            if key not in merged:
+                merged[key] = dict(r)
+            else:
+                merged[key]["qty"] += r["qty"]
+                merged[key]["cantidad"] += r["cantidad"]
+        return list(merged.values())
 
     def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
                      amount_paid: float, client_id: int = None, client_phone: str = None,
@@ -281,6 +316,7 @@ class SalesService:
             # C. Inventario + Finanzas vía evento SALE_ITEMS_PROCESS (sync, dentro del SAVEPOINT).
             #    SaleInventoryHandler y SaleFinanceHandler están registrados en wiring.py.
             #    Si no hay handlers activos (tests sin AppContainer), la emisión es no-op.
+            resolved_items = self._resolve_sale_items(carrito_final, branch_id)
             _sale_evt_payload = make_sale_payload(
                 sale_id=sale_id,
                 folio=folio,
@@ -288,7 +324,7 @@ class SalesService:
                 total=total_a_pagar,
                 user=user,
                 client_id=client_id,
-                items=carrito_final,
+                items=resolved_items,
                 payment_method=payment_method,
                 operation_id=operation_id,
             )

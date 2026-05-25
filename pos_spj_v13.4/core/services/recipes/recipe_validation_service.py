@@ -84,20 +84,43 @@ class RecipeValidationService:
             )
 
     @staticmethod
-    def validate_percentages(items: list[dict]) -> None:
+    def validate_percentages(items: list[dict], tipo_receta: str = RECETA_SUBPRODUCTO) -> None:
         """
-        For COMBINACION recipes: component percentages must sum to 100.
+        Validate recipe components according to tipo_receta:
+          - SUBPRODUCTO: rendimiento + merma total must be 100.
+          - COMBINACION: positive cantidades, percentage sum is NOT required.
+          - PRODUCCION:  positive cantidades, merma is optional.
+        """
+        tipo = (tipo_receta or "").upper().strip()
+        if tipo not in VALID_TIPOS_RECETA:
+            raise RecetaTypeError(f"tipo_receta inválido para validar componentes: '{tipo_receta}'")
 
-        items: list of dicts with key 'porcentaje' (float).
-        """
         if not items:
             return
-        total = sum(float(it.get("porcentaje", 0)) for it in items)
-        if abs(total - 100.0) > 0.01:
-            raise RecetaTypeError(
-                f"Los porcentajes de la receta COMBINACION deben sumar 100 "
-                f"(suma actual: {total:.2f})."
-            )
+
+        if tipo == RECETA_SUBPRODUCTO:
+            total = 0.0
+            for it in items:
+                rend = float(it.get("rendimiento_pct", it.get("porcentaje", 0)) or 0)
+                merma = float(it.get("merma_pct", 0) or 0)
+                if rend < 0 or merma < 0:
+                    raise RecetaTypeError("Rendimiento/merma no pueden ser negativos.")
+                if (rend + merma) > 100.01:
+                    raise RecetaTypeError("Cada componente de SUBPRODUCTO no puede exceder 100%.")
+                total += (rend + merma)
+            if abs(total - 100.0) > 0.01:
+                raise RecetaTypeError(
+                    f"SUBPRODUCTO requiere rendimiento+merma=100 (actual: {total:.2f})."
+                )
+            return
+
+        # COMBINACION / PRODUCCION: cantidades positivas
+        for it in items:
+            cantidad = float(it.get("cantidad", 0) or 0)
+            if cantidad <= 0:
+                raise RecetaTypeError(
+                    f"{tipo} requiere cantidades positivas por componente."
+                )
 
     # ── Inference helpers ─────────────────────────────────────────────────────
 
