@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import List, Dict, Any
 
 
@@ -46,7 +46,7 @@ def enqueue_event(
             json.dumps(payload or {}, ensure_ascii=False, default=str),
             aggregate_type or "",
             str(aggregate_id or ""),
-            datetime.utcnow().isoformat(),
+            datetime.now(UTC).isoformat(),
         ),
     )
     try:
@@ -91,10 +91,9 @@ def mark_dispatched(db, event_id: int, error: str = "") -> None:
         SET status=?, error=?, dispatched_at=?
         WHERE id=?
         """,
-        (status, error or "", datetime.utcnow().isoformat(), int(event_id)),
+        (status, error or "", datetime.now(UTC).isoformat(), int(event_id)),
     )
     try:
         db.commit()
     except Exception:
         pass
-
