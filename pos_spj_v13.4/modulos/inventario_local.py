@@ -786,6 +786,106 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
         return container
 
+    def _build_inventory_tabs(self) -> QTabWidget:
+        self._tabs_inv = QTabWidget(self)
+        self._tab_exist = QWidget()
+        self._tab_disp = QWidget()
+        self._tab_virtual = QWidget()
+        self._tab_mov = QWidget()
+        self._tab_res = QWidget()
+        self._tab_aj = QWidget()
+        self._tab_aud = QWidget()
+
+        self._tabs_inv.addTab(self._tab_exist, "Existencias")
+        self._tabs_inv.addTab(self._tab_disp, "Disponibilidad")
+        self._tabs_inv.addTab(self._tab_virtual, "Stock virtual")
+        self._tabs_inv.addTab(self._tab_mov, "Movimientos")
+        self._tabs_inv.addTab(self._tab_res, "Reservas")
+        self._tabs_inv.addTab(self._tab_aj, "Ajustes")
+        self._tabs_inv.addTab(self._tab_aud, "Auditoría")
+
+        le = QVBoxLayout(self._tab_exist)
+        le.setContentsMargins(0, 0, 0, 0)
+        le.addWidget(self._build_table())
+
+        ld = QVBoxLayout(self._tab_disp)
+        ld.setContentsMargins(0, 0, 0, 0)
+        ld.addWidget(self._build_disponibilidad_table())
+
+        lv = QVBoxLayout(self._tab_virtual)
+        lv.setContentsMargins(0, 0, 0, 0)
+        lv.addWidget(self._build_virtual_table())
+
+        lm = QVBoxLayout(self._tab_mov)
+        lm.setContentsMargins(0, 0, 0, 0)
+        lm.addWidget(self._build_movimientos_table())
+
+        lr = QVBoxLayout(self._tab_res)
+        lbl_res = QLabel("Reservas: vista en preparación (sin mezclar físico y virtual).")
+        lbl_res.setObjectName("caption")
+        lr.addWidget(lbl_res)
+
+        la = QVBoxLayout(self._tab_aj)
+        lbl_aj = QLabel("Ajustes: use el botón ⚖ Ajuste para registrar movimientos auditados.")
+        lbl_aj.setObjectName("caption")
+        la.addWidget(lbl_aj)
+
+        lau = QVBoxLayout(self._tab_aud)
+        lbl_aud = QLabel("Auditoría: use 📋 Historial para revisar trazabilidad por producto.")
+        lbl_aud.setObjectName("caption")
+        lau.addWidget(lbl_aud)
+
+        return self._tabs_inv
+
+    def _build_disponibilidad_table(self) -> QTableWidget:
+        self.tabla_disponibilidad = QTableWidget(self)
+        self.tabla_disponibilidad.setColumnCount(7)
+        self.tabla_disponibilidad.setHorizontalHeaderLabels([
+            "Producto", "Stock físico", "Reservado", "Disponible físico",
+            "Disponible virtual", "Disponible venta", "Modo"
+        ])
+        self.tabla_disponibilidad.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabla_disponibilidad.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_disponibilidad.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_disponibilidad.verticalHeader().setVisible(False)
+        self.tabla_disponibilidad.setObjectName("tableView")
+        return self.tabla_disponibilidad
+
+    def _build_virtual_table(self) -> QTableWidget:
+        self.tabla_virtual = QTableWidget(self)
+        self.tabla_virtual.setColumnCount(8)
+        self.tabla_virtual.setHorizontalHeaderLabels([
+            "Producto vendible", "Stock físico", "Disponible virtual", "Receta usada",
+            "Componentes requeridos", "Máx vendible", "Componente limitante", "Sucursal"
+        ])
+        self.tabla_virtual.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabla_virtual.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_virtual.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_virtual.verticalHeader().setVisible(False)
+        self.tabla_virtual.setObjectName("tableView")
+        return self.tabla_virtual
+
+    def _build_movimientos_table(self) -> QTableWidget:
+        self.tabla_movimientos = QTableWidget(self)
+        self.tabla_movimientos.setColumnCount(8)
+        self.tabla_movimientos.setHorizontalHeaderLabels([
+            "Fecha", "Producto", "Tipo movimiento", "Cantidad", "Sucursal", "Referencia", "Usuario", "Origen"
+        ])
+        hh = self.tabla_movimientos.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.tabla_movimientos.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_movimientos.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_movimientos.verticalHeader().setVisible(False)
+        self.tabla_movimientos.setObjectName("tableView")
+        return self.tabla_movimientos
+
     def _build_action_bar(self) -> QWidget:
         bar = QFrame(self)
         bar.setObjectName("dashChartCard")
