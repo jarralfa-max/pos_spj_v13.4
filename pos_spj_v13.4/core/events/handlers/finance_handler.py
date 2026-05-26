@@ -37,8 +37,8 @@ class SaleFinanceHandler:
         # Credit sales: income is deferred — CreditSaleFinanceHandler handles CxC.
         # MercadoPago: only a payment link is generated here — income registered
         # only after webhook confirmation. Do NOT record as collected income now.
-        _DEFERRED = {"Credito", "Mercado Pago"}
-        if payment_method in _DEFERRED or total <= 0:
+        from core.services.payment_normalization import is_deferred_payment
+        if is_deferred_payment(payment_method) or total <= 0:
             return
 
         try:
@@ -79,7 +79,8 @@ class CreditSaleFinanceHandler:
 
     def handle(self, payload: Dict[str, Any]) -> None:
         payment_method = str(payload.get("payment_method", ""))
-        if payment_method != "Credito":
+        from core.services.payment_normalization import is_credit_sale
+        if not is_credit_sale(payment_method):
             return
 
         total       = float(payload.get("total", 0))
@@ -163,7 +164,8 @@ class SaleCancelledFinanceHandler:
             return
 
         try:
-            is_credit = payment_method == "Credito"
+            from core.services.payment_normalization import is_credit_sale
+            is_credit = is_credit_sale(payment_method)
 
             if is_credit:
                 # Reverse CxC: mark document as cancelled
