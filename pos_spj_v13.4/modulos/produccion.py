@@ -20,6 +20,7 @@ from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
     FilterBar, LoadingIndicator, EmptyStateWidget
 )
+from modulos.kpi_card import KPICard
 
 import logging
 from typing import Dict, List, Optional
@@ -193,74 +194,26 @@ class ModuloProduccion(ModuloBase):
         Sigue el estándar visual de finanzas_unificadas._crear_fin_kpi_bar.
         Sin hardcodeo: usa Colors.NEUTRAL tokens.
         """
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-
-        N = Colors.NEUTRAL
-        bar = _F()
-        bar.setObjectName("prodStatsBar")
-        bar.setFixedHeight(68)
-        bar.setStyleSheet(
-            f"QFrame#prodStatsBar {{ "
-            f"background:{N.DARK_CARD}; "
-            f"border-radius:8px; "
-            f"border:1px solid {N.DARK_BORDER}; }}"
-        )
-
-        lay = _H(bar)
-        lay.setContentsMargins(Spacing.LG, Spacing.SM, Spacing.LG, Spacing.SM)
-        lay.setSpacing(0)
-
-        # Definición inicial de KPIs (valores placeholder)
-        kpis = [
-            ("producciones_hoy", "Producciones hoy", "—",    Colors.PRIMARY_BASE),
-            ("kg_procesados",    "Kg procesados",    "—",    Colors.SUCCESS_BASE),
-            ("merma_dia",        "Merma del día",    "—",    Colors.WARNING_BASE),
-            ("rendimiento",      "Rendimiento",      "—",    Colors.SUCCESS_BASE),
-            ("lotes_activos",    "Lotes activos",    "—",    Colors.INFO_BASE),
-        ]
-
-        # Guardar referencias a los QLabel de valor para actualizaciones en vivo
-        self._stats_lbl_vals: dict = {}
-
-        for i, (key, label, valor, color) in enumerate(kpis):
-            if i > 0:
-                sep = _F()
-                sep.setFrameShape(_F.VLine)
-                sep.setFixedWidth(1)
-                sep.setStyleSheet(f"background:{N.SLATE_700}; border:none;")
-                lay.addWidget(sep)
-                lay.addSpacing(Spacing.LG)
-
-            col = _V()
-            col.setSpacing(2)
-
-            lbl_v = _L(valor)
-            lbl_v.setStyleSheet(
-                f"color:{color}; font-size:18px; font-weight:700; background:transparent;"
-            )
-            lbl_l = _L(label.upper())
-            lbl_l.setStyleSheet(
-                f"color:{N.SLATE_500}; font-size:9px; font-weight:700; "
-                f"letter-spacing:0.5px; background:transparent;"
-            )
-
-            self._stats_lbl_vals[key] = (lbl_v, color)  # (label_widget, color_ok)
-            col.addWidget(lbl_v)
-            col.addWidget(lbl_l)
-            lay.addLayout(col)
-
-            if i < len(kpis) - 1:
-                lay.addSpacing(Spacing.LG)
-
-        lay.addStretch()
-
-        # Cargar valores reales en diferido para no bloquear arranque
+        from PyQt5.QtWidgets import QWidget, QHBoxLayout
+        bar = QWidget()
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(Spacing.MD)
+        self._stats_cards = {
+            "producciones_hoy": KPICard("Producciones hoy", "—", "🏭", "primary"),
+            "kg_procesados": KPICard("Kg procesados", "—", "⚖️", "success"),
+            "merma_dia": KPICard("Merma del día", "—", "🧪", "warning"),
+            "rendimiento": KPICard("Rendimiento", "—", "📈", "success"),
+            "lotes_activos": KPICard("Lotes activos", "—", "🧾", "info"),
+        }
+        for card in self._stats_cards.values():
+            lay.addWidget(card)
         QTimer.singleShot(50, self._actualizar_stats_bar)
         return bar
 
     def _actualizar_stats_bar(self) -> None:
         """Actualiza los QLabels de la stats bar con datos del servicio de query."""
-        if not hasattr(self, '_stats_lbl_vals'):
+        if not hasattr(self, '_stats_cards'):
             return
 
         db = self.conexion
@@ -274,36 +227,11 @@ class ModuloProduccion(ModuloBase):
         merma = vals.get("merma_dia", 0)
         rend  = vals.get("rendimiento", 0.0)
 
-        formatos = {
-            "producciones_hoy": (
-                str(vals.get("producciones_hoy", 0)),
-                Colors.PRIMARY_BASE,
-            ),
-            "kg_procesados": (
-                f"{kg_p:.1f} kg",
-                Colors.SUCCESS_BASE,
-            ),
-            "merma_dia": (
-                f"{merma:.1f} kg",
-                Colors.DANGER_BASE if merma > 0 else Colors.SUCCESS_BASE,
-            ),
-            "rendimiento": (
-                f"{rend:.1f}%",
-                Colors.SUCCESS_BASE if rend >= 90 else Colors.WARNING_BASE,
-            ),
-            "lotes_activos": (
-                str(vals.get("lotes_activos", 0)),
-                Colors.INFO_BASE,
-            ),
-        }
-
-        for key, (lbl_w, _default_color) in self._stats_lbl_vals.items():
-            if key in formatos:
-                texto, color = formatos[key]
-                lbl_w.setText(texto)
-                lbl_w.setStyleSheet(
-                    f"color:{color}; font-size:18px; font-weight:700; background:transparent;"
-                )
+        self._stats_cards["producciones_hoy"].set_valor(str(vals.get("producciones_hoy", 0)))
+        self._stats_cards["kg_procesados"].set_valor(f"{kg_p:.1f} kg")
+        self._stats_cards["merma_dia"].set_valor(f"{merma:.1f} kg")
+        self._stats_cards["rendimiento"].set_valor(f"{rend:.1f}%")
+        self._stats_cards["lotes_activos"].set_valor(str(vals.get("lotes_activos", 0)))
 
     # ── TAB: Ejecutar Producción ──────────────────────────────────────────────
 
@@ -324,6 +252,9 @@ class ModuloProduccion(ModuloBase):
         self._combo_receta = QComboBox()
         self._combo_receta.currentIndexChanged.connect(self._on_receta_changed)
         fl.addWidget(self._combo_receta)
+        lbl_migracion = QLabel("Las recetas ahora se administran desde Productos > Receta.")
+        lbl_migracion.setObjectName("caption")
+        fl.addWidget(lbl_migracion)
 
         # Info receta
         self._lbl_tipo = QLabel()

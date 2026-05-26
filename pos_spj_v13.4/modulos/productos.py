@@ -29,6 +29,8 @@ from PyQt5.QtGui import QFont, QPixmap
 import logging
 from modulos.dialogs.receta_dialog import DialogoReceta
 from core.services.recipes.recipe_service import RecipeService
+from modulos.kpi_card import KPICard
+from core.services.product_catalog_query_service import get_product_configuration_kpis, get_catalog_filter_ids
 
 logger = logging.getLogger(__name__)
 
@@ -70,22 +72,24 @@ class DialogoProducto(QDialog):
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
         
-        # --- TABS DEL FORMULARIO ---
+        # --- TABS DEL FORMULARIO (FASE 1: producto como configuración) ---
         tabs = QTabWidget()
         tab_general = QWidget()
-        self.tab_compuesto = QWidget() # Se oculta/muestra según el tipo
-        
-        tabs.addTab(tab_general, "Datos Generales")
-        tabs.addTab(self.tab_compuesto, "Componentes (Si es Compuesto)")
-        
-        # ================= TAB GENERAL =================
-        layout_general = QHBoxLayout(tab_general)
-        
-        # Columna Izquierda: Formulario
-        form_layout = QFormLayout()
+        tab_config = QWidget()
+        tab_precios = QWidget()
+        tab_receta = QWidget()
+        tab_referencias = QWidget()
+
+        tabs.addTab(tab_general, "General")
+        tabs.addTab(tab_config, "Configuración")
+        tabs.addTab(tab_precios, "Precios / Costos base")
+        tabs.addTab(tab_receta, "Receta")
+        tabs.addTab(tab_referencias, "Referencias")
+
+        # ================= CAMPOS BASE =================
         
         self.cmb_tipo = QComboBox()
-        self.cmb_tipo.addItems(["Simple", "Compuesto", "Subproducto"])
+        self.cmb_tipo.addItems(["Simple", "Compuesto", "Procesable", "Subproducto", "Producido", "Insumo", "Servicio"])
         self.cmb_tipo.currentTextChanged.connect(self.al_cambiar_tipo)
         
         self.txt_nombre = QLineEdit()
@@ -96,6 +100,13 @@ class DialogoProducto(QDialog):
         self.cmb_categoria.setEditable(True)
         self.cargar_categorias()
         
+        self.cmb_estado = QComboBox()
+        self.cmb_estado.addItems(["Activo", "Inactivo"])
+
+        self.cmb_unidad_venta = QComboBox()
+        self.cmb_unidad_venta.addItems(["kg", "pza", "litro", "paquete", "caja"])
+        self.cmb_unidad_compra = QComboBox()
+        self.cmb_unidad_compra.addItems(["kg", "pza", "litro", "paquete", "caja"])
         self.txt_precio = QDoubleSpinBox()
         self.txt_precio.setRange(0.0, 999999.0)
         self.txt_precio.setPrefix("$ ")
@@ -104,19 +115,11 @@ class DialogoProducto(QDialog):
         self.txt_costo.setRange(0.0, 999999.0)
         self.txt_costo.setPrefix("$ ")
         
-        self.cmb_unidad = QComboBox()
+        self.cmb_unidad = QComboBox()  # unidad base / inventario
         self.cmb_unidad.addItems(["kg", "pza", "litro", "paquete", "caja"])
         
         self.txt_stock_minimo = QDoubleSpinBox()
         self.txt_stock_minimo.setRange(0.0, 99999.0)
-        
-        form_layout.addRow("Tipo de Producto:", self.cmb_tipo)
-        form_layout.addRow("Nombre:*", self.txt_nombre)
-        form_layout.addRow("Código Interno:", self.txt_codigo)
-        form_layout.addRow("Código de Barras:", self.txt_codigo_barras)
-        form_layout.addRow("Categoría:", self.cmb_categoria)
-        form_layout.addRow("Precio de Venta:*", self.txt_precio)
-        form_layout.addRow("Costo de Compra:", self.txt_costo)
 
         # Precio mínimo (protección financiera)
         self.txt_precio_minimo = QDoubleSpinBox()
@@ -124,11 +127,20 @@ class DialogoProducto(QDialog):
         self.txt_precio_minimo.setDecimals(2)
         self.txt_precio_minimo.setPrefix("$")
         self.txt_precio_minimo.setToolTip("Precio mínimo de venta. Por debajo de este precio el sistema bloquea el descuento.")
-        form_layout.addRow("Precio mínimo:", self.txt_precio_minimo)
-        form_layout.addRow("Unidad de Medida:", self.cmb_unidad)
-        form_layout.addRow("Stock Mínimo:", self.txt_stock_minimo)
-        
-        # Columna Derecha: Imagen
+
+        # ================= TAB GENERAL =================
+        layout_general = QHBoxLayout(tab_general)
+        form_general = QFormLayout()
+        form_general.addRow("Nombre:*", self.txt_nombre)
+        form_general.addRow("SKU / Código:", self.txt_codigo)
+        form_general.addRow("Código de Barras:", self.txt_codigo_barras)
+        form_general.addRow("Categoría:", self.cmb_categoria)
+        form_general.addRow("Unidad de venta:", self.cmb_unidad_venta)
+        form_general.addRow("Unidad de compra:", self.cmb_unidad_compra)
+        form_general.addRow("Unidad base / inventario:", self.cmb_unidad)
+        form_general.addRow("Estado:", self.cmb_estado)
+
+        # Columna Derecha: Imagen + descripción
         panel_imagen = QVBoxLayout()
         self.lbl_imagen = QLabel("Sin Imagen")
         self.lbl_imagen.setAlignment(Qt.AlignCenter)
@@ -147,17 +159,69 @@ class DialogoProducto(QDialog):
         panel_imagen.addWidget(btn_quitar_img)
         panel_imagen.addStretch()
         
-        layout_general.addLayout(form_layout, 2)
+        layout_general.addLayout(form_general, 2)
         layout_general.addLayout(panel_imagen, 1)
-        
-        # ================= TAB COMPUESTOS =================
-        layout_compuesto = QVBoxLayout(self.tab_compuesto)
-        layout_compuesto.addWidget(QLabel("<i>Agregue los productos que conforman este paquete/combo.</i>"))
-        # Aquí iría un QTableWidget para agregar componentes si el usuario elige "Compuesto"
-        self.tabla_componentes = QTableWidget()
-        self.tabla_componentes.setColumnCount(3)
-        self.tabla_componentes.setHorizontalHeaderLabels(["ID Prod.", "Nombre", "Cantidad"])
-        layout_compuesto.addWidget(self.tabla_componentes)
+
+        # ================= TAB CONFIGURACIÓN =================
+        layout_config = QVBoxLayout(tab_config)
+        form_config = QFormLayout()
+        form_config.addRow("Tipo de Producto:", self.cmb_tipo)
+        self.chk_se_vende = QCheckBox("Se vende")
+        self.chk_es_inventariable = QCheckBox("Es inventariable")
+        self.chk_permite_receta = QCheckBox("Permite receta")
+        self.chk_permite_stock_virtual = QCheckBox("Permite stock virtual")
+        self.chk_descuenta_componentes = QCheckBox("Descuenta componentes en venta")
+        for chk in (
+            self.chk_se_vende, self.chk_es_inventariable, self.chk_permite_receta,
+            self.chk_permite_stock_virtual, self.chk_descuenta_componentes
+        ):
+            chk.setEnabled(False)  # fallback seguro: solo mostrar comportamiento
+            layout_config.addWidget(chk)
+        layout_config.addLayout(form_config)
+        self.lbl_tipo_help = create_caption(self, "")
+        layout_config.addWidget(self.lbl_tipo_help)
+        self._actualizar_hint_tipo(self.cmb_tipo.currentText())
+
+        # ================= TAB PRECIOS / COSTOS BASE =================
+        layout_precios = QVBoxLayout(tab_precios)
+        form_precios = QFormLayout()
+        form_precios.addRow("Precio venta:", self.txt_precio)
+        form_precios.addRow("Precio compra base:", self.txt_costo)
+        form_precios.addRow("Precio mínimo:", self.txt_precio_minimo)
+        self.lbl_costo_std = create_caption(self, "Costo estándar: —")
+        self.lbl_margen = create_caption(self, "Margen esperado: —")
+        layout_precios.addLayout(form_precios)
+        layout_precios.addWidget(self.lbl_costo_std)
+        layout_precios.addWidget(self.lbl_margen)
+
+        # ================= TAB RECETA =================
+        lay_receta = QVBoxLayout(tab_receta)
+        lay_receta.addWidget(create_caption(
+            self,
+            "La receta del producto se administra desde Productos > pestaña Receta del módulo."
+        ))
+        lay_receta.addWidget(create_caption(
+            self,
+            "SIMPLE y SERVICIO no usan receta. COMPUESTO/PROCESABLE/PRODUCIDO sí permiten receta."
+        ))
+        lay_receta.addStretch()
+
+        # ================= TAB REFERENCIAS =================
+        lay_ref = QVBoxLayout(tab_referencias)
+        self.lbl_stock_fisico = create_caption(self, "Stock físico actual: —")
+        self.lbl_disponible_venta = create_caption(self, "Disponible venta: —")
+        lay_ref.addWidget(self.lbl_stock_fisico)
+        lay_ref.addWidget(self.lbl_disponible_venta)
+        lay_ref.addWidget(create_caption(self, "Stock y disponibilidad se administran en Inventario."))
+        btn_ver_inv = create_secondary_button(self, "📦 Ver en Inventario", "Abrir módulo Inventario para gestión de existencias")
+        btn_ver_inv.clicked.connect(lambda: QMessageBox.information(
+            self, "Inventario",
+            "La gestión de existencias se realiza en el módulo Inventario."
+        ))
+        lay_ref.addWidget(btn_ver_inv)
+        lay_ref.addWidget(QLabel("Stock mínimo de referencia:"))
+        lay_ref.addWidget(self.txt_stock_minimo)
+        lay_ref.addStretch()
         
         # --- BOTONES DE ACCIÓN ---
         layout_principal.addWidget(tabs)
@@ -179,8 +243,20 @@ class DialogoProducto(QDialog):
         layout_principal.addWidget(btn_box)
 
     def al_cambiar_tipo(self, tipo):
-        """Habilita o deshabilita la pestaña de compuestos."""
-        self.tab_compuesto.setEnabled(tipo == "Compuesto")
+        self._actualizar_hint_tipo(tipo)
+
+    def _actualizar_hint_tipo(self, tipo: str):
+        hints = {
+            "Simple": "Producto que se compra y vende directamente.",
+            "Compuesto": "Producto vendido como paquete/combo. Puede descontar componentes al venderse.",
+            "Procesable": "Producto que puede transformarse en subproductos. Ejemplo: pollo entero.",
+            "Subproducto": "Producto generado por un despiece o usado como componente de otros productos.",
+            "Producido": "Producto elaborado a partir de insumos o subproductos.",
+            "Insumo": "Producto usado como ingrediente/material.",
+            "Servicio": "No controla inventario físico.",
+        }
+        if hasattr(self, "lbl_tipo_help"):
+            self.lbl_tipo_help.setText(hints.get(tipo, ""))
 
     def cargar_categorias(self):
         """Carga las categorías únicas existentes."""
@@ -231,12 +307,20 @@ class DialogoProducto(QDialog):
                 self.txt_precio.setValue(p.get('precio', 0.0))
                 self.txt_costo.setValue(p.get('precio_compra', 0.0) or p.get('costo', 0.0))
                 self.cmb_unidad.setCurrentText(p.get('unidad', 'pza'))
+                self.cmb_unidad_venta.setCurrentText(p.get('unidad_venta', p.get('unidad', 'pza')))
+                self.cmb_unidad_compra.setCurrentText(p.get('unidad_compra', p.get('unidad', 'pza')))
+                self.cmb_estado.setCurrentText("Activo" if int(p.get('activo', 1) or 1) == 1 else "Inactivo")
                 self.txt_stock_minimo.setValue(p.get('stock_minimo', 0.0))
                 
                 tipo = p.get('tipo_producto', 'simple')
                 if p.get('es_compuesto'): tipo = "Compuesto"
                 if p.get('es_subproducto'): tipo = "Subproducto"
                 self.cmb_tipo.setCurrentText(tipo.capitalize())
+                self._actualizar_hint_tipo(self.cmb_tipo.currentText())
+
+                existencia = p.get('existencia', 0.0) or 0.0
+                self.lbl_stock_fisico.setText(f"Stock físico actual: {existencia:.3f} {self.cmb_unidad.currentText()}")
+                self.lbl_disponible_venta.setText(f"Disponible venta: {existencia:.3f} {self.cmb_unidad.currentText()}")
                 
                 self.ruta_imagen_actual = p.get('imagen_path')
                 self.mostrar_imagen_previa(self.ruta_imagen_actual)
@@ -274,9 +358,9 @@ class DialogoProducto(QDialog):
             return
             
         tipo = self.cmb_tipo.currentText()
-        es_compuesto = 1 if tipo == "Compuesto" else 0
-        es_subproducto = 1 if tipo == "Subproducto" else 0
-        tipo_str = "compuesto" if es_compuesto else "subproducto" if es_subproducto else "simple"
+        tipo_str = (tipo or "Simple").strip().lower()
+        es_compuesto = 1 if tipo_str == "compuesto" else 0
+        es_subproducto = 1 if tipo_str == "subproducto" else 0
 
         # codigo_val must be defined before the if/else so both branches can use it
         codigo_val = self.txt_codigo.text().strip() or None
@@ -303,14 +387,14 @@ class DialogoProducto(QDialog):
                 query = """
                     UPDATE productos SET 
                         nombre=?, codigo=?, codigo_barras=?, categoria=?, precio=?, precio_compra=?, precio_minimo_venta=?, 
-                        unidad=?, stock_minimo=?, tipo_producto=?, es_compuesto=?, es_subproducto=?, 
+                        unidad=?, stock_minimo=?, tipo_producto=?, es_compuesto=?, es_subproducto=?, activo=?,
                         imagen_path=?, ultima_actualizacion=datetime('now')
                     WHERE id=?
                 """
                 cursor.execute(query, (
                     nombre, codigo_val, self.txt_codigo_barras.text(), self.cmb_categoria.currentText(),
                     precio, self.txt_costo.value(), getattr(self, "txt_precio_minimo", type("x", (), {"value": lambda s: 0})()).value(), self.cmb_unidad.currentText(), self.txt_stock_minimo.value(),
-                    tipo_str, es_compuesto, es_subproducto, self.ruta_imagen_actual, self.producto_id
+                    tipo_str, es_compuesto, es_subproducto, (1 if self.cmb_estado.currentText() == "Activo" else 0), self.ruta_imagen_actual, self.producto_id
                 ))
             else:
                 # INSERT
@@ -370,7 +454,7 @@ class DialogoProducto(QDialog):
                             self, "Receta pendiente",
                             "El producto fue guardado como compuesto.\n\n"
                             "⚠️  Aún no tiene una receta activa.\n"
-                            "Ve al módulo Recetas y crea la receta para este producto "
+                            "Administra la receta desde Productos > Receta "
                             "antes de procesarlo en ventas o producción.")
 
             self.container.db.commit()
@@ -414,7 +498,11 @@ class DialogoProducto(QDialog):
     
         except Exception as e:
             self.container.db.rollback()
-            QMessageBox.critical(self, "Error BD", f"No se pudo guardar: {e}")
+            logger.exception("productos.guardar")
+            QMessageBox.critical(
+                self, "No se pudo guardar",
+                "No fue posible guardar el producto. Revise la información e intente nuevamente."
+            )
 
 # ==============================================================================
 # MODULO PRINCIPAL (Centro de Productos y Producción)
@@ -455,44 +543,52 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.usuario_actual = usuario
 
     def _crear_stats_productos(self) -> 'QFrame':
-        """Barra de KPIs rápidos: total productos, activos, stock bajo, categorías."""
-        from PyQt5.QtWidgets import QFrame as _F, QHBoxLayout as _H, QVBoxLayout as _V, QLabel as _L
-        bar = _F(); bar.setObjectName("statsBar")
-        bar.setFixedHeight(64)
-        bar.setStyleSheet(
-            f"QFrame#statsBar {{ background:{Colors.NEUTRAL.DARK_CARD if hasattr(Colors.NEUTRAL,'DARK_CARD') else '#1E293B'};"
-            f" border-radius:8px; border:1px solid {Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; }}"
-        )
-        lay = _H(bar); lay.setContentsMargins(20,8,20,8); lay.setSpacing(0)
-
-        kpis = [("Total Productos","—",Colors.PRIMARY_BASE),("Activos","—",Colors.SUCCESS_BASE),
-                ("Stock bajo","—",Colors.WARNING_BASE),("Categorías","—",Colors.INFO_BASE)]
-        self._stats_prod_labels = {}
-        try:
-            db = self.conexion
-            r = db.execute("SELECT COUNT(*), SUM(CASE WHEN activo=1 THEN 1 ELSE 0 END) FROM productos").fetchone()
-            kpis[0] = ("Total Productos", str(r[0] or 0), Colors.PRIMARY_BASE)
-            kpis[1] = ("Activos", str(r[1] or 0), Colors.SUCCESS_BASE)
-            r2 = db.execute("SELECT COUNT(*) FROM productos WHERE existencia<=COALESCE(stock_minimo,5) AND activo=1").fetchone()
-            kpis[2] = ("Stock bajo", str(r2[0] or 0), Colors.WARNING_BASE)
-            r3 = db.execute("SELECT COUNT(DISTINCT categoria) FROM productos WHERE activo=1").fetchone()
-            kpis[3] = ("Categorías", str(r3[0] or 0), Colors.INFO_BASE)
-        except Exception: pass
-
-        for i, (lbl, val, col) in enumerate(kpis):
-            if i > 0:
-                s = _F(); s.setFrameShape(_F.VLine); s.setFixedWidth(1)
-                s.setStyleSheet(f"background:{Colors.NEUTRAL.SLATE_700 if hasattr(Colors.NEUTRAL,'SLATE_700') else '#334155'}; border:none;")
-                lay.addWidget(s); lay.addSpacing(20)
-            c = _V(); c.setSpacing(1)
-            v = _L(val); v.setStyleSheet(f"color:{col};font-size:18px;font-weight:700;background:transparent;")
-            l = _L(lbl.upper()); l.setStyleSheet(f"color:{Colors.NEUTRAL.SLATE_500};font-size:9px;font-weight:700;letter-spacing:0.5px;background:transparent;")
-            c.addWidget(v); c.addWidget(l)
-            self._stats_prod_labels[lbl] = v
-            lay.addLayout(c)
-            if i < 3: lay.addSpacing(20)
-        lay.addStretch()
+        from PyQt5.QtWidgets import QFrame, QHBoxLayout, QPushButton
+        bar = QFrame()
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(Spacing.SM)
+        self._kpi_filter_mode = "all"
+        self._kpi_cards = {}
+        defs = [
+            ("activos", "Productos activos", "📦", "success"),
+            ("sin_tipo", "Sin tipo_producto", "🏷️", "warning"),
+            ("receta_pendiente", "Receta pendiente", "🧪", "info"),
+            ("sin_costo", "Sin costo base", "💲", "danger"),
+            ("inactivos", "Inactivos", "⏸", "primary"),
+        ]
+        for key, title, icon, variant in defs:
+            btn = QPushButton()
+            btn.setFlat(True)
+            btn.clicked.connect(lambda _, k=key: self._on_kpi_click(k))
+            card = KPICard(title, "—", icon, variant, parent=btn)
+            self._kpi_cards[key] = card
+            h = QHBoxLayout(btn)
+            h.setContentsMargins(0, 0, 0, 0)
+            h.addWidget(card)
+            lay.addWidget(btn)
         return bar
+
+    def _refresh_kpi_productos(self):
+        try:
+            db = self.container.db if hasattr(self.container, 'db') else self.conexion
+            data = get_product_configuration_kpis(db)
+            for key, card in self._kpi_cards.items():
+                card.set_valor(str(data.get(key, 0)))
+        except Exception:
+            pass
+
+    def _on_kpi_click(self, key: str):
+        self._kpi_filter_mode = key
+        if key == "inactivos":
+            self.cmb_filtro_estado.setCurrentIndex(1)
+            return
+        if key == "activos":
+            self.cmb_filtro_estado.setCurrentIndex(0)
+            return
+        self.cmb_filtro_estado.setCurrentIndex(2)
+        self.tabs.setCurrentWidget(self.tab_catalogo)
+        self.cargar_catalogo()
 
     def init_ui(self):
         layout_principal = QVBoxLayout(self)
@@ -616,13 +712,50 @@ class ModuloProductos(QWidget, RefreshMixin):
 
     def setup_tab_receta_producto(self):
         lay = QVBoxLayout(self.tab_receta)
+        self._loading_receta = LoadingIndicator("Cargando información de receta…", self)
+        self._loading_receta.hide()
         self._lbl_receta_estado = create_subheading(self, "Seleccione un producto en Catálogo.")
         self._lbl_receta_hint = create_caption(self, "La receta permitida depende de tipo_producto.")
         self._btn_receta_abrir = create_primary_button(self, "🛠 Gestionar receta", "Crear o editar receta del producto seleccionado")
         self._btn_receta_abrir.clicked.connect(self._abrir_receta_producto)
+        self._btn_receta_desactivar = create_secondary_button(self, "⏸ Desactivar receta", "Desactivar receta activa del producto")
+        self._btn_receta_desactivar.clicked.connect(self._desactivar_receta_producto)
+        self._btn_receta_simular = create_secondary_button(self, "🧮 Simular", "Vista previa informativa según tipo de producto")
+        self._btn_receta_simular.clicked.connect(self._simular_receta_producto)
+        self._btn_receta_inv = create_secondary_button(self, "📦 Ver en Inventario", "Consultar disponibilidad/stock en Inventario")
+        self._btn_receta_inv.clicked.connect(
+            lambda: QMessageBox.information(self, "Inventario", "La disponibilidad y stock se consultan en Inventario.")
+        )
+        self._tbl_receta_componentes = QTableWidget()
+        self._tbl_receta_componentes.setColumnCount(5)
+        self._tbl_receta_componentes.setHorizontalHeaderLabels(
+            ["Componente/Insumo", "Cantidad", "Unidad", "Rendimiento %", "Merma %"]
+        )
+        self._tbl_receta_componentes.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._tbl_receta_componentes.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self._tbl_receta_componentes.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._lbl_receta_resumen = create_caption(self, "Resumen contextual: —")
+        self._lbl_receta_preview = create_caption(self, "")
+        self._empty_receta = EmptyStateWidget(
+            "Sin contexto de receta",
+            "Seleccione un producto en Catálogo para ver o gestionar su receta.",
+            "🧪",
+            self,
+        )
         lay.addWidget(self._lbl_receta_estado)
         lay.addWidget(self._lbl_receta_hint)
+        lay.addWidget(self._loading_receta)
         lay.addWidget(self._btn_receta_abrir)
+        row_btn = QHBoxLayout()
+        row_btn.addWidget(self._btn_receta_simular)
+        row_btn.addWidget(self._btn_receta_desactivar)
+        row_btn.addWidget(self._btn_receta_inv)
+        row_btn.addStretch()
+        lay.addLayout(row_btn)
+        lay.addWidget(self._tbl_receta_componentes)
+        lay.addWidget(self._lbl_receta_resumen)
+        lay.addWidget(self._lbl_receta_preview)
+        lay.addWidget(self._empty_receta)
         lay.addStretch()
         self._refresh_tab_receta_producto()
 
@@ -642,22 +775,90 @@ class ModuloProductos(QWidget, RefreshMixin):
 
     def _refresh_tab_receta_producto(self):
         p = self._producto_seleccionado_catalogo()
+        self._tbl_receta_componentes.setRowCount(0)
+        self._lbl_receta_resumen.setText("Resumen contextual: —")
+        self._lbl_receta_preview.setText("")
         if not p:
             self._lbl_receta_estado.setText("Seleccione un producto en Catálogo.")
             self._lbl_receta_hint.setText("SIMPLE: sin receta. COMPUESTO/PROCESABLE/PRODUCIDO: con receta.")
             self._btn_receta_abrir.setEnabled(False)
+            self._btn_receta_desactivar.setEnabled(False)
+            self._btn_receta_simular.setEnabled(False)
+            self._empty_receta.show()
             return
+        self._empty_receta.hide()
         tipo = (p.get("tipo_producto") or "simple").lower()
-        self._btn_receta_abrir.setEnabled(tipo != "simple")
+        self._btn_receta_abrir.setEnabled(tipo != "simple" and tipo != "servicio")
+        self._btn_receta_simular.setEnabled(tipo in {"compuesto", "procesable", "producido"})
+        self._btn_receta_desactivar.setEnabled(tipo in {"compuesto", "procesable", "producido", "subproducto"})
         rules = {
-            "simple": "No permite receta.",
-            "compuesto": "Permite receta COMBINACION.",
-            "procesable": "Permite receta SUBPRODUCTO (despiece).",
-            "producido": "Permite receta PRODUCCION.",
-            "subproducto": "Muestra origen/usos; gestión de receta permitida según configuración.",
+            "simple": "Este producto no usa receta.",
+            "compuesto": "Receta de combinación: al vender 1 unidad se descuentan componentes.",
+            "procesable": "Receta de despiece: al procesar se generan subproductos.",
+            "producido": "Receta de producción: se elabora consumiendo insumos/subproductos.",
+            "subproducto": "Este producto es generado por despiece o usado como componente.",
+            "insumo": "Este producto se usa como insumo.",
+            "servicio": "Los servicios no controlan inventario ni receta.",
         }
         self._lbl_receta_estado.setText(f"Producto: {p['nombre']} ({tipo.upper()})")
         self._lbl_receta_hint.setText(rules.get(tipo, "Revise configuración de receta para este tipo."))
+        self._cargar_detalle_receta_producto(p, tipo)
+
+    def _cargar_detalle_receta_producto(self, producto: dict, tipo: str) -> None:
+        db = self.container.db if hasattr(self.container, 'db') else self.conexion
+        svc = RecipeService(db)
+        self._loading_receta.show()
+        receta = svc.get_recipe_for_product(producto["id"])
+        if not receta:
+            if tipo == "simple":
+                self._lbl_receta_resumen.setText("Resumen contextual: producto simple (sin receta).")
+                self._lbl_receta_preview.setText("Este producto no usa receta. Los productos simples se compran y venden directamente.")
+            elif tipo == "servicio":
+                self._lbl_receta_resumen.setText("Resumen contextual: servicio (sin receta).")
+                self._lbl_receta_preview.setText("Los servicios no controlan inventario ni receta.")
+            else:
+                self._lbl_receta_resumen.setText("Resumen contextual: receta pendiente.")
+                self._lbl_receta_preview.setText("No hay receta activa para este producto.")
+            self._loading_receta.hide()
+            return
+        componentes = svc.get_recipe_components(receta["id"])
+        self._tbl_receta_componentes.setRowCount(len(componentes))
+        for i, c in enumerate(componentes):
+            vals = [
+                str(c.get("component_nombre") or ""),
+                f"{float(c.get('cantidad') or 0):.3f}",
+                str(c.get("unidad") or ""),
+                f"{float(c.get('rendimiento_pct') or 0):.3f}",
+                f"{float(c.get('merma_pct') or 0):.3f}",
+            ]
+            for j, v in enumerate(vals):
+                self._tbl_receta_componentes.setItem(i, j, QTableWidgetItem(v))
+        if tipo == "compuesto":
+            self._lbl_receta_resumen.setText(f"Resumen: Componentes {len(componentes)} · Disponible por componentes: — · Componente limitante: —")
+            self._lbl_receta_preview.setText("Preview: Al vender 1 unidad se descontará la lista de componentes.")
+        elif tipo == "procesable":
+            total_r = sum(float(c.get('rendimiento_pct') or 0) for c in componentes)
+            total_m = sum(float(c.get('merma_pct') or 0) for c in componentes)
+            self._lbl_receta_resumen.setText(
+                f"Resumen: Subproductos {len(componentes)} · Total generado {total_r:.1f}% · Merma {total_m:.1f}% · Total receta {(total_r+total_m):.1f}%"
+            )
+            self._lbl_receta_preview.setText("Preview: Si procesas X kg se generarán subproductos según rendimiento y merma.")
+        elif tipo == "producido":
+            self._lbl_receta_resumen.setText(f"Resumen: Insumos {len(componentes)} · Costo estimado: — · Rendimiento esperado: —")
+            self._lbl_receta_preview.setText("Preview: Si produces X se consumirán insumos según cantidades de la receta.")
+        elif tipo == "subproducto":
+            usados = self._buscar_usos_subproducto(svc, producto["id"])
+            self._lbl_receta_resumen.setText(f"Resumen: Recetas origen: {(1 if receta else 0)} · Usado en: {len(usados)} · Último costo: —")
+            self._lbl_receta_preview.setText(f"Usado en {len(usados)} receta(s): {', '.join(usados[:5])}" if usados else "Sin usos detectados en recetas activas.")
+        self._loading_receta.hide()
+
+    def _buscar_usos_subproducto(self, svc: RecipeService, producto_id: int):
+        usos = []
+        for rec in svc.get_all_recipes(include_inactive=False):
+            comps = svc.get_recipe_components(rec["id"])
+            if any(int(c.get("component_product_id") or 0) == int(producto_id) for c in comps):
+                usos.append(str(rec.get("nombre_receta") or f"Receta {rec.get('id')}"))
+        return usos
 
     def _abrir_receta_producto(self):
         p = self._producto_seleccionado_catalogo()
@@ -667,6 +868,9 @@ class ModuloProductos(QWidget, RefreshMixin):
         tipo = (p.get("tipo_producto") or "simple").lower()
         if tipo == "simple":
             QMessageBox.information(self, "Receta no permitida", "La UI no permite crear receta para producto SIMPLE.")
+            return
+        if tipo == "servicio":
+            QMessageBox.information(self, "Receta no permitida", "Los servicios no usan receta.")
             return
         db = self.container.db if hasattr(self.container, 'db') else self.conexion
         svc = RecipeService(db)
@@ -688,6 +892,33 @@ class ModuloProductos(QWidget, RefreshMixin):
         dlg._combo_base.setEnabled(False)
         if dlg.exec_() == QDialog.Accepted:
             self._refresh_tab_receta_producto()
+
+    def _desactivar_receta_producto(self):
+        p = self._producto_seleccionado_catalogo()
+        if not p:
+            return
+        db = self.container.db if hasattr(self.container, 'db') else self.conexion
+        svc = RecipeService(db)
+        receta = svc.get_recipe_for_product(p["id"])
+        if not receta:
+            QMessageBox.information(self, "Receta", "No hay receta activa para desactivar.")
+            return
+        if QMessageBox.question(self, "Desactivar receta", "¿Desea desactivar la receta activa de este producto?") != QMessageBox.Yes:
+            return
+        svc.deactivate_recipe(receta["id"], getattr(self, "usuario_actual", "Sistema"))
+        self._refresh_tab_receta_producto()
+
+    def _simular_receta_producto(self):
+        p = self._producto_seleccionado_catalogo()
+        if not p:
+            return
+        tipo = (p.get("tipo_producto") or "simple").lower()
+        if tipo == "compuesto":
+            QMessageBox.information(self, "Simulación", "Al vender 1 unidad se descontarán los componentes mostrados.")
+        elif tipo == "procesable":
+            QMessageBox.information(self, "Simulación", "Si procesas X kg se generarán subproductos conforme a rendimiento/merma.")
+        elif tipo == "producido":
+            QMessageBox.information(self, "Simulación", "Si produces X se consumirán insumos según la receta.")
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh catalog on product or purchase events."""
@@ -745,6 +976,11 @@ class ModuloProductos(QWidget, RefreshMixin):
 
             cursor = self.container.db.cursor() if hasattr(self.container, 'db') else self.conexion.cursor()
             rows = cursor.execute(query, params).fetchall()
+            db = self.container.db if hasattr(self.container, 'db') else self.conexion
+            kpi_mode = getattr(self, "_kpi_filter_mode", "all")
+            if kpi_mode in {"sin_tipo", "receta_pendiente", "sin_costo"}:
+                ids = get_catalog_filter_ids(db, kpi_mode)
+                rows = [r for r in rows if int(r['id']) in ids]
 
             self.tabla_productos.setRowCount(0)
             from PyQt5.QtGui import QColor as _QC
@@ -824,6 +1060,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                     f"Mostrando {total} productos ({activos} activos, {total - activos} eliminados)")
             if hasattr(self, "_empty_catalogo"):
                 self._empty_catalogo.setVisible(len(rows) == 0)
+            self._refresh_kpi_productos()
 
         except Exception as e:
             logger.error(f"Error cargando catálogo: {e}")

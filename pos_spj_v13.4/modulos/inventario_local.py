@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QDialog, QDialogButtonBox, QComboBox, QDoubleSpinBox,
-    QTextEdit, QLineEdit, QScrollArea, QSizePolicy, QFileDialog, QSplitter,
+    QTextEdit, QLineEdit, QScrollArea, QSizePolicy, QFileDialog, QSplitter, QTabWidget,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -31,12 +31,23 @@ from modulos.ui_components import (
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.kpi_card import KPICard
+from core.services.inventory_query_service import get_recent_movements, get_inventory_operational_kpis
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
     AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
 )
 
 logger = logging.getLogger("spj.inventario")
+
+
+def _to_business_inventory_error(exc: Exception) -> str:
+    msg = str(exc or "")
+    up = msg.upper()
+    if "INSUFICIENTE" in up or "STOCK" in up:
+        return "No hay stock suficiente para completar la operación."
+    if "PERMISO" in up or "DENIED" in up:
+        return "No tiene permisos para ejecutar esta acción en inventario."
+    return "No se pudo completar la operación de inventario. Verifique los datos e intente de nuevo."
 
 # ── Semantic stock health ─────────────────────────────────────────────────────
 
@@ -717,14 +728,14 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self._loading.hide()
         body_lyt.addWidget(self._loading)
 
-        # Workspace: table + insights
+        # Workspace: tabs + insights
         workspace = QHBoxLayout()
         workspace.setSpacing(Spacing.MD)
 
-        # Left: table
+        # Left: tabs
         table_col = QVBoxLayout()
         table_col.setSpacing(Spacing.SM)
-        table_col.addWidget(self._build_table())
+        table_col.addWidget(self._build_inventory_tabs())
         self._empty_state = EmptyStateWidget(
             "Sin productos",
             "No se encontraron productos para los filtros aplicados.",
@@ -754,17 +765,126 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         lyt.setContentsMargins(0, 0, 0, 0)
         lyt.setSpacing(Spacing.MD)
 
-        self._kpi_total   = _InvKPICard("Total productos",    "—", "📦", "primary")
-        self._kpi_valor   = _InvKPICard("Valor en stock",     "—", "💰", "success")
-        self._kpi_critico = _InvKPICard("Sin stock",          "—", "🚨", "danger")
-        self._kpi_bajo    = _InvKPICard("Bajo mínimo",        "—", "⚠️",  "warning")
-        self._kpi_ajustes = _InvKPICard("Ajustes hoy",        "—", "⚖️",  "info")
-
-        for card in (self._kpi_total, self._kpi_valor, self._kpi_critico,
-                     self._kpi_bajo, self._kpi_ajustes):
-            lyt.addWidget(card)
+        self._kpi_click_mode = "none"
+        self._kpi_bajo    = _InvKPICard("Stock bajo",             "—", "⚠️", "warning")
+        self._kpi_sin     = _InvKPICard("Sin stock físico",       "—", "🚨", "danger")
+        self._kpi_virtual = _InvKPICard("Virtual disponible",     "—", "🧩", "info")
+        self._kpi_res     = _InvKPICard("Reservados",             "—", "🔒", "primary")
+        self._kpi_mov     = _InvKPICard("Movimientos hoy",        "—", "📋", "success")
+        for key, card in (
+            ("stock_bajo", self._kpi_bajo),
+            ("sin_stock_fisico", self._kpi_sin),
+            ("virtual_disponible", self._kpi_virtual),
+            ("reservados", self._kpi_res),
+            ("mov_hoy", self._kpi_mov),
+        ):
+            btn = QPushButton()
+            btn.setFlat(True)
+            btn.clicked.connect(lambda _, k=key: self._on_kpi_click(k))
+            bl = QHBoxLayout(btn); bl.setContentsMargins(0, 0, 0, 0); bl.addWidget(card)
+            lyt.addWidget(btn)
 
         return container
+
+    def _build_inventory_tabs(self) -> QTabWidget:
+        self._tabs_inv = QTabWidget(self)
+        self._tab_exist = QWidget()
+        self._tab_disp = QWidget()
+        self._tab_virtual = QWidget()
+        self._tab_mov = QWidget()
+        self._tab_res = QWidget()
+        self._tab_aj = QWidget()
+        self._tab_aud = QWidget()
+
+        self._tabs_inv.addTab(self._tab_exist, "Existencias")
+        self._tabs_inv.addTab(self._tab_disp, "Disponibilidad")
+        self._tabs_inv.addTab(self._tab_virtual, "Stock virtual")
+        self._tabs_inv.addTab(self._tab_mov, "Movimientos")
+        self._tabs_inv.addTab(self._tab_res, "Reservas")
+        self._tabs_inv.addTab(self._tab_aj, "Ajustes")
+        self._tabs_inv.addTab(self._tab_aud, "Auditoría")
+
+        le = QVBoxLayout(self._tab_exist)
+        le.setContentsMargins(0, 0, 0, 0)
+        le.addWidget(self._build_table())
+
+        ld = QVBoxLayout(self._tab_disp)
+        ld.setContentsMargins(0, 0, 0, 0)
+        ld.addWidget(self._build_disponibilidad_table())
+
+        lv = QVBoxLayout(self._tab_virtual)
+        lv.setContentsMargins(0, 0, 0, 0)
+        lv.addWidget(self._build_virtual_table())
+
+        lm = QVBoxLayout(self._tab_mov)
+        lm.setContentsMargins(0, 0, 0, 0)
+        lm.addWidget(self._build_movimientos_table())
+
+        lr = QVBoxLayout(self._tab_res)
+        lbl_res = QLabel("Reservas: vista en preparación (sin mezclar físico y virtual).")
+        lbl_res.setObjectName("caption")
+        lr.addWidget(lbl_res)
+
+        la = QVBoxLayout(self._tab_aj)
+        lbl_aj = QLabel("Ajustes: use el botón ⚖ Ajuste para registrar movimientos auditados.")
+        lbl_aj.setObjectName("caption")
+        la.addWidget(lbl_aj)
+
+        lau = QVBoxLayout(self._tab_aud)
+        lbl_aud = QLabel("Auditoría: use 📋 Historial para revisar trazabilidad por producto.")
+        lbl_aud.setObjectName("caption")
+        lau.addWidget(lbl_aud)
+
+        return self._tabs_inv
+
+    def _build_disponibilidad_table(self) -> QTableWidget:
+        self.tabla_disponibilidad = QTableWidget(self)
+        self.tabla_disponibilidad.setColumnCount(7)
+        self.tabla_disponibilidad.setHorizontalHeaderLabels([
+            "Producto", "Stock físico", "Reservado", "Disponible físico",
+            "Disponible virtual", "Disponible venta", "Modo"
+        ])
+        self.tabla_disponibilidad.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabla_disponibilidad.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_disponibilidad.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_disponibilidad.verticalHeader().setVisible(False)
+        self.tabla_disponibilidad.setObjectName("tableView")
+        return self.tabla_disponibilidad
+
+    def _build_virtual_table(self) -> QTableWidget:
+        self.tabla_virtual = QTableWidget(self)
+        self.tabla_virtual.setColumnCount(8)
+        self.tabla_virtual.setHorizontalHeaderLabels([
+            "Producto vendible", "Stock físico", "Disponible virtual", "Receta usada",
+            "Componentes requeridos", "Máx vendible", "Componente limitante", "Sucursal"
+        ])
+        self.tabla_virtual.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tabla_virtual.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_virtual.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_virtual.verticalHeader().setVisible(False)
+        self.tabla_virtual.setObjectName("tableView")
+        return self.tabla_virtual
+
+    def _build_movimientos_table(self) -> QTableWidget:
+        self.tabla_movimientos = QTableWidget(self)
+        self.tabla_movimientos.setColumnCount(8)
+        self.tabla_movimientos.setHorizontalHeaderLabels([
+            "Fecha", "Producto", "Tipo movimiento", "Cantidad", "Sucursal", "Referencia", "Usuario", "Origen"
+        ])
+        hh = self.tabla_movimientos.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.tabla_movimientos.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tabla_movimientos.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tabla_movimientos.verticalHeader().setVisible(False)
+        self.tabla_movimientos.setObjectName("tableView")
+        return self.tabla_movimientos
 
     def _build_action_bar(self) -> QWidget:
         bar = QFrame(self)
@@ -922,6 +1042,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             pass
 
         self.tabla.setRowCount(0)
+        self.tabla_disponibilidad.setRowCount(0)
+        self.tabla_virtual.setRowCount(0)
 
         for i, r in enumerate(rows):
             prod_id  = int(r[0])
@@ -975,6 +1097,18 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
             # Col 6: Último movimiento
             self.tabla.setItem(i, 6, QTableWidgetItem(last_mov))
+            reservado = 0.0
+            disp_fis = stock - reservado
+            modo = "DIRECTO" if disp_fis > 0 else "NO DISPONIBLE"
+            self.tabla_disponibilidad.insertRow(i)
+            for j, v in enumerate([nombre, f"{stock:.3f}", f"{reservado:.3f}", f"{disp_fis:.3f}", "0.000", f"{disp_fis:.3f}", modo]):
+                self.tabla_disponibilidad.setItem(i, j, QTableWidgetItem(v))
+
+        self.tabla_virtual.setRowCount(1)
+        self.tabla_virtual.setItem(0, 0, QTableWidgetItem("Stock virtual no calculado todavía."))
+        for c in range(1, 8):
+            self.tabla_virtual.setItem(0, c, QTableWidgetItem("—"))
+        self._cargar_movimientos_tab()
 
         count = len(rows)
         self.lbl_total.setText(
@@ -995,45 +1129,32 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             except Exception:
                 pass
 
+    def _cargar_movimientos_tab(self) -> None:
+        self.tabla_movimientos.setRowCount(0)
+        rows = get_recent_movements(self.container.db, self.sucursal_id, limit=200)
+        for i, r in enumerate(rows):
+            self.tabla_movimientos.insertRow(i)
+            for j, v in enumerate(r):
+                self.tabla_movimientos.setItem(i, j, QTableWidgetItem(str(v or "")))
+
     def _refresh_kpis(self, db) -> None:
-        try:
-            r = db.execute(
-                "SELECT COUNT(*), COUNT(DISTINCT categoria) FROM productos WHERE activo=1"
-            ).fetchone()
-            self._kpi_total.set_valor(str(r[0] or 0))
-        except Exception:
-            pass
+        data = get_inventory_operational_kpis(db, self.sucursal_id, self._prod_data)
+        self._kpi_bajo.set_valor(str(data.get("stock_bajo", 0)))
+        self._kpi_sin.set_valor(str(data.get("sin_stock_fisico", 0)))
+        self._kpi_virtual.set_valor(str(data.get("virtual_disponible", 0)))
+        self._kpi_res.set_valor(str(data.get("reservados", 0)))
+        self._kpi_mov.set_valor(str(data.get("mov_hoy", 0)))
 
-        try:
-            r2 = db.execute(
-                "SELECT COALESCE(SUM(existencia*precio),0) FROM productos WHERE activo=1"
-            ).fetchone()
-            val = float(r2[0] or 0)
-            self._kpi_valor.set_valor(f"${val:,.0f}")
-        except Exception:
-            pass
-
-        self._kpi_critico.set_valor(
-            str(sum(1 for p in self._prod_data if p["health"] == _HEALTH_CRITICAL))
-        )
-        self._kpi_bajo.set_valor(
-            str(sum(1 for p in self._prod_data if p["health"] == _HEALTH_LOW))
-        )
-
-        try:
-            r4 = db.execute(
-                "SELECT COUNT(*) FROM ajustes_inventario WHERE DATE(created_at)=DATE('now')"
-            ).fetchone()
-            self._kpi_ajustes.set_valor(str(r4[0] or 0))
-        except Exception:
-            try:
-                r4b = db.execute(
-                    "SELECT COUNT(*) FROM inventory_movements "
-                    "WHERE movement_type='AJUSTE' AND DATE(created_at)=DATE('now')"
-                ).fetchone()
-                self._kpi_ajustes.set_valor(str(r4b[0] or 0))
-            except Exception:
-                pass
+    def _on_kpi_click(self, key: str) -> None:
+        self._kpi_click_mode = key
+        if key == "virtual_disponible":
+            self._tabs_inv.setCurrentWidget(self._tab_virtual)
+            return
+        if key == "mov_hoy":
+            self._tabs_inv.setCurrentWidget(self._tab_mov)
+            return
+        self._tabs_inv.setCurrentWidget(self._tab_exist)
+        self._apply_filters()
 
     def _populate_categories(self) -> None:
         current = self._cmb_cat.currentText()
@@ -1073,7 +1194,12 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             match_c = (cat_sel == "Todas las categorías") or (cat == cat_sel.lower())
             match_e = (health_filter is None) or (estado == health_filter)
 
-            self.tabla.setRowHidden(row, not (match_q and match_c and match_e))
+            match_kpi = True
+            if getattr(self, "_kpi_click_mode", "none") == "stock_bajo":
+                match_kpi = (estado == _HEALTH_LOW)
+            elif getattr(self, "_kpi_click_mode", "none") == "sin_stock_fisico":
+                match_kpi = (estado == _HEALTH_CRITICAL)
+            self.tabla.setRowHidden(row, not (match_q and match_c and match_e and match_kpi))
 
     # ── Operational actions ───────────────────────────────────────────────────
 
@@ -1129,7 +1255,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             )
             self.cargar_datos()
         except Exception as e:
-            QMessageBox.critical(self, "Error en entrada", str(e))
+            logger.exception("inventario.entrada")
+            QMessageBox.critical(self, "Error en entrada", _to_business_inventory_error(e))
 
     def _accion_ajuste(self) -> None:
         """Audited inventory adjustment — requires reason + observation."""
@@ -1174,7 +1301,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             )
             self.cargar_datos()
         except Exception as e:
-            QMessageBox.critical(self, "Error en ajuste", str(e))
+            logger.exception("inventario.ajuste")
+            QMessageBox.critical(self, "Error en ajuste", _to_business_inventory_error(e))
 
     def _accion_historial(self) -> None:
         """Open read-only movement audit trail for selected product."""
