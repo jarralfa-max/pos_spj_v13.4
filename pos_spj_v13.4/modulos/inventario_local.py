@@ -761,6 +761,9 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def _build_kpi_row(self) -> QWidget:
         container = QWidget(self)
+        container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        container.setMinimumHeight(96)
+        container.setMaximumHeight(120)
         lyt = QHBoxLayout(container)
         lyt.setContentsMargins(0, 0, 0, 0)
         lyt.setSpacing(Spacing.MD)
@@ -780,6 +783,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         ):
             btn = QPushButton()
             btn.setFlat(True)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            btn.setMinimumHeight(92)
             btn.clicked.connect(lambda _, k=key: self._on_kpi_click(k))
             bl = QHBoxLayout(btn); bl.setContentsMargins(0, 0, 0, 0); bl.addWidget(card)
             lyt.addWidget(btn)
