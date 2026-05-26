@@ -3188,6 +3188,25 @@ class ModuloVentas(ModuloBase):
             self.limpiar_seleccion_producto()
 
     def agregar_producto_directo(self, producto: Dict[str, Any], cantidad: float):
+        def _stock_msg(prod: Dict[str, Any]) -> str:
+            missing = prod.get("missing_components") or []
+            if missing:
+                lines = [f"No se puede vender {prod.get('nombre','este producto')}.\n", "Faltantes:"]
+                for m in missing[:6]:
+                    comp = m.get("component_name") or m.get("nombre") or "Componente"
+                    req = m.get("required_qty")
+                    ava = m.get("available_qty")
+                    und = m.get("unit") or prod.get("unidad") or ""
+                    lines.append(f"- {comp}: necesitas {req} {und}, disponible {ava} {und}")
+                mx = prod.get("max_sellable")
+                if mx is not None:
+                    lines.append(f"\nMáximo vendible: {mx}")
+                return "\n".join(lines)
+            avail_msg = prod.get("availability_message")
+            if avail_msg:
+                return str(avail_msg)
+            return f"Stock insuficiente. Disponible: {prod['existencia']:.2f} {prod['unidad']}"
+
         if cantidad <= 0:
             QMessageBox.warning(self, "Advertencia", "La cantidad debe ser mayor a cero.")
             self.limpiar_seleccion_producto()
@@ -3195,7 +3214,7 @@ class ModuloVentas(ModuloBase):
             
         if cantidad > producto['existencia']:
             QMessageBox.warning(self, "Stock Insuficiente",
-                f"Stock insuficiente. Disponible: {producto['existencia']:.2f} {producto['unidad']}")
+                _stock_msg(producto))
             self.limpiar_seleccion_producto()
             return
             
@@ -3215,7 +3234,7 @@ class ModuloVentas(ModuloBase):
                             if nueva_cantidad > producto['existencia']:
                                 QMessageBox.warning(
                                     self, "Stock Insuficiente",
-                                    f"Stock insuficiente. Disponible: {producto['existencia']:.2f} {producto['unidad']}"
+                                    _stock_msg(producto)
                                 )
                                 break
                                 
@@ -3235,6 +3254,11 @@ class ModuloVentas(ModuloBase):
                         'precio_unitario': producto['precio'],
                         'total': total_item,
                         '_uid': _uuid_mod.uuid4().hex,  # ISSUE 2 FIX
+                        'fulfillment_mode': producto.get('fulfillment_mode'),
+                        'component_movements': producto.get('component_movements'),
+                        'missing_components': producto.get('missing_components'),
+                        'max_sellable': producto.get('max_sellable'),
+                        'availability_message': producto.get('availability_message'),
                     }
                 # Verificar stock antes de agregar al carrito
                 # v13.4: Delegado a inventory_service para mantener abstracción de capa
@@ -3279,6 +3303,11 @@ class ModuloVentas(ModuloBase):
             # ISSUE 2 FIX: Identificador estable para que el descuento pertenezca
             # al ítem, no al índice de fila. Sobrevive cualquier pop/reordenamiento.
             '_uid': _uuid_mod.uuid4().hex,
+            'fulfillment_mode': producto.get('fulfillment_mode'),
+            'component_movements': producto.get('component_movements'),
+            'missing_components': producto.get('missing_components'),
+            'max_sellable': producto.get('max_sellable'),
+            'availability_message': producto.get('availability_message'),
         }
 
         self.compra_actual.append(item_compra)
@@ -3311,8 +3340,30 @@ class ModuloVentas(ModuloBase):
                       or str(item.get('id', '')))
             lbl_code = QLabel(f"Código: {codigo}")
             lbl_code.setObjectName("posCartItemCode")
+            mode_raw = str(item.get("fulfillment_mode") or "").upper().strip()
+            mode_map = {
+                "DIRECTO": "DIRECTO",
+                "COMBINACION": "COMPUESTO",
+                "COMPUESTO": "COMPUESTO",
+                "VIRTUAL": "VIRTUAL",
+            }
+            mode_tag = mode_map.get(mode_raw, "DIRECTO")
+            lbl_mode = QLabel(f"Modo: {mode_tag}")
+            lbl_mode.setObjectName("posCartItemCode")
             cell_lay.addWidget(lbl_name)
             cell_lay.addWidget(lbl_code)
+            cell_lay.addWidget(lbl_mode)
+            comp_moves = item.get("component_movements") or []
+            if comp_moves:
+                comp_lines = ["Descontará estos componentes:"]
+                for cm in comp_moves[:6]:
+                    nm = cm.get("component_name") or cm.get("nombre") or "Componente"
+                    qt = cm.get("qty") or cm.get("quantity") or cm.get("cantidad") or 0
+                    un = cm.get("unit") or item.get("unidad") or ""
+                    comp_lines.append(f"- {nm}: -{qt} {un}")
+                cell_w.setToolTip("\n".join(comp_lines))
+            elif item.get("availability_message"):
+                cell_w.setToolTip(str(item.get("availability_message")))
             self.tabla_compra.setCellWidget(row, 0, cell_w)
 
             cantidad_item = QTableWidgetItem(f"{item['cantidad']:.3f}")
@@ -4121,7 +4172,10 @@ class ModuloVentas(ModuloBase):
             QMessageBox.warning(self, "Aviso de Venta", str(e))
         except Exception as e:
             logger.error(f"Fallo crítico en UI de ventas: {str(e)}")
-            QMessageBox.critical(self, "Error Fatal", f"Error procesando la venta:\n{str(e)}")
+            QMessageBox.critical(
+                self, "Error al procesar venta",
+                "No se pudo completar la venta. Verifique stock, pagos y datos del cliente, e intente nuevamente."
+            )
 
     def generar_ticket(self, venta_id: int, datos_pago: Dict[str, Any]):
         try:

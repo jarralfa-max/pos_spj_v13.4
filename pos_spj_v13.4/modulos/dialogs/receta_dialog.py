@@ -369,13 +369,34 @@ class DialogoReceta(QDialog):
             QMessageBox.warning(self, "Auto-referencia",
                                 "Un componente no puede ser el mismo producto base.")
         except RecetaPercentageError as exc:
-            QMessageBox.warning(self, "Error de Porcentaje", str(exc))
+            QMessageBox.warning(self, "Validación de receta", self._to_business_recipe_error(exc))
         except RecetaDuplicadaError:
             QMessageBox.warning(self, "Receta Duplicada",
                                 "Ya existe una receta activa para este producto base.\n"
                                 "Cierre este diálogo y use el botón «Editar» sobre la receta existente.")
         except RecetaError as exc:
-            QMessageBox.warning(self, "Error en Receta", str(exc))
+            QMessageBox.warning(self, "Error en receta", self._to_business_recipe_error(exc))
         except Exception as exc:
             logger.exception("guardar_receta")
-            QMessageBox.critical(self, "Error Inesperado", str(exc))
+            QMessageBox.critical(
+                self, "Error inesperado",
+                "No se pudo guardar la receta en este momento. Intente nuevamente."
+            )
+    @staticmethod
+    def _to_business_recipe_error(exc: Exception) -> str:
+        raw = str(exc or "").upper()
+        if "TIPO_RECETA" in raw and "COMPUESTO" in raw:
+            return "Este producto debe ser COMPUESTO para tener receta de combinación."
+        if "TIPO_RECETA" in raw and "PROCESABLE" in raw:
+            return "Este producto debe ser PROCESABLE para tener receta de despiece."
+        if "TIPO_RECETA" in raw and "PRODUCIDO" in raw:
+            return "Este producto debe ser PRODUCIDO para tener receta de producción."
+        if "COMPONENT_PRODUCT_ID" in raw or "COMPONENT_NOT_FOUND" in raw:
+            return "Falta seleccionar un componente válido para la receta."
+        if "CANTIDAD_DEBE_SER_POSITIVA" in raw:
+            return "La cantidad del componente debe ser mayor a cero."
+        if "TOTAL_RENDIMIENTO_MUST_BE_100" in raw:
+            return "En recetas de despiece, rendimiento + merma debe sumar 100%."
+        if "TOTAL_RENDIMIENTO_EXCEEDS_100" in raw or "COMPONENT_EXCEEDS_100" in raw:
+            return "Los porcentajes de rendimiento y merma no pueden superar 100%."
+        return "No se pudo guardar la receta. Revise los datos ingresados."
