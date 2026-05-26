@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 
 from core.events.domain_events import SALE_ITEMS_PROCESS
+import json
 from core.events.event_factory import make_sale_payload
 from core.services.sales_fulfillment_service import SaleFulfillmentService
 
@@ -132,6 +133,96 @@ class SalesService:
                 merged[key]["cantidad"] += r["cantidad"]
         return list(merged.values())
 
+    def create_pending_payment_sale(self, branch_id: int, user: str, items: list,
+                                    client_id: int = None, notes: str = "",
+                                    total: float = 0.0) -> dict:
+        """
+        Fase 7: crea una intención de pago MercadoPago sin ejecutar venta definitiva.
+        No descuenta stock, no registra caja, no publica VENTA_COMPLETADA.
+        """
+        folio = self._generate_unique_sale_folio()
+        subtotal = total or sum(float(i.get("qty", 0)) * float(i.get("unit_price", 0)) for i in (items or []))
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS pending_sales_intents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                folio TEXT UNIQUE NOT NULL,
+                payload_json TEXT NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'pendiente_pago',
+                payment_id TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now')),
+                confirmed_at TEXT
+            )
+        """)
+        payload = {
+            "branch_id": branch_id,
+            "user": user,
+            "client_id": client_id,
+            "items": items or [],
+            "total": round(float(subtotal), 2),
+            "notes": notes or "",
+        }
+        self.db.execute(
+            "INSERT OR REPLACE INTO pending_sales_intents(folio, payload_json, estado) VALUES (?,?, 'pendiente_pago')",
+            (folio, json.dumps(payload)),
+        )
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "estado": "pendiente_pago",
+            "folio": folio,
+            "branch_id": branch_id,
+            "usuario": user,
+            "client_id": client_id,
+            "subtotal": round(float(subtotal), 2),
+            "notes": notes or "",
+            "items": items or [],
+            "todo": "Implementar confirmación por webhook para convertir a venta definitiva.",
+        }
+
+    def confirm_pending_payment_sale(self, folio: str, payment_id: str = "") -> tuple:
+        """
+        Convierte una intención pendiente de MercadoPago en venta definitiva.
+        """
+        row = self.db.execute(
+            "SELECT payload_json, estado FROM pending_sales_intents WHERE folio=? LIMIT 1",
+            (str(folio),),
+        ).fetchone()
+        if not row:
+            raise RuntimeError(f"Intento pendiente no encontrado: {folio}")
+        payload_json = row[0] if isinstance(row, tuple) else row["payload_json"]
+        estado = row[1] if isinstance(row, tuple) else row["estado"]
+        if estado == "confirmada":
+            # idempotencia: no reprocesar
+            return str(folio), ""
+        data = json.loads(payload_json or "{}")
+        total = float(data.get("total", 0.0))
+        items = data.get("items") or []
+        branch_id = int(data.get("branch_id", 1))
+        user = str(data.get("user", "sistema"))
+        client_id = data.get("client_id")
+        notes = str(data.get("notes", "")) + f" [MP payment_id={payment_id}]"
+        folio_sale, ticket = self.execute_sale(
+            branch_id=branch_id,
+            user=user,
+            items=items,
+            payment_method="Mercado Pago",
+            amount_paid=total,
+            client_id=client_id,
+            notes=notes,
+        )
+        self.db.execute(
+            "UPDATE pending_sales_intents SET estado='confirmada', payment_id=?, confirmed_at=datetime('now') WHERE folio=?",
+            (str(payment_id or ""), str(folio)),
+        )
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+        return folio_sale, ticket
+
     def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
                      amount_paid: float, client_id: int = None, client_phone: str = None,
                      client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
@@ -252,13 +343,14 @@ class SalesService:
             discount = round(discount + loyalty_discount, 2)
 
         # ── Validación de crédito (si aplica) ────────────────────────────────
-        if payment_method == 'Credito' and client_id and self.customer_service:
+        from core.services.payment_normalization import is_credit_sale
+        if is_credit_sale(payment_method) and client_id and self.customer_service:
             ok, msg = self.customer_service.validate_credit(client_id, total_a_pagar)
             if not ok:
                 raise ValueError(msg)
 
         # Validamos el pago
-        if amount_paid < total_a_pagar and payment_method != 'Credito':
+        if amount_paid < total_a_pagar and not is_credit_sale(payment_method):
             raise ValueError(f"El monto pagado (${amount_paid:,.2f}) es menor al total a cobrar (${total_a_pagar:,.2f})")
 
         # Guardia de margen v13.4 — no bloquea la venta, solo registra en audit
@@ -377,14 +469,12 @@ class SalesService:
             # ── Post-commit: ledger de canje de lealtad ───────────────────────
             if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
                 try:
-                    self.loyalty_service.registrar_en_ledger(
+                    self.loyalty_service.apply_redemption(
                         cliente_id=client_id,
-                        tipo="canje",
-                        puntos=-loyalty_redemption_pts,
-                        referencia=str(sale_id),
-                        descripcion=f"Canje en venta {folio}",
-                        usuario=user,
-                        monto_equiv=loyalty_discount,
+                        venta_id=sale_id,
+                        cajero_id=user,
+                        subtotal=total_a_pagar,
+                        puntos=loyalty_redemption_pts,
                     )
                 except Exception as _lyl_err:
                     logger.warning("loyalty ledger canje venta=%s: %s", sale_id, _lyl_err)
@@ -430,23 +520,9 @@ class SalesService:
             ) from e
 
         # =========================================================
-        # 3. POST-PROCESAMIENTO: Fidelidad, Ticket y Notificaciones
-        # (Esto se hace fuera de la transacción para no bloquear la BD)
+        # 3. POST-PROCESAMIENTO (mínimo): Ticket de compatibilidad
+        # Fase 5: notificaciones/comisiones/growth/fidelidad viven en handlers.
         # =========================================================
-        mensaje_psico = "🐔 ¡Gracias por tu compra!"
-        
-        if client_id and total_a_pagar > 0 and self.loyalty_service:
-            try:
-                # GrowthEngine prevents double-awarding when available;
-                # otherwise fall back to process_loyalty_for_sale via LoyaltyService.
-                ge_active = getattr(self, 'growth_engine', None) is not None
-                if not ge_active:
-                    lealtad_resultado = self.loyalty_service.process_loyalty_for_sale(
-                        client_id, total_a_pagar, branch_id
-                    )
-                    mensaje_psico = lealtad_resultado.get('mensaje', mensaje_psico)
-            except Exception as e:
-                logger.warning("Error procesando lealtad (Venta completada): %s", e)
 
         # Generar Ticket
         ticket_final_html = ""
@@ -461,92 +537,10 @@ class SalesService:
             if not template_html:
                 raise ValueError("ticket_template_html not configured")
             ticket_final_html = self.ticket_template_engine.generar_ticket(
-                template_html, datos_venta, mensaje_psicologico=mensaje_psico
+                template_html, datos_venta, mensaje_psicologico="🐔 ¡Gracias por tu compra!"
             )
         except Exception as e:
             logger.warning("No se pudo generar el ticket HTML: %s", e)
-
-        # Notificación completa al cliente (ticket + gamificación + branding)
-        if client_phone:
-            try:
-                # Obtener datos de fidelidad actualizados
-                puntos_ganados = 0
-                puntos_total   = 0
-                nivel_actual   = client_level or "bronce"
-                nivel_anterior = client_level or "bronce"
-                # Registrar comisión del cajero
-                if hasattr(self, '_comisiones_svc') and self._comisiones_svc:
-                    try:
-                        self._comisiones_svc.registrar_comision(
-                            usuario=user,
-                            venta_id=sale_id,
-                            total_venta=float(total_a_pagar),
-                            sucursal_id=branch_id
-                        )
-                    except Exception as _e:
-                        logger.debug("Nombre cliente %s: %s", client_id, _e)
-
-                if hasattr(self, 'loyalty_service') and client_id:
-                    try:
-                        pts = self.loyalty_service.get_puntos(client_id)
-                        puntos_total = pts.get("puntos_totales", 0)
-                        puntos_ganados = pts.get("puntos_ganados", 0)
-                        nivel_actual   = pts.get("nivel", nivel_actual)
-                    except Exception:
-                        pass
-
-                # GrowthEngine (estrellas, metas, misiones)
-                # Get client name first (needed by GrowthEngine below)
-                nombre_cliente = "Cliente"
-                if client_id:
-                    try:
-                        _row_nc = self.db.execute(
-                            "SELECT nombre FROM clientes WHERE id=?", (client_id,)
-                        ).fetchone()
-                        if _row_nc: nombre_cliente = _row_nc[0]
-                    except Exception:
-                        pass
-
-                ge = getattr(self, 'growth_engine', None)
-                if ge and client_id:
-                    try:
-                        ge_result = ge.procesar_venta(
-                            cliente_id = client_id,
-                            ticket_id  = sale_id,
-                            cajero_id  = 0,
-                            subtotal   = total_a_pagar,
-                            telefono   = client_phone or "",
-                            nombre     = nombre_cliente,
-                        )
-                        estrellas = ge_result.get("estrellas_ganadas", 0)
-                        if estrellas > 0:
-                            puntos_ganados = puntos_ganados + estrellas
-                            puntos_total   = ge.saldo_cliente(client_id)
-                        if ge_result.get("misiones_completadas"):
-                            logger.info("Misiones completadas: %s", ge_result["misiones_completadas"])
-                    except Exception as ge_err:
-                        logger.debug("GrowthEngine post-venta: %s", ge_err)
-
-                # nombre_cliente already fetched above
-
-                # Usar NotificationService si está disponible, WhatsApp directo si no
-                if hasattr(self, 'notification_service') and self.notification_service:
-                    self.notification_service.notificar_venta_cliente(
-                        telefono       = client_phone,
-                        nombre         = nombre_cliente,
-                        folio          = folio,
-                        total          = total_a_pagar,
-                        items          = carrito_final,
-                        puntos_ganados = puntos_ganados,
-                        puntos_total   = puntos_total,
-                        nivel_actual   = nivel_actual,
-                        nivel_anterior = nivel_anterior,
-                        branch_id      = branch_id,
-                    )
-                elif self.whatsapp_service:
-                    self.whatsapp_service.send_message(branch_id, client_phone, mensaje_psico)
-            except Exception as e:
-                logger.warning("notificacion_cliente: %s", e)
 
         return folio, ticket_final_html
 

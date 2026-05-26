@@ -256,6 +256,8 @@ class AppContainer:
             notification_service=getattr(self, 'notification_service', None),
             customer_service=self.customer_credit_service,
         )
+        if getattr(self, "mercado_pago_service", None) is not None:
+            self.mercado_pago_service.sales_service = self.sales_service
         
         # ── Servicios adicionales (v12) ───────────────────────────────────
         from core.services.hardware_service import HardwareService
