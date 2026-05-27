@@ -3,6 +3,12 @@
 import sys, os, sqlite3, pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Perfil de entorno consistente para la suite multi-dominio.
+os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("SPJ_ENV_PROFILE", "test")
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("TZ", "UTC")
+
 @pytest.fixture
 def mem_db():
     """BD en memoria con esquema mínimo para tests."""

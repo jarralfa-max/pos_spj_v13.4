@@ -4,8 +4,9 @@ Two ticket types:
   Customer ticket:  products, total, QR, payment method, notes, weight adjustments
   Driver ticket:    address, references, phone, payment method, total to collect, zone
 
-Printing backend: QPrinter (thermal or default system printer).
-Falls back to a printable QDialog preview if QPrinter is unavailable.
+Printing backend:
+  - Thermal real print: PrinterService.print_ticket (ESC/POS RAW).
+  - Preview mode: printable QDialog (visual only).
 
 All heavy Qt work happens on the caller's thread (must be GUI thread).
 """
@@ -14,6 +15,9 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any, Dict, List, Optional
+from core.tickets.ticket_print_model import (
+    TicketPrintModel, TicketItem, TicketTotals, TicketPaymentInfo, TicketBranding
+)
 
 logger = logging.getLogger("spj.services.ticket_printer")
 
@@ -32,10 +36,11 @@ class TicketPrinterService:
         Useful for testing and when a physical printer is not available.
     """
 
-    def __init__(self, db, printer_name: Optional[str] = None, preview_mode: bool = False) -> None:
+    def __init__(self, db, printer_name: Optional[str] = None, preview_mode: bool = False, printer_service=None) -> None:
         self.db = db
         self._printer_name = printer_name
         self._preview_mode = preview_mode
+        self._printer_service = printer_service
 
     # ── Public ────────────────────────────────────────────────────────────────
 
@@ -47,7 +52,8 @@ class TicketPrinterService:
             return False
         items  = self._load_items(order_id)
         text   = self._build_customer_ticket(order, items)
-        return self._output(text, f"Ticket Cliente #{order.get('folio') or order_id}")
+        model = self._build_customer_model(order, items)
+        return self._output(text, f"Ticket Cliente #{order.get('folio') or order_id}", model=model)
 
     def print_driver_ticket(self, order_id: int) -> bool:
         """Print the driver-facing ticket. Returns True if printed/previewed."""
@@ -56,7 +62,8 @@ class TicketPrinterService:
             logger.warning("TicketPrinter: order %s not found", order_id)
             return False
         text = self._build_driver_ticket(order)
-        return self._output(text, f"Ticket Repartidor #{order.get('folio') or order_id}")
+        model = self._build_driver_model(order)
+        return self._output(text, f"Ticket Repartidor #{order.get('folio') or order_id}", model=model)
 
     def print_both(self, order_id: int) -> bool:
         """Print both tickets for an order."""
@@ -177,28 +184,25 @@ class TicketPrinterService:
 
     # ── Output ────────────────────────────────────────────────────────────────
 
-    def _output(self, text: str, title: str) -> bool:
+    def _output(self, text: str, title: str, model: Optional[TicketPrintModel] = None) -> bool:
         if self._preview_mode:
             return self._show_preview_dialog(text, title)
-        return self._print_via_qt(text, title)
+        return self._print_via_escpos(text, title, model=model)
 
-    def _print_via_qt(self, text: str, title: str) -> bool:
+    def _print_via_escpos(self, text: str, title: str, model: Optional[TicketPrintModel] = None) -> bool:
+        if not self._printer_service or not self._printer_service.has_ticket_printer():
+            logger.warning("TicketPrinter thermal print blocked (%s): no ESC/POS printer configured", title)
+            return False
         try:
-            from PyQt5.QtPrintSupport import QPrinter, QPrinterInfo
-            from PyQt5.QtGui import QTextDocument, QFont
-            printer = QPrinter()
-            if self._printer_name:
-                printer.setPrinterName(self._printer_name)
-            font = QFont("Courier New", 9)
-            doc = QTextDocument()
-            doc.setDefaultFont(font)
-            doc.setPlainText(text)
-            doc.print_(printer)
-            logger.info("TicketPrinter: printed '%s'", title)
+            payload = model.to_dict() if model else {
+                "folio": title, "texto_libre": text, "items": [], "totales": {}, "plantilla": "delivery_text_ticket",
+            }
+            job_id = self._printer_service.print_ticket(payload)
+            logger.info("TicketPrinter ESC/POS queued '%s' job_id=%s", title, job_id)
             return True
         except Exception as exc:
-            logger.warning("TicketPrinter print failed (%s): %s", title, exc)
-            return self._show_preview_dialog(text, title)
+            logger.warning("TicketPrinter ESC/POS failed (%s): %s", title, exc)
+            return False
 
     def _show_preview_dialog(self, text: str, title: str) -> bool:
         try:
@@ -231,7 +235,7 @@ class TicketPrinterService:
 
             def _do_print():
                 self._preview_mode = False
-                self._print_via_qt(text, title)
+                self._print_via_escpos(text, title, model=None)
                 self._preview_mode = True
 
             btn_print.clicked.connect(_do_print)
@@ -272,3 +276,43 @@ class TicketPrinterService:
         except Exception as exc:
             logger.debug("TicketPrinter _load_items: %s", exc)
             return []
+
+    def _build_customer_model(self, order: Dict[str, Any], items: List[Dict[str, Any]]) -> TicketPrintModel:
+        model_items = [
+            TicketItem(
+                nombre=str(it.get("nombre", "Producto")),
+                cantidad=float(it.get("prepared_qty") or it.get("cantidad") or 0),
+                precio_unitario=float(it.get("precio_unitario") or 0),
+                total=float(it.get("subtotal") or 0),
+                unidad=str(it.get("unidad") or "u"),
+            ) for it in items
+        ]
+        subtotal = sum(i.total for i in model_items)
+        total = float(order.get("total") or subtotal)
+        return TicketPrintModel(
+            ticket_type="delivery_customer",
+            folio=str(order.get("folio") or f"DEL-{order.get('id','')}"),
+            fecha=str(order.get("fecha") or ""),
+            cajero="delivery",
+            cliente_nombre=str(order.get("cliente_nombre") or "Cliente"),
+            items=model_items,
+            totals=TicketTotals(subtotal=subtotal, descuento=0.0, total_final=total),
+            payment=TicketPaymentInfo(forma_pago=str(order.get("pago_metodo") or "")),
+            branding=TicketBranding(),
+            footer_message="Gracias por su preferencia",
+        )
+
+    def _build_driver_model(self, order: Dict[str, Any]) -> TicketPrintModel:
+        total = float(order.get("total") or 0)
+        return TicketPrintModel(
+            ticket_type="delivery_driver",
+            folio=str(order.get("folio") or f"DEL-{order.get('id','')}"),
+            fecha=str(order.get("fecha") or ""),
+            cajero=str(order.get("driver_nombre") or "driver"),
+            cliente_nombre=str(order.get("cliente_nombre") or "Cliente"),
+            items=[],
+            totals=TicketTotals(subtotal=total, descuento=0.0, total_final=total),
+            payment=TicketPaymentInfo(forma_pago=str(order.get("pago_metodo") or "")),
+            branding=TicketBranding(),
+            footer_message=str(order.get("direccion") or ""),
+        )

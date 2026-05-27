@@ -5,6 +5,12 @@ from datetime import datetime, UTC
 from typing import List, Dict, Any
 
 
+def _utc_now_iso() -> str:
+    """UTC timezone-aware timestamp in ISO8601 for outbox persistence."""
+    utc_tz = getattr(datetime, "UTC", timezone.utc)
+    return datetime.now(utc_tz).isoformat()
+
+
 def ensure_outbox_table(db) -> None:
     db.execute(
         """
