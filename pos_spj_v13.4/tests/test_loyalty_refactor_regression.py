@@ -140,3 +140,85 @@ def test_growth_engine_ui_compiles():
 def test_no_ui_private_repo_access():
     src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
     assert '_app.repo' not in src
+
+
+def test_acreditar_venta_no_duplica_evento_financiero():
+    db = _db_basic()
+    ls = LoyaltyService(db)
+    ls._publish_loyalty_fin_event = MagicMock()
+    ls._publish_puntos = MagicMock()
+    ls.acreditar_venta(cliente_id=1, venta_id='V-DUP', cajero='u', total=100.0)
+    ls.acreditar_venta(cliente_id=1, venta_id='V-DUP', cajero='u', total=100.0)
+    c = db.execute("SELECT COUNT(*) FROM loyalty_ledger WHERE cliente_id=1 AND tipo='acumulacion' AND referencia='V-DUP'").fetchone()[0]
+    assert c == 1
+    assert ls._publish_loyalty_fin_event.call_count == 1
+    assert ls._publish_puntos.call_count == 1
+
+
+def test_canjear_no_duplica_evento_financiero():
+    db = _db_basic()
+    ls = LoyaltyService(db)
+    ls.acreditar_venta(cliente_id=1, venta_id='BASE', cajero='u', total=1000.0)
+    ls._publish_loyalty_fin_event = MagicMock()
+    ls.canjear(cliente_id=1, cajero_id=1, subtotal=500.0, estrellas=10, venta_id=123)
+    ls.canjear(cliente_id=1, cajero_id=1, subtotal=500.0, estrellas=10, venta_id=123)
+    c = db.execute("SELECT COUNT(*) FROM loyalty_ledger WHERE cliente_id=1 AND tipo='canje' AND referencia='123'").fetchone()[0]
+    assert c == 1
+    assert ls._publish_loyalty_fin_event.call_count == 1
+
+
+def test_reversar_canje_no_duplica_evento_financiero():
+    db = _db_basic()
+    ls = LoyaltyService(db)
+    ls.acreditar_venta(cliente_id=1, venta_id='V-REV-EVT-BASE', cajero='u', total=1000.0)
+    ls.canjear(cliente_id=1, cajero_id=1, subtotal=1000.0, estrellas=15, venta_id='V-REV-EVT-1')
+    ls._publish_loyalty_fin_event = MagicMock()
+    ls.reversar_canje(cliente_id=1, puntos_canjeados=15, referencia='V-REV-EVT-1', usuario='u')
+    ls.reversar_canje(cliente_id=1, puntos_canjeados=15, referencia='V-REV-EVT-1', usuario='u')
+    c = db.execute("SELECT COUNT(*) FROM loyalty_ledger WHERE cliente_id=1 AND tipo='reversa' AND referencia='reversa:V-REV-EVT-1'").fetchone()[0]
+    assert c == 1
+    assert ls._publish_loyalty_fin_event.call_count == 1
+
+
+def test_growth_engine_carga_loyalty_y_fallback_growth_claves():
+    src = (ROOT / 'modulos' / 'modulo_growth_engine.py').read_text(encoding='utf-8')
+    assert 'def _cargar_config(self):' in src
+    assert 'cfg.get("loyalty_expiry_dias", cfg.get("growth_expiry_dias", "90"))' in src
+    assert 'cfg.get("loyalty_otp_umbral", cfg.get("growth_otp_umbral", "200"))' in src
+    assert 'cfg.get("loyalty_valor_estrella", cfg.get("growth_costo_estrella", "0.80"))' in src
+    assert 'cfg.get("loyalty_max_pct_canje", cfg.get("growth_cap_pct", "0.50"))' in src
+
+
+def test_growth_engine_guardado_sigue_en_claves_canonicas_loyalty():
+    src = (ROOT / 'modulos' / 'modulo_growth_engine.py').read_text(encoding='utf-8')
+    assert '"loyalty_expiry_dias"' in src
+    assert '"loyalty_otp_umbral"' in src
+    assert '"loyalty_valor_estrella"' in src
+    assert '"loyalty_max_pct_canje"' in src
+
+
+def test_pasivo_operativo_desde_ledger_es_canonico():
+    db = _db_basic()
+    ls = LoyaltyService(db)
+    ls.acreditar_venta(cliente_id=1, venta_id='V-PASIVO-1', cajero='u', total=100.0)  # +10
+    ls.canjear(cliente_id=1, cajero_id=1, subtotal=500.0, estrellas=4, venta_id=901)  # -4
+    res = ls.pasivo_operativo_desde_ledger()
+    assert res["total_estrellas"] == 6
+    assert abs(res["valor_monetario"] - 0.6) < 1e-9
+
+
+def test_loyalty_repository_aisla_ddl_referidos_en_ensure():
+    src = (ROOT / 'repositories' / 'loyalty_repository.py').read_text(encoding='utf-8')
+    assert 'def ensure_referrals_table(self) -> None:' in src
+    assert 'def list_referrals(self, limit: int = 50) -> List[Any]:' in src
+    assert 'self.ensure_referrals_table()' in src
+    # list_referrals no debe mezclar DDL inline; el CREATE se mantiene aislado en ensure_*.
+    list_block = src.split('def list_referrals(self, limit: int = 50) -> List[Any]:', 1)[1].split('def ensure_referrals_table(self) -> None:', 1)[0]
+    assert 'CREATE TABLE IF NOT EXISTS referidos' not in list_block
+
+
+def test_fidelidad_config_no_hardcodea_qfont_arial():
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
+    assert 'QFont("Arial"' not in src
+    assert 'font = it.font()' in src
+    assert 'font.setBold(True)' in src

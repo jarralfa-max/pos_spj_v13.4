@@ -267,10 +267,15 @@ class ModuloGrowthEngine(QWidget):
 
     def _cargar_config(self):
         cfg = self._engine_para().get_growth_config()
-        self.spin_expiry.setValue(int(cfg.get("growth_expiry_dias", "90")))
-        self.spin_otp_umbral.setValue(int(cfg.get("growth_otp_umbral", "200")))
-        self.spin_costo_estrella.setValue(float(cfg.get("growth_costo_estrella", "0.80")))
-        self.spin_cap.setValue(int(float(cfg.get("growth_cap_pct", "0.50")) * 100))
+        # Compat temporal: prioriza claves canónicas loyalty_* y deja growth_* como fallback legacy.
+        expiry = cfg.get("loyalty_expiry_dias", cfg.get("growth_expiry_dias", "90"))
+        otp = cfg.get("loyalty_otp_umbral", cfg.get("growth_otp_umbral", "200"))
+        valor = cfg.get("loyalty_valor_estrella", cfg.get("growth_costo_estrella", "0.80"))
+        cap = cfg.get("loyalty_max_pct_canje", cfg.get("growth_cap_pct", "0.50"))
+        self.spin_expiry.setValue(int(expiry))
+        self.spin_otp_umbral.setValue(int(otp))
+        self.spin_costo_estrella.setValue(float(valor))
+        self.spin_cap.setValue(int(float(cap) * 100))
 
     def _guardar_config(self):
         cfg = {

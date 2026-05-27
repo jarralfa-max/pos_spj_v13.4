@@ -63,13 +63,16 @@ class LoyaltyService:
                 sucursal_id=self.sucursal_id, usuario=str(cajero or ""),
             )
             if estrellas > 0:
+                is_idempotent = bool(resultado.get("idempotent"))
                 awarded = int(resultado.get("puntos_otorgados", estrellas) or 0)
-                if awarded > 0:
+                if awarded > 0 and not is_idempotent:
                     # La transacción la controla el orquestador superior (SalesService/SAVEPOINT).
                     self._registrar_pasivo(awarded, venta_id, "acreditar", commit=False)
-                self._publish_puntos(cliente_id, estrellas,
-                                     resultado.get("saldo", 0), venta_id)
-                self._publish_loyalty_fin_event("LOYALTY_POINTS_EARNED", cliente_id, estrellas, venta_id, cajero)
+                if not is_idempotent:
+                    self._publish_puntos(cliente_id, estrellas,
+                                         resultado.get("saldo", 0), venta_id)
+                if not is_idempotent and awarded > 0:
+                    self._publish_loyalty_fin_event("LOYALTY_POINTS_EARNED", cliente_id, estrellas, venta_id, cajero)
             return {"estrellas_ganadas": estrellas, "saldo_actual": resultado.get("saldo", self.saldo(cliente_id)), "mensaje_gamificacion": ""}
         except Exception as e:
             logger.error("acreditar_venta: %s", e)
@@ -160,11 +163,11 @@ class LoyaltyService:
             sucursal_id=self.sucursal_id, usuario=str(cajero_id),
         )
         if resultado.get("ok"):
+            is_idempotent = bool(resultado.get("idempotent"))
             canjeadas = int(resultado.get("puntos_canjeados", 0))
-            if canjeadas > 0:
-                if not bool(resultado.get("idempotent")):
-                    # La transacción la controla el orquestador superior (SalesService/SAVEPOINT).
-                    self._registrar_pasivo(-canjeadas, venta_id, "canje", commit=False)
+            if canjeadas > 0 and not is_idempotent:
+                # La transacción la controla el orquestador superior (SalesService/SAVEPOINT).
+                self._registrar_pasivo(-canjeadas, venta_id, "canje", commit=False)
                 self._publish_loyalty_fin_event("LOYALTY_POINTS_REDEEMED", cliente_id, -canjeadas, venta_id, str(cajero_id))
         return resultado
 
@@ -377,7 +380,21 @@ class LoyaltyService:
             return 0
 
     def pasivo_financiero(self) -> Dict:
+        """
+        Calcula pasivo financiero desde `loyalty_pasivo_log` (bitácora auxiliar).
+        No representa el saldo canónico de puntos; ese saldo está en `loyalty_ledger`
+        y se consulta vía `saldo()`.
+        """
         total = self.db.execute("SELECT COALESCE(SUM(estrellas),0) FROM loyalty_pasivo_log").fetchone()[0]
+        valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
+        return {"total_estrellas": int(total or 0), "valor_monetario": float((total or 0) * valor)}
+
+    def pasivo_operativo_desde_ledger(self) -> Dict:
+        """
+        Estimación operativa desde el ledger canónico (`loyalty_ledger`).
+        Útil para contraste/auditoría con `pasivo_financiero()` sin cambiar la UI actual.
+        """
+        total = self.db.execute("SELECT COALESCE(SUM(puntos),0) FROM loyalty_ledger").fetchone()[0]
         valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
         return {"total_estrellas": int(total or 0), "valor_monetario": float((total or 0) * valor)}
 
@@ -533,9 +550,11 @@ class LoyaltyService:
             )
             if not app_res.get("ok", False):
                 return {"ok": False, "error": app_res.get("error", "reversa_no_aplicada")}
-            # Ajustar pasivo financiero como bitácora auxiliar
-            self._registrar_pasivo(puntos_canjeados, referencia, "reversa", commit=False)
-            self._publish_loyalty_fin_event("LOYALTY_POINTS_REVERSED", cliente_id, puntos_canjeados, referencia, usuario)
+            is_idempotent = bool(app_res.get("idempotent"))
+            if not is_idempotent:
+                # Ajustar pasivo financiero como bitácora auxiliar
+                self._registrar_pasivo(puntos_canjeados, referencia, "reversa", commit=False)
+                self._publish_loyalty_fin_event("LOYALTY_POINTS_REVERSED", cliente_id, puntos_canjeados, referencia, usuario)
             nuevo_saldo = int(app_res.get("saldo", self.saldo(cliente_id)))
             logger.info("Reversa canje cliente=%d puntos=%d ref=%s",
                         cliente_id, puntos_canjeados, referencia)
