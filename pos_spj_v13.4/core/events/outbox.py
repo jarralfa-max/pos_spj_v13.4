@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import List, Dict, Any
+
+
+def _utc_now_iso() -> str:
+    """UTC timezone-aware timestamp in ISO8601 for outbox persistence."""
+    utc_tz = getattr(datetime, "UTC", timezone.utc)
+    return datetime.now(utc_tz).isoformat()
 
 
 def ensure_outbox_table(db) -> None:
@@ -46,7 +52,7 @@ def enqueue_event(
             json.dumps(payload or {}, ensure_ascii=False, default=str),
             aggregate_type or "",
             str(aggregate_id or ""),
-            datetime.now(UTC).isoformat(),
+            _utc_now_iso(),
         ),
     )
     try:
@@ -91,7 +97,7 @@ def mark_dispatched(db, event_id: int, error: str = "") -> None:
         SET status=?, error=?, dispatched_at=?
         WHERE id=?
         """,
-        (status, error or "", datetime.now(UTC).isoformat(), int(event_id)),
+        (status, error or "", _utc_now_iso(), int(event_id)),
     )
     try:
         db.commit()

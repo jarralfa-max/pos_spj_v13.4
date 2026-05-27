@@ -29,7 +29,11 @@ from __future__ import annotations
 import io
 import logging
 import struct
+import re
 from typing import Dict, Any, List, Optional, Tuple
+from core.tickets.ticket_print_model import TicketPrintModel
+from core.tickets.ticket_layout_config import TicketLayoutConfig
+from core.tickets.branding_service import BrandingService
 
 logger = logging.getLogger("spj.escpos")
 
@@ -85,14 +89,14 @@ CHARS_BY_WIDTH = {
 class TicketESCPOSRenderer:
     """Genera bytes ESC/POS a partir de ticket_data del ERP."""
 
-    def __init__(self, paper_width_mm: int = 80, encoding: str = "utf-8"):
+    def __init__(self, paper_width_mm: int = 80, encoding: str = "cp850"):
         self.paper_width = paper_width_mm
         self.encoding = encoding
         self.chars_per_line = CHARS_BY_WIDTH.get(paper_width_mm, 48)
 
     # ── API principal ─────────────────────────────────────────────────────────
 
-    def render(self, ticket_data: Dict[str, Any],
+    def render(self, ticket_data: Dict[str, Any] | TicketPrintModel,
                logo_b64: str = "", qr_content: str = "") -> bytes:
         """
         Genera bytes ESC/POS completos listos para enviar a la impresora.
@@ -105,14 +109,18 @@ class TicketESCPOSRenderer:
         Returns:
             bytes listos para enviar via socket/serial/USB
         """
+        if isinstance(ticket_data, TicketPrintModel):
+            ticket_data = ticket_data.to_dict()
+        layout = TicketLayoutConfig.from_dict(ticket_data.get("layout_config", {})) if isinstance(ticket_data, dict) else TicketLayoutConfig()
+        w = layout.chars_per_line
+
         buf = bytearray()
-        w = self.chars_per_line
 
         # 1. Init
         buf += INIT
 
         # 2. Logo
-        if logo_b64:
+        if layout.show_logo and logo_b64:
             logo_bytes = self._render_logo(logo_b64)
             if logo_bytes:
                 buf += ALIGN_CENTER
@@ -214,7 +222,7 @@ class TicketESCPOSRenderer:
                 buf += self._text(f"Saldo total: {puntos_total} puntos")
 
         # 9. QR code
-        if qr_content:
+        if layout.show_qr and qr_content:
             qr_bytes = self._render_qr(qr_content)
             if qr_bytes:
                 buf += ALIGN_CENTER
@@ -228,8 +236,8 @@ class TicketESCPOSRenderer:
         buf += self._text("")
 
         # 11. Feed + Cut
-        buf += FEED_N + b'\x04'   # 4 líneas de avance
-        buf += CUT_PARTIAL
+        buf += FEED_N + bytes([max(0, min(10, int(layout.feed_lines)))])
+        buf += CUT_PARTIAL if layout.cut_type == "partial" else CUT_FULL
 
         return bytes(buf)
 
@@ -237,7 +245,7 @@ class TicketESCPOSRenderer:
 
     def _text(self, text: str) -> bytes:
         """Línea de texto con newline."""
-        return (text + '\n').encode(self.encoding, errors='replace')
+        return (self._sanitize_text(text) + '\n').encode(self.encoding, errors='replace')
 
     def _separator(self, width: int, char: str = '=') -> bytes:
         return (char * width + '\n').encode(self.encoding)
@@ -252,8 +260,44 @@ class TicketESCPOSRenderer:
         mid_str = middle[:mid_w].rjust(mid_w)
         right_str = right[:right_w].rjust(right_w)
 
-        line = f"{left_str}{mid_str}{right_str}\n"
+        line = f"{self._sanitize_text(left_str)}{self._sanitize_text(mid_str)}{self._sanitize_text(right_str)}\n"
         return line.encode(self.encoding, errors='replace')
+
+    def _sanitize_text(self, text: Any) -> str:
+        raw = str(text or "")
+        # remove emoji / non-BMP symbols and non-printable controls
+        raw = re.sub(r"[\U00010000-\U0010ffff]", "", raw)
+        raw = "".join(ch for ch in raw if ch == "\n" or ch == "\t" or ord(ch) >= 32)
+        return raw
+
+    def render_text_preview(self, ticket_data: Dict[str, Any] | TicketPrintModel,
+                            layout_config: Optional[TicketLayoutConfig] = None) -> str:
+        if isinstance(ticket_data, TicketPrintModel):
+            ticket_data = ticket_data.to_dict()
+        layout = layout_config or TicketLayoutConfig.from_dict(ticket_data.get("layout_config", {}))
+        w = layout.chars_per_line
+        lines: List[str] = []
+        lines.append(self._sanitize_text(ticket_data.get("empresa", "SPJ POS")).center(w)[:w])
+        if ticket_data.get("direccion"):
+            lines.append(self._sanitize_text(ticket_data.get("direccion", ""))[:w])
+        lines.append("=" * w)
+        lines.append(f"Folio: {self._sanitize_text(ticket_data.get('folio', ''))}"[:w])
+        lines.append("-" * w)
+        for item in ticket_data.get("items", []):
+            nombre = self._sanitize_text(item.get("nombre", ""))
+            qty = float(item.get("cantidad", item.get("qty", 0)) or 0)
+            total_it = float(item.get("total", item.get("subtotal", 0)) or 0)
+            left_w = max(10, w - 14)
+            for i in range(0, len(nombre), left_w):
+                chunk = nombre[i:i+left_w]
+                if i == 0:
+                    lines.append(f"{chunk:<{left_w}} {qty:>5.2f} ${total_it:>6.2f}"[:w])
+                else:
+                    lines.append(chunk[:w])
+        total = float((ticket_data.get("totales", {}) or {}).get("total_final", 0) or 0)
+        lines.append("=" * w)
+        lines.append(f"TOTAL: ${total:.2f}".rjust(w)[:w])
+        return "\n".join(lines)
 
     # ── Logo: base64 → ESC/POS bitmap ─────────────────────────────────────────
 
@@ -473,16 +517,17 @@ def render_and_print_ticket(ticket_data: Dict[str, Any],
                     "SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
                 return r[0] if r and r[0] else d
 
-            logo_b64 = _cfg('ticket_logo_b64', '')
+            branding = BrandingService(db_conn=db_conn).get_ticket_branding()
+            logo_b64 = branding.logo_b64
             paper_w = int(_cfg('ticket_paper_width', '80'))
 
             if _cfg('ticket_qr_enabled', '0') == '1':
                 qr_content = _cfg('ticket_qr_url', '') or ticket_data.get('folio', '')
 
             # Enriquecer ticket_data con datos de empresa
-            ticket_data.setdefault('empresa', _cfg('nombre_empresa', 'SPJ POS'))
-            ticket_data.setdefault('direccion', _cfg('direccion', ''))
-            ticket_data.setdefault('telefono', _cfg('telefono_empresa', ''))
+            ticket_data.setdefault('empresa', branding.brand_name)
+            ticket_data.setdefault('direccion', branding.address)
+            ticket_data.setdefault('telefono', branding.phone)
         except Exception as e:
             logger.debug("render_and_print_ticket config: %s", e)
 
