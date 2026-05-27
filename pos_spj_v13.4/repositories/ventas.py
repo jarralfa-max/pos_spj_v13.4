@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from datetime import datetime
 from decimal import Decimal
@@ -123,6 +124,13 @@ class VentaRepository:
         items: [{producto_id, cantidad, precio_unitario, costo_unitario}]
         Returns: {venta_id, folio, total}
         """
+        if str(os.getenv("ALLOW_LEGACY_VENTA_REPOSITORY_WRITES", "0")).strip() != "1":
+            raise RuntimeError(
+                "VentaRepository.create_sale() está bloqueado por seguridad. "
+                "Usa SalesService.execute_sale() o habilita explícitamente "
+                "ALLOW_LEGACY_VENTA_REPOSITORY_WRITES=1 para flujos legacy controlados."
+            )
+
         operation_id = sale_data.get("operation_id") or str(uuid.uuid4())
 
         # Idempotency guard

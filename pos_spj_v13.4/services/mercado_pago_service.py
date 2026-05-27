@@ -21,6 +21,7 @@ class MercadoPagoService:
     def __init__(self, conn=None):
         self.conn  = conn or get_connection()
         self._token = self._get_token()
+        self.sales_service = None  # inyectado por AppContainer
 
     def _get_token(self) -> str:
         try:
@@ -134,17 +135,29 @@ class MercadoPagoService:
             external_ref = info.get("external_ref")
             if external_ref:
                 try:
-                    pedido_id = int(external_ref)
                     with transaction(self.conn) as c:
-                        c.execute("""UPDATE pedidos_whatsapp
-                            SET pago_confirmado=1, estado='confirmado',
-                                forma_pago='link_pago'
-                            WHERE id=?""", (pedido_id,))
                         c.execute("""UPDATE links_pago
                             SET estado='pagado', payment_id=?, fecha_pago=datetime('now')
-                            WHERE pedido_id=?""", (payment_id, pedido_id))
-                    logger.info("MP pago aprobado: pedido=%d payment=%s",
-                                pedido_id, payment_id)
+                            WHERE pedido_id=?""", (payment_id, str(external_ref)))
+                    # Fase 7+: convertir intención pendiente a venta definitiva
+                    ss = getattr(self, "sales_service", None)
+                    if ss and hasattr(ss, "confirm_pending_payment_sale"):
+                        ss.confirm_pending_payment_sale(str(external_ref), payment_id=payment_id)
+                        logger.info("MP pago aprobado y venta confirmada: ref=%s payment=%s",
+                                    external_ref, payment_id)
+                        return True
+                    # Compat legacy WhatsApp pedidos (cuando ref es numérico)
+                    try:
+                        pedido_id = int(external_ref)
+                        with transaction(self.conn) as c:
+                            c.execute("""UPDATE pedidos_whatsapp
+                                SET pago_confirmado=1, estado='confirmado',
+                                    forma_pago='link_pago'
+                                WHERE id=?""", (pedido_id,))
+                        logger.info("MP pago aprobado (legacy pedido): pedido=%d payment=%s",
+                                    pedido_id, payment_id)
+                    except Exception:
+                        logger.info("MP pago aprobado sin confirmador inyectado: ref=%s", external_ref)
                     return True
                 except Exception as e:
                     logger.error("procesar_webhook BD: %s", e)
