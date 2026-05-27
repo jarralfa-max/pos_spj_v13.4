@@ -622,6 +622,36 @@ class LoyaltyService:
     def list_at_risk_customers(self, days_without_sale: int = 30, limit: int = 200):
         return self._app.repo.list_at_risk_customers(days_without_sale=days_without_sale, limit=limit)
 
+    def get_dashboard_kpis(self) -> dict:
+        raw = self._app.repo.get_dashboard_kpis() or {}
+        kpis = {k: raw.get(k, 0) for k in self.DASHBOARD_KPI_KEYS}
+        # Normalización de tipos para contrato estable de UI.
+        int_keys = (
+            "clientes_con_puntos",
+            "puntos_activos",
+            "puntos_emitidos_mes",
+            "puntos_canjeados_mes",
+            "cumples_7_dias",
+            "clientes_en_riesgo",
+            "rifas_activas",
+        )
+        for key in int_keys:
+            try:
+                kpis[key] = int(kpis[key] or 0)
+            except Exception:
+                kpis[key] = 0
+        try:
+            kpis["pasivo_operativo"] = float(kpis["pasivo_operativo"] or 0.0)
+        except Exception:
+            kpis["pasivo_operativo"] = 0.0
+        return kpis
+
+    def list_raffles(self, limit: int = 50):
+        return self._app.repo.list_raffles(limit=limit)
+
+    def get_raffle_summary(self) -> dict:
+        return self._app.repo.get_raffle_summary()
+
     def resolve_scan(self, codigo: str) -> dict:
         """Resuelve códigos de tarjeta/cliente sin SQL desde UI."""
         code = str(codigo or "").strip()
@@ -689,3 +719,13 @@ class LoyaltyService:
             return default
         except Exception:
             return default
+    DASHBOARD_KPI_KEYS = (
+        "clientes_con_puntos",
+        "puntos_activos",
+        "pasivo_operativo",
+        "puntos_emitidos_mes",
+        "puntos_canjeados_mes",
+        "cumples_7_dias",
+        "clientes_en_riesgo",
+        "rifas_activas",
+    )
