@@ -52,3 +52,17 @@ def test_migration_092_skips_growth_ledger_without_puntos_column():
 
     bal = db.execute("SELECT COALESCE(SUM(puntos),0) FROM loyalty_ledger WHERE cliente_id=1").fetchone()[0]
     assert bal == 10
+
+
+def test_migration_092_survives_broken_legacy_view_dependencies():
+    db = sqlite3.connect(':memory:')
+    db.execute("CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, referencia TEXT, descripcion TEXT, sucursal_id INTEGER, usuario TEXT, created_at TEXT)")
+    db.execute("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, puntos INTEGER DEFAULT 0)")
+    db.execute("INSERT INTO loyalty_ledger(cliente_id,tipo,puntos,referencia,created_at) VALUES (1,'acumulacion',15,'V1','2026-01-01')")
+    # Simula metadato roto reportado en producción: vista apuntando a tabla *_old inexistente.
+    db.execute("CREATE VIEW v_negative_inventory AS SELECT * FROM branch_inventory_old")
+
+    _load_migration('092_loyalty_ledger_canonicalization.py').run(db)
+
+    bal = db.execute("SELECT COALESCE(SUM(puntos),0) FROM loyalty_ledger WHERE cliente_id=1").fetchone()[0]
+    assert bal == 15
