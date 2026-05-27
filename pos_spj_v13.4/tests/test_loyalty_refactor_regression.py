@@ -318,15 +318,18 @@ def test_event_bus_has_raffle_events():
 def test_fidelidad_raffles_tab_ui_scaffold():
     src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
     assert '🎟️ Rifas y Sorteos' in src
-    assert 'create_kpi_card(' in src
+    assert 'create_kpi_bar(' in src
     assert 'list_raffles(limit=50)' in src
     assert 'get_raffle_summary()' in src
 
 
 def test_wiring_no_raffle_flow_hooked_to_venta_completada_yet():
     src = (ROOT / 'core' / 'events' / 'wiring.py').read_text(encoding='utf-8')
-    # FASE 6: eventos preparados pero sin flujo operativo conectado aún.
-    assert "RAFFLE_" not in src
+    # FASE 6: permitido handler financiero de eventos RAFFLE_*,
+    # pero NO se debe enganchar flujo de rifas dentro de _wire_venta / VENTA_COMPLETADA.
+    assert "RAFFLE_" in src
+    venta_block = src.split("def _wire_venta", 1)[1]
+    assert "RAFFLE_" not in venta_block
 
 
 # FASE 7 — nombres canónicos solicitados
