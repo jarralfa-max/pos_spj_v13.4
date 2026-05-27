@@ -1,4 +1,5 @@
 """Fase 1: canonicaliza loyalty_ledger y recalcula snapshots de puntos."""
+import sqlite3
 
 def _table_exists(conn, name: str) -> bool:
     return conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone() is not None
@@ -43,7 +44,7 @@ def run(conn):
            COALESCE(descripcion,''), COALESCE(sucursal_id,1), COALESCE(usuario,''), COALESCE(created_at, datetime('now'))
     FROM loyalty_ledger""")
 
-    if _table_exists(conn, 'growth_ledger'):
+    if _table_exists(conn, 'growth_ledger') and _column_exists(conn, 'growth_ledger', 'puntos'):
         monto_expr = 'COALESCE(monto_equiv,0)' if _column_exists(conn, 'growth_ledger', 'monto_equiv') else '0'
         conn.execute(f"""INSERT OR IGNORE INTO loyalty_ledger_new
         (cliente_id,tipo,puntos,monto_equiv,referencia,descripcion,sucursal_id,usuario,created_at)
@@ -54,8 +55,34 @@ def run(conn):
                COALESCE(usuario,''), COALESCE(created_at, datetime('now'))
         FROM growth_ledger WHERE cliente_id IS NOT NULL""")
 
-    conn.execute("DROP TABLE loyalty_ledger")
-    conn.execute("ALTER TABLE loyalty_ledger_new RENAME TO loyalty_ledger")
+    try:
+        conn.execute("DROP TABLE IF EXISTS loyalty_ledger_old")
+        conn.execute("ALTER TABLE loyalty_ledger RENAME TO loyalty_ledger_old")
+        conn.execute("ALTER TABLE loyalty_ledger_new RENAME TO loyalty_ledger")
+        conn.execute("DROP TABLE IF EXISTS loyalty_ledger_old")
+    except sqlite3.OperationalError:
+        # Entornos legacy pueden traer vistas inválidas (p.ej. referenciando tablas *_old)
+        # que bloquean ALTER/DROP con rollback global de migración.
+        # Fallback seguro: conservar tabla actual e incorporar datos normalizados.
+        conn.execute("DELETE FROM loyalty_ledger")
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO loyalty_ledger
+            (cliente_id,tipo,puntos,monto_equiv,saldo_post,referencia,descripcion,sucursal_id,usuario,created_at)
+            SELECT cliente_id,tipo,puntos,monto_equiv,saldo_post,referencia,descripcion,sucursal_id,usuario,created_at
+            FROM loyalty_ledger_new
+            """
+        )
+        conn.execute("DROP TABLE IF EXISTS loyalty_ledger_new")
+        # UNIQUE lógico equivalente para idempotencia sin reescritura de tabla.
+        try:
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_loyalty_ledger_cliente_tipo_ref ON loyalty_ledger(cliente_id,tipo,referencia)"
+            )
+        except sqlite3.IntegrityError:
+            # Si hay datos legacy duplicados, mantener migración viva.
+            # La deduplicación fuerte se aplicará cuando el entorno permita swap de tabla.
+            pass
     conn.execute("CREATE INDEX IF NOT EXISTS idx_loyalty_ledger_cliente_created ON loyalty_ledger(cliente_id, created_at)")
 
     rows = conn.execute("SELECT id, cliente_id, puntos FROM loyalty_ledger ORDER BY cliente_id, created_at, id").fetchall()

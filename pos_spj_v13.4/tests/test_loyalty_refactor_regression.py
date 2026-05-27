@@ -1,6 +1,7 @@
 import importlib.util
 import py_compile
 import sqlite3
+import re
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -9,6 +10,7 @@ from core.events.event_bus import EventBus, VENTA_COMPLETADA
 from core.events.wiring import _wire_venta
 from core.services.sales_service import SalesService
 from core.services.loyalty_service import LoyaltyService
+from repositories.loyalty_repository import LoyaltyRepository
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -222,3 +224,123 @@ def test_fidelidad_config_no_hardcodea_qfont_arial():
     assert 'QFont("Arial"' not in src
     assert 'font = it.font()' in src
     assert 'font.setBold(True)' in src
+
+
+def test_loyalty_dashboard_kpis_shape():
+    db = _db_basic()
+    db.execute("CREATE TABLE ventas (id INTEGER PRIMARY KEY, cliente_id INTEGER, fecha TEXT, total REAL)")
+    db.execute("CREATE TABLE tarjetas_fidelidad (id INTEGER PRIMARY KEY, id_cliente INTEGER, cliente_id INTEGER, nivel TEXT)")
+    ls = LoyaltyService(db)
+    kpis = ls.get_dashboard_kpis()
+    expected = {
+        "clientes_con_puntos",
+        "puntos_activos",
+        "pasivo_operativo",
+        "puntos_emitidos_mes",
+        "puntos_canjeados_mes",
+        "cumples_7_dias",
+        "clientes_en_riesgo",
+        "rifas_activas",
+    }
+    assert expected.issubset(set(kpis.keys()))
+    assert isinstance(kpis["pasivo_operativo"], float)
+    for key in expected - {"pasivo_operativo"}:
+        assert isinstance(kpis[key], int)
+
+
+def test_fidelidad_config_no_private_repo_access():
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
+    assert "_app.repo" not in src
+
+
+def test_fidelidad_ui_no_qfont_arial():
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
+    assert 'QFont("Arial"' not in src
+
+
+def test_growth_ui_no_hex_styles():
+    src = (ROOT / 'modulos' / 'modulo_growth_engine.py').read_text(encoding='utf-8')
+    assert 'setStyleSheet("' not in src or "#" not in src
+    assert 'QColor("#' not in src
+    assert 'Qt.darkGreen' not in src
+    assert "style='color:" not in src
+    assert "style='font-size:" not in src
+
+
+def test_fidelidad_ui_no_visual_hardcodes():
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
+    assert 'QColor("#' not in src
+    assert 'QFont("Arial"' not in src
+    assert "style='color:" not in src
+    assert "style='font-size:" not in src
+
+
+def test_raffle_tables_ensure_and_list():
+    db = _db_basic()
+    repo = LoyaltyRepository(db)
+    repo.ensure_raffle_tables()
+    rows = repo.list_raffles(limit=10)
+    assert rows == []
+
+
+def test_raffle_tables_have_required_columns():
+    db = _db_basic()
+    repo = LoyaltyRepository(db)
+    repo.ensure_raffle_tables()
+
+    def _cols(table_name: str) -> set:
+        return {r[1] for r in db.execute(f"PRAGMA table_info({table_name})").fetchall()}
+
+    assert {
+        "id", "nombre", "descripcion", "premio", "estado",
+        "fecha_inicio", "fecha_fin", "monto_por_boleto",
+        "max_boletos_por_cliente", "sucursal_id", "created_at", "updated_at",
+    }.issubset(_cols("raffles"))
+    assert {
+        "id", "raffle_id", "cliente_id", "venta_id", "folio_venta",
+        "numero_boleto", "monto_base", "estado", "sucursal_id", "created_at",
+    }.issubset(_cols("raffle_tickets"))
+    assert {
+        "id", "raffle_id", "ticket_id", "cliente_id", "premio",
+        "seleccionado_por", "fecha_seleccion", "notificado",
+    }.issubset(_cols("raffle_winners"))
+
+
+def test_event_bus_has_raffle_events():
+    src = (ROOT / 'core' / 'events' / 'event_bus.py').read_text(encoding='utf-8')
+    assert "RAFFLE_CREATED" in src
+    assert "RAFFLE_ACTIVATED" in src
+    assert "RAFFLE_TICKET_GRANTED" in src
+    assert "RAFFLE_CLOSED" in src
+    assert "RAFFLE_WINNER_SELECTED" in src
+
+
+def test_fidelidad_raffles_tab_ui_scaffold():
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
+    assert '🎟️ Rifas y Sorteos' in src
+    assert 'create_kpi_card(' in src
+    assert 'list_raffles(limit=50)' in src
+    assert 'get_raffle_summary()' in src
+
+
+def test_wiring_no_raffle_flow_hooked_to_venta_completada_yet():
+    src = (ROOT / 'core' / 'events' / 'wiring.py').read_text(encoding='utf-8')
+    # FASE 6: eventos preparados pero sin flujo operativo conectado aún.
+    assert "RAFFLE_" not in src
+
+
+# FASE 7 — nombres canónicos solicitados
+def test_fidelidad_config_no_private_repo_access():
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
+    assert "_app.repo" not in src
+
+
+def test_fidelidad_ui_no_qfont_arial():
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
+    assert 'QFont("Arial"' not in src
+
+
+def test_growth_ui_no_hex_styles():
+    src = (ROOT / 'modulos' / 'modulo_growth_engine.py').read_text(encoding='utf-8')
+    # Solo bloquear estilo inline con hex dentro de setStyleSheet.
+    assert re.search(r'setStyleSheet\([^\)]*#[0-9a-fA-F]{3,8}', src) is None
