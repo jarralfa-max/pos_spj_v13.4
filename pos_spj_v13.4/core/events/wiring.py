@@ -82,6 +82,99 @@ def _wire_loyalty_finance_handlers(bus, container) -> None:
 
 
 
+def _wire_raffle_finance_handlers(bus, container) -> None:
+    """Handler financiero de rifas (FASE 5) con idempotencia por ledger único."""
+    fs = getattr(container, "finance_service", None)
+    ls = getattr(container, "loyalty_service", None)
+    repo = getattr(getattr(ls, "_app", None), "repo", None)
+    if not fs or repo is None:
+        return
+
+    from core.events.event_bus import (
+        RAFFLE_BUDGET_RESERVED,
+        RAFFLE_PRIZE_DELIVERED,
+        RAFFLE_BUDGET_RELEASED,
+    )
+
+    def _post_if_new(data: dict, tipo: str, debe: str, haber: str, concepto: str) -> None:
+        try:
+            raffle_id = int(data.get("raffle_id") or 0)
+            if raffle_id <= 0:
+                return
+            referencia = str(data.get("referencia") or "").strip()
+            if not referencia:
+                return
+            monto = abs(float(data.get("monto") or 0.0))
+            if monto <= 0:
+                return
+            usuario = str(data.get("usuario") or "sistema")
+            sucursal_id = int(data.get("sucursal_id") or 1)
+
+            # Guardia idempotente: UNIQUE(raffle_id, tipo, referencia)
+            try:
+                repo.db.execute(
+                    """
+                    INSERT INTO raffle_financial_ledger
+                    (raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
+                    VALUES(?,?,?,?,?,?,?)
+                    """,
+                    (raffle_id, tipo, monto, referencia, concepto, usuario, sucursal_id),
+                )
+            except Exception:
+                return
+
+            fs.registrar_asiento(
+                debe=debe,
+                haber=haber,
+                concepto=f"{concepto} ref={referencia}",
+                monto=monto,
+                modulo="raffles",
+                referencia_id=referencia,
+                sucursal_id=sucursal_id,
+                evento=f"RAFFLE_{tipo.upper()}",
+                metadata={"raffle_id": raffle_id, "tipo": tipo},
+            )
+        except Exception as e:
+            logger.debug("raffle finance handler %s: %s", tipo, e)
+
+    bus.subscribe(
+        RAFFLE_BUDGET_RESERVED,
+        lambda d: _post_if_new(
+            d,
+            "pasivo_reservado",
+            "6201-descuentos-fidelizacion",
+            "215.1-pasivo-fidelizacion",
+            "Reserva presupuesto rifa",
+        ),
+        priority=60,
+        label="raffle_fin_budget_reserved",
+    )
+    bus.subscribe(
+        RAFFLE_PRIZE_DELIVERED,
+        lambda d: _post_if_new(
+            d,
+            "premio_entregado",
+            "215.1-pasivo-fidelizacion",
+            "401.1-descuento-clientes",
+            "Entrega premio rifa",
+        ),
+        priority=60,
+        label="raffle_fin_prize_delivered",
+    )
+    bus.subscribe(
+        RAFFLE_BUDGET_RELEASED,
+        lambda d: _post_if_new(
+            d,
+            "pasivo_liberado",
+            "215.1-pasivo-fidelizacion",
+            "401.1-descuento-clientes",
+            "Liberación reserva rifa",
+        ),
+        priority=60,
+        label="raffle_fin_budget_released",
+    )
+
+
 def _wire_loyalty_domain_handlers(bus, container) -> None:
     """Handlers de dominio de fidelidad (FASE 7) con prioridades explícitas."""
     db = getattr(container, "db", None)
@@ -153,6 +246,7 @@ def wire_all(container: "AppContainer") -> None:
     _wire_sale_handlers(bus, container)
     _wire_loyalty_finance_handlers(bus, container)
     _wire_loyalty_domain_handlers(bus, container)
+    _wire_raffle_finance_handlers(bus, container)
 
     # Phase 3: PRODUCTION_ITEMS_PROCESS — inventory handler (sync, inside transaction)
     _wire_production_items_handlers(bus, container)
