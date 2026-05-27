@@ -615,7 +615,12 @@ class DialogoPago(QDialog):
             self.txt_recibido.selectAll()))
         
     def cambiar_forma_pago(self, forma_pago):
-        self.forma_pago = forma_pago
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            self.forma_pago = PaymentPolicy.normalize_payment_method(forma_pago)
+        except Exception:
+            self.forma_pago = forma_pago
+        forma_pago = self.forma_pago
         if forma_pago == "Efectivo":
             self.txt_recibido.setEnabled(True)
             self.txt_recibido.setValue(self.total_a_pagar)
@@ -659,10 +664,23 @@ class DialogoPago(QDialog):
 
     def calcular_cambio(self):
         self.efectivo_recibido = self.txt_recibido.value()
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            validation = PaymentPolicy.validate_payment(
+                total=self.total_a_pagar,
+                method=self.forma_pago,
+                amount_paid=self.efectivo_recibido,
+                cash=self.spin_efectivo_mixto.value() if hasattr(self, "spin_efectivo_mixto") else 0.0,
+                card=self.spin_tarjeta_mixto.value() if hasattr(self, "spin_tarjeta_mixto") else 0.0,
+            )
+            self.cambio = float(validation.get("change", 0.0))
+            ok = bool(validation.get("ok", True))
+        except Exception:
+            ok = True
+            self.cambio = round(self.efectivo_recibido - self.total_a_pagar, 2) if self.forma_pago == "Efectivo" else 0.0
         if self.forma_pago == "Efectivo":
-            self.cambio = round(self.efectivo_recibido - self.total_a_pagar, 2)
             self.lbl_cambio.setText(f"Cambio: ${self.cambio:.2f}")
-            if self.cambio < 0:
+            if not ok or self.cambio < 0:
                 self.btn_aceptar.setEnabled(False)
                 self.lbl_cambio.setProperty("class", "payment-change-negative")
             else:
@@ -678,8 +696,13 @@ class DialogoPago(QDialog):
             return
         ef = self.spin_efectivo_mixto.value()
         ta = self.spin_tarjeta_mixto.value()
-        total = ef + ta
-        diff = round(total - self.total_a_pagar, 2)
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            v = PaymentPolicy.validate_mixed_payment(self.total_a_pagar, ef, ta)
+            diff = float(v.get("diff", 0.0))
+        except Exception:
+            total = ef + ta
+            diff = round(total - self.total_a_pagar, 2)
         if abs(diff) < 0.01:
             self.lbl_mixto_diff.setText("✅ Cuadra")
             self.lbl_mixto_diff.setProperty("class", "text-success caption")
@@ -734,23 +757,30 @@ class DialogoPago(QDialog):
         self.calcular_cambio()
 
     def get_datos_pago(self) -> Dict[str, Any]:
-        return {
-            "forma_pago": self.forma_pago,
-            "total_pagado": self.total_a_pagar,
-            "efectivo_recibido": (
-                self.spin_efectivo_mixto.value()
-                if self.forma_pago == "Pago Mixto"
-                else self.efectivo_recibido
-            ),
-            "monto_tarjeta_mixto": (
-                self.spin_tarjeta_mixto.value()
-                if self.forma_pago == "Pago Mixto" else 0.0
-            ),
-            "cambio": self.cambio,
-            "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
+        try:
+            from core.services.sales.payment_policy import PaymentPolicy
+            payload = PaymentPolicy.build_payment_breakdown(
+                total=self.total_a_pagar,
+                method=self.forma_pago,
+                amount_paid=self.efectivo_recibido,
+                cash=self.spin_efectivo_mixto.value() if self.forma_pago == "Pago Mixto" else 0.0,
+                card=self.spin_tarjeta_mixto.value() if self.forma_pago == "Pago Mixto" else 0.0,
+                saldo_credito=self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
+            )
+        except Exception:
+            payload = {
+                "forma_pago": self.forma_pago,
+                "total_pagado": self.total_a_pagar,
+                "efectivo_recibido": self.efectivo_recibido,
+                "monto_tarjeta_mixto": 0.0,
+                "cambio": self.cambio,
+                "saldo_credito": self.txt_saldo_credito.value() if self.forma_pago == "Crédito" else 0.0,
+            }
+        payload.update({
             "puntos_canjeados": self.puntos_a_canjear,
             "descuento_puntos": self.descuento_puntos,
-        }
+        })
+        return payload
 
 # ==============================================================================
 # 4. DIÁLOGO PARA AGREGAR CLIENTE
@@ -1199,6 +1229,30 @@ class ModuloVentas(ModuloBase):
     def _prod_repo(self):
         return getattr(self.container, 'producto_repo', None)
 
+    @property
+    def _product_catalog_qs(self):
+        svc = getattr(self, "_product_catalog_query_service", None)
+        if svc is None:
+            try:
+                from core.services.sales.product_catalog_query_service import ProductCatalogQueryService
+                svc = ProductCatalogQueryService(self.conexion)
+            except Exception:
+                svc = None
+            self._product_catalog_query_service = svc
+        return svc
+
+    @property
+    def _customer_lookup_svc(self):
+        svc = getattr(self, "_customer_lookup_service", None)
+        if svc is None:
+            try:
+                from core.services.sales.customer_lookup_service import CustomerLookupService
+                svc = CustomerLookupService(self.conexion)
+            except Exception:
+                svc = None
+            self._customer_lookup_service = svc
+        return svc
+
     def set_usuario_actual(self, usuario: str, rol: str) -> None:
         """Activa/desactiva botones según el rol del usuario logueado."""
         self.usuario_actual = usuario
@@ -1230,8 +1284,12 @@ class ModuloVentas(ModuloBase):
 
     def actualizar_completer_model(self):
         try:
+            catalog_qs = self._product_catalog_qs
             prod_repo = self._prod_repo
-            if prod_repo:
+            if catalog_qs:
+                rows = catalog_qs.list_visible_products(branch_id=getattr(self, "sucursal_id", 1))
+                productos = [(p['nombre'], p.get('codigo_barras', '')) for p in rows]
+            elif prod_repo:
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
             else:
                 cursor = self.conexion.cursor()
@@ -1998,8 +2056,11 @@ class ModuloVentas(ModuloBase):
 
         categorias = [""]  # "" = Todos
         try:
+            catalog_qs = self._product_catalog_qs
             prod_repo = self._prod_repo
-            if prod_repo:
+            if catalog_qs:
+                categorias += catalog_qs.get_categories()
+            elif prod_repo:
                 categorias += prod_repo.get_categories()
             else:
                 rows = self.conexion.execute(
@@ -2072,31 +2133,36 @@ class ModuloVentas(ModuloBase):
                 widget.setParent(None)
 
         try:
-            cursor = self.conexion.cursor()
-            # v13.4: Read stock from branch_inventory for active branch
-            query = """
-                SELECT p.id, p.nombre, p.precio,
-                       COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
-                       p.unidad, p.categoria,
-                       p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
-                       COALESCE(p.codigo_barras,'') as codigo_barras,
-                       COALESCE(p.codigo,'') as codigo
-                FROM productos p
-                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-                WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
-            """
-            params = [self.sucursal_id]
-            if filtro:
-                query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
-                             OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
-                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
-            if categoria:
-                query += " AND COALESCE(p.categoria,'') = ?"
-                params.append(categoria)
-
-            query += " ORDER BY p.nombre"
-            cursor.execute(query, params)
-            productos = cursor.fetchall()
+            catalog_qs = self._product_catalog_qs
+            if catalog_qs:
+                productos = catalog_qs.list_visible_products(
+                    branch_id=self.sucursal_id, filtro=filtro, categoria=categoria
+                )
+            else:
+                cursor = self.conexion.cursor()
+                # DEPRECATED fallback: SQL directo legacy
+                query = """
+                    SELECT p.id, p.nombre, p.precio,
+                           COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
+                           p.unidad, p.categoria,
+                           p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
+                           COALESCE(p.codigo_barras,'') as codigo_barras,
+                           COALESCE(p.codigo,'') as codigo
+                    FROM productos p
+                    LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
+                    WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
+                """
+                params = [self.sucursal_id]
+                if filtro:
+                    query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
+                                 OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
+                    params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
+                if categoria:
+                    query += " AND COALESCE(p.categoria,'') = ?"
+                    params.append(categoria)
+                query += " ORDER BY p.nombre"
+                cursor.execute(query, params)
+                productos = cursor.fetchall()
 
             # Responsive column count: fill available viewport width with fixed-width cards
             _spacing = self.grid_productos.spacing()
@@ -2108,20 +2174,23 @@ class ModuloVentas(ModuloBase):
             col_count = max(2, _vp_w // _card_cell)
 
             for i, producto in enumerate(productos):
-                producto_data = {
-                    'id': producto[0],
-                    'nombre': producto[1],
-                    'precio': float(producto[2]),
-                    'existencia': float(producto[3]),
-                    'unidad': producto[4],
-                    'categoria': producto[5],
-                    'stock_minimo': float(producto[6]),
-                    'imagen_path': producto[7],
-                    'es_compuesto': producto[8],
-                    'es_subproducto': producto[9],
-                    'codigo_barras': producto[10],
-                    'codigo': producto[11]
-                }
+                if isinstance(producto, dict):
+                    producto_data = producto
+                else:
+                    producto_data = {
+                        'id': producto[0],
+                        'nombre': producto[1],
+                        'precio': float(producto[2]),
+                        'existencia': float(producto[3]),
+                        'unidad': producto[4],
+                        'categoria': producto[5],
+                        'stock_minimo': float(producto[6]),
+                        'imagen_path': producto[7],
+                        'es_compuesto': producto[8],
+                        'es_subproducto': producto[9],
+                        'codigo_barras': producto[10],
+                        'codigo': producto[11]
+                    }
 
                 card = ProductCard(producto_data)
                 card.product_selected.connect(self.seleccionar_producto)
@@ -2911,12 +2980,13 @@ class ModuloVentas(ModuloBase):
             except Exception as _e:
                 logger.warning("PrinterService: %s", _e)
         else:
-            QMessageBox.critical(
+            QMessageBox.information(
                 self,
                 "Impresión térmica no configurada",
-                "No hay impresora térmica ESC/POS configurada.",
+                "No hay impresora térmica ESC/POS configurada.\n"
+                "Se guardará PDF de auditoría del ticket.",
             )
-            logger.warning("Ticket térmico cancelado: no hay impresora ESC/POS configurada.")
+            logger.info("Ticket térmico no disponible (sin ESC/POS). Se guardará PDF de auditoría.")
 
         # ── Ruta 4: PDF de auditoría (siempre) ───────────────────────────────
         try:
@@ -3396,27 +3466,36 @@ class ModuloVentas(ModuloBase):
             self.mostrar_mensaje("Éxito", f"Producto '{producto}' eliminado del carrito.")
 
     def calcular_totales(self):
-        precio_base = sum(
-            item['cantidad'] * item['precio_unitario']
-            for item in self.compra_actual
-        )
-        subtotal = sum(item['total'] for item in self.compra_actual)
-        descuento_total = round(precio_base - subtotal, 2)
-
         # IVA: carnes y alimentos basicos = 0% en Mexico (LIVA Art. 2-A)
         # Delegado a ConfigService — sin SQL directo en UI
         try:
             tasa_iva = float(self.container.config_service.get('tasa_iva', 0.0) or 0.0)
         except Exception:
             tasa_iva = 0.0
-        impuestos = subtotal * tasa_iva
-        total_final = subtotal + impuestos
+        try:
+            from core.services.sales.cart_calculator import CartCalculator
+            resumen = CartCalculator.calculate(
+                items=self.compra_actual,
+                iva_rate=tasa_iva,
+            )
+        except Exception:
+            resumen = {
+                'precio_base': sum(item['cantidad'] * item['precio_unitario'] for item in self.compra_actual),
+                'descuento_lineas': 0.0,
+                'subtotal': sum(item['total'] for item in self.compra_actual),
+                'impuestos': 0.0,
+                'total_final': sum(item['total'] for item in self.compra_actual),
+                'puntos_preview': 0,
+            }
 
         self.totales = {
-            'subtotal': subtotal,
-            'impuestos': impuestos,
-            'total_final': total_final
+            'subtotal': resumen['subtotal'],
+            'impuestos': resumen['impuestos'],
+            'total_final': resumen['total_final']
         }
+        precio_base = resumen['precio_base']
+        descuento_total = resumen['descuento_lineas']
+        total_final = resumen['total_final']
 
         # Update breakdown labels
         if hasattr(self, '_lbl_subtotal_val'):
@@ -3449,7 +3528,7 @@ class ModuloVentas(ModuloBase):
             else:
                 self.btn_cobrar.setText("💰 COBRAR")
 
-        puntos_venta = int(total_final)
+        puntos_venta = int(resumen.get('puntos_preview', total_final))
         self.lbl_puntos_venta.setText(f"+ {puntos_venta} pts")
 
     def _cliente_textchanged(self, text: str) -> None:
@@ -3510,8 +3589,12 @@ class ModuloVentas(ModuloBase):
             return
 
         try:
+            lookup = self._customer_lookup_svc
             _cli = self._cli_repo
-            clientes = _cli.buscar(termino, limit=1) if _cli else []
+            if lookup:
+                clientes = lookup.buscar_cliente(termino, limit=1)
+            else:
+                clientes = _cli.buscar(termino, limit=1) if _cli else []
             cliente = clientes[0] if clientes else None
 
             if cliente:
@@ -3780,7 +3863,8 @@ class ModuloVentas(ModuloBase):
                 puntos_solicitados=int(max(0, puntos)),
             )
 
-        dialogo = DialogoPago(
+        from presentation.sales.dialogs.payment_dialog import DialogoPago as PaymentDialog
+        dialogo = PaymentDialog(
             total_a_pagar,
             self,
             loyalty_balance=loyalty_preview,
@@ -3922,52 +4006,19 @@ class ModuloVentas(ModuloBase):
             except Exception:
                 pass  # No bloquea la venta si la validación falla
 
-            # v13.1: use ProcesarVentaUC (orquestador) when available
-            _uc = getattr(self.container, 'uc_venta', None)
-            if _uc:
-                from core.use_cases.venta import ItemCarrito, DatosPago as _DP
-                _items_uc = [ItemCarrito(
-                    producto_id  = it['product_id'],
-                    cantidad     = float(it['qty']),
-                    precio_unit  = float(it['unit_price']),
-                    nombre       = it.get('name', ''),
-                    es_compuesto = int(it.get('es_compuesto', 0)),
-                ) for it in carrito_limpio]
-                _dp = _DP(
-                    forma_pago       = datos_pago['forma_pago'],
-                    monto_pagado     = datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final'],
-                    cliente_id       = cliente_id,
-                    descuento_global = float(datos_pago.get('descuento', 0)),
-                    puntos_canjeados = int(datos_pago.get('puntos_canjeados', 0) or 0),
-                    descuento_puntos = float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
-                    notas            = f"Venta POS Mostrador. Cajero: {usuario}.",
-                )
-                _r = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
-                if not _r.ok:
-                    raise RuntimeError(_r.error)
-                folio = _r.folio
-                self._ultima_venta_id = _r.venta_id
-                self.btn_factura.setEnabled(bool(_r.venta_id))
-                self.btn_reimprimir.setEnabled(bool(_r.venta_id))
-                if _r.ticket_html:
-                    self._ticket_html_cache = _r.ticket_html
-            else:
-                # Fallback directo (sin UC — compatibilidad)
-                folio, _ticket_html = self.container.sales_service.execute_sale(
-                    branch_id=self.sucursal_id,
-                    user=usuario,
-                    items=carrito_limpio,
-                    payment_method=datos_pago['forma_pago'],
-                    amount_paid=datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final'],
-                    client_id=cliente_id,
-                    loyalty_redemption_pts=int(datos_pago.get('puntos_canjeados', 0) or 0),
-                    notes=f"Venta POS Mostrador. Cajero: {usuario}.",
-                )
-                _sale = getattr(self.container, 'sales_repo', None)
-                _sr = _sale.get_sale_by_folio(folio) if _sale else None
-                self._ultima_venta_id = _sr['id'] if _sr else None
-                if hasattr(self,'btn_reimprimir'):
-                    self.btn_reimprimir.setEnabled(bool(self._ultima_venta_id))
+            # Fase 2: entrada canónica obligatoria vía ProcesarVentaUC
+            _r = self._procesar_venta_via_uc(
+                carrito_limpio=carrito_limpio,
+                datos_pago=datos_pago,
+                cliente_id=cliente_id,
+                usuario=usuario,
+            )
+            folio = _r.folio
+            self._ultima_venta_id = _r.venta_id
+            self.btn_factura.setEnabled(bool(_r.venta_id))
+            self.btn_reimprimir.setEnabled(bool(_r.venta_id))
+            if _r.ticket_html:
+                self._ticket_html_cache = _r.ticket_html
 
             self._abrir_cajon()
 
@@ -4090,6 +4141,46 @@ class ModuloVentas(ModuloBase):
             self.guardar_ticket_pdf(ticket_data)
         except Exception as e:
             logger.error("Error generando ticket: %s", e)
+
+    def _procesar_venta_via_uc(self, carrito_limpio, datos_pago, cliente_id, usuario):
+        """
+        Fase 2: punto único desde POS UI para crear ventas.
+        Prohíbe bypass directo a SalesService desde la vista.
+        """
+        _uc = getattr(self.container, 'uc_venta', None)
+        if _uc is None:
+            raise RuntimeError(
+                "ProcesarVentaUC no disponible en AppContainer. "
+                "La UI de ventas no puede ejecutar ventas sin UC canónico."
+            )
+
+        from core.use_cases.venta import ItemCarrito, DatosPago as _DP
+        _items_uc = [ItemCarrito(
+            producto_id=it['product_id'],
+            cantidad=float(it['qty']),
+            precio_unit=float(it['unit_price']),
+            nombre=it.get('name', ''),
+            es_compuesto=int(it.get('es_compuesto', 0)),
+        ) for it in carrito_limpio]
+        _dp = _DP(
+            forma_pago=datos_pago['forma_pago'],
+            monto_pagado=(
+                datos_pago['efectivo_recibido']
+                if datos_pago['forma_pago'] == 'Efectivo'
+                else self.totales['total_final']
+            ),
+            cliente_id=cliente_id,
+            descuento_global=float(datos_pago.get('descuento', 0)),
+            puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
+            descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
+            notas=f"Venta POS Mostrador. Cajero: {usuario}.",
+            sucursal_id=self.sucursal_id,
+            usuario=usuario,
+        )
+        _r = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
+        if not _r.ok:
+            raise RuntimeError(_r.error)
+        return _r
 
     def guardar_ticket_pdf(self, ticket_data: Dict[str, Any]):
         try:
