@@ -97,5 +97,13 @@ def run(conn):
         conn.execute("UPDATE clientes SET puntos = COALESCE((SELECT SUM(l.puntos) FROM loyalty_ledger l WHERE l.cliente_id=clientes.id),0)")
 
     if _table_exists(conn, 'tarjetas_fidelidad') and _column_exists(conn, 'tarjetas_fidelidad', 'puntos_actuales'):
+        fk_col = None
+        if _column_exists(conn, 'tarjetas_fidelidad', 'cliente_id'):
+            fk_col = 'cliente_id'
+        elif _column_exists(conn, 'tarjetas_fidelidad', 'id_cliente'):
+            fk_col = 'id_cliente'
         conn.execute("UPDATE tarjetas_fidelidad SET puntos_actuales=0")
-        conn.execute("UPDATE tarjetas_fidelidad SET puntos_actuales = COALESCE((SELECT SUM(l.puntos) FROM loyalty_ledger l WHERE l.cliente_id=tarjetas_fidelidad.cliente_id),0) WHERE cliente_id IS NOT NULL")
+        if fk_col:
+            conn.execute(
+                f"UPDATE tarjetas_fidelidad SET puntos_actuales = COALESCE((SELECT SUM(l.puntos) FROM loyalty_ledger l WHERE l.cliente_id=tarjetas_fidelidad.{fk_col}),0) WHERE {fk_col} IS NOT NULL"
+            )
