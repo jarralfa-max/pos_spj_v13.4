@@ -498,6 +498,8 @@ def create_kpi_bar(parent, items: list) -> QWidget:
     layout = QHBoxLayout(container)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(Spacing.SM)
+    container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    container.setMaximumHeight(110)
     for item in (items or []):
         card = create_kpi_card(
             container,

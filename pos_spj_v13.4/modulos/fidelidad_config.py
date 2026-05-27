@@ -358,6 +358,7 @@ class ModuloFidelidadConfig(QWidget):
         lay = QVBoxLayout(self.tab_raffles)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(Spacing.SM)
+        lay.setAlignment(Qt.AlignTop)
         title = QLabel("🎟️ Gestión de Rifas y Sorteos")
         title.setObjectName("subheading")
         lay.addWidget(title)
