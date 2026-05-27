@@ -20,13 +20,13 @@ from PyQt5.QtWidgets import (
     QComboBox,
 )
 from PyQt5.QtCore import Qt, QDate
-from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtGui import QColor
 import logging
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_heading, create_primary_button, create_success_button,
     create_danger_button, create_secondary_button, apply_tooltip,
-    PageHeader, Toast,
+    PageHeader, Toast, create_kpi_bar, create_kpi_card, EmptyStateWidget,
 )
 
 logger = logging.getLogger("spj.fidelidad_unified")
@@ -64,6 +64,8 @@ class ModuloFidelidadConfig(QWidget):
         hdr.addWidget(titulo)
         hdr.addStretch()
         lay.addLayout(hdr)
+        self.kpi_bar = create_kpi_bar(self, [])
+        lay.addWidget(self.kpi_bar)
 
         # Tabs principales
         self.tabs = QTabWidget()
@@ -78,13 +80,16 @@ class ModuloFidelidadConfig(QWidget):
         self.tab_referidos = QWidget()
         self.tab_cumples = QWidget()
         self.tab_riesgo = QWidget()
+        self.tab_raffles = QWidget()
 
         self.tabs.addTab(self.tab_growth,    "🎯 Metas y Misiones")
         self.tabs.addTab(self.tab_referidos, "🤝 Referidos")
         self.tabs.addTab(self.tab_cumples,   "🎂 Cumpleaños")
         self.tabs.addTab(self.tab_riesgo,    "⚠️ Retención")
+        self.tabs.addTab(self.tab_raffles,   "🎟️ Rifas y Sorteos")
 
         lay.addWidget(self.tabs)
+        self._refresh_dashboard_kpis()
 
     def _on_tab_change(self, idx):
         if idx == 0 and 0 not in self._tabs_loaded:
@@ -99,6 +104,29 @@ class ModuloFidelidadConfig(QWidget):
         elif idx == 3 and 3 not in self._tabs_loaded:
             self._build_tab_riesgo()
             self._tabs_loaded.add(3)
+        elif idx == 4 and 4 not in self._tabs_loaded:
+            self._build_tab_raffles()
+            self._tabs_loaded.add(4)
+
+    def _refresh_dashboard_kpis(self):
+        try:
+            k = self.container.loyalty_service.get_dashboard_kpis()
+        except Exception:
+            k = {}
+        items = [
+            {"title": "Clientes con puntos", "value": k.get("clientes_con_puntos", 0), "icon": "👥", "tone": "primary"},
+            {"title": "Puntos activos", "value": k.get("puntos_activos", 0), "icon": "⭐", "tone": "info"},
+            {"title": "Pasivo operativo", "value": f"${float(k.get('pasivo_operativo', 0.0)):,.2f}", "icon": "💰", "tone": "warning"},
+            {"title": "Emitidos mes", "value": k.get("puntos_emitidos_mes", 0), "icon": "📈", "tone": "success"},
+            {"title": "Canjeados mes", "value": k.get("puntos_canjeados_mes", 0), "icon": "🎁", "tone": "accent"},
+            {"title": "Cumples próximos", "value": k.get("cumples_7_dias", 0), "icon": "🎂", "tone": "primary"},
+            {"title": "Clientes en riesgo", "value": k.get("clientes_en_riesgo", 0), "icon": "⚠️", "tone": "danger"},
+            {"title": "Rifas activas", "value": k.get("rifas_activas", 0), "icon": "🎟️", "tone": "info"},
+        ]
+        old = self.kpi_bar
+        self.kpi_bar = create_kpi_bar(self, items)
+        self.layout().replaceWidget(old, self.kpi_bar)
+        old.deleteLater()
 
     # ── Lazy loaders ──────────────────────────────────────────────────────────
 
@@ -326,3 +354,73 @@ class ModuloFidelidadConfig(QWidget):
                 f"⚠️ {len(rows)} clientes con {dias}+ días sin comprar")
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e))
+
+    def _build_tab_raffles(self):
+        lay = QVBoxLayout(self.tab_raffles)
+        lay.setSpacing(Spacing.MD)
+        title = QLabel("🎟️ Gestión de Rifas y Sorteos")
+        title.setObjectName("subheading")
+        lay.addWidget(title)
+        resumen = self.container.loyalty_service.get_raffle_summary()
+        self.kpi_raffles_activas = create_kpi_card(
+            self.tab_raffles,
+            "Rifas activas",
+            str(int(resumen.get("rifas_activas", 0))),
+            subtitle="Eventos especiales vigentes",
+            icon="🎟️",
+            variant="info",
+        )
+        lay.addWidget(self.kpi_raffles_activas)
+        btn_row = QHBoxLayout()
+        self.btn_nueva_rifa = create_primary_button(self, "➕ Nueva rifa")
+        self.btn_nueva_rifa.clicked.connect(
+            lambda: Toast.info(self, "Rifas", "Próximamente: asistente de creación de rifas.")
+        )
+        self.btn_ver_boletos = create_secondary_button(self, "🎫 Ver boletos")
+        self.btn_ver_boletos.clicked.connect(
+            lambda: Toast.info(self, "Boletos", "Próximamente: visor de boletos emitidos.")
+        )
+        btn_row.addWidget(self.btn_nueva_rifa)
+        btn_row.addWidget(self.btn_ver_boletos)
+        btn_row.addStretch()
+        lay.addLayout(btn_row)
+        self.tbl_raffles = QTableWidget()
+        self.tbl_raffles.setColumnCount(6)
+        self.tbl_raffles.setHorizontalHeaderLabels(["ID", "Nombre", "Premio", "Estado", "Inicio", "Fin"])
+        self.tbl_raffles.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tbl_raffles.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tbl_raffles.setAlternatingRowColors(True)
+        hh = self.tbl_raffles.horizontalHeader()
+        hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        hh.setSectionResizeMode(2, QHeaderView.Stretch)
+        hh.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        lay.addWidget(self.tbl_raffles)
+        self.empty_raffles = EmptyStateWidget(
+            "Sin rifas activas",
+            "Crea tu primera rifa para campañas especiales y fidelización estacional.",
+            "🎟️",
+            self.tab_raffles,
+        )
+        lay.addWidget(self.empty_raffles)
+        self._cargar_raffles()
+
+    def _cargar_raffles(self):
+        try:
+            resumen = self.container.loyalty_service.get_raffle_summary()
+            for child in self.kpi_raffles_activas.findChildren(QLabel):
+                if child.objectName() == "kpiValue":
+                    child.setText(str(int(resumen.get("rifas_activas", 0))))
+                    break
+        except Exception as e:
+            logger.debug("_cargar_raffles resumen: %s", e)
+        rows = self.container.loyalty_service.list_raffles(limit=50)
+        self.tbl_raffles.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            for j, v in enumerate(r):
+                self.tbl_raffles.setItem(i, j, QTableWidgetItem(str(v or "")))
+        has_data = len(rows) > 0
+        self.tbl_raffles.setVisible(has_data)
+        self.empty_raffles.setVisible(not has_data)
