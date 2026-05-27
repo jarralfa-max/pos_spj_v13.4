@@ -14,7 +14,9 @@ from PyQt5.QtWidgets import (
     QDoubleSpinBox, QComboBox, QCheckBox, QTabWidget, QMessageBox,
     QDateEdit, QGroupBox, QTextEdit,
 )
-from PyQt5.QtCore import Qt, QDate
+from PyQt5.QtCore import QDate
+from PyQt5.QtGui import QColor
+from modulos.design_tokens import Colors
 
 logger = logging.getLogger("spj.modulo.growth")
 
@@ -104,7 +106,7 @@ class ModuloGrowthEngine(QWidget):
             for j, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 if j == 6 and m['completada']:
-                    it.setForeground(Qt.darkGreen)
+                    it.setForeground(QColor(Colors.SUCCESS.BASE))
                 self.tbl_metas.setItem(i, j, it)
 
     def _nueva_meta(self):
