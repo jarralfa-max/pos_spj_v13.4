@@ -37,3 +37,47 @@ def test_migration_092_enforces_unique_and_recalculates_snapshots():
     except Exception as e:
         dup_err = e
     assert dup_err is not None
+
+
+def test_migration_092_skips_growth_ledger_without_puntos_column():
+    db = sqlite3.connect(':memory:')
+    db.execute("CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, referencia TEXT, descripcion TEXT, sucursal_id INTEGER, usuario TEXT, created_at TEXT)")
+    # esquema legacy roto/incompleto: growth_ledger sin columna puntos
+    db.execute("CREATE TABLE growth_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, referencia TEXT, descripcion TEXT, sucursal_id INTEGER, usuario TEXT, created_at TEXT)")
+    db.execute("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT)")
+    db.execute("CREATE TABLE tarjetas_fidelidad (id INTEGER PRIMARY KEY, cliente_id INTEGER, puntos_actuales INTEGER DEFAULT 0)")
+    db.execute("INSERT INTO loyalty_ledger(cliente_id,tipo,puntos,referencia,created_at) VALUES (1,'acumulacion',10,'V1','2026-01-01')")
+
+    _load_migration('092_loyalty_ledger_canonicalization.py').run(db)
+
+    bal = db.execute("SELECT COALESCE(SUM(puntos),0) FROM loyalty_ledger WHERE cliente_id=1").fetchone()[0]
+    assert bal == 10
+
+
+def test_migration_092_survives_broken_legacy_view_dependencies():
+    db = sqlite3.connect(':memory:')
+    db.execute("CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, referencia TEXT, descripcion TEXT, sucursal_id INTEGER, usuario TEXT, created_at TEXT)")
+    db.execute("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, puntos INTEGER DEFAULT 0)")
+    db.execute("INSERT INTO loyalty_ledger(cliente_id,tipo,puntos,referencia,created_at) VALUES (1,'acumulacion',15,'V1','2026-01-01')")
+    # Simula metadato roto reportado en producción: vista apuntando a tabla *_old inexistente.
+    db.execute("CREATE VIEW v_negative_inventory AS SELECT * FROM branch_inventory_old")
+
+    _load_migration('092_loyalty_ledger_canonicalization.py').run(db)
+
+    bal = db.execute("SELECT COALESCE(SUM(puntos),0) FROM loyalty_ledger WHERE cliente_id=1").fetchone()[0]
+    assert bal == 15
+
+
+def test_migration_092_tarjetas_legacy_id_cliente_supported():
+    db = sqlite3.connect(':memory:')
+    db.execute("CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, referencia TEXT, descripcion TEXT, sucursal_id INTEGER, usuario TEXT, created_at TEXT)")
+    db.execute("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, puntos INTEGER DEFAULT 0)")
+    # esquema legacy: tarjetas_fidelidad con id_cliente, sin cliente_id
+    db.execute("CREATE TABLE tarjetas_fidelidad (id INTEGER PRIMARY KEY, id_cliente INTEGER, puntos_actuales INTEGER DEFAULT 0)")
+    db.execute("INSERT INTO tarjetas_fidelidad(id,id_cliente,puntos_actuales) VALUES (10,1,999)")
+    db.execute("INSERT INTO loyalty_ledger(cliente_id,tipo,puntos,referencia,created_at) VALUES (1,'acumulacion',25,'V1','2026-01-01')")
+
+    _load_migration('092_loyalty_ledger_canonicalization.py').run(db)
+
+    t = db.execute("SELECT puntos_actuales FROM tarjetas_fidelidad WHERE id=10").fetchone()[0]
+    assert t == 25

@@ -491,6 +491,27 @@ def create_kpi_card(
     )
 
 
+def create_kpi_bar(parent, items: list) -> QWidget:
+    """Crea una barra horizontal/wrapping de KPIs basada en create_kpi_card."""
+    container = QWidget(parent)
+    container.setObjectName("kpiBar")
+    layout = QHBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(Spacing.SM)
+    for item in (items or []):
+        card = create_kpi_card(
+            container,
+            str(item.get("title", "")),
+            str(item.get("value", "0")),
+            subtitle=str(item.get("subtitle", "")),
+            icon=str(item.get("icon", "")),
+            variant=str(item.get("tone", "primary")),
+        )
+        layout.addWidget(card)
+    layout.addStretch()
+    return container
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  BADGES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1536,6 +1557,7 @@ __all__ = [
     "create_card",
     "create_stat_card",
     "create_kpi_card",
+    "create_kpi_bar",
     # Badges
     "create_badge",
     # Tooltips

@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 class LoyaltyRepository:
     """Repositorio SQL de fidelización (FASE 2)."""
+    RAFFLE_TABLES = ("raffles", "raffle_tickets", "raffle_winners")
 
     def __init__(self, db_conn):
         self.db = db_conn
@@ -198,6 +199,114 @@ class LoyaltyRepository:
             """,
             (days_without_sale, int(limit)),
         ).fetchall()
+
+    def ensure_raffle_tables(self) -> None:
+        # TODO: mover a migración formal cuando se consolide el esquema de fidelidad.
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS raffles(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                descripcion TEXT DEFAULT '',
+                premio TEXT DEFAULT '',
+                estado TEXT DEFAULT 'borrador',
+                fecha_inicio TEXT,
+                fecha_fin TEXT,
+                monto_por_boleto REAL DEFAULT 0,
+                max_boletos_por_cliente INTEGER DEFAULT 1,
+                sucursal_id INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS raffle_tickets(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                raffle_id INTEGER NOT NULL,
+                cliente_id INTEGER,
+                venta_id INTEGER,
+                folio_venta TEXT,
+                numero_boleto TEXT,
+                monto_base REAL DEFAULT 0,
+                estado TEXT DEFAULT 'vigente',
+                sucursal_id INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS raffle_winners(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                raffle_id INTEGER NOT NULL,
+                ticket_id INTEGER NOT NULL,
+                cliente_id INTEGER,
+                premio TEXT DEFAULT '',
+                seleccionado_por TEXT DEFAULT '',
+                fecha_seleccion TEXT DEFAULT (datetime('now')),
+                notificado INTEGER DEFAULT 0
+            )
+            """
+        )
+        # Índices mínimos para lectura frecuente del tab de rifas.
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_raffles_estado_fecha ON raffles(estado, created_at)"
+        )
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_raffle_tickets_raffle ON raffle_tickets(raffle_id)"
+        )
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_raffle_winners_raffle ON raffle_winners(raffle_id)"
+        )
+
+    def list_raffles(self, limit: int = 50) -> List[Any]:
+        self.ensure_raffle_tables()
+        return self.db.execute(
+            """
+            SELECT id, nombre, premio, estado, fecha_inicio, fecha_fin
+            FROM raffles
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+
+    def get_raffle_summary(self) -> Dict[str, int]:
+        self.ensure_raffle_tables()
+        row = self.db.execute(
+            "SELECT COUNT(*) FROM raffles WHERE estado IN ('activa','active')"
+        ).fetchone()
+        return {"rifas_activas": int((row[0] if row else 0) or 0)}
+
+    def get_dashboard_kpis(self) -> Dict[str, Any]:
+        self.ensure_raffle_tables()
+        q = self.db.execute
+        def _safe_scalar(sql: str, default: int = 0) -> int:
+            try:
+                row = q(sql).fetchone()
+                return int((row[0] if row else default) or default)
+            except Exception:
+                return int(default)
+        clientes_con_puntos = int((q("SELECT COUNT(*) FROM clientes WHERE COALESCE(puntos,0)>0").fetchone() or [0])[0] or 0)
+        puntos_activos = int((q("SELECT COALESCE(SUM(puntos),0) FROM loyalty_ledger").fetchone() or [0])[0] or 0)
+        emitidos_mes = int((q("SELECT COALESCE(SUM(CASE WHEN tipo='acumulacion' THEN puntos ELSE 0 END),0) FROM loyalty_ledger WHERE strftime('%Y-%m', created_at)=strftime('%Y-%m','now')").fetchone() or [0])[0] or 0)
+        canjeados_mes = int((q("SELECT ABS(COALESCE(SUM(CASE WHEN tipo='canje' THEN puntos ELSE 0 END),0)) FROM loyalty_ledger WHERE strftime('%Y-%m', created_at)=strftime('%Y-%m','now')").fetchone() or [0])[0] or 0)
+        valor_estrella = float(self.get_config_value("loyalty_valor_estrella", "0.10") or 0.10)
+        cumples_7 = _safe_scalar("SELECT COUNT(*) FROM clientes WHERE fecha_nacimiento IS NOT NULL AND strftime('%m-%d', fecha_nacimiento) BETWEEN strftime('%m-%d', 'now') AND strftime('%m-%d', 'now', '+7 days') AND COALESCE(activo,1)=1")
+        riesgo = _safe_scalar("""SELECT COUNT(*) FROM (SELECT c.id, MAX(v.fecha) ultima, CAST(julianday('now')-julianday(MAX(v.fecha)) AS INTEGER) dias FROM clientes c LEFT JOIN ventas v ON v.cliente_id=c.id WHERE COALESCE(c.activo,1)=1 GROUP BY c.id HAVING dias>=30 OR ultima IS NULL)""")
+        rifas_activas = self.get_raffle_summary()["rifas_activas"]
+        return {
+            "clientes_con_puntos": clientes_con_puntos,
+            "puntos_activos": puntos_activos,
+            "pasivo_operativo": float(puntos_activos * valor_estrella),
+            "puntos_emitidos_mes": emitidos_mes,
+            "puntos_canjeados_mes": canjeados_mes,
+            "cumples_7_dias": cumples_7,
+            "clientes_en_riesgo": riesgo,
+            "rifas_activas": rifas_activas,
+        }
 
 
     def get_config_value(self, key: str, default: str = "") -> str:
