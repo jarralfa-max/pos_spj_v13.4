@@ -121,7 +121,6 @@ class ModuloFidelidadConfig(QWidget):
             {"title": "Canjeados mes", "value": k.get("puntos_canjeados_mes", 0), "icon": "🎁", "tone": "accent"},
             {"title": "Cumples próximos", "value": k.get("cumples_7_dias", 0), "icon": "🎂", "tone": "primary"},
             {"title": "Clientes en riesgo", "value": k.get("clientes_en_riesgo", 0), "icon": "⚠️", "tone": "danger"},
-            {"title": "Rifas activas", "value": k.get("rifas_activas", 0), "icon": "🎟️", "tone": "info"},
         ]
         old = self.kpi_bar
         self.kpi_bar = create_kpi_bar(self, items)
@@ -361,8 +360,6 @@ class ModuloFidelidadConfig(QWidget):
         title = QLabel("🎟️ Gestión de Rifas y Sorteos")
         title.setObjectName("subheading")
         lay.addWidget(title)
-        self.kpi_raffles_activas = create_kpi_card(self.tab_raffles, "Rifas activas", "0", subtitle="Eventos especiales vigentes", icon="🎟️", variant="info")
-        lay.addWidget(self.kpi_raffles_activas)
         self.raffle_kpi_bar = create_kpi_bar(self.tab_raffles, [])
         lay.addWidget(self.raffle_kpi_bar)
         btn_row = QHBoxLayout()

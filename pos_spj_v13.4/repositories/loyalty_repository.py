@@ -295,6 +295,62 @@ class LoyaltyRepository:
             )
             """
         )
+
+        def _ensure_columns(table: str, columns_sql: list[tuple[str, str]]) -> None:
+            try:
+                existing = {
+                    row[1] if isinstance(row, tuple) else row["name"]
+                    for row in self.db.execute(f"PRAGMA table_info({table})").fetchall()
+                }
+            except Exception:
+                existing = set()
+            for col_name, col_sql in columns_sql:
+                if col_name in existing:
+                    continue
+                try:
+                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {col_sql}")
+                except Exception:
+                    pass
+
+        _ensure_columns("raffles", [
+            ("descripcion", "descripcion TEXT DEFAULT ''"),
+            ("premio", "premio TEXT DEFAULT ''"),
+            ("premio_costo_estimado", "premio_costo_estimado REAL DEFAULT 0"),
+            ("presupuesto_maximo", "presupuesto_maximo REAL DEFAULT 0"),
+            ("ventas_objetivo", "ventas_objetivo REAL DEFAULT 0"),
+            ("roi_objetivo", "roi_objetivo REAL DEFAULT 0"),
+            ("monto_por_boleto", "monto_por_boleto REAL DEFAULT 0"),
+            ("max_boletos_por_cliente", "max_boletos_por_cliente INTEGER DEFAULT 1"),
+            ("estado", "estado TEXT DEFAULT 'borrador'"),
+            ("financial_status", "financial_status TEXT DEFAULT 'presupuestada'"),
+            ("fecha_inicio", "fecha_inicio TEXT"),
+            ("fecha_fin", "fecha_fin TEXT"),
+            ("sucursal_id", "sucursal_id INTEGER DEFAULT 1"),
+            ("created_by", "created_by TEXT DEFAULT ''"),
+            ("approved_by", "approved_by TEXT DEFAULT ''"),
+            ("created_at", "created_at TEXT DEFAULT (datetime('now'))"),
+            ("updated_at", "updated_at TEXT DEFAULT (datetime('now'))"),
+        ])
+        _ensure_columns("raffle_tickets", [
+            ("folio_venta", "folio_venta TEXT"),
+            ("numero_boleto", "numero_boleto TEXT"),
+            ("monto_base", "monto_base REAL DEFAULT 0"),
+            ("estado", "estado TEXT DEFAULT 'vigente'"),
+            ("cancel_reason", "cancel_reason TEXT DEFAULT ''"),
+            ("sucursal_id", "sucursal_id INTEGER DEFAULT 1"),
+            ("created_at", "created_at TEXT DEFAULT (datetime('now'))"),
+            ("cancelled_at", "cancelled_at TEXT"),
+        ])
+        _ensure_columns("raffle_winners", [
+            ("premio_costo_real", "premio_costo_real REAL DEFAULT 0"),
+            ("estado_entrega", "estado_entrega TEXT DEFAULT 'pendiente'"),
+            ("seleccionado_por", "seleccionado_por TEXT DEFAULT ''"),
+            ("random_seed", "random_seed TEXT DEFAULT ''"),
+            ("pool_hash", "pool_hash TEXT DEFAULT ''"),
+            ("fecha_entrega", "fecha_entrega TEXT"),
+            ("notificado", "notificado INTEGER DEFAULT 0"),
+        ])
+
         self.db.execute(
             "CREATE INDEX IF NOT EXISTS idx_raffles_estado_fecha ON raffles(estado, created_at)"
         )

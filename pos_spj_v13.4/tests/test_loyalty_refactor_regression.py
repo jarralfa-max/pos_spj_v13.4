@@ -318,7 +318,7 @@ def test_event_bus_has_raffle_events():
 def test_fidelidad_raffles_tab_ui_scaffold():
     src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
     assert '🎟️ Rifas y Sorteos' in src
-    assert 'create_kpi_card(' in src
+    assert 'create_kpi_bar(' in src
     assert 'list_raffles(limit=50)' in src
     assert 'get_raffle_summary()' in src
 
