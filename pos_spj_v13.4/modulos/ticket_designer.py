@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit, QTextBrowser, QSplitter, QGroupBox,
     QListWidget, QMessageBox, QFileDialog, QTabWidget,
     QFormLayout, QLineEdit, QCheckBox, QComboBox, QSpinBox,
-    QDoubleSpinBox, QScrollArea, QFrame,
+    QDoubleSpinBox, QScrollArea, QFrame, QTextEdit,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap
@@ -83,8 +83,12 @@ class ModuloTicketDesigner(QWidget):
         btn_save_all = QPushButton("💾 Guardar todo")
         btn_save_all = create_success_button(self, btn_save_all, "Guardar configuración del ticket")
         btn_save_all.clicked.connect(self._guardar_todo)
+        btn_brand = QPushButton("⚙️ Editar identidad del sistema")
+        btn_brand = create_secondary_button(self, btn_brand, "Editar marca en Configuración del Sistema")
+        btn_brand.clicked.connect(self._abrir_configuracion_sistema)
         
         header.addWidget(btn_print)
+        header.addWidget(btn_brand)
         header.addWidget(btn_save_all)
         lay.addLayout(header)
 
@@ -92,19 +96,23 @@ class ModuloTicketDesigner(QWidget):
         tabs.setObjectName("tabWidget")
         lay.addWidget(tabs)
 
-        # Tab 1: Diseño
+        warn = QLabel("⚠️ La impresión térmica real usa ESC/POS RAW. El HTML solo sirve para preview/PDF.")
+        warn.setObjectName("caption")
+        lay.addWidget(warn)
+
+        # Tab 1: Estructura
         tab_design = QWidget()
-        tabs.addTab(tab_design, "✍️ Diseño de Plantilla")
+        tabs.addTab(tab_design, "📦 Estructura")
         self._build_tab_design(tab_design)
 
-        # Tab 2: Medios
+        # Tab 2: Marca
         tab_media = QWidget()
-        tabs.addTab(tab_media, "🖼️ Logo / QR / Barcode")
+        tabs.addTab(tab_media, "🏷️ Marca")
         self._build_tab_media(tab_media)
 
-        # Tab 3: Papel
+        # Tab 3: Impresión ESC/POS
         tab_paper = QWidget()
-        tabs.addTab(tab_paper, "📐 Papel / Impresión")
+        tabs.addTab(tab_paper, "🖨️ Impresión ESC/POS")
         self._build_tab_paper(tab_paper)
 
     def _build_tab_design(self, parent):
@@ -138,7 +146,7 @@ class ModuloTicketDesigner(QWidget):
         le.addWidget(btn_rest)
         splitter.addWidget(grp_ed)
 
-        grp_prev = QGroupBox("👁️ Vista Previa")
+        grp_prev = QGroupBox("👁️ Vista previa HTML (aproximada)")
         grp_prev.setObjectName("styledGroup")
         lp = QVBoxLayout(grp_prev)
         self.visor_preview = QTextBrowser()
@@ -146,6 +154,11 @@ class ModuloTicketDesigner(QWidget):
         self.visor_preview.setMaximumWidth(350)
         self.visor_preview.setMinimumWidth(280)
         lp.addWidget(self.visor_preview)
+        self.txt_preview_escpos = QTextEdit()
+        self.txt_preview_escpos.setReadOnly(True)
+        self.txt_preview_escpos.setObjectName("codeEditor")
+        self.txt_preview_escpos.setPlaceholderText("Preview monoespaciado ESC/POS")
+        lp.addWidget(self.txt_preview_escpos)
         splitter.addWidget(grp_prev)
         splitter.setSizes([160, 440, 340])
 
@@ -157,6 +170,9 @@ class ModuloTicketDesigner(QWidget):
         grp_logo = QGroupBox("Logo de la empresa")
         grp_logo.setObjectName("styledGroup")
         fl = QFormLayout(grp_logo)
+        lbl_brand = QLabel("Usa logo de Configuración del Sistema como fuente principal.")
+        lbl_brand.setObjectName("caption")
+        fl.addRow("", lbl_brand)
         self.lbl_logo_preview = QLabel("Sin logo cargado")
         self.lbl_logo_preview.setFixedHeight(90)
         self.lbl_logo_preview.setFixedWidth(200)
@@ -483,6 +499,37 @@ class ModuloTicketDesigner(QWidget):
             for k, v in dummy.items(): html = html.replace('{{'+k+'}}', str(v))
         wrapper = f'<div style="font-family:\'{font_fam}\',monospace;font-size:{font_sz}px;max-width:{paper_w*3}px;margin:auto;">{html}</div>'
         self.visor_preview.setHtml(wrapper)
+        self._actualizar_preview_escpos(dummy)
+
+    def _actualizar_preview_escpos(self, dummy: dict):
+        try:
+            from core.ticket_escpos_renderer import TicketESCPOSRenderer
+            payload = {
+                "empresa": dummy.get("nombre_empresa", "SPJ POS"),
+                "direccion": dummy.get("direccion", ""),
+                "telefono": dummy.get("telefono", ""),
+                "folio": dummy.get("folio", "V-99998"),
+                "fecha": dummy.get("fecha", ""),
+                "cajero": dummy.get("cajero", ""),
+                "cliente": dummy.get("cliente_nombre", ""),
+                "items": [
+                    {"nombre": "Pechuga", "cantidad": 1.5, "total": 150},
+                    {"nombre": "Pierna", "cantidad": 2.0, "total": 120},
+                ],
+                "totales": {"total_final": 250.50},
+                "layout_config": {"paper_width_mm": self.spin_paper_w.value()},
+            }
+            txt = TicketESCPOSRenderer(paper_width_mm=self.spin_paper_w.value()).render_text_preview(payload)
+            self.txt_preview_escpos.setPlainText(txt)
+        except Exception as e:
+            self.txt_preview_escpos.setPlainText(f"[preview escpos no disponible] {e}")
+
+    def _abrir_configuracion_sistema(self):
+        QMessageBox.information(
+            self,
+            "Identidad del sistema",
+            "Para cambiar logo/nombre/dirección oficiales, use el módulo Configuración del Sistema.",
+        )
 
     def restaurar_defecto(self):
         if QMessageBox.question(self,"Confirmar","¿Restaurar plantilla original?") == QMessageBox.Yes:
@@ -522,34 +569,24 @@ Puntos: +{{puntos_ganados}} | Total: {{puntos_totales}}</p>
 
     def _imprimir_muestra(self):
         try:
-            from PyQt5.QtPrintSupport import QPrinter, QPrintDialog, QPrinterInfo
-            from PyQt5.QtGui import QTextDocument
-            from PyQt5.QtCore import QSizeF
+            printer_svc = getattr(self.container, "printer_service", None)
+            if not printer_svc or not printer_svc.has_ticket_printer():
+                QMessageBox.warning(self, "Aviso", "No hay impresora térmica ESC/POS configurada.")
+                return
 
-            html = self.visor_preview.toHtml()
-            if not html or not html.strip():
-                QMessageBox.warning(self, "Aviso", "No hay contenido."); return
-
-            doc = QTextDocument(); doc.setHtml(html)
-            pw = self.spin_paper_w.value()
-            ph = self.spin_paper_h.value() or 297
-            mt = self.spin_margin_top.value()
-            ms = self.spin_margin_side.value()
-
-            dp = QPrinterInfo.defaultPrinter()
-            if dp and not dp.isNull():
-                printer = QPrinter(dp, QPrinter.HighResolution)
-            else:
-                printer = QPrinter(QPrinter.HighResolution)
-                dlg = QPrintDialog(printer, self)
-                if dlg.exec_() != QPrintDialog.Accepted: return
-
-            printer.setPageSize(QPrinter.Custom)
-            printer.setPageSizeMM(QSizeF(pw, ph))
-            printer.setPageMargins(ms, mt, ms, mt, QPrinter.Millimeter)
-            doc.print_(printer)
-            pn = dp.printerName() if dp and not dp.isNull() else "impresora"
-            QMessageBox.information(self, "✅ Impreso",
-                f"Muestra enviada a: {pn}\nPapel: {pw}×{ph}mm")
+            sample_ticket = {
+                "folio": "TST-ESC-POS",
+                "fecha": "2026-01-01 12:00:00",
+                "cajero": "Diseñador",
+                "cliente": "Cliente muestra",
+                "items": [
+                    {"nombre": "Producto Demo", "cantidad": 1, "precio_unitario": 100, "total": 100},
+                ],
+                "totales": {"subtotal": 100, "descuento": 0, "total_final": 100},
+                "forma_pago": "Prueba",
+                "plantilla": "ticket_designer_sample",
+            }
+            printer_svc.print_ticket(sample_ticket)
+            QMessageBox.information(self, "✅ Impreso", "Muestra enviada a impresora térmica ESC/POS.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

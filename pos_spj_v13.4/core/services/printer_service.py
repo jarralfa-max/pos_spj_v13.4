@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Dict, Any, Callable, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger("spj.printer")
 
@@ -57,6 +57,15 @@ class PrintJobStatus(str, Enum):
     PRINTING = "printing"
     SUCCESS = "success"
     FAILED = "failed"
+
+
+@dataclass
+class ValidationResult:
+    ok: bool
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    transport: str = ""
+    destination: str = ""
 
 
 @dataclass
@@ -345,7 +354,7 @@ class PrintQueue:
                 float(rd.get("totales", {}).get("total_final",
                       rd.get("total", 0)) or 0),
                 job.error_msg or "",
-                datetime.utcnow().isoformat(),
+                datetime.now(getattr(datetime, "UTC", timezone.utc)).isoformat(),
             ))
             try:
                 self._db.commit()
@@ -575,6 +584,62 @@ class PrinterService:
 
     def has_ticket_printer(self) -> bool:
         return bool(self._ticket_cfg.get('ubicacion', ''))
+
+    def validate_ticket_printer_config(self) -> ValidationResult:
+        cfg = self._ticket_cfg or {}
+        transport = self._resolve_transport(cfg)
+        destination = str(cfg.get("ubicacion", "") or "").strip()
+        errors: List[str] = []
+        warnings: List[str] = []
+
+        if not destination:
+            errors.append("Destino de impresora vacío.")
+
+        if transport == TransportType.SYSTEM:
+            errors.append("TransportType.SYSTEM no es válido para ticket térmico ESC/POS.")
+
+        if transport == TransportType.NETWORK:
+            if ":" not in destination:
+                errors.append("Destino TCP inválido, use formato ip:puerto.")
+        elif transport == TransportType.SERIAL:
+            if not (destination.upper().startswith("COM") or "/dev/tty" in destination):
+                errors.append("Destino serial inválido.")
+            baud = self._safe_baud(cfg.get("baud_rate", 9600))
+            if baud <= 0:
+                errors.append("Baud rate inválido.")
+        elif transport == TransportType.USB_WIN32:
+            if not destination:
+                errors.append("Nombre de impresora Win32 vacío.")
+
+        enc = str(cfg.get("encoding", "cp850") or "cp850").lower()
+        if enc not in {"cp850", "latin-1", "utf-8"}:
+            warnings.append(f"Encoding no estándar para térmica: {enc}")
+
+        return ValidationResult(
+            ok=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            transport=transport.value,
+            destination=destination,
+        )
+
+    def print_test_ticket(self) -> str:
+        vr = self.validate_ticket_printer_config()
+        if not vr.ok:
+            logger.warning("print_test_ticket bloqueado por config inválida: %s", "; ".join(vr.errors))
+            return ""
+        payload = {
+            "ticket_type": "test_ticket",
+            "folio": "TEST-ESC-POS",
+            "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "cajero": "Sistema",
+            "cliente": "Prueba",
+            "items": [{"nombre": "Prueba impresora", "cantidad": 1, "precio_unitario": 0, "total": 0}],
+            "totales": {"subtotal": 0, "descuento": 0, "total_final": 0},
+            "pago": {"forma_pago": "N/A"},
+            "mensaje_psicologico": "Impresión de prueba ESC/POS",
+        }
+        return self.print_ticket(payload)
 
     def has_label_printer(self) -> bool:
         return bool(self._label_cfg.get('ubicacion', ''))
