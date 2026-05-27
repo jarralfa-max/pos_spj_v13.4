@@ -89,6 +89,7 @@ MIGRATIONS = [
     _Migration("089",  "migrations.standalone.089_notification_inbox_dedupe_key"),
     _Migration("090",  "migrations.standalone.090_whatsapp_delivery_workflow_columns"),
     _Migration("091",  "migrations.standalone.091_scheduled_demand_events"),
+    _Migration("092",  "migrations.standalone.092_loyalty_ledger_canonicalization"),
 ]
 
 def _ensure_tracking_table(conn):

@@ -351,6 +351,63 @@ class GrowthEngine:
         except Exception as e:
             return {"error": str(e)}
 
+
+    # ── UI helpers (FASE 6: UI sin SQL directo) ─────────────────────────
+    def desactivar_meta(self, meta_id: int) -> None:
+        self.db.execute("UPDATE growth_metas SET activa=0 WHERE id=?", (int(meta_id),))
+        try: self.db.commit()
+        except Exception: pass
+
+    def desactivar_mision(self, mision_id: int) -> None:
+        self.db.execute("UPDATE growth_misiones SET activa=0 WHERE id=?", (int(mision_id),))
+        try: self.db.commit()
+        except Exception: pass
+
+    def get_growth_config(self) -> dict:
+        """Compat: devuelve shape growth_* pero lee primero loyalty_* canónicas."""
+        def _read(loyalty_key: str, growth_key: str, default: str):
+            v = self._cfg(loyalty_key, "")
+            return v if str(v or "").strip() else self._cfg(growth_key, default)
+        return {
+            "growth_expiry_dias": _read("loyalty_expiry_dias", "growth_expiry_dias", "90"),
+            "growth_otp_umbral": _read("loyalty_otp_umbral", "growth_otp_umbral", "200"),
+            "growth_costo_estrella": _read("loyalty_valor_estrella", "growth_costo_estrella", "0.80"),
+            "growth_cap_pct": _read("loyalty_max_pct_canje", "growth_cap_pct", "0.50"),
+        }
+
+    def save_growth_config(self, cfg: dict) -> None:
+        """Compat temporal: persiste growth_* y loyalty_* canónicas."""
+        mapping = {
+            "growth_expiry_dias": "loyalty_expiry_dias",
+            "growth_otp_umbral": "loyalty_otp_umbral",
+            "growth_costo_estrella": "loyalty_valor_estrella",
+            "growth_cap_pct": "loyalty_max_pct_canje",
+        }
+        for k, v in (cfg or {}).items():
+            self.db.execute(
+                "INSERT INTO configuraciones(clave,valor) VALUES(?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
+                (k, str(v)),
+            )
+            lk = mapping.get(k)
+            if lk:
+                self.db.execute(
+                    "INSERT INTO configuraciones(clave,valor) VALUES(?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
+                    (lk, str(v)),
+                )
+        try: self.db.commit()
+        except Exception: pass
+
+    def buscar_cliente_basico(self, buscar: str):
+        try:
+            return self.db.execute(
+                "SELECT id, nombre, COALESCE(apellido,'') as apellido FROM clientes WHERE id=?",
+                (int(buscar),),
+            ).fetchone()
+        except Exception:
+            return self.db.execute(
+                "SELECT id, nombre, COALESCE(apellido,'') as apellido FROM clientes WHERE nombre LIKE ? LIMIT 1",
+                (f"%{buscar}%",),
+            ).fetchone()
     # ══════════════════════════════════════════════════════════════════════
     # PRIVADOS
     # ══════════════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 # core/services/loyalty_service.py — SPJ POS v13.30 — FASE 2
 """
 LoyaltyService — servicio ÚNICO de fidelización.
-Wraps GrowthEngine, conecta al flujo de cobro, registra pasivo financiero.
+Usa LoyaltyApplicationService/Repository, conecta al flujo de cobro y registra pasivo financiero.
 """
 from __future__ import annotations
 import logging
@@ -11,7 +11,7 @@ logger = logging.getLogger("spj.loyalty")
 
 
 class LoyaltyService:
-    """Servicio central de fidelización. Delega a GrowthEngine."""
+    """Servicio central de fidelización. Sin dependencia a modulos.growth_engine."""
 
     def __init__(self, db_conn, sucursal_id: int = 1,
                  module_config=None, whatsapp_service=None,
@@ -22,7 +22,8 @@ class LoyaltyService:
         self._finance = finance_service
         self._engine = None
         self._bus = None
-        self._init_engine(whatsapp_service)
+        from application.services.loyalty_application_service import LoyaltyApplicationService
+        self._app = LoyaltyApplicationService(self.db)
         self._init_bus()
         self._ensure_tables()
 
@@ -34,13 +35,7 @@ class LoyaltyService:
             pass
 
     def _init_engine(self, wa=None):
-        try:
-            from modulos.growth_engine import GrowthEngine
-            self._engine = GrowthEngine(
-                self.db, sucursal_id=self.sucursal_id, whatsapp_service=wa)
-            logger.info("LoyaltyService: GrowthEngine conectado (suc=%d)", self.sucursal_id)
-        except Exception as e:
-            logger.warning("LoyaltyService: GrowthEngine no disponible: %s", e)
+        return None
 
     @property
     def enabled(self) -> bool:
@@ -50,8 +45,6 @@ class LoyaltyService:
 
     def set_sucursal(self, sucursal_id: int):
         self.sucursal_id = sucursal_id
-        if self._engine:
-            self._engine.sucursal_id = sucursal_id
 
     # ── Acreditar puntos al completar venta ───────────────────────────────────
 
@@ -60,50 +53,21 @@ class LoyaltyService:
                         nombre: str = "") -> Dict:
         """Acredita estrellas tras completar venta."""
         empty = {"estrellas_ganadas": 0, "saldo_actual": 0, "mensaje_gamificacion": ""}
-        if not self.enabled or not cliente_id or not self._engine:
+        if not self.enabled or not cliente_id:
             return empty
         try:
-            cajero_id = self._get_cajero_id(cajero)
-            resultado = self._engine.procesar_venta(
-                cliente_id=cliente_id, ticket_id=venta_id,
-                cajero_id=cajero_id, subtotal=total,
-                telefono=telefono, nombre=nombre)
-            estrellas = resultado.get("estrellas_ganadas", 0)
+            tasa = float(self._cfg("loyalty_earn_rate", "0.1") or "0.1")
+            estrellas = max(0, int(float(total or 0.0) * tasa))
+            resultado = self._app.award_points_for_sale(
+                cliente_id=int(cliente_id), venta_id=str(venta_id), puntos=estrellas,
+                sucursal_id=self.sucursal_id, usuario=str(cajero or ""),
+            )
             if estrellas > 0:
                 self._registrar_pasivo(estrellas, venta_id, "acreditar")
                 self._publish_puntos(cliente_id, estrellas,
-                                     resultado.get("saldo_actual", 0), venta_id)
-                # Ledger unificado Fase 2
-                self.registrar_en_ledger(
-                    cliente_id=cliente_id,
-                    tipo="acumulacion",
-                    puntos=estrellas,
-                    referencia=str(venta_id),
-                    descripcion=f"Acumulación venta #{venta_id}",
-                    usuario=cajero,
-                )
-                # GL: cada punto emitido crea un pasivo de fidelización (regla 11)
-                if self._finance:
-                    try:
-                        valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
-                        monto = estrellas * valor
-                        if monto > 0:
-                            self._finance.registrar_asiento(
-                                debe        = "6201-descuentos-fidelizacion",
-                                haber       = "215.1-pasivo-fidelizacion",
-                                concepto    = f"Acumulación {estrellas} pts venta #{venta_id}",
-                                monto       = monto,
-                                modulo      = "fidelizacion",
-                                referencia_id = venta_id,
-                                sucursal_id = self.sucursal_id,
-                                evento      = "PUNTOS_ACREDITADOS",
-                                metadata    = {"cliente_id": cliente_id,
-                                               "estrellas": estrellas,
-                                               "cajero": cajero},
-                            )
-                    except Exception as exc:
-                        logger.debug("acreditar_venta GL: %s", exc)
-            return resultado
+                                     resultado.get("saldo", 0), venta_id)
+                self._publish_loyalty_fin_event("LOYALTY_POINTS_EARNED", cliente_id, estrellas, venta_id, cajero)
+            return {"estrellas_ganadas": estrellas, "saldo_actual": resultado.get("saldo", self.saldo(cliente_id)), "mensaje_gamificacion": ""}
         except Exception as e:
             logger.error("acreditar_venta: %s", e)
             return empty
@@ -186,43 +150,17 @@ class LoyaltyService:
                 subtotal: float, estrellas: int,
                 venta_id: int = 0, otp: str = "") -> Dict:
         """Canjea estrellas como descuento. Cap: máx 50% del subtotal."""
-        if not self.enabled or not self._engine:
+        if not self.enabled:
             return {"ok": False, "error": "Fidelización deshabilitada"}
-        resultado = self._engine.canjear_estrellas(
-            cliente_id=cliente_id, cajero_id=cajero_id,
-            subtotal=subtotal, estrellas_a_canjear=estrellas,
-            ticket_id=venta_id, otp_codigo=otp)
+        resultado = self._app.redeem_points_for_sale(
+            cliente_id=int(cliente_id), venta_id=str(venta_id), puntos=int(estrellas),
+            sucursal_id=self.sucursal_id, usuario=str(cajero_id),
+        )
         if resultado.get("ok"):
-            canjeadas = resultado.get("estrellas_canjeadas", 0)
+            canjeadas = int(resultado.get("puntos_canjeados", 0))
             if canjeadas > 0:
                 self._registrar_pasivo(-canjeadas, venta_id, "canje")
-                # Ledger unificado Fase 2
-                self.registrar_en_ledger(
-                    cliente_id=cliente_id,
-                    tipo="canje",
-                    puntos=-canjeadas,
-                    referencia=str(venta_id),
-                    descripcion=f"Canje venta #{venta_id}",
-                    usuario=str(cajero_id),
-                )
-                # Asiento contable (CLAUDE.md regla 8: todo impacto financiero)
-                if self._finance:
-                    try:
-                        valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
-                        monto = canjeadas * valor
-                        self._finance.registrar_asiento(
-                            debe="215.1-pasivo-fidelizacion",
-                            haber="401.1-descuento-clientes",
-                            concepto=f"Canje estrellas venta #{venta_id}",
-                            monto=monto,
-                            modulo="loyalty",
-                            referencia_id=venta_id,
-                            usuario_id=cajero_id,
-                            sucursal_id=self.sucursal_id,
-                            evento="LOYALTY_CANJE",
-                        )
-                    except Exception as exc:
-                        logger.debug("loyalty registrar_asiento: %s", exc)
+                self._publish_loyalty_fin_event("LOYALTY_POINTS_REDEEMED", cliente_id, -canjeadas, venta_id, str(cajero_id))
         return resultado
 
     def apply_redemption(self, cliente_id: int, venta_id, cajero_id,
@@ -422,27 +360,57 @@ class LoyaltyService:
         if pts <= 0 or subtotal <= 0:
             return 0.0
         valor_por_estrella = float(self._cfg("loyalty_valor_estrella", "0.10"))
+        max_pct = float(self._cfg("loyalty_max_pct_canje", "0.5") or "0.5")
         descuento = pts * valor_por_estrella
-        return round(min(descuento, subtotal * 0.5), 2)
+        return round(min(descuento, subtotal * max_pct), 2)
 
     def saldo(self, cliente_id: int) -> int:
-        if not self._engine:
+        try:
+            from repositories.loyalty_repository import LoyaltyRepository
+            return LoyaltyRepository(self.db).get_balance(cliente_id)
+        except Exception:
             return 0
-        return self._engine.saldo_cliente(cliente_id)
 
     def pasivo_financiero(self) -> Dict:
-        if not self._engine:
-            return {"total_estrellas": 0, "valor_monetario": 0.0}
-        return self._engine.pasivo_financiero()
+        total = self.db.execute("SELECT COALESCE(SUM(estrellas),0) FROM loyalty_pasivo_log").fetchone()[0]
+        valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
+        return {"total_estrellas": int(total or 0), "valor_monetario": float((total or 0) * valor)}
 
     def solicitar_otp(self, cliente_id: int, estrellas: int, telefono: str) -> str:
-        if not self._engine:
-            return ""
-        return self._engine.generar_otp(cliente_id, estrellas, telefono)
+        return ""
 
-    # ── Pasivo financiero ─────────────────────────────────────────────────────
+    # ── Pasivo financiero (bitácora auxiliar; asientos vía handler de eventos) ─────
 
-    def _registrar_pasivo(self, estrellas: int, referencia, tipo: str):
+
+    def _publish_loyalty_fin_event(self, event_name: str, cliente_id: int, puntos: int, referencia, usuario: str = "") -> None:
+        if not self._bus:
+            return
+        try:
+            from core.events.event_bus import (
+                LOYALTY_POINTS_EARNED, LOYALTY_POINTS_REDEEMED,
+                LOYALTY_POINTS_EXPIRED, LOYALTY_POINTS_REVERSED,
+            )
+            mapping = {
+                "LOYALTY_POINTS_EARNED": LOYALTY_POINTS_EARNED,
+                "LOYALTY_POINTS_REDEEMED": LOYALTY_POINTS_REDEEMED,
+                "LOYALTY_POINTS_EXPIRED": LOYALTY_POINTS_EXPIRED,
+                "LOYALTY_POINTS_REVERSED": LOYALTY_POINTS_REVERSED,
+            }
+            ev = mapping.get(event_name)
+            if not ev:
+                return
+            self._bus.publish(ev, {
+                "cliente_id": cliente_id,
+                "puntos": int(puntos),
+                "referencia": str(referencia),
+                "sucursal_id": self.sucursal_id,
+                "usuario": str(usuario or ""),
+                "source": "loyalty_service",
+            }, async_=True)
+        except Exception:
+            pass
+
+    def _registrar_pasivo(self, estrellas: int, referencia, tipo: str, commit: bool = False):
         try:
             valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
             monto = estrellas * valor
@@ -451,10 +419,11 @@ class LoyaltyService:
                 "(fecha, tipo, estrellas, valor_unitario, monto_total, referencia, sucursal_id) "
                 "VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)",
                 (tipo, estrellas, valor, monto, str(referencia), self.sucursal_id))
-            try:
-                self.db.commit()
-            except Exception:
-                pass
+            if commit:
+                try:
+                    self.db.commit()
+                except Exception:
+                    pass
         except Exception as e:
             logger.debug("_registrar_pasivo: %s", e)
 
@@ -484,7 +453,8 @@ class LoyaltyService:
     def registrar_en_ledger(self, cliente_id: int, tipo: str,
                              puntos: int, referencia: str = "",
                              descripcion: str = "", usuario: str = "",
-                             monto_equiv: float = 0.0) -> bool:
+                             monto_equiv: float = 0.0,
+                             commit: bool = False) -> bool:
         """
         Registra un movimiento en loyalty_ledger (tabla unificada Fase 2).
         tipo: 'acumulacion' | 'canje' | 'reversa' | 'ajuste'
@@ -510,10 +480,11 @@ class LoyaltyService:
                 cliente_id, tipo, puntos, monto_equiv, saldo_post,
                 str(referencia), descripcion, self.sucursal_id, usuario,
             ))
-            try:
-                self.db.commit()
-            except Exception:
-                pass
+            if commit:
+                try:
+                    self.db.commit()
+                except Exception:
+                    pass
             return True
         except Exception as exc:
             logger.debug("registrar_en_ledger: %s", exc)
@@ -539,26 +510,20 @@ class LoyaltyService:
         if not self.enabled or puntos_canjeados <= 0 or not cliente_id:
             return {"ok": False, "error": "Parámetros inválidos"}
         try:
-            # Devolver puntos al cliente
-            self.db.execute(
-                "UPDATE clientes SET puntos = COALESCE(puntos, 0) + ? WHERE id = ?",
-                (puntos_canjeados, cliente_id))
-            # Registrar en ledger unificado (reversa = +puntos devueltos)
-            self.registrar_en_ledger(
-                cliente_id=cliente_id,
-                tipo="reversa",
-                puntos=puntos_canjeados,
-                referencia=referencia,
-                descripcion=f"Reversa de canje — ref:{referencia}",
-                usuario=usuario,
+            ref = str(referencia or "")
+            app_res = self._app.reverse_redemption(
+                cliente_id=int(cliente_id),
+                venta_id=ref,
+                puntos=int(puntos_canjeados),
+                sucursal_id=self.sucursal_id,
+                usuario=str(usuario or ""),
             )
-            # Ajustar pasivo financiero
-            self._registrar_pasivo(puntos_canjeados, referencia, "reversa")
-            try:
-                self.db.commit()
-            except Exception:
-                pass
-            nuevo_saldo = self.saldo(cliente_id)
+            if not app_res.get("ok", False):
+                return {"ok": False, "error": app_res.get("error", "reversa_no_aplicada")}
+            # Ajustar pasivo financiero como bitácora auxiliar
+            self._registrar_pasivo(puntos_canjeados, referencia, "reversa", commit=False)
+            self._publish_loyalty_fin_event("LOYALTY_POINTS_REVERSED", cliente_id, puntos_canjeados, referencia, usuario)
+            nuevo_saldo = int(app_res.get("saldo", self.saldo(cliente_id)))
             logger.info("Reversa canje cliente=%d puntos=%d ref=%s",
                         cliente_id, puntos_canjeados, referencia)
             return {
@@ -586,6 +551,69 @@ class LoyaltyService:
             logger.debug("get_ledger_cliente: %s", exc)
             return []
 
+
+
+    # ── API pública para UI (sin acceso a _app.repo) ───────────────────────
+    def get_referral_config(self) -> dict:
+        return self._app.repo.get_referral_config()
+
+    def save_referral_config(self, referidor: int, referido: int, max_mensual: int) -> None:
+        self._app.repo.save_referral_config(referidor, referido, max_mensual)
+
+    def list_referrals(self, limit: int = 50):
+        return self._app.repo.list_referrals(limit=limit)
+
+    def get_birthday_config(self) -> dict:
+        repo = self._app.repo
+        return {
+            "cumple_bono_estrellas": repo.get_config_value('cumple_bono_estrellas', '100'),
+            "cumple_mensaje_wa": repo.get_config_value('cumple_mensaje_wa', '🎂 ¡Feliz cumpleaños {nombre}! Te regalamos {puntos} estrellas.'),
+        }
+
+    def save_birthday_config(self, bono_estrellas: int, mensaje_wa: str) -> None:
+        self._app.repo.set_config_values({
+            'cumple_bono_estrellas': str(int(bono_estrellas)),
+            'cumple_mensaje_wa': str(mensaje_wa or ''),
+        })
+
+    def list_upcoming_birthdays(self, days: int = 7):
+        return self._app.repo.list_upcoming_birthdays(days)
+
+    def list_at_risk_customers(self, days_without_sale: int = 30, limit: int = 200):
+        return self._app.repo.list_at_risk_customers(days_without_sale=days_without_sale, limit=limit)
+
+    def resolve_scan(self, codigo: str) -> dict:
+        """Resuelve códigos de tarjeta/cliente sin SQL desde UI."""
+        code = str(codigo or "").strip()
+        if not code:
+            return {"found": False, "type": "empty"}
+        try:
+            from repositories.loyalty_repository import LoyaltyRepository
+            repo = LoyaltyRepository(self.db)
+            card = repo.get_card_by_code(code)
+            if card and card.get("cliente_id"):
+                cid = int(card["cliente_id"])
+                row = self.db.execute(
+                    "SELECT id, nombre, COALESCE(telefono,'') AS telefono FROM clientes WHERE id=? LIMIT 1",
+                    (cid,),
+                ).fetchone()
+                if row:
+                    nombre = row[1] if isinstance(row, tuple) else row["nombre"]
+                    tel = row[2] if isinstance(row, tuple) else row["telefono"]
+                    return {
+                        "found": True,
+                        "type": "tarjeta",
+                        "cliente_id": cid,
+                        "nombre": nombre,
+                        "telefono": tel,
+                        "nivel": card.get("nivel", "Bronce"),
+                        "puntos": self.saldo(cid),
+                        "card_code": code,
+                    }
+            return {"found": False, "type": "tarjeta", "card_code": code}
+        except Exception:
+            return {"found": False, "type": "tarjeta", "card_code": code}
+
     def _get_cajero_id(self, nombre: str) -> int:
         try:
             row = self.db.execute(
@@ -596,10 +624,28 @@ class LoyaltyService:
             return 0
 
     def _cfg(self, key: str, default: str = "") -> str:
+        """Lee config canónica loyalty_* con fallback temporal a growth_*.
+
+        Orden: loyalty_* -> growth_* -> default.
+        """
+        aliases = {
+            "loyalty_expiry_dias": "growth_expiry_dias",
+            "loyalty_otp_umbral": "growth_otp_umbral",
+            "loyalty_valor_estrella": "growth_costo_estrella",
+            "loyalty_max_pct_canje": "growth_cap_pct",
+        }
+        keys = [key]
+        if key in aliases:
+            keys.append(aliases[key])
         try:
-            row = self.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave=?",
-                (key,)).fetchone()
-            return row[0] if row and row[0] else default
+            for k in keys:
+                row = self.db.execute(
+                    "SELECT valor FROM configuraciones WHERE clave=?",
+                    (k,),
+                ).fetchone()
+                val = row[0] if row and row[0] else None
+                if val not in (None, ""):
+                    return val
+            return default
         except Exception:
             return default

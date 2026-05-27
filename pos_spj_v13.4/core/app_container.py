@@ -139,7 +139,7 @@ class AppContainer:
         )
 
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
-        self.loyalty_service = LoyaltyService(self.db)  # module_config set below
+        self.loyalty_service = LoyaltyService(self.db, finance_service=self.finance_service)  # module_config set below
 
         # CajaApplicationService — fuente única de verdad para operaciones de caja
         try:

@@ -43,7 +43,7 @@ def _build_service():
     return svc, loyalty, finance
 
 
-def test_sales_service_publishes_single_flow_and_no_direct_post_side_effects():
+def test_sales_service_publishes_single_flow_and_loyalty_processed_once_before_ticket():
     svc, loyalty, finance = _build_service()
 
     from core.events import event_bus
@@ -73,7 +73,7 @@ def test_sales_service_publishes_single_flow_and_no_direct_post_side_effects():
     assert published.count("sale_items_process") == 1
     assert published.count("VENTA_COMPLETADA") == 1
 
-    loyalty.process_loyalty_for_sale.assert_not_called()
+    loyalty.process_loyalty_for_sale.assert_called_once()
     finance.registrar_ingreso.assert_not_called()
     svc._comisiones_svc.registrar_comision.assert_not_called()
     svc.notification_service.notificar_venta_cliente.assert_not_called()

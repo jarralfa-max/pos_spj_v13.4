@@ -458,6 +458,18 @@ class SalesService:
                     sucursal_id=branch_id
                 )
 
+            # ── Canje real dentro de transacción crítica (atómico con venta) ──
+            if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
+                red = self.loyalty_service.apply_redemption(
+                    cliente_id=client_id,
+                    venta_id=sale_id,
+                    cajero_id=user,
+                    subtotal=total_a_pagar,
+                    puntos=loyalty_redemption_pts,
+                )
+                if not red.get("ok", False):
+                    raise RuntimeError(f"Canje de lealtad no aplicado: {red.get('error', 'desconocido')}")
+
             # 🛡️ CIERRE EXITOSO DE BD: Si llegamos aquí, todo es consistente
             self.db.execute(f"RELEASE SAVEPOINT {_sp}")
             logger.info(f"Venta {folio} procesada con éxito. Operación: {operation_id}")
@@ -466,18 +478,19 @@ class SalesService:
             # CreditSaleFinanceHandler (priority=85 on SALE_ITEMS_PROCESS). Calling
             # register_credit_sale() here would create a duplicate CxC row.
 
-            # ── Post-commit: ledger de canje de lealtad ───────────────────────
-            if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
+            # ── Acreditación postventa idempotente antes del ticket ───────────
+            loyalty_result = {"puntos_ganados": 0, "puntos_totales": 0, "nivel": "Bronce", "mensaje": ""}
+            if client_id and self.loyalty_service:
                 try:
-                    self.loyalty_service.apply_redemption(
-                        cliente_id=client_id,
+                    loyalty_result = self.loyalty_service.process_loyalty_for_sale(
+                        client_id=client_id,
+                        total_sale=float(total_a_pagar),
+                        branch_id=branch_id,
                         venta_id=sale_id,
-                        cajero_id=user,
-                        subtotal=total_a_pagar,
-                        puntos=loyalty_redemption_pts,
-                    )
-                except Exception as _lyl_err:
-                    logger.warning("loyalty ledger canje venta=%s: %s", sale_id, _lyl_err)
+                        usuario=str(user),
+                    ) or loyalty_result
+                except Exception as _lyl_aw_err:
+                    logger.warning("loyalty accrual venta=%s: %s", sale_id, _lyl_aw_err)
 
             # Notificar al EventBus (async_ para no bloquear al cajero)
             try:
@@ -505,6 +518,8 @@ class SalesService:
                     "usuario":       user,
                     "cliente_id":    client_id,
                     "payment_method": payment_method,
+                    "loyalty_already_processed": True,
+                    "loyalty_snapshot": loyalty_result,
                 }, async_=True)
             except Exception as _eb_err:
                 logger.debug("EventBus publish: %s", _eb_err)  # nunca cancela la venta
@@ -531,7 +546,9 @@ class SalesService:
                 'folio': folio, 'fecha': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'cajero': user, 'total': total_a_pagar, 'pago': amount_paid,
                 'cambio': (amount_paid - total_a_pagar) if payment_method == 'Efectivo' else 0,
-                'items': carrito_final
+                'items': carrito_final,
+                'puntos_ganados': (loyalty_result or {}).get('puntos_ganados', 0),
+                'puntos_totales': (loyalty_result or {}).get('puntos_totales', 0)
             }
             template_html = self.config_service.get('ticket_template_html')
             if not template_html:
