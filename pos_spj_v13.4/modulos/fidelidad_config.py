@@ -356,12 +356,14 @@ class ModuloFidelidadConfig(QWidget):
 
     def _build_tab_raffles(self):
         lay = QVBoxLayout(self.tab_raffles)
-        lay.setSpacing(Spacing.MD)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(Spacing.SM)
         title = QLabel("🎟️ Gestión de Rifas y Sorteos")
         title.setObjectName("subheading")
         lay.addWidget(title)
         self.raffle_kpi_bar = create_kpi_bar(self.tab_raffles, [])
-        lay.addWidget(self.raffle_kpi_bar)
+        self.raffle_kpi_bar.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.raffle_kpi_bar, 0)
         btn_row = QHBoxLayout()
         self.btn_nueva_rifa = create_primary_button(self, "➕ Nueva rifa")
         self.btn_nueva_rifa.clicked.connect(
@@ -461,6 +463,7 @@ class ModuloFidelidadConfig(QWidget):
         old = self.raffle_kpi_bar
         self.raffle_kpi_bar = create_kpi_bar(self.tab_raffles, kpis)
         self.tab_raffles.layout().replaceWidget(old, self.raffle_kpi_bar)
+        self.raffle_kpi_bar.setContentsMargins(0, 0, 0, 0)
         old.deleteLater()
 
         rows = self.container.loyalty_service.list_raffles(limit=50)
