@@ -492,6 +492,19 @@ class SalesService:
                 except Exception as _lyl_aw_err:
                     logger.warning("loyalty accrual venta=%s: %s", sale_id, _lyl_aw_err)
 
+            raffle_tickets_snapshot = []
+            if client_id and self.loyalty_service:
+                try:
+                    raffle_tickets_snapshot = self.loyalty_service.process_raffles_for_sale(
+                        venta_id=int(sale_id),
+                        cliente_id=int(client_id),
+                        folio=str(folio),
+                        total=float(total_a_pagar),
+                        sucursal_id=int(branch_id),
+                    ) or []
+                except Exception as _raffle_err:
+                    logger.warning("raffles process venta=%s: %s", sale_id, _raffle_err)
+
             # Notificar al EventBus (async_ para no bloquear al cajero)
             try:
                 from core.events.event_bus import get_bus, VENTA_COMPLETADA
@@ -520,6 +533,8 @@ class SalesService:
                     "payment_method": payment_method,
                     "loyalty_already_processed": True,
                     "loyalty_snapshot": loyalty_result,
+                    "raffle_already_processed": True,
+                    "raffle_tickets_snapshot": raffle_tickets_snapshot,
                 }, async_=True)
             except Exception as _eb_err:
                 logger.debug("EventBus publish: %s", _eb_err)  # nunca cancela la venta
@@ -548,7 +563,9 @@ class SalesService:
                 'cambio': (amount_paid - total_a_pagar) if payment_method == 'Efectivo' else 0,
                 'items': carrito_final,
                 'puntos_ganados': (loyalty_result or {}).get('puntos_ganados', 0),
-                'puntos_totales': (loyalty_result or {}).get('puntos_totales', 0)
+                'puntos_totales': (loyalty_result or {}).get('puntos_totales', 0),
+                'raffle_tickets_snapshot': raffle_tickets_snapshot,
+                'raffle_tickets_lines': [f"Rifa: {t.get('raffle','')} | Boleto: {t.get('numero_boleto','')}" for t in (raffle_tickets_snapshot or [])],
             }
             template_html = self.config_service.get('ticket_template_html')
             if not template_html:

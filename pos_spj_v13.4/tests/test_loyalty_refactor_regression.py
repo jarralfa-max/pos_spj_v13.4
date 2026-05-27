@@ -323,13 +323,12 @@ def test_fidelidad_raffles_tab_ui_scaffold():
     assert 'get_raffle_summary()' in src
 
 
-def test_wiring_no_raffle_flow_hooked_to_venta_completada_yet():
+def test_wiring_raffle_flow_hooked_to_venta_completada_phase4():
     src = (ROOT / 'core' / 'events' / 'wiring.py').read_text(encoding='utf-8')
-    # FASE 6: permitido handler financiero de eventos RAFFLE_*,
-    # pero NO se debe enganchar flujo de rifas dentro de _wire_venta / VENTA_COMPLETADA.
-    assert "RAFFLE_" in src
     venta_block = src.split("def _wire_venta", 1)[1]
-    assert "RAFFLE_" not in venta_block
+    assert "process_raffles_for_sale" in venta_block
+    assert "raffle_already_processed" in venta_block
+    assert "cancel_tickets_for_sale" in venta_block
 
 
 # FASE 7 — nombres canónicos solicitados

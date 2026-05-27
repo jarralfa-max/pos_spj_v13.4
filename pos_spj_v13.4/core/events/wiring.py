@@ -141,7 +141,7 @@ def _wire_raffle_finance_handlers(bus, container) -> None:
         RAFFLE_BUDGET_RESERVED,
         lambda d: _post_if_new(
             d,
-            "pasivo_reservado",
+            "budget_reserved",
             "6201-descuentos-fidelizacion",
             "215.1-pasivo-fidelizacion",
             "Reserva presupuesto rifa",
@@ -153,7 +153,7 @@ def _wire_raffle_finance_handlers(bus, container) -> None:
         RAFFLE_PRIZE_DELIVERED,
         lambda d: _post_if_new(
             d,
-            "premio_entregado",
+            "prize_delivered",
             "215.1-pasivo-fidelizacion",
             "401.1-descuento-clientes",
             "Entrega premio rifa",
@@ -165,7 +165,7 @@ def _wire_raffle_finance_handlers(bus, container) -> None:
         RAFFLE_BUDGET_RELEASED,
         lambda d: _post_if_new(
             d,
-            "pasivo_liberado",
+            "budget_released",
             "215.1-pasivo-fidelizacion",
             "401.1-descuento-clientes",
             "Liberación reserva rifa",
@@ -343,6 +343,27 @@ def _wire_venta(bus, container) -> None:
     bus.subscribe(VENTA_COMPLETADA, _loyalty_venta,
                   priority=50, label="loyalty_venta")
 
+    def _raffles_venta(data: dict) -> None:
+        if data.get("raffle_already_processed"):
+            return
+        ls = getattr(container, "loyalty_service", None)
+        if not ls:
+            return
+        try:
+            snapshot = ls.process_raffles_for_sale(
+                venta_id=int(data.get("venta_id") or 0),
+                cliente_id=int(data.get("cliente_id") or 0),
+                folio=str(data.get("folio") or ""),
+                total=float(data.get("total") or 0),
+                sucursal_id=int(data.get("sucursal_id") or 1),
+            )
+            data["raffle_tickets_snapshot"] = snapshot
+        except Exception as e:
+            logger.warning("raffles_venta handler: %s", e)
+
+    bus.subscribe(VENTA_COMPLETADA, _raffles_venta,
+                  priority=49, label="raffles_venta")
+
     # Prioridad 30: Auditoría
     def _audit_venta(data: dict) -> None:
         try:
@@ -404,6 +425,18 @@ def _wire_venta(bus, container) -> None:
         bus.subscribe(VENTA_CANCELADA, cancel_handler.handle,
                       priority=50, label="sale_cancelled_reversal")
         logger.debug("Registered SaleCancelledFinanceHandler on %s", VENTA_CANCELADA)
+
+    def _raffles_cancel(data: dict) -> None:
+        ls = getattr(container, "loyalty_service", None)
+        if not ls:
+            return
+        try:
+            ls.cancel_tickets_for_sale(int(data.get("venta_id") or 0), str(data.get("motivo") or "cancelación de venta"))
+        except Exception as e:
+            logger.warning("raffles_cancel handler: %s", e)
+
+    bus.subscribe(VENTA_CANCELADA, _raffles_cancel,
+                  priority=49, label="raffles_cancel")
 
 
 # ── PEDIDO_NUEVO ──────────────────────────────────────────────────────────────

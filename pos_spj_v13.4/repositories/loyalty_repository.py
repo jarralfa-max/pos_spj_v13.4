@@ -421,7 +421,7 @@ class LoyaltyRepository:
                 """,
                 (
                     int(raffle_id),
-                    "reserva",
+                    "budget_reserved",
                     monto_value,
                     str(referencia),
                     "Reserva presupuesto rifa",
@@ -436,6 +436,24 @@ class LoyaltyRepository:
             (int(raffle_id),),
         )
         return True
+
+    def release_raffle_budget(self, raffle_id: int, monto: float, usuario: str, referencia: str) -> bool:
+        self.ensure_raffle_tables()
+        if not referencia:
+            raise ValueError("referencia requerida")
+        raffle = self.get_raffle_by_id(raffle_id)
+        try:
+            self.db.execute(
+                """
+                INSERT INTO raffle_financial_ledger
+                (raffle_id, tipo, monto, referencia, descripcion, usuario, sucursal_id)
+                VALUES(?,?,?,?,?,?,?)
+                """,
+                (int(raffle_id), "budget_released", abs(float(monto or 0)), str(referencia), "Liberación presupuesto rifa", str(usuario or ""), int(raffle.get("sucursal_id") or 1)),
+            )
+            return True
+        except Exception:
+            return False
 
     def activate_raffle(self, raffle_id: int, usuario: str) -> bool:
         cur = self.db.execute(
@@ -551,13 +569,31 @@ class LoyaltyRepository:
             """,
             (ticket_id, cliente_id, str(usuario or ""), seed, pool_hash, int(raffle_id)),
         )
+        winner_row = self.db.execute(
+            "SELECT id FROM raffle_winners WHERE raffle_id=? AND ticket_id=? LIMIT 1",
+            (int(raffle_id), int(ticket_id)),
+        ).fetchone()
+        winner_id = int((winner_row[0] if isinstance(winner_row, tuple) else winner_row["id"]) or 0) if winner_row else 0
         return {
+            "id": winner_id,
             "raffle_id": int(raffle_id),
             "ticket_id": int(ticket_id),
             "cliente_id": int(cliente_id or 0),
             "random_seed": seed,
             "pool_hash": pool_hash,
         }
+
+
+    def get_winner_by_id(self, winner_id: int) -> Dict[str, Any]:
+        row = self.db.execute("SELECT * FROM raffle_winners WHERE id=?", (int(winner_id),)).fetchone()
+        return self._row_to_dict(row)
+
+    def has_raffle_budget_reserve(self, raffle_id: int) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM raffle_financial_ledger WHERE raffle_id=? AND tipo='budget_reserved' LIMIT 1",
+            (int(raffle_id),),
+        ).fetchone()
+        return bool(row)
 
     def mark_prize_delivered(self, winner_id: int, usuario: str, costo_real: float) -> bool:
         cur = self.db.execute(
@@ -571,6 +607,27 @@ class LoyaltyRepository:
             (float(costo_real or 0), int(winner_id)),
         )
         return int(getattr(cur, "rowcount", 0) or 0) > 0
+
+
+    def list_tickets_by_raffle(self, raffle_id: int, limit: int = 200) -> List[Dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT id, raffle_id, cliente_id, venta_id, folio_venta, numero_boleto, monto_base, estado, cancel_reason, created_at
+              FROM raffle_tickets
+             WHERE raffle_id=?
+             ORDER BY id DESC
+             LIMIT ?
+            """,
+            (int(raffle_id), int(limit)),
+        ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            out.append(self._row_to_dict(row) if not isinstance(row, tuple) else {
+                "id": row[0], "raffle_id": row[1], "cliente_id": row[2], "venta_id": row[3],
+                "folio_venta": row[4], "numero_boleto": row[5], "monto_base": row[6],
+                "estado": row[7], "cancel_reason": row[8], "created_at": row[9],
+            })
+        return out
 
     def list_raffles(self, limit: int = 50) -> List[Any]:
         self.ensure_raffle_tables()
@@ -589,7 +646,7 @@ class LoyaltyRepository:
             "boletos_emitidos": int((q("SELECT COUNT(*) FROM raffle_tickets WHERE estado='vigente'").fetchone() or [0])[0] or 0),
             "boletos_cancelados": int((q("SELECT COUNT(*) FROM raffle_tickets WHERE estado='cancelado'").fetchone() or [0])[0] or 0),
             "premios_pendientes": int((q("SELECT COUNT(*) FROM raffle_winners WHERE estado_entrega='pendiente'").fetchone() or [0])[0] or 0),
-            "pasivo_promocional": float((q("SELECT COALESCE(SUM(monto),0) FROM raffle_financial_ledger WHERE tipo='reserva'").fetchone() or [0])[0] or 0),
+            "pasivo_promocional": float((q("SELECT COALESCE(SUM(CASE WHEN tipo='budget_reserved' THEN monto WHEN tipo IN ('budget_released','prize_delivered') THEN -monto ELSE 0 END),0) FROM raffle_financial_ledger").fetchone() or [0])[0] or 0),
             "presupuesto_usado": float((q("SELECT COALESCE(SUM(premio_costo_real),0) FROM raffle_winners WHERE estado_entrega='entregado'").fetchone() or [0])[0] or 0),
             "roi_estimado": 0.0,
         }

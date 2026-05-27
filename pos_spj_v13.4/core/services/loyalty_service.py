@@ -650,7 +650,11 @@ class LoyaltyService:
         return self._app.repo.list_raffles(limit=limit)
 
     def get_raffle_summary(self) -> dict:
-        return self._app.repo.get_raffle_summary()
+        summary = self._app.repo.get_raffle_summary()
+        return summary
+
+    def list_raffle_tickets(self, raffle_id: int, limit: int = 200) -> list[dict]:
+        return self._app.repo.list_tickets_by_raffle(raffle_id, limit=limit)
 
     def resolve_scan(self, codigo: str) -> dict:
         """Resuelve códigos de tarjeta/cliente sin SQL desde UI."""
@@ -848,6 +852,30 @@ class LoyaltyService:
                 )
         return tickets
 
+    def process_raffles_for_sale(self, venta_id: int, cliente_id: int, folio: str, total: float, sucursal_id: int) -> list[dict]:
+        if not cliente_id:
+            return []
+        tickets_snapshot: list[dict] = []
+        for raffle in (self.list_raffles(limit=200) or []):
+            if isinstance(raffle, tuple):
+                rid = int(raffle[0] or 0)
+                estado = str((raffle[3] or "")).lower()
+                nombre = str(raffle[1] or f"Rifa {rid}")
+            elif hasattr(raffle, "keys"):
+                rid = int((raffle["id"] if "id" in raffle.keys() else 0) or 0)
+                estado = str((raffle["estado"] if "estado" in raffle.keys() else "")).lower()
+                nombre = str((raffle["nombre"] if "nombre" in raffle.keys() else f"Rifa {rid}"))
+            else:
+                rid = int(getattr(raffle, "id", 0) or 0)
+                estado = str(getattr(raffle, "estado", "")).lower()
+                nombre = str(getattr(raffle, "nombre", f"Rifa {rid}"))
+            if rid <= 0 or estado != "activa":
+                continue
+            tickets = self.generate_tickets_for_sale(rid, int(venta_id), int(cliente_id), str(folio or ""), float(total or 0), int(sucursal_id or self.sucursal_id))
+            for t in tickets:
+                tickets_snapshot.append({"raffle": nombre, "numero_boleto": t})
+        return tickets_snapshot
+
     def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
         cancelled = int(self._app.repo.cancel_tickets_for_sale(venta_id, reason) or 0)
         if cancelled > 0 and self._bus:
@@ -869,12 +897,20 @@ class LoyaltyService:
         return winner
 
     def mark_prize_delivered(self, winner_id: int, usuario: str, costo_real: float, referencia: str = "") -> bool:
+        winner = self._app.repo.get_winner_by_id(winner_id)
+        if not winner:
+            return False
+        raffle = self._app.repo.get_raffle_by_id(int(winner.get("raffle_id") or 0))
+        self.validate_prize_delivery(raffle, winner)
+        if not self._app.repo.has_raffle_budget_reserve(int(winner.get("raffle_id") or 0)):
+            raise ValueError("no entregar premio sin reserva financiera")
         ok = bool(self._app.repo.mark_prize_delivered(winner_id, usuario, costo_real))
         if ok and self._bus:
             ref = str(referencia or f"winner:{winner_id}:deliver")
             self._bus.publish(
                 "RAFFLE_PRIZE_DELIVERED",
                 {
+                    "raffle_id": int(winner.get("raffle_id") or 0),
                     "winner_id": int(winner_id),
                     "usuario": str(usuario or ""),
                     "monto": float(costo_real or 0),
@@ -888,15 +924,7 @@ class LoyaltyService:
     def release_raffle_budget(self, raffle_id: int, monto: float, usuario: str, referencia: str) -> bool:
         if not referencia:
             raise ValueError("referencia requerida")
-        repo = self._app.repo
-        try:
-            repo.db.execute(
-                "INSERT INTO raffle_financial_ledger(raffle_id,tipo,monto,referencia,descripcion,usuario,sucursal_id) VALUES(?,?,?,?,?,?,?)",
-                (int(raffle_id), "liberacion", abs(float(monto or 0)), str(referencia), "Liberación presupuesto rifa", str(usuario or ""), int(self.sucursal_id)),
-            )
-            ok = True
-        except Exception:
-            ok = False
+        ok = bool(self._app.repo.release_raffle_budget(raffle_id, monto, usuario, referencia))
         if ok and self._bus:
             self._bus.publish(
                 "RAFFLE_BUDGET_RELEASED",
