@@ -43,7 +43,7 @@ def run(conn):
            COALESCE(descripcion,''), COALESCE(sucursal_id,1), COALESCE(usuario,''), COALESCE(created_at, datetime('now'))
     FROM loyalty_ledger""")
 
-    if _table_exists(conn, 'growth_ledger'):
+    if _table_exists(conn, 'growth_ledger') and _column_exists(conn, 'growth_ledger', 'puntos'):
         monto_expr = 'COALESCE(monto_equiv,0)' if _column_exists(conn, 'growth_ledger', 'monto_equiv') else '0'
         conn.execute(f"""INSERT OR IGNORE INTO loyalty_ledger_new
         (cliente_id,tipo,puntos,monto_equiv,referencia,descripcion,sucursal_id,usuario,created_at)
