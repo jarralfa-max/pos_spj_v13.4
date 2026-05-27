@@ -2971,10 +2971,25 @@ class ModuloVentas(ModuloBase):
         """
         # ── Ruta 1: PrinterService unificado (ESC/POS) ────────────────────────
         printer_svc = getattr(self.container, 'printer_service', None)
+        tiene_termica = False
         if printer_svc and printer_svc.has_ticket_printer():
+            tiene_termica = True
+        elif self._hw_impresora_habilitada:
+            # Compatibilidad legacy: hay configuración hardware activa aunque
+            # el contenedor no exponga PrinterService completo.
+            tiene_termica = True
+
+        if tiene_termica:
             try:
-                job_id = printer_svc.print_ticket(datos_ticket)
-                if job_id:
+                if printer_svc and printer_svc.has_ticket_printer():
+                    job_id = printer_svc.print_ticket(datos_ticket)
+                    if job_id:
+                        self.guardar_ticket_pdf(datos_ticket)
+                        return
+                else:
+                    # Fallback legacy de impresión térmica cuando solo existe
+                    # configuración de hardware en BD.
+                    self._imprimir_ticket_hardware(datos_ticket)
                     self.guardar_ticket_pdf(datos_ticket)
                     return
             except Exception as _e:
@@ -4516,11 +4531,20 @@ class ModuloVentas(ModuloBase):
             }
             # Fase 10: Reimpresión térmica separada de PDF de auditoría.
             ps = getattr(self.container, 'printer_service', None)
+            if ps and ps.has_ticket_printer():
+                ps.print_ticket(datos_ticket)
+                return
+
+            # Compatibilidad legacy: si hay impresora habilitada en
+            # hardware_config, intentar la ruta de hardware clásica.
+            if self._hw_impresora_habilitada:
+                self._imprimir_ticket_hardware(datos_ticket)
+                return
+
             if not ps or not ps.has_ticket_printer():
                 QMessageBox.critical(self, "Impresión térmica no configurada",
                                      "No hay impresora térmica ESC/POS configurada.")
                 return
-            ps.print_ticket(datos_ticket)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
