@@ -127,6 +127,21 @@ class LoyaltyRepository:
             )
 
     def list_referrals(self, limit: int = 50) -> List[Any]:
+        self.ensure_referrals_table()
+        return self.db.execute(
+            """
+            SELECT r.fecha, c1.nombre AS referidor, c2.nombre AS referido, r.bono_dado, r.estado
+            FROM referidos r
+            LEFT JOIN clientes c1 ON c1.id=r.referidor_id
+            LEFT JOIN clientes c2 ON c2.id=r.referido_id
+            ORDER BY r.fecha DESC LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+
+    def ensure_referrals_table(self) -> None:
+        # TODO: mover este DDL a migración formal cuando el bootstrap de migraciones
+        # de fidelidad quede consolidado en todos los entornos.
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS referidos(
@@ -139,16 +154,6 @@ class LoyaltyRepository:
             )
             """
         )
-        return self.db.execute(
-            """
-            SELECT r.fecha, c1.nombre AS referidor, c2.nombre AS referido, r.bono_dado, r.estado
-            FROM referidos r
-            LEFT JOIN clientes c1 ON c1.id=r.referidor_id
-            LEFT JOIN clientes c2 ON c2.id=r.referido_id
-            ORDER BY r.fecha DESC LIMIT ?
-            """,
-            (int(limit),),
-        ).fetchall()
 
     # ──────────────────────────────────────────────────────────────────
     # Cumpleaños / retención
