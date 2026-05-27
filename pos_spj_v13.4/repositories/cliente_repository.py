@@ -14,6 +14,21 @@ logger = logging.getLogger("spj.repo.clientes")
 class ClienteRepository:
     def __init__(self, db_conn):
         self.db = db_conn
+        self._clientes_columns_cache: set[str] | None = None
+
+    def _get_clientes_columns(self) -> set[str]:
+        if self._clientes_columns_cache is not None:
+            return self._clientes_columns_cache
+        try:
+            rows = self.db.execute("PRAGMA table_info(clientes)").fetchall()
+            cols = {str(r[1]) for r in rows}
+        except Exception:
+            cols = set()
+        self._clientes_columns_cache = cols
+        return cols
+
+    def _has_clientes_column(self, column_name: str) -> bool:
+        return column_name in self._get_clientes_columns()
 
     # ── Consultas ────────────────────────────────────────────────────────────
 
@@ -24,35 +39,50 @@ class ClienteRepository:
         return dict(row) if row else None
 
     def get_by_codigo(self, codigo: str) -> Optional[dict]:
-        row = self.db.execute(
-            "SELECT * FROM clientes WHERE codigo_fidelidad=? OR telefono=?",
-            (codigo, codigo)
-        ).fetchone()
+        if self._has_clientes_column("codigo_fidelidad"):
+            query = "SELECT * FROM clientes WHERE codigo_fidelidad=? OR telefono=?"
+            params = (codigo, codigo)
+        else:
+            query = "SELECT * FROM clientes WHERE telefono=?"
+            params = (codigo,)
+        row = self.db.execute(query, params).fetchone()
         return dict(row) if row else None
 
     def buscar(self, termino: str, limit: int = 50) -> list:
         """Busca clientes activos por nombre, teléfono, email, qr o fidelidad."""
         q = f"%{termino}%"
-        rows = self.db.execute("""
+        has_codigo_fidelidad = self._has_clientes_column("codigo_fidelidad")
+        fidelidad_clause = " OR COALESCE(codigo_fidelidad,'') LIKE ?" if has_codigo_fidelidad else ""
+        query = f"""
             SELECT *
             FROM clientes
             WHERE (nombre LIKE ? OR telefono LIKE ? OR email LIKE ?
                    OR COALESCE(codigo_qr,'') LIKE ?
-                   OR COALESCE(codigo_fidelidad,'') LIKE ?
+                   {fidelidad_clause}
                    OR CAST(id AS TEXT) = ?)
               AND activo = 1
             ORDER BY nombre LIMIT ?
-        """, (q, q, q, q, q, termino, limit)).fetchall()
+        """
+        params = [q, q, q, q]
+        if has_codigo_fidelidad:
+            params.append(q)
+        params.extend([termino, limit])
+        rows = self.db.execute(query, tuple(params)).fetchall()
         return [dict(r) for r in rows]
 
     def get_by_scanner(self, codigo: str) -> Optional[dict]:
         """Busca cliente activo por ID numérico, teléfono, código QR o código de fidelidad."""
-        row = self.db.execute(
-            """SELECT * FROM clientes
+        if self._has_clientes_column("codigo_fidelidad"):
+            query = """SELECT * FROM clientes
                WHERE (CAST(id AS TEXT)=? OR telefono=? OR codigo_qr=? OR codigo_fidelidad=?)
-                 AND activo=1 LIMIT 1""",
-            (codigo, codigo, codigo, codigo),
-        ).fetchone()
+                 AND activo=1 LIMIT 1"""
+            params = (codigo, codigo, codigo, codigo)
+        else:
+            query = """SELECT * FROM clientes
+               WHERE (CAST(id AS TEXT)=? OR telefono=? OR codigo_qr=?)
+                 AND activo=1 LIMIT 1"""
+            params = (codigo, codigo, codigo)
+        row = self.db.execute(query, params).fetchone()
         return dict(row) if row else None
 
     def get_all(self, solo_activos: bool = True, limit: int = 200) -> list:
