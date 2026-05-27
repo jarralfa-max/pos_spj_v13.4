@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QMessageBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QLineEdit, QFormLayout,
     QGroupBox, QSpinBox, QDialog, QDialogButtonBox, QDateEdit,
-    QComboBox,
+    QComboBox, QInputDialog,
 )
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QColor
@@ -41,6 +41,7 @@ class ModuloFidelidadConfig(QWidget):
         self.sucursal_id = getattr(container, 'sucursal_id', 1)
         self.usuario     = ""
         self._ge_widget  = None  # Growth Engine widget (lazy)
+        self._last_raffle_winner_by_id = {}
         self._build_ui()
 
     def set_usuario_actual(self, u: str, r: str = "") -> None:
@@ -366,18 +367,14 @@ class ModuloFidelidadConfig(QWidget):
         lay.addWidget(self.raffle_kpi_bar, 0)
         btn_row = QHBoxLayout()
         self.btn_nueva_rifa = create_primary_button(self, "➕ Nueva rifa")
-        self.btn_nueva_rifa.clicked.connect(
-            lambda: Toast.info(self, "Rifas", "Próximamente: asistente de creación de rifas.")
-        )
+        self.btn_nueva_rifa.clicked.connect(self._on_nueva_rifa)
         self.btn_reservar = create_secondary_button(self, "💰 Reservar presupuesto")
         self.btn_activar = create_secondary_button(self, "✅ Activar")
         self.btn_cerrar = create_secondary_button(self, "🔒 Cerrar")
         self.btn_ganador = create_secondary_button(self, "🏆 Seleccionar ganador")
         self.btn_entregar = create_secondary_button(self, "📦 Marcar premio entregado")
         self.btn_ver_boletos = create_secondary_button(self, "🎫 Ver boletos")
-        self.btn_ver_boletos.clicked.connect(
-            lambda: Toast.info(self, "Boletos", "Próximamente: visor de boletos emitidos.")
-        )
+        self.btn_ver_boletos.clicked.connect(self._on_ver_boletos)
         btn_row.addWidget(self.btn_nueva_rifa)
         btn_row.addWidget(self.btn_reservar)
         btn_row.addWidget(self.btn_activar)
@@ -385,6 +382,11 @@ class ModuloFidelidadConfig(QWidget):
         btn_row.addWidget(self.btn_ganador)
         btn_row.addWidget(self.btn_entregar)
         btn_row.addWidget(self.btn_ver_boletos)
+        self.btn_reservar.clicked.connect(self._on_reservar_presupuesto)
+        self.btn_activar.clicked.connect(self._on_activar_rifa)
+        self.btn_cerrar.clicked.connect(self._on_cerrar_rifa)
+        self.btn_ganador.clicked.connect(self._on_seleccionar_ganador)
+        self.btn_entregar.clicked.connect(self._on_entregar_premio)
         btn_row.addStretch()
         lay.addLayout(btn_row)
         self.tbl_raffles = QTableWidget()
@@ -481,3 +483,97 @@ class ModuloFidelidadConfig(QWidget):
         self.tbl_raffles.setVisible(has_data)
         self.empty_raffles.setVisible(not has_data)
         self._update_raffle_actions_state()
+
+    def _require_selected_raffle(self):
+        row = self._selected_raffle_row()
+        if not row:
+            Toast.warning(self, "Rifas", "Selecciona una rifa.")
+            return None
+        return row
+
+    def _on_nueva_rifa(self):
+        nombre, ok = QInputDialog.getText(self, "Nueva rifa", "Nombre de la rifa:")
+        if not ok or not nombre.strip():
+            return
+        try:
+            self.container.loyalty_service.create_raffle({"nombre": nombre.strip(), "premio": "Premio", "premio_costo_estimado": 100.0, "presupuesto_maximo": 100.0, "ventas_objetivo": 100.0, "monto_por_boleto": 10.0, "sucursal_id": self.sucursal_id})
+            Toast.success(self, "Rifas", "Rifa creada.")
+            self._cargar_raffles()
+        except Exception as e:
+            Toast.error(self, "Rifas", str(e))
+
+    def _on_reservar_presupuesto(self):
+        row = self._require_selected_raffle()
+        if not row: return
+        monto, ok = QInputDialog.getDouble(self, "Reservar presupuesto", "Monto:", 0.0, 0.0, 99999999.0, 2)
+        if not ok or monto <= 0: return
+        try:
+            self.container.loyalty_service.reserve_raffle_budget(int(row["id"]), float(monto), self.usuario or "sistema", f"ui:reserve:{row['id']}")
+            Toast.success(self, "Rifas", "Presupuesto reservado.")
+            self._cargar_raffles()
+        except Exception as e:
+            Toast.error(self, "Rifas", str(e))
+
+    def _on_activar_rifa(self):
+        row = self._require_selected_raffle();
+        if not row: return
+        try:
+            self.container.loyalty_service.activate_raffle(int(row["id"]), self.usuario or "sistema")
+            Toast.success(self, "Rifas", "Rifa activada.")
+            self._cargar_raffles()
+        except Exception as e:
+            Toast.error(self, "Rifas", str(e))
+
+    def _on_cerrar_rifa(self):
+        row = self._require_selected_raffle();
+        if not row: return
+        try:
+            self.container.loyalty_service.close_raffle(int(row["id"]), self.usuario or "sistema")
+            Toast.success(self, "Rifas", "Rifa cerrada.")
+            self._cargar_raffles()
+        except Exception as e:
+            Toast.error(self, "Rifas", str(e))
+
+    def _on_seleccionar_ganador(self):
+        row = self._require_selected_raffle();
+        if not row: return
+        try:
+            winner = self.container.loyalty_service.select_winner(int(row["id"]), self.usuario or "sistema")
+            winner_id = int(winner.get("id") or 0) if isinstance(winner, dict) else 0
+            if winner_id > 0:
+                self._last_raffle_winner_by_id[int(row["id"])] = winner_id
+            Toast.success(self, "Rifas", "Ganador seleccionado.")
+            self._cargar_raffles()
+        except Exception as e:
+            Toast.error(self, "Rifas", str(e))
+
+    def _on_entregar_premio(self):
+        row = self._require_selected_raffle()
+        if not row:
+            return
+        raffle_id = int(row["id"])
+        suggested = int(self._last_raffle_winner_by_id.get(raffle_id, 1) or 1)
+        winner_id, ok = QInputDialog.getInt(self, "Entregar premio", "ID del ganador:", suggested, 1)
+        if not ok: return
+        costo, ok2 = QInputDialog.getDouble(self, "Entregar premio", "Costo real:", 0.0, 0.0, 99999999.0, 2)
+        if not ok2: return
+        try:
+            self.container.loyalty_service.mark_prize_delivered(int(winner_id), self.usuario or "sistema", float(costo), f"ui:winner:{winner_id}")
+            Toast.success(self, "Rifas", "Premio entregado.")
+            self._cargar_raffles()
+        except Exception as e:
+            Toast.error(self, "Rifas", str(e))
+
+    def _on_ver_boletos(self):
+        row = self._require_selected_raffle()
+        if not row: return
+        try:
+            tickets = self.container.loyalty_service.list_raffle_tickets(int(row["id"]), limit=10)
+            if not tickets:
+                Toast.info(self, "Boletos", "No hay boletos registrados.")
+                return
+            numeros = ", ".join(str(t.get("numero_boleto", "")) for t in tickets[:5])
+            Toast.info(self, "Boletos", f"{len(tickets)} boletos. Ejemplos: {numeros}")
+            self._cargar_raffles()
+        except Exception as e:
+            Toast.error(self, "Boletos", str(e))
