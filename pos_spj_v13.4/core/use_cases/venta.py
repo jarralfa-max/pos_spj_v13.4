@@ -5,11 +5,13 @@ Caso de uso: Procesar Venta
 Orquesta el flujo completo:
   1. Validar items y stock
   2. Ejecutar venta (SalesService)
-  3. Registrar en caja (FinanceService)
-  4. Acumular puntos (LoyaltyService)
-  5. Generar ticket (TicketTemplateEngine)
-  6. Encolar sync (SyncService)
-  7. Publicar VENTA_COMPLETADA al EventBus
+  3. Convertir respuesta a ResultadoVenta
+
+Nota Fase 4:
+- UC NO publica VENTA_COMPLETADA.
+- UC NO acredita fidelidad.
+- UC NO registra sync.
+- Los efectos post-venta viven en SalesService + handlers.
 
 Este UC reemplaza la lógica duplicada entre:
   - services.py (legacy)
@@ -50,6 +52,8 @@ class DatosPago:
     monto_pagado:     float = 0.0
     cliente_id:       Optional[int] = None
     descuento_global: float = 0.0
+    puntos_canjeados: int   = 0
+    descuento_puntos: float = 0.0
     notas:            str   = ""
 
 
@@ -146,6 +150,8 @@ class ProcesarVentaUC:
                 monto_pagado     = datos_pago.monto_pagado,
                 cliente_id       = datos_pago.cliente_id,
                 descuento_global = datos_pago.descuento_global,
+                puntos_canjeados = int(datos_pago.puntos_canjeados or 0),
+                descuento_puntos = float(datos_pago.descuento_puntos or 0.0),
                 notas            = datos_pago.notas,
             )
         except Exception:
@@ -177,6 +183,7 @@ class ProcesarVentaUC:
                 amount_paid    = monto_pagado,
                 client_id      = datos_pago.cliente_id,
                 discount       = datos_pago.descuento_global,
+                loyalty_redemption_pts = int(datos_pago.puntos_canjeados or 0),
                 notes          = datos_pago.notas,
             )
             if isinstance(result, (tuple, list)) and len(result) >= 2:
@@ -195,21 +202,11 @@ class ProcesarVentaUC:
             return ResultadoVenta(ok=False, error=str(e))
 
         # ── 4. Post-venta: fidelidad ──────────────────────────────────────────
+        # Fase 2: la acreditación ocurre exclusivamente en wiring.py -> loyalty_venta
+        # al recibir VENTA_COMPLETADA. El UC no acredita puntos directamente.
         puntos_ganados = 0
         puntos_totales = 0
         nivel_cliente  = "Bronce"
-        if datos_pago.cliente_id:
-            try:
-                pts = self._loyalty.process_loyalty_for_sale(
-                    client_id  = datos_pago.cliente_id,
-                    total_sale = total,
-                    branch_id  = sucursal_id,
-                )
-                puntos_ganados = pts.get("puntos_ganados", 0)
-                puntos_totales = pts.get("puntos_totales", 0)
-                nivel_cliente  = pts.get("nivel", "Bronce")
-            except Exception as e:
-                logger.warning("Fidelidad post-venta venta_id=%s: %s", venta_id, e)
 
         # ── 5. Post-venta: ticket (execute_sale ya generó uno; re-gen si no hay) ──
         if not ticket_html and self._ticket:
@@ -245,43 +242,6 @@ class ProcesarVentaUC:
                 )
             except Exception as e:
                 logger.warning("Ticket post-venta venta_id=%s: %s", venta_id, e)
-
-        # ── 6. Post-venta: sync ───────────────────────────────────────────────
-        if self._sync:
-            try:
-                self._sync.registrar_evento(
-                    cursor      = None,
-                    tabla       = "ventas",
-                    operacion   = "INSERT",
-                    registro_id = venta_id,
-                    payload     = {
-                        "folio":      folio,
-                        "total":      total,
-                        "metodo_pago": datos_pago.forma_pago,
-                    },
-                    sucursal_id = sucursal_id,
-                )
-            except Exception as e:
-                logger.warning("Sync post-venta venta_id=%s: %s", venta_id, e)
-
-        # ── 7. Publicar evento ────────────────────────────────────────────────
-        if self._bus:
-            try:
-                self._bus.publish(
-                    "VENTA_COMPLETADA",
-                    {
-                        "venta_id":    venta_id,
-                        "folio":       folio,
-                        "sucursal_id": sucursal_id,
-                        "total":       total,
-                        "usuario":     usuario,
-                        "cliente_id":  datos_pago.cliente_id,
-                        "forma_pago":  datos_pago.forma_pago,
-                    },
-                    async_=True,
-                )
-            except Exception as e:
-                logger.debug("EventBus post-venta: %s", e)
 
         logger.info(
             "Venta %s OK — total=$%.2f puntos=%d sucursal=%s usuario=%s",

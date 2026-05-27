@@ -140,6 +140,8 @@ def _wire_venta(bus, container) -> None:
                     client_id=cliente_id,
                     total_sale=float(data.get("total", 0)),
                     branch_id=data.get("sucursal_id", 1),
+                    venta_id=data.get("venta_id"),
+                    usuario=str(data.get("usuario", "Sistema")),
                 )
         except Exception as e:
             logger.warning("loyalty_venta handler: %s", e)
@@ -175,9 +177,9 @@ def _wire_venta(bus, container) -> None:
     # Deferred payment methods (credit, MercadoPago) are excluded — income is
     # recorded only after explicit confirmation (webhook / cobro manual).
     def _treasury_venta(data: dict) -> None:
-        _DEFERRED_PAY = {"Credito", "Mercado Pago"}
+        from core.services.payment_normalization import is_deferred_payment
         forma_pago = str(data.get("payment_method", data.get("forma_pago", "")))
-        if forma_pago in _DEFERRED_PAY:
+        if is_deferred_payment(forma_pago):
             return
         total = float(data.get("total", 0))
         if total <= 0:
