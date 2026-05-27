@@ -19,9 +19,10 @@ logger = logging.getLogger("spj.caja.ticket")
 class CajaTicketService:
     """Genera HTML, PDF y envía ESC/POS para comprobantes de corte Z."""
 
-    def __init__(self, db=None, hardware_service=None):
+    def __init__(self, db=None, hardware_service=None, printer_service=None):
         self.db = db
         self._hw = hardware_service
+        self._printer_service = printer_service
 
     def generar_html_corte(self, datos: Dict, cierre_id: int) -> str:
         """Genera el HTML del ticket de corte Z."""
@@ -87,78 +88,25 @@ class CajaTicketService:
             return ""
 
     def enviar_escpos(self, datos: Dict, ancho: int = 48) -> bool:
-        """Envía ticket ESC/POS a impresora térmica via HardwareService."""
-        hw = self._hw
-        if not hw:
-            return False
-        try:
-            hw.load_configs()
-            cfg = hw._cache_config.get("ticket", {})
-            if not cfg:
-                return False
-            ubicacion = cfg.get("ubicacion", "")
-            ancho = 48 if "80" in cfg.get("ancho", "80") else 32
-            if not ubicacion:
-                return False
-
-            ESC = b"\x1b"
-            GS = b"\x1d"
-            data = bytearray()
-            data += ESC + b"@"
-            data += ESC + b"a\x01"
-            data += ESC + b"E\x01"
-            data += b"** CORTE Z **\n"
-            data += ESC + b"E\x00"
-            sep = b"-" * ancho + b"\n"
-            data += sep
-            data += f"Cajero: {datos.get('cajero','')}\n".encode()
-            data += f"Fecha:  {datos.get('fecha','')}\n".encode()
-            data += sep
-            data += ESC + b"a\x00"
-            ventas = float(datos.get("ventas_totales", datos.get("total_ventas", 0)))
-            retiros = float(datos.get("retiros", 0))
-            esperado = float(datos.get("esperado", datos.get("efectivo_esperado", 0)))
-            contado = float(datos.get("contado", datos.get("efectivo_contado", 0)))
-            dif = float(datos.get("diferencia", 0))
-            data += f"Ventas:   ${ventas:>10,.2f}\n".encode()
-            data += f"Retiros:  ${retiros:>10,.2f}\n".encode()
-            data += sep
-            data += ESC + b"E\x01"
-            data += f"Esperado: ${esperado:>10,.2f}\n".encode()
-            data += f"Contado:  ${contado:>10,.2f}\n".encode()
-            data += sep
-            dif_str = (
-                "CUADRADO        " if abs(dif) < 0.01
-                else (f"FALTANTE ${abs(dif):,.2f}" if dif < 0 else f"SOBRANTE ${dif:,.2f}")
-            )
-            data += f"DIFERENCIA: {dif_str}\n".encode()
-            data += ESC + b"E\x00"
-            data += b"\n\n\n"
-            data += GS + b"V\x42\x00"
-
-            tipo = cfg.get("tipo", "").lower()
-            if "red" in tipo or ":" in ubicacion:
-                import socket
-                ip, port = ubicacion.split(":") if ":" in ubicacion else (ubicacion, "9100")
-                s = socket.socket()
-                s.settimeout(5)
-                s.connect((ip.strip(), int(port)))
-                s.sendall(bytes(data))
-                s.close()
-            elif "serial" in tipo or "com" in ubicacion.upper():
-                import serial as _ser
-                with _ser.Serial(ubicacion, 9600, timeout=3) as s:
-                    s.write(bytes(data))
-            else:
-                try:
-                    with open(ubicacion, "wb") as f:
-                        f.write(bytes(data))
-                except Exception:
-                    return False
-            return True
-        except Exception as e:
-            logger.warning("ESC/POS: %s", e)
-            return False
+        """Envía ticket ESC/POS a impresora térmica via PrinterService."""
+        if self._printer_service and self._printer_service.has_ticket_printer():
+            try:
+                payload = {
+                    "ticket_type": "caja_corte_z",
+                    "folio": f"Z-{datos.get('cierre_id', '')}",
+                    "fecha": datos.get("fecha", ""),
+                    "cajero": datos.get("cajero", ""),
+                    "cliente": "Corte de caja",
+                    "items": [],
+                    "totales": {"total_final": float(datos.get("ventas_totales", 0) or 0)},
+                    "pago": {"forma_pago": "Resumen"},
+                    "mensaje_psicologico": f"Diferencia: {float(datos.get('diferencia',0) or 0):.2f}",
+                }
+                self._printer_service.print_ticket(payload)
+                return True
+            except Exception as e:
+                logger.warning("PrinterService corte_z: %s", e)
+        return False
 
     def preview_or_print_corte(self, resultado: Dict, cajero: str, parent=None) -> None:
         """

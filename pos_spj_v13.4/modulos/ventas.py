@@ -37,7 +37,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
 from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush, QPainter
-from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
+from PyQt5.QtPrintSupport import QPrinter
 
 # Importación de la clase base y utilidades
 from .base import ModuloBase
@@ -2913,109 +2913,25 @@ class ModuloVentas(ModuloBase):
         """
         Impresión de ticket unificada (v13.4 Fase 1):
         1. PrinterService → ESC/POS con logo, QR, formato completo
-        2. QPrintDialog (sistema) como fallback si no hay impresora configurada
-        3. PDF de auditoría siempre
+        2. PDF de auditoría siempre
         """
-        from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
-        from PyQt5.QtGui import QTextDocument
-
-        impreso = False
-
         # ── Ruta 1: PrinterService unificado (ESC/POS) ────────────────────────
         printer_svc = getattr(self.container, 'printer_service', None)
         if printer_svc and printer_svc.has_ticket_printer():
             try:
                 job_id = printer_svc.print_ticket(datos_ticket)
                 if job_id:
-                    impreso = True
                     self.guardar_ticket_pdf(datos_ticket)
                     return
             except Exception as _e:
                 logger.warning("PrinterService: %s", _e)
-
-        # ── Ruta 3: Impresora del sistema (QPrintDialog) ──────────────────────
-        # v13.4: QTextDocument con soporte para imágenes base64
-        try:
-            html = self.generar_html_ticket(datos_ticket)
-
-            doc = QTextDocument()
-
-            # v13.4: Registrar imágenes base64 como recursos del documento
-            # QTextDocument no entiende data:image/...;base64,... directamente
-            import re, base64
-            img_counter = 0
-            def _register_b64_image(match):
-                nonlocal img_counter
-                b64_full = match.group(1)  # "data:image/png;base64,XXXX"
-                try:
-                    if ',' in b64_full:
-                        b64_data = b64_full.split(',', 1)[1]
-                    else:
-                        b64_data = b64_full
-                    img_bytes = base64.b64decode(b64_data)
-                    qimg = QImage()
-                    qimg.loadFromData(img_bytes)
-                    if not qimg.isNull():
-                        img_counter += 1
-                        res_name = f"ticket_img_{img_counter}"
-                        doc.addResource(
-                            QTextDocument.ImageResource,
-                            __import__('PyQt5.QtCore', fromlist=['QUrl']).QUrl(res_name),
-                            qimg)
-                        return f'src="{res_name}"'
-                except Exception:
-                    pass
-                return match.group(0)
-
-            html = re.sub(r'src="(data:image/[^"]+)"', _register_b64_image, html)
-            doc.setHtml(html)
-
-            # Leer config de papel — usa config_service para evitar SQL directo en UI
-            paper_w = 80; paper_h = 297; margin_top = 5; margin_side = 3
-            try:
-                _cs = getattr(self.container, 'config_service', None)
-                def _pcfg(k, d=""):
-                    if _cs:
-                        v = _cs.get(k, d)
-                        return v if v else d
-                    r = self.container.db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                    return r[0] if r and r[0] else d
-                try: paper_w = int(_pcfg('ticket_paper_width', '80'))
-                except: pass
-                try: paper_h = int(_pcfg('ticket_paper_height', '0')) or 297
-                except: pass
-                try: margin_top = int(_pcfg('ticket_margin_top', '5'))
-                except: pass
-                try: margin_side = int(_pcfg('ticket_margin_side', '3'))
-                except: pass
-            except Exception:
-                pass
-
-            from PyQt5.QtPrintSupport import QPrinterInfo
-            from PyQt5.QtCore import QSizeF
-            default_printer = QPrinterInfo.defaultPrinter()
-
-            if default_printer and not default_printer.isNull():
-                printer = QPrinter(default_printer, QPrinter.HighResolution)
-                printer.setPageSize(QPrinter.Custom)
-                printer.setPageSizeMM(QSizeF(paper_w, paper_h))
-                printer.setPageMargins(margin_side, margin_top, margin_side, margin_top, QPrinter.Millimeter)
-                doc.print_(printer)
-                impreso = True
-                logger.info("Ticket impreso: %s (%dx%dmm)",
-                            default_printer.printerName(), paper_w, paper_h)
-            else:
-                printer = QPrinter(QPrinter.HighResolution)
-                dlg = QPrintDialog(printer, self)
-                dlg.setWindowTitle("Imprimir Ticket")
-                if dlg.exec_() == QPrintDialog.Accepted:
-                    printer.setPageSize(QPrinter.Custom)
-                    printer.setPageSizeMM(QSizeF(paper_w, paper_h))
-                    printer.setPageMargins(margin_side, margin_top, margin_side, margin_top, QPrinter.Millimeter)
-                    doc.print_(printer)
-                    impreso = True
-        except Exception as _e:
-            logger.debug("QPrintDialog ticket: %s", _e)
+        else:
+            QMessageBox.critical(
+                self,
+                "Impresión térmica no configurada",
+                "No hay impresora térmica ESC/POS configurada.",
+            )
+            logger.warning("Ticket térmico cancelado: no hay impresora ESC/POS configurada.")
 
         # ── Ruta 4: PDF de auditoría (siempre) ───────────────────────────────
         try:
@@ -4496,7 +4412,7 @@ class ModuloVentas(ModuloBase):
 
     # ── Devolución / Cancelación ─────────────────────────────────────────────
     def _reimprimir_ultima_venta(self) -> None:
-        """Retrieves last sale data from DB and opens the print dialog."""
+        """Reimprime ticket térmico (ESC/POS) de la última venta."""
         vid = getattr(self, '_ultima_venta_id', None)
         if not vid:
             QMessageBox.warning(self, "Sin venta", "No hay venta reciente para reimprimir.")
@@ -4529,9 +4445,40 @@ class ModuloVentas(ModuloBase):
                 'empresa':  getattr(self.container, '_nombre_empresa', 'SPJ POS'),
                 'logo_path': LOGO_TICKET_PATH,
             }
-            self._imprimir_ticket_consolidado(datos_ticket)
+            # Fase 10: Reimpresión térmica separada de PDF de auditoría.
+            ps = getattr(self.container, 'printer_service', None)
+            if not ps or not ps.has_ticket_printer():
+                QMessageBox.critical(self, "Impresión térmica no configurada",
+                                     "No hay impresora térmica ESC/POS configurada.")
+                return
+            ps.print_ticket(datos_ticket)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _guardar_pdf_auditoria_ultima_venta(self) -> None:
+        """Genera PDF de auditoría de la última venta sin requerir impresora térmica."""
+        vid = getattr(self, '_ultima_venta_id', None)
+        if not vid:
+            QMessageBox.warning(self, "Sin venta", "No hay venta reciente para PDF.")
+            return
+        try:
+            db = self.container.db
+            venta = db.execute(
+                "SELECT folio, fecha, usuario, forma_pago, efectivo_recibido, cambio, total "
+                "FROM ventas WHERE id=?", (vid,)).fetchone()
+            if not venta:
+                QMessageBox.warning(self, "No encontrada", f"Venta ID {vid} no encontrada.")
+                return
+            ticket_data = {
+                'folio': venta[0], 'venta_id': venta[0], 'fecha': str(venta[1] or '')[:16],
+                'cajero': venta[2] or self.obtener_usuario_actual(), 'cliente': 'Público General',
+                'items': [], 'totales': {'subtotal': float(venta[6] or 0), 'total_final': float(venta[6] or 0)},
+                'pago': {'forma_pago': venta[3] or 'Efectivo', 'efectivo_recibido': float(venta[4] or 0), 'cambio': float(venta[5] or 0)},
+            }
+            self.guardar_ticket_pdf(ticket_data)
+            QMessageBox.information(self, "PDF auditoría", "PDF de auditoría generado correctamente.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error PDF", str(e))
 
     def abrir_devolucion(self) -> None:
         """Abre el diálogo de devolución/cancelación de venta anterior."""
