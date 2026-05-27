@@ -51,6 +51,7 @@ class SalesService:
         self.feature_flag_service = feature_flag_service
         self.customer_service = customer_service
         self._fulfillment = SaleFulfillmentService(db_conn)
+        self._sale_loyalty_policy = None
 
     def _generate_unique_sale_folio(self) -> str:
         """
@@ -132,6 +133,47 @@ class SalesService:
                 merged[key]["qty"] += r["qty"]
                 merged[key]["cantidad"] += r["cantidad"]
         return list(merged.values())
+
+    def _loyalty_policy(self):
+        if self._sale_loyalty_policy is None:
+            try:
+                from core.services.sales.sale_loyalty_policy import SaleLoyaltyPolicy
+                self._sale_loyalty_policy = SaleLoyaltyPolicy(self.db, loyalty_service=self.loyalty_service)
+            except Exception:
+                self._sale_loyalty_policy = None
+        return self._sale_loyalty_policy
+
+    def _normalize_payment_method(self, payment_method: str) -> str:
+        try:
+            from core.services.payment_normalization import normalize_payment_method as _npm
+            return _npm(payment_method)
+        except Exception:
+            return payment_method
+
+    def _normalize_items_payload(self, items: list) -> list:
+        normalized = []
+        for _it in items:
+            normalized.append({
+                'product_id': _it.get('product_id', _it.get('id', 0)),
+                'qty': float(_it.get('qty', _it.get('cantidad', 1))),
+                'unit_price': float(_it.get('unit_price', _it.get('precio_unitario', 0))),
+                'precio_unitario': float(_it.get('unit_price', _it.get('precio_unitario', 0))),
+                'cantidad': float(_it.get('qty', _it.get('cantidad', 1))),
+                'nombre': _it.get('nombre', _it.get('name', '')),
+                'unidad': _it.get('unidad', 'pz'),
+                'es_compuesto': _it.get('es_compuesto', 0),
+                'promo_nombre': _it.get('promo_nombre', ''),
+            })
+        return normalized
+
+    def _validate_payment(self, payment_method: str, amount_paid: float, total_a_pagar: float, client_id: int = None):
+        from core.services.payment_normalization import is_credit_sale
+        if is_credit_sale(payment_method) and client_id and self.customer_service:
+            ok, msg = self.customer_service.validate_credit(client_id, total_a_pagar)
+            if not ok:
+                raise ValueError(msg)
+        if amount_paid < total_a_pagar and not is_credit_sale(payment_method):
+            raise ValueError(f"El monto pagado (${amount_paid:,.2f}) es menor al total a cobrar (${total_a_pagar:,.2f})")
 
     def create_pending_payment_sale(self, branch_id: int, user: str, items: list,
                                     client_id: int = None, notes: str = "",
@@ -234,30 +276,8 @@ class SalesService:
         """
         operation_id = str(uuid.uuid4())
 
-        # ── Normalizar método de pago (UI envía "Crédito" con acento; backend espera "Credito") ──
-        try:
-            from core.services.payment_normalization import normalize_payment_method as _npm
-            payment_method = _npm(payment_method)
-        except Exception:
-            pass  # normalization is non-critical; proceed with original value
-
-        # ── Normalizar claves de items (la UI puede usar distintos nombres) ──
-        # UI envía: unit_price / qty / id
-        # Servicios internos esperan: precio_unitario / cantidad / product_id
-        _normalized = []
-        for _it in items:
-            _normalized.append({
-                'product_id':    _it.get('product_id', _it.get('id', 0)),
-                'qty':           float(_it.get('qty', _it.get('cantidad', 1))),
-                'unit_price':    float(_it.get('unit_price', _it.get('precio_unitario', 0))),
-                'precio_unitario': float(_it.get('unit_price', _it.get('precio_unitario', 0))),
-                'cantidad':      float(_it.get('qty', _it.get('cantidad', 1))),
-                'nombre':        _it.get('nombre', _it.get('name', '')),
-                'unidad':        _it.get('unidad', 'pz'),
-                'es_compuesto':  _it.get('es_compuesto', 0),
-                'promo_nombre':  _it.get('promo_nombre', ''),
-            })
-        items = _normalized
+        payment_method = self._normalize_payment_method(payment_method)
+        items = self._normalize_items_payload(items)
 
         # =========================================================
         # 1. PRE-PROCESAMIENTO: Matemáticas y Promociones
@@ -342,16 +362,7 @@ class SalesService:
             total_a_pagar = round(total_a_pagar - loyalty_discount, 2)
             discount = round(discount + loyalty_discount, 2)
 
-        # ── Validación de crédito (si aplica) ────────────────────────────────
-        from core.services.payment_normalization import is_credit_sale
-        if is_credit_sale(payment_method) and client_id and self.customer_service:
-            ok, msg = self.customer_service.validate_credit(client_id, total_a_pagar)
-            if not ok:
-                raise ValueError(msg)
-
-        # Validamos el pago
-        if amount_paid < total_a_pagar and not is_credit_sale(payment_method):
-            raise ValueError(f"El monto pagado (${amount_paid:,.2f}) es menor al total a cobrar (${total_a_pagar:,.2f})")
+        self._validate_payment(payment_method, amount_paid, total_a_pagar, client_id=client_id)
 
         # Guardia de margen v13.4 — no bloquea la venta, solo registra en audit
         if self.finance_service and hasattr(self.finance_service, 'validar_margen'):
@@ -460,12 +471,18 @@ class SalesService:
 
             # ── Canje real dentro de transacción crítica (atómico con venta) ──
             if loyalty_redemption_pts > 0 and client_id and self.loyalty_service:
-                red = self.loyalty_service.apply_redemption(
-                    cliente_id=client_id,
-                    venta_id=sale_id,
-                    cajero_id=user,
-                    subtotal=total_a_pagar,
-                    puntos=loyalty_redemption_pts,
+                _lp = self._loyalty_policy()
+                _op = f"{operation_id}:redeem"
+                red = (
+                    _lp.apply_redemption(client_id, sale_id, loyalty_redemption_pts, _op)
+                    if _lp else
+                    self.loyalty_service.apply_redemption(
+                        cliente_id=client_id,
+                        venta_id=sale_id,
+                        cajero_id=user,
+                        subtotal=total_a_pagar,
+                        puntos=loyalty_redemption_pts,
+                    )
                 )
                 if not red.get("ok", False):
                     raise RuntimeError(f"Canje de lealtad no aplicado: {red.get('error', 'desconocido')}")
@@ -482,12 +499,24 @@ class SalesService:
             loyalty_result = {"puntos_ganados": 0, "puntos_totales": 0, "nivel": "Bronce", "mensaje": ""}
             if client_id and self.loyalty_service:
                 try:
-                    loyalty_result = self.loyalty_service.process_loyalty_for_sale(
-                        client_id=client_id,
-                        total_sale=float(total_a_pagar),
-                        branch_id=branch_id,
-                        venta_id=sale_id,
-                        usuario=str(user),
+                    _lp = self._loyalty_policy()
+                    _op = f"{operation_id}:earn"
+                    loyalty_result = (
+                        _lp.earn_points(
+                            cliente_id=client_id,
+                            venta_id=sale_id,
+                            total=float(total_a_pagar),
+                            operation_id=_op,
+                            branch_id=branch_id,
+                            usuario=str(user),
+                        ) if _lp else
+                        self.loyalty_service.process_loyalty_for_sale(
+                            client_id=client_id,
+                            total_sale=float(total_a_pagar),
+                            branch_id=branch_id,
+                            venta_id=sale_id,
+                            usuario=str(user),
+                        )
                     ) or loyalty_result
                 except Exception as _lyl_aw_err:
                     logger.warning("loyalty accrual venta=%s: %s", sale_id, _lyl_aw_err)

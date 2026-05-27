@@ -314,21 +314,32 @@ class SalesReversalService:
             cliente_id = venta.get("cliente_id")
             puntos = int(venta.get("puntos_ganados") or 0)
             if cliente_id and puntos > 0:
-                conn.execute(
-                    "UPDATE clientes SET puntos = MAX(0, puntos - ?) WHERE id = ?",
-                    (puntos, cliente_id)
-                )
-                conn.execute("""
-                    INSERT INTO historico_puntos
-                        (cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id)
-                    SELECT ?, 'CANCELACION', ?, ?,
-                           MAX(0, puntos - ?), ?, ?
-                    FROM clientes WHERE id = ?
-                """, (
-                    cliente_id, -puntos,
-                    f"Cancelación venta {venta['folio']}",
-                    puntos, usuario, sale_id, cliente_id,
-                ))
+                try:
+                    from core.services.sales.sale_loyalty_policy import SaleLoyaltyPolicy
+                    _lp = SaleLoyaltyPolicy(conn, loyalty_service=getattr(self, "loyalty_service", None))
+                    _lp.reverse_points(
+                        cliente_id=int(cliente_id),
+                        venta_id=int(sale_id),
+                        puntos=int(puntos),
+                        operation_id=f"{operation_id}:reverse_loyalty",
+                        usuario=str(usuario),
+                    )
+                except Exception:
+                    conn.execute(
+                        "UPDATE clientes SET puntos = MAX(0, puntos - ?) WHERE id = ?",
+                        (puntos, cliente_id)
+                    )
+                    conn.execute("""
+                        INSERT INTO historico_puntos
+                            (cliente_id, tipo, puntos, descripcion, saldo_actual, usuario, venta_id)
+                        SELECT ?, 'CANCELACION', ?, ?,
+                               MAX(0, puntos - ?), ?, ?
+                        FROM clientes WHERE id = ?
+                    """, (
+                        cliente_id, -puntos,
+                        f"Cancelación venta {venta['folio']}",
+                        puntos, usuario, sale_id, cliente_id,
+                    ))
 
             # ── PASO 6: Marcar cancelada (fin de transacción) ─────────────────
             conn.execute(
@@ -351,6 +362,29 @@ class SalesReversalService:
             "payment_method": forma_pago,
             "cliente_id":     venta.get("cliente_id"),
             "sucursal_id":    venta.get("sucursal_id", self.branch_id),
+        })
+        self._fire_event("SALE_CANCELLED", {
+            "sale_id": sale_id,
+            "folio": venta["folio"],
+            "operation_id": operation_id,
+            "sucursal_id": venta.get("sucursal_id", self.branch_id),
+        })
+        self._fire_event("SALE_LOYALTY_REVERSED", {
+            "sale_id": sale_id,
+            "cliente_id": venta.get("cliente_id"),
+            "puntos": int(venta.get("puntos_ganados") or 0),
+            "operation_id": f"{operation_id}:reverse_loyalty",
+        })
+        self._fire_event("SALE_CASH_COMPENSATED", {
+            "sale_id": sale_id,
+            "amount": -total,
+            "payment_method": forma_pago,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_INVENTORY_RESTORED", {
+            "sale_id": sale_id,
+            "items_restored": items_restaurados,
+            "operation_id": operation_id,
         })
 
         return CancelResultDTO(
@@ -544,6 +578,24 @@ class SalesReversalService:
                 )
             except Exception as exc:
                 logger.warning("refund_items GL: %s", exc)
+        self._fire_event("SALE_REFUNDED", {
+            "sale_id": sale_id,
+            "refund_ids": refund_ids,
+            "amount": total_f,
+            "method": method,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_CASH_COMPENSATED", {
+            "sale_id": sale_id,
+            "amount": -total_f if method == "Efectivo" else 0.0,
+            "payment_method": method,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_INVENTORY_RESTORED", {
+            "sale_id": sale_id,
+            "items_restored": len(refund_ids),
+            "operation_id": operation_id,
+        })
 
         return RefundResultDTO(
             sale_id=sale_id,
@@ -684,6 +736,20 @@ class SalesReversalService:
                 )
             except Exception as exc:
                 logger.warning("issue_credit_note GL: %s", exc)
+        self._fire_event("SALE_CREDIT_NOTE_ISSUED", {
+            "sale_id": sale_id,
+            "credit_note_id": credit_note_id,
+            "amount": amount,
+            "reason": reason,
+            "method": method,
+            "operation_id": operation_id,
+        })
+        self._fire_event("SALE_CASH_COMPENSATED", {
+            "sale_id": sale_id,
+            "amount": -amount if method == "Efectivo" else 0.0,
+            "payment_method": method,
+            "operation_id": operation_id,
+        })
 
         return CreditNoteResultDTO(
             sale_id=sale_id,
