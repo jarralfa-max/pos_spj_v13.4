@@ -719,6 +719,198 @@ class LoyaltyService:
             return default
         except Exception:
             return default
+    # ── Rifas/Sorteos: validadores financieros (FASE 3) ─────────────────────
+    @staticmethod
+    def validate_raffle_budget(raffle: Dict[str, Any]) -> None:
+        presupuesto = float(raffle.get("presupuesto_maximo") or 0)
+        premio_estimado = float(raffle.get("premio_costo_estimado") or 0)
+        monto_ticket = float(raffle.get("monto_por_boleto") or 0)
+        ventas_objetivo = float(raffle.get("ventas_objetivo") or presupuesto)
+        fecha_inicio = str(raffle.get("fecha_inicio") or "").strip()
+        fecha_fin = str(raffle.get("fecha_fin") or "").strip()
+
+        if presupuesto <= 0:
+            raise ValueError("presupuesto_maximo debe ser > 0")
+        if premio_estimado <= 0:
+            raise ValueError("premio_costo_estimado debe ser > 0")
+        if premio_estimado > presupuesto:
+            raise ValueError("premio_costo_estimado excede presupuesto_maximo")
+        if monto_ticket <= 0:
+            raise ValueError("monto_por_boleto debe ser > 0")
+        if ventas_objetivo < presupuesto:
+            raise ValueError("ventas_objetivo debe ser >= presupuesto_maximo")
+        if fecha_inicio and fecha_fin and not (fecha_inicio < fecha_fin):
+            raise ValueError("fecha_inicio debe ser menor que fecha_fin")
+
+    @staticmethod
+    def validate_raffle_activation(raffle: Dict[str, Any]) -> None:
+        status = str(raffle.get("financial_status") or "")
+        if status not in ("presupuestada", "reservada"):
+            raise ValueError("financial_status inválido para activar")
+        if status != "reservada":
+            raise ValueError("No activar rifa sin presupuesto reservado")
+
+    @staticmethod
+    def validate_ticket_generation(raffle: Dict[str, Any], sale: Dict[str, Any]) -> None:
+        if str(raffle.get("estado") or "") != "activa":
+            raise ValueError("no generar boletos si la rifa no está activa")
+        if not sale.get("venta_id"):
+            raise ValueError("no generar boletos sin venta válida")
+
+    @staticmethod
+    def validate_winner_selection(raffle: Dict[str, Any]) -> None:
+        if str(raffle.get("estado") or "") != "cerrada":
+            raise ValueError("no seleccionar ganador si la rifa no está cerrada")
+
+    @staticmethod
+    def validate_prize_delivery(raffle: Dict[str, Any], winner: Dict[str, Any]) -> None:
+        if str(raffle.get("financial_status") or "") not in ("reservada", "liquidada"):
+            raise ValueError("no entregar premio sin reserva financiera")
+        if not winner:
+            raise ValueError("ganador inválido")
+
+    def create_raffle(self, data: Dict[str, Any]) -> int:
+        self.validate_raffle_budget(data)
+        raffle_id = self._app.repo.create_raffle(data)
+        if self._bus:
+            self._bus.publish(
+                "RAFFLE_CREATED",
+                {
+                    "raffle_id": raffle_id,
+                    "referencia": f"raffle:{raffle_id}",
+                    "sucursal_id": data.get("sucursal_id", self.sucursal_id),
+                },
+                async_=True,
+            )
+        return int(raffle_id)
+
+    def reserve_raffle_budget(self, raffle_id: int, monto: float, usuario: str, referencia: str) -> bool:
+        ok = self._app.repo.reserve_raffle_budget(raffle_id, monto, usuario, referencia)
+        if ok and self._bus:
+            self._bus.publish(
+                "RAFFLE_BUDGET_RESERVED",
+                {
+                    "raffle_id": int(raffle_id),
+                    "monto": float(monto),
+                    "usuario": str(usuario or ""),
+                    "referencia": str(referencia or ""),
+                    "sucursal_id": self.sucursal_id,
+                },
+                async_=True,
+            )
+        return bool(ok)
+
+    def activate_raffle(self, raffle_id: int, usuario: str) -> bool:
+        raffle = self._app.repo.get_raffle_by_id(raffle_id)
+        self.validate_raffle_activation(raffle)
+        ok = bool(self._app.repo.activate_raffle(raffle_id, usuario))
+        if ok and self._bus:
+            self._bus.publish("RAFFLE_ACTIVATED", {"raffle_id": int(raffle_id), "usuario": str(usuario or ""), "sucursal_id": self.sucursal_id}, async_=True)
+        return ok
+
+
+    def close_raffle(self, raffle_id: int, usuario: str) -> bool:
+        ok = bool(self._app.repo.close_raffle(raffle_id, usuario))
+        if ok and self._bus:
+            self._bus.publish(
+                "RAFFLE_CLOSED",
+                {"raffle_id": int(raffle_id), "usuario": str(usuario or ""), "sucursal_id": self.sucursal_id},
+                async_=True,
+            )
+        return ok
+
+    def generate_tickets_for_sale(
+        self,
+        raffle_id: int,
+        venta_id: int,
+        cliente_id: int,
+        folio_venta: str,
+        monto_base: float,
+        sucursal_id: int,
+    ) -> list[str]:
+        raffle = self._app.repo.get_raffle_by_id(raffle_id)
+        self.validate_ticket_generation(raffle, {"venta_id": venta_id})
+        tickets = self._app.repo.generate_tickets_for_sale(
+            raffle_id, venta_id, cliente_id, folio_venta, monto_base, sucursal_id
+        )
+        if tickets and self._bus:
+            for ticket in tickets:
+                self._bus.publish(
+                    "RAFFLE_TICKET_GRANTED",
+                    {
+                        "raffle_id": int(raffle_id),
+                        "venta_id": int(venta_id),
+                        "cliente_id": int(cliente_id or 0),
+                        "numero_boleto": ticket,
+                        "sucursal_id": int(sucursal_id or self.sucursal_id),
+                    },
+                    async_=True,
+                )
+        return tickets
+
+    def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
+        cancelled = int(self._app.repo.cancel_tickets_for_sale(venta_id, reason) or 0)
+        if cancelled > 0 and self._bus:
+            self._bus.publish(
+                "RAFFLE_TICKET_CANCELLED",
+                {"venta_id": int(venta_id), "cancelled": cancelled, "reason": str(reason or ""), "sucursal_id": self.sucursal_id},
+                async_=True,
+            )
+        return cancelled
+
+    def select_winner(self, raffle_id: int, usuario: str, random_seed: str | None = None) -> dict:
+        raffle = self._app.repo.get_raffle_by_id(raffle_id)
+        self.validate_winner_selection(raffle)
+        winner = self._app.repo.select_winner(raffle_id, usuario, random_seed=random_seed)
+        if winner and self._bus:
+            payload = dict(winner)
+            payload.update({"usuario": str(usuario or ""), "sucursal_id": self.sucursal_id})
+            self._bus.publish("RAFFLE_WINNER_SELECTED", payload, async_=True)
+        return winner
+
+    def mark_prize_delivered(self, winner_id: int, usuario: str, costo_real: float, referencia: str = "") -> bool:
+        ok = bool(self._app.repo.mark_prize_delivered(winner_id, usuario, costo_real))
+        if ok and self._bus:
+            ref = str(referencia or f"winner:{winner_id}:deliver")
+            self._bus.publish(
+                "RAFFLE_PRIZE_DELIVERED",
+                {
+                    "winner_id": int(winner_id),
+                    "usuario": str(usuario or ""),
+                    "monto": float(costo_real or 0),
+                    "referencia": ref,
+                    "sucursal_id": self.sucursal_id,
+                },
+                async_=True,
+            )
+        return ok
+
+    def release_raffle_budget(self, raffle_id: int, monto: float, usuario: str, referencia: str) -> bool:
+        if not referencia:
+            raise ValueError("referencia requerida")
+        repo = self._app.repo
+        try:
+            repo.db.execute(
+                "INSERT INTO raffle_financial_ledger(raffle_id,tipo,monto,referencia,descripcion,usuario,sucursal_id) VALUES(?,?,?,?,?,?,?)",
+                (int(raffle_id), "liberacion", abs(float(monto or 0)), str(referencia), "Liberación presupuesto rifa", str(usuario or ""), int(self.sucursal_id)),
+            )
+            ok = True
+        except Exception:
+            ok = False
+        if ok and self._bus:
+            self._bus.publish(
+                "RAFFLE_BUDGET_RELEASED",
+                {
+                    "raffle_id": int(raffle_id),
+                    "monto": abs(float(monto or 0)),
+                    "usuario": str(usuario or ""),
+                    "referencia": str(referencia),
+                    "sucursal_id": self.sucursal_id,
+                },
+                async_=True,
+            )
+        return ok
+
     DASHBOARD_KPI_KEYS = (
         "clientes_con_puntos",
         "puntos_activos",

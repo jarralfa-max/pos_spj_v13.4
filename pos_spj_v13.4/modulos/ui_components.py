@@ -438,18 +438,18 @@ def create_stat_card(
     if icon_emoji:
         lbl_icon = QLabel(icon_emoji, card)
         lbl_icon.setStyleSheet(
-            f"font-size: 28px; background-color: {accent_color}1F;"
+            f"font-size: 20px; background-color: {accent_color}1F;"
             f" border-radius: {Borders.RADIUS_LG}px; padding: 6px; border: none;"
         )
-        lbl_icon.setFixedSize(44, 44)
+        lbl_icon.setFixedSize(36, 36)
         lbl_icon.setAlignment(Qt.AlignCenter)
         body.addWidget(lbl_icon, 0, alignment=Qt.AlignTop)
     elif icon_path:
         from PyQt5.QtGui import QPixmap
         lbl_icon = QLabel(card)
-        lbl_icon.setFixedSize(44, 44)
+        lbl_icon.setFixedSize(36, 36)
         pixmap = QPixmap(icon_path).scaled(
-            22, 22, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            18, 18, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
         lbl_icon.setPixmap(pixmap)
         lbl_icon.setAlignment(Qt.AlignCenter)
@@ -498,6 +498,8 @@ def create_kpi_bar(parent, items: list) -> QWidget:
     layout = QHBoxLayout(container)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(Spacing.SM)
+    container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    container.setMaximumHeight(110)
     for item in (items or []):
         card = create_kpi_card(
             container,

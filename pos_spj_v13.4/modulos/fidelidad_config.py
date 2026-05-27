@@ -121,7 +121,6 @@ class ModuloFidelidadConfig(QWidget):
             {"title": "Canjeados mes", "value": k.get("puntos_canjeados_mes", 0), "icon": "🎁", "tone": "accent"},
             {"title": "Cumples próximos", "value": k.get("cumples_7_dias", 0), "icon": "🎂", "tone": "primary"},
             {"title": "Clientes en riesgo", "value": k.get("clientes_en_riesgo", 0), "icon": "⚠️", "tone": "danger"},
-            {"title": "Rifas activas", "value": k.get("rifas_activas", 0), "icon": "🎟️", "tone": "info"},
         ]
         old = self.kpi_bar
         self.kpi_bar = create_kpi_bar(self, items)
@@ -357,39 +356,45 @@ class ModuloFidelidadConfig(QWidget):
 
     def _build_tab_raffles(self):
         lay = QVBoxLayout(self.tab_raffles)
-        lay.setSpacing(Spacing.MD)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(Spacing.SM)
+        lay.setAlignment(Qt.AlignTop)
         title = QLabel("🎟️ Gestión de Rifas y Sorteos")
         title.setObjectName("subheading")
         lay.addWidget(title)
-        resumen = self.container.loyalty_service.get_raffle_summary()
-        self.kpi_raffles_activas = create_kpi_card(
-            self.tab_raffles,
-            "Rifas activas",
-            str(int(resumen.get("rifas_activas", 0))),
-            subtitle="Eventos especiales vigentes",
-            icon="🎟️",
-            variant="info",
-        )
-        lay.addWidget(self.kpi_raffles_activas)
+        self.raffle_kpi_bar = create_kpi_bar(self.tab_raffles, [])
+        self.raffle_kpi_bar.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.raffle_kpi_bar, 0)
         btn_row = QHBoxLayout()
         self.btn_nueva_rifa = create_primary_button(self, "➕ Nueva rifa")
         self.btn_nueva_rifa.clicked.connect(
             lambda: Toast.info(self, "Rifas", "Próximamente: asistente de creación de rifas.")
         )
+        self.btn_reservar = create_secondary_button(self, "💰 Reservar presupuesto")
+        self.btn_activar = create_secondary_button(self, "✅ Activar")
+        self.btn_cerrar = create_secondary_button(self, "🔒 Cerrar")
+        self.btn_ganador = create_secondary_button(self, "🏆 Seleccionar ganador")
+        self.btn_entregar = create_secondary_button(self, "📦 Marcar premio entregado")
         self.btn_ver_boletos = create_secondary_button(self, "🎫 Ver boletos")
         self.btn_ver_boletos.clicked.connect(
             lambda: Toast.info(self, "Boletos", "Próximamente: visor de boletos emitidos.")
         )
         btn_row.addWidget(self.btn_nueva_rifa)
+        btn_row.addWidget(self.btn_reservar)
+        btn_row.addWidget(self.btn_activar)
+        btn_row.addWidget(self.btn_cerrar)
+        btn_row.addWidget(self.btn_ganador)
+        btn_row.addWidget(self.btn_entregar)
         btn_row.addWidget(self.btn_ver_boletos)
         btn_row.addStretch()
         lay.addLayout(btn_row)
         self.tbl_raffles = QTableWidget()
-        self.tbl_raffles.setColumnCount(6)
-        self.tbl_raffles.setHorizontalHeaderLabels(["ID", "Nombre", "Premio", "Estado", "Inicio", "Fin"])
+        self.tbl_raffles.setColumnCount(9)
+        self.tbl_raffles.setHorizontalHeaderLabels(["ID", "Nombre", "Premio", "Estado", "Finanzas", "Inicio", "Fin", "Boletos", "Presupuesto"])
         self.tbl_raffles.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_raffles.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbl_raffles.setAlternatingRowColors(True)
+        self.tbl_raffles.itemSelectionChanged.connect(self._update_raffle_actions_state)
         hh = self.tbl_raffles.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -406,21 +411,74 @@ class ModuloFidelidadConfig(QWidget):
         )
         lay.addWidget(self.empty_raffles)
         self._cargar_raffles()
+        self._update_raffle_actions_state()
+
+
+
+    def _selected_raffle_row(self):
+        row = self.tbl_raffles.currentRow()
+        if row < 0:
+            return None
+        vals = []
+        for c in range(self.tbl_raffles.columnCount()):
+            it = self.tbl_raffles.item(row, c)
+            vals.append((it.text() if it else "").strip())
+        return {
+            "id": vals[0], "nombre": vals[1], "premio": vals[2], "estado": vals[3].lower(),
+            "financial_status": vals[4].lower(), "inicio": vals[5], "fin": vals[6],
+            "boletos": vals[7], "presupuesto": vals[8],
+        }
+
+    def _update_raffle_actions_state(self):
+        row = self._selected_raffle_row()
+        has = row is not None
+        self.btn_reservar.setEnabled(has)
+        self.btn_activar.setEnabled(False)
+        self.btn_cerrar.setEnabled(False)
+        self.btn_ganador.setEnabled(False)
+        self.btn_entregar.setEnabled(False)
+        if not has:
+            return
+        estado = row["estado"]
+        fin = row["financial_status"]
+        self.btn_activar.setEnabled(fin == "reservada" and estado in ("borrador", "inactiva"))
+        self.btn_cerrar.setEnabled(estado == "activa")
+        self.btn_ganador.setEnabled(estado == "cerrada")
+        self.btn_entregar.setEnabled(estado == "cerrada")
 
     def _cargar_raffles(self):
+        resumen = {}
         try:
             resumen = self.container.loyalty_service.get_raffle_summary()
-            for child in self.kpi_raffles_activas.findChildren(QLabel):
-                if child.objectName() == "kpiValue":
-                    child.setText(str(int(resumen.get("rifas_activas", 0))))
-                    break
         except Exception as e:
             logger.debug("_cargar_raffles resumen: %s", e)
+        kpis = [
+            {"title": "Rifas activas", "value": int(resumen.get("rifas_activas", 0) or 0), "icon": "🎟️", "tone": "info"},
+            {"title": "Boletos emitidos", "value": int(resumen.get("boletos_emitidos", 0) or 0), "icon": "🎫", "tone": "primary"},
+            {"title": "Boletos cancelados", "value": int(resumen.get("boletos_cancelados", 0) or 0), "icon": "🛑", "tone": "warning"},
+            {"title": "Premios pendientes", "value": int(resumen.get("premios_pendientes", 0) or 0), "icon": "🏆", "tone": "accent"},
+            {"title": "Pasivo promocional", "value": f"${float(resumen.get('pasivo_promocional', 0) or 0):,.2f}", "icon": "💰", "tone": "danger"},
+            {"title": "Presupuesto usado", "value": f"${float(resumen.get('presupuesto_usado', 0) or 0):,.2f}", "icon": "📉", "tone": "info"},
+            {"title": "ROI estimado", "value": f"{float(resumen.get('roi_estimado', 0) or 0):.2f}%", "icon": "📈", "tone": "success"},
+        ]
+        old = self.raffle_kpi_bar
+        self.raffle_kpi_bar = create_kpi_bar(self.tab_raffles, kpis)
+        self.tab_raffles.layout().replaceWidget(old, self.raffle_kpi_bar)
+        self.raffle_kpi_bar.setContentsMargins(0, 0, 0, 0)
+        old.deleteLater()
+
         rows = self.container.loyalty_service.list_raffles(limit=50)
         self.tbl_raffles.setRowCount(len(rows))
         for i, r in enumerate(rows):
             for j, v in enumerate(r):
-                self.tbl_raffles.setItem(i, j, QTableWidgetItem(str(v or "")))
+                val = v
+                if j == 8:
+                    try:
+                        val = f"${float(v):,.2f}"
+                    except Exception:
+                        pass
+                self.tbl_raffles.setItem(i, j, QTableWidgetItem(str(val or "")))
         has_data = len(rows) > 0
         self.tbl_raffles.setVisible(has_data)
         self.empty_raffles.setVisible(not has_data)
+        self._update_raffle_actions_state()
