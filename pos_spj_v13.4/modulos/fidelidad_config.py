@@ -159,7 +159,6 @@ class ModuloFidelidadConfig(QWidget):
 
     def _guardar_config_referidos(self):
         try:
-            repo = self.container.loyalty_service._app.repo
             for k, v in [
                 ('ref_bono_referidor', str(self.spin_ref_referidor.value())),
                 ('ref_bono_referido', str(self.spin_ref_referido.value())),
@@ -175,7 +174,7 @@ class ModuloFidelidadConfig(QWidget):
 
     def _cargar_config_referidos(self):
         try:
-            cfg = self.container.loyalty_service._app.repo.get_referral_config()
+            cfg = self.container.loyalty_service.get_referral_config()
             self.spin_ref_referidor.setValue(int(cfg.get('ref_bono_referidor', 50)))
             self.spin_ref_referido.setValue(int(cfg.get('ref_bono_referido', 25)))
             self.spin_ref_max.setValue(int(cfg.get('ref_max_mensual', 10)))
@@ -184,7 +183,7 @@ class ModuloFidelidadConfig(QWidget):
 
     def _cargar_referidos(self):
         try:
-            rows = self.container.loyalty_service._app.repo.list_referrals(limit=50)
+            rows = self.container.loyalty_service.list_referrals(limit=50)
             self.tbl_referidos.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
@@ -236,32 +235,28 @@ class ModuloFidelidadConfig(QWidget):
 
     def _guardar_config_cumples(self):
         try:
-            repo = self.container.loyalty_service._app.repo
-            for k, v in [
-                ('cumple_bono_estrellas', str(self.spin_cumple_bono.value())),
-                ('cumple_mensaje_wa', self.txt_cumple_msg.text()),
-            ]:
+            self.container.loyalty_service.save_birthday_config(self.spin_cumple_bono.value(), self.txt_cumple_msg.text())
+            try:
+                self.container.db.commit()
+            except Exception:
                 pass
-            repo.save_referral_config(self.spin_ref_referidor.value(), self.spin_ref_referido.value(), self.spin_ref_max.value())
-            try: self.container.db.commit()
-            except: pass
             Toast.success(self, "Configuración guardada", "Programa de cumpleaños actualizado.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
     def _cargar_config_cumples(self):
         try:
-            repo = self.container.loyalty_service._app.repo
-            try: self.spin_cumple_bono.setValue(int(repo.get_config_value('cumple_bono_estrellas', '100')))
+            cfg = self.container.loyalty_service.get_birthday_config()
+            try: self.spin_cumple_bono.setValue(int(cfg.get('cumple_bono_estrellas', '100')) )
             except: pass
-            self.txt_cumple_msg.setText(repo.get_config_value('cumple_mensaje_wa',
+            self.txt_cumple_msg.setText(cfg.get('cumple_mensaje_wa',
                 '🎂 ¡Feliz cumpleaños {nombre}! Te regalamos {puntos} estrellas.'))
         except Exception:
             pass
 
     def _cargar_cumples(self):
         try:
-            rows = self.container.loyalty_service._app.repo.list_upcoming_birthdays(7)
+            rows = self.container.loyalty_service.list_upcoming_birthdays(7)
             self.tbl_cumples.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
@@ -314,7 +309,7 @@ class ModuloFidelidadConfig(QWidget):
     def _analizar_riesgo(self):
         dias = self.spin_dias_inactivo.value()
         try:
-            rows = self.container.loyalty_service._app.repo.list_at_risk_customers(days_without_sale=dias, limit=200)
+            rows = self.container.loyalty_service.list_at_risk_customers(days_without_sale=dias, limit=200)
 
             self.tbl_riesgo.setRowCount(len(rows))
             for i, r in enumerate(rows):
