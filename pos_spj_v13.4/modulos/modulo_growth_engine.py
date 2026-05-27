@@ -43,7 +43,6 @@ class ModuloGrowthEngine(QWidget):
         lay.setContentsMargins(14, 12, 14, 12)
         hdr = QHBoxLayout()
         t = QLabel("🚀 Growth Engine — Programa de Fidelidad")
-        t.setStyleSheet("font-size:18px;font-weight:bold;")
         hdr.addWidget(t); hdr.addStretch()
         lay.addLayout(hdr)
 
@@ -65,12 +64,9 @@ class ModuloGrowthEngine(QWidget):
             "cuando las ventas ya superaron el umbral de rentabilidad."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#fffbea;padding:6px;border-radius:5px;font-size:11px;")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("➕ Nueva meta"); btn_add.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
-        btn_del = QPushButton("🗑️ Eliminar"); btn_del.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
         btn_row.addWidget(btn_add); btn_row.addWidget(btn_del); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -147,9 +143,8 @@ class ModuloGrowthEngine(QWidget):
         mid = int(self.tbl_metas.item(row,0).text())
         if QMessageBox.question(self,"Confirmar","¿Desactivar esta meta?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
-        self.db.execute("UPDATE growth_metas SET activa=0 WHERE id=?", (mid,))
-        try: self.db.commit()
-        except Exception: pass
+        eng = self._engine_para()
+        eng.desactivar_meta(mid)
         self._cargar_metas()
 
     # ── Tab 2: Misiones ───────────────────────────────────────────────────
@@ -161,12 +156,9 @@ class ModuloGrowthEngine(QWidget):
             "las N compras en la ventana de días, el progreso se reinicia."
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#fffbea;padding:6px;border-radius:5px;font-size:11px;")
         lay.addWidget(info)
 
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("➕ Nueva misión"); btn_add.setStyleSheet("background:#27ae60;color:white;padding:5px 12px;")
-        btn_del = QPushButton("🗑️ Desactivar"); btn_del.setStyleSheet("background:#e74c3c;color:white;padding:5px 12px;")
         btn_row.addWidget(btn_add); btn_row.addWidget(btn_del); btn_row.addStretch()
         lay.addLayout(btn_row)
 
@@ -231,9 +223,8 @@ class ModuloGrowthEngine(QWidget):
         row = self.tbl_misiones.currentRow()
         if row < 0: return
         mid = int(self.tbl_misiones.item(row,0).text())
-        self.db.execute("UPDATE growth_misiones SET activa=0 WHERE id=?", (mid,))
-        try: self.db.commit()
-        except Exception: pass
+        eng = self._engine_para()
+        eng.desactivar_mision(mid)
         self._cargar_misiones()
 
     # ── Tab 3: Configuración ─────────────────────────────────────────────
@@ -262,22 +253,17 @@ class ModuloGrowthEngine(QWidget):
         lay.addWidget(grp2)
 
         btn_save = QPushButton("💾 Guardar configuración")
-        btn_save.setStyleSheet("background:#27ae60;color:white;font-weight:bold;padding:7px 16px;")
         btn_save.clicked.connect(self._guardar_config)
         lay.addWidget(btn_save); lay.addStretch()
         self._cargar_config()
         return w
 
     def _cargar_config(self):
-        def g(k, d):
-            try:
-                r = self.db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r else d
-            except Exception: return d
-        self.spin_expiry.setValue(int(g("growth_expiry_dias","90")))
-        self.spin_otp_umbral.setValue(int(g("growth_otp_umbral","200")))
-        self.spin_costo_estrella.setValue(float(g("growth_costo_estrella","0.80")))
-        self.spin_cap.setValue(int(float(g("growth_cap_pct","0.50"))*100))
+        cfg = self._engine_para().get_growth_config()
+        self.spin_expiry.setValue(int(cfg.get("growth_expiry_dias", "90")))
+        self.spin_otp_umbral.setValue(int(cfg.get("growth_otp_umbral", "200")))
+        self.spin_costo_estrella.setValue(float(cfg.get("growth_costo_estrella", "0.80")))
+        self.spin_cap.setValue(int(float(cfg.get("growth_cap_pct", "0.50")) * 100))
 
     def _guardar_config(self):
         cfg = {
@@ -287,12 +273,7 @@ class ModuloGrowthEngine(QWidget):
             "growth_cap_pct":        str(self.spin_cap.value()/100),
         }
         try:
-            for k, v in cfg.items():
-                self.db.execute(
-                    "INSERT INTO configuraciones(clave,valor) VALUES(?,?) "
-                    "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k,v))
-            try: self.db.commit()
-            except Exception: pass
+            self._engine_para().save_growth_config(cfg)
             QMessageBox.information(self,"✅","Configuración guardada.")
         except Exception as e:
             QMessageBox.critical(self,"Error",str(e))
@@ -306,16 +287,13 @@ class ModuloGrowthEngine(QWidget):
             "L = Σ(Estrellas_vigentes × Costo_real × Tasa_de_redención_histórica)"
         )
         info.setWordWrap(True)
-        info.setStyleSheet("color:#555;background:#f0f4ff;padding:7px 16px;border-radius:5px;font-size:11px;")
         lay.addWidget(info)
 
         self.lbl_pasivo = QLabel("Presiona 'Calcular' para ver el pasivo actual")
-        self.lbl_pasivo.setStyleSheet("font-size:14px;padding:12px;")
         self.lbl_pasivo.setWordWrap(True)
         lay.addWidget(self.lbl_pasivo)
 
         btn_row = QHBoxLayout()
-        btn_calc = QPushButton("🔢 Calcular pasivo actual"); btn_calc.setStyleSheet("background:#3498db;color:white;font-weight:bold;padding:7px 16px;")
         btn_calc.clicked.connect(self._calcular_pasivo)
         btn_exp = QPushButton("🌙 Ejecutar expiración nocturna ahora")
         btn_exp.clicked.connect(self._ejecutar_expiracion)
@@ -354,7 +332,6 @@ class ModuloGrowthEngine(QWidget):
         lay.addLayout(ctrl)
 
         self.lbl_cli_info = QLabel("")
-        self.lbl_cli_info.setStyleSheet("font-size:13px;padding:8px;")
         self.lbl_cli_info.setWordWrap(True)
         lay.addWidget(self.lbl_cli_info)
 
@@ -372,14 +349,7 @@ class ModuloGrowthEngine(QWidget):
         if not buscar: return
         try:
             # Try as ID first, then name
-            try:
-                row = self.db.execute(
-                    "SELECT id, nombre, COALESCE(apellido,'') as apellido FROM clientes WHERE id=?",
-                    (int(buscar),)).fetchone()
-            except Exception:
-                row = self.db.execute(
-                    "SELECT id, nombre, COALESCE(apellido,'') FROM clientes "
-                    "WHERE nombre LIKE ? LIMIT 1", (f"%{buscar}%",)).fetchone()
+            row = self._engine_para().buscar_cliente_basico(buscar)
             if not row:
                 self.lbl_cli_info.setText(f"❌ Cliente '{buscar}' no encontrado"); return
             cid, nombre, apellido = row[0], row[1], row[2]
