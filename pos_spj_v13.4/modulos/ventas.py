@@ -37,7 +37,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
 from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush, QPainter
-from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
+from PyQt5.QtPrintSupport import QPrinter
 
 # Importación de la clase base y utilidades
 from .base import ModuloBase
@@ -448,7 +448,7 @@ class DialogoSuspender(QDialog):
 # (Se mantiene exactamente igual)
 class DialogoPago(QDialog):
     def __init__(self, total_a_pagar: float, parent: QWidget = None,
-                 loyalty_balance: Dict = None):
+                 loyalty_balance: Dict = None, loyalty_preview_provider=None):
         super().__init__(parent)
         self.setWindowTitle("Cobrar")
         self.setModal(True)
@@ -463,6 +463,7 @@ class DialogoPago(QDialog):
         self.forma_pago = "Efectivo"
         self.saldo_credito = 0.0
         self._loyalty = loyalty_balance or {}
+        self._loyalty_preview_provider = loyalty_preview_provider
         self.puntos_a_canjear = 0
         self.descuento_puntos = 0.0
         self.init_ui()
@@ -521,9 +522,9 @@ class DialogoPago(QDialog):
         _loy_lay = QVBoxLayout(self._loyalty_widget)
         _loy_lay.setContentsMargins(0, 0, 0, 0)
         _loy_lay.setSpacing(3)
-        pts = self._loyalty.get("puntos", 0)
-        valor = self._loyalty.get("valor_canje", 0)
-        puede = self._loyalty.get("puede_canjear", False)
+        pts = self._loyalty.get("puntos_disponibles", self._loyalty.get("puntos", 0))
+        valor = self._loyalty.get("descuento_maximo", self._loyalty.get("valor_canje", 0))
+        puede = self._loyalty.get("enabled", self._loyalty.get("puede_canjear", False))
 
         _loy_header = QHBoxLayout()
         self._lbl_puntos = QLabel(f"⭐ {pts} puntos disponibles (=${valor:.2f})")
@@ -713,13 +714,16 @@ class DialogoPago(QDialog):
         """v13.4 Fase 0 hotfix: Recalcula descuento al modificar puntos a canjear."""
         if not hasattr(self, "_chk_canjear") or not self._chk_canjear.isChecked():
             return
-        pts = self._loyalty.get("puntos", 0)
-        valor_total = self._loyalty.get("valor_canje", 0.0)
-        if pts <= 0:
-            return
-        valor_por_punto = valor_total / pts
-        descuento = round(value * valor_por_punto, 2)
-        descuento = min(descuento, self.total_original)
+        descuento = 0.0
+        if callable(self._loyalty_preview_provider):
+            try:
+                preview = self._loyalty_preview_provider(value, self.total_original) or {}
+                descuento = float(preview.get("descuento", 0.0))
+            except Exception:
+                descuento = 0.0
+        else:
+            descuento = 0.0
+        descuento = min(round(descuento, 2), self.total_original)
         self.descuento_puntos = descuento
         self.puntos_a_canjear = value
         self.total_a_pagar = round(self.total_original - descuento, 2)
@@ -2913,109 +2917,25 @@ class ModuloVentas(ModuloBase):
         """
         Impresión de ticket unificada (v13.4 Fase 1):
         1. PrinterService → ESC/POS con logo, QR, formato completo
-        2. QPrintDialog (sistema) como fallback si no hay impresora configurada
-        3. PDF de auditoría siempre
+        2. PDF de auditoría siempre
         """
-        from PyQt5.QtPrintSupport import QPrinter, QPrintDialog
-        from PyQt5.QtGui import QTextDocument
-
-        impreso = False
-
         # ── Ruta 1: PrinterService unificado (ESC/POS) ────────────────────────
         printer_svc = getattr(self.container, 'printer_service', None)
         if printer_svc and printer_svc.has_ticket_printer():
             try:
                 job_id = printer_svc.print_ticket(datos_ticket)
                 if job_id:
-                    impreso = True
                     self.guardar_ticket_pdf(datos_ticket)
                     return
             except Exception as _e:
                 logger.warning("PrinterService: %s", _e)
-
-        # ── Ruta 3: Impresora del sistema (QPrintDialog) ──────────────────────
-        # v13.4: QTextDocument con soporte para imágenes base64
-        try:
-            html = self.generar_html_ticket(datos_ticket)
-
-            doc = QTextDocument()
-
-            # v13.4: Registrar imágenes base64 como recursos del documento
-            # QTextDocument no entiende data:image/...;base64,... directamente
-            import re, base64
-            img_counter = 0
-            def _register_b64_image(match):
-                nonlocal img_counter
-                b64_full = match.group(1)  # "data:image/png;base64,XXXX"
-                try:
-                    if ',' in b64_full:
-                        b64_data = b64_full.split(',', 1)[1]
-                    else:
-                        b64_data = b64_full
-                    img_bytes = base64.b64decode(b64_data)
-                    qimg = QImage()
-                    qimg.loadFromData(img_bytes)
-                    if not qimg.isNull():
-                        img_counter += 1
-                        res_name = f"ticket_img_{img_counter}"
-                        doc.addResource(
-                            QTextDocument.ImageResource,
-                            __import__('PyQt5.QtCore', fromlist=['QUrl']).QUrl(res_name),
-                            qimg)
-                        return f'src="{res_name}"'
-                except Exception:
-                    pass
-                return match.group(0)
-
-            html = re.sub(r'src="(data:image/[^"]+)"', _register_b64_image, html)
-            doc.setHtml(html)
-
-            # Leer config de papel — usa config_service para evitar SQL directo en UI
-            paper_w = 80; paper_h = 297; margin_top = 5; margin_side = 3
-            try:
-                _cs = getattr(self.container, 'config_service', None)
-                def _pcfg(k, d=""):
-                    if _cs:
-                        v = _cs.get(k, d)
-                        return v if v else d
-                    r = self.container.db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                    return r[0] if r and r[0] else d
-                try: paper_w = int(_pcfg('ticket_paper_width', '80'))
-                except: pass
-                try: paper_h = int(_pcfg('ticket_paper_height', '0')) or 297
-                except: pass
-                try: margin_top = int(_pcfg('ticket_margin_top', '5'))
-                except: pass
-                try: margin_side = int(_pcfg('ticket_margin_side', '3'))
-                except: pass
-            except Exception:
-                pass
-
-            from PyQt5.QtPrintSupport import QPrinterInfo
-            from PyQt5.QtCore import QSizeF
-            default_printer = QPrinterInfo.defaultPrinter()
-
-            if default_printer and not default_printer.isNull():
-                printer = QPrinter(default_printer, QPrinter.HighResolution)
-                printer.setPageSize(QPrinter.Custom)
-                printer.setPageSizeMM(QSizeF(paper_w, paper_h))
-                printer.setPageMargins(margin_side, margin_top, margin_side, margin_top, QPrinter.Millimeter)
-                doc.print_(printer)
-                impreso = True
-                logger.info("Ticket impreso: %s (%dx%dmm)",
-                            default_printer.printerName(), paper_w, paper_h)
-            else:
-                printer = QPrinter(QPrinter.HighResolution)
-                dlg = QPrintDialog(printer, self)
-                dlg.setWindowTitle("Imprimir Ticket")
-                if dlg.exec_() == QPrintDialog.Accepted:
-                    printer.setPageSize(QPrinter.Custom)
-                    printer.setPageSizeMM(QSizeF(paper_w, paper_h))
-                    printer.setPageMargins(margin_side, margin_top, margin_side, margin_top, QPrinter.Millimeter)
-                    doc.print_(printer)
-                    impreso = True
-        except Exception as _e:
-            logger.debug("QPrintDialog ticket: %s", _e)
+        else:
+            QMessageBox.critical(
+                self,
+                "Impresión térmica no configurada",
+                "No hay impresora térmica ESC/POS configurada.",
+            )
+            logger.warning("Ticket térmico cancelado: no hay impresora ESC/POS configurada.")
 
         # ── Ruta 4: PDF de auditoría (siempre) ───────────────────────────────
         try:
@@ -3857,62 +3777,42 @@ class ModuloVentas(ModuloBase):
         except Exception:
             pass  # If check fails, allow sale (graceful degradation)
 
-        # ── v13.4 Fase 2: Ofrecer canje de estrellas ──────────────────────
-        descuento_canje = 0.0
         total_a_pagar = self.totales['total_final']
-        if self.cliente_actual:
+        loyalty_preview = {}
+        loyalty_svc = getattr(self.container, 'loyalty_service', None)
+        cliente_id = self.cliente_actual['id'] if self.cliente_actual else None
+        if cliente_id and loyalty_svc and getattr(loyalty_svc, "enabled", False):
             try:
-                loyalty = getattr(self.container, 'loyalty_service', None)
-                if loyalty and loyalty.enabled:
-                    saldo_pts = loyalty.saldo(self.cliente_actual['id'])
-                    if saldo_pts > 0:
-                        # Cap: máximo 50% del subtotal
-                        max_canje = min(saldo_pts, int(total_a_pagar * 0.5))
-                        if max_canje > 0:
-                            resp = QMessageBox.question(
-                                self, "⭐ Canjear estrellas",
-                                f"{self.cliente_actual['nombre']} tiene *{saldo_pts} estrellas*.\n\n"
-                                f"¿Canjear hasta {max_canje} estrellas "
-                                f"(= ${max_canje:.2f} de descuento)?\n\n"
-                                f"Total actual: ${total_a_pagar:.2f}\n"
-                                f"Total con canje: ${total_a_pagar - max_canje:.2f}",
-                                QMessageBox.Yes | QMessageBox.No)
-                            if resp == QMessageBox.Yes:
-                                # Pedir cantidad exacta
-                                from PyQt5.QtWidgets import QInputDialog
-                                cant, ok = QInputDialog.getInt(
-                                    self, "Estrellas a canjear",
-                                    f"¿Cuántas estrellas? (máx {max_canje}):",
-                                    value=max_canje, min=1, max=max_canje)
-                                if ok and cant > 0:
-                                    cajero_id = loyalty._get_cajero_id(
-                                        self.obtener_usuario_actual())
-                                    canje_r = loyalty.canjear(
-                                        cliente_id=self.cliente_actual['id'],
-                                        cajero_id=cajero_id,
-                                        subtotal=total_a_pagar,
-                                        estrellas=cant)
-                                    if canje_r.get("ok"):
-                                        descuento_canje = float(
-                                            canje_r.get("descuento_aplicado", 0))
-                                        total_a_pagar -= descuento_canje
-                                        self.lbl_puntos_venta.setText(
-                                            f"⭐ Canje: -{descuento_canje:.0f} | "
-                                            f"Restante: {canje_r.get('saldo_restante', 0)}")
-                                    else:
-                                        QMessageBox.warning(self, "Canje",
-                                            canje_r.get("error", "Error en canje"))
-            except Exception as _canje_e:
-                logger.debug("Canje pre-pago: %s", _canje_e)
+                loyalty_preview = loyalty_svc.preview_redemption(
+                    cliente_id=cliente_id,
+                    subtotal=float(total_a_pagar),
+                ) or {}
+            except Exception as _lp_e:
+                logger.debug("preview_redemption: %s", _lp_e)
 
-        dialogo = DialogoPago(total_a_pagar, self)
+        def _preview_provider(puntos: int, subtotal: float):
+            if not (cliente_id and loyalty_svc and getattr(loyalty_svc, "enabled", False)):
+                return {}
+            return loyalty_svc.preview_redemption(
+                cliente_id=cliente_id,
+                subtotal=float(subtotal),
+                puntos_solicitados=int(max(0, puntos)),
+            )
+
+        dialogo = DialogoPago(
+            total_a_pagar,
+            self,
+            loyalty_balance=loyalty_preview,
+            loyalty_preview_provider=_preview_provider,
+        )
         if dialogo.exec_() == QDialog.Accepted:
             datos_pago = dialogo.get_datos_pago()
 
             # ── POST-DIALOG: validate credit only when credit payment chosen ──
             # This runs AFTER the user selects the payment method, so we only
             # block credit sales — cash/card/transfer flow through unrestricted.
-            if datos_pago.get('forma_pago') == 'Crédito':
+            from core.services.payment_normalization import is_credit_sale, is_mercado_pago
+            if is_credit_sale(datos_pago.get('forma_pago')):
                 if not self.cliente_actual:
                     QMessageBox.critical(
                         self, "Cliente requerido",
@@ -3954,7 +3854,6 @@ class ModuloVentas(ModuloBase):
                     except Exception as _fbe:
                         logger.warning("credit fallback check: %s", _fbe)
 
-            datos_pago['descuento_canje'] = descuento_canje
             self.finalizar_venta(datos_pago)
 
     def finalizar_venta(self, datos_pago: Dict[str, Any]):
@@ -3962,6 +3861,7 @@ class ModuloVentas(ModuloBase):
         try:
             usuario = self.obtener_usuario_actual()
             cliente_id = self.cliente_actual['id'] if self.cliente_actual else None
+            from core.services.payment_normalization import is_mercado_pago
 
             carrito_limpio = [
                 {
@@ -3972,6 +3872,46 @@ class ModuloVentas(ModuloBase):
                 }
                 for item in self.compra_actual
             ]
+
+            # Fase 7: MercadoPago pendiente NO ejecuta venta definitiva.
+            if is_mercado_pago(datos_pago.get('forma_pago')):
+                mp = getattr(self.container, 'mercado_pago_service', None)
+                sales_svc = getattr(self.container, 'sales_service', None)
+                if not mp or not sales_svc:
+                    raise RuntimeError("Servicio de MercadoPago no disponible.")
+
+                pending = sales_svc.create_pending_payment_sale(
+                    branch_id=self.sucursal_id,
+                    user=usuario,
+                    items=carrito_limpio,
+                    client_id=cliente_id,
+                    notes=f"Venta pendiente MP. Cajero: {usuario}.",
+                    total=float(self.totales.get('total_final', 0.0)),
+                )
+                folio_pend = pending.get("folio", "")
+                result = mp.crear_link(
+                    total=float(self.totales.get('total_final', 0.0)),
+                    pedido_id=folio_pend or int(datetime.now().timestamp()),
+                    descripcion=f"Venta pendiente {folio_pend} — {self.container.config_service.get('nombre_empresa','SPJ POS') if hasattr(self.container,'config_service') else 'SPJ POS'}"
+                )
+                link = result.get('link') if isinstance(result, dict) else result
+                link = link or (result.get('url', '') if isinstance(result, dict) else "")
+                if not link:
+                    raise RuntimeError("No se pudo generar link de pago MercadoPago.")
+
+                self._ultimo_mp_pending = {
+                    "estado": "pendiente_pago",
+                    "folio": folio_pend,
+                    "url_pago": link,
+                }
+                QMessageBox.information(
+                    self,
+                    "Mercado Pago pendiente",
+                    f"Se generó link de pago para la venta pendiente {folio_pend}.\n\n{link}\n\n"
+                    "La venta no se marcó como completada hasta confirmar el pago."
+                )
+                self.cancelar_venta(silent=True)
+                return
 
             # ── Guardrail: detectar ítems por debajo del costo (delegado al UC) ─
             try:
@@ -4017,6 +3957,8 @@ class ModuloVentas(ModuloBase):
                     monto_pagado     = datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final'],
                     cliente_id       = cliente_id,
                     descuento_global = float(datos_pago.get('descuento', 0)),
+                    puntos_canjeados = int(datos_pago.get('puntos_canjeados', 0) or 0),
+                    descuento_puntos = float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
                     notas            = f"Venta POS Mostrador. Cajero: {usuario}.",
                 )
                 _r = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
@@ -4037,6 +3979,7 @@ class ModuloVentas(ModuloBase):
                     payment_method=datos_pago['forma_pago'],
                     amount_paid=datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final'],
                     client_id=cliente_id,
+                    loyalty_redemption_pts=int(datos_pago.get('puntos_canjeados', 0) or 0),
                     notes=f"Venta POS Mostrador. Cajero: {usuario}.",
                 )
                 _sale = getattr(self.container, 'sales_repo', None)
@@ -4044,26 +3987,6 @@ class ModuloVentas(ModuloBase):
                 self._ultima_venta_id = _sr['id'] if _sr else None
                 if hasattr(self,'btn_reimprimir'):
                     self.btn_reimprimir.setEnabled(bool(self._ultima_venta_id))
-
-            # MercadoPago: generar y enviar link de pago
-            if datos_pago.get('forma_pago') == 'Mercado Pago':
-                try:
-                    mp = getattr(self.container, 'mercado_pago_service', None)
-                    if mp:
-                        result = mp.crear_link(
-                            total=self.totales['total_final'],
-                            pedido_id=folio,
-                            descripcion=f"Venta {folio} — {self.container.config_service.get('nombre_empresa','SPJ POS') if hasattr(self.container,'config_service') else 'SPJ POS'}"
-                        )
-                        link = result.get('link') or result.get('url','')
-                        if link and self.cliente_actual and self.cliente_actual.get('telefono'):
-                            wa = getattr(self.container, 'whatsapp_service', None)
-                            if wa:
-                                msg = (f"Hola {self.cliente_actual.get('nombre','cliente')}, "
-                                       f"aqui esta tu link de pago por ${self.totales['total_final']:.2f}:\n{link}")
-                                wa.send_message(phone_number=self.cliente_actual['telefono'], message=msg)
-                except Exception as _mp_e:
-                    import logging; logging.getLogger(__name__).debug("MP link: %s", _mp_e)
 
             self._abrir_cajon()
 
@@ -4146,20 +4069,10 @@ class ModuloVentas(ModuloBase):
                 except Exception:
                     pass
                 self._reserva_activa_id = None
-            # Publicar actualización de stock para etiquetas/inventario sin reiniciar
+            # Fase 6: la UI no publica eventos de negocio de inventario.
+            # Solo refresca vista local de productos.
             try:
-                from core.events.event_bus import get_bus, AJUSTE_INVENTARIO
-                from core.events.domain_events import STOCK_ACTUALIZADO
-                get_bus().publish(AJUSTE_INVENTARIO, {
-                    "event_type": "stock_actualizado",
-                    "motivo": "venta_confirmada",
-                    "sucursal_id": self.sucursal_id,
-                    "folio": folio,
-                })
-                get_bus().publish(STOCK_ACTUALIZADO, {
-                    "sucursal_id": self.sucursal_id,
-                    "folio": folio,
-                })
+                self.cargar_productos_interactivos()
             except Exception:
                 pass
             self.cancelar_venta(silent=True)
@@ -4496,7 +4409,7 @@ class ModuloVentas(ModuloBase):
 
     # ── Devolución / Cancelación ─────────────────────────────────────────────
     def _reimprimir_ultima_venta(self) -> None:
-        """Retrieves last sale data from DB and opens the print dialog."""
+        """Reimprime ticket térmico (ESC/POS) de la última venta."""
         vid = getattr(self, '_ultima_venta_id', None)
         if not vid:
             QMessageBox.warning(self, "Sin venta", "No hay venta reciente para reimprimir.")
@@ -4529,9 +4442,40 @@ class ModuloVentas(ModuloBase):
                 'empresa':  getattr(self.container, '_nombre_empresa', 'SPJ POS'),
                 'logo_path': LOGO_TICKET_PATH,
             }
-            self._imprimir_ticket_consolidado(datos_ticket)
+            # Fase 10: Reimpresión térmica separada de PDF de auditoría.
+            ps = getattr(self.container, 'printer_service', None)
+            if not ps or not ps.has_ticket_printer():
+                QMessageBox.critical(self, "Impresión térmica no configurada",
+                                     "No hay impresora térmica ESC/POS configurada.")
+                return
+            ps.print_ticket(datos_ticket)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    def _guardar_pdf_auditoria_ultima_venta(self) -> None:
+        """Genera PDF de auditoría de la última venta sin requerir impresora térmica."""
+        vid = getattr(self, '_ultima_venta_id', None)
+        if not vid:
+            QMessageBox.warning(self, "Sin venta", "No hay venta reciente para PDF.")
+            return
+        try:
+            db = self.container.db
+            venta = db.execute(
+                "SELECT folio, fecha, usuario, forma_pago, efectivo_recibido, cambio, total "
+                "FROM ventas WHERE id=?", (vid,)).fetchone()
+            if not venta:
+                QMessageBox.warning(self, "No encontrada", f"Venta ID {vid} no encontrada.")
+                return
+            ticket_data = {
+                'folio': venta[0], 'venta_id': venta[0], 'fecha': str(venta[1] or '')[:16],
+                'cajero': venta[2] or self.obtener_usuario_actual(), 'cliente': 'Público General',
+                'items': [], 'totales': {'subtotal': float(venta[6] or 0), 'total_final': float(venta[6] or 0)},
+                'pago': {'forma_pago': venta[3] or 'Efectivo', 'efectivo_recibido': float(venta[4] or 0), 'cambio': float(venta[5] or 0)},
+            }
+            self.guardar_ticket_pdf(ticket_data)
+            QMessageBox.information(self, "PDF auditoría", "PDF de auditoría generado correctamente.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error PDF", str(e))
 
     def abrir_devolucion(self) -> None:
         """Abre el diálogo de devolución/cancelación de venta anterior."""

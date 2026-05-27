@@ -110,7 +110,9 @@ class LoyaltyService:
 
     def process_loyalty_for_sale(self, client_id: int,
                                   total_sale: float,
-                                  branch_id: int = 1) -> Dict:
+                                  branch_id: int = 1,
+                                  venta_id=None,
+                                  usuario: str = "Sistema") -> Dict:
         """
         API unificada llamada por wiring.py, use_cases/venta.py y sales_service.py.
 
@@ -119,8 +121,8 @@ class LoyaltyService:
         """
         resultado = self.acreditar_venta(
             cliente_id=client_id,
-            venta_id=0,
-            cajero="Sistema",
+            venta_id=(venta_id if venta_id is not None else f"op:{branch_id}:{client_id}:{int(total_sale*100)}"),
+            cajero=usuario,
             total=total_sale,
         )
         estrellas = resultado.get("estrellas_ganadas", 0)
@@ -222,6 +224,34 @@ class LoyaltyService:
                     except Exception as exc:
                         logger.debug("loyalty registrar_asiento: %s", exc)
         return resultado
+
+    def apply_redemption(self, cliente_id: int, venta_id, cajero_id,
+                         subtotal: float, puntos: int, otp: str = "") -> Dict:
+        """
+        Ejecuta el canje real de puntos con referencia de venta.
+        Idempotente por (cliente_id, tipo='canje', referencia=venta_id).
+        """
+        if not cliente_id or not venta_id or puntos <= 0:
+            return {"ok": False, "error": "Parámetros inválidos"}
+        ref = str(venta_id)
+        if self._ledger_exists(cliente_id, "canje", ref):
+            return {"ok": True, "idempotent": True, "referencia": ref}
+        cajero_num = 0
+        try:
+            cajero_num = int(cajero_id)
+        except Exception:
+            try:
+                cajero_num = self._get_cajero_id(str(cajero_id))
+            except Exception:
+                cajero_num = 0
+        return self.canjear(
+            cliente_id=cliente_id,
+            cajero_id=cajero_num,
+            subtotal=float(subtotal),
+            estrellas=int(puntos),
+            venta_id=venta_id,
+            otp=otp,
+        )
 
     # ── Consultas ─────────────────────────────────────────────────────────────
 
@@ -461,6 +491,8 @@ class LoyaltyService:
         puntos: positivo para acumulacion/ajuste, negativo para canje/reversa.
         """
         try:
+            if referencia and self._ledger_exists(cliente_id, tipo, referencia):
+                return True
             saldo_actual = self.saldo(cliente_id)
             saldo_post = saldo_actual + puntos
             if monto_equiv == 0.0 and puntos != 0:
@@ -485,6 +517,16 @@ class LoyaltyService:
             return True
         except Exception as exc:
             logger.debug("registrar_en_ledger: %s", exc)
+            return False
+
+    def _ledger_exists(self, cliente_id: int, tipo: str, referencia: str) -> bool:
+        try:
+            row = self.db.execute(
+                "SELECT 1 FROM loyalty_ledger WHERE cliente_id=? AND tipo=? AND referencia=? LIMIT 1",
+                (cliente_id, tipo, str(referencia)),
+            ).fetchone()
+            return bool(row)
+        except Exception:
             return False
 
     def reversar_canje(self, cliente_id: int, puntos_canjeados: int,
