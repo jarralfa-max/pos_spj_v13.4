@@ -63,7 +63,10 @@ class LoyaltyService:
                 sucursal_id=self.sucursal_id, usuario=str(cajero or ""),
             )
             if estrellas > 0:
-                self._registrar_pasivo(estrellas, venta_id, "acreditar")
+                awarded = int(resultado.get("puntos_otorgados", estrellas) or 0)
+                if awarded > 0:
+                    # La transacción la controla el orquestador superior (SalesService/SAVEPOINT).
+                    self._registrar_pasivo(awarded, venta_id, "acreditar", commit=False)
                 self._publish_puntos(cliente_id, estrellas,
                                      resultado.get("saldo", 0), venta_id)
                 self._publish_loyalty_fin_event("LOYALTY_POINTS_EARNED", cliente_id, estrellas, venta_id, cajero)
@@ -159,7 +162,9 @@ class LoyaltyService:
         if resultado.get("ok"):
             canjeadas = int(resultado.get("puntos_canjeados", 0))
             if canjeadas > 0:
-                self._registrar_pasivo(-canjeadas, venta_id, "canje")
+                if not bool(resultado.get("idempotent")):
+                    # La transacción la controla el orquestador superior (SalesService/SAVEPOINT).
+                    self._registrar_pasivo(-canjeadas, venta_id, "canje", commit=False)
                 self._publish_loyalty_fin_event("LOYALTY_POINTS_REDEEMED", cliente_id, -canjeadas, venta_id, str(cajero_id))
         return resultado
 
@@ -411,6 +416,8 @@ class LoyaltyService:
             pass
 
     def _registrar_pasivo(self, estrellas: int, referencia, tipo: str, commit: bool = False):
+        # IMPORTANTE: en flujo de venta transaccional usar commit=False.
+        # El commit debe hacerlo el orquestador superior para preservar atomicidad.
         try:
             valor = float(self._cfg("loyalty_valor_estrella", "0.10"))
             monto = estrellas * valor
@@ -456,6 +463,12 @@ class LoyaltyService:
                              monto_equiv: float = 0.0,
                              commit: bool = False) -> bool:
         """
+        LEGACY/DEPRECATED para flujo normal de venta/canje.
+        La escritura canónica de movimientos debe ocurrir vía
+        LoyaltyApplicationService -> LoyaltyRepository.
+        En flujo transaccional debe usarse commit=False para que la atomicidad
+        quede controlada por el orquestador superior.
+
         Registra un movimiento en loyalty_ledger (tabla unificada Fase 2).
         tipo: 'acumulacion' | 'canje' | 'reversa' | 'ajuste'
         puntos: positivo para acumulacion/ajuste, negativo para canje/reversa.
@@ -559,6 +572,10 @@ class LoyaltyService:
 
     def save_referral_config(self, referidor: int, referido: int, max_mensual: int) -> None:
         self._app.repo.save_referral_config(referidor, referido, max_mensual)
+        try:
+            self.db.commit()
+        except Exception:
+            pass
 
     def list_referrals(self, limit: int = 50):
         return self._app.repo.list_referrals(limit=limit)
@@ -575,6 +592,10 @@ class LoyaltyService:
             'cumple_bono_estrellas': str(int(bono_estrellas)),
             'cumple_mensaje_wa': str(mensaje_wa or ''),
         })
+        try:
+            self.db.commit()
+        except Exception:
+            pass
 
     def list_upcoming_birthdays(self, days: int = 7):
         return self._app.repo.list_upcoming_birthdays(days)

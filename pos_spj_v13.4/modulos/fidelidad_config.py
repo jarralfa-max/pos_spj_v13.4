@@ -159,15 +159,11 @@ class ModuloFidelidadConfig(QWidget):
 
     def _guardar_config_referidos(self):
         try:
-            for k, v in [
-                ('ref_bono_referidor', str(self.spin_ref_referidor.value())),
-                ('ref_bono_referido', str(self.spin_ref_referido.value())),
-                ('ref_max_mensual', str(self.spin_ref_max.value())),
-            ]:
-                pass
-            repo.save_referral_config(self.spin_ref_referidor.value(), self.spin_ref_referido.value(), self.spin_ref_max.value())
-            try: self.container.db.commit()
-            except: pass
+            self.container.loyalty_service.save_referral_config(
+                self.spin_ref_referidor.value(),
+                self.spin_ref_referido.value(),
+                self.spin_ref_max.value(),
+            )
             Toast.success(self, "Configuración guardada", "Programa de referidos actualizado.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -235,11 +231,10 @@ class ModuloFidelidadConfig(QWidget):
 
     def _guardar_config_cumples(self):
         try:
-            self.container.loyalty_service.save_birthday_config(self.spin_cumple_bono.value(), self.txt_cumple_msg.text())
-            try:
-                self.container.db.commit()
-            except Exception:
-                pass
+            self.container.loyalty_service.save_birthday_config(
+                bono_estrellas=self.spin_cumple_bono.value(),
+                mensaje_wa=self.txt_cumple_msg.text(),
+            )
             Toast.success(self, "Configuración guardada", "Programa de cumpleaños actualizado.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
