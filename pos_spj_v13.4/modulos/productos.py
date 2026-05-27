@@ -546,8 +546,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         from PyQt5.QtWidgets import QFrame, QHBoxLayout, QPushButton
         bar = QFrame()
         bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        bar.setMinimumHeight(96)
-        bar.setMaximumHeight(120)
+        bar.setMinimumHeight(116)
         lay = QHBoxLayout(bar)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(Spacing.SM)
@@ -564,7 +563,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             btn = QPushButton()
             btn.setFlat(True)
             btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            btn.setMinimumHeight(92)
+            btn.setMinimumHeight(108)
             btn.clicked.connect(lambda _, k=key: self._on_kpi_click(k))
             card = KPICard(title, "—", icon, variant, parent=btn)
             self._kpi_cards[key] = card
