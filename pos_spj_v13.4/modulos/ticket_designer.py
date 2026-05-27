@@ -100,7 +100,7 @@ class ModuloTicketDesigner(QWidget):
         warn.setObjectName("caption")
         lay.addWidget(warn)
 
-        # Tab 1: Estructura
+        # Tab 1: Estructura (Preview/PDF avanzado, no impresión térmica)
         tab_design = QWidget()
         tabs.addTab(tab_design, "📦 Estructura")
         self._build_tab_design(tab_design)
@@ -110,7 +110,17 @@ class ModuloTicketDesigner(QWidget):
         tabs.addTab(tab_media, "🏷️ Marca")
         self._build_tab_media(tab_media)
 
-        # Tab 3: Impresión ESC/POS
+        # Tab 3: Fidelidad
+        tab_loyalty = QWidget()
+        tabs.addTab(tab_loyalty, "🎯 Fidelidad")
+        self._build_tab_loyalty(tab_loyalty)
+
+        # Tab 4: FOMO / Promociones
+        tab_fomo = QWidget()
+        tabs.addTab(tab_fomo, "🔥 FOMO / Promociones")
+        self._build_tab_fomo(tab_fomo)
+
+        # Tab 5: Impresión ESC/POS
         tab_paper = QWidget()
         tabs.addTab(tab_paper, "🖨️ Impresión ESC/POS")
         self._build_tab_paper(tab_paper)
@@ -132,7 +142,7 @@ class ModuloTicketDesigner(QWidget):
         lv.addWidget(self.lista_variables)
         splitter.addWidget(grp_vars)
 
-        grp_ed = QGroupBox("📝 Plantilla HTML")
+        grp_ed = QGroupBox("📝 Plantilla HTML (solo Preview/PDF avanzado)")
         grp_ed.setObjectName("styledGroup")
         le = QVBoxLayout(grp_ed)
         self.txt_editor = QPlainTextEdit()
@@ -140,6 +150,9 @@ class ModuloTicketDesigner(QWidget):
         self.txt_editor.setObjectName("codeEditor")
         self.txt_editor.textChanged.connect(self.actualizar_vista_previa)
         le.addWidget(self.txt_editor)
+        note = QLabel("HTML no controla la impresión térmica física; se usa para preview/PDF.")
+        note.setObjectName("caption")
+        le.addWidget(note)
         btn_rest = QPushButton("🔄 Restaurar")
         btn_rest = create_secondary_button(self, btn_rest, "Restaurar plantilla por defecto")
         btn_rest.clicked.connect(self.restaurar_defecto)
@@ -278,6 +291,44 @@ class ModuloTicketDesigner(QWidget):
         ff.addRow("Tamaño base:", self.spin_font_base)
         lp.addWidget(grp_f)
         lp.addStretch()
+
+    def _build_tab_loyalty(self, parent):
+        lay = QVBoxLayout(parent)
+        grp = QGroupBox("Fidelidad en ticket")
+        grp.setObjectName("styledGroup")
+        form = QFormLayout(grp)
+        self.chk_show_points = QCheckBox("Mostrar puntos ganados")
+        self.chk_show_points.setChecked(True)
+        self.chk_show_balance = QCheckBox("Mostrar saldo actual")
+        self.chk_show_balance.setChecked(True)
+        self.chk_show_level = QCheckBox("Mostrar nivel del cliente")
+        self.chk_show_goal = QCheckBox("Mostrar meta cercana")
+        form.addRow("", self.chk_show_points)
+        form.addRow("", self.chk_show_balance)
+        form.addRow("", self.chk_show_level)
+        form.addRow("", self.chk_show_goal)
+        lay.addWidget(grp)
+        lay.addStretch()
+
+    def _build_tab_fomo(self, parent):
+        lay = QVBoxLayout(parent)
+        grp = QGroupBox("Mensajes FOMO / Promociones")
+        grp.setObjectName("styledGroup")
+        form = QFormLayout(grp)
+        self.chk_fomo_enabled = QCheckBox("Activar mensajes FOMO")
+        self.chk_fomo_enabled.setChecked(True)
+        self.spin_fomo_max = QSpinBox()
+        self.spin_fomo_max.setRange(1, 5)
+        self.spin_fomo_max.setValue(2)
+        self.spin_fomo_max.setObjectName("inputField")
+        self.cmb_fomo_priority = QComboBox()
+        self.cmb_fomo_priority.addItems(["Promoción por vencer", "Meta cercana", "Canje de puntos"])
+        self.cmb_fomo_priority.setObjectName("inputField")
+        form.addRow("", self.chk_fomo_enabled)
+        form.addRow("Máx. mensajes:", self.spin_fomo_max)
+        form.addRow("Prioridad:", self.cmb_fomo_priority)
+        lay.addWidget(grp)
+        lay.addStretch()
 
     def _on_paper_change(self, idx):
         key = self.cmb_paper_size.currentText()

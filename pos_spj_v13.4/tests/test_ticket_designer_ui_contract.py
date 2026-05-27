@@ -19,6 +19,12 @@ def test_ui_warns_html_is_preview_only_and_has_escpos_preview():
     assert 'Vista previa HTML (aproximada)' in src
     assert 'Preview monoespaciado ESC/POS' in src
     assert 'render_text_preview' in src
+    assert 'Plantilla HTML (solo Preview/PDF avanzado)' in src
+    assert '📦 Estructura' in src
+    assert '🏷️ Marca' in src
+    assert '🎯 Fidelidad' in src
+    assert '🔥 FOMO / Promociones' in src
+    assert '🖨️ Impresión ESC/POS' in src
 
 
 def test_branding_message_uses_system_config_source():
