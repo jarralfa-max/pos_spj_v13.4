@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("spj.use_cases.venta")
 
@@ -55,6 +55,78 @@ class DatosPago:
     puntos_canjeados: int   = 0
     descuento_puntos: float = 0.0
     notas:            str   = ""
+    sucursal_id:      Optional[int] = None
+    usuario:          str = ""
+    operation_id:     str = ""
+    descuento_lineas: float = 0.0
+    mercado_pago_ref: str = ""
+    pago_mixto:       Dict[str, float] = field(default_factory=dict)
+    total_pagado:     float = 0.0
+
+    def __post_init__(self) -> None:
+        self.forma_pago = _normalize_payment_label(self.forma_pago)
+        self.monto_pagado = float(self.monto_pagado or 0.0)
+        self.total_pagado = float(self.total_pagado or self.monto_pagado or 0.0)
+        self.descuento_global = float(self.descuento_global or 0.0)
+        self.descuento_lineas = float(self.descuento_lineas or 0.0)
+        self.puntos_canjeados = int(self.puntos_canjeados or 0)
+        self.descuento_puntos = float(self.descuento_puntos or 0.0)
+        self.pago_mixto = {str(k): float(v or 0.0) for k, v in (self.pago_mixto or {}).items()}
+
+
+@dataclass
+class ClienteVentaDTO:
+    cliente_id: Optional[int] = None
+    nombre: str = ""
+    telefono: str = ""
+    email: str = ""
+    saldo_credito: float = 0.0
+    puntos: int = 0
+    nivel: str = ""
+
+
+@dataclass
+class PaymentBreakdown:
+    metodo: str = "Efectivo"
+    total: float = 0.0
+    recibido: float = 0.0
+    cambio: float = 0.0
+    pendiente: float = 0.0
+    lineas: Dict[str, float] = field(default_factory=dict)
+    mercado_pago_ref: str = ""
+    operation_id: str = ""
+
+
+@dataclass
+class LoyaltyRedemptionRequest:
+    cliente_id: Optional[int] = None
+    puntos: int = 0
+    subtotal: float = 0.0
+    operation_id: str = ""
+
+
+@dataclass
+class LoyaltyRedemptionPreview:
+    cliente_id: Optional[int] = None
+    puntos_solicitados: int = 0
+    puntos_aplicables: int = 0
+    descuento_aplicable: float = 0.0
+    subtotal: float = 0.0
+    total_estimado: float = 0.0
+    mensaje: str = ""
+
+
+@dataclass
+class SaleContext:
+    items: List[ItemCarrito] = field(default_factory=list)
+    datos_pago: DatosPago = field(default_factory=DatosPago)
+    cliente: ClienteVentaDTO = field(default_factory=ClienteVentaDTO)
+    payment_breakdown: PaymentBreakdown = field(default_factory=PaymentBreakdown)
+    loyalty_redemption: LoyaltyRedemptionRequest = field(default_factory=LoyaltyRedemptionRequest)
+    sucursal_id: int = 0
+    usuario: str = ""
+    notas: str = ""
+    operation_id: str = ""
 
 
 @dataclass
@@ -69,6 +141,7 @@ class ResultadoVenta:
     nivel_cliente: str        = "Bronce"
     ticket_html:   str        = ""
     error:         str        = ""
+    operation_id:  str        = ""
 
 
 # ── Caso de uso ───────────────────────────────────────────────────────────────
@@ -323,3 +396,26 @@ def _get_bus():
         return get_bus()
     except Exception:
         return None
+
+
+def _normalize_payment_label(value: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return "Efectivo"
+    key = raw.lower()
+    aliases = {
+        "efectivo": "Efectivo",
+        "cash": "Efectivo",
+        "tarjeta": "Tarjeta",
+        "card": "Tarjeta",
+        "transferencia": "Transferencia",
+        "transfer": "Transferencia",
+        "credito": "Crédito",
+        "crédito": "Crédito",
+        "credito normalizado": "Crédito",
+        "mixto": "Mixto",
+        "pago mixto": "Mixto",
+        "mercadopago": "Mercado Pago",
+        "mercado pago": "Mercado Pago",
+    }
+    return aliases.get(key, raw)
