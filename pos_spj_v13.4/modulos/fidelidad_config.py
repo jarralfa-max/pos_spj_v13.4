@@ -159,16 +159,15 @@ class ModuloFidelidadConfig(QWidget):
 
     def _guardar_config_referidos(self):
         try:
-            db = self.container.db
+            repo = self.container.loyalty_service._app.repo
             for k, v in [
                 ('ref_bono_referidor', str(self.spin_ref_referidor.value())),
                 ('ref_bono_referido', str(self.spin_ref_referido.value())),
                 ('ref_max_mensual', str(self.spin_ref_max.value())),
             ]:
-                db.execute(
-                    "INSERT INTO configuraciones(clave,valor) VALUES(?,?) "
-                    "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k, v))
-            try: db.commit()
+                pass
+            repo.save_referral_config(self.spin_ref_referidor.value(), self.spin_ref_referido.value(), self.spin_ref_max.value())
+            try: self.container.db.commit()
             except: pass
             Toast.success(self, "Configuración guardada", "Programa de referidos actualizado.")
         except Exception as e:
@@ -176,32 +175,16 @@ class ModuloFidelidadConfig(QWidget):
 
     def _cargar_config_referidos(self):
         try:
-            db = self.container.db
-            def _g(k, d):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return int(r[0]) if r and r[0] else d
-            self.spin_ref_referidor.setValue(_g('ref_bono_referidor', 50))
-            self.spin_ref_referido.setValue(_g('ref_bono_referido', 25))
-            self.spin_ref_max.setValue(_g('ref_max_mensual', 10))
+            cfg = self.container.loyalty_service._app.repo.get_referral_config()
+            self.spin_ref_referidor.setValue(int(cfg.get('ref_bono_referidor', 50)))
+            self.spin_ref_referido.setValue(int(cfg.get('ref_bono_referido', 25)))
+            self.spin_ref_max.setValue(int(cfg.get('ref_max_mensual', 10)))
         except Exception:
             pass
 
     def _cargar_referidos(self):
         try:
-            db = self.container.db
-            db.execute("""CREATE TABLE IF NOT EXISTS referidos(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                referidor_id INTEGER, referido_id INTEGER,
-                bono_dado INTEGER DEFAULT 0, estado TEXT DEFAULT 'pendiente',
-                fecha DATETIME DEFAULT (datetime('now'))
-            )""")
-            rows = db.execute("""
-                SELECT r.fecha, c1.nombre, c2.nombre, r.bono_dado, r.estado
-                FROM referidos r
-                LEFT JOIN clientes c1 ON c1.id=r.referidor_id
-                LEFT JOIN clientes c2 ON c2.id=r.referido_id
-                ORDER BY r.fecha DESC LIMIT 50
-            """).fetchall()
+            rows = self.container.loyalty_service._app.repo.list_referrals(limit=50)
             self.tbl_referidos.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
@@ -253,15 +236,14 @@ class ModuloFidelidadConfig(QWidget):
 
     def _guardar_config_cumples(self):
         try:
-            db = self.container.db
+            repo = self.container.loyalty_service._app.repo
             for k, v in [
                 ('cumple_bono_estrellas', str(self.spin_cumple_bono.value())),
                 ('cumple_mensaje_wa', self.txt_cumple_msg.text()),
             ]:
-                db.execute(
-                    "INSERT INTO configuraciones(clave,valor) VALUES(?,?) "
-                    "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k, v))
-            try: db.commit()
+                pass
+            repo.save_referral_config(self.spin_ref_referidor.value(), self.spin_ref_referido.value(), self.spin_ref_max.value())
+            try: self.container.db.commit()
             except: pass
             Toast.success(self, "Configuración guardada", "Programa de cumpleaños actualizado.")
         except Exception as e:
@@ -269,29 +251,17 @@ class ModuloFidelidadConfig(QWidget):
 
     def _cargar_config_cumples(self):
         try:
-            db = self.container.db
-            def _g(k, d):
-                r = db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r and r[0] else d
-            try: self.spin_cumple_bono.setValue(int(_g('cumple_bono_estrellas', '100')))
+            repo = self.container.loyalty_service._app.repo
+            try: self.spin_cumple_bono.setValue(int(repo.get_config_value('cumple_bono_estrellas', '100')))
             except: pass
-            self.txt_cumple_msg.setText(_g('cumple_mensaje_wa',
+            self.txt_cumple_msg.setText(repo.get_config_value('cumple_mensaje_wa',
                 '🎂 ¡Feliz cumpleaños {nombre}! Te regalamos {puntos} estrellas.'))
         except Exception:
             pass
 
     def _cargar_cumples(self):
         try:
-            rows = self.container.db.execute("""
-                SELECT nombre, fecha_nacimiento, telefono,
-                       COALESCE((SELECT nivel FROM tarjetas_fidelidad WHERE id_cliente=c.id LIMIT 1), 'Sin tarjeta')
-                FROM clientes c
-                WHERE fecha_nacimiento IS NOT NULL
-                  AND strftime('%%m-%%d', fecha_nacimiento) BETWEEN
-                      strftime('%%m-%%d', 'now') AND strftime('%%m-%%d', 'now', '+7 days')
-                  AND activo=1
-                ORDER BY strftime('%%m-%%d', fecha_nacimiento)
-            """).fetchall()
+            rows = self.container.loyalty_service._app.repo.list_upcoming_birthdays(7)
             self.tbl_cumples.setRowCount(len(rows))
             for i, r in enumerate(rows):
                 for j, v in enumerate(r):
@@ -344,20 +314,7 @@ class ModuloFidelidadConfig(QWidget):
     def _analizar_riesgo(self):
         dias = self.spin_dias_inactivo.value()
         try:
-            rows = self.container.db.execute(f"""
-                SELECT c.nombre,
-                       MAX(v.fecha) as ultima,
-                       CAST(julianday('now') - julianday(MAX(v.fecha)) AS INTEGER) as dias_inactivo,
-                       COALESCE(SUM(v.total), 0) as total_hist,
-                       c.telefono
-                FROM clientes c
-                LEFT JOIN ventas v ON v.cliente_id = c.id
-                WHERE c.activo=1
-                GROUP BY c.id
-                HAVING dias_inactivo >= ? OR ultima IS NULL
-                ORDER BY dias_inactivo DESC
-                LIMIT 200
-            """, (dias,)).fetchall()
+            rows = self.container.loyalty_service._app.repo.list_at_risk_customers(days_without_sale=dias, limit=200)
 
             self.tbl_riesgo.setRowCount(len(rows))
             for i, r in enumerate(rows):

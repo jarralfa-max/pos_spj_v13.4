@@ -28,6 +28,102 @@ if TYPE_CHECKING:
 logger = logging.getLogger("spj.events.wiring")
 
 
+
+
+def _wire_loyalty_finance_handlers(bus, container) -> None:
+    """Handler financiero único de fidelidad (FASE 5)."""
+    fs = getattr(container, "finance_service", None)
+    db = getattr(container, "db", None)
+    if not fs:
+        return
+    from core.events.event_bus import (
+        LOYALTY_POINTS_EARNED, LOYALTY_POINTS_REDEEMED,
+        LOYALTY_POINTS_EXPIRED, LOYALTY_POINTS_REVERSED,
+    )
+
+    def _handle(data: dict, kind: str) -> None:
+        try:
+            puntos = int(data.get("puntos", 0))
+            if puntos == 0:
+                return
+            valor = 0.10
+            if db is not None:
+                try:
+                    r = db.execute("SELECT valor FROM configuraciones WHERE clave='loyalty_valor_estrella'").fetchone()
+                    if r:
+                        valor = float(r[0] if isinstance(r, tuple) else r["valor"])
+                except Exception:
+                    pass
+            monto = abs(float(puntos)) * float(valor)
+            if monto <= 0:
+                return
+            if kind == "earned":
+                debe, haber = "6201-descuentos-fidelizacion", "215.1-pasivo-fidelizacion"
+            elif kind in ("redeemed", "expired"):
+                debe, haber = "215.1-pasivo-fidelizacion", "401.1-descuento-clientes"
+            else:  # reversed
+                debe, haber = "401.1-descuento-clientes", "215.1-pasivo-fidelizacion"
+            fs.registrar_asiento(
+                debe=debe, haber=haber,
+                concepto=f"Loyalty {kind} ref={data.get('referencia','')}",
+                monto=monto, modulo="loyalty",
+                referencia_id=data.get("referencia"),
+                sucursal_id=data.get("sucursal_id", 1),
+                evento=f"LOYALTY_{kind.upper()}",
+                metadata={"cliente_id": data.get("cliente_id"), "puntos": puntos},
+            )
+        except Exception as e:
+            logger.debug("loyalty finance handler %s: %s", kind, e)
+
+    bus.subscribe(LOYALTY_POINTS_EARNED, lambda d: _handle(d, "earned"), priority=60, label="loyalty_fin_earned")
+    bus.subscribe(LOYALTY_POINTS_REDEEMED, lambda d: _handle(d, "redeemed"), priority=60, label="loyalty_fin_redeemed")
+    bus.subscribe(LOYALTY_POINTS_EXPIRED, lambda d: _handle(d, "expired"), priority=60, label="loyalty_fin_expired")
+    bus.subscribe(LOYALTY_POINTS_REVERSED, lambda d: _handle(d, "reversed"), priority=60, label="loyalty_fin_reversed")
+
+
+
+def _wire_loyalty_domain_handlers(bus, container) -> None:
+    """Handlers de dominio de fidelidad (FASE 7) con prioridades explícitas."""
+    db = getattr(container, "db", None)
+    if db is None:
+        return
+
+    from core.events.event_bus import (
+        LOYALTY_CARD_ASSIGNED,
+        LOYALTY_CARD_BLOCKED,
+        LOYALTY_REFERRAL_REWARDED,
+        LOYALTY_BIRTHDAY_REWARD_ISSUED,
+        LOYALTY_FRAUD_BLOCKED,
+    )
+
+    def _audit(evento: str, data: dict) -> None:
+        try:
+            db.execute(
+                "INSERT OR IGNORE INTO audit_logs"
+                "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
+                " VALUES(?,?,?,?,?,?,?,datetime('now'))",
+                (
+                    evento,
+                    "FIDELIDAD",
+                    "loyalty_event",
+                    str(data.get("referencia") or data.get("card_code") or data.get("cliente_id") or ""),
+                    str(data.get("usuario", "sistema")),
+                    int(data.get("sucursal_id", 1) or 1),
+                    str(data),
+                ),
+            )
+            try:
+                db.commit()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.debug("loyalty audit %s: %s", evento, e)
+
+    bus.subscribe(LOYALTY_CARD_ASSIGNED, lambda d: _audit("LOYALTY_CARD_ASSIGNED", d), priority=40, label="loyalty_audit_card_assigned")
+    bus.subscribe(LOYALTY_CARD_BLOCKED, lambda d: _audit("LOYALTY_CARD_BLOCKED", d), priority=40, label="loyalty_audit_card_blocked")
+    bus.subscribe(LOYALTY_REFERRAL_REWARDED, lambda d: _audit("LOYALTY_REFERRAL_REWARDED", d), priority=40, label="loyalty_audit_referral_rewarded")
+    bus.subscribe(LOYALTY_BIRTHDAY_REWARD_ISSUED, lambda d: _audit("LOYALTY_BIRTHDAY_REWARD_ISSUED", d), priority=40, label="loyalty_audit_birthday_reward")
+    bus.subscribe(LOYALTY_FRAUD_BLOCKED, lambda d: _audit("LOYALTY_FRAUD_BLOCKED", d), priority=90, label="loyalty_audit_fraud_blocked")
 def wire_all(container: "AppContainer") -> None:
     """Registra todos los handlers del EventBus."""
     from core.events.event_bus import get_bus
@@ -55,6 +151,8 @@ def wire_all(container: "AppContainer") -> None:
 
     # Phase 1: SALE_ITEMS_PROCESS — inventory + finance handlers (sync, inside SAVEPOINT)
     _wire_sale_handlers(bus, container)
+    _wire_loyalty_finance_handlers(bus, container)
+    _wire_loyalty_domain_handlers(bus, container)
 
     # Phase 3: PRODUCTION_ITEMS_PROCESS — inventory handler (sync, inside transaction)
     _wire_production_items_handlers(bus, container)
@@ -130,6 +228,8 @@ def _wire_venta(bus, container) -> None:
 
     # Prioridad 50: Fidelidad
     def _loyalty_venta(data: dict) -> None:
+        if data.get("loyalty_already_processed"):
+            return
         cliente_id = data.get("cliente_id")
         if not cliente_id:
             return

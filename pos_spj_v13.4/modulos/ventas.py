@@ -2375,27 +2375,18 @@ class ModuloVentas(ModuloBase):
                         return
 
                 # Fallback: búsqueda tradicional
-                # 1a. Buscar tarjeta de fidelidad
-                row_tarj = self.conexion.execute(
-                    """SELECT t.id, t.codigo, COALESCE(t.nivel,'Bronce') as nivel,
-                              c.id as cliente_id, c.nombre as cliente_nombre,
-                              c.telefono, COALESCE(c.puntos,0) as puntos
-                       FROM tarjetas_fidelidad t
-                       JOIN clientes c ON c.id = t.id_cliente
-                       WHERE t.codigo = ? AND t.activa = 1
-                       LIMIT 1""",
-                    (codigo,)
-                ).fetchone()
-                if row_tarj:
+                # 1a. Resolver tarjeta vía LoyaltyService (sin SQL UI)
+                ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
+                row_tarj = ls.resolve_scan(codigo) if ls else {"found": False}
+                if row_tarj.get('found'):
                     self._cargar_cliente_en_venta(
                         cliente_id=row_tarj['cliente_id'],
-                        nombre=row_tarj['cliente_nombre'],
-                        telefono=row_tarj['telefono'] or "",
-                        puntos=int(row_tarj['puntos']),
-                        nivel=row_tarj['nivel'],
+                        nombre=row_tarj['nombre'],
+                        telefono=row_tarj.get('telefono', '') or "",
+                        puntos=int(row_tarj.get('puntos', 0) or 0),
+                        nivel=row_tarj.get('nivel', 'Bronce') or 'Bronce',
                     )
-                    _log_scan("tarjeta", "cliente_cargado",
-                              cliente_id=row_tarj['cliente_id'])
+                    _log_scan('tarjeta', 'cliente_cargado', cliente_id=row_tarj['cliente_id'])
                     return
 
                 # 1b. Buscar cliente por ID, teléfono o código QR
@@ -2469,28 +2460,18 @@ class ModuloVentas(ModuloBase):
                 _log_scan("producto", "producto_agregado",
                           producto_id=row_prod['id'])
                 return
-
-            # ── 2. Tarjeta de fidelidad ──────────────────────────────────────
-            row_tarj = self.conexion.execute(
-                """SELECT t.id, t.codigo, COALESCE(t.nivel,'Bronce') as nivel,
-                          c.id as cliente_id, c.nombre as cliente_nombre,
-                          c.telefono, COALESCE(c.puntos,0) as puntos
-                   FROM tarjetas_fidelidad t
-                   JOIN clientes c ON c.id = t.id_cliente
-                   WHERE t.codigo = ? AND t.activa = 1
-                   LIMIT 1""",
-                (codigo,)
-            ).fetchone()
-            if row_tarj:
+            # ── 2. Tarjeta de fidelidad (sin SQL UI) ─────────────────────────
+            ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
+            row_tarj = ls.resolve_scan(codigo) if ls else {"found": False}
+            if row_tarj.get('found'):
                 self._cargar_cliente_en_venta(
                     cliente_id=row_tarj['cliente_id'],
-                    nombre=row_tarj['cliente_nombre'],
-                    telefono=row_tarj['telefono'] or "",
-                    puntos=int(row_tarj['puntos']),
-                    nivel=row_tarj['nivel'],
+                    nombre=row_tarj['nombre'],
+                    telefono=row_tarj.get('telefono', '') or "",
+                    puntos=int(row_tarj.get('puntos', 0) or 0),
+                    nivel=row_tarj.get('nivel', 'Bronce') or 'Bronce',
                 )
-                _log_scan("tarjeta", "cliente_cargado",
-                          cliente_id=row_tarj['cliente_id'])
+                _log_scan('tarjeta', 'cliente_cargado', cliente_id=row_tarj['cliente_id'])
                 return
 
             # ── 3. UUID contenedor ───────────────────────────────────────────
