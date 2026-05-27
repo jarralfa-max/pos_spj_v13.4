@@ -71,3 +71,22 @@ CREDIT_PAYMENT_METHODS: frozenset[str] = frozenset({"Credito", "Crédito", "cred
 def is_credit_sale(payment_method: str) -> bool:
     """Retorna True si el método de pago es crédito al cliente."""
     return normalize_payment_method(payment_method) == "Credito"
+
+
+def is_mercado_pago(payment_method: str) -> bool:
+    """Retorna True si el método de pago es Mercado Pago."""
+    return normalize_payment_method(payment_method) == "Mercado Pago"
+
+
+def is_deferred_payment(payment_method: str) -> bool:
+    """
+    Retorna True para pagos diferidos (aún no cobrados en caja/tesorería inmediata).
+    Actualmente: Crédito y Mercado Pago.
+    """
+    canonical = normalize_payment_method(payment_method)
+    return canonical in {"Credito", "Mercado Pago"}
+
+
+def is_cash_like_payment(payment_method: str) -> bool:
+    """Retorna True para pagos de cobro inmediato (no diferidos)."""
+    return not is_deferred_payment(payment_method)
