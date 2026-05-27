@@ -2980,12 +2980,13 @@ class ModuloVentas(ModuloBase):
             except Exception as _e:
                 logger.warning("PrinterService: %s", _e)
         else:
-            QMessageBox.critical(
+            QMessageBox.information(
                 self,
                 "Impresión térmica no configurada",
-                "No hay impresora térmica ESC/POS configurada.",
+                "No hay impresora térmica ESC/POS configurada.\n"
+                "Se guardará PDF de auditoría del ticket.",
             )
-            logger.warning("Ticket térmico cancelado: no hay impresora ESC/POS configurada.")
+            logger.info("Ticket térmico no disponible (sin ESC/POS). Se guardará PDF de auditoría.")
 
         # ── Ruta 4: PDF de auditoría (siempre) ───────────────────────────────
         try:
