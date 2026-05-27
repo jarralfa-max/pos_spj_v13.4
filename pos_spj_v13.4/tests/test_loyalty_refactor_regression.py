@@ -10,6 +10,8 @@ from core.events.wiring import _wire_venta
 from core.services.sales_service import SalesService
 from core.services.loyalty_service import LoyaltyService
 
+ROOT = Path(__file__).resolve().parents[1]
+
 
 def _db_basic():
     db = sqlite3.connect(':memory:')
@@ -30,6 +32,15 @@ def test_award_points_idempotent():
     assert saldo == 20
 
 
+def test_acumulacion_idempotente_loyalty_service():
+    db = _db_basic()
+    ls = LoyaltyService(db)
+    ls.acreditar_venta(cliente_id=1, venta_id='V-ACU-1', cajero='u', total=100.0)
+    ls.acreditar_venta(cliente_id=1, venta_id='V-ACU-1', cajero='u', total=100.0)
+    c = db.execute("SELECT COUNT(*) FROM loyalty_ledger WHERE cliente_id=1 AND tipo='acumulacion' AND referencia='V-ACU-1'").fetchone()[0]
+    assert c == 1
+
+
 def test_redeem_points_idempotent():
     db = _db_basic()
     svc = LoyaltyApplicationService(db)
@@ -38,6 +49,16 @@ def test_redeem_points_idempotent():
     svc.redeem_points_for_sale(cliente_id=1, venta_id='V-2', puntos=30)
     saldo = db.execute("SELECT COALESCE(SUM(puntos),0) FROM loyalty_ledger WHERE cliente_id=1").fetchone()[0]
     assert saldo == 70
+
+
+def test_canje_idempotente_loyalty_service():
+    db = _db_basic()
+    ls = LoyaltyService(db)
+    ls.acreditar_venta(cliente_id=1, venta_id='V-CAN-BASE', cajero='u', total=1000.0)
+    ls.canjear(cliente_id=1, cajero_id=1, subtotal=1000.0, estrellas=20, venta_id=99)
+    ls.canjear(cliente_id=1, cajero_id=1, subtotal=1000.0, estrellas=20, venta_id=99)
+    c = db.execute("SELECT COUNT(*) FROM loyalty_ledger WHERE cliente_id=1 AND tipo='canje' AND referencia='99'").fetchone()[0]
+    assert c == 1
 
 
 def test_sales_redemption_inside_transaction():
@@ -87,6 +108,17 @@ def test_birthday_config_save_load():
     assert ref['ref_bono_referidor'] == 50 and ref['ref_bono_referido'] == 25 and ref['ref_max_mensual'] == 10
 
 
+def test_cumpleanios_no_toca_referidos():
+    db = _db_basic()
+    db.execute("INSERT INTO configuraciones(clave,valor) VALUES ('ref_bono_referidor','77')")
+    db.execute("INSERT INTO configuraciones(clave,valor) VALUES ('ref_bono_referido','33')")
+    db.execute("INSERT INTO configuraciones(clave,valor) VALUES ('ref_max_mensual','12')")
+    ls = LoyaltyService(db)
+    ls.save_birthday_config(111, 'Msg cumple')
+    ref = ls.get_referral_config()
+    assert ref['ref_bono_referidor'] == 77 and ref['ref_bono_referido'] == 33 and ref['ref_max_mensual'] == 12
+
+
 def test_loyalty_event_skip_if_already_processed():
     db = _db_basic()
     container = type('C', (), {})()
@@ -102,9 +134,9 @@ def test_loyalty_event_skip_if_already_processed():
 
 
 def test_growth_engine_ui_compiles():
-    py_compile.compile('modulos/modulo_growth_engine.py', doraise=True)
+    py_compile.compile(str(ROOT / 'modulos' / 'modulo_growth_engine.py'), doraise=True)
 
 
 def test_no_ui_private_repo_access():
-    src = Path('modulos/fidelidad_config.py').read_text(encoding='utf-8')
+    src = (ROOT / 'modulos' / 'fidelidad_config.py').read_text(encoding='utf-8')
     assert '_app.repo' not in src

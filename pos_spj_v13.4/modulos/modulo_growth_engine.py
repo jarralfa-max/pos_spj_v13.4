@@ -20,6 +20,7 @@ logger = logging.getLogger("spj.modulo.growth")
 
 
 class ModuloGrowthEngine(QWidget):
+    # GrowthEngine legacy temporal: solo metas/misiones. No usar para saldo/canje/pasivo.
 
     def __init__(self, container, parent=None):
         super().__init__(parent)
@@ -273,10 +274,11 @@ class ModuloGrowthEngine(QWidget):
 
     def _guardar_config(self):
         cfg = {
-            "growth_expiry_dias":    str(self.spin_expiry.value()),
-            "growth_otp_umbral":     str(self.spin_otp_umbral.value()),
-            "growth_costo_estrella": str(self.spin_costo_estrella.value()),
-            "growth_cap_pct":        str(self.spin_cap.value()/100),
+            # Canónicas loyalty_* (growth_* queda como compat/fallback en GrowthEngine).
+            "loyalty_expiry_dias":     str(self.spin_expiry.value()),
+            "loyalty_otp_umbral":      str(self.spin_otp_umbral.value()),
+            "loyalty_valor_estrella":  str(self.spin_costo_estrella.value()),
+            "loyalty_max_pct_canje":   str(self.spin_cap.value()/100),
         }
         try:
             self._engine_para().save_growth_config(cfg)
@@ -304,6 +306,8 @@ class ModuloGrowthEngine(QWidget):
         btn_calc.clicked.connect(self._calcular_pasivo)
         btn_exp = create_secondary_button(self, "🌙 Ejecutar expiración nocturna ahora", "Ejecutar expiración")
         btn_exp.clicked.connect(self._ejecutar_expiracion)
+        btn_exp.setEnabled(False)
+        btn_exp.setToolTip("Expiración migrada pendiente: no se ejecuta desde GrowthEngine legacy.")
         btn_row.addWidget(btn_calc); btn_row.addWidget(btn_exp); btn_row.addStretch()
         lay.addLayout(btn_row); lay.addStretch()
         return w
@@ -323,10 +327,11 @@ class ModuloGrowthEngine(QWidget):
             self.lbl_pasivo.setText(f"Error: {e}")
 
     def _ejecutar_expiracion(self):
-        eng = self._engine_para()
-        n = eng.ejecutar_expiracion_nocturna()
-        QMessageBox.information(self,"Expiración",
-            f"{n} clientes afectados. Sus estrellas inactivas fueron expiradas.")
+        QMessageBox.information(
+            self,
+            "Expiración",
+            "Expiración migrada pendiente: no se ejecuta desde GrowthEngine legacy.",
+        )
 
     # ── Tab 5: Consulta cliente ──────────────────────────────────────────
 
