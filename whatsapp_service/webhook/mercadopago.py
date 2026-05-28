@@ -5,6 +5,7 @@ Recibe notificaciones de pago y actualiza el estado del pedido.
 from __future__ import annotations
 import logging
 from fastapi import APIRouter, Request
+from state.business_idempotency import BusinessIdempotencyService
 
 logger = logging.getLogger("wa.webhook.mp")
 router = APIRouter()
@@ -74,16 +75,45 @@ async def mp_notification(request: Request):
                 venta_id = 0
                 folio = ""
                 try:
+                    venta_id_ref = None
+                    if ":" in str(external_ref):
+                        pref = str(external_ref).split(":", 1)[0].strip()
+                        if pref.isdigit():
+                            venta_id_ref = int(pref)
                     row = _erp_bridge.db.execute("""
                         SELECT v.id, v.folio FROM ventas v
                         JOIN clientes c ON c.id=v.cliente_id
                         WHERE c.telefono LIKE ? AND v.estado='pendiente_wa'
                         ORDER BY v.fecha DESC LIMIT 1
                     """, (f"%{external_ref[-10:]}",)).fetchone()
+                    if venta_id_ref:
+                        row = _erp_bridge.db.execute(
+                            "SELECT id, folio FROM ventas WHERE id=? LIMIT 1",
+                            (venta_id_ref,),
+                        ).fetchone() or row
                     if row:
                         venta_id, folio = row[0], row[1]
                 except Exception:
                     pass
+
+                if venta_id:
+                    idem = BusinessIdempotencyService(_erp_bridge.db)
+
+                    def _confirm_payment() -> dict:
+                        _erp_bridge.confirmar_pago_anticipo(
+                            venta_id=venta_id,
+                            monto=float(amount or 0),
+                            referencia=f"MP-{payment_id}",
+                            metodo="mercadopago",
+                        )
+                        return {"venta_id": venta_id, "payment_id": str(payment_id), "monto": float(amount or 0)}
+
+                    idem.run_once(
+                        action_key=f"confirm_payment:{venta_id}:{float(amount or 0):.2f}",
+                        phone=str(external_ref),
+                        action_type="confirm_payment",
+                        callback=_confirm_payment,
+                    )
 
                 _events.emit(PAYMENT_RECEIVED, {
                     "venta_id": venta_id,

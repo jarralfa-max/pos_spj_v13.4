@@ -17,6 +17,7 @@ FEATURE FLAG: whatsapp_advanced_enabled (module_toggles en BD)
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import List, Dict, Optional, Any
 
@@ -30,7 +31,10 @@ from erp.events import (
     WA_ANTICIPO_PAGADO, WA_VENTA_CONFIRMADA,
     WHATSAPP_QUOTE_CREATED, WHATSAPP_QUOTE_ACCEPTED,
     WHATSAPP_QUOTE_REJECTED, WHATSAPP_QUOTE_CONVERTED_TO_SALE,
+    WHATSAPP_QUOTE_ACCEPTED_BY_CUSTOMER,
 )
+
+from state.business_idempotency import BusinessIdempotencyService
 
 logger = logging.getLogger("wa.orchestrator")
 
@@ -57,6 +61,14 @@ class BusinessOrchestrator:
             return bool(row[0]) if row else True  # Default habilitado
         except Exception:
             return True
+
+    def _idempotency(self) -> BusinessIdempotencyService:
+        return BusinessIdempotencyService(self.erp.db)
+
+    @staticmethod
+    def _delivery_address_hash(direccion: str) -> str:
+        raw = (direccion or "").strip().lower()
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
     # ── 6.1 + 6.2: Cotización → Venta ────────────────────────────────────────
 
@@ -118,23 +130,23 @@ class BusinessOrchestrator:
             "cliente_id": cliente_id,
             "origen": "cotizacion",
             "cotizacion_id": cotizacion_id,
-        }, sucursal_id=self.sucursal_id, prioridad=2)
+        }, sucursal_id=self.sucursal_id, prioridad=80)
 
         self.events.emit(WA_VENTA_CONFIRMADA, {
             "folio": result["folio"], "total": total, "cliente_id": cliente_id,
-        }, sucursal_id=self.sucursal_id, prioridad=2)
-        self.events.emit(WHATSAPP_QUOTE_ACCEPTED, {
+        }, sucursal_id=self.sucursal_id, prioridad=80)
+        self.events.emit(WHATSAPP_QUOTE_ACCEPTED_BY_CUSTOMER, {
             "quote_id": cotizacion_id,
             "sale_id": venta_id,
             "customer_id": cliente_id,
-        }, sucursal_id=self.sucursal_id, prioridad=2)
+        }, sucursal_id=self.sucursal_id, prioridad=30)
         self.events.emit(WHATSAPP_QUOTE_CONVERTED_TO_SALE, {
             "quote_id": cotizacion_id,
             "sale_id": venta_id,
             "folio": result["folio"],
             "total": total,
             "customer_id": cliente_id,
-        }, sucursal_id=self.sucursal_id, prioridad=2)
+        }, sucursal_id=self.sucursal_id, prioridad=30)
 
         # Verificar stock y generar OC si falta
         if self._advanced_enabled:
@@ -148,18 +160,23 @@ class BusinessOrchestrator:
         # Calcular anticipo
         anticipo = self.erp.calcular_anticipo_rules(cliente_id, total)
         if anticipo["requiere"]:
-            self.erp.registrar_anticipo(venta_id, anticipo["monto"])
+            self._idempotency().run_once(
+                action_key=f"register_advance:{venta_id}:{float(anticipo['monto']):.2f}",
+                phone=f"cliente:{cliente_id}",
+                action_type="register_advance",
+                callback=lambda: {"anticipo_id": self.erp.registrar_anticipo(venta_id, anticipo["monto"])},
+            )
             self.events.emit(PAYMENT_REQUIRED, {
                 "venta_id": venta_id,
                 "folio": result["folio"],
                 "monto": anticipo["monto"],
                 "razon": anticipo["razon"],
                 "tipo": "anticipo",
-            }, sucursal_id=self.sucursal_id, prioridad=2)
+            }, sucursal_id=self.sucursal_id, prioridad=80)
             self.events.emit(WA_ANTICIPO_REQUERIDO, {
                 "folio": result["folio"],
                 "monto": anticipo["monto"],
-            }, sucursal_id=self.sucursal_id, prioridad=2)
+            }, sucursal_id=self.sucursal_id, prioridad=80)
             result["anticipo_requerido"] = True
             result["anticipo_monto"] = anticipo["monto"]
         else:
@@ -191,7 +208,7 @@ class BusinessOrchestrator:
         self.events.emit(SALE_CREATED, {
             "venta_id": venta_id, "folio": folio, "total": total,
             "cliente_id": cliente_id, "origen": "whatsapp",
-        }, sucursal_id=self.sucursal_id, prioridad=2)
+        }, sucursal_id=self.sucursal_id, prioridad=80)
 
         if self._advanced_enabled:
             # Verificar stock
@@ -200,21 +217,33 @@ class BusinessOrchestrator:
             # Calcular anticipo con reglas ERP
             anticipo = self.erp.calcular_anticipo_rules(cliente_id, total, items)
             if anticipo["requiere"]:
-                self.erp.registrar_anticipo(venta_id, anticipo["monto"])
+                self._idempotency().run_once(
+                    action_key=f"register_advance:{venta_id}:{float(anticipo['monto']):.2f}",
+                    phone=f"cliente:{cliente_id}",
+                    action_type="register_advance",
+                    callback=lambda: {"anticipo_id": self.erp.registrar_anticipo(venta_id, anticipo["monto"])},
+                )
                 self.events.emit(PAYMENT_REQUIRED, {
                     "venta_id": venta_id, "folio": folio,
                     "monto": anticipo["monto"], "tipo": "anticipo",
                     "razon": anticipo["razon"],
-                }, sucursal_id=self.sucursal_id, prioridad=2)
+                }, sucursal_id=self.sucursal_id, prioridad=80)
                 self.events.emit(WA_ANTICIPO_REQUERIDO, {
                     "folio": folio, "monto": anticipo["monto"],
-                }, sucursal_id=self.sucursal_id, prioridad=2)
+                }, sucursal_id=self.sucursal_id, prioridad=80)
                 result["anticipo_requerido"] = True
                 result["anticipo_monto"] = anticipo["monto"]
 
         # Programar delivery si es domicilio
         if tipo_entrega == "domicilio" and direccion:
-            self.erp.programar_delivery(venta_id, direccion, fecha_entrega)
+            self._idempotency().run_once(
+                action_key=(
+                    f"schedule_delivery:{venta_id}:{self._delivery_address_hash(direccion)}:{fecha_entrega or ''}"
+                ),
+                phone=f"cliente:{cliente_id}",
+                action_type="schedule_delivery",
+                callback=lambda: {"ok": bool(self.erp.programar_delivery(venta_id, direccion, fecha_entrega))},
+            )
             self.events.emit(DELIVERY_SCHEDULED, {
                 "venta_id": venta_id, "folio": folio,
                 "tipo_entrega": tipo_entrega,

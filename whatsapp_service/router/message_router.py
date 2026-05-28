@@ -42,6 +42,125 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger("wa.router")
 
 
+class RouteContext:
+    def __init__(self, router: "MessageRouter", msg: IncomingMessage, numero_cfg: NumeroConfig):
+        self.router = router
+        self.msg = msg
+        self.numero_cfg = numero_cfg
+        self.ctx = None
+        self.intent = None
+        self.handled = False
+
+
+class MessageMiddleware:
+    async def handle(self, rc: RouteContext) -> bool:
+        return False
+
+
+class NotificationNumberGuard(MessageMiddleware):
+    async def handle(self, rc: RouteContext) -> bool:
+        if rc.numero_cfg.tipo == NumeroTipo.NOTIFICACIONES:
+            logger.debug("Mensaje ignorado: número solo notificaciones")
+            return True
+        return False
+
+
+class AdjustmentResponseMiddleware(MessageMiddleware):
+    async def handle(self, rc: RouteContext) -> bool:
+        return await rc.router._handle_adjustment_response(rc.msg)
+
+
+class BranchSelectionMiddleware(MessageMiddleware):
+    async def handle(self, rc: RouteContext) -> bool:
+        if rc.numero_cfg.es_global and not rc.ctx.sucursal_id:
+            sucursales = rc.router.erp.get_sucursales()
+            await interactive.send_seleccion_sucursal(rc.msg.from_number, sucursales)
+            rc.ctx.state = FlowState.SELECTING_BRANCH
+            rc.router.store.save(rc.ctx)
+            return True
+        if rc.numero_cfg.sucursal_id and not rc.ctx.sucursal_id:
+            rc.ctx.sucursal_id = rc.numero_cfg.sucursal_id
+            rc.ctx.sucursal_nombre = rc.numero_cfg.sucursal_nombre
+        return False
+
+
+class CancelFlowMiddleware(MessageMiddleware):
+    async def handle(self, rc: RouteContext) -> bool:
+        if rc.intent.intent in ("cancel", "cancelar") and rc.ctx.state != FlowState.IDLE:
+            rc.ctx.reset_flow()
+            from messaging.sender import send_text
+            await send_text(rc.ctx.phone, "❌ Operación cancelada. Cuando quieras iniciar de nuevo, escribe *hola* o *pedido*.")
+            rc.router.store.save(rc.ctx)
+            return True
+        return False
+
+
+class CustomerIdentificationMiddleware(MessageMiddleware):
+    async def handle(self, rc: RouteContext) -> bool:
+        if rc.ctx.cliente_id:
+            return False
+        cliente = rc.router.erp.find_cliente_by_phone(rc.msg.from_number)
+        if cliente:
+            rc.ctx.cliente_id = cliente["id"]
+            rc.ctx.cliente_nombre = cliente["nombre"]
+            return False
+        if rc.ctx.state not in (FlowState.REGISTRO_NOMBRE, FlowState.REGISTRO_CONFIRMACION):
+            await rc.router.registro_flow.iniciar(rc.ctx, rc.msg.contact_name)
+            rc.router.store.save(rc.ctx)
+            return True
+        return False
+
+
+class MessagePipeline:
+    def __init__(self, middlewares):
+        self.middlewares = middlewares
+
+    async def run(self, rc: RouteContext) -> bool:
+        for mw in self.middlewares:
+            if await mw.handle(rc):
+                return True
+        return False
+
+
+
+
+class FlowRegistry:
+    """Registro central para despacho de flows por estado e intención."""
+
+    def __init__(self, router: "MessageRouter"):
+        self.router = router
+
+    async def dispatch_active_flow(self, ctx, intent):
+        if ctx.state == FlowState.SELECTING_BRANCH:
+            return await self.router.sucursal_flow.handle(ctx, intent)
+        if ctx.state in (FlowState.REGISTRO_NOMBRE, FlowState.REGISTRO_CONFIRMACION):
+            return await self.router.registro_flow.handle(ctx, intent)
+        if ctx.state.value.startswith("pedido_"):
+            if (ctx.state == FlowState.PEDIDO_CATEGORIA and
+                    not self.router.schedules.esta_abierta(ctx.sucursal_id or 1)):
+                proximo = self.router.schedules.proximo_horario_apertura(ctx.sucursal_id or 1)
+                await interactive.send_fuera_de_horario(ctx.phone, proximo or "mañana")
+                ctx.pedido_programado = True
+            return await self.router.pedido_flow.handle(ctx, intent)
+        if ctx.state.value.startswith("cotizacion_"):
+            return await self.router.cotizacion_flow.handle(ctx, intent)
+        if ctx.state.value.startswith("pago_"):
+            return await self.router.pago_flow.handle(ctx, intent)
+        if ctx.state == FlowState.CONSULTA_FOLIO:
+            return await self.router.menu_flow.handle(ctx, intent)
+        return None
+
+    async def dispatch_new_intent_or_fallback(self, ctx, intent):
+        if intent.intent in ("pedido", "menu_action") and intent.action_id in ("menu_pedido", ""):
+            ctx.state = FlowState.PEDIDO_CATEGORIA
+            return await self.router.pedido_flow.handle(ctx, intent)
+        if intent.intent == "repetir" or intent.action_id == "menu_repetir":
+            return await self.router.repetir_flow.handle(ctx, intent)
+        if intent.intent in ("cotizacion",) or intent.action_id == "menu_cotizacion":
+            ctx.state = FlowState.COTIZACION_ARMANDO
+            return await self.router.cotizacion_flow.handle(ctx, intent)
+        return await self.router.menu_flow.handle(ctx, intent)
+
 class MessageRouter:
     def __init__(self, erp: ERPBridge, store: ConversationStore,
                  parser: IntentParser, events: WAEventEmitter,
@@ -61,6 +180,16 @@ class MessageRouter:
         self.repetir_flow = RepetirFlow(erp, events)
         self.cotizacion_flow = CotizacionFlow(erp, events)
         self.pago_flow = PagoFlow(erp, events)
+        self.pipeline = MessagePipeline([
+            NotificationNumberGuard(),
+            AdjustmentResponseMiddleware(),
+            BranchSelectionMiddleware(),
+        ])
+        self.post_intent_pipeline = MessagePipeline([
+            CancelFlowMiddleware(),
+            CustomerIdentificationMiddleware(),
+        ])
+        self.flow_registry = FlowRegistry(self)
 
     async def _handle_adjustment_response(self, msg: IncomingMessage) -> bool:
         raw = (msg.text or msg.interactive_title or "").strip().lower()
@@ -107,31 +236,17 @@ class MessageRouter:
 
     async def route(self, msg: IncomingMessage, numero_cfg: NumeroConfig):
         """Punto de entrada principal — procesa un mensaje entrante."""
+        rc = RouteContext(self, msg, numero_cfg)
+        rc.ctx = self.store.get(msg.from_number)
+        rc.ctx.numero_tipo = numero_cfg.tipo.value
+        rc.ctx.last_activity = msg.timestamp
 
-        if numero_cfg.tipo == NumeroTipo.NOTIFICACIONES:
-            logger.debug("Mensaje ignorado: número solo notificaciones")
+        if await self.pipeline.run(rc):
             return
 
-        # Respuesta a ajuste pendiente: se procesa antes del parser general.
-        if await self._handle_adjustment_response(msg):
-            return
-
-        ctx = self.store.get(msg.from_number)
-        ctx.numero_tipo = numero_cfg.tipo.value
-        ctx.last_activity = msg.timestamp
-
-        if numero_cfg.es_global and not ctx.sucursal_id:
-            sucursales = self.erp.get_sucursales()
-            await interactive.send_seleccion_sucursal(msg.from_number, sucursales)
-            ctx.state = FlowState.SELECTING_BRANCH
-            self.store.save(ctx)
-            return
-
-        if numero_cfg.sucursal_id and not ctx.sucursal_id:
-            ctx.sucursal_id = numero_cfg.sucursal_id
-            ctx.sucursal_nombre = numero_cfg.sucursal_nombre
-
+        ctx = rc.ctx
         intent = await self.intent_resolver.resolve(msg, ctx)
+        rc.intent = intent
         logger.info("MSG %s → intent=%s, state=%s",
                      msg.from_number, intent.intent, ctx.state.value)
 
@@ -149,55 +264,13 @@ class MessageRouter:
             self.store.save(ctx)
             return
 
-        if intent.intent in ("cancel", "cancelar") and ctx.state != FlowState.IDLE:
-            ctx.reset_flow()
-            from messaging.sender import send_text
-            await send_text(ctx.phone, "❌ Operación cancelada. Cuando quieras iniciar de nuevo, escribe *hola* o *pedido*.")
-            self.store.save(ctx)
+        if await self.post_intent_pipeline.run(rc):
             return
 
-        if not ctx.cliente_id:
-            cliente = self.erp.find_cliente_by_phone(msg.from_number)
-            if cliente:
-                ctx.cliente_id = cliente["id"]
-                ctx.cliente_nombre = cliente["nombre"]
-            elif ctx.state not in (FlowState.REGISTRO_NOMBRE,
-                                    FlowState.REGISTRO_CONFIRMACION):
-                await self.registro_flow.iniciar(ctx, msg.contact_name)
-                self.store.save(ctx)
-                return
-
-        result = None
-
-        if ctx.state == FlowState.SELECTING_BRANCH:
-            result = await self.sucursal_flow.handle(ctx, intent)
-        elif ctx.state in (FlowState.REGISTRO_NOMBRE, FlowState.REGISTRO_CONFIRMACION):
-            result = await self.registro_flow.handle(ctx, intent)
-        elif ctx.state.value.startswith("pedido_"):
-            if (ctx.state == FlowState.PEDIDO_CATEGORIA and
-                    not self.schedules.esta_abierta(ctx.sucursal_id or 1)):
-                proximo = self.schedules.proximo_horario_apertura(ctx.sucursal_id or 1)
-                await interactive.send_fuera_de_horario(ctx.phone, proximo or "mañana")
-                ctx.pedido_programado = True
-            result = await self.pedido_flow.handle(ctx, intent)
-        elif ctx.state.value.startswith("cotizacion_"):
-            result = await self.cotizacion_flow.handle(ctx, intent)
-        elif ctx.state.value.startswith("pago_"):
-            result = await self.pago_flow.handle(ctx, intent)
-        elif ctx.state == FlowState.CONSULTA_FOLIO:
-            result = await self.menu_flow.handle(ctx, intent)
+        result = await self.flow_registry.dispatch_active_flow(ctx, intent)
 
         if result is None or not result.handled:
-            if intent.intent in ("pedido", "menu_action") and intent.action_id in ("menu_pedido", ""):
-                ctx.state = FlowState.PEDIDO_CATEGORIA
-                result = await self.pedido_flow.handle(ctx, intent)
-            elif intent.intent == "repetir" or intent.action_id == "menu_repetir":
-                result = await self.repetir_flow.handle(ctx, intent)
-            elif intent.intent in ("cotizacion",) or intent.action_id == "menu_cotizacion":
-                ctx.state = FlowState.COTIZACION_ARMANDO
-                result = await self.cotizacion_flow.handle(ctx, intent)
-            else:
-                result = await self.menu_flow.handle(ctx, intent)
+            result = await self.flow_registry.dispatch_new_intent_or_fallback(ctx, intent)
 
         if result:
             ctx.state = result.new_state

@@ -148,3 +148,25 @@ FUZZY_MATCH_THRESHOLD = int(os.getenv("FUZZY_MATCH_THRESHOLD", "2"))  # Max Leve
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:8b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "15.0"))  # Segundos
+
+
+# ── Environment helpers (FASE 2) ─────────────────────────────────────────────
+def get_app_env() -> str:
+    """
+    Entorno de ejecución normalizado.
+    Prioridad: APP_ENV -> ENVIRONMENT -> development.
+    """
+    raw = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
+    if raw in {"prod", "production"}:
+        return "production"
+    if raw in {"test", "testing"}:
+        return "test"
+    return "development"
+
+
+def is_production() -> bool:
+    return get_app_env() == "production"
+
+
+def is_test() -> bool:
+    return get_app_env() == "test"

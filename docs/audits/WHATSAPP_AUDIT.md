@@ -211,3 +211,176 @@ Worker usa `seconds_until_next()` para sleep dinámico (0–300 s).
 - [ ] Tokens no expuestos en logs: verificado
 - [ ] `ERP_DB_PATH` apunta a DB correcta
 - [ ] `ERP_API_URL` + `ERP_API_KEY` configurados (para writes por use cases)
+
+---
+
+## 10. FASE 2 — Bloqueo de escrituras SQLite en producción (2026-05-28)
+
+- `config/settings.py` incorpora helpers de ambiente:
+  - `get_app_env()` (`APP_ENV`/`ENVIRONMENT`)
+  - `is_production()`
+  - `is_test()`
+- `ERPBridge` ahora protege escrituras con:
+  - `_assert_sqlite_write_allowed(operation_name)`
+  - `_handle_api_write_failure(operation_name, exc)`
+
+### Regla efectiva
+
+- En `production`:
+  - Si no hay `ERP_API_URL + ERP_API_KEY`, **se bloquean** writes SQLite.
+  - Si falla una escritura API, **no** hay fallback a SQLite.
+- En `development`/`test`:
+  - Se mantiene fallback SQLite para compatibilidad local/CI.
+
+### Métodos protegidos
+
+- `create_cliente_minimo`
+- `crear_pedido_wa`
+- `actualizar_estado_pedido`
+- `crear_cotizacion_wa`
+- `convertir_cotizacion_a_venta`
+- `registrar_anticipo`
+- `confirmar_pago_anticipo`
+- `generar_orden_compra`
+- `programar_delivery`
+
+### Requisito obligatorio de producción
+
+- `ERP_API_URL` y `ERP_API_KEY` son obligatorios para operaciones de escritura del canal WhatsApp.
+
+---
+
+## 11. FASE 3 — Idempotencia de negocio (2026-05-28)
+
+- Se agregó `whatsapp_service/state/business_idempotency.py` con tabla persistente:
+  - `wa_business_idempotency`
+  - columnas: `action_key`, `phone`, `action_type`, `status`, `result_json`, `error`, timestamps.
+- API implementada:
+  - `get(action_key)`
+  - `start(action_key, phone, action_type)`
+  - `complete(action_key, result)`
+  - `fail(action_key, error)`
+  - `run_once(action_key, phone, action_type, callback)`
+
+### Integraciones aplicadas
+
+- `PedidoFlow._handle_confirmacion`:
+  - usa action key `confirm_order:{phone}:{cart_hash}:{branch_id}:{delivery_type}`.
+- `CotizacionFlow._handle_confirmacion` en `quote_accept`:
+  - usa action key `convert_quote:{quote_id}`.
+- `webhook/mercadopago.py`:
+  - confirma anticipo con action key `confirm_payment:{venta_id}:{monto}`.
+
+### Estado
+
+- La idempotencia deja de depender solo de `message_id` para acciones críticas ya integradas.
+- Cobertura extendida para `register_advance` y `schedule_delivery` desde orquestación de pedido, con `run_once` persistente.
+
+---
+
+## 12. FASE 4 — Normalización única de teléfonos (2026-05-28)
+
+- Nuevo módulo central: `whatsapp_service/domain/phone_number.py`
+  - `normalize_to_e164(phone, default_country=\"MX\")`
+  - `normalize_to_digits(phone)`
+  - `normalize_to_mx_local10(phone)`
+  - `possible_match_key(phone)`
+- Casos cubiertos:
+  - `+52`, `521`, `52`, `whatsapp:+52...`, espacios/guiones/paréntesis.
+- Reemplazos aplicados:
+  - `messaging/sender.py` usa la utilidad central para formato de envío Meta.
+  - `erp/bridge.py` usa `possible_match_key` para búsqueda de cliente por teléfono.
+  - `erp/adjustment_approval.py` usa la misma utilidad para matching de teléfonos.
+
+### Nota de alcance
+- No se migró data histórica ni se modificó esquema de clientes en esta fase.
+
+---
+
+## 13. FASE 5 — PedidoFlow más delgado (2026-05-28)
+
+- Nuevo caso de uso: `whatsapp_service/application/confirm_order_use_case.py`
+  - `ConfirmWhatsAppOrderCommand`
+  - `ConfirmWhatsAppOrderResult`
+  - `ConfirmWhatsAppOrderUseCase.execute(...)`
+- `PedidoFlow._handle_confirmacion` ahora delega confirmación al caso de uso.
+- Se elimina fallback hardcodeado `anticipo_monto = total * 0.5` del flow.
+- En modo sin orquestador, el caso de uso consulta política ERP con `calcular_anticipo_rules`.
+
+### TODO explícito
+
+- Migrar completamente precio/total/crédito a puertos hexagonales formales (`PricingPort`, `CreditPort`, `PaymentPolicyPort`) en la siguiente iteración para desacoplar de `ERPBridge`.
+
+---
+
+## 14. FASE 6 — Partición incremental de ERPBridge (2026-05-28)
+
+Se creó la carpeta `whatsapp_service/erp/gateways/` con componentes:
+
+- `api_client.py` (`ERPApiClient`)
+- `sqlite_connection.py` (`ERPSqliteConnection`)
+- `customer_gateway.py`
+- `order_gateway.py`
+- `quote_gateway.py`
+- `payment_gateway.py`
+- `inventory_gateway.py`
+- `delivery_gateway.py`
+
+`ERPBridge` se mantiene como **fachada compatible** y ahora delega internamente en estos gateways para operaciones clave de cliente/pedido/cotización/pago/inventario/delivery.
+
+### Estado actual
+
+- Se priorizó migración incremental para no romper flows ni firma pública.
+- El comportamiento externo permanece estable.
+- Próximo paso: mover implementación SQL/HTTP específica desde `ERPBridge` a cada gateway en fases pequeñas.
+
+---
+
+## 15. FASE 7 — Reducción de MessageRouter con pipeline (2026-05-28)
+
+- `whatsapp_service/router/message_router.py` incorpora pipeline incremental:
+  - `MessageMiddleware`
+  - `MessagePipeline`
+  - `NotificationNumberGuard`
+  - `AdjustmentResponseMiddleware`
+  - `BranchSelectionMiddleware`
+  - `CancelFlowMiddleware`
+  - `CustomerIdentificationMiddleware`
+- `route()` conserva comportamiento, pero delega decisiones previas/post-intent al pipeline.
+- No se cambiaron firmas públicas ni UX principal.
+
+### Estado
+
+- Router quedó más pequeño y preparado para extraer middlewares restantes (`ActiveFlow`, `NewIntentDispatch`, `FallbackMenu`) en una siguiente iteración controlada.
+
+## 16. FASE 10 — Documentación final (2026-05-28)
+
+Documentos consolidados/actualizados para reflejar el estado real actual:
+
+- `docs/architecture/WHATSAPP_ARCHITECTURE.md`
+- `docs/architecture/WHATSAPP_REFACTOR_PLAN.md`
+- `docs/events/WHATSAPP_EVENT_CATALOG.md`
+- `docs/audits/WHATSAPP_AUDIT.md`
+
+### Reglas operativas ratificadas
+
+- Producción debe operar sobre `whatsapp_service/` como camino oficial.
+- Legacy (`core/services/whatsapp_service.py`) queda congelado para compatibilidad/fallback.
+- Writes de negocio vía SQLite en producción están prohibidos (API ERP obligatoria).
+- Idempotencia de negocio persistente es obligatoria para acciones críticas.
+- Catálogo de eventos clasificado en dominio/canal/legacy para transición controlada.
+
+### Deuda técnica declarada (sin ocultar)
+
+- Aún existen componentes legacy y aliases de eventos por compatibilidad.
+- `ERPBridge` sigue como fachada temporal y no debe crecer en reglas de negocio.
+- `MessageRouter` requiere reducción adicional por fases sin romper UX.
+
+
+## 17. Plan de deprecación de eventos legacy por consumidor (2026-05-28)
+
+Se documentó plan formal en `docs/events/WHATSAPP_EVENT_CATALOG.md` con matriz por consumidor, evento actual, evento objetivo, estado y fecha objetivo.
+
+Estado actual:
+- Sigue activo el modo de transición con aliases legacy.
+- Consumidores nuevos deben adoptar eventos de dominio/canal y no depender de aliases legacy.

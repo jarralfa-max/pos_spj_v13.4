@@ -28,6 +28,16 @@ import sqlite3
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
+from config.settings import is_production
+from phone_number import possible_match_key
+from erp.gateways.api_client import ERPApiClient
+from erp.gateways.sqlite_connection import ERPSqliteConnection
+from erp.gateways.customer_gateway import CustomerGateway as CustomerWriteGateway
+from erp.gateways.order_gateway import OrderGateway as OrderWriteGateway
+from erp.gateways.quote_gateway import QuoteGateway as QuoteWriteGateway
+from erp.gateways.payment_gateway import PaymentGateway as PaymentWriteGateway
+from erp.gateways.inventory_gateway import InventoryGateway as InventoryWriteGateway
+from erp.gateways.delivery_gateway import DeliveryGateway as DeliveryWriteGateway
 
 logger = logging.getLogger("wa.erp")
 
@@ -111,6 +121,14 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         self._api_url = (api_url or os.environ.get("ERP_API_URL", "")).rstrip("/")
         self._api_key = api_key or os.environ.get("ERP_API_KEY", "")
         self._http: Any = None  # httpx.Client, lazy
+        self.api_client = ERPApiClient(self)
+        self.sqlite = ERPSqliteConnection(self)
+        self.customer_gateway = CustomerWriteGateway(self)
+        self.order_gateway = OrderWriteGateway(self)
+        self.quote_gateway = QuoteWriteGateway(self)
+        self.payment_gateway = PaymentWriteGateway(self)
+        self.inventory_gateway = InventoryWriteGateway(self)
+        self.delivery_gateway = DeliveryWriteGateway(self)
 
     # ── HTTP client ───────────────────────────────────────────────────────────
 
@@ -144,6 +162,21 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         resp = self._client.patch(path, params=params)
         resp.raise_for_status()
         return resp.json()
+
+    def _assert_sqlite_write_allowed(self, operation_name: str) -> None:
+        if is_production() and not self._use_api:
+            raise RuntimeError(
+                f"[{operation_name}] SQLite write blocked in production. "
+                "Configure ERP_API_URL + ERP_API_KEY."
+            )
+
+    def _handle_api_write_failure(self, operation_name: str, exc: Exception) -> None:
+        if is_production():
+            raise RuntimeError(
+                f"[{operation_name}] ERP API write failed in production; "
+                "SQLite fallback is disabled."
+            ) from exc
+        logger.warning("%s via API failed: %s — fallback to DB", operation_name, exc)
 
     # ── Direct SQLite connection (read-only fallback) ─────────────────────────
 
@@ -185,7 +218,10 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         return self.get_credito_disponible(cliente_id)
 
     def find_cliente_by_phone(self, phone: str) -> Optional[Dict]:
-        phone_clean = phone[-10:] if len(phone) > 10 else phone
+        return self.customer_gateway.find_by_phone(phone)
+
+    def _find_cliente_by_phone_impl(self, phone: str) -> Optional[Dict]:
+        phone_clean = possible_match_key(phone)
 
         if self._use_api:
             try:
@@ -218,6 +254,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         return cliente
 
     def create_cliente_minimo(self, nombre: str, telefono: str) -> int:
+        return self.customer_gateway.create_minimal(nombre, telefono)
+
+    def _create_cliente_minimo_impl(self, nombre: str, telefono: str) -> int:
         """Crea un cliente con datos mínimos (registro rápido por WA)."""
         if self._use_api:
             try:
@@ -227,8 +266,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 })
                 return data["cliente_id"]
             except Exception as exc:
-                logger.warning("create_cliente_minimo via API failed: %s — fallback to DB", exc)
+                self._handle_api_write_failure("create_cliente_minimo", exc)
 
+        self._assert_sqlite_write_allowed("create_cliente_minimo")
         cursor = self.db.execute(
             "INSERT INTO clientes (nombre, telefono, activo) VALUES (?, ?, 1)",
             (nombre, telefono))
@@ -303,6 +343,16 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                         sucursal_id: int, tipo_entrega: str,
                         direccion: str = "", fecha_entrega: str = "",
                         notas: str = "") -> Dict:
+        return self.order_gateway.create(
+            items=items, cliente_id=cliente_id, sucursal_id=sucursal_id,
+            tipo_entrega=tipo_entrega, direccion=direccion,
+            fecha_entrega=fecha_entrega, notas=notas,
+        )
+
+    def _crear_pedido_wa_impl(self, items: List[Dict], cliente_id: int,
+                              sucursal_id: int, tipo_entrega: str,
+                              direccion: str = "", fecha_entrega: str = "",
+                              notas: str = "") -> Dict:
         """
         Crea un pedido desde WhatsApp.
         Usa el API Gateway cuando está disponible; cae a SQLite como fallback.
@@ -341,8 +391,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     "total":    data["total"],
                 }
             except Exception as exc:
-                logger.warning("crear_pedido_wa via API failed: %s — fallback to DB", exc)
+                self._handle_api_write_failure("crear_pedido_wa", exc)
 
+        self._assert_sqlite_write_allowed("crear_pedido_wa")
         # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
         # Endpoint REST disponible: POST /api/v1/pedidos
         import uuid
@@ -468,6 +519,10 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def actualizar_estado_pedido(self, pedido_id: int, estado: str,
                                   notas: str = "") -> bool:
+        return self.order_gateway.update_status(pedido_id, estado, notas)
+
+    def _actualizar_estado_pedido_impl(self, pedido_id: int, estado: str,
+                                       notas: str = "") -> bool:
         """Actualiza el estado de un pedido vía API o DB directa."""
         if self._use_api:
             try:
@@ -478,8 +533,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 )
                 return True
             except Exception as exc:
-                logger.warning("actualizar_estado_pedido via API failed: %s — fallback", exc)
+                self._handle_api_write_failure("actualizar_estado_pedido", exc)
 
+        self._assert_sqlite_write_allowed("actualizar_estado_pedido")
         try:
             self.db.execute(
                 "UPDATE ventas SET estado=? WHERE id=?",
@@ -534,6 +590,12 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def crear_cotizacion_wa(self, items: List[Dict], cliente_id: int,
                             sucursal_id: int, usuario: str = "whatsapp") -> Dict:
+        return self.quote_gateway.create(
+            items=items, cliente_id=cliente_id, sucursal_id=sucursal_id, usuario=usuario
+        )
+
+    def _crear_cotizacion_wa_impl(self, items: List[Dict], cliente_id: int,
+                                  sucursal_id: int, usuario: str = "whatsapp") -> Dict:
         if self._use_api:
             try:
                 api_items = [
@@ -555,8 +617,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     "total":         data["total"],
                 }
             except Exception as exc:
-                logger.warning("crear_cotizacion_wa via API failed: %s — fallback to DB", exc)
+                self._handle_api_write_failure("crear_cotizacion_wa", exc)
 
+        self._assert_sqlite_write_allowed("crear_cotizacion_wa")
         # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
         # Endpoint REST disponible: POST /api/v1/cotizaciones
         import uuid
@@ -613,6 +676,10 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def registrar_anticipo(self, venta_id: int, monto: float,
                            metodo: str = "mercadopago") -> int:
+        return self.payment_gateway.register_advance(venta_id, monto, metodo)
+
+    def _registrar_anticipo_impl(self, venta_id: int, monto: float,
+                                 metodo: str = "mercadopago") -> int:
         if self._use_api:
             try:
                 data = self._api_post("/api/v1/anticipos", {
@@ -620,8 +687,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 })
                 return data["anticipo_id"]
             except Exception as exc:
-                logger.warning("registrar_anticipo via API failed: %s — fallback to DB", exc)
+                self._handle_api_write_failure("registrar_anticipo", exc)
 
+        self._assert_sqlite_write_allowed("registrar_anticipo")
         # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
         # Endpoint REST disponible: POST /api/v1/anticipos
         cursor = self.db.execute("""
@@ -656,6 +724,10 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def convertir_cotizacion_a_venta(self, cotizacion_id: int,
                                      usuario: str = "whatsapp") -> Optional[Dict]:
+        return self.quote_gateway.convert_to_order(cotizacion_id, usuario)
+
+    def _convertir_cotizacion_a_venta_impl(self, cotizacion_id: int,
+                                           usuario: str = "whatsapp") -> Optional[Dict]:
         if self._use_api:
             try:
                 data = self._api_patch(
@@ -669,9 +741,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     "cotizacion_id": cotizacion_id,
                 }
             except Exception as exc:
-                logger.warning(
-                    "convertir_cotizacion_a_venta via API failed: %s — fallback to DB", exc)
+                self._handle_api_write_failure("convertir_cotizacion_a_venta", exc)
 
+        self._assert_sqlite_write_allowed("convertir_cotizacion_a_venta")
         # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
         # Endpoint REST disponible: PATCH /api/v1/cotizaciones/{id}/convertir
         cot = self.db.execute(
@@ -752,6 +824,11 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     def confirmar_pago_anticipo(self, venta_id: int, monto: float,
                                  referencia: str = "",
                                  metodo: str = "mercadopago") -> bool:
+        return self.payment_gateway.confirm_payment(venta_id, monto, referencia, metodo)
+
+    def _confirmar_pago_anticipo_impl(self, venta_id: int, monto: float,
+                                      referencia: str = "",
+                                      metodo: str = "mercadopago") -> bool:
         if self._use_api:
             try:
                 # Obtener anticipo_id del venta_id
@@ -765,8 +842,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     })
                     return True
             except Exception as exc:
-                logger.warning("confirmar_pago_anticipo via API failed: %s — fallback to DB", exc)
+                self._handle_api_write_failure("confirmar_pago_anticipo", exc)
 
+        self._assert_sqlite_write_allowed("confirmar_pago_anticipo")
         try:
             self.db.execute("""
                 UPDATE anticipos SET estado='pagado', fecha_pago=datetime('now'),
@@ -786,6 +864,10 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def verificar_stock_items(self, items: List[Dict],
                                sucursal_id: int) -> List[Dict]:
+        return self.inventory_gateway.check_stock(items, sucursal_id)
+
+    def _verificar_stock_items_impl(self, items: List[Dict],
+                                    sucursal_id: int) -> List[Dict]:
         resultado = []
         for it in items:
             prod_id = it.get("producto_id")
@@ -814,6 +896,11 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     def generar_orden_compra(self, producto_id: int, cantidad: float,
                               sucursal_id: int,
                               notas: str = "OC automática desde WA") -> Optional[int]:
+        return self.inventory_gateway.create_purchase_order(producto_id, cantidad, sucursal_id, notas)
+
+    def _generar_orden_compra_impl(self, producto_id: int, cantidad: float,
+                                   sucursal_id: int,
+                                   notas: str = "OC automática desde WA") -> Optional[int]:
         if self._use_api:
             try:
                 data = self._api_post("/api/v1/ordenes-compra", {
@@ -822,8 +909,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 })
                 return data["orden_id"]
             except Exception as exc:
-                logger.warning("generar_orden_compra via API failed: %s — fallback to DB", exc)
+                self._handle_api_write_failure("generar_orden_compra", exc)
 
+        self._assert_sqlite_write_allowed("generar_orden_compra")
         # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
         # Endpoint REST disponible: POST /api/v1/ordenes-compra
         try:
@@ -858,6 +946,11 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     def programar_delivery(self, venta_id: int, direccion: str,
                             fecha_entrega: str = "",
                             telefono_cliente: str = "") -> bool:
+        return self.delivery_gateway.schedule(venta_id, direccion, fecha_entrega, telefono_cliente)
+
+    def _programar_delivery_impl(self, venta_id: int, direccion: str,
+                                 fecha_entrega: str = "",
+                                 telefono_cliente: str = "") -> bool:
         if self._use_api:
             try:
                 self._api_patch(
@@ -867,8 +960,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 )
                 # Fallthrough to also update delivery fields via DB
             except Exception as exc:
-                logger.warning("programar_delivery via API: %s", exc)
+                self._handle_api_write_failure("programar_delivery", exc)
 
+        self._assert_sqlite_write_allowed("programar_delivery")
         try:
             self.db.execute("""
                 UPDATE ventas SET tipo_entrega='domicilio',

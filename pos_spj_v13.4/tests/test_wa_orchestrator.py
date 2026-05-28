@@ -20,6 +20,7 @@ _set_mod = _ilu.module_from_spec(_set_spec); sys.modules['config.settings'] = _s
 _cfg_mod.settings = _set_mod
 
 import pytest
+import sqlite3
 from unittest.mock import MagicMock
 
 
@@ -137,6 +138,36 @@ class TestProcesarPedidoWA:
         emitted = [c.args[0] for c in mock_events.emit.call_args_list]
         from erp.events import WA_ANTICIPO_REQUERIDO
         assert WA_ANTICIPO_REQUERIDO in emitted
+
+    def test_idempotent_register_advance_no_duplicate_write(self, orch, mock_erp):
+        mock_erp.calcular_anticipo_rules.return_value = {
+            "requiere": True, "monto": 150.0, "razon": ""
+        }
+        orch._advanced_enabled = True
+        from state.business_idempotency import BusinessIdempotencyService
+        conn = sqlite3.connect(":memory:")
+        orch._idempotency = lambda: BusinessIdempotencyService(conn)
+
+        orch.procesar_pedido_wa(venta_id=20, folio="WA-002", total=300.0, cliente_id=1, items=_ITEMS)
+        orch.procesar_pedido_wa(venta_id=20, folio="WA-002", total=300.0, cliente_id=1, items=_ITEMS)
+
+        assert mock_erp.registrar_anticipo.call_count == 1
+
+    def test_idempotent_schedule_delivery_no_duplicate_write(self, orch, mock_erp):
+        from state.business_idempotency import BusinessIdempotencyService
+        conn = sqlite3.connect(":memory:")
+        orch._idempotency = lambda: BusinessIdempotencyService(conn)
+
+        orch.procesar_pedido_wa(
+            venta_id=20, folio="WA-002", total=300.0, cliente_id=1, items=_ITEMS,
+            tipo_entrega="domicilio", direccion="Calle 1 #10", fecha_entrega="2026-06-01"
+        )
+        orch.procesar_pedido_wa(
+            venta_id=20, folio="WA-002", total=300.0, cliente_id=1, items=_ITEMS,
+            tipo_entrega="domicilio", direccion="Calle 1 #10", fecha_entrega="2026-06-01"
+        )
+
+        assert mock_erp.programar_delivery.call_count == 1
 
 
 # ── confirmar_anticipo ────────────────────────────────────────────────────────
