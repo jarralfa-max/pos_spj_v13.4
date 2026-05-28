@@ -186,20 +186,33 @@ class PrintTransport:
     def is_available(transport: TransportType, destination: str) -> bool:
         """Verifica si la impresora está accesible."""
         try:
-            if transport == TransportType.NETWORK or (
-                    transport == TransportType.AUTO and ':' in destination):
+            if transport == TransportType.AUTO:
+                transport = PrintTransport.detect_type(destination)
+            if transport == TransportType.NETWORK:
                 import socket
                 parts = destination.split(':')
-                s = socket.socket()
-                s.settimeout(2)
-                s.connect((parts[0].strip(), int(parts[1]) if len(parts) > 1 else 9100))
-                s.close()
+                host = parts[0].strip()
+                port = int(parts[1]) if len(parts) > 1 else 9100
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(1.5)
+                    s.connect((host, port))
                 return True
             if transport == TransportType.FILE:
                 import os
                 parent = os.path.dirname(destination) or '.'
-                return os.path.isdir(parent)
-            return True  # Serial/USB: assume available
+                return os.path.isdir(parent) and os.access(parent, os.W_OK)
+            if transport == TransportType.SERIAL:
+                import serial as _serial
+                with _serial.Serial(destination, 9600, timeout=0.5):
+                    pass
+                return True
+            if transport in (TransportType.USB_WIN32, TransportType.SYSTEM):
+                import win32print
+                printer_name = destination or win32print.GetDefaultPrinter()
+                hp = win32print.OpenPrinter(printer_name)
+                win32print.ClosePrinter(hp)
+                return True
+            return False
         except Exception:
             return False
 
@@ -266,10 +279,15 @@ class PrintQueue:
             job.status = PrintJobStatus.PRINTING
             success = False
 
+            last_error: Optional[Exception] = None
             for attempt in range(1, job.retries + 1):
                 try:
-                    PrintTransport.send(job.data, job.transport,
-                                       job.destination, baud=job.baud)
+                    ok = PrintTransport.send(job.data, job.transport,
+                                             job.destination, baud=job.baud)
+                    if not ok:
+                        raise RuntimeError(
+                            f"Transport returned False: {job.transport.value} -> {job.destination}"
+                        )
                     success = True
                     job.status = PrintJobStatus.SUCCESS
                     self.total_printed += 1
@@ -279,7 +297,7 @@ class PrintQueue:
                         try:
                             job.on_success()
                         except Exception:
-                            pass
+                            logger.exception("Print on_success callback failed job=%s", job.id)
                     # Publicar evento TICKET_IMPRESO al EventBus
                     if self._bus:
                         try:
@@ -293,9 +311,10 @@ class PrintQueue:
                                 "total": rd.get("totales", {}).get("total_final", 0),
                             }, async_=True)
                         except Exception:
-                            pass
+                            logger.exception("Failed publishing TICKET_IMPRESO for job=%s", job.id)
                     break
                 except Exception as e:
+                    last_error = e
                     logger.warning("Impresión %s intento %d/%d falló: %s",
                                    job.id, attempt, job.retries, e)
                     if attempt < job.retries:
@@ -303,7 +322,7 @@ class PrintQueue:
 
             if not success:
                 job.status = PrintJobStatus.FAILED
-                job.error_msg = str(e) if 'e' in dir() else "Unknown"
+                job.error_msg = str(last_error) if last_error else "Unknown"
                 self.total_failed += 1
                 logger.error("❌ Impresión falló: %s tras %d intentos",
                              job.id, job.retries)
@@ -311,7 +330,7 @@ class PrintQueue:
                     try:
                         job.on_error(Exception(job.error_msg))
                     except Exception:
-                        pass
+                        logger.exception("Print on_error callback failed job=%s", job.id)
                 # Publicar evento PRINT_FAILED al EventBus
                 if self._bus:
                     try:
@@ -324,7 +343,7 @@ class PrintQueue:
                             "retries": job.retries,
                         }, async_=True)
                     except Exception:
-                        pass
+                        logger.exception("Failed publishing PRINT_FAILED for job=%s", job.id)
 
             # ── Bitácora de impresión en BD (Fase 1 — Plan Maestro) ───────────
             self._log_job_to_db(job, attempt if success else job.retries)
@@ -483,6 +502,16 @@ class PrinterService:
         if not self.enabled:
             logger.debug("Impresión deshabilitada (toggle printing)")
             return ""
+        vr = self.validate_ticket_printer_config()
+        if not vr.ok:
+            msg = "; ".join(vr.errors or ["Configuración inválida de impresora"])
+            logger.warning("print_ticket bloqueado por config inválida: %s", msg)
+            if on_error:
+                try:
+                    on_error(Exception(msg))
+                except Exception:
+                    logger.exception("print_ticket on_error callback failed (config inválida)")
+            return ""
 
         try:
             from core.ticket_escpos_renderer import TicketESCPOSRenderer
@@ -506,7 +535,10 @@ class PrinterService:
         except Exception as e:
             logger.error("Error formateando ticket: %s", e)
             if on_error:
-                on_error(e)
+                try:
+                    on_error(e)
+                except Exception:
+                    logger.exception("print_ticket on_error callback failed (renderer)")
             return ""
 
         dest = self._ticket_cfg.get('ubicacion', '')
@@ -583,7 +615,7 @@ class PrinterService:
             return default
 
     def has_ticket_printer(self) -> bool:
-        return bool(self._ticket_cfg.get('ubicacion', ''))
+        return self.validate_ticket_printer_config().ok
 
     def validate_ticket_printer_config(self) -> ValidationResult:
         cfg = self._ticket_cfg or {}
@@ -610,6 +642,11 @@ class PrinterService:
         elif transport == TransportType.USB_WIN32:
             if not destination:
                 errors.append("Nombre de impresora Win32 vacío.")
+
+        if len(errors) == 0 and not PrintTransport.is_available(transport, destination):
+            errors.append(
+                f"Impresora no disponible ({transport.value} -> {destination or '<default>'})."
+            )
 
         enc = str(cfg.get("encoding", "cp850") or "cp850").lower()
         if enc not in {"cp850", "latin-1", "utf-8"}:

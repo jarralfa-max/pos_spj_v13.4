@@ -157,13 +157,28 @@ class StockReservationService:
         return reserva_id
 
     def liberar(self, reserva_id: int, motivo: str = "cancelada") -> None:
+        estado = "expirada" if str(motivo).strip().lower() == "expirada" else "cancelada"
         self.db.execute(
             "UPDATE stock_reservas SET estado=?, updated_at=datetime('now') "
             "WHERE id=? AND estado='activa'",
-            (f"liberada:{motivo}", reserva_id),
+            (estado, reserva_id),
         )
         get_bus().publish(AJUSTE_INVENTARIO, {
             "motivo": "stock_reserva_liberada",
             "reserva_id": reserva_id,
+            "branch_id": self.branch_id,
+        })
+
+    def confirmar(self, reserva_id: int, venta_id: int, folio: str) -> None:
+        self.db.execute(
+            "UPDATE stock_reservas SET estado='confirmada', updated_at=datetime('now') "
+            "WHERE id=? AND estado='activa'",
+            (reserva_id,),
+        )
+        get_bus().publish(AJUSTE_INVENTARIO, {
+            "motivo": "stock_reserva_confirmada",
+            "reserva_id": reserva_id,
+            "venta_id": int(venta_id or 0),
+            "folio": str(folio or ""),
             "branch_id": self.branch_id,
         })
