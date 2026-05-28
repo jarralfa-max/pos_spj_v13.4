@@ -530,6 +530,9 @@ class SalesService:
                         folio=str(folio),
                         total=float(total_a_pagar),
                         sucursal_id=int(branch_id),
+                        payment_method=str(payment_method or ""),
+                        items=carrito_final,
+                        sale_datetime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     ) or []
                 except Exception as _raffle_err:
                     logger.warning("raffles process venta=%s: %s", sale_id, _raffle_err)
@@ -560,6 +563,8 @@ class SalesService:
                     "usuario":       user,
                     "cliente_id":    client_id,
                     "payment_method": payment_method,
+                    "items": carrito_final,
+                    "sale_datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "loyalty_already_processed": True,
                     "loyalty_snapshot": loyalty_result,
                     "raffle_already_processed": True,
@@ -594,7 +599,7 @@ class SalesService:
                 'puntos_ganados': (loyalty_result or {}).get('puntos_ganados', 0),
                 'puntos_totales': (loyalty_result or {}).get('puntos_totales', 0),
                 'raffle_tickets_snapshot': raffle_tickets_snapshot,
-                'raffle_tickets_lines': [f"Rifa: {t.get('raffle','')} | Boleto: {t.get('numero_boleto','')}" for t in (raffle_tickets_snapshot or [])],
+                'raffle_tickets_lines': [f"🎟️ Rifas/Sorteos\nRifa: {t.get('raffle','')}\nBoletos: {t.get('numero_boleto','')}" for t in (raffle_tickets_snapshot or [])],
             }
             template_html = self.config_service.get('ticket_template_html')
             if not template_html:

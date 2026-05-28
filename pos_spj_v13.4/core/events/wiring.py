@@ -356,6 +356,9 @@ def _wire_venta(bus, container) -> None:
                 folio=str(data.get("folio") or ""),
                 total=float(data.get("total") or 0),
                 sucursal_id=int(data.get("sucursal_id") or 1),
+                payment_method=str(data.get("payment_method") or ""),
+                items=list(data.get("items") or []),
+                sale_datetime=str(data.get("sale_datetime") or ""),
             )
             data["raffle_tickets_snapshot"] = snapshot
         except Exception as e:
