@@ -1,139 +1,114 @@
-# WHATSAPP_ARCHITECTURE.md — Arquitectura WhatsApp SPJ POS v13.4
+# WHATSAPP_ARCHITECTURE.md — Arquitectura WhatsApp (estado actual)
 
-Generado: 2026-05-20
+Actualizado: 2026-05-28
 
----
+## 1) Camino oficial vs legacy
 
-## Visión general
+- **Producción (oficial):** `whatsapp_service/` (FastAPI + router + flows + ERP bridge + sender).
+- **Legacy/fallback (congelado):** `pos_spj_v13.4/core/services/whatsapp_service.py` y shims `services/whatsapp_service.py`, `integrations/whatsapp_service.py`.
+- Regla: nuevas reglas de negocio deben implementarse en el microservicio oficial, no en legacy.
 
-```
-                    Meta Cloud API
-                         │
-                    POST /webhook
-                         │
-                 ┌───────▼────────┐
-                 │  whatsapp_     │
-                 │  service/      │  FastAPI microservicio
-                 │  (puerto 8000) │
-                 └───────┬────────┘
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-   ┌──────▼─────┐ ┌──────▼──────┐ ┌────▼──────────┐
-   │  parser/   │ │   flows/    │ │ router/       │
-   │ intent_    │ │ pedido,cot, │ │ notify_router │◄── ERP POS
-   │ parser.py  │ │ pago, etc.  │ │ (auth: API key│
-   └──────┬─────┘ └──────┬──────┘ └───────────────┘
-          │              │
-          └──────┬────────┘
-                 │
-          ┌──────▼────────┐
-          │  erp/bridge   │  Gateways: Customer, Order,
-          │  .py          │  Quote, Payment, Inventory,
-          └──────┬────────┘  Delivery
-                 │
-     ┌───────────┼───────────┐
-     │           │           │
-┌────▼───┐  ┌────▼────┐  ┌───▼─────┐
-│ REST   │  │ SQLite  │  │EventBus │
-│ API    │  │ fallback│  │ERP      │
-│(prod)  │  │(dev)    │  │         │
-└────────┘  └─────────┘  └─────────┘
+## 2) Diagrama de alto nivel
+
+```text
+Meta Cloud API
+   │
+   ▼
+/webhook (whatsapp_service/webhook/whatsapp.py)
+   │
+   ▼
+MessageRouter + pipeline (whatsapp_service/router/message_router.py)
+   │
+   ├─► IntentParser (parser/intent_parser.py)
+   ├─► Flows (pedido/cotización/pago/registro/menu)
+   └─► Conversation store (state/conversation.py)
+          │
+          ├─► Business idempotency (state/business_idempotency.py)
+          ├─► ERPBridge facade (erp/bridge.py)
+          │      ├─► ERP API (preferido en producción)
+          │      └─► SQLite fallback (solo development/test)
+          └─► WAEventEmitter (erp/events.py)
+
+Salida de mensajes:
+flows/router ─► messaging/sender.py ─► Meta Graph API
 ```
 
----
+## 3) Entradas y salidas principales
 
-## Componentes ERP POS
+### Entradas
+- Webhook Meta: `whatsapp_service/webhook/whatsapp.py`.
+- Webhook MercadoPago: `whatsapp_service/webhook/mercadopago.py`.
+- Notificaciones internas ERP→WA: `whatsapp_service/router/notify_router.py`.
 
-```
-pos_spj_v13.4/
-├── modulos/whatsapp_module.py          ← UI SOLO (PyQt5)
-│       └── usa WhatsAppAdminService
-│
-├── core/
-│   ├── services/
-│   │   ├── whatsapp_admin_service.py   ← Facade admin (NUEVO)
-│   │   ├── whatsapp_credential_service.py ← Credenciales seguras (NUEVO)
-│   │   └── whatsapp_service.py         ← Legacy: cola offline + Meta/Twilio
-│   ├── repositories/
-│   │   ├── whatsapp_config_repository.py  ← CRUD config (NUEVO)
-│   │   ├── whatsapp_history_repository.py ← Historial unificado (NUEVO)
-│   │   └── whatsapp_metrics_repository.py ← Métricas (NUEVO)
-│   └── integrations/
-│       └── whatsapp_client.py          ← REST client → microservicio
-│
-├── services/whatsapp_service.py        ← SHIM v12 (mantener)
-└── integrations/whatsapp_service.py   ← SHIM v12 (mantener)
-```
+### Salidas
+- Envío a Meta: `whatsapp_service/messaging/sender.py`.
+- Escrituras de negocio ERP: `whatsapp_service/erp/bridge.py` (API-first; SQLite fallback restringido por ambiente).
+- Eventos: `whatsapp_service/erp/events.py`.
 
----
+## 4) Reglas de ambiente para escrituras ERP
 
-## Flujo: Mensaje entrante
+Configuración en `whatsapp_service/config/settings.py`:
+- `get_app_env()`
+- `is_production()`
+- `is_test()`
 
-```
-Meta → POST /webhook
-  → webhook/whatsapp.py (idempotencia + rate limit)
-  → IncomingMessage.from_webhook()
-  → NumberRouter.route() → NumeroConfig (sucursal)
-  → MessageRouter.route()
-  → IntentParser (regex → fuzzy → Ollama)
-  → Flow (pedido / cotizacion / pago / registro / menu)
-  → ERPBridge (read-only consultas / write via API)
-  → WAEventEmitter.emit()
-  → messaging/sender.py → Meta Graph API
-```
+En `production`:
+- Si `_use_api` es falso, `ERPBridge` bloquea write SQLite mediante `_assert_sqlite_write_allowed(...)`.
+- Si falla un write por API, `ERPBridge` no cae a SQLite; eleva error con `_handle_api_write_failure(...)`.
 
----
+En `development` y `test`:
+- se permite fallback SQLite para compatibilidad local/CI.
 
-## Flujo: Notificación ERP → Cliente
+## 5) Idempotencia
 
-```
-ERP POS (cualquier módulo)
-  → WhatsAppClient.notificar_pedido_listo(phone, folio)
-  → POST /api/notify/pedido-listo  [X-Internal-Key: ...]
-  → notify_router.pedido_listo()
-  → messaging/sender.send_text()
-  → Meta Graph API
-```
+- Idempotencia de mensajes (webhook): evita reprocesar por `message_id`.
+- Idempotencia de negocio (persistente): `wa_business_idempotency` en `whatsapp_service/state/business_idempotency.py`.
+- API del servicio: `get`, `start`, `complete`, `fail`, `run_once`.
+- Integración actual: confirmación de pedido, conversión de cotización y confirmación de pago webhook.
 
----
+## 6) Normalización de teléfonos
 
-## Credenciales y seguridad
+Módulo central:
+- `whatsapp_service/phone_number.py`
+- shim de dominio: `whatsapp_service/domain/phone_number.py`
 
-| Credencial | Almacenamiento | Acceso |
-|-----------|----------------|--------|
-| `meta_token` | `whatsapp_numeros.meta_token` (SQLite) | Solo `WhatsAppCredentialService` |
-| `WA_ACCESS_TOKEN` | `.env` microservicio | Solo `sender.py` |
-| `WA_INTERNAL_API_KEY` | `.env` microservicio | `notify_router` + `WhatsAppClient` |
-| `WA_VERIFY_TOKEN` | `.env` / `configuraciones` | `webhook/whatsapp.py` |
-| `MP_ACCESS_TOKEN` | `.env` microservicio | `webhook/mercadopago.py` |
+Funciones:
+- `normalize_to_e164`
+- `normalize_to_digits`
+- `normalize_to_mx_local10`
+- `possible_match_key`
 
-**Reglas:**
-- Tokens nunca se loguean completos (usar `_mask_token()`)
-- `X-Internal-Key` protege endpoints notify en producción
-- En modo dev sin `WA_INTERNAL_API_KEY`: warning en log, no bloquea
+Uso actual en sender/bridge/aprobaciones para reducir divergencias de formato.
 
----
+## 7) Pedido/cotización/pago (responsabilidades)
 
-## Tablas críticas
+- `PedidoFlow` conversa y delega confirmación al caso de uso `ConfirmWhatsAppOrderUseCase`.
+- `ConfirmWhatsAppOrderUseCase` encapsula orquestación principal de confirmación de pedido y política de anticipo vigente.
+- `CotizacionFlow` aplica idempotencia al convertir cotización.
+- `webhook/mercadopago.py` aplica idempotencia para confirmación de pago.
 
-| Tabla | Tipo | Nota |
-|-------|------|------|
-| `whatsapp_numeros` | Config | Fuente canónica de credenciales por sucursal |
-| `wa_event_log` | Audit | Todo evento WA queda registrado |
-| `wa_message_queue` | Queue | Cola de salida (legacy WhatsAppService) |
-| `configuraciones` | KV store | Prefijo `wa_` para config del bot |
+## 8) Eventos: dominio/canal/legacy
 
----
+Referencia detallada: `docs/events/WHATSAPP_EVENT_CATALOG.md`.
 
-## Checklist producción
+Criterio:
+- **Dominio ERP:** impacto de negocio (venta, pago, delivery, OC, etc.).
+- **Canal WhatsApp:** actividad conversacional/mensajería.
+- **Legacy:** compatibilidad temporal; no eliminar aún consumidores existentes.
 
-- [ ] Meta: configurar Webhook URL pública en Business Manager
-- [ ] `WA_PHONE_NUMBER_ID` y `WA_ACCESS_TOKEN` en `.env` del microservicio
-- [ ] `WA_INTERNAL_API_KEY` generado (≥32 chars hex)
-- [ ] Número registrado en `whatsapp_numeros` con `activo=1`
-- [ ] `ERP_DB_PATH` correcto en `.env`
-- [ ] `ERP_API_URL` + `ERP_API_KEY` para writes por use cases
-- [ ] Microservicio health OK
-- [ ] Webhook Meta verificado (GET /webhook retorna challenge)
-- [ ] Test E2E: enviar mensaje a WA → recibir respuesta del bot
+## 9) Variables críticas de producción
+
+- `ERP_API_URL`
+- `ERP_API_KEY`
+- `WA_INTERNAL_API_KEY`
+- `WA_APP_SECRET`
+- `WA_VERIFY_TOKEN`
+- `WA_PHONE_NUMBER_ID`
+- `WA_ACCESS_TOKEN`
+
+## 10) Deuda técnica vigente (TODO reales)
+
+- Separación incremental en curso: lógica de pagos y delivery ya delegada a gateways (`PaymentGateway`, `DeliveryGateway`); continuar migración del resto para evitar crecimiento de la fachada.
+- Completar cobertura de idempotencia para todas las acciones críticas pendientes (p. ej. delivery en todos los caminos conversacionales).
+- Consolidar completamente router pipeline para disminuir complejidad residual de `MessageRouter`.
+- Completar migración de consumidores a eventos de dominio para reducir duplicidad conceptual con legacy.

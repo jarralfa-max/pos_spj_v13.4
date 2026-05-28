@@ -12,12 +12,13 @@ import logging
 import sqlite3
 from typing import Dict
 from core.services.order_total_service import OrderTotalService
+from phone_number import possible_match_key
 
 logger = logging.getLogger("wa.adjustment_approval")
 
 
 def _clean_phone(phone: str) -> str:
-    return "".join(ch for ch in str(phone or "") if ch.isdigit())[-10:]
+    return possible_match_key(phone)
 
 
 def _row_to_dict(row) -> Dict:

@@ -232,3 +232,52 @@ class TestRegistrarAnticipo:
         venta = bridge.crear_pedido_wa(items, 1, 1, "sucursal")
         ap_id = bridge.registrar_anticipo(venta["venta_id"], monto=200.0)
         assert isinstance(ap_id, int) and ap_id > 0
+
+
+class TestProductionWriteGuards:
+    def test_production_without_api_blocks_sqlite_write(self, bridge, monkeypatch):
+        monkeypatch.setenv("APP_ENV", "production")
+        with pytest.raises(RuntimeError, match="SQLite write blocked in production"):
+            bridge.crear_pedido_wa(
+                [{"producto_id": 1, "nombre": "P", "cantidad": 1, "precio_unitario": 50}],
+                1, 1, "sucursal"
+            )
+
+    def test_production_api_failure_does_not_fallback_to_sqlite(self, bridge, monkeypatch):
+        monkeypatch.setenv("APP_ENV", "production")
+        bridge._api_url = "https://erp.example"
+        bridge._api_key = "key"
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("api down")
+        bridge._api_post = _boom  # type: ignore[method-assign]
+
+        with pytest.raises(RuntimeError, match="ERP API write failed in production"):
+            bridge.crear_pedido_wa(
+                [{"producto_id": 1, "nombre": "P", "cantidad": 1, "precio_unitario": 50}],
+                1, 1, "sucursal"
+            )
+
+        count = bridge.db.execute("SELECT COUNT(1) FROM ventas").fetchone()[0]
+        assert count == 0
+
+    def test_development_without_api_allows_fallback(self, bridge, monkeypatch):
+        monkeypatch.setenv("APP_ENV", "development")
+        result = bridge.crear_pedido_wa(
+            [{"producto_id": 1, "nombre": "P", "cantidad": 1, "precio_unitario": 50}],
+            1, 1, "sucursal"
+        )
+        assert result["venta_id"] > 0
+
+    def test_test_env_without_api_allows_fallback(self, bridge, monkeypatch):
+        monkeypatch.setenv("APP_ENV", "test")
+        result = bridge.crear_pedido_wa(
+            [{"producto_id": 1, "nombre": "P", "cantidad": 1, "precio_unitario": 50}],
+            1, 1, "sucursal"
+        )
+        assert result["venta_id"] > 0
+
+    def test_sqlite_reads_still_work_in_production(self, bridge, monkeypatch):
+        monkeypatch.setenv("APP_ENV", "production")
+        rows = bridge.get_sucursales()
+        assert len(rows) == 2

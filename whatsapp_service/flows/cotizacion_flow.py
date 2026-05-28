@@ -14,6 +14,7 @@ from erp.events import (
 )
 from messaging import interactive
 from messaging.sender import send_text, send_buttons
+from state.business_idempotency import BusinessIdempotencyService
 
 
 class CotizacionFlow(BaseFlow):
@@ -213,10 +214,23 @@ class CotizacionFlow(BaseFlow):
                 await send_text(ctx.phone, "No encontré una cotización activa para convertir.")
                 return FlowResult(FlowState.IDLE)
             using_orchestrator = bool(self.orchestrator)
-            result = self.orchestrator.convertir_cotizacion_a_venta(
-                cotizacion_id=int(quote_id),
-                cliente_id=ctx.cliente_id or 0,
-            ) if using_orchestrator else self.erp.convertir_cotizacion_a_venta(int(quote_id))
+            idem = BusinessIdempotencyService(self.erp.db)
+
+            def _convert() -> dict:
+                return self.orchestrator.convertir_cotizacion_a_venta(
+                    cotizacion_id=int(quote_id),
+                    cliente_id=ctx.cliente_id or 0,
+                ) if using_orchestrator else (self.erp.convertir_cotizacion_a_venta(int(quote_id)) or {})
+
+            result = idem.run_once(
+                action_key=f"convert_quote:{int(quote_id)}",
+                phone=ctx.phone,
+                action_type="convert_quote",
+                callback=_convert,
+            )
+            if result.get("idempotency_status") == "in_progress":
+                await send_text(ctx.phone, "⏳ La conversión de tu cotización está en proceso.")
+                return FlowResult(FlowState.COTIZACION_CONFIRMACION)
             if not result:
                 await send_text(ctx.phone, "La cotización ya no está vigente o no pudo convertirse.")
                 return FlowResult(FlowState.COTIZACION_CONFIRMACION)

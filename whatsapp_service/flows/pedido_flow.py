@@ -14,6 +14,13 @@ from flows.base_flow import BaseFlow, FlowResult
 from erp.events import WA_PEDIDO_CREADO, WA_ANTICIPO_REQUERIDO
 from messaging import interactive
 from messaging.sender import send_text
+import hashlib
+import json
+from state.business_idempotency import BusinessIdempotencyService
+from application.confirm_order_use_case import (
+    ConfirmWhatsAppOrderCommand,
+    ConfirmWhatsAppOrderUseCase,
+)
 
 
 class PedidoFlow(BaseFlow):
@@ -262,15 +269,38 @@ class PedidoFlow(BaseFlow):
             return FlowResult(FlowState.IDLE)
 
         if aid == "confirm_pedido":
-            # Crear pedido en ERP
             items = [i.to_dict() for i in ctx.pedido_items]
-            result = self.erp.crear_pedido_wa(
-                items=items,
-                cliente_id=ctx.cliente_id or 0,
-                sucursal_id=ctx.sucursal_id or 1,
-                tipo_entrega=ctx.pedido_tipo_entrega,
-                direccion=ctx.pedido_direccion,
+            cart_hash = hashlib.sha256(
+                json.dumps(items, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()[:16]
+            action_key = (
+                f"confirm_order:{ctx.phone}:{cart_hash}:{ctx.sucursal_id or 1}:{ctx.pedido_tipo_entrega}"
             )
+            idem = BusinessIdempotencyService(self.erp.db)
+            use_case = ConfirmWhatsAppOrderUseCase(self.erp, orchestrator=self.orchestrator)
+
+            def _create_order() -> dict:
+                uc_result = use_case.execute(ConfirmWhatsAppOrderCommand(
+                    phone=ctx.phone,
+                    cliente_id=ctx.cliente_id or 0,
+                    sucursal_id=ctx.sucursal_id or 1,
+                    tipo_entrega=ctx.pedido_tipo_entrega,
+                    direccion=ctx.pedido_direccion,
+                    items=items,
+                    pedido_programado=getattr(ctx, "pedido_programado", False),
+                ))
+                return {
+                    "venta_id": uc_result.venta_id,
+                    "folio": uc_result.folio,
+                    "total": uc_result.total,
+                    "anticipo_requerido": uc_result.anticipo_requerido,
+                    "anticipo_monto": uc_result.anticipo_monto,
+                }
+
+            result = idem.run_once(action_key, ctx.phone, "confirm_order", _create_order)
+            if result.get("idempotency_status") == "in_progress":
+                await send_text(ctx.phone, "⏳ Tu confirmación ya se está procesando. En breve te compartimos el folio.")
+                return FlowResult(FlowState.PEDIDO_CONFIRMACION)
 
             folio = result["folio"]
             total = result["total"]
@@ -278,39 +308,20 @@ class PedidoFlow(BaseFlow):
             suc_id = ctx.sucursal_id or 1
             ctx.last_venta_id = venta_id
 
-            # ── FASE WA: Orquestación completa (OC, anticipo real, delivery) ──
-            if self.orchestrator:
-                orch_result = self.orchestrator.procesar_pedido_wa(
-                    venta_id=venta_id, folio=folio, total=total,
-                    cliente_id=ctx.cliente_id or 0,
-                    items=items,
-                    tipo_entrega=ctx.pedido_tipo_entrega,
-                    direccion=ctx.pedido_direccion,
-                )
-                anticipo_req = orch_result.get("anticipo_requerido", False)
-                anticipo_monto = orch_result.get("anticipo_monto", total * 0.5)
+            anticipo_req = bool(result.get("anticipo_requerido", False))
+            anticipo_monto = float(result.get("anticipo_monto", 0.0) or 0.0)
 
-                # Programar recordatorios
-                if self.reminders and anticipo_req:
-                    self.reminders.programar_anticipo_pendiente(
-                        venta_id=venta_id, folio=folio,
-                        monto=anticipo_monto, phone=ctx.phone,
-                        sucursal_id=suc_id, delay_horas=2)
-                if self.reminders and ctx.pedido_tipo_entrega == "domicilio":
-                    self.reminders.programar_recordatorio_entrega(
-                        venta_id=venta_id, folio=folio,
-                        fecha_entrega=getattr(ctx, "pedido_fecha_entrega", ""),
-                        phone=ctx.phone, sucursal_id=suc_id)
-            else:
-                # Fallback legacy: anticipo hardcodeado al 50%
-                anticipo_req = self.erp.requiere_anticipo(
-                    ctx.cliente_id or 0, total,
-                    getattr(ctx, "pedido_programado", False))
-                anticipo_monto = total * 0.5
-                if anticipo_req:
-                    self.events.emit(WA_ANTICIPO_REQUERIDO, {
-                        "folio": folio, "monto": anticipo_monto,
-                    }, sucursal_id=suc_id, prioridad=2)
+            # Programar recordatorios
+            if self.reminders and anticipo_req:
+                self.reminders.programar_anticipo_pendiente(
+                    venta_id=venta_id, folio=folio,
+                    monto=anticipo_monto, phone=ctx.phone,
+                    sucursal_id=suc_id, delay_horas=2)
+            if self.reminders and ctx.pedido_tipo_entrega == "domicilio":
+                self.reminders.programar_recordatorio_entrega(
+                    venta_id=venta_id, folio=folio,
+                    fecha_entrega=getattr(ctx, "pedido_fecha_entrega", ""),
+                    phone=ctx.phone, sucursal_id=suc_id)
 
             if anticipo_req:
                 await send_text(ctx.phone,

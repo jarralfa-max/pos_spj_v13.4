@@ -93,4 +93,47 @@ El ERP no debe emitir `VENTA_COMPLETADA` para ventas `canal='whatsapp'` si WA ya
 
 Los eventos críticos (prioridad ≥ 80) son síncronos en `WAEventEmitter.emit()`.
 Si el EventBus no está disponible, se loguea en `wa_event_log` para reprocesamiento manual.
-Cola de mensajes con retry automático: **pendiente Fase 6**.
+Cola de mensajes con retry automático: implementada en fase previa; mantener monitoreo de dead-letter.
+
+---
+
+## FASE 8 — Clasificación dominio/canal/legacy (2026-05-28)
+
+| Evento | Tipo | Productor | Alias legacy |
+|---|---|---|---|
+| `SALE_CREATED` | dominio | `business_orchestrator.py` | `WA_VENTA_CONFIRMADA` |
+| `QUOTE_CREATED` | dominio | `business_orchestrator.py` | `WA_COTIZACION_CREADA` |
+| `PAYMENT_REQUIRED` | dominio | `business_orchestrator.py` | `WA_ANTICIPO_REQUERIDO` |
+| `PAYMENT_RECEIVED` | dominio | `business_orchestrator.py`, `webhook/mercadopago.py` | `WA_ANTICIPO_PAGADO` |
+| `DELIVERY_SCHEDULED` | dominio | `business_orchestrator.py` | — |
+| `PURCHASE_ORDER_CREATED` | dominio | `business_orchestrator.py` | — |
+| `FORECAST_DEMAND_UPDATED` | dominio | `business_orchestrator.py` | — |
+| `WHATSAPP_MESSAGE_RECEIVED` | canal | `webhook/whatsapp.py` | — |
+| `WHATSAPP_INTENT_DETECTED` | canal | `router/message_router.py` | — |
+| `WHATSAPP_ORDER_CONFIRMED_BY_CUSTOMER` | canal | `pedido_flow.py` | `WA_PEDIDO_CREADO` |
+| `WHATSAPP_QUOTE_ACCEPTED_BY_CUSTOMER` | canal | `business_orchestrator.py` | `WHATSAPP_QUOTE_ACCEPTED` |
+| `WHATSAPP_NOTIFICATION_SENT` | canal | `notify_router.py` / sender | — |
+| `WHATSAPP_NOTIFICATION_FAILED` | canal | `notify_router.py` / sender | — |
+| `WHATSAPP_CONVERSATION_STATE_CHANGED` | canal | `state/conversation.py` | — |
+
+Notas:
+- Los eventos legacy se conservan temporalmente para compatibilidad.
+- Consumidores críticos deben tomar eventos de **dominio** como fuente principal.
+
+
+## Plan de deprecación formal por consumidor (transición legacy → dominio)
+
+Fecha de corte de esta versión documental: **2026-05-28**.
+
+| Consumidor | Evento actual (legacy) | Evento objetivo (dominio/canal) | Estado | Fecha objetivo |
+|---|---|---|---|---|
+| Finanzas (anticipos) | `WA_ANTICIPO_PAGADO` | `PAYMENT_RECEIVED` | En transición | 2026-06-30 |
+| Ventas | `WA_PEDIDO_CREADO` / `WA_VENTA_CONFIRMADA` | `SALE_CREATED` | En transición | 2026-06-30 |
+| Cotizaciones | `WA_COTIZACION_CREADA` | `QUOTE_CREATED` | En transición | 2026-06-30 |
+| Delivery | `WA_VENTA_CONFIRMADA` | `DELIVERY_SCHEDULED` + `PAYMENT_RECEIVED` | En transición | 2026-07-15 |
+| Notificaciones canal WA | `WHATSAPP_QUOTE_ACCEPTED` (legacy canal) | `WHATSAPP_QUOTE_ACCEPTED_BY_CUSTOMER` | En transición | 2026-06-30 |
+
+Reglas de transición:
+- Durante la transición, se permiten aliases legacy para no romper consumidores existentes.
+- Todo consumidor nuevo debe suscribirse primero a eventos **dominio** (o canal si aplica conversación).
+- Para cerrar deprecación, cada consumidor debe reportar validación en ambiente de pruebas y fecha de corte efectiva.

@@ -91,7 +91,7 @@ def _import_wa_settings():
 class TestWebhookVerification:
 
     def _run(self, coro):
-        return asyncio.get_event_loop().run_until_complete(coro)
+        return asyncio.run(coro)
 
     def _get_verify_webhook(self):
         """Import verify_webhook — call AFTER _import_wa_settings."""
@@ -198,6 +198,59 @@ class TestIdempotency:
         assert store.is_duplicate("msg_brand_new") is False
 
 
+class TestBusinessIdempotency:
+
+    def test_run_once_returns_same_result_for_same_action_key(self):
+        from state.business_idempotency import BusinessIdempotencyService
+        conn = sqlite3.connect(":memory:")
+        service = BusinessIdempotencyService(conn)
+        calls = {"n": 0}
+
+        def _callback():
+            calls["n"] += 1
+            return {"venta_id": 10, "folio": "WA-XYZ"}
+
+        r1 = service.run_once("confirm_order:+521:abc:1:sucursal", "+521", "confirm_order", _callback)
+        r2 = service.run_once("confirm_order:+521:abc:1:sucursal", "+521", "confirm_order", _callback)
+        assert r1["venta_id"] == 10
+        assert r2["venta_id"] == 10
+        assert calls["n"] == 1
+
+    def test_fail_stores_error_for_action(self):
+        from state.business_idempotency import BusinessIdempotencyService
+        conn = sqlite3.connect(":memory:")
+        service = BusinessIdempotencyService(conn)
+
+        with pytest.raises(RuntimeError):
+            service.run_once(
+                "confirm_payment:123:50.00",
+                "+521",
+                "confirm_payment",
+                lambda: (_ for _ in ()).throw(RuntimeError("payment failed")),
+            )
+        rec = service.get("confirm_payment:123:50.00")
+        assert rec is not None
+        assert rec.status == "failed"
+        assert "payment failed" in rec.error
+
+
+class TestPhoneNormalization:
+
+    def test_normalize_to_e164_variants(self):
+        from phone_number import normalize_to_e164
+        assert normalize_to_e164("+5214421234567") == "+5214421234567"
+        assert normalize_to_e164("5214421234567") == "+5214421234567"
+        assert normalize_to_e164("524421234567") == "+524421234567"
+        assert normalize_to_e164("4421234567") == "+524421234567"
+        assert normalize_to_e164("whatsapp:+5214421234567") == "+5214421234567"
+
+    def test_normalize_empty_invalid(self):
+        from phone_number import normalize_to_e164, normalize_to_digits, possible_match_key
+        assert normalize_to_e164("") == ""
+        assert normalize_to_digits("abc") == ""
+        assert possible_match_key("abc") == ""
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. Rate limiting
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -255,7 +308,7 @@ class TestSenderMockHttp:
             mock_client.post = AsyncMock(return_value=mock_resp)
 
             with patch("httpx.AsyncClient", return_value=mock_client):
-                result = asyncio.get_event_loop().run_until_complete(
+                result = asyncio.run(
                     _sender.send_text("+521234567890", "Hola test"))
                 assert result is True
                 mock_client.post.assert_called_once()

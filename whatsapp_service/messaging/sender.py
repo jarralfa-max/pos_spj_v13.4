@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import httpx
 import logging
-import re
 from typing import List, Dict, Optional, Tuple
+from phone_number import normalize_to_e164
 
 try:
     from config.settings import (
@@ -44,21 +44,10 @@ logger = logging.getLogger("wa.sender")
 # -----------------------------------------------------------------------------
 
 def _normalize_phone(phone: str) -> str:
-    """
-    Normaliza un número de teléfono a formato E.164 (con + y código de país).
-    Ejemplo: '5215659274265' -> '+5215659274265'
-    """
-    phone = phone.strip()
-    if not phone:
-        raise ValueError("Número de teléfono vacío")
-    if phone.startswith('+'):
-        return phone
-    if re.match(r'^\d{10,15}$', phone):
-        return f"+{phone}"
-    digits = re.sub(r'\D', '', phone)
-    if digits:
-        return f"+{digits}"
-    raise ValueError(f"Número inválido: {phone}")
+    normalized = normalize_to_e164(phone, default_country="MX")
+    if not normalized:
+        raise ValueError(f"Número inválido: {phone}")
+    return normalized
 
 # -----------------------------------------------------------------------------
 #  Configuración dinámica (ERP + .env)
