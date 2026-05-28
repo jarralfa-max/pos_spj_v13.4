@@ -17,11 +17,12 @@ from PyQt5.QtWidgets import (
     QPushButton, QMessageBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QLineEdit, QFormLayout,
     QGroupBox, QSpinBox, QDialog, QDialogButtonBox, QDateEdit,
-    QComboBox, QInputDialog,
+    QComboBox, QInputDialog, QDoubleSpinBox, QCheckBox, QTextEdit, QFileDialog,
 )
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QColor
 import logging
+import csv
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
     create_heading, create_primary_button, create_success_button,
@@ -493,11 +494,117 @@ class ModuloFidelidadConfig(QWidget):
         return row
 
     def _on_nueva_rifa(self):
-        nombre, ok = QInputDialog.getText(self, "Nueva rifa", "Nombre de la rifa:")
-        if not ok or not nombre.strip():
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Nueva rifa / sorteo")
+        dlg.resize(860, 640)
+        root = QVBoxLayout(dlg)
+        tabs = QTabWidget(dlg)
+        root.addWidget(tabs)
+
+        # 1) Datos generales
+        t1 = QWidget(); f1 = QFormLayout(t1)
+        txt_nombre = QLineEdit(); txt_descripcion = QTextEdit()
+        dt_inicio = QDateEdit(); dt_inicio.setCalendarPopup(True); dt_inicio.setDate(QDate.currentDate())
+        dt_fin = QDateEdit(); dt_fin.setCalendarPopup(True); dt_fin.setDate(QDate.currentDate().addDays(30))
+        cmb_sucursal = QSpinBox(); cmb_sucursal.setRange(1, 99999); cmb_sucursal.setValue(int(self.sucursal_id))
+        f1.addRow("Nombre:", txt_nombre); f1.addRow("Descripción:", txt_descripcion)
+        f1.addRow("Fecha inicio:", dt_inicio); f1.addRow("Fecha fin:", dt_fin); f1.addRow("Sucursal:", cmb_sucursal)
+        tabs.addTab(t1, "Datos generales")
+
+        # 2) Premios
+        t2 = QWidget(); l2 = QVBoxLayout(t2)
+        tbl_prizes = QTableWidget(0, 3); tbl_prizes.setHorizontalHeaderLabels(["Nombre", "Cantidad", "Costo estimado"])
+        p_nombre = QLineEdit(); p_cantidad = QSpinBox(); p_cantidad.setRange(1, 9999)
+        p_costo = QDoubleSpinBox(); p_costo.setRange(0, 99999999); p_costo.setDecimals(2)
+        btn_add = QPushButton("Agregar premio")
+        def _add_prize():
+            if not p_nombre.text().strip(): return
+            r = tbl_prizes.rowCount(); tbl_prizes.insertRow(r)
+            tbl_prizes.setItem(r, 0, QTableWidgetItem(p_nombre.text().strip()))
+            tbl_prizes.setItem(r, 1, QTableWidgetItem(str(p_cantidad.value())))
+            tbl_prizes.setItem(r, 2, QTableWidgetItem(str(p_costo.value())))
+            p_nombre.clear(); p_cantidad.setValue(1); p_costo.setValue(0)
+        btn_add.clicked.connect(_add_prize)
+        f2 = QFormLayout(); f2.addRow("Nombre premio:", p_nombre); f2.addRow("Cantidad:", p_cantidad); f2.addRow("Costo estimado:", p_costo); f2.addRow("", btn_add)
+        l2.addLayout(f2); l2.addWidget(tbl_prizes); tabs.addTab(t2, "Premios")
+
+        # 3) Presupuesto
+        t3 = QWidget(); f3 = QFormLayout(t3)
+        presupuesto = QDoubleSpinBox(); presupuesto.setRange(0, 99999999); presupuesto.setDecimals(2)
+        ventas_obj = QDoubleSpinBox(); ventas_obj.setRange(0, 99999999); ventas_obj.setDecimals(2)
+        roi_obj = QDoubleSpinBox(); roi_obj.setRange(0, 9999); roi_obj.setDecimals(2)
+        f3.addRow("Presupuesto máximo:", presupuesto); f3.addRow("Ventas objetivo:", ventas_obj); f3.addRow("ROI objetivo:", roi_obj)
+        tabs.addTab(t3, "Presupuesto")
+
+        # 4) Reglas
+        t4 = QWidget(); f4 = QFormLayout(t4)
+        req_reg = QCheckBox("Requiere cliente registrado")
+        min_sale = QDoubleSpinBox(); min_sale.setRange(0, 99999999); min_sale.setDecimals(2)
+        strategy = QComboBox(); strategy.addItems(["per_amount", "per_sale", "fixed"])
+        amount_per_ticket = QDoubleSpinBox(); amount_per_ticket.setRange(0, 99999999); amount_per_ticket.setDecimals(2)
+        tickets_per_sale = QSpinBox(); tickets_per_sale.setRange(0, 99999)
+        max_per_sale = QSpinBox(); max_per_sale.setRange(0, 99999)
+        max_per_customer = QSpinBox(); max_per_customer.setRange(0, 99999)
+        allowed_pm = QLineEdit(); allowed_pm.setPlaceholderText("efectivo,tarjeta,transferencia")
+        f4.addRow("", req_reg); f4.addRow("Mínimo compra:", min_sale); f4.addRow("Estrategia:", strategy)
+        f4.addRow("Monto por boleto:", amount_per_ticket); f4.addRow("Boletos por venta:", tickets_per_sale)
+        f4.addRow("Máximo por venta:", max_per_sale); f4.addRow("Máximo por cliente:", max_per_customer)
+        f4.addRow("Formas pago permitidas:", allowed_pm)
+        tabs.addTab(t4, "Reglas")
+
+        # 5) Revisión
+        t5 = QWidget(); l5 = QVBoxLayout(t5); lbl_review = QLabel("Revisión pendiente...")
+        l5.addWidget(lbl_review); tabs.addTab(t5, "Revisión")
+        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        root.addWidget(btns)
+        btns.rejected.connect(dlg.reject)
+        def _refresh_review():
+            total_prizes = 0.0
+            for i in range(tbl_prizes.rowCount()):
+                q = float(tbl_prizes.item(i, 1).text() or 0); c = float(tbl_prizes.item(i, 2).text() or 0)
+                total_prizes += (q * c)
+            ready = bool(txt_nombre.text().strip()) and dt_inicio.date() <= dt_fin.date() and tbl_prizes.rowCount() > 0 and presupuesto.value() > 0
+            lbl_review.setText(f"Costo premios: ${total_prizes:,.2f}\nPresupuesto: ${presupuesto.value():,.2f}\nEstado: {'Listo' if ready else 'No listo'}")
+        tabs.currentChanged.connect(lambda *_: _refresh_review()); _refresh_review()
+        btns.accepted.connect(dlg.accept)
+        if dlg.exec_() != QDialog.Accepted:
             return
         try:
-            self.container.loyalty_service.create_raffle({"nombre": nombre.strip(), "premio": "Premio", "premio_costo_estimado": 100.0, "presupuesto_maximo": 100.0, "ventas_objetivo": 100.0, "monto_por_boleto": 10.0, "sucursal_id": self.sucursal_id})
+            prizes = []
+            for i in range(tbl_prizes.rowCount()):
+                prizes.append({
+                    "nombre": (tbl_prizes.item(i, 0).text() if tbl_prizes.item(i, 0) else "").strip(),
+                    "cantidad": int(float(tbl_prizes.item(i, 1).text() if tbl_prizes.item(i, 1) else 0)),
+                    "costo_estimado": float(tbl_prizes.item(i, 2).text() if tbl_prizes.item(i, 2) else 0),
+                    "orden": i + 1,
+                })
+            self.container.loyalty_service.create_raffle_with_rules(
+                {
+                    "nombre": txt_nombre.text().strip(),
+                    "descripcion": txt_descripcion.toPlainText().strip(),
+                    "premio": (prizes[0]["nombre"] if prizes else ""),
+                    "premio_costo_estimado": sum(float(p["costo_estimado"]) * int(p["cantidad"]) for p in prizes),
+                    "presupuesto_maximo": presupuesto.value(),
+                    "ventas_objetivo": ventas_obj.value(),
+                    "roi_objetivo": roi_obj.value(),
+                    "monto_por_boleto": amount_per_ticket.value(),
+                    "fecha_inicio": f"{dt_inicio.date().toString('yyyy-MM-dd')} 00:00:00",
+                    "fecha_fin": f"{dt_fin.date().toString('yyyy-MM-dd')} 23:59:59",
+                    "sucursal_id": cmb_sucursal.value(),
+                },
+                {
+                    "requires_registered_customer": 1 if req_reg.isChecked() else 0,
+                    "min_sale_amount": min_sale.value(),
+                    "ticket_strategy": strategy.currentText(),
+                    "amount_per_ticket": amount_per_ticket.value(),
+                    "tickets_per_sale": tickets_per_sale.value(),
+                    "max_tickets_per_sale": max_per_sale.value(),
+                    "max_tickets_per_customer": max_per_customer.value(),
+                    "allowed_payment_methods": allowed_pm.text().strip(),
+                },
+                prizes,
+                {"branches": [cmb_sucursal.value()]},
+            )
             Toast.success(self, "Rifas", "Rifa creada.")
             self._cargar_raffles()
         except Exception as e:
@@ -569,12 +676,69 @@ class ModuloFidelidadConfig(QWidget):
         row = self._require_selected_raffle()
         if not row: return
         try:
-            tickets = self.container.loyalty_service.list_raffle_tickets(int(row["id"]), limit=10)
-            if not tickets:
-                Toast.info(self, "Boletos", "No hay boletos registrados.")
-                return
-            numeros = ", ".join(str(t.get("numero_boleto", "")) for t in tickets[:5])
-            Toast.info(self, "Boletos", f"{len(tickets)} boletos. Ejemplos: {numeros}")
-            self._cargar_raffles()
+            tickets = self.container.loyalty_service.list_raffle_tickets(int(row["id"]), limit=200)
+            dlg = QDialog(self); dlg.setWindowTitle("Boletos de rifa"); dlg.resize(1080, 620)
+            lay = QVBoxLayout(dlg)
+            top = QHBoxLayout()
+            txt_search = QLineEdit(); txt_search.setPlaceholderText("Buscar por boleto, cliente, venta, folio, estado...")
+            btn_copy = QPushButton("Copiar")
+            btn_export = QPushButton("Exportar CSV")
+            top.addWidget(txt_search); top.addWidget(btn_copy); top.addWidget(btn_export)
+            lay.addLayout(top)
+
+            tbl = QTableWidget(0, 7); tbl.setHorizontalHeaderLabels(["Boleto", "Cliente", "Venta", "Folio", "Estado", "Fecha", "ID"])
+            tbl.setSelectionBehavior(QAbstractItemView.SelectRows)
+            tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+            all_rows = []
+            for t in tickets:
+                all_rows.append([
+                    str(t.get("numero_boleto","")),
+                    str(t.get("cliente_id","")),
+                    str(t.get("venta_id","")),
+                    str(t.get("folio_venta","")),
+                    str(t.get("estado","")),
+                    str(t.get("created_at","")),
+                    str(t.get("id","")),
+                ])
+
+            def _render(filtered_rows):
+                tbl.setRowCount(0)
+                for row_vals in filtered_rows:
+                    r = tbl.rowCount(); tbl.insertRow(r)
+                    for c, v in enumerate(row_vals):
+                        tbl.setItem(r, c, QTableWidgetItem(v))
+
+            def _apply_filter():
+                q = txt_search.text().strip().lower()
+                if not q:
+                    _render(all_rows); return
+                _render([r for r in all_rows if q in " ".join(r).lower()])
+
+            def _copy_selected():
+                rows = sorted({idx.row() for idx in tbl.selectedIndexes()})
+                if not rows:
+                    rows = list(range(tbl.rowCount()))
+                lines = []
+                for r in rows:
+                    lines.append(" | ".join(tbl.item(r, c).text() if tbl.item(r, c) else "" for c in range(tbl.columnCount())))
+                self.clipboard().setText("\n".join(lines))
+                Toast.success(self, "Boletos", "Filas copiadas al portapapeles.")
+
+            def _export_csv():
+                path, _ = QFileDialog.getSaveFileName(dlg, "Exportar boletos", "boletos_rifa.csv", "CSV (*.csv)")
+                if not path:
+                    return
+                with open(path, "w", newline="", encoding="utf-8") as fh:
+                    wr = csv.writer(fh)
+                    wr.writerow(["numero_boleto", "cliente_id", "venta_id", "folio_venta", "estado", "created_at", "id"])
+                    for r in range(tbl.rowCount()):
+                        wr.writerow([tbl.item(r, c).text() if tbl.item(r, c) else "" for c in range(tbl.columnCount())])
+                Toast.success(self, "Boletos", "CSV exportado correctamente.")
+
+            txt_search.textChanged.connect(lambda *_: _apply_filter())
+            btn_copy.clicked.connect(_copy_selected)
+            btn_export.clicked.connect(_export_csv)
+            _render(all_rows)
+            lay.addWidget(tbl); dlg.exec_()
         except Exception as e:
             Toast.error(self, "Boletos", str(e))
