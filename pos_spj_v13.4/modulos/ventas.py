@@ -35,12 +35,13 @@ from PyQt5.QtWidgets import (
     QHeaderView, QRadioButton, QScrollArea, QListWidget, QListWidgetItem,
     QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
-from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel
-from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QTextDocument, QFont, QPalette, QBrush, QPainter
-from PyQt5.QtPrintSupport import QPrinter
+from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel, QThread
+from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont, QPalette, QBrush, QPainter
 
 # Importación de la clase base y utilidades
 from .base import ModuloBase
+from presentation.sales.workers.sale_checkout_worker import SaleCheckoutWorker
+from presentation.sales.workers.ticket_output_worker import TicketOutputWorker
 
 logger = logging.getLogger("spj.ventas") 
 
@@ -2970,53 +2971,64 @@ class ModuloVentas(ModuloBase):
         2. PDF de auditoría siempre
         """
         # ── Ruta 1: PrinterService unificado (ESC/POS) ────────────────────────
+        self._venta_timing = getattr(self, "_venta_timing", {})
+        self._venta_timing["t_ticket_start"] = time.perf_counter()
         printer_svc = getattr(self.container, 'printer_service', None)
-        tiene_termica = False
-        if printer_svc and printer_svc.has_ticket_printer():
-            tiene_termica = True
-        elif self._hw_impresora_habilitada:
-            # Compatibilidad legacy: hay configuración hardware activa aunque
-            # el contenedor no exponga PrinterService completo.
-            tiene_termica = True
-
-        if tiene_termica:
+        if printer_svc:
+            vr = printer_svc.validate_ticket_printer_config()
             try:
-                if printer_svc and printer_svc.has_ticket_printer():
-                    job_id = printer_svc.print_ticket(datos_ticket)
+                if vr.ok:
+                    def _ok():
+                        QTimer.singleShot(0, lambda: Toast.success(self, "Ticket impreso", "Ticket impreso"))
+                    def _err(msg):
+                        QTimer.singleShot(0, lambda: Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {msg}"))
+                    job_id = printer_svc.print_ticket(datos_ticket, on_success=_ok, on_error=_err)
                     if job_id:
-                        self.guardar_ticket_pdf(datos_ticket)
-                        return
+                        Toast.info(self, "Impresión", f"Ticket enviado a impresión: {job_id}")
+                        self._venta_timing["t_ticket_queued"] = time.perf_counter()
                 else:
-                    # Fallback legacy de impresión térmica cuando solo existe
-                    # configuración de hardware en BD.
-                    self._imprimir_ticket_hardware(datos_ticket)
-                    self.guardar_ticket_pdf(datos_ticket)
-                    return
+                    Toast.warning(self, "Impresora no válida", "\n".join(vr.errors or ["Config inválida"]))
             except Exception as _e:
-                logger.warning("PrinterService: %s", _e)
+                logger.error("Error al encolar impresión de ticket: %s", _e)
+                Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {_e}")
         else:
-            QMessageBox.information(
-                self,
-                "Impresión térmica no configurada",
-                "No hay impresora térmica ESC/POS configurada.\n"
-                "Se guardará PDF de auditoría del ticket.",
-            )
-            logger.info("Ticket térmico no disponible (sin ESC/POS). Se guardará PDF de auditoría.")
-
-        # ── Ruta 4: PDF de auditoría (siempre) ───────────────────────────────
-        try:
-            self.guardar_ticket_pdf(datos_ticket)
-        except Exception as _e:
-            import logging; logging.getLogger(__name__).debug("PDF ticket: %s", _e)
+            if self._hw_impresora_habilitada:
+                try:
+                    self._imprimir_ticket_legacy_real(datos_ticket)
+                    self._venta_timing["t_ticket_queued"] = time.perf_counter()
+                    Toast.info(self, "Impresión", "Ticket enviado por transporte legacy.")
+                except Exception as _legacy_e:
+                    logger.error("Impresión legacy falló: %s", _legacy_e)
+                    Toast.warning(
+                        self,
+                        "Impresión",
+                        f"La venta fue completada, pero el ticket no se imprimió (legacy): {_legacy_e}",
+                    )
+            else:
+                Toast.warning(self, "Impresión", "PrinterService no está disponible. No se puede imprimir térmico. Se guardará PDF.")
+        self._guardar_ticket_pdf_async(datos_ticket)
 
     def _imprimir_ticket_hardware(self, ticket_data: dict) -> None:
-        """v13.4: Delega a PrinterService."""
+        """Compatibilidad: usa fallback legacy real si está habilitado."""
+        self._imprimir_ticket_legacy_real(ticket_data)
+
+    def _imprimir_ticket_legacy_real(self, ticket_data: dict) -> None:
+        """
+        Fallback legacy REAL cuando no hay PrinterService.
+        No es un no-op: intenta enviar bytes ESC/POS por transporte legacy.
+        """
+        if not self._hw_impresora_habilitada:
+            raise RuntimeError("Impresora legacy deshabilitada en hardware_config.")
+        cfg = dict(getattr(self, "_hw_impresora_cfg", {}) or {})
+        if not cfg:
+            raise RuntimeError("No existe configuración legacy de impresora en hardware_config.")
         try:
-            ps = getattr(self.container, 'printer_service', None)
-            if ps and ps.has_ticket_printer():
-                ps.print_ticket(ticket_data)
+            from core.ticket_escpos_renderer import render_and_print_ticket
+            ok = render_and_print_ticket(ticket_data, cfg, self.container.db)
+            if not ok:
+                raise RuntimeError("render_and_print_ticket devolvió False.")
         except Exception as exc:
-            logger.debug("imprimir_ticket_hw: %s", exc)
+            raise RuntimeError(f"Fallo transporte legacy ({cfg.get('tipo', 'desconocido')}): {exc}") from exc
 
     def inicializar_bascula(self):
         self.bascula_conectada = False
@@ -3937,7 +3949,14 @@ class ModuloVentas(ModuloBase):
             self.finalizar_venta(datos_pago)
 
     def finalizar_venta(self, datos_pago: Dict[str, Any]):
-        """🚀 LÓGICA ENTERPRISE: Delegación total de cálculos y auditorías al Contenedor Central."""
+        """Procesa venta en background para evitar congelamiento de UI."""
+        if getattr(self, "_venta_checkout_running", False):
+            return
+        self._venta_checkout_running = True
+        self._venta_timing = {"t_dialog_done": time.perf_counter()}
+        if hasattr(self, "btn_cobrar"):
+            self.btn_cobrar.setEnabled(False)
+            self.btn_cobrar.setText("Procesando venta...")
         try:
             usuario = self.obtener_usuario_actual()
             cliente_id = self.cliente_actual['id'] if self.cliente_actual else None
@@ -4021,13 +4040,42 @@ class ModuloVentas(ModuloBase):
             except Exception:
                 pass  # No bloquea la venta si la validación falla
 
-            # Fase 2: entrada canónica obligatoria vía ProcesarVentaUC
-            _r = self._procesar_venta_via_uc(
-                carrito_limpio=carrito_limpio,
-                datos_pago=datos_pago,
-                cliente_id=cliente_id,
-                usuario=usuario,
-            )
+            from core.use_cases.venta import ItemCarrito, DatosPago as _DP
+            _uc = getattr(self.container, 'uc_venta', None)
+            if _uc is None:
+                raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
+            _items_uc = [ItemCarrito(producto_id=it['product_id'], cantidad=float(it['qty']), precio_unit=float(it['unit_price']), nombre=it.get('name', ''), es_compuesto=int(it.get('es_compuesto', 0))) for it in carrito_limpio]
+            _dp = _DP(forma_pago=datos_pago['forma_pago'], monto_pagado=(datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final']), cliente_id=cliente_id, descuento_global=float(datos_pago.get('descuento', 0)), puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0), descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0), notas=f"Venta POS Mostrador. Cajero: {usuario}.", sucursal_id=self.sucursal_id, usuario=usuario)
+            self._venta_timing["t_uc_start"] = time.perf_counter()
+            self._venta_worker_thread = QThread(self)
+            self._venta_worker = SaleCheckoutWorker(_uc, _items_uc, _dp, self.sucursal_id, usuario)
+            self._venta_worker.moveToThread(self._venta_worker_thread)
+            self._venta_worker_thread.started.connect(self._venta_worker.run)
+            self._venta_worker.success.connect(lambda r: self._on_checkout_success(r, datos_pago, usuario, cliente_id))
+            self._venta_worker.failed.connect(self._on_checkout_failed)
+            self._venta_worker.finished.connect(self._on_checkout_finished)
+            self._venta_worker.finished.connect(self._venta_worker_thread.quit)
+            self._venta_worker_thread.finished.connect(self._venta_worker.deleteLater)
+            self._venta_worker_thread.finished.connect(self._venta_worker_thread.deleteLater)
+            self._venta_worker_thread.start()
+            return
+        except PermissionError as e:
+            QMessageBox.warning(self, "Acceso Denegado", str(e))
+            self._on_checkout_finished()
+        except ValueError as e:
+            QMessageBox.warning(self, "Aviso de Venta", str(e))
+            self._on_checkout_finished()
+        except Exception as e:
+            logger.error(f"Fallo crítico en UI de ventas: {str(e)}")
+            QMessageBox.critical(self, "Error al procesar venta", str(e))
+            self._on_checkout_finished()
+
+    def _on_checkout_success(self, _r, datos_pago, usuario, cliente_id):
+        self._venta_timing["t_uc_done"] = time.perf_counter()
+        if not getattr(_r, "ok", False):
+            self._on_checkout_failed(str(getattr(_r, "error", "Error en venta")), "")
+            return
+        try:
             folio = _r.folio
             self._ultima_venta_id = _r.venta_id
             self.btn_factura.setEnabled(bool(_r.venta_id))
@@ -4097,6 +4145,7 @@ class ModuloVentas(ModuloBase):
                     or '¡Gracias por su compra!'),
             }
             # Print ticket — single consolidated path
+            self._venta_timing["t_ticket_start"] = time.perf_counter()
             self._imprimir_ticket_consolidado(datos_ticket)
 
             Toast.success(
@@ -4118,24 +4167,51 @@ class ModuloVentas(ModuloBase):
                 self._reserva_activa_id = None
             # Fase 6: la UI no publica eventos de negocio de inventario.
             # Solo refresca vista local de productos.
-            try:
-                self.cargar_productos_interactivos()
-            except Exception:
-                pass
+            QTimer.singleShot(0, self.cargar_productos_interactivos)
             self.cancelar_venta(silent=True)
             self._actualizar_comision_turno()
             self._tiempo_inicio_venta = None  # reset timer
-
-        except PermissionError as e:
-            QMessageBox.warning(self, "Acceso Denegado", str(e))
-        except ValueError as e:
-            QMessageBox.warning(self, "Aviso de Venta", str(e))
-        except Exception as e:
-            logger.error(f"Fallo crítico en UI de ventas: {str(e)}")
-            QMessageBox.critical(
-                self, "Error al procesar venta",
-                "No se pudo completar la venta. Verifique stock, pagos y datos del cliente, e intente nuevamente."
+            self._venta_timing["t_products_reload"] = time.perf_counter()
+            t = self._venta_timing
+            total_ms = (t["t_products_reload"] - t["t_dialog_done"]) * 1000.0
+            uc_ms = (t["t_uc_done"] - t["t_uc_start"]) * 1000.0
+            ticket_ms = (
+                (t.get("t_ticket_queued", t["t_products_reload"]) - t["t_ticket_start"]) * 1000.0
+                if t.get("t_ticket_start") else -1.0
             )
+            pdf_ms = (
+                (t.get("t_pdf_queued", t["t_products_reload"]) - t["t_ticket_start"]) * 1000.0
+                if t.get("t_ticket_start") else -1.0
+            )
+            logger.info(
+                "VENTA_TIMING folio=%s t_dialog_done=%.6f t_uc_start=%.6f t_uc_done=%.6f "
+                "t_ticket_start=%.6f t_ticket_queued=%.6f t_pdf_queued=%.6f t_products_reload=%.6f "
+                "uc_ms=%.2f ticket_ms=%.2f pdf_ms=%.2f total_ms=%.2f",
+                folio,
+                t.get("t_dialog_done", 0.0),
+                t.get("t_uc_start", 0.0),
+                t.get("t_uc_done", 0.0),
+                t.get("t_ticket_start", 0.0),
+                t.get("t_ticket_queued", 0.0),
+                t.get("t_pdf_queued", 0.0),
+                t.get("t_products_reload", 0.0),
+                uc_ms,
+                ticket_ms,
+                pdf_ms,
+                total_ms,
+            )
+        except Exception as e:
+            self._on_checkout_failed(str(e), "")
+
+    def _on_checkout_failed(self, error_msg: str, traceback_str: str):
+        logger.error("Checkout failed: %s\n%s", error_msg, traceback_str)
+        QMessageBox.critical(self, "Error al procesar venta", error_msg)
+
+    def _on_checkout_finished(self):
+        self._venta_checkout_running = False
+        if hasattr(self, "btn_cobrar"):
+            self.btn_cobrar.setEnabled(True)
+            self.btn_cobrar.setText("COBRAR")
 
     def generar_ticket(self, venta_id: int, datos_pago: Dict[str, Any]):
         try:
@@ -4152,7 +4228,11 @@ class ModuloVentas(ModuloBase):
             # v13.4: PrinterService en vez de safe_print_ticket
             ps = getattr(self.container, 'printer_service', None)
             if ps and ps.has_ticket_printer():
-                ps.print_ticket(ticket_data)
+                ps.print_ticket(
+                    ticket_data,
+                    on_success=lambda: QTimer.singleShot(0, lambda: Toast.success(self, "Ticket impreso", "Ticket impreso")),
+                    on_error=lambda e: QTimer.singleShot(0, lambda: Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {e}")),
+                )
             self.guardar_ticket_pdf(ticket_data)
         except Exception as e:
             logger.error("Error generando ticket: %s", e)
@@ -4198,19 +4278,23 @@ class ModuloVentas(ModuloBase):
         return _r
 
     def guardar_ticket_pdf(self, ticket_data: Dict[str, Any]):
-        try:
-            printer = QPrinter(QPrinter.HighResolution)
-            printer.setOutputFormat(QPrinter.PdfFormat)
-            filename = f"ticket_venta_{ticket_data['venta_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            filepath = os.path.join(TICKETS_FOLDER, filename)
-            printer.setOutputFileName(filepath)
-            
-            doc = QTextDocument()
-            html = self.generar_html_ticket(ticket_data)
-            doc.setHtml(html)
-            doc.print_(printer)
-        except Exception as e:
-            logger.error("Error guardando PDF: %s", e)
+        from core.services.printer_service import save_ticket_pdf
+        filename = f"ticket_venta_{ticket_data['venta_id']}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        filepath = os.path.join(TICKETS_FOLDER, filename)
+        save_ticket_pdf(self.generar_html_ticket(ticket_data), filepath)
+
+    def _guardar_ticket_pdf_async(self, ticket_data: Dict[str, Any]):
+        self._venta_timing = getattr(self, "_venta_timing", {})
+        self._pdf_thread = QThread(self)
+        self._pdf_worker = TicketOutputWorker(self.guardar_ticket_pdf, ticket_data)
+        self._pdf_worker.moveToThread(self._pdf_thread)
+        self._pdf_thread.started.connect(self._pdf_worker.run)
+        self._pdf_worker.failed.connect(lambda e, _tb: QTimer.singleShot(0, lambda: Toast.warning(self, "PDF", f"No se pudo generar PDF: {e}")))
+        self._pdf_thread.started.connect(lambda: self._venta_timing.__setitem__("t_pdf_queued", time.perf_counter()))
+        self._pdf_worker.finished.connect(self._pdf_thread.quit)
+        self._pdf_worker.finished.connect(self._pdf_worker.deleteLater)
+        self._pdf_thread.finished.connect(self._pdf_thread.deleteLater)
+        self._pdf_thread.start()
 
     def generar_html_ticket(self, ticket_data: Dict[str, Any]) -> str:
         """
@@ -4532,7 +4616,11 @@ class ModuloVentas(ModuloBase):
             # Fase 10: Reimpresión térmica separada de PDF de auditoría.
             ps = getattr(self.container, 'printer_service', None)
             if ps and ps.has_ticket_printer():
-                ps.print_ticket(datos_ticket)
+                ps.print_ticket(
+                    datos_ticket,
+                    on_success=lambda: QTimer.singleShot(0, lambda: Toast.success(self, "Ticket impreso", "Ticket impreso")),
+                    on_error=lambda e: QTimer.singleShot(0, lambda: Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {e}")),
+                )
                 return
 
             # Compatibilidad legacy: si hay impresora habilitada en
