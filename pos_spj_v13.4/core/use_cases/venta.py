@@ -247,29 +247,44 @@ class ProcesarVentaUC:
 
         # ── 3. Ejecutar venta (transacción crítica) ───────────────────────────
         try:
-            # execute_sale returns (folio, ticket_html)
-            result = self._sales.execute_sale(
-                branch_id      = sucursal_id,
-                user           = usuario,
-                items          = items_svc,
-                payment_method = datos_pago.forma_pago,
-                amount_paid    = monto_pagado,
-                client_id      = datos_pago.cliente_id,
-                discount       = datos_pago.descuento_global,
-                loyalty_redemption_pts = int(datos_pago.puntos_canjeados or 0),
-                notes          = datos_pago.notas,
-            )
-            if isinstance(result, (tuple, list)) and len(result) >= 2:
-                folio        = result[0]
-                ticket_html  = result[1] if len(result) > 1 else ""
+            if hasattr(self._sales, "execute_sale_result"):
+                rich = self._sales.execute_sale_result(
+                    branch_id=sucursal_id,
+                    user=usuario,
+                    items=items_svc,
+                    payment_method=datos_pago.forma_pago,
+                    amount_paid=monto_pagado,
+                    client_id=datos_pago.cliente_id,
+                    discount=datos_pago.descuento_global,
+                    loyalty_redemption_pts=int(datos_pago.puntos_canjeados or 0),
+                    notes=datos_pago.notas,
+                )
+                folio = rich.folio
+                ticket_html = rich.ticket_html
+                venta_id = int(rich.venta_id or 0)
+                total = float(rich.total or total)
             else:
-                folio        = str(result)
-                ticket_html  = ""
-            # Get venta_id from DB (folio is unique)
-            row = self._sales.db.execute(
-                "SELECT id FROM ventas WHERE folio=? ORDER BY id DESC LIMIT 1", (folio,)
-            ).fetchone()
-            venta_id = row[0] if row else 0
+                result = self._sales.execute_sale(
+                    branch_id      = sucursal_id,
+                    user           = usuario,
+                    items          = items_svc,
+                    payment_method = datos_pago.forma_pago,
+                    amount_paid    = monto_pagado,
+                    client_id      = datos_pago.cliente_id,
+                    discount       = datos_pago.descuento_global,
+                    loyalty_redemption_pts = int(datos_pago.puntos_canjeados or 0),
+                    notes          = datos_pago.notas,
+                )
+                if isinstance(result, (tuple, list)) and len(result) >= 2:
+                    folio        = result[0]
+                    ticket_html  = result[1] if len(result) > 1 else ""
+                else:
+                    folio        = str(result)
+                    ticket_html  = ""
+                row = self._sales.db.execute(
+                    "SELECT id FROM ventas WHERE folio=? ORDER BY id DESC LIMIT 1", (folio,)
+                ).fetchone()
+                venta_id = row[0] if row else 0
         except Exception as e:
             logger.error("ProcesarVentaUC.execute_sale: %s", e)
             return ResultadoVenta(ok=False, error=str(e))

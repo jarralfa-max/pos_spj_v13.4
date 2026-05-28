@@ -265,10 +265,10 @@ class SalesService:
             pass
         return folio_sale, ticket
 
-    def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
+    def _execute_sale_core(self, branch_id: int, user: str, items: list, payment_method: str,
                      amount_paid: float, client_id: int = None, client_phone: str = None,
                      client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
-                     loyalty_redemption_pts: int = 0) -> tuple:
+                     loyalty_redemption_pts: int = 0, return_details: bool = False):
         """
         Ejecuta la venta completa y devuelve el Folio y el Ticket HTML.
         
@@ -610,7 +610,159 @@ class SalesService:
         except Exception as e:
             logger.warning("No se pudo generar el ticket HTML: %s", e)
 
+        payment_breakdown = {
+            "efectivo": 0.0,
+            "tarjeta": 0.0,
+            "transferencia": 0.0,
+            "credito": 0.0,
+            "mercado_pago": 0.0,
+        }
+        _pm = self._normalize_payment_method(payment_method)
+        _map = {
+            "Efectivo": "efectivo",
+            "Tarjeta": "tarjeta",
+            "Transferencia": "transferencia",
+            "Credito": "credito",
+            "Mercado Pago": "mercado_pago",
+        }
+        payment_breakdown[_map.get(_pm, "efectivo")] = round(float(total_a_pagar), 2)
+        ticket_payload = dict(datos_venta)
+        ticket_payload["venta_id"] = sale_id
+        ticket_payload["operation_id"] = operation_id
+        ticket_payload["pago"] = {
+            "forma_pago": _pm,
+            "total_pagado": float(amount_paid or 0.0),
+            "efectivo_recibido": float(amount_paid or 0.0) if _pm == "Efectivo" else 0.0,
+            "tarjeta": payment_breakdown["tarjeta"],
+            "transferencia": payment_breakdown["transferencia"],
+            "credito": payment_breakdown["credito"],
+            "mercado_pago": payment_breakdown["mercado_pago"],
+            "cambio": (amount_paid - total_a_pagar) if _pm == "Efectivo" else 0.0,
+            "saldo_credito": max(round(float(total_a_pagar) - float(amount_paid or 0.0), 2), 0.0) if _pm == "Credito" else 0.0,
+            "lineas": payment_breakdown,
+        }
+        ticket_payload["loyalty"] = {
+            "cliente_id": client_id,
+            "puntos_canjeados": int(loyalty_redemption_pts or 0),
+            "descuento_puntos": float(loyalty_discount or 0.0),
+            "puntos_ganados": int((loyalty_result or {}).get("puntos_ganados", 0) or 0),
+            "puntos_totales": int((loyalty_result or {}).get("puntos_totales", 0) or 0),
+            "nivel": str((loyalty_result or {}).get("nivel", client_level or "Bronce")),
+            "mensaje": str((loyalty_result or {}).get("mensaje", "") or ""),
+            "operation_id": operation_id,
+        }
+        if return_details:
+            return {
+                "ok": True,
+                "venta_id": int(sale_id or 0),
+                "folio": str(folio),
+                "operation_id": str(operation_id),
+                "subtotal": round(float(subtotal), 2),
+                "descuento_total": round(float(discount), 2),
+                "total": round(float(total_a_pagar), 2),
+                "items": carrito_final,
+                "payment": ticket_payload["pago"],
+                "loyalty": ticket_payload["loyalty"],
+                "ticket_payload": ticket_payload,
+                "ticket_html": ticket_final_html or "",
+                "warnings": [],
+                "error": "",
+            }
         return folio, ticket_final_html
+
+
+    def execute_sale_result(self, branch_id: int, user: str, items: list, payment_method: str,
+                            amount_paid: float, client_id: int = None, client_phone: str = None,
+                            client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
+                            loyalty_redemption_pts: int = 0):
+        from core.services.sales.sale_execution_result import (
+            SaleExecutionItem, SaleExecutionResult, SaleLoyaltyResult, SalePaymentResult,
+        )
+
+        warnings = []
+        details = self._execute_sale_core(
+            branch_id=branch_id, user=user, items=items, payment_method=payment_method,
+            amount_paid=amount_paid, client_id=client_id, client_phone=client_phone,
+            client_level=client_level, discount=discount, notes=notes,
+            loyalty_redemption_pts=loyalty_redemption_pts,
+            return_details=True,
+        )
+        if not details.get("operation_id"):
+            warnings.append("operation_id no disponible en el resultado interno de venta")
+        execution_items = [
+            SaleExecutionItem(
+                product_id=int(d.get("product_id", 0)),
+                nombre=str(d.get("nombre", d.get("name", "")) or ""),
+                cantidad=float(d.get("qty", d.get("cantidad", 0.0)) or 0.0),
+                precio_unitario=float(d.get("unit_price", d.get("precio_unitario", 0.0)) or 0.0),
+                subtotal=round(float(d.get("qty", d.get("cantidad", 0.0)) or 0.0) * float(d.get("unit_price", d.get("precio_unitario", 0.0)) or 0.0), 2),
+                descuento=0.0,
+                total=round(float(d.get("qty", d.get("cantidad", 0.0)) or 0.0) * float(d.get("unit_price", d.get("precio_unitario", 0.0)) or 0.0), 2),
+                es_compuesto=int(d.get("es_compuesto", 0) or 0),
+            ) for d in (details.get("items") or [])
+        ]
+        payment = SalePaymentResult(
+            forma_pago=str((details.get("payment") or {}).get("forma_pago", "Efectivo")),
+            total_pagado=float((details.get("payment") or {}).get("total_pagado", 0.0) or 0.0),
+            efectivo_recibido=float((details.get("payment") or {}).get("efectivo_recibido", 0.0) or 0.0),
+            tarjeta=float((details.get("payment") or {}).get("tarjeta", 0.0) or 0.0),
+            transferencia=float((details.get("payment") or {}).get("transferencia", 0.0) or 0.0),
+            credito=float((details.get("payment") or {}).get("credito", 0.0) or 0.0),
+            mercado_pago=float((details.get("payment") or {}).get("mercado_pago", 0.0) or 0.0),
+            cambio=float((details.get("payment") or {}).get("cambio", 0.0) or 0.0),
+            saldo_credito=float((details.get("payment") or {}).get("saldo_credito", 0.0) or 0.0),
+            lineas=dict((details.get("payment") or {}).get("lineas", {}) or {}),
+        )
+        loy_raw = details.get("loyalty") or {}
+        loyalty = SaleLoyaltyResult(
+            cliente_id=loy_raw.get("cliente_id", client_id),
+            puntos_canjeados=int(loy_raw.get("puntos_canjeados", 0) or 0),
+            descuento_puntos=float(loy_raw.get("descuento_puntos", 0.0) or 0.0),
+            puntos_ganados=int(loy_raw.get("puntos_ganados", 0) or 0),
+            puntos_totales=int(loy_raw.get("puntos_totales", 0) or 0),
+            nivel=str(loy_raw.get("nivel", client_level or "Bronce")),
+            mensaje=str(loy_raw.get("mensaje", "") or ""),
+            operation_id=str(loy_raw.get("operation_id", details.get("operation_id", "")) or ""),
+        )
+        return SaleExecutionResult(
+            ok=bool(details.get("ok", True)),
+            venta_id=int(details.get("venta_id", 0) or 0),
+            folio=str(details.get("folio", "")),
+            operation_id=str(details.get("operation_id", "") or ""),
+            subtotal=float(details.get("subtotal", 0.0) or 0.0),
+            descuento_total=float(details.get("descuento_total", 0.0) or 0.0),
+            total=float(details.get("total", 0.0) or 0.0),
+            items=execution_items,
+            payment=payment,
+            loyalty=loyalty,
+            ticket_payload=dict(details.get("ticket_payload", {}) or {}),
+            ticket_html=str(details.get("ticket_html", "") or ""),
+            warnings=list(details.get("warnings", []) or []) + warnings,
+            error=str(details.get("error", "") or ""),
+        )
+
+    def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
+                     amount_paid: float, client_id: int = None, client_phone: str = None,
+                     client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
+                     loyalty_redemption_pts: int = 0) -> tuple:
+        """
+        Adapter legacy: mantiene contrato histórico (folio, ticket_html).
+        La fuente real es execute_sale_result().
+        """
+        result = self.execute_sale_result(
+            branch_id=branch_id,
+            user=user,
+            items=items,
+            payment_method=payment_method,
+            amount_paid=amount_paid,
+            client_id=client_id,
+            client_phone=client_phone,
+            client_level=client_level,
+            discount=discount,
+            notes=notes,
+            loyalty_redemption_pts=loyalty_redemption_pts,
+        )
+        return result.folio, result.ticket_html
 
     # ── Compatibilidad legacy (tests v9 + módulos antiguos) ─────────────────
     def procesar_venta(self, items, datos_pago, usuario=None, **_kw):
