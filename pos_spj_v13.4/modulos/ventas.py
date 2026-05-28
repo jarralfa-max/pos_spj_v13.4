@@ -26,6 +26,7 @@ from typing import List, Dict, Any, Optional
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
 from core.services.stock_reservation_service import StockReservationService
+from core.services.inventory_availability_service import InventoryAvailabilityService
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QMessageBox, QHBoxLayout,
@@ -41,6 +42,7 @@ from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont,
 # Importación de la clase base y utilidades
 from .base import ModuloBase
 from presentation.sales.workers.sale_checkout_worker import SaleCheckoutWorker
+from presentation.sales.workers.sale_checkout_worker_factory import SaleCheckoutWorkerFactory
 from presentation.sales.workers.ticket_output_worker import TicketOutputWorker
 
 logger = logging.getLogger("spj.ventas") 
@@ -1160,6 +1162,7 @@ class ModuloVentas(ModuloBase):
         self.sucursal_id     = 1
         self.sucursal_nombre = "Principal"
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
+        self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
         self._reserva_activa_id: Optional[int] = None
 
         self._theme_initialized = False
@@ -1266,6 +1269,7 @@ class ModuloVentas(ModuloBase):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
+        self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
         if hasattr(self, "lbl_estado_terminal"):
             status_text = f"Terminal: ❌ No disponible  |  🏪 {sucursal_nombre}"
             self.lbl_estado_terminal.setText(status_text)
@@ -3479,7 +3483,7 @@ class ModuloVentas(ModuloBase):
     def obtener_stock_producto(self, producto_id: int) -> float:
         """Stock disponible = físico - reservado activo."""
         try:
-            return float(self._stock_reservas.stock_disponible(producto_id))
+            return float(self._inventory_availability.disponible_para_venta(producto_id))
         except Exception:
             return 0.0
 
@@ -3957,6 +3961,7 @@ class ModuloVentas(ModuloBase):
         if hasattr(self, "btn_cobrar"):
             self.btn_cobrar.setEnabled(False)
             self.btn_cobrar.setText("Procesando venta...")
+        _worker_started = False
         try:
             usuario = self.obtener_usuario_actual()
             cliente_id = self.cliente_actual['id'] if self.cliente_actual else None
@@ -4002,12 +4007,18 @@ class ModuloVentas(ModuloBase):
                     "estado": "pendiente_pago",
                     "folio": folio_pend,
                     "url_pago": link,
+                    "cliente_id": cliente_id,
+                    "cliente": dict(self.cliente_actual or {}),
+                    "compra": list(self.compra_actual),
+                    "totales": dict(self.totales),
+                    "datos_pago": dict(datos_pago or {}),
                 }
                 QMessageBox.information(
                     self,
                     "Mercado Pago pendiente",
                     f"Se generó link de pago para la venta pendiente {folio_pend}.\n\n{link}\n\n"
-                    "La venta no se marcó como completada hasta confirmar el pago."
+                    "La venta no se marcó como completada hasta confirmar el pago.\n"
+                    "Mercado Pago pendiente no reserva stock todavía."
                 )
                 self.cancelar_venta(silent=True)
                 return
@@ -4045,10 +4056,35 @@ class ModuloVentas(ModuloBase):
             if _uc is None:
                 raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
             _items_uc = [ItemCarrito(producto_id=it['product_id'], cantidad=float(it['qty']), precio_unit=float(it['unit_price']), nombre=it.get('name', ''), es_compuesto=int(it.get('es_compuesto', 0))) for it in carrito_limpio]
-            _dp = _DP(forma_pago=datos_pago['forma_pago'], monto_pagado=(datos_pago['efectivo_recibido'] if datos_pago['forma_pago'] == 'Efectivo' else self.totales['total_final']), cliente_id=cliente_id, descuento_global=float(datos_pago.get('descuento', 0)), puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0), descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0), notas=f"Venta POS Mostrador. Cajero: {usuario}.", sucursal_id=self.sucursal_id, usuario=usuario)
+            _monto_pagado_real = float(
+                datos_pago.get('total_pagado')
+                or datos_pago.get('efectivo_recibido')
+                or 0.0
+            )
+            _lineas_pago = dict(datos_pago.get("lineas", {}) or {})
+            _dp = _DP(
+                forma_pago=datos_pago['forma_pago'],
+                monto_pagado=_monto_pagado_real,
+                total_pagado=_monto_pagado_real,
+                pago_mixto=_lineas_pago,
+                cliente_id=cliente_id,
+                descuento_global=float(datos_pago.get('descuento', 0)),
+                puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
+                descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
+                notas=f"Venta POS Mostrador. Cajero: {usuario}.",
+                sucursal_id=self.sucursal_id,
+                usuario=usuario,
+            )
             self._venta_timing["t_uc_start"] = time.perf_counter()
             self._venta_worker_thread = QThread(self)
-            self._venta_worker = SaleCheckoutWorker(_uc, _items_uc, _dp, self.sucursal_id, usuario)
+            self._sale_checkout_worker_factory = getattr(
+                self,
+                "_sale_checkout_worker_factory",
+                SaleCheckoutWorkerFactory(self.container),
+            )
+            self._venta_worker = self._sale_checkout_worker_factory.build(
+                _uc, _items_uc, _dp, self.sucursal_id, usuario
+            )
             self._venta_worker.moveToThread(self._venta_worker_thread)
             self._venta_worker_thread.started.connect(self._venta_worker.run)
             self._venta_worker.success.connect(lambda r: self._on_checkout_success(r, datos_pago, usuario, cliente_id))
@@ -4058,6 +4094,7 @@ class ModuloVentas(ModuloBase):
             self._venta_worker_thread.finished.connect(self._venta_worker.deleteLater)
             self._venta_worker_thread.finished.connect(self._venta_worker_thread.deleteLater)
             self._venta_worker_thread.start()
+            _worker_started = True
             return
         except PermissionError as e:
             QMessageBox.warning(self, "Acceso Denegado", str(e))
@@ -4069,6 +4106,11 @@ class ModuloVentas(ModuloBase):
             logger.error(f"Fallo crítico en UI de ventas: {str(e)}")
             QMessageBox.critical(self, "Error al procesar venta", str(e))
             self._on_checkout_finished()
+        finally:
+            # Si no se lanzó worker asíncrono (retornos tempranos / MP / validaciones),
+            # garantizar desbloqueo de UI inmediatamente.
+            if not _worker_started:
+                self._on_checkout_finished()
 
     def _on_checkout_success(self, _r, datos_pago, usuario, cliente_id):
         self._venta_timing["t_uc_done"] = time.perf_counter()
@@ -4076,100 +4118,8 @@ class ModuloVentas(ModuloBase):
             self._on_checkout_failed(str(getattr(_r, "error", "Error en venta")), "")
             return
         try:
-            folio = _r.folio
-            self._ultima_venta_id = _r.venta_id
-            self.btn_factura.setEnabled(bool(_r.venta_id))
-            self.btn_reimprimir.setEnabled(bool(_r.venta_id))
-            if _r.ticket_html:
-                self._ticket_html_cache = _r.ticket_html
-
-            self._abrir_cajon()
-
-            # ── v13.4 Fase 2: Actualizar display de puntos de fidelización ─────
-            # NOTA ARQUITECTURA: La acreditación de puntos ya es realizada por:
-            #   1. ProcesarVentaUC.ejecutar() (paso 4, cuando _uc está activo)
-            #   2. wiring.py _loyalty_venta handler en VENTA_COMPLETADA (priority=50)
-            # NO llamar loyalty.acreditar_venta() aquí para evitar triple acreditación.
-            # Solo actualizamos el display consultando el saldo actualizado.
-            puntos_resultado = {"estrellas_ganadas": 0, "saldo_actual": 0,
-                                "mensaje_gamificacion": ""}
-            try:
-                loyalty = getattr(self.container, 'loyalty_service', None)
-                if loyalty and cliente_id:
-                    # Si el resultado del UC tiene datos de puntos, usarlos directamente
-                    _uc_pts = getattr(_r, 'puntos_ganados', None) if '_r' in dir() else None
-                    if _uc_pts is not None:
-                        puntos_resultado = {
-                            "estrellas_ganadas": getattr(_r, 'puntos_ganados', 0),
-                            "saldo_actual": getattr(_r, 'puntos_totales', 0),
-                            "mensaje_gamificacion": "",
-                        }
-                    else:
-                        # Fallback: consultar saldo sin acreditar
-                        _saldo_query = loyalty.saldo(cliente_id)
-                        puntos_resultado["saldo_actual"] = _saldo_query
-                    # Actualizar display de puntos en UI
-                    saldo = puntos_resultado.get("saldo_actual", 0)
-                    _pts_ganados = puntos_resultado.get('estrellas_ganadas', 0)
-                    if _pts_ganados > 0:
-                        self.lbl_puntos_venta.setText(
-                            f"⭐ +{_pts_ganados} | Saldo: {saldo}")
-                    else:
-                        self.lbl_puntos_venta.setText(f"⭐ Saldo: {saldo}")
-            except Exception as _loyalty_e:
-                logger.debug("Loyalty display post-venta: %s", _loyalty_e)
-
-            # ── v13.4 Fase 3: Tesorería Central ──────────────────────────────
-            # Movida a handler _treasury_venta en core/events/wiring.py (VENTA_COMPLETADA,
-            # priority=20). La UI ya no llama directamente al treasury_service.
-            # El handler ya excluye Mercado Pago y Crédito automáticamente.
-
-            # Build ticket data BEFORE cancelar_venta clears compra_actual
-            _items_snapshot = list(self.compra_actual)
-            _totales_snapshot = dict(self.totales)
-            datos_ticket = {
-                'folio':    folio,
-                'venta_id': folio,
-                'fecha':    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'cajero':   usuario,
-                'cliente':  self.cliente_actual['nombre'] if self.cliente_actual else 'Público General',
-                'items':    _items_snapshot,
-                'totales':  _totales_snapshot,
-                'pago':     datos_pago,
-                'logo_path': LOGO_TICKET_PATH,
-                'empresa':  getattr(self.container, '_nombre_empresa', 'SPJ POS'),
-                'puntos_ganados': puntos_resultado.get('estrellas_ganadas', 0),
-                'puntos_totales': puntos_resultado.get('saldo_actual', 0),
-                'mensaje_psicologico': (
-                    puntos_resultado.get('mensaje_gamificacion')
-                    or '¡Gracias por su compra!'),
-            }
-            # Print ticket — single consolidated path
-            self._venta_timing["t_ticket_start"] = time.perf_counter()
-            self._imprimir_ticket_consolidado(datos_ticket)
-
-            Toast.success(
-                self,
-                f"✅ Venta #{folio} completada",
-                f"Total: ${self.totales['total_final']:.2f}",
-            )
-            if self._reserva_activa_id:
-                self._stock_reservas.liberar(self._reserva_activa_id, motivo="confirmada")
-                try:
-                    from core.events.event_bus import get_bus
-                    from core.events.domain_events import (
-                        VENTA_CONFIRMADA_RESERVA, STOCK_DESCONTADO_RESERVA, STOCK_ACTUALIZADO,
-                    )
-                    get_bus().publish(VENTA_CONFIRMADA_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
-                    get_bus().publish(STOCK_DESCONTADO_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
-                except Exception:
-                    pass
-                self._reserva_activa_id = None
-            # Fase 6: la UI no publica eventos de negocio de inventario.
-            # Solo refresca vista local de productos.
-            QTimer.singleShot(0, self.cargar_productos_interactivos)
-            self.cancelar_venta(silent=True)
-            self._actualizar_comision_turno()
+            self._aplicar_resultado_venta(_r, datos_pago, usuario, cliente_id)
+            folio = getattr(_r, "folio", "")
             self._tiempo_inicio_venta = None  # reset timer
             self._venta_timing["t_products_reload"] = time.perf_counter()
             t = self._venta_timing
@@ -4203,6 +4153,72 @@ class ModuloVentas(ModuloBase):
         except Exception as e:
             self._on_checkout_failed(str(e), "")
 
+    def _aplicar_resultado_venta(self, result, datos_pago, usuario, cliente_id):
+        if not getattr(result, "ok", False):
+            raise RuntimeError(str(getattr(result, "error", "Error en venta")))
+
+        folio = getattr(result, "folio", "")
+        self._ultima_venta_id = getattr(result, "venta_id", 0)
+        self.btn_factura.setEnabled(bool(self._ultima_venta_id))
+        self.btn_reimprimir.setEnabled(bool(self._ultima_venta_id))
+        if getattr(result, "ticket_html", ""):
+            self._ticket_html_cache = result.ticket_html
+        self._abrir_cajon()
+
+        loyalty_result = dict(getattr(result, "loyalty_result", {}) or {})
+        puntos_ganados = int(loyalty_result.get("puntos_ganados", getattr(result, "puntos_ganados", 0)) or 0)
+        puntos_totales = loyalty_result.get("puntos_totales", getattr(result, "puntos_totales", 0))
+        if (puntos_totales in (None, "")) and cliente_id:
+            ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
+            if ls:
+                try:
+                    puntos_totales = int(ls.saldo(cliente_id) or 0)
+                except Exception as exc:
+                    logger.warning("Loyalty saldo post-venta fallback: %s", exc)
+        puntos_totales = int(puntos_totales or 0)
+        self.lbl_puntos_venta.setText(f"⭐ +{puntos_ganados} | Saldo: {puntos_totales}" if puntos_ganados > 0 else f"⭐ Saldo: {puntos_totales}")
+        if cliente_id and isinstance(getattr(self, "cliente_actual", None), dict):
+            self.cliente_actual["puntos"] = puntos_totales
+
+        datos_ticket = dict(getattr(result, "ticket_payload", {}) or {})
+        if not datos_ticket:
+            datos_ticket = {
+                "folio": folio,
+                "venta_id": getattr(result, "venta_id", 0),
+                "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "cajero": usuario,
+                "cliente": self.cliente_actual["nombre"] if self.cliente_actual else "Público General",
+                "totales": {"total_final": float(getattr(result, "total", 0.0) or 0.0)},
+                "pago": dict(getattr(result, "payment_breakdown", {}) or {}),
+                "logo_path": LOGO_TICKET_PATH,
+                "empresa": getattr(self.container, "_nombre_empresa", "SPJ POS"),
+                "puntos_ganados": puntos_ganados,
+                "puntos_totales": puntos_totales,
+                "mensaje_psicologico": loyalty_result.get("mensaje") or "¡Gracias por su compra!",
+            }
+        self._venta_timing["t_ticket_start"] = time.perf_counter()
+        self._imprimir_ticket_consolidado(datos_ticket)
+        Toast.success(self, f"✅ Venta #{folio} completada", f"Total: ${float(getattr(result, 'total', 0.0) or 0.0):.2f}")
+
+        if self._reserva_activa_id:
+            self._stock_reservas.confirmar(
+                self._reserva_activa_id,
+                venta_id=getattr(result, "venta_id", 0),
+                folio=folio,
+            )
+            try:
+                from core.events.event_bus import get_bus
+                from core.events.domain_events import VENTA_CONFIRMADA_RESERVA, STOCK_DESCONTADO_RESERVA
+                get_bus().publish(VENTA_CONFIRMADA_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
+                get_bus().publish(STOCK_DESCONTADO_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
+            except Exception as exc:
+                logger.warning("Venta completada, pero reserva requiere revisión: %s", exc)
+            self._reserva_activa_id = None
+
+        QTimer.singleShot(0, self.cargar_productos_interactivos)
+        self.cancelar_venta(silent=True)
+        self._actualizar_comision_turno()
+
     def _on_checkout_failed(self, error_msg: str, traceback_str: str):
         logger.error("Checkout failed: %s\n%s", error_msg, traceback_str)
         QMessageBox.critical(self, "Error al procesar venta", error_msg)
@@ -4212,70 +4228,6 @@ class ModuloVentas(ModuloBase):
         if hasattr(self, "btn_cobrar"):
             self.btn_cobrar.setEnabled(True)
             self.btn_cobrar.setText("COBRAR")
-
-    def generar_ticket(self, venta_id: int, datos_pago: Dict[str, Any]):
-        try:
-            ticket_data = {
-                'venta_id': venta_id,
-                'fecha': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'cajero': self.obtener_usuario_actual(),
-                'cliente': self.cliente_actual['nombre'] if self.cliente_actual else 'Público General',
-                'items': self.compra_actual,
-                'totales': self.totales,
-                'pago': datos_pago,
-                'logo_path': LOGO_TICKET_PATH
-            }
-            # v13.4: PrinterService en vez de safe_print_ticket
-            ps = getattr(self.container, 'printer_service', None)
-            if ps and ps.has_ticket_printer():
-                ps.print_ticket(
-                    ticket_data,
-                    on_success=lambda: QTimer.singleShot(0, lambda: Toast.success(self, "Ticket impreso", "Ticket impreso")),
-                    on_error=lambda e: QTimer.singleShot(0, lambda: Toast.warning(self, "Impresión", f"La venta fue completada, pero el ticket no se imprimió: {e}")),
-                )
-            self.guardar_ticket_pdf(ticket_data)
-        except Exception as e:
-            logger.error("Error generando ticket: %s", e)
-
-    def _procesar_venta_via_uc(self, carrito_limpio, datos_pago, cliente_id, usuario):
-        """
-        Fase 2: punto único desde POS UI para crear ventas.
-        Prohíbe bypass directo a SalesService desde la vista.
-        """
-        _uc = getattr(self.container, 'uc_venta', None)
-        if _uc is None:
-            raise RuntimeError(
-                "ProcesarVentaUC no disponible en AppContainer. "
-                "La UI de ventas no puede ejecutar ventas sin UC canónico."
-            )
-
-        from core.use_cases.venta import ItemCarrito, DatosPago as _DP
-        _items_uc = [ItemCarrito(
-            producto_id=it['product_id'],
-            cantidad=float(it['qty']),
-            precio_unit=float(it['unit_price']),
-            nombre=it.get('name', ''),
-            es_compuesto=int(it.get('es_compuesto', 0)),
-        ) for it in carrito_limpio]
-        _dp = _DP(
-            forma_pago=datos_pago['forma_pago'],
-            monto_pagado=(
-                datos_pago['efectivo_recibido']
-                if datos_pago['forma_pago'] == 'Efectivo'
-                else self.totales['total_final']
-            ),
-            cliente_id=cliente_id,
-            descuento_global=float(datos_pago.get('descuento', 0)),
-            puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
-            descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
-            notas=f"Venta POS Mostrador. Cajero: {usuario}.",
-            sucursal_id=self.sucursal_id,
-            usuario=usuario,
-        )
-        _r = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
-        if not _r.ok:
-            raise RuntimeError(_r.error)
-        return _r
 
     def guardar_ticket_pdf(self, ticket_data: Dict[str, Any]):
         from core.services.printer_service import save_ticket_pdf
@@ -4601,7 +4553,7 @@ class ModuloVentas(ModuloBase):
                       'total':float(r[3]),'unidad':r[4]} for r in items_raw]
             total = float(venta[6] or 0)
             datos_ticket = {
-                'folio':    venta[0], 'venta_id': venta[0],
+                'folio':    venta[0], 'venta_id': int(vid),
                 'fecha':    str(venta[1] or '')[:16],
                 'cajero':   venta[2] or self.obtener_usuario_actual(),
                 'cliente':  'Público General',

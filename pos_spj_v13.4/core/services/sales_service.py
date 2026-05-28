@@ -622,7 +622,9 @@ class SalesService:
             "Efectivo": "efectivo",
             "Tarjeta": "tarjeta",
             "Transferencia": "transferencia",
+            "Crédito": "credito",
             "Credito": "credito",
+            "Pago Mixto": "efectivo",
             "Mercado Pago": "mercado_pago",
         }
         payment_breakdown[_map.get(_pm, "efectivo")] = round(float(total_a_pagar), 2)
@@ -638,7 +640,7 @@ class SalesService:
             "credito": payment_breakdown["credito"],
             "mercado_pago": payment_breakdown["mercado_pago"],
             "cambio": (amount_paid - total_a_pagar) if _pm == "Efectivo" else 0.0,
-            "saldo_credito": max(round(float(total_a_pagar) - float(amount_paid or 0.0), 2), 0.0) if _pm == "Credito" else 0.0,
+            "saldo_credito": max(round(float(total_a_pagar) - float(amount_paid or 0.0), 2), 0.0) if _pm in {"Credito", "Crédito"} else 0.0,
             "lineas": payment_breakdown,
         }
         ticket_payload["loyalty"] = {

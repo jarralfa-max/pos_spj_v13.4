@@ -142,6 +142,10 @@ class ResultadoVenta:
     ticket_html:   str        = ""
     error:         str        = ""
     operation_id:  str        = ""
+    ticket_payload: Dict       = field(default_factory=dict)
+    payment_breakdown: Dict    = field(default_factory=dict)
+    loyalty_result: Dict       = field(default_factory=dict)
+    warnings: List[str]        = field(default_factory=list)
 
 
 # ── Caso de uso ───────────────────────────────────────────────────────────────
@@ -246,6 +250,12 @@ class ProcesarVentaUC:
         cambio        = round(monto_pagado - total, 2) if monto_pagado > 0 else 0.0
 
         # ── 3. Ejecutar venta (transacción crítica) ───────────────────────────
+        warnings: List[str] = []
+        ticket_payload: Dict = {}
+        payment_breakdown: Dict = {}
+        loyalty_result: Dict = {}
+        operation_id: str = ""
+
         try:
             if hasattr(self._sales, "execute_sale_result"):
                 rich = self._sales.execute_sale_result(
@@ -263,6 +273,29 @@ class ProcesarVentaUC:
                 ticket_html = rich.ticket_html
                 venta_id = int(rich.venta_id or 0)
                 total = float(rich.total or total)
+                operation_id = str(getattr(rich, "operation_id", "") or "")
+                ticket_payload = dict(getattr(rich, "ticket_payload", {}) or {})
+                _payment = getattr(rich, "payment", None)
+                if _payment is not None:
+                    payment_breakdown = {
+                        "method": getattr(_payment, "method", ""),
+                        "amount_paid": float(getattr(_payment, "amount_paid", 0.0) or 0.0),
+                        "change": float(getattr(_payment, "change", 0.0) or 0.0),
+                        "breakdown": dict(getattr(_payment, "breakdown", {}) or {}),
+                    }
+                _loyalty = getattr(rich, "loyalty", None)
+                if _loyalty is not None:
+                    loyalty_result = {
+                        "cliente_id": getattr(_loyalty, "cliente_id", None),
+                        "puntos_canjeados": int(getattr(_loyalty, "puntos_canjeados", 0) or 0),
+                        "descuento_puntos": float(getattr(_loyalty, "descuento_puntos", 0.0) or 0.0),
+                        "puntos_ganados": int(getattr(_loyalty, "puntos_ganados", 0) or 0),
+                        "puntos_totales": int(getattr(_loyalty, "puntos_totales", 0) or 0),
+                        "nivel": str(getattr(_loyalty, "nivel", "") or ""),
+                        "mensaje": str(getattr(_loyalty, "mensaje", "") or ""),
+                        "operation_id": str(getattr(_loyalty, "operation_id", "") or ""),
+                    }
+                warnings.extend(list(getattr(rich, "warnings", []) or []))
             else:
                 result = self._sales.execute_sale(
                     branch_id      = sucursal_id,
@@ -285,6 +318,30 @@ class ProcesarVentaUC:
                     "SELECT id FROM ventas WHERE folio=? ORDER BY id DESC LIMIT 1", (folio,)
                 ).fetchone()
                 venta_id = row[0] if row else 0
+                warnings.append("legacy_execute_sale_result_incomplete")
+
+            if loyalty_result:
+                puntos_ganados = int(loyalty_result.get("puntos_ganados", 0) or 0)
+                puntos_totales = int(loyalty_result.get("puntos_totales", 0) or 0)
+                nivel_cliente = str(loyalty_result.get("nivel", "") or "Bronce")
+                if (
+                    datos_pago.cliente_id
+                    and self._loyalty
+                    and getattr(self._loyalty, "enabled", True)
+                    and ("puntos_totales" not in loyalty_result or loyalty_result.get("puntos_totales") in (None, ""))
+                ):
+                    try:
+                        puntos_totales = int(self._loyalty.saldo(datos_pago.cliente_id) or 0)
+                        loyalty_result["puntos_totales"] = puntos_totales
+                        warnings.append("loyalty_result_incomplete_saldo_consultado")
+                    except Exception as _ly_exc:
+                        logger.warning("Loyalty saldo fallback failed cliente=%s: %s", datos_pago.cliente_id, _ly_exc)
+            elif datos_pago.cliente_id and self._loyalty and getattr(self._loyalty, "enabled", True):
+                try:
+                    puntos_totales = int(self._loyalty.saldo(datos_pago.cliente_id) or 0)
+                    loyalty_result = {"puntos_ganados": 0, "puntos_totales": puntos_totales, "nivel": "Bronce"}
+                except Exception:
+                    pass
         except Exception as e:
             logger.error("ProcesarVentaUC.execute_sale: %s", e)
             return ResultadoVenta(ok=False, error=str(e))
@@ -292,9 +349,9 @@ class ProcesarVentaUC:
         # ── 4. Post-venta: fidelidad ──────────────────────────────────────────
         # Fase 2: la acreditación ocurre exclusivamente en wiring.py -> loyalty_venta
         # al recibir VENTA_COMPLETADA. El UC no acredita puntos directamente.
-        puntos_ganados = 0
-        puntos_totales = 0
-        nivel_cliente  = "Bronce"
+        puntos_ganados = int(locals().get("puntos_ganados", 0) or 0)
+        puntos_totales = int(locals().get("puntos_totales", 0) or 0)
+        nivel_cliente  = str(locals().get("nivel_cliente", "Bronce") or "Bronce")
 
         # ── 5. Post-venta: ticket (execute_sale ya generó uno; re-gen si no hay) ──
         if not ticket_html and self._ticket:
@@ -345,6 +402,11 @@ class ProcesarVentaUC:
             puntos_totales = puntos_totales,
             nivel_cliente  = nivel_cliente,
             ticket_html    = ticket_html,
+            operation_id   = operation_id,
+            ticket_payload = ticket_payload,
+            payment_breakdown = payment_breakdown,
+            loyalty_result = loyalty_result,
+            warnings       = warnings,
         )
 
     # ── Validación de stock ───────────────────────────────────────────────────
