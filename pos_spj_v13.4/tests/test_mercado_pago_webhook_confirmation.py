@@ -42,11 +42,16 @@ def test_sales_service_confirm_pending_payment_sale_executes_sale_once():
         customer_service=MagicMock(),
     )
 
-    row = ("{\"branch_id\":1,\"user\":\"caj\",\"client_id\":1,\"items\":[{\"product_id\":1,\"qty\":1,\"unit_price\":100}],\"total\":100,\"notes\":\"x\"}", "pendiente_pago")
+    row = ("{\"branch_id\":1,\"user\":\"caj\",\"client_id\":1,\"items\":[{\"product_id\":1,\"qty\":1,\"unit_price\":100}],\"total\":100,\"notes\":\"x\",\"reservation_id\":77}", "pendiente_pago")
     svc.db.execute.return_value.fetchone.return_value = row
-    svc.execute_sale = MagicMock(return_value=("F-100", "<t>"))
+    rich = MagicMock(folio="F-100", ticket_html="<t>")
+    svc.execute_sale_result = MagicMock(return_value=rich)
 
     folio, ticket = svc.confirm_pending_payment_sale("VREF-1", payment_id="P-1")
     assert folio == "F-100"
     assert ticket == "<t>"
-    svc.execute_sale.assert_called_once()
+    svc.execute_sale_result.assert_called_once()
+    kwargs = svc.execute_sale_result.call_args.kwargs
+    assert kwargs["payment_method"] == "Mercado Pago"
+    assert kwargs["payment_breakdown"] == {"mercado_pago": 100.0}
+    assert kwargs["reservation_id"] == 77

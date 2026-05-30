@@ -68,6 +68,14 @@ def test_e2e_contado_credito_canje_mp_pending_confirmed():
     bus = get_bus()
     events = []
     old_publish = bus.publish
+    old_handler_count = getattr(bus, "handler_count", None)
+    old_handler_labels = getattr(bus, "handler_labels", None)
+    bus.handler_count = lambda event: 3
+    bus.handler_labels = lambda event: [
+        "test_sale_inventory_deduct",
+        "test_sale_finance_income",
+        "test_sale_credit_cxc",
+    ]
 
     def capture(event, payload, **kwargs):
         events.append(event)
@@ -113,3 +121,7 @@ def test_e2e_contado_credito_canje_mp_pending_confirmed():
         assert st == "confirmada"
     finally:
         bus.publish = old_publish
+        if old_handler_count is not None:
+            bus.handler_count = old_handler_count
+        if old_handler_labels is not None:
+            bus.handler_labels = old_handler_labels

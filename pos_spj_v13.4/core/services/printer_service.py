@@ -377,8 +377,8 @@ class PrintQueue:
             ))
             try:
                 self._db.commit()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("print_job_log commit failed: %s", exc)
         except Exception as exc:
             logger.debug("print_job_log insert failed: %s", exc)
 
@@ -409,8 +409,8 @@ class PrinterService:
         try:
             from core.events.event_bus import get_bus
             self.queue._bus = get_bus()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("PrinterService sin EventBus; eventos de impresión no se publicarán: %s", exc)
         # Conectar DB para bitácora de impresión (Fase 1)
         self.queue._db = db_conn
         self.queue.start()
@@ -436,8 +436,8 @@ class PrinterService:
                 if rows:
                     self._ticket_cfg = {r[0]: r[1] for r in rows}
                     break
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("No se pudo cargar configuración de impresora de tickets: %s", exc)
         try:
             # Label printer
             for key in ('etiquetas', 'impresora_etiquetas'):
@@ -448,8 +448,8 @@ class PrinterService:
                 if rows:
                     self._label_cfg = {r[0]: r[1] for r in rows}
                     break
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("No se pudo cargar configuración de impresora de etiquetas: %s", exc)
 
     def reload_configs(self):
         self._load_configs()
@@ -461,8 +461,8 @@ class PrinterService:
             baud = int(raw_value)
             if 1200 <= baud <= 115200:
                 return baud
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Baud rate de impresora inválido (%r); usando default %s: %s", raw_value, default, exc)
         return default
 
     @staticmethod
@@ -611,7 +611,8 @@ class PrinterService:
                 "SELECT valor FROM configuraciones WHERE clave=?", (key,)
             ).fetchone()
             return r[0] if r and r[0] else default
-        except Exception:
+        except Exception as exc:
+            logger.warning("No se pudo leer configuración %s; usando default: %s", key, exc)
             return default
 
     def has_ticket_printer(self) -> bool:

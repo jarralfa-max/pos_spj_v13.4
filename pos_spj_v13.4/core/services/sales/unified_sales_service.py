@@ -1,11 +1,18 @@
 # core/services/sales/unified_sales_service.py — DEPRECADO en v13.1
 # Shim de compatibilidad → redirige a ProcesarVentaUC
-import warnings, logging
+import warnings, logging, os
 warnings.warn(
     "UnifiedSalesService está deprecado. Usa core.use_cases.ProcesarVentaUC.",
     DeprecationWarning, stacklevel=2
 )
 logger = logging.getLogger("spj.sales.unified")
+
+ALLOW_LEGACY_UNIFIED_SALES_SERVICE = "ALLOW_LEGACY_UNIFIED_SALES_SERVICE"
+LEGACY_UNIFIED_REMOVAL_DATE = "2026-06-30"
+
+
+def _legacy_unified_enabled() -> bool:
+    return str(os.getenv(ALLOW_LEGACY_UNIFIED_SALES_SERVICE, "0")).strip().lower() in {"1", "true", "yes", "on"}
 
 # Re-exportar DTOs para compatibilidad con tests y cotizacion_service
 from dataclasses import dataclass, field
@@ -71,6 +78,19 @@ class UnifiedSalesService:
         self.branch_id = branch_id
 
     def procesar_venta(self, items, datos_pago, usuario=None, **kw):
+        if not _legacy_unified_enabled():
+            logger.error(
+                "UnifiedSalesService.procesar_venta bloqueado; usa ProcesarVentaUC. "
+                "Eliminación planificada: %s. Para tests legacy aislados: %s=1",
+                LEGACY_UNIFIED_REMOVAL_DATE,
+                ALLOW_LEGACY_UNIFIED_SALES_SERVICE,
+            )
+            raise RuntimeError(
+                "UnifiedSalesService.procesar_venta() está bloqueado por seguridad. "
+                "Ruta oficial: ProcesarVentaUC.ejecutar() -> SalesService.execute_sale_result(). "
+                f"Eliminación planificada: {LEGACY_UNIFIED_REMOVAL_DATE}. "
+                f"Para pruebas legacy aisladas use {ALLOW_LEGACY_UNIFIED_SALES_SERVICE}=1."
+            )
         from core.use_cases.venta import ProcesarVentaUC, ItemCarrito, DatosPago as DP
         from core.services.inventory_service import InventoryService
         usr = usuario or self.usuario

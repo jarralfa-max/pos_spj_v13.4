@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+
+logger = logging.getLogger("spj.tickets.message_engine")
 
 
 @dataclass
@@ -57,21 +61,21 @@ class TicketMessageEngine:
         result = TicketMessageResult()
 
         max_fomo = int(self._cfg("ticket_fomo_max_messages", "2") or 2)
-        points_gained = int(sale_context.get("puntos_ganados", 0) or 0)
-        points_total = int(sale_context.get("puntos_totales", 0) or 0)
+        raw_points_gained = sale_context.get("puntos_ganados")
+        raw_points_total = sale_context.get("puntos_totales")
+        points_gained = int(raw_points_gained or 0) if raw_points_gained not in (None, "") else 0
+        points_total = int(raw_points_total or 0) if raw_points_total not in (None, "") else None
         cliente_id = ctx.get("cliente_id") or sale_context.get("cliente_id")
 
         # Complementar contextos desde servicios de negocio si falta data.
-        if cliente_id and points_total <= 0 and self.loyalty_service:
+        if cliente_id and points_total is None and self.loyalty_service:
             try:
                 if hasattr(self.loyalty_service, "saldo_cliente"):
-                    points_total = int(self.loyalty_service.saldo_cliente(int(cliente_id)) or 0)
-                elif hasattr(self.loyalty_service, "process_loyalty_for_sale"):
-                    total_sale = float(sale_context.get("total", 0) or 0)
-                    data = self.loyalty_service.process_loyalty_for_sale(int(cliente_id), total_sale)
-                    points_total = int(data.get("puntos_totales", 0) or 0)
-            except Exception:
-                pass
+                    points_total = int(self.loyalty_service.saldo_cliente(int(cliente_id)))
+                elif hasattr(self.loyalty_service, "saldo"):
+                    points_total = int(self.loyalty_service.saldo(int(cliente_id)))
+            except Exception as exc:
+                logger.warning("Saldo de puntos no disponible para ticket cliente=%s: %s", cliente_id, exc)
 
         if cliente_id and "goal_remaining" not in ctx and self.growth_engine:
             try:
@@ -102,7 +106,7 @@ class TicketMessageEngine:
 
         if points_gained > 0:
             result.loyalty_messages.append(TicketMessage("points_gained", f"Ganaste {points_gained} puntos.", 100, "loyalty"))
-        if points_total > 0:
+        if (points_total or 0) > 0:
             result.loyalty_messages.append(TicketMessage("points_total", f"Tu saldo actual es {points_total} puntos.", 90, "loyalty"))
 
         goal_remaining = ctx.get("goal_remaining")
@@ -120,7 +124,7 @@ class TicketMessageEngine:
             tpl = self._cfg("ticket_msg_promo_expiring", "Últimos {days} días de {promo}.")
             result.fomo_messages.append(TicketMessage("promo_expiring", tpl.format(days=int(promo_days_left), promo=promo_name), 98, "fomo"))
 
-        if points_total > 0 and ctx.get("can_redeem", False):
+        if (points_total or 0) > 0 and ctx.get("can_redeem", False):
             tpl = self._cfg("ticket_msg_points_available", "Ya puedes canjear tus puntos en tu próxima compra.")
             result.cta_messages.append(TicketMessage("points_available", tpl, 80, "cta"))
 

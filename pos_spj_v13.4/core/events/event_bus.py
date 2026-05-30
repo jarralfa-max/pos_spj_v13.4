@@ -266,6 +266,8 @@ class EventBus:
             handlers = list(self._handlers.get(event_type, []))
 
         if not handlers:
+            if strict:
+                raise RuntimeError(f"Handlers críticos no registrados para evento '{event_type}'.")
             logger.debug("Evento '%s' sin handlers registrados.", event_type)
             return
 
@@ -284,6 +286,10 @@ class EventBus:
     def handler_count(self, event_type: str) -> int:
         with self._lock:
             return len(self._handlers.get(event_type, []))
+
+    def handler_labels(self, event_type: str) -> List[str]:
+        with self._lock:
+            return [label for _, label, _ in self._handlers.get(event_type, [])]
 
     def registered_events(self) -> List[str]:
         with self._lock:

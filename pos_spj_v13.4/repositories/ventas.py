@@ -127,8 +127,9 @@ class VentaRepository:
         if str(os.getenv("ALLOW_LEGACY_VENTA_REPOSITORY_WRITES", "0")).strip() != "1":
             raise RuntimeError(
                 "VentaRepository.create_sale() está bloqueado por seguridad. "
-                "Usa SalesService.execute_sale() o habilita explícitamente "
-                "ALLOW_LEGACY_VENTA_REPOSITORY_WRITES=1 para flujos legacy controlados."
+                "Ruta oficial: ProcesarVentaUC.ejecutar() -> SalesService.execute_sale_result(). "
+                "Eliminación planificada: 2026-06-30. Habilita explícitamente "
+                "ALLOW_LEGACY_VENTA_REPOSITORY_WRITES=1 solo para flujos legacy controlados."
             )
 
         operation_id = sale_data.get("operation_id") or str(uuid.uuid4())

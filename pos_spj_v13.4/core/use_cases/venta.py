@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("spj.use_cases.venta")
 
@@ -61,7 +61,9 @@ class DatosPago:
     descuento_lineas: float = 0.0
     mercado_pago_ref: str = ""
     pago_mixto:       Dict[str, float] = field(default_factory=dict)
+    payment_breakdown: Dict[str, float] = field(default_factory=dict)
     total_pagado:     float = 0.0
+    reserva_id:       Optional[int] = None
 
     def __post_init__(self) -> None:
         self.forma_pago = _normalize_payment_label(self.forma_pago)
@@ -72,6 +74,7 @@ class DatosPago:
         self.puntos_canjeados = int(self.puntos_canjeados or 0)
         self.descuento_puntos = float(self.descuento_puntos or 0.0)
         self.pago_mixto = {str(k): float(v or 0.0) for k, v in (self.pago_mixto or {}).items()}
+        self.payment_breakdown = {str(k): float(v or 0.0) for k, v in (self.payment_breakdown or self.pago_mixto or {}).items()}
 
 
 @dataclass
@@ -136,9 +139,9 @@ class ResultadoVenta:
     folio:         str        = ""
     total:         float      = 0.0
     cambio:        float      = 0.0
-    puntos_ganados:int        = 0
-    puntos_totales:int        = 0
-    nivel_cliente: str        = "Bronce"
+    puntos_ganados:Optional[int] = None
+    puntos_totales:Optional[int] = None
+    nivel_cliente: Optional[str] = None
     ticket_html:   str        = ""
     error:         str        = ""
     operation_id:  str        = ""
@@ -219,20 +222,9 @@ class ProcesarVentaUC:
         if stock_error:
             return ResultadoVenta(ok=False, error=stock_error)
 
-        # ── 2. Normalizar método de pago y construir payload ─────────────────
-        try:
-            from core.services.payment_normalization import normalize_payment_method as _npm
-            datos_pago = type(datos_pago)(
-                forma_pago       = _npm(datos_pago.forma_pago),
-                monto_pagado     = datos_pago.monto_pagado,
-                cliente_id       = datos_pago.cliente_id,
-                descuento_global = datos_pago.descuento_global,
-                puntos_canjeados = int(datos_pago.puntos_canjeados or 0),
-                descuento_puntos = float(datos_pago.descuento_puntos or 0.0),
-                notas            = datos_pago.notas,
-            )
-        except Exception:
-            pass  # non-critical normalization
+        # ── 2. Normalizar método de pago sin perder estructura ────────────────
+        from core.services.payment_normalization import normalize_payment_method as _npm
+        datos_pago.forma_pago = _npm(datos_pago.forma_pago)
         # ── Construir payload para SalesService ──────────────────────────────
         items_svc = [
             {
@@ -264,10 +256,12 @@ class ProcesarVentaUC:
                     items=items_svc,
                     payment_method=datos_pago.forma_pago,
                     amount_paid=monto_pagado,
+                    payment_breakdown=dict(datos_pago.payment_breakdown or datos_pago.pago_mixto or {}),
                     client_id=datos_pago.cliente_id,
                     discount=datos_pago.descuento_global,
                     loyalty_redemption_pts=int(datos_pago.puntos_canjeados or 0),
                     notes=datos_pago.notas,
+                    reservation_id=datos_pago.reserva_id,
                 )
                 folio = rich.folio
                 ticket_html = rich.ticket_html
@@ -278,10 +272,19 @@ class ProcesarVentaUC:
                 _payment = getattr(rich, "payment", None)
                 if _payment is not None:
                     payment_breakdown = {
-                        "method": getattr(_payment, "method", ""),
-                        "amount_paid": float(getattr(_payment, "amount_paid", 0.0) or 0.0),
-                        "change": float(getattr(_payment, "change", 0.0) or 0.0),
-                        "breakdown": dict(getattr(_payment, "breakdown", {}) or {}),
+                        "forma_pago": getattr(_payment, "forma_pago", getattr(_payment, "method", "")),
+                        "total_pagado": float(getattr(_payment, "total_pagado", getattr(_payment, "amount_paid", 0.0)) or 0.0),
+                        "efectivo_recibido": float(getattr(_payment, "efectivo_recibido", 0.0) or 0.0),
+                        "tarjeta": float(getattr(_payment, "tarjeta", 0.0) or 0.0),
+                        "transferencia": float(getattr(_payment, "transferencia", 0.0) or 0.0),
+                        "credito": float(getattr(_payment, "credito", 0.0) or 0.0),
+                        "mercado_pago": float(getattr(_payment, "mercado_pago", 0.0) or 0.0),
+                        "cambio": float(getattr(_payment, "cambio", getattr(_payment, "change", 0.0)) or 0.0),
+                        "saldo_credito": float(getattr(_payment, "saldo_credito", 0.0) or 0.0),
+                        "amount_paid": float(getattr(_payment, "amount_paid_real", getattr(_payment, "amount_paid", 0.0)) or 0.0),
+                        "amount_paid_real": float(getattr(_payment, "amount_paid_real", getattr(_payment, "amount_paid", 0.0)) or 0.0),
+                        "lineas": dict(getattr(_payment, "lineas", getattr(_payment, "breakdown", {})) or {}),
+                        "breakdown": dict(getattr(_payment, "lineas", getattr(_payment, "breakdown", {})) or {}),
                     }
                 _loyalty = getattr(rich, "loyalty", None)
                 if _loyalty is not None:
@@ -289,59 +292,31 @@ class ProcesarVentaUC:
                         "cliente_id": getattr(_loyalty, "cliente_id", None),
                         "puntos_canjeados": int(getattr(_loyalty, "puntos_canjeados", 0) or 0),
                         "descuento_puntos": float(getattr(_loyalty, "descuento_puntos", 0.0) or 0.0),
-                        "puntos_ganados": int(getattr(_loyalty, "puntos_ganados", 0) or 0),
-                        "puntos_totales": int(getattr(_loyalty, "puntos_totales", 0) or 0),
-                        "nivel": str(getattr(_loyalty, "nivel", "") or ""),
+                        "puntos_ganados": getattr(_loyalty, "puntos_ganados", None),
+                        "puntos_totales": getattr(_loyalty, "puntos_totales", None),
+                        "nivel": getattr(_loyalty, "nivel", None),
+                        "available": bool(getattr(_loyalty, "available", False)),
                         "mensaje": str(getattr(_loyalty, "mensaje", "") or ""),
                         "operation_id": str(getattr(_loyalty, "operation_id", "") or ""),
                     }
                 warnings.extend(list(getattr(rich, "warnings", []) or []))
             else:
-                result = self._sales.execute_sale(
-                    branch_id      = sucursal_id,
-                    user           = usuario,
-                    items          = items_svc,
-                    payment_method = datos_pago.forma_pago,
-                    amount_paid    = monto_pagado,
-                    client_id      = datos_pago.cliente_id,
-                    discount       = datos_pago.descuento_global,
-                    loyalty_redemption_pts = int(datos_pago.puntos_canjeados or 0),
-                    notes          = datos_pago.notas,
-                )
-                if isinstance(result, (tuple, list)) and len(result) >= 2:
-                    folio        = result[0]
-                    ticket_html  = result[1] if len(result) > 1 else ""
-                else:
-                    folio        = str(result)
-                    ticket_html  = ""
-                row = self._sales.db.execute(
-                    "SELECT id FROM ventas WHERE folio=? ORDER BY id DESC LIMIT 1", (folio,)
-                ).fetchone()
-                venta_id = row[0] if row else 0
-                warnings.append("legacy_execute_sale_result_incomplete")
+                raise RuntimeError("Ruta legacy SalesService.execute_sale bloqueada: use execute_sale_result")
 
-            if loyalty_result:
-                puntos_ganados = int(loyalty_result.get("puntos_ganados", 0) or 0)
-                puntos_totales = int(loyalty_result.get("puntos_totales", 0) or 0)
-                nivel_cliente = str(loyalty_result.get("nivel", "") or "Bronce")
-                if (
-                    datos_pago.cliente_id
-                    and self._loyalty
-                    and getattr(self._loyalty, "enabled", True)
-                    and ("puntos_totales" not in loyalty_result or loyalty_result.get("puntos_totales") in (None, ""))
-                ):
+            puntos_ganados = loyalty_result.get("puntos_ganados") if loyalty_result else None
+            puntos_totales = loyalty_result.get("puntos_totales") if loyalty_result else None
+            nivel_cliente = loyalty_result.get("nivel") if loyalty_result else None
+            if datos_pago.cliente_id and self._loyalty and getattr(self._loyalty, "enabled", True):
+                if puntos_totales in (None, "") or not (loyalty_result or {}).get("available", False):
                     try:
-                        puntos_totales = int(self._loyalty.saldo(datos_pago.cliente_id) or 0)
+                        puntos_totales = int(self._loyalty.saldo(datos_pago.cliente_id))
+                        loyalty_result = dict(loyalty_result or {})
                         loyalty_result["puntos_totales"] = puntos_totales
+                        loyalty_result["available"] = True
                         warnings.append("loyalty_result_incomplete_saldo_consultado")
                     except Exception as _ly_exc:
-                        logger.warning("Loyalty saldo fallback failed cliente=%s: %s", datos_pago.cliente_id, _ly_exc)
-            elif datos_pago.cliente_id and self._loyalty and getattr(self._loyalty, "enabled", True):
-                try:
-                    puntos_totales = int(self._loyalty.saldo(datos_pago.cliente_id) or 0)
-                    loyalty_result = {"puntos_ganados": 0, "puntos_totales": puntos_totales, "nivel": "Bronce"}
-                except Exception:
-                    pass
+                        warnings.append("loyalty_balance_unavailable")
+                        logger.warning("Loyalty saldo unavailable cliente=%s: %s", datos_pago.cliente_id, _ly_exc)
         except Exception as e:
             logger.error("ProcesarVentaUC.execute_sale: %s", e)
             return ResultadoVenta(ok=False, error=str(e))
@@ -349,44 +324,16 @@ class ProcesarVentaUC:
         # ── 4. Post-venta: fidelidad ──────────────────────────────────────────
         # Fase 2: la acreditación ocurre exclusivamente en wiring.py -> loyalty_venta
         # al recibir VENTA_COMPLETADA. El UC no acredita puntos directamente.
-        puntos_ganados = int(locals().get("puntos_ganados", 0) or 0)
-        puntos_totales = int(locals().get("puntos_totales", 0) or 0)
-        nivel_cliente  = str(locals().get("nivel_cliente", "Bronce") or "Bronce")
+        puntos_ganados = locals().get("puntos_ganados", None)
+        puntos_totales = locals().get("puntos_totales", None)
+        nivel_cliente  = locals().get("nivel_cliente", None)
 
-        # ── 5. Post-venta: ticket (execute_sale ya generó uno; re-gen si no hay) ──
-        if not ticket_html and self._ticket:
-            try:
-                ticket_html = self._ticket.generar_ticket(
-                    template_db = "",
-                    venta_data  = {
-                        "venta_id":          venta_id,
-                        "fecha":             _now(),
-                        "cajero":            usuario,
-                        "cliente":           "Público General",
-                        "totales": {
-                            "subtotal":      subtotal,
-                            "descuento":     datos_pago.descuento_global,
-                            "total_final":   total,
-                        },
-                        "efectivo_recibido": monto_pagado,
-                        "cambio":            cambio,
-                        "forma_pago":        datos_pago.forma_pago,
-                        "puntos_ganados":    puntos_ganados,
-                        "puntos_totales":    puntos_totales,
-                        "items": [
-                            {
-                                "nombre":          it.nombre,
-                                "cantidad":        it.cantidad,
-                                "precio_unitario": it.precio_unit,
-                                "total":           it.subtotal,
-                            }
-                            for it in items
-                        ],
-                    },
-                    mensaje_psicologico = "¡Gracias por tu compra!",
-                )
-            except Exception as e:
-                logger.warning("Ticket post-venta venta_id=%s: %s", venta_id, e)
+        # ── 5. Post-venta: ticket ──────────────────────────────────────────
+        # El UC no reconstruye tickets desde items de entrada. La única fuente
+        # válida es SalesService/SaleExecutionResult.ticket_payload.
+        if not ticket_payload:
+            ticket_html = ""
+            warnings.append("ticket_html_missing_from_sales_service")
 
         logger.info(
             "Venta %s OK — total=$%.2f puntos=%d sucursal=%s usuario=%s",

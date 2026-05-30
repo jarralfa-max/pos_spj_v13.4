@@ -28,7 +28,8 @@ class MercadoPagoService:
             row = self.conn.execute(
                 "SELECT valor FROM configuraciones WHERE clave='mp_access_token'").fetchone()
             return row[0] if row else ""
-        except Exception:
+        except Exception as exc:
+            logger.warning("MP: no se pudo leer access token: %s", exc)
             return ""
 
     def _headers(self) -> dict:
@@ -100,7 +101,8 @@ class MercadoPagoService:
                 VALUES(?,?,?,?,'pendiente')""",
                 (pedido_id, monto, preference_id, url))
             self.conn.commit()
-        except Exception: pass
+        except Exception as exc:
+            logger.warning("MP: no se pudo guardar link de pago pedido=%s: %s", pedido_id, exc)
 
     # ── Verificar pago ──────────────────────────────────────────────
     def verificar_pago(self, payment_id: str) -> dict:
@@ -156,8 +158,8 @@ class MercadoPagoService:
                                 WHERE id=?""", (pedido_id,))
                         logger.info("MP pago aprobado (legacy pedido): pedido=%d payment=%s",
                                     pedido_id, payment_id)
-                    except Exception:
-                        logger.info("MP pago aprobado sin confirmador inyectado: ref=%s", external_ref)
+                    except Exception as exc:
+                        logger.info("MP pago aprobado sin confirmador legacy aplicable: ref=%s error=%s", external_ref, exc)
                     return True
                 except Exception as e:
                     logger.error("procesar_webhook BD: %s", e)
@@ -168,7 +170,8 @@ class MercadoPagoService:
             row = self.conn.execute(
                 "SELECT valor FROM configuraciones WHERE clave='mp_webhook_url'").fetchone()
             return row[0] if row else ""
-        except Exception:
+        except Exception as exc:
+            logger.warning("MP: no se pudo leer webhook URL: %s", exc)
             return ""
 
     def _get_return_url(self, status: str) -> str:
@@ -177,7 +180,8 @@ class MercadoPagoService:
                 "SELECT valor FROM configuraciones WHERE clave='mp_return_url'").fetchone()
             base = row[0] if row else "http://localhost:8765"
             return f"{base}/pago/{status}"
-        except Exception:
+        except Exception as exc:
+            logger.warning("MP: no se pudo leer return URL status=%s: %s", status, exc)
             return f"http://localhost:8765/pago/{status}"
 
 
@@ -185,7 +189,8 @@ class MPWebhookHandler(BaseHTTPRequestHandler):
     svc: MercadoPagoService = None
     on_pago_aprobado = None   # callback(pedido_id)
 
-    def log_message(self, *a): pass
+    def log_message(self, *a):
+        logger.debug("MP webhook HTTP: %s", a)
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -198,7 +203,8 @@ class MPWebhookHandler(BaseHTTPRequestHandler):
                 try:
                     ext = str(data.get("data", {}).get("id", ""))
                     self.on_pago_aprobado(ext)
-                except Exception: pass
+                except Exception as exc:
+                    logger.warning("MP webhook handler: callback post-aprobación falló: %s", exc)
         except Exception as e:
             logger.error("MP webhook handler: %s", e)
 

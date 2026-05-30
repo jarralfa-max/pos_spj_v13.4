@@ -28,6 +28,7 @@ class SalePaymentResult:
     cambio: float
     saldo_credito: float
     lineas: Dict[str, float] = field(default_factory=dict)
+    amount_paid_real: float = 0.0
 
 
 @dataclass
@@ -35,11 +36,12 @@ class SaleLoyaltyResult:
     cliente_id: Optional[int]
     puntos_canjeados: int
     descuento_puntos: float
-    puntos_ganados: int
-    puntos_totales: int
-    nivel: str
+    puntos_ganados: Optional[int]
+    puntos_totales: Optional[int]
+    nivel: Optional[str]
     mensaje: str
     operation_id: str
+    available: bool = False
 
 
 @dataclass

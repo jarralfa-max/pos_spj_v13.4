@@ -211,14 +211,15 @@ class TicketESCPOSRenderer:
                 buf += self._text(f"Recibido: ${recibido:.2f}")
                 buf += self._text(f"Cambio: ${cambio:.2f}")
 
-        # 8. Puntos fidelidad
-        puntos_ganados = ticket_data.get('puntos_ganados', 0)
-        if puntos_ganados:
+        # 8. Puntos fidelidad: no imprimir saldo 0 si no fue confirmado.
+        loyalty_info = dict(ticket_data.get('loyalty') or {})
+        puntos_ganados = loyalty_info.get('puntos_ganados', ticket_data.get('puntos_ganados'))
+        if puntos_ganados not in (None, "", 0):
             buf += self._separator(w, char='-')
             buf += ALIGN_CENTER
             buf += self._text(f"Puntos ganados: +{puntos_ganados}")
-            puntos_total = ticket_data.get('puntos_totales', 0)
-            if puntos_total:
+            puntos_total = loyalty_info.get('puntos_totales', ticket_data.get('puntos_totales'))
+            if loyalty_info.get('available', False) and puntos_total not in (None, ""):
                 buf += self._text(f"Saldo total: {puntos_total} puntos")
 
         # 9. QR code

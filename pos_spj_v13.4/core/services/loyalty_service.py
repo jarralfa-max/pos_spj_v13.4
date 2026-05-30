@@ -381,8 +381,9 @@ class LoyaltyService:
         try:
             from repositories.loyalty_repository import LoyaltyRepository
             return LoyaltyRepository(self.db).get_balance(cliente_id)
-        except Exception:
-            return 0
+        except Exception as exc:
+            logger.warning("Saldo de fidelidad no disponible cliente=%s: %s", cliente_id, exc)
+            raise RuntimeError("loyalty_balance_unavailable") from exc
 
     def pasivo_financiero(self) -> Dict:
         """

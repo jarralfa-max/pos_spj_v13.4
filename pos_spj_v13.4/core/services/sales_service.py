@@ -2,6 +2,7 @@ from core.services.auto_audit import audit_write
 
 # core/services/sales_service.py
 import uuid
+import os
 import logging
 from datetime import datetime
 
@@ -11,6 +12,15 @@ from core.events.event_factory import make_sale_payload
 from core.services.sales_fulfillment_service import SaleFulfillmentService
 
 logger = logging.getLogger(__name__)
+
+ALLOW_LEGACY_SALES_SERVICE_PROCESAR_VENTA = "ALLOW_LEGACY_SALES_SERVICE_PROCESAR_VENTA"
+ALLOW_LEGACY_MINIMAL_SALE_WRITE = "ALLOW_LEGACY_MINIMAL_SALE_WRITE"
+LEGACY_SALES_REMOVAL_DATE = "2026-06-30"
+
+
+def _legacy_flag_enabled(name: str) -> bool:
+    return str(os.getenv(name, "0")).strip().lower() in {"1", "true", "yes", "on"}
+
 
 class SalesService:
     """
@@ -39,7 +49,8 @@ class SalesService:
         try:
             from core.services.lote_service import LoteService
             self._lote_svc = LoteService(db_conn)
-        except Exception:
+        except Exception as exc:
+            logger.warning("LoteService no disponible para venta; FIFO queda desactivado explícitamente: %s", exc)
             self._lote_svc = None
         self.finance_service = finance_service
         self.loyalty_service = loyalty_service
@@ -67,8 +78,8 @@ class SalesService:
                 ).fetchone()
                 if not row:
                     return folio
-            except Exception:
-                # Si no se puede validar unicidad por esquema/tabla, retornar igual
+            except Exception as exc:
+                logger.warning("No se pudo validar unicidad de folio; usando folio generado: %s", exc)
                 return folio
         return f"V{base}-{uuid.uuid4().hex[:8].upper()}"
 
@@ -139,7 +150,8 @@ class SalesService:
             try:
                 from core.services.sales.sale_loyalty_policy import SaleLoyaltyPolicy
                 self._sale_loyalty_policy = SaleLoyaltyPolicy(self.db, loyalty_service=self.loyalty_service)
-            except Exception:
+            except Exception as exc:
+                logger.warning("SaleLoyaltyPolicy no disponible; usando LoyaltyService directo si existe: %s", exc)
                 self._sale_loyalty_policy = None
         return self._sale_loyalty_policy
 
@@ -147,7 +159,8 @@ class SalesService:
         try:
             from core.services.payment_normalization import normalize_payment_method as _npm
             return _npm(payment_method)
-        except Exception:
+        except Exception as exc:
+            logger.warning("No se pudo normalizar método de pago %r; se conserva valor original: %s", payment_method, exc)
             return payment_method
 
     def _normalize_items_payload(self, items: list) -> list:
@@ -166,63 +179,216 @@ class SalesService:
             })
         return normalized
 
-    def _validate_payment(self, payment_method: str, amount_paid: float, total_a_pagar: float, client_id: int = None):
+    def _validate_payment(
+        self,
+        payment_method: str,
+        total_a_pagar: float,
+        payment_lines: dict,
+        client_id: int = None,
+    ):
         from core.services.payment_normalization import is_credit_sale
-        if is_credit_sale(payment_method) and client_id and self.customer_service:
+
+        method = self._normalize_payment_method(payment_method)
+        total_a_pagar = round(float(total_a_pagar or 0.0), 2)
+        lines = dict(payment_lines or {})
+
+        if is_credit_sale(method) and client_id and self.customer_service:
             ok, msg = self.customer_service.validate_credit(client_id, total_a_pagar)
             if not ok:
                 raise ValueError(msg)
-        if amount_paid < total_a_pagar and not is_credit_sale(payment_method):
-            raise ValueError(f"El monto pagado (${amount_paid:,.2f}) es menor al total a cobrar (${total_a_pagar:,.2f})")
 
-    def create_pending_payment_sale(self, branch_id: int, user: str, items: list,
-                                    client_id: int = None, notes: str = "",
-                                    total: float = 0.0) -> dict:
-        """
-        Fase 7: crea una intención de pago MercadoPago sin ejecutar venta definitiva.
-        No descuenta stock, no registra caja, no publica VENTA_COMPLETADA.
-        """
-        folio = self._generate_unique_sale_folio()
-        subtotal = total or sum(float(i.get("qty", 0)) * float(i.get("unit_price", 0)) for i in (items or []))
-        self.db.execute("""
-            CREATE TABLE IF NOT EXISTS pending_sales_intents (
+        if method == "Efectivo":
+            efectivo = round(float(lines.get("efectivo", 0.0) or 0.0), 2)
+            if efectivo < total_a_pagar:
+                raise ValueError(
+                    f"El efectivo recibido (${efectivo:,.2f}) es menor al total a cobrar (${total_a_pagar:,.2f})"
+                )
+        elif method in {"Pago Mixto", "Mixto"}:
+            pagado = round(
+                float(lines.get("efectivo", 0.0) or 0.0)
+                + float(lines.get("tarjeta", 0.0) or 0.0)
+                + float(lines.get("transferencia", 0.0) or 0.0),
+                2,
+            )
+            if pagado < total_a_pagar:
+                raise ValueError(
+                    f"Pago mixto insuficiente (${pagado:,.2f}) para total ${total_a_pagar:,.2f}"
+                )
+        elif method in {"Tarjeta", "Transferencia", "Mercado Pago"}:
+            key = {"Tarjeta": "tarjeta", "Transferencia": "transferencia", "Mercado Pago": "mercado_pago"}[method]
+            if round(float(lines.get(key, 0.0) or 0.0), 2) < total_a_pagar:
+                raise ValueError(f"Pago {method} incompleto para total ${total_a_pagar:,.2f}")
+        elif is_credit_sale(method):
+            if round(float(lines.get("credito", 0.0) or 0.0), 2) < total_a_pagar:
+                raise ValueError(f"Pago a crédito incompleto para total ${total_a_pagar:,.2f}")
+        else:
+            raise ValueError(f"Método de pago desconocido: {method}")
+
+    def _amount_paid_for_storage(self, payment_method: str, payment_lines: dict, total: float) -> float:
+        method = self._normalize_payment_method(payment_method)
+        lines = dict(payment_lines or {})
+        total = round(float(total or 0.0), 2)
+        if method == "Efectivo":
+            return round(float(lines.get("efectivo", 0.0) or 0.0), 2)
+        if method in {"Crédito", "Credito"}:
+            return 0.0
+        if method in {"Tarjeta", "Transferencia", "Mercado Pago", "Pago Mixto", "Mixto"}:
+            return round(
+                float(lines.get("efectivo", 0.0) or 0.0)
+                + float(lines.get("tarjeta", 0.0) or 0.0)
+                + float(lines.get("transferencia", 0.0) or 0.0)
+                + float(lines.get("mercado_pago", 0.0) or 0.0),
+                2,
+            )
+        raise ValueError(f"Método de pago desconocido: {method}")
+
+    def _ensure_pending_sales_intents_table(self) -> None:
+        self.db.execute(
+            """CREATE TABLE IF NOT EXISTS pending_sales_intents (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 folio TEXT UNIQUE NOT NULL,
                 payload_json TEXT NOT NULL,
                 estado TEXT NOT NULL DEFAULT 'pendiente_pago',
+                reservation_id INTEGER,
                 payment_id TEXT DEFAULT '',
+                payment_url TEXT DEFAULT '',
                 created_at TEXT DEFAULT (datetime('now')),
+                expires_at TEXT DEFAULT (datetime('now', '+30 minutes')),
                 confirmed_at TEXT
+            )"""
+        )
+        for stmt in (
+            "ALTER TABLE pending_sales_intents ADD COLUMN reservation_id INTEGER",
+            "ALTER TABLE pending_sales_intents ADD COLUMN payment_url TEXT DEFAULT ''",
+            "ALTER TABLE pending_sales_intents ADD COLUMN expires_at TEXT",
+        ):
+            try:
+                self.db.execute(stmt)
+            except Exception as exc:
+                logger.debug("pending_sales_intents migration skipped: %s", exc)
+        try:
+            self.db.execute(
+                "UPDATE pending_sales_intents "
+                "SET expires_at=datetime('now', '+30 minutes') "
+                "WHERE expires_at IS NULL AND estado='pendiente_pago'"
             )
-        """)
+        except Exception as exc:
+            logger.debug("pending_sales_intents expires_at backfill skipped: %s", exc)
+
+    def create_pending_payment_sale(self, branch_id: int, user: str, items: list,
+                                    client_id: int = None, notes: str = "",
+                                    total: float = 0.0) -> dict:
+        """Crea intención Mercado Pago pendiente y reserva stock temporalmente."""
+        if not items:
+            raise ValueError("Mercado Pago pendiente requiere items para reservar stock.")
+
+        self._ensure_pending_sales_intents_table()
+        branch_id = int(branch_id or 1)
+        folio = f"MP-{uuid.uuid4().hex[:12].upper()}"
+        normalized_items = self._normalize_items_payload(items)
+        reservation_items = [
+            {"id": int(item["product_id"]), "cantidad": float(item["qty"])}
+            for item in normalized_items
+        ]
+        from core.services.stock_reservation_service import StockReservationService
+        reservation_id = StockReservationService(self.db, branch_id=branch_id).reservar(
+            folio,
+            reservation_items,
+        )
         payload = {
             "branch_id": branch_id,
-            "user": user,
+            "user": str(user or "sistema"),
             "client_id": client_id,
-            "items": items or [],
-            "total": round(float(subtotal), 2),
-            "notes": notes or "",
+            "items": normalized_items,
+            "total": round(float(total or 0.0), 2),
+            "notes": str(notes or ""),
+            "reservation_id": int(reservation_id),
+            "payment_method": "Mercado Pago",
         }
+        try:
+            self.db.execute(
+                """INSERT INTO pending_sales_intents
+                   (folio, payload_json, estado, reservation_id, expires_at)
+                   VALUES (?, ?, 'pendiente_pago', ?, datetime('now', '+30 minutes'))""",
+                (folio, json.dumps(payload, ensure_ascii=False), int(reservation_id)),
+            )
+        except Exception as exc:
+            logger.warning("No se pudo persistir intención MP; liberando reserva_id=%s: %s", reservation_id, exc)
+            try:
+                StockReservationService(self.db, branch_id=branch_id).liberar(
+                    reservation_id,
+                    motivo="cancelada",
+                )
+            except Exception as cleanup_exc:
+                logger.warning(
+                    "No se pudo liberar reserva MP tras fallo de intención: reserva_id=%s error=%s",
+                    reservation_id,
+                    cleanup_exc,
+                )
+            raise
+        try:
+            self.db.commit()
+        except Exception as exc:
+            logger.debug("commit intención MP pendiente omitido: %s", exc)
+        return {
+            "folio": folio,
+            "estado": "pendiente_pago",
+            "reservation_id": int(reservation_id),
+            "items": normalized_items,
+            "total": payload["total"],
+        }
+
+    def attach_pending_payment_link(self, folio: str, url: str) -> None:
+        self._ensure_pending_sales_intents_table()
         self.db.execute(
-            "INSERT OR REPLACE INTO pending_sales_intents(folio, payload_json, estado) VALUES (?,?, 'pendiente_pago')",
-            (folio, json.dumps(payload)),
+            "UPDATE pending_sales_intents SET payment_url=? WHERE folio=? AND estado='pendiente_pago'",
+            (str(url or ""), str(folio)),
         )
         try:
             self.db.commit()
-        except Exception:
-            pass
-        return {
-            "ok": True,
-            "estado": "pendiente_pago",
-            "folio": folio,
-            "branch_id": branch_id,
-            "usuario": user,
-            "client_id": client_id,
-            "subtotal": round(float(subtotal), 2),
-            "notes": notes or "",
-            "items": items or [],
-            "todo": "Implementar confirmación por webhook para convertir a venta definitiva.",
-        }
+        except Exception as exc:
+            logger.debug("commit link MP pendiente omitido: %s", exc)
+
+    def cancel_pending_payment_sale(self, folio: str, motivo: str = "cancelada") -> None:
+        self._ensure_pending_sales_intents_table()
+        row = self.db.execute(
+            "SELECT payload_json, reservation_id FROM pending_sales_intents WHERE folio=? LIMIT 1",
+            (str(folio),),
+        ).fetchone()
+        if not row:
+            return
+        payload_json = row[0] if isinstance(row, tuple) else row["payload_json"]
+        reservation_id = row[1] if isinstance(row, tuple) else row["reservation_id"]
+        data = json.loads(payload_json or "{}")
+        reservation_id = int(reservation_id or data.get("reservation_id") or 0)
+        estado = "expirada" if str(motivo).strip().lower() == "expirada" else "cancelada"
+        if reservation_id:
+            from core.services.stock_reservation_service import StockReservationService
+            StockReservationService(self.db, branch_id=int(data.get("branch_id", 1))).liberar(
+                reservation_id,
+                motivo=estado,
+            )
+        self.db.execute(
+            "UPDATE pending_sales_intents SET estado=? WHERE folio=? AND estado='pendiente_pago'",
+            (estado, str(folio)),
+        )
+        try:
+            self.db.commit()
+        except Exception as exc:
+            logger.debug("commit cancelación MP pendiente omitido: %s", exc)
+
+    def expire_pending_payment_sales(self) -> int:
+        self._ensure_pending_sales_intents_table()
+        rows = self.db.execute(
+            """SELECT folio FROM pending_sales_intents
+               WHERE estado='pendiente_pago'
+                 AND expires_at IS NOT NULL
+                 AND expires_at < datetime('now')"""
+        ).fetchall()
+        for row in rows:
+            folio = row[0] if isinstance(row, tuple) else row["folio"]
+            self.cancel_pending_payment_sale(str(folio), motivo="expirada")
+        return len(rows)
 
     def confirm_pending_payment_sale(self, folio: str, payment_id: str = "") -> tuple:
         """
@@ -239,6 +405,8 @@ class SalesService:
         if estado == "confirmada":
             # idempotencia: no reprocesar
             return str(folio), ""
+        if estado != "pendiente_pago":
+            raise RuntimeError(f"Intento Mercado Pago no confirmable: {folio} estado={estado}")
         data = json.loads(payload_json or "{}")
         total = float(data.get("total", 0.0))
         items = data.get("items") or []
@@ -246,35 +414,72 @@ class SalesService:
         user = str(data.get("user", "sistema"))
         client_id = data.get("client_id")
         notes = str(data.get("notes", "")) + f" [MP payment_id={payment_id}]"
-        folio_sale, ticket = self.execute_sale(
+        reservation_id = int(data.get("reservation_id") or 0)
+        rich = self.execute_sale_result(
             branch_id=branch_id,
             user=user,
             items=items,
             payment_method="Mercado Pago",
             amount_paid=total,
+            payment_breakdown={"mercado_pago": total},
             client_id=client_id,
             notes=notes,
+            reservation_id=reservation_id,
         )
+        folio_sale, ticket = rich.folio, rich.ticket_html
         self.db.execute(
             "UPDATE pending_sales_intents SET estado='confirmada', payment_id=?, confirmed_at=datetime('now') WHERE folio=?",
             (str(payment_id or ""), str(folio)),
         )
         try:
             self.db.commit()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("No se pudo confirmar commit de intención MP confirmada folio=%s: %s", folio, exc)
         return folio_sale, ticket
+
+
+    def _sale_handler_labels(self, bus, event_type: str) -> set[str]:
+        if hasattr(bus, "handler_labels"):
+            return {str(label) for label in (bus.handler_labels(event_type) or [])}
+        handlers = getattr(bus, "_handlers", {}).get(event_type, [])
+        return {str(label) for _, label, _ in handlers}
+
+    def _validate_critical_sale_handlers(self, bus, event_type: str, payment_method: str) -> None:
+        labels = self._sale_handler_labels(bus, event_type)
+        missing: list[str] = []
+
+        def _has(fragment: str) -> bool:
+            return any(fragment in label for label in labels)
+
+        if not _has("sale_inventory"):
+            missing.append("inventario")
+        if not _has("sale_finance"):
+            missing.append("finanzas/caja")
+        from core.services.payment_normalization import is_credit_sale
+        if is_credit_sale(payment_method) and not _has("sale_credit"):
+            missing.append("crédito")
+
+        if missing:
+            registered = ", ".join(sorted(labels)) or "sin handlers etiquetados"
+            raise RuntimeError(
+                "Handlers críticos de venta no registrados: "
+                + ", ".join(missing)
+                + f". Registrados: {registered}"
+            )
 
     def _execute_sale_core(self, branch_id: int, user: str, items: list, payment_method: str,
                      amount_paid: float, client_id: int = None, client_phone: str = None,
                      client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
-                     loyalty_redemption_pts: int = 0, return_details: bool = False):
+                     loyalty_redemption_pts: int = 0, return_details: bool = False,
+                     payment_breakdown: dict | None = None, reservation_id: int | None = None):
         """
         Ejecuta la venta completa y devuelve el Folio y el Ticket HTML.
         
         :param items: Lista de diccionarios [{'product_id': 1, 'qty': 1.12, 'unit_price': 100, 'es_compuesto': 0, 'name': 'Pollo'}, ...]
         """
         operation_id = str(uuid.uuid4())
+        reservation_id = int(reservation_id or 0)
+        reservation_confirmed = False
 
         payment_method = self._normalize_payment_method(payment_method)
         items = self._normalize_items_payload(items)
@@ -362,7 +567,14 @@ class SalesService:
             total_a_pagar = round(total_a_pagar - loyalty_discount, 2)
             discount = round(discount + loyalty_discount, 2)
 
-        self._validate_payment(payment_method, amount_paid, total_a_pagar, client_id=client_id)
+        payment_breakdown = self._build_payment_breakdown(
+            payment_method=payment_method,
+            total=total_a_pagar,
+            amount_paid=amount_paid,
+            payment_breakdown=payment_breakdown,
+        )
+        amount_paid_real = self._amount_paid_for_storage(payment_method, payment_breakdown, total_a_pagar)
+        self._validate_payment(payment_method, total_a_pagar, payment_breakdown, client_id=client_id)
 
         # Guardia de margen v13.4 — no bloquea la venta, solo registra en audit
         if self.finance_service and hasattr(self.finance_service, 'validar_margen'):
@@ -375,8 +587,12 @@ class SalesService:
                             "VENTA_BAJO_MARGEN: producto=%s precio=%.2f usuario=%s",
                             _item.get('product_id'), _item.get('unit_price'), user
                         )
-                except Exception:
-                    pass  # guardia no crítica
+                except Exception as exc:
+                    logger.error(
+                        "Validación de margen/costo falló antes de venta producto=%s usuario=%s: %s",
+                        _item.get('product_id'), user, exc
+                    )
+                    raise RuntimeError("Validación de margen/costo no disponible; venta bloqueada.") from exc
 
         # =========================================================
         # 2. TRANSACCIÓN CRÍTICA DE BASE DE DATOS
@@ -401,10 +617,19 @@ class SalesService:
                 discount=discount,
                 total=total_a_pagar,
                 payment_method=payment_method,
-                amount_paid=amount_paid,
+                amount_paid=amount_paid_real,
                 operation_id=operation_id,
                 notes=notes
             )
+
+            if reservation_id:
+                from core.services.stock_reservation_service import StockReservationService
+                StockReservationService(self.db, branch_id=branch_id).confirmar(
+                    reservation_id,
+                    venta_id=sale_id,
+                    folio=folio,
+                )
+                reservation_confirmed = True
 
             # B. Guardar detalles de línea (sin lógica de inventario)
             for item in carrito_final:
@@ -417,8 +642,8 @@ class SalesService:
                 )
 
             # C. Inventario + Finanzas vía evento SALE_ITEMS_PROCESS (sync, dentro del SAVEPOINT).
-            #    SaleInventoryHandler y SaleFinanceHandler están registrados en wiring.py.
-            #    Si no hay handlers activos (tests sin AppContainer), la emisión es no-op.
+            #    SaleInventoryHandler y SaleFinanceHandler deben estar registrados;
+            #    vender sin handlers críticos queda bloqueado.
             resolved_items = self._resolve_sale_items(carrito_final, branch_id)
             _sale_evt_payload = make_sale_payload(
                 sale_id=sale_id,
@@ -429,11 +654,15 @@ class SalesService:
                 client_id=client_id,
                 items=resolved_items,
                 payment_method=payment_method,
+                amount_paid=amount_paid_real,
+                payment_breakdown=payment_breakdown,
                 operation_id=operation_id,
             )
             try:
                 from core.events.event_bus import get_bus
-                get_bus().publish(SALE_ITEMS_PROCESS, _sale_evt_payload, strict=True)
+                _bus = get_bus()
+                self._validate_critical_sale_handlers(_bus, SALE_ITEMS_PROCESS, payment_method)
+                _bus.publish(SALE_ITEMS_PROCESS, _sale_evt_payload, strict=True)
             except Exception as _evt_err:
                 logger.error("SALE_ITEMS_PROCESS dispatch failed (venta %s): %s", operation_id, _evt_err)
                 raise  # propagate so SAVEPOINT rolls back
@@ -496,7 +725,7 @@ class SalesService:
             # register_credit_sale() here would create a duplicate CxC row.
 
             # ── Acreditación postventa idempotente antes del ticket ───────────
-            loyalty_result = {"puntos_ganados": 0, "puntos_totales": 0, "nivel": "Bronce", "mensaje": ""}
+            loyalty_result = {"puntos_ganados": None, "puntos_totales": None, "nivel": None, "mensaje": "", "available": False}
             if client_id and self.loyalty_service:
                 try:
                     _lp = self._loyalty_policy()
@@ -518,6 +747,8 @@ class SalesService:
                             usuario=str(user),
                         )
                     ) or loyalty_result
+                    loyalty_result = dict(loyalty_result or {})
+                    loyalty_result["available"] = loyalty_result.get("puntos_totales") not in (None, "")
                 except Exception as _lyl_aw_err:
                     logger.warning("loyalty accrual venta=%s: %s", sale_id, _lyl_aw_err)
 
@@ -563,6 +794,8 @@ class SalesService:
                     "usuario":       user,
                     "cliente_id":    client_id,
                     "payment_method": payment_method,
+                    "amount_paid": amount_paid_real,
+                    "payment_breakdown": payment_breakdown,
                     "items": carrito_final,
                     "sale_datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "loyalty_already_processed": True,
@@ -576,8 +809,10 @@ class SalesService:
         except Exception as e:
             # Rollback to savepoint if still active
             if _sp:
-                try: self.db.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
-                except Exception: pass
+                try:
+                    self.db.execute(f"ROLLBACK TO SAVEPOINT {_sp}")
+                except Exception as _rollback_err:
+                    logger.warning("Rollback de venta falló savepoint=%s: %s", _sp, _rollback_err)
             logger.error("Fallo en venta %s: %s", operation_id, e)
             raise RuntimeError(
                 f"Operación cancelada. El inventario y caja están intactos: {e}"
@@ -592,12 +827,28 @@ class SalesService:
         ticket_final_html = ""
         try:
             datos_venta = {
-                'folio': folio, 'fecha': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'cajero': user, 'total': total_a_pagar, 'pago': amount_paid,
-                'cambio': (amount_paid - total_a_pagar) if payment_method == 'Efectivo' else 0,
+                'venta_id': sale_id,
+                'sale_id': sale_id,
+                'folio': folio,
+                'operation_id': operation_id,
+                'reservation_id': reservation_id or None,
+                'reservation_confirmed': reservation_confirmed,
+                'fecha': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'cajero': user,
+                'subtotal': round(float(subtotal), 2),
+                'descuento': round(float(discount), 2),
+                'total': round(float(total_a_pagar), 2),
+                'total_final': round(float(total_a_pagar), 2),
+                'totales': {
+                    'subtotal': round(float(subtotal), 2),
+                    'descuento': round(float(discount), 2),
+                    'total_final': round(float(total_a_pagar), 2),
+                },
+                'pago': amount_paid_real,
+                'cambio': self._calculate_change(payment_method, payment_breakdown, total_a_pagar),
                 'items': carrito_final,
-                'puntos_ganados': (loyalty_result or {}).get('puntos_ganados', 0),
-                'puntos_totales': (loyalty_result or {}).get('puntos_totales', 0),
+                'puntos_ganados': (loyalty_result or {}).get('puntos_ganados'),
+                'puntos_totales': (loyalty_result or {}).get('puntos_totales'),
                 'raffle_tickets_snapshot': raffle_tickets_snapshot,
                 'raffle_tickets_lines': [f"🎟️ Rifas/Sorteos\nRifa: {t.get('raffle','')}\nBoletos: {t.get('numero_boleto','')}" for t in (raffle_tickets_snapshot or [])],
             }
@@ -610,46 +861,45 @@ class SalesService:
         except Exception as e:
             logger.warning("No se pudo generar el ticket HTML: %s", e)
 
-        payment_breakdown = {
-            "efectivo": 0.0,
-            "tarjeta": 0.0,
-            "transferencia": 0.0,
-            "credito": 0.0,
-            "mercado_pago": 0.0,
-        }
         _pm = self._normalize_payment_method(payment_method)
-        _map = {
-            "Efectivo": "efectivo",
-            "Tarjeta": "tarjeta",
-            "Transferencia": "transferencia",
-            "Crédito": "credito",
-            "Credito": "credito",
-            "Pago Mixto": "efectivo",
-            "Mercado Pago": "mercado_pago",
-        }
-        payment_breakdown[_map.get(_pm, "efectivo")] = round(float(total_a_pagar), 2)
         ticket_payload = dict(datos_venta)
         ticket_payload["venta_id"] = sale_id
+        ticket_payload["sale_id"] = sale_id
         ticket_payload["operation_id"] = operation_id
+        ticket_payload["reservation_id"] = reservation_id or None
+        ticket_payload["reservation_confirmed"] = reservation_confirmed
+        ticket_payload["folio"] = str(folio)
+        ticket_payload["items"] = list(carrito_final)
+        ticket_payload["total"] = round(float(total_a_pagar), 2)
+        ticket_payload["total_final"] = round(float(total_a_pagar), 2)
+        ticket_payload["totales"] = {
+            "subtotal": round(float(subtotal), 2),
+            "descuento": round(float(discount), 2),
+            "total_final": round(float(total_a_pagar), 2),
+        }
         ticket_payload["pago"] = {
             "forma_pago": _pm,
-            "total_pagado": float(amount_paid or 0.0),
-            "efectivo_recibido": float(amount_paid or 0.0) if _pm == "Efectivo" else 0.0,
+            "total_pagado": round(sum(float(v or 0.0) for v in payment_breakdown.values()), 2),
+            "efectivo_recibido": payment_breakdown["efectivo"],
             "tarjeta": payment_breakdown["tarjeta"],
             "transferencia": payment_breakdown["transferencia"],
             "credito": payment_breakdown["credito"],
             "mercado_pago": payment_breakdown["mercado_pago"],
-            "cambio": (amount_paid - total_a_pagar) if _pm == "Efectivo" else 0.0,
-            "saldo_credito": max(round(float(total_a_pagar) - float(amount_paid or 0.0), 2), 0.0) if _pm in {"Credito", "Crédito"} else 0.0,
+            "cambio": self._calculate_change(_pm, payment_breakdown, total_a_pagar),
+            "saldo_credito": round(float(total_a_pagar), 2) if _pm in {"Credito", "Crédito"} else 0.0,
+            "amount_paid": amount_paid_real,
+            "amount_paid_real": amount_paid_real,
             "lineas": payment_breakdown,
+            "breakdown": payment_breakdown,
         }
         ticket_payload["loyalty"] = {
             "cliente_id": client_id,
             "puntos_canjeados": int(loyalty_redemption_pts or 0),
             "descuento_puntos": float(loyalty_discount or 0.0),
-            "puntos_ganados": int((loyalty_result or {}).get("puntos_ganados", 0) or 0),
-            "puntos_totales": int((loyalty_result or {}).get("puntos_totales", 0) or 0),
-            "nivel": str((loyalty_result or {}).get("nivel", client_level or "Bronce")),
+            "puntos_ganados": (loyalty_result or {}).get("puntos_ganados"),
+            "puntos_totales": (loyalty_result or {}).get("puntos_totales"),
+            "nivel": (loyalty_result or {}).get("nivel"),
+            "available": bool((loyalty_result or {}).get("available", False)),
             "mensaje": str((loyalty_result or {}).get("mensaje", "") or ""),
             "operation_id": operation_id,
         }
@@ -673,10 +923,78 @@ class SalesService:
         return folio, ticket_final_html
 
 
+
+    def _calculate_change(self, payment_method: str, payment_lines: dict, total: float) -> float:
+        method = self._normalize_payment_method(payment_method)
+        total = round(float(total or 0.0), 2)
+        lines = dict(payment_lines or {})
+        if method == "Efectivo":
+            return round(max(float(lines.get("efectivo", 0.0) or 0.0) - total, 0.0), 2)
+        if method in {"Pago Mixto", "Mixto"}:
+            paid = (
+                float(lines.get("efectivo", 0.0) or 0.0)
+                + float(lines.get("tarjeta", 0.0) or 0.0)
+                + float(lines.get("transferencia", 0.0) or 0.0)
+            )
+            return round(max(paid - total, 0.0), 2)
+        return 0.0
+
+
+
+    def _build_payment_breakdown(self, payment_method: str, total: float, amount_paid: float, payment_breakdown: dict | None = None) -> dict:
+        method = self._normalize_payment_method(payment_method)
+        total = round(float(total or 0.0), 2)
+        amount_paid = round(float(amount_paid or 0.0), 2)
+        lineas = {
+            "efectivo": 0.0,
+            "tarjeta": 0.0,
+            "transferencia": 0.0,
+            "credito": 0.0,
+            "mercado_pago": 0.0,
+        }
+        allowed_methods = {"Efectivo", "Tarjeta", "Transferencia", "Credito", "Crédito", "Mercado Pago", "Pago Mixto", "Mixto"}
+        if method not in allowed_methods:
+            raise ValueError(f"Método de pago desconocido: {method}")
+        aliases = {
+            "efectivo": "efectivo",
+            "cash": "efectivo",
+            "tarjeta": "tarjeta",
+            "card": "tarjeta",
+            "monto_tarjeta_mixto": "tarjeta",
+            "transferencia": "transferencia",
+            "transfer": "transferencia",
+            "credito": "credito",
+            "crédito": "credito",
+            "saldo_credito": "credito",
+            "mercado_pago": "mercado_pago",
+            "mercado pago": "mercado_pago",
+        }
+        if payment_breakdown:
+            for raw_key, raw_value in payment_breakdown.items():
+                key = aliases.get(str(raw_key).strip().lower())
+                if key is None:
+                    raise ValueError(f"Método de pago desconocido en desglose: {raw_key}")
+                lineas[key] += round(float(raw_value or 0.0), 2)
+            return lineas
+        if method == "Efectivo":
+            lineas["efectivo"] = amount_paid
+        elif method == "Tarjeta":
+            lineas["tarjeta"] = total
+        elif method == "Transferencia":
+            lineas["transferencia"] = total
+        elif method in {"Crédito", "Credito"}:
+            lineas["credito"] = total
+        elif method == "Mercado Pago":
+            lineas["mercado_pago"] = total
+        elif method in {"Mixto", "Pago Mixto"}:
+            raise ValueError("Pago mixto requiere payment_breakdown explícito.")
+        return lineas
+
     def execute_sale_result(self, branch_id: int, user: str, items: list, payment_method: str,
                             amount_paid: float, client_id: int = None, client_phone: str = None,
                             client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
-                            loyalty_redemption_pts: int = 0):
+                            loyalty_redemption_pts: int = 0, payment_breakdown: dict | None = None,
+                            reservation_id: int | None = None):
         from core.services.sales.sale_execution_result import (
             SaleExecutionItem, SaleExecutionResult, SaleLoyaltyResult, SalePaymentResult,
         )
@@ -688,6 +1006,8 @@ class SalesService:
             client_level=client_level, discount=discount, notes=notes,
             loyalty_redemption_pts=loyalty_redemption_pts,
             return_details=True,
+            payment_breakdown=payment_breakdown,
+            reservation_id=reservation_id,
         )
         if not details.get("operation_id"):
             warnings.append("operation_id no disponible en el resultado interno de venta")
@@ -704,7 +1024,7 @@ class SalesService:
             ) for d in (details.get("items") or [])
         ]
         payment = SalePaymentResult(
-            forma_pago=str((details.get("payment") or {}).get("forma_pago", "Efectivo")),
+            forma_pago=str((details.get("payment") or {}).get("forma_pago", "")),
             total_pagado=float((details.get("payment") or {}).get("total_pagado", 0.0) or 0.0),
             efectivo_recibido=float((details.get("payment") or {}).get("efectivo_recibido", 0.0) or 0.0),
             tarjeta=float((details.get("payment") or {}).get("tarjeta", 0.0) or 0.0),
@@ -714,17 +1034,19 @@ class SalesService:
             cambio=float((details.get("payment") or {}).get("cambio", 0.0) or 0.0),
             saldo_credito=float((details.get("payment") or {}).get("saldo_credito", 0.0) or 0.0),
             lineas=dict((details.get("payment") or {}).get("lineas", {}) or {}),
+            amount_paid_real=float((details.get("payment") or {}).get("amount_paid_real", (details.get("payment") or {}).get("amount_paid", 0.0)) or 0.0),
         )
         loy_raw = details.get("loyalty") or {}
         loyalty = SaleLoyaltyResult(
             cliente_id=loy_raw.get("cliente_id", client_id),
             puntos_canjeados=int(loy_raw.get("puntos_canjeados", 0) or 0),
             descuento_puntos=float(loy_raw.get("descuento_puntos", 0.0) or 0.0),
-            puntos_ganados=int(loy_raw.get("puntos_ganados", 0) or 0),
-            puntos_totales=int(loy_raw.get("puntos_totales", 0) or 0),
-            nivel=str(loy_raw.get("nivel", client_level or "Bronce")),
+            puntos_ganados=loy_raw.get("puntos_ganados"),
+            puntos_totales=loy_raw.get("puntos_totales"),
+            nivel=loy_raw.get("nivel"),
             mensaje=str(loy_raw.get("mensaje", "") or ""),
             operation_id=str(loy_raw.get("operation_id", details.get("operation_id", "")) or ""),
+            available=bool(loy_raw.get("available", False)),
         )
         return SaleExecutionResult(
             ok=bool(details.get("ok", True)),
@@ -746,7 +1068,7 @@ class SalesService:
     def execute_sale(self, branch_id: int, user: str, items: list, payment_method: str,
                      amount_paid: float, client_id: int = None, client_phone: str = None,
                      client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
-                     loyalty_redemption_pts: int = 0) -> tuple:
+                     loyalty_redemption_pts: int = 0, reservation_id: int | None = None) -> tuple:
         """
         Adapter legacy: mantiene contrato histórico (folio, ticket_html).
         La fuente real es execute_sale_result().
@@ -763,15 +1085,31 @@ class SalesService:
             discount=discount,
             notes=notes,
             loyalty_redemption_pts=loyalty_redemption_pts,
+            reservation_id=reservation_id,
         )
         return result.folio, result.ticket_html
 
     # ── Compatibilidad legacy (tests v9 + módulos antiguos) ─────────────────
     def procesar_venta(self, items, datos_pago, usuario=None, **_kw):
         """
-        API legacy compatible con UnifiedSalesService.
-        Mantiene retrocompatibilidad sin romper `execute_sale`.
+        API legacy bloqueada por defecto.
+
+        Fecha de eliminación planificada: 2026-06-30.
+        Ruta oficial: ProcesarVentaUC.ejecutar() -> SalesService.execute_sale_result().
         """
+        if not _legacy_flag_enabled(ALLOW_LEGACY_SALES_SERVICE_PROCESAR_VENTA):
+            logger.error(
+                "SalesService.procesar_venta legacy bloqueado; usa ProcesarVentaUC -> "
+                "execute_sale_result. Eliminación planificada: %s. Para tests legacy aislados: %s=1",
+                LEGACY_SALES_REMOVAL_DATE,
+                ALLOW_LEGACY_SALES_SERVICE_PROCESAR_VENTA,
+            )
+            raise RuntimeError(
+                "SalesService.procesar_venta() legacy está bloqueado por seguridad. "
+                "Ruta oficial: ProcesarVentaUC.ejecutar() -> SalesService.execute_sale_result(). "
+                f"Eliminación planificada: {LEGACY_SALES_REMOVAL_DATE}. "
+                f"Para pruebas legacy aisladas use {ALLOW_LEGACY_SALES_SERVICE_PROCESAR_VENTA}=1."
+            )
         from core.services.sales.unified_sales_service import (
             ResultadoVenta, CarritoVacioError, PagoInsuficienteError, StockError, VentaError
         )
@@ -781,7 +1119,18 @@ class SalesService:
 
         usr = usuario or "cajero"
         payment_method = getattr(datos_pago, "forma_pago", "Efectivo")
-        amount_paid = float(getattr(datos_pago, "efectivo_recibido", 0.0) or 0.0)
+        payment_breakdown = dict(
+            getattr(datos_pago, "payment_breakdown", None)
+            or getattr(datos_pago, "pago_mixto", None)
+            or getattr(datos_pago, "lineas", None)
+            or {}
+        )
+        if getattr(datos_pago, "amount_paid_real", None) is not None:
+            amount_paid = float(getattr(datos_pago, "amount_paid_real") or 0.0)
+        elif payment_breakdown:
+            amount_paid = float(sum(float(v or 0.0) for v in payment_breakdown.values()))
+        else:
+            amount_paid = float(getattr(datos_pago, "efectivo_recibido", 0.0) or 0.0)
         client_id = getattr(datos_pago, "cliente_id", None)
         discount = float(getattr(datos_pago, "descuento_global", 0.0) or 0.0)
 
@@ -803,8 +1152,9 @@ class SalesService:
 
         try:
             ventas_cols = {r[1] for r in self.db.execute("PRAGMA table_info(ventas)").fetchall()}
-        except Exception:
-            ventas_cols = set()
+        except Exception as exc:
+            logger.warning("No se pudo inspeccionar esquema de ventas; ruta legacy mínima bloqueada: %s", exc)
+            raise VentaError("No se pudo validar esquema de ventas para procesar venta.") from exc
         if "operation_id" not in ventas_cols or "observations" not in ventas_cols:
             return self._procesar_venta_legacy_minimal(
                 items_payload=items_payload,
@@ -816,15 +1166,17 @@ class SalesService:
             )
 
         try:
-            folio, ticket_html = self.execute_sale(
+            rich = self.execute_sale_result(
                 branch_id=1,
                 user=usr,
                 items=items_payload,
                 payment_method=payment_method,
                 amount_paid=amount_paid,
+                payment_breakdown=payment_breakdown,
                 client_id=client_id,
                 discount=discount,
             )
+            folio, ticket_html = rich.folio, rich.ticket_html
             row = self.db.execute(
                 "SELECT id,total,cambio FROM ventas WHERE folio=? ORDER BY id DESC LIMIT 1",
                 (folio,)
@@ -909,7 +1261,8 @@ class SalesService:
                         "UPDATE ventas SET estado='cancelada', notas=? WHERE id=?",
                         (motivo, int(venta_id))
                     )
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Cancelación de venta sin columna notas; usando fallback estado-only venta_id=%s: %s", venta_id, exc)
                     self.db.execute(
                         "UPDATE ventas SET estado='cancelada' WHERE id=?",
                         (int(venta_id),)
@@ -942,16 +1295,31 @@ class SalesService:
     def _procesar_venta_legacy_minimal(
         self, *, items_payload, payment_method, amount_paid, client_id, discount, usuario
     ):
+        if not _legacy_flag_enabled(ALLOW_LEGACY_MINIMAL_SALE_WRITE):
+            logger.error(
+                "_procesar_venta_legacy_minimal bloqueado; escribe ventas fuera de "
+                "execute_sale_result. Eliminación planificada: %s. Para tests legacy aislados: %s=1",
+                LEGACY_SALES_REMOVAL_DATE,
+                ALLOW_LEGACY_MINIMAL_SALE_WRITE,
+            )
+            raise RuntimeError(
+                "_procesar_venta_legacy_minimal() está bloqueado por seguridad: "
+                "escribe ventas/caja/inventario fuera de SalesService.execute_sale_result(). "
+                f"Eliminación planificada: {LEGACY_SALES_REMOVAL_DATE}. "
+                f"Para pruebas legacy aisladas use {ALLOW_LEGACY_MINIMAL_SALE_WRITE}=1."
+            )
         from datetime import datetime
         from core.services.sales.unified_sales_service import (
             ResultadoVenta, PagoInsuficienteError, StockError, VentaError
         )
         subtotal = round(sum(float(i["qty"]) * float(i["unit_price"]) for i in items_payload), 2)
         total = round(max(subtotal - float(discount or 0), 0.0), 2)
-        if payment_method.lower() not in {"tarjeta", "credito"}:
-            # Hardening Fase 0: efectivo debe cubrir el total neto de la venta.
-            if float(amount_paid or 0) < total:
-                raise PagoInsuficienteError("El monto pagado es menor al total.")
+        try:
+            payment_lines = self._build_payment_breakdown(payment_method, total, amount_paid, None)
+            amount_paid_real = self._amount_paid_for_storage(payment_method, payment_lines, total)
+            self._validate_payment(payment_method, total, payment_lines, client_id=client_id)
+        except ValueError as exc:
+            raise PagoInsuficienteError(str(exc)) from exc
 
         try:
             for i in items_payload:
@@ -961,7 +1329,7 @@ class SalesService:
                     raise StockError(f"Stock insuficiente para producto {i['product_id']}")
 
             folio = self._generate_unique_sale_folio()
-            cambio = round(max(float(amount_paid or 0) - total, 0.0), 2)
+            cambio = self._calculate_change(payment_method, payment_lines, total)
             cur = self.db.execute(
                 """
                 INSERT INTO ventas(
@@ -970,7 +1338,7 @@ class SalesService:
                 ) VALUES (?,1,?,?,?,?,?,?,?,?, 'completada', datetime('now'))
                 """,
                 (folio, usuario, client_id, subtotal, float(discount or 0), total,
-                 payment_method, float(amount_paid or 0), cambio)
+                 payment_method, amount_paid_real, cambio)
             )
             venta_id = int(cur.lastrowid)
 
@@ -1008,12 +1376,12 @@ class SalesService:
         except (PagoInsuficienteError, StockError):
             try:
                 self.db.rollback()
-            except Exception:
-                pass
+            except Exception as rb_exc:
+                logger.warning("Rollback legacy de venta falló tras error controlado: %s", rb_exc)
             raise
         except Exception as exc:
             try:
                 self.db.rollback()
-            except Exception:
-                pass
+            except Exception as rb_exc:
+                logger.warning("Rollback legacy de venta falló: %s", rb_exc)
             raise VentaError(str(exc)) from exc

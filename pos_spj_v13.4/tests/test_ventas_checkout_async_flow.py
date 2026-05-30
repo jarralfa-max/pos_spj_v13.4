@@ -1,4 +1,7 @@
 from pathlib import Path
+
+import pytest
+
 from presentation.sales.workers.sale_checkout_worker import SaleCheckoutWorker
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -10,25 +13,17 @@ class _UCOK:
         return {"ok": True, "folio": "V1", "venta_id": 1}
 
 
-class _UCFail:
-    def ejecutar(self, *_a, **_k):
-        raise RuntimeError("boom")
+def test_ventas_checkout_worker_blocked_for_transactional_sale():
+    with pytest.raises(RuntimeError, match="deshabilitado"):
+        SaleCheckoutWorker(_UCOK(), [], {}, 1, "cajero")
 
 
-def test_ventas_checkout_worker_success():
-    w = SaleCheckoutWorker(_UCOK(), [], {}, 1, "cajero")
-    got = {}
-    w.success.connect(lambda r: got.setdefault("result", r))
-    w.run()
-    assert got["result"]["ok"] is True
-
-
-def test_ventas_checkout_worker_failure_no_limpia_carrito():
-    w = SaleCheckoutWorker(_UCFail(), [], {}, 1, "cajero")
-    got = {}
-    w.failed.connect(lambda msg, _tb: got.setdefault("msg", msg))
-    w.run()
-    assert "boom" in got["msg"]
+def test_finalizar_venta_executes_uc_in_main_thread_without_sale_worker():
+    src = VENTAS.read_text(encoding="utf-8")
+    fn = src.split("def finalizar_venta", 1)[1].split("def _on_checkout_success", 1)[0]
+    assert "result = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)" in fn
+    assert "SaleCheckoutWorker" not in fn
+    assert "moveToThread" not in fn
 
 
 def test_imprimir_ticket_no_printer_muestra_error_y_pdf():
@@ -55,6 +50,6 @@ def test_printer_callback_error_llega_a_ui():
 
 def test_finalizar_venta_no_llama_qprinter_directo():
     src = VENTAS.read_text(encoding="utf-8")
-    fn = src.split("def finalizar_venta", 1)[1].split("def generar_ticket", 1)[0]
+    fn = src.split("def finalizar_venta", 1)[1].split("def _on_checkout_success", 1)[0]
     assert "QPrinter" not in fn
     assert "QTextDocument" not in fn
