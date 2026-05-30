@@ -1,40 +1,26 @@
-# core/services/printer_service.py — SPJ POS v13.30 — FASE 1
-"""
-PrinterService — servicio ÚNICO de impresión para todo el ERP.
+# core/services/printer_service.py — SPJ POS
+"""Canonical printing service.
 
-Elimina la duplicación de 6 implementaciones separadas de envío a impresora.
-Soporta: tickets ESC/POS, etiquetas ZPL/TSPL, documentos HTML→PDF.
-
-Arquitectura:
-    Módulo (ventas, etiquetas, caja, delivery...)
-        ↓ submit_job()
-    PrinterService
-        ├── PrintQueue (thread-safe, prioridad)
-        ├── Formatter (ESC/POS, ZPL, HTML)
-        └── Transport (TCP, Serial, USB/Win32)
-
-USO:
-    printer = container.printer_service
-    printer.print_ticket(ticket_data)           # ticket ESC/POS
-    printer.print_label(label_data, printer_cfg) # etiqueta ZPL
-    printer.print_html(html, paper_cfg)          # HTML→impresora sistema
+The printer configuration source of truth is ``hardware_config`` through
+``HardwareConfigRepository``. This service intentionally does not read from
+``configuraciones_hardware`` because that table is not part of the canonical
+schema and caused startup warnings plus disconnected printer settings.
 """
 from __future__ import annotations
+
 import logging
+import os
 import queue
+import socket
 import threading
 import time
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional, Dict, Any, Callable, List
 from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("spj.printer")
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  Enums y modelos
-# ══════════════════════════════════════════════════════════════════════════════
 
 class PrintJobType(str, Enum):
     TICKET = "ticket"
@@ -44,12 +30,12 @@ class PrintJobType(str, Enum):
 
 
 class TransportType(str, Enum):
-    NETWORK = "network"     # TCP/IP (ip:port)
-    SERIAL = "serial"       # COM port
-    USB_WIN32 = "usb_win32" # Windows print spooler
-    SYSTEM = "system"       # QPrinter del sistema
-    FILE = "file"           # Archivo local (spool, /dev/usb/lp0, etc.)
-    AUTO = "auto"           # Detectar por ubicación
+    NETWORK = "network"
+    SERIAL = "serial"
+    USB_WIN32 = "usb_win32"
+    SYSTEM = "system"
+    FILE = "file"
+    AUTO = "auto"
 
 
 class PrintJobStatus(str, Enum):
@@ -70,15 +56,14 @@ class ValidationResult:
 
 @dataclass
 class PrintJob:
-    """Trabajo de impresión encolable."""
     id: str = ""
     job_type: PrintJobType = PrintJobType.TICKET
-    data: bytes = b""                  # Bytes listos para enviar
-    raw_data: Dict[str, Any] = field(default_factory=dict)  # Datos originales
+    data: bytes = b""
+    raw_data: Dict[str, Any] = field(default_factory=dict)
     transport: TransportType = TransportType.AUTO
-    destination: str = ""              # IP:port, COM port, o printer name
-    baud: int = 9600                   # Baud rate para transporte serial
-    priority: int = 5                  # 1=urgente, 10=baja
+    destination: str = ""
+    baud: int = 9600
+    priority: int = 5
     retries: int = 2
     status: PrintJobStatus = PrintJobStatus.QUEUED
     on_success: Optional[Callable] = None
@@ -90,64 +75,46 @@ class PrintJob:
         return self.priority < other.priority
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  Transport Layer — envío unificado
-# ══════════════════════════════════════════════════════════════════════════════
-
 class PrintTransport:
-    """Capa de transporte — envía bytes a cualquier tipo de impresora."""
-
-    @staticmethod
-    def send(data: bytes, transport: TransportType, destination: str,
-             baud: int = 9600) -> bool:
-        """Envía bytes a la impresora según el tipo de transporte.
-
-        Args:
-            baud: velocidad serial; ignorado si transporte != SERIAL.
-        """
-        if transport == TransportType.AUTO:
-            transport = PrintTransport.detect_type(destination)
-
-        if transport == TransportType.NETWORK:
-            return PrintTransport._send_tcp(data, destination)
-        elif transport == TransportType.SERIAL:
-            return PrintTransport._send_serial(data, destination, baud=baud)
-        elif transport == TransportType.FILE:
-            return PrintTransport._send_file(data, destination)
-        elif transport in (TransportType.USB_WIN32, TransportType.SYSTEM):
-            return PrintTransport._send_win32(data, destination)
-        else:
-            raise ValueError(f"Transporte no soportado: {transport}")
+    """Transport layer for ESC/POS/raw print bytes."""
 
     @staticmethod
     def detect_type(destination: str) -> TransportType:
-        """Auto-detecta el tipo de transporte por la ubicación."""
         if not destination:
             return TransportType.USB_WIN32
-        d = destination.strip()
-        if ':' in d and d.split(':')[0].replace('.', '').isdigit():
+        d = str(destination).strip()
+        if ":" in d and d.split(":")[0].replace(".", "").isdigit():
             return TransportType.NETWORK
-        if d.upper().startswith('COM') or '/dev/tty' in d:
+        if d.upper().startswith("COM") or "/dev/tty" in d:
             return TransportType.SERIAL
-        if (d.startswith('/') or d.startswith('./') or d.startswith('../')
-                or d.endswith('.prn') or '/dev/usb/' in d):
+        if d.startswith(("/", "./", "../")) or d.endswith(".prn") or "/dev/usb/" in d:
             return TransportType.FILE
         return TransportType.USB_WIN32
 
     @staticmethod
+    def send(data: bytes, transport: TransportType, destination: str, baud: int = 9600) -> bool:
+        if transport == TransportType.AUTO:
+            transport = PrintTransport.detect_type(destination)
+        if transport == TransportType.NETWORK:
+            return PrintTransport._send_tcp(data, destination)
+        if transport == TransportType.SERIAL:
+            return PrintTransport._send_serial(data, destination, baud=baud)
+        if transport == TransportType.FILE:
+            return PrintTransport._send_file(data, destination)
+        if transport in (TransportType.USB_WIN32, TransportType.SYSTEM):
+            return PrintTransport._send_win32(data, destination)
+        raise ValueError(f"Transporte no soportado: {transport}")
+
+    @staticmethod
     def _send_tcp(data: bytes, destination: str) -> bool:
-        import socket
-        parts = destination.split(':')
-        ip = parts[0].strip()
+        parts = str(destination).split(":")
+        host = parts[0].strip()
         port = int(parts[1]) if len(parts) > 1 else 9100
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(5)
-        try:
-            s.connect((ip, port))
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(5)
+            s.connect((host, port))
             s.sendall(data)
-            return True
-        finally:
-            s.close()
+        return True
 
     @staticmethod
     def _send_serial(data: bytes, destination: str, baud: int = 9600) -> bool:
@@ -162,8 +129,7 @@ class PrintTransport:
 
     @staticmethod
     def _send_file(data: bytes, destination: str) -> bool:
-        """Escribe bytes a un archivo/dispositivo local (spool, /dev/usb/lp0, .prn)."""
-        with open(destination, 'wb') as f:
+        with open(destination, "wb") as f:
             f.write(data)
         return True
 
@@ -173,7 +139,7 @@ class PrintTransport:
         printer_name = destination or win32print.GetDefaultPrinter()
         hp = win32print.OpenPrinter(printer_name)
         try:
-            hj = win32print.StartDocPrinter(hp, 1, ("SPJ Print", None, "RAW"))
+            win32print.StartDocPrinter(hp, 1, ("SPJ Print", None, "RAW"))
             win32print.StartPagePrinter(hp)
             win32print.WritePrinter(hp, data)
             win32print.EndPagePrinter(hp)
@@ -184,13 +150,11 @@ class PrintTransport:
 
     @staticmethod
     def is_available(transport: TransportType, destination: str) -> bool:
-        """Verifica si la impresora está accesible."""
         try:
             if transport == TransportType.AUTO:
                 transport = PrintTransport.detect_type(destination)
             if transport == TransportType.NETWORK:
-                import socket
-                parts = destination.split(':')
+                parts = str(destination).split(":")
                 host = parts[0].strip()
                 port = int(parts[1]) if len(parts) > 1 else 9100
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -198,8 +162,7 @@ class PrintTransport:
                     s.connect((host, port))
                 return True
             if transport == TransportType.FILE:
-                import os
-                parent = os.path.dirname(destination) or '.'
+                parent = os.path.dirname(destination) or "."
                 return os.path.isdir(parent) and os.access(parent, os.W_OK)
             if transport == TransportType.SERIAL:
                 import serial as _serial
@@ -217,164 +180,146 @@ class PrintTransport:
             return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  Print Queue — cola thread-safe con prioridad
-# ══════════════════════════════════════════════════════════════════════════════
-
 class PrintQueue:
-    """Cola de impresión con worker thread y reintentos."""
-
     def __init__(self, max_size: int = 100):
         self._queue: queue.PriorityQueue = queue.PriorityQueue(maxsize=max_size)
         self._worker_thread: Optional[threading.Thread] = None
         self._running = False
         self._job_counter = 0
         self._lock = threading.Lock()
-        # Stats
         self.total_printed = 0
         self.total_failed = 0
-        # EventBus — inyectado desde PrinterService después de construcción
         self._bus = None
-        # DB — inyectado desde PrinterService para bitácora de impresión
         self._db = None
 
-    def start(self):
+    def start(self) -> None:
         if self._running:
             return
         self._running = True
-        self._worker_thread = threading.Thread(
-            target=self._worker, name="SPJ-PrintWorker", daemon=True)
+        self._worker_thread = threading.Thread(target=self._worker, name="SPJ-PrintWorker", daemon=True)
         self._worker_thread.start()
         logger.info("Cola de impresión iniciada")
 
-    def stop(self):
+    def stop(self) -> None:
         self._running = False
         if self._worker_thread:
             self._worker_thread.join(timeout=5)
-        logger.info("Cola de impresión detenida (impresos=%d, fallos=%d)",
-                     self.total_printed, self.total_failed)
+        logger.info("Cola de impresión detenida (impresos=%d, fallos=%d)", self.total_printed, self.total_failed)
 
-    def submit(self, job: PrintJob):
-        """Encola un trabajo de impresión."""
+    def submit(self, job: PrintJob) -> None:
         with self._lock:
             self._job_counter += 1
             if not job.id:
                 job.id = f"PJ-{self._job_counter:05d}"
         try:
             self._queue.put_nowait((job.priority, job.created_at, job))
-            logger.debug("Job encolado: %s (%s → %s)",
-                         job.id, job.job_type.value, job.destination or "default")
+            logger.debug("Job encolado: %s (%s → %s)", job.id, job.job_type.value, job.destination or "default")
         except queue.Full:
             logger.error("Cola de impresión llena — trabajo descartado: %s", job.id)
             if job.on_error:
                 job.on_error(Exception("Cola de impresión llena"))
 
-    def _worker(self):
+    def _worker(self) -> None:
         while self._running:
             try:
                 _, _, job = self._queue.get(timeout=1.0)
             except queue.Empty:
                 continue
-
             job.status = PrintJobStatus.PRINTING
             success = False
-
             last_error: Optional[Exception] = None
+            attempt = 0
             for attempt in range(1, job.retries + 1):
                 try:
-                    ok = PrintTransport.send(job.data, job.transport,
-                                             job.destination, baud=job.baud)
+                    ok = PrintTransport.send(job.data, job.transport, job.destination, baud=job.baud)
                     if not ok:
-                        raise RuntimeError(
-                            f"Transport returned False: {job.transport.value} -> {job.destination}"
-                        )
+                        raise RuntimeError(f"Transport returned False: {job.transport.value} -> {job.destination}")
                     success = True
                     job.status = PrintJobStatus.SUCCESS
                     self.total_printed += 1
-                    logger.info("✅ Impreso: %s (%s, intento %d)",
-                                job.id, job.job_type.value, attempt)
+                    logger.info("✅ Impreso: %s (%s, intento %d)", job.id, job.job_type.value, attempt)
                     if job.on_success:
                         try:
                             job.on_success()
                         except Exception:
                             logger.exception("Print on_success callback failed job=%s", job.id)
-                    # Publicar evento TICKET_IMPRESO al EventBus
-                    if self._bus:
-                        try:
-                            from core.events.event_bus import TICKET_IMPRESO
-                            rd = job.raw_data or {}
-                            self._bus.publish(TICKET_IMPRESO, {
-                                "job_id": job.id,
-                                "job_type": job.job_type.value,
-                                "destination": job.destination,
-                                "folio": rd.get("folio", ""),
-                                "total": rd.get("totales", {}).get("total_final", 0),
-                            }, async_=True)
-                        except Exception:
-                            logger.exception("Failed publishing TICKET_IMPRESO for job=%s", job.id)
+                    self._publish_success(job)
                     break
-                except Exception as e:
-                    last_error = e
-                    logger.warning("Impresión %s intento %d/%d falló: %s",
-                                   job.id, attempt, job.retries, e)
+                except Exception as exc:
+                    last_error = exc
+                    logger.warning("Impresión %s intento %d/%d falló: %s", job.id, attempt, job.retries, exc)
                     if attempt < job.retries:
-                        time.sleep(1)  # Esperar antes de reintentar
-
+                        time.sleep(1)
             if not success:
                 job.status = PrintJobStatus.FAILED
                 job.error_msg = str(last_error) if last_error else "Unknown"
                 self.total_failed += 1
-                logger.error("❌ Impresión falló: %s tras %d intentos",
-                             job.id, job.retries)
+                logger.error("❌ Impresión falló: %s tras %d intentos", job.id, job.retries)
                 if job.on_error:
                     try:
                         job.on_error(Exception(job.error_msg))
                     except Exception:
                         logger.exception("Print on_error callback failed job=%s", job.id)
-                # Publicar evento PRINT_FAILED al EventBus
-                if self._bus:
-                    try:
-                        from core.events.event_bus import PRINT_FAILED
-                        self._bus.publish(PRINT_FAILED, {
-                            "job_id": job.id,
-                            "job_type": job.job_type.value,
-                            "destination": job.destination,
-                            "error_msg": job.error_msg,
-                            "retries": job.retries,
-                        }, async_=True)
-                    except Exception:
-                        logger.exception("Failed publishing PRINT_FAILED for job=%s", job.id)
-
-            # ── Bitácora de impresión en BD (Fase 1 — Plan Maestro) ───────────
+                self._publish_failure(job)
             self._log_job_to_db(job, attempt if success else job.retries)
-
             self._queue.task_done()
 
-    def _log_job_to_db(self, job: "PrintJob", reintentos: int) -> None:
-        """Persiste el resultado del trabajo en print_job_log."""
+    def _publish_success(self, job: PrintJob) -> None:
+        if not self._bus:
+            return
+        try:
+            from core.events.event_bus import TICKET_IMPRESO
+            rd = job.raw_data or {}
+            self._bus.publish(TICKET_IMPRESO, {
+                "job_id": job.id,
+                "job_type": job.job_type.value,
+                "destination": job.destination,
+                "folio": rd.get("folio", ""),
+                "total": rd.get("totales", {}).get("total_final", rd.get("total", 0)),
+            }, async_=True)
+        except Exception:
+            logger.exception("Failed publishing TICKET_IMPRESO for job=%s", job.id)
+
+    def _publish_failure(self, job: PrintJob) -> None:
+        if not self._bus:
+            return
+        try:
+            from core.events.event_bus import PRINT_FAILED
+            self._bus.publish(PRINT_FAILED, {
+                "job_id": job.id,
+                "job_type": job.job_type.value,
+                "destination": job.destination,
+                "error_msg": job.error_msg,
+                "retries": job.retries,
+            }, async_=True)
+        except Exception:
+            logger.exception("Failed publishing PRINT_FAILED for job=%s", job.id)
+
+    def _log_job_to_db(self, job: PrintJob, reintentos: int) -> None:
         if not self._db:
             return
         try:
-            from datetime import datetime
             rd = job.raw_data or {}
-            self._db.execute("""
+            self._db.execute(
+                """
                 INSERT INTO print_job_log
                     (job_id, job_type, plantilla, impresora, folio, estado,
                      reintentos, total, error_msg, finished_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?)
-            """, (
-                job.id,
-                job.job_type.value,
-                rd.get("plantilla", rd.get("ticket_type", "")),
-                job.destination or "",
-                rd.get("folio", ""),
-                job.status.value,
-                max(0, reintentos - 1),
-                float(rd.get("totales", {}).get("total_final",
-                      rd.get("total", 0)) or 0),
-                job.error_msg or "",
-                datetime.now(getattr(datetime, "UTC", timezone.utc)).isoformat(),
-            ))
+                """,
+                (
+                    job.id,
+                    job.job_type.value,
+                    rd.get("plantilla", rd.get("ticket_type", "")),
+                    job.destination or "",
+                    rd.get("folio", ""),
+                    job.status.value,
+                    max(0, reintentos - 1),
+                    float(rd.get("totales", {}).get("total_final", rd.get("total", 0)) or 0),
+                    job.error_msg or "",
+                    datetime.now(getattr(datetime, "UTC", timezone.utc)).isoformat(),
+                ),
+            )
             try:
                 self._db.commit()
             except Exception as exc:
@@ -387,31 +332,21 @@ class PrintQueue:
         return self._queue.qsize()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  PrinterService — API pública
-# ══════════════════════════════════════════════════════════════════════════════
-
 class PrinterService:
-    """
-    Servicio central de impresión para todo el ERP.
-    Reemplaza: hardware_utils, ticket_escpos_renderer.send(),
-               impresora_etiquetas, etiquetas._send_to_printer.
-    """
+    """Single print service for tickets, labels and raw jobs."""
 
     def __init__(self, db_conn=None, module_config=None):
         self.db = db_conn
         self._module_config = module_config
         self.queue = PrintQueue()
-        self._ticket_cfg: Dict = {}
-        self._label_cfg: Dict = {}
+        self._ticket_cfg: Dict[str, Any] = {}
+        self._label_cfg: Dict[str, Any] = {}
         self._enabled = True
-        # Conectar EventBus para publicar TICKET_IMPRESO / PRINT_FAILED
         try:
             from core.events.event_bus import get_bus
             self.queue._bus = get_bus()
         except Exception as exc:
             logger.warning("PrinterService sin EventBus; eventos de impresión no se publicarán: %s", exc)
-        # Conectar DB para bitácora de impresión (Fase 1)
         self.queue._db = db_conn
         self.queue.start()
         self._load_configs()
@@ -419,44 +354,92 @@ class PrinterService:
     @property
     def enabled(self) -> bool:
         if self._module_config:
-            return self._module_config.is_enabled('printing')
+            return self._module_config.is_enabled("printing")
         return self._enabled
 
-    def _load_configs(self):
-        """Carga configuración de impresoras desde la BD."""
+    def _load_configs(self) -> None:
+        """Load printer configs from canonical hardware_config only."""
+        self._ticket_cfg = {}
+        self._label_cfg = {}
         if not self.db:
             return
         try:
-            # Ticket printer
-            for key in ('ticket', 'impresora'):
-                rows = self.db.execute(
-                    "SELECT clave, valor FROM configuraciones_hardware "
-                    "WHERE tipo=?", (key,)
-                ).fetchall()
-                if rows:
-                    self._ticket_cfg = {r[0]: r[1] for r in rows}
-                    break
-        except Exception as exc:
-            logger.warning("No se pudo cargar configuración de impresora de tickets: %s", exc)
-        try:
-            # Label printer
-            for key in ('etiquetas', 'impresora_etiquetas'):
-                rows = self.db.execute(
-                    "SELECT clave, valor FROM configuraciones_hardware "
-                    "WHERE tipo=?", (key,)
-                ).fetchall()
-                if rows:
-                    self._label_cfg = {r[0]: r[1] for r in rows}
-                    break
-        except Exception as exc:
-            logger.warning("No se pudo cargar configuración de impresora de etiquetas: %s", exc)
+            from core.repositories.hardware_config_repository import HardwareConfigRepository
+            repo = HardwareConfigRepository(self.db)
+            repo.ensure_schema()
+            repo.seed_defaults()
+            # Import legacy data if a legacy DB happens to have it, but never read it
+            # as the live source of truth.
+            try:
+                repo.migrate_legacy_configuraciones_hardware()
+            except Exception as exc:
+                logger.warning("Migración legacy de configuración hardware omitida: %s", exc)
+            self._ticket_cfg = self._normalize_ticket_cfg(repo.get_config("ticket"))
+            self._label_cfg = self._normalize_label_cfg(repo.get_config("etiquetas"))
+            logger.info(
+                "Configuración de impresoras cargada desde hardware_config: ticket=%s etiquetas=%s",
+                bool(self._ticket_cfg.get("ubicacion")),
+                bool(self._label_cfg.get("ubicacion")),
+            )
+        except Exception:
+            logger.exception("No se pudo cargar configuración canónica de impresoras desde hardware_config")
 
-    def reload_configs(self):
+    def reload_configs(self) -> None:
         self._load_configs()
 
     @staticmethod
+    def _normalize_ticket_cfg(raw: Dict[str, Any]) -> Dict[str, Any]:
+        raw = dict(raw or {})
+        tipo = str(raw.get("tipo") or raw.get("transport") or raw.get("metodo") or "").strip()
+        tipo_l = tipo.lower()
+        tipo_idx = raw.get("tipo_idx", None)
+        transport = raw.get("transport") or raw.get("metodo")
+        if not transport:
+            try:
+                idx = int(tipo_idx)
+            except Exception:
+                idx = None
+            if idx == 0 or "win32" in tipo_l or "windows" in tipo_l:
+                transport = "usb_win32"
+            elif idx in (1, 3) or "serial" in tipo_l or "com" in tipo_l:
+                transport = "serial"
+            elif idx == 2 or "red" in tipo_l or "tcp" in tipo_l or "ip" in tipo_l:
+                transport = "network"
+            else:
+                transport = "auto"
+        ancho = str(raw.get("ancho") or raw.get("paper_width") or "80")
+        paper_width = 58 if "58" in ancho else 80
+        return {
+            "ubicacion": str(raw.get("ubicacion") or raw.get("puerto") or raw.get("printer_name") or "").strip(),
+            "transport": str(transport).strip().lower(),
+            "paper_width": int(raw.get("paper_width") or paper_width),
+            "baud_rate": int(raw.get("baud_rate") or raw.get("baud") or 9600),
+            "encoding": str(raw.get("encoding") or "cp850"),
+            "corte": bool(raw.get("corte", True)),
+            "abrir_cajon": bool(raw.get("abrir_cajon", False)),
+        }
+
+    @staticmethod
+    def _normalize_label_cfg(raw: Dict[str, Any]) -> Dict[str, Any]:
+        raw = dict(raw or {})
+        tipo = str(raw.get("tipo") or raw.get("transport") or "").lower()
+        if "red" in tipo or "network" in tipo or "tcp" in tipo:
+            transport = "network"
+        elif "serial" in tipo or "com" in tipo:
+            transport = "serial"
+        elif raw.get("transport"):
+            transport = raw.get("transport")
+        else:
+            transport = "usb_win32"
+        return {
+            "ubicacion": str(raw.get("ubicacion") or raw.get("puerto") or "").strip(),
+            "transport": str(transport).strip().lower(),
+            "baud_rate": int(raw.get("baud_rate") or raw.get("baud") or 9600),
+            "lenguaje": str(raw.get("lenguaje") or raw.get("language") or "ZPL"),
+        }
+
+    @staticmethod
     def _safe_baud(raw_value: Any, default: int = 9600) -> int:
-        """Normaliza baud rate para evitar ValueError por config legacy/rota."""
         try:
             baud = int(raw_value)
             if 1200 <= baud <= 115200:
@@ -467,38 +450,34 @@ class PrinterService:
 
     @staticmethod
     def _resolve_transport(cfg: Dict[str, Any]) -> TransportType:
-        """
-        Estandariza tipo de transporte desde config legacy/nueva.
-        Acepta claves `transport`, `tipo`, `metodo`.
-        """
-        raw = str(
-            cfg.get('transport') or cfg.get('tipo') or cfg.get('metodo') or 'auto'
-        ).strip().lower()
+        raw = str(cfg.get("transport") or cfg.get("tipo") or cfg.get("metodo") or "auto").strip().lower()
         mapping = {
-            'auto': TransportType.AUTO,
-            'network': TransportType.NETWORK,
-            'tcp': TransportType.NETWORK,
-            'serial': TransportType.SERIAL,
-            'escpos_serial': TransportType.SERIAL,
-            'file': TransportType.FILE,
-            'usb_win32': TransportType.USB_WIN32,
-            'win32': TransportType.USB_WIN32,
-            'win32print': TransportType.USB_WIN32,
-            'system': TransportType.SYSTEM,
-            'escpos_usb': TransportType.USB_WIN32,
-            'escpos': TransportType.AUTO,
+            "auto": TransportType.AUTO,
+            "network": TransportType.NETWORK,
+            "tcp": TransportType.NETWORK,
+            "serial": TransportType.SERIAL,
+            "escpos_serial": TransportType.SERIAL,
+            "file": TransportType.FILE,
+            "usb_win32": TransportType.USB_WIN32,
+            "win32": TransportType.USB_WIN32,
+            "win32print": TransportType.USB_WIN32,
+            "system": TransportType.SYSTEM,
+            "escpos_usb": TransportType.USB_WIN32,
+            "escpos": TransportType.AUTO,
         }
         return mapping.get(raw, TransportType.AUTO)
 
-    # ── API de tickets ────────────────────────────────────────────────────────
+    def _get_cfg(self, key: str, default: str = "") -> str:
+        if not self.db:
+            return default
+        try:
+            r = self.db.execute("SELECT valor FROM configuraciones WHERE clave=?", (key,)).fetchone()
+            return r[0] if r and r[0] else default
+        except Exception as exc:
+            logger.warning("No se pudo leer configuración %s; usando default: %s", key, exc)
+            return default
 
-    def print_ticket(self, ticket_data: Dict[str, Any],
-                     on_success: Callable = None,
-                     on_error: Callable = None) -> str:
-        """
-        Imprime un ticket de venta/corte. Retorna el job_id.
-        Genera ESC/POS automáticamente usando TicketESCPOSRenderer.
-        """
+    def print_ticket(self, ticket_data: Dict[str, Any], on_success: Callable = None, on_error: Callable = None) -> str:
         if not self.enabled:
             logger.debug("Impresión deshabilitada (toggle printing)")
             return ""
@@ -512,69 +491,49 @@ class PrinterService:
                 except Exception:
                     logger.exception("print_ticket on_error callback failed (config inválida)")
             return ""
-
         try:
             from core.ticket_escpos_renderer import TicketESCPOSRenderer
-            paper_w = int(self._ticket_cfg.get('paper_width',
-                          self._get_cfg('ticket_paper_width', '80')))
-            renderer = TicketESCPOSRenderer(paper_width_mm=paper_w)
-
-            logo_b64 = self._get_cfg('ticket_logo_b64', '')
+            renderer = TicketESCPOSRenderer(paper_width_mm=int(self._ticket_cfg.get("paper_width", 80)))
+            logo_b64 = self._get_cfg("ticket_logo_b64", "")
             qr_content = ""
-            if self._get_cfg('ticket_qr_enabled', '0') == '1':
-                qr_content = (self._get_cfg('ticket_qr_url', '') or
-                              ticket_data.get('folio', ''))
-
-            # Enriquecer datos
-            ticket_data.setdefault('empresa', self._get_cfg('nombre_empresa', 'SPJ POS'))
-            ticket_data.setdefault('direccion', self._get_cfg('direccion', ''))
-            ticket_data.setdefault('telefono', self._get_cfg('telefono_empresa', ''))
-
-            data = renderer.render(ticket_data, logo_b64=logo_b64,
-                                   qr_content=qr_content)
-        except Exception as e:
-            logger.error("Error formateando ticket: %s", e)
+            if self._get_cfg("ticket_qr_enabled", "0") == "1":
+                qr_content = self._get_cfg("ticket_qr_url", "") or ticket_data.get("folio", "")
+            ticket_data.setdefault("empresa", self._get_cfg("nombre_empresa", "SPJ POS"))
+            ticket_data.setdefault("direccion", self._get_cfg("direccion", ""))
+            ticket_data.setdefault("telefono", self._get_cfg("telefono_empresa", ""))
+            data = renderer.render(ticket_data, logo_b64=logo_b64, qr_content=qr_content)
+        except Exception as exc:
+            logger.error("Error formateando ticket: %s", exc)
             if on_error:
                 try:
-                    on_error(e)
+                    on_error(exc)
                 except Exception:
                     logger.exception("print_ticket on_error callback failed (renderer)")
             return ""
-
-        dest = self._ticket_cfg.get('ubicacion', '')
         job = PrintJob(
             job_type=PrintJobType.TICKET,
             data=data,
             raw_data=ticket_data,
-            destination=dest,
+            destination=self._ticket_cfg.get("ubicacion", ""),
             transport=self._resolve_transport(self._ticket_cfg),
-            baud=self._safe_baud(self._ticket_cfg.get('baud_rate', 9600)),
-            priority=2,  # Tickets tienen alta prioridad
+            baud=self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)),
+            priority=2,
             on_success=on_success,
             on_error=on_error,
         )
         self.queue.submit(job)
         return job.id
 
-    # ── API de etiquetas ──────────────────────────────────────────────────────
-
-    def print_label(self, label_data: bytes,
-                    printer_cfg: Dict = None,
-                    on_success: Callable = None,
-                    on_error: Callable = None) -> str:
-        """Imprime una etiqueta (bytes ZPL/TSPL/imagen ya formateados)."""
+    def print_label(self, label_data: bytes, printer_cfg: Dict = None, on_success: Callable = None, on_error: Callable = None) -> str:
         if not self.enabled:
             return ""
-
         cfg = printer_cfg or self._label_cfg
-        dest = cfg.get('ubicacion', '')
-
         job = PrintJob(
             job_type=PrintJobType.LABEL,
             data=label_data,
-            destination=dest,
+            destination=cfg.get("ubicacion", ""),
             transport=self._resolve_transport(cfg),
-            baud=self._safe_baud(cfg.get('baud_rate', 9600)),
+            baud=self._safe_baud(cfg.get("baud_rate", 9600)),
             priority=5,
             on_success=on_success,
             on_error=on_error,
@@ -582,41 +541,26 @@ class PrinterService:
         self.queue.submit(job)
         return job.id
 
-    # ── API raw ───────────────────────────────────────────────────────────────
-
-    def print_raw(self, data: bytes, destination: str = "",
-                  priority: int = 5) -> str:
-        """Envía bytes raw a cualquier impresora."""
+    def print_raw(self, data: bytes, destination: str = "", priority: int = 5) -> str:
         if not self.enabled:
             return ""
-        dest = destination or self._ticket_cfg.get('ubicacion', '')
+        dest = destination or self._ticket_cfg.get("ubicacion", "")
         job = PrintJob(
             job_type=PrintJobType.RAW,
             data=data,
             destination=dest,
             transport=self._resolve_transport(self._ticket_cfg),
-            baud=self._safe_baud(self._ticket_cfg.get('baud_rate', 9600)),
+            baud=self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)),
             priority=priority,
         )
         self.queue.submit(job)
         return job.id
 
-    # ── Config helpers ────────────────────────────────────────────────────────
-
-    def _get_cfg(self, key: str, default: str = "") -> str:
-        if not self.db:
-            return default
-        try:
-            r = self.db.execute(
-                "SELECT valor FROM configuraciones WHERE clave=?", (key,)
-            ).fetchone()
-            return r[0] if r and r[0] else default
-        except Exception as exc:
-            logger.warning("No se pudo leer configuración %s; usando default: %s", key, exc)
-            return default
-
     def has_ticket_printer(self) -> bool:
         return self.validate_ticket_printer_config().ok
+
+    def has_label_printer(self) -> bool:
+        return bool(self._label_cfg.get("ubicacion", ""))
 
     def validate_ticket_printer_config(self) -> ValidationResult:
         cfg = self._ticket_cfg or {}
@@ -624,42 +568,26 @@ class PrinterService:
         destination = str(cfg.get("ubicacion", "") or "").strip()
         errors: List[str] = []
         warnings: List[str] = []
-
         if not destination:
-            errors.append("Destino de impresora vacío.")
-
+            errors.append("No hay impresora de tickets configurada en hardware_config.")
         if transport == TransportType.SYSTEM:
             errors.append("TransportType.SYSTEM no es válido para ticket térmico ESC/POS.")
-
-        if transport == TransportType.NETWORK:
-            if ":" not in destination:
-                errors.append("Destino TCP inválido, use formato ip:puerto.")
-        elif transport == TransportType.SERIAL:
+        if transport == TransportType.NETWORK and ":" not in destination:
+            errors.append("Destino TCP inválido, use formato ip:puerto.")
+        if transport == TransportType.SERIAL:
             if not (destination.upper().startswith("COM") or "/dev/tty" in destination):
                 errors.append("Destino serial inválido.")
             baud = self._safe_baud(cfg.get("baud_rate", 9600))
             if baud <= 0:
                 errors.append("Baud rate inválido.")
-        elif transport == TransportType.USB_WIN32:
-            if not destination:
-                errors.append("Nombre de impresora Win32 vacío.")
-
-        if len(errors) == 0 and not PrintTransport.is_available(transport, destination):
-            errors.append(
-                f"Impresora no disponible ({transport.value} -> {destination or '<default>'})."
-            )
-
+        if transport == TransportType.USB_WIN32 and not destination:
+            errors.append("Nombre de impresora Win32 vacío.")
+        if not errors and not PrintTransport.is_available(transport, destination):
+            errors.append(f"Impresora no disponible ({transport.value} -> {destination or '<default>'}).")
         enc = str(cfg.get("encoding", "cp850") or "cp850").lower()
         if enc not in {"cp850", "latin-1", "utf-8"}:
             warnings.append(f"Encoding no estándar para térmica: {enc}")
-
-        return ValidationResult(
-            ok=len(errors) == 0,
-            errors=errors,
-            warnings=warnings,
-            transport=transport.value,
-            destination=destination,
-        )
+        return ValidationResult(ok=len(errors) == 0, errors=errors, warnings=warnings, transport=transport.value, destination=destination)
 
     def print_test_ticket(self) -> str:
         vr = self.validate_ticket_printer_config()
@@ -679,22 +607,32 @@ class PrinterService:
         }
         return self.print_ticket(payload)
 
-    def has_label_printer(self) -> bool:
-        return bool(self._label_cfg.get('ubicacion', ''))
-
-    def get_status(self) -> Dict:
+    def get_status(self) -> Dict[str, Any]:
         return {
             "enabled": self._enabled,
             "queue_pending": self.queue.pending,
             "total_printed": self.queue.total_printed,
             "total_failed": self.queue.total_failed,
-            "ticket_printer": self._ticket_cfg.get('ubicacion', 'N/A'),
-            "label_printer": self._label_cfg.get('ubicacion', 'N/A'),
+            "ticket_printer": self._ticket_cfg.get("ubicacion", "N/A"),
+            "label_printer": self._label_cfg.get("ubicacion", "N/A"),
         }
 
-    def set_enabled(self, enabled: bool):
+    def set_enabled(self, enabled: bool) -> None:
         self._enabled = enabled
         logger.info("PrinterService %s", "activado" if enabled else "desactivado")
 
-    def close(self):
+    def close(self) -> None:
         self.queue.stop()
+
+
+def save_ticket_pdf(html: str, filepath: str) -> str:
+    """Persist a PDF/HTML fallback without requiring printer config.
+
+    In headless/test environments this writes HTML content to the requested path.
+    If Qt PDF support is available elsewhere, callers may replace this helper with
+    a renderer, but the persistence contract remains stable.
+    """
+    os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(html or "")
+    return filepath
