@@ -5,18 +5,22 @@ Recibe mensaje parseado → determina qué flow ejecutar → actualiza estado.
 Orden de decisión:
 1. ¿Número tipo notificaciones/interno? → ignorar o flujo especial
 2. ¿Respuesta a ajuste pendiente? → aplicar/rechazar ajuste delivery
-3. ¿Necesita seleccionar sucursal? → SucursalFlow
-4. ¿Necesita registrarse? → RegistroFlow
-5. ¿Está en medio de un flujo? → Continuar ese flow
-6. ¿Es intención nueva? → Iniciar flow correspondiente
-7. Fallback → MenuFlow
+3. Resolver intención del mensaje
+4. Si la intención requiere sucursal y no hay sucursal, pedirla y guardar intención pendiente
+5. ¿Necesita registrarse? → RegistroFlow
+6. ¿Está en medio de un flujo? → Continuar ese flow
+7. ¿Es intención nueva? → Iniciar flow correspondiente
+8. Fallback → MenuFlow
 
 Regla de cierre:
 - Cancelar/terminar un pedido NO debe reenviar menú automáticamente.
 - El cliente reabre conversación solo si manda una intención nueva explícita.
 """
 from __future__ import annotations
+
 import logging
+from typing import Any, Dict
+
 from models.message import IncomingMessage
 from models.context import FlowState
 from parser.intent_parser import IntentParser
@@ -70,18 +74,36 @@ class AdjustmentResponseMiddleware(MessageMiddleware):
         return await rc.router._handle_adjustment_response(rc.msg)
 
 
-class BranchSelectionMiddleware(MessageMiddleware):
+class NumberBranchAssignmentMiddleware(MessageMiddleware):
+    """Asigna sucursal implícita solo cuando el número pertenece a una sucursal.
+
+    Los números globales o números sin sucursal ya no bloquean antes de resolver
+    intención. Primero entendemos qué quiere el cliente; si es pedido/cotización,
+    entonces pedimos sucursal y continuamos el flujo original.
+    """
+
     async def handle(self, rc: RouteContext) -> bool:
-        if rc.numero_cfg.es_global and not rc.ctx.sucursal_id:
-            sucursales = rc.router.erp.get_sucursales()
-            await interactive.send_seleccion_sucursal(rc.msg.from_number, sucursales)
-            rc.ctx.state = FlowState.SELECTING_BRANCH
-            rc.router.store.save(rc.ctx)
-            return True
         if rc.numero_cfg.sucursal_id and not rc.ctx.sucursal_id:
             rc.ctx.sucursal_id = rc.numero_cfg.sucursal_id
             rc.ctx.sucursal_nombre = rc.numero_cfg.sucursal_nombre
         return False
+
+
+class BranchSelectionMiddleware(MessageMiddleware):
+    async def handle(self, rc: RouteContext) -> bool:
+        if not rc.intent:
+            return False
+        if not rc.router._intent_requires_branch(rc.intent):
+            return False
+        if rc.ctx.sucursal_id:
+            return False
+
+        rc.router._store_pending_intent(rc.ctx, rc.intent)
+        sucursales = rc.router.erp.get_sucursales()
+        await interactive.send_seleccion_sucursal(rc.msg.from_number, sucursales)
+        rc.ctx.state = FlowState.SELECTING_BRANCH
+        rc.router.store.save(rc.ctx)
+        return True
 
 
 class CancelFlowMiddleware(MessageMiddleware):
@@ -122,8 +144,6 @@ class MessagePipeline:
         return False
 
 
-
-
 class FlowRegistry:
     """Registro central para despacho de flows por estado e intención."""
 
@@ -132,7 +152,7 @@ class FlowRegistry:
 
     async def dispatch_active_flow(self, ctx, intent):
         if ctx.state == FlowState.SELECTING_BRANCH:
-            return await self.router.sucursal_flow.handle(ctx, intent)
+            return await self.router._handle_branch_selection(ctx, intent)
         if ctx.state in (FlowState.REGISTRO_NOMBRE, FlowState.REGISTRO_CONFIRMACION):
             return await self.router.registro_flow.handle(ctx, intent)
         if ctx.state.value.startswith("pedido_"):
@@ -152,6 +172,10 @@ class FlowRegistry:
 
     async def dispatch_new_intent_or_fallback(self, ctx, intent):
         if intent.intent in ("pedido", "menu_action") and intent.action_id in ("menu_pedido", ""):
+            if getattr(intent, "products", None):
+                self.router._apply_intent_to_order_context(ctx, intent)
+                await interactive.send_mas_productos(ctx.phone, ctx.resumen_pedido())
+                return self.router._flow_result(FlowState.PEDIDO_MAS_PRODUCTOS)
             ctx.state = FlowState.PEDIDO_CATEGORIA
             return await self.router.pedido_flow.handle(ctx, intent)
         if intent.intent == "repetir" or intent.action_id == "menu_repetir":
@@ -160,6 +184,7 @@ class FlowRegistry:
             ctx.state = FlowState.COTIZACION_ARMANDO
             return await self.router.cotizacion_flow.handle(ctx, intent)
         return await self.router.menu_flow.handle(ctx, intent)
+
 
 class MessageRouter:
     def __init__(self, erp: ERPBridge, store: ConversationStore,
@@ -180,12 +205,13 @@ class MessageRouter:
         self.repetir_flow = RepetirFlow(erp, events)
         self.cotizacion_flow = CotizacionFlow(erp, events)
         self.pago_flow = PagoFlow(erp, events)
-        self.pipeline = MessagePipeline([
+        self.pre_intent_pipeline = MessagePipeline([
             NotificationNumberGuard(),
             AdjustmentResponseMiddleware(),
-            BranchSelectionMiddleware(),
+            NumberBranchAssignmentMiddleware(),
         ])
         self.post_intent_pipeline = MessagePipeline([
+            BranchSelectionMiddleware(),
             CancelFlowMiddleware(),
             CustomerIdentificationMiddleware(),
         ])
@@ -241,17 +267,18 @@ class MessageRouter:
         rc.ctx.numero_tipo = numero_cfg.tipo.value
         rc.ctx.last_activity = msg.timestamp
 
-        if await self.pipeline.run(rc):
+        if await self.pre_intent_pipeline.run(rc):
             return
 
         ctx = rc.ctx
         intent = await self.intent_resolver.resolve(msg, ctx)
         rc.intent = intent
-        logger.info("MSG %s → intent=%s, state=%s",
-                     msg.from_number, intent.intent, ctx.state.value)
+        logger.info("MSG %s → intent=%s, state=%s, products=%d",
+                    msg.from_number, intent.intent, ctx.state.value,
+                    len(getattr(intent, "products", []) or []))
 
-        # Comando explícito para cambio de sucursal en número global.
-        if intent.intent == "sucursal" and numero_cfg.es_global:
+        # Comando explícito para cambio de sucursal.
+        if intent.intent in ("sucursal", "change_branch"):
             sucursales = self.erp.get_sucursales()
             if ctx.sucursal_id:
                 await interactive.send_text(
@@ -259,6 +286,7 @@ class MessageRouter:
                     f"Sucursal actual: *{ctx.sucursal_nombre or ctx.sucursal_id}*.\n"
                     "Selecciona la sucursal a usar para este pedido."
                 )
+            self._store_pending_intent(ctx, intent)
             await interactive.send_seleccion_sucursal(ctx.phone, sucursales)
             ctx.state = FlowState.SELECTING_BRANCH
             self.store.save(ctx)
@@ -275,3 +303,86 @@ class MessageRouter:
         if result:
             ctx.state = result.new_state
         self.store.save(ctx)
+
+    def _intent_requires_branch(self, intent) -> bool:
+        return intent.intent in ("pedido", "cotizacion", "create_order", "create_quote", "schedule_order")
+
+    def _store_pending_intent(self, ctx, intent) -> None:
+        ctx._pending_intent = self._intent_to_payload(intent)
+
+    def _pop_pending_intent(self, ctx):
+        payload = getattr(ctx, "_pending_intent", None)
+        ctx._pending_intent = None
+        if not payload:
+            return None
+        try:
+            from parser.intent_parser import ParsedIntent
+            parsed = ParsedIntent(
+                intent=payload.get("intent", "unknown"),
+                confidence=float(payload.get("confidence", 1.0) or 1.0),
+                action_id=payload.get("action_id", ""),
+                products=payload.get("products", []),
+                number=float(payload.get("number", 0.0) or 0.0),
+                raw_text=payload.get("raw_text", ""),
+                source=payload.get("source", "pending"),
+            )
+            for key, value in payload.get("extra", {}).items():
+                setattr(parsed, key, value)
+            return parsed
+        except Exception:
+            return None
+
+    def _intent_to_payload(self, intent) -> Dict[str, Any]:
+        base = {
+            "intent": getattr(intent, "intent", "unknown"),
+            "confidence": getattr(intent, "confidence", 1.0),
+            "action_id": getattr(intent, "action_id", ""),
+            "products": getattr(intent, "products", []) or [],
+            "number": getattr(intent, "number", 0.0),
+            "raw_text": getattr(intent, "raw_text", ""),
+            "source": getattr(intent, "source", ""),
+            "extra": {},
+        }
+        for attr in ("delivery_type", "scheduled_at", "branch_reference", "workflow_type", "needs_clarification", "clarification_question"):
+            if hasattr(intent, attr):
+                base["extra"][attr] = getattr(intent, attr)
+        return base
+
+    async def _handle_branch_selection(self, ctx, intent):
+        result = await self.sucursal_flow.handle(ctx, intent)
+        if result and result.handled and result.new_state == FlowState.IDLE:
+            pending = self._pop_pending_intent(ctx)
+            if pending and self._intent_requires_branch(pending):
+                return await self.flow_registry.dispatch_new_intent_or_fallback(ctx, pending)
+        return result
+
+    def _apply_intent_to_order_context(self, ctx, intent) -> None:
+        from models.context import PedidoItem
+
+        for prod in getattr(intent, "products", []) or []:
+            try:
+                item = PedidoItem(
+                    producto_id=int(prod["id"]),
+                    nombre=prod["nombre"],
+                    cantidad=float(prod.get("cantidad_solicitada", 1.0) or 1.0),
+                    unidad=prod.get("unidad_solicitada") or prod.get("unidad", "kg"),
+                    precio_unitario=float(prod.get("precio", 0.0) or 0.0),
+                )
+                ctx.pedido_items.append(item)
+            except Exception as exc:
+                logger.debug("Producto inválido ignorado en intención IA: %s (%s)", prod, exc)
+
+        delivery_type = getattr(intent, "delivery_type", "") or ""
+        if delivery_type in ("home_delivery", "domicilio"):
+            ctx.pedido_tipo_entrega = "domicilio"
+        elif delivery_type in ("pickup", "mostrador", "sucursal"):
+            ctx.pedido_tipo_entrega = "sucursal"
+
+        scheduled_at = getattr(intent, "scheduled_at", "") or ""
+        if scheduled_at:
+            ctx.pedido_fecha_entrega = scheduled_at
+            ctx.pedido_programado = True
+
+    def _flow_result(self, state: FlowState):
+        from flows.base_flow import FlowResult
+        return FlowResult(state)
