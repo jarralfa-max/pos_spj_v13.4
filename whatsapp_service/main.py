@@ -2,46 +2,65 @@
 """
 FastAPI gateway — punto de entrada del microservicio.
 
-Arrancar:
+Arrancar desde la carpeta whatsapp_service:
     uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+Arrancar desde la raíz del repositorio:
+    uvicorn whatsapp_service.main:app --host 0.0.0.0 --port 8000 --reload
 
 Producción:
     uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
 """
 from __future__ import annotations
+
 import logging
-import sys
 import os
-from pathlib import Path
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 
+
+# ── Configurar Python path ANTES de importar config/router/flows ───────────────
+#
+# Hay dos paquetes llamados `application` en el repo:
+#   - whatsapp_service/application
+#   - pos_spj_v13.4/application
+#
+# Si el ERP queda antes que whatsapp_service en sys.path, este import falla:
+#   from application.confirm_order_use_case import ...
+# porque Python resuelve `application` contra pos_spj_v13.4/application.
+#
+# Regla de arranque del microservicio:
+#   1) whatsapp_service siempre debe ir primero.
+#   2) pos_spj_v13.4 debe ir después, solo para imports ERP/migrations/core.
+WA_SERVICE_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = WA_SERVICE_ROOT.parent
+ERP_APP_ROOT = REPO_ROOT / "pos_spj_v13.4"
+
+
+def _prioritize_path(path: Path, index: int) -> None:
+    """Inserta un path en una posición estable, removiendo duplicados previos."""
+    path_str = str(path)
+    sys.path[:] = [p for p in sys.path if p != path_str]
+    sys.path.insert(index, path_str)
+
+
+_prioritize_path(WA_SERVICE_ROOT, 0)
+if ERP_APP_ROOT.exists():
+    _prioritize_path(ERP_APP_ROOT, 1)
+
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 from config.settings import LOG_LEVEL
+
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("wa.main")
-
-# ── Configurar Python path ───────────────────────────────────────────────────
-# Agregar el directorio de whatsapp_service para imports locales
-WA_SERVICE_ROOT = str(Path(__file__).parent)
-if WA_SERVICE_ROOT not in sys.path:
-    sys.path.insert(0, WA_SERVICE_ROOT)
-
-# Agregar ERP al path.
-# Desde <repo>/whatsapp_service/main.py, la app ERP vive en:
-# <repo>/pos_spj_v13.4
-# Ahí existen `migrations`, `core`, `repositories`, etc.
-# NO usar <repo>/pos_spj_v13.4/pos_spj_v13.4 porque rompe imports como
-# `from migrations.engine import up`.
-REPO_ROOT = Path(__file__).resolve().parent.parent
-ERP_APP_ROOT = str(REPO_ROOT / "pos_spj_v13.4")
-if os.path.exists(ERP_APP_ROOT) and ERP_APP_ROOT not in sys.path:
-    sys.path.insert(0, ERP_APP_ROOT)
 
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
