@@ -13,6 +13,7 @@ class FulfillmentLine:
     mode: str  # DIRECT | COMPOSITE | VIRTUAL_FROM_COMPONENTS
     source_product_id: int
     name: str = ""
+    unit: str = ""
 
 
 class AvailabilityService:
@@ -35,15 +36,71 @@ class SaleFulfillmentService:
         self.resolver = RecipeResolver(self.db)
         self.avail = AvailabilityService(self.db)
 
-    def resolve_item(self, product_id: int, qty: float, branch_id: int) -> List[FulfillmentLine]:
-        p = self.db.execute(
-            "SELECT tipo_producto, COALESCE(es_compuesto,0) AS es_compuesto, COALESCE(es_subproducto,0) AS es_subproducto, nombre FROM productos WHERE id=?",
-            (product_id,)
+    def _product_row(self, product_id: int):
+        return self.db.execute(
+            """
+            SELECT
+                id,
+                nombre,
+                COALESCE(unidad, unidad_medida, unidad_venta, 'kg') AS unidad,
+                tipo_producto,
+                COALESCE(es_compuesto,0) AS es_compuesto,
+                COALESCE(es_subproducto,0) AS es_subproducto
+            FROM productos
+            WHERE id=?
+            LIMIT 1
+            """,
+            (int(product_id),),
         ).fetchone()
+
+    def _row_value(self, row, key: str, idx: int, default=None):
+        if not row:
+            return default
+        try:
+            if hasattr(row, "keys"):
+                return row[key]
+        except Exception:
+            pass
+        try:
+            return row[idx]
+        except Exception:
+            return default
+
+    def _product_name_unit(self, product_id: int) -> tuple[str, str]:
+        row = self._product_row(product_id)
+        if not row:
+            return f"Producto {product_id}", "kg"
+        nombre = self._row_value(row, "nombre", 1, f"Producto {product_id}") or f"Producto {product_id}"
+        unidad = self._row_value(row, "unidad", 2, "kg") or "kg"
+        return str(nombre), str(unidad)
+
+    def _assert_physical_available(self, deductions: Dict[int, float], branch_id: int) -> None:
+        """Validate exact physical deductions before SALE_ITEMS_PROCESS.
+
+        This is not a bypass. SaleInventoryHandler still deducts stock and remains
+        authoritative. This read-only guard only fails earlier with a clear message
+        when the same resolved product lines would fail later in the event bus.
+        """
+        shortages: list[str] = []
+        for pid, qty in deductions.items():
+            qty = float(qty or 0)
+            if qty <= 0:
+                continue
+            available = float(self.avail.physical_stock(int(pid), int(branch_id)) or 0)
+            if available + 1e-9 < qty:
+                nombre, unidad = self._product_name_unit(int(pid))
+                shortages.append(f"{nombre}: requiere {qty:.3f} {unidad}, disponible {available:.3f} {unidad}")
+        if shortages:
+            raise ValueError("STOCK_INSUFICIENTE: " + "; ".join(shortages))
+
+    def resolve_item(self, product_id: int, qty: float, branch_id: int) -> List[FulfillmentLine]:
+        p = self._product_row(product_id)
         if not p:
             raise ValueError(f"PRODUCTO_NO_ENCONTRADO: {product_id}")
-        tipo = (p["tipo_producto"] if hasattr(p, "keys") else p[0] or "simple").lower()
-        name = p["nombre"] if hasattr(p, "keys") else p[3]
+        tipo = (self._row_value(p, "tipo_producto", 3, "simple") or "simple").lower()
+        is_subproducto = bool(self._row_value(p, "es_subproducto", 5, 0))
+        name = str(self._row_value(p, "nombre", 1, "") or "")
+        unit = str(self._row_value(p, "unidad", 2, "kg") or "kg")
 
         if tipo == "compuesto":
             exp = self.resolver.resolve_for_sale(product_id, qty, branch_id)
@@ -52,21 +109,35 @@ class SaleFulfillmentService:
             merged: Dict[int, float] = {}
             for d in exp.deductions:
                 merged[d.product_id] = merged.get(d.product_id, 0.0) + d.quantity
-            return [FulfillmentLine(pid, q, "COMPOSITE", product_id, name) for pid, q in merged.items() if q > 0]
+            self._assert_physical_available(merged, branch_id)
+            lines: List[FulfillmentLine] = []
+            for pid, q in merged.items():
+                if q <= 0:
+                    continue
+                pname, punit = self._product_name_unit(pid)
+                lines.append(FulfillmentLine(pid, q, "COMPOSITE", product_id, pname, punit))
+            return lines
 
         physical = self.avail.physical_stock(product_id, branch_id)
         if physical >= qty:
-            return [FulfillmentLine(product_id, qty, "DIRECT", product_id, name)]
+            return [FulfillmentLine(product_id, qty, "DIRECT", product_id, name, unit)]
 
-        can_virtual = tipo == "procesable" or bool((p["es_subproducto"] if hasattr(p, "keys") else p[2]))
+        can_virtual = tipo == "procesable" or is_subproducto
         if can_virtual:
             virt = self._virtual_from_recipe_availability(product_id, branch_id)
             if virt >= qty:
                 merged = self._virtual_from_recipe_deductions(product_id, qty, branch_id)
-                return [FulfillmentLine(pid, q, "VIRTUAL_FROM_COMPONENTS", product_id, name) for pid, q in merged.items() if q > 0]
+                self._assert_physical_available(merged, branch_id)
+                lines: List[FulfillmentLine] = []
+                for pid, q in merged.items():
+                    if q <= 0:
+                        continue
+                    pname, punit = self._product_name_unit(pid)
+                    lines.append(FulfillmentLine(pid, q, "VIRTUAL_FROM_COMPONENTS", product_id, pname, punit))
+                return lines
 
         missing = max(0.0, qty - physical)
-        raise ValueError(f"STOCK_INSUFICIENTE: producto={name} faltante={missing:.3f}")
+        raise ValueError(f"STOCK_INSUFICIENTE: producto={name} faltante={missing:.3f} {unit}")
 
     def _virtual_from_recipe_deductions(self, product_id: int, qty: float, branch_id: int) -> Dict[int, float]:
         rec = self.db.execute("SELECT id FROM product_recipes WHERE product_id=? AND is_active=1 LIMIT 1", (product_id,)).fetchone()
