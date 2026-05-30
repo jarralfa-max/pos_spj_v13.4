@@ -11,13 +11,10 @@ Orden de decisión:
 6. ¿Está en medio de un flujo? → Continuar ese flow
 7. ¿Es intención nueva? → Iniciar flow correspondiente
 8. Fallback → MenuFlow
-
-Regla de cierre:
-- Cancelar/terminar un pedido NO debe reenviar menú automáticamente.
-- El cliente reabre conversación solo si manda una intención nueva explícita.
 """
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Dict
 
@@ -36,7 +33,9 @@ from flows.pedido_flow import PedidoFlow
 from flows.repetir_flow import RepetirFlow
 from flows.cotizacion_flow import CotizacionFlow
 from flows.pago_flow import PagoFlow
+from flows.base_flow import FlowResult
 from messaging import interactive
+from messaging.sender import send_text
 from middleware.handoff import HandoffService
 try:
     from whatsapp_service.ai.intent_resolver import IntentResolver
@@ -53,7 +52,6 @@ class RouteContext:
         self.numero_cfg = numero_cfg
         self.ctx = None
         self.intent = None
-        self.handled = False
 
 
 class MessageMiddleware:
@@ -75,13 +73,6 @@ class AdjustmentResponseMiddleware(MessageMiddleware):
 
 
 class NumberBranchAssignmentMiddleware(MessageMiddleware):
-    """Asigna sucursal implícita solo cuando el número pertenece a una sucursal.
-
-    Los números globales o números sin sucursal ya no bloquean antes de resolver
-    intención. Primero entendemos qué quiere el cliente; si es pedido/cotización,
-    entonces pedimos sucursal y continuamos el flujo original.
-    """
-
     async def handle(self, rc: RouteContext) -> bool:
         if rc.numero_cfg.sucursal_id and not rc.ctx.sucursal_id:
             rc.ctx.sucursal_id = rc.numero_cfg.sucursal_id
@@ -91,13 +82,10 @@ class NumberBranchAssignmentMiddleware(MessageMiddleware):
 
 class BranchSelectionMiddleware(MessageMiddleware):
     async def handle(self, rc: RouteContext) -> bool:
-        if not rc.intent:
-            return False
-        if not rc.router._intent_requires_branch(rc.intent):
+        if not rc.intent or not rc.router._intent_requires_branch(rc.intent):
             return False
         if rc.ctx.sucursal_id:
             return False
-
         rc.router._store_pending_intent(rc.ctx, rc.intent)
         sucursales = rc.router.erp.get_sucursales()
         await interactive.send_seleccion_sucursal(rc.msg.from_number, sucursales)
@@ -110,7 +98,6 @@ class CancelFlowMiddleware(MessageMiddleware):
     async def handle(self, rc: RouteContext) -> bool:
         if rc.intent.intent in ("cancel", "cancelar") and rc.ctx.state != FlowState.IDLE:
             rc.ctx.reset_flow()
-            from messaging.sender import send_text
             await send_text(rc.ctx.phone, "❌ Operación cancelada. Cuando quieras iniciar de nuevo, escribe *hola* o *pedido*.")
             rc.router.store.save(rc.ctx)
             return True
@@ -145,8 +132,6 @@ class MessagePipeline:
 
 
 class FlowRegistry:
-    """Registro central para despacho de flows por estado e intención."""
-
     def __init__(self, router: "MessageRouter"):
         self.router = router
 
@@ -175,7 +160,11 @@ class FlowRegistry:
             if getattr(intent, "products", None):
                 self.router._apply_intent_to_order_context(ctx, intent)
                 await interactive.send_mas_productos(ctx.phone, ctx.resumen_pedido())
-                return self.router._flow_result(FlowState.PEDIDO_MAS_PRODUCTOS)
+                return FlowResult(FlowState.PEDIDO_MAS_PRODUCTOS)
+            if intent.intent == "pedido" and not intent.action_id:
+                ctx.state = FlowState.PEDIDO_CATEGORIA
+                await send_text(ctx.phone, "Claro. Escríbeme el producto y cantidad, por ejemplo: *2 kilos de pechuga*.")
+                return FlowResult(FlowState.PEDIDO_CATEGORIA)
             ctx.state = FlowState.PEDIDO_CATEGORIA
             return await self.router.pedido_flow.handle(ctx, intent)
         if intent.intent == "repetir" or intent.action_id == "menu_repetir":
@@ -197,6 +186,7 @@ class MessageRouter:
         self.schedules = schedules
         self.handoff = handoff
         self.intent_resolver = IntentResolver(parser=parser, db=erp.db)
+        self._ensure_pending_intent_table()
 
         self.sucursal_flow = SucursalFlow(erp, events)
         self.registro_flow = RegistroFlow(erp, events)
@@ -217,24 +207,28 @@ class MessageRouter:
         ])
         self.flow_registry = FlowRegistry(self)
 
+    def _ensure_pending_intent_table(self) -> None:
+        self.store.db.execute("""
+            CREATE TABLE IF NOT EXISTS pending_intents (
+                phone TEXT PRIMARY KEY,
+                payload_json TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        self.store.db.commit()
+
     async def _handle_adjustment_response(self, msg: IncomingMessage) -> bool:
         raw = (msg.text or msg.interactive_title or "").strip().lower()
         if not raw:
             return False
-
         accept_tokens = ("aceptar ajuste", "acepto ajuste", "acepto", "aceptar", "si acepto", "sí acepto")
         reject_tokens = ("rechazar ajuste", "rechazo ajuste", "rechazo", "rechazar", "no acepto")
-        accepted = None
-        if any(t in raw for t in accept_tokens):
-            accepted = True
-        elif any(t in raw for t in reject_tokens):
-            accepted = False
-        else:
+        accepted = True if any(t in raw for t in accept_tokens) else False if any(t in raw for t in reject_tokens) else None
+        if accepted is None:
             return False
-
         try:
             from erp.adjustment_approval import AdjustmentApprovalService
-            from messaging.sender import send_text
             svc = AdjustmentApprovalService(self.erp.db)
             if not svc.has_pending_for_phone(msg.from_number):
                 return False
@@ -243,25 +237,15 @@ class MessageRouter:
                 await send_text(msg.from_number, "No encontré ajustes pendientes para este número.")
                 return True
             if accepted:
-                await send_text(
-                    msg.from_number,
-                    f"✅ Ajuste aceptado para tu pedido *{result['folio']}*.\n"
-                    f"Total actualizado: *${float(result['total']):.2f}*."
-                )
+                await send_text(msg.from_number, f"✅ Ajuste aceptado para tu pedido *{result['folio']}*.\nTotal actualizado: *${float(result['total']):.2f}*.")
             else:
-                await send_text(
-                    msg.from_number,
-                    f"❌ Ajuste rechazado para tu pedido *{result['folio']}*.\n"
-                    "Mantendremos el pedido con la cantidad original."
-                )
-            logger.info("Adjustment response phone=%s accepted=%s result=%s", msg.from_number, accepted, result)
+                await send_text(msg.from_number, f"❌ Ajuste rechazado para tu pedido *{result['folio']}*.\nMantendremos el pedido con la cantidad original.")
             return True
         except Exception as exc:
             logger.error("Error procesando respuesta de ajuste: %s", exc, exc_info=True)
             return False
 
     async def route(self, msg: IncomingMessage, numero_cfg: NumeroConfig):
-        """Punto de entrada principal — procesa un mensaje entrante."""
         rc = RouteContext(self, msg, numero_cfg)
         rc.ctx = self.store.get(msg.from_number)
         rc.ctx.numero_tipo = numero_cfg.tipo.value
@@ -277,16 +261,11 @@ class MessageRouter:
                     msg.from_number, intent.intent, ctx.state.value,
                     len(getattr(intent, "products", []) or []))
 
-        # Comando explícito para cambio de sucursal.
         if intent.intent in ("sucursal", "change_branch"):
+            self._store_pending_intent(ctx, intent)
             sucursales = self.erp.get_sucursales()
             if ctx.sucursal_id:
-                await interactive.send_text(
-                    ctx.phone,
-                    f"Sucursal actual: *{ctx.sucursal_nombre or ctx.sucursal_id}*.\n"
-                    "Selecciona la sucursal a usar para este pedido."
-                )
-            self._store_pending_intent(ctx, intent)
+                await interactive.send_text(ctx.phone, f"Sucursal actual: *{ctx.sucursal_nombre or ctx.sucursal_id}*.\nSelecciona la sucursal a usar para este pedido.")
             await interactive.send_seleccion_sucursal(ctx.phone, sucursales)
             ctx.state = FlowState.SELECTING_BRANCH
             self.store.save(ctx)
@@ -296,10 +275,8 @@ class MessageRouter:
             return
 
         result = await self.flow_registry.dispatch_active_flow(ctx, intent)
-
         if result is None or not result.handled:
             result = await self.flow_registry.dispatch_new_intent_or_fallback(ctx, intent)
-
         if result:
             ctx.state = result.new_state
         self.store.save(ctx)
@@ -308,15 +285,23 @@ class MessageRouter:
         return intent.intent in ("pedido", "cotizacion", "create_order", "create_quote", "schedule_order")
 
     def _store_pending_intent(self, ctx, intent) -> None:
-        ctx._pending_intent = self._intent_to_payload(intent)
+        payload = self._intent_to_payload(intent)
+        self.store.db.execute(
+            "INSERT INTO pending_intents(phone,payload_json,updated_at) VALUES(?,?,datetime('now')) "
+            "ON CONFLICT(phone) DO UPDATE SET payload_json=excluded.payload_json, updated_at=excluded.updated_at",
+            (ctx.phone, json.dumps(payload, ensure_ascii=False, default=str)),
+        )
+        self.store.db.commit()
 
     def _pop_pending_intent(self, ctx):
-        payload = getattr(ctx, "_pending_intent", None)
-        ctx._pending_intent = None
-        if not payload:
+        row = self.store.db.execute("SELECT payload_json FROM pending_intents WHERE phone=?", (ctx.phone,)).fetchone()
+        if not row:
             return None
+        self.store.db.execute("DELETE FROM pending_intents WHERE phone=?", (ctx.phone,))
+        self.store.db.commit()
         try:
             from parser.intent_parser import ParsedIntent
+            payload = json.loads(row[0] or "{}")
             parsed = ParsedIntent(
                 intent=payload.get("intent", "unknown"),
                 confidence=float(payload.get("confidence", 1.0) or 1.0),
@@ -329,11 +314,12 @@ class MessageRouter:
             for key, value in payload.get("extra", {}).items():
                 setattr(parsed, key, value)
             return parsed
-        except Exception:
+        except Exception as exc:
+            logger.warning("No se pudo restaurar intención pendiente: %s", exc)
             return None
 
     def _intent_to_payload(self, intent) -> Dict[str, Any]:
-        base = {
+        payload = {
             "intent": getattr(intent, "intent", "unknown"),
             "confidence": getattr(intent, "confidence", 1.0),
             "action_id": getattr(intent, "action_id", ""),
@@ -345,8 +331,8 @@ class MessageRouter:
         }
         for attr in ("delivery_type", "scheduled_at", "branch_reference", "workflow_type", "needs_clarification", "clarification_question"):
             if hasattr(intent, attr):
-                base["extra"][attr] = getattr(intent, attr)
-        return base
+                payload["extra"][attr] = getattr(intent, attr)
+        return payload
 
     async def _handle_branch_selection(self, ctx, intent):
         result = await self.sucursal_flow.handle(ctx, intent)
@@ -358,31 +344,23 @@ class MessageRouter:
 
     def _apply_intent_to_order_context(self, ctx, intent) -> None:
         from models.context import PedidoItem
-
         for prod in getattr(intent, "products", []) or []:
             try:
-                item = PedidoItem(
+                ctx.pedido_items.append(PedidoItem(
                     producto_id=int(prod["id"]),
                     nombre=prod["nombre"],
                     cantidad=float(prod.get("cantidad_solicitada", 1.0) or 1.0),
                     unidad=prod.get("unidad_solicitada") or prod.get("unidad", "kg"),
                     precio_unitario=float(prod.get("precio", 0.0) or 0.0),
-                )
-                ctx.pedido_items.append(item)
+                ))
             except Exception as exc:
                 logger.debug("Producto inválido ignorado en intención IA: %s (%s)", prod, exc)
-
         delivery_type = getattr(intent, "delivery_type", "") or ""
         if delivery_type in ("home_delivery", "domicilio"):
             ctx.pedido_tipo_entrega = "domicilio"
         elif delivery_type in ("pickup", "mostrador", "sucursal"):
             ctx.pedido_tipo_entrega = "sucursal"
-
         scheduled_at = getattr(intent, "scheduled_at", "") or ""
         if scheduled_at:
             ctx.pedido_fecha_entrega = scheduled_at
             ctx.pedido_programado = True
-
-    def _flow_result(self, state: FlowState):
-        from flows.base_flow import FlowResult
-        return FlowResult(state)
