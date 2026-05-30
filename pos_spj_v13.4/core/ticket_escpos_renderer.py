@@ -8,7 +8,7 @@ import re
 import struct
 from typing import Any, Dict, List, Optional
 
-from core.tickets.ticket_layout_config import TicketLayoutConfig
+from core.tickets.ticket_layout_config import DEFAULT_BLOCK_ORDER, TicketLayoutConfig
 from core.tickets.ticket_print_model import TicketPrintModel
 
 logger = logging.getLogger("spj.escpos")
@@ -29,6 +29,7 @@ CUT_FULL = GS + b"V" + bytes([0])
 CUT_PARTIAL = GS + b"V" + bytes([66, 0])
 
 CHARS_BY_WIDTH = {58: 32, 72: 42, 80: 48}
+GENERIC_UNITS = {"", "pz", "pza", "pzas", "pieza", "piezas", "unidad", "unidades"}
 
 
 class TicketESCPOSRenderer:
@@ -43,56 +44,75 @@ class TicketESCPOSRenderer:
             ticket_data = ticket_data.to_dict()
         layout = TicketLayoutConfig.from_dict(ticket_data.get("layout_config", {}))
         width = int(getattr(layout, "chars_per_line", self.chars_per_line) or self.chars_per_line)
-        buf = bytearray()
-        buf += INIT
+        buf = bytearray(INIT)
 
-        if getattr(layout, "show_logo", True) and logo_b64:
-            logo_bytes = self._render_logo(logo_b64, getattr(layout, "logo_size", "md"))
-            if logo_bytes:
-                buf += ALIGN_CENTER
-                buf += logo_bytes
-                buf += self._linebreak()
-                buf += INIT
-                buf += ALIGN_CENTER
+        # Ticket Design is the source of truth for block order and enabled/disabled state.
+        for block_name in self._ordered_blocks(layout):
+            if not self._block_enabled(layout, block_name):
+                continue
+            buf += self._render_block(block_name, ticket_data, layout, width, logo_b64, qr_content)
 
-        empresa = ticket_data.get("empresa", "SPJ POS")
-        empresa_dir = ticket_data.get("direccion", "")
-        empresa_tel = ticket_data.get("telefono", "")
-        if getattr(layout, "show_brand_name", True):
-            buf += ALIGN_CENTER + DOUBLE_HW_ON + self._text(empresa) + NORMAL
-        if getattr(layout, "show_address", True) and empresa_dir:
-            buf += ALIGN_CENTER + self._text(empresa_dir)
-        if getattr(layout, "show_phone", True) and empresa_tel:
-            buf += ALIGN_CENTER + self._text(f"Tel: {empresa_tel}")
-
-        buf += self._separator(width) + ALIGN_LEFT
-        buf += BOLD_ON + self._text(f"Folio: {ticket_data.get('folio', '')}") + BOLD_OFF
-        buf += self._text(f"Fecha: {ticket_data.get('fecha', '')}")
-        buf += self._text(f"Cajero: {ticket_data.get('cajero', '')}")
-        if getattr(layout, "show_customer", True):
-            buf += self._text(f"Cliente: {ticket_data.get('cliente', ticket_data.get('cliente_nombre', 'Público General'))}")
-
-        buf += self._items_and_totals_bytes(ticket_data, width)
-
-        if getattr(layout, "show_loyalty", True):
-            buf += self._loyalty_bytes(ticket_data, width)
-        if getattr(layout, "show_fomo", True):
-            buf += self._fomo_bytes(ticket_data, width)
-
-        if getattr(layout, "show_qr", True) and qr_content:
-            qr_bytes = self._render_qr(qr_content)
-            if qr_bytes:
-                buf += ALIGN_CENTER
-                buf += qr_bytes
-                buf += self._linebreak()
-                buf += INIT
-
-        buf += self._footer_bytes(ticket_data, width)
         feed_lines = max(0, min(10, int(getattr(layout, "feed_lines", 4) or 4)))
         buf += FEED_N + bytes([feed_lines])
         cut_type = str(getattr(layout, "cut_type", "partial") or "partial").lower()
         buf += CUT_PARTIAL if cut_type == "partial" else CUT_FULL
         return bytes(buf)
+
+    def _ordered_blocks(self, layout: TicketLayoutConfig) -> List[str]:
+        configured = list(getattr(layout, "block_order", None) or DEFAULT_BLOCK_ORDER)
+        blocks = getattr(layout, "blocks", {}) or {}
+        extra = [b for b in blocks.keys() if b not in configured]
+        ordered = configured + extra
+        def _order(name: str) -> int:
+            blk = blocks.get(name)
+            return int(getattr(blk, "order", ordered.index(name)) if blk is not None else ordered.index(name))
+        return sorted(ordered, key=_order)
+
+    def _block_enabled(self, layout: TicketLayoutConfig, block_name: str) -> bool:
+        blocks = getattr(layout, "blocks", {}) or {}
+        blk = blocks.get(block_name)
+        if blk is not None and hasattr(blk, "enabled"):
+            return bool(blk.enabled)
+        flag_map = {
+            "logo": "show_logo",
+            "brand_header": "show_brand_name",
+            "customer": "show_customer",
+            "loyalty": "show_loyalty",
+            "fomo": "show_fomo",
+            "qr": "show_qr",
+            "barcode": "show_barcode",
+        }
+        attr = flag_map.get(block_name)
+        return bool(getattr(layout, attr, True)) if attr else True
+
+    def _render_block(self, block_name: str, ticket_data: Dict[str, Any], layout: TicketLayoutConfig,
+                      width: int, logo_b64: str, qr_content: str) -> bytes:
+        if block_name == "logo":
+            return self._logo_bytes(layout, logo_b64)
+        if block_name == "brand_header":
+            return self._brand_header_bytes(ticket_data, layout)
+        if block_name == "sale_info":
+            return self._sale_info_bytes(ticket_data, width)
+        if block_name == "customer":
+            return self._customer_bytes(ticket_data, layout)
+        if block_name == "items":
+            return self._items_bytes(ticket_data, width)
+        if block_name == "totals":
+            return self._totals_bytes(ticket_data, width)
+        if block_name == "payment":
+            return self._payment_bytes(ticket_data, width)
+        if block_name == "loyalty":
+            return self._loyalty_bytes(ticket_data, width)
+        if block_name == "fomo":
+            return self._fomo_bytes(ticket_data, width)
+        if block_name == "qr":
+            return self._qr_bytes(layout, qr_content)
+        if block_name == "footer":
+            return self._footer_bytes(ticket_data, width)
+        if block_name == "legal":
+            return self._legal_bytes(ticket_data, width)
+        # barcode and unknown blocks are intentionally ignored until a renderer exists.
+        return b""
 
     def render_safe_text(self, ticket_data: Dict[str, Any] | TicketPrintModel) -> bytes:
         text = self.render_text_preview(ticket_data)
@@ -101,6 +121,57 @@ class TicketESCPOSRenderer:
 
     def _linebreak(self) -> bytes:
         return "\n".encode(self.encoding, errors="replace")
+
+    def _align_cmd(self, alignment: str) -> bytes:
+        value = str(alignment or "left").lower()
+        if value == "center":
+            return ALIGN_CENTER
+        if value == "right":
+            return ALIGN_RIGHT
+        return ALIGN_LEFT
+
+    def _logo_bytes(self, layout: TicketLayoutConfig, logo_b64: str) -> bytes:
+        if not (getattr(layout, "show_logo", True) and logo_b64):
+            return b""
+        logo_bytes = self._render_logo(logo_b64, getattr(layout, "logo_size", "md"))
+        if not logo_bytes:
+            return b""
+        return self._align_cmd(getattr(layout, "logo_alignment", "center")) + logo_bytes + self._linebreak() + INIT
+
+    def _brand_header_bytes(self, ticket_data: Dict[str, Any], layout: TicketLayoutConfig) -> bytes:
+        buf = bytearray()
+        empresa = ticket_data.get("empresa", "SPJ POS")
+        slogan = ticket_data.get("slogan", ticket_data.get("brand_slogan", ""))
+        empresa_dir = ticket_data.get("direccion", "")
+        empresa_tel = ticket_data.get("telefono", "")
+        rfc = ticket_data.get("rfc", ticket_data.get("empresa_rfc", ""))
+        if getattr(layout, "show_brand_name", True):
+            buf += ALIGN_CENTER + DOUBLE_HW_ON + self._text(empresa) + NORMAL
+        if getattr(layout, "show_slogan", True) and slogan:
+            buf += ALIGN_CENTER + self._text(slogan)
+        if getattr(layout, "show_address", True) and empresa_dir:
+            buf += ALIGN_CENTER + self._text(empresa_dir)
+        if getattr(layout, "show_phone", True) and empresa_tel:
+            buf += ALIGN_CENTER + self._text(f"Tel: {empresa_tel}")
+        if getattr(layout, "show_rfc", False) and rfc:
+            buf += ALIGN_CENTER + self._text(f"RFC: {rfc}")
+        return bytes(buf)
+
+    def _sale_info_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
+        buf = bytearray()
+        buf += self._separator(width) + ALIGN_LEFT
+        buf += BOLD_ON + self._text(f"Folio: {ticket_data.get('folio', '')}") + BOLD_OFF
+        if ticket_data.get("fecha"):
+            buf += self._text(f"Fecha: {ticket_data.get('fecha', '')}")
+        if ticket_data.get("cajero"):
+            buf += self._text(f"Cajero: {ticket_data.get('cajero', '')}")
+        return bytes(buf)
+
+    def _customer_bytes(self, ticket_data: Dict[str, Any], layout: TicketLayoutConfig) -> bytes:
+        if not getattr(layout, "show_customer", True):
+            return b""
+        cliente = ticket_data.get("cliente") or ticket_data.get("cliente_nombre") or "Público General"
+        return ALIGN_LEFT + self._text(f"Cliente: {cliente}")
 
     def _item_name(self, item: Dict[str, Any]) -> str:
         return str(
@@ -113,16 +184,14 @@ class TicketESCPOSRenderer:
         )
 
     def _item_unit(self, item: Dict[str, Any]) -> str:
-        return str(
-            item.get("unidad")
-            or item.get("unit")
-            or item.get("unidad_medida")
-            or item.get("unit_name")
-            or item.get("uom")
-            or "pz"
-        )
+        # Prefer DB-enriched values over generic UI payload units.
+        db_unit = str(item.get("db_unidad") or item.get("unidad_db") or item.get("unidad_producto") or "").strip()
+        payload_unit = str(item.get("unidad") or item.get("unit") or item.get("unidad_medida") or item.get("unit_name") or item.get("uom") or "").strip()
+        if db_unit and payload_unit.lower() in GENERIC_UNITS:
+            return db_unit
+        return db_unit or payload_unit or "pz"
 
-    def _items_and_totals_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
+    def _items_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         buf = bytearray()
         buf += self._separator(width)
         buf += BOLD_ON + self._columns("PRODUCTO", "CANT", "TOTAL", width) + BOLD_OFF
@@ -141,23 +210,33 @@ class TicketESCPOSRenderer:
                 buf += self._columns("", cant_str, total_str, width)
             else:
                 buf += self._columns(nombre, cant_str, total_str, width)
+        return bytes(buf)
+
+    def _totals_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
+        buf = bytearray()
         buf += self._separator(width)
         totales = ticket_data.get("totales", {}) or {}
-        subtotal = float(totales.get("subtotal", 0) or 0)
-        descuento = float(totales.get("descuento", 0) or 0)
+        subtotal = float(totales.get("subtotal", ticket_data.get("subtotal", 0)) or 0)
+        descuento = float(totales.get("descuento", ticket_data.get("descuento", 0)) or 0)
         total_final = float(totales.get("total_final", ticket_data.get("total_final", ticket_data.get("total", subtotal))) or 0)
         buf += ALIGN_RIGHT
         if descuento > 0:
             buf += self._text(f"Subtotal: ${subtotal:.2f}")
             buf += self._text(f"Descuento: -${descuento:.2f}")
         buf += BOLD_ON + DOUBLE_H_ON + self._text(f"TOTAL: ${total_final:.2f}") + NORMAL + BOLD_OFF
+        return bytes(buf)
+
+    def _payment_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         pago = ticket_data.get("pago", {}) or {}
-        if pago.get("forma_pago"):
-            buf += ALIGN_LEFT + self._separator(width, char="-")
-            buf += self._text(f"Forma de pago: {pago.get('forma_pago', '')}")
-            if str(pago.get("forma_pago", "")).lower() == "efectivo":
-                buf += self._text(f"Recibido: ${float(pago.get('efectivo_recibido', total_final) or 0):.2f}")
-                buf += self._text(f"Cambio: ${float(pago.get('cambio', 0) or 0):.2f}")
+        if not pago.get("forma_pago"):
+            return b""
+        total_final = float((ticket_data.get("totales", {}) or {}).get("total_final", ticket_data.get("total", 0)) or 0)
+        buf = bytearray()
+        buf += ALIGN_LEFT + self._separator(width, char="-")
+        buf += self._text(f"Forma de pago: {pago.get('forma_pago', '')}")
+        if str(pago.get("forma_pago", "")).lower() == "efectivo":
+            buf += self._text(f"Recibido: ${float(pago.get('efectivo_recibido', total_final) or 0):.2f}")
+            buf += self._text(f"Cambio: ${float(pago.get('cambio', 0) or 0):.2f}")
         return bytes(buf)
 
     def _loyalty_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
@@ -167,7 +246,7 @@ class TicketESCPOSRenderer:
         nivel = loyalty.get("nivel", ticket_data.get("nivel_cliente", ""))
         mensaje = loyalty.get("mensaje", "")
         available = bool(loyalty.get("available", ticket_data.get("puntos_disponibles", False)))
-        if pts in (None, "") and total_pts in (None, "") and not mensaje:
+        if pts in (None, "") and total_pts in (None, "") and not mensaje and not nivel:
             return b""
         buf = bytearray()
         buf += self._separator(width, char="-") + ALIGN_CENTER
@@ -204,8 +283,25 @@ class TicketESCPOSRenderer:
             buf += self._text(msg)
         return bytes(buf)
 
+    def _qr_bytes(self, layout: TicketLayoutConfig, qr_content: str) -> bytes:
+        if not (getattr(layout, "show_qr", True) and qr_content):
+            return b""
+        qr_bytes = self._render_qr(qr_content)
+        if not qr_bytes:
+            return b""
+        return ALIGN_CENTER + qr_bytes + self._linebreak() + INIT
+
     def _footer_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
-        return self._separator(width) + ALIGN_CENTER + self._text(ticket_data.get("mensaje_psicologico", ticket_data.get("footer_message", "¡Gracias por su compra!"))) + self._text("")
+        msg = ticket_data.get("mensaje_psicologico", ticket_data.get("footer_message", "¡Gracias por su compra!"))
+        if not msg:
+            return b""
+        return self._separator(width) + ALIGN_CENTER + self._text(msg) + self._text("")
+
+    def _legal_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
+        msg = ticket_data.get("legal_message") or ticket_data.get("mensaje_legal") or ""
+        if not msg:
+            return b""
+        return self._separator(width, char="-") + ALIGN_CENTER + self._text(msg)
 
     def _text(self, text: Any) -> bytes:
         return (self._sanitize_text(text) + "\n").encode(self.encoding, errors="replace")
@@ -242,6 +338,8 @@ class TicketESCPOSRenderer:
             lines.append(f"Fecha: {self._sanitize_text(ticket_data.get('fecha', ''))}"[:width])
         if ticket_data.get("cajero"):
             lines.append(f"Cajero: {self._sanitize_text(ticket_data.get('cajero', ''))}"[:width])
+        if getattr(layout, "show_customer", True):
+            lines.append(f"Cliente: {self._sanitize_text(ticket_data.get('cliente', ticket_data.get('cliente_nombre', 'Público General')))}"[:width])
         lines.append("-" * width)
         for item in ticket_data.get("items", []):
             nombre = self._item_name(item)
