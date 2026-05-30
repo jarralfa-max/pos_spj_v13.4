@@ -12,19 +12,14 @@ El modelo recibe SOLO el mensaje + catálogo reducido.
 Responde SOLO JSON — sin explicaciones, sin markdown.
 """
 from __future__ import annotations
-import httpx
+
 import json
 import logging
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
-try:
-    # Import correcto cuando el ERP importa el microservicio como paquete:
-    # `whatsapp_service.parser.llm_local`.
-    from whatsapp_service.config.settings import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
-except ImportError:
-    # Compatibilidad cuando el microservicio corre desde su propia carpeta con
-    # uvicorn main:app y `whatsapp_service` no está en sys.path como paquete raíz.
-    from config.settings import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+import httpx
+
+from whatsapp_service.config.settings import OLLAMA_MODEL, OLLAMA_TIMEOUT, OLLAMA_URL
 
 logger = logging.getLogger("wa.llm")
 
