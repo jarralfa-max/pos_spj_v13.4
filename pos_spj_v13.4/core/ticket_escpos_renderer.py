@@ -47,12 +47,10 @@ class TicketESCPOSRenderer:
         buf += INIT
 
         if getattr(layout, "show_logo", True) and logo_b64:
-            logo_bytes = self._render_logo(logo_b64)
+            logo_bytes = self._render_logo(logo_b64, getattr(layout, "logo_size", "md"))
             if logo_bytes:
                 buf += ALIGN_CENTER
                 buf += logo_bytes
-                # XP-58 compatibles pueden quedar en estado gráfico después del bitmap.
-                # Reiniciamos estilo/alineación para que no se pierda el texto posterior.
                 buf += self._linebreak()
                 buf += INIT
                 buf += ALIGN_CENTER
@@ -60,19 +58,26 @@ class TicketESCPOSRenderer:
         empresa = ticket_data.get("empresa", "SPJ POS")
         empresa_dir = ticket_data.get("direccion", "")
         empresa_tel = ticket_data.get("telefono", "")
-        buf += ALIGN_CENTER + DOUBLE_HW_ON + self._text(empresa) + NORMAL
-        if empresa_dir:
-            buf += self._text(empresa_dir)
-        if empresa_tel:
-            buf += self._text(f"Tel: {empresa_tel}")
+        if getattr(layout, "show_brand_name", True):
+            buf += ALIGN_CENTER + DOUBLE_HW_ON + self._text(empresa) + NORMAL
+        if getattr(layout, "show_address", True) and empresa_dir:
+            buf += ALIGN_CENTER + self._text(empresa_dir)
+        if getattr(layout, "show_phone", True) and empresa_tel:
+            buf += ALIGN_CENTER + self._text(f"Tel: {empresa_tel}")
 
         buf += self._separator(width) + ALIGN_LEFT
         buf += BOLD_ON + self._text(f"Folio: {ticket_data.get('folio', '')}") + BOLD_OFF
         buf += self._text(f"Fecha: {ticket_data.get('fecha', '')}")
         buf += self._text(f"Cajero: {ticket_data.get('cajero', '')}")
-        buf += self._text(f"Cliente: {ticket_data.get('cliente', 'Público General')}")
+        if getattr(layout, "show_customer", True):
+            buf += self._text(f"Cliente: {ticket_data.get('cliente', ticket_data.get('cliente_nombre', 'Público General'))}")
 
         buf += self._items_and_totals_bytes(ticket_data, width)
+
+        if getattr(layout, "show_loyalty", True):
+            buf += self._loyalty_bytes(ticket_data, width)
+        if getattr(layout, "show_fomo", True):
+            buf += self._fomo_bytes(ticket_data, width)
 
         if getattr(layout, "show_qr", True) and qr_content:
             qr_bytes = self._render_qr(qr_content)
@@ -97,15 +102,35 @@ class TicketESCPOSRenderer:
     def _linebreak(self) -> bytes:
         return "\n".encode(self.encoding, errors="replace")
 
+    def _item_name(self, item: Dict[str, Any]) -> str:
+        return str(
+            item.get("nombre")
+            or item.get("name")
+            or item.get("producto")
+            or item.get("product_name")
+            or item.get("descripcion")
+            or f"Producto {item.get('product_id', '')}"
+        )
+
+    def _item_unit(self, item: Dict[str, Any]) -> str:
+        return str(
+            item.get("unidad")
+            or item.get("unit")
+            or item.get("unidad_medida")
+            or item.get("unit_name")
+            or item.get("uom")
+            or "pz"
+        )
+
     def _items_and_totals_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         buf = bytearray()
         buf += self._separator(width)
         buf += BOLD_ON + self._columns("PRODUCTO", "CANT", "TOTAL", width) + BOLD_OFF
         buf += self._separator(width, char="-")
         for item in ticket_data.get("items", []):
-            nombre = str(item.get("nombre", ""))
-            cant = float(item.get("cantidad", item.get("qty", 0)) or 0)
-            unidad = str(item.get("unidad", "pz"))
+            nombre = self._item_name(item)
+            cant = float(item.get("cantidad", item.get("qty", item.get("quantity", 0))) or 0)
+            unidad = self._item_unit(item)
             precio = float(item.get("precio_unitario", item.get("unit_price", 0)) or 0)
             total_it = float(item.get("total", item.get("subtotal", cant * precio)) or 0)
             cant_str = f"{cant:.2f}{unidad}"
@@ -120,7 +145,7 @@ class TicketESCPOSRenderer:
         totales = ticket_data.get("totales", {}) or {}
         subtotal = float(totales.get("subtotal", 0) or 0)
         descuento = float(totales.get("descuento", 0) or 0)
-        total_final = float(totales.get("total_final", subtotal) or 0)
+        total_final = float(totales.get("total_final", ticket_data.get("total_final", ticket_data.get("total", subtotal))) or 0)
         buf += ALIGN_RIGHT
         if descuento > 0:
             buf += self._text(f"Subtotal: ${subtotal:.2f}")
@@ -133,18 +158,54 @@ class TicketESCPOSRenderer:
             if str(pago.get("forma_pago", "")).lower() == "efectivo":
                 buf += self._text(f"Recibido: ${float(pago.get('efectivo_recibido', total_final) or 0):.2f}")
                 buf += self._text(f"Cambio: ${float(pago.get('cambio', 0) or 0):.2f}")
+        return bytes(buf)
+
+    def _loyalty_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         loyalty = dict(ticket_data.get("loyalty") or {})
         pts = loyalty.get("puntos_ganados", ticket_data.get("puntos_ganados"))
+        total_pts = loyalty.get("puntos_totales", ticket_data.get("puntos_totales"))
+        nivel = loyalty.get("nivel", ticket_data.get("nivel_cliente", ""))
+        mensaje = loyalty.get("mensaje", "")
+        available = bool(loyalty.get("available", ticket_data.get("puntos_disponibles", False)))
+        if pts in (None, "") and total_pts in (None, "") and not mensaje:
+            return b""
+        buf = bytearray()
+        buf += self._separator(width, char="-") + ALIGN_CENTER
         if pts not in (None, "", 0):
-            buf += self._separator(width, char="-") + ALIGN_CENTER
             buf += self._text(f"Puntos ganados: +{pts}")
-            total_pts = loyalty.get("puntos_totales", ticket_data.get("puntos_totales"))
-            if loyalty.get("available", False) and total_pts not in (None, ""):
-                buf += self._text(f"Saldo total: {total_pts} puntos")
+        if available and total_pts not in (None, ""):
+            buf += self._text(f"Saldo puntos: {total_pts}")
+        if nivel:
+            buf += self._text(f"Nivel: {nivel}")
+        if mensaje:
+            buf += self._text(mensaje)
+        return bytes(buf)
+
+    def _fomo_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
+        raw = ticket_data.get("fomo_messages") or ticket_data.get("fomo") or ticket_data.get("mensajes_fomo") or []
+        if isinstance(raw, str):
+            raw = [{"message": raw}]
+        if not raw:
+            msg = ticket_data.get("mensaje_fomo") or ""
+            raw = [{"message": msg}] if msg else []
+        messages = []
+        for item in raw:
+            if isinstance(item, dict):
+                msg = item.get("message") or item.get("mensaje") or item.get("text") or ""
+            else:
+                msg = str(item or "")
+            if msg:
+                messages.append(str(msg))
+        if not messages:
+            return b""
+        buf = bytearray()
+        buf += self._separator(width, char="-") + ALIGN_CENTER
+        for msg in messages[:3]:
+            buf += self._text(msg)
         return bytes(buf)
 
     def _footer_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
-        return self._separator(width) + ALIGN_CENTER + self._text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")) + self._text("")
+        return self._separator(width) + ALIGN_CENTER + self._text(ticket_data.get("mensaje_psicologico", ticket_data.get("footer_message", "¡Gracias por su compra!"))) + self._text("")
 
     def _text(self, text: Any) -> bytes:
         return (self._sanitize_text(text) + "\n").encode(self.encoding, errors="replace")
@@ -183,17 +244,18 @@ class TicketESCPOSRenderer:
             lines.append(f"Cajero: {self._sanitize_text(ticket_data.get('cajero', ''))}"[:width])
         lines.append("-" * width)
         for item in ticket_data.get("items", []):
-            nombre = self._sanitize_text(item.get("nombre", ""))
-            qty = float(item.get("cantidad", item.get("qty", 0)) or 0)
+            nombre = self._item_name(item)
+            qty = float(item.get("cantidad", item.get("qty", item.get("quantity", 0))) or 0)
+            unidad = self._item_unit(item)
             total_it = float(item.get("total", item.get("subtotal", 0)) or 0)
             left_w = max(10, width - 14)
             for i in range(0, len(nombre), left_w):
                 chunk = nombre[i:i + left_w]
                 if i == 0:
-                    lines.append(f"{chunk:<{left_w}} {qty:>5.2f} ${total_it:>6.2f}"[:width])
+                    lines.append(f"{chunk:<{left_w}} {qty:>5.2f}{unidad} ${total_it:>6.2f}"[:width])
                 else:
                     lines.append(chunk[:width])
-        total = float((ticket_data.get("totales", {}) or {}).get("total_final", 0) or 0)
+        total = float((ticket_data.get("totales", {}) or {}).get("total_final", ticket_data.get("total_final", ticket_data.get("total", 0))) or 0)
         lines.append("=" * width)
         lines.append(f"TOTAL: ${total:.2f}".rjust(width)[:width])
         pago = ticket_data.get("pago", {}) or {}
@@ -203,7 +265,7 @@ class TicketESCPOSRenderer:
         lines.append(self._sanitize_text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")).center(width)[:width])
         return "\n".join(lines)
 
-    def _render_logo(self, logo_b64: str) -> Optional[bytes]:
+    def _render_logo(self, logo_b64: str, logo_size: str = "md") -> Optional[bytes]:
         try:
             from PIL import Image
             if "," in logo_b64:
@@ -217,8 +279,22 @@ class TicketESCPOSRenderer:
             else:
                 img = img.convert("RGB")
             img = img.convert("L")
-            max_dots_w = 256 if self.paper_width <= 58 else 384
-            max_dots_h = 96 if self.paper_width <= 58 else 160
+            size_key = str(logo_size or "md").lower()
+            numeric_width = None
+            try:
+                numeric_width = int(float(size_key))
+            except Exception:
+                numeric_width = None
+            if numeric_width:
+                max_dots_w = max(80, min(384 if self.paper_width <= 58 else 512, numeric_width))
+                max_dots_h = 180 if self.paper_width <= 58 else 240
+            else:
+                size_map_58 = {"sm": (192, 80), "md": (320, 140), "lg": (384, 180), "xl": (384, 220)}
+                size_map_80 = {"sm": (240, 100), "md": (384, 160), "lg": (512, 240), "xl": (512, 280)}
+                max_dots_w, max_dots_h = (size_map_58 if self.paper_width <= 58 else size_map_80).get(
+                    size_key,
+                    (320, 140) if self.paper_width <= 58 else (384, 160),
+                )
             ratio = min(max_dots_w / max(1, img.width), max_dots_h / max(1, img.height), 1.0)
             if ratio < 1.0:
                 img = img.resize((max(1, int(img.width * ratio)), max(1, int(img.height * ratio))))
