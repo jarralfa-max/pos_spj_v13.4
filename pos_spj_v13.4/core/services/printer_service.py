@@ -4,11 +4,11 @@
 Configuration source of truth: ``hardware_config`` via
 ``HardwareConfigRepository``.
 
-Important printing contract:
-- ``escpos_mode='text'`` sends plain text only. This is the safe default for
-  Windows drivers/spoolers that print ESC/POS commands as symbols.
-- ``escpos_mode='raw'`` sends full ESC/POS commands, logo bitmap, QR and cut.
-  Enable only for printers/drivers that are confirmed to accept ESC/POS RAW.
+Printing contract:
+- Default mode is ``raw`` because the supported thermal ticket pipeline is
+  ESC/POS RAW: text, QR, logo, feed/cut and Ticket Design layout.
+- ``text_diagnostic`` is an explicit diagnostic fallback only. It must never be
+  the default because it disables QR/logo/layout behavior users expect.
 """
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ class PrintTransport:
         printer_name = destination or win32print.GetDefaultPrinter()
         hp = win32print.OpenPrinter(printer_name)
         try:
-            win32print.StartDocPrinter(hp, 1, ("SPJ Print", None, "RAW"))
+            win32print.StartDocPrinter(hp, 1, ("SPJ Ticket", None, "RAW"))
             win32print.StartPagePrinter(hp)
             win32print.WritePrinter(hp, data)
             win32print.EndPagePrinter(hp)
@@ -374,10 +374,11 @@ class PrinterService:
             self._ticket_cfg = self._normalize_ticket_cfg(repo.get_config("ticket"))
             self._label_cfg = self._normalize_label_cfg(repo.get_config("etiquetas"))
             logger.info(
-                "Configuración de impresoras cargada desde hardware_config: ticket=%s etiquetas=%s mode=%s",
+                "Configuración de impresoras cargada desde hardware_config: ticket=%s etiquetas=%s mode=%s model=%s",
                 bool(self._ticket_cfg.get("ubicacion")),
                 bool(self._label_cfg.get("ubicacion")),
                 self._ticket_cfg.get("escpos_mode"),
+                self._ticket_cfg.get("printer_model"),
             )
         except Exception:
             logger.exception("No se pudo cargar configuración canónica de impresoras desde hardware_config")
@@ -391,7 +392,7 @@ class PrinterService:
             return default
         if isinstance(value, bool):
             return value
-        return str(value).strip().lower() in {"1", "true", "si", "sí", "yes", "on", "raw"}
+        return str(value).strip().lower() in {"1", "true", "si", "sí", "yes", "on", "raw", "enabled"}
 
     @staticmethod
     def _normalize_ticket_cfg(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -405,7 +406,7 @@ class PrinterService:
                 idx = int(tipo_idx)
             except Exception:
                 idx = None
-            if idx == 0 or "win32" in tipo_l or "windows" in tipo_l:
+            if idx == 0 or "win32" in tipo_l or "windows" in tipo_l or "usb" in tipo_l:
                 transport = "usb_win32"
             elif idx in (1, 3) or "serial" in tipo_l or "com" in tipo_l:
                 transport = "serial"
@@ -413,23 +414,25 @@ class PrinterService:
                 transport = "network"
             else:
                 transport = "auto"
-        ancho = str(raw.get("ancho") or raw.get("paper_width") or "80")
+        ancho = str(raw.get("ancho") or raw.get("paper_width") or "58" if "58" in str(raw.get("modelo", raw.get("printer_model", ""))).lower() else raw.get("ancho") or raw.get("paper_width") or "80")
         paper_width = 58 if "58" in ancho else 80
-        mode_raw = str(raw.get("escpos_mode") or raw.get("modo_impresion") or "text").strip().lower()
-        escpos_mode = "raw" if mode_raw in {"raw", "escpos", "graphics", "grafico", "gráfico"} else "text"
-        graphics_enabled = PrinterService._bool_cfg(raw.get("escpos_graphics"), escpos_mode == "raw")
+        mode_raw = str(raw.get("escpos_mode") or raw.get("modo_impresion") or "raw").strip().lower()
+        if mode_raw in {"text", "safe_text", "diagnostic", "text_diagnostic"}:
+            escpos_mode = "text_diagnostic"
+        else:
+            escpos_mode = "raw"
         return {
             "ubicacion": str(raw.get("ubicacion") or raw.get("puerto") or raw.get("printer_name") or "").strip(),
             "transport": str(transport).strip().lower(),
+            "printer_model": str(raw.get("modelo") or raw.get("printer_model") or "").strip(),
             "paper_width": int(raw.get("paper_width") or paper_width),
             "baud_rate": int(raw.get("baud_rate") or raw.get("baud") or 9600),
             "encoding": str(raw.get("encoding") or "cp850"),
             "corte": bool(raw.get("corte", True)),
             "abrir_cajon": bool(raw.get("abrir_cajon", False)),
             "escpos_mode": escpos_mode,
-            "escpos_graphics": graphics_enabled,
-            "print_logo": PrinterService._bool_cfg(raw.get("print_logo"), graphics_enabled),
-            "print_qr": PrinterService._bool_cfg(raw.get("print_qr"), False),
+            "print_logo": PrinterService._bool_cfg(raw.get("print_logo"), True),
+            "print_qr": PrinterService._bool_cfg(raw.get("print_qr"), True),
         }
 
     @staticmethod
@@ -498,6 +501,34 @@ class PrinterService:
             logger.warning("No se pudo cargar branding de ticket: %s", exc)
             return None
 
+    def _get_layout(self):
+        try:
+            from core.tickets.ticket_layout_repository import TicketLayoutRepository
+            return TicketLayoutRepository(db_conn=self.db).load()
+        except Exception as exc:
+            logger.warning("No se pudo cargar Ticket Design activo; se usará layout default: %s", exc)
+            try:
+                from core.tickets.ticket_layout_config import TicketLayoutConfig
+                return TicketLayoutConfig()
+            except Exception:
+                return None
+
+    def _prepare_ticket_data(self, ticket_data: Dict[str, Any]) -> tuple[Dict[str, Any], Any, Any]:
+        data = dict(ticket_data or {})
+        branding = self._get_branding()
+        if branding:
+            data.setdefault("empresa", branding.brand_name)
+            data.setdefault("direccion", branding.address)
+            data.setdefault("telefono", branding.phone)
+        else:
+            data.setdefault("empresa", self._get_cfg("nombre_empresa", "SPJ POS"))
+            data.setdefault("direccion", self._get_cfg("direccion", ""))
+            data.setdefault("telefono", self._get_cfg("telefono_empresa", ""))
+        layout = self._get_layout()
+        if layout is not None and not data.get("layout_config"):
+            data["layout_config"] = layout.to_dict()
+        return data, branding, layout
+
     def print_ticket(self, ticket_data: Dict[str, Any], on_success: Callable = None, on_error: Callable = None) -> str:
         if not self.enabled:
             logger.debug("Impresión deshabilitada (toggle printing)")
@@ -514,28 +545,19 @@ class PrinterService:
             return ""
         try:
             from core.ticket_escpos_renderer import TicketESCPOSRenderer
-            renderer = TicketESCPOSRenderer(
-                paper_width_mm=int(self._ticket_cfg.get("paper_width", 80)),
-                encoding=str(self._ticket_cfg.get("encoding", "cp850")),
-            )
-            branding = self._get_branding()
-            if branding:
-                ticket_data.setdefault("empresa", branding.brand_name)
-                ticket_data.setdefault("direccion", branding.address)
-                ticket_data.setdefault("telefono", branding.phone)
+            prepared, branding, layout = self._prepare_ticket_data(ticket_data)
+            paper_w = int(getattr(layout, "paper_width_mm", 0) or self._ticket_cfg.get("paper_width", 80))
+            renderer = TicketESCPOSRenderer(paper_width_mm=paper_w, encoding=str(self._ticket_cfg.get("encoding", "cp850")))
+            if self._ticket_cfg.get("escpos_mode") == "text_diagnostic":
+                data = renderer.render_safe_text(prepared)
             else:
-                ticket_data.setdefault("empresa", self._get_cfg("nombre_empresa", "SPJ POS"))
-                ticket_data.setdefault("direccion", self._get_cfg("direccion", ""))
-                ticket_data.setdefault("telefono", self._get_cfg("telefono_empresa", ""))
-
-            if self._ticket_cfg.get("escpos_mode") == "raw":
-                logo_b64 = branding.logo_b64 if (branding and self._ticket_cfg.get("print_logo")) else ""
+                logo_b64 = ""
+                if branding and self._ticket_cfg.get("print_logo", True) and getattr(layout, "show_logo", True):
+                    logo_b64 = branding.logo_b64 or ""
                 qr_content = ""
-                if self._ticket_cfg.get("print_qr"):
-                    qr_content = self._get_cfg("ticket_qr_url", "") or ticket_data.get("folio", "")
-                data = renderer.render(ticket_data, logo_b64=logo_b64, qr_content=qr_content)
-            else:
-                data = renderer.render_safe_text(ticket_data)
+                if self._ticket_cfg.get("print_qr", True) and getattr(layout, "show_qr", True):
+                    qr_content = self._get_cfg("ticket_qr_url", "") or prepared.get("qr_content") or prepared.get("folio", "")
+                data = renderer.render(prepared, logo_b64=logo_b64, qr_content=qr_content)
         except Exception as exc:
             logger.error("Error formateando ticket: %s", exc)
             if on_error:
@@ -547,7 +569,7 @@ class PrinterService:
         job = PrintJob(
             job_type=PrintJobType.TICKET,
             data=data,
-            raw_data=ticket_data,
+            raw_data=prepared,
             destination=self._ticket_cfg.get("ubicacion", ""),
             transport=self._resolve_transport(self._ticket_cfg),
             baud=self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)),
@@ -562,16 +584,7 @@ class PrinterService:
         if not self.enabled:
             return ""
         cfg = printer_cfg or self._label_cfg
-        job = PrintJob(
-            job_type=PrintJobType.LABEL,
-            data=label_data,
-            destination=cfg.get("ubicacion", ""),
-            transport=self._resolve_transport(cfg),
-            baud=self._safe_baud(cfg.get("baud_rate", 9600)),
-            priority=5,
-            on_success=on_success,
-            on_error=on_error,
-        )
+        job = PrintJob(PrintJobType.LABEL, label_data, {}, self._resolve_transport(cfg), cfg.get("ubicacion", ""), self._safe_baud(cfg.get("baud_rate", 9600)), 5, 2, on_success=on_success, on_error=on_error)
         self.queue.submit(job)
         return job.id
 
@@ -579,14 +592,7 @@ class PrinterService:
         if not self.enabled:
             return ""
         dest = destination or self._ticket_cfg.get("ubicacion", "")
-        job = PrintJob(
-            job_type=PrintJobType.RAW,
-            data=data,
-            destination=dest,
-            transport=self._resolve_transport(self._ticket_cfg),
-            baud=self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)),
-            priority=priority,
-        )
+        job = PrintJob(PrintJobType.RAW, data, {}, self._resolve_transport(self._ticket_cfg), dest, self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)), priority)
         self.queue.submit(job)
         return job.id
 
@@ -611,25 +617,18 @@ class PrinterService:
         if transport == TransportType.SERIAL:
             if not (destination.upper().startswith("COM") or "/dev/tty" in destination):
                 errors.append("Destino serial inválido.")
-            baud = self._safe_baud(cfg.get("baud_rate", 9600))
-            if baud <= 0:
-                errors.append("Baud rate inválido.")
         if transport == TransportType.USB_WIN32 and not destination:
             errors.append("Nombre de impresora Win32 vacío.")
         if not errors and not PrintTransport.is_available(transport, destination):
             errors.append(f"Impresora no disponible ({transport.value} -> {destination or '<default>'}).")
-        if cfg.get("escpos_mode") == "text":
-            warnings.append("Modo texto seguro activo: no se imprimen logo, QR ni corte automático ESC/POS.")
+        if cfg.get("escpos_mode") == "text_diagnostic":
+            warnings.append("Modo texto diagnóstico activo: no se imprimen logo, QR ni diseño ESC/POS completo.")
         enc = str(cfg.get("encoding", "cp850") or "cp850").lower()
         if enc not in {"cp850", "latin-1", "utf-8"}:
             warnings.append(f"Encoding no estándar para térmica: {enc}")
         return ValidationResult(ok=len(errors) == 0, errors=errors, warnings=warnings, transport=transport.value, destination=destination)
 
     def print_test_ticket(self) -> str:
-        vr = self.validate_ticket_printer_config()
-        if not vr.ok:
-            logger.warning("print_test_ticket bloqueado por config inválida: %s", "; ".join(vr.errors))
-            return ""
         payload = {
             "ticket_type": "test_ticket",
             "folio": "TEST-TICKET",
@@ -650,7 +649,8 @@ class PrinterService:
             "total_printed": self.queue.total_printed,
             "total_failed": self.queue.total_failed,
             "ticket_printer": self._ticket_cfg.get("ubicacion", "N/A"),
-            "ticket_mode": self._ticket_cfg.get("escpos_mode", "text"),
+            "ticket_mode": self._ticket_cfg.get("escpos_mode", "raw"),
+            "ticket_model": self._ticket_cfg.get("printer_model", ""),
             "label_printer": self._label_cfg.get("ubicacion", "N/A"),
         }
 
