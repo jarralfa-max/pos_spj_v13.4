@@ -9,6 +9,7 @@ from whatsapp_service.ai.intent_ai_client import CloudIntentAIClient
 from whatsapp_service.ai.prompt_builder import build_ai_prompt_context
 from whatsapp_service.ai.fallback import map_ai_to_parsed_intent
 from whatsapp_service.ai.audit_log import AIIntentAuditLog
+from whatsapp_service.ai.catalog_entity_extractor import CatalogEntityExtractor
 
 logger = logging.getLogger("wa.intent_resolver")
 
@@ -19,6 +20,7 @@ class IntentResolver:
         self.db = db
         self.ai_client = CloudIntentAIClient(db=db)
         self.audit = AIIntentAuditLog(db) if db is not None else None
+        self.entity_extractor = CatalogEntityExtractor(parser.matcher)
 
     def _get_cfg(self, key: str, default: str = "") -> str:
         if self.db is not None:
@@ -107,74 +109,38 @@ class IntentResolver:
         return parsed
 
     def _enrich_products(self, parsed: ParsedIntent, msg) -> ParsedIntent:
-        """Convierte menciones de producto IA/texto libre en productos reales del ERP."""
         raw_text = getattr(msg, "text", "") or ""
         products: List[Dict[str, Any]] = []
 
         for prod in getattr(parsed, "products", []) or []:
-            normalized = self._normalize_ai_product(prod)
+            normalized = self.entity_extractor.normalize_product(prod)
             if normalized:
                 products.append(normalized)
 
-        if not products and raw_text:
+        if raw_text:
             try:
                 local = self.parser._parse_regex(raw_text)
                 for prod in getattr(local, "products", []) or []:
-                    normalized = self._normalize_ai_product(prod)
+                    normalized = self.entity_extractor.normalize_product(prod)
                     if normalized:
                         products.append(normalized)
             except Exception as exc:
                 logger.debug("No se pudieron enriquecer productos desde regex local: %s", exc)
 
+            products.extend(self.entity_extractor.extract_products(raw_text))
+
         merged: Dict[int, Dict[str, Any]] = {}
         for prod in products:
-            product_id = int(prod["id"])
+            try:
+                product_id = int(prod["id"])
+            except Exception:
+                continue
             if product_id in merged:
                 merged[product_id]["cantidad_solicitada"] += float(prod.get("cantidad_solicitada", 0) or 0)
             else:
                 merged[product_id] = prod
 
         parsed.products = list(merged.values())
+        if parsed.products and parsed.intent in ("pedido", "cotizacion"):
+            parsed.source = f"{getattr(parsed, 'source', '')}+catalog".strip("+")
         return parsed
-
-    def _normalize_ai_product(self, prod: Dict[str, Any]) -> Dict[str, Any] | None:
-        if not isinstance(prod, dict):
-            return None
-
-        if prod.get("id"):
-            out = dict(prod)
-            out.setdefault("cantidad_solicitada", out.get("cantidad", 1.0) or 1.0)
-            out.setdefault("unidad_solicitada", out.get("unidad", "kg") or "kg")
-            return out
-
-        name = (
-            prod.get("nombre")
-            or prod.get("product_name")
-            or prod.get("nombre_raw")
-            or prod.get("name")
-            or ""
-        )
-        name = str(name).strip()
-        if not name:
-            return None
-
-        try:
-            match = self.parser.matcher.match_single(name)
-        except Exception as exc:
-            logger.debug("ProductMatcher falló para '%s': %s", name, exc)
-            match = None
-        if not match:
-            return None
-
-        qty = (
-            prod.get("cantidad_solicitada")
-            or prod.get("quantity")
-            or prod.get("cantidad")
-            or prod.get("qty")
-            or 1.0
-        )
-        unit = prod.get("unidad_solicitada") or prod.get("unit") or prod.get("unidad") or "kg"
-        out = dict(match)
-        out["cantidad_solicitada"] = float(qty or 1.0)
-        out["unidad_solicitada"] = unit
-        return out
