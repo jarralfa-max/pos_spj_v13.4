@@ -1,5 +1,6 @@
 from __future__ import annotations
-from parser.intent_parser import ParsedIntent
+
+from whatsapp_service.parser.intent_parser import ParsedIntent
 
 
 def map_ai_to_parsed_intent(ai_result) -> ParsedIntent:
@@ -35,4 +36,3 @@ def map_ai_to_parsed_intent(ai_result) -> ParsedIntent:
     parsed.needs_clarification = ai_result.needs_clarification
     parsed.clarification_question = ai_result.clarification_question
     return parsed
-
