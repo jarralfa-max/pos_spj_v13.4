@@ -230,9 +230,12 @@ class PedidoFlow(BaseFlow):
 
     async def _confirmar_pedido(self, ctx):
         """Muestra resumen final y botón de confirmar."""
+        await self._apply_business_hours_policy(ctx)
         entrega_txt = (f"🏪 Recoger en {ctx.sucursal_nombre}"
                        if ctx.pedido_tipo_entrega == "sucursal"
                        else f"🛵 Envío a: {ctx.pedido_direccion}")
+        if ctx.pedido_programado and ctx.pedido_fecha_entrega:
+            entrega_txt += f"\n📅 Atención programada: {ctx.pedido_fecha_entrega}"
         resumen = (f"{ctx.resumen_pedido()}\n\n"
                    f"Entrega: {entrega_txt}")
 
@@ -256,12 +259,13 @@ class PedidoFlow(BaseFlow):
             return FlowResult(FlowState.IDLE)
 
         if aid == "confirm_pedido" or raw in ("confirmar", "confirmo", "sí", "si", "ok", "va", "adelante"):
+            await self._apply_business_hours_policy(ctx)
             items = [i.to_dict() for i in ctx.pedido_items]
             cart_hash = hashlib.sha256(
                 json.dumps(items, sort_keys=True, ensure_ascii=False).encode("utf-8")
             ).hexdigest()[:16]
             action_key = (
-                f"confirm_order:{ctx.phone}:{cart_hash}:{ctx.sucursal_id or 1}:{ctx.pedido_tipo_entrega}"
+                f"confirm_order:{ctx.phone}:{cart_hash}:{ctx.sucursal_id or 1}:{ctx.pedido_tipo_entrega}:{ctx.pedido_programado}:{ctx.pedido_fecha_entrega}"
             )
             idem = BusinessIdempotencyService(self.erp.db)
             use_case = ConfirmWhatsAppOrderUseCase(self.erp, orchestrator=self.orchestrator)
@@ -345,6 +349,22 @@ class PedidoFlow(BaseFlow):
             "No entendí tu respuesta. Usa los botones para *confirmar* o *cancelar*, o escribe otro producto para agregarlo."
         )
         return await self._confirmar_pedido(ctx)
+
+    async def _apply_business_hours_policy(self, ctx) -> None:
+        schedules = getattr(self, "schedules", None)
+        if not schedules or not ctx.sucursal_id:
+            return
+        if schedules.esta_abierta(ctx.sucursal_id):
+            return
+        proximo = schedules.proximo_horario_apertura(ctx.sucursal_id) or "mañana"
+        if not ctx.pedido_programado:
+            await send_text(
+                ctx.phone,
+                "⏰ Estamos fuera del horario de atención. "
+                f"Tu pedido quedará programado y se atenderá en el próximo horario disponible: *{proximo}*."
+            )
+        ctx.pedido_programado = True
+        ctx.pedido_fecha_entrega = ctx.pedido_fecha_entrega or proximo
 
     def _append_intent_products(self, ctx, intent) -> None:
         for prod in getattr(intent, "products", []) or []:
