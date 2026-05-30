@@ -4,9 +4,11 @@ Busca productos por nombre aproximado usando Levenshtein distance.
 No requiere ML — pura comparación de strings.
 """
 from __future__ import annotations
+
 import logging
-from typing import List, Dict, Optional, Tuple
-from config.settings import FUZZY_MATCH_THRESHOLD
+from typing import Dict, List, Optional, Tuple
+
+from whatsapp_service.config.settings import FUZZY_MATCH_THRESHOLD
 
 logger = logging.getLogger("wa.matcher")
 
@@ -119,7 +121,7 @@ class ProductMatcher:
         scored.sort(key=lambda x: x[0])
         return [p for _, p in scored[:max_results]]
 
-    def match_single(self, name_raw: str) -> Optional[Dict]:
-        """Intenta encontrar un único producto que coincida."""
-        results = self.search(name_raw, max_results=1)
+    def match_single(self, name: str) -> Optional[Dict]:
+        """Devuelve el mejor match para un nombre."""
+        results = self.search(name, max_results=1)
         return results[0] if results else None
