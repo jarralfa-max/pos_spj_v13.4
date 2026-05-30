@@ -7,12 +7,14 @@ Nivel 3: DeepSeek/Ollama → entendimiento profundo (10%)
 El LLM solo se invoca si Nivel 1 y 2 fallan.
 """
 from __future__ import annotations
+
 import logging
-from typing import List, Dict, Optional
-from models.message import IncomingMessage, MessageType, InteractiveType
-from parser.patterns import detect_intent, extract_product_mentions, extract_number
-from parser.product_matcher import ProductMatcher
-from parser.llm_local import OllamaClient
+from typing import Dict, List, Optional
+
+from whatsapp_service.models.message import IncomingMessage, InteractiveType, MessageType
+from whatsapp_service.parser.patterns import detect_intent, extract_number, extract_product_mentions
+from whatsapp_service.parser.product_matcher import ProductMatcher
+from whatsapp_service.parser.llm_local import OllamaClient
 
 logger = logging.getLogger("wa.parser")
 
@@ -114,7 +116,6 @@ class IntentParser:
                         "cantidad_solicitada": mention["cantidad"],
                         "unidad_solicitada": mention["unidad"],
                     })
-
         number = extract_number(text)
 
         return ParsedIntent(
@@ -151,7 +152,7 @@ class IntentParser:
                         })
 
             logger.info("LLM parsed: intent=%s, products=%d, text='%s'",
-                         intent, len(products), text[:50])
+                        intent, len(products), text[:50])
 
             return ParsedIntent(
                 intent=intent, confidence=0.80,
