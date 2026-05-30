@@ -37,12 +37,18 @@ class SaleFulfillmentService:
         self.avail = AvailabilityService(self.db)
 
     def _product_row(self, product_id: int):
+        """Read only product columns guaranteed by the current schema.
+
+        Do not reference optional columns such as unidad_medida/unidad_venta in
+        SQL. SQLite raises `no such column` even inside COALESCE when a column is
+        absent, which would block checkout before the real stock validation.
+        """
         return self.db.execute(
             """
             SELECT
                 id,
                 nombre,
-                COALESCE(unidad, unidad_medida, unidad_venta, 'kg') AS unidad,
+                unidad,
                 tipo_producto,
                 COALESCE(es_compuesto,0) AS es_compuesto,
                 COALESCE(es_subproducto,0) AS es_subproducto
