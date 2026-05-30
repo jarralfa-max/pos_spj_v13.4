@@ -1,16 +1,12 @@
 from __future__ import annotations
+
 import os
-from parser.intent_parser import IntentParser
-try:
-    from whatsapp_service.ai.intent_ai_client import CloudIntentAIClient
-    from whatsapp_service.ai.prompt_builder import build_ai_prompt_context
-    from whatsapp_service.ai.fallback import map_ai_to_parsed_intent
-    from whatsapp_service.ai.audit_log import AIIntentAuditLog
-except Exception:  # pragma: no cover
-    from ai.intent_ai_client import CloudIntentAIClient
-    from ai.prompt_builder import build_ai_prompt_context
-    from ai.fallback import map_ai_to_parsed_intent
-    from ai.audit_log import AIIntentAuditLog
+
+from whatsapp_service.parser.intent_parser import IntentParser
+from whatsapp_service.ai.intent_ai_client import CloudIntentAIClient
+from whatsapp_service.ai.prompt_builder import build_ai_prompt_context
+from whatsapp_service.ai.fallback import map_ai_to_parsed_intent
+from whatsapp_service.ai.audit_log import AIIntentAuditLog
 
 
 class IntentResolver:
