@@ -1,14 +1,10 @@
 # core/services/printer_service.py — SPJ POS
 """Canonical printing service.
 
-Configuration source of truth: ``hardware_config`` via
-``HardwareConfigRepository``.
-
-Printing contract:
-- Default mode is ``raw`` because the supported thermal ticket pipeline is
-  ESC/POS RAW: text, QR, logo, feed/cut and Ticket Design layout.
-- ``text_diagnostic`` is an explicit diagnostic fallback only. It must never be
-  the default because it disables QR/logo/layout behavior users expect.
+The printing service is the last defensive boundary before ESC/POS rendering.
+It must not invent sale totals, but it may hydrate display-only ticket metadata
+(product name, product unit and customer name) from the canonical database when
+upstream sales payloads are incomplete.
 """
 from __future__ import annotations
 
@@ -414,13 +410,10 @@ class PrinterService:
                 transport = "network"
             else:
                 transport = "auto"
-        ancho = str(raw.get("ancho") or raw.get("paper_width") or "58" if "58" in str(raw.get("modelo", raw.get("printer_model", ""))).lower() else raw.get("ancho") or raw.get("paper_width") or "80")
+        ancho = str(raw.get("ancho") or raw.get("paper_width") or ("58" if "58" in str(raw.get("modelo", raw.get("printer_model", ""))).lower() else "80"))
         paper_width = 58 if "58" in ancho else 80
         mode_raw = str(raw.get("escpos_mode") or raw.get("modo_impresion") or "raw").strip().lower()
-        if mode_raw in {"text", "safe_text", "diagnostic", "text_diagnostic"}:
-            escpos_mode = "text_diagnostic"
-        else:
-            escpos_mode = "raw"
+        escpos_mode = "text_diagnostic" if mode_raw in {"text", "safe_text", "diagnostic", "text_diagnostic"} else "raw"
         return {
             "ubicacion": str(raw.get("ubicacion") or raw.get("puerto") or raw.get("printer_name") or "").strip(),
             "transport": str(transport).strip().lower(),
@@ -513,8 +506,90 @@ class PrinterService:
             except Exception:
                 return None
 
+    def _row_value(self, row, *keys, default=""):
+        if not row:
+            return default
+        for key in keys:
+            try:
+                if isinstance(row, dict) and key in row and row[key] not in (None, ""):
+                    return row[key]
+                value = row[key]
+                if value not in (None, ""):
+                    return value
+            except Exception:
+                continue
+        return default
+
+    def _hydrate_ticket_items(self, items: list) -> list:
+        hydrated = []
+        for item in list(items or []):
+            it = dict(item or {})
+            pid = it.get("product_id") or it.get("producto_id") or it.get("id")
+            row = None
+            if self.db and pid:
+                try:
+                    row = self.db.execute("SELECT * FROM productos WHERE id=? LIMIT 1", (int(pid),)).fetchone()
+                except Exception as exc:
+                    logger.debug("No se pudo hidratar producto para ticket pid=%s: %s", pid, exc)
+            nombre = (
+                it.get("nombre") or it.get("name") or it.get("product_name") or
+                self._row_value(row, "nombre", "name", "descripcion", "producto", default="") or
+                (f"Producto {pid}" if pid else "Producto")
+            )
+            unidad = (
+                it.get("unidad") or it.get("unit") or it.get("unidad_medida") or it.get("uom") or
+                self._row_value(row, "unidad", "unit", "unidad_medida", "unidad_venta", "uom", default="") or
+                "pz"
+            )
+            cantidad = it.get("cantidad", it.get("qty", it.get("quantity", 0)))
+            precio = it.get("precio_unitario", it.get("unit_price", 0))
+            total = it.get("total", it.get("subtotal", None))
+            if total in (None, ""):
+                try:
+                    total = float(cantidad or 0) * float(precio or 0)
+                except Exception:
+                    total = 0
+            it.update({
+                "product_id": int(pid or 0),
+                "producto_id": int(pid or 0),
+                "nombre": str(nombre),
+                "name": str(nombre),
+                "unidad": str(unidad),
+                "unit": str(unidad),
+                "cantidad": float(cantidad or 0),
+                "qty": float(cantidad or 0),
+                "precio_unitario": float(precio or 0),
+                "unit_price": float(precio or 0),
+                "total": round(float(total or 0), 2),
+                "subtotal": round(float(total or 0), 2),
+            })
+            hydrated.append(it)
+        return hydrated
+
+    def _hydrate_ticket_customer(self, data: Dict[str, Any]) -> None:
+        if data.get("cliente") or data.get("cliente_nombre"):
+            return
+        client_id = data.get("cliente_id") or (data.get("loyalty") or {}).get("cliente_id")
+        if not (self.db and client_id):
+            data.setdefault("cliente", "Público General")
+            data.setdefault("cliente_nombre", data["cliente"])
+            return
+        try:
+            row = self.db.execute("SELECT * FROM clientes WHERE id=? LIMIT 1", (int(client_id),)).fetchone()
+            nombre = self._row_value(row, "nombre", "name", "razon_social", "cliente", default="")
+            if not nombre:
+                nombre = f"Cliente {client_id}"
+            data["cliente"] = str(nombre)
+            data["cliente_nombre"] = str(nombre)
+        except Exception as exc:
+            logger.debug("No se pudo hidratar cliente para ticket cliente_id=%s: %s", client_id, exc)
+            data.setdefault("cliente", f"Cliente {client_id}")
+            data.setdefault("cliente_nombre", data["cliente"])
+
     def _prepare_ticket_data(self, ticket_data: Dict[str, Any]) -> tuple[Dict[str, Any], Any, Any]:
         data = dict(ticket_data or {})
+        data["items"] = self._hydrate_ticket_items(data.get("items") or [])
+        self._hydrate_ticket_customer(data)
         branding = self._get_branding()
         if branding:
             data.setdefault("empresa", branding.brand_name)
@@ -584,7 +659,18 @@ class PrinterService:
         if not self.enabled:
             return ""
         cfg = printer_cfg or self._label_cfg
-        job = PrintJob(PrintJobType.LABEL, label_data, {}, self._resolve_transport(cfg), cfg.get("ubicacion", ""), self._safe_baud(cfg.get("baud_rate", 9600)), 5, 2, on_success=on_success, on_error=on_error)
+        job = PrintJob(
+            job_type=PrintJobType.LABEL,
+            data=label_data,
+            raw_data={},
+            transport=self._resolve_transport(cfg),
+            destination=cfg.get("ubicacion", ""),
+            baud=self._safe_baud(cfg.get("baud_rate", 9600)),
+            priority=5,
+            retries=2,
+            on_success=on_success,
+            on_error=on_error,
+        )
         self.queue.submit(job)
         return job.id
 
@@ -592,7 +678,15 @@ class PrinterService:
         if not self.enabled:
             return ""
         dest = destination or self._ticket_cfg.get("ubicacion", "")
-        job = PrintJob(PrintJobType.RAW, data, {}, self._resolve_transport(self._ticket_cfg), dest, self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)), priority)
+        job = PrintJob(
+            job_type=PrintJobType.RAW,
+            data=data,
+            raw_data={},
+            transport=self._resolve_transport(self._ticket_cfg),
+            destination=dest,
+            baud=self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)),
+            priority=priority,
+        )
         self.queue.submit(job)
         return job.id
 
@@ -635,7 +729,7 @@ class PrinterService:
             "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "cajero": "Sistema",
             "cliente": "Prueba",
-            "items": [{"nombre": "Prueba impresora", "cantidad": 1, "precio_unitario": 0, "total": 0}],
+            "items": [{"nombre": "Prueba impresora", "cantidad": 1, "unidad": "pz", "precio_unitario": 0, "total": 0}],
             "totales": {"subtotal": 0, "descuento": 0, "total_final": 0},
             "pago": {"forma_pago": "N/A"},
             "mensaje_psicologico": "Impresión de prueba",
