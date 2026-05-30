@@ -1,43 +1,32 @@
 # core/ticket_escpos_renderer.py — SPJ POS
-"""ESC/POS ticket renderer.
-
-Two output modes are intentionally supported:
-
-1. ``render``: raw ESC/POS with binary control commands, images and optional cut.
-   Use this only with printers/transports that accept ESC/POS RAW.
-2. ``render_safe_text``: plain monospaced bytes with no ESC/POS binary commands.
-   Use this with Windows drivers that print raw command bytes as symbols.
-
-If a ticket prints long garbage/symbols, the wrong mode/driver is being used.
-Do not hide that by adding fallbacks that still send image/QR bytes.
-"""
 from __future__ import annotations
 
+import base64
 import io
 import logging
 import re
 import struct
 from typing import Any, Dict, List, Optional
 
-from core.tickets.ticket_print_model import TicketPrintModel
 from core.tickets.ticket_layout_config import TicketLayoutConfig
+from core.tickets.ticket_print_model import TicketPrintModel
 
 logger = logging.getLogger("spj.escpos")
 
-ESC = b"\x1b"
-GS = b"\x1d"
+ESC = bytes([27])
+GS = bytes([29])
 INIT = ESC + b"@"
-ALIGN_LEFT = ESC + b"a\x00"
-ALIGN_CENTER = ESC + b"a\x01"
-ALIGN_RIGHT = ESC + b"a\x02"
-BOLD_ON = ESC + b"E\x01"
-BOLD_OFF = ESC + b"E\x00"
-DOUBLE_H_ON = ESC + b"!\x10"
-DOUBLE_HW_ON = ESC + b"!\x30"
-NORMAL = ESC + b"!\x00"
+ALIGN_LEFT = ESC + b"a" + bytes([0])
+ALIGN_CENTER = ESC + b"a" + bytes([1])
+ALIGN_RIGHT = ESC + b"a" + bytes([2])
+BOLD_ON = ESC + b"E" + bytes([1])
+BOLD_OFF = ESC + b"E" + bytes([0])
+DOUBLE_H_ON = ESC + b"!" + bytes([16])
+DOUBLE_HW_ON = ESC + b"!" + bytes([48])
+NORMAL = ESC + b"!" + bytes([0])
 FEED_N = ESC + b"d"
-CUT_FULL = GS + b"V\x00"
-CUT_PARTIAL = GS + b"V\x42\x00"
+CUT_FULL = GS + b"V" + bytes([0])
+CUT_PARTIAL = GS + b"V" + bytes([66, 0])
 
 CHARS_BY_WIDTH = {58: 32, 72: 42, 80: 48}
 
@@ -50,23 +39,23 @@ class TicketESCPOSRenderer:
 
     def render(self, ticket_data: Dict[str, Any] | TicketPrintModel,
                logo_b64: str = "", qr_content: str = "") -> bytes:
-        """Render full raw ESC/POS bytes.
-
-        This mode may include binary image/QR/cut commands. It must only be sent
-        to a real ESC/POS RAW transport. If a driver prints symbols, use
-        ``render_safe_text`` instead.
-        """
         if isinstance(ticket_data, TicketPrintModel):
             ticket_data = ticket_data.to_dict()
         layout = TicketLayoutConfig.from_dict(ticket_data.get("layout_config", {}))
-        w = layout.chars_per_line
+        width = int(getattr(layout, "chars_per_line", self.chars_per_line) or self.chars_per_line)
         buf = bytearray()
         buf += INIT
 
-        if layout.show_logo and logo_b64:
+        if getattr(layout, "show_logo", True) and logo_b64:
             logo_bytes = self._render_logo(logo_b64)
             if logo_bytes:
-                buf += ALIGN_CENTER + logo_bytes + b"\n"
+                buf += ALIGN_CENTER
+                buf += logo_bytes
+                # XP-58 compatibles pueden quedar en estado gráfico después del bitmap.
+                # Reiniciamos estilo/alineación para que no se pierda el texto posterior.
+                buf += self._linebreak()
+                buf += INIT
+                buf += ALIGN_CENTER
 
         empresa = ticket_data.get("empresa", "SPJ POS")
         empresa_dir = ticket_data.get("direccion", "")
@@ -77,35 +66,42 @@ class TicketESCPOSRenderer:
         if empresa_tel:
             buf += self._text(f"Tel: {empresa_tel}")
 
-        buf += self._separator(w) + ALIGN_LEFT
+        buf += self._separator(width) + ALIGN_LEFT
         buf += BOLD_ON + self._text(f"Folio: {ticket_data.get('folio', '')}") + BOLD_OFF
         buf += self._text(f"Fecha: {ticket_data.get('fecha', '')}")
         buf += self._text(f"Cajero: {ticket_data.get('cajero', '')}")
         buf += self._text(f"Cliente: {ticket_data.get('cliente', 'Público General')}")
 
-        buf += self._items_and_totals_bytes(ticket_data, w)
+        buf += self._items_and_totals_bytes(ticket_data, width)
 
-        if layout.show_qr and qr_content:
+        if getattr(layout, "show_qr", True) and qr_content:
             qr_bytes = self._render_qr(qr_content)
             if qr_bytes:
-                buf += ALIGN_CENTER + qr_bytes
+                buf += ALIGN_CENTER
+                buf += qr_bytes
+                buf += self._linebreak()
+                buf += INIT
 
-        buf += self._footer_bytes(ticket_data, w)
-        buf += FEED_N + bytes([max(0, min(10, int(layout.feed_lines)))])
-        buf += CUT_PARTIAL if layout.cut_type == "partial" else CUT_FULL
+        buf += self._footer_bytes(ticket_data, width)
+        feed_lines = max(0, min(10, int(getattr(layout, "feed_lines", 4) or 4)))
+        buf += FEED_N + bytes([feed_lines])
+        cut_type = str(getattr(layout, "cut_type", "partial") or "partial").lower()
+        buf += CUT_PARTIAL if cut_type == "partial" else CUT_FULL
         return bytes(buf)
 
     def render_safe_text(self, ticket_data: Dict[str, Any] | TicketPrintModel) -> bytes:
-        """Render plain text only. No ESC/POS binary commands, image, QR or cut."""
         text = self.render_text_preview(ticket_data)
         text += "\n\n\n"
         return text.encode(self.encoding, errors="replace")
 
-    def _items_and_totals_bytes(self, ticket_data: Dict[str, Any], w: int) -> bytes:
+    def _linebreak(self) -> bytes:
+        return "\n".encode(self.encoding, errors="replace")
+
+    def _items_and_totals_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         buf = bytearray()
-        buf += self._separator(w)
-        buf += BOLD_ON + self._columns("PRODUCTO", "CANT", "TOTAL", w) + BOLD_OFF
-        buf += self._separator(w, char="-")
+        buf += self._separator(width)
+        buf += BOLD_ON + self._columns("PRODUCTO", "CANT", "TOTAL", width) + BOLD_OFF
+        buf += self._separator(width, char="-")
         for item in ticket_data.get("items", []):
             nombre = str(item.get("nombre", ""))
             cant = float(item.get("cantidad", item.get("qty", 0)) or 0)
@@ -114,13 +110,13 @@ class TicketESCPOSRenderer:
             total_it = float(item.get("total", item.get("subtotal", cant * precio)) or 0)
             cant_str = f"{cant:.2f}{unidad}"
             total_str = f"${total_it:.2f}"
-            col_nombre = w - 18
+            col_nombre = max(8, width - 18)
             if len(nombre) > col_nombre:
                 buf += self._text(nombre)
-                buf += self._columns("", cant_str, total_str, w)
+                buf += self._columns("", cant_str, total_str, width)
             else:
-                buf += self._columns(nombre, cant_str, total_str, w)
-        buf += self._separator(w)
+                buf += self._columns(nombre, cant_str, total_str, width)
+        buf += self._separator(width)
         totales = ticket_data.get("totales", {}) or {}
         subtotal = float(totales.get("subtotal", 0) or 0)
         descuento = float(totales.get("descuento", 0) or 0)
@@ -132,7 +128,7 @@ class TicketESCPOSRenderer:
         buf += BOLD_ON + DOUBLE_H_ON + self._text(f"TOTAL: ${total_final:.2f}") + NORMAL + BOLD_OFF
         pago = ticket_data.get("pago", {}) or {}
         if pago.get("forma_pago"):
-            buf += ALIGN_LEFT + self._separator(w, char="-")
+            buf += ALIGN_LEFT + self._separator(width, char="-")
             buf += self._text(f"Forma de pago: {pago.get('forma_pago', '')}")
             if str(pago.get("forma_pago", "")).lower() == "efectivo":
                 buf += self._text(f"Recibido: ${float(pago.get('efectivo_recibido', total_final) or 0):.2f}")
@@ -140,15 +136,15 @@ class TicketESCPOSRenderer:
         loyalty = dict(ticket_data.get("loyalty") or {})
         pts = loyalty.get("puntos_ganados", ticket_data.get("puntos_ganados"))
         if pts not in (None, "", 0):
-            buf += self._separator(w, char="-") + ALIGN_CENTER
+            buf += self._separator(width, char="-") + ALIGN_CENTER
             buf += self._text(f"Puntos ganados: +{pts}")
             total_pts = loyalty.get("puntos_totales", ticket_data.get("puntos_totales"))
             if loyalty.get("available", False) and total_pts not in (None, ""):
                 buf += self._text(f"Saldo total: {total_pts} puntos")
         return bytes(buf)
 
-    def _footer_bytes(self, ticket_data: Dict[str, Any], w: int) -> bytes:
-        return self._separator(w) + ALIGN_CENTER + self._text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")) + self._text("")
+    def _footer_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
+        return self._separator(width) + ALIGN_CENTER + self._text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")) + self._text("")
 
     def _text(self, text: Any) -> bytes:
         return (self._sanitize_text(text) + "\n").encode(self.encoding, errors="replace")
@@ -174,57 +170,64 @@ class TicketESCPOSRenderer:
         if isinstance(ticket_data, TicketPrintModel):
             ticket_data = ticket_data.to_dict()
         layout = layout_config or TicketLayoutConfig.from_dict(ticket_data.get("layout_config", {}))
-        w = layout.chars_per_line
+        width = int(getattr(layout, "chars_per_line", self.chars_per_line) or self.chars_per_line)
         lines: List[str] = []
-        lines.append(self._sanitize_text(ticket_data.get("empresa", "SPJ POS")).center(w)[:w])
+        lines.append(self._sanitize_text(ticket_data.get("empresa", "SPJ POS")).center(width)[:width])
         if ticket_data.get("direccion"):
-            lines.append(self._sanitize_text(ticket_data.get("direccion", ""))[:w])
-        lines.append("=" * w)
-        lines.append(f"Folio: {self._sanitize_text(ticket_data.get('folio', ''))}"[:w])
+            lines.append(self._sanitize_text(ticket_data.get("direccion", ""))[:width])
+        lines.append("=" * width)
+        lines.append(f"Folio: {self._sanitize_text(ticket_data.get('folio', ''))}"[:width])
         if ticket_data.get("fecha"):
-            lines.append(f"Fecha: {self._sanitize_text(ticket_data.get('fecha', ''))}"[:w])
+            lines.append(f"Fecha: {self._sanitize_text(ticket_data.get('fecha', ''))}"[:width])
         if ticket_data.get("cajero"):
-            lines.append(f"Cajero: {self._sanitize_text(ticket_data.get('cajero', ''))}"[:w])
-        lines.append("-" * w)
+            lines.append(f"Cajero: {self._sanitize_text(ticket_data.get('cajero', ''))}"[:width])
+        lines.append("-" * width)
         for item in ticket_data.get("items", []):
             nombre = self._sanitize_text(item.get("nombre", ""))
             qty = float(item.get("cantidad", item.get("qty", 0)) or 0)
             total_it = float(item.get("total", item.get("subtotal", 0)) or 0)
-            left_w = max(10, w - 14)
+            left_w = max(10, width - 14)
             for i in range(0, len(nombre), left_w):
                 chunk = nombre[i:i + left_w]
                 if i == 0:
-                    lines.append(f"{chunk:<{left_w}} {qty:>5.2f} ${total_it:>6.2f}"[:w])
+                    lines.append(f"{chunk:<{left_w}} {qty:>5.2f} ${total_it:>6.2f}"[:width])
                 else:
-                    lines.append(chunk[:w])
+                    lines.append(chunk[:width])
         total = float((ticket_data.get("totales", {}) or {}).get("total_final", 0) or 0)
-        lines.append("=" * w)
-        lines.append(f"TOTAL: ${total:.2f}".rjust(w)[:w])
+        lines.append("=" * width)
+        lines.append(f"TOTAL: ${total:.2f}".rjust(width)[:width])
         pago = ticket_data.get("pago", {}) or {}
         if pago.get("forma_pago"):
-            lines.append(f"Pago: {self._sanitize_text(pago.get('forma_pago'))}"[:w])
-        lines.append("-" * w)
-        lines.append(self._sanitize_text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")).center(w)[:w])
+            lines.append(f"Pago: {self._sanitize_text(pago.get('forma_pago'))}"[:width])
+        lines.append("-" * width)
+        lines.append(self._sanitize_text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")).center(width)[:width])
         return "\n".join(lines)
 
     def _render_logo(self, logo_b64: str) -> Optional[bytes]:
         try:
             from PIL import Image
-            import base64
             if "," in logo_b64:
                 logo_b64 = logo_b64.split(",", 1)[1]
             img_bytes = base64.b64decode(logo_b64)
-            img = Image.open(io.BytesIO(img_bytes)).convert("L")
-            max_dots_w = min((self.paper_width - 10) * 8, 384)
-            if img.width > max_dots_w:
-                ratio = max_dots_w / img.width
-                img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+            img = Image.open(io.BytesIO(img_bytes))
+            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+                bg = Image.new("RGBA", img.size, "WHITE")
+                bg.alpha_composite(img.convert("RGBA"))
+                img = bg.convert("RGB")
+            else:
+                img = img.convert("RGB")
+            img = img.convert("L")
+            max_dots_w = 256 if self.paper_width <= 58 else 384
+            max_dots_h = 96 if self.paper_width <= 58 else 160
+            ratio = min(max_dots_w / max(1, img.width), max_dots_h / max(1, img.height), 1.0)
+            if ratio < 1.0:
+                img = img.resize((max(1, int(img.width * ratio)), max(1, int(img.height * ratio))))
             if img.width % 8 != 0:
                 new_w = img.width + (8 - img.width % 8)
                 new_img = Image.new("L", (new_w, img.height), 255)
                 new_img.paste(img, (0, 0))
                 img = new_img
-            img = img.point(lambda x: 0 if x < 128 else 255, "1")
+            img = img.point(lambda x: 0 if x < 150 else 255, "1")
             return self._image_to_escpos_raster(img)
         except ImportError:
             logger.warning("Pillow no instalado — logo no se imprimirá. Instalar: pip install Pillow")
@@ -238,7 +241,7 @@ class TicketESCPOSRenderer:
         height = img.height
         pixels = img.tobytes()
         buf = bytearray()
-        buf += GS + b"v0" + b"\x00"
+        buf += GS + b"v0" + bytes([0])
         buf += struct.pack("<H", width_bytes)
         buf += struct.pack("<H", height)
         buf += pixels
@@ -247,17 +250,18 @@ class TicketESCPOSRenderer:
     def _render_qr(self, content: str) -> Optional[bytes]:
         try:
             import qrcode
+            from PIL import Image
             qr = qrcode.QRCode(version=1, box_size=4, border=2, error_correction=qrcode.constants.ERROR_CORRECT_M)
             qr.add_data(content)
             qr.make(fit=True)
             img = qr.make_image(fill_color="black", back_color="white").convert("L")
-            max_w = min((self.paper_width - 20) * 8, 320)
+            max_w = 224 if self.paper_width <= 58 else 320
             if img.width > max_w:
                 ratio = max_w / img.width
                 img = img.resize((int(img.width * ratio), int(img.height * ratio)))
             if img.width % 8 != 0:
                 new_w = img.width + (8 - img.width % 8)
-                new_img = __import__("PIL.Image", fromlist=["Image"]).new("L", (new_w, img.height), 255)
+                new_img = Image.new("L", (new_w, img.height), 255)
                 new_img.paste(img, (0, 0))
                 img = new_img
             img = img.point(lambda x: 0 if x < 128 else 255, "1")
