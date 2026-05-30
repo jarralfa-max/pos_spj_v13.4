@@ -42,9 +42,10 @@ class TicketBranding:
 
 @dataclass
 class TicketLoyaltyInfo:
-    puntos_ganados: int = 0
-    puntos_totales: int = 0
+    puntos_ganados: Optional[int] = None
+    puntos_totales: Optional[int] = None
     nivel: str = ""
+    available: bool = False
 
 
 @dataclass
@@ -115,8 +116,9 @@ class TicketPrintModel:
         data["direccion"] = data.get("branding", {}).get("address", "")
         data["telefono"] = data.get("branding", {}).get("phone", "")
         loyalty = data.get("loyalty") or {}
-        data["puntos_ganados"] = loyalty.get("puntos_ganados", 0)
-        data["puntos_totales"] = loyalty.get("puntos_totales", 0)
+        data["puntos_ganados"] = loyalty.get("puntos_ganados")
+        data["puntos_totales"] = loyalty.get("puntos_totales") if loyalty.get("available", False) else None
+        data["puntos_disponibles"] = bool(loyalty.get("available", False))
         if self.qr and self.qr.enabled:
             data["qr_content"] = self.qr.content
         return data
@@ -139,10 +141,16 @@ class TicketPrintModel:
         layout_src = src.get("layout") or {}
 
         loyalty = None
-        if src.get("puntos_ganados") or src.get("puntos_totales"):
+        loyalty_src = src.get("loyalty") or {}
+        puntos_ganados = loyalty_src.get("puntos_ganados", src.get("puntos_ganados"))
+        puntos_totales = loyalty_src.get("puntos_totales", src.get("puntos_totales"))
+        loyalty_available = bool(loyalty_src.get("available", src.get("puntos_disponibles", False)))
+        if puntos_ganados not in (None, "") or loyalty_available:
             loyalty = TicketLoyaltyInfo(
-                puntos_ganados=int(src.get("puntos_ganados", 0) or 0),
-                puntos_totales=int(src.get("puntos_totales", 0) or 0),
+                puntos_ganados=None if puntos_ganados in (None, "") else int(puntos_ganados or 0),
+                puntos_totales=None if not loyalty_available or puntos_totales in (None, "") else int(puntos_totales or 0),
+                nivel=str(loyalty_src.get("nivel", src.get("nivel", "")) or ""),
+                available=loyalty_available and puntos_totales not in (None, ""),
             )
 
         qr = None

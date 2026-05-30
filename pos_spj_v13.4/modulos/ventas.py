@@ -41,8 +41,6 @@ from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont,
 
 # Importación de la clase base y utilidades
 from .base import ModuloBase
-from presentation.sales.workers.sale_checkout_worker import SaleCheckoutWorker
-from presentation.sales.workers.sale_checkout_worker_factory import SaleCheckoutWorkerFactory
 from presentation.sales.workers.ticket_output_worker import TicketOutputWorker
 
 logger = logging.getLogger("spj.ventas") 
@@ -1279,13 +1277,14 @@ class ModuloVentas(ModuloBase):
         # v13.4: Recargar productos con stock de la sucursal correcta
         try:
             self.cargar_productos_interactivos()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("No se pudieron recargar productos al cambiar sucursal: %s", exc)
         logger.info(f"✅ Ventas → sucursal activa: {sucursal_nombre} (id={sucursal_id})")
 
     def inicializar_completer(self):
         """Completer removed — real-time search handles this without popup."""
-        pass
+        logger.debug("Completer legacy deshabilitado; búsqueda en tiempo real activa.")
+        return None
 
     def actualizar_completer_model(self):
         try:
@@ -1338,7 +1337,7 @@ class ModuloVentas(ModuloBase):
                 self.main_window.registrar_evento('producto_eliminado', self.on_productos_actualizados)
                 self.main_window.registrar_evento('inventario_actualizado', self.on_productos_actualizados)
         except Exception as e:
-            pass
+            logger.warning("No se pudieron registrar eventos de actualización de ventas: %s", e)
 
     def desconectar_eventos_sistema(self):
         try:
@@ -1347,7 +1346,8 @@ class ModuloVentas(ModuloBase):
                 self.main_window.desregistrar_evento('producto_actualizado', self.on_productos_actualizados)
                 self.main_window.desregistrar_evento('producto_eliminado', self.on_productos_actualizados)
                 self.main_window.desregistrar_evento('inventario_actualizado', self.on_productos_actualizados)
-        except Exception: pass
+        except Exception as exc:
+            logger.warning("No se pudieron desregistrar eventos de actualización de ventas: %s", exc)
             
     def on_productos_actualizados(self, datos):
         self.cargar_productos_interactivos()
@@ -3658,8 +3658,12 @@ class ModuloVentas(ModuloBase):
             self.lbl_nombre_cliente.setText(self.cliente_actual['nombre'])
             self.lbl_telefono_cliente.setText(f"Tel: {self.cliente_actual['telefono'] or '—'}")
             self.lbl_email_cliente.setText(self.cliente_actual.get('email') or '')
-            puntos = self.cliente_actual.get('puntos', 0)
-            self.lbl_puntos_cliente.setText(f"+ {puntos} pts")
+            puntos = self.cliente_actual.get('puntos')
+            try:
+                puntos_texto = f"+ {int(puntos)} pts" if puntos not in (None, "") else "Puntos no disponibles"
+            except (TypeError, ValueError):
+                puntos_texto = "Puntos no disponibles"
+            self.lbl_puntos_cliente.setText(puntos_texto)
             # Update loyalty tier badge
             if hasattr(self, '_lbl_loyalty_tier'):
                 nivel = (self.cliente_actual.get('nivel_fidelidad', '')
@@ -3770,7 +3774,7 @@ class ModuloVentas(ModuloBase):
         self.lbl_nombre_cliente.setText("Público General")
         self.lbl_telefono_cliente.setText("Tel: —")
         self.lbl_email_cliente.setText("")
-        self.lbl_puntos_cliente.setText("+ 0 pts")
+        self.lbl_puntos_cliente.setText("Puntos no disponibles")
         self.txt_cliente.clear()
         if hasattr(self, '_lbl_loyalty_tier'):
             self._lbl_loyalty_tier.hide()
@@ -3818,8 +3822,8 @@ class ModuloVentas(ModuloBase):
             from core.events.domain_events import VENTA_SUSPENDIDA, STOCK_RESERVADO
             get_bus().publish(VENTA_SUSPENDIDA, {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
             get_bus().publish(STOCK_RESERVADO, {"venta_id": venta_id, "reserva_id": reserva_id, "sucursal_id": self.sucursal_id})
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Venta suspendida con reserva, pero falló publicación de eventos: %s", exc)
         self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
         self.mostrar_mensaje("Éxito", f"Venta '{nombre_venta}' suspendida.")
         self.cancelar_venta(silent=True)
@@ -3869,8 +3873,14 @@ class ModuloVentas(ModuloBase):
                         "No hay un turno de caja abierto para este usuario.\n\n"
                         "Ve al módulo de Caja y abre tu turno antes de vender.")
                     return
-        except Exception:
-            pass  # If check fails, allow sale (graceful degradation)
+        except Exception as exc:
+            logger.exception("Validación de turno de caja falló; venta bloqueada: %s", exc)
+            QMessageBox.critical(
+                self,
+                "Caja no validada",
+                "No se pudo validar el turno de caja. La venta fue bloqueada para evitar inconsistencias.",
+            )
+            return
 
         total_a_pagar = self.totales['total_final']
         loyalty_preview = {}
@@ -3929,7 +3939,13 @@ class ModuloVentas(ModuloBase):
                             )
                             return
                     except Exception as _cv_e:
-                        logger.warning("validate_credit: %s", _cv_e)
+                        logger.exception("Validación de crédito falló; venta a crédito bloqueada: %s", _cv_e)
+                        QMessageBox.critical(
+                            self,
+                            "Crédito no validado",
+                            "No se pudo validar el crédito del cliente. La venta a crédito fue bloqueada.",
+                        )
+                        return
                 elif not _ccs:
                     # Fallback: read credit fields via ClienteRepository
                     try:
@@ -3948,12 +3964,18 @@ class ModuloVentas(ModuloBase):
                                 )
                                 return
                     except Exception as _fbe:
-                        logger.warning("credit fallback check: %s", _fbe)
+                        logger.exception("Validación de crédito fallback falló; venta a crédito bloqueada: %s", _fbe)
+                        QMessageBox.critical(
+                            self,
+                            "Crédito no validado",
+                            "No se pudo validar el crédito del cliente. La venta a crédito fue bloqueada.",
+                        )
+                        return
 
             self.finalizar_venta(datos_pago)
 
     def finalizar_venta(self, datos_pago: Dict[str, Any]):
-        """Procesa venta en background para evitar congelamiento de UI."""
+        """Procesa la venta en hilo principal; solo ticket/PDF queda asíncrono."""
         if getattr(self, "_venta_checkout_running", False):
             return
         self._venta_checkout_running = True
@@ -3961,11 +3983,10 @@ class ModuloVentas(ModuloBase):
         if hasattr(self, "btn_cobrar"):
             self.btn_cobrar.setEnabled(False)
             self.btn_cobrar.setText("Procesando venta...")
-        _worker_started = False
         try:
             usuario = self.obtener_usuario_actual()
             cliente_id = self.cliente_actual['id'] if self.cliente_actual else None
-            from core.services.payment_normalization import is_mercado_pago
+            from core.services.payment_normalization import is_credit_sale, is_mercado_pago
 
             carrito_limpio = [
                 {
@@ -4001,11 +4022,15 @@ class ModuloVentas(ModuloBase):
                 link = result.get('link') if isinstance(result, dict) else result
                 link = link or (result.get('url', '') if isinstance(result, dict) else "")
                 if not link:
+                    sales_svc.cancel_pending_payment_sale(folio_pend, motivo="link_failed")
                     raise RuntimeError("No se pudo generar link de pago MercadoPago.")
+                if hasattr(sales_svc, "attach_pending_payment_link"):
+                    sales_svc.attach_pending_payment_link(folio_pend, link)
 
                 self._ultimo_mp_pending = {
                     "estado": "pendiente_pago",
                     "folio": folio_pend,
+                    "reservation_id": pending.get("reservation_id"),
                     "url_pago": link,
                     "cliente_id": cliente_id,
                     "cliente": dict(self.cliente_actual or {}),
@@ -4016,10 +4041,11 @@ class ModuloVentas(ModuloBase):
                 QMessageBox.information(
                     self,
                     "Mercado Pago pendiente",
-                    f"Se generó link de pago para la venta pendiente {folio_pend}.\n\n{link}\n\n"
-                    "La venta no se marcó como completada hasta confirmar el pago.\n"
-                    "Mercado Pago pendiente no reserva stock todavía."
+                    "Link de pago generado y stock reservado. "
+                    "La venta se confirmará automáticamente al aprobarse el pago.\n\n"
+                    f"Folio pendiente: {folio_pend}\n{link}",
                 )
+                self._reserva_activa_id = None
                 self.cancelar_venta(silent=True)
                 return
 
@@ -4048,20 +4074,31 @@ class ModuloVentas(ModuloBase):
                         )
                         if resp != QMessageBox.Yes:
                             return
-            except Exception:
-                pass  # No bloquea la venta si la validación falla
+            except Exception as exc:
+                logger.warning("Validación bajo costo no disponible: %s", exc)
+                QMessageBox.warning(
+                    self,
+                    "Validación no disponible",
+                    "No se pudo validar venta bajo costo. Revise configuración antes de continuar."
+                )
+                return
 
             from core.use_cases.venta import ItemCarrito, DatosPago as _DP
             _uc = getattr(self.container, 'uc_venta', None)
             if _uc is None:
                 raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
             _items_uc = [ItemCarrito(producto_id=it['product_id'], cantidad=float(it['qty']), precio_unit=float(it['unit_price']), nombre=it.get('name', ''), es_compuesto=int(it.get('es_compuesto', 0))) for it in carrito_limpio]
-            _monto_pagado_real = float(
-                datos_pago.get('total_pagado')
-                or datos_pago.get('efectivo_recibido')
-                or 0.0
-            )
-            _lineas_pago = dict(datos_pago.get("lineas", {}) or {})
+            _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
+            if datos_pago.get('amount_paid_real') is not None:
+                _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
+            elif datos_pago.get('amount_paid') is not None:
+                _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
+            elif _lineas_pago:
+                _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
+            elif is_credit_sale(datos_pago.get('forma_pago')):
+                _monto_pagado_real = 0.0
+            else:
+                _monto_pagado_real = float(datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0)
             _dp = _DP(
                 forma_pago=datos_pago['forma_pago'],
                 monto_pagado=_monto_pagado_real,
@@ -4074,27 +4111,11 @@ class ModuloVentas(ModuloBase):
                 notas=f"Venta POS Mostrador. Cajero: {usuario}.",
                 sucursal_id=self.sucursal_id,
                 usuario=usuario,
+                reserva_id=self._reserva_activa_id,
             )
             self._venta_timing["t_uc_start"] = time.perf_counter()
-            self._venta_worker_thread = QThread(self)
-            self._sale_checkout_worker_factory = getattr(
-                self,
-                "_sale_checkout_worker_factory",
-                SaleCheckoutWorkerFactory(self.container),
-            )
-            self._venta_worker = self._sale_checkout_worker_factory.build(
-                _uc, _items_uc, _dp, self.sucursal_id, usuario
-            )
-            self._venta_worker.moveToThread(self._venta_worker_thread)
-            self._venta_worker_thread.started.connect(self._venta_worker.run)
-            self._venta_worker.success.connect(lambda r: self._on_checkout_success(r, datos_pago, usuario, cliente_id))
-            self._venta_worker.failed.connect(self._on_checkout_failed)
-            self._venta_worker.finished.connect(self._on_checkout_finished)
-            self._venta_worker.finished.connect(self._venta_worker_thread.quit)
-            self._venta_worker_thread.finished.connect(self._venta_worker.deleteLater)
-            self._venta_worker_thread.finished.connect(self._venta_worker_thread.deleteLater)
-            self._venta_worker_thread.start()
-            _worker_started = True
+            result = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
+            self._on_checkout_success(result, datos_pago, usuario, cliente_id)
             return
         except PermissionError as e:
             QMessageBox.warning(self, "Acceso Denegado", str(e))
@@ -4107,10 +4128,7 @@ class ModuloVentas(ModuloBase):
             QMessageBox.critical(self, "Error al procesar venta", str(e))
             self._on_checkout_finished()
         finally:
-            # Si no se lanzó worker asíncrono (retornos tempranos / MP / validaciones),
-            # garantizar desbloqueo de UI inmediatamente.
-            if not _worker_started:
-                self._on_checkout_finished()
+            self._on_checkout_finished()
 
     def _on_checkout_success(self, _r, datos_pago, usuario, cliente_id):
         self._venta_timing["t_uc_done"] = time.perf_counter()
@@ -4161,59 +4179,84 @@ class ModuloVentas(ModuloBase):
         self._ultima_venta_id = getattr(result, "venta_id", 0)
         self.btn_factura.setEnabled(bool(self._ultima_venta_id))
         self.btn_reimprimir.setEnabled(bool(self._ultima_venta_id))
-        if getattr(result, "ticket_html", ""):
-            self._ticket_html_cache = result.ticket_html
         self._abrir_cajon()
 
         loyalty_result = dict(getattr(result, "loyalty_result", {}) or {})
-        puntos_ganados = int(loyalty_result.get("puntos_ganados", getattr(result, "puntos_ganados", 0)) or 0)
-        puntos_totales = loyalty_result.get("puntos_totales", getattr(result, "puntos_totales", 0))
-        if (puntos_totales in (None, "")) and cliente_id:
+        puntos_ganados_raw = loyalty_result.get("puntos_ganados", getattr(result, "puntos_ganados", None))
+        puntos_ganados = int(puntos_ganados_raw or 0)
+        puntos_totales = loyalty_result.get("puntos_totales", getattr(result, "puntos_totales", None))
+        saldo_confiable = bool(loyalty_result.get("available", False)) and puntos_totales not in (None, "")
+        if not saldo_confiable and cliente_id:
             ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
             if ls:
                 try:
-                    puntos_totales = int(ls.saldo(cliente_id) or 0)
+                    puntos_totales = int(ls.saldo(cliente_id))
+                    saldo_confiable = True
                 except Exception as exc:
-                    logger.warning("Loyalty saldo post-venta fallback: %s", exc)
-        puntos_totales = int(puntos_totales or 0)
-        self.lbl_puntos_venta.setText(f"⭐ +{puntos_ganados} | Saldo: {puntos_totales}" if puntos_ganados > 0 else f"⭐ Saldo: {puntos_totales}")
-        if cliente_id and isinstance(getattr(self, "cliente_actual", None), dict):
-            self.cliente_actual["puntos"] = puntos_totales
+                    logger.warning("Loyalty saldo post-venta no disponible: %s", exc)
+        if saldo_confiable:
+            puntos_totales = int(puntos_totales)
+            self.lbl_puntos_venta.setText(f"⭐ +{puntos_ganados} | Saldo: {puntos_totales}" if puntos_ganados > 0 else f"⭐ Saldo: {puntos_totales}")
+            if cliente_id and isinstance(getattr(self, "cliente_actual", None), dict):
+                self.cliente_actual["puntos"] = puntos_totales
+        else:
+            self.lbl_puntos_venta.setText("⭐ Saldo de puntos no disponible")
 
         datos_ticket = dict(getattr(result, "ticket_payload", {}) or {})
-        if not datos_ticket:
-            datos_ticket = {
-                "folio": folio,
-                "venta_id": getattr(result, "venta_id", 0),
-                "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "cajero": usuario,
-                "cliente": self.cliente_actual["nombre"] if self.cliente_actual else "Público General",
-                "totales": {"total_final": float(getattr(result, "total", 0.0) or 0.0)},
-                "pago": dict(getattr(result, "payment_breakdown", {}) or {}),
-                "logo_path": LOGO_TICKET_PATH,
-                "empresa": getattr(self.container, "_nombre_empresa", "SPJ POS"),
-                "puntos_ganados": puntos_ganados,
-                "puntos_totales": puntos_totales,
-                "mensaje_psicologico": loyalty_result.get("mensaje") or "¡Gracias por su compra!",
-            }
-        self._venta_timing["t_ticket_start"] = time.perf_counter()
-        self._imprimir_ticket_consolidado(datos_ticket)
+        if self._reserva_activa_id:
+            if datos_ticket.get("reservation_confirmed") is True:
+                self._reserva_activa_id = None
+            else:
+                reserva_pendiente_id = self._reserva_activa_id
+                logger.warning(
+                    "Venta completada, pero la reserva quedó pendiente de revisión: reserva_id=%s",
+                    reserva_pendiente_id,
+                )
+                try:
+                    self._stock_reservas.marcar_revision(
+                        reserva_pendiente_id,
+                        motivo="postventa_warning",
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "No se pudo marcar la reserva pendiente en revisión: reserva_id=%s error=%s",
+                        reserva_pendiente_id,
+                        exc,
+                    )
+                self._reserva_activa_id = None
+                Toast.warning(self, "Reserva", "Venta completada, pero la reserva quedó pendiente de revisión.")
+
+        try:
+            payload_venta_id = int(datos_ticket.get("venta_id") or datos_ticket.get("sale_id") or 0)
+        except (TypeError, ValueError):
+            payload_venta_id = 0
+        result_venta_id = int(getattr(result, "venta_id", 0) or 0)
+        payload_total = None
+        if datos_ticket:
+            payload_total = (datos_ticket.get("totales") or {}).get(
+                "total_final",
+                datos_ticket.get("total_final", datos_ticket.get("total")),
+            )
+        if (
+            not datos_ticket
+            or not payload_venta_id
+            or payload_venta_id != result_venta_id
+            or payload_total in (None, "")
+        ):
+            self._ticket_html_cache = ""
+            QMessageBox.warning(
+                self,
+                "Ticket no generado",
+                "Venta completada, pero no se generó payload de ticket. Use reimpresión desde venta_id."
+            )
+        else:
+            if getattr(result, "ticket_html", ""):
+                self._ticket_html_cache = result.ticket_html
+            self._venta_timing["t_ticket_start"] = time.perf_counter()
+            self._imprimir_ticket_consolidado(datos_ticket)
         Toast.success(self, f"✅ Venta #{folio} completada", f"Total: ${float(getattr(result, 'total', 0.0) or 0.0):.2f}")
 
-        if self._reserva_activa_id:
-            self._stock_reservas.confirmar(
-                self._reserva_activa_id,
-                venta_id=getattr(result, "venta_id", 0),
-                folio=folio,
-            )
-            try:
-                from core.events.event_bus import get_bus
-                from core.events.domain_events import VENTA_CONFIRMADA_RESERVA, STOCK_DESCONTADO_RESERVA
-                get_bus().publish(VENTA_CONFIRMADA_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
-                get_bus().publish(STOCK_DESCONTADO_RESERVA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id, "folio": folio})
-            except Exception as exc:
-                logger.warning("Venta completada, pero reserva requiere revisión: %s", exc)
-            self._reserva_activa_id = None
+
 
         QTimer.singleShot(0, self.cargar_productos_interactivos)
         self.cancelar_venta(silent=True)
@@ -4319,8 +4362,8 @@ class ModuloVentas(ModuloBase):
                     buf = _io.BytesIO(); img.save(buf, format='PNG')
                     qr_b64 = _b64.b64encode(buf.getvalue()).decode()
                     qr_html = f'<div style="text-align:center;margin:4px 0;"><img src="data:image/png;base64,{qr_b64}" width="{qr_size}px"></div>'
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("No se pudo generar QR de ticket; se continúa sin QR: %s", exc)
 
             # Barcode
             if _cfg('ticket_bc_enabled', '0') == '1':
@@ -4331,14 +4374,16 @@ class ModuloVentas(ModuloBase):
             font_family = _cfg('ticket_font_family', 'Courier New')
             try:
                 font_size = int(_cfg('ticket_font_size', '12'))
-            except Exception:
+            except Exception as exc:
+                logger.warning("Config ticket_font_size inválida; usando default 12: %s", exc)
                 font_size = 12
             try:
                 paper_w = int(_cfg('ticket_paper_width', '80'))
-            except Exception:
+            except Exception as exc:
+                logger.warning("Config ticket_paper_width inválida; usando default 80: %s", exc)
                 paper_w = 80
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Configuración visual de ticket no disponible; se usan defaults: %s", exc)
 
         # ── Construir items_html ──────────────────────────────────────────
         filas = ""
@@ -4359,6 +4404,13 @@ class ModuloVentas(ModuloBase):
         elif 'dito' in forma_pago:
             pago_extra = f"Saldo adeudado: ${float(pago.get('saldo_credito', total_final)):.2f}"
 
+        loyalty_info = dict(ticket_data.get('loyalty') or {})
+        ticket_points_total = loyalty_info.get('puntos_totales', ticket_data.get('puntos_totales'))
+        ticket_points_available = bool(loyalty_info.get('available', False)) and ticket_points_total not in (None, "")
+        ticket_points_earned = loyalty_info.get('puntos_ganados', ticket_data.get('puntos_ganados'))
+        puntos_ganados_txt = "" if ticket_points_earned in (None, "") else str(ticket_points_earned)
+        puntos_totales_txt = str(ticket_points_total) if ticket_points_available else "Saldo de puntos no disponible"
+
         # ── Sustitución de variables en plantilla ─────────────────────────
         if plantilla:
             variables = {
@@ -4371,8 +4423,8 @@ class ModuloVentas(ModuloBase):
                 'descuento': f"${float(totales.get('descuento', 0)):.2f}",
                 'forma_pago': forma_pago,
                 'cambio': f"${cambio:.2f}",
-                'puntos_ganados': str(ticket_data.get('puntos_ganados', 0)),
-                'puntos_totales': str(ticket_data.get('puntos_totales', 0)),
+                'puntos_ganados': puntos_ganados_txt,
+                'puntos_totales': puntos_totales_txt,
                 'mensaje_psicologico': ticket_data.get('mensaje_psicologico', '¡Gracias por su compra!'),
                 'logo': logo_html,
                 'qr_code': qr_html,
@@ -4444,8 +4496,10 @@ class ModuloVentas(ModuloBase):
                 from core.events.domain_events import VENTA_SUSPENDIDA_CANCELADA, STOCK_RESERVA_LIBERADA
                 get_bus().publish(VENTA_SUSPENDIDA_CANCELADA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
                 get_bus().publish(STOCK_RESERVA_LIBERADA, {"reserva_id": self._reserva_activa_id, "sucursal_id": self.sucursal_id})
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("No se pudo liberar reserva activa al cancelar venta: reserva_id=%s error=%s", self._reserva_activa_id, exc)
+                if not silent:
+                    Toast.warning(self, "Reserva", "No se pudo liberar la reserva; quedó pendiente de revisión.")
             self._reserva_activa_id = None
         self.limpiar_seleccion_producto()
         self.limpiar_cliente()
@@ -4459,8 +4513,8 @@ class ModuloVentas(ModuloBase):
         try:
             self.txt_busqueda.setFocus()
             self.txt_busqueda.selectAll()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("No se pudo enfocar búsqueda al mostrar ventas: %s", exc)
 
     def _generar_factura(self) -> None:
         """Abre el diálogo para generar CFDI de la última venta."""

@@ -30,3 +30,15 @@ def test_build_payment_breakdown_credito_y_mixto():
 def test_helpers_credit_pending():
     assert PaymentPolicy.is_credit_sale('Crédito') is True
     assert PaymentPolicy.is_pending_payment('Mercado Pago') is True
+
+
+def test_payment_policy_credit_cash_zero_and_mixed_lines():
+    c = PaymentPolicy.build_payment_breakdown(total=200, method='Crédito', saldo_credito=200)
+    assert c['efectivo_recibido'] == 0.0
+    assert c['amount_paid_real'] == 0.0
+    assert c['lineas']['credito'] == 200
+
+    m = PaymentPolicy.build_payment_breakdown(total=100, method='Pago Mixto', cash=30, card=80)
+    assert m['lineas']['efectivo'] == 30
+    assert m['lineas']['tarjeta'] == 80
+    assert m['amount_paid_real'] == 110

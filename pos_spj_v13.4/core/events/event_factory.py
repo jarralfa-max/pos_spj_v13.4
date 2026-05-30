@@ -24,6 +24,8 @@ def make_sale_payload(
     items: List[Dict[str, Any]],
     payment_method: str,
     operation_id: str,
+    amount_paid: float = 0.0,
+    payment_breakdown: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Build the canonical payload for SALE_ITEMS_PROCESS and VENTA_COMPLETADA events.
@@ -42,6 +44,8 @@ def make_sale_payload(
         "client_id":      client_id,
         "items":          items,
         "payment_method": payment_method,
+        "amount_paid":    amount_paid,
+        "payment_breakdown": dict(payment_breakdown or {}),
         "operation_id":   operation_id,
         # Spanish aliases (legacy handlers & WA bridge)
         "venta_id":       sale_id,

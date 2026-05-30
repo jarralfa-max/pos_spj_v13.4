@@ -58,24 +58,56 @@ class PaymentPolicy:
                                 cash: float = 0.0, card: float = 0.0,
                                 saldo_credito: float = 0.0) -> Dict[str, Any]:
         m = PaymentPolicy.normalize_payment_method(method)
-        data = {
-            "forma_pago": m,
-            "total_pagado": float(total or 0.0),
-            "efectivo_recibido": float(amount_paid or 0.0),
-            "monto_tarjeta_mixto": 0.0,
-            "cambio": 0.0,
-            "saldo_credito": 0.0,
+        total = round(float(total or 0.0), 2)
+        amount_paid = round(float(amount_paid or 0.0), 2)
+        lineas = {
+            "efectivo": 0.0,
+            "tarjeta": 0.0,
+            "transferencia": 0.0,
+            "credito": 0.0,
+            "mercado_pago": 0.0,
         }
-        if m == "Pago Mixto":
-            data["efectivo_recibido"] = float(cash or 0.0)
-            data["monto_tarjeta_mixto"] = float(card or 0.0)
-            v = PaymentPolicy.validate_mixed_payment(total, cash, card)
-            data["cambio"] = max(v["diff"], 0.0)
+        cambio = 0.0
+        amount_paid_real = 0.0
+
+        if m == "Efectivo":
+            lineas["efectivo"] = amount_paid
+            amount_paid_real = amount_paid
+            cambio = PaymentPolicy.calculate_change(total, amount_paid, m)
+        elif m == "Tarjeta":
+            lineas["tarjeta"] = total
+            amount_paid_real = total
+        elif m == "Transferencia":
+            lineas["transferencia"] = total
+            amount_paid_real = total
+        elif m == "Mercado Pago":
+            lineas["mercado_pago"] = total
+            amount_paid_real = total
         elif m == "Crédito":
-            data["saldo_credito"] = float(saldo_credito or total or 0.0)
-            data["efectivo_recibido"] = float(total or 0.0)
+            lineas["credito"] = float(saldo_credito or total or 0.0)
+            amount_paid_real = 0.0
+        elif m == "Pago Mixto":
+            lineas["efectivo"] = round(float(cash or 0.0), 2)
+            lineas["tarjeta"] = round(float(card or 0.0), 2)
+            v = PaymentPolicy.validate_mixed_payment(total, cash, card)
+            cambio = max(float(v.get("diff", 0.0)), 0.0)
+            amount_paid_real = round(lineas["efectivo"] + lineas["tarjeta"], 2)
         else:
-            data["cambio"] = PaymentPolicy.calculate_change(total, amount_paid, m)
-            if m != "Efectivo":
-                data["efectivo_recibido"] = float(total or 0.0)
-        return data
+            raise ValueError(f"Método de pago desconocido: {method}")
+
+        return {
+            "forma_pago": m,
+            "total_pagado": amount_paid_real,
+            "amount_paid": amount_paid_real,
+            "amount_paid_real": amount_paid_real,
+            "efectivo_recibido": lineas["efectivo"],
+            "monto_tarjeta_mixto": lineas["tarjeta"],
+            "tarjeta": lineas["tarjeta"],
+            "transferencia": lineas["transferencia"],
+            "credito": lineas["credito"],
+            "mercado_pago": lineas["mercado_pago"],
+            "cambio": cambio,
+            "saldo_credito": lineas["credito"],
+            "lineas": lineas,
+            "breakdown": lineas,
+        }

@@ -37,6 +37,7 @@ class _SalesRich:
                 nivel="Oro",
                 mensaje="ok",
                 operation_id="op-101",
+                available=True,
             ),
             warnings=["w1"],
         )
@@ -89,6 +90,9 @@ def test_uc_no_returns_fake_zero_points_when_rich_has_loyalty():
     assert r.nivel_cliente == "Oro"
 
 
-def test_uc_legacy_adds_warning():
+def test_uc_legacy_route_is_blocked_without_ticket_fallback():
     r = _uc(_SalesLegacy()).ejecutar(_items(), _dp(), 1, "cajero")
-    assert "legacy_execute_sale_result_incomplete" in r.warnings
+    assert r.ok is False
+    assert "execute_sale_result" in r.error
+    assert r.ticket_html == ""
+    assert r.ticket_payload == {}

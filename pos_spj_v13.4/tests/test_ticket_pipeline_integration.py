@@ -85,3 +85,25 @@ def test_no_qprinter_en_rutas_termicas_principales():
             end = src.index("def _imprimir_ticket_hardware", start)
             src = src[start:end]
         assert "QPrinter" not in src
+
+
+def test_ticket_model_does_not_export_unavailable_zero_points():
+    from core.tickets.ticket_print_model import (
+        TicketPrintModel, TicketTotals, TicketPaymentInfo, TicketBranding, TicketLoyaltyInfo,
+    )
+
+    model = TicketPrintModel(
+        ticket_type="sale",
+        folio="F-0",
+        fecha="2026-01-01",
+        cajero="u",
+        cliente_nombre="Cliente",
+        items=[],
+        totals=TicketTotals(total_final=10),
+        payment=TicketPaymentInfo(forma_pago="Efectivo"),
+        branding=TicketBranding(),
+        loyalty=TicketLoyaltyInfo(puntos_ganados=0, puntos_totales=0, available=False),
+    )
+    data = model.to_dict()
+    assert data["puntos_totales"] is None
+    assert data["puntos_disponibles"] is False

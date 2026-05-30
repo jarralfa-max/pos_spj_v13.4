@@ -1,6 +1,6 @@
 from pathlib import Path
 
-SRC = Path("pos_spj_v13.4/modulos/ventas.py").read_text(encoding="utf-8")
+SRC = (Path(__file__).resolve().parents[1] / "modulos" / "ventas.py").read_text(encoding="utf-8")
 
 
 def test_mp_pending_context_keeps_required_fields_for_recovery():
@@ -20,5 +20,5 @@ def test_mp_pending_context_keeps_required_fields_for_recovery():
 
 def test_mp_pending_cleanup_path_unblocks_ui_even_on_early_return():
     assert "finally:" in SRC
-    assert "if not _worker_started:" in SRC
+    assert "_worker_started" not in SRC
     assert "self._on_checkout_finished()" in SRC

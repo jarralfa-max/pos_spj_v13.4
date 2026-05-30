@@ -52,8 +52,8 @@ class StockReservationService:
         for stmt in stmts:
             try:
                 self.db.execute(stmt)
-            except Exception:
-                pass  # columna ya existe, tabla ya existe — ignorar
+            except Exception as exc:
+                logger.debug("stock_reservas schema ensure omitido para sentencia idempotente: %s", exc)
 
     def expirar_huerfanas(self) -> int:
         """
@@ -79,11 +79,19 @@ class StockReservationService:
 
     def stock_disponible(self, producto_id: int) -> float:
         self.expirar_huerfanas()
-        row = self.db.execute(
-            "SELECT COALESCE(quantity,0) FROM branch_inventory "
-            "WHERE branch_id=? AND product_id=?",
-            (self.branch_id, producto_id),
-        ).fetchone()
+        try:
+            row = self.db.execute(
+                "SELECT COALESCE(quantity,0) FROM branch_inventory "
+                "WHERE branch_id=? AND product_id=?",
+                (self.branch_id, producto_id),
+            ).fetchone()
+        except Exception as exc:
+            logger.debug("branch_inventory no disponible, usando inventory: %s", exc)
+            row = self.db.execute(
+                "SELECT COALESCE(stock,0) FROM inventory "
+                "WHERE branch_id=? AND product_id=?",
+                (self.branch_id, producto_id),
+            ).fetchone()
         fisico = float(row[0]) if row else 0.0
         row2 = self.db.execute(
             "SELECT COALESCE(SUM(d.cantidad),0) "
@@ -146,8 +154,8 @@ class StockReservationService:
             try:
                 self.db.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                 self.db.execute(f"RELEASE SAVEPOINT {sp}")
-            except Exception:
-                pass
+            except Exception as rb_exc:
+                logger.warning("Rollback de reserva falló savepoint=%s: %s", sp, rb_exc)
             raise RuntimeError(f"reservar() falló: {exc}") from exc
 
         get_bus().publish(AJUSTE_INVENTARIO, {
@@ -170,11 +178,13 @@ class StockReservationService:
         })
 
     def confirmar(self, reserva_id: int, venta_id: int, folio: str) -> None:
-        self.db.execute(
+        cur = self.db.execute(
             "UPDATE stock_reservas SET estado='confirmada', updated_at=datetime('now') "
             "WHERE id=? AND estado='activa'",
             (reserva_id,),
         )
+        if getattr(cur, "rowcount", 0) != 1:
+            raise RuntimeError(f"Reserva {reserva_id} no está activa para confirmar.")
         get_bus().publish(AJUSTE_INVENTARIO, {
             "motivo": "stock_reserva_confirmada",
             "reserva_id": reserva_id,
@@ -182,3 +192,11 @@ class StockReservationService:
             "folio": str(folio or ""),
             "branch_id": self.branch_id,
         })
+
+    def marcar_revision(self, reserva_id: int, motivo: str = "postventa_warning") -> None:
+        self.db.execute(
+            "UPDATE stock_reservas SET estado='revision', updated_at=datetime('now') "
+            "WHERE id=? AND estado='activa'",
+            (reserva_id,),
+        )
+        logger.warning("stock_reservas: reserva_id=%s quedó en revisión (%s)", reserva_id, motivo)
