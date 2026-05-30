@@ -78,15 +78,7 @@ class PedidoFlow(BaseFlow):
 
         # Si trae productos extraídos del texto libre
         if intent.products:
-            for prod in intent.products:
-                item = PedidoItem(
-                    producto_id=prod["id"],
-                    nombre=prod["nombre"],
-                    cantidad=prod["cantidad_solicitada"],
-                    unidad=prod.get("unidad", "kg"),
-                    precio_unitario=prod.get("precio", 0),
-                )
-                ctx.pedido_items.append(item)
+            self._append_intent_products(ctx, intent)
             await interactive.send_mas_productos(
                 ctx.phone, ctx.resumen_pedido())
             return FlowResult(FlowState.PEDIDO_MAS_PRODUCTOS)
@@ -202,13 +194,7 @@ class PedidoFlow(BaseFlow):
 
         # Si escribe producto directamente en este paso
         if intent.products:
-            for prod in intent.products:
-                item = PedidoItem(
-                    producto_id=prod["id"], nombre=prod["nombre"],
-                    cantidad=prod["cantidad_solicitada"],
-                    unidad=prod.get("unidad", "kg"),
-                    precio_unitario=prod.get("precio", 0))
-                ctx.pedido_items.append(item)
+            self._append_intent_products(ctx, intent)
             await interactive.send_mas_productos(
                 ctx.phone, ctx.resumen_pedido())
             return FlowResult(FlowState.PEDIDO_MAS_PRODUCTOS)
@@ -262,13 +248,14 @@ class PedidoFlow(BaseFlow):
 
     async def _handle_confirmacion(self, ctx, intent):
         aid = intent.action_id
+        raw = (intent.raw_text or "").strip().lower()
 
-        if aid == "cancel_pedido":
+        if aid == "cancel_pedido" or intent.intent in ("cancel", "cancelar") or raw in ("cancelar", "cancela", "no", "no confirmar"):
             ctx.reset_flow()
             await send_text(ctx.phone, "❌ Pedido cancelado. No se registró ninguna venta. Para iniciar otro pedido, escribe *pedido*.")
             return FlowResult(FlowState.IDLE)
 
-        if aid == "confirm_pedido":
+        if aid == "confirm_pedido" or raw in ("confirmar", "confirmo", "sí", "si", "ok", "va", "adelante"):
             items = [i.to_dict() for i in ctx.pedido_items]
             cart_hash = hashlib.sha256(
                 json.dumps(items, sort_keys=True, ensure_ascii=False).encode("utf-8")
@@ -337,4 +324,35 @@ class PedidoFlow(BaseFlow):
             ctx.last_venta_id = venta_id
             return FlowResult(FlowState.IDLE)
 
-        return FlowResult(FlowState.PEDIDO_CONFIRMACION)
+        # Texto libre durante confirmación: no debe quedar en silencio.
+        # Si el cliente manda más productos, los agregamos y volvemos a "agregar más".
+        if intent.products:
+            self._append_intent_products(ctx, intent)
+            await interactive.send_mas_productos(ctx.phone, ctx.resumen_pedido())
+            return FlowResult(FlowState.PEDIDO_MAS_PRODUCTOS)
+
+        # Si escribe hola/pedido/menú mientras hay pedido pendiente, se le recuerda
+        # que ya hay un pedido listo para confirmar o cancelar.
+        if intent.intent in ("saludo", "pedido", "ayuda", "menu_action") or raw in ("hola", "menu", "menú", "pedido"):
+            await send_text(
+                ctx.phone,
+                "Tienes un pedido pendiente de confirmación. Puedes confirmar, cancelar o agregar otro producto."
+            )
+            return await self._confirmar_pedido(ctx)
+
+        await send_text(
+            ctx.phone,
+            "No entendí tu respuesta. Usa los botones para *confirmar* o *cancelar*, o escribe otro producto para agregarlo."
+        )
+        return await self._confirmar_pedido(ctx)
+
+    def _append_intent_products(self, ctx, intent) -> None:
+        for prod in getattr(intent, "products", []) or []:
+            item = PedidoItem(
+                producto_id=prod["id"],
+                nombre=prod["nombre"],
+                cantidad=prod["cantidad_solicitada"],
+                unidad=prod.get("unidad_solicitada") or prod.get("unidad", "kg"),
+                precio_unitario=prod.get("precio", 0),
+            )
+            ctx.pedido_items.append(item)
