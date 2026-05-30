@@ -31,6 +31,20 @@ CUT_PARTIAL = GS + b"V" + bytes([66, 0])
 CHARS_BY_WIDTH = {58: 32, 72: 42, 80: 48}
 GENERIC_UNITS = {"", "pz", "pza", "pzas", "pieza", "piezas", "unidad", "unidades"}
 
+_CODE39 = {
+    "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn",
+    "4": "nnnwwnnnw", "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw",
+    "8": "wnnwnnwnn", "9": "nnwwnnwnn", "A": "wnnnnwnnw", "B": "nnwnnwnnw",
+    "C": "wnwnnwnnn", "D": "nnnnwwnnw", "E": "wnnnwwnnn", "F": "nnwnwwnnn",
+    "G": "nnnnnwwnw", "H": "wnnnnwwnn", "I": "nnwnnwwnn", "J": "nnnnwwwnn",
+    "K": "wnnnnnnww", "L": "nnwnnnnww", "M": "wnwnnnnwn", "N": "nnnnwnnww",
+    "O": "wnnnwnnwn", "P": "nnwnwnnwn", "Q": "nnnnnnwww", "R": "wnnnnnwwn",
+    "S": "nnwnnnwwn", "T": "nnnnwnwwn", "U": "wwnnnnnnw", "V": "nwwnnnnnw",
+    "W": "wwwnnnnnn", "X": "nwnnwnnnw", "Y": "wwnnwnnnn", "Z": "nwwnwnnnn",
+    "-": "nwnnnnwnw", ".": "wwnnnnwnn", " ": "nwwnnnwnn", "$": "nwnwnwnnn",
+    "/": "nwnwnnnwn", "+": "nwnnnwnwn", "%": "nnnwnwnwn", "*": "nwnnwnwnn",
+}
+
 
 class TicketESCPOSRenderer:
     def __init__(self, paper_width_mm: int = 80, encoding: str = "cp850"):
@@ -46,7 +60,6 @@ class TicketESCPOSRenderer:
         width = int(getattr(layout, "chars_per_line", self.chars_per_line) or self.chars_per_line)
         buf = bytearray(INIT)
 
-        # Ticket Design is the source of truth for block order and enabled/disabled state.
         for block_name in self._ordered_blocks(layout):
             if not self._block_enabled(layout, block_name):
                 continue
@@ -107,11 +120,12 @@ class TicketESCPOSRenderer:
             return self._fomo_bytes(ticket_data, width)
         if block_name == "qr":
             return self._qr_bytes(layout, qr_content)
+        if block_name == "barcode":
+            return self._barcode_bytes(ticket_data, width)
         if block_name == "footer":
             return self._footer_bytes(ticket_data, width)
         if block_name == "legal":
             return self._legal_bytes(ticket_data, width)
-        # barcode and unknown blocks are intentionally ignored until a renderer exists.
         return b""
 
     def render_safe_text(self, ticket_data: Dict[str, Any] | TicketPrintModel) -> bytes:
@@ -184,7 +198,6 @@ class TicketESCPOSRenderer:
         )
 
     def _item_unit(self, item: Dict[str, Any]) -> str:
-        # Prefer DB-enriched values over generic UI payload units.
         db_unit = str(item.get("db_unidad") or item.get("unidad_db") or item.get("unidad_producto") or "").strip()
         payload_unit = str(item.get("unidad") or item.get("unit") or item.get("unidad_medida") or item.get("unit_name") or item.get("uom") or "").strip()
         if db_unit and payload_unit.lower() in GENERIC_UNITS:
@@ -291,6 +304,15 @@ class TicketESCPOSRenderer:
             return b""
         return ALIGN_CENTER + qr_bytes + self._linebreak() + INIT
 
+    def _barcode_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
+        value = str(ticket_data.get("barcode") or ticket_data.get("codigo_barras") or ticket_data.get("folio") or "").strip()
+        if not value:
+            return b""
+        img_bytes = self._render_code39_as_image(value)
+        if not img_bytes:
+            return b""
+        return self._separator(width, char="-") + ALIGN_CENTER + img_bytes + self._linebreak() + INIT
+
     def _footer_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
         msg = ticket_data.get("mensaje_psicologico", ticket_data.get("footer_message", "¡Gracias por su compra!"))
         if not msg:
@@ -370,13 +392,19 @@ class TicketESCPOSRenderer:
                 logo_b64 = logo_b64.split(",", 1)[1]
             img_bytes = base64.b64decode(logo_b64)
             img = Image.open(io.BytesIO(img_bytes))
+            alpha = None
             if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
-                bg = Image.new("RGBA", img.size, "WHITE")
-                bg.alpha_composite(img.convert("RGBA"))
+                rgba = img.convert("RGBA")
+                alpha = rgba.getchannel("A")
+                bg = Image.new("RGBA", rgba.size, "WHITE")
+                bg.alpha_composite(rgba)
                 img = bg.convert("RGB")
             else:
                 img = img.convert("RGB")
             img = img.convert("L")
+            if alpha is not None:
+                transparent_mask = alpha.point(lambda a: 255 if a < 245 else 0)
+                img.paste(255, mask=transparent_mask)
             size_key = str(logo_size or "md").lower()
             numeric_width = None
             try:
@@ -408,6 +436,47 @@ class TicketESCPOSRenderer:
             return None
         except Exception as exc:
             logger.warning("Error renderizando logo: %s", exc)
+            return None
+
+    def _render_code39_as_image(self, value: str) -> Optional[bytes]:
+        try:
+            from PIL import Image, ImageDraw
+            clean = re.sub(r"[^A-Za-z0-9\-\. \$/\+%]", "", str(value or "")).upper()[:32]
+            if not clean:
+                clean = "SPJ"
+            data = f"*{clean}*"
+            narrow = 2
+            wide = 5
+            height = 72 if self.paper_width <= 58 else 90
+            quiet = 18
+            total_w = quiet * 2
+            for ch in data:
+                pattern = _CODE39.get(ch, _CODE39["-"])
+                total_w += sum(wide if p == "w" else narrow for p in pattern) + narrow
+            max_w = 360 if self.paper_width <= 58 else 512
+            scale = min(1.0, max_w / max(1, total_w))
+            narrow = max(1, int(narrow * scale))
+            wide = max(3, int(wide * scale))
+            quiet = max(10, int(quiet * scale))
+            total_w = quiet * 2
+            for ch in data:
+                pattern = _CODE39.get(ch, _CODE39["-"])
+                total_w += sum(wide if p == "w" else narrow for p in pattern) + narrow
+            img = Image.new("L", (total_w + (8 - total_w % 8 if total_w % 8 else 0), height + 18), 255)
+            draw = ImageDraw.Draw(img)
+            x = quiet
+            for ch in data:
+                pattern = _CODE39.get(ch, _CODE39["-"])
+                for idx, p in enumerate(pattern):
+                    bar_w = wide if p == "w" else narrow
+                    if idx % 2 == 0:
+                        draw.rectangle([x, 0, x + bar_w - 1, height], fill=0)
+                    x += bar_w
+                x += narrow
+            img = img.point(lambda px: 0 if px < 128 else 255, "1")
+            return self._image_to_escpos_raster(img)
+        except Exception as exc:
+            logger.warning("Error renderizando código de barras: %s", exc)
             return None
 
     def _image_to_escpos_raster(self, img) -> bytes:
