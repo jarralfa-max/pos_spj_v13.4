@@ -36,26 +36,28 @@ class SaleFulfillmentService:
         self.resolver = RecipeResolver(self.db)
         self.avail = AvailabilityService(self.db)
 
-    def _product_row(self, product_id: int):
-        """Read only product columns guaranteed by the current schema.
+    def _table_columns(self, table: str) -> set[str]:
+        try:
+            return {str(r[1]) for r in self.db.execute(f"PRAGMA table_info({table})").fetchall()}
+        except Exception:
+            return set()
 
-        Do not reference optional columns such as unidad_medida/unidad_venta in
-        SQL. SQLite raises `no such column` even inside COALESCE when a column is
-        absent, which would block checkout before the real stock validation.
+    def _product_row(self, product_id: int):
+        """Read only product columns that exist in the current schema.
+
+        Never reference optional columns inside COALESCE: SQLite raises
+        `no such column` before COALESCE can apply. Missing flags are added as
+        literal defaults in the SELECT list, which is safe and idempotent.
         """
+        cols = self._table_columns("productos")
+        select_parts = ["id"]
+        select_parts.append("nombre" if "nombre" in cols else "'' AS nombre")
+        select_parts.append("unidad" if "unidad" in cols else "'kg' AS unidad")
+        select_parts.append("tipo_producto" if "tipo_producto" in cols else "'simple' AS tipo_producto")
+        select_parts.append("COALESCE(es_compuesto,0) AS es_compuesto" if "es_compuesto" in cols else "0 AS es_compuesto")
+        select_parts.append("COALESCE(es_subproducto,0) AS es_subproducto" if "es_subproducto" in cols else "0 AS es_subproducto")
         return self.db.execute(
-            """
-            SELECT
-                id,
-                nombre,
-                unidad,
-                tipo_producto,
-                COALESCE(es_compuesto,0) AS es_compuesto,
-                COALESCE(es_subproducto,0) AS es_subproducto
-            FROM productos
-            WHERE id=?
-            LIMIT 1
-            """,
+            f"SELECT {', '.join(select_parts)} FROM productos WHERE id=? LIMIT 1",
             (int(product_id),),
         ).fetchone()
 
@@ -145,15 +147,57 @@ class SaleFulfillmentService:
         missing = max(0.0, qty - physical)
         raise ValueError(f"STOCK_INSUFICIENTE: producto={name} faltante={missing:.3f} {unit}")
 
+    def _active_recipe_id(self, product_id: int) -> int | None:
+        recipe_cols = self._table_columns("product_recipes")
+        if not recipe_cols or "id" not in recipe_cols:
+            return None
+        product_col = "product_id" if "product_id" in recipe_cols else "base_product_id" if "base_product_id" in recipe_cols else ""
+        if not product_col:
+            return None
+        where = f"{product_col}=?"
+        if "is_active" in recipe_cols:
+            where += " AND is_active=1"
+        row = self.db.execute(f"SELECT id FROM product_recipes WHERE {where} LIMIT 1", (int(product_id),)).fetchone()
+        if not row:
+            return None
+        try:
+            return int(row["id"] if hasattr(row, "keys") else row[0])
+        except Exception:
+            return None
+
+    def _recipe_components(self, recipe_id: int) -> list[tuple[int, float]]:
+        comp_cols = self._table_columns("product_recipe_components")
+        if not comp_cols:
+            return []
+        product_col = next((c for c in ("component_product_id", "producto_id", "componente_id", "product_id") if c in comp_cols), "")
+        qty_col = next((c for c in ("cantidad", "qty", "quantity") if c in comp_cols), "")
+        recipe_col = "recipe_id" if "recipe_id" in comp_cols else "receta_id" if "receta_id" in comp_cols else ""
+        if not product_col or not qty_col or not recipe_col:
+            return []
+        rows = self.db.execute(
+            f"SELECT {product_col} AS component_product_id, {qty_col} AS cantidad FROM product_recipe_components WHERE {recipe_col}=?",
+            (int(recipe_id),),
+        ).fetchall()
+        comps: list[tuple[int, float]] = []
+        for row in rows:
+            try:
+                pid = int(row["component_product_id"] if hasattr(row, "keys") else row[0])
+                qty = float(row["cantidad"] if hasattr(row, "keys") else row[1] or 0)
+            except Exception:
+                continue
+            if pid > 0 and qty > 0:
+                comps.append((pid, qty))
+        return comps
+
     def _virtual_from_recipe_deductions(self, product_id: int, qty: float, branch_id: int) -> Dict[int, float]:
-        rec = self.db.execute("SELECT id FROM product_recipes WHERE product_id=? AND is_active=1 LIMIT 1", (product_id,)).fetchone()
-        if not rec:
+        recipe_id = self._active_recipe_id(product_id)
+        if not recipe_id:
             return {}
-        comps = self.db.execute("SELECT component_product_id, COALESCE(cantidad,0) cantidad FROM product_recipe_components WHERE recipe_id=?", (rec[0],)).fetchall()
+        comps = self._recipe_components(recipe_id)
         merged: Dict[int, float] = {}
-        for c in comps:
-            need = float(c["cantidad"] if hasattr(c, "keys") else c[1]) * qty
-            exp = self.resolver.resolve_for_sale(int(c[0]), need, branch_id)
+        for component_pid, component_qty in comps:
+            need = float(component_qty or 0) * qty
+            exp = self.resolver.resolve_for_sale(int(component_pid), need, branch_id)
             if exp.cycle_detected:
                 raise ValueError(f"RECETA_CICLICA: producto={product_id}")
             for d in exp.deductions:
@@ -161,17 +205,17 @@ class SaleFulfillmentService:
         return merged
 
     def _virtual_from_recipe_availability(self, product_id: int, branch_id: int) -> float:
-        rec = self.db.execute("SELECT id FROM product_recipes WHERE product_id=? AND is_active=1 LIMIT 1", (product_id,)).fetchone()
-        if not rec:
+        recipe_id = self._active_recipe_id(product_id)
+        if not recipe_id:
             return 0.0
-        comps = self.db.execute("SELECT component_product_id, COALESCE(cantidad,0) cantidad FROM product_recipe_components WHERE recipe_id=?", (rec[0],)).fetchall()
+        comps = self._recipe_components(recipe_id)
         if not comps:
             return 0.0
         mins = []
-        for c in comps:
-            qty = float(c["cantidad"] if hasattr(c, "keys") else c[1])
+        for component_pid, component_qty in comps:
+            qty = float(component_qty or 0)
             if qty <= 0:
                 continue
-            avail = self.avail.virtual_stock(int(c[0]), branch_id)
+            avail = self.avail.virtual_stock(int(component_pid), branch_id)
             mins.append(avail / qty if qty > 0 else 0.0)
         return min(mins) if mins else 0.0

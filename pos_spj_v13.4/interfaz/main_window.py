@@ -431,7 +431,6 @@ class DialogoLogin(QDialog):
             "}"
             "QPushButton:hover {"
             "  background: #1d4ed8;"
-            "  box-shadow: 0 0 18px rgba(37,99,235,0.55);"
             "}"
             "QPushButton:pressed { background: #1e40af; }"
             "QPushButton:disabled { background: #1e293b; color: #475569; }"

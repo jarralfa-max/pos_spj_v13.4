@@ -45,3 +45,33 @@ def test_legacy_migration_keys():
     assert cfg.logo_alignment == "right"
     assert cfg.show_qr is True
     assert cfg.show_barcode is False
+
+
+def test_partial_layout_show_barcode_enables_barcode_block():
+    cfg = TicketLayoutConfig.from_dict({"show_barcode": True})
+    assert cfg.show_barcode is True
+    assert cfg.blocks["barcode"].enabled is True
+
+
+def test_partial_layout_show_qr_false_disables_qr_block():
+    cfg = TicketLayoutConfig.from_dict({"show_qr": False})
+    assert cfg.show_qr is False
+    assert cfg.blocks["qr"].enabled is False
+
+
+def test_from_dict_missing_barcode_block_inherits_show_barcode_flag():
+    cfg = TicketLayoutConfig.from_dict({
+        "show_barcode": True,
+        "blocks": {"items": {"enabled": True, "order": 4}},
+    })
+
+    assert cfg.blocks["barcode"].enabled is True
+
+
+def test_from_dict_missing_barcode_block_inherits_show_barcode_false():
+    cfg = TicketLayoutConfig.from_dict({
+        "show_barcode": False,
+        "blocks": {"items": {"enabled": True, "order": 4}},
+    })
+
+    assert cfg.blocks["barcode"].enabled is False

@@ -34,7 +34,7 @@ class SalesService:
                  ticket_template_engine, whatsapp_service, config_service,
                  feature_flag_service, pricing_service=None,
                  growth_engine=None, notification_service=None,
-                 customer_service=None):
+                 customer_service=None, printer_service=None):
         # Inyección de dependencias
         self.db = db_conn
         self.pricing_service = pricing_service
@@ -61,6 +61,7 @@ class SalesService:
         self.config_service = config_service
         self.feature_flag_service = feature_flag_service
         self.customer_service = customer_service
+        self.printer_service = printer_service
         self._fulfillment = SaleFulfillmentService(db_conn)
         self._sale_loyalty_policy = None
 
@@ -467,6 +468,76 @@ class SalesService:
                 + f". Registrados: {registered}"
             )
 
+
+    def _raffle_auto_print_enabled(self) -> bool:
+        """Return whether confirmed-sale raffle tickets should be printed automatically."""
+        if not self.config_service:
+            return True
+        disabled_values = {"0", "false", "no", "off", "disabled", "desactivado"}
+        try:
+            raw = self.config_service.get("raffle_ticket_print_auto", None)
+            if raw in (None, ""):
+                raw = self.config_service.get("imprimir_automatico_boletos_sorteo", "1")
+        except Exception as exc:
+            logger.warning("No se pudo leer configuración de impresión automática de rifas: %s", exc)
+            return True
+        return str(raw).strip().lower() not in disabled_values
+
+    def _raffle_ticket_print_payload(self, snapshot):
+        """Normalize raffle snapshots or direct printable payloads into PrinterService input."""
+        if not isinstance(snapshot, dict):
+            return None
+        nested = snapshot.get("raffle_ticket")
+        if isinstance(nested, dict):
+            return nested
+        if str(snapshot.get("ticket_type") or "") == "raffle_ticket":
+            return snapshot
+        has_raffle_identity = (
+            snapshot.get("raffle_id") or snapshot.get("raffle_name") or snapshot.get("raffle")
+        )
+        if snapshot.get("numero_boleto") and has_raffle_identity:
+            payload = dict(snapshot)
+            payload.setdefault("ticket_type", "raffle_ticket")
+            payload.setdefault("raffle_name", payload.get("raffle") or "")
+            payload.setdefault("barcode", payload.get("numero_boleto"))
+            payload.setdefault(
+                "qr_content",
+                "RAFFLE:{raffle_id}|SALE:{venta_id}|TICKET:{numero}".format(
+                    raffle_id=payload.get("raffle_id", ""),
+                    venta_id=payload.get("venta_id", ""),
+                    numero=payload.get("numero_boleto", ""),
+                ),
+            )
+            return payload
+        return None
+
+    def _print_raffle_tickets_after_sale(self, raffle_tickets_snapshot, sale_id) -> list[str]:
+        """Print issued raffle tickets after the sale is confirmed without cancelling the sale."""
+        printed_job_ids: list[str] = []
+        if not raffle_tickets_snapshot or not self._raffle_auto_print_enabled():
+            return printed_job_ids
+        printer = getattr(self, "printer_service", None)
+        if not printer or not hasattr(printer, "print_raffle_ticket"):
+            return printed_job_ids
+        for snapshot in raffle_tickets_snapshot or []:
+            payload = self._raffle_ticket_print_payload(snapshot)
+            if not payload:
+                logger.debug("Snapshot de rifa sin payload imprimible venta=%s: %s", sale_id, snapshot)
+                continue
+            try:
+                job_id = printer.print_raffle_ticket(payload)
+                if job_id:
+                    printed_job_ids.append(str(job_id))
+            except Exception as exc:
+                logger.warning(
+                    "No se pudo imprimir boleto de rifa venta=%s boleto=%s: %s",
+                    sale_id,
+                    payload.get("numero_boleto") or payload.get("barcode") or "",
+                    exc,
+                )
+                continue
+        return printed_job_ids
+
     def _execute_sale_core(self, branch_id: int, user: str, items: list, payment_method: str,
                      amount_paid: float, client_id: int = None, client_phone: str = None,
                      client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
@@ -753,17 +824,18 @@ class SalesService:
                     logger.warning("loyalty accrual venta=%s: %s", sale_id, _lyl_aw_err)
 
             raffle_tickets_snapshot = []
-            if client_id and self.loyalty_service:
+            if self.loyalty_service:
                 try:
                     raffle_tickets_snapshot = self.loyalty_service.process_raffles_for_sale(
                         venta_id=int(sale_id),
-                        cliente_id=int(client_id),
+                        cliente_id=int(client_id or 0),
                         folio=str(folio),
                         total=float(total_a_pagar),
                         sucursal_id=int(branch_id),
                         payment_method=str(payment_method or ""),
                         items=carrito_final,
                         sale_datetime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        discount=discount,
                     ) or []
                 except Exception as _raffle_err:
                     logger.warning("raffles process venta=%s: %s", sale_id, _raffle_err)
@@ -903,6 +975,8 @@ class SalesService:
             "mensaje": str((loyalty_result or {}).get("mensaje", "") or ""),
             "operation_id": operation_id,
         }
+        raffle_ticket_print_jobs = self._print_raffle_tickets_after_sale(raffle_tickets_snapshot, sale_id)
+        ticket_payload["raffle_ticket_print_jobs"] = raffle_ticket_print_jobs
         if return_details:
             return {
                 "ok": True,
@@ -917,6 +991,8 @@ class SalesService:
                 "loyalty": ticket_payload["loyalty"],
                 "ticket_payload": ticket_payload,
                 "ticket_html": ticket_final_html or "",
+                "raffle_tickets_snapshot": raffle_tickets_snapshot,
+                "raffle_ticket_print_jobs": raffle_ticket_print_jobs,
                 "warnings": [],
                 "error": "",
             }

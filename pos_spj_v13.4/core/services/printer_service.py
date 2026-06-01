@@ -24,6 +24,7 @@ logger = logging.getLogger("spj.printer")
 
 class PrintJobType(str, Enum):
     TICKET = "ticket"
+    RAFFLE_TICKET = "raffle_ticket"
     LABEL = "label"
     HTML = "html"
     RAW = "raw"
@@ -494,15 +495,15 @@ class PrinterService:
             logger.warning("No se pudo cargar branding de ticket: %s", exc)
             return None
 
-    def _get_layout(self):
+    def _get_layout(self, layout_type: str = "sale_ticket"):
         try:
             from core.tickets.ticket_layout_repository import TicketLayoutRepository
-            return TicketLayoutRepository(db_conn=self.db).load()
+            return TicketLayoutRepository(db_conn=self.db).load(layout_type=layout_type)
         except Exception as exc:
             logger.warning("No se pudo cargar Ticket Design activo; se usará layout default: %s", exc)
             try:
                 from core.tickets.ticket_layout_config import TicketLayoutConfig
-                return TicketLayoutConfig()
+                return TicketLayoutConfig.for_layout_type(layout_type)
             except Exception:
                 return None
 
@@ -520,27 +521,105 @@ class PrinterService:
                 continue
         return default
 
+    def _table_columns(self, table: str) -> set[str]:
+        if not self.db:
+            return set()
+        try:
+            return {str(r[1]) for r in self.db.execute(f"PRAGMA table_info({table})").fetchall()}
+        except Exception:
+            return set()
+
+    @staticmethod
+    def _normalize_ticket_unit(value: Any) -> str:
+        return str(value or "").strip()
+
+    @staticmethod
+    def _is_generic_ticket_unit(value: Any) -> bool:
+        normalized = PrinterService._normalize_ticket_unit(value).lower().rstrip(". ")
+        generic_units = {"", "pz", "pza", "pzas", "pieza", "piezas", "unidad", "unidades"}
+        return normalized in generic_units
+
+    def _ticket_item_product_id(self, item: Dict[str, Any]) -> int:
+        for key in ("product_id", "producto_id", "id_producto"):
+            raw = item.get(key)
+            if raw not in (None, ""):
+                try:
+                    return int(raw)
+                except Exception:
+                    return 0
+        # En payloads de UI antiguos ``id`` es el producto; en payloads de
+        # detalle de venta suele ser el id de línea y viene acompañado de
+        # venta_id/sale_id. No debe usarse como producto en ese caso.
+        if any(item.get(key) not in (None, "") for key in ("venta_id", "sale_id", "detalle_id", "line_id")):
+            return 0
+        raw = item.get("id")
+        if raw not in (None, ""):
+            try:
+                return int(raw)
+            except Exception:
+                return 0
+        return 0
+
+    def _ticket_product_select_columns(self, product_columns: set[str]) -> list[str]:
+        select_cols = ["id"]
+        for col in ("nombre", "descripcion", "producto", "unidad", "codigo_barras", "codigo"):
+            if col in product_columns and col not in select_cols:
+                select_cols.append(col)
+        return select_cols
+
+    def _fetch_ticket_product_row(self, item: Dict[str, Any], product_columns: set[str]):
+        if not (self.db and product_columns):
+            return None, 0
+        select_cols = self._ticket_product_select_columns(product_columns)
+        pid = self._ticket_item_product_id(item)
+        if pid:
+            try:
+                row = self.db.execute(
+                    f"SELECT {', '.join(select_cols)} FROM productos WHERE id=? LIMIT 1",
+                    (pid,),
+                ).fetchone()
+                if row:
+                    return row, pid
+            except Exception as exc:
+                logger.debug("No se pudo hidratar producto para ticket pid=%s: %s", pid, exc)
+        for item_key, product_col in (("codigo_barras", "codigo_barras"), ("barcode", "codigo_barras"), ("codigo", "codigo")):
+            code = str(item.get(item_key) or "").strip()
+            if not code or product_col not in product_columns:
+                continue
+            try:
+                row = self.db.execute(
+                    f"SELECT {', '.join(select_cols)} FROM productos WHERE {product_col}=? LIMIT 1",
+                    (code,),
+                ).fetchone()
+                if row:
+                    try:
+                        return row, int(self._row_value(row, "id", default=pid) or 0)
+                    except Exception:
+                        return row, pid
+            except Exception as exc:
+                logger.debug("No se pudo hidratar producto para ticket %s=%s: %s", product_col, code, exc)
+        return None, pid
+
     def _hydrate_ticket_items(self, items: list) -> list:
         hydrated = []
+        product_columns = self._table_columns("productos")
+        can_read_unidad = "unidad" in product_columns
         for item in list(items or []):
             it = dict(item or {})
-            pid = it.get("product_id") or it.get("producto_id") or it.get("id")
-            row = None
-            if self.db and pid:
-                try:
-                    row = self.db.execute("SELECT * FROM productos WHERE id=? LIMIT 1", (int(pid),)).fetchone()
-                except Exception as exc:
-                    logger.debug("No se pudo hidratar producto para ticket pid=%s: %s", pid, exc)
+            row, pid = self._fetch_ticket_product_row(it, product_columns)
             nombre = (
                 it.get("nombre") or it.get("name") or it.get("product_name") or
-                self._row_value(row, "nombre", "name", "descripcion", "producto", default="") or
+                self._row_value(row, "nombre", "descripcion", "producto", default="") or
                 (f"Producto {pid}" if pid else "Producto")
             )
-            unidad = (
-                it.get("unidad") or it.get("unit") or it.get("unidad_medida") or it.get("uom") or
-                self._row_value(row, "unidad", "unit", "unidad_medida", "unidad_venta", "uom", default="") or
-                "pz"
+            payload_unidad = self._normalize_ticket_unit(
+                it.get("unidad") or it.get("unit") or it.get("unidad_medida") or it.get("uom") or ""
             )
+            db_unidad = str(self._row_value(row, "unidad", default="") or "").strip() if can_read_unidad else ""
+            if db_unidad and self._is_generic_ticket_unit(payload_unidad):
+                unidad = db_unidad
+            else:
+                unidad = payload_unidad or db_unidad or "pz"
             cantidad = it.get("cantidad", it.get("qty", it.get("quantity", 0)))
             precio = it.get("precio_unitario", it.get("unit_price", 0))
             total = it.get("total", it.get("subtotal", None))
@@ -549,13 +628,20 @@ class PrinterService:
                     total = float(cantidad or 0) * float(precio or 0)
                 except Exception:
                     total = 0
+            try:
+                normalized_pid = int(pid or 0)
+            except Exception:
+                normalized_pid = 0
             it.update({
-                "product_id": int(pid or 0),
-                "producto_id": int(pid or 0),
+                "product_id": normalized_pid,
+                "producto_id": normalized_pid,
                 "nombre": str(nombre),
                 "name": str(nombre),
                 "unidad": str(unidad),
                 "unit": str(unidad),
+                "db_unidad": db_unidad,
+                "unidad_db": db_unidad,
+                "unidad_producto": db_unidad,
                 "cantidad": float(cantidad or 0),
                 "qty": float(cantidad or 0),
                 "precio_unitario": float(precio or 0),
@@ -599,9 +685,12 @@ class PrinterService:
             data.setdefault("empresa", self._get_cfg("nombre_empresa", "SPJ POS"))
             data.setdefault("direccion", self._get_cfg("direccion", ""))
             data.setdefault("telefono", self._get_cfg("telefono_empresa", ""))
-        layout = self._get_layout()
-        if layout is not None and not data.get("layout_config"):
+        layout = self._get_layout("sale_ticket")
+        if layout is not None:
             data["layout_config"] = layout.to_dict()
+            debug_logo = self._get_cfg("ticket_debug_logo", "")
+            if str(debug_logo).strip() == "1":
+                data["layout_config"]["ticket_debug_logo"] = True
         return data, branding, layout
 
     def print_ticket(self, ticket_data: Dict[str, Any], on_success: Callable = None, on_error: Callable = None) -> str:
@@ -649,6 +738,69 @@ class PrinterService:
             transport=self._resolve_transport(self._ticket_cfg),
             baud=self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)),
             priority=2,
+            on_success=on_success,
+            on_error=on_error,
+        )
+        self.queue.submit(job)
+        return job.id
+
+    def print_raffle_ticket(self, raffle_ticket_data: Dict[str, Any], on_success: Callable = None, on_error: Callable = None) -> str:
+        if not self.enabled:
+            logger.debug("Impresión de boleto de sorteo deshabilitada (toggle printing)")
+            return ""
+        vr = self.validate_ticket_printer_config()
+        if not vr.ok:
+            msg = "; ".join(vr.errors or ["Configuración inválida de impresora"])
+            logger.warning("print_raffle_ticket bloqueado por config inválida: %s", msg)
+            if on_error:
+                try:
+                    on_error(Exception(msg))
+                except Exception:
+                    logger.exception("print_raffle_ticket on_error callback failed")
+            return ""
+        try:
+            from core.tickets.raffle_ticket_renderer import RaffleTicketESCPOSRenderer
+            prepared = dict(raffle_ticket_data or {})
+            prepared["ticket_type"] = "raffle_ticket"
+            branding = self._get_branding()
+            if branding:
+                prepared.setdefault("empresa", branding.brand_name)
+                prepared.setdefault("direccion", branding.address)
+                prepared.setdefault("telefono", branding.phone)
+            else:
+                prepared.setdefault("empresa", self._get_cfg("nombre_empresa", "SPJ POS"))
+                prepared.setdefault("direccion", self._get_cfg("direccion", ""))
+                prepared.setdefault("telefono", self._get_cfg("telefono_empresa", ""))
+            layout = self._get_layout("raffle_ticket")
+            prepared["layout_config"] = layout.to_dict() if layout else prepared.get("layout_config", {})
+            debug_logo = self._get_cfg("ticket_debug_logo", "")
+            if str(debug_logo).strip() == "1":
+                prepared["layout_config"]["ticket_debug_logo"] = True
+            paper_w = int(getattr(layout, "paper_width_mm", 0) or self._ticket_cfg.get("paper_width", 80))
+            renderer = RaffleTicketESCPOSRenderer(paper_width_mm=paper_w, encoding=str(self._ticket_cfg.get("encoding", "cp850")))
+            logo_b64 = ""
+            if branding and self._ticket_cfg.get("print_logo", True) and getattr(layout, "show_logo", True):
+                logo_b64 = branding.logo_b64 or ""
+            qr_content = prepared.get("qr_content") or prepared.get("numero_boleto") or prepared.get("barcode") or ""
+            prepared.setdefault("qr_content", str(qr_content or ""))
+            prepared.setdefault("barcode", str(prepared.get("numero_boleto") or qr_content or ""))
+            data = renderer.render(prepared, logo_b64=logo_b64, qr_content=str(qr_content or ""))
+        except Exception as exc:
+            logger.error("Error formateando boleto de sorteo: %s", exc)
+            if on_error:
+                try:
+                    on_error(exc)
+                except Exception:
+                    logger.exception("print_raffle_ticket on_error callback failed (renderer)")
+            return ""
+        job = PrintJob(
+            job_type=PrintJobType.RAFFLE_TICKET,
+            data=data,
+            raw_data=prepared,
+            destination=self._ticket_cfg.get("ubicacion", ""),
+            transport=self._resolve_transport(self._ticket_cfg),
+            baud=self._safe_baud(self._ticket_cfg.get("baud_rate", 9600)),
+            priority=3,
             on_success=on_success,
             on_error=on_error,
         )

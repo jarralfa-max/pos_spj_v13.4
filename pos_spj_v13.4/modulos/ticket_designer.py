@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit, QTextBrowser, QSplitter, QGroupBox,
     QListWidget, QMessageBox, QFileDialog, QTabWidget,
     QFormLayout, QLineEdit, QCheckBox, QComboBox, QSpinBox,
-    QDoubleSpinBox, QScrollArea, QFrame, QTextEdit,
+    QDoubleSpinBox, QScrollArea, QFrame, QTextEdit, QListWidgetItem,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QPixmap
@@ -33,6 +33,29 @@ PAPER_SIZES = {
     "A4":              (210, 297),
     "Personalizado":   (0, 0),
 }
+
+BLOCK_LABELS = {
+    "logo": "Logo",
+    "brand_header": "Encabezado / marca",
+    "sale_info": "Datos de venta",
+    "customer": "Cliente",
+    "items": "Productos",
+    "totals": "Totales",
+    "payment": "Pago",
+    "loyalty": "Fidelidad",
+    "fomo": "FOMO / promociones",
+    "raffle_title": "Título del sorteo",
+    "ticket_number": "Número de boleto",
+    "prize": "Premio",
+    "draw_date": "Fecha del sorteo",
+    "qr": "Código QR",
+    "barcode": "Código de barras",
+    "footer": "Mensaje footer",
+    "legal": "Mensaje legal",
+}
+
+SALE_ONLY_BLOCKS = {"items", "totals", "payment", "loyalty", "fomo"}
+RAFFLE_ONLY_BLOCKS = {"raffle_title", "ticket_number", "prize", "draw_date"}
 
 
 class ModuloTicketDesigner(QWidget):
@@ -50,11 +73,13 @@ class ModuloTicketDesigner(QWidget):
         super().__init__(parent)
         self.container = container
         self._logo_b64 = ""
+        self.current_layout_type = "sale_ticket"
         self.init_ui()
         self.cargar_plantilla_actual()
         self._cargar_logo_guardado()
         self._cargar_config_qr_guardada()
         self._cargar_config_papel()
+        self._cargar_layout_activo()
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         self.usuario_actual = usuario
@@ -87,12 +112,19 @@ class ModuloTicketDesigner(QWidget):
         btn_brand = create_secondary_button(self, btn_brand, "Editar marca en Configuración del Sistema")
         btn_brand.clicked.connect(self._abrir_configuracion_sistema)
         
+        self.cmb_layout_type = QComboBox()
+        self.cmb_layout_type.addItem("Ticket de venta", "sale_ticket")
+        self.cmb_layout_type.addItem("Boleto de sorteo", "raffle_ticket")
+        self.cmb_layout_type.currentIndexChanged.connect(self._on_layout_type_changed)
+        header.addWidget(QLabel("Diseñar:"))
+        header.addWidget(self.cmb_layout_type)
         header.addWidget(btn_print)
         header.addWidget(btn_brand)
         header.addWidget(btn_save_all)
         lay.addLayout(header)
 
-        tabs = QTabWidget()
+        self.tabs = QTabWidget()
+        tabs = self.tabs
         tabs.setObjectName("tabWidget")
         lay.addWidget(tabs)
 
@@ -111,14 +143,14 @@ class ModuloTicketDesigner(QWidget):
         self._build_tab_media(tab_media)
 
         # Tab 3: Fidelidad
-        tab_loyalty = QWidget()
-        tabs.addTab(tab_loyalty, "🎯 Fidelidad")
-        self._build_tab_loyalty(tab_loyalty)
+        self.tab_loyalty = QWidget()
+        tabs.addTab(self.tab_loyalty, "🎯 Fidelidad")
+        self._build_tab_loyalty(self.tab_loyalty)
 
         # Tab 4: FOMO / Promociones
-        tab_fomo = QWidget()
-        tabs.addTab(tab_fomo, "🔥 FOMO / Promociones")
-        self._build_tab_fomo(tab_fomo)
+        self.tab_fomo = QWidget()
+        tabs.addTab(self.tab_fomo, "🔥 FOMO / Promociones")
+        self._build_tab_fomo(self.tab_fomo)
 
         # Tab 5: Impresión ESC/POS
         tab_paper = QWidget()
@@ -140,6 +172,23 @@ class ModuloTicketDesigner(QWidget):
         self.lista_variables.addItems(self.variables_disponibles)
         self.lista_variables.itemDoubleClicked.connect(self.insertar_variable)
         lv.addWidget(self.lista_variables)
+
+        self.lst_blocks = QListWidget()
+        self.lst_blocks.setObjectName("inputField")
+        self.lst_blocks.setToolTip("Activa/desactiva bloques y usa Subir/Bajar para definir el orden ESC/POS")
+        self.lst_blocks.itemChanged.connect(self.actualizar_vista_previa)
+        lv.addWidget(QLabel("Bloques ESC/POS:"))
+        lv.addWidget(self.lst_blocks)
+        btn_block_order = QHBoxLayout()
+        btn_up = QPushButton("↑")
+        btn_down = QPushButton("↓")
+        btn_up = create_secondary_button(self, btn_up, "Subir bloque")
+        btn_down = create_secondary_button(self, btn_down, "Bajar bloque")
+        btn_up.clicked.connect(lambda: self._mover_bloque(-1))
+        btn_down.clicked.connect(lambda: self._mover_bloque(1))
+        btn_block_order.addWidget(btn_up)
+        btn_block_order.addWidget(btn_down)
+        lv.addLayout(btn_block_order)
         splitter.addWidget(grp_vars)
 
         grp_ed = QGroupBox("📝 Plantilla HTML (solo Preview/PDF avanzado)")
@@ -186,6 +235,10 @@ class ModuloTicketDesigner(QWidget):
         lbl_brand = QLabel("Usa logo de Configuración del Sistema como fuente principal.")
         lbl_brand.setObjectName("caption")
         fl.addRow("", lbl_brand)
+        self.chk_logo = QCheckBox("Mostrar logo")
+        self.chk_logo.setChecked(True)
+        self.chk_logo.stateChanged.connect(self.actualizar_vista_previa)
+        fl.addRow("", self.chk_logo)
         self.lbl_logo_preview = QLabel("Sin logo cargado")
         self.lbl_logo_preview.setFixedHeight(90)
         self.lbl_logo_preview.setFixedWidth(200)
@@ -212,6 +265,16 @@ class ModuloTicketDesigner(QWidget):
         self.cmb_logo_pos.setObjectName("inputField")
         self.cmb_logo_pos.currentIndexChanged.connect(self.actualizar_vista_previa)
         fl.addRow("Posición:", self.cmb_logo_pos)
+        self.txt_footer_message = QLineEdit()
+        self.txt_footer_message.setPlaceholderText("Mensaje final / footer")
+        self.txt_footer_message.setObjectName("inputField")
+        self.txt_footer_message.textChanged.connect(self.actualizar_vista_previa)
+        fl.addRow("Footer:", self.txt_footer_message)
+        self.txt_legal_message = QLineEdit()
+        self.txt_legal_message.setPlaceholderText("Texto legal o condiciones")
+        self.txt_legal_message.setObjectName("inputField")
+        self.txt_legal_message.textChanged.connect(self.actualizar_vista_previa)
+        fl.addRow("Legal:", self.txt_legal_message)
         lm.addWidget(grp_logo)
 
         # QR
@@ -237,7 +300,8 @@ class ModuloTicketDesigner(QWidget):
         grp_bc = QGroupBox("Código de barras")
         grp_bc.setObjectName("styledGroup")
         fb = QFormLayout(grp_bc)
-        self.chk_barcode = QCheckBox("Incluir barcode (folio)")
+        self.chk_barcode = QCheckBox("Incluir barcode (folio / número de boleto)")
+        self.chk_barcode.stateChanged.connect(self.actualizar_vista_previa)
         fb.addRow("", self.chk_barcode)
         self.cmb_barcode_type = QComboBox()
         self.cmb_barcode_type.addItems(["Code128","EAN13","QR (alternativo)"])
@@ -433,6 +497,170 @@ class ModuloTicketDesigner(QWidget):
             except: pass
         except Exception as e: logger.debug("load paper cfg: %s", e)
 
+
+    def _layout_repo(self):
+        from core.tickets.ticket_layout_repository import TicketLayoutRepository
+        return TicketLayoutRepository(db_conn=self.container.db)
+
+    def _on_layout_type_changed(self):
+        self.current_layout_type = self.cmb_layout_type.currentData() or "sale_ticket"
+        self._aplicar_bloques_por_tipo()
+        self.cargar_plantilla_actual()
+        self._cargar_layout_activo()
+        self.actualizar_vista_previa()
+
+    def _allowed_blocks_for_current_type(self):
+        from core.tickets.ticket_layout_config import DEFAULT_BLOCK_ORDER, RAFFLE_BLOCK_ORDER
+        layout_type = self.current_layout_type or "sale_ticket"
+        return list(RAFFLE_BLOCK_ORDER if layout_type == "raffle_ticket" else DEFAULT_BLOCK_ORDER)
+
+    def _set_sale_only_tabs_enabled(self, enabled: bool):
+        tabs = getattr(self, "tabs", None)
+        if not tabs:
+            return
+        for tab in (getattr(self, "tab_loyalty", None), getattr(self, "tab_fomo", None)):
+            if tab is not None:
+                idx = tabs.indexOf(tab)
+                if idx >= 0:
+                    tabs.setTabEnabled(idx, bool(enabled))
+
+    def _on_layout_type_changed(self):
+        self.current_layout_type = self.cmb_layout_type.currentData() or "sale_ticket"
+        self._aplicar_bloques_por_tipo()
+        self.cargar_plantilla_actual()
+        self._cargar_layout_activo()
+        self.actualizar_vista_previa()
+
+    def _aplicar_bloques_por_tipo(self):
+        is_raffle = self.current_layout_type == "raffle_ticket"
+        self.variables_disponibles = [
+            "{{raffle_name}}", "{{numero_boleto}}", "{{cliente_nombre}}", "{{folio_venta}}",
+            "{{premio}}", "{{fecha_sorteo}}", "{{qr_code}}", "{{barcode}}", "{{logo}}",
+            "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}", "{{footer_message}}", "{{legal_message}}",
+        ] if is_raffle else [
+            "{{folio}}", "{{fecha}}", "{{cajero}}", "{{cliente_nombre}}",
+            "{{items_html}}", "{{total}}", "{{subtotal}}", "{{descuento}}",
+            "{{forma_pago}}", "{{cambio}}", "{{puntos_ganados}}",
+            "{{puntos_totales}}", "{{mensaje_psicologico}}",
+            "{{qr_code}}", "{{barcode}}", "{{logo}}",
+            "{{nombre_empresa}}", "{{direccion}}", "{{telefono}}", "{{footer_message}}", "{{legal_message}}",
+        ]
+        if hasattr(self, "lista_variables"):
+            self.lista_variables.clear(); self.lista_variables.addItems(self.variables_disponibles)
+        self._set_sale_only_tabs_enabled(not is_raffle)
+        self._populate_block_list(self._allowed_blocks_for_current_type(), {})
+        if hasattr(self, "cmb_qr_dato"):
+            self.cmb_qr_dato.clear()
+            self.cmb_qr_dato.addItems(
+                ["Número de boleto", "Folio de venta", "URL del negocio", "WhatsApp del negocio"]
+                if is_raffle else
+                ["URL del negocio", "Folio de la venta", "Número de cliente", "WhatsApp del negocio"]
+            )
+        if hasattr(self, "txt_editor") and not self.txt_editor.toPlainText().strip():
+            self.txt_editor.setPlainText(self.obtener_html_defecto())
+
+    def _populate_block_list(self, order, enabled_by_block=None):
+        if not hasattr(self, "lst_blocks"):
+            return
+        enabled_by_block = enabled_by_block or {}
+        previous = self.lst_blocks.blockSignals(True)
+        try:
+            self.lst_blocks.clear()
+            for block_name in order:
+                item = QListWidgetItem(BLOCK_LABELS.get(block_name, block_name))
+                item.setData(Qt.UserRole, block_name)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+                item.setCheckState(Qt.Checked if enabled_by_block.get(block_name, True) else Qt.Unchecked)
+                self.lst_blocks.addItem(item)
+        finally:
+            self.lst_blocks.blockSignals(previous)
+
+    def _block_list_state(self):
+        order = []
+        enabled = {}
+        if not hasattr(self, "lst_blocks") or self.lst_blocks.count() == 0:
+            for name in self._allowed_blocks_for_current_type():
+                order.append(name); enabled[name] = True
+            return order, enabled
+        for row in range(self.lst_blocks.count()):
+            item = self.lst_blocks.item(row)
+            name = item.data(Qt.UserRole)
+            if not name:
+                continue
+            order.append(str(name))
+            enabled[str(name)] = item.checkState() == Qt.Checked
+        return order, enabled
+
+    def _mover_bloque(self, delta: int):
+        if not hasattr(self, "lst_blocks"):
+            return
+        row = self.lst_blocks.currentRow()
+        new_row = row + int(delta)
+        if row < 0 or new_row < 0 or new_row >= self.lst_blocks.count():
+            return
+        item = self.lst_blocks.takeItem(row)
+        self.lst_blocks.insertItem(new_row, item)
+        self.lst_blocks.setCurrentRow(new_row)
+        self.actualizar_vista_previa()
+
+    def _cargar_layout_activo(self):
+        try:
+            cfg = self._layout_repo().load(layout_type=self.current_layout_type)
+            self.spin_paper_w.setValue(int(cfg.paper_width_mm or 80))
+            self.spin_logo_w.setValue(int(float(cfg.logo_size)) if str(cfg.logo_size).replace('.', '', 1).isdigit() else self.spin_logo_w.value())
+            pos = {"center": "Centrado", "left": "Izquierda", "right": "Derecha"}.get(str(cfg.logo_alignment), "Centrado")
+            idx = self.cmb_logo_pos.findText(pos)
+            if idx >= 0: self.cmb_logo_pos.setCurrentIndex(idx)
+            self.chk_logo.setChecked(bool(cfg.show_logo and cfg.blocks.get("logo", None).enabled if cfg.blocks.get("logo") else cfg.show_logo))
+            self.chk_qr.setChecked(bool(cfg.show_qr and cfg.blocks.get("qr", None).enabled if cfg.blocks.get("qr") else cfg.show_qr))
+            self.chk_barcode.setChecked(bool(cfg.show_barcode and cfg.blocks.get("barcode", None).enabled if cfg.blocks.get("barcode") else cfg.show_barcode))
+            self.txt_footer_message.setText(str(getattr(cfg, "footer_message", "") or ""))
+            self.txt_legal_message.setText(str(getattr(cfg, "legal_message", "") or ""))
+            allowed = self._allowed_blocks_for_current_type()
+            ordered = [name for name in list(cfg.block_order or allowed) if name in allowed]
+            ordered += [name for name in allowed if name not in ordered]
+            enabled = {name: bool(cfg.blocks.get(name).enabled) for name in cfg.blocks if name in allowed}
+            self._populate_block_list(ordered, enabled)
+        except Exception as e:
+            logger.debug("load active layout: %s", e)
+
+    def _layout_config_from_controls(self):
+        from core.tickets.ticket_layout_config import TicketLayoutConfig, TicketLayoutBlock, DEFAULT_BLOCK_ORDER, RAFFLE_BLOCK_ORDER
+        layout_type = self.current_layout_type or "sale_ticket"
+        # Keep this expression explicit: raffle_ticket uses only RAFFLE_BLOCK_ORDER; sale_ticket uses DEFAULT_BLOCK_ORDER.
+        default_order = list(RAFFLE_BLOCK_ORDER if layout_type == "raffle_ticket" else DEFAULT_BLOCK_ORDER)
+        order, enabled = self._block_list_state()
+        order = [name for name in order if name in default_order]
+        order += [name for name in default_order if name not in order]
+        cfg = TicketLayoutConfig.for_layout_type(layout_type) if layout_type == "raffle_ticket" else TicketLayoutConfig()
+        cfg.paper_width_mm = int(self.spin_paper_w.value())
+        cfg.logo_size = str(self.spin_logo_w.value())
+        cfg.logo_alignment = {"Centrado": "center", "Izquierda": "left", "Derecha": "right"}.get(self.cmb_logo_pos.currentText(), "center")
+        cfg.show_logo = bool(self.chk_logo.isChecked()) and bool(enabled.get("logo", True))
+        cfg.show_qr = bool(self.chk_qr.isChecked()) and bool(enabled.get("qr", True))
+        cfg.show_barcode = bool(self.chk_barcode.isChecked()) and bool(enabled.get("barcode", True))
+        cfg.show_customer = bool(enabled.get("customer", True))
+        cfg.footer_message = self.txt_footer_message.text().strip()
+        cfg.legal_message = self.txt_legal_message.text().strip()
+        cfg.block_order = order
+        cfg.blocks = {name: TicketLayoutBlock(enabled=bool(enabled.get(name, True)), order=i) for i, name in enumerate(order)}
+        for name, flag in (("logo", cfg.show_logo), ("qr", cfg.show_qr), ("barcode", cfg.show_barcode), ("customer", cfg.show_customer)):
+            if name in cfg.blocks:
+                cfg.blocks[name].enabled = bool(flag)
+        if layout_type == "sale_ticket":
+            cfg.show_loyalty = bool(enabled.get("loyalty", True)); cfg.show_fomo = bool(enabled.get("fomo", True))
+        else:
+            cfg.show_loyalty = False; cfg.show_fomo = False
+        return cfg
+
+    def _guardar_layout_activo(self):
+        try:
+            layout_type = self.current_layout_type or "sale_ticket"
+            cfg = self._layout_config_from_controls()
+            self._layout_repo().save(cfg, layout_type=layout_type)
+        except Exception as e:
+            logger.warning("save active layout: %s", e)
+
     # ══════════════════════════════════════════════════════════════════════
     #  Guardar
     # ══════════════════════════════════════════════════════════════════════
@@ -440,24 +668,26 @@ class ModuloTicketDesigner(QWidget):
     def _guardar_todo(self):
         try:
             db = self.container.db
-            self.container.config_service.set('ticket_template_html', self.txt_editor.toPlainText())
+            self.container.config_service.set(self._template_config_key(), self.txt_editor.toPlainText())
             u = lambda k, v: db.execute(
                 "INSERT INTO configuraciones(clave,valor) VALUES(?,?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (k, v))
             u('ticket_logo_b64', self._logo_b64)
-            u('ticket_logo_width', str(self.spin_logo_w.value()))
-            u('ticket_logo_pos', self.cmb_logo_pos.currentText())
-            u('ticket_qr_enabled', '1' if self.chk_qr.isChecked() else '0')
-            u('ticket_qr_dato', self.cmb_qr_dato.currentText())
-            u('ticket_qr_url', self.txt_qr_url.text().strip())
-            u('ticket_qr_size', str(self.spin_qr_size.value()))
-            u('ticket_bc_enabled', '1' if self.chk_barcode.isChecked() else '0')
-            u('ticket_bc_type', self.cmb_barcode_type.currentText())
-            u('ticket_paper_width', str(self.spin_paper_w.value()))
-            u('ticket_paper_height', str(self.spin_paper_h.value()))
-            u('ticket_font_family', self.cmb_font_family.currentText())
-            u('ticket_font_size', str(self.spin_font_base.value()))
-            u('ticket_margin_top', str(self.spin_margin_top.value()))
-            u('ticket_margin_side', str(self.spin_margin_side.value()))
+            if self.current_layout_type == "sale_ticket":
+                u('ticket_logo_width', str(self.spin_logo_w.value()))
+                u('ticket_logo_pos', self.cmb_logo_pos.currentText())
+                u('ticket_qr_enabled', '1' if self.chk_qr.isChecked() else '0')
+                u('ticket_qr_dato', self.cmb_qr_dato.currentText())
+                u('ticket_qr_url', self.txt_qr_url.text().strip())
+                u('ticket_qr_size', str(self.spin_qr_size.value()))
+                u('ticket_bc_enabled', '1' if self.chk_barcode.isChecked() else '0')
+                u('ticket_bc_type', self.cmb_barcode_type.currentText())
+                u('ticket_paper_width', str(self.spin_paper_w.value()))
+                u('ticket_paper_height', str(self.spin_paper_h.value()))
+                u('ticket_font_family', self.cmb_font_family.currentText())
+                u('ticket_font_size', str(self.spin_font_base.value()))
+                u('ticket_margin_top', str(self.spin_margin_top.value()))
+                u('ticket_margin_side', str(self.spin_margin_side.value()))
+            self._guardar_layout_activo()
             try: db.commit()
             except: pass
             QMessageBox.information(self, "✅ Guardado", "Plantilla, medios y papel guardados.")
@@ -472,15 +702,19 @@ class ModuloTicketDesigner(QWidget):
         self.txt_editor.insertPlainText(item.text())
         self.txt_editor.setFocus()
 
+    def _template_config_key(self):
+        return "raffle_ticket_template_html" if self.current_layout_type == "raffle_ticket" else "ticket_template_html"
+
     def cargar_plantilla_actual(self):
-        try: plantilla = self.container.config_service.get('ticket_template_html', self.obtener_html_defecto())
+        key = self._template_config_key()
+        try: plantilla = self.container.config_service.get(key, self.obtener_html_defecto())
         except: plantilla = self.obtener_html_defecto()
-        self.txt_editor.setPlainText(plantilla)
+        self.txt_editor.setPlainText(plantilla or self.obtener_html_defecto())
         self.actualizar_vista_previa()
 
     def guardar_plantilla(self):
         try:
-            self.container.config_service.set('ticket_template_html', self.txt_editor.toPlainText())
+            self.container.config_service.set(self._template_config_key(), self.txt_editor.toPlainText())
             QMessageBox.information(self, "✅", "Plantilla guardada.")
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
@@ -491,7 +725,7 @@ class ModuloTicketDesigner(QWidget):
         logo_pos = self.cmb_logo_pos.currentText() if hasattr(self, 'cmb_logo_pos') else "Centrado"
         align = {"Centrado":"center","Izquierda":"left","Derecha":"right"}.get(logo_pos,"center")
         logo_w = self.spin_logo_w.value() if hasattr(self, 'spin_logo_w') else 150
-        if self._logo_b64:
+        if self._logo_b64 and (not hasattr(self, 'chk_logo') or self.chk_logo.isChecked()):
             logo_html = f'<div style="text-align:{align};"><img src="{self._logo_b64}" width="{logo_w}px"></div>'
         else:
             logo_html = '<div style="text-align:center;color:#aaa;font-size:10px;border:1px dashed #ccc;padding:10px;">[Logo — cargar en pestaña Medios]</div>'
@@ -501,7 +735,7 @@ class ModuloTicketDesigner(QWidget):
         if hasattr(self, 'chk_qr') and self.chk_qr.isChecked():
             qr_url = self.txt_qr_url.text().strip() if hasattr(self,'txt_qr_url') else ''
             qr_size = self.spin_qr_size.value() if hasattr(self,'spin_qr_size') else 100
-            qr_content = qr_url or 'V-99998'
+            qr_content = qr_url or ('1-99998-1' if self.current_layout_type == 'raffle_ticket' else 'V-99998')
             qr_dato = self.cmb_qr_dato.currentText() if hasattr(self,'cmb_qr_dato') else ''
             try:
                 import io as _io, qrcode as _qrc
@@ -518,7 +752,8 @@ class ModuloTicketDesigner(QWidget):
         barcode_html = ''
         if hasattr(self, 'chk_barcode') and self.chk_barcode.isChecked():
             bc = self.cmb_barcode_type.currentText() if hasattr(self,'cmb_barcode_type') else 'Code128'
-            barcode_html = f'<div style="text-align:center;background:#f5f5f5;padding:4px;font-family:monospace;font-size:9px;">||||||||||||| V-99998 |||||||||||||<br><small>{bc}</small></div>'
+            bc_value = '1-99998-1' if self.current_layout_type == 'raffle_ticket' else 'V-99998'
+            barcode_html = f'<div style="text-align:center;background:#f5f5f5;padding:4px;font-family:monospace;font-size:9px;">||||||||||||| {bc_value} |||||||||||||<br><small>{bc}</small></div>'
 
         font_fam = self.cmb_font_family.currentText() if hasattr(self,'cmb_font_family') else 'Courier New'
         font_sz = self.spin_font_base.value() if hasattr(self,'spin_font_base') else 12
@@ -530,6 +765,10 @@ class ModuloTicketDesigner(QWidget):
             'descuento':'$0.00','forma_pago':'Efectivo','cambio':'$49.50',
             'puntos_ganados':'25','puntos_totales':'125',
             'mensaje_psicologico':'⭐ ¡Gracias por tu compra!',
+            'raffle_name':'Sorteo Navidad SPJ','numero_boleto':'1-99998-1',
+            'folio_venta':'V-99998','premio':'Cena familiar','fecha_sorteo':'2026-12-24',
+            'footer_message': self.txt_footer_message.text().strip() if hasattr(self, 'txt_footer_message') else '',
+            'legal_message': self.txt_legal_message.text().strip() if hasattr(self, 'txt_legal_message') else '',
             'logo':logo_html,'qr_code':qr_html,'barcode':barcode_html,
             'nombre_empresa':'SPJ POS','direccion':'Calle 1 #123',
             'telefono':'+52 614 123 4567',
@@ -537,6 +776,8 @@ class ModuloTicketDesigner(QWidget):
                          '<tr><td>Pierna</td><td>2.0kg</td><td>$120.00</td></tr>',
         }
         try:
+            if self.current_layout_type == "raffle_ticket":
+                raise RuntimeError("preview directo de boleto de sorteo")
             html = self.container.ticket_template_engine.generar_ticket(
                 plantilla, {'folio':dummy['folio'],'cajero':dummy['cajero'],
                     'fecha':dummy['fecha'],'cliente':'Juan Pérez',
@@ -554,23 +795,42 @@ class ModuloTicketDesigner(QWidget):
 
     def _actualizar_preview_escpos(self, dummy: dict):
         try:
-            from core.ticket_escpos_renderer import TicketESCPOSRenderer
-            payload = {
-                "empresa": dummy.get("nombre_empresa", "SPJ POS"),
-                "direccion": dummy.get("direccion", ""),
-                "telefono": dummy.get("telefono", ""),
-                "folio": dummy.get("folio", "V-99998"),
-                "fecha": dummy.get("fecha", ""),
-                "cajero": dummy.get("cajero", ""),
-                "cliente": dummy.get("cliente_nombre", ""),
-                "items": [
-                    {"nombre": "Pechuga", "cantidad": 1.5, "total": 150},
-                    {"nombre": "Pierna", "cantidad": 2.0, "total": 120},
-                ],
-                "totales": {"total_final": 250.50},
-                "layout_config": {"paper_width_mm": self.spin_paper_w.value()},
-            }
-            txt = TicketESCPOSRenderer(paper_width_mm=self.spin_paper_w.value()).render_text_preview(payload)
+            layout_cfg = self._layout_config_from_controls() if hasattr(self, "lst_blocks") else None
+            if self.current_layout_type == "raffle_ticket":
+                from core.tickets.raffle_ticket_renderer import RaffleTicketESCPOSRenderer
+                payload = {
+                    "empresa": dummy.get("nombre_empresa", "SPJ POS"),
+                    "direccion": dummy.get("direccion", ""),
+                    "telefono": dummy.get("telefono", ""),
+                    "raffle_name": dummy.get("raffle_name", "Sorteo"),
+                    "numero_boleto": dummy.get("numero_boleto", "1-99998-1"),
+                    "cliente": dummy.get("cliente_nombre", ""),
+                    "folio_venta": dummy.get("folio_venta", "V-99998"),
+                    "premio": dummy.get("premio", ""),
+                    "fecha_sorteo": dummy.get("fecha_sorteo", ""),
+                    "footer_message": dummy.get("footer_message", ""),
+                    "legal_message": dummy.get("legal_message", ""),
+                    "layout_config": layout_cfg.to_dict() if layout_cfg else {"paper_width_mm": self.spin_paper_w.value()},
+                }
+                txt = RaffleTicketESCPOSRenderer(paper_width_mm=self.spin_paper_w.value()).render_text_preview(payload, layout_cfg)
+            else:
+                from core.ticket_escpos_renderer import TicketESCPOSRenderer
+                payload = {
+                    "empresa": dummy.get("nombre_empresa", "SPJ POS"),
+                    "direccion": dummy.get("direccion", ""),
+                    "telefono": dummy.get("telefono", ""),
+                    "folio": dummy.get("folio", "V-99998"),
+                    "fecha": dummy.get("fecha", ""),
+                    "cajero": dummy.get("cajero", ""),
+                    "cliente": dummy.get("cliente_nombre", ""),
+                    "items": [
+                        {"nombre": "Pechuga", "cantidad": 1.5, "total": 150},
+                        {"nombre": "Pierna", "cantidad": 2.0, "total": 120},
+                    ],
+                    "totales": {"total_final": 250.50},
+                    "layout_config": layout_cfg.to_dict() if layout_cfg else {"paper_width_mm": self.spin_paper_w.value()},
+                }
+                txt = TicketESCPOSRenderer(paper_width_mm=self.spin_paper_w.value()).render_text_preview(payload)
             self.txt_preview_escpos.setPlainText(txt)
         except Exception as e:
             self.txt_preview_escpos.setPlainText(f"[preview escpos no disponible] {e}")
@@ -587,6 +847,21 @@ class ModuloTicketDesigner(QWidget):
             self.txt_editor.setPlainText(self.obtener_html_defecto())
 
     def obtener_html_defecto(self):
+        if self.current_layout_type == "raffle_ticket":
+            return """<div style="text-align:center;max-width:300px;margin:auto;">
+{{logo}}
+<h2 style="margin:4px 0;">{{nombre_empresa}}</h2>
+<p style="font-size:10px;margin:2px 0;">{{direccion}}<br>Tel: {{telefono}}</p>
+<hr style="border:none;border-top:1px dashed #000;">
+<h2>{{raffle_name}}</h2>
+<p style="font-size:18px;"><b>{{numero_boleto}}</b></p>
+<p>Cliente: {{cliente_nombre}}<br>Venta: {{folio_venta}}</p>
+<p>Premio: {{premio}}<br>Sorteo: {{fecha_sorteo}}</p>
+{{qr_code}}
+{{barcode}}
+<p style="font-size:10px;">{{footer_message}}</p>
+<p style="font-size:9px;">{{legal_message}}</p>
+</div>"""
         return """<div style="text-align:center;max-width:300px;margin:auto;">
 {{logo}}
 <h2 style="margin:4px 0;">{{nombre_empresa}}</h2>
@@ -625,19 +900,35 @@ Puntos: +{{puntos_ganados}} | Total: {{puntos_totales}}</p>
                 QMessageBox.warning(self, "Aviso", "No hay impresora térmica ESC/POS configurada.")
                 return
 
-            sample_ticket = {
-                "folio": "TST-ESC-POS",
-                "fecha": "2026-01-01 12:00:00",
-                "cajero": "Diseñador",
-                "cliente": "Cliente muestra",
-                "items": [
-                    {"nombre": "Producto Demo", "cantidad": 1, "precio_unitario": 100, "total": 100},
-                ],
-                "totales": {"subtotal": 100, "descuento": 0, "total_final": 100},
-                "forma_pago": "Prueba",
-                "plantilla": "ticket_designer_sample",
-            }
-            printer_svc.print_ticket(sample_ticket)
+            if self.current_layout_type == "raffle_ticket":
+                sample_ticket = {
+                    "ticket_type": "raffle_ticket",
+                    "raffle_name": "Sorteo Navidad SPJ",
+                    "numero_boleto": "1-99998-1",
+                    "cliente": "Cliente muestra",
+                    "folio_venta": "TST-ESC-POS",
+                    "premio": "Cena familiar",
+                    "fecha_sorteo": "2026-12-24",
+                    "qr_content": "RAFFLE:1|SALE:TST-ESC-POS|TICKET:1-99998-1",
+                    "barcode": "1-99998-1",
+                    "layout_config": self._layout_config_from_controls().to_dict(),
+                }
+                printer_svc.print_raffle_ticket(sample_ticket)
+            else:
+                sample_ticket = {
+                    "folio": "TST-ESC-POS",
+                    "fecha": "2026-01-01 12:00:00",
+                    "cajero": "Diseñador",
+                    "cliente": "Cliente muestra",
+                    "items": [
+                        {"nombre": "Producto Demo", "cantidad": 1, "precio_unitario": 100, "total": 100},
+                    ],
+                    "totales": {"subtotal": 100, "descuento": 0, "total_final": 100},
+                    "forma_pago": "Prueba",
+                    "plantilla": "ticket_designer_sample",
+                    "layout_config": self._layout_config_from_controls().to_dict(),
+                }
+                printer_svc.print_ticket(sample_ticket)
             QMessageBox.information(self, "✅ Impreso", "Muestra enviada a impresora térmica ESC/POS.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))

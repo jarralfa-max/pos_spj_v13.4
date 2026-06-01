@@ -1,8 +1,11 @@
 from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
 def _read(rel):
-    return Path(rel).read_text(encoding='utf-8')
+    return (ROOT / rel).read_text(encoding='utf-8')
 
 
 def test_print_sample_calls_printer_service_not_qprinter():
@@ -10,6 +13,7 @@ def test_print_sample_calls_printer_service_not_qprinter():
     start = src.index('def _imprimir_muestra')
     fn = src[start:]
     assert 'printer_svc.print_ticket(' in fn
+    assert 'printer_svc.print_raffle_ticket(' in fn
     assert 'QPrinter' not in fn
 
 
@@ -30,3 +34,10 @@ def test_ui_warns_html_is_preview_only_and_has_escpos_preview():
 def test_branding_message_uses_system_config_source():
     src = _read('modulos/ticket_designer.py')
     assert 'Usa logo de Configuración del Sistema como fuente principal.' in src
+
+
+def test_raffle_layout_disables_sale_only_tabs_and_uses_raffle_preview_renderer():
+    src = _read('modulos/ticket_designer.py')
+    assert '_set_sale_only_tabs_enabled(not is_raffle)' in src
+    assert 'RaffleTicketESCPOSRenderer' in src
+    assert 'Número de boleto' in src

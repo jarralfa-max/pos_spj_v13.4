@@ -613,16 +613,20 @@ class LoyaltyRepository:
         folio_venta: str,
         monto_base: float,
         sucursal_id: int,
+        ticket_count: int | None = None,
     ) -> List[str]:
         raffle = self.get_raffle_by_id(raffle_id)
         if not raffle:
             raise ValueError("rifa inexistente")
-        ticket_amount = float(raffle.get("monto_por_boleto") or 0)
-        if ticket_amount <= 0:
-            raise ValueError("monto_por_boleto inválido")
-        tickets_count = max(1, int(float(monto_base or 0) / ticket_amount))
-        max_per_customer = int(raffle.get("max_boletos_por_cliente") or tickets_count)
-        tickets_count = min(tickets_count, max(1, max_per_customer))
+        if ticket_count is None:
+            ticket_amount = float(raffle.get("monto_por_boleto") or 0)
+            if ticket_amount <= 0:
+                raise ValueError("monto_por_boleto inválido")
+            tickets_count = max(1, int(float(monto_base or 0) / ticket_amount))
+            max_per_customer = int(raffle.get("max_boletos_por_cliente") or tickets_count)
+            tickets_count = min(tickets_count, max(1, max_per_customer))
+        else:
+            tickets_count = max(0, int(ticket_count or 0))
 
         created: List[str] = []
         for i in range(tickets_count):
@@ -650,6 +654,21 @@ class LoyaltyRepository:
                 continue
         return created
 
+    def get_tickets_for_sale(self, raffle_id: int, venta_id: int) -> List[Dict[str, Any]]:
+        self.ensure_raffle_tables()
+        rows = self.db.execute(
+            """
+            SELECT *
+              FROM raffle_tickets
+             WHERE raffle_id=?
+               AND venta_id=?
+               AND (estado IS NULL OR estado<>'cancelado')
+             ORDER BY id ASC
+            """,
+            (int(raffle_id), int(venta_id)),
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
     def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
         cur = self.db.execute(
             """
@@ -657,7 +676,7 @@ class LoyaltyRepository:
                SET estado='cancelado',
                    cancel_reason=?,
                    cancelled_at=datetime('now')
-             WHERE venta_id=? AND estado<>'cancelado'
+             WHERE venta_id=? AND (estado IS NULL OR estado<>'cancelado')
             """,
             (str(reason or "cancelación de venta"), int(venta_id)),
         )
@@ -671,12 +690,20 @@ class LoyaltyRepository:
               FROM raffles
              WHERE estado='activa'
                AND COALESCE(financial_status,'')='reservada'
-               AND sucursal_id=?
+               AND (
+                    sucursal_id=?
+                    OR EXISTS (
+                        SELECT 1
+                          FROM raffle_eligible_branches reb
+                         WHERE reb.raffle_id = raffles.id
+                           AND reb.sucursal_id = ?
+                    )
+               )
                AND (fecha_inicio IS NULL OR fecha_inicio<=?)
                AND (fecha_fin IS NULL OR fecha_fin>=?)
              ORDER BY created_at DESC
             """,
-            (int(sucursal_id), str(sale_datetime), str(sale_datetime)),
+            (int(sucursal_id), int(sucursal_id), str(sale_datetime), str(sale_datetime)),
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 

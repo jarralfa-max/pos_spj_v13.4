@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
+import os
 import re
 import struct
 from typing import Any, Dict, List, Optional
@@ -82,10 +84,6 @@ class TicketESCPOSRenderer:
         return sorted(ordered, key=_order)
 
     def _block_enabled(self, layout: TicketLayoutConfig, block_name: str) -> bool:
-        blocks = getattr(layout, "blocks", {}) or {}
-        blk = blocks.get(block_name)
-        if blk is not None and hasattr(blk, "enabled"):
-            return bool(blk.enabled)
         flag_map = {
             "logo": "show_logo",
             "brand_header": "show_brand_name",
@@ -96,7 +94,13 @@ class TicketESCPOSRenderer:
             "barcode": "show_barcode",
         }
         attr = flag_map.get(block_name)
-        return bool(getattr(layout, attr, True)) if attr else True
+        if attr and not bool(getattr(layout, attr, True)):
+            return False
+        blocks = getattr(layout, "blocks", {}) or {}
+        blk = blocks.get(block_name)
+        if blk is not None and hasattr(blk, "enabled"):
+            return bool(blk.enabled)
+        return True
 
     def _render_block(self, block_name: str, ticket_data: Dict[str, Any], layout: TicketLayoutConfig,
                       width: int, logo_b64: str, qr_content: str) -> bytes:
@@ -147,7 +151,11 @@ class TicketESCPOSRenderer:
     def _logo_bytes(self, layout: TicketLayoutConfig, logo_b64: str) -> bytes:
         if not (getattr(layout, "show_logo", True) and logo_b64):
             return b""
-        logo_bytes = self._render_logo(logo_b64, getattr(layout, "logo_size", "md"))
+        logo_bytes = self._render_logo(
+            logo_b64,
+            getattr(layout, "logo_size", "md"),
+            debug_logo=getattr(layout, "ticket_debug_logo", False),
+        )
         if not logo_bytes:
             return b""
         return self._align_cmd(getattr(layout, "logo_alignment", "center")) + logo_bytes + self._linebreak() + INIT
@@ -304,8 +312,15 @@ class TicketESCPOSRenderer:
             return b""
         return ALIGN_CENTER + qr_bytes + self._linebreak() + INIT
 
+    def _barcode_value(self, ticket_data: Dict[str, Any]) -> str:
+        for key in ("barcode", "codigo_barras", "codigo", "folio"):
+            value = str(ticket_data.get(key) or "").strip()
+            if value:
+                return value
+        return ""
+
     def _barcode_bytes(self, ticket_data: Dict[str, Any], width: int) -> bytes:
-        value = str(ticket_data.get("barcode") or ticket_data.get("codigo_barras") or ticket_data.get("folio") or "").strip()
+        value = self._barcode_value(ticket_data)
         if not value:
             return b""
         img_bytes = self._render_code39_as_image(value)
@@ -385,52 +400,109 @@ class TicketESCPOSRenderer:
         lines.append(self._sanitize_text(ticket_data.get("mensaje_psicologico", "¡Gracias por su compra!")).center(width)[:width])
         return "\n".join(lines)
 
-    def _render_logo(self, logo_b64: str, logo_size: str = "md") -> Optional[bytes]:
+    def _logo_debug_enabled(self, debug_logo: Any = None) -> bool:
+        explicit = str(debug_logo).strip().lower() in {"1", "true", "si", "sí", "yes", "on"}
+        env_enabled = str(os.environ.get("ticket_debug_logo", os.environ.get("TICKET_DEBUG_LOGO", ""))).strip() == "1"
+        return explicit or env_enabled
+
+    def _logo_target_size(self, logo_size: str) -> tuple[int, int]:
+        size_key = str(logo_size or "md").lower()
+        try:
+            numeric_width = int(float(size_key))
+        except Exception:
+            numeric_width = None
+        if numeric_width:
+            return max(80, min(384 if self.paper_width <= 58 else 512, numeric_width)), 180 if self.paper_width <= 58 else 240
+        size_map_58 = {"sm": (192, 80), "md": (320, 140), "lg": (384, 180), "xl": (384, 220)}
+        size_map_80 = {"sm": (240, 100), "md": (384, 160), "lg": (512, 240), "xl": (512, 280)}
+        return (size_map_58 if self.paper_width <= 58 else size_map_80).get(
+            size_key,
+            (320, 140) if self.paper_width <= 58 else (384, 160),
+        )
+
+    def _decode_logo_b64(self, logo_b64: str) -> bytes:
+        raw_logo_b64 = str(logo_b64 or "").strip()
+        if "," in raw_logo_b64:
+            raw_logo_b64 = raw_logo_b64.split(",", 1)[1]
+        raw_logo_b64 = "".join(raw_logo_b64.split())
+        return base64.b64decode(raw_logo_b64, validate=False)
+
+    def _compose_logo_on_white(self, input_img):
+        from PIL import Image
+
+        original_mode = input_img.mode
+        has_alpha = original_mode in ("RGBA", "LA") or (original_mode == "P" and "transparency" in input_img.info)
+        if not has_alpha:
+            return input_img.convert("L"), None
+
+        rgba = input_img.convert("RGBA")
+        alpha = rgba.getchannel("A")
+        white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        composed = Image.alpha_composite(white, rgba).convert("L")
+        # Fully/mostly transparent pixels must be pure white before thresholding; otherwise
+        # transparent PNG backgrounds become dark thermal speckles on some printers.
+        transparent_mask = alpha.point(lambda a: 255 if a <= 32 else 0)
+        composed.paste(255, mask=transparent_mask)
+        return composed, alpha
+
+    def _resize_and_pad_logo(self, img, logo_size: str):
+        from PIL import Image
+
+        max_dots_w, max_dots_h = self._logo_target_size(logo_size)
+        ratio = min(max_dots_w / max(1, img.width), max_dots_h / max(1, img.height), 1.0)
+        if ratio < 1.0:
+            resampling = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.BICUBIC)
+            img = img.resize((max(1, int(img.width * ratio)), max(1, int(img.height * ratio))), resampling)
+        if img.width % 8 != 0:
+            new_w = img.width + (8 - img.width % 8)
+            new_img = Image.new("L", (new_w, img.height), 255)
+            new_img.paste(img, (0, 0))
+            img = new_img
+        return img
+
+    def _dump_logo_diagnostics(self, input_img, processed, *, logo_size: str, original_mode: str, had_alpha: bool, threshold: int) -> None:
+        os.makedirs("logs", exist_ok=True)
+        try:
+            input_img.save("logs/ticket_logo_input.png")
+            processed.convert("L").save("logs/ticket_logo_processed.png")
+            with open("logs/ticket_logo_info.json", "w", encoding="utf-8") as fh:
+                json.dump(
+                    {
+                        "mode": original_mode,
+                        "size": list(input_img.size),
+                        "processed_size": list(processed.size),
+                        "logo_size": logo_size,
+                        "had_alpha": had_alpha,
+                        "threshold": threshold,
+                    },
+                    fh,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+        except Exception as diag_exc:
+            logger.debug("No se pudo guardar diagnóstico de logo: %s", diag_exc)
+
+    def _render_logo(self, logo_b64: str, logo_size: str = "md", debug_logo: Any = None) -> Optional[bytes]:
         try:
             from PIL import Image
-            if "," in logo_b64:
-                logo_b64 = logo_b64.split(",", 1)[1]
-            img_bytes = base64.b64decode(logo_b64)
-            img = Image.open(io.BytesIO(img_bytes))
-            alpha = None
-            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
-                rgba = img.convert("RGBA")
-                alpha = rgba.getchannel("A")
-                bg = Image.new("RGBA", rgba.size, "WHITE")
-                bg.alpha_composite(rgba)
-                img = bg.convert("RGB")
-            else:
-                img = img.convert("RGB")
-            img = img.convert("L")
-            if alpha is not None:
-                transparent_mask = alpha.point(lambda a: 255 if a < 245 else 0)
-                img.paste(255, mask=transparent_mask)
-            size_key = str(logo_size or "md").lower()
-            numeric_width = None
-            try:
-                numeric_width = int(float(size_key))
-            except Exception:
-                numeric_width = None
-            if numeric_width:
-                max_dots_w = max(80, min(384 if self.paper_width <= 58 else 512, numeric_width))
-                max_dots_h = 180 if self.paper_width <= 58 else 240
-            else:
-                size_map_58 = {"sm": (192, 80), "md": (320, 140), "lg": (384, 180), "xl": (384, 220)}
-                size_map_80 = {"sm": (240, 100), "md": (384, 160), "lg": (512, 240), "xl": (512, 280)}
-                max_dots_w, max_dots_h = (size_map_58 if self.paper_width <= 58 else size_map_80).get(
-                    size_key,
-                    (320, 140) if self.paper_width <= 58 else (384, 160),
+            img_bytes = self._decode_logo_b64(logo_b64)
+            input_img = Image.open(io.BytesIO(img_bytes))
+            input_img.load()
+            original_mode = input_img.mode
+            img, alpha = self._compose_logo_on_white(input_img)
+            img = self._resize_and_pad_logo(img, logo_size)
+            threshold = 150
+            processed = img.point(lambda x: 0 if x < threshold else 255, "1")
+            if self._logo_debug_enabled(debug_logo):
+                self._dump_logo_diagnostics(
+                    input_img,
+                    processed,
+                    logo_size=logo_size,
+                    original_mode=original_mode,
+                    had_alpha=alpha is not None,
+                    threshold=threshold,
                 )
-            ratio = min(max_dots_w / max(1, img.width), max_dots_h / max(1, img.height), 1.0)
-            if ratio < 1.0:
-                img = img.resize((max(1, int(img.width * ratio)), max(1, int(img.height * ratio))))
-            if img.width % 8 != 0:
-                new_w = img.width + (8 - img.width % 8)
-                new_img = Image.new("L", (new_w, img.height), 255)
-                new_img.paste(img, (0, 0))
-                img = new_img
-            img = img.point(lambda x: 0 if x < 150 else 255, "1")
-            return self._image_to_escpos_raster(img)
+            return self._image_to_escpos_raster(processed)
         except ImportError:
             logger.warning("Pillow no instalado — logo no se imprimirá. Instalar: pip install Pillow")
             return None

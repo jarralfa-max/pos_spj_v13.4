@@ -839,11 +839,18 @@ class LoyaltyService:
         folio_venta: str,
         monto_base: float,
         sucursal_id: int,
+        ticket_count: int | None = None,
     ) -> list[str]:
         raffle = self._app.repo.get_raffle_by_id(raffle_id)
         self.validate_ticket_generation(raffle, {"venta_id": venta_id})
         tickets = self._app.repo.generate_tickets_for_sale(
-            raffle_id, venta_id, cliente_id, folio_venta, monto_base, sucursal_id
+            raffle_id,
+            venta_id,
+            cliente_id,
+            folio_venta,
+            monto_base,
+            sucursal_id,
+            ticket_count=ticket_count,
         )
         if tickets and self._bus:
             for ticket in tickets:
@@ -859,6 +866,45 @@ class LoyaltyService:
                     async_=True,
                 )
         return tickets
+
+    def _normalize_raffle_payment_method(self, payment_method: Any) -> str:
+        try:
+            from core.services.payment_normalization import normalize_payment_method
+            return str(normalize_payment_method(str(payment_method or "")) or "").strip().lower()
+        except Exception:
+            return str(payment_method or "").strip().lower()
+
+    def _table_columns(self, table: str) -> set[str]:
+        try:
+            return {str(r[1] if isinstance(r, tuple) else r["name"]) for r in self.db.execute(f"PRAGMA table_info({table})").fetchall()}
+        except Exception:
+            return set()
+
+    def _eligible_ids(self, table: str, column: str, raffle_id: int) -> set[int]:
+        if column not in self._table_columns(table):
+            return set()
+        try:
+            rows = self.db.execute(f"SELECT {column} FROM {table} WHERE raffle_id=?", (int(raffle_id),)).fetchall()
+            return {int((r[0] if isinstance(r, tuple) else r[column]) or 0) for r in rows}
+        except Exception as exc:
+            logger.debug("No se pudieron leer elegibles de rifa tabla=%s columna=%s: %s", table, column, exc)
+            return set()
+
+    @staticmethod
+    def _sale_has_discount(sale_context: Dict[str, Any]) -> bool:
+        for key in ("discount", "descuento", "descuento_total", "loyalty_discount"):
+            try:
+                if float(sale_context.get(key) or 0) > 0:
+                    return True
+            except Exception:
+                pass
+        for it in sale_context.get("items") or []:
+            try:
+                if float(it.get("descuento") or it.get("discount") or it.get("descuento_pct") or 0) > 0:
+                    return True
+            except Exception:
+                continue
+        return False
 
     def evaluate_raffle_sale_eligibility(self, raffle_id: int, sale_context: Dict[str, Any]) -> Dict[str, Any]:
         raffle = self._app.repo.get_raffle_by_id(raffle_id)
@@ -876,10 +922,21 @@ class LoyaltyService:
             return {"eligible": False, "reason": "registered_required"}
         if float(sale_context.get("total") or 0) < float(rules.get("min_sale_amount") or 0):
             return {"eligible": False, "reason": "min_sale"}
-        if int(sale_context.get("sucursal_id") or 0) != int(raffle.get("sucursal_id") or 0):
+        if int(rules.get("include_discounted_sales") if rules.get("include_discounted_sales") is not None else 1) == 0 and self._sale_has_discount(sale_context):
+            return {"eligible": False, "reason": "discounted_sale_not_allowed"}
+
+        sale_branch_id = int(sale_context.get("sucursal_id") or 0)
+        eligible_branches = self._eligible_ids("raffle_eligible_branches", "sucursal_id", raffle_id)
+        raffle_branch_id = int(raffle.get("sucursal_id") or 0)
+        if eligible_branches:
+            if sale_branch_id not in eligible_branches:
+                return {"eligible": False, "reason": "branch_not_allowed"}
+        elif raffle_branch_id and sale_branch_id != raffle_branch_id:
             return {"eligible": False, "reason": "branch_not_allowed"}
+
         allowed_payments = _csv_tokens(rules.get("allowed_payment_methods"))
-        if allowed_payments and str(sale_context.get("payment_method") or "").strip().lower() not in allowed_payments:
+        payment = self._normalize_raffle_payment_method(sale_context.get("payment_method"))
+        if allowed_payments and payment not in {self._normalize_raffle_payment_method(p) for p in allowed_payments}:
             return {"eligible": False, "reason": "payment_not_allowed"}
         allowed_weekdays = _csv_tokens(rules.get("allowed_weekdays"))
         if allowed_weekdays and str(dt_obj.weekday()) not in allowed_weekdays and dt_obj.strftime("%A").lower() not in allowed_weekdays:
@@ -892,14 +949,12 @@ class LoyaltyService:
                 return {"eligible": False, "reason": "time_not_allowed"}
         items = sale_context.get("items") or []
         if items:
-            r = self.db.execute("SELECT product_id FROM raffle_eligible_products WHERE raffle_id=?", (int(raffle_id),)).fetchall()
-            allowed_products = {int((x[0] if isinstance(x, tuple) else x["product_id"]) or 0) for x in r}
-            r = self.db.execute("SELECT category_id FROM raffle_eligible_categories WHERE raffle_id=?", (int(raffle_id),)).fetchall()
-            allowed_categories = {int((x[0] if isinstance(x, tuple) else x["category_id"]) or 0) for x in r}
+            allowed_products = self._eligible_ids("raffle_eligible_products", "product_id", raffle_id)
+            allowed_categories = self._eligible_ids("raffle_eligible_categories", "category_id", raffle_id)
             if allowed_products or allowed_categories:
                 ok_item = False
                 for it in items:
-                    pid = int((it.get("product_id") or it.get("id") or 0) or 0)
+                    pid = int((it.get("product_id") or it.get("producto_id") or it.get("id") or 0) or 0)
                     cid = int((it.get("category_id") or it.get("categoria_id") or 0) or 0)
                     if (allowed_products and pid in allowed_products) or (allowed_categories and cid in allowed_categories):
                         ok_item = True
@@ -928,32 +983,126 @@ class LoyaltyService:
             raise ValueError("No activar rifa sin fecha válida, premio, presupuesto y reglas")
         self.validate_raffle_activation(raffle)
 
-    def process_raffles_for_sale(self, venta_id: int, cliente_id: int, folio: str, total: float, sucursal_id: int, payment_method=None, items=None, sale_datetime=None) -> list[dict]:
-        tickets_snapshot: list[dict] = []
+    def process_raffles_for_sale(self, venta_id: int, cliente_id: int, folio: str, total: float, sucursal_id: int, payment_method=None, items=None, sale_datetime=None, discount=0) -> list[dict]:
+        issued = self.issue_raffle_tickets_for_sale(
+            venta_id=int(venta_id),
+            folio_venta=str(folio or ""),
+            cliente_id=int(cliente_id or 0),
+            cliente_nombre="",
+            total=float(total or 0),
+            sucursal_id=int(sucursal_id or self.sucursal_id),
+            sale_datetime=sale_datetime,
+            payment_method=str(payment_method or ""),
+            items=items or [],
+            discount=discount,
+        )
+        return [
+            {
+                "raffle": str(t.get("raffle_name") or f"Rifa {t.get('raffle_id') or ''}"),
+                "numero_boleto": str(t.get("numero_boleto") or ""),
+                "raffle_ticket": t,
+            }
+            for t in issued
+        ]
+
+    def _raffle_print_payload(self, raffle: Dict[str, Any], ticket: Dict[str, Any], *, cliente_nombre: str = "", folio_venta: str = "", venta_id: int = 0, sucursal_id: int = 0) -> Dict[str, Any]:
+        prizes = []
+        try:
+            prizes = self._app.repo.list_raffle_prizes(int(raffle.get("id") or ticket.get("raffle_id") or 0))
+        except Exception:
+            prizes = []
+        premio = str(raffle.get("premio") or "")
+        if not premio and prizes:
+            premio = str(prizes[0].get("nombre") or prizes[0].get("descripcion") or "")
+        numero = str(ticket.get("numero_boleto") or "")
+        qr_content = f"RAFFLE:{ticket.get('raffle_id')}|SALE:{ticket.get('venta_id') or venta_id}|TICKET:{numero}"
+        return {
+            "ticket_type": "raffle_ticket",
+            "raffle_id": int(ticket.get("raffle_id") or raffle.get("id") or 0),
+            "raffle_name": str(raffle.get("nombre") or f"Rifa {ticket.get('raffle_id') or ''}"),
+            "premio": premio,
+            "numero_boleto": numero,
+            "cliente_id": int(ticket.get("cliente_id") or 0),
+            "cliente": str(cliente_nombre or ticket.get("cliente") or ""),
+            "folio_venta": str(ticket.get("folio_venta") or folio_venta or ""),
+            "venta_id": int(ticket.get("venta_id") or venta_id or 0),
+            "fecha_sorteo": str(raffle.get("fecha_sorteo") or raffle.get("fecha_fin") or ""),
+            "fecha_fin": str(raffle.get("fecha_fin") or ""),
+            "sucursal_id": int(sucursal_id or raffle.get("sucursal_id") or self.sucursal_id),
+            "qr_content": qr_content,
+            "barcode": numero,
+        }
+
+    def issue_raffle_tickets_for_sale(
+        self,
+        *,
+        venta_id,
+        folio_venta,
+        cliente_id,
+        cliente_nombre="",
+        total,
+        sucursal_id,
+        usuario="",
+        sale_datetime=None,
+        payment_method="",
+        items=None,
+        discount=0,
+    ) -> list[dict]:
         dt = str(sale_datetime or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        for raffle in (self._app.repo.get_active_raffles_for_sale(int(sucursal_id), dt) or []):
+        printable: list[dict] = []
+        try:
+            active = self._app.repo.get_active_raffles_for_sale(int(sucursal_id or self.sucursal_id), dt) or []
+        except Exception as exc:
+            logger.warning("No se pudieron consultar rifas activas venta=%s: %s", venta_id, exc)
+            return []
+        for raffle in active:
             rid = int(raffle.get("id") or 0)
-            eval_result = self.evaluate_raffle_sale_eligibility(rid, {"venta_id": venta_id, "cliente_id": cliente_id, "total": total, "sucursal_id": sucursal_id, "payment_method": payment_method, "items": items or [], "sale_datetime": dt})
-            if not eval_result.get("eligible"):
+            if rid <= 0:
                 continue
-            rules = eval_result.get("rules") or {}
-            max_customer = int(rules.get("max_tickets_per_customer") or 0)
-            current = self._app.repo.count_customer_tickets(rid, int(cliente_id or 0)) if cliente_id else 0
-            count = self.calculate_raffle_tickets_count(raffle, rules, {"total": total})
-            if max_customer > 0:
-                count = max(0, min(count, max_customer - current))
-            if count <= 0:
-                continue
-            existing_sale_tickets = [
-                t for t in self._app.repo.list_raffle_tickets(rid, limit=500)
-                if int(t.get("venta_id") or 0) == int(venta_id)
-            ]
-            if existing_sale_tickets:
-                continue
-            tickets = self.generate_tickets_for_sale(rid, int(venta_id), int(cliente_id or 0), str(folio or ""), float(total or 0), int(sucursal_id or self.sucursal_id))[:count]
-            for t in tickets:
-                tickets_snapshot.append({"raffle": str(raffle.get("nombre") or f"Rifa {rid}"), "numero_boleto": t})
-        return tickets_snapshot
+            try:
+                sale_context = {
+                    "venta_id": venta_id,
+                    "cliente_id": cliente_id,
+                    "total": total,
+                    "sucursal_id": sucursal_id,
+                    "payment_method": payment_method,
+                    "items": items or [],
+                    "sale_datetime": dt,
+                    "discount": discount,
+                }
+                eval_result = self.evaluate_raffle_sale_eligibility(rid, sale_context)
+                if not eval_result.get("eligible"):
+                    continue
+                rules = eval_result.get("rules") or {}
+                existing = self._app.repo.get_tickets_for_sale(rid, int(venta_id))
+                if existing:
+                    printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=int(venta_id), sucursal_id=int(sucursal_id or self.sucursal_id)) for t in existing])
+                    continue
+                count = self.calculate_raffle_tickets_count(raffle, rules, sale_context)
+                max_customer = int(rules.get("max_tickets_per_customer") or 0)
+                current = self._app.repo.count_customer_tickets(rid, int(cliente_id or 0)) if cliente_id else 0
+                if max_customer > 0:
+                    count = max(0, min(count, max_customer - current))
+                if count <= 0:
+                    continue
+                created_numbers = self.generate_tickets_for_sale(
+                    rid,
+                    int(venta_id),
+                    int(cliente_id or 0),
+                    str(folio_venta or ""),
+                    float(total or 0),
+                    int(sucursal_id or self.sucursal_id),
+                    ticket_count=count,
+                )
+                created_number_set = set(created_numbers)
+                created = [
+                    t for t in self._app.repo.get_tickets_for_sale(rid, int(venta_id))
+                    if str(t.get("numero_boleto") or "") in created_number_set
+                ]
+                printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=int(venta_id), sucursal_id=int(sucursal_id or self.sucursal_id)) for t in created])
+            except Exception as exc:
+                logger.warning("Emisión de boletos rifa=%s venta=%s falló: %s", rid, venta_id, exc)
+        return printable
 
     def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
         cancelled = int(self._app.repo.cancel_tickets_for_sale(venta_id, reason) or 0)
