@@ -309,7 +309,7 @@ class Transitions:
     EASING_LINEAR = "linear"
     
     # Propiedades comunes a animar
-    COMMON_PROPS = "background-color, border-color, color, box-shadow, transform"
+    COMMON_PROPS = "background-color, border-color, color, transform"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

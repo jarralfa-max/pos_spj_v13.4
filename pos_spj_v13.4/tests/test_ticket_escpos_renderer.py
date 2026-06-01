@@ -57,3 +57,13 @@ def test_long_names_wrapped_in_preview():
     r = TicketESCPOSRenderer()
     p = r.render_text_preview(_sample())
     assert "extremadamente" in p
+
+
+def test_renderer_prints_barcode_from_compact_layout_config():
+    r = TicketESCPOSRenderer()
+    data = {
+        "folio": "V-COMPACT-1",
+        "layout_config": {"show_logo": False, "show_qr": False, "show_barcode": True},
+    }
+    out = r.render(data)
+    assert b"\x1dv0" in out
