@@ -171,3 +171,58 @@ def test_adjustment_approval_service_recalculates_exactly_once():
         assert calls["n"] == 1
     finally:
         OrderTotalService.recalculate_order_total = original
+
+
+def test_order_total_service_is_delivery_only_until_sale_projection_runs():
+    db = _db(); _seed_order(db, "preparacion")
+    db.execute(
+        "INSERT INTO delivery_items(id, delivery_id, nombre, cantidad, precio_unitario, subtotal, unidad) "
+        "VALUES (2,1,'Salsa',1,15,15,'pz')"
+    )
+    db.commit()
+
+    total = OrderTotalService(db).recalculate_order_total(1)
+    assert total == 215.0
+    assert float(db.execute("SELECT total FROM delivery_orders WHERE id=1").fetchone()[0]) == 215.0
+    assert float(db.execute("SELECT total FROM ventas WHERE id=1").fetchone()[0]) == 200.0
+
+    from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
+    assert SaleDeliveryProjectionService(db).project_total(1, total) is True
+    assert float(db.execute("SELECT total FROM ventas WHERE id=1").fetchone()[0]) == 215.0
+
+
+def test_within_tolerance_registers_total_updated_outbox_event():
+    db = _db(); svc = _svc(db); _seed_order(db, "preparacion")
+
+    out = svc.adjust_item_weight(order_id=1, item_id=1, prepared_qty=2.1, prepared_by="op")
+
+    assert out["applied"] is True
+    row = db.execute(
+        "SELECT payload_json FROM delivery_outbox_events "
+        "WHERE aggregate_id=1 AND event_type='DELIVERY_TOTAL_UPDATED'"
+    ).fetchone()
+    assert row is not None
+    assert '"old_total": 200.0' in row["payload_json"]
+    assert '"new_total": 210.0' in row["payload_json"]
+
+
+def test_customer_response_records_total_updated_before_adjustment_event():
+    db = _db(); svc = _svc(db); _seed_order(db, "preparacion")
+    db.execute("""
+        CREATE TABLE wa_event_log(
+            id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT, data_json TEXT,
+            sucursal_id INTEGER, prioridad INTEGER, timestamp TEXT
+        )
+    """)
+    db.commit()
+    svc.adjust_item_weight(order_id=1, item_id=1, prepared_qty=2.25, prepared_by="op")
+
+    out = AdjustmentApprovalService(db).respond_latest_for_phone("5512345678", accepted=True)
+
+    assert out["total"] == 225.0
+    events = [
+        row["event_type"]
+        for row in db.execute("SELECT event_type FROM wa_event_log ORDER BY id").fetchall()
+    ]
+    assert "DELIVERY_TOTAL_UPDATED" in events
+    assert events[-1] == "DELIVERY_ADJUSTMENT_ACCEPTED"

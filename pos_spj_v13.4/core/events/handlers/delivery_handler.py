@@ -137,32 +137,14 @@ class DeliveryWeightAdjustmentHandler:
                 ),
             )
 
-            # Recalculate order total from all items
-            row = db.execute(
-                """SELECT COALESCE(SUM(
-                       CASE WHEN prepared_qty IS NOT NULL AND prepared_qty > 0
-                            THEN prepared_qty * precio_unitario
-                            ELSE subtotal
-                       END), 0)
-                   FROM delivery_items WHERE delivery_id=?""",
-                (order_id,),
-            ).fetchone()
-            new_total = round(float(row[0]) if row else 0.0, 2)
-
             old_row = db.execute(
                 "SELECT total, cliente_tel, folio FROM delivery_orders WHERE id=?",
                 (order_id,),
             ).fetchone()
             old_total = float(old_row[0]) if old_row else 0.0
 
-            db.execute(
-                "UPDATE delivery_orders SET total=?, weight_adjusted=1 WHERE id=?",
-                (new_total, order_id),
-            )
-            try:
-                db.commit()
-            except Exception:
-                pass
+            from core.services.order_total_service import OrderTotalService
+            new_total = OrderTotalService(db).recalculate_order_total(int(order_id))
 
             logger.info(
                 "WeightAdjust: order=%s item=%s req=%.3f prep=%.3f "
@@ -182,7 +164,6 @@ class DeliveryWeightAdjustmentHandler:
                 "folio": folio or str(order_id),
                 "cliente_tel": cliente_tel or "",
                 "cliente_email": payload.get("cliente_email", ""),
-                "db": db,
             })
 
         except Exception as exc:
@@ -353,9 +334,11 @@ class DeliveryNotificationDispatchHandler:
     Payload: {order_id, canal, template, params, cliente_tel, folio, sucursal_id}
     """
 
-    def __init__(self, notification_service=None) -> None:
+    def __init__(self, notification_service=None, whatsapp_notifier=None) -> None:
         self._svc = notification_service
+        self._wa_notifier = whatsapp_notifier
         self._svc_init_failed = False
+        self._wa_init_failed = False
 
     def _get_service(self):
         if self._svc is not None:
@@ -371,12 +354,37 @@ class DeliveryNotificationDispatchHandler:
             self._svc_init_failed = True
             return None
 
+
+    def _get_whatsapp_notifier(self):
+        if self._wa_notifier is not None:
+            return self._wa_notifier
+        if self._wa_init_failed:
+            return None
+        try:
+            from core.delivery.infrastructure.whatsapp_delivery_notifier import WhatsAppDeliveryNotifier
+            self._wa_notifier = WhatsAppDeliveryNotifier()
+            return self._wa_notifier
+        except Exception as exc:
+            logger.warning("NotificationDispatch: WhatsApp notifier init failed: %s", exc)
+            self._wa_init_failed = True
+            return None
+
     def handle(self, payload: Dict[str, Any]) -> None:
+        canal = str(payload.get("canal") or "all").lower()
+        if canal == "whatsapp":
+            notifier = self._get_whatsapp_notifier()
+            if notifier is None:
+                return
+            try:
+                notifier.notify_from_event(payload)
+            except Exception as exc:
+                logger.warning("NotificationDispatch WhatsApp failed: %s", exc)
+            return
+
         from notifications.base import NotificationPayload
         svc = self._get_service()
         if svc is None:
             return
-        canal    = str(payload.get("canal") or "all")
         template = str(payload.get("template") or "")
         params   = payload.get("params") or {}
         title    = params.get("title") or template.replace("_", " ").title()

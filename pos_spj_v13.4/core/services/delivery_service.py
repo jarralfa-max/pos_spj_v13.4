@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Any, Dict, List, Optional
 
 from repositories.delivery_repository import DeliveryRepository
 from core.services.delivery_whatsapp_service import DeliveryWhatsAppService
 from core.services.geocoding_service import GeocodingService
-from core.services.order_total_service import OrderTotalService
+from core.delivery.application.delivery_total_service import DeliveryTotalService
+from core.delivery.domain.events import DeliveryEvents
+from core.delivery.domain.state_machine import DeliveryStateMachine
+from core.delivery.infrastructure.whatsapp_delivery_notifier import WhatsAppDeliveryNotifier
+from core.events.event_bus import get_bus
+from core.delivery.infrastructure.delivery_outbox_repository import DeliveryOutboxRepository
+from core.delivery.infrastructure.delivery_schema_migrator import DeliverySchemaMigrator
+from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
+from core.delivery.application.activate_scheduled_order import ActivateScheduledOrderUseCase
+from core.delivery.application.adjust_delivery_weight import AdjustDeliveryWeightUseCase
+from core.delivery.application.cancel_delivery_order import CancelDeliveryOrderUseCase
+from core.delivery.application.change_delivery_status import ChangeDeliveryStatusUseCase
+from core.delivery.application.create_delivery_order import CreateDeliveryOrderUseCase
+from core.delivery.application.sync_whatsapp_orders import SyncWhatsAppOrdersUseCase
 
 logger = logging.getLogger("spj.services.delivery")
 
@@ -16,8 +28,24 @@ ADJUSTMENT_ACCEPTED = "accepted"
 ADJUSTMENT_REJECTED = "rejected"
 ADJUSTMENT_NONE = "none"
 
+LEGACY_COMPATIBILITY_METHODS = frozenset({
+    "_ensure_adjustment_columns",
+    "_sync_venta_total",
+    "_notify_adjustment_pending",
+    "_validate_workflow_transition",
+    "_release_stock",
+    "sync_pending_sales_to_delivery_orders",
+})
+
 
 class DeliveryService:
+    """Backward-compatible facade for the delivery bounded context.
+
+    Public methods keep the legacy service API stable while delegating real
+    behavior to application use cases, projections and infrastructure adapters.
+    Internal methods listed in `LEGACY_COMPATIBILITY_METHODS` are deprecated
+    shims retained for UI/tests/handlers during the phased migration.
+    """
     def __init__(
         self,
         db,
@@ -29,44 +57,39 @@ class DeliveryService:
         self.repository = repository or DeliveryRepository(db)
         self.whatsapp_service = whatsapp_service or DeliveryWhatsAppService()
         self.geocoding_service = geocoding_service or GeocodingService()
-        self.order_total_service = OrderTotalService(db)
+        self.order_total_service = DeliveryTotalService(self.repository)
+        self.sale_projection = SaleDeliveryProjectionService(db) if db is not None else None
+        self.outbox_repository = DeliveryOutboxRepository(db) if db is not None else None
         self._ensure_adjustment_columns()
 
     def _ensure_adjustment_columns(self) -> None:
-        """Asegura columnas de aprobación sin depender de que la migración ya haya corrido."""
-        cols_items = [
-            "pending_prepared_qty REAL",
-            "pending_subtotal REAL",
-            "adjustment_status TEXT DEFAULT 'none'",
-            "adjustment_requested_at DATETIME",
-            "adjustment_responded_at DATETIME",
-            "adjustment_response TEXT",
-            "adjustment_token TEXT",
-            "tolerance_units REAL DEFAULT 0.2",
-        ]
-        cols_orders = [
-            "adjustment_pending INTEGER DEFAULT 0",
-            "adjustment_blocked_state TEXT DEFAULT ''",
-        ]
-        for col in cols_items:
-            try:
-                self.db.execute(f"ALTER TABLE delivery_items ADD COLUMN {col}")
-            except Exception:
-                pass
-        for col in cols_orders:
-            try:
-                self.db.execute(f"ALTER TABLE delivery_orders ADD COLUMN {col}")
-            except Exception:
-                pass
-        try:
-            self.db.execute("CREATE INDEX IF NOT EXISTS idx_delivery_items_adjustment_status ON delivery_items(adjustment_status, delivery_id)")
-            self.db.execute("CREATE INDEX IF NOT EXISTS idx_delivery_items_adjustment_token ON delivery_items(adjustment_token)")
-            self.db.commit()
-        except Exception:
-            pass
+        """Deprecated compatibility shim; schema changes live in DeliverySchemaMigrator."""
+        if self.db is None:
+            return
+        DeliverySchemaMigrator(self.db).ensure_schema()
 
     def list_orders(self, estado: Optional[str] = None) -> List[Dict[str, Any]]:
         return self.repository.list_orders(estado=estado)
+
+    def get_order(self, order_id: int) -> Optional[Dict[str, Any]]:
+        """Legacy convenience accessor; repository remains the owner of reads."""
+        return self.repository.get_order(order_id)
+
+    _UI_ACTION_METADATA: Dict[str, Dict[str, str]] = {
+        "preparacion": {"icon": "👨‍🍳", "label": "Enviar a preparación", "style": "primary"},
+        "cancelado": {"icon": "✖", "label": "Cancelar pedido", "style": "danger"},
+        "ver_detalle": {"icon": "🔍", "label": "Ver detalle", "style": "secondary"},
+        "ajustar_peso": {"icon": "⚖️", "label": "Ajustar peso", "style": "warning"},
+        "en_ruta": {"icon": "🛵", "label": "Enviar a ruta", "style": "primary"},
+        "asignar": {"icon": "👤", "label": "Asignar repartidor", "style": "primary"},
+        "entregado": {"icon": "✅", "label": "Marcar entregado", "style": "success"},
+        "notificar_wa": {"icon": "📲", "label": "Notificar por WA", "style": "secondary"},
+        "imprimir": {"icon": "🖨️", "label": "Imprimir ticket", "style": "secondary"},
+        "reactivar": {"icon": "♻️", "label": "Reactivar pedido", "style": "warning"},
+        "activar_programado": {"icon": "▶", "label": "Activar ahora", "style": "success"},
+        "reprogramar": {"icon": "🗓️", "label": "Reprogramar", "style": "warning"},
+        "ver_forecast": {"icon": "📈", "label": "Ver forecast", "style": "secondary"},
+    }
 
     def get_valid_actions(
         self,
@@ -79,216 +102,108 @@ class DeliveryService:
     ) -> List[Dict[str, str]]:
         """Return valid UI actions for an order context.
 
-        Backend-facing contract in English so UI does not handcraft action rules.
+        The action keys come from ``DeliveryStateMachine`` so widgets/PWA views
+        do not duplicate workflow rules. This facade only adds UI metadata
+        (icon, label and style) and non-transition read actions.
         """
-        base = {
-            "pendiente": [
-                {"icon": "👨‍🍳", "label": "Enviar a preparación", "key": "preparacion", "style": "primary"},
-                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
-                {"icon": "🔍", "label": "Ver detalle", "key": "ver_detalle", "style": "secondary"},
-            ],
-            "preparacion": [
-                {"icon": "⚖️", "label": "Ajustar peso", "key": "ajustar_peso", "style": "warning"},
-                {"icon": "🛵", "label": "Enviar a ruta", "key": "en_ruta", "style": "primary"},
-                {"icon": "👤", "label": "Asignar repartidor", "key": "asignar", "style": "primary"},
-                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
-            ],
-            "en_ruta": [
-                {"icon": "✅", "label": "Marcar entregado", "key": "entregado", "style": "success"},
-                {"icon": "📲", "label": "Notificar por WA", "key": "notificar_wa", "style": "secondary"},
-            ],
-            "entregado": [
-                {"icon": "🖨️", "label": "Imprimir ticket", "key": "imprimir", "style": "secondary"},
-            ],
-            "cancelado": [
-                {"icon": "♻️", "label": "Reactivar pedido", "key": "reactivar", "style": "warning"},
-            ],
+        order_context = {
+            "estado": status,
+            "workflow_type": workflow_type,
+            "delivery_type": delivery_type,
+            "scheduled_at": scheduled_at,
+            "adjustment_pending": adjustment_pending,
         }
-        s = (status or "").strip().lower()
-        wf = (workflow_type or "").strip().lower()
-        actions = list(base.get(s, []))
-        if wf == "counter":
-            actions = [a for a in actions if a["key"] not in ("en_ruta", "asignar")]
-            if s == "preparacion":
-                actions.insert(1, {"icon": "✅", "label": "Marcar entregado", "key": "entregado", "style": "success"})
-        if wf == "scheduled" and s in ("programado", "scheduled"):
-            actions = [
-                {"icon": "▶", "label": "Activar ahora", "key": "activar_programado", "style": "success"},
-                {"icon": "🗓️", "label": "Reprogramar", "key": "reprogramar", "style": "warning"},
-                {"icon": "📈", "label": "Ver forecast", "key": "ver_forecast", "style": "secondary"},
-                {"icon": "✖", "label": "Cancelar pedido", "key": "cancelado", "style": "danger"},
-            ]
-        if adjustment_pending:
-            actions = [a for a in actions if a["key"] not in ("en_ruta", "entregado")]
-        return actions
+        action_keys = DeliveryStateMachine().get_valid_actions(order_context)
+        if (status or "").strip().lower() in {"programado", "scheduled"} and "ver_forecast" not in action_keys:
+            action_keys.insert(2, "ver_forecast")
+        if (status or "").strip().lower() == "pendiente" and "ver_detalle" not in action_keys:
+            action_keys.append("ver_detalle")
+        return [
+            {
+                "key": key,
+                "icon": self._UI_ACTION_METADATA.get(key, {}).get("icon", ""),
+                "label": self._UI_ACTION_METADATA.get(key, {}).get("label", key),
+                "style": self._UI_ACTION_METADATA.get(key, {}).get("style", "secondary"),
+            }
+            for key in action_keys
+        ]
+
+    def _create_order_use_case(self) -> CreateDeliveryOrderUseCase:
+        return CreateDeliveryOrderUseCase(
+            db=self.db,
+            repository=self.repository,
+            geocoding_service=self.geocoding_service,
+            whatsapp_service=self.whatsapp_service,
+            publisher=self._publish,
+            outbox_repository=self.outbox_repository,
+        )
 
     def create_order(self, data: Dict[str, Any], usuario: str = "sistema") -> int:
-        direccion = (data.get("direccion") or "").strip()
-        if not direccion:
-            raise ValueError("No se puede crear pedido sin dirección válida")
+        return self._create_order_use_case().execute(data, usuario=usuario)
 
-        coords = data.get("coords") or self.geocoding_service.geocode(direccion)
-        if coords:
-            data["lat"] = coords.get("lat")
-            data["lng"] = coords.get("lng")
-        else:
-            data["lat"] = data.get("lat")
-            data["lng"] = data.get("lng")
-
-        data["usuario"] = usuario
-        order_id = self.repository.create_order(data)
-        self._publish("pedido_delivery_creado", {"order_id": order_id})
-        self._publish("pedido_whatsapp_recibido", {"order_id": order_id, "canal": "whatsapp"})
-
-        items = data.get("items") or []
-        if items:
-            self._publish(
-                "DELIVERY_ORDER_RESERVED",
-                {
-                    "order_id": order_id,
-                    "operation_id": str(order_id),
-                    "items": items,
-                    "branch_id": data.get("sucursal_id", 1),
-                    "db": self.db,
-                },
-            )
-
-        order = self.repository.get_order(order_id) or {}
-        self._safe_wa_notify(order, "pedido_recibido")
-
-        self._publish("DELIVERY_ORDER_CREATED", {
-            "_event_type": "DELIVERY_ORDER_CREATED",
-            "order_id": order_id,
-            "folio": order.get("folio") or data.get("folio") or f"DEL-{order_id}",
-            "direccion": data.get("direccion"),
-            "total": data.get("total", 0),
-            "sucursal_id": data.get("sucursal_id", 1),
-            "usuario": usuario,
-            "db": self.db,
-        })
-        return order_id
+    def create_delivery_order(self, data: Dict[str, Any], usuario: str = "sistema") -> int:
+        """Legacy alias kept for callers that adopted the explicit name."""
+        return self.create_order(data, usuario=usuario)
 
     def _has_pending_adjustment(self, order_id: int) -> bool:
         try:
-            row = self.db.execute(
-                """SELECT 1 FROM delivery_items
-                   WHERE delivery_id=? AND adjustment_status=? LIMIT 1""",
-                (order_id, ADJUSTMENT_PENDING),
-            ).fetchone()
-            return row is not None
-        except Exception:
+            return self.repository.has_pending_adjustment(order_id)
+        except Exception as exc:
+            logger.warning("No se pudo validar ajuste pendiente delivery order=%s: %s", order_id, exc)
             return False
 
-    def update_status(self, order_id: int, status: str, usuario: str, responsable: str = "") -> None:
-        self._validate_workflow_transition(order_id, status)
+    def _change_status_use_case(self) -> ChangeDeliveryStatusUseCase:
+        return ChangeDeliveryStatusUseCase(
+            db=self.db,
+            repository=self.repository,
+            sale_projection=self.sale_projection,
+            whatsapp_service=self.whatsapp_service,
+            publisher=self._publish,
+            get_order_items=self.get_order_items,
+            outbox_repository=self.outbox_repository,
+        )
 
-        if status == "entregado" and not responsable:
-            raise ValueError("No se puede entregar sin responsable")
+    def update_status(
+        self,
+        order_id: int,
+        status: str,
+        usuario: str,
+        responsable: str = "",
+        observacion: str = "",
+    ) -> None:
+        return self._change_status_use_case().execute(
+            order_id, status, usuario=usuario, responsable=responsable, observacion=observacion
+        )
 
-        if status in ("en_ruta", "entregado") and self._has_pending_adjustment(order_id):
-            try:
-                self.db.execute(
-                    "UPDATE delivery_orders SET adjustment_pending=1, adjustment_blocked_state=? WHERE id=?",
-                    (status, order_id),
-                )
-                self.db.commit()
-            except Exception:
-                pass
-            raise ValueError(
-                "No se puede cambiar de estado: hay un ajuste de peso/cantidad pendiente de aceptación del cliente."
-            )
-
-        self.repository.update_status(order_id, status, usuario=usuario, responsable=responsable)
-        order = self.repository.get_order(order_id) or {}
-        folio = order.get("folio") or f"DEL-{order_id}"
-        sucursal_id = int(order.get("sucursal_id") or 1)
-        cliente_tel = order.get("cliente_tel") or ""
-        _base = {
-            "_event_type": f"DELIVERY_ORDER_{status.upper()}",
-            "order_id": order_id,
-            "folio": folio,
-            "usuario": usuario,
-            "sucursal_id": sucursal_id,
-            "total": order.get("total"),
-            "db": self.db,
-        }
-
-        if status == "cancelado":
-            self._release_stock(order_id)
-            self._publish("DELIVERY_ORDER_CANCELLED", {**_base, "motivo": ""})
-        if status == "preparacion":
-            self._publish("DELIVERY_ORDER_PREPARING", _base)
-        if status == "en_ruta":
-            self._publish("pedido_en_ruta", {"order_id": order_id})
-            self._publish("DELIVERY_OUT_FOR_DELIVERY", {
-                **_base, "_event_type": "DELIVERY_OUT_FOR_DELIVERY",
-                "driver_id": order.get("driver_id"),
-                "cliente_tel": cliente_tel,
-            })
-        if status == "entregado":
-            self._publish("pedido_entregado", {"order_id": order_id, "responsable": responsable})
-            self._publish("DELIVERY_ORDER_DELIVERED", {
-                **_base, "_event_type": "DELIVERY_ORDER_DELIVERED",
-                "responsable": responsable,
-                "driver_id": order.get("driver_id"),
-            })
-            items = self.get_order_items(order_id)
-            self._publish("INVENTORY_COMMIT_REQUIRED", {
-                "order_id": order_id,
-                "operation_id": str(order_id),
-                "items": items,
-                "sucursal_id": sucursal_id,
-                "branch_id": sucursal_id,
-                "db": self.db,
-            })
-
-        self._safe_wa_notify(order, status)
-        wa_id = order.get("whatsapp_order_id")
-        self.whatsapp_service.sync_status(str(wa_id or ""), status)
+    def update_order_status(
+        self,
+        order_id: int,
+        status: str,
+        usuario: str = "sistema",
+        responsable: str = "",
+        observacion: str = "",
+    ) -> None:
+        """Legacy alias for callers using a more explicit method name."""
+        return self.update_status(
+            order_id, status, usuario=usuario, responsable=responsable, observacion=observacion
+        )
 
     def activate_scheduled_order(self, order_id: int, usuario: str = "sistema") -> Dict[str, Any]:
-        """Activate a scheduled order into its operational flow.
+        return ActivateScheduledOrderUseCase(
+            db=self.db,
+            repository=self.repository,
+            sale_projection=self.sale_projection,
+            publisher=self._publish,
+        ).execute(order_id, usuario=usuario)
 
-        - scheduled + pickup/sucursal -> counter workflow
-        - scheduled + domicilio/home_delivery -> delivery workflow
-        - status changes from programado/scheduled to pendiente
-        """
-        order = self.repository.get_order(order_id) or {}
-        if not order:
-            raise ValueError("Pedido no encontrado.")
-
-        current_status = (order.get("estado") or "").strip().lower()
-        if current_status not in ("programado", "scheduled"):
-            raise ValueError("Solo se pueden activar pedidos en estado programado.")
-
-        delivery_type = (order.get("delivery_type") or order.get("tipo_entrega") or "").strip().lower()
-        target_workflow = "counter" if delivery_type in ("pickup", "sucursal") else "delivery"
-
-        self.db.execute(
-            """
-            UPDATE delivery_orders
-            SET workflow_type=?, estado='pendiente', fecha_actualizacion=datetime('now')
-            WHERE id=?
-            """,
-            (target_workflow, order_id),
+    def cancel_order(self, order_id: int, usuario: str = "sistema", motivo: str = "") -> Dict[str, Any]:
+        return CancelDeliveryOrderUseCase(self._change_status_use_case()).execute(
+            order_id, usuario=usuario, motivo=motivo
         )
-        try:
-            self.db.execute(
-                "UPDATE ventas SET workflow_type=?, estado='pendiente' WHERE id=?",
-                (target_workflow, order.get("venta_id")),
-            )
-        except Exception:
-            pass
-        self.db.commit()
 
-        self._publish("WHATSAPP_SCHEDULED_ORDER_ACTIVATED", {
-            "order_id": order_id,
-            "workflow_type": target_workflow,
-            "usuario": usuario,
-            "sucursal_id": int(order.get("sucursal_id") or 1),
-            "db": self.db,
-        })
-        return {"order_id": order_id, "workflow_type": target_workflow, "status": "pending"}
+    def cancel_delivery_order(self, order_id: int, usuario: str = "sistema", motivo: str = "") -> Dict[str, Any]:
+        """Legacy alias retained while callers migrate to cancel_order."""
+        return self.cancel_order(order_id, usuario=usuario, motivo=motivo)
 
     def _validate_workflow_transition(self, order_id: int, target_status: str) -> None:
         order = self.repository.get_order(order_id) or {}
@@ -311,14 +226,14 @@ class DeliveryService:
             raise ValueError("Flujo mostrador no permite estado 'en_ruta'.")
 
     def _recalculate_order_total(self, order_id: int) -> float:
-        return self.order_total_service.recalculate_order_total(order_id)
+        return self.order_total_service.recalculate_order_total(order_id, commit=False)
 
     def _sync_venta_total(self, order_id: int, new_total: float) -> None:
         try:
             order = self.repository.get_order(order_id) or {}
             venta_id = order.get("venta_id")
-            if venta_id:
-                self.db.execute("UPDATE ventas SET total=? WHERE id=?", (new_total, venta_id))
+            if venta_id and self.sale_projection is not None:
+                self.sale_projection.project_total(venta_id, new_total)
         except Exception as exc:
             logger.debug("_sync_venta_total: %s", exc)
 
@@ -329,19 +244,17 @@ class DeliveryService:
         if not phone:
             return False
         folio = order.get("folio") or f"DEL-{order.get('id','')}"
-        sign = "+" if diff_qty >= 0 else ""
-        msg = (
-            f"⚖️ *Ajuste de tu pedido {folio}*\n\n"
-            f"Producto: {item_name}\n"
-            f"Solicitado: {requested_qty:.3g} {unit}\n"
-            f"Preparado: {prepared_qty:.3g} {unit} ({sign}{diff_qty:.3g} {unit})\n"
-            f"Nuevo subtotal: ${new_subtotal:,.2f}\n\n"
-            "La diferencia supera la tolerancia permitida de ±0.2 unidades.\n"
-            "Responde *ACEPTAR AJUSTE* para autorizarlo o *RECHAZAR AJUSTE* para mantener el pedido sin ese cambio."
-        )
         try:
-            from core.integrations.whatsapp_client import WhatsAppClient
-            return bool(WhatsAppClient().enviar_mensaje(phone, msg))
+            return WhatsAppDeliveryNotifier().notify_adjustment_required(
+                phone=phone,
+                folio=folio,
+                item_name=item_name,
+                requested_qty=requested_qty,
+                prepared_qty=prepared_qty,
+                unit=unit,
+                new_subtotal=new_subtotal,
+                diff_qty=diff_qty,
+            )
         except Exception as exc:
             logger.warning("No se pudo notificar ajuste pendiente por WhatsApp: %s", exc)
             return False
@@ -355,119 +268,36 @@ class DeliveryService:
         adjustment_reason: str = "",
         unit: str = "kg",
     ) -> Dict[str, Any]:
-        """Registra ajuste de peso/cantidad.
-
-        Reglas:
-        - Solo se permite en estado `preparacion`.
-        - Tolerancia en unidades: ±0.2 por defecto.
-        - Si excede tolerancia, NO aplica el ajuste: queda pendiente de aceptación.
-        - Si está dentro de tolerancia, aplica cantidad/subtotal/total inmediatamente.
-        """
-        from core.services.reservation_service import ReservationService, TOLERANCE_UNITS
-
-        order = self.repository.get_order(order_id) or {}
-        estado = (order.get("estado") or "").lower()
-        if estado != "preparacion":
-            raise ValueError("El ajuste de peso/cantidad solo puede hacerse en estado 'preparacion'.")
-
-        item_row = self.db.execute(
-            "SELECT precio_unitario, cantidad, nombre FROM delivery_items WHERE id=? AND delivery_id=?",
-            (item_id, order_id),
-        ).fetchone()
-        if not item_row:
-            raise ValueError(f"delivery_items.id={item_id} not found for order={order_id}")
-
-        unit_price = float(item_row[0] or 0)
-        requested_qty = float(item_row[1] or prepared_qty)
-        item_name = item_row[2] or "Producto"
-        adj = ReservationService.compute_adjustment(
-            requested_qty, prepared_qty, unit_price, tolerance_units=TOLERANCE_UNITS
+        return AdjustDeliveryWeightUseCase(
+            db=self.db,
+            repository=self.repository,
+            publisher=self._publish,
+            notify_adjustment_pending=self._notify_adjustment_pending,
+            recalculate_order_total=self._recalculate_order_total,
+            sync_sale_total=self._sync_venta_total,
+            outbox_repository=self.outbox_repository,
+        ).execute(
+            order_id=order_id,
+            item_id=item_id,
+            prepared_qty=prepared_qty,
+            prepared_by=prepared_by,
+            adjustment_reason=adjustment_reason,
+            unit=unit,
         )
 
-        if adj["tolerance_exceeded"]:
-            token = uuid.uuid4().hex
-            self.db.execute(
-                """UPDATE delivery_items
-                   SET pending_prepared_qty=?, pending_subtotal=?,
-                       adjustment_status=?, adjustment_requested_at=datetime('now'),
-                       adjustment_response='', adjustment_token=?, tolerance_units=?,
-                       prepared_by=?, adjustment_reason=?, tolerance_exceeded=1
-                   WHERE id=? AND delivery_id=?""",
-                (
-                    prepared_qty, adj["new_subtotal"], ADJUSTMENT_PENDING,
-                    token, adj["tolerance_units"], prepared_by, adjustment_reason,
-                    item_id, order_id,
-                ),
-            )
-            self.db.execute(
-                "UPDATE delivery_orders SET adjustment_pending=1, adjustment_blocked_state='en_ruta' WHERE id=?",
-                (order_id,),
-            )
-            try:
-                self.db.commit()
-            except Exception:
-                pass
-            self._notify_adjustment_pending(
-                order, item_name, requested_qty, prepared_qty, unit,
-                adj["new_subtotal"], adj["diff_qty"]
-            )
-            self._publish("DELIVERY_ADJUSTMENT_APPROVAL_REQUIRED", {
-                "order_id": order_id,
-                "item_id": item_id,
-                "folio": order.get("folio") or str(order_id),
-                "cliente_tel": order.get("cliente_tel", ""),
-                "requested_qty": requested_qty,
-                "prepared_qty": prepared_qty,
-                "diff_qty": adj["diff_qty"],
-                "tolerance_units": adj["tolerance_units"],
-                "db": self.db,
-            })
-            return {**adj, "status": ADJUSTMENT_PENDING, "applied": False}
-
-        # Dentro de tolerancia: aplicar inmediatamente.
-        self.db.execute(
-            """UPDATE delivery_items
-               SET cantidad=?, prepared_qty=?, final_qty=?, subtotal=?,
-                   prepared_by=?, prepared_at=datetime('now'),
-                   adjustment_reason=?, tolerance_exceeded=0,
-                   adjustment_status=?, pending_prepared_qty=NULL, pending_subtotal=NULL,
-                   adjustment_responded_at=datetime('now'), adjustment_response='auto_accepted'
-               WHERE id=? AND delivery_id=?""",
-            (
-                prepared_qty, prepared_qty, prepared_qty, adj["new_subtotal"],
-                prepared_by, adjustment_reason, ADJUSTMENT_ACCEPTED,
-                item_id, order_id,
-            ),
+    def adjust_weight(
+        self,
+        order_id: int,
+        item_id: int,
+        prepared_qty: float,
+        prepared_by: str,
+        adjustment_reason: str = "",
+        unit: str = "kg",
+    ) -> Dict[str, Any]:
+        """Legacy alias for adjust_item_weight."""
+        return self.adjust_item_weight(
+            order_id, item_id, prepared_qty, prepared_by, adjustment_reason=adjustment_reason, unit=unit
         )
-        new_total = self._recalculate_order_total(order_id)
-        self._sync_venta_total(order_id, new_total)
-        try:
-            self.db.commit()
-        except Exception:
-            pass
-
-        self._publish("DELIVERY_ITEM_WEIGHT_ADJUSTED", {
-            "order_id": order_id,
-            "item_id": item_id,
-            "item_name": item_name,
-            "requested_qty": requested_qty,
-            "prepared_qty": prepared_qty,
-            "unit_price": unit_price,
-            "unit": unit,
-            "prepared_by": prepared_by,
-            "adjustment_reason": adjustment_reason,
-            "new_total": new_total,
-            "folio": order.get("folio") or str(order_id),
-            "cliente_tel": order.get("cliente_tel", ""),
-            "cliente_email": order.get("cliente_email", ""),
-            "db": self.db,
-        })
-        logger.info(
-            "adjust_item_weight: order=%s item=%s requested=%.3f prepared=%.3f diff=%.3f tolerance_units=%.3f exceeded=%s",
-            order_id, item_id, requested_qty, prepared_qty,
-            adj["diff_qty"], adj["tolerance_units"], adj["tolerance_exceeded"],
-        )
-        return {**adj, "status": ADJUSTMENT_ACCEPTED, "applied": True, "new_total": new_total}
 
     def get_order_items(self, order_id: int) -> List[Dict[str, Any]]:
         try:
@@ -496,89 +326,44 @@ class DeliveryService:
         return self.geocoding_service.autocomplete(query)
 
     def pull_orders_from_whatsapp(self) -> None:
-        pulled = False
-        for item in self.whatsapp_service.pull_orders():
-            try:
-                oid = self.repository.upsert_order_from_whatsapp(item)
-                self._publish("pedido_whatsapp_recibido", {"order_id": oid, "payload": item})
-                pulled = True
-            except Exception as exc:
-                logger.debug("pull_orders_from_whatsapp error: %s", exc)
-        if not pulled:
-            self.sync_pending_sales_to_delivery_orders()
+        return SyncWhatsAppOrdersUseCase(
+            db=self.db,
+            repository=self.repository,
+            whatsapp_service=self.whatsapp_service,
+            publisher=self._publish,
+        ).pull_orders_from_whatsapp()
 
     def sync_pending_sales_to_delivery_orders(self) -> int:
-        """Fallback sync from local ventas -> delivery_orders for WhatsApp pending sales."""
-        try:
-            table_exists = lambda t: bool(self.db.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1", (t,)
-            ).fetchone())
-            if not table_exists("ventas") or not table_exists("delivery_orders"):
-                return 0
-            cols_ventas = {r[1] for r in self.db.execute("PRAGMA table_info(ventas)").fetchall()}
-            cols_det = {r[1] for r in self.db.execute("PRAGMA table_info(detalles_venta)").fetchall()} if table_exists("detalles_venta") else set()
-            if "id" not in cols_ventas:
-                return 0
-
-            estado_col = "estado" if "estado" in cols_ventas else None
-            canal_col = "canal" if "canal" in cols_ventas else None
-            where = ["1=1"]
-            params: List[Any] = []
-            if canal_col:
-                where.append("lower(canal)='whatsapp'")
-            if estado_col:
-                where.append("lower(estado) IN ('pendiente','pendiente_wa','en_preparacion','preparacion','en_ruta','programado')")
-            rows = self.db.execute(
-                f"SELECT * FROM ventas WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT 200",
-                tuple(params),
-            ).fetchall()
-            imported = 0
-            for row in rows:
-                data = dict(row)
-                venta_id = data.get("id")
-                if not venta_id:
-                    continue
-                items: List[Dict[str, Any]] = []
-                if cols_det and "venta_id" in cols_det:
-                    det_rows = self.db.execute(
-                        "SELECT producto_id, COALESCE(producto_nombre,'') AS producto_nombre, "
-                        "COALESCE(cantidad,0) AS cantidad, COALESCE(precio_unitario,0) AS precio_unitario, "
-                        "COALESCE(subtotal,0) AS subtotal "
-                        "FROM detalles_venta WHERE venta_id=?",
-                        (venta_id,),
-                    ).fetchall()
-                    items = [dict(r) for r in det_rows]
-
-                payload = {
-                    "id": venta_id,
-                    "venta_id": venta_id,
-                    "folio": data.get("folio") or data.get("codigo"),
-                    "cliente_id": data.get("cliente_id"),
-                    "cliente_nombre": data.get("cliente_nombre") or data.get("cliente"),
-                    "cliente_tel": data.get("cliente_tel") or data.get("telefono") or data.get("cliente_telefono"),
-                    "direccion": data.get("direccion") or data.get("direccion_entrega"),
-                    "total": data.get("total") or 0,
-                    "sucursal_id": data.get("sucursal_id") or 1,
-                    "delivery_type": data.get("delivery_type") or data.get("tipo_entrega"),
-                    "workflow_type": data.get("workflow_type"),
-                    "scheduled_at": data.get("scheduled_at") or data.get("fecha_entrega_programada"),
-                    "items": items,
-                    "source_channel": "whatsapp",
-                }
-                try:
-                    self.repository.upsert_order_from_whatsapp(payload, usuario="sync_local_ventas")
-                    imported += 1
-                except Exception as exc:
-                    logger.debug("sync_pending_sales_to_delivery_orders upsert failed venta_id=%s: %s", venta_id, exc)
-            return imported
-        except Exception as exc:
-            logger.debug("sync_pending_sales_to_delivery_orders failed: %s", exc)
-            return 0
+        """Deprecated compatibility shim for local ventas -> delivery_orders sync."""
+        return SyncWhatsAppOrdersUseCase(
+            db=self.db,
+            repository=self.repository,
+            whatsapp_service=self.whatsapp_service,
+            publisher=self._publish,
+        ).sync_pending_sales_to_delivery_orders()
 
     def _safe_wa_notify(self, order: Dict[str, Any], status: str) -> None:
+        """Deprecated notification shim. Prefer CUSTOMER_NOTIFICATION_REQUESTED outbox events."""
+        order_id = order.get("id")
+        folio = order.get("folio") or str(order_id or "")
+        if self.outbox_repository is not None and order_id:
+            self.outbox_repository.enqueue(
+                event_type=DeliveryEvents.CUSTOMER_NOTIFICATION_REQUESTED.value,
+                aggregate_id=int(order_id),
+                payload={
+                    "order_id": int(order_id),
+                    "canal": "whatsapp",
+                    "template": status,
+                    "params": {"folio": folio, "status": status},
+                    "cliente_tel": order.get("cliente_tel", ""),
+                },
+                operation_id=f"delivery:{order_id}:legacy_notify:{status}",
+                commit=True,
+            )
+            return
         ok = self.whatsapp_service.notify_status(
             phone=order.get("cliente_tel", ""),
-            folio=order.get("folio") or str(order.get("id") or ""),
+            folio=folio,
             status=status,
         )
         self._publish("notificacion_whatsapp_enviada", {
@@ -586,11 +371,20 @@ class DeliveryService:
         })
 
     def _release_stock(self, order_id: int) -> None:
+        """Deprecated release shim; emits legacy event and records outbox release when available."""
+        payload = {"order_id": order_id, "operation_id": f"delivery:{order_id}", "reason": "legacy_release_stock"}
+        if self.outbox_repository is not None:
+            self.outbox_repository.enqueue(
+                event_type=DeliveryEvents.INVENTORY_RELEASE_REQUIRED.value,
+                aggregate_id=order_id,
+                payload=payload,
+                operation_id=payload["operation_id"],
+                commit=True,
+            )
         self._publish("stock_liberar_solicitado", {"order_id": order_id})
 
     def _publish(self, event: str, payload: Dict[str, Any]) -> None:
         try:
-            from core.events.event_bus import get_bus
             get_bus().publish(event, payload)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("DeliveryService._publish failed event=%s: %s", event, exc)
