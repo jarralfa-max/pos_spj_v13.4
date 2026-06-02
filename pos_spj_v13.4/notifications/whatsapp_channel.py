@@ -47,12 +47,20 @@ class WhatsAppNotificationChannel(NotificationChannel):
         phone = (payload.cliente_tel or "").strip()
         if not phone:
             return False
-        folio  = payload.folio or str(payload.order_id or "")
-        body   = payload.body
         try:
-            wa.notify_status(phone=phone, folio=folio, status=payload.event_type)
+            if hasattr(wa, "notify_from_event"):
+                ok = wa.notify_from_event({
+                    "order_id": payload.order_id,
+                    "canal": "whatsapp",
+                    "template": payload.event_type,
+                    "params": payload.metadata or {"message": payload.body},
+                    "cliente_tel": phone,
+                    "folio": payload.folio or str(payload.order_id or ""),
+                })
+            else:
+                ok = wa.notify_status(phone=phone, folio=payload.folio or str(payload.order_id or ""), status=payload.event_type)
             logger.debug("WhatsAppChannel: sent event=%s phone=%s", payload.event_type, phone[:6])
-            return True
+            return bool(ok)
         except Exception as exc:
             logger.warning("WhatsAppChannel send failed: %s", exc)
             return False

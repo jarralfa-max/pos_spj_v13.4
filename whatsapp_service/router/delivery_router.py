@@ -21,6 +21,8 @@ from typing import Optional
 from fastapi import APIRouter, Query, Header, HTTPException
 from pydantic import BaseModel
 
+from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
+
 logger = logging.getLogger("wa.delivery")
 router = APIRouter(prefix="/api/delivery", tags=["delivery"])
 
@@ -222,7 +224,10 @@ async def sync_order_status(req: DeliveryStatusRequest,
         if "estado" not in cols:
             return {"ok": False, "error": "ventas.estado not found"}
 
-        conn.execute("UPDATE ventas SET estado=? WHERE id=?", (status_venta, venta_id))
+        projected = SaleDeliveryProjectionService(conn).project_status(venta_id, req.status)
+        if not projected:
+            return {"ok": False, "error": "delivery sale status projection failed"}
+        status_venta = _map_status_to_venta(req.status)
         try:
             conn.execute("""
                 INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
