@@ -623,6 +623,25 @@ def _wire_finanzas(bus, container) -> None:
     bus.subscribe(MOVIMIENTO_FINANCIERO, _audit_movimiento,
                   priority=30, label="audit_movimiento_financiero")
 
+    _wire_payroll_finance_handlers(bus, container)
+
+
+def _wire_payroll_finance_handlers(bus, container) -> None:
+    """Finanzas consume eventos RRHH de nómina; RRHH no registra OPEX directo."""
+    from core.rrhh.events import NOMINA_GENERADA, NOMINA_PAGADA
+    from core.events.handlers.finance_handler import PayrollFinanceHandler
+
+    fs = getattr(container, "finance_service", None)
+    js = getattr(container, "journal_entry_service", None)
+    if not fs and not js:
+        return
+
+    handler = PayrollFinanceHandler(finance_service=fs, journal_service=js)
+    bus.subscribe(NOMINA_GENERADA, handler.handle_generated,
+                  priority=60, label="payroll_finance_generated")
+    bus.subscribe(NOMINA_PAGADA, handler.handle_paid,
+                  priority=60, label="payroll_finance_paid")
+
 
 # ── RRHH: EMPLOYEE_OVERWORK / PAYROLL_DUE ────────────────────────────────────
 

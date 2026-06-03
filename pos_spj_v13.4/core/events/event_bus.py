@@ -158,7 +158,8 @@ FORECAST_GENERADO       = "FORECAST_GENERADO"
 CONCILIACION_DIFERENCIA = "CONCILIACION_DIFERENCIA"
 
 # v13.5: ERP Use Cases — additive constants only
-NOMINA_PAGADA           = "NOMINA_PAGADA"       # empleado_id, neto, periodo, sucursal_id
+NOMINA_GENERADA         = "NOMINA_GENERADA"     # empleado_id, total, neto, periodo, payroll_payment_id, operation_id
+NOMINA_PAGADA           = "NOMINA_PAGADA"       # empleado_id, neto, periodo, payroll_payment_id, operation_id
 CLIENTE_REGISTRADO      = CLIENTE_CREADO        # alias v13.5 backward compat
 COMPRA_PROCESADA        = COMPRA_REGISTRADA     # alias v13.5 backward compat
 

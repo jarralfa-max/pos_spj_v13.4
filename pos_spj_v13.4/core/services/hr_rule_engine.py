@@ -28,6 +28,8 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Any
 
+from core.rrhh.domain import RestDayPolicy
+
 logger = logging.getLogger("spj.hr_rule_engine")
 
 # ── Constantes laborales (LFT México) ─────────────────────────────────────────
@@ -55,6 +57,10 @@ class HRRuleEngine:
             pass
         # Detectar tabla de empleados (personal vs empleados según schema)
         self._emp_table = self._detect_emp_table()
+        self._rest_policy = RestDayPolicy(
+            max_consecutive_days=MAX_CONSECUTIVE_DAYS,
+            min_coverage=MIN_COVERAGE,
+        )
         self._ensure_tables()
 
     @property
@@ -82,7 +88,7 @@ class HRRuleEngine:
 
         for emp in empleados:
             consecutivos = self._dias_consecutivos(emp["id"], fecha_obj)
-            if consecutivos >= MAX_CONSECUTIVE_DAYS:
+            if self._rest_policy.requires_rest(consecutivos):
                 overwork_list.append({
                     "empleado_id":      emp["id"],
                     "nombre":           emp["nombre"],
@@ -101,7 +107,7 @@ class HRRuleEngine:
         activos_hoy = self._empleados_activos_hoy(sucursal_id, fecha_obj)
         en_descanso = sum(1 for r in rest_needed
                           if r.get("fecha_descanso") == fecha_obj.isoformat())
-        if (activos_hoy - en_descanso) < MIN_COVERAGE:
+        if not self._rest_policy.has_minimum_coverage(activos_hoy, en_descanso):
             cobertura_ok = False
             logger.warning("Cobertura insuficiente en sucursal %d para %s",
                            sucursal_id, fecha_obj)
@@ -126,7 +132,7 @@ class HRRuleEngine:
         """
         fecha_obj = _parse_date(fecha) or date.today()
         consecutivos = self._dias_consecutivos(empleado_id, fecha_obj)
-        requiere = consecutivos >= MAX_CONSECUTIVE_DAYS
+        requiere = self._rest_policy.requires_rest(consecutivos)
 
         emp = self._get_empleado(empleado_id)
         if requiere and emp:
@@ -152,7 +158,7 @@ class HRRuleEngine:
         if not emp:
             return {"ok": False, "error": "Empleado no encontrado"}
 
-        fecha_obj = _parse_date(fecha_descanso) or (date.today() + timedelta(days=1))
+        fecha_obj = _parse_date(fecha_descanso) or self._rest_policy.default_rest_date(date.today())
         suc_id    = sucursal_id or emp.get("sucursal_id", 0)
 
         # Registrar en tabla de asistencias como descanso
@@ -349,7 +355,7 @@ class HRRuleEngine:
             candidato = hoy + timedelta(days=delta)
             descansando = self._empleados_con_descanso(sucursal_id, candidato)
             total = len(todos_empleados)
-            if descansando < total * 0.5:
+            if self._rest_policy.can_schedule_rest(descansando, total):
                 self._publish_rest_day(emp, candidato, sucursal_id)
                 return {
                     "empleado_id":    empleado_id,

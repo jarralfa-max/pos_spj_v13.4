@@ -2085,66 +2085,9 @@ if(drivers.length===0){{
             QMessageBox.critical(self, "Error", str(e))
 
     def _init_tables(self):
-        # Compatibility shim only. Business schema belongs to DeliveryRepository/migrations.
-        tables = [
-            """CREATE TABLE IF NOT EXISTS drivers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                telefono TEXT,
-                vehiculo TEXT,
-                activo INTEGER DEFAULT 1,
-                en_ruta INTEGER DEFAULT 0,
-                sucursal_id INTEGER DEFAULT 1,
-                usuario_id INTEGER
-            )""",
-            """CREATE TABLE IF NOT EXISTS driver_locations (
-                chofer_id INTEGER PRIMARY KEY,
-                lat REAL, lng REAL,
-                timestamp DATETIME
-            )""",
-            # v13.30: Tabla de cortes de caja por repartidor
-            """CREATE TABLE IF NOT EXISTS delivery_driver_cuts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                driver_id        INTEGER NOT NULL,
-                driver_nombre    TEXT,
-                turno_inicio     DATETIME,
-                turno_fin        DATETIME DEFAULT (datetime('now')),
-                entregas_total   INTEGER DEFAULT 0,
-                efectivo_cobrado REAL DEFAULT 0,
-                tarjeta_cobrado  REAL DEFAULT 0,
-                transfer_cobrado REAL DEFAULT 0,
-                total_cobrado    REAL DEFAULT 0,
-                efectivo_entregado REAL DEFAULT 0,
-                diferencia       REAL DEFAULT 0,
-                usuario_corte    TEXT,
-                sucursal_id      INTEGER DEFAULT 1,
-                notas            TEXT,
-                fecha            DATETIME DEFAULT (datetime('now'))
-            )""",
-        ]
-        for sql in tables:
-            try:
-                self.conexion.execute(sql)
-            except Exception as _e:
-                logger.debug("_init_tables: %s", _e)
-        # Ensure missing columns on existing tables (ALTER ADD is safe with IF NOT EXISTS pattern)
-        for col in ["total REAL DEFAULT 0", "costo_envio REAL DEFAULT 0",
-                     "pago_metodo TEXT DEFAULT ''", "pago_monto REAL DEFAULT 0"]:
-            try:
-                self.conexion.execute(f"ALTER TABLE delivery_orders ADD COLUMN {col}")
-            except Exception:
-                pass  # Column already exists
-        try:
-            self.conexion.execute(
-                "CREATE INDEX IF NOT EXISTS idx_del_estado "
-                "ON delivery_orders(estado, sucursal_id)")
-            self.conexion.execute(
-                "CREATE INDEX IF NOT EXISTS idx_del_driver_cuts "
-                "ON delivery_driver_cuts(driver_id, fecha)")
-        except Exception:
-            pass
-        try: self.conexion.commit()
-        except Exception: pass
+        # Schema creation/alteration moved to repositories and migrations.
+        # Kept as a compatibility hook so legacy callers do not break.
+        return
     def _refresh_operational_header(self) -> None:
         """Update contextual header: branch + WhatsApp status + last refresh."""
         from datetime import datetime as _dt
@@ -2735,7 +2678,7 @@ if(drivers.length===0){{
             QMessageBox.critical(self, "Error", str(e))
 
     def gestionar_drivers(self):
-        dlg = GestorDriversDialog(self.conexion, self)
+        dlg = GestorDriversDialog(self.conexion, self, driver_service=self.driver_service)
         dlg.exec_()
         QTimer.singleShot(0, self._initial_sync_whatsapp_orders)
         QTimer.singleShot(10, self.cargar_pedidos)
@@ -2945,13 +2888,6 @@ if(drivers.length===0){{
                 ))
                 # Marcar entregas como cortadas
                 cut_id = self.conexion.execute("SELECT last_insert_rowid()").fetchone()[0]
-                # Ensure corte_id column exists before UPDATE
-                try:
-                    self.conexion.execute(
-                        "ALTER TABLE delivery_orders ADD COLUMN corte_id INTEGER DEFAULT 0")
-                    self.conexion.commit()
-                except Exception:
-                    pass
                 for oid in _data["order_ids"]:
                     try:
                         self.conexion.execute(
@@ -3078,11 +3014,12 @@ if(drivers.length===0){{
         dlg.exec_()
 
 class GestorDriversDialog(QDialog):
-    """Gestionar repartidores: agregar, editar, eliminar, sucursales, WA phone."""
+    """Gestionar repartidores desde DriverService/DriverRepository canónico."""
 
-    def __init__(self, conn, parent=None):
+    def __init__(self, conn, parent=None, driver_service=None):
         super().__init__(parent)
         self.conn = conn
+        self.driver_service = driver_service or DriverService(conn)
         self.setWindowTitle("Gestionar Repartidores")
         self.setMinimumSize(680, 480)
         self._build_ui()
@@ -3110,11 +3047,11 @@ class GestorDriversDialog(QDialog):
         form = QFormLayout()
         self.txt_nombre  = QLineEdit(); self.txt_nombre.setPlaceholderText("Nombre completo")
         self.txt_tel     = PhoneWidget(default_country="+52")
-        self.txt_suc     = QLineEdit(); self.txt_suc.setPlaceholderText("ID sucursales separadas por coma, ej: 1,2")
+        self.txt_suc     = QLineEdit(); self.txt_suc.setPlaceholderText("ID sucursal principal, ej: 1")
         self.cmb_activo  = QComboBox(); self.cmb_activo.addItems(["Activo","Inactivo"])
         form.addRow("Nombre:",       self.txt_nombre)
         form.addRow("Teléfono WA:",  self.txt_tel)
-        form.addRow("Sucursales:",   self.txt_suc)
+        form.addRow("Sucursal:",   self.txt_suc)
         form.addRow("Estado:",       self.cmb_activo)
         lay.addLayout(form)
 
@@ -3136,14 +3073,13 @@ class GestorDriversDialog(QDialog):
 
     def _cargar(self):
         try:
-            # Ensure columns
-            for col in ["sucursales TEXT", "activo INTEGER DEFAULT 1"]:
-                try: self.conn.execute(f"ALTER TABLE drivers ADD COLUMN {col}")
-                except Exception: pass
-            rows = self.conn.execute(
-                "SELECT id,nombre,COALESCE(telefono,''),COALESCE(sucursales,''),COALESCE(activo,1) "
-                "FROM drivers ORDER BY nombre"
-            ).fetchall()
+            rows = [
+                (
+                    r.get("id"), r.get("nombre", ""), r.get("telefono", ""),
+                    r.get("sucursal_id", 1), r.get("activo", 1),
+                )
+                for r in self.driver_service.list_drivers()
+            ]
             self.tabla.setRowCount(0)
             for i, r in enumerate(rows):
                 self.tabla.insertRow(i)
@@ -3186,13 +3122,14 @@ class GestorDriversDialog(QDialog):
     def _agregar(self):
         if not self._validar(): return
         tel = self.txt_tel.get_e164().strip()
-        suc = self.txt_suc.text().strip()
+        suc = int(self.txt_suc.text().strip() or 1)
         activo = 1 if self.cmb_activo.currentIndex()==0 else 0
-        self.conn.execute(
-            "INSERT INTO drivers(nombre,telefono,sucursales,activo) VALUES(?,?,?,?)",
-            (self.txt_nombre.text().strip(), tel, suc, activo))
-        try: self.conn.commit()
-        except Exception: pass
+        self.driver_service.create_driver({
+            "nombre": self.txt_nombre.text().strip(),
+            "telefono": tel,
+            "sucursal_id": suc,
+            "activo": activo,
+        })
         self._limpiar_form(); self._cargar()
 
     def _guardar_edicion(self):
@@ -3200,13 +3137,14 @@ class GestorDriversDialog(QDialog):
         row = self.tabla.currentRow()
         driver_id = int(self.tabla.item(row,0).text())
         tel = self.txt_tel.get_e164().strip()
-        suc = self.txt_suc.text().strip()
+        suc = int(self.txt_suc.text().strip() or 1)
         activo = 1 if self.cmb_activo.currentIndex()==0 else 0
-        self.conn.execute(
-            "UPDATE drivers SET nombre=?,telefono=?,sucursales=?,activo=? WHERE id=?",
-            (self.txt_nombre.text().strip(), tel, suc, activo, driver_id))
-        try: self.conn.commit()
-        except Exception: pass
+        self.driver_service.update_driver(driver_id, {
+            "nombre": self.txt_nombre.text().strip(),
+            "telefono": tel,
+            "sucursal_id": suc,
+            "activo": activo,
+        })
         self._limpiar_form(); self._cargar()
 
     def _eliminar(self):
@@ -3217,9 +3155,7 @@ class GestorDriversDialog(QDialog):
         if QMessageBox.question(self,"Confirmar",
             f"¿Eliminar al repartidor {nombre}?",
             QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
-        self.conn.execute("DELETE FROM drivers WHERE id=?", (driver_id,))
-        try: self.conn.commit()
-        except Exception: pass
+        self.driver_service.deactivate_driver(driver_id)
         self._limpiar_form(); self._cargar()
 
     def _limpiar_form(self):
