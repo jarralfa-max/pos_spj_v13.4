@@ -229,58 +229,11 @@ class ConfigRepository:
             pass
 
     # --- CONFIGURATION MODULE READ/WRITE ADAPTERS ---
-    def get_ticket_design_elements(self, design_type: str) -> str | None:
-        row = self.db.execute(
-            "SELECT elementos FROM ticket_design_config WHERE tipo=? AND activo=1 LIMIT 1",
-            (design_type,),
-        ).fetchone()
-        return row[0] if row else None
 
-    def save_ticket_design(self, design_type: str, elements_json: str) -> None:
-        self.db.execute(
-            """
-            UPDATE ticket_design_config
-            SET elementos=?, activo=1
-            WHERE tipo=? AND nombre='Default'
-            """,
-            (elements_json, design_type),
-        )
-        changed = self.db.execute("SELECT changes()").fetchone()[0]
-        if changed == 0:
-            self.db.execute(
-                "INSERT OR REPLACE INTO ticket_design_config (tipo, nombre, elementos, activo) VALUES (?,?,?,1)",
-                (design_type, "Default", elements_json),
-            )
-        self._commit()
 
-    def get_hardware_configs(self) -> list[dict]:
-        rows = self.db.execute(
-            "SELECT tipo, habilitado, configuraciones FROM hardware_config"
-        ).fetchall()
-        return [dict(row) for row in rows]
 
-    def save_hardware_config(self, device_type: str, enabled: bool, settings_json: str) -> None:
-        self.db.execute(
-            """
-            UPDATE hardware_config
-            SET habilitado=?, configuraciones=?
-            WHERE tipo=?
-            """,
-            (1 if enabled else 0, settings_json, device_type),
-        )
-        self._commit()
 
-    def get_loyalty_weights(self) -> dict[str, str]:
-        rows = self.db.execute("SELECT clave, valor FROM loyalty_config").fetchall()
-        return {row[0]: row[1] for row in rows}
 
-    def save_loyalty_weights(self, settings: dict[str, str]) -> None:
-        for key, value in settings.items():
-            self.db.execute(
-                "INSERT OR REPLACE INTO loyalty_config (clave, valor) VALUES (?,?)",
-                (key, value),
-            )
-        self._commit()
 
     def monthly_close_exists(self, period: str) -> bool:
         row = self.db.execute("SELECT id FROM cierre_mensual WHERE periodo=?", (period,)).fetchone()
@@ -331,62 +284,14 @@ class ConfigRepository:
             (limit,),
         ).fetchall()
 
-    def get_legacy_users(self) -> list[tuple]:
-        return self.db.execute(
-            """
-            SELECT id, usuario, nombre, rol, COALESCE(fecha_creacion, fecha_alta, '') as fecha_creacion,
-                   COALESCE(activo,1) as activo
-            FROM usuarios
-            ORDER BY usuario
-            """
-        ).fetchall()
 
-    def get_user_record(self, user_id: int) -> dict | None:
-        cursor = self.db.cursor()
-        cursor.execute("SELECT * FROM usuarios WHERE id = ?", (user_id,))
-        row = cursor.fetchone()
-        return dict(zip([desc[0] for desc in cursor.description], row)) if row else None
 
-    def soft_delete_user(self, user_id: int) -> None:
-        self.db.execute(
-            "UPDATE usuarios SET activo=0, usuario=usuario||'_baja_'||strftime('%Y%m%d','now') WHERE id=?",
-            (user_id,),
-        )
-        self._commit()
 
-    def list_branches_for_config(self) -> list[tuple]:
-        return self.db.execute("SELECT id, nombre, direccion, telefono, activa FROM sucursales ORDER BY id").fetchall()
 
-    def soft_delete_branch(self, branch_id: int) -> None:
-        self.db.execute("UPDATE sucursales SET activa=0 WHERE id=?", (branch_id,))
-        self._commit()
 
-    def list_whatsapp_numbers(self) -> list[tuple]:
-        return self.db.execute(
-            "SELECT id, nombre, canal, sucursal_id, proveedor, numero_negocio, activo FROM whatsapp_numeros ORDER BY id"
-        ).fetchall()
 
-    def save_whatsapp_number(self, *, name: str, channel: str, provider: str, business_number: str | None,
-                             meta_token: str | None, meta_phone_id: str | None,
-                             twilio_sid: str | None, twilio_token: str | None, active: bool) -> None:
-        self.db.execute(
-            """
-            INSERT INTO whatsapp_numeros
-                (nombre, canal, proveedor, numero_negocio, meta_token, meta_phone_id, twilio_sid, twilio_token, activo)
-            VALUES(?,?,?,?,?,?,?,?,?)
-            ON CONFLICT DO NOTHING
-            """,
-            (name, channel, provider, business_number, meta_token, meta_phone_id, twilio_sid, twilio_token, 1 if active else 0),
-        )
-        self._commit()
 
-    def deactivate_whatsapp_number(self, number_id: int) -> None:
-        self.db.execute("UPDATE whatsapp_numeros SET activo=0 WHERE id=?", (number_id,))
-        self._commit()
 
-    def active_usernames(self) -> list[str]:
-        rows = self.db.execute("SELECT username FROM usuarios WHERE activo=1 ORDER BY username").fetchall()
-        return [row[0] for row in rows]
 
     def active_branches_for_selector(self) -> list[tuple[int, str]]:
         rows = self.db.execute("SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY id").fetchall()
@@ -494,26 +399,19 @@ class ConfigRepository:
             (limit,),
         ).fetchall()
 
-    def username_exists(self, username: str) -> bool:
-        row = self.db.execute("SELECT id FROM usuarios WHERE usuario = ?", (username,)).fetchone()
-        return bool(row)
 
-    def save_legacy_user(self, *, user_id: int | None, username: str, name: str, role: str,
-                         modules_json: str, branch_id: int, password_hash: str | None) -> None:
-        if user_id:
-            fields = ["usuario=?", "nombre=?", "rol=?", "modulos_permitidos=?", "sucursal_id=?"]
-            values = [username, name, role, modules_json, branch_id]
-            if password_hash:
-                fields.append("contrasena=?")
-                values.append(password_hash)
-            values.append(user_id)
-            self.db.execute(f"UPDATE usuarios SET {', '.join(fields)} WHERE id=?", values)
-        else:
+
+    def save_role(self, *, role_id: int | None, name: str, description: str) -> int:
+        if role_id is not None:
             self.db.execute(
-                """
-                INSERT INTO usuarios (usuario, nombre, contrasena, rol, modulos_permitidos, sucursal_id, fecha_creacion, activo)
-                VALUES (?, ?, ?, ?, ?, ?, datetime('now'), 1)
-                """,
-                (username, name, password_hash, role, modules_json, branch_id),
+                "UPDATE roles SET nombre=?, descripcion=? WHERE id=?",
+                (name, description, role_id),
             )
+            self._commit()
+            return role_id
+        cursor = self.db.execute(
+            "INSERT INTO roles(nombre, descripcion) VALUES(?, ?)",
+            (name, description),
+        )
         self._commit()
+        return int(cursor.lastrowid)

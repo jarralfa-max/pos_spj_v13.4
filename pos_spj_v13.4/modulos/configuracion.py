@@ -2,66 +2,62 @@
 # modulos/configuracion.py
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
-    QComboBox, QMessageBox, QFormLayout, QDoubleSpinBox, QGroupBox,
+    QComboBox, QMessageBox, QFormLayout, QGroupBox,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
-    QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
-    QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
-    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
-    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
-    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
-    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
-    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea,
-    QListWidgetItem as QListWidgetItemAlias
+    QAbstractItemView, QFrame, QSplitter, QListWidget,
+    QDateEdit, QTabWidget,
+    QCheckBox, QTextEdit, QFileDialog, QStackedWidget, QScrollArea
 )
-from PyQt5.QtCore import Qt, QTimer, QUrl, QPropertyAnimation, QRect, QSize, pyqtSignal, QThread
-from PyQt5.QtGui import QPixmap, QColor, QIcon, QFont, QPalette, QBrush, QPainter, QPen, QLinearGradient, QCursor
+from PyQt5.QtCore import Qt
 import sqlite3
 from .base import ModuloBase
-import os
-import json
 
 # Design System Imports
-from modulos.design_tokens import Colors, Spacing, Typography, Shadows
 from modulos.ui_components import (
-    create_primary_button, create_secondary_button, create_success_button,
-    create_danger_button, create_input_field, create_card,
-    create_heading, create_subheading, apply_tooltip,
-    PageHeader, Toast,
+    create_primary_button, create_danger_button, apply_tooltip,
 )
 
 from core.services.configuration_settings_service import (
+    ClosingPeriodService,
     CompanyProfileService,
-    LoyaltyProgramSettingsService,
+    EmailSettingsService,
+    ModuleAccessService,
+    PaymentProviderSettingsService,
+    PermissionEventPublisher,
+    PermissionQueryService,
+    RoleManagementService,
+    SettingsApplicationService,
     SystemSettingsService,
+    UserManagementService,
 )
 from frontend.desktop.components.address_input import AddressInput
+from frontend.desktop.components.integer_input import IntegerInput
+from frontend.desktop.components.percent_input import PercentInput
 from frontend.desktop.components.phone_input import PhoneInput
 from repositories.config_repository import ConfigRepository
-
-try:
-    import bcrypt
-except ImportError:
-    bcrypt = None  # optional dependency
-# ── Prefer security.auth for hashing (enterprise) ─────────────────────────────
-try:
-    from security.auth import hash_password as _hash_password, MIN_PASSWORD_LEN
-    _USE_AUTH_MODULE = True
-except ImportError:
-    _USE_AUTH_MODULE = False
+from uuid import uuid4
 
 class ModuloConfiguracion(ModuloBase):
     def __init__(self, conexion, parent=None):
-        # Accept AppContainer or direct db connection
         if hasattr(conexion, 'db'):
             self.container = conexion
             super().__init__(conexion.db, parent)
         else:
             self.container = None
             super().__init__(conexion, parent)
-        self.config_repository = ConfigRepository(self.conexion)
-        self.system_settings_service = SystemSettingsService(self.config_repository)
-        self.company_profile_service = CompanyProfileService(self.config_repository)
-        self.loyalty_settings_service = LoyaltyProgramSettingsService(self.config_repository)
+        settings_repository = ConfigRepository(self.conexion)
+        self.system_settings_service = SystemSettingsService(settings_repository)
+        self.settings_application_service = SettingsApplicationService(self.system_settings_service)
+        self.company_profile_service = CompanyProfileService(settings_repository)
+        self.email_settings_service = EmailSettingsService(self.system_settings_service)
+        self.payment_provider_settings_service = PaymentProviderSettingsService(self.system_settings_service)
+        self.closing_period_service = ClosingPeriodService(settings_repository)
+        event_bus = getattr(conexion, "event_bus", None)
+        self.permission_event_publisher = PermissionEventPublisher(event_bus)
+        self.user_management_service = UserManagementService(settings_repository, self.permission_event_publisher)
+        self.role_management_service = RoleManagementService(settings_repository, self.permission_event_publisher)
+        self.permission_query_service = PermissionQueryService(settings_repository)
+        self.module_access_service = ModuleAccessService(settings_repository, self.permission_event_publisher)
         self.verificar_tablas_configuraciones()
         self.init_ui()
 
@@ -75,13 +71,25 @@ class ModuloConfiguracion(ModuloBase):
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
 
+    def _operation_id(self) -> str:
+        return str(uuid4())
+
+    def _actor_name(self) -> str:
+        return getattr(self, "usuario_actual", "Sistema")
+
+    def _enable_combo_search(self, combo: QComboBox) -> None:
+        combo.setEditable(True)
+        combo.setInsertPolicy(QComboBox.NoInsert)
+        completer = combo.completer()
+        if completer is not None:
+            completer.setFilterMode(Qt.MatchContains)
 
     def _on_nav_changed(self, row: int) -> None:
         """Sync stack with nav selection."""
         try:
             self._page_stack.setCurrentIndex(row)
         except Exception:
-            pass
+            return
 
     def verificar_tablas_configuraciones(self):
         """Valida que migraciones hayan preparado la configuración.
@@ -116,8 +124,6 @@ class ModuloConfiguracion(ModuloBase):
         layout.addWidget(separator)
 
         # ── Navegación vertical (submenú lateral) ────────────────────────
-        from PyQt5.QtWidgets import QListWidget, QSplitter, QStackedWidget, QListWidgetItem
-        from PyQt5.QtCore import QSize
 
         content_splitter = QSplitter(Qt.Horizontal)
 
@@ -128,7 +134,7 @@ class ModuloConfiguracion(ModuloBase):
         self._nav_list.currentRowChanged.connect(self._on_nav_changed)
 
         # Stack de páginas
-        self.tabs_config = QStackedWidget()  # backward compat alias
+        self.tabs_config = QStackedWidget()
         self._page_stack = self.tabs_config
 
         content_splitter.addWidget(self._nav_list)
@@ -136,14 +142,11 @@ class ModuloConfiguracion(ModuloBase):
         content_splitter.setStretchFactor(1, 1)
         layout.addWidget(content_splitter)
 
-        # Helper to add a page
         def _add_page(label: str, widget: QWidget):
             item = QListWidgetItem(label)
             self._nav_list.addItem(item)
             self._page_stack.addWidget(widget)
 
-        # ── Pages (replaces addTab) ──────────────────────────────────────────
-        # Shim: tabs_config.addTab(widget, label) → _add_page(label, widget)
         class _TabShim:
             def __init__(self_s, stack, nav):
                 self_s._stack = stack
@@ -155,11 +158,7 @@ class ModuloConfiguracion(ModuloBase):
                 self_s._nav.setCurrentRow(idx)
         self.tabs_config = _TabShim(self._page_stack, self._nav_list)
         
-        # Crear pestañas que SÍ se necesitan aquí
         self.tab_general = self.crear_tab_general()
-
-        self.tab_comisiones = QWidget()
-        self.tab_happy_hour = QWidget()
 
         self.tab_empresa   = QWidget()
         self.tab_email      = QWidget()
@@ -167,16 +166,11 @@ class ModuloConfiguracion(ModuloBase):
         self.tab_usuarios_roles = QWidget()
         self.tab_cierre_mensual = QWidget()
 
-        # v13.30: Solo tabs de configuración del SISTEMA.
-        # Hardware, Ticket Designer, WhatsApp, Fidelización, Apariencia
-        # tienen su propio módulo en el menú lateral.
         self.tabs_config.addTab(self.tab_empresa,          "🏢 Empresa / Fiscal")
         self.tabs_config.addTab(self.tab_general,          "⚙️ General")
         self.tabs_config.addTab(self.tab_usuarios_roles,   "👤 Usuarios y Roles")
         self.tabs_config.addTab(self.tab_email,            "📧 Email / SMTP")
         self.tabs_config.addTab(self.tab_mercadopago,      "💳 Mercado Pago")
-        self.tabs_config.addTab(self.tab_comisiones,       "💰 Comisiones")
-        self.tabs_config.addTab(self.tab_happy_hour,       "⏰ Happy Hour")
         self.tabs_config.addTab(self.tab_cierre_mensual,   "📅 Cierre Mensual")
         self._setup_tab_cierre_mensual()
 
@@ -184,711 +178,60 @@ class ModuloConfiguracion(ModuloBase):
 
         # Cargar datos iniciales
         self.cargar_configuraciones_general()
-        self._setup_tab_comisiones()
-        self._setup_tab_happy_hour()
-        self.cargar_sucursales()
         self._setup_tab_empresa()
         self._setup_tab_email()
         self._setup_tab_mercadopago()
         self._setup_tab_usuarios_roles()
-        try:
-            self._cargar_usuarios_v13()
-        except Exception:
-            pass
+        self._cargar_usuarios_v13()
 
     def crear_tab_general(self):
-        """Crea la pestaña de configuración general"""
+        """Crea la pestaña de configuración general."""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setSpacing(15)
 
-        # Grupo de Apariencia — v13.30: solo toggle dark mode
-        grupo_apariencia = QGroupBox("Apariencia")
-        grupo_apariencia.setObjectName("configGroup")  # Clase CSS para GroupBox
-        layout_apariencia = QFormLayout()
-        
-        self.chk_dark_mode = QCheckBox("🌙 Modo Oscuro")
-        self.chk_dark_mode.setToolTip("Activa el tema oscuro para toda la interfaz")
-        self.chk_dark_mode.setObjectName("checkboxStandard")  # Clase CSS
-        self.chk_dark_mode.stateChanged.connect(self._toggle_dark_mode)
-        layout_apariencia.addRow("", self.chk_dark_mode)
-        grupo_apariencia.setLayout(layout_apariencia)
-
-        # Grupo de Impuestos
         grupo_impuestos = QGroupBox("Configuración Fiscal")
-        grupo_impuestos.setObjectName("configGroup")  # Clase CSS para GroupBox
+        grupo_impuestos.setObjectName("configGroup")
         layout_impuestos = QFormLayout()
-        
-        self.spin_impuesto = QDoubleSpinBox()
-        self.spin_impuesto.setRange(0.0, 100.0)
-        self.spin_impuesto.setSuffix(" %")
-        self.spin_impuesto.setDecimals(2)
-        self.spin_impuesto.setObjectName("inputField")  # Clase CSS para inputs
+
+        self.spin_impuesto = PercentInput(self)
         self.spin_impuesto.setToolTip("Impuesto por defecto aplicado a las ventas")
-        
+
         btn_guardar_impuesto = create_primary_button(self, "Guardar Impuesto", "Guardar configuración de impuesto")
         btn_guardar_impuesto.setIcon(self.obtener_icono("save.png"))
-        
+        btn_guardar_impuesto.clicked.connect(self.guardar_impuesto)
+
         layout_impuestos.addRow("IVA por defecto:", self.spin_impuesto)
         layout_impuestos.addRow("", btn_guardar_impuesto)
         grupo_impuestos.setLayout(layout_impuestos)
 
-        # Grupo de Seguridad
         grupo_seguridad = QGroupBox("Seguridad")
-        grupo_seguridad.setObjectName("configGroup")  # Clase CSS para GroupBox
+        grupo_seguridad.setObjectName("configGroup")
         layout_seguridad = QVBoxLayout()
-        
+
         self.chk_requerir_admin = QCheckBox("Requerir autorización de administrador para acciones críticas")
         self.chk_requerir_admin.setToolTip("Activar para requerir permisos de administrador en operaciones sensibles")
-        self.chk_requerir_admin.setObjectName("checkboxStandard")  # Clase CSS
-        
+        self.chk_requerir_admin.setObjectName("checkboxStandard")
+
         btn_guardar_seguridad = create_primary_button(self, "Guardar Configuración de Seguridad", "Guardar configuración de seguridad")
         btn_guardar_seguridad.setIcon(self.obtener_icono("security.png"))
-        
+        btn_guardar_seguridad.clicked.connect(self.guardar_seguridad)
+
         layout_seguridad.addWidget(self.chk_requerir_admin)
         layout_seguridad.addWidget(btn_guardar_seguridad, 0, Qt.AlignLeft)
         grupo_seguridad.setLayout(layout_seguridad)
 
-        # Agregar grupos al layout principal
-        layout.addWidget(grupo_apariencia)
         layout.addWidget(grupo_impuestos)
         layout.addWidget(grupo_seguridad)
         layout.addStretch()
 
         return tab
 
-    def crear_tab_usuarios(self):
-        """Crea la pestaña de gestión de usuarios"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setSpacing(10)
-
-        # Barra de herramientas
-        toolbar = QHBoxLayout()
-        
-        self.btn_nuevo_usuario = QPushButton("Nuevo Usuario")
-        self.btn_nuevo_usuario.setIcon(self.obtener_icono("add.png"))
-        self.btn_nuevo_usuario.setToolTip("Crear un nuevo usuario")
-        
-        self.btn_editar_usuario = QPushButton("Editar Usuario")
-        self.btn_editar_usuario.setIcon(self.obtener_icono("edit.png"))
-        self.btn_editar_usuario.setToolTip("Editar usuario seleccionado")
-        self.btn_editar_usuario.setEnabled(False)
-        
-        self.btn_eliminar_usuario = QPushButton("Eliminar Usuario")
-        self.btn_eliminar_usuario.setIcon(self.obtener_icono("delete.png"))
-        self.btn_eliminar_usuario.setToolTip("Eliminar usuario seleccionado")
-        self.btn_eliminar_usuario.setEnabled(False)
-        
-        self.btn_actualizar = QPushButton("Actualizar")
-        self.btn_actualizar.setIcon(self.obtener_icono("refresh.png"))
-        self.btn_actualizar.setToolTip("Actualizar lista de usuarios")
-        
-        toolbar.addWidget(self.btn_nuevo_usuario)
-        toolbar.addWidget(self.btn_editar_usuario)
-        toolbar.addWidget(self.btn_eliminar_usuario)
-        toolbar.addStretch()
-        toolbar.addWidget(self.btn_actualizar)
-        layout.addLayout(toolbar)
-
-        # Tabla de usuarios
-        self.tabla_usuarios = QTableWidget()
-        self.tabla_usuarios.setColumnCount(7)
-        self.tabla_usuarios.setHorizontalHeaderLabels([
-            "ID", "Usuario", "Nombre", "Rol", "Fecha Creación", "Estado"
-        ])
-        
-        # Configurar tabla
-        self.tabla_usuarios.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabla_usuarios.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla_usuarios.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.tabla_usuarios.setAlternatingRowColors(True)
-        header = self.tabla_usuarios.horizontalHeader()
-        header.setSectionResizeMode(1, QHeaderView.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)
-        
-        layout.addWidget(self.tabla_usuarios)
-
-        # Conexiones
-        self.btn_nuevo_usuario.clicked.connect(self.nuevo_usuario)
-        self.btn_editar_usuario.clicked.connect(self.editar_usuario)
-        self.btn_eliminar_usuario.clicked.connect(self.eliminar_usuario)
-        self.btn_actualizar.clicked.connect(self.cargar_usuarios)
-        self.tabla_usuarios.itemSelectionChanged.connect(self.actualizar_botones_usuarios)
-
-        return tab
-
-    def crear_tab_fidelizacion(self):
-        """Crea la pestaña de configuración de fidelización"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setSpacing(15)
-
-        # Información del programa actual
-        grupo_info = QGroupBox("Información del Programa Actual")
-        grupo_info.setObjectName("configGroup")  # Clase CSS para GroupBox
-        layout_info = QVBoxLayout()
-        
-        self.lbl_info_programa = QLabel()
-        self.lbl_info_programa.setWordWrap(True)
-        self.lbl_info_programa.setObjectName("infoCard")  # Clase CSS para cards informativas
-        layout_info.addWidget(self.lbl_info_programa)
-        grupo_info.setLayout(layout_info)
-
-        # Configuración del programa
-        grupo_config = QGroupBox("Configuración del Programa de Fidelidad")
-        grupo_config.setObjectName("configGroup")  # Clase CSS para GroupBox
-        layout_config = QFormLayout()
-        layout_config.setLabelAlignment(Qt.AlignRight)
-        
-        self.edit_nombre_programa = create_input_field(self, "Ej: Programa de Puntos MiTienda", "Nombre del programa de fidelidad")
-        
-        self.spin_puntos_por_peso = QDoubleSpinBox()
-        self.spin_puntos_por_peso.setRange(0.01, 100.0)
-        self.spin_puntos_por_peso.setValue(1.0)
-        self.spin_puntos_por_peso.setSuffix(" puntos por $")
-        self.spin_puntos_por_peso.setObjectName("inputField")  # Clase CSS
-        self.spin_puntos_por_peso.setToolTip("Puntos ganados por cada peso gastado")
-        
-        self.edit_niveles = create_input_field(self, "Ej: Bronce,Plata,Oro,Diamante", "Niveles del programa separados por comas")
-        
-        self.edit_requisitos = create_input_field(self, "Ej: 0,1000,5000,10000", "Puntos requeridos para cada nivel")
-        
-        self.edit_descuentos = create_input_field(self, "Ej: 5,10,15,20", "Descuentos porcentuales por nivel")
-        self.edit_descuentos.setPlaceholderText("Ej: 0,5,10,15")
-        self.edit_descuentos.setToolTip("Porcentaje de descuento para cada nivel")
-        
-        btn_guardar_fidelidad = QPushButton("💾 Guardar Configuración de Fidelidad")
-        btn_guardar_fidelidad.setIcon(self.obtener_icono("save.png"))
-        btn_guardar_fidelidad.clicked.connect(self.guardar_configuraciones_fidelidad)
-        
-        layout_config.addRow("Nombre del Programa:", self.edit_nombre_programa)
-        layout_config.addRow("Puntos por $ gastado:", self.spin_puntos_por_peso)
-        layout_config.addRow("Niveles:", self.edit_niveles)
-        layout_config.addRow("Requisitos (puntos):", self.edit_requisitos)
-        layout_config.addRow("Descuentos (%):", self.edit_descuentos)
-        layout_config.addRow("", btn_guardar_fidelidad)
-        grupo_config.setLayout(layout_config)
-
-        # Agregar grupos al layout
-        layout.addWidget(grupo_info)
-        layout.addWidget(grupo_config)
-        layout.addStretch()
-
-        return tab
-    
-    def _actualizar_suma_pesos(self):
-        suma = (self.spin_peso_frecuencia.value() + self.spin_peso_volumen.value() +
-                self.spin_peso_margen.value() + self.spin_peso_comunidad.value())
-        color = "red" if suma != 100 else "green"
-        self.lbl_suma_pesos.setText(
-            f"<span style='color:{color}'>Suma: {suma}% "
-            f"{'✓' if suma == 100 else '⚠ Debe ser 100%'}</span>"
-        )
-
-    
-    # ── v9: Tab Diseño Tickets ───────────────────────────────────────────────
-
-    def crear_tab_ticket_designer(self):
-        """
-        Diseñador visual de tickets y etiquetas.
-        Muestra lista de elementos con drag-drop de posición.
-        Vista previa simulada.
-        """
-        from PyQt5.QtWidgets import (
-            QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
-            QPushButton, QListWidget, QTextEdit, QLabel,
-            QComboBox, QGroupBox
-        )
-        from PyQt5.QtCore import Qt
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        # Tipo de diseño
-        top = QHBoxLayout()
-        top.addWidget(QLabel("Tipo:"))
-        self.combo_design_tipo = QComboBox()
-        self.combo_design_tipo.addItems(["ticket", "etiqueta"])
-        self.combo_design_tipo.currentTextChanged.connect(self._cargar_diseno_ticket)
-        top.addWidget(self.combo_design_tipo)
-        top.addStretch()
-        btn_guardar_d = QPushButton("💾 Guardar Diseño")
-        btn_guardar_d.clicked.connect(self._guardar_diseno_ticket)
-        top.addWidget(btn_guardar_d)
-        layout.addLayout(top)
-
-        splitter = QSplitter(Qt.Horizontal)
-
-        # Panel izquierdo: elementos disponibles + lista actual
-        panel_izq = QWidget()
-        lay_izq = QVBoxLayout(panel_izq)
-
-        grp_elem = QGroupBox("Elementos disponibles")
-        lay_elem = QVBoxLayout(grp_elem)
-        self.lista_elementos_disponibles = QListWidget()
-        elementos = [
-            "header_empresa", "header_sucursal", "fecha", "folio", "cajero",
-            "tabla_items", "totales", "forma_pago", "puntos_cliente",
-            "separador", "codigo_qr", "codigo_barras", "logo",
-            "texto_personalizado", "footer",
-        ]
-        self.lista_elementos_disponibles.addItems(elementos)
-        lay_elem.addWidget(self.lista_elementos_disponibles)
-        btn_agregar_e = QPushButton("➕ Agregar al diseño")
-        btn_agregar_e.clicked.connect(self._agregar_elemento_diseno)
-        lay_elem.addWidget(btn_agregar_e)
-        lay_izq.addWidget(grp_elem)
-
-        grp_actual = QGroupBox("Elementos en diseño (orden = posición)")
-        lay_act = QVBoxLayout(grp_actual)
-        self.lista_diseno_actual = QListWidget()
-        self.lista_diseno_actual.setDragDropMode(QListWidget.InternalMove)
-        lay_act.addWidget(self.lista_diseno_actual)
-        btn_quitar_e = QPushButton("✖ Quitar seleccionado")
-        btn_quitar_e.clicked.connect(self._quitar_elemento_diseno)
-        lay_act.addWidget(btn_quitar_e)
-        lay_izq.addWidget(grp_actual)
-
-        splitter.addWidget(panel_izq)
-
-        # Panel derecho: vista previa JSON
-        panel_der = QWidget()
-        lay_der = QVBoxLayout(panel_der)
-        lay_der.addWidget(QLabel("Vista previa (JSON elementos):"))
-        self.txt_preview_diseno = QTextEdit()
-        self.txt_preview_diseno.setReadOnly(True)
-        self.txt_preview_diseno.setMaximumHeight(300)
-        lay_der.addWidget(self.txt_preview_diseno)
-
-        lay_der.addWidget(QLabel("Variables disponibles:"))
-        variables_info = QTextEdit()
-        variables_info.setReadOnly(True)
-        variables_info.setMaximumHeight(150)
-        variables_info.setPlainText(
-            "empresa = Nombre del negocio\n"
-            "sucursal = Nombre sucursal\n"
-            "fecha = Fecha/hora de venta\n"
-            "folio = Número de folio\n"
-            "cajero = Usuario cajero\n"
-            "cliente = Nombre del cliente\n"
-            "footer = Mensaje pie de ticket\n"
-        )
-        lay_der.addWidget(variables_info)
-        splitter.addWidget(panel_der)
-
-        layout.addWidget(splitter)
-
-        # Cargar diseño actual
-        self._cargar_diseno_ticket()
-        return tab
-
-    def _cargar_diseno_ticket(self):
-        """Carga elementos del diseño activo para el tipo seleccionado."""
-        try:
-            import json
-            tipo = self.combo_design_tipo.currentText() if hasattr(self, 'combo_design_tipo') else "ticket"
-            elementos_json = self.config_repository.get_ticket_design_elements(tipo)
-            if elementos_json:
-                elementos = json.loads(elementos_json)
-                self.lista_diseno_actual.clear()
-                for elem in elementos:
-                    label = elem.get("id", elem.get("tipo", "elemento"))
-                    self.lista_diseno_actual.addItem(label)
-                self.txt_preview_diseno.setPlainText(
-                    json.dumps(elementos, indent=2, ensure_ascii=False)
-                )
-        except Exception:
-            pass
-        
-    def _guardar_diseno_ticket(self):
-        try:
-            import json
-        # [spj-dedup removed local QMessageBox import]
-            tipo = self.combo_design_tipo.currentText()
-            elementos = []
-            for i in range(self.lista_diseno_actual.count()):
-                eid = self.lista_diseno_actual.item(i).text()
-                elementos.append({"id": eid, "tipo": eid, "y_pos": i})
-            elementos_json = json.dumps(elementos, ensure_ascii=False)
-            self.config_repository.save_ticket_design(tipo, elementos_json)
-            Toast.success(self, "Diseño guardado", f"Diseño de {tipo} guardado.")
-        except Exception as exc:
-        # [spj-dedup removed local QMessageBox import]
-            QMessageBox.critical(self, "Error", str(exc))
-            
-    def _agregar_elemento_diseno(self):
-        item = self.lista_elementos_disponibles.currentItem()
-        if item:
-            self.lista_diseno_actual.addItem(item.text())
-            self._actualizar_preview_diseno()
-
-    def _quitar_elemento_diseno(self):
-        fila = self.lista_diseno_actual.currentRow()
-        if fila >= 0:
-            self.lista_diseno_actual.takeItem(fila)
-            self._actualizar_preview_diseno()
-
-    def _actualizar_preview_diseno(self):
-        import json
-        elementos = []
-        for i in range(self.lista_diseno_actual.count()):
-            eid = self.lista_diseno_actual.item(i).text()
-            elementos.append({"id": eid, "tipo": eid, "y_pos": i})
-        self.txt_preview_diseno.setPlainText(
-            json.dumps(elementos, indent=2, ensure_ascii=False)
-        )
-        
-    # ── v9: Tab Hardware POS ─────────────────────────────────────────────────
-
-    def crear_tab_hardware(self):
-        """
-        Configuración de hardware:
-        - Impresora térmica (tipo, puerto, ancho)
-        - Cajón (método, señal)
-        - Scanner (debounce, longitud mínima)
-        - Báscula (puerto serial, baud)
-        """
-        from PyQt5.QtWidgets import (
-            QWidget, QVBoxLayout, QFormLayout, QGroupBox,
-            QComboBox, QLineEdit, QSpinBox, QCheckBox, QHBoxLayout, QPushButton
-        )
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setSpacing(14)
-        layout.setContentsMargins(14, 14, 14, 14)
-
-        # Impresora
-        grp_imp = QGroupBox("🖨️ Impresora Térmica")
-        form_imp = QFormLayout(grp_imp)
-        self.chk_imp_habilitada = QCheckBox("Habilitada")
-        self.combo_imp_tipo = QComboBox()
-        self.combo_imp_tipo.addItems(["escpos_usb", "escpos_serial", "win32print", "simulado"])
-        self.txt_imp_puerto = QLineEdit()
-        self.txt_imp_puerto.setPlaceholderText("USB / COM3")
-        self.spin_imp_ancho = QSpinBox()
-        self.spin_imp_ancho.setRange(48, 120)
-        self.spin_imp_ancho.setValue(80)
-        self.spin_imp_ancho.setSuffix(" mm")
-        form_imp.addRow("Estado:", self.chk_imp_habilitada)
-        form_imp.addRow("Tipo:", self.combo_imp_tipo)
-        form_imp.addRow("Puerto:", self.txt_imp_puerto)
-        form_imp.addRow("Ancho papel:", self.spin_imp_ancho)
-        layout.addWidget(grp_imp)
-
-        # Cajón
-        grp_caj = QGroupBox("🗃️ Cajón de Dinero")
-        form_caj = QFormLayout(grp_caj)
-        self.chk_caj_habilitado = QCheckBox("Habilitado")
-        self.combo_caj_metodo = QComboBox()
-        self.combo_caj_metodo.addItems(["escpos", "serial", "parallel"])
-        self.combo_caj_pin = QComboBox()
-        self.combo_caj_pin.addItems(["kick1", "kick2"])
-        form_caj.addRow("Estado:", self.chk_caj_habilitado)
-        form_caj.addRow("Método:", self.combo_caj_metodo)
-        form_caj.addRow("Pin de activación:", self.combo_caj_pin)
-        layout.addWidget(grp_caj)
-
-        # Scanner
-        grp_scan = QGroupBox("🔍 Lector de Código de Barras")
-        form_scan = QFormLayout(grp_scan)
-        self.chk_scan_habilitado = QCheckBox("Habilitado")
-        self.spin_scan_debounce = QSpinBox()
-        self.spin_scan_debounce.setRange(20, 500)
-        self.spin_scan_debounce.setValue(80)
-        self.spin_scan_debounce.setSuffix(" ms")
-        self.spin_scan_minlen = QSpinBox()
-        self.spin_scan_minlen.setRange(1, 20)
-        self.spin_scan_minlen.setValue(3)
-        form_scan.addRow("Estado:", self.chk_scan_habilitado)
-        form_scan.addRow("Debounce:", self.spin_scan_debounce)
-        form_scan.addRow("Longitud mínima:", self.spin_scan_minlen)
-        layout.addWidget(grp_scan)
-
-        # Báscula
-        grp_bas = QGroupBox("⚖️ Báscula Serial")
-        form_bas = QFormLayout(grp_bas)
-        self.chk_bas_habilitada = QCheckBox("Habilitada")
-        self.txt_bas_puerto = QLineEdit()
-        self.txt_bas_puerto.setPlaceholderText("COM3")
-        self.spin_bas_baud = QSpinBox()
-        self.spin_bas_baud.setRange(1200, 115200)
-        self.spin_bas_baud.setValue(9600)
-        form_bas.addRow("Estado:", self.chk_bas_habilitada)
-        form_bas.addRow("Puerto:", self.txt_bas_puerto)
-        form_bas.addRow("Baud rate:", self.spin_bas_baud)
-        layout.addWidget(grp_bas)
-
-        # Impresora de etiquetas (Zebra/TSC)
-        grp_etiq = QGroupBox("🏷️ Impresora de Etiquetas (ZPL/TSPL)")
-        form_etiq = QFormLayout(grp_etiq)
-        self.chk_etiq_habilitada = QCheckBox("Habilitada")
-        self.combo_etiq_protocolo = QComboBox()
-        self.combo_etiq_protocolo.addItems(["ZPL (Zebra)", "TSPL (TSC)", "Auto-detectar"])
-        self.txt_etiq_ip = QLineEdit(); self.txt_etiq_ip.setPlaceholderText("192.168.1.100")
-        self.spin_etiq_puerto = QSpinBox()
-        self.spin_etiq_puerto.setRange(1, 65535); self.spin_etiq_puerto.setValue(9100)
-        self.txt_etiq_serial = QLineEdit(); self.txt_etiq_serial.setPlaceholderText("COM4 (si es USB/Serial)")
-        self.spin_etiq_ancho = QSpinBox()
-        self.spin_etiq_ancho.setRange(25, 150); self.spin_etiq_ancho.setValue(80)
-        self.spin_etiq_ancho.setSuffix(" mm")
-        form_etiq.addRow("Estado:", self.chk_etiq_habilitada)
-        form_etiq.addRow("Protocolo:", self.combo_etiq_protocolo)
-        form_etiq.addRow("IP:", self.txt_etiq_ip)
-        form_etiq.addRow("Puerto TCP:", self.spin_etiq_puerto)
-        form_etiq.addRow("Puerto serial:", self.txt_etiq_serial)
-        form_etiq.addRow("Ancho etiqueta:", self.spin_etiq_ancho)
-        layout.addWidget(grp_etiq)
-
-        # Monitor cliente / pantalla secundaria
-        grp_mon = QGroupBox("🖥️ Monitor Cliente (Pantalla Secundaria)")
-        form_mon = QFormLayout(grp_mon)
-        self.chk_monitor_cliente = QCheckBox("Habilitar pantalla secundaria para cliente")
-        self.spin_monitor_pantalla = QSpinBox()
-        self.spin_monitor_pantalla.setRange(1, 4); self.spin_monitor_pantalla.setValue(2)
-        self.spin_monitor_pantalla.setPrefix("Pantalla #")
-        self.combo_monitor_resolucion = QComboBox()
-        self.combo_monitor_resolucion.addItems([
-            "1920×1080 (Full HD)", "1280×720 (HD)", "1024×768", "800×600"])
-        self.chk_monitor_autostart = QCheckBox(
-            "Abrir automáticamente al iniciar el sistema")
-        form_mon.addRow("Estado:", self.chk_monitor_cliente)
-        form_mon.addRow("Pantalla:", self.spin_monitor_pantalla)
-        form_mon.addRow("Resolución:", self.combo_monitor_resolucion)
-        form_mon.addRow("", self.chk_monitor_autostart)
-        layout.addWidget(grp_mon)
-
-        # Botón guardar
-        btn_hw = QPushButton("💾 Guardar Configuración Hardware")
-        btn_hw.clicked.connect(self._guardar_hardware_config)
-        layout.addWidget(btn_hw)
-        layout.addStretch()
-        return tab
-
-    def _cargar_hardware_config(self):
-        """Carga valores desde hardware_config en la UI."""
-        try:
-            import json
-            rows = self.config_repository.get_hardware_configs()
-            for row in rows:
-                tipo = row["tipo"]
-                hab = row["habilitado"]
-                cfg_json = row["configuraciones"]
-                cfg = json.loads(cfg_json) if cfg_json else {}
-                if tipo == "impresora":
-                    self.chk_imp_habilitada.setChecked(bool(hab))
-                    idx = self.combo_imp_tipo.findText(cfg.get("tipo", "escpos_usb"))
-                    if idx >= 0: self.combo_imp_tipo.setCurrentIndex(idx)
-                    self.txt_imp_puerto.setText(cfg.get("puerto", "USB"))
-                    self.spin_imp_ancho.setValue(int(cfg.get("ancho_mm", 80)))
-                elif tipo == "cajon":
-                    self.chk_caj_habilitado.setChecked(bool(hab))
-                    idx = self.combo_caj_metodo.findText(cfg.get("metodo", "escpos"))
-                    if idx >= 0: self.combo_caj_metodo.setCurrentIndex(idx)
-                    idx_p = self.combo_caj_pin.findText(cfg.get("pin", "kick1"))
-                    if idx_p >= 0: self.combo_caj_pin.setCurrentIndex(idx_p)
-                elif tipo == "scanner":
-                    self.chk_scan_habilitado.setChecked(bool(hab))
-                    self.spin_scan_debounce.setValue(int(cfg.get("debounce_ms", 80)))
-                    self.spin_scan_minlen.setValue(int(cfg.get("min_len", 3)))
-                elif tipo == "bascula":
-                    self.chk_bas_habilitada.setChecked(bool(hab))
-                    self.txt_bas_puerto.setText(cfg.get("puerto", "COM3"))
-                    self.spin_bas_baud.setValue(int(cfg.get("baud", 9600)))
-        except Exception:
-            pass  # tabla no migrada aún
-        
-    def _guardar_hardware_config(self):
-        """Guarda configuración de hardware en hardware_config."""
-        try:
-            import json
-        # [spj-dedup removed local QMessageBox import]
-            config_map = {
-                "impresora": (
-                    1 if self.chk_imp_habilitada.isChecked() else 0,
-                    json.dumps({
-                        "tipo":     self.combo_imp_tipo.currentText(),
-                        "puerto":   self.txt_imp_puerto.text().strip() or "USB",
-                        "ancho_mm": self.spin_imp_ancho.value(),
-                    })
-                ),
-                "cajon": (
-                    1 if self.chk_caj_habilitado.isChecked() else 0,
-                    json.dumps({
-                        "metodo": self.combo_caj_metodo.currentText(),
-                        "pin":    self.combo_caj_pin.currentText(),
-                    })
-                ),
-                "scanner": (
-                    1 if self.chk_scan_habilitado.isChecked() else 0,
-                    json.dumps({
-                        "debounce_ms": self.spin_scan_debounce.value(),
-                        "min_len":     self.spin_scan_minlen.value(),
-                    })
-                ),
-                "bascula": (
-                    1 if self.chk_bas_habilitada.isChecked() else 0,
-                    json.dumps({
-                        "puerto": self.txt_bas_puerto.text().strip() or "COM3",
-                        "baud":   self.spin_bas_baud.value(),
-                    })
-                ),
-            }
-            for tipo, (hab, cfg) in config_map.items():
-                self.config_repository.save_hardware_config(tipo, bool(hab), cfg)
-            Toast.success(self, "Hardware", "Configuración guardada correctamente.")
-        except Exception as exc:
-        # [spj-dedup removed local QMessageBox import]
-            QMessageBox.critical(self, "Error", str(exc))
-
-    
-    def crear_tab_loyalty_weights(self):
-        """
-        Configuración de pesos de scoring multivariable:
-        frecuencia, volumen, margen, comunidad.
-        Umbrales de nivel: Plata, Oro, Platino.
-        """
-        from PyQt5.QtWidgets import (
-            QWidget, QVBoxLayout, QFormLayout, QGroupBox,
-            QSpinBox, QDoubleSpinBox, QPushButton, QLabel
-        )
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setSpacing(12)
-        layout.setContentsMargins(14, 14, 14, 14)
-
-        # Pesos dimensiones
-        grp_pesos = QGroupBox("Pesos de Scoring (deben sumar 100)")
-        form_p = QFormLayout(grp_pesos)
-
-        self.spin_peso_frecuencia = QSpinBox()
-        self.spin_peso_frecuencia.setRange(0, 100)
-        self.spin_peso_frecuencia.setSuffix(" %")
-        self.spin_peso_frecuencia.setValue(30)
-
-        self.spin_peso_volumen = QSpinBox()
-        self.spin_peso_volumen.setRange(0, 100)
-        self.spin_peso_volumen.setSuffix(" %")
-        self.spin_peso_volumen.setValue(30)
-
-        self.spin_peso_margen = QSpinBox()
-        self.spin_peso_margen.setRange(0, 100)
-        self.spin_peso_margen.setSuffix(" %")
-        self.spin_peso_margen.setValue(30)
-
-        self.spin_peso_comunidad = QSpinBox()
-        self.spin_peso_comunidad.setRange(0, 100)
-        self.spin_peso_comunidad.setSuffix(" %")
-        self.spin_peso_comunidad.setValue(10)
-
-        form_p.addRow("Frecuencia de visitas:", self.spin_peso_frecuencia)
-        form_p.addRow("Volumen de compra:", self.spin_peso_volumen)
-        form_p.addRow("Margen generado:", self.spin_peso_margen)
-        form_p.addRow("Comunidad/Referidos:", self.spin_peso_comunidad)
-
-        self.lbl_suma_pesos = QLabel("Suma: 100%")
-        form_p.addRow("", self.lbl_suma_pesos)
-        for sp in (self.spin_peso_frecuencia, self.spin_peso_volumen,
-                   self.spin_peso_margen, self.spin_peso_comunidad):
-            sp.valueChanged.connect(self._actualizar_suma_pesos)
-        layout.addWidget(grp_pesos)
-
-        # Umbrales de nivel
-        grp_umbrales = QGroupBox("Umbrales de Nivel")
-        form_u = QFormLayout(grp_umbrales)
-        self.spin_umbral_plata   = QDoubleSpinBox()
-        self.spin_umbral_oro     = QDoubleSpinBox()
-        self.spin_umbral_platino = QDoubleSpinBox()
-        for sp in (self.spin_umbral_plata, self.spin_umbral_oro, self.spin_umbral_platino):
-            sp.setRange(0, 100)
-            sp.setDecimals(1)
-        self.spin_umbral_plata.setValue(40)
-        self.spin_umbral_oro.setValue(65)
-        self.spin_umbral_platino.setValue(85)
-        form_u.addRow("Plata (score ≥):", self.spin_umbral_plata)
-        form_u.addRow("Oro (score ≥):", self.spin_umbral_oro)
-        form_u.addRow("Platino (score ≥):", self.spin_umbral_platino)
-        layout.addWidget(grp_umbrales)
-
-        # Parámetros adicionales
-        grp_extra = QGroupBox("Parámetros Adicionales")
-        form_e = QFormLayout(grp_extra)
-        self.spin_periodo_dias = QSpinBox()
-        self.spin_periodo_dias.setRange(7, 365)
-        self.spin_periodo_dias.setValue(90)
-        self.spin_periodo_dias.setSuffix(" días")
-        self.spin_puntos_por_peso = QDoubleSpinBox()
-        self.spin_puntos_por_peso.setRange(0.01, 100)
-        self.spin_puntos_por_peso.setValue(1.0)
-        self.spin_puntos_por_peso.setDecimals(2)
-        self.spin_bonus_referido = QSpinBox()
-        self.spin_bonus_referido.setRange(0, 5000)
-        self.spin_bonus_referido.setValue(50)
-        form_e.addRow("Período análisis:", self.spin_periodo_dias)
-        form_e.addRow("Puntos por $1 gastado:", self.spin_puntos_por_peso)
-        form_e.addRow("Bono por referido:", self.spin_bonus_referido)
-        layout.addWidget(grp_extra)
-
-        btn_guardar_lw = QPushButton("💾 Guardar Configuración Fidelidad")
-        btn_guardar_lw.clicked.connect(self._guardar_loyalty_weights)
-        layout.addWidget(btn_guardar_lw)
-        layout.addStretch()
-        return tab
-    
-    def _cargar_loyalty_weights(self):
-        """Carga valores de loyalty_config en los spinboxes."""
-        try:
-            cfg = self.config_repository.get_loyalty_weights()
-            self.spin_peso_frecuencia.setValue(int(cfg.get("peso_frecuencia", 30)))
-            self.spin_peso_volumen.setValue(int(cfg.get("peso_volumen", 30)))
-            self.spin_peso_margen.setValue(int(cfg.get("peso_margen", 30)))
-            self.spin_peso_comunidad.setValue(int(cfg.get("peso_comunidad", 10)))
-            self.spin_umbral_plata.setValue(float(cfg.get("umbral_plata", 40)))
-            self.spin_umbral_oro.setValue(float(cfg.get("umbral_oro", 65)))
-            self.spin_umbral_platino.setValue(float(cfg.get("umbral_platino", 85)))
-            self.spin_periodo_dias.setValue(int(cfg.get("periodo_dias", 90)))
-            self.spin_puntos_por_peso.setValue(float(cfg.get("puntos_por_peso", 1.0)))
-            self.spin_bonus_referido.setValue(int(cfg.get("bonus_referido", 50)))
-            self._actualizar_suma_pesos()
-        except Exception:
-            pass
-
-    def _guardar_loyalty_weights(self):
-        """Persiste pesos y umbrales en loyalty_config."""
-        try:
-        # [spj-dedup removed local QMessageBox import]
-            suma = (self.spin_peso_frecuencia.value() + self.spin_peso_volumen.value() +
-                    self.spin_peso_margen.value() + self.spin_peso_comunidad.value())
-            if suma != 100:
-                QMessageBox.warning(self, "Pesos inválidos",
-                    f"Los pesos deben sumar 100%. Suma actual: {suma}%")
-                return
-            updates = [
-                ("peso_frecuencia",  str(self.spin_peso_frecuencia.value())),
-                ("peso_volumen",     str(self.spin_peso_volumen.value())),
-                ("peso_margen",      str(self.spin_peso_margen.value())),
-                ("peso_comunidad",   str(self.spin_peso_comunidad.value())),
-                ("umbral_plata",     str(self.spin_umbral_plata.value())),
-                ("umbral_oro",       str(self.spin_umbral_oro.value())),
-                ("umbral_platino",   str(self.spin_umbral_platino.value())),
-                ("periodo_dias",     str(self.spin_periodo_dias.value())),
-                ("puntos_por_peso",  str(self.spin_puntos_por_peso.value())),
-                ("bonus_referido",   str(self.spin_bonus_referido.value())),
-            ]
-            self.config_repository.save_loyalty_weights(dict(updates))
-            Toast.success(self, "Fidelidad", "Configuración guardada correctamente.")
-        except Exception as exc:
-        # [spj-dedup removed local QMessageBox import]
-            QMessageBox.critical(self, "Error", str(exc))
-
-    # === MÉTODOS DE CONFIGURACIÓN GENERAL ===
     def _setup_tab_cierre_mensual(self) -> None:
         """UI para ejecutar el cierre contable mensual y bloquear períodos."""
         from PyQt5.QtWidgets import (QVBoxLayout, QHBoxLayout, QGroupBox,
-                                      QLabel, QPushButton, QTableWidget,
-                                      QTableWidgetItem, QHeaderView,
-                                      QAbstractItemView, QDateEdit)
-        from PyQt5.QtCore import QDate, Qt
+                                      QLabel, QPushButton)
+        from PyQt5.QtCore import QDate
 
         lay = QVBoxLayout(self.tab_cierre_mensual)
         lay.setContentsMargins(12, 12, 12, 12)
@@ -953,7 +296,7 @@ class ModuloConfiguracion(ModuloBase):
 
         # Check if already closed
         try:
-            if self.config_repository.monthly_close_exists(periodo):
+            if self.closing_period_service.period_exists(periodo):
                 QMessageBox.warning(self, "Ya cerrado",
                     f"El período {periodo} ya fue cerrado anteriormente.")
                 return
@@ -978,12 +321,12 @@ class ModuloConfiguracion(ModuloBase):
             else:
                 fin = f"{periodo[:4]}-{int(periodo[5:])+1:02d}-01"
 
-            totals = self.config_repository.calculate_monthly_close_totals(inicio, fin)
+            totals = self.closing_period_service.calculate_totals(inicio, fin)
             total_ventas = totals["sales"]
             total_compras = totals["purchases"]
             total_merma = totals["waste"]
 
-            self.config_repository.save_monthly_close(
+            self.closing_period_service.close_period(
                 period=periodo,
                 closed_by=usuario,
                 totals=totals,
@@ -1011,7 +354,7 @@ class ModuloConfiguracion(ModuloBase):
         if not hasattr(self, '_tbl_cierres'): return
         self._tbl_cierres.setRowCount(0)
         try:
-            rows = self.config_repository.get_monthly_closures(limit=24)
+            rows = self.closing_period_service.history(limit=24)
         except Exception:
             return
         for ri, r in enumerate(rows):
@@ -1023,7 +366,6 @@ class ModuloConfiguracion(ModuloBase):
                 f"${float(r[4] or 0):,.2f}",
                 f"${float(r[5] or 0):,.2f}",
             ]
-            from PyQt5.QtWidgets import QTableWidgetItem
             from PyQt5.QtCore import Qt
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
@@ -1031,49 +373,20 @@ class ModuloConfiguracion(ModuloBase):
                 self._tbl_cierres.setItem(ri, ci, it)
 
     def cargar_configuraciones_general(self):
-        """Carga la configuración general desde la base de datos"""
+        """Carga la configuración general desde servicios."""
         try:
-            settings = self.system_settings_service.get_many(
-                ["tema", "impuesto_por_defecto", "requerir_admin"],
-                {"tema": "Light", "impuesto_por_defecto": "16.0", "requerir_admin": "False"},
-            )
-            is_dark = 'dark' in str(settings.get("tema", "")).lower()
-            if hasattr(self, 'chk_dark_mode'):
-                self.chk_dark_mode.blockSignals(True)
-                self.chk_dark_mode.setChecked(is_dark)
-                self.chk_dark_mode.blockSignals(False)
-            
-            # Cargar impuesto
-            self.spin_impuesto.setValue(float(settings.get("impuesto_por_defecto") or 16.0))
+            settings = self.settings_application_service.get_general_settings()
+            self.spin_impuesto.setValue(float(settings.get("impuesto_por_defecto") or 0))
             self.chk_requerir_admin.setChecked(str(settings.get("requerir_admin", "False")).lower() == 'true')
-                
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error al cargar configuración general: {str(e)}", QMessageBox.Critical)
 
-    def _toggle_dark_mode(self, state):
-        """v13.30: Toggle dark/light mode — solo cambia colores, no tamaños."""
-        tema = "Dark" if state else "Light"
-        try:
-            self.system_settings_service.set_setting('tema', tema)
-            # Aplicar en tiempo real
-            if hasattr(self.main_window, 'aplicar_tema'):
-                self.main_window.aplicar_tema(tema)
-            elif hasattr(self, 'container') and hasattr(self.container, 'db'):
-                from modulos.spj_styles import apply_global_theme
-                apply_global_theme(self.container.db)
-        except Exception as e:
-            self.mostrar_mensaje("Error", f"Error al cambiar tema: {e}", QMessageBox.Critical)
-
-    def aplicar_tema(self):
-        """Compat — redirige al toggle."""
-        if hasattr(self, 'chk_dark_mode'):
-            self._toggle_dark_mode(self.chk_dark_mode.isChecked())
 
     def guardar_impuesto(self):
         """Guarda la configuración de impuesto"""
         impuesto = self.spin_impuesto.value()
         try:
-            self.system_settings_service.set_setting('impuesto_por_defecto', str(impuesto))
+            self.settings_application_service.save_tax_rate(impuesto)
             self.mostrar_mensaje("Éxito", f"Impuesto por defecto guardado: {impuesto}%")
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error al guardar impuesto: {str(e)}", QMessageBox.Critical)
@@ -1082,750 +395,32 @@ class ModuloConfiguracion(ModuloBase):
         """Guarda la configuración de seguridad"""
         requerir_admin = "True" if self.chk_requerir_admin.isChecked() else "False"
         try:
-            self.system_settings_service.set_setting('requerir_admin', requerir_admin)
+            self.settings_application_service.save_security_requirement(self.chk_requerir_admin.isChecked())
             estado = "activada" if self.chk_requerir_admin.isChecked() else "desactivada"
             self.mostrar_mensaje("Éxito", f"Configuración de seguridad {estado} correctamente.")
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error al guardar configuración de seguridad: {str(e)}", QMessageBox.Critical)
 
     # === MÉTODOS DE GESTIÓN DE USUARIOS ===
-    def cargar_usuarios(self):
-        """Carga la lista de usuarios en la tabla (legacy — redirige a v13 si aplica)."""
-        # v13.30: tabla_usuarios ya no se crea (reemplazada por _tbl_usr_v13)
-        if not hasattr(self, 'tabla_usuarios'):
-            try:
-                self._cargar_usuarios_v13()
-            except Exception:
-                pass
-            return
-        try:
-            usuarios = self.config_repository.get_legacy_users()
 
-            self.tabla_usuarios.setRowCount(len(usuarios))
-            for fila, usuario in enumerate(usuarios):
-                for columna, valor in enumerate(usuario):
-                    item = QTableWidgetItem(str(valor) if valor is not None else "")
-                    
-                    # Marcar estado activo/inactivo
-                    if columna == 5:  # Columna de estado
-                        item.setText("Activo" if valor == 1 else "Inactivo")
-                        item.setForeground(QColor("green") if valor == 1 else QColor("red"))
-                    
-                    self.tabla_usuarios.setItem(fila, columna, item)
 
-            # Ajustar columnas
-            self.tabla_usuarios.resizeColumnsToContents()
-            
-        except sqlite3.Error as e:
-            self.mostrar_mensaje("Error", f"Error al cargar usuarios: {str(e)}", QMessageBox.Critical)
 
-    def nuevo_usuario(self):
-        """Abre diálogo para crear nuevo usuario"""
-        dialogo = DialogoUsuario(self.conexion, self)
-        if dialogo.exec_() == QDialog.Accepted:
-            self.cargar_usuarios()
-            self.registrar_actualizacion("usuario_creado", {"accion": "nuevo_usuario"})
 
-    def editar_usuario(self):
-        """Abre diálogo para editar usuario seleccionado"""
-        fila = self.tabla_usuarios.currentRow()
-        if fila < 0:
-            self.mostrar_mensaje("Advertencia", "Seleccione un usuario para editar.")
-            return
-
-        try:
-            id_usuario = int(self.tabla_usuarios.item(fila, 0).text())
-            usuario_dict = self.config_repository.get_user_record(id_usuario)
-            if usuario_dict:
-                
-                dialogo = DialogoUsuario(self.conexion, self, usuario_dict)
-                if dialogo.exec_() == QDialog.Accepted:
-                    self.cargar_usuarios()
-                    self.registrar_actualizacion("usuario_editado", {"usuario_id": id_usuario})
-                    
-        except Exception as e:
-            self.mostrar_mensaje("Error", f"Error al editar usuario: {str(e)}", QMessageBox.Critical)
-
-    def eliminar_usuario(self):
-        """Elimina el usuario seleccionado"""
-        fila = self.tabla_usuarios.currentRow()
-        if fila < 0:
-            self.mostrar_mensaje("Advertencia", "Seleccione un usuario para eliminar.")
-            return
-
-        try:
-            id_usuario = int(self.tabla_usuarios.item(fila, 0).text())
-            nombre_usuario = self.tabla_usuarios.item(fila, 1).text()
-            
-            # Prevenir eliminación del admin
-            if nombre_usuario.lower() == 'admin':
-                self.mostrar_mensaje("Error", "No se puede eliminar el usuario administrador principal.")
-                return
-            
-            respuesta = QMessageBox.question(
-                self,
-                "Confirmar Eliminación",
-                f"¿Está seguro que desea eliminar al usuario '{nombre_usuario}'?\n\nEsta acción no se puede deshacer.",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            
-            if respuesta == QMessageBox.Yes:
-                # SOFT-DELETE: desactivar en lugar de borrar (preserva historial de ventas)
-                self.config_repository.soft_delete_user(id_usuario)
-                self.mostrar_mensaje("Éxito",
-                    f"Usuario '{nombre_usuario}' desactivado.\n"
-                    "Sus registros de auditoría se conservan.")
-                self.cargar_usuarios()
-                self.registrar_actualizacion("usuario_desactivado",
-                    {"usuario_id": id_usuario, "nombre": nombre_usuario})
-                
-        except Exception as e:
-            self.mostrar_mensaje("Error", f"Error al eliminar usuario: {str(e)}", QMessageBox.Critical)
-
-    def actualizar_botones_usuarios(self):
-        """Actualiza el estado de los botones según la selección"""
-        seleccionado = self.tabla_usuarios.currentRow() >= 0
-        self.btn_editar_usuario.setEnabled(seleccionado)
-        self.btn_eliminar_usuario.setEnabled(seleccionado)
 
     # === MÉTODOS DE FIDELIZACIÓN ===
-    def cargar_configuraciones_fidelidad(self):
-        """Carga la configuración del programa de fidelidad"""
-        try:
-            config = self.loyalty_settings_service.get_program_config()
-            if config:
-                nombre = config.get("nombre_programa") or "Sin nombre"
-                puntos = config.get("puntos_por_peso") or 0
 
-                texto_info = f"""
-                <b>Programa:</b> {nombre}<br>
-                <b>Puntos por $ gastado:</b> {puntos}<br>
-                <b>Estado:</b> <span style='color: green'>Activo</span>
-                """
-
-                niveles_config = config.get("niveles")
-                if niveles_config:
-                    niveles = niveles_config.split(',')
-                    texto_info += f"<br><b>Niveles:</b> {', '.join(niveles)}"
-
-                self.lbl_info_programa.setText(texto_info)
-                self.edit_nombre_programa.setText(nombre)
-                self.spin_puntos_por_peso.setValue(float(puntos))
-                self.edit_niveles.setText(config.get("niveles") or "")
-                self.edit_requisitos.setText(config.get("requisitos") or "")
-                self.edit_descuentos.setText(config.get("descuentos") or "")
-            else:
-                self.lbl_info_programa.setText("<b>Programa no configurado</b><br>Configure los parámetros del programa de fidelidad.")
-
-        except Exception as e:
-            self.mostrar_mensaje("Error", f"Error al cargar configuración de fidelidad: {str(e)}", QMessageBox.Critical)
-
-    def guardar_configuraciones_fidelidad(self):
-        """Guarda la configuración del programa de fidelidad"""
-        try:
-            nombre_programa = self.edit_nombre_programa.text().strip()
-            if not nombre_programa:
-                self.mostrar_mensaje("Advertencia", "El nombre del programa es obligatorio.")
-                return
-
-            self.loyalty_settings_service.save_program_config(
-                name=nombre_programa,
-                points_per_peso=self.spin_puntos_por_peso.value(),
-                levels=self.edit_niveles.text().strip() or None,
-                requirements=self.edit_requisitos.text().strip() or None,
-                discounts=self.edit_descuentos.text().strip() or None,
-            )
-            self.mostrar_mensaje("Éxito", "Configuración de fidelidad guardada correctamente.")
-            self.cargar_configuraciones_fidelidad()
-            self.registrar_actualizacion("config_fidelidad_actualizada", {"programa": nombre_programa})
-
-        except Exception as e:
-            self.mostrar_mensaje("Error", f"Error al guardar configuración de fidelidad: {str(e)}", QMessageBox.Critical)
 
     def actualizar_datos(self):
-        """Actualiza todos los datos del módulo"""
+        """Actualiza los datos visibles del módulo."""
         self.cargar_configuraciones_general()
-        self.cargar_usuarios()
-        self.cargar_configuraciones_fidelidad()
-        self.cargar_sucursales()
+        self._cargar_sucursales_v13()
+        self._cargar_usuarios_v13()
+        self._cargar_roles_v13()
 
-    # =========================================================================
-    # PESTAÑA DE SUCURSALES
-    # =========================================================================
-    def crear_tab_sucursales(self):
-        """Crea la pestaña de gestión de sucursales."""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setSpacing(10)
-
-        # Toolbar
-        toolbar = QHBoxLayout()
-        btn_nueva = QPushButton("➕ Nueva Sucursal")
-        btn_editar = QPushButton("✏️ Editar")
-        btn_eliminar = QPushButton("🗑️ Eliminar")
-        self.btn_editar_suc   = btn_editar
-        self.btn_eliminar_suc = btn_eliminar
-        btn_editar.setEnabled(False)
-        btn_eliminar.setEnabled(False)
-
-        btn_nueva.clicked.connect(self.nueva_sucursal)
-        btn_editar.clicked.connect(self.editar_sucursal)
-        btn_eliminar.clicked.connect(self.eliminar_sucursal)
-
-        toolbar.addWidget(btn_nueva)
-        toolbar.addWidget(btn_editar)
-        toolbar.addWidget(btn_eliminar)
-        toolbar.addStretch()
-        layout.addLayout(toolbar)
-
-        # Tabla
-        self.tabla_sucursales = QTableWidget()
-        self.tabla_sucursales.setColumnCount(5)
-        self.tabla_sucursales.setHorizontalHeaderLabels(
-            ["ID", "Nombre", "Dirección", "Teléfono", "Estado"]
-        )
-        self.tabla_sucursales.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.tabla_sucursales.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabla_sucursales.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.tabla_sucursales.setAlternatingRowColors(True)
-        hdr = self.tabla_sucursales.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(1, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(2, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.tabla_sucursales.itemSelectionChanged.connect(self._actualizar_botones_suc)
-        layout.addWidget(self.tabla_sucursales)
-
-        # Info
-        info = QLabel("💡 Los cajeros solo verán sus ventas. El administrador puede ver todas las sucursales en Reportes.")
-        info.setWordWrap(True)
-        info.setObjectName("caption")
-        layout.addWidget(info)
-
-        return tab
-
-    def cargar_sucursales(self):
-        """Carga la tabla de sucursales."""
-        if not hasattr(self, "tabla_sucursales"):
-            return
-        try:
-            rows = self.config_repository.list_branches_for_config()
-            self.tabla_sucursales.setRowCount(len(rows))
-            for i, (sid, nombre, direccion, telefono, activa) in enumerate(rows):
-                self.tabla_sucursales.setItem(i, 0, QTableWidgetItem(str(sid)))
-                self.tabla_sucursales.setItem(i, 1, QTableWidgetItem(nombre or ""))
-                self.tabla_sucursales.setItem(i, 2, QTableWidgetItem(direccion or ""))
-                self.tabla_sucursales.setItem(i, 3, QTableWidgetItem(telefono or ""))
-                estado_item = QTableWidgetItem("✅ Activa" if activa else "❌ Inactiva")
-                estado_item.setForeground(QColor(Colors.SUCCESS_BASE) if activa else QColor(Colors.DANGER_BASE))
-                self.tabla_sucursales.setItem(i, 4, estado_item)
-        except Exception as e:
-            print(f"Error cargando sucursales: {e}")
-
-    def _actualizar_botones_suc(self):
-        seleccionado = self.tabla_sucursales.currentRow() >= 0
-        self.btn_editar_suc.setEnabled(seleccionado)
-        self.btn_eliminar_suc.setEnabled(seleccionado)
-
-    def nueva_sucursal(self):
-        dlg = DialogoSucursalEdit(self.conexion, parent=self)
-        if dlg.exec_() == QDialog.Accepted:
-            self.cargar_sucursales()
-            Toast.success(self, "Sucursal creada", "La sucursal se creó correctamente.")
-
-    def editar_sucursal(self):
-        fila = self.tabla_sucursales.currentRow()
-        if fila < 0:
-            return
-        sid = int(self.tabla_sucursales.item(fila, 0).text())
-        data = self.company_profile_service.get_branch(sid)
-        if not data:
-            return
-        dlg = DialogoSucursalEdit(self.conexion, sucursal_data=data, parent=self)
-        if dlg.exec_() == QDialog.Accepted:
-            self.cargar_sucursales()
-            Toast.success(self, "Sucursal actualizada", "Cambios guardados correctamente.")
-
-    def eliminar_sucursal(self):
-        fila = self.tabla_sucursales.currentRow()
-        if fila < 0:
-            return
-        sid  = int(self.tabla_sucursales.item(fila, 0).text())
-        nombre = self.tabla_sucursales.item(fila, 1).text()
-        if sid == 1:
-            QMessageBox.warning(self, "No permitido", "No se puede eliminar la sucursal Principal.")
-            return
-        resp = QMessageBox.question(
-            self, "Confirmar",
-            f"¿Eliminar la sucursal «{nombre}»?\n\nLas ventas y usuarios asociados quedarán sin sucursal.",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if resp == QMessageBox.Yes:
-            try:
-                # SOFT-DELETE: desactivar sucursal (no borrar — las ventas quedarían huérfanas)
-                self.config_repository.soft_delete_branch(sid)
-                QMessageBox.information(self, "Desactivada",
-                    f"Sucursal «{nombre}» desactivada.\n"
-                    "Sus ventas e inventario se conservan. Puede reactivarla editándola.")
-                self.cargar_sucursales()
-            except Exception as e:
-                QMessageBox.critical(self, "Error", str(e))
-
-    def _setup_tab_whatsapp(self) -> None:
-        """
-        Tab de configuración WhatsApp multi-canal.
-        Gestiona: número principal, número RRHH (opcional), número por sucursal (futuro).
-        """
-        from PyQt5.QtWidgets import (
-            QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
-            QLabel, QLineEdit, QComboBox, QPushButton,
-            QTableWidget, QTableWidgetItem, QHeaderView,
-            QAbstractItemView, QMessageBox, QCheckBox
-        )
-        lay = QVBoxLayout(self.tab_whatsapp)
-        lay.setContentsMargins(12, 10, 12, 10); lay.setSpacing(10)
-
-        info = QLabel(
-            "Configura los números de WhatsApp del negocio. "
-            "Puedes tener un número para clientes y otro para RRHH. "
-            "Agrega uno por sucursal cuando lo necesites."
-        )
-        info.setWordWrap(True)
-        info.setObjectName("caption")
-        lay.addWidget(info)
-
-        # ── Tabla de números configurados ─────────────────────────────────────
-        self._tbl_wa = QTableWidget()
-        self._tbl_wa.setColumnCount(6)
-        self._tbl_wa.setHorizontalHeaderLabels([
-            "Nombre", "Canal", "Sucursal", "Proveedor", "Número", "Estado"
-        ])
-        self._tbl_wa.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_wa.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_wa.verticalHeader().setVisible(False)
-        self._tbl_wa.setAlternatingRowColors(True)
-        hdr = self._tbl_wa.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.Stretch)
-        for i in (1,2,3,4,5): hdr.setSectionResizeMode(i, QHeaderView.ResizeToContents)
-        lay.addWidget(self._tbl_wa)
-
-        # ── Formulario agregar/editar ──────────────────────────────────────────
-        form_grp = QGroupBox("Agregar / Editar número")
-        form_grp.setObjectName("styledGroup")
-        form = QFormLayout(form_grp)
-
-        self._wa_txt_nombre = QLineEdit(); self._wa_txt_nombre.setPlaceholderText("Ej: Principal, RRHH")
-        self._wa_txt_nombre.setObjectName("inputField")
-        self._wa_cmb_canal  = QComboBox()
-        self._wa_cmb_canal.addItems(["todos", "clientes", "rrhh", "alertas"])
-        self._wa_cmb_canal.setObjectName("inputField")
-        self._wa_cmb_prov   = QComboBox()
-        self._wa_cmb_prov.addItems(["meta", "twilio", "mock"])
-        self._wa_cmb_prov.setObjectName("inputField")
-        self._wa_txt_numero = QLineEdit(); self._wa_txt_numero.setPlaceholderText("+521234567890")
-        self._wa_txt_numero.setObjectName("inputField")
-        self._wa_txt_meta_token = QLineEdit(); self._wa_txt_meta_token.setPlaceholderText("Meta Cloud API token")
-        self._wa_txt_meta_token.setEchoMode(QLineEdit.Password)
-        self._wa_txt_meta_token.setObjectName("inputField")
-        self._wa_txt_phone_id   = QLineEdit(); self._wa_txt_phone_id.setPlaceholderText("Meta Phone ID")
-        self._wa_txt_phone_id.setObjectName("inputField")
-        self._wa_txt_twilio_sid = QLineEdit(); self._wa_txt_twilio_sid.setPlaceholderText("Twilio Account SID")
-        self._wa_txt_twilio_sid.setObjectName("inputField")
-        self._wa_txt_twilio_tok = QLineEdit(); self._wa_txt_twilio_tok.setPlaceholderText("Twilio Auth Token")
-        self._wa_txt_twilio_tok.setEchoMode(QLineEdit.Password)
-        self._wa_txt_twilio_tok.setObjectName("inputField")
-        self._wa_chk_activo = QCheckBox("Activo"); self._wa_chk_activo.setChecked(True)
-
-        form.addRow("Nombre*:",        self._wa_txt_nombre)
-        form.addRow("Canal*:",         self._wa_cmb_canal)
-        form.addRow("Proveedor*:",     self._wa_cmb_prov)
-        form.addRow("Número negocio:", self._wa_txt_numero)
-        form.addRow("Meta Token:",     self._wa_txt_meta_token)
-        form.addRow("Meta Phone ID:",  self._wa_txt_phone_id)
-        form.addRow("Twilio SID:",     self._wa_txt_twilio_sid)
-        form.addRow("Twilio Token:",   self._wa_txt_twilio_tok)
-        form.addRow("",                self._wa_chk_activo)
-
-        btns = QHBoxLayout()
-        btn_guardar_wa = QPushButton("💾 Guardar")
-        btn_guardar_wa = create_success_button(self, btn_guardar_wa.text(), "Guardar configuración de WhatsApp")
-        btn_guardar_wa.clicked.connect(self._guardar_numero_wa)
-        btn_del_wa = QPushButton("🗑 Desactivar")
-        btn_del_wa = create_secondary_button(self, btn_del_wa.text(), "Desactivar número seleccionado")
-        btn_del_wa.clicked.connect(self._desactivar_numero_wa)
-        btn_test_wa = QPushButton("🧪 Probar envío")
-        btn_test_wa = create_primary_button(self, btn_test_wa.text(), "Enviar mensaje de prueba")
-        btn_test_wa.clicked.connect(self._probar_wa)
-        btns.addStretch(); btns.addWidget(btn_test_wa)
-        btns.addWidget(btn_del_wa); btns.addWidget(btn_guardar_wa)
-        form.addRow("", btns)
-        lay.addWidget(form_grp)
-
-        self._cargar_tabla_wa()
-
-    def _cargar_tabla_wa(self) -> None:
-        from PyQt5.QtWidgets import QTableWidgetItem
-        from PyQt5.QtCore import Qt
-        try:
-            rows = self.config_repository.list_whatsapp_numbers()
-            self._tbl_wa.setRowCount(len(rows))
-            for ri, r in enumerate(rows):
-                suc = str(r[3]) if r[3] else "Global"
-                vals = [str(r[1]), str(r[2]), suc, str(r[4]),
-                        str(r[5] or "—"), "✅ Activo" if r[6] else "❌ Inactivo"]
-                for ci, v in enumerate(vals):
-                    it = QTableWidgetItem(v); it.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
-                    if ci == 0: it.setData(Qt.UserRole, r[0])
-                    self._tbl_wa.setItem(ri, ci, it)
-        except Exception as e:
-            pass  # Tabla no existe aún — se crea con migración 042
-
-    def _guardar_numero_wa(self) -> None:
-        # [spj-dedup removed local QMessageBox import]
-        nombre  = self._wa_txt_nombre.text().strip()
-        canal   = self._wa_cmb_canal.currentText()
-        prov    = self._wa_cmb_prov.currentText()
-        numero  = self._wa_txt_numero.text().strip()
-        meta_t  = self._wa_txt_meta_token.text().strip()
-        meta_p  = self._wa_txt_phone_id.text().strip()
-        twi_s   = self._wa_txt_twilio_sid.text().strip()
-        twi_t   = self._wa_txt_twilio_tok.text().strip()
-        activo  = int(self._wa_chk_activo.isChecked())
-        if not nombre:
-            QMessageBox.warning(self, "Aviso", "El nombre es obligatorio."); return
-        try:
-            self.config_repository.save_whatsapp_number(
-                name=nombre, channel=canal, provider=prov, business_number=numero or None,
-                meta_token=meta_t or None, meta_phone_id=meta_p or None,
-                twilio_sid=twi_s or None, twilio_token=twi_t or None, active=bool(activo),
-            )
-            self._cargar_tabla_wa()
-            QMessageBox.information(self, "Guardado", f"Número «{nombre}» guardado.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    def _desactivar_numero_wa(self) -> None:
-        from PyQt5.QtCore import Qt
-        # [spj-dedup removed local QMessageBox import]
-        row = self._tbl_wa.currentRow()
-        if row < 0: return
-        nid = self._tbl_wa.item(row, 0).data(Qt.UserRole) if self._tbl_wa.item(row,0) else None
-        if not nid: return
-        try:
-            self.config_repository.deactivate_whatsapp_number(nid)
-            self._cargar_tabla_wa()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    def _probar_wa(self) -> None:
-        # [spj-dedup removed local QMessageBox import]
-        numero, ok = QInputDialog.getText(
-            self, "Probar WhatsApp", "Número destino (+521234567890):")
-        if not ok or not numero.strip(): return
-        try:
-            from core.services.whatsapp_service import WhatsAppService
-            svc = WhatsAppService(conn=self.conexion)
-            svc.send_message(phone_number=numero.strip(),
-                            message="✅ Prueba de conexión SPJ POS. Si recibes este mensaje, WhatsApp está configurado correctamente.")
-            QMessageBox.information(self, "Enviado", "Mensaje de prueba encolado. Revisa el teléfono en unos segundos.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-
-    def _setup_tab_comisiones(self) -> None:
-        """Tab configuración de comisiones por vendedor."""
-        from PyQt5.QtWidgets import (
-            QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
-            QLabel, QDoubleSpinBox, QPushButton, QCheckBox,
-            QTableWidget, QTableWidgetItem, QHeaderView,
-            QAbstractItemView, QMessageBox, QComboBox
-        )
-        from PyQt5.QtCore import Qt
-        lay = QVBoxLayout(self.tab_comisiones)
-        lay.setContentsMargins(12, 10, 12, 10); lay.setSpacing(10)
-
-        info = QLabel(
-            "Configura el porcentaje de comisión por venta para cada cajero/vendedor. "
-            "El widget de comisión se muestra automáticamente en el POS cuando está activo."
-        )
-        info.setWordWrap(True)
-        info.setObjectName("caption")
-        lay.addWidget(info)
-
-        # Tabla de comisiones
-        self._tbl_com = QTableWidget()
-        self._tbl_com.setColumnCount(4)
-        self._tbl_com.setHorizontalHeaderLabels(
-            ["Usuario", "% Comisión", "Activo", "Acciones"])
-        self._tbl_com.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_com.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_com.verticalHeader().setVisible(False)
-        self._tbl_com.setAlternatingRowColors(True)
-        hh = self._tbl_com.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        for i in (1,2,3): hh.setSectionResizeMode(i, QHeaderView.ResizeToContents)
-        lay.addWidget(self._tbl_com)
-
-        # Formulario agregar
-        grp = QGroupBox("Agregar / Editar comisión")
-        form = QFormLayout(grp)
-        self._com_cmb_usuario = QComboBox()
-        self._cargar_usuarios_combo()
-        self._com_spin_pct = QDoubleSpinBox()
-        self._com_spin_pct.setRange(0, 50); self._com_spin_pct.setValue(0.5)
-        self._com_spin_pct.setSuffix("%"); self._com_spin_pct.setDecimals(2)
-        self._com_chk_activo = QCheckBox("Activo"); self._com_chk_activo.setChecked(True)
-        form.addRow("Usuario:", self._com_cmb_usuario)
-        form.addRow("% Comisión:", self._com_spin_pct)
-        form.addRow("", self._com_chk_activo)
-        btn_row = QHBoxLayout()
-        btn_save = QPushButton("💾 Guardar")
-        btn_save.setObjectName("successBtn")
-        apply_tooltip(btn_save, "Guardar configuración de comisión")
-        btn_save.clicked.connect(self._guardar_comision)
-        btn_row.addStretch(); btn_row.addWidget(btn_save)
-        form.addRow("", btn_row)
-        lay.addWidget(grp)
-        self._cargar_tabla_comisiones()
-
-    def _cargar_usuarios_combo(self):
-        try:
-            usernames = self.config_repository.active_usernames()
-            self._com_cmb_usuario.clear()
-            for username in usernames:
-                self._com_cmb_usuario.addItem(username)
-        except Exception:
-            pass
-
-    def _cargar_tabla_comisiones(self):
-        from PyQt5.QtWidgets import QPushButton, QTableWidgetItem
-        from PyQt5.QtCore import Qt
-        try:
-            cs = getattr(self.container, 'comisiones_service', None)
-            rows = cs.get_todos() if cs else []
-        except Exception:
-            rows = []
-        self._tbl_com.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            vals = [r['usuario'], f"{float(r['pct_comision']):.2f}%",
-                    "✅ Sí" if r['activo'] else "❌ No"]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(v)
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci == 0: it.setData(Qt.UserRole, r['usuario'])
-                self._tbl_com.setItem(ri, ci, it)
-            btn_tog = QPushButton("Desactivar" if r['activo'] else "Activar")
-            btn_tog.clicked.connect(
-                lambda _, u=r['usuario'], a=r['activo']:
-                    self._toggle_comision(u, not a))
-            self._tbl_com.setCellWidget(ri, 3, btn_tog)
-
-    def _guardar_comision(self):
-        # [spj-dedup removed local QMessageBox import]
-        usuario = self._com_cmb_usuario.currentText()
-        pct     = self._com_spin_pct.value()
-        activo  = self._com_chk_activo.isChecked()
-        if not usuario:
-            QMessageBox.warning(self, "Aviso", "Selecciona un usuario."); return
-        try:
-            cs = getattr(self.container, 'comisiones_service', None)
-            if cs:
-                cs.set_config(usuario, pct, activo)
-                self._cargar_tabla_comisiones()
-                QMessageBox.information(self, "✅ Guardado",
-                    f"Comisión de {pct:.2f}% configurada para {usuario}.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    def _toggle_comision(self, usuario: str, activo: bool):
-        try:
-            cs = getattr(self.container, 'comisiones_service', None)
-            if cs:
-                cs.toggle_activo(usuario, activo)
-                self._cargar_tabla_comisiones()
-        except Exception as e:
-        # [spj-dedup removed local QMessageBox import]
-            QMessageBox.critical(self, "Error", str(e))
-
-
-    def _setup_tab_happy_hour(self) -> None:
-        """Tab configuración de Happy Hour y difusión WhatsApp."""
-        from PyQt5.QtWidgets import (
-            QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
-            QLabel, QLineEdit, QDoubleSpinBox, QPushButton,
-            QTableWidget, QTableWidgetItem, QHeaderView,
-            QAbstractItemView, QMessageBox, QComboBox,
-            QTextEdit, QCheckBox
-        )
-        from PyQt5.QtCore import Qt
-        lay = QVBoxLayout(self.tab_happy_hour)
-        lay.setContentsMargins(12, 10, 12, 10); lay.setSpacing(10)
-
-        info = QLabel(
-            "Define descuentos por horario (Happy Hour). "
-            "Activa 'Enviar WhatsApp' para notificar a todos los clientes "
-            "con teléfono registrado cuando inicie la promoción."
-        )
-        info.setWordWrap(True)
-        info.setObjectName("caption")
-        lay.addWidget(info)
-
-        # Tabla de reglas
-        self._tbl_hh = QTableWidget()
-        self._tbl_hh.setColumnCount(7)
-        self._tbl_hh.setHorizontalHeaderLabels(
-            ["Nombre", "Hora ini", "Hora fin", "Días", "Descuento", "Activo", "Acciones"])
-        self._tbl_hh.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_hh.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self._tbl_hh.verticalHeader().setVisible(False)
-        self._tbl_hh.setAlternatingRowColors(True)
-        hh = self._tbl_hh.horizontalHeader()
-        hh.setSectionResizeMode(0, QHeaderView.Stretch)
-        lay.addWidget(self._tbl_hh)
-
-        # Formulario
-        grp = QGroupBox("Nueva regla Happy Hour")
-        form = QFormLayout(grp)
-        self._hh_txt_nombre   = QLineEdit(); self._hh_txt_nombre.setPlaceholderText("Ej: Tarde feliz pollería")
-        self._hh_txt_ini      = QLineEdit("14:00"); self._hh_txt_ini.setPlaceholderText("HH:MM")
-        self._hh_txt_fin      = QLineEdit("16:00"); self._hh_txt_fin.setPlaceholderText("HH:MM")
-        self._hh_txt_dias     = QLineEdit("0,1,2,3,4"); self._hh_txt_dias.setPlaceholderText("0=lun…6=dom, CSV")
-        self._hh_cmb_tipo     = QComboBox()
-        self._hh_cmb_tipo.addItems(["porcentaje", "monto_fijo"])
-        self._hh_spin_valor   = QDoubleSpinBox()
-        self._hh_spin_valor.setRange(1, 100); self._hh_spin_valor.setValue(15); self._hh_spin_valor.setDecimals(1)
-        self._hh_cmb_aplica   = QComboBox()
-        self._hh_cmb_aplica.addItems(["todos", "categoria", "producto_id"])
-        self._hh_txt_aplica_val = QLineEdit(); self._hh_txt_aplica_val.setPlaceholderText("nombre de categoría o ID de producto")
-        self._hh_txt_msg_wa   = QTextEdit()
-        self._hh_txt_msg_wa.setMaximumHeight(70)
-        self._hh_txt_msg_wa.setPlaceholderText(
-            "Hola {nombre}! 🎉 Tenemos {promo}: {valor} off "
-            "de {hora_ini} a {hora_fin}. ¡Ven y aprovecha!")
-        self._hh_chk_enviar_wa = QCheckBox("Enviar WhatsApp a clientes al activarse")
-
-        form.addRow("Nombre*:", self._hh_txt_nombre)
-        form.addRow("Hora inicio:", self._hh_txt_ini)
-        form.addRow("Hora fin:", self._hh_txt_fin)
-        form.addRow("Días (CSV):", self._hh_txt_dias)
-        form.addRow("Tipo descuento:", self._hh_cmb_tipo)
-        form.addRow("Valor:", self._hh_spin_valor)
-        form.addRow("Aplica a:", self._hh_cmb_aplica)
-        form.addRow("Valor aplica:", self._hh_txt_aplica_val)
-        form.addRow("Mensaje WA:", self._hh_txt_msg_wa)
-        form.addRow("", self._hh_chk_enviar_wa)
-
-        btn_row = QHBoxLayout()
-        btn_save = QPushButton("💾 Guardar regla")
-        btn_save.setObjectName("warningBtn")
-        apply_tooltip(btn_save, "Guardar regla de Happy Hour")
-        btn_save.clicked.connect(self._guardar_happy_hour)
-        btn_enviar = QPushButton("📣 Enviar promo ahora")
-        btn_enviar.setToolTip("Envía el mensaje de la regla seleccionada a todos los clientes con teléfono")
-        btn_enviar.clicked.connect(self._enviar_promo_ahora)
-        btn_row.addStretch(); btn_row.addWidget(btn_enviar); btn_row.addWidget(btn_save)
-        form.addRow("", btn_row)
-        lay.addWidget(grp)
-        self._cargar_tabla_hh()
-
-    def _cargar_tabla_hh(self):
-        from PyQt5.QtWidgets import QPushButton, QTableWidgetItem
-        from PyQt5.QtCore import Qt
-        try:
-            hs = getattr(self.container, 'happy_hour_service', None)
-            rows = hs.get_reglas() if hs else []
-        except Exception:
-            rows = []
-        self._tbl_hh.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            desc = f"{float(r.get('valor',0)):.0f}{'%' if r.get('tipo_descuento')=='porcentaje' else ' MXN'}"
-            vals = [r.get('nombre',''), r.get('hora_inicio',''),
-                    r.get('hora_fin',''), r.get('dias_semana',''),
-                    desc, "✅" if r.get('activo') else "❌"]
-            for ci, v in enumerate(vals):
-                it = QTableWidgetItem(str(v))
-                it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-                if ci == 0: it.setData(Qt.UserRole, r.get('id'))
-                self._tbl_hh.setItem(ri, ci, it)
-            btn_tog = QPushButton("Desactivar" if r.get('activo') else "Activar")
-            btn_tog.clicked.connect(
-                lambda _, rid=r.get('id'), a=r.get('activo'):
-                    self._toggle_hh(rid, not a))
-            self._tbl_hh.setCellWidget(ri, 6, btn_tog)
-
-    def _guardar_happy_hour(self):
-        # [spj-dedup removed local QMessageBox import]
-        nombre = self._hh_txt_nombre.text().strip()
-        if not nombre:
-            QMessageBox.warning(self, "Aviso", "El nombre es obligatorio."); return
-        try:
-            hs = getattr(self.container, 'happy_hour_service', None)
-            if not hs:
-                QMessageBox.warning(self, "Aviso", "HappyHourService no disponible."); return
-            msg_wa = self._hh_txt_msg_wa.toPlainText().strip() or None
-            rid = hs.crear_regla(
-                nombre      = nombre,
-                hora_inicio = self._hh_txt_ini.text().strip(),
-                hora_fin    = self._hh_txt_fin.text().strip(),
-                dias        = self._hh_txt_dias.text().strip() or "0,1,2,3,4,5,6",
-                tipo        = self._hh_cmb_tipo.currentText(),
-                valor       = self._hh_spin_valor.value(),
-                aplica_a    = self._hh_cmb_aplica.currentText(),
-                aplica_valor= self._hh_txt_aplica_val.text().strip() or None,
-                mensaje_wa  = msg_wa,
-            )
-            self._cargar_tabla_hh()
-            # Enviar WhatsApp si el checkbox está activo
-            if self._hh_chk_enviar_wa.isChecked() and msg_wa:
-                enviados = hs.enviar_promo_whatsapp(rid, limite=200)
-                QMessageBox.information(self, "✅ Guardado",
-                    f"Regla «{nombre}» creada.\n"
-                    f"Mensaje enviado a {enviados} clientes por WhatsApp.")
-            else:
-                QMessageBox.information(self, "✅ Guardado",
-                    f"Regla «{nombre}» creada exitosamente.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    def _toggle_hh(self, regla_id: int, activo: bool):
-        try:
-            hs = getattr(self.container, 'happy_hour_service', None)
-            if hs: hs.toggle_regla(regla_id, activo)
-            self._cargar_tabla_hh()
-        except Exception as e:
-        # [spj-dedup removed local QMessageBox import]
-            QMessageBox.critical(self, "Error", str(e))
-
-    def _enviar_promo_ahora(self):
-        # [spj-dedup removed local QMessageBox import]
-        row = self._tbl_hh.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "Aviso", "Selecciona una regla primero."); return
-        it = self._tbl_hh.item(row, 0)
-        if not it: return
-        from PyQt5.QtCore import Qt
-        rid = it.data(Qt.UserRole)
-        if not rid: return
-        try:
-            hs = getattr(self.container, 'happy_hour_service', None)
-            if not hs:
-                QMessageBox.warning(self, "Aviso", "HappyHourService no disponible."); return
-            enviados = hs.enviar_promo_whatsapp(int(rid), limite=500)
-            QMessageBox.information(self, "📣 Enviado",
-                f"{enviados} mensajes WhatsApp encolados.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
-    # ══════════════════════════════════════════════════════════════════════
-    # TAB: 🏢 Empresa / Fiscal
-    # ══════════════════════════════════════════════════════════════════════
     def _setup_tab_empresa(self) -> None:
         from PyQt5.QtWidgets import (
             QVBoxLayout, QFormLayout, QGroupBox, QLabel,
-            QLineEdit, QPushButton, QHBoxLayout, QFileDialog, QMessageBox,
-            QComboBox
+            QLineEdit, QPushButton, QHBoxLayout
         )
         from PyQt5.QtCore import Qt
         from PyQt5.QtWidgets import QScrollArea as _SA
@@ -1876,10 +471,10 @@ class ModuloConfiguracion(ModuloBase):
         f3.addRow("Archivo:", logo_row)
         lay.addWidget(grp3)
 
-        # v13.30: Sucursal de esta instalación
         grp4 = QGroupBox("📍 Sucursal de esta terminal")
         f4   = QFormLayout(grp4)
         self.cmb_sucursal_inst = QComboBox()
+        self._enable_combo_search(self.cmb_sucursal_inst)
         self.cmb_sucursal_inst.setToolTip(
             "Define a qué sucursal pertenece esta computadora.\n"
             "Todos los usuarios que inicien sesión aquí operarán en esta sucursal.")
@@ -1927,7 +522,7 @@ class ModuloConfiguracion(ModuloBase):
             pass
         try:
             self.cmb_sucursal_inst.clear()
-            sucs = self.config_repository.branches_for_company_settings()
+            sucs = self.company_profile_service.branches_for_company_settings()
             if not sucs:
                 self.cmb_sucursal_inst.addItem("Principal", 1)
             else:
@@ -1942,14 +537,6 @@ class ModuloConfiguracion(ModuloBase):
             pass
 
     def _guardar_empresa(self):
-        # v13.30: Verificar permiso
-        try:
-            from core.permissions import verificar_permiso
-            _ctr = self.container if hasattr(self, 'container') else None
-            if _ctr and not verificar_permiso(_ctr, "config.editar", self):
-                return
-        except Exception: pass
-        # [spj-dedup removed local QMessageBox import]
         nombre = self.emp_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Aviso", "El nombre del negocio es obligatorio."); return
@@ -1982,152 +569,26 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _seleccionar_logo(self):
-        from PyQt5.QtWidgets import QFileDialog
         ruta, _ = QFileDialog.getOpenFileName(
             self, "Seleccionar logo", "", "Imágenes (*.png *.jpg *.jpeg *.svg)")
         if ruta:
             self.emp_logo_path.setText(ruta)
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB: 🎨 Apariencia — ThemeService completo
-    # ══════════════════════════════════════════════════════════════════════
-    def _setup_tab_apariencia(self) -> None:
-        from PyQt5.QtWidgets import (
-            QVBoxLayout, QFormLayout, QGroupBox, QComboBox,
-            QPushButton, QLabel, QSpinBox, QHBoxLayout
-        )
-        from PyQt5.QtCore import Qt
-        lay = QVBoxLayout(self.tab_apariencia)
-        lay.setContentsMargins(12,10,12,10); lay.setSpacing(12)
-
-        grp = QGroupBox("Apariencia de la interfaz")
-        form = QFormLayout(grp)
-
-        self.ap_combo_tema = QComboBox()
-        self.ap_combo_tema.addItems(["Claro", "Oscuro"])
-        self.ap_combo_tema.setToolTip("Tema de colores del sistema\nClaro: fondo blanco, texto oscuro\nOscuro: fondo oscuro, texto claro")
-
-        self.ap_combo_densidad = QComboBox()
-        self.ap_combo_densidad.addItems(["Compact", "Normal", "Comfortable"])
-        self.ap_combo_densidad.setToolTip("Espaciado y altura de elementos\nCompact: más datos en pantalla\nComfortable: más fácil de usar en táctil")
-
-        self.ap_spin_fuente = QSpinBox()
-        self.ap_spin_fuente.setRange(9, 16); self.ap_spin_fuente.setValue(12)
-        self.ap_spin_fuente.setSuffix(" pt")
-
-        self.ap_spin_iconos = QSpinBox()
-        self.ap_spin_iconos.setRange(16, 48); self.ap_spin_iconos.setValue(24)
-        self.ap_spin_iconos.setSuffix(" px")
-
-        form.addRow("Tema de colores:", self.ap_combo_tema)
-        form.addRow("Densidad (espaciado):", self.ap_combo_densidad)
-        form.addRow("Tamaño de fuente:", self.ap_spin_fuente)
-        form.addRow("Tamaño de iconos:", self.ap_spin_iconos)
-        lay.addWidget(grp)
-
-        info = QLabel("Los cambios se aplican en tiempo real sin necesidad de reiniciar.")
-        info.setObjectName("textSuccess")
-        lay.addWidget(info)
-
-        btn_row = QHBoxLayout()
-        btn_preview = QPushButton("👁 Vista previa")
-        btn_preview.clicked.connect(self._previsualizar_tema)
-        btn_apply = QPushButton("✅ Aplicar ahora")
-        btn_apply.setObjectName("primaryBtn")
-        apply_tooltip(btn_apply, "Aplicar configuración de apariencia")
-        btn_apply.clicked.connect(self._aplicar_apariencia)
-        btn_row.addWidget(btn_preview); btn_row.addStretch(); btn_row.addWidget(btn_apply)
-        lay.addLayout(btn_row)
-        lay.addStretch()
-        self._cargar_apariencia()
-
-    def _cargar_apariencia(self):
-        try:
-            # Cargar tema desde configuración central para sincronización global
-            tema_guardado = self.system_settings_service.get_setting('tema', 'Oscuro') or 'Oscuro'
-            
-            # Normalizar a nombres válidos: Light/Dark → Claro/Oscuro
-            tema_normalizado = 'Oscuro' if 'dark' in tema_guardado.lower() or tema_guardado == 'Oscuro' else 'Claro'
-            
-            densidad = 'Normal'
-            fuente = 12
-            iconos = 24
-            
-            # Intentar cargar prefs adicionales de ThemeService si existe
-            ts = getattr(self.container, 'theme_service', None) if hasattr(self, 'container') else None
-            if ts:
-                prefs = ts.get_user_preferences()
-                densidad = prefs.get('density', 'Normal')
-                fuente = int(prefs.get('font_size', 12))
-                iconos = int(prefs.get('icon_size', 24))
-            
-            # Solo mostrar opciones Claro/Oscuro en el combo
-            idx = self.ap_combo_tema.findText(tema_normalizado)
-            if idx >= 0: 
-                self.ap_combo_tema.setCurrentIndex(idx)
-            else:
-                # Si el tema guardado no existe, usar Oscuro por defecto
-                self.ap_combo_tema.setCurrentIndex(0)
-                
-            idx2 = self.ap_combo_densidad.findText(densidad)
-            if idx2 >= 0: self.ap_combo_densidad.setCurrentIndex(idx2)
-            self.ap_spin_fuente.setValue(fuente)
-            self.ap_spin_iconos.setValue(iconos)
-        except Exception as e:
-            logging.getLogger("spj.config").debug("Error cargando apariencia: %s", e)
-            pass
-
-    def _previsualizar_tema(self):
-        self._aplicar_apariencia(save=False)
-
-    def _aplicar_apariencia(self, save=True):
-        from PyQt5.QtWidgets import QApplication, QMessageBox
-        # Solo permitir temas Claro u Oscuro
-        tema_raw = self.ap_combo_tema.currentText()
-        tema = 'Oscuro' if 'dark' in tema_raw.lower() or tema_raw == 'Oscuro' else 'Claro'
-        
-        densidad = self.ap_combo_densidad.currentText()
-        fuente   = str(self.ap_spin_fuente.value())
-        iconos   = str(self.ap_spin_iconos.value())
-        
-        try:
-            # 1. Guardar en configuración central para persistencia global
-            self.system_settings_service.set_setting('tema', tema)
-            
-            # 2. Aplicar tema usando theme_engine (fuente única de verdad: config.TEMAS)
-            from ui.themes.theme_engine import apply_theme
-            app = QApplication.instance()
-            apply_theme(app, tema)
-            
-            # 3. Guardar prefs adicionales en ThemeService si existe
-            ts = getattr(self.container, 'theme_service', None) if hasattr(self, 'container') else None
-            if ts and save:
-                ts.save_preferences(tema, densidad, fuente, iconos)
-            
-            if save:
-                QMessageBox.information(self, "✅ Aplicado",
-                    f"Tema '{tema}' aplicado correctamente.\nLos cambios son inmediatos.")
-        except Exception as e:
-            logging.getLogger("spj.config").error("Error aplicando tema: %s", e)
-            QMessageBox.warning(self, "Error", f"No se pudo aplicar el tema:\n{e}")
-
-    # ══════════════════════════════════════════════════════════════════════
     # TAB: 📧 Email / SMTP
     # ══════════════════════════════════════════════════════════════════════
     def _setup_tab_email(self) -> None:
         from PyQt5.QtWidgets import (
-            QVBoxLayout, QFormLayout, QGroupBox, QLabel,
-            QLineEdit, QPushButton, QHBoxLayout, QSpinBox,
-            QCheckBox, QMessageBox
+            QVBoxLayout, QFormLayout, QGroupBox, QLineEdit, QPushButton, QHBoxLayout,
+            QCheckBox
         )
-        from PyQt5.QtCore import Qt
         lay = QVBoxLayout(self.tab_email)
         lay.setContentsMargins(12,10,12,10); lay.setSpacing(10)
 
         grp = QGroupBox("Configuración SMTP para reportes por email")
         form = QFormLayout(grp)
         self.smtp_host    = QLineEdit(); self.smtp_host.setPlaceholderText("smtp.gmail.com")
-        self.smtp_port    = QSpinBox(); self.smtp_port.setRange(1,65535); self.smtp_port.setValue(587)
+        self.smtp_port    = IntegerInput(self, minimum=0, maximum=65535)
         self.smtp_user    = QLineEdit(); self.smtp_user.setPlaceholderText("usuario@gmail.com")
         self.smtp_pass    = QLineEdit(); self.smtp_pass.setEchoMode(QLineEdit.Password)
         self.smtp_pass.setPlaceholderText("Contraseña o App Password")
@@ -2154,26 +615,20 @@ class ModuloConfiguracion(ModuloBase):
         self._cargar_smtp()
 
     def _cargar_smtp(self):
-        campos = {
-            'smtp_host': (self.smtp_host, 'setText'),
-            'smtp_port': (self.smtp_port, 'setValue'),
-            'smtp_user': (self.smtp_user, 'setText'),
-            'smtp_password': (self.smtp_pass, 'setText'),
-            'email_gerente': (self.smtp_gerente, 'setText'),
-        }
-        for clave, (widget, method) in campos.items():
-            try:
-                value = self.system_settings_service.get_setting(clave)
-                if value:
-                    if method == 'setValue':
-                        getattr(widget, method)(int(value))
-                    else:
-                        getattr(widget, method)(str(value))
-            except Exception:
-                pass
+        values = self.email_settings_service.get_settings()
+        if values.get('smtp_host'):
+            self.smtp_host.setText(str(values['smtp_host']))
+        if values.get('smtp_port'):
+            self.smtp_port.setValue(int(values['smtp_port']))
+        if values.get('smtp_user'):
+            self.smtp_user.setText(str(values['smtp_user']))
+        if values.get('smtp_password'):
+            self.smtp_pass.setText(str(values['smtp_password']))
+        if values.get('email_gerente'):
+            self.smtp_gerente.setText(str(values['email_gerente']))
+        self.smtp_tls.setChecked(str(values.get('smtp_tls', '0')) == '1')
 
     def _guardar_smtp(self):
-        # [spj-dedup removed local QMessageBox import]
         datos = {
             'smtp_host':     self.smtp_host.text().strip(),
             'smtp_port':     str(self.smtp_port.value()),
@@ -2183,13 +638,12 @@ class ModuloConfiguracion(ModuloBase):
             'email_gerente': self.smtp_gerente.text().strip(),
         }
         try:
-            self.system_settings_service.save_many(datos)
+            self.email_settings_service.save_settings(datos)
             QMessageBox.information(self, "✅", "Configuración SMTP guardada.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
     def _test_smtp(self):
-        # [spj-dedup removed local QMessageBox import]
         host  = self.smtp_host.text().strip()
         port  = self.smtp_port.value()
         user  = self.smtp_user.text().strip()
@@ -2222,9 +676,8 @@ class ModuloConfiguracion(ModuloBase):
     def _setup_tab_mercadopago(self) -> None:
         from PyQt5.QtWidgets import (
             QVBoxLayout, QFormLayout, QGroupBox, QLabel,
-            QLineEdit, QPushButton, QHBoxLayout, QMessageBox
+            QLineEdit, QPushButton, QHBoxLayout
         )
-        from PyQt5.QtCore import Qt
         lay = QVBoxLayout(self.tab_mercadopago)
         lay.setContentsMargins(12,10,12,10); lay.setSpacing(10)
 
@@ -2279,13 +732,12 @@ class ModuloConfiguracion(ModuloBase):
             'mp_webhook_url':  self.mp_webhook_url,
             'mp_return_url':   self.mp_return_url,
         }
-        values = self.system_settings_service.get_many(list(claves.keys()))
+        values = self.payment_provider_settings_service.get_mercado_pago_settings()
         for clave, widget in claves.items():
             if values.get(clave):
                 widget.setText(str(values[clave]))
 
     def _guardar_mp(self):
-        # [spj-dedup removed local QMessageBox import]
         datos = {
             'mp_access_token': self.mp_token.text().strip(),
             'mp_webhook_url':  self.mp_webhook_url.text().strip(),
@@ -2294,7 +746,7 @@ class ModuloConfiguracion(ModuloBase):
         if not datos['mp_access_token']:
             QMessageBox.warning(self, "Aviso", "El Access Token es obligatorio."); return
         try:
-            self.system_settings_service.save_many(datos)
+            self.payment_provider_settings_service.save_mercado_pago_settings(datos)
             QMessageBox.information(self, "✅", "Credenciales de Mercado Pago guardadas.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -2325,15 +777,13 @@ class ModuloConfiguracion(ModuloBase):
             self.mp_status_lbl.setObjectName("textDanger")
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB: 👤 Usuarios y Roles — versión embebida en config
+    # TAB: 👤 Usuarios y Roles
     # ══════════════════════════════════════════════════════════════════════
     def _setup_tab_usuarios_roles(self) -> None:
         from PyQt5.QtWidgets import (
             QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-            QTableWidget, QTableWidgetItem, QHeaderView,
-            QAbstractItemView, QTabWidget, QWidget
+            QWidget
         )
-        from PyQt5.QtCore import Qt
         lay = QVBoxLayout(self.tab_usuarios_roles)
         lay.setContentsMargins(0,0,0,0)
 
@@ -2430,10 +880,10 @@ class ModuloConfiguracion(ModuloBase):
         elif idx == 3: self._cargar_auditoria_v13()
 
     def _cargar_sucursales_v13(self):
-        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout, QTableWidgetItem
+        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PyQt5.QtCore import Qt
         try:
-            rows = self.config_repository.list_branch_delivery_rows()
+            rows = self.company_profile_service.list_branch_delivery_rows()
         except Exception: rows = []
         self._tbl_suc_v13.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -2456,9 +906,9 @@ class ModuloConfiguracion(ModuloBase):
         self._editar_sucursal_v13(None)
 
     def _editar_sucursal_v13(self, sucursal_id):
-        from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout,
+        from PyQt5.QtWidgets import (QDialog, QFormLayout,
                                       QLineEdit, QCheckBox, QVBoxLayout, QMessageBox,
-                                      QGroupBox, QHBoxLayout, QTextEdit)
+                                      QHBoxLayout)
         dlg = QDialog(self); dlg.setWindowTitle("Sucursal"); dlg.setMinimumWidth(460)
         lay = QVBoxLayout(dlg)
         form = QFormLayout()
@@ -2499,7 +949,8 @@ class ModuloConfiguracion(ModuloBase):
                         chk.setChecked(str(n) in dias_sel)
                     chk_acepta.setChecked(bool(row.get("acepta_pedidos_fuera_horario")))
                     if row.get("mensaje_fuera_horario"): txt_msg.setPlainText(row.get("mensaje_fuera_horario"))
-            except Exception: pass
+            except Exception as exc:
+                QMessageBox.warning(self, "Configuración incompleta", f"No se pudo cargar la sucursal: {exc}")
 
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
@@ -2527,11 +978,12 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _cargar_usuarios_v13(self):
-        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout, QTableWidgetItem
+        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PyQt5.QtCore import Qt
         try:
-            rows = self.config_repository.list_users_v13()
-        except Exception:
+            rows = self.user_management_service.list_users()
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudieron cargar usuarios: {exc}")
             rows = []
         self._tbl_usr_v13.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -2553,18 +1005,11 @@ class ModuloConfiguracion(ModuloBase):
             self._tbl_usr_v13.setCellWidget(ri, 5, btn_w)
 
     def _nuevo_usuario_v13(self):
-        # v13.30: Verificar permiso
-        try:
-            from core.permissions import verificar_permiso
-            _ctr = self.container if hasattr(self, 'container') else None
-            if _ctr and not verificar_permiso(_ctr, "usuarios.gestionar", self):
-                return
-        except Exception: pass
         self._editar_usuario_v13(None)
 
     def _editar_usuario_v13(self, usuario_id):
-        from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout,
-                                      QLineEdit, QComboBox, QVBoxLayout,
+        from PyQt5.QtWidgets import (QDialog, QFormLayout,
+                                      QLineEdit, QVBoxLayout,
                                       QMessageBox, QCheckBox, QLabel)
         dlg = QDialog(self); dlg.setWindowTitle("Usuario"); dlg.setMinimumWidth(440)
         lay = QVBoxLayout(dlg)
@@ -2576,27 +1021,24 @@ class ModuloConfiguracion(ModuloBase):
         txt_pass.setPlaceholderText("(dejar vacío para no cambiar)" if usuario_id else "Contraseña")
         cmb_rol      = QComboBox()
         cmb_sucursal = QComboBox()
+        self._enable_combo_search(cmb_rol)
+        self._enable_combo_search(cmb_sucursal)
         chk_activo   = QCheckBox("Activo"); chk_activo.setChecked(True)
         cmb_empleado = QComboBox(); cmb_empleado.addItem("(ninguno)", None)
+        self._enable_combo_search(cmb_empleado)
         lbl_emp_hint = QLabel("Vincula este usuario a un empleado de RRHH")
         lbl_emp_hint.setObjectName("caption")
 
         try:
-            for rn in self.config_repository.role_names():
+            for rn in self.role_management_service.role_names():
                 cmb_rol.addItem(rn)
-        except Exception:
-            for rn in ["admin","gerente","cajero","almacen","repartidor","solo_lectura"]:
-                cmb_rol.addItem(rn)
-        try:
-            for sid, nombre in self.config_repository.active_branches_for_selector():
+            for sid, nombre in self.role_management_service.active_branches_for_selector():
                 cmb_sucursal.addItem(nombre, sid)
-        except Exception:
-            cmb_sucursal.addItem("Principal", 1)
-        try:
-            for emp_id, label in self.config_repository.active_employees_for_selector():
+            for emp_id, label in self.role_management_service.active_employees_for_selector():
                 cmb_empleado.addItem(label, emp_id)
-        except Exception:
-            pass
+        except Exception as exc:
+            QMessageBox.critical(self, "Configuración incompleta", f"No se pudieron cargar selectores de usuario: {exc}")
+            return
 
         form.addRow("Usuario*:", txt_usuario)
         form.addRow("Nombre:", txt_nombre)
@@ -2611,7 +1053,7 @@ class ModuloConfiguracion(ModuloBase):
 
         if usuario_id:
             try:
-                row = self.config_repository.get_user_form_data(usuario_id)
+                row = self.user_management_service.get_user_form_data(usuario_id)
                 if row:
                     txt_usuario.setText(row[0] or ""); txt_nombre.setText(row[1] or "")
                     txt_email.setText(row[2] or "")
@@ -2625,8 +1067,9 @@ class ModuloConfiguracion(ModuloBase):
                         for i in range(cmb_empleado.count()):
                             if cmb_empleado.itemData(i) == row[6]:
                                 cmb_empleado.setCurrentIndex(i); break
-            except Exception:
-                pass
+            except Exception as exc:
+                QMessageBox.critical(self, "Error", f"No se pudo cargar el usuario: {exc}")
+                return
 
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
@@ -2650,7 +1093,7 @@ class ModuloConfiguracion(ModuloBase):
                             if _bcrypt else pwd_raw)
             elif not usuario_id:
                 QMessageBox.warning(self, "Aviso", "La contraseña es obligatoria."); return
-            self.config_repository.save_user_v13(
+            self.user_management_service.save_user(
                 user_id=usuario_id,
                 username=uname,
                 name=txt_nombre.text().strip(),
@@ -2660,6 +1103,8 @@ class ModuloConfiguracion(ModuloBase):
                 active=chk_activo.isChecked(),
                 employee_id=emp_id,
                 password_hash=pwd_hash,
+                operation_id=self._operation_id(),
+                actor=self._actor_name(),
             )
             self._cargar_usuarios_v13()
         except Exception as e:
@@ -2667,18 +1112,19 @@ class ModuloConfiguracion(ModuloBase):
 
     def _toggle_usuario(self, uid, activo):
         try:
-            self.config_repository.set_user_active(uid, bool(activo))
+            self.user_management_service.set_user_active(uid, bool(activo), operation_id=self._operation_id(), actor=self._actor_name())
             self._cargar_usuarios_v13()
         except Exception as e:
-        # [spj-dedup removed local QMessageBox import]
             QMessageBox.critical(self, "Error", str(e))
 
     def _cargar_roles_v13(self):
-        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout, QTableWidgetItem
+        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout
         from PyQt5.QtCore import Qt
         try:
-            rows = self.config_repository.list_roles_v13()
-        except Exception: rows = []
+            rows = self.role_management_service.list_roles()
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudieron cargar roles: {exc}")
+            rows = []
         self._tbl_roles_v13.setRowCount(len(rows))
         for ri, r in enumerate(rows):
             vals = [r[1], r[2] or "", str(r[3])]
@@ -2696,10 +1142,8 @@ class ModuloConfiguracion(ModuloBase):
             self._tbl_roles_v13.setCellWidget(ri, 3, btn_w)
 
     def _editar_permisos_rol(self, rol_id, rol_nombre):
-        from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, QTableWidget,
-                                      QTableWidgetItem, QHeaderView, QCheckBox,
-                                      QDialogButtonBox, QMessageBox, QScrollArea)
-        from PyQt5.QtCore import Qt
+        from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLabel, QCheckBox,
+                                      QMessageBox)
         dlg = QDialog(self); dlg.setWindowTitle(f"Permisos — {rol_nombre}")
         dlg.setMinimumSize(600, 500)
         lay = QVBoxLayout(dlg)
@@ -2710,11 +1154,11 @@ class ModuloConfiguracion(ModuloBase):
                    "DELIVERY","COTIZACIONES","MERMA","PROVEEDORES","PRODUCCION"]
         ACCIONES = ["ver","crear","editar","eliminar","exportar"]
 
-        # Load existing permisos
         try:
-            existing = self.config_repository.role_permissions(rol_id)
-        except Exception:
-            existing = {}
+            existing = self.permission_query_service.role_permissions(rol_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudieron cargar permisos: {exc}")
+            return
 
         tbl = QTableWidget(len(MODULOS), len(ACCIONES)+1)
         tbl.setHorizontalHeaderLabels(["Módulo"] + ACCIONES)
@@ -2738,19 +1182,23 @@ class ModuloConfiguracion(ModuloBase):
 
         if dlg.exec_() != QDialog.Accepted: return
         try:
-            self.config_repository.save_role_permissions(
-                rol_id, {(mod, acc): chk.isChecked() for (mod, acc), chk in chks.items()}
+            self.module_access_service.save_role_permissions(
+                rol_id,
+                {(mod, acc): chk.isChecked() for (mod, acc), chk in chks.items()},
+                operation_id=self._operation_id(),
+                actor=self._actor_name(),
             )
             QMessageBox.information(dlg, "✅", f"Permisos de '{rol_nombre}' guardados.")
         except Exception as e:
             QMessageBox.critical(dlg, "Error", str(e))
 
     def _cargar_auditoria_v13(self):
-        from PyQt5.QtWidgets import QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            rows = self.config_repository.audit_log_rows(limit=200)
-        except Exception: rows = []
+            rows = self.permission_query_service.audit_log_rows(limit=200)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo cargar auditoría: {exc}")
+            rows = []
         self._tbl_audit_v13.setRowCount(len(rows))
         for ri, r in enumerate(rows):
             for ci, v in enumerate(r):
@@ -2765,223 +1213,6 @@ class ModuloConfiguracion(ModuloBase):
         super().closeEvent(event)
 
 
-class DialogoUsuario(QDialog):
-    def __init__(self, conexion, parent=None, usuario_data=None):
-        super().__init__(parent)
-        # Accept AppContainer or direct db connection
-        if hasattr(conexion, 'db'):
-            self.container = conexion
-            self.conexion  = conexion.db
-        else:
-            self.container = None
-            self.conexion  = conexion
-        self.config_repository = ConfigRepository(self.conexion)
-        self.usuario_data = usuario_data
-        self.es_edicion = usuario_data is not None
-        
-        self.setWindowTitle("Editar Usuario" if self.es_edicion else "Nuevo Usuario")
-        self.setFixedSize(500, 500)
-        self.setModal(True)
-        
-        self.init_ui()
-        if self.es_edicion:
-                self.setWindowTitle("Editar Usuario")
-                self.cargar_datos()
-        else:
-            self.setWindowTitle("Crear Nuevo Usuario")
-
-    def init_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-
-        # Título
-        titulo = QLabel("Editar Usuario" if self.es_edicion else "Crear Nuevo Usuario")
-        titulo.setAlignment(Qt.AlignCenter)
-        font = titulo.font()
-        font.setPointSize(14)
-        font.setBold(True)
-        titulo.setFont(font)
-        layout.addWidget(titulo)
-
-        # Formulario
-        form_layout = QFormLayout()
-        form_layout.setLabelAlignment(Qt.AlignRight)
-        form_layout.setVerticalSpacing(10)
-        
-        self.edit_usuario = QLineEdit()
-        self.edit_usuario.setPlaceholderText("Nombre de usuario único")
-        
-        self.edit_nombre = QLineEdit()
-        self.edit_nombre.setPlaceholderText("Nombre completo del usuario")
-        
-        self.edit_contrasena = QLineEdit()
-        self.edit_contrasena.setEchoMode(QLineEdit.Password)
-        self.edit_contrasena.setPlaceholderText("Mínimo 6 caracteres" if not self.es_edicion else "Dejar en blanco para no cambiar")
-        
-        self.edit_confirmar = QLineEdit()
-        self.edit_confirmar.setEchoMode(QLineEdit.Password)
-        self.edit_confirmar.setPlaceholderText("Confirmar contraseña")
-        
-        self.combo_rol = QComboBox()
-        self.combo_rol.addItems(["admin", "cajero", "vendedor", "inventario"])
-
-        # Sucursal asignada
-        self.combo_sucursal_usuario = QComboBox()
-        self._cargar_sucursales_combo()
-
-        # Módulos permitidos
-        grupo_modulos = QGroupBox("Módulos Permitidos")
-        layout_modulos = QGridLayout()
-        self.modulos_checkboxes = {}
-        
-        modulos = [
-            ("ventas", "Ventas"),
-            ("clientes", "Clientes"), 
-            ("productos", "Productos"),
-            ("inventario", "Inventario"),
-            ("compras", "Compras"),
-            ("gastos", "Gastos"),
-            ("reportes", "Reportes"),
-            ("configuraciones", "Configuración")
-        ]
-        
-        for i, (clave, nombre) in enumerate(modulos):
-            chk = QCheckBox(nombre)
-            self.modulos_checkboxes[clave] = chk
-            layout_modulos.addWidget(chk, i // 2, i % 2)
-        
-        grupo_modulos.setLayout(layout_modulos)
-
-        form_layout.addRow("Usuario*:", self.edit_usuario)
-        form_layout.addRow("Nombre completo:", self.edit_nombre)
-        form_layout.addRow("Contraseña*:", self.edit_contrasena)
-        form_layout.addRow("Confirmar*:", self.edit_confirmar)
-        form_layout.addRow("Rol*:", self.combo_rol)
-        form_layout.addRow("Sucursal:", self.combo_sucursal_usuario)
-        form_layout.addRow("Permisos:", grupo_modulos)
-        
-        layout.addLayout(form_layout)
-
-        # Botones
-        btn_layout = QHBoxLayout()
-        self.btn_guardar = QPushButton("💾 Guardar")
-        self.btn_guardar.setDefault(True)
-        self.btn_cancelar = QPushButton("❌ Cancelar")
-        
-        btn_layout.addWidget(self.btn_guardar)
-        btn_layout.addWidget(self.btn_cancelar)
-        layout.addLayout(btn_layout)
-
-        # Conexiones
-        self.btn_guardar.clicked.connect(self.guardar_usuario)
-        self.btn_cancelar.clicked.connect(self.reject)
-
-    def _cargar_sucursales_combo(self):
-        """Carga las sucursales en el combo del formulario de usuario."""
-        self.combo_sucursal_usuario.clear()
-        try:
-            sucursales = self.config_repository.active_branches_for_selector()
-            for sid, nombre in sucursales:
-                self.combo_sucursal_usuario.addItem(f"🏪 {nombre}", sid)
-        except Exception:
-            self.combo_sucursal_usuario.addItem("🏪 Principal", 1)
-
-    def cargar_datos_usuario(self):
-        """Carga los datos del usuario en el formulario"""
-        if not self.usuario_data:
-            return
-            
-        self.edit_usuario.setText(self.usuario_data.get('usuario', ''))
-        self.edit_nombre.setText(self.usuario_data.get('nombre', ''))
-        self.combo_rol.setCurrentText(self.usuario_data.get('rol', 'vendedor'))
-
-        # Cargar sucursal
-        suc_id = self.usuario_data.get('sucursal_id', 1) or 1
-        for i in range(self.combo_sucursal_usuario.count()):
-            if self.combo_sucursal_usuario.itemData(i) == suc_id:
-                self.combo_sucursal_usuario.setCurrentIndex(i)
-                break
-        
-        # Cargar módulos permitidos
-        modulos_permitidos = self.usuario_data.get('modulos_permitidos', '')
-        if modulos_permitidos:
-            for modulo in modulos_permitidos.split(','):
-                modulo = modulo.strip()
-                if modulo in self.modulos_checkboxes:
-                    self.modulos_checkboxes[modulo].setChecked(True)
-
-    def validar_formulario(self):
-        """Valida los datos del formulario"""
-        usuario = self.edit_usuario.text().strip()
-        contrasena = self.edit_contrasena.text()
-        confirmar = self.edit_confirmar.text()
-        
-        if not usuario:
-            QMessageBox.warning(self, "Error", "El nombre de usuario es obligatorio.")
-            return False
-            
-        if not self.es_edicion and not contrasena:
-            QMessageBox.warning(self, "Error", "La contraseña es obligatoria para nuevos usuarios.")
-            return False
-            
-        if contrasena and len(contrasena) < 6:
-            QMessageBox.warning(self, "Error", "La contraseña debe tener al menos 6 caracteres.")
-            return False
-            
-        if contrasena and contrasena != confirmar:
-            QMessageBox.warning(self, "Error", "Las contraseñas no coinciden.")
-            return False
-            
-        return True
-
-    def guardar_usuario(self):
-            usuario = self.txt_usuario.text().strip()
-            nombre = self.txt_nombre.text().strip()
-            contrasena = self.txt_contrasena.text() # NO strip() por si el espacio es intencional, pero se hashea
-            rol = self.combo_rol.currentText()
-            modulos = [self.lst_modulos.item(i).text() for i in range(self.lst_modulos.count()) if self.lst_modulos.item(i).checkState() == Qt.Checked]
-            modulos_str = json.dumps(modulos)
-            
-            if not usuario or not nombre or not rol:
-                QMessageBox.warning(self, "Advertencia", "Todos los campos obligatorios deben ser llenados.")
-                return
-
-            if not self.es_edicion and not contrasena:
-                QMessageBox.warning(self, "Advertencia", "Se debe ingresar una contraseña para el nuevo usuario.")
-                return
-
-            try:
-                hashed_password = None
-                if contrasena:
-                    if _USE_AUTH_MODULE:
-                        try:
-                            hashed_password = _hash_password(contrasena)
-                        except Exception:
-                            hashed_password = __import__('hashlib').sha256(contrasena.encode()).hexdigest() if not bcrypt else bcrypt.hashpw(contrasena.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                    else:
-                        hashed_password = __import__('hashlib').sha256(contrasena.encode()).hexdigest() if not bcrypt else bcrypt.hashpw(contrasena.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-                user_id = self.usuario_data['id'] if self.es_edicion else None
-                if not self.es_edicion and self.config_repository.username_exists(usuario):
-                    QMessageBox.warning(self, "Error", "Ya existe un usuario con ese nombre.")
-                    return
-
-                self.config_repository.save_legacy_user(
-                    user_id=user_id,
-                    username=usuario,
-                    name=nombre,
-                    role=rol,
-                    modules_json=modulos_str,
-                    branch_id=self.combo_sucursal_usuario.currentData() or 1,
-                    password_hash=hashed_password,
-                )
-                QMessageBox.information(self, "Éxito", 
-                                      "Usuario guardado correctamente." if self.es_edicion 
-                                      else "Usuario creado correctamente.")
-                self.accept()
-                
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Error inesperado: {str(e)}")
 
 # =============================================================================
 # DIÁLOGO PARA CREAR / EDITAR SUCURSAL
