@@ -180,6 +180,7 @@ DELIVERY_OUT_FOR_DELIVERY     = "DELIVERY_OUT_FOR_DELIVERY"       # order_id, dr
 DELIVERY_ORDER_DELIVERED      = "DELIVERY_ORDER_DELIVERED"        # order_id, folio, driver_id, total, sucursal_id
 DELIVERY_ORDER_CANCELLED      = "DELIVERY_ORDER_CANCELLED"        # order_id, folio, usuario, motivo
 INVENTORY_COMMIT_REQUIRED     = "INVENTORY_COMMIT_REQUIRED"       # order_id, items[], sucursal_id, operation_id
+INVENTORY_RELEASE_REQUIRED    = "INVENTORY_RELEASE_REQUIRED"      # order_id, operation_id, reason
 CUSTOMER_NOTIFICATION_REQUESTED = "CUSTOMER_NOTIFICATION_REQUESTED"  # order_id, canal, template, params, cliente_tel
 DRIVER_SETTLEMENT_CREATED     = "DRIVER_SETTLEMENT_CREATED"       # cut_id, driver_id, driver_nombre, efectivo, diferencia, fecha
 PURCHASE_SUGGESTION_CREATED   = "PURCHASE_SUGGESTION_CREATED"     # producto_id, cantidad_sugerida, motivo, sucursal_id

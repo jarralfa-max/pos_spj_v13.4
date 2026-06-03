@@ -10,6 +10,7 @@ import json, threading, logging
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from core.db.connection import get_connection, close_thread_connection
+from core.services.delivery_service import DeliveryService
 
 logger = logging.getLogger("spj.pwa")
 _server_instance = None
@@ -57,18 +58,31 @@ class DeliveryAPIHandler(BaseHTTPRequestHandler):
     def _get_pedidos(self, chofer_id: str) -> list:
         try:
             conn = get_connection()
-            sql  = """SELECT d.id, d.estado, d.direccion_entrega, d.notas,
-                             d.total, d.fecha_pedido,
+            service = DeliveryService(conn)
+            sql  = """SELECT d.id, d.estado, d.direccion AS direccion_entrega, d.notas,
+                             d.total, d.fecha AS fecha_pedido, d.workflow_type, d.delivery_type,
+                             d.scheduled_at, d.adjustment_pending, d.driver_id,
                              c.nombre as cliente, c.telefono as tel_cliente
                       FROM delivery_orders d
                       LEFT JOIN clientes c ON c.id=d.cliente_id
                       WHERE d.estado NOT IN ('entregado','cancelado')"""
             params = []
             if chofer_id:
-                sql += " AND d.chofer_id=?"; params.append(chofer_id)
-            sql += " ORDER BY d.fecha_pedido ASC LIMIT 50"
+                sql += " AND d.driver_id=?"; params.append(chofer_id)
+            sql += " ORDER BY d.fecha ASC LIMIT 50"
             rows = conn.execute(sql, params).fetchall()
-            return [dict(r) for r in rows]
+            pedidos = []
+            for row in rows:
+                pedido = dict(row)
+                pedido["actions"] = service.get_valid_actions(
+                    status=pedido.get("estado", ""),
+                    workflow_type=pedido.get("workflow_type", ""),
+                    adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
+                    scheduled_at=pedido.get("scheduled_at"),
+                    delivery_type=pedido.get("delivery_type", ""),
+                )
+                pedidos.append(pedido)
+            return pedidos
         except Exception as e:
             logger.warning("get_pedidos: %s", e)
             return []
@@ -80,11 +94,13 @@ class DeliveryAPIHandler(BaseHTTPRequestHandler):
             estado   = body.get("estado")
             if not pedido_id or not estado:
                 return False
-            conn.execute(
-                "UPDATE delivery_orders SET estado=? WHERE id=?",
-                (estado, pedido_id))
-            try: conn.commit()
-            except Exception: pass
+            responsable = str(body.get("responsable") or body.get("chofer_id") or "pwa")
+            DeliveryService(conn).update_status(
+                int(pedido_id),
+                str(estado),
+                usuario="pwa_delivery",
+                responsable=responsable if str(estado).strip().lower() in {"entregado", "entregada"} else "",
+            )
             logger.info("PWA: pedido %s -> %s", pedido_id, estado)
             return True
         except Exception as e:
@@ -173,8 +189,8 @@ _PWA_HTML = """<!DOCTYPE html>
   #chofer-input{background:#334155;color:#E2E8F0;border:none;border-radius:8px;padding:8px 12px;font-size:14px}
   #pedidos{padding:12px;display:flex;flex-direction:column;gap:12px}
   .card{background:#1E293B;border-radius:12px;padding:16px;border-left:4px solid #3B82F6}
-  .card.en_camino{border-color:#F59E0B}
-  .card.listo{border-color:#10B981}
+  .card.en_ruta{border-color:#F59E0B}
+  .card.preparacion{border-color:#10B981}
   .card h3{font-size:15px;font-weight:600;margin-bottom:4px}
   .card .addr{color:#94A3B8;font-size:13px;margin-bottom:8px}
   .card .meta{display:flex;justify-content:space-between;font-size:12px;color:#64748B;margin-bottom:10px}
@@ -185,8 +201,8 @@ _PWA_HTML = """<!DOCTYPE html>
   .btn-problema{background:#EF4444;color:#fff}
   .badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-bottom:6px}
   .badge.pendiente{background:#334155;color:#94A3B8}
-  .badge.listo{background:#064E3B;color:#10B981}
-  .badge.en_camino{background:#451A03;color:#F59E0B}
+  .badge.preparacion{background:#064E3B;color:#10B981}
+  .badge.en_ruta{background:#451A03;color:#F59E0B}
   #empty{text-align:center;color:#64748B;padding:48px;display:none}
   #refresh-btn{background:#3B82F6;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:14px}
 </style>
@@ -201,7 +217,7 @@ _PWA_HTML = """<!DOCTYPE html>
 </header>
 <div id="pedidos"><div id="empty">No hay pedidos asignados</div></div>
 <script>
-const ESTADOS = {pendiente:'Pendiente',listo:'Listo para enviar',en_camino:'En camino',entregado:'Entregado'};
+const ESTADOS = {pendiente:'Pendiente',preparacion:'En preparación',en_ruta:'En ruta',entregado:'Entregado',cancelado:'Cancelado'};
 let timer;
 
 async function cargar(){
@@ -230,9 +246,9 @@ function renderizar(pedidos){
       </div>
       ${p.notas?`<div class="addr" style="color:#F59E0B">📝 ${p.notas}</div>`:''}
       <div class="btns">
-        ${p.estado==='listo'?`<button class="btn btn-camino" onclick="cambiarEstado(${p.id},'en_camino')">🚚 Salir a entregar</button>`:''}
-        ${p.estado==='en_camino'?`<button class="btn btn-entregado" onclick="cambiarEstado(${p.id},'entregado')">✅ Entregado</button>`:''}
-        <button class="btn btn-problema" onclick="cambiarEstado(${p.id},'cancelado')" style="flex:0;padding:8px">⚠</button>
+        ${(p.actions||[]).filter(a => ['en_ruta','entregado','cancelado'].includes(a.key)).map(a =>
+          `<button class="btn ${a.key==='entregado'?'btn-entregado':(a.key==='cancelado'?'btn-problema':'btn-camino')}" onclick="cambiarEstado(${p.id},'${a.key}')">${a.icon||''} ${a.label||a.key}</button>`
+        ).join('')}
       </div>`;
     c.appendChild(div);
   });
@@ -240,8 +256,9 @@ function renderizar(pedidos){
 
 async function cambiarEstado(id, estado){
   if(!confirm(`¿Cambiar pedido #${id} a "${estado}"?`)) return;
+  const chofer = document.getElementById('chofer-input').value || 'pwa';
   await fetch('/api/estado',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({id,estado})});
+    body:JSON.stringify({id,estado,chofer_id:chofer,responsable:chofer})});
   cargar();
 }
 

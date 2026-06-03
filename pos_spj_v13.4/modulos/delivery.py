@@ -46,6 +46,7 @@ from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QRunnable, QThreadPool, QObject
 from PyQt5.QtGui import QFont, QColor
 from core.db.connection import get_connection
 from core.services.delivery_service import DeliveryService
+from core.delivery.domain.state_machine import DeliveryStateMachine
 from core.services.order_badge_service import OrderBadgeService
 from core.utils.delivery_ui_filters import (
     infer_workflow_for_ui as _infer_workflow_for_ui_fn,
@@ -108,56 +109,43 @@ ESTADO_COLOR = {
 # ── Action policy: single source of truth for which buttons appear per state ──
 
 class DeliveryActionPolicy:
-    """Maps delivery states → list of (icon, tooltip, accion, style).
+    """UI action metadata adapter backed by the domain state machine.
 
-    Used by both TarjetaPedido (kanban) and the detail/list action bar.
-    Never hardcode state logic in widgets — always delegate here.
+    Widgets can still receive legacy tuple actions, but the workflow decision
+    comes from ``DeliveryStateMachine`` rather than hardcoded UI state rules.
     """
-    _ACTIONS = {
-        "pendiente": [
-            ("▶",  "Preparar",            "preparar",     "success"),
-            ("📲", "Notificar por WA",    "notificar_wa", "secondary"),
-            ("✖",  "Cancelar pedido",     "cancelado",    "danger"),
-        ],
-        "preparacion": [
-            ("🛵", "En Ruta",             "en_ruta",      "primary"),
-            ("⚖️", "Ajustar peso",        "ajustar_peso", "warning"),
-            ("👤", "Asignar repartidor",  "asignar",      "primary"),
-            ("🖨️", "Imprimir ticket",     "imprimir",     "secondary"),
-            ("📲", "Notificar por WA",    "notificar_wa", "secondary"),
-            ("💳", "Link de pago",        "link_pago",    "secondary"),
-            ("✖",  "Cancelar pedido",     "cancelado",    "danger"),
-        ],
-        "en_ruta": [
-            ("✅", "Confirmar entrega",   "entregado",    "success"),
-            ("📲", "Notificar por WA",    "notificar_wa", "secondary"),
-        ],
-        "entregado": [
-            ("🖨️", "Imprimir ticket",     "imprimir",     "secondary"),
-        ],
-        "cancelado": [
-            ("♻️", "Reactivar pedido",    "reactivar",    "warning"),
-        ],
+
+    _METADATA = {
+        "preparacion": ("▶", "Preparar", "success"),
+        "cancelado": ("✖", "Cancelar pedido", "danger"),
+        "ajustar_peso": ("⚖️", "Ajustar peso", "warning"),
+        "en_ruta": ("🛵", "En Ruta", "primary"),
+        "asignar": ("👤", "Asignar repartidor", "primary"),
+        "entregado": ("✅", "Marcar entregado", "success"),
+        "notificar_wa": ("📲", "Notificar por WA", "secondary"),
+        "imprimir": ("🖨️", "Imprimir ticket", "secondary"),
+        "reactivar": ("♻️", "Reactivar pedido", "warning"),
+        "activar_programado": ("▶", "Activar ahora", "success"),
+        "reprogramar": ("🗓️", "Reprogramar", "warning"),
     }
 
     @classmethod
     def get_actions(cls, estado: str, *, workflow_type: str = "", adjustment_pending: bool = False) -> list:
-        actions = list(cls._ACTIONS.get(estado, []))
-        wf = (workflow_type or "").strip().lower()
-        if wf == "counter":
-            actions = [a for a in actions if a[2] not in ("en_ruta", "asignar")]
-            if estado == "preparacion":
-                actions.insert(0, ("✅", "Marcar entregado", "entregado", "success"))
-        if wf == "scheduled" and estado in ("programado", "scheduled"):
-            return [
-                ("▶", "Activar ahora", "activar_programado", "success"),
-                ("🗓️", "Reprogramar", "reprogramar", "warning"),
-                ("📈", "Ver forecast", "ver_forecast", "secondary"),
-                ("✖", "Cancelar pedido", "cancelado", "danger"),
-            ]
-        if adjustment_pending:
-            actions = [a for a in actions if a[2] not in ("en_ruta", "entregado")]
-        return actions
+        order_context = {
+            "estado": estado,
+            "workflow_type": workflow_type,
+            "adjustment_pending": adjustment_pending,
+        }
+        action_keys = DeliveryStateMachine().get_valid_actions(order_context)
+        return [
+            (
+                cls._METADATA.get(key, ("", key, "secondary"))[0],
+                cls._METADATA.get(key, ("", key, "secondary"))[1],
+                key,
+                cls._METADATA.get(key, ("", key, "secondary"))[2],
+            )
+            for key in action_keys
+        ]
 
 
 def _matches_operational_tab(pedido: dict, tab_key: str | None) -> bool:

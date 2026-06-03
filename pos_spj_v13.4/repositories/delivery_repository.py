@@ -15,130 +15,10 @@ class DeliveryRepository:
         self.ensure_schema()
 
     def ensure_schema(self) -> None:
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS delivery_orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                venta_id INTEGER,
-                folio TEXT,
-                whatsapp_order_id TEXT,
-                cliente_id INTEGER,
-                cliente_nombre TEXT,
-                cliente_tel TEXT,
-                direccion TEXT NOT NULL,
-                lat REAL,
-                lng REAL,
-                estado TEXT DEFAULT 'pendiente',
-                notas TEXT,
-                total REAL DEFAULT 0,
-                responsable_entrega TEXT,
-                usuario TEXT,
-                fecha DATETIME DEFAULT (datetime('now')),
-                fecha_actualizacion DATETIME,
-                historial_cambios TEXT,
-                driver_id INTEGER,
-                sucursal_id INTEGER DEFAULT 1,
-                workflow_type TEXT,
-                delivery_type TEXT,
-                scheduled_at DATETIME,
-                source_channel TEXT DEFAULT 'whatsapp'
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS delivery_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                delivery_id INTEGER NOT NULL,
-                producto_id INTEGER,
-                nombre TEXT NOT NULL,
-                cantidad REAL NOT NULL DEFAULT 0,
-                precio_unitario REAL NOT NULL DEFAULT 0,
-                subtotal REAL NOT NULL DEFAULT 0,
-                unidad TEXT DEFAULT 'kg',
-                requested_qty REAL,
-                prepared_qty REAL,
-                final_qty REAL,
-                prepared_by TEXT,
-                prepared_at DATETIME,
-                adjustment_reason TEXT,
-                tolerance_exceeded INTEGER DEFAULT 0
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS delivery_order_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id INTEGER NOT NULL,
-                estado_anterior TEXT,
-                estado_nuevo TEXT,
-                usuario TEXT,
-                fecha DATETIME DEFAULT (datetime('now')),
-                observacion TEXT
-            )
-            """
-        )
-        for col in (
-            "folio TEXT",
-            "whatsapp_order_id TEXT",
-            "lat REAL",
-            "lng REAL",
-            "responsable_entrega TEXT",
-            "usuario TEXT",
-            "fecha DATETIME DEFAULT CURRENT_TIMESTAMP",
-            "fecha_actualizacion DATETIME",
-            "historial_cambios TEXT",
-            "driver_id INTEGER",
-            "sucursal_id INTEGER DEFAULT 1",
-            "workflow_type TEXT",
-            "delivery_type TEXT",
-            "scheduled_at DATETIME",
-            "source_channel TEXT DEFAULT 'whatsapp'",
-        ):
-            try:
-                self.db.execute(f"ALTER TABLE delivery_orders ADD COLUMN {col}")
-            except Exception:
-                pass
-        for col in (
-            "producto_id INTEGER",
-            "unidad TEXT DEFAULT 'kg'",
-            "requested_qty REAL",
-            "prepared_qty REAL",
-            "final_qty REAL",
-            "prepared_by TEXT",
-            "prepared_at DATETIME",
-            "adjustment_reason TEXT",
-            "tolerance_exceeded INTEGER DEFAULT 0",
-        ):
-            try:
-                self.db.execute(f"ALTER TABLE delivery_items ADD COLUMN {col}")
-            except Exception:
-                pass
-        # Ensure drivers table exists so LEFT JOIN always has a valid target
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS drivers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre TEXT NOT NULL,
-                telefono TEXT,
-                vehiculo TEXT,
-                activo INTEGER DEFAULT 1,
-                en_ruta INTEGER DEFAULT 0,
-                sucursal_id INTEGER DEFAULT 1,
-                usuario_id INTEGER
-            )
-            """
-        )
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_delivery_estado ON delivery_orders(estado, fecha)")
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_delivery_wa ON delivery_orders(whatsapp_order_id)")
-        self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_venta ON delivery_orders(venta_id) WHERE venta_id IS NOT NULL")
-        self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_wa_order ON delivery_orders(whatsapp_order_id) WHERE whatsapp_order_id IS NOT NULL")
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_delivery_items_delivery_id ON delivery_items(delivery_id)")
-        try:
-            self.db.commit()
-        except Exception:
-            pass
+        """Deprecated compatibility shim; schema ownership lives in DeliverySchemaMigrator."""
+        from core.delivery.infrastructure.delivery_schema_migrator import DeliverySchemaMigrator
+
+        DeliverySchemaMigrator(self.db).ensure_schema()
 
     @staticmethod
     def _normalize_status(status: str) -> str:
@@ -173,8 +53,9 @@ class DeliveryRepository:
             result.append(item)
         return result
 
-    def create_order(self, data: Dict[str, Any]) -> int:
-        hist = [{"estado": "pendiente", "usuario": data.get("usuario", "sistema")}]
+    def create_order(self, data: Dict[str, Any], *, commit: bool = True) -> int:
+        usuario = data.get("usuario", "sistema")
+        hist = [self._legacy_history_entry("pendiente", usuario, reason="creación")]
         cur = self.db.execute(
             """
             INSERT INTO delivery_orders(
@@ -195,7 +76,7 @@ class DeliveryRepository:
                 data.get("lng"),
                 data.get("notas", ""),
                 float(data.get("total", 0) or 0),
-                data.get("usuario", "sistema"),
+                usuario,
                 json.dumps(hist, ensure_ascii=False),
                 int(data.get("sucursal_id", 1)),
                 data.get("workflow_type"),
@@ -206,8 +87,17 @@ class DeliveryRepository:
         )
         oid = int(cur.lastrowid)
         self._replace_items(oid, data.get("items") or [])
-        self._insert_history(oid, None, "pendiente", data.get("usuario", "sistema"), "creación")
-        self.db.commit()
+        self._insert_history(
+            oid,
+            None,
+            "pendiente",
+            usuario,
+            "creación",
+            reason="order_created",
+            metadata={"source_channel": data.get("source_channel", "whatsapp"), "venta_id": data.get("venta_id")},
+        )
+        if commit:
+            self.db.commit()
         return oid
 
     def upsert_order_from_whatsapp(self, payload: Dict[str, Any], usuario: str = "whatsapp") -> int:
@@ -301,7 +191,19 @@ class DeliveryRepository:
         except Exception as exc:
             logger.warning("_replace_items delivery_id=%s falló: %s", order_id, exc)
 
-    def update_status(self, order_id: int, new_status: str, usuario: str, observacion: str = "", responsable: str = "") -> None:
+    def update_status(
+        self,
+        order_id: int,
+        new_status: str,
+        usuario: str,
+        observacion: str = "",
+        responsable: str = "",
+        *,
+        commit: bool = True,
+        reason: str | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        event_id: int | None = None,
+    ) -> None:
         row = self.db.execute(
             "SELECT estado, historial_cambios, venta_id FROM delivery_orders WHERE id=?", (order_id,)
         ).fetchone()
@@ -309,13 +211,7 @@ class DeliveryRepository:
             raise ValueError("Pedido no encontrado")
         prev = self._normalize_status(row[0])
         new_status = self._normalize_status(new_status)
-        hist = []
-        if row[1]:
-            try:
-                hist = json.loads(row[1])
-            except Exception:
-                hist = []
-        hist.append({"estado": new_status, "usuario": usuario})
+        hist = self._append_legacy_history(row[1], new_status, usuario, reason=reason or observacion or "status_changed")
         self.db.execute(
             """
             UPDATE delivery_orders
@@ -325,31 +221,283 @@ class DeliveryRepository:
             """,
             (new_status, responsable or None, usuario, json.dumps(hist, ensure_ascii=False), order_id),
         )
-        venta_id = row[2]
-        if venta_id:
-            venta_estado = {
-                "pendiente": "pendiente_wa",
-                "preparacion": "en_preparacion",
-                "en_ruta": "en_ruta",
-                "entregado": "entregada",
-                "cancelado": "cancelada",
-            }.get(new_status)
-            if venta_estado:
-                try:
-                    self.db.execute("UPDATE ventas SET estado=? WHERE id=?", (venta_estado, venta_id))
-                except Exception as exc:
-                    logger.debug("No se pudo sincronizar estado venta=%s: %s", venta_id, exc)
-        self._insert_history(order_id, prev, new_status, usuario, observacion)
-        self.db.commit()
+        # ventas is a secondary projection; SaleDeliveryProjectionService owns sale updates.
+        history_metadata = {"responsable": responsable or "", "venta_id": row[2]}
+        if metadata:
+            history_metadata.update(metadata)
+        self._insert_history(
+            order_id,
+            prev,
+            new_status,
+            usuario,
+            observacion,
+            reason=reason or "status_changed",
+            metadata=history_metadata,
+            event_id=event_id,
+        )
+        if commit:
+            self.db.commit()
 
-    def _insert_history(self, order_id: int, old: Optional[str], new: str, usuario: str, obs: str) -> None:
+    def _legacy_history_entry(self, status: str, usuario: str, *, reason: str = "") -> Dict[str, Any]:
+        return {
+            "estado": self._normalize_status(status),
+            "usuario": usuario,
+            "reason": reason,
+            "created_at": self.db.execute("SELECT datetime('now')").fetchone()[0],
+        }
+
+    def _append_legacy_history(self, raw_history: str | None, status: str, usuario: str, *, reason: str = "") -> List[Dict[str, Any]]:
+        hist: List[Dict[str, Any]] = []
+        if raw_history:
+            try:
+                parsed = json.loads(raw_history)
+                hist = parsed if isinstance(parsed, list) else []
+            except Exception as exc:
+                logger.warning("historial_cambios inválido para delivery: %s", exc)
+        hist.append(self._legacy_history_entry(status, usuario, reason=reason))
+        return hist
+
+    def _insert_history(
+        self,
+        order_id: int,
+        old: Optional[str],
+        new: str,
+        usuario: str,
+        obs: str,
+        *,
+        reason: str | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        event_id: int | None = None,
+    ) -> None:
+        columns = self._columns("delivery_order_history")
+        values: Dict[str, Any] = {
+            "order_id": order_id,
+            "estado_anterior": old,
+            "estado_nuevo": new,
+            "usuario": usuario,
+            "observacion": obs,
+        }
+        if "fecha" in columns:
+            values["fecha"] = self.db.execute("SELECT datetime('now')").fetchone()[0]
+        if "reason" in columns:
+            values["reason"] = reason or obs or "status_changed"
+        if "metadata_json" in columns:
+            values["metadata_json"] = json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True)
+        if "event_id" in columns:
+            values["event_id"] = event_id
+        if "created_at" in columns:
+            values["created_at"] = self.db.execute("SELECT datetime('now')").fetchone()[0]
+
+        insert_columns = [col for col in values if col in columns]
+        placeholders = ",".join("?" for _ in insert_columns)
+        self.db.execute(
+            f"INSERT INTO delivery_order_history({', '.join(insert_columns)}) VALUES({placeholders})",
+            tuple(values[col] for col in insert_columns),
+        )
+
+    def iter_pending_whatsapp_sales(self, limit: int = 200) -> List[Dict[str, Any]]:
+        if not self._table_exists("ventas") or not self._table_exists("delivery_orders"):
+            return []
+        cols_ventas = self._columns("ventas")
+        cols_det = self._columns("detalles_venta") if self._table_exists("detalles_venta") else set()
+        if "id" not in cols_ventas:
+            return []
+
+        where = ["1=1"]
+        if "canal" in cols_ventas:
+            where.append("lower(canal)='whatsapp'")
+        if "estado" in cols_ventas:
+            where.append("lower(estado) IN ('pendiente','pendiente_wa','en_preparacion','preparacion','en_ruta','programado')")
+        rows = self.db.execute(
+            f"SELECT * FROM ventas WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        sales: List[Dict[str, Any]] = []
+        for row in rows:
+            sale = dict(row)
+            venta_id = sale.get("id")
+            items: List[Dict[str, Any]] = []
+            if venta_id and cols_det and "venta_id" in cols_det:
+                det_rows = self.db.execute(
+                    "SELECT producto_id, COALESCE(producto_nombre,'') AS producto_nombre, "
+                    "COALESCE(cantidad,0) AS cantidad, COALESCE(precio_unitario,0) AS precio_unitario, "
+                    "COALESCE(subtotal,0) AS subtotal "
+                    "FROM detalles_venta WHERE venta_id=?",
+                    (venta_id,),
+                ).fetchall()
+                items = [dict(r) for r in det_rows]
+            sale["items"] = items
+            sales.append(sale)
+        return sales
+
+    def _table_exists(self, table: str) -> bool:
+        return bool(self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1", (table,)
+        ).fetchone())
+
+    def _columns(self, table: str) -> set[str]:
+        return {r[1] for r in self.db.execute(f"PRAGMA table_info({table})").fetchall()}
+
+    def has_pending_adjustment(self, order_id: int) -> bool:
+        row = self.db.execute(
+            """SELECT 1 FROM delivery_items
+               WHERE delivery_id=? AND adjustment_status=? LIMIT 1""",
+            (order_id, "pending_customer"),
+        ).fetchone()
+        return row is not None
+
+    def mark_adjustment_blocked(self, order_id: int, target_status: str, *, commit: bool = True) -> None:
+        self.db.execute(
+            "UPDATE delivery_orders SET adjustment_pending=1, adjustment_blocked_state=? WHERE id=?",
+            (target_status, order_id),
+        )
+        if commit:
+            self.db.commit()
+
+    def activate_scheduled_order(
+        self,
+        order_id: int,
+        workflow_type: str,
+        *,
+        usuario: str = "sistema",
+        commit: bool = True,
+    ) -> None:
+        row = self.db.execute(
+            "SELECT estado, historial_cambios, venta_id FROM delivery_orders WHERE id=?",
+            (order_id,),
+        ).fetchone()
+        if not row:
+            raise ValueError("Pedido no encontrado")
+        prev = self._normalize_status(row[0])
+        hist = self._append_legacy_history(row[1], "pendiente", usuario, reason="scheduled_order_activated")
         self.db.execute(
             """
-            INSERT INTO delivery_order_history(order_id, estado_anterior, estado_nuevo, usuario, observacion)
-            VALUES(?,?,?,?,?)
+            UPDATE delivery_orders
+            SET workflow_type=?, estado='pendiente', fecha_actualizacion=datetime('now'),
+                usuario=?, historial_cambios=?
+            WHERE id=?
             """,
-            (order_id, old, new, usuario, obs),
+            (workflow_type, usuario, json.dumps(hist, ensure_ascii=False), order_id),
         )
+        self._insert_history(
+            order_id,
+            prev,
+            "pendiente",
+            usuario,
+            "activación de pedido programado",
+            reason="scheduled_order_activated",
+            metadata={"workflow_type": workflow_type, "venta_id": row[2]},
+        )
+        if commit:
+            self.db.commit()
+
+    def get_item_for_weight_adjustment(self, order_id: int, item_id: int) -> Optional[Dict[str, Any]]:
+        row = self.db.execute(
+            "SELECT id, precio_unitario, cantidad, nombre FROM delivery_items WHERE id=? AND delivery_id=?",
+            (item_id, order_id),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def mark_item_adjustment_pending(
+        self,
+        *,
+        order_id: int,
+        item_id: int,
+        prepared_qty: float,
+        pending_subtotal: float,
+        token: str,
+        tolerance_units: float,
+        prepared_by: str,
+        adjustment_reason: str,
+        commit: bool = True,
+    ) -> None:
+        self.db.execute(
+            """UPDATE delivery_items
+               SET pending_prepared_qty=?, pending_subtotal=?,
+                   adjustment_status=?, adjustment_requested_at=datetime('now'),
+                   adjustment_response='', adjustment_token=?, tolerance_units=?,
+                   prepared_by=?, adjustment_reason=?, tolerance_exceeded=1
+               WHERE id=? AND delivery_id=?""",
+            (
+                prepared_qty,
+                pending_subtotal,
+                "pending_customer",
+                token,
+                tolerance_units,
+                prepared_by,
+                adjustment_reason,
+                item_id,
+                order_id,
+            ),
+        )
+        self.db.execute(
+            "UPDATE delivery_orders SET adjustment_pending=1, adjustment_blocked_state='en_ruta' WHERE id=?",
+            (order_id,),
+        )
+        if commit:
+            self.db.commit()
+
+    def apply_item_weight_adjustment(
+        self,
+        *,
+        order_id: int,
+        item_id: int,
+        prepared_qty: float,
+        subtotal: float,
+        prepared_by: str,
+        adjustment_reason: str,
+    ) -> None:
+        self.db.execute(
+            """UPDATE delivery_items
+               SET cantidad=?, prepared_qty=?, final_qty=?, subtotal=?,
+                   prepared_by=?, prepared_at=datetime('now'),
+                   adjustment_reason=?, tolerance_exceeded=0,
+                   adjustment_status=?, pending_prepared_qty=NULL, pending_subtotal=NULL,
+                   adjustment_responded_at=datetime('now'), adjustment_response='auto_accepted'
+               WHERE id=? AND delivery_id=?""",
+            (
+                prepared_qty,
+                prepared_qty,
+                prepared_qty,
+                subtotal,
+                prepared_by,
+                adjustment_reason,
+                "accepted",
+                item_id,
+                order_id,
+            ),
+        )
+
+
+    def get_order_total(self, order_id: int) -> float:
+        row = self.db.execute("SELECT COALESCE(total, 0) FROM delivery_orders WHERE id=?", (order_id,)).fetchone()
+        return round(float(row[0]) if row else 0.0, 2)
+
+    def list_item_subtotals_for_order(self, order_id: int) -> List[float]:
+        rows = self.db.execute(
+            "SELECT COALESCE(subtotal, 0) AS subtotal FROM delivery_items WHERE delivery_id=?",
+            (order_id,),
+        ).fetchall()
+        return [float(row[0]) for row in rows]
+
+    def update_order_total(
+        self,
+        order_id: int,
+        total: float,
+        *,
+        mark_weight_adjusted: bool = True,
+        commit: bool = True,
+    ) -> None:
+        cols = self._columns("delivery_orders")
+        if mark_weight_adjusted and "weight_adjusted" in cols:
+            self.db.execute(
+                "UPDATE delivery_orders SET total=?, weight_adjusted=1 WHERE id=?",
+                (float(total), order_id),
+            )
+        else:
+            self.db.execute("UPDATE delivery_orders SET total=? WHERE id=?", (float(total), order_id))
+        if commit:
+            self.db.commit()
 
     def get_order(self, order_id: int) -> Optional[Dict[str, Any]]:
         row = self.db.execute("SELECT * FROM delivery_orders WHERE id=?", (order_id,)).fetchone()
