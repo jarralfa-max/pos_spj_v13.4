@@ -214,3 +214,118 @@ class SaleCancelledFinanceHandler:
             )
         except Exception as exc:
             logger.warning("SaleCancelledFinanceHandler.handle: %s", exc)
+
+
+class PayrollFinanceHandler:
+    """
+    Consumes RRHH payroll events and records financial impact idempotently.
+
+    NOMINA_GENERADA accrues payroll expense against payroll payable.
+    NOMINA_PAGADA clears payroll payable against cash/bank.
+    Both entries use operation_id-derived keys so repeated events are safe.
+    """
+
+    def __init__(self, finance_service=None, journal_service=None):
+        self._finance = finance_service
+        self._journal = journal_service or self._build_journal_service(finance_service)
+
+    def handle_generated(self, payload: Dict[str, Any]) -> None:
+        self._post(
+            payload=payload,
+            event_type="NOMINA_GENERADA",
+            op_suffix="GEN",
+            debit_account="6101",
+            credit_account="2101",
+            source_folio="nomina_generada",
+        )
+
+    def handle_paid(self, payload: Dict[str, Any]) -> None:
+        self._post(
+            payload=payload,
+            event_type="NOMINA_PAGADA",
+            op_suffix="PAID",
+            debit_account="2101",
+            credit_account="1101",
+            source_folio="nomina_pagada",
+        )
+
+    def _post(
+        self,
+        payload: Dict[str, Any],
+        event_type: str,
+        op_suffix: str,
+        debit_account: str,
+        credit_account: str,
+        source_folio: str,
+    ) -> int:
+        operation_id = str(payload.get("operation_id") or "").strip()
+        if not operation_id:
+            logger.warning("PayrollFinanceHandler %s sin operation_id", event_type)
+            return 0
+
+        amount = float(payload.get("neto", payload.get("total", 0.0)) or 0.0)
+        if amount <= 0:
+            logger.warning("PayrollFinanceHandler %s monto inválido %.2f", event_type, amount)
+            return 0
+
+        payroll_payment_id = payload.get("payroll_payment_id")
+        source_id = payload.get("source_id") or payroll_payment_id or payload.get("employee_id")
+        try:
+            source_id = int(source_id) if source_id is not None else None
+        except Exception:
+            source_id = None
+
+        entry_operation_id = f"{operation_id}-{op_suffix}"
+        metadata = {
+            "employee_id": payload.get("employee_id"),
+            "nombre": payload.get("nombre", ""),
+            "periodo_inicio": payload.get("period_start") or payload.get("periodo_inicio"),
+            "periodo_fin": payload.get("period_end") or payload.get("periodo_fin"),
+            "payroll_payment_id": payroll_payment_id,
+            "total": payload.get("total"),
+            "neto": payload.get("neto"),
+            "metodo_pago": payload.get("metodo_pago", ""),
+            "source_operation_id": operation_id,
+        }
+
+        if self._journal and hasattr(self._journal, "post_entry"):
+            return self._journal.post_entry(
+                operation_id=entry_operation_id,
+                event_type=event_type,
+                source_module="rrhh",
+                source_id=source_id,
+                source_folio=source_folio,
+                debit_account=debit_account,
+                credit_account=credit_account,
+                amount=amount,
+                branch_id=int(payload.get("sucursal_id", payload.get("branch_id", 1)) or 1),
+                user=str(payload.get("usuario", payload.get("user", "sistema"))),
+                metadata=metadata,
+            )
+
+        if self._finance and hasattr(self._finance, "registrar_asiento"):
+            return self._finance.registrar_asiento(
+                debe=debit_account,
+                haber=credit_account,
+                concepto=f"{event_type} {payload.get('nombre', '')}".strip(),
+                monto=amount,
+                modulo="rrhh",
+                referencia_id=source_id,
+                sucursal_id=int(payload.get("sucursal_id", payload.get("branch_id", 1)) or 1),
+                evento=event_type,
+                metadata=metadata,
+            )
+        return 0
+
+    def _build_journal_service(self, finance_service):
+        if not finance_service:
+            return None
+        db = getattr(finance_service, "db", None)
+        if db is None:
+            return None
+        try:
+            from core.services.finance.journal_entry_service import JournalEntryService
+            return JournalEntryService(db, gl_service=finance_service)
+        except Exception as exc:
+            logger.debug("PayrollFinanceHandler journal unavailable: %s", exc)
+            return None

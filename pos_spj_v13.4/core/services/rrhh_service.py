@@ -56,6 +56,8 @@ class RRHHService:
             'total_horas': total_horas,
             'salario_base': salario_base,
             'neto_a_pagar': total_pagar,
+            'periodo_inicio': fecha_inicio,
+            'periodo_fin': fecha_fin,
             # ── retenciones Fase 3 ────────────────────────────────────────────
             'imss_obrero':    ret_imss['obrero'],
             'isr_mensual':    ret_isr['isr_mensual'],
@@ -69,10 +71,29 @@ class RRHHService:
             },
         }
 
-    def procesar_pago_nomina(self, datos_nomina: dict, metodo_pago: str, sucursal_id: int, admin_user: str) -> str:
+    def _has_column(self, table: str, column: str) -> bool:
+        try:
+            rows = self.db.execute(f"PRAGMA table_info({table})").fetchall()
+            for row in rows:
+                name = row["name"] if hasattr(row, "keys") and "name" in row.keys() else row[1]
+                if str(name).lower() == column.lower():
+                    return True
+        except Exception:
+            return False
+        return False
+
+    def procesar_pago_nomina(
+        self,
+        datos_nomina: dict,
+        metodo_pago: str,
+        sucursal_id: int,
+        admin_user: str,
+        operation_id: str = "",
+        publish_events: bool = True,
+    ) -> str:
         """
         1. Guarda el registro de pago.
-        2. Registra el GASTO OPEX en Tesorería.
+        2. Publica evento canónico para que Finanzas registre el impacto.
         3. Genera PDF.
         4. Envía WhatsApp.
         5. Audita cumplimiento laboral vía HRRuleEngine.
@@ -93,24 +114,78 @@ class RRHHService:
 
             periodo = f"Pago Nómina {datetime.now().strftime('%Y-%m-%d')}"
 
-            # 1. Guardar en historial de nóminas
-            cursor.execute("""
-                INSERT INTO nomina_pagos (empleado_id, periodo_inicio, periodo_fin, salario_base, total, metodo_pago, estado, usuario)
-                VALUES (?, date('now', '-7 days'), date('now'), ?, ?, ?, 'pagado', ?)
-            """, (datos_nomina['empleado_id'], datos_nomina['salario_base'], datos_nomina['neto_a_pagar'], metodo_pago, admin_user))
+            op_id = str(operation_id or datos_nomina.get("operation_id") or "").strip()
+            if not op_id:
+                from core.rrhh.events import new_operation_id
+                op_id = new_operation_id("nomina")
+            has_operation_id = self._has_column("nomina_pagos", "operation_id")
+            has_source_module = self._has_column("nomina_pagos", "source_module")
+            has_source_id = self._has_column("nomina_pagos", "source_id")
 
-            # 2. Registrar el gasto directamente en Tesorería
-            concepto = f"Nómina: {datos_nomina['nombre_completo']} ({datos_nomina['total_horas']} hrs)"
-            self.treasury_service.registrar_gasto_opex(
-                categoria="Nómina",
-                concepto=concepto,
-                monto=datos_nomina['neto_a_pagar'],
-                metodo_pago=metodo_pago,
-                usuario=admin_user,
-                sucursal_id=sucursal_id
+            if op_id and has_operation_id:
+                existing = cursor.execute(
+                    "SELECT id, total FROM nomina_pagos WHERE operation_id=? LIMIT 1",
+                    (op_id,),
+                ).fetchone()
+                if existing:
+                    payroll_payment_id = int(existing["id"] if hasattr(existing, "keys") else existing[0])
+                    datos_nomina["payroll_payment_id"] = payroll_payment_id
+                    datos_nomina["operation_id"] = op_id
+                    _tx_cm.__exit__(None, None, None)
+                    return "Nómina ya procesada previamente."
+
+            # 1. Guardar en historial de nóminas. El impacto financiero lo consume Finanzas vía eventos.
+            columns = [
+                "empleado_id", "periodo_inicio", "periodo_fin", "salario_base",
+                "total", "metodo_pago", "estado", "usuario",
+            ]
+            values = [
+                datos_nomina['empleado_id'], datos_nomina.get("periodo_inicio"),
+                datos_nomina.get("periodo_fin"), datos_nomina['salario_base'],
+                datos_nomina['neto_a_pagar'], metodo_pago, "pagado", admin_user,
+            ]
+            if has_operation_id:
+                columns.append("operation_id")
+                values.append(op_id)
+            if has_source_module:
+                columns.append("source_module")
+                values.append("rrhh")
+            if has_source_id:
+                columns.append("source_id")
+                values.append(datos_nomina['empleado_id'])
+
+            placeholders = ",".join("?" for _ in columns)
+            inserted = cursor.execute(
+                f"INSERT INTO nomina_pagos ({','.join(columns)}) VALUES ({placeholders})",
+                values,
             )
+            payroll_payment_id = int(inserted.lastrowid or 0)
+            datos_nomina["payroll_payment_id"] = payroll_payment_id
+            datos_nomina["operation_id"] = op_id
 
             _tx_cm.__exit__(None, None, None)  # COMMIT
+
+            if publish_events and op_id and payroll_payment_id:
+                try:
+                    from core.rrhh.events import PayrollPaidPayload, RRHHEventPublisher
+                    RRHHEventPublisher().publish(
+                        PayrollPaidPayload(
+                            operation_id=op_id,
+                            payroll_payment_id=payroll_payment_id,
+                            employee_id=datos_nomina['empleado_id'],
+                            period_start=str(datos_nomina.get("periodo_inicio") or ""),
+                            period_end=str(datos_nomina.get("periodo_fin") or ""),
+                            total=float(datos_nomina.get("neto_a_pagar", 0) or 0),
+                            neto=float(datos_nomina.get("neto_deducido", datos_nomina.get("neto_a_pagar", 0)) or 0),
+                            metodo_pago=metodo_pago,
+                            sucursal_id=sucursal_id,
+                            nombre=datos_nomina.get('nombre_completo', ''),
+                            source_id=payroll_payment_id,
+                        ),
+                        async_=True,
+                    )
+                except Exception as exc:
+                    logger.warning("publish NOMINA_PAGADA: %s", exc)
 
             # 3. Auditar pago — publica PAYROLL_GENERATED vía HRRuleEngine
             if self.hr_rule_engine:
@@ -148,7 +223,7 @@ class RRHHService:
             except Exception as e:
                 logger.warning("notificar_nomina: %s", e)
 
-            return "Nómina pagada, contabilizada y notificada correctamente."
+            return "Nómina pagada y notificada correctamente."
 
         except Exception as e:
             try: _tx_cm.__exit__(type(e), e, None)  # ROLLBACK

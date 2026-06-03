@@ -70,6 +70,7 @@ class DriverRepository:
             "drivers": (
                 "telefono TEXT", "vehiculo TEXT", "activo INTEGER DEFAULT 1",
                 "en_ruta INTEGER DEFAULT 0", "sucursal_id INTEGER DEFAULT 1", "usuario_id INTEGER",
+                "personal_id INTEGER", "source_module TEXT DEFAULT 'delivery'",
             ),
             "driver_locations": (
                 "driver_id INTEGER", "chofer_id INTEGER", "lat REAL", "lng REAL",
@@ -92,6 +93,65 @@ class DriverRepository:
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_drivers_branch_active ON drivers(sucursal_id, activo)")
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_driver_locations_driver ON driver_locations(driver_id, chofer_id)")
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_driver_cuts_driver_fecha ON delivery_driver_cuts(driver_id, fecha)")
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+
+
+    def list_drivers(self) -> List[Dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT id, nombre, COALESCE(telefono,'') AS telefono,
+                   COALESCE(vehiculo,'') AS vehiculo,
+                   COALESCE(activo,1) AS activo,
+                   COALESCE(en_ruta,0) AS en_ruta,
+                   COALESCE(sucursal_id,1) AS sucursal_id,
+                   usuario_id, personal_id, COALESCE(source_module,'delivery') AS source_module
+            FROM drivers
+            ORDER BY nombre
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def create_driver(self, data: Dict[str, Any]) -> int:
+        cur = self.db.execute(
+            """
+            INSERT INTO drivers(nombre, telefono, vehiculo, activo, sucursal_id, usuario_id)
+            VALUES(?,?,?,?,?,?)
+            """,
+            (
+                data.get("nombre"), data.get("telefono", ""), data.get("vehiculo", ""),
+                int(data.get("activo", 1)), int(data.get("sucursal_id", 1) or 1),
+                data.get("usuario_id"),
+            ),
+        )
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+        return int(cur.lastrowid or 0)
+
+    def update_driver(self, driver_id: int, data: Dict[str, Any]) -> None:
+        self.db.execute(
+            """
+            UPDATE drivers
+               SET nombre=?, telefono=?, vehiculo=?, activo=?, sucursal_id=?, usuario_id=?
+             WHERE id=?
+            """,
+            (
+                data.get("nombre"), data.get("telefono", ""), data.get("vehiculo", ""),
+                int(data.get("activo", 1)), int(data.get("sucursal_id", 1) or 1),
+                data.get("usuario_id"), driver_id,
+            ),
+        )
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+
+    def deactivate_driver(self, driver_id: int) -> None:
+        self.db.execute("UPDATE drivers SET activo=0 WHERE id=?", (driver_id,))
         try:
             self.db.commit()
         except Exception:
