@@ -1,0 +1,1 @@
+{"ts": "2026-05-28T06:40:56.525829", "level": "ERROR", "logger": "spj.ventas", "msg": "Checkout failed: Stock insuficiente para '': disponible 0.000, requerido 20.000\n", "module": "ventas", "line": 4223}
