@@ -12,6 +12,26 @@ class DriverService:
         self.db = db
         self.repository = repository or DriverRepository(db)
 
+
+    def list_drivers(self) -> List[Dict[str, Any]]:
+        return self.repository.list_drivers()
+
+    def create_driver(self, data: Dict[str, Any]) -> int:
+        self._validate_driver_payload(data)
+        return self.repository.create_driver(data)
+
+    def update_driver(self, driver_id: int, data: Dict[str, Any]) -> None:
+        self._validate_driver_payload(data)
+        self.repository.update_driver(driver_id, data)
+
+    def deactivate_driver(self, driver_id: int) -> None:
+        self.repository.deactivate_driver(driver_id)
+
+    @staticmethod
+    def _validate_driver_payload(data: Dict[str, Any]) -> None:
+        if not str(data.get("nombre") or "").strip():
+            raise ValueError("El nombre del repartidor es obligatorio")
+
     def list_active_drivers(self, branch_id: int) -> List[Dict[str, Any]]:
         return self.repository.list_active_drivers(branch_id)
 

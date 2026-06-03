@@ -1,7 +1,6 @@
 
 # modulos/rrhh.py
 import logging
-from core.events.event_bus import get_bus
 from modulos.spj_phone_widget import PhoneWidget
 from modulos.spj_styles import spj_btn, apply_btn_styles
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
@@ -28,6 +27,18 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QIcon
 from datetime import datetime, timedelta
 
+from core.rrhh.application import (
+    AttendanceApplicationService,
+    EmployeeApplicationService,
+    LeaveApplicationService,
+)
+from core.rrhh.domain import PayrollPeriodPolicy
+from core.rrhh.infrastructure import (
+    SQLiteAttendanceRepository,
+    SQLiteEmployeeRepository,
+    SQLiteLeaveRepository,
+)
+
 logger = logging.getLogger(__name__)
 
 class DialogoEmpleado(QDialog):
@@ -36,6 +47,9 @@ class DialogoEmpleado(QDialog):
         super().__init__(parent)
         self.db = db_conn
         self.empleado_id = empleado_id
+        self.employee_service = EmployeeApplicationService(
+            SQLiteEmployeeRepository(db_conn)
+        )
         
         self.setWindowTitle("Nuevo Empleado" if not empleado_id else "Editar Empleado")
         self.setMinimumWidth(400)
@@ -95,20 +109,19 @@ class DialogoEmpleado(QDialog):
 
     def cargar_datos(self):
         try:
-            cursor = self.db.cursor()
-            emp = cursor.execute("SELECT * FROM personal WHERE id = ?", (self.empleado_id,)).fetchone()
+            emp = self.employee_service.get_employee(self.empleado_id)
             if emp:
-                self.txt_nombre.setText(emp['nombre'])
-                self.txt_apellidos.setText(emp['apellidos'] or '')
-                self.txt_telefono.set_phone(emp['telefono'] or '')
-                self.cmb_puesto.setCurrentText(emp['puesto'] or 'Cajero')
-                self.txt_salario.setValue(emp['salario'] or 0.0)
-                
-                if emp['fecha_ingreso']:
+                self.txt_nombre.setText(emp.nombre)
+                self.txt_apellidos.setText(emp.apellidos or '')
+                self.txt_telefono.set_phone(emp.telefono or '')
+                self.cmb_puesto.setCurrentText(emp.puesto or 'Cajero')
+                self.txt_salario.setValue(emp.salario or 0.0)
+
+                if emp.fecha_ingreso:
                     # Convertir texto a QDate
                     from PyQt5.QtCore import QDate
                     try:
-                        partes = emp['fecha_ingreso'].split('-')
+                        partes = emp.fecha_ingreso.split('-')
                         if len(partes) == 3:
                             self.dt_ingreso.setDate(QDate(int(partes[0]), int(partes[1]), int(partes[2])))
                     except: pass
@@ -122,26 +135,20 @@ class DialogoEmpleado(QDialog):
             return
             
         try:
-            cursor = self.db.cursor()
-            datos = (
-                nombre, self.txt_apellidos.text().strip(), self.cmb_puesto.currentText(),
-                self.txt_salario.value(), self.dt_ingreso.date().toString("yyyy-MM-dd"),
-                self.txt_telefono.get_e164().strip()
-            )
-            
+            datos = {
+                "nombre": nombre,
+                "apellidos": self.txt_apellidos.text().strip(),
+                "puesto": self.cmb_puesto.currentText(),
+                "salario": self.txt_salario.value(),
+                "fecha_ingreso": self.dt_ingreso.date().toString("yyyy-MM-dd"),
+                "telefono": self.txt_telefono.get_e164().strip(),
+            }
+
             if self.empleado_id:
-                cursor.execute("""
-                    UPDATE personal SET 
-                        nombre=?, apellidos=?, puesto=?, salario=?, fecha_ingreso=?, telefono=?
-                    WHERE id=?
-                """, (*datos, self.empleado_id))
+                self.employee_service.save_employee(datos, self.empleado_id)
             else:
-                cursor.execute("""
-                    INSERT INTO personal (nombre, apellidos, puesto, salario, fecha_ingreso, telefono, activo)
-                    VALUES (?, ?, ?, ?, ?, ?, 1)
-                """, datos)
-                
-            self.db.commit()
+                self.employee_service.save_employee(datos)
+
             self.accept()
         except Exception as e:
             self.db.rollback()
@@ -161,7 +168,17 @@ class ModuloRRHH(QWidget):
         self.container = container
         self.sucursal_id = 1
         self.usuario_actual = ""
-        
+        self.employee_service = EmployeeApplicationService(
+            SQLiteEmployeeRepository(container.db)
+        )
+        self.attendance_service = AttendanceApplicationService(
+            SQLiteAttendanceRepository(container.db)
+        )
+        self.leave_service = LeaveApplicationService(
+            SQLiteLeaveRepository(container.db)
+        )
+        self.payroll_period_policy = PayrollPeriodPolicy()
+
         self.init_ui()
 
     def set_sucursal(self, sucursal_id: int, nombre_sucursal: str):
@@ -539,36 +556,30 @@ class ModuloRRHH(QWidget):
         self.tabla_emp.setRowCount(0)
         self._loading_emp.show()
         try:
-            cursor = self.container.db.cursor()
-            # Solo mostramos a los empleados activos
-            rows = cursor.execute("SELECT * FROM personal WHERE activo = 1 ORDER BY nombre LIMIT 500").fetchall()
             filtro = self._filter_emp.values().get("search", "").lower().strip() if hasattr(self, "_filter_emp") else ""
-            
+            rows = self.employee_service.list_active_employees(limit=500, search=filtro)
+
             row_idx = 0
             for emp in rows:
-                nombre_completo = f"{emp['nombre']} {emp['apellidos'] or ''}".strip()
-                if filtro:
-                    blob = f"{nombre_completo} {emp['puesto'] or ''} {emp['telefono'] or ''}".lower()
-                    if filtro not in blob:
-                        continue
+                nombre_completo = emp.nombre_completo
                 self.tabla_emp.insertRow(row_idx)
                 
-                self.tabla_emp.setItem(row_idx, 0, QTableWidgetItem(str(emp['id'])))
+                self.tabla_emp.setItem(row_idx, 0, QTableWidgetItem(str(emp.id)))
                 self.tabla_emp.setItem(row_idx, 1, QTableWidgetItem(nombre_completo))
-                self.tabla_emp.setItem(row_idx, 2, QTableWidgetItem(emp['puesto'] or ''))
-                self.tabla_emp.setItem(row_idx, 3, QTableWidgetItem(emp['telefono'] or ''))
-                self.tabla_emp.setItem(row_idx, 4, QTableWidgetItem(f"${emp['salario']:,.2f}"))
+                self.tabla_emp.setItem(row_idx, 2, QTableWidgetItem(emp.puesto or ''))
+                self.tabla_emp.setItem(row_idx, 3, QTableWidgetItem(emp.telefono or ''))
+                self.tabla_emp.setItem(row_idx, 4, QTableWidgetItem(f"${emp.salario:,.2f}"))
                 
                 # Botón Editar
                 btn_editar = QPushButton("✏️ Editar")
                 btn_editar.setObjectName("warningBtn")  # Naranja para edición
-                btn_editar.clicked.connect(lambda _, eid=emp['id']: self.abrir_editar_empleado(eid))
+                btn_editar.clicked.connect(lambda _, eid=emp.id: self.abrir_editar_empleado(eid))
                 apply_tooltip(btn_editar, f"Editar datos de {nombre_completo}")
                 self.tabla_emp.setCellWidget(row_idx, 5, btn_editar)
                 
                 # Botón Eliminar (Dar de Baja)
                 btn_baja = create_danger_button(self, "❌ Dar de Baja", f"Dar de baja a {nombre_completo}")
-                btn_baja.clicked.connect(lambda _, eid=emp['id'], nom=nombre_completo: self.dar_baja_empleado(eid, nom))
+                btn_baja.clicked.connect(lambda _, eid=emp.id, nom=nombre_completo: self.dar_baja_empleado(eid, nom))
                 self.tabla_emp.setCellWidget(row_idx, 6, btn_baja)
                 row_idx += 1
                 
@@ -601,9 +612,7 @@ class ModuloRRHH(QWidget):
             "Cancelar",
         ):
             try:
-                cursor = self.container.db.cursor()
-                cursor.execute("UPDATE personal SET activo = 0 WHERE id = ?", (empleado_id,))
-                self.container.db.commit()
+                self.employee_service.deactivate_employee(empleado_id)
                 
                 # Auditoría Enterprise
                 if hasattr(self.container, 'audit_service'):
@@ -677,29 +686,27 @@ class ModuloRRHH(QWidget):
     def cargar_lista_empleados(self):
         self.cmb_empleado.clear()
         try:
-            cursor = self.container.db.cursor()
-            rows = cursor.execute("SELECT id, nombre, COALESCE(apellidos,'') as apellidos FROM personal WHERE activo = 1").fetchall()
+            rows = self.employee_service.list_payroll_eligible_employees()
             for row in rows:
-                self.cmb_empleado.addItem(f"{row['nombre']} {row['apellidos']}", row['id'])
+                self.cmb_empleado.addItem(row.nombre_completo, row.id)
         except Exception: pass
 
     def ejecutar_calculo_nomina(self):
         empleado_id = self.cmb_empleado.currentData()
         if not empleado_id: return
 
-        # Calcular periodo (Ejemplo: Últimos 7 días)
-        fin = datetime.now()
-        inicio = fin - timedelta(days=7)
+        # Calcular periodo mediante policy (mantiene el periodo legacy de 7 días).
+        inicio_str, fin_str = self.payroll_period_policy.current_period_strings()
         # v13.5: Guardar datos para uso en aprobar_y_pagar con UC
         self._nomina_empleado_id = empleado_id
-        self._nomina_inicio = inicio.strftime("%Y-%m-%d")
-        self._nomina_fin = fin.strftime("%Y-%m-%d")
+        self._nomina_inicio = inicio_str
+        self._nomina_fin = fin_str
 
         try:
             # 🚀 LLAMADA ENTERPRISE: El servicio calcula las horas y el dinero
             if hasattr(self.container, 'rrhh_service'):
                 datos = self.container.rrhh_service.calcular_nomina(
-                    empleado_id, inicio.strftime("%Y-%m-%d"), fin.strftime("%Y-%m-%d")
+                    empleado_id, inicio_str, fin_str
                 )
                 
                 # Actualizar el recibo visual
@@ -720,10 +727,10 @@ class ModuloRRHH(QWidget):
 
         metodo = self.cmb_metodo_pago.currentText()
         msg = (f"¿Aprobar el pago de ${self.nomina_actual['neto_a_pagar']:,.2f} a {self.nomina_actual['nombre_completo']}?\n\n"
-               f"Esto restará el dinero contablemente de los OPEX y enviará el recibo por WhatsApp.")
+               f"Finanzas registrará el impacto contable por eventos y se enviará el recibo por WhatsApp.")
 
         if QMessageBox.question(self, "Confirmar Pago", msg) == QMessageBox.Yes:
-            # v13.5: Usar UC si está disponible (registra asientos contables)
+            # v13.5: Usar UC si está disponible (publica eventos financieros)
             _uc = getattr(self.container, 'uc_nomina', None)
             if _uc and getattr(self, '_nomina_empleado_id', None):
                 try:
@@ -738,7 +745,7 @@ class ModuloRRHH(QWidget):
                     if result.ok:
                         Toast.success(
                             self, "Nómina procesada",
-                            f"Neto: ${result.neto_a_pagar:,.2f} · asiento contable registrado.",
+                            f"Neto: ${result.neto_a_pagar:,.2f} · evento financiero publicado.",
                         )
                         self.nomina_actual = None
                         self.lbl_nom_empleado.setText("-")
@@ -751,7 +758,7 @@ class ModuloRRHH(QWidget):
                 except Exception:
                     pass  # fallback al rrhh_service directo
             try:
-                # 🚀 LLAMADA ENTERPRISE: Registra el OPEX, genera PDF y envía WhatsApp
+                # 🚀 LLAMADA ENTERPRISE: Guarda nómina, publica evento financiero y envía WhatsApp
                 mensaje_exito = self.container.rrhh_service.procesar_pago_nomina(
                     datos_nomina=self.nomina_actual,
                     metodo_pago=metodo,
@@ -826,14 +833,11 @@ class ModuloRRHH(QWidget):
 
     def _cargar_combo_asistencias(self):
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal "
-                "WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = self.employee_service.list_employee_lookup()
             self.cmb_asist_empleado.clear()
             self.cmb_asist_empleado.addItem("Todos", None)
             for r in rows:
-                self.cmb_asist_empleado.addItem(r[1].strip(), r[0])
+                self.cmb_asist_empleado.addItem(r.nombre_completo, r.id)
         except Exception:
             pass
 
@@ -844,19 +848,7 @@ class ModuloRRHH(QWidget):
         desde  = self.date_asist_desde.date().toString("yyyy-MM-dd")
         hasta  = self.date_asist_hasta.date().toString("yyyy-MM-dd")
         try:
-            query = """
-                SELECT p.nombre||' '||COALESCE(p.apellidos,''),
-                       a.fecha, a.hora_entrada, a.hora_salida,
-                       ROUND(COALESCE(a.horas_trabajadas,0),2), a.estado
-                FROM asistencias a
-                JOIN personal p ON p.id=a.personal_id
-                WHERE a.fecha BETWEEN ? AND ?
-            """
-            params = [desde, hasta]
-            if emp_id:
-                query += " AND a.personal_id=?"; params.append(emp_id)
-            query += " ORDER BY a.fecha DESC, p.nombre LIMIT 300"
-            rows = self.container.db.execute(query, params).fetchall()
+            rows = self.attendance_service.list_attendance_table_rows(desde, hasta, emp_id, limit=300)
         except Exception: rows = []
 
         self.tbl_asist.setRowCount(len(rows))
@@ -885,10 +877,8 @@ class ModuloRRHH(QWidget):
         cmb_emp = QComboBox()
         cmb_emp.setObjectName("inputField")
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for r in rows: cmb_emp.addItem(r[1].strip(), r[0])
+            rows = self.employee_service.list_employee_lookup()
+            for r in rows: cmb_emp.addItem(r.nombre_completo, r.id)
         except Exception: pass
         form.addRow("Empleado:", cmb_emp)
         lbl_status = QLabel(""); form.addRow("Estado:", lbl_status)
@@ -904,18 +894,15 @@ class ModuloRRHH(QWidget):
             emp_id = cmb_emp.currentData()
             if not emp_id: return
             hoy = str(_date.today())
-            row = self.container.db.execute(
-                "SELECT hora_entrada, hora_salida FROM asistencias WHERE personal_id=? AND fecha=?",
-                (emp_id, hoy)
-            ).fetchone()
+            row = self.attendance_service.get_status_for_date(emp_id, hoy)
             if not row:
                 lbl_status.setText("Sin registro hoy — se registrará ENTRADA")
                 lbl_status.setStyleSheet(f"color: {Colors.SUCCESS_BASE}; font-weight: bold;")
-            elif row[0] and not row[1]:
-                lbl_status.setText(f"Entrada: {row[0]} — se registrará SALIDA")
+            elif row.hora_entrada and not row.hora_salida:
+                lbl_status.setText(f"Entrada: {row.hora_entrada} — se registrará SALIDA")
                 lbl_status.setStyleSheet(f"color: {Colors.WARNING_BASE}; font-weight: bold;")
             else:
-                lbl_status.setText(f"Jornada completa: {row[0]}-{row[1]}")
+                lbl_status.setText(f"Jornada completa: {row.hora_entrada}-{row.hora_salida}")
                 lbl_status.setStyleSheet(f"color: {Colors.TEXT_MUTED};")
         cmb_emp.currentIndexChanged.connect(_update_status)
         _update_status()
@@ -927,98 +914,15 @@ class ModuloRRHH(QWidget):
         hora = datetime.now().strftime("%H:%M")
 
         try:
-            row = self.container.db.execute(
-                "SELECT id, hora_entrada, hora_salida FROM asistencias WHERE personal_id=? AND fecha=?",
-                (emp_id, hoy)
-            ).fetchone()
-            if not row:
-                # New check-in
-                self.container.db.execute(
-                    "INSERT INTO asistencias(personal_id,fecha,hora_entrada,estado) VALUES(?,?,?,'PRESENTE')",
-                    (emp_id, hoy, hora))
-                msg = f"✅ Entrada registrada: {hora}"
-            elif row[1] and not row[2]:
-                # Check-out
-                t1 = datetime.strptime(row[1], "%H:%M")
-                t2 = datetime.strptime(hora, "%H:%M")
-                horas = max(0, (t2-t1).seconds/3600)
-                self.container.db.execute(
-                    "UPDATE asistencias SET hora_salida=?, horas_trabajadas=? WHERE id=?",
-                    (hora, round(horas,2), row[0]))
-                msg = f"✅ Salida registrada: {hora} ({horas:.1f}h)"
-            else:
-                Toast.info(self, "Jornada completa", "Jornada ya completa para hoy.")
+            result = self.attendance_service.register_check_in_out(emp_id, hoy, hora)
+            if not result.ok:
+                Toast.info(self, "Jornada completa", result.message)
                 return
-            try: self.container.db.commit()
-            except Exception: pass
-            try: get_bus().publish("EMPLEADO_ACTUALIZADO", {"event_type": "EMPLEADO_ACTUALIZADO"})
-            except Exception: pass
-            except Exception: pass
-            QMessageBox.information(self,"Asistencia", msg)
+            QMessageBox.information(self,"Asistencia", result.message)
             self._cargar_asistencias()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
         return
-    def _registrar_asistencia_ORIG(self):
-        from PyQt5.QtWidgets import (QDialog, QFormLayout, QComboBox, QDialogButtonBox,
-                                      QVBoxLayout, QDateEdit, QTimeEdit, QComboBox,
-                                      QMessageBox)
-        from PyQt5.QtCore import QDate, QTime, Qt
-        from datetime import datetime
-
-        dlg = QDialog(self); dlg.setWindowTitle("Registrar Asistencia"); dlg.setMinimumWidth(360)
-        lay = QVBoxLayout(dlg); form = QFormLayout()
-        cmb_emp    = QComboBox()
-        date_edit  = QDateEdit(QDate.currentDate()); date_edit.setCalendarPopup(True)
-        time_ent   = QTimeEdit(QTime.currentTime())
-        time_sal   = QTimeEdit(); time_sal.setTime(QTime(0,0))
-        cmb_estado = QComboBox(); cmb_estado.addItems(["PRESENTE","TARDANZA","FALTA","PERMISO"])
-
-        try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal "
-                "WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for r in rows: cmb_emp.addItem(r[1].strip(), r[0])
-        except Exception: pass
-
-        form.addRow("Empleado:", cmb_emp)
-        form.addRow("Fecha:", date_edit)
-        form.addRow("Hora entrada:", time_ent)
-        form.addRow("Hora salida:", time_sal)
-        form.addRow("Estado:", cmb_estado)
-        lay.addLayout(form)
-
-        btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
-        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
-        lay.addWidget(btns)
-        if dlg.exec_() != QDialog.Accepted: return
-
-        emp_id = cmb_emp.currentData()
-        if not emp_id: return
-        fecha   = date_edit.date().toString("yyyy-MM-dd")
-        h_ent   = time_ent.time().toString("HH:mm")
-        h_sal   = time_sal.time().toString("HH:mm") if time_sal.time() != QTime(0,0) else None
-        horas   = None
-        if h_sal:
-            try:
-                t1 = datetime.strptime(h_ent, "%H:%M")
-                t2 = datetime.strptime(h_sal, "%H:%M")
-                horas = max(0, (t2-t1).seconds/3600)
-            except Exception: pass
-        estado = cmb_estado.currentText()
-        try:
-            self.container.db.execute(
-                "INSERT OR REPLACE INTO asistencias"
-                "(personal_id,fecha,hora_entrada,hora_salida,horas_trabajadas,estado) "
-                "VALUES(?,?,?,?,?,?)",
-                (emp_id, fecha, h_ent, h_sal, horas, estado))
-            try: self.container.db.commit()
-            except Exception: pass
-            self._cargar_asistencias()
-        except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
-
     # ══════════════════════════════════════════════════════════════
     # TAB: 🏖️ VACACIONES
     # ══════════════════════════════════════════════════════════════
@@ -1084,13 +988,6 @@ class ModuloRRHH(QWidget):
 
         def _cargar():
             try:
-                self.container.db.execute(
-                    "CREATE TABLE IF NOT EXISTS puestos("
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-                    "nombre TEXT NOT NULL UNIQUE,"
-                    "descripcion TEXT,"
-                    "activo INTEGER DEFAULT 1)"
-                )
                 rows = self.container.db.execute(
                     "SELECT id,nombre,COALESCE(descripcion,'') FROM puestos WHERE activo=1 ORDER BY nombre"
                 ).fetchall()
@@ -1174,27 +1071,7 @@ class ModuloRRHH(QWidget):
         from PyQt5.QtWidgets import QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            # Ensure table exists
-            self.container.db.execute("""
-                CREATE TABLE IF NOT EXISTS vacaciones_personal (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    personal_id INTEGER NOT NULL,
-                    tipo TEXT DEFAULT 'vacaciones',
-                    fecha_inicio DATE NOT NULL,
-                    fecha_fin DATE NOT NULL,
-                    dias INTEGER DEFAULT 1,
-                    estado TEXT DEFAULT 'aprobado',
-                    notas TEXT,
-                    fecha_registro DATETIME DEFAULT (datetime('now'))
-                )
-            """)
-            rows = self.container.db.execute("""
-                SELECT v.id, p.nombre||' '||COALESCE(p.apellidos,''),
-                       v.tipo, v.fecha_inicio, v.fecha_fin, v.dias, v.estado
-                FROM vacaciones_personal v
-                JOIN personal p ON p.id=v.personal_id
-                ORDER BY v.fecha_inicio DESC LIMIT 200
-            """).fetchall()
+            rows = self.leave_service.list_leave_table_rows(limit=200)
         except Exception: rows = []
         self.tbl_vac.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -1215,11 +1092,8 @@ class ModuloRRHH(QWidget):
         date_fin = QDateEdit(QDate.currentDate().addDays(5)); date_fin.setCalendarPopup(True)
         cmb_est  = QComboBox(); cmb_est.addItems(["aprobado","pendiente","rechazado"])
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal "
-                "WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for r in rows: cmb_emp.addItem(r[1].strip(), r[0])
+            rows = self.employee_service.list_employee_lookup()
+            for r in rows: cmb_emp.addItem(r.nombre_completo, r.id)
         except Exception: pass
         form.addRow("Empleado:", cmb_emp); form.addRow("Tipo:", cmb_tipo)
         form.addRow("Desde:", date_ini); form.addRow("Hasta:", date_fin)
@@ -1235,12 +1109,14 @@ class ModuloRRHH(QWidget):
         d_fin = date_fin.date().toPyDate()
         dias  = max(1, (d_fin - d_ini).days + 1)
         try:
-            self.container.db.execute(
-                "INSERT INTO vacaciones_personal"
-                "(personal_id,tipo,fecha_inicio,fecha_fin,dias,estado) VALUES(?,?,?,?,?,?)",
-                (emp_id, cmb_tipo.currentText(), str(d_ini), str(d_fin), dias, cmb_est.currentText()))
-            try: self.container.db.commit()
-            except Exception: pass
+            self.leave_service.create_leave(
+                employee_id=emp_id,
+                leave_type=cmb_tipo.currentText(),
+                date_from=str(d_ini),
+                date_to=str(d_fin),
+                days=dias,
+                status=cmb_est.currentText(),
+            )
             self._cargar_vacaciones()
         except Exception as e:
         # [spj-dedup removed local QMessageBox import]
@@ -1303,11 +1179,8 @@ class ModuloRRHH(QWidget):
         spin_cal = QSpinBox(); spin_cal.setRange(1,10); spin_cal.setValue(8)
         txt_eva  = QLineEdit(); txt_eva.setText(self.usuario_actual or "")
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal "
-                "WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
-            for r in rows: cmb_emp.addItem(r[1].strip(), r[0])
+            rows = self.employee_service.list_employee_lookup()
+            for r in rows: cmb_emp.addItem(r.nombre_completo, r.id)
         except Exception: pass
         form.addRow("Empleado:", cmb_emp); form.addRow("Período:", txt_per)
         form.addRow("Calificación (1-10):", spin_cal); form.addRow("Evaluador:", txt_eva)
