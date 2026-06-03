@@ -58,5 +58,9 @@ class AddressInput(QWidget):
         item = self._suggestions.currentItem()
         return "" if item is None else item.text()
 
+    def set_manual_value(self, value: str) -> None:
+        self._manual_toggle.setChecked(True)
+        self._manual_text.setPlainText(value.strip())
+
     def _emit_selected(self, item: QListWidgetItem) -> None:
         self.selected.emit(item.data(32))

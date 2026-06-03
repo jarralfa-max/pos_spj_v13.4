@@ -29,6 +29,15 @@ from modulos.ui_components import (
     PageHeader, Toast,
 )
 
+from core.services.configuration_settings_service import (
+    CompanyProfileService,
+    LoyaltyProgramSettingsService,
+    SystemSettingsService,
+)
+from frontend.desktop.components.address_input import AddressInput
+from frontend.desktop.components.phone_input import PhoneInput
+from repositories.config_repository import ConfigRepository
+
 try:
     import bcrypt
 except ImportError:
@@ -49,6 +58,10 @@ class ModuloConfiguracion(ModuloBase):
         else:
             self.container = None
             super().__init__(conexion, parent)
+        self.config_repository = ConfigRepository(self.conexion)
+        self.system_settings_service = SystemSettingsService(self.config_repository)
+        self.company_profile_service = CompanyProfileService(self.config_repository)
+        self.loyalty_settings_service = LoyaltyProgramSettingsService(self.config_repository)
         self.verificar_tablas_configuraciones()
         self.init_ui()
 
@@ -71,49 +84,13 @@ class ModuloConfiguracion(ModuloBase):
             pass
 
     def verificar_tablas_configuraciones(self):
-        """Verifica y crea las tablas necesarias para el módulo de configuración"""
-        try:
-            cursor = self.conexion.cursor()
-            
-            # Crear tabla de configuración de fidelidad si no existe
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS config_programa_fidelidad (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre_programa TEXT,
-                    puntos_por_peso DECIMAL(10,2) DEFAULT 1.0,
-                    niveles TEXT,
-                    requisitos TEXT,
-                    descuentos TEXT,
-                    activo INTEGER DEFAULT 1,
-                    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Insertar configuración por defecto si no existe
-            cursor.execute('''
-                INSERT OR IGNORE INTO config_programa_fidelidad 
-                (id, nombre_programa, puntos_por_peso) 
-                VALUES (1, 'Programa de Puntos', 1.0)
-            ''')
-            
-            # Asegurar que existan las configuracioneses básicas
-            configuracioneses_base = [
-                ('impuesto_por_defecto', '16.0', 'Impuesto por defecto en porcentaje'),
-                ('requerir_admin', 'False', 'Requerir administrador para acciones críticas'),
-                ('tema', 'Claro', 'Tema de la aplicación')
-            ]
-            
-            for clave, valor, descripcion in configuracioneses_base:
-                cursor.execute('''
-                    INSERT OR IGNORE INTO configuraciones (clave, valor, descripcion)
-                    VALUES (?, ?, ?)
-                ''', (clave, valor, descripcion))
-            
-            self.conexion.commit()
-            print("✅ Tablas de configuración verificadas y creadas")
-            
-        except sqlite3.Error as e:
-            print(f"❌ Error al verificar tablas de configuración: {e}")
+        """Valida que migraciones hayan preparado la configuración.
+
+        La creación de tablas y defaults vive en migrations/standalone/096; la UI
+        no ejecuta bootstrap de schema ni defaults.
+        """
+        if not self.system_settings_service.ensure_configuration_available():
+            print("⚠️ Configuración no disponible; ejecute migraciones antes de abrir este módulo")
 
     def init_ui(self):
         """Inicializa la interfaz de usuario"""
@@ -511,12 +488,9 @@ class ModuloConfiguracion(ModuloBase):
         try:
             import json
             tipo = self.combo_design_tipo.currentText() if hasattr(self, 'combo_design_tipo') else "ticket"
-            row = self.conexion.execute(
-                "SELECT elementos FROM ticket_design_config WHERE tipo=? AND activo=1 LIMIT 1",
-                (tipo,)
-            ).fetchone()
-            if row:
-                elementos = json.loads(row[0])
+            elementos_json = self.config_repository.get_ticket_design_elements(tipo)
+            if elementos_json:
+                elementos = json.loads(elementos_json)
                 self.lista_diseno_actual.clear()
                 for elem in elementos:
                     label = elem.get("id", elem.get("tipo", "elemento"))
@@ -537,23 +511,7 @@ class ModuloConfiguracion(ModuloBase):
                 eid = self.lista_diseno_actual.item(i).text()
                 elementos.append({"id": eid, "tipo": eid, "y_pos": i})
             elementos_json = json.dumps(elementos, ensure_ascii=False)
-            self.conexion.execute(
-                """
-                UPDATE ticket_design_config
-                SET elementos=?, activo=1
-                WHERE tipo=? AND nombre='Default'
-                """,
-                (elementos_json, tipo)
-            )
-            if self.conexion.execute(
-                "SELECT changes()"
-            ).fetchone()[0] == 0:
-                self.conexion.execute(
-                    "INSERT OR REPLACE INTO ticket_design_config (tipo, nombre, elementos, activo) "
-                    "VALUES (?,?,?,1)",
-                    (tipo, "Default", elementos_json)
-                )
-            self.conexion.commit()
+            self.config_repository.save_ticket_design(tipo, elementos_json)
             Toast.success(self, "Diseño guardado", f"Diseño de {tipo} guardado.")
         except Exception as exc:
         # [spj-dedup removed local QMessageBox import]
@@ -711,10 +669,11 @@ class ModuloConfiguracion(ModuloBase):
         """Carga valores desde hardware_config en la UI."""
         try:
             import json
-            rows = self.conexion.execute(
-                "SELECT tipo, habilitado, configuraciones FROM hardware_config"
-            ).fetchall()
-            for tipo, hab, cfg_json in rows:
+            rows = self.config_repository.get_hardware_configs()
+            for row in rows:
+                tipo = row["tipo"]
+                hab = row["habilitado"]
+                cfg_json = row["configuraciones"]
                 cfg = json.loads(cfg_json) if cfg_json else {}
                 if tipo == "impresora":
                     self.chk_imp_habilitada.setChecked(bool(hab))
@@ -776,15 +735,7 @@ class ModuloConfiguracion(ModuloBase):
                 ),
             }
             for tipo, (hab, cfg) in config_map.items():
-                self.conexion.execute(
-                    """
-                    UPDATE hardware_config
-                    SET habilitado=?, configuraciones=?, actualizado_en=datetime('now')
-                    WHERE tipo=?
-                    """,
-                    (hab, cfg, tipo)
-                )
-            self.conexion.commit()
+                self.config_repository.save_hardware_config(tipo, bool(hab), cfg)
             Toast.success(self, "Hardware", "Configuración guardada correctamente.")
         except Exception as exc:
         # [spj-dedup removed local QMessageBox import]
@@ -887,10 +838,7 @@ class ModuloConfiguracion(ModuloBase):
     def _cargar_loyalty_weights(self):
         """Carga valores de loyalty_config en los spinboxes."""
         try:
-            rows = self.conexion.execute(
-                "SELECT clave, valor FROM loyalty_config"
-            ).fetchall()
-            cfg = {r[0]: r[1] for r in rows}
+            cfg = self.config_repository.get_loyalty_weights()
             self.spin_peso_frecuencia.setValue(int(cfg.get("peso_frecuencia", 30)))
             self.spin_peso_volumen.setValue(int(cfg.get("peso_volumen", 30)))
             self.spin_peso_margen.setValue(int(cfg.get("peso_margen", 30)))
@@ -927,12 +875,7 @@ class ModuloConfiguracion(ModuloBase):
                 ("puntos_por_peso",  str(self.spin_puntos_por_peso.value())),
                 ("bonus_referido",   str(self.spin_bonus_referido.value())),
             ]
-            for clave, valor in updates:
-                self.conexion.execute(
-                    "INSERT OR REPLACE INTO loyalty_config (clave, valor) VALUES (?,?)",
-                    (clave, valor)
-                )
-            self.conexion.commit()
+            self.config_repository.save_loyalty_weights(dict(updates))
             Toast.success(self, "Fidelidad", "Configuración guardada correctamente.")
         except Exception as exc:
         # [spj-dedup removed local QMessageBox import]
@@ -1010,10 +953,7 @@ class ModuloConfiguracion(ModuloBase):
 
         # Check if already closed
         try:
-            existing = self.conexion.execute(
-                "SELECT id FROM cierre_mensual WHERE periodo=?", (periodo,)
-            ).fetchone()
-            if existing:
+            if self.config_repository.monthly_close_exists(periodo):
                 QMessageBox.warning(self, "Ya cerrado",
                     f"El período {periodo} ya fue cerrado anteriormente.")
                 return
@@ -1038,37 +978,17 @@ class ModuloConfiguracion(ModuloBase):
             else:
                 fin = f"{periodo[:4]}-{int(periodo[5:])+1:02d}-01"
 
-            r_ventas = self.conexion.execute(
-                "SELECT COALESCE(SUM(total),0) FROM ventas "
-                "WHERE fecha>=? AND fecha<? AND estado='completada'",
-                (inicio, fin)).fetchone()
-            total_ventas = float(r_ventas[0] if r_ventas else 0)
+            totals = self.config_repository.calculate_monthly_close_totals(inicio, fin)
+            total_ventas = totals["sales"]
+            total_compras = totals["purchases"]
+            total_merma = totals["waste"]
 
-            r_compras = self.conexion.execute(
-                "SELECT COALESCE(SUM(total),0) FROM compras WHERE fecha>=? AND fecha<?",
-                (inicio, fin)).fetchone()
-            total_compras = float(r_compras[0] if r_compras else 0)
-
-            # mermas doesn't have valor_perdida; approximate with products.precio_compra
-            r_merma = self.conexion.execute("""
-                SELECT COALESCE(SUM(m.cantidad * COALESCE(p.precio_compra, 0)), 0)
-                FROM mermas m
-                LEFT JOIN productos p ON p.id = m.producto_id
-                WHERE m.created_at >= ? AND m.created_at < ?
-            """, (inicio, fin)).fetchone()
-            total_merma = float(r_merma[0] if r_merma else 0)
-
-            # Save cierre
-            self.conexion.execute("""
-                INSERT INTO cierre_mensual
-                    (periodo, cerrado_por, total_ventas, total_compras,
-                     total_merma, sucursal_id)
-                VALUES (?,?,?,?,?,?)
-            """, (periodo, usuario, total_ventas, total_compras,
-                  total_merma,
-                  getattr(self, 'sucursal_id', 1)))
-            try: self.conexion.commit()
-            except Exception: pass
+            self.config_repository.save_monthly_close(
+                period=periodo,
+                closed_by=usuario,
+                totals=totals,
+                branch_id=getattr(self, 'sucursal_id', 1),
+            )
 
             self._lbl_cierre_status.setText(
                 f"✅ {periodo} cerrado — Ventas ${total_ventas:,.2f}")
@@ -1091,12 +1011,7 @@ class ModuloConfiguracion(ModuloBase):
         if not hasattr(self, '_tbl_cierres'): return
         self._tbl_cierres.setRowCount(0)
         try:
-            rows = self.conexion.execute("""
-                SELECT periodo, cerrado_por, fecha_cierre,
-                       total_ventas, total_compras, total_merma
-                FROM cierre_mensual
-                ORDER BY periodo DESC LIMIT 24
-            """).fetchall()
+            rows = self.config_repository.get_monthly_closures(limit=24)
         except Exception:
             return
         for ri, r in enumerate(rows):
@@ -1118,32 +1033,19 @@ class ModuloConfiguracion(ModuloBase):
     def cargar_configuraciones_general(self):
         """Carga la configuración general desde la base de datos"""
         try:
-            cursor = self.conexion.cursor()
-            
-            # v13.30: Cargar estado dark mode
-            cursor.execute("SELECT valor FROM configuraciones WHERE clave = 'tema'")
-            resultado = cursor.fetchone()
-            is_dark = False
-            if resultado and resultado[0]:
-                is_dark = 'dark' in str(resultado[0]).lower()
+            settings = self.system_settings_service.get_many(
+                ["tema", "impuesto_por_defecto", "requerir_admin"],
+                {"tema": "Light", "impuesto_por_defecto": "16.0", "requerir_admin": "False"},
+            )
+            is_dark = 'dark' in str(settings.get("tema", "")).lower()
             if hasattr(self, 'chk_dark_mode'):
                 self.chk_dark_mode.blockSignals(True)
                 self.chk_dark_mode.setChecked(is_dark)
                 self.chk_dark_mode.blockSignals(False)
             
             # Cargar impuesto
-            cursor.execute("SELECT valor FROM configuraciones WHERE clave = 'impuesto_por_defecto'")
-            resultado = cursor.fetchone()
-            if resultado:
-                self.spin_impuesto.setValue(float(resultado[0]))
-            else:
-                self.spin_impuesto.setValue(16.0)
-            
-            # Cargar seguridad
-            cursor.execute("SELECT valor FROM configuraciones WHERE clave = 'requerir_admin'")
-            resultado = cursor.fetchone()
-            if resultado:
-                self.chk_requerir_admin.setChecked(resultado[0].lower() == 'true')
+            self.spin_impuesto.setValue(float(settings.get("impuesto_por_defecto") or 16.0))
+            self.chk_requerir_admin.setChecked(str(settings.get("requerir_admin", "False")).lower() == 'true')
                 
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error al cargar configuración general: {str(e)}", QMessageBox.Critical)
@@ -1152,11 +1054,7 @@ class ModuloConfiguracion(ModuloBase):
         """v13.30: Toggle dark/light mode — solo cambia colores, no tamaños."""
         tema = "Dark" if state else "Light"
         try:
-            self.conexion.execute(
-                "INSERT OR REPLACE INTO configuraciones (clave, valor, descripcion) VALUES (?, ?, ?)",
-                ('tema', tema, 'Tema de la aplicación'))
-            try: self.conexion.commit()
-            except Exception: pass
+            self.system_settings_service.set_setting('tema', tema)
             # Aplicar en tiempo real
             if hasattr(self.main_window, 'aplicar_tema'):
                 self.main_window.aplicar_tema(tema)
@@ -1175,12 +1073,7 @@ class ModuloConfiguracion(ModuloBase):
         """Guarda la configuración de impuesto"""
         impuesto = self.spin_impuesto.value()
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute(
-                "INSERT OR REPLACE INTO configuraciones (clave, valor, descripcion) VALUES (?, ?, ?)",
-                ('impuesto_por_defecto', str(impuesto), 'Impuesto por defecto en porcentaje')
-            )
-            self.conexion.commit()
+            self.system_settings_service.set_setting('impuesto_por_defecto', str(impuesto))
             self.mostrar_mensaje("Éxito", f"Impuesto por defecto guardado: {impuesto}%")
         except sqlite3.Error as e:
             self.mostrar_mensaje("Error", f"Error al guardar impuesto: {str(e)}", QMessageBox.Critical)
@@ -1189,12 +1082,7 @@ class ModuloConfiguracion(ModuloBase):
         """Guarda la configuración de seguridad"""
         requerir_admin = "True" if self.chk_requerir_admin.isChecked() else "False"
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute(
-                "INSERT OR REPLACE INTO configuraciones (clave, valor, descripcion) VALUES (?, ?, ?)",
-                ('requerir_admin', requerir_admin, 'Requerir administrador para acciones críticas')
-            )
-            self.conexion.commit()
+            self.system_settings_service.set_setting('requerir_admin', requerir_admin)
             estado = "activada" if self.chk_requerir_admin.isChecked() else "desactivada"
             self.mostrar_mensaje("Éxito", f"Configuración de seguridad {estado} correctamente.")
         except sqlite3.Error as e:
@@ -1211,13 +1099,7 @@ class ModuloConfiguracion(ModuloBase):
                 pass
             return
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                SELECT id, usuario, nombre, rol, COALESCE(fecha_creacion, fecha_alta, '') as fecha_creacion, COALESCE(activo,1) as activo
-                FROM usuarios
-                ORDER BY usuario
-            """)
-            usuarios = cursor.fetchall()
+            usuarios = self.config_repository.get_legacy_users()
 
             self.tabla_usuarios.setRowCount(len(usuarios))
             for fila, usuario in enumerate(usuarios):
@@ -1253,13 +1135,8 @@ class ModuloConfiguracion(ModuloBase):
 
         try:
             id_usuario = int(self.tabla_usuarios.item(fila, 0).text())
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT * FROM usuarios WHERE id = ?", (id_usuario,))
-            usuario_data = cursor.fetchone()
-            
-            if usuario_data:
-                columnas = [desc[0] for desc in cursor.description]
-                usuario_dict = dict(zip(columnas, usuario_data))
+            usuario_dict = self.config_repository.get_user_record(id_usuario)
+            if usuario_dict:
                 
                 dialogo = DialogoUsuario(self.conexion, self, usuario_dict)
                 if dialogo.exec_() == QDialog.Accepted:
@@ -1294,12 +1171,8 @@ class ModuloConfiguracion(ModuloBase):
             )
             
             if respuesta == QMessageBox.Yes:
-                cursor = self.conexion.cursor()
                 # SOFT-DELETE: desactivar en lugar de borrar (preserva historial de ventas)
-                cursor.execute(
-                    "UPDATE usuarios SET activo=0, usuario=usuario||'_baja_'||strftime('%Y%m%d','now') "
-                    "WHERE id=?", (id_usuario,))
-                self.conexion.commit()
+                self.config_repository.soft_delete_user(id_usuario)
                 self.mostrar_mensaje("Éxito",
                     f"Usuario '{nombre_usuario}' desactivado.\n"
                     "Sus registros de auditoría se conservan.")
@@ -1320,34 +1193,32 @@ class ModuloConfiguracion(ModuloBase):
     def cargar_configuraciones_fidelidad(self):
         """Carga la configuración del programa de fidelidad"""
         try:
-            cursor = self.conexion.cursor()
-            cursor.execute("SELECT * FROM config_programa_fidelidad WHERE id = 1")
-            config = cursor.fetchone()
-            
+            config = self.loyalty_settings_service.get_program_config()
             if config:
-                nombre = config[1] or "Sin nombre"
-                puntos = config[2] or 0
-                
+                nombre = config.get("nombre_programa") or "Sin nombre"
+                puntos = config.get("puntos_por_peso") or 0
+
                 texto_info = f"""
                 <b>Programa:</b> {nombre}<br>
                 <b>Puntos por $ gastado:</b> {puntos}<br>
                 <b>Estado:</b> <span style='color: green'>Activo</span>
                 """
-                
-                if config[3]:  # Niveles
-                    niveles = config[3].split(',')
+
+                niveles_config = config.get("niveles")
+                if niveles_config:
+                    niveles = niveles_config.split(',')
                     texto_info += f"<br><b>Niveles:</b> {', '.join(niveles)}"
-                
+
                 self.lbl_info_programa.setText(texto_info)
                 self.edit_nombre_programa.setText(nombre)
                 self.spin_puntos_por_peso.setValue(float(puntos))
-                self.edit_niveles.setText(config[3] or "")
-                self.edit_requisitos.setText(config[4] or "")
-                self.edit_descuentos.setText(config[5] or "")
+                self.edit_niveles.setText(config.get("niveles") or "")
+                self.edit_requisitos.setText(config.get("requisitos") or "")
+                self.edit_descuentos.setText(config.get("descuentos") or "")
             else:
                 self.lbl_info_programa.setText("<b>Programa no configurado</b><br>Configure los parámetros del programa de fidelidad.")
-                
-        except sqlite3.Error as e:
+
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al cargar configuración de fidelidad: {str(e)}", QMessageBox.Critical)
 
     def guardar_configuraciones_fidelidad(self):
@@ -1358,25 +1229,18 @@ class ModuloConfiguracion(ModuloBase):
                 self.mostrar_mensaje("Advertencia", "El nombre del programa es obligatorio.")
                 return
 
-            cursor = self.conexion.cursor()
-            cursor.execute("""
-                INSERT OR REPLACE INTO config_programa_fidelidad 
-                (id, nombre_programa, puntos_por_peso, niveles, requisitos, descuentos, activo)
-                VALUES (1, ?, ?, ?, ?, ?, 1)
-            """, (
-                nombre_programa,
-                self.spin_puntos_por_peso.value(),
-                self.edit_niveles.text().strip() or None,
-                self.edit_requisitos.text().strip() or None,
-                self.edit_descuentos.text().strip() or None
-            ))
-            
-            self.conexion.commit()
+            self.loyalty_settings_service.save_program_config(
+                name=nombre_programa,
+                points_per_peso=self.spin_puntos_por_peso.value(),
+                levels=self.edit_niveles.text().strip() or None,
+                requirements=self.edit_requisitos.text().strip() or None,
+                discounts=self.edit_descuentos.text().strip() or None,
+            )
             self.mostrar_mensaje("Éxito", "Configuración de fidelidad guardada correctamente.")
             self.cargar_configuraciones_fidelidad()
             self.registrar_actualizacion("config_fidelidad_actualizada", {"programa": nombre_programa})
-            
-        except sqlite3.Error as e:
+
+        except Exception as e:
             self.mostrar_mensaje("Error", f"Error al guardar configuración de fidelidad: {str(e)}", QMessageBox.Critical)
 
     def actualizar_datos(self):
@@ -1447,9 +1311,7 @@ class ModuloConfiguracion(ModuloBase):
         if not hasattr(self, "tabla_sucursales"):
             return
         try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre, direccion, telefono, activa FROM sucursales ORDER BY id"
-            ).fetchall()
+            rows = self.config_repository.list_branches_for_config()
             self.tabla_sucursales.setRowCount(len(rows))
             for i, (sid, nombre, direccion, telefono, activa) in enumerate(rows):
                 self.tabla_sucursales.setItem(i, 0, QTableWidgetItem(str(sid)))
@@ -1478,12 +1340,9 @@ class ModuloConfiguracion(ModuloBase):
         if fila < 0:
             return
         sid = int(self.tabla_sucursales.item(fila, 0).text())
-        row = self.conexion.execute(
-            "SELECT id, nombre, direccion, telefono, activa FROM sucursales WHERE id=?", (sid,)
-        ).fetchone()
-        if not row:
+        data = self.company_profile_service.get_branch(sid)
+        if not data:
             return
-        data = dict(zip(["id", "nombre", "direccion", "telefono", "activa"], row))
         dlg = DialogoSucursalEdit(self.conexion, sucursal_data=data, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self.cargar_sucursales()
@@ -1506,9 +1365,7 @@ class ModuloConfiguracion(ModuloBase):
         if resp == QMessageBox.Yes:
             try:
                 # SOFT-DELETE: desactivar sucursal (no borrar — las ventas quedarían huérfanas)
-                self.conexion.execute(
-                    "UPDATE sucursales SET activa=0 WHERE id=?", (sid,))
-                self.conexion.commit()
+                self.config_repository.soft_delete_branch(sid)
                 QMessageBox.information(self, "Desactivada",
                     f"Sucursal «{nombre}» desactivada.\n"
                     "Sus ventas e inventario se conservan. Puede reactivarla editándola.")
@@ -1612,10 +1469,7 @@ class ModuloConfiguracion(ModuloBase):
         from PyQt5.QtWidgets import QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre, canal, sucursal_id, proveedor, numero_negocio, activo "
-                "FROM whatsapp_numeros ORDER BY id"
-            ).fetchall()
+            rows = self.config_repository.list_whatsapp_numbers()
             self._tbl_wa.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 suc = str(r[3]) if r[3] else "Global"
@@ -1642,16 +1496,11 @@ class ModuloConfiguracion(ModuloBase):
         if not nombre:
             QMessageBox.warning(self, "Aviso", "El nombre es obligatorio."); return
         try:
-            self.conexion.execute("""
-                INSERT INTO whatsapp_numeros
-                    (nombre, canal, proveedor, numero_negocio,
-                     meta_token, meta_phone_id, twilio_sid, twilio_token, activo)
-                VALUES(?,?,?,?,?,?,?,?,?)
-                ON CONFLICT DO NOTHING
-            """, (nombre, canal, prov, numero or None,
-                  meta_t or None, meta_p or None,
-                  twi_s or None, twi_t or None, activo))
-            self.conexion.commit()
+            self.config_repository.save_whatsapp_number(
+                name=nombre, channel=canal, provider=prov, business_number=numero or None,
+                meta_token=meta_t or None, meta_phone_id=meta_p or None,
+                twilio_sid=twi_s or None, twilio_token=twi_t or None, active=bool(activo),
+            )
             self._cargar_tabla_wa()
             QMessageBox.information(self, "Guardado", f"Número «{nombre}» guardado.")
         except Exception as e:
@@ -1665,8 +1514,8 @@ class ModuloConfiguracion(ModuloBase):
         nid = self._tbl_wa.item(row, 0).data(Qt.UserRole) if self._tbl_wa.item(row,0) else None
         if not nid: return
         try:
-            self.conexion.execute("UPDATE whatsapp_numeros SET activo=0 WHERE id=?", (nid,))
-            self.conexion.commit(); self._cargar_tabla_wa()
+            self.config_repository.deactivate_whatsapp_number(nid)
+            self._cargar_tabla_wa()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
@@ -1743,12 +1592,10 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_usuarios_combo(self):
         try:
-            rows = self.conexion.execute(
-                "SELECT username FROM usuarios WHERE activo=1 ORDER BY username"
-            ).fetchall()
+            usernames = self.config_repository.active_usernames()
             self._com_cmb_usuario.clear()
-            for r in rows:
-                self._com_cmb_usuario.addItem(r[0])
+            for username in usernames:
+                self._com_cmb_usuario.addItem(username)
         except Exception:
             pass
 
@@ -2064,47 +1911,29 @@ class ModuloConfiguracion(ModuloBase):
             'regimen_fiscal': self.emp_regimen,
             'logo_path': self.emp_logo_path,
         }
+        keys = list(claves.keys()) + [
+            'telefono_empresa', 'tasa_iva', 'sucursal_instalacion_id',
+        ]
+        settings = self.system_settings_service.get_many(keys)
         for clave, widget in claves.items():
-            try:
-                row = self.conexion.execute(
-                    "SELECT valor FROM configuraciones WHERE clave=?", (clave,)
-                ).fetchone()
-                if row and row[0]:
-                    widget.setText(str(row[0]))
-            except Exception:
-                pass
-        # v13.30: PhoneWidget usa set_phone() en lugar de setText()
+            if settings.get(clave):
+                widget.setText(str(settings[clave]))
+        if settings.get('telefono_empresa'):
+            self.emp_telefono.set_phone(str(settings['telefono_empresa']))
         try:
-            row = self.conexion.execute(
-                "SELECT valor FROM configuraciones WHERE clave='telefono_empresa'"
-            ).fetchone()
-            if row and row[0]:
-                self.emp_telefono.set_phone(str(row[0]))
+            if settings.get('tasa_iva'):
+                self.emp_tasa_iva.setText(str(float(settings['tasa_iva']) * 100))
         except Exception:
             pass
-        try:
-            row = self.conexion.execute(
-                "SELECT valor FROM configuraciones WHERE clave='tasa_iva'"
-            ).fetchone()
-            self.emp_tasa_iva.setText(str(float(row[0])*100 if row else "0"))
-        except Exception:
-            pass
-        # v13.30: Cargar sucursales en combo
         try:
             self.cmb_sucursal_inst.clear()
-            sucs = self.conexion.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY nombre"
-            ).fetchall()
+            sucs = self.config_repository.branches_for_company_settings()
             if not sucs:
                 self.cmb_sucursal_inst.addItem("Principal", 1)
             else:
-                for s in sucs:
-                    self.cmb_sucursal_inst.addItem(s['nombre'], s['id'])
-            # Seleccionar la configurada
-            row_suc = self.conexion.execute(
-                "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
-            ).fetchone()
-            suc_id = int(row_suc[0]) if row_suc and row_suc[0] else 1
+                for sid, nombre in sucs:
+                    self.cmb_sucursal_inst.addItem(nombre, sid)
+            suc_id = int(settings.get('sucursal_instalacion_id') or 1)
             for i in range(self.cmb_sucursal_inst.count()):
                 if self.cmb_sucursal_inst.itemData(i) == suc_id:
                     self.cmb_sucursal_inst.setCurrentIndex(i)
@@ -2141,18 +1970,11 @@ class ModuloConfiguracion(ModuloBase):
         except Exception:
             datos['tasa_iva'] = '0'
         try:
-            for clave, valor in datos.items():
-                self.conexion.execute(
-                    "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)",
-                    (clave, valor))
-            # v13.30: Guardar sucursal de la instalación
             if hasattr(self, 'cmb_sucursal_inst'):
                 suc_id = self.cmb_sucursal_inst.currentData()
                 if suc_id:
-                    self.conexion.execute(
-                        "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)",
-                        ('sucursal_instalacion_id', str(suc_id)))
-            self.conexion.commit()
+                    datos['sucursal_instalacion_id'] = str(suc_id)
+            self.system_settings_service.save_many(datos)
             QMessageBox.information(self, "✅ Guardado",
                 "Datos de empresa guardados.\n"
                 "La sucursal de esta terminal se aplicará en el próximo inicio de sesión.")
@@ -2221,13 +2043,8 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_apariencia(self):
         try:
-            # Cargar tema desde BD (clave='tema') para sincronización global
-            from core.db.connection import get_connection
-            conn = get_connection()
-            row = conn.execute(
-                "SELECT valor FROM configuraciones WHERE clave='tema'"
-            ).fetchone()
-            tema_guardado = row[0] if row else 'Oscuro'
+            # Cargar tema desde configuración central para sincronización global
+            tema_guardado = self.system_settings_service.get_setting('tema', 'Oscuro') or 'Oscuro'
             
             # Normalizar a nombres válidos: Light/Dark → Claro/Oscuro
             tema_normalizado = 'Oscuro' if 'dark' in tema_guardado.lower() or tema_guardado == 'Oscuro' else 'Claro'
@@ -2274,14 +2091,8 @@ class ModuloConfiguracion(ModuloBase):
         iconos   = str(self.ap_spin_iconos.value())
         
         try:
-            # 1. Guardar en BD (clave='tema') para persistencia global
-            from core.db.connection import get_connection
-            conn = get_connection()
-            conn.execute(
-                "INSERT OR REPLACE INTO configuraciones (clave, valor) VALUES ('tema', ?)",
-                (tema,)
-            )
-            conn.commit()
+            # 1. Guardar en configuración central para persistencia global
+            self.system_settings_service.set_setting('tema', tema)
             
             # 2. Aplicar tema usando theme_engine (fuente única de verdad: config.TEMAS)
             from ui.themes.theme_engine import apply_theme
@@ -2352,14 +2163,12 @@ class ModuloConfiguracion(ModuloBase):
         }
         for clave, (widget, method) in campos.items():
             try:
-                row = self.conexion.execute(
-                    "SELECT valor FROM configuraciones WHERE clave=?", (clave,)
-                ).fetchone()
-                if row and row[0]:
+                value = self.system_settings_service.get_setting(clave)
+                if value:
                     if method == 'setValue':
-                        getattr(widget, method)(int(row[0]))
+                        getattr(widget, method)(int(value))
                     else:
-                        getattr(widget, method)(str(row[0]))
+                        getattr(widget, method)(str(value))
             except Exception:
                 pass
 
@@ -2374,10 +2183,7 @@ class ModuloConfiguracion(ModuloBase):
             'email_gerente': self.smtp_gerente.text().strip(),
         }
         try:
-            for k, v in datos.items():
-                self.conexion.execute(
-                    "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)", (k,v))
-            self.conexion.commit()
+            self.system_settings_service.save_many(datos)
             QMessageBox.information(self, "✅", "Configuración SMTP guardada.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -2473,13 +2279,10 @@ class ModuloConfiguracion(ModuloBase):
             'mp_webhook_url':  self.mp_webhook_url,
             'mp_return_url':   self.mp_return_url,
         }
+        values = self.system_settings_service.get_many(list(claves.keys()))
         for clave, widget in claves.items():
-            try:
-                row = self.conexion.execute(
-                    "SELECT valor FROM configuraciones WHERE clave=?", (clave,)
-                ).fetchone()
-                if row and row[0]: widget.setText(str(row[0]))
-            except Exception: pass
+            if values.get(clave):
+                widget.setText(str(values[clave]))
 
     def _guardar_mp(self):
         # [spj-dedup removed local QMessageBox import]
@@ -2491,10 +2294,7 @@ class ModuloConfiguracion(ModuloBase):
         if not datos['mp_access_token']:
             QMessageBox.warning(self, "Aviso", "El Access Token es obligatorio."); return
         try:
-            for k, v in datos.items():
-                self.conexion.execute(
-                    "INSERT OR REPLACE INTO configuraciones(clave,valor) VALUES(?,?)", (k,v))
-            self.conexion.commit()
+            self.system_settings_service.save_many(datos)
             QMessageBox.information(self, "✅", "Credenciales de Mercado Pago guardadas.")
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -2633,12 +2433,7 @@ class ModuloConfiguracion(ModuloBase):
         from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout, QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            rows = self.conexion.execute("""
-                SELECT id,nombre,COALESCE(direccion,''),
-                       COALESCE(hora_apertura,'08:00'),COALESCE(hora_cierre,'21:00'),
-                       COALESCE(dias_operacion,'1,2,3,4,5,6'),activa
-                FROM sucursales ORDER BY nombre
-            """).fetchall()
+            rows = self.config_repository.list_branch_delivery_rows()
         except Exception: rows = []
         self._tbl_suc_v13.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -2664,13 +2459,12 @@ class ModuloConfiguracion(ModuloBase):
         from PyQt5.QtWidgets import (QDialog, QDialogButtonBox, QFormLayout,
                                       QLineEdit, QCheckBox, QVBoxLayout, QMessageBox,
                                       QGroupBox, QHBoxLayout, QTextEdit)
-        from modulos.spj_phone_widget import PhoneWidget as _PW_suc
         dlg = QDialog(self); dlg.setWindowTitle("Sucursal"); dlg.setMinimumWidth(460)
         lay = QVBoxLayout(dlg)
         form = QFormLayout()
         txt_nombre  = QLineEdit()
-        txt_dir     = QLineEdit()
-        txt_tel     = _PW_suc(default_country="+52")
+        txt_dir     = AddressInput()
+        txt_tel     = PhoneInput()
         txt_abre    = QLineEdit("08:00"); txt_abre.setPlaceholderText("HH:MM")
         txt_cierra  = QLineEdit("21:00"); txt_cierra.setPlaceholderText("HH:MM")
         dias_chks   = {}
@@ -2695,20 +2489,16 @@ class ModuloConfiguracion(ModuloBase):
 
         if sucursal_id:
             try:
-                row = self.conexion.execute(
-                    "SELECT nombre,direccion,telefono,hora_apertura,hora_cierre,"
-                    "dias_operacion,acepta_pedidos_fuera_horario,mensaje_fuera_horario "
-                    "FROM sucursales WHERE id=?", (sucursal_id,)
-                ).fetchone()
+                row = self.company_profile_service.get_branch_delivery_profile(sucursal_id)
                 if row:
-                    txt_nombre.setText(row[0] or ""); txt_dir.setText(row[1] or "")
-                    txt_tel.set_phone(row[2] or ""); txt_abre.setText(row[3] or "08:00")
-                    txt_cierra.setText(row[4] or "21:00")
-                    dias_sel = (row[5] or "1,2,3,4,5,6").split(",")
+                    txt_nombre.setText(row.get("nombre") or ""); txt_dir.set_manual_value(row.get("direccion") or "")
+                    txt_tel.set_value(row.get("telefono") or ""); txt_abre.setText(row.get("hora_apertura") or "08:00")
+                    txt_cierra.setText(row.get("hora_cierre") or "21:00")
+                    dias_sel = (row.get("dias_operacion") or "1,2,3,4,5,6").split(",")
                     for n, chk in dias_chks.items():
                         chk.setChecked(str(n) in dias_sel)
-                    chk_acepta.setChecked(bool(row[6]))
-                    if row[7]: txt_msg.setPlainText(row[7])
+                    chk_acepta.setChecked(bool(row.get("acepta_pedidos_fuera_horario")))
+                    if row.get("mensaje_fuera_horario"): txt_msg.setPlainText(row.get("mensaje_fuera_horario"))
             except Exception: pass
 
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
@@ -2721,26 +2511,17 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.warning(self, "Aviso", "El nombre es obligatorio."); return
         dias = ",".join(str(n) for n, chk in dias_chks.items() if chk.isChecked())
         try:
-            if sucursal_id:
-                self.conexion.execute("""
-                    UPDATE sucursales SET nombre=?,direccion=?,telefono=?,
-                    hora_apertura=?,hora_cierre=?,dias_operacion=?,
-                    acepta_pedidos_fuera_horario=?,mensaje_fuera_horario=?
-                    WHERE id=?
-                """, (nombre, txt_dir.text().strip(), txt_tel.get_e164().strip(),
-                      txt_abre.text().strip(), txt_cierra.text().strip(), dias,
-                      int(chk_acepta.isChecked()), txt_msg.toPlainText().strip(),
-                      sucursal_id))
-            else:
-                self.conexion.execute("""
-                    INSERT INTO sucursales
-                        (nombre,direccion,telefono,hora_apertura,hora_cierre,
-                         dias_operacion,acepta_pedidos_fuera_horario,mensaje_fuera_horario,activa)
-                    VALUES(?,?,?,?,?,?,?,?,1)
-                """, (nombre, txt_dir.text().strip(), txt_tel.get_e164().strip(),
-                      txt_abre.text().strip(), txt_cierra.text().strip(), dias,
-                      int(chk_acepta.isChecked()), txt_msg.toPlainText().strip()))
-            self.conexion.commit()
+            self.company_profile_service.save_branch_delivery_profile(
+                name=nombre,
+                address=txt_dir.value(),
+                phone=txt_tel.value(),
+                opening_time=txt_abre.text().strip(),
+                closing_time=txt_cierra.text().strip(),
+                operation_days=dias,
+                accepts_after_hours_orders=chk_acepta.isChecked(),
+                after_hours_message=txt_msg.toPlainText().strip(),
+                branch_id=sucursal_id,
+            )
             self._cargar_sucursales_v13()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
@@ -2749,16 +2530,7 @@ class ModuloConfiguracion(ModuloBase):
         from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout, QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            rows = self.conexion.execute("""
-                SELECT u.id,u.usuario,u.nombre,
-                       COALESCE(r.nombre,'cajero') as rol,
-                       COALESCE(s.nombre,'Principal') as sucursal,
-                       u.activo
-                FROM usuarios u
-                LEFT JOIN roles r ON r.nombre=u.rol
-                LEFT JOIN sucursales s ON s.id=u.sucursal_id
-                ORDER BY u.nombre LIMIT 200
-            """).fetchall()
+            rows = self.config_repository.list_users_v13()
         except Exception:
             rows = []
         self._tbl_usr_v13.setRowCount(len(rows))
@@ -2809,24 +2581,22 @@ class ModuloConfiguracion(ModuloBase):
         lbl_emp_hint = QLabel("Vincula este usuario a un empleado de RRHH")
         lbl_emp_hint.setObjectName("caption")
 
-        # Fill roles and sucursales
         try:
-            for rn in self.conexion.execute("SELECT nombre FROM roles ORDER BY id").fetchall():
-                cmb_rol.addItem(rn[0])
+            for rn in self.config_repository.role_names():
+                cmb_rol.addItem(rn)
         except Exception:
             for rn in ["admin","gerente","cajero","almacen","repartidor","solo_lectura"]:
                 cmb_rol.addItem(rn)
         try:
-            for sn in self.conexion.execute("SELECT id,nombre FROM sucursales WHERE activa=1").fetchall():
-                cmb_sucursal.addItem(sn[1], sn[0])
+            for sid, nombre in self.config_repository.active_branches_for_selector():
+                cmb_sucursal.addItem(nombre, sid)
         except Exception:
             cmb_sucursal.addItem("Principal", 1)
         try:
-            for em in self.conexion.execute(
-                "SELECT id, nombre||' '||COALESCE(apellidos,'') FROM personal WHERE activo=1 ORDER BY nombre"
-            ).fetchall():
-                cmb_empleado.addItem(em[1].strip(), em[0])
-        except Exception: pass
+            for emp_id, label in self.config_repository.active_employees_for_selector():
+                cmb_empleado.addItem(label, emp_id)
+        except Exception:
+            pass
 
         form.addRow("Usuario*:", txt_usuario)
         form.addRow("Nombre:", txt_nombre)
@@ -2841,10 +2611,7 @@ class ModuloConfiguracion(ModuloBase):
 
         if usuario_id:
             try:
-                row = self.conexion.execute(
-                    "SELECT usuario,nombre,email,rol,sucursal_id,activo,empleado_id "
-                    "FROM usuarios WHERE id=?", (usuario_id,)
-                ).fetchone()
+                row = self.config_repository.get_user_form_data(usuario_id)
                 if row:
                     txt_usuario.setText(row[0] or ""); txt_nombre.setText(row[1] or "")
                     txt_email.setText(row[2] or "")
@@ -2858,7 +2625,8 @@ class ModuloConfiguracion(ModuloBase):
                         for i in range(cmb_empleado.count()):
                             if cmb_empleado.itemData(i) == row[6]:
                                 cmb_empleado.setCurrentIndex(i); break
-            except Exception: pass
+            except Exception:
+                pass
 
         btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
@@ -2876,51 +2644,30 @@ class ModuloConfiguracion(ModuloBase):
             pwd_raw = txt_pass.text()
             suc_id  = cmb_sucursal.currentData() or 1
             emp_id  = cmb_empleado.currentData()
-            activo  = int(chk_activo.isChecked())
-            if usuario_id:
-                if pwd_raw:
-                    if _bcrypt:
-                        pwd_hash = _bcrypt.hashpw(pwd_raw.encode(), _bcrypt.gensalt()).decode()
-                    else:
-                        pwd_hash = pwd_raw
-                    self.conexion.execute(
-                        "UPDATE usuarios SET usuario=?,nombre=?,email=?,rol=?,"
-                        "sucursal_id=?,activo=?,empleado_id=?,password_hash=? WHERE id=?",
-                        (uname, txt_nombre.text().strip(), txt_email.text().strip(),
-                         cmb_rol.currentText(), suc_id, activo, emp_id, pwd_hash, usuario_id))
-                else:
-                    self.conexion.execute(
-                        "UPDATE usuarios SET usuario=?,nombre=?,email=?,rol=?,"
-                        "sucursal_id=?,activo=?,empleado_id=? WHERE id=?",
-                        (uname, txt_nombre.text().strip(), txt_email.text().strip(),
-                         cmb_rol.currentText(), suc_id, activo, emp_id, usuario_id))
-            else:
-                if not pwd_raw:
-                    QMessageBox.warning(self, "Aviso", "La contraseña es obligatoria."); return
-                if _bcrypt:
-                    pwd_hash = _bcrypt.hashpw(pwd_raw.encode(), _bcrypt.gensalt()).decode()
-                else:
-                    pwd_hash = pwd_raw
-                self.conexion.execute(
-                    "INSERT INTO usuarios(usuario,nombre,email,password_hash,rol,"
-                    "sucursal_id,activo,empleado_id) VALUES(?,?,?,?,?,?,?,?)",
-                    (uname, txt_nombre.text().strip(), txt_email.text().strip(),
-                     pwd_hash, cmb_rol.currentText(), suc_id, activo, emp_id))
-                # Si tiene empleado vinculado, actualizar personal.usuario_id
-                if emp_id:
-                    new_uid = self.conexion.execute("SELECT last_insert_rowid()").fetchone()[0]
-                    self.conexion.execute(
-                        "UPDATE personal SET usuario_id=? WHERE id=?", (new_uid, emp_id))
-            self.conexion.commit()
+            pwd_hash = None
+            if pwd_raw:
+                pwd_hash = (_bcrypt.hashpw(pwd_raw.encode(), _bcrypt.gensalt()).decode()
+                            if _bcrypt else pwd_raw)
+            elif not usuario_id:
+                QMessageBox.warning(self, "Aviso", "La contraseña es obligatoria."); return
+            self.config_repository.save_user_v13(
+                user_id=usuario_id,
+                username=uname,
+                name=txt_nombre.text().strip(),
+                email=txt_email.text().strip(),
+                role=cmb_rol.currentText(),
+                branch_id=suc_id,
+                active=chk_activo.isChecked(),
+                employee_id=emp_id,
+                password_hash=pwd_hash,
+            )
             self._cargar_usuarios_v13()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
 
     def _toggle_usuario(self, uid, activo):
         try:
-            self.conexion.execute(
-                "UPDATE usuarios SET activo=? WHERE id=?", (int(activo), uid))
-            self.conexion.commit()
+            self.config_repository.set_user_active(uid, bool(activo))
             self._cargar_usuarios_v13()
         except Exception as e:
         # [spj-dedup removed local QMessageBox import]
@@ -2930,13 +2677,7 @@ class ModuloConfiguracion(ModuloBase):
         from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout, QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            rows = self.conexion.execute("""
-                SELECT r.id, r.nombre, r.descripcion,
-                       COUNT(u.id) as num_usuarios
-                FROM roles r
-                LEFT JOIN usuarios u ON u.rol=r.nombre AND u.activo=1
-                GROUP BY r.id ORDER BY r.id
-            """).fetchall()
+            rows = self.config_repository.list_roles_v13()
         except Exception: rows = []
         self._tbl_roles_v13.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -2970,15 +2711,10 @@ class ModuloConfiguracion(ModuloBase):
         ACCIONES = ["ver","crear","editar","eliminar","exportar"]
 
         # Load existing permisos
-        existing = {}
         try:
-            rows = self.conexion.execute(
-                "SELECT modulo, accion, permitido FROM rol_permisos WHERE rol_id=?",
-                (rol_id,)
-            ).fetchall()
-            for r in rows:
-                existing[(r[0],r[1])] = bool(r[2])
-        except Exception: pass
+            existing = self.config_repository.role_permissions(rol_id)
+        except Exception:
+            existing = {}
 
         tbl = QTableWidget(len(MODULOS), len(ACCIONES)+1)
         tbl.setHorizontalHeaderLabels(["Módulo"] + ACCIONES)
@@ -3002,12 +2738,9 @@ class ModuloConfiguracion(ModuloBase):
 
         if dlg.exec_() != QDialog.Accepted: return
         try:
-            self.conexion.execute("DELETE FROM rol_permisos WHERE rol_id=?", (rol_id,))
-            for (mod, acc), chk in chks.items():
-                self.conexion.execute(
-                    "INSERT INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(?,?,?,?)",
-                    (rol_id, mod, acc, int(chk.isChecked())))
-            self.conexion.commit()
+            self.config_repository.save_role_permissions(
+                rol_id, {(mod, acc): chk.isChecked() for (mod, acc), chk in chks.items()}
+            )
             QMessageBox.information(dlg, "✅", f"Permisos de '{rol_nombre}' guardados.")
         except Exception as e:
             QMessageBox.critical(dlg, "Error", str(e))
@@ -3016,10 +2749,7 @@ class ModuloConfiguracion(ModuloBase):
         from PyQt5.QtWidgets import QTableWidgetItem
         from PyQt5.QtCore import Qt
         try:
-            rows = self.conexion.execute("""
-                SELECT fecha, usuario, modulo, accion, COALESCE(detalles,'')
-                FROM audit_logs ORDER BY fecha DESC LIMIT 200
-            """).fetchall()
+            rows = self.config_repository.audit_log_rows(limit=200)
         except Exception: rows = []
         self._tbl_audit_v13.setRowCount(len(rows))
         for ri, r in enumerate(rows):
@@ -3045,6 +2775,7 @@ class DialogoUsuario(QDialog):
         else:
             self.container = None
             self.conexion  = conexion
+        self.config_repository = ConfigRepository(self.conexion)
         self.usuario_data = usuario_data
         self.es_edicion = usuario_data is not None
         
@@ -3149,9 +2880,7 @@ class DialogoUsuario(QDialog):
         """Carga las sucursales en el combo del formulario de usuario."""
         self.combo_sucursal_usuario.clear()
         try:
-            sucursales = self.conexion.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY id"
-            ).fetchall()
+            sucursales = self.config_repository.active_branches_for_selector()
             for sid, nombre in sucursales:
                 self.combo_sucursal_usuario.addItem(f"🏪 {nombre}", sid)
         except Exception:
@@ -3222,12 +2951,8 @@ class DialogoUsuario(QDialog):
                 return
 
             try:
-                cursor = self.conexion.cursor()
-                
-                # --- Lógica de Hashing de Contraseña ---
                 hashed_password = None
                 if contrasena:
-                    # Aplicar bcrypt para generar un hash seguro de la contraseña
                     if _USE_AUTH_MODULE:
                         try:
                             hashed_password = _hash_password(contrasena)
@@ -3235,57 +2960,26 @@ class DialogoUsuario(QDialog):
                             hashed_password = __import__('hashlib').sha256(contrasena.encode()).hexdigest() if not bcrypt else bcrypt.hashpw(contrasena.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                     else:
                         hashed_password = __import__('hashlib').sha256(contrasena.encode()).hexdigest() if not bcrypt else bcrypt.hashpw(contrasena.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                
-                if self.es_edicion:
-                    id_usuario = self.usuario_data['id']
-                    
-                    # Prepara la lista de campos a actualizar
-                    sucursal_id_val = self.combo_sucursal_usuario.currentData() or 1
-                    update_fields = ['usuario', 'nombre', 'rol', 'modulos_permitidos', 'sucursal_id']
-                    update_values = [usuario, nombre, rol, modulos_str, sucursal_id_val]
 
+                user_id = self.usuario_data['id'] if self.es_edicion else None
+                if not self.es_edicion and self.config_repository.username_exists(usuario):
+                    QMessageBox.warning(self, "Error", "Ya existe un usuario con ese nombre.")
+                    return
 
-                    # Si se proporcionó una nueva contraseña, añádela a la actualización
-                    if hashed_password:
-                        update_fields.append('contrasena')
-                        update_values.append(hashed_password)
-                    
-                    # Construye la consulta de actualización de forma dinámica
-                    sets = ', '.join([f"{f} = ?" for f in update_fields])
-                    update_values.append(id_usuario)
-
-                    # Whitelist campos para prevenir SQL injection
-                    _campos_ok = {'nombre','usuario','password_hash','rol','sucursal_id',
-                                   'activo','email','foto_path','empleado_id'}
-                    sets_safe = ', '.join(
-                        p for p in sets.split(',')
-                        if p.strip().split('=')[0].strip() in _campos_ok
-                    )
-                    cursor.execute("UPDATE usuarios SET " + sets_safe + " WHERE id=?", update_values)
-                    
-                else:
-                    # Nuevo usuario - verificar que no exista
-                    cursor.execute("SELECT id FROM usuarios WHERE usuario = ?", (usuario,))
-                    if cursor.fetchone():
-                        QMessageBox.warning(self, "Error", "Ya existe un usuario con ese nombre.")
-                        return
-                    
-                    # USAR EL HASH EN LA INSERCIÓN
-                    sucursal_id_val = self.combo_sucursal_usuario.currentData() or 1
-                    cursor.execute("""
-                        INSERT INTO usuarios (usuario, nombre, contrasena, rol, modulos_permitidos, sucursal_id, fecha_creacion, activo)
-                        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), 1)
-                    """, (usuario, nombre, hashed_password, rol, modulos_str, sucursal_id_val))
-                
-                self.conexion.commit()
+                self.config_repository.save_legacy_user(
+                    user_id=user_id,
+                    username=usuario,
+                    name=nombre,
+                    role=rol,
+                    modules_json=modulos_str,
+                    branch_id=self.combo_sucursal_usuario.currentData() or 1,
+                    password_hash=hashed_password,
+                )
                 QMessageBox.information(self, "Éxito", 
                                       "Usuario guardado correctamente." if self.es_edicion 
                                       else "Usuario creado correctamente.")
                 self.accept()
                 
-            except sqlite3.Error as e:
-                self.conexion.rollback()
-                QMessageBox.critical(self, "Error", f"Error en base de datos: {str(e)}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Error inesperado: {str(e)}")
 
@@ -3298,6 +2992,7 @@ class DialogoSucursalEdit(QDialog):
     def __init__(self, conexion, sucursal_data=None, parent=None):
         super().__init__(parent)
         self.conexion       = conexion
+        self.company_profile_service = CompanyProfileService(ConfigRepository(conexion))
         self.sucursal_data  = sucursal_data
         self.es_edicion     = sucursal_data is not None
         self.setWindowTitle("Editar Sucursal" if self.es_edicion else "Nueva Sucursal")
@@ -3317,10 +3012,8 @@ class DialogoSucursalEdit(QDialog):
 
         self.txt_nombre    = QLineEdit()
         self.txt_nombre.setPlaceholderText("Ej: Sucursal Norte")
-        self.txt_direccion = QLineEdit()
-        self.txt_direccion.setPlaceholderText("Calle, colonia, ciudad")
-        self.txt_telefono  = QLineEdit()
-        self.txt_telefono.setPlaceholderText("10 dígitos")
+        self.txt_direccion = AddressInput()
+        self.txt_telefono  = PhoneInput()
         self.chk_activa    = QCheckBox("Sucursal activa")
         self.chk_activa.setChecked(True)
 
@@ -3344,8 +3037,8 @@ class DialogoSucursalEdit(QDialog):
 
     def _cargar_datos(self):
         self.txt_nombre.setText(self.sucursal_data.get("nombre", ""))
-        self.txt_direccion.setText(self.sucursal_data.get("direccion", "") or "")
-        self.txt_telefono.setText(self.sucursal_data.get("telefono", "") or "")
+        self.txt_direccion.set_manual_value(self.sucursal_data.get("direccion", "") or "")
+        self.txt_telefono.set_value(self.sucursal_data.get("telefono", "") or "")
         self.chk_activa.setChecked(bool(self.sucursal_data.get("activa", 1)))
 
     def _guardar(self):
@@ -3353,21 +3046,17 @@ class DialogoSucursalEdit(QDialog):
         if not nombre:
             QMessageBox.warning(self, "Error", "El nombre de la sucursal es obligatorio.")
             return
-        direccion = self.txt_direccion.text().strip() or None
-        telefono  = self.txt_telefono.text().strip() or None
-        activa    = 1 if self.chk_activa.isChecked() else 0
+        direccion = self.txt_direccion.value() or None
+        telefono  = self.txt_telefono.value() or None
+        activa    = self.chk_activa.isChecked()
         try:
-            if self.es_edicion:
-                self.conexion.execute(
-                    "UPDATE sucursales SET nombre=?, direccion=?, telefono=?, activa=? WHERE id=?",
-                    (nombre, direccion, telefono, activa, self.sucursal_data["id"])
-                )
-            else:
-                self.conexion.execute(
-                    "INSERT INTO sucursales (nombre, direccion, telefono, activa) VALUES (?,?,?,?)",
-                    (nombre, direccion, telefono, activa)
-                )
-            self.conexion.commit()
+            self.company_profile_service.save_branch(
+                name=nombre,
+                address=direccion,
+                phone=telefono,
+                active=activa,
+                branch_id=self.sucursal_data["id"] if self.es_edicion else None,
+            )
             self.accept()
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
