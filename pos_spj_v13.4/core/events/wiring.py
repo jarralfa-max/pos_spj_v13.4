@@ -259,6 +259,7 @@ def wire_all(container: "AppContainer") -> None:
 
     # v13.5: Delivery weight adjustments + inventory reservations
     _wire_delivery_handlers(bus, container)
+    _wire_legacy_delivery_event_bridge(bus, container)
 
     # v13.30: Delivery lifecycle + inventory commit + driver settlement + notifications
     _wire_delivery_lifecycle_handlers(bus, container)
@@ -1174,6 +1175,14 @@ def _wire_delivery_handlers(bus, container) -> None:
         "Registered delivery handlers: reserve, release, weight, WA-notify, payment-update"
         # appended below by _wire_delivery_lifecycle_handlers
     )
+
+
+def _wire_legacy_delivery_event_bridge(bus, container) -> None:
+    """Bridge canonical delivery events to legacy Spanish event names temporarily."""
+    from core.delivery.application.legacy_event_bridge import register_legacy_delivery_event_bridge
+
+    register_legacy_delivery_event_bridge(bus)
+    logger.debug("Registered LegacyDeliveryEventBridge for canonical delivery events")
 
 
 # ── v13.30: Delivery lifecycle handlers ──────────────────────────────────────

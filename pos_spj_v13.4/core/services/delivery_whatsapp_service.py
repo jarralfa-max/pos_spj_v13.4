@@ -3,34 +3,26 @@ from __future__ import annotations
 import logging
 from typing import Dict, Iterable
 
+from core.delivery.infrastructure.whatsapp_delivery_notifier import WhatsAppDeliveryNotifier
 from core.integrations.whatsapp_client import WhatsAppClient
 
 logger = logging.getLogger("spj.services.delivery_whatsapp")
 
 
 class DeliveryWhatsAppService:
-    STATUS_MESSAGES = {
-        "pedido_recibido": "✅ Recibimos tu pedido {folio}. Lo estamos validando.",
-        "preparacion": "👩‍🍳 Tu pedido {folio} está en preparación.",
-        "en_ruta": "🛵 Tu pedido {folio} va en ruta.",
-        "entregado": "🎉 Tu pedido {folio} fue entregado. ¡Gracias!",
-        "cancelado": "❌ Tu pedido {folio} fue cancelado.",
-    }
+    """Legacy-compatible façade over the centralized WhatsApp delivery notifier."""
 
-    def __init__(self, client: WhatsAppClient | None = None):
+    STATUS_MESSAGES = WhatsAppDeliveryNotifier.STATUS_TEMPLATES
+
+    def __init__(self, client: WhatsAppClient | None = None, notifier: WhatsAppDeliveryNotifier | None = None):
         self.client = client or WhatsAppClient()
+        self.notifier = notifier or WhatsAppDeliveryNotifier(self.client)
 
     def notify_status(self, phone: str, folio: str, status: str) -> bool:
-        if not phone:
-            return False
-        msg_template = self.STATUS_MESSAGES.get(status)
-        if not msg_template:
-            return False
-        try:
-            return bool(self.client.enviar_mensaje(phone, msg_template.format(folio=folio or "")))
-        except Exception as exc:
-            logger.warning("notify_status failed (%s): %s", status, exc)
-            return False
+        return self.notifier.notify_status(phone=phone, folio=folio, status=status)
+
+    def notify_adjustment_required(self, **kwargs) -> bool:
+        return self.notifier.notify_adjustment_required(**kwargs)
 
     def notify_weight_adjustment(
         self,
@@ -42,30 +34,24 @@ class DeliveryWhatsAppService:
         new_total: float,
         payment_url: str = "",
     ) -> bool:
-        """Send a weight-adjustment summary to the customer via WhatsApp."""
-        if not phone:
-            return False
-        diff = prepared_qty - requested_qty
-        sign = "+" if diff >= 0 else ""
-        msg = (
-            f"📦 Actualización pedido #{folio}\n"
-            f"Peso solicitado: {requested_qty:.3g} {unit}\n"
-            f"Peso real: {prepared_qty:.3g} {unit}  ({sign}{diff:.3g} {unit})\n"
-            f"Total: ${new_total:,.2f}"
+        return self.notifier.notify_weight_adjustment(
+            phone=phone,
+            folio=folio,
+            requested_qty=requested_qty,
+            prepared_qty=prepared_qty,
+            unit=unit,
+            new_total=new_total,
+            payment_url=payment_url,
         )
-        if payment_url:
-            msg += f"\nPago: {payment_url}"
-        msg += "\n🛵 ¡Pronto en camino!"
-        try:
-            ok = bool(self.client.enviar_mensaje(phone, msg))
-            logger.info(
-                "notify_weight_adjustment phone=%s folio=%s ok=%s",
-                phone[-4:], folio, ok,
-            )
-            return ok
-        except Exception as exc:
-            logger.warning("notify_weight_adjustment failed: %s", exc)
-            return False
+
+    def notify_out_for_delivery(self, *, phone: str, folio: str, driver_name: str = "", eta: str = "") -> bool:
+        return self.notifier.notify_out_for_delivery(phone=phone, folio=folio, driver_name=driver_name, eta=eta)
+
+    def notify_delivered(self, *, phone: str, folio: str) -> bool:
+        return self.notifier.notify_delivered(phone=phone, folio=folio)
+
+    def notify_from_event(self, payload: dict) -> bool:
+        return self.notifier.notify_from_event(payload)
 
     def pull_orders(self) -> Iterable[Dict]:
         try:

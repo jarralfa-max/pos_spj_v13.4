@@ -11,7 +11,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 from typing import Dict
+from core.delivery.domain.events import DeliveryEvents
 from core.services.order_total_service import OrderTotalService
+from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
 from phone_number import possible_match_key
 
 logger = logging.getLogger("wa.adjustment_approval")
@@ -102,8 +104,10 @@ class AdjustmentApprovalService:
             )
             action = "rejected"
 
-        # Recalcular total del pedido con fuente de verdad única.
+        # Recalcular total del pedido desde delivery_items; ventas se actualiza solo vía proyección controlada.
+        old_total = round(float(data.get("order_total") or 0), 2)
         new_total = OrderTotalService(self.db).recalculate_order_total(order_id)
+        SaleDeliveryProjectionService(self.db).project_total(venta_id, new_total)
         pending_left = self.db.execute(
             "SELECT 1 FROM delivery_items WHERE delivery_id=? AND adjustment_status='pending_customer' LIMIT 1",
             (order_id,),
@@ -121,14 +125,24 @@ class AdjustmentApprovalService:
                 """
                 INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
                 SELECT ?,
+                       json_object('order_id', ?, 'old_total', ?, 'new_total', ?, 'folio', ?, 'cliente_tel', COALESCE(cliente_tel,'')),
+                       COALESCE(sucursal_id,1), 35, datetime('now')
+                FROM delivery_orders WHERE id=?
+                """,
+                (DeliveryEvents.TOTAL_UPDATED.value, order_id, old_total, new_total, folio, order_id),
+            )
+            self.db.execute(
+                """
+                INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
+                SELECT ?,
                        json_object('order_id', ?, 'item_id', ?, 'folio', ?, 'response', ?, 'total', ?),
                        COALESCE(sucursal_id,1), 40, datetime('now')
                 FROM delivery_orders WHERE id=?
                 """,
                 (event_type, order_id, item_id, folio, action, new_total, order_id),
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("No se pudo registrar evento de ajuste delivery order=%s item=%s: %s", order_id, item_id, exc)
 
         self.db.commit()
         return {

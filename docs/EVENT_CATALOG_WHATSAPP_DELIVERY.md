@@ -41,3 +41,14 @@
 - Consumers: ERP UI inbox and badge counters.
 - Persistence: `notification_inbox` (+ optional `event_log`).
 - Idempotency key: `branch_notification:{dedupe_key}`.
+
+## Delivery canonical vs legacy bridge (Fase 11)
+- Canonical source events: `DELIVERY_ORDER_CREATED`, `DELIVERY_ORDER_PREPARING`, `DELIVERY_OUT_FOR_DELIVERY`, `DELIVERY_ORDER_DELIVERED`, `DELIVERY_ORDER_CANCELLED`, `DELIVERY_ORDER_RESERVED`, `INVENTORY_COMMIT_REQUIRED`, `INVENTORY_RELEASE_REQUIRED`, `CUSTOMER_NOTIFICATION_REQUESTED`.
+- Temporary bridge: `LegacyDeliveryEventBridge` translates canonical events to legacy names only for old consumers.
+- Legacy translations currently supported:
+  - `DELIVERY_ORDER_CREATED` → `pedido_delivery_creado`, `pedido_whatsapp_recibido`.
+  - `DELIVERY_OUT_FOR_DELIVERY` → `pedido_en_ruta`.
+  - `DELIVERY_ORDER_DELIVERED` → `pedido_entregado`.
+  - `INVENTORY_RELEASE_REQUIRED` → `stock_liberar_solicitado`.
+- `notificacion_whatsapp_enviada` is not generated from `CUSTOMER_NOTIFICATION_REQUESTED`; it remains a legacy confirmation emitted only after direct notifier success in compatibility mode.
+- Removal policy: migrate listeners to canonical events first, then remove bridge translations in a later cleanup phase.
