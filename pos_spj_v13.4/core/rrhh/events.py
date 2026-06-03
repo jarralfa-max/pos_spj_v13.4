@@ -110,6 +110,21 @@ class EmployeeDeactivatedPayload(EmployeeEventPayload):
 
 
 @dataclass(frozen=True)
+class DriverAssignedPayload(_PayloadBase):
+    event_type: ClassVar[str] = REPARTIDOR_ASIGNADO
+    driver_id: int
+    employee_id: int
+    source_module: str = "rrhh"
+    reason: str = "identity_link"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        _ensure_positive_int(self.driver_id, "driver_id")
+        _ensure_positive_int(self.employee_id, "employee_id")
+        _ensure_text(self.source_module, "source_module")
+
+
+@dataclass(frozen=True)
 class AttendanceEventPayload(_PayloadBase):
     event_type: ClassVar[str] = ASISTENCIA_REGISTRADA
     attendance_id: int
@@ -250,7 +265,7 @@ __all__ = [
     "COMISION_GENERADA", "COMISION_AUTORIZADA", "COMISION_PAGADA",
     "REPARTIDOR_ASIGNADO", "ENTREGA_COMPLETADA_POR_REPARTIDOR",
     "PAGO_REPARTIDOR_GENERADO", "AttendanceEventPayload",
-    "EmployeeCreatedPayload", "EmployeeDeactivatedPayload",
+    "DriverAssignedPayload", "EmployeeCreatedPayload", "EmployeeDeactivatedPayload",
     "EmployeeEventPayload", "LeaveApprovedPayload", "LeaveEventPayload",
     "LeaveRejectedPayload", "PayrollGeneratedPayload", "PayrollPaidPayload",
     "PermissionApprovedPayload", "PermissionRequestedPayload",

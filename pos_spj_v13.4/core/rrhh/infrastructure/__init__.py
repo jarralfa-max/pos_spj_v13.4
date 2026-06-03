@@ -2,6 +2,7 @@
 
 from .sqlite_repositories import (
     SQLiteAttendanceRepository,
+    SQLiteEmployeeIdentityRepository,
     SQLiteEmployeeRepository,
     SQLiteLeaveRepository,
     SQLitePayrollRepository,
@@ -10,6 +11,7 @@ from .sqlite_repositories import (
 
 __all__ = [
     "SQLiteAttendanceRepository",
+    "SQLiteEmployeeIdentityRepository",
     "SQLiteEmployeeRepository",
     "SQLiteLeaveRepository",
     "SQLitePayrollRepository",

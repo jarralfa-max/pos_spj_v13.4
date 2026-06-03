@@ -308,3 +308,37 @@ Límites intencionales de Fase 8:
 - No se elimina ninguna tabla legacy.
 - No se cambia el flujo de asignación/corte de repartidores.
 - No se migra todavía la relación obligatoria repartidor ↔ empleado; se deja columna nullable para migración segura posterior.
+
+## Fase 9 implementada en este cambio
+
+Fase 9 consolida identidad laboral sin duplicar personas ni romper pantallas actuales:
+
+- `personal` sigue siendo la fuente canónica del empleado; `usuarios` y `drivers` solo agregan vínculos nullable hacia `personal.id`.
+- `EmployeeIdentityApplicationService` valida que el empleado exista y esté activo antes de vincular usuarios o repartidores.
+- Los vínculos son idempotentes: repetir la misma asociación no reescribe ni publica eventos duplicados; asociar un usuario/repartidor ya vinculado a otro empleado se rechaza.
+- `SQLiteEmployeeIdentityRepository` centraliza las escrituras de `usuarios.personal_id` y `drivers.personal_id/source_module` fuera de la UI.
+- `DriverAssignedPayload` publica `REPARTIDOR_ASIGNADO` desde Application Services con `operation_id` obligatorio.
+- La migración `095_rrhh_identity_links` agrega `usuarios.personal_id`, asegura `drivers.personal_id/source_module` e índices de consulta de forma idempotente.
+
+Límites intencionales de Fase 9:
+
+- Los vínculos siguen siendo nullable para permitir migración progresiva de usuarios/repartidores existentes.
+- No se fusionan ni eliminan registros existentes automáticamente.
+- No se fuerza una restricción única todavía para evitar romper datos históricos; la aplicación bloquea reasignaciones conflictivas durante el refactor.
+- No se cambia el flujo visual de Delivery/RRHH; los servicios quedan listos para cablear acciones de vinculación en UI.
+
+## Fase 10 implementada en este cambio
+
+Fase 10 formaliza el caso de uso de nómina en la capa Application sin romper los flujos legacy:
+
+- `PayrollApplicationService` registra pagos de nómina a través de `PayrollRepository`, valida elegibilidad de empleado activo con `EmployeeEligibilityPolicy` y publica eventos canónicos desde Application Services.
+- `PayrollPaymentCommand` y `PayrollApplicationResult` definen contrato explícito para entrada/salida de pagos de nómina, incluyendo `operation_id`, `payroll_payment_id`, `total`, `neto` y estado `created` para idempotencia.
+- `SQLitePayrollRepository` ahora puede persistir columnas de trazabilidad (`operation_id`, `source_module`, `source_id`) cuando existen por migración, manteniendo compatibilidad con tablas legacy que aún no las tengan.
+- `PayrollApplicationService.pay_payroll()` es idempotente por `operation_id`: una segunda ejecución devuelve el pago existente y no republica `NOMINA_GENERADA`/`NOMINA_PAGADA`.
+- El servicio publica `NOMINA_GENERADA` y `NOMINA_PAGADA` con el mismo `operation_id` y el `payroll_payment_id` generado, dejando Finanzas como consumidor del impacto contable.
+
+Límites intencionales de Fase 10:
+
+- No se reemplaza todavía `GestionarNominaUC` ni la UI; el servicio queda listo como frontera formal para migración progresiva.
+- No se cambia el cálculo legacy de nómina ni se agregan conceptos nuevos.
+- No se crean nuevas tablas; se reutilizan `nomina_pagos` y las columnas de trazabilidad existentes de la migración 093.

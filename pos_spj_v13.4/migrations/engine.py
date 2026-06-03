@@ -92,6 +92,7 @@ MIGRATIONS = [
     _Migration("092",  "migrations.standalone.092_loyalty_ledger_canonicalization"),
     _Migration("093",  "migrations.standalone.093_rrhh_payroll_traceability"),
     _Migration("094",  "migrations.standalone.094_rrhh_delivery_cleanup_schema"),
+    _Migration("095",  "migrations.standalone.095_rrhh_identity_links"),
 ]
 
 def _ensure_tracking_table(conn):

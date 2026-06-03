@@ -47,6 +47,13 @@ def _commit(db: Any) -> None:
         pass
 
 
+def _has_column(db: Any, table: str, column: str) -> bool:
+    try:
+        return any(row[1] == column for row in db.execute(f"PRAGMA table_info({table})"))
+    except Exception:
+        return False
+
+
 def _employee_from_row(row: Any) -> Employee:
     return Employee(
         id=int(_get(row, "id", 0) or 0),
@@ -200,6 +207,64 @@ class SQLiteEmployeeRepository:
 
     def deactivate(self, employee_id: int) -> None:
         self.db.execute("UPDATE personal SET activo = 0 WHERE id = ?", (employee_id,))
+        _commit(self.db)
+
+
+class SQLiteEmployeeIdentityRepository:
+    """SQLite adapter for phase-9 links between personal, usuarios and drivers.
+
+    This adapter does not mutate schema. The nullable link columns are created by
+    migration 095 so existing screens can keep working while identity records are
+    consolidated incrementally.
+    """
+
+    def __init__(self, db: Any):
+        self.db = db
+        self.employee_repository = SQLiteEmployeeRepository(db)
+
+    def get_employee(self, employee_id: int) -> Optional[Employee]:
+        return self.employee_repository.get_by_id(employee_id)
+
+    def user_exists(self, user_id: int) -> bool:
+        row = _fetchone(self.db.execute("SELECT 1 FROM usuarios WHERE id=?", (user_id,)))
+        return row is not None
+
+    def driver_exists(self, driver_id: int) -> bool:
+        row = _fetchone(self.db.execute("SELECT 1 FROM drivers WHERE id=?", (driver_id,)))
+        return row is not None
+
+    def get_user_employee_id(self, user_id: int) -> Optional[int]:
+        row = _fetchone(self.db.execute("SELECT personal_id FROM usuarios WHERE id=?", (user_id,)))
+        value = _get(row, "personal_id") if row else None
+        return int(value) if value else None
+
+    def get_driver_employee_id(self, driver_id: int) -> Optional[int]:
+        row = _fetchone(self.db.execute("SELECT personal_id FROM drivers WHERE id=?", (driver_id,)))
+        value = _get(row, "personal_id") if row else None
+        return int(value) if value else None
+
+    def get_user_id_for_employee(self, employee_id: int) -> Optional[int]:
+        row = _fetchone(self.db.execute("SELECT id FROM usuarios WHERE personal_id=?", (employee_id,)))
+        value = _get(row, "id") if row else None
+        return int(value) if value else None
+
+    def get_driver_id_for_employee(self, employee_id: int) -> Optional[int]:
+        row = _fetchone(self.db.execute("SELECT id FROM drivers WHERE personal_id=?", (employee_id,)))
+        value = _get(row, "id") if row else None
+        return int(value) if value else None
+
+    def link_user_to_employee(self, user_id: int, employee_id: int) -> None:
+        self.db.execute(
+            "UPDATE usuarios SET personal_id=? WHERE id=?",
+            (employee_id, user_id),
+        )
+        _commit(self.db)
+
+    def link_driver_to_employee(self, driver_id: int, employee_id: int) -> None:
+        self.db.execute(
+            "UPDATE drivers SET personal_id=?, source_module=? WHERE id=?",
+            (employee_id, "rrhh", driver_id),
+        )
         _commit(self.db)
 
 
@@ -359,31 +424,45 @@ class SQLitePayrollRepository:
         self.db = db
 
     def create_payment(self, data: Dict[str, Any]) -> int:
+        columns = [
+            "empleado_id", "periodo_inicio", "periodo_fin", "salario_base", "bonos",
+            "deducciones", "total", "metodo_pago", "estado", "usuario",
+        ]
+        values: List[Any] = [
+            data.get("empleado_id"),
+            data.get("periodo_inicio"),
+            data.get("periodo_fin"),
+            float(data.get("salario_base", 0) or 0),
+            float(data.get("bonos", 0) or 0),
+            float(data.get("deducciones", 0) or 0),
+            float(data.get("total", 0) or 0),
+            data.get("metodo_pago", "efectivo"),
+            data.get("estado", "pagado"),
+            data.get("usuario", ""),
+        ]
+        for optional_column in ("operation_id", "source_module", "source_id"):
+            if optional_column in data and _has_column(self.db, "nomina_pagos", optional_column):
+                columns.append(optional_column)
+                values.append(data.get(optional_column))
+
+        placeholders = ",".join("?" for _ in columns)
         cur = self.db.execute(
-            """
-            INSERT INTO nomina_pagos
-                (empleado_id, periodo_inicio, periodo_fin, salario_base, bonos,
-                 deducciones, total, metodo_pago, estado, usuario)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                data.get("empleado_id"),
-                data.get("periodo_inicio"),
-                data.get("periodo_fin"),
-                float(data.get("salario_base", 0) or 0),
-                float(data.get("bonos", 0) or 0),
-                float(data.get("deducciones", 0) or 0),
-                float(data.get("total", 0) or 0),
-                data.get("metodo_pago", "efectivo"),
-                data.get("estado", "pagado"),
-                data.get("usuario", ""),
-            ),
+            f"INSERT INTO nomina_pagos ({','.join(columns)}) VALUES ({placeholders})",
+            tuple(values),
         )
         _commit(self.db)
         return int(cur.lastrowid)
 
     def get_payment(self, payment_id: int) -> Optional[PayrollPayment]:
         row = _fetchone(self.db.execute("SELECT * FROM nomina_pagos WHERE id=?", (payment_id,)))
+        return _payment_from_row(row) if row else None
+
+    def get_payment_by_operation_id(self, operation_id: str) -> Optional[PayrollPayment]:
+        if not str(operation_id or "").strip() or not _has_column(self.db, "nomina_pagos", "operation_id"):
+            return None
+        row = _fetchone(
+            self.db.execute("SELECT * FROM nomina_pagos WHERE operation_id=? LIMIT 1", (operation_id,))
+        )
         return _payment_from_row(row) if row else None
 
     def get_latest_payment_for_employee(self, employee_id: int) -> Optional[PayrollPayment]:

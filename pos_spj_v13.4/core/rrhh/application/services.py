@@ -11,12 +11,15 @@ from typing import Any, Dict, List, Optional
 
 from core.rrhh.events import (
     AttendanceEventPayload,
+    DriverAssignedPayload,
     EmployeeCreatedPayload,
     EmployeeDeactivatedPayload,
     EmployeeEventPayload,
     LeaveApprovedPayload,
     LeaveEventPayload,
     LeaveRejectedPayload,
+    PayrollGeneratedPayload,
+    PayrollPaidPayload,
     PermissionApprovedPayload,
     PermissionRequestedPayload,
     RRHHEventPublisher,
@@ -33,8 +36,10 @@ from core.rrhh.domain import (
 )
 from .repositories import (
     AttendanceRepository,
+    EmployeeIdentityRepository,
     EmployeeRepository,
     LeaveRepository,
+    PayrollRepository,
     ShiftRepository,
 )
 
@@ -313,6 +318,282 @@ class LeaveApplicationService:
         exclude_id: Optional[int] = None,
     ) -> List[LeaveRequest]:
         return self.repository.find_overlaps(employee_id, date_from, date_to, exclude_id=exclude_id)
+
+
+@dataclass(frozen=True)
+class PayrollPaymentCommand:
+    """Formal command for registering and publishing a payroll payment."""
+
+    employee_id: int
+    period_start: str
+    period_end: str
+    total: float
+    sucursal_id: int
+    neto: Optional[float] = None
+    salario_base: float = 0.0
+    bonos: float = 0.0
+    deducciones: float = 0.0
+    metodo_pago: str = "efectivo"
+    usuario: str = ""
+    operation_id: str = ""
+    source_id: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class PayrollApplicationResult:
+    ok: bool
+    payroll_payment_id: int
+    employee_id: int
+    total: float
+    neto: float
+    operation_id: str
+    created: bool = True
+    error: str = ""
+
+
+class PayrollApplicationService:
+    """Formal payroll application service for phase 10.
+
+    It owns payroll payment registration, employee eligibility checks and
+    canonical RRHH payroll event publishing. Legacy UIs can keep calling current
+    use cases while this service becomes the stable Application layer boundary.
+    """
+
+    def __init__(
+        self,
+        payroll_repository: PayrollRepository,
+        employee_repository: EmployeeRepository,
+        eligibility_policy: Optional[EmployeeEligibilityPolicy] = None,
+        event_publisher: Optional[RRHHEventPublisher] = None,
+    ):
+        self.payroll_repository = payroll_repository
+        self.employee_repository = employee_repository
+        self.eligibility_policy = eligibility_policy or EmployeeEligibilityPolicy()
+        self.event_publisher = event_publisher or RRHHEventPublisher()
+
+    def pay_payroll(self, command: PayrollPaymentCommand) -> PayrollApplicationResult:
+        op_id = str(command.operation_id or "").strip() or new_operation_id("nomina")
+        try:
+            employee = self._require_payroll_eligible_employee(command.employee_id)
+            self._validate_command(command)
+            neto = float(command.neto if command.neto is not None else command.total)
+            total = float(command.total)
+
+            existing = self.payroll_repository.get_payment_by_operation_id(op_id)
+            if existing:
+                return PayrollApplicationResult(
+                    ok=True,
+                    payroll_payment_id=existing.id,
+                    employee_id=existing.empleado_id,
+                    total=existing.total,
+                    neto=existing.total,
+                    operation_id=op_id,
+                    created=False,
+                )
+
+            payment_id = self.payroll_repository.create_payment(
+                {
+                    "empleado_id": command.employee_id,
+                    "periodo_inicio": command.period_start,
+                    "periodo_fin": command.period_end,
+                    "salario_base": command.salario_base,
+                    "bonos": command.bonos,
+                    "deducciones": command.deducciones,
+                    "total": total,
+                    "metodo_pago": command.metodo_pago,
+                    "estado": "pagado",
+                    "usuario": command.usuario,
+                    "operation_id": op_id,
+                    "source_module": "rrhh",
+                    "source_id": command.source_id,
+                }
+            )
+
+            nombre = employee.nombre_completo
+            self.event_publisher.publish(
+                PayrollGeneratedPayload(
+                    operation_id=op_id,
+                    employee_id=command.employee_id,
+                    period_start=command.period_start,
+                    period_end=command.period_end,
+                    total=total,
+                    neto=neto,
+                    sucursal_id=command.sucursal_id,
+                    nombre=nombre,
+                    payroll_payment_id=payment_id,
+                )
+            )
+            self.event_publisher.publish(
+                PayrollPaidPayload(
+                    operation_id=op_id,
+                    payroll_payment_id=payment_id,
+                    employee_id=command.employee_id,
+                    period_start=command.period_start,
+                    period_end=command.period_end,
+                    total=total,
+                    neto=neto,
+                    metodo_pago=command.metodo_pago,
+                    sucursal_id=command.sucursal_id,
+                    nombre=nombre,
+                    source_module="rrhh",
+                    source_id=command.source_id,
+                )
+            )
+            return PayrollApplicationResult(
+                ok=True,
+                payroll_payment_id=payment_id,
+                employee_id=command.employee_id,
+                total=total,
+                neto=neto,
+                operation_id=op_id,
+                created=True,
+            )
+        except Exception as exc:
+            return PayrollApplicationResult(
+                ok=False,
+                payroll_payment_id=0,
+                employee_id=command.employee_id,
+                total=float(command.total or 0),
+                neto=float(command.neto if command.neto is not None else command.total or 0),
+                operation_id=op_id,
+                created=False,
+                error=str(exc),
+            )
+
+    def _require_payroll_eligible_employee(self, employee_id: int) -> Employee:
+        self._ensure_positive_int(employee_id, "employee_id")
+        employee = self.employee_repository.get_by_id(employee_id)
+        if not employee:
+            raise ValueError(f"Empleado no encontrado: {employee_id}")
+        if not self.eligibility_policy.is_payroll_eligible(employee):
+            raise ValueError(f"Empleado no elegible para nómina: {employee_id}")
+        return employee
+
+    def _validate_command(self, command: PayrollPaymentCommand) -> None:
+        self._ensure_text(command.period_start, "period_start")
+        self._ensure_text(command.period_end, "period_end")
+        self._ensure_text(command.metodo_pago, "metodo_pago")
+        self._ensure_positive_int(command.sucursal_id, "sucursal_id")
+        if command.total < 0:
+            raise ValueError("total no puede ser negativo")
+        if command.neto is not None and command.neto < 0:
+            raise ValueError("neto no puede ser negativo")
+
+    @staticmethod
+    def _ensure_positive_int(value: int, field_name: str) -> None:
+        if not isinstance(value, int) or value <= 0:
+            raise ValueError(f"{field_name} debe ser un entero positivo")
+
+    @staticmethod
+    def _ensure_text(value: str, field_name: str) -> None:
+        if not str(value or "").strip():
+            raise ValueError(f"{field_name} es obligatorio")
+
+
+class EmployeeIdentityApplicationService:
+    """Consolidates labor identity links between employees, users and drivers.
+
+    Phase 9 keeps the links additive and nullable: it never creates duplicate
+    employees, users or drivers; it only links existing records to the canonical
+    ``personal`` employee row after validating that employee is active.
+    """
+
+    def __init__(
+        self,
+        repository: EmployeeIdentityRepository,
+        eligibility_policy: Optional[EmployeeEligibilityPolicy] = None,
+        event_publisher: Optional[RRHHEventPublisher] = None,
+    ):
+        self.repository = repository
+        self.eligibility_policy = eligibility_policy or EmployeeEligibilityPolicy()
+        self.event_publisher = event_publisher or RRHHEventPublisher()
+
+    def link_user_to_employee(
+        self,
+        user_id: int,
+        employee_id: int,
+        operation_id: Optional[str] = None,
+    ) -> int:
+        employee = self._require_active_employee(employee_id)
+        self._ensure_positive(user_id, "user_id")
+        if not self.repository.user_exists(user_id):
+            raise ValueError(f"Usuario no encontrado: {user_id}")
+
+        current_employee_id = self.repository.get_user_employee_id(user_id)
+        if current_employee_id == employee_id:
+            return employee_id
+        if current_employee_id:
+            raise ValueError(
+                f"El usuario {user_id} ya está vinculado al empleado {current_employee_id}"
+            )
+        existing_user_id = self.repository.get_user_id_for_employee(employee_id)
+        if existing_user_id and existing_user_id != user_id:
+            raise ValueError(
+                f"El empleado {employee_id} ya está vinculado al usuario {existing_user_id}"
+            )
+
+        self.repository.link_user_to_employee(user_id, employee_id)
+        self.event_publisher.publish(
+            EmployeeEventPayload(
+                operation_id=operation_id or new_operation_id("usuario-empleado"),
+                employee_id=employee_id,
+                nombre=employee.nombre_completo,
+                puesto=employee.puesto,
+                sucursal_id=employee.sucursal_id,
+                changes={"usuario_id": user_id, "identity_link": "usuario"},
+            )
+        )
+        return employee_id
+
+    def link_driver_to_employee(
+        self,
+        driver_id: int,
+        employee_id: int,
+        operation_id: Optional[str] = None,
+    ) -> int:
+        self._require_active_employee(employee_id)
+        self._ensure_positive(driver_id, "driver_id")
+        if not self.repository.driver_exists(driver_id):
+            raise ValueError(f"Repartidor no encontrado: {driver_id}")
+
+        current_employee_id = self.repository.get_driver_employee_id(driver_id)
+        if current_employee_id == employee_id:
+            return employee_id
+        if current_employee_id:
+            raise ValueError(
+                f"El repartidor {driver_id} ya está vinculado al empleado {current_employee_id}"
+            )
+        existing_driver_id = self.repository.get_driver_id_for_employee(employee_id)
+        if existing_driver_id and existing_driver_id != driver_id:
+            raise ValueError(
+                f"El empleado {employee_id} ya está vinculado al repartidor {existing_driver_id}"
+            )
+
+        self.repository.link_driver_to_employee(driver_id, employee_id)
+        self.event_publisher.publish(
+            DriverAssignedPayload(
+                operation_id=operation_id or new_operation_id("repartidor-empleado"),
+                driver_id=driver_id,
+                employee_id=employee_id,
+                source_module="rrhh",
+                reason="identity_link",
+            )
+        )
+        return employee_id
+
+    def _require_active_employee(self, employee_id: int) -> Employee:
+        self._ensure_positive(employee_id, "employee_id")
+        employee = self.repository.get_employee(employee_id)
+        if not employee:
+            raise ValueError(f"Empleado no encontrado: {employee_id}")
+        if not self.eligibility_policy.is_active(employee):
+            raise ValueError(f"Empleado inactivo no puede vincularse: {employee_id}")
+        return employee
+
+    @staticmethod
+    def _ensure_positive(value: int, field_name: str) -> None:
+        if not isinstance(value, int) or value <= 0:
+            raise ValueError(f"{field_name} debe ser un entero positivo")
 
 
 class ShiftApplicationService:
