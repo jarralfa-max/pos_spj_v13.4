@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QMessageBox, QFormLayout, QGroupBox,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
-    QAbstractItemView, QFrame, QSplitter, QListWidget,
+    QAbstractItemView, QFrame, QSplitter, QListWidget, QListWidgetItem,
     QDateEdit, QTabWidget,
     QCheckBox, QTextEdit, QFileDialog, QStackedWidget, QScrollArea
 )
