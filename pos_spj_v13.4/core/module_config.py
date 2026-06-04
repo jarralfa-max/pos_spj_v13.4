@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import Dict, Optional
 
+from repositories.config_repository import ConfigRepository
+
 logger = logging.getLogger("spj.config")
 
 # Toggles disponibles con valores por defecto
@@ -40,42 +42,30 @@ class ModuleConfig:
 
     def __init__(self, db_conn=None):
         self.db = db_conn
+        self.repository = ConfigRepository(db_conn) if db_conn else None
         self._toggles: Dict[str, bool] = dict(DEFAULT_TOGGLES)
         self._ensure_table()
         self._load()
 
     def _ensure_table(self):
+        """Validate migration-owned module_toggles availability.
+
+        Schema creation and default seeding now live in migrations, not services.
+        """
         if not self.db:
             return
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS module_toggles (
-                    clave TEXT PRIMARY KEY,
-                    activo INTEGER DEFAULT 1,
-                    descripcion TEXT DEFAULT ''
-                )
-            """)
-            # Insertar defaults si no existen
-            for k, v in DEFAULT_TOGGLES.items():
-                self.db.execute(
-                    "INSERT OR IGNORE INTO module_toggles(clave, activo) VALUES(?,?)",
-                    (k, 1 if v else 0))
-            try:
-                self.db.commit()
-            except Exception:
-                pass
+            if self.repository is not None:
+                self.repository.get_module_toggles()
         except Exception as e:
-            logger.debug("_ensure_table: %s", e)
+            logger.debug("module_toggles unavailable; run migrations: %s", e)
 
     def _load(self):
         if not self.db:
             return
         try:
-            rows = self.db.execute(
-                "SELECT clave, activo FROM module_toggles"
-            ).fetchall()
-            for r in rows:
-                self._toggles[r[0]] = bool(r[1])
+            if self.repository is not None:
+                self._toggles.update(self.repository.get_module_toggles())
         except Exception:
             pass
 
@@ -89,16 +79,9 @@ class ModuleConfig:
         """Cambia el estado de un toggle y lo persiste."""
         key = module_key if module_key.endswith('_enabled') else f"{module_key}_enabled"
         self._toggles[key] = enabled
-        if self.db:
+        if self.repository is not None:
             try:
-                self.db.execute(
-                    "INSERT INTO module_toggles(clave, activo) VALUES(?,?) "
-                    "ON CONFLICT(clave) DO UPDATE SET activo=excluded.activo",
-                    (key, 1 if enabled else 0))
-                try:
-                    self.db.commit()
-                except Exception:
-                    pass
+                self.repository.set_module_toggle(key, enabled)
             except Exception as e:
                 logger.warning("set_enabled %s: %s", key, e)
         logger.info("Toggle %s = %s", key, enabled)
