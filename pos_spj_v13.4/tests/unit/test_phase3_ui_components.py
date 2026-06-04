@@ -6,7 +6,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_phase3_component_source_files_define_required_classes() -> None:
@@ -25,7 +25,7 @@ def test_phase3_component_source_files_define_required_classes() -> None:
 
     missing = []
     for relative_path, class_name in expected_classes.items():
-        content = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        content = (REPO_ROOT / "pos_spj_v13.4" / relative_path).read_text(encoding="utf-8")
         if class_name not in content:
             missing.append(f"{relative_path}: {class_name}")
 

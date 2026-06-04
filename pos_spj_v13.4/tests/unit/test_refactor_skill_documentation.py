@@ -1,8 +1,8 @@
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_PATH = REPO_ROOT / "docs" / "skills" / "SPJ_REFACTOR_SKILL.md"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SKILL_PATH = REPO_ROOT / "pos_spj_v13.4" / "docs" / "skills" / "SPJ_REFACTOR_SKILL.md"
 
 
 def test_refactor_skill_defines_mandatory_phase_guardrails() -> None:

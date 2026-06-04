@@ -6,9 +6,8 @@
 import logging
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
                              QLabel, QDialog, QVBoxLayout, QLineEdit, QPushButton,
-                             QMessageBox, QFrame, QMenuBar, QSizePolicy, QComboBox, QFormLayout)
+                             QMessageBox, QFrame, QSizePolicy)
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap
 
 logger = logging.getLogger("spj.main_window")
 
@@ -752,20 +751,22 @@ class MainWindow(QMainWindow):
                 self._session_bar.setStyleSheet(
                     "background:#2C3E50; color:#ecf0f1; font-size:11px; padding:0 12px;")
 
-        # Filtrar menú según rol (RBAC)
         try:
-            from security.rbac import get_permisos
-            uid = self.usuario_actual.get('id', 0)
-            permisos = get_permisos(uid, sucursal_id)
+            from core.services.configuration_settings_service import PermissionQueryService
+            from repositories.config_repository import ConfigRepository
+
+            permission_query = PermissionQueryService(ConfigRepository(self.container.db))
+            permisos = permission_query.permission_codes_for_role_name(rol)
             if hasattr(self.menu, 'set_permisos'):
                 self.menu.set_permisos(permisos, rol)
-            # v13.4: Guardar permisos en SessionContext
             try:
                 self.container.session.set_permisos(permisos)
-            except Exception:
-                pass
-        except Exception:
-            pass
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).debug("session permisos: %s", exc)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("No se pudieron cargar permisos configurados: %s", exc)
 
         # v13.4 FASES 1-13: Aplicar feature flags al menú tras login
         try:
@@ -1118,7 +1119,7 @@ class MainWindow(QMainWindow):
     def _abrir_busqueda_global(self):
         """Búsqueda rápida de productos/clientes (Ctrl+F)."""
         from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QLineEdit,
-            QListWidget, QListWidgetItem, QLabel, QHBoxLayout)
+            QListWidget, QListWidgetItem, QLabel)
         from PyQt5.QtCore import Qt, QTimer
         try:
             db = self.container.db

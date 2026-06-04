@@ -373,34 +373,19 @@ class MenuLateral(QFrame):
         return lbl
 
     def set_permisos(self, permisos: set, rol: str = "") -> None:
-        """
-        Filtra los botones del menú según los permisos del usuario activo.
-        Llámalo desde main_window después de login exitoso.
-        """
-        self._permisos = permisos
-        self._rol = rol.lower()
-
-        # Módulos restringidos por rol
-        SOLO_ADMIN_GERENTE = {
-            "FINANZAS_UNIFICADAS", "RRHH", "ACTIVOS", "CONFIG_SEGURIDAD",
-            "CONFIG_MODULOS", "CONFIG_HARDWARE",
-        }
-        SOLO_ADMIN = {"CONFIG_SEGURIDAD", "CONFIG_MODULOS"}
-        GERENTE_O_SUPERIOR = {"INTELIGENCIA_BI", "PREDICCIONES"}
+        """Filtra botones del menú según permisos configurados."""
+        del rol
+        normalized = {str(perm).upper() for perm in (permisos or set())}
+        self._permisos = normalized
+        self._rol = ""
 
         from PyQt5.QtWidgets import QPushButton as _QPB
         for btn in self.findChildren(_QPB):
             codigo = btn.property("modulo_codigo")
             if not codigo or codigo == "LOGOUT":
                 continue
-            visible = True
-            if codigo in SOLO_ADMIN and self._rol not in ("admin", "administrador"):
-                visible = False
-            elif codigo in SOLO_ADMIN_GERENTE and self._rol not in ("admin", "administrador", "gerente"):
-                visible = False
-            elif codigo in GERENTE_O_SUPERIOR and self._rol not in ("admin", "administrador", "gerente"):
-                visible = False
-            btn.setVisible(visible)
+            permission_key = f"{codigo}.ver".upper()
+            btn.setVisible("*" in normalized or permission_key in normalized)
 
     def set_module_config(self, module_config) -> None:
         """

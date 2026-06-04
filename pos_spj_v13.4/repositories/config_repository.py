@@ -504,6 +504,17 @@ class ConfigRepository:
             """
         ).fetchall()
 
+    def permission_codes_for_role_name(self, role_name: str) -> set[str]:
+        row = self.db.execute("SELECT id FROM roles WHERE nombre=?", (role_name,)).fetchone()
+        if not row:
+            return set()
+        role_id = row[0]
+        rows = self.db.execute(
+            "SELECT modulo, accion FROM rol_permisos WHERE rol_id=? AND permitido=1",
+            (role_id,),
+        ).fetchall()
+        return {f"{row[0]}.{row[1]}" for row in rows}
+
     def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
         rows = self.db.execute(
             "SELECT modulo, accion, permitido FROM rol_permisos WHERE rol_id=?",

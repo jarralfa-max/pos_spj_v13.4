@@ -352,6 +352,9 @@ class PermissionQueryService:
     def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
         return self._repository.role_permissions(role_id)
 
+    def permission_codes_for_role_name(self, role_name: str) -> set[str]:
+        return self._repository.permission_codes_for_role_name(role_name)
+
     def permission_matrix(self) -> list[tuple[str, list[str]]]:
         return self._repository.permission_matrix()
 

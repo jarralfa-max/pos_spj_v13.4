@@ -2,7 +2,7 @@ from pathlib import Path
 import sqlite3
 import sys
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "pos_spj_v13.4"))
 
 from core.services.configuration_settings_service import (
@@ -18,11 +18,12 @@ CONFIG_UI = REPO_ROOT / "pos_spj_v13.4" / "modulos" / "configuracion.py"
 
 def test_configuracion_ui_no_longer_bootstraps_schema_or_defaults() -> None:
     content = CONFIG_UI.read_text(encoding="utf-8")
-    bootstrap_method = content[content.index("    def verificar_tablas_configuraciones"):content.index("    def init_ui")]
 
-    assert "CREATE TABLE" not in bootstrap_method
-    assert "INSERT OR IGNORE" not in bootstrap_method
-    assert "self.conexion.commit" not in bootstrap_method
+    assert "def verificar_tablas_configuraciones" not in content
+    assert "settings_application_service.assert_ready()" in content
+    assert "CREATE TABLE" not in content
+    assert "INSERT OR IGNORE" not in content
+    assert "self.conexion.commit" not in content
 
 
 def test_system_settings_service_reads_and_writes_settings_without_ui_sql() -> None:
@@ -102,24 +103,29 @@ def test_config_repository_owns_remaining_configuration_sql_boundaries() -> None
     content = (REPO_ROOT / "pos_spj_v13.4" / "repositories" / "config_repository.py").read_text(encoding="utf-8")
 
     required_methods = [
-        "get_ticket_design_elements",
-        "save_ticket_design",
-        "get_hardware_configs",
-        "save_hardware_config",
-        "get_loyalty_weights",
-        "save_loyalty_weights",
         "monthly_close_exists",
         "calculate_monthly_close_totals",
-        "list_whatsapp_numbers",
-        "save_whatsapp_number",
         "list_users_v13",
         "save_user_v13",
+        "save_role",
         "save_role_permissions",
         "audit_log_rows",
-        "save_legacy_user",
+        "permission_matrix",
+        "list_happy_hour_rules",
+        "save_happy_hour_rule",
     ]
     for method_name in required_methods:
         assert f"def {method_name}" in content
+
+    removed_methods = [
+        "get_legacy_users",
+        "save_legacy_user",
+        "get_hardware_configs",
+        "get_loyalty_weights",
+        "list_whatsapp_numbers",
+    ]
+    for method_name in removed_methods:
+        assert f"def {method_name}" not in content
 
 def test_module_config_uses_config_repository_for_toggle_persistence() -> None:
     content = (REPO_ROOT / "pos_spj_v13.4" / "core" / "module_config.py").read_text(encoding="utf-8")

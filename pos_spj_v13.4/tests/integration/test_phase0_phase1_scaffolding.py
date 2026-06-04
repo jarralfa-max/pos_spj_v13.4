@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_phase0_architecture_docs_and_phase1_guardrails_are_installed() -> None:
@@ -87,9 +87,9 @@ def test_phase0_architecture_docs_and_phase1_guardrails_are_installed() -> None:
         "backend/application/use_cases/generate_purchase_plan_use_case.py",
         "backend/application/commands/base_command.py",
         "backend/application/dto/use_case_result.py",
-        "pos_spj_v13.4/core/services/configuration_settings_service.py",
-        "pos_spj_v13.4/migrations/standalone/096_configuration_services_schema.py",
+        "core/services/configuration_settings_service.py",
+        "migrations/standalone/096_configuration_services_schema.py",
     ]
 
-    missing_paths = [path for path in required_paths if not (REPO_ROOT / path).is_file()]
+    missing_paths = [path for path in required_paths if not (REPO_ROOT / "pos_spj_v13.4" / path).is_file()]
     assert not missing_paths, "Missing refactor scaffolding files: " + ", ".join(missing_paths)

@@ -15,10 +15,10 @@ from .base import ModuloBase
 from modulos.ui_components import create_danger_button, apply_tooltip
 
 from core.services.configuration_settings_service import SettingsModuleServices
-from frontend.desktop.components.address_input import AddressInput
+from modulos.components.address_autocomplete_input import AddressAutocompleteInput
 from frontend.desktop.components.integer_input import IntegerInput
 from frontend.desktop.components.percent_input import PercentInput
-from frontend.desktop.components.phone_input import PhoneInput
+from modulos.spj_phone_widget import PhoneWidget
 from uuid import uuid4
 
 class ModuloConfiguracion(ModuloBase):
@@ -339,10 +339,10 @@ class ModuloConfiguracion(ModuloBase):
         self.emp_nombre.setPlaceholderText("Nombre del negocio")
         self.emp_eslogan = QLineEdit()
         self.emp_eslogan.setPlaceholderText("Eslogan o tagline")
-        self.emp_telefono = PhoneInput(self)
+        self.emp_telefono = PhoneWidget(parent=self)
         self.emp_email = QLineEdit()
         self.emp_web = QLineEdit()
-        self.emp_direccion = AddressInput(self)
+        self.emp_direccion = AddressAutocompleteInput(self)
         f1.addRow("Nombre:*", self.emp_nombre)
         f1.addRow("Eslogan:", self.emp_eslogan)
         f1.addRow("Teléfono:", self.emp_telefono)
@@ -421,7 +421,7 @@ class ModuloConfiguracion(ModuloBase):
         if settings.get('direccion'):
             self.emp_direccion.set_manual_value(str(settings['direccion']))
         if settings.get('telefono_empresa'):
-            self.emp_telefono.set_value(str(settings['telefono_empresa']))
+            self.emp_telefono.set_phone(str(settings['telefono_empresa']))
         if settings.get('tasa_iva'):
             try:
                 self.emp_tasa_iva.setValue(float(settings['tasa_iva']) * 100)
@@ -451,7 +451,7 @@ class ModuloConfiguracion(ModuloBase):
         datos = {
             'nombre_empresa': nombre,
             'eslogan_empresa': self.emp_eslogan.text().strip(),
-            'telefono_empresa': self.emp_telefono.value(),
+            'telefono_empresa': self.emp_telefono.get_e164(),
             'email_empresa': self.emp_email.text().strip(),
             'web_empresa': self.emp_web.text().strip(),
             'direccion': self.emp_direccion.value(),
@@ -1014,8 +1014,8 @@ class ModuloConfiguracion(ModuloBase):
         lay = QVBoxLayout(dlg)
         form = QFormLayout()
         txt_nombre = QLineEdit()
-        txt_dir = AddressInput()
-        txt_tel = PhoneInput()
+        txt_dir = AddressAutocompleteInput()
+        txt_tel = PhoneWidget()
         txt_abre = QLineEdit()
         txt_abre.setPlaceholderText("HH:MM")
         txt_cierra = QLineEdit()
@@ -1049,7 +1049,7 @@ class ModuloConfiguracion(ModuloBase):
                 if row:
                     txt_nombre.setText(row.get("nombre") or "")
                     txt_dir.set_manual_value(row.get("direccion") or "")
-                    txt_tel.set_value(row.get("telefono") or "")
+                    txt_tel.set_phone(row.get("telefono") or "")
                     txt_abre.setText(row.get("hora_apertura") or "")
                     txt_cierra.setText(row.get("hora_cierre") or "")
                     dias_sel = (row.get("dias_operacion") or "").split(",")
@@ -1077,7 +1077,7 @@ class ModuloConfiguracion(ModuloBase):
             self.company_profile_service.save_branch_delivery_profile(
                 name=nombre,
                 address=txt_dir.value(),
-                phone=txt_tel.value(),
+                phone=txt_tel.get_e164(),
                 opening_time=txt_abre.text().strip(),
                 closing_time=txt_cierra.text().strip(),
                 operation_days=dias,

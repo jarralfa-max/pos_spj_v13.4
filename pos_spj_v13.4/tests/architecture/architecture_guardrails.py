@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 from typing import Callable, Iterable, Mapping
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 APP_ROOT = REPO_ROOT / "pos_spj_v13.4"
 
 SKIPPED_DIR_PARTS = {
@@ -21,6 +21,7 @@ SKIPPED_DIR_PARTS = {
     ".mypy_cache",
     ".ruff_cache",
     "htmlcov",
+    "tests",
 }
 
 SOURCE_SUFFIXES = {".py", ".sql"}

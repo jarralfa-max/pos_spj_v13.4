@@ -1,37 +1,23 @@
-"""WhatsApp/E.164 phone capture component."""
+"""Deprecated phone component wrapper.
 
+PhoneWidget is the official SPJ phone input. This wrapper exists only so older
+imports keep working while code migrates to `modulos.spj_phone_widget.PhoneWidget`.
+"""
 from __future__ import annotations
 
-import re
-
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QHBoxLayout, QLineEdit, QWidget
+from modulos.spj_phone_widget import PhoneWidget
 
 
-E164_RE = re.compile(r"^\+[1-9]\d{7,14}$")
-
-
-class PhoneInput(QWidget):
-    value_changed = pyqtSignal(str)
-
+class PhoneInput(PhoneWidget):
     def __init__(self, parent=None, *, placeholder: str = "+5215512345678") -> None:
-        super().__init__(parent)
-        self._input = QLineEdit(self)
-        self._input.setPlaceholderText(placeholder)
-        self._input.textChanged.connect(self._handle_text_changed)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._input)
+        del placeholder
+        super().__init__(parent=parent)
 
     def value(self) -> str:
-        return self._input.text().strip()
+        return self.get_e164()
 
     def set_value(self, value: str) -> None:
-        self._input.setText(value.strip())
+        self.set_phone(value)
 
     def is_valid(self) -> bool:
-        return bool(E164_RE.fullmatch(self.value()))
-
-    def _handle_text_changed(self, raw_value: str) -> None:
-        self.value_changed.emit(raw_value.strip())
+        return bool(self.value().startswith("+") and 8 <= len(self.value()) <= 16)
