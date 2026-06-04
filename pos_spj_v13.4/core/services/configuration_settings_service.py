@@ -6,6 +6,7 @@ explicit backend boundary for configuration reads and mutations.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from core.module_config import DEFAULT_TOGGLES
@@ -17,11 +18,7 @@ class SystemSettingsService:
         self._repository = repository
 
     def ensure_configuration_available(self) -> bool:
-        try:
-            self._repository.get_all_settings()
-            return True
-        except Exception:
-            return False
+        return self._repository.settings_schema_is_ready()
 
     def get_setting(self, key: str, default: str | None = None) -> str | None:
         return self._repository.get_setting(key, default or "")
@@ -56,10 +53,7 @@ class ModuleSettingsService:
 
     def get_all(self) -> dict[str, bool]:
         toggles = dict(self._defaults)
-        try:
-            toggles.update(self._repository.get_module_toggles())
-        except Exception:
-            pass
+        toggles.update(self._repository.get_module_toggles())
         return toggles
 
 
@@ -123,10 +117,14 @@ class CompanyProfileService:
         )
 
 class SettingsApplicationService:
-    """Application boundary for general configuration values."""
+    """Application boundary for settings readiness and shared configuration values."""
 
     def __init__(self, system_settings_service: SystemSettingsService) -> None:
         self._system_settings_service = system_settings_service
+
+    def assert_ready(self) -> None:
+        if not self._system_settings_service.ensure_configuration_available():
+            raise RuntimeError("Migraciones de configuración pendientes. Ejecute migrations antes de abrir Configuración.")
 
     def get_general_settings(self) -> dict[str, str]:
         return self._system_settings_service.get_many(
@@ -188,6 +186,34 @@ class ClosingPeriodService:
 
     def history(self, limit: int = 24) -> list[tuple]:
         return self._repository.get_monthly_closures(limit=limit)
+
+
+class HappyHourSettingsService:
+    """Canonical settings boundary for Happy Hour rule administration."""
+
+    def __init__(self, repository: ConfigRepository) -> None:
+        self._repository = repository
+
+    def _to_ui_rule(self, rule: dict[str, Any]) -> dict[str, Any]:
+        mapped = dict(rule)
+        mapped["message"] = mapped.pop("mensaje_wa", "")
+        return mapped
+
+    def list_rules(self) -> list[dict[str, Any]]:
+        return [self._to_ui_rule(rule) for rule in self._repository.list_happy_hour_rules()]
+
+    def get_rule(self, rule_id: int) -> dict[str, Any] | None:
+        rule = self._repository.get_happy_hour_rule(rule_id)
+        return self._to_ui_rule(rule) if rule else None
+
+    def save_rule(self, rule: dict[str, Any]) -> int:
+        prepared = dict(rule)
+        if "message" in prepared:
+            prepared["mensaje_wa"] = prepared.pop("message")
+        return self._repository.save_happy_hour_rule(prepared)
+
+    def set_rule_active(self, rule_id: int, active: bool) -> None:
+        self._repository.set_happy_hour_rule_active(rule_id, active)
 
 
 class PermissionEventPublisher:
@@ -326,6 +352,9 @@ class PermissionQueryService:
     def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
         return self._repository.role_permissions(role_id)
 
+    def permission_matrix(self) -> list[tuple[str, list[str]]]:
+        return self._repository.permission_matrix()
+
     def audit_log_rows(self, limit: int = 200) -> list[tuple]:
         return self._repository.audit_log_rows(limit=limit)
 
@@ -373,3 +402,40 @@ class ModuleAccessService:
             self._cache.clear()
         else:
             self._cache.pop(role_id, None)
+
+
+@dataclass
+class SettingsModuleServices:
+    settings_application_service: SettingsApplicationService
+    system_settings_service: SystemSettingsService
+    company_profile_service: CompanyProfileService
+    email_settings_service: EmailSettingsService
+    payment_provider_settings_service: PaymentProviderSettingsService
+    closing_period_service: ClosingPeriodService
+    happy_hour_settings_service: HappyHourSettingsService
+    user_management_service: UserManagementService
+    role_management_service: RoleManagementService
+    permission_query_service: PermissionQueryService
+    module_access_service: ModuleAccessService
+    permission_event_publisher: PermissionEventPublisher
+
+    @classmethod
+    def from_connection(cls, connection: Any, event_bus: Any | None = None) -> "SettingsModuleServices":
+        repository = ConfigRepository(connection)
+        system_settings_service = SystemSettingsService(repository)
+        settings_application_service = SettingsApplicationService(system_settings_service)
+        permission_event_publisher = PermissionEventPublisher(event_bus)
+        return cls(
+            settings_application_service=settings_application_service,
+            system_settings_service=system_settings_service,
+            company_profile_service=CompanyProfileService(repository),
+            email_settings_service=EmailSettingsService(system_settings_service),
+            payment_provider_settings_service=PaymentProviderSettingsService(system_settings_service),
+            closing_period_service=ClosingPeriodService(repository),
+            happy_hour_settings_service=HappyHourSettingsService(repository),
+            user_management_service=UserManagementService(repository, permission_event_publisher),
+            role_management_service=RoleManagementService(repository, permission_event_publisher),
+            permission_query_service=PermissionQueryService(repository),
+            module_access_service=ModuleAccessService(repository, permission_event_publisher),
+            permission_event_publisher=permission_event_publisher,
+        )

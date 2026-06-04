@@ -18,11 +18,12 @@ CONFIG_UI = REPO_ROOT / "pos_spj_v13.4" / "modulos" / "configuracion.py"
 
 def test_configuracion_ui_no_longer_bootstraps_schema_or_defaults() -> None:
     content = CONFIG_UI.read_text(encoding="utf-8")
-    bootstrap_method = content[content.index("    def verificar_tablas_configuraciones"):content.index("    def init_ui")]
 
-    assert "CREATE TABLE" not in bootstrap_method
-    assert "INSERT OR IGNORE" not in bootstrap_method
-    assert "self.conexion.commit" not in bootstrap_method
+    assert "def verificar_tablas_configuraciones" not in content
+    assert "settings_application_service.assert_ready()" in content
+    assert "CREATE TABLE" not in content
+    assert "INSERT OR IGNORE" not in content
+    assert "self.conexion.commit" not in content
 
 
 def test_system_settings_service_reads_and_writes_settings_without_ui_sql() -> None:
@@ -109,6 +110,9 @@ def test_config_repository_owns_remaining_configuration_sql_boundaries() -> None
         "save_role",
         "save_role_permissions",
         "audit_log_rows",
+        "permission_matrix",
+        "list_happy_hour_rules",
+        "save_happy_hour_rule",
     ]
     for method_name in required_methods:
         assert f"def {method_name}" in content

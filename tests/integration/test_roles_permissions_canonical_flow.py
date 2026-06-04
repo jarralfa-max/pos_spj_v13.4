@@ -25,6 +25,8 @@ def _connection() -> sqlite3.Connection:
         CREATE TABLE rol_permisos(rol_id INTEGER, modulo TEXT, accion TEXT, permitido INTEGER);
         CREATE TABLE audit_logs(fecha TEXT, usuario TEXT, modulo TEXT, accion TEXT, detalles TEXT);
         INSERT INTO sucursales(nombre, activa) VALUES('Principal', 1);
+        INSERT INTO rol_permisos(rol_id, modulo, accion, permitido) VALUES(1, 'CONFIGURACION', 'ver', 1);
+        INSERT INTO rol_permisos(rol_id, modulo, accion, permitido) VALUES(1, 'CONFIGURACION', 'editar', 1);
         """
     )
     return conn
@@ -52,6 +54,10 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
         actor="admin",
     )
 
+    matrix = permission_query.permission_matrix()
+    assert matrix == [("CONFIGURACION", ["editar", "ver"])]
+
+    module_access._cache[role_id] = {("CONFIGURACION", "editar"): False}
     permissions = {("CONFIGURACION", "ver"): True, ("CONFIGURACION", "editar"): True}
     module_access.save_role_permissions(
         role_id,
@@ -64,6 +70,7 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
     assert saved[("CONFIGURACION", "ver")] is True
     assert saved[("CONFIGURACION", "editar")] is True
     assert module_access.has_permission(role_id, "CONFIGURACION", "editar") is True
+    assert module_access._cache[role_id][("CONFIGURACION", "editar")] is True
 
     module_path = REPO_ROOT / "pos_spj_v13.4" / "modulos" / "configuracion.py"
     assert "get_legacy_users" not in module_path.read_text(encoding="utf-8")

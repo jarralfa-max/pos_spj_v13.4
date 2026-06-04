@@ -43,7 +43,9 @@ def _minimal_connection() -> sqlite3.Connection:
         CREATE TABLE personal(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, apellidos TEXT, activo INTEGER DEFAULT 1, usuario_id INTEGER);
         CREATE TABLE audit_logs(fecha TEXT, usuario TEXT, modulo TEXT, accion TEXT, detalles TEXT);
         CREATE TABLE cierre_mensual(periodo TEXT, cerrado_por TEXT, fecha_cierre TEXT, total_ventas REAL, total_compras REAL, total_merma REAL);
+        CREATE TABLE happy_hour_rules(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, hora_inicio TEXT, hora_fin TEXT, dias_semana TEXT, tipo_descuento TEXT, valor REAL, aplica_a TEXT, aplica_valor TEXT, mensaje_wa TEXT, activo INTEGER, sucursal_id INTEGER);
         INSERT INTO sucursales(nombre, direccion, telefono, activa) VALUES('Principal', 'Centro', '+5215512345678', 1);
+        INSERT INTO rol_permisos(rol_id, modulo, accion, permitido) VALUES(1, 'CONFIGURACION', 'ver', 1);
         INSERT INTO roles(nombre, descripcion) VALUES('admin', 'Administrador');
         """
     )
@@ -69,10 +71,10 @@ def test_modulo_configuracion_loads_with_canonical_sections() -> None:
     labels = [module._nav_list.item(index).text() for index in range(module._nav_list.count())]
     assert labels == [
         "🏢 Empresa / Fiscal",
-        "⚙️ General",
         "👤 Usuarios y Roles",
         "📧 Email / SMTP",
         "💳 Mercado Pago",
+        "⏰ Happy Hour",
         "📅 Cierre Mensual",
     ]
     module.deleteLater()

@@ -49,19 +49,30 @@ class ConfigRepository:
         self._commit()
         
     def get_all_settings(self) -> dict:
-        """
-        Obtiene todas las configuraciones de la base de datos 
-        y las devuelve como un diccionario para la RAM.
-        """
-        try:
-            cursor = self.db.cursor()
-            rows = cursor.execute("SELECT clave, valor FROM configuraciones").fetchall()
-            return {row['clave']: row['valor'] for row in rows}
-        except Exception as e:
-            # Si la tabla no existe aún (por ejemplo en el primer arranque),
-            # no crasheamos, simplemente devolvemos un diccionario vacío.
-            logger.warning(f"No se pudieron cargar las configuraciones: {e}")
-            return {}
+        """Obtiene todas las configuraciones de la base de datos."""
+        cursor = self.db.cursor()
+        rows = cursor.execute("SELECT clave, valor FROM configuraciones").fetchall()
+        return {row['clave']: row['valor'] for row in rows}
+
+    def settings_schema_is_ready(self) -> bool:
+        required_tables = {
+            "configuraciones",
+            "sucursales",
+            "usuarios",
+            "roles",
+            "rol_permisos",
+            "personal",
+            "audit_logs",
+            "cierre_mensual",
+            "happy_hour_rules",
+        }
+        rows = self.db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN (%s)"
+            % ",".join("?" for _ in required_tables),
+            tuple(required_tables),
+        ).fetchall()
+        existing = {row[0] for row in rows}
+        return required_tables.issubset(existing)
 
     # --- CONFIGURACIÓN FASE 7 / MÓDULO CONFIGURACIÓN ---
     def get_settings(self, keys: list[str]) -> dict:
@@ -125,6 +136,42 @@ class ConfigRepository:
             (key, 1 if enabled else 0),
         )
         self._commit()
+
+    def permission_matrix(self) -> list[tuple[str, list[str]]]:
+        rows = self.db.execute(
+            """
+            SELECT DISTINCT modulo, accion
+            FROM rol_permisos
+            WHERE COALESCE(modulo, '') != '' AND COALESCE(accion, '') != ''
+            ORDER BY modulo, accion
+            """
+        ).fetchall()
+        matrix: dict[str, list[str]] = {}
+        for row in rows:
+            matrix.setdefault(str(row[0]), []).append(str(row[1]))
+        if not matrix and self._table_exists("permisos"):
+            permission_rows = self.db.execute(
+                """
+                SELECT modulo, codigo
+                FROM permisos
+                WHERE COALESCE(modulo, '') != '' AND COALESCE(codigo, '') != ''
+                ORDER BY modulo, codigo
+                """
+            ).fetchall()
+            for row in permission_rows:
+                module = str(row[0])
+                code = str(row[1])
+                action = code.split(".")[-1] if "." in code else code
+                if action not in matrix.setdefault(module, []):
+                    matrix[module].append(action)
+        return [(module, actions) for module, actions in matrix.items()]
+
+    def _table_exists(self, table_name: str) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,),
+        ).fetchone()
+        return bool(row)
 
     def get_branch(self, branch_id: int) -> dict | None:
         row = self.db.execute("SELECT * FROM sucursales WHERE id=?", (branch_id,)).fetchone()
@@ -222,6 +269,86 @@ class ConfigRepository:
         self._commit()
         return int(cursor.lastrowid)
 
+    def _happy_hour_row_to_dict(self, row) -> dict:
+        keys = [
+            "id", "nombre", "hora_inicio", "hora_fin", "dias_semana",
+            "tipo_descuento", "valor", "aplica_a", "aplica_valor",
+            "mensaje_wa", "activo", "sucursal_id",
+        ]
+        if hasattr(row, "keys"):
+            return {key: row[key] for key in row.keys()}
+        return {key: row[index] for index, key in enumerate(keys) if index < len(row)}
+
+    def list_happy_hour_rules(self) -> list[dict]:
+        rows = self.db.execute(
+            """
+            SELECT id, nombre, hora_inicio, hora_fin, dias_semana, tipo_descuento,
+                   valor, aplica_a, aplica_valor, mensaje_wa, activo, sucursal_id
+            FROM happy_hour_rules
+            ORDER BY nombre
+            """
+        ).fetchall()
+        return [self._happy_hour_row_to_dict(row) for row in rows]
+
+    def get_happy_hour_rule(self, rule_id: int) -> dict | None:
+        row = self.db.execute(
+            """
+            SELECT id, nombre, hora_inicio, hora_fin, dias_semana, tipo_descuento,
+                   valor, aplica_a, aplica_valor, mensaje_wa, activo, sucursal_id
+            FROM happy_hour_rules
+            WHERE id=?
+            """,
+            (rule_id,),
+        ).fetchone()
+        return self._happy_hour_row_to_dict(row) if row else None
+
+    def save_happy_hour_rule(self, rule: dict) -> int:
+        values = (
+            rule["nombre"],
+            rule["hora_inicio"],
+            rule["hora_fin"],
+            rule["dias_semana"],
+            rule["tipo_descuento"],
+            float(rule["valor"]),
+            rule["aplica_a"],
+            rule.get("aplica_valor") or "",
+            rule.get("mensaje_wa") or "",
+            1 if rule.get("activo") else 0,
+            int(rule.get("sucursal_id") or 1),
+        )
+        rule_id = rule.get("id")
+        if rule_id:
+            self.db.execute(
+                """
+                UPDATE happy_hour_rules
+                SET nombre=?, hora_inicio=?, hora_fin=?, dias_semana=?,
+                    tipo_descuento=?, valor=?, aplica_a=?, aplica_valor=?,
+                    mensaje_wa=?, activo=?, sucursal_id=?
+                WHERE id=?
+                """,
+                values + (int(rule_id),),
+            )
+            self._commit()
+            return int(rule_id)
+        cursor = self.db.execute(
+            """
+            INSERT INTO happy_hour_rules
+                (nombre, hora_inicio, hora_fin, dias_semana, tipo_descuento,
+                 valor, aplica_a, aplica_valor, mensaje_wa, activo, sucursal_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            values,
+        )
+        self._commit()
+        return int(cursor.lastrowid)
+
+    def set_happy_hour_rule_active(self, rule_id: int, active: bool) -> None:
+        self.db.execute(
+            "UPDATE happy_hour_rules SET activo=? WHERE id=?",
+            (1 if active else 0, rule_id),
+        )
+        self._commit()
+
     def _commit(self) -> None:
         try:
             self.db.commit()
@@ -305,8 +432,8 @@ class ConfigRepository:
         return self.db.execute(
             """
             SELECT id,nombre,COALESCE(direccion,''),
-                   COALESCE(hora_apertura,'08:00'),COALESCE(hora_cierre,'21:00'),
-                   COALESCE(dias_operacion,'1,2,3,4,5,6'),activa
+                   COALESCE(hora_apertura,''),COALESCE(hora_cierre,''),
+                   COALESCE(dias_operacion,''),activa
             FROM sucursales ORDER BY nombre
             """
         ).fetchall()

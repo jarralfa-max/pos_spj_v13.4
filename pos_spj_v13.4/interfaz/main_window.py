@@ -797,6 +797,10 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(800, self._mostrar_inbox_login)
         QTimer.singleShot(500, self._start_badge_refresh)
 
+    def refresh_module_access(self) -> None:
+        """Reaplica permisos del usuario activo sobre el menú lateral."""
+        self._propagar_usuario()
+
     def _arrancar_session_timeout(self) -> None:
         """Activa el monitor de inactividad (se resetea con mouse/teclado)."""
         try:

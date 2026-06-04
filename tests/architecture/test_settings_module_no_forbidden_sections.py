@@ -10,6 +10,7 @@ FORBIDDEN_TOKENS = [
     "_setup_tab_whatsapp",
     "_toggle_dark_mode",
     "LoyaltyProgramSettingsService",
+    "PhoneWidget",
     "get_legacy_users",
     "DialogoUsuario",
     "tabla_usuarios",
