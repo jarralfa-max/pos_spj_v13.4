@@ -1,0 +1,72 @@
+{"ts": "2026-05-30T06:09:30.628199", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530000927-FAF9 t_dialog_done=138029.701516 t_uc_start=138029.709232 t_uc_done=138030.274730 t_ticket_start=138030.275989 t_ticket_queued=138032.510671 t_pdf_queued=0.000000 t_products_reload=138032.585102 uc_ms=565.50 ticket_ms=2234.68 pdf_ms=2309.11 total_ms=2883.59", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T06:32:06.789127", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T06:32:18.666703", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T06:32:23.975793", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T06:32:23.976082", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T06:32:25.697407", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T06:32:25.697691", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T06:33:49.709656", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T06:38:25.945320", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530003825-75B2 t_dialog_done=139767.342068 t_uc_start=139767.342881 t_uc_done=139767.735692 t_ticket_start=139767.735934 t_ticket_queued=139767.870491 t_pdf_queued=0.000000 t_products_reload=139767.921758 uc_ms=392.81 ticket_ms=134.56 pdf_ms=185.82 total_ms=579.69", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T07:13:23.097264", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:13:34.529188", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:13:37.103776", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:13:37.104057", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:13:40.054926", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:13:40.055201", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:13:57.605792", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T07:14:52.050920", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530011451-DD0E t_dialog_done=141953.489939 t_uc_start=141953.492429 t_uc_done=141953.769937 t_ticket_start=141953.770524 t_ticket_queued=141954.012872 t_pdf_queued=0.000000 t_products_reload=141954.027356 uc_ms=277.51 ticket_ms=242.35 pdf_ms=256.83 total_ms=537.42", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T07:42:12.807440", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:42:30.545640", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:42:31.851494", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:42:31.851768", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:42:35.507975", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:42:35.508296", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T07:45:27.383270", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T07:46:23.935979", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530014622-06E5 t_dialog_done=143844.843551 t_uc_start=143844.846529 t_uc_done=143844.920456 t_ticket_start=143844.922148 t_ticket_queued=143845.844898 t_pdf_queued=0.000000 t_products_reload=143845.910939 uc_ms=73.93 ticket_ms=922.75 pdf_ms=988.79 total_ms=1067.39", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T07:50:48.301057", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530015048-B436 t_dialog_done=144110.036082 t_uc_start=144110.036672 t_uc_done=144110.122713 t_ticket_start=144110.122975 t_ticket_queued=144110.267366 t_pdf_queued=0.000000 t_products_reload=144110.277592 uc_ms=86.04 ticket_ms=144.39 pdf_ms=154.62 total_ms=241.51", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T17:52:56.760607", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T17:53:19.947858", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T17:53:21.203459", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T17:53:21.203737", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T17:53:27.051639", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T17:53:27.052083", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T17:54:48.481050", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T17:55:57.111875", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530115556-5211 t_dialog_done=180415.967648 t_uc_start=180415.970499 t_uc_done=180416.114863 t_ticket_start=180416.117611 t_ticket_queued=180416.437276 t_pdf_queued=0.000000 t_products_reload=180416.496451 uc_ms=144.36 ticket_ms=319.66 pdf_ms=378.84 total_ms=528.80", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T18:38:58.187871", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T18:39:30.617032", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T18:41:21.763476", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T18:41:32.756926", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T18:41:34.086596", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T18:41:34.086884", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T18:41:38.896038", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T18:41:38.896386", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T18:42:05.509287", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T18:42:58.000341", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530124257-4773 t_dialog_done=183236.969375 t_uc_start=183236.969842 t_uc_done=183237.037881 t_ticket_start=183237.038009 t_ticket_queued=183237.370194 t_pdf_queued=0.000000 t_products_reload=183237.392256 uc_ms=68.04 ticket_ms=332.19 pdf_ms=354.25 total_ms=422.88", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T18:44:42.250616", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T18:57:16.149394", "level": "ERROR", "logger": "spj.ventas", "msg": "Checkout failed: Operación cancelada. El inventario y caja están intactos: Stock insuficiente: Alas\n", "module": "ventas", "line": 4266}
+{"ts": "2026-05-30T18:58:32.200552", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530125831-1584 t_dialog_done=184171.084399 t_uc_start=184171.084638 t_uc_done=184171.161335 t_ticket_start=184171.163533 t_ticket_queued=184171.554392 t_pdf_queued=0.000000 t_products_reload=184171.591273 uc_ms=76.70 ticket_ms=390.86 pdf_ms=427.74 total_ms=506.87", "module": "ventas", "line": 4154}
+{"ts": "2026-05-30T20:04:05.859052", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:04:20.627309", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:04:22.814948", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:04:22.815221", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:04:25.953981", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:04:25.954255", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:05:10.541183", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T20:07:39.240014", "level": "ERROR", "logger": "spj.ventas", "msg": "Checkout failed: Operación cancelada. El inventario y caja están intactos: Stock insuficiente: Alas\n", "module": "ventas", "line": 4266}
+{"ts": "2026-05-30T20:07:53.551610", "level": "ERROR", "logger": "spj.ventas", "msg": "Checkout failed: Operación cancelada. El inventario y caja están intactos: Stock insuficiente: Alas\n", "module": "ventas", "line": 4266}
+{"ts": "2026-05-30T20:27:41.266603", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:27:55.214122", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:27:57.859391", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:27:57.859662", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:28:03.606303", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:28:03.606583", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:29:14.733207", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T20:30:22.783188", "level": "ERROR", "logger": "spj.ventas", "msg": "Checkout failed: No se pudo validar inventario antes de la venta. Intenta nuevamente.\n", "module": "ventas", "line": 4266}
+{"ts": "2026-05-30T20:41:44.685334", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:41:56.391951", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:41:57.566674", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:41:57.566949", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:42:01.130277", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:42:01.130553", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Tema 'Oscuro' aplicado correctamente", "module": "ventas", "line": 1222}
+{"ts": "2026-05-30T20:42:28.699375", "level": "INFO", "logger": "spj.ventas", "msg": "✅ Ventas → sucursal activa: Principal (id=1)", "module": "ventas", "line": 1282}
+{"ts": "2026-05-30T20:43:24.566176", "level": "INFO", "logger": "spj.ventas", "msg": "VENTA_TIMING folio=VNT-20260530144322-F42A t_dialog_done=190462.161500 t_uc_start=190462.164386 t_uc_done=190462.277741 t_ticket_start=190462.280558 t_ticket_queued=190463.926399 t_pdf_queued=0.000000 t_products_reload=190463.957888 uc_ms=113.35 ticket_ms=1645.84 pdf_ms=1677.33 total_ms=1796.39", "module": "ventas", "line": 4154}
