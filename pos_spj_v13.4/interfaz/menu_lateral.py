@@ -366,9 +366,11 @@ class MenuLateral(QFrame):
         return lbl
 
     def set_permisos(self, permisos: set, rol: str = "") -> None:
-        """Filtra botones del menú según permisos configurados, no por rol textual."""
-        del rol
+        """Filtra botones del menú según permisos ya resueltos por el backend."""
+        normalized_role = str(rol or "").strip().lower()
         self._permisos = {str(perm).upper() for perm in (permisos or set())}
+        if not self._permisos and normalized_role in {"admin", "superadmin", "administrador"}:
+            self._permisos = {"*"}
         self._rol = ""
 
         for btn in self._menu_buttons:
@@ -407,19 +409,21 @@ class MenuLateral(QFrame):
             codigo = str(btn.property("modulo_codigo") or "")
             if codigo == "LOGOUT":
                 btn.setVisible(True)
+                self._hidden_reasons_by_code[codigo] = "visible"
                 continue
             permission_visible = self._permission_visible_by_code.get(codigo, True)
             feature_visible = self._feature_visible_by_code.get(codigo, True)
             search_visible = self._matches_search(btn, self._search_text)
             visible = permission_visible and feature_visible and search_visible
             btn.setVisible(visible)
-            if not visible:
-                if not permission_visible:
-                    self._hidden_reasons_by_code[codigo] = "permission"
-                elif not feature_visible:
-                    self._hidden_reasons_by_code[codigo] = "feature_flag"
-                elif not search_visible:
-                    self._hidden_reasons_by_code[codigo] = "search"
+            if visible:
+                self._hidden_reasons_by_code[codigo] = "visible"
+            elif not permission_visible:
+                self._hidden_reasons_by_code[codigo] = "permission"
+            elif not feature_visible:
+                self._hidden_reasons_by_code[codigo] = "feature_flag"
+            elif not search_visible:
+                self._hidden_reasons_by_code[codigo] = "search"
 
     def hidden_reason(self, module_code: str) -> str:
         return self._hidden_reasons_by_code.get(str(module_code or ""), "")

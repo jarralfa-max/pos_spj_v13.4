@@ -511,9 +511,16 @@ class ConfigRepository:
             """
         ).fetchall()
 
+    def _normalize_role(self, role_name: str | None) -> str:
+        return str(role_name or "").strip().lower()
+
     def permission_codes_for_role_name(self, role_name: str) -> set[str]:
-        row = self.db.execute("SELECT id FROM roles WHERE nombre=?", (role_name,)).fetchone()
+        normalized_role = self._normalize_role(role_name)
+        if normalized_role in {"admin", "superadmin", "administrador"}:
+            return {"*"}
+        row = self.db.execute("SELECT id FROM roles WHERE lower(trim(nombre))=?", (normalized_role,)).fetchone()
         if not row:
+            logger.warning("Role not found while resolving permissions: %s", role_name)
             return set()
         return self.permission_codes_for_role_id(int(row[0]))
 
@@ -524,11 +531,63 @@ class ConfigRepository:
         ).fetchall()
         return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
 
-    def permission_codes_for_user(self, user_id: int) -> set[str]:
-        row = self.db.execute("SELECT rol FROM usuarios WHERE id=?", (user_id,)).fetchone()
+    def permission_codes_for_user(self, user_id: int, branch_id: int | None = None) -> set[str]:
+        row = self.db.execute("SELECT id, rol FROM usuarios WHERE id=?", (user_id,)).fetchone()
         if not row:
+            logger.warning("User not found while resolving permissions: %s", user_id)
             return set()
-        return self.permission_codes_for_role_name(str(row[0]))
+        normalized_role = self._normalize_role(row[1])
+        if normalized_role in {"admin", "superadmin", "administrador"}:
+            return {"*"}
+        permissions = set(self.permission_codes_for_role_name(normalized_role))
+        permissions = self._apply_user_permission_overrides(int(row[0]), permissions)
+        permissions = self._apply_branch_permission_restrictions(int(row[0]), branch_id, permissions)
+        return {normalize_permission(permission) for permission in permissions}
+
+    def _apply_user_permission_overrides(self, user_id: int, permissions: set[str]) -> set[str]:
+        if not self._table_exists("usuario_permisos"):
+            return permissions
+        rows = self.db.execute(
+            """
+            SELECT modulo, accion, permitido
+            FROM usuario_permisos
+            WHERE usuario_id=? AND COALESCE(modulo, '') != '' AND COALESCE(accion, '') != ''
+            """,
+            (user_id,),
+        ).fetchall()
+        resolved = set(permissions)
+        for row in rows:
+            code = normalize_permission(f"{row[0]}.{row[1]}")
+            if bool(row[2]):
+                resolved.add(code)
+            else:
+                resolved.discard(code)
+        return resolved
+
+    def _apply_branch_permission_restrictions(
+        self, user_id: int, branch_id: int | None, permissions: set[str]
+    ) -> set[str]:
+        if branch_id is None or not self._table_exists("usuario_sucursal_permisos"):
+            return permissions
+        rows = self.db.execute(
+            """
+            SELECT modulo, accion, permitido
+            FROM usuario_sucursal_permisos
+            WHERE usuario_id=? AND sucursal_id=?
+              AND COALESCE(modulo, '') != '' AND COALESCE(accion, '') != ''
+            """,
+            (user_id, branch_id),
+        ).fetchall()
+        if not rows:
+            return permissions
+        resolved = set(permissions)
+        for row in rows:
+            code = normalize_permission(f"{row[0]}.{row[1]}")
+            if bool(row[2]):
+                resolved.add(code)
+            else:
+                resolved.discard(code)
+        return resolved
 
     def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
         rows = self.db.execute(

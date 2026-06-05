@@ -77,7 +77,7 @@ class SessionContext:
 
     @property
     def es_admin(self) -> bool:
-        return self._rol in ('admin', 'superadmin')
+        return self._rol in ('admin', 'superadmin', 'administrador')
 
     @property
     def es_gerente(self) -> bool:
@@ -94,7 +94,7 @@ class SessionContext:
         self._user_id = user_data.get('id', 0)
         self._usuario = user_data.get('username', '')
         self._nombre_completo = user_data.get('nombre', self._usuario)
-        self._rol = user_data.get('rol', 'cajero')
+        self._rol = str(user_data.get('rol', 'cajero') or 'cajero').strip().lower()
         self._sucursal_id = user_data.get('sucursal_id', 1)
         self._sucursal_nombre = user_data.get('sucursal_nombre', 'Principal')
         self._sucursales_disponibles = user_data.get('sucursales_disponibles', [])
