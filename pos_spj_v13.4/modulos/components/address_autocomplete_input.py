@@ -54,6 +54,9 @@ class AddressAutocompleteInput(QWidget):
         self._request_id = 0
         self._cache: dict[str, list[dict[str, Any]]] = {}
         self._limit = limit
+        self._selected_result: dict[str, Any] | None = None
+        self._address_verified = False
+        self._selecting_suggestion = False
 
         self._search_box = QLineEdit(self)
         self._search_box.setPlaceholderText("Buscar dirección en mapa...")
@@ -61,6 +64,7 @@ class AddressAutocompleteInput(QWidget):
         self._manual_text = QTextEdit(self)
         self._manual_text.setPlaceholderText("Escribe la dirección manualmente")
         self._suggestions = QListWidget(self)
+        self._suggestions.setVisible(False)
 
         self._debounce = QTimer(self)
         self._debounce.setSingleShot(True)
@@ -75,25 +79,72 @@ class AddressAutocompleteInput(QWidget):
         layout.addWidget(self._manual_text)
 
         self._manual_text.setVisible(False)
-        self._manual_toggle.toggled.connect(self._manual_text.setVisible)
-        self._search_box.textChanged.connect(lambda _text: self._debounce.start())
-        self._suggestions.itemActivated.connect(self._emit_selected)
+        self._manual_toggle.toggled.connect(self._on_manual_toggled)
+        self._search_box.textChanged.connect(self._on_text_changed)
+        self._suggestions.itemClicked.connect(self._select_suggestion)
+        self._suggestions.itemActivated.connect(self._select_suggestion)
 
     def value(self) -> str:
         if self._manual_toggle.isChecked():
             return self._manual_text.toPlainText().strip()
-        item = self._suggestions.currentItem()
-        return self._search_box.text().strip() if item is None else item.text()
+        if self._selected_result and self._address_verified:
+            return self._label_for(self._selected_result)
+        return self._search_box.text().strip()
+
+    def coords(self) -> tuple[float, float] | None:
+        """Return selected latitude/longitude when the address is provider-verified."""
+        if not self._selected_result or not self._address_verified:
+            return None
+        lat, lng = self._extract_lat_lng(self._selected_result)
+        if lat is None or lng is None:
+            return None
+        return lat, lng
+
+    def place_id(self) -> str:
+        if not self._selected_result or not self._address_verified:
+            return ""
+        return str(
+            self._selected_result.get("place_id")
+            or self._selected_result.get("id")
+            or self._selected_result.get("mapbox_id")
+            or ""
+        )
+
+    def address_verified(self) -> bool:
+        return self._address_verified
+
+    def selected_data(self) -> dict[str, Any]:
+        return dict(self._selected_result or {})
 
     def set_manual_value(self, value: str) -> None:
+        self._selected_result = None
+        self._address_verified = False
         self._manual_toggle.setChecked(True)
         self._manual_text.setPlainText((value or "").strip())
         self._search_box.setText((value or "").strip())
+        self._suggestions.setVisible(False)
+
+    def _on_manual_toggled(self, checked: bool) -> None:
+        self._manual_text.setVisible(checked)
+        if checked:
+            self._selected_result = None
+            self._address_verified = False
+            self._suggestions.setVisible(False)
+
+    def _on_text_changed(self, _text: str) -> None:
+        if self._selecting_suggestion:
+            return
+        self._selected_result = None
+        self._address_verified = False
+        self._debounce.start()
 
     def _start_lookup(self) -> None:
+        if self._manual_toggle.isChecked():
+            return
         query = self._search_box.text().strip()
         if not query:
             self._suggestions.clear()
+            self._suggestions.setVisible(False)
             return
         cache_key = query.lower()
         if cache_key in self._cache:
@@ -115,16 +166,51 @@ class AddressAutocompleteInput(QWidget):
     def _handle_failure(self, request_id: int, _message: str) -> None:
         if request_id == self._request_id:
             self._suggestions.clear()
+            self._suggestions.setVisible(False)
 
     def _populate(self, results: list[dict[str, Any]]) -> None:
         self._suggestions.clear()
         for result in results:
-            label = str(result.get("label") or result.get("place_name") or "").strip()
+            label = self._label_for(result)
             if not label:
                 continue
             item = QListWidgetItem(label)
             item.setData(32, result)
             self._suggestions.addItem(item)
+        self._suggestions.setVisible(self._suggestions.count() > 0)
 
-    def _emit_selected(self, item: QListWidgetItem) -> None:
-        self.selected.emit(item.data(32) or {"label": item.text()})
+    def _select_suggestion(self, item: QListWidgetItem) -> None:
+        result = dict(item.data(32) or {"label": item.text()})
+        label = self._label_for(result) or item.text()
+        self._selected_result = result
+        self._address_verified = True
+        self._selecting_suggestion = True
+        try:
+            self._search_box.setText(label)
+        finally:
+            self._selecting_suggestion = False
+        self._suggestions.setVisible(False)
+        self.selected.emit(result)
+
+    @staticmethod
+    def _label_for(result: dict[str, Any]) -> str:
+        return str(
+            result.get("label")
+            or result.get("place_name")
+            or result.get("display_name")
+            or result.get("formatted_address")
+            or result.get("address")
+            or ""
+        ).strip()
+
+    @staticmethod
+    def _extract_lat_lng(result: dict[str, Any]) -> tuple[float | None, float | None]:
+        lat = result.get("lat", result.get("latitude"))
+        lng = result.get("lng", result.get("lon", result.get("longitude")))
+        center = result.get("center") or result.get("coordinates")
+        if (lat is None or lng is None) and isinstance(center, (list, tuple)) and len(center) >= 2:
+            lng, lat = center[0], center[1]
+        try:
+            return (float(lat), float(lng))
+        except (TypeError, ValueError):
+            return (None, None)

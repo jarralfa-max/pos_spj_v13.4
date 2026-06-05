@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QComboBox, QMessageBox, QFormLayout, QGroupBox,
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
-    QAbstractItemView, QFrame, QSplitter, QListWidget, QListWidgetItem,
+    QAbstractItemView, QSplitter, QListWidget, QListWidgetItem,
     QDateEdit, QTabWidget,
     QCheckBox, QTextEdit, QFileDialog, QStackedWidget, QScrollArea
 )
@@ -12,7 +12,7 @@ from PyQt5.QtCore import Qt
 from .base import ModuloBase
 
 # Design System Imports
-from modulos.ui_components import create_danger_button, apply_tooltip
+from modulos.ui_components import PageHeader, create_danger_button, apply_tooltip
 
 from core.services.configuration_settings_service import SettingsModuleServices
 from modulos.components.address_autocomplete_input import AddressAutocompleteInput
@@ -80,28 +80,47 @@ class ModuloConfiguracion(ModuloBase):
         if 0 <= row < self._page_stack.count():
             self._page_stack.setCurrentIndex(row)
 
+    def _setup_table_defaults(self, table: QTableWidget, actions_column: int | None = None) -> None:
+        """Apply standard settings for readable settings tables."""
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setAlternatingRowColors(True)
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(44)
+        if actions_column is not None:
+            table.setColumnWidth(actions_column, 120)
+            table.horizontalHeader().setSectionResizeMode(actions_column, QHeaderView.ResizeToContents)
+
+    def _create_action_button(self, icon: str, tooltip: str, kind: str) -> QPushButton:
+        """Create a colored compact action button for table rows."""
+        button = QPushButton(icon)
+        object_names = {
+            "edit": "warningBtn",
+            "warning": "warningBtn",
+            "activate": "successBtn",
+            "success": "successBtn",
+            "deactivate": "dangerBtn",
+            "delete": "dangerBtn",
+            "danger": "dangerBtn",
+            "primary": "primaryBtn",
+            "secondary": "secondaryBtn",
+        }
+        button.setObjectName(object_names.get(kind, "secondaryBtn"))
+        button.setMinimumSize(36, 32)
+        button.setCursor(Qt.PointingHandCursor)
+        apply_tooltip(button, tooltip)
+        return button
+
     def init_ui(self):
         """Inicializa la interfaz de usuario"""
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        # Encabezado
-        header_layout = QHBoxLayout()
-        title = QLabel("Configuración del Sistema")
-        title.setObjectName("tituloPrincipal")
-        title.setAlignment(Qt.AlignCenter)
-        font = title.font()
-        font.setPointSize(16)
-        font.setBold(True)
-        title.setFont(font)
-        header_layout.addWidget(title)
-        layout.addLayout(header_layout)
-
-        # Línea separadora
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        layout.addWidget(separator)
+        header = PageHeader(
+            self,
+            title="⚙️ Configuración",
+            subtitle="Empresa, usuarios, permisos, pagos, Happy Hour y cierre mensual.",
+        )
+        layout.addWidget(header)
 
         # ── Navegación vertical (submenú lateral) ────────────────────────
 
@@ -216,9 +235,7 @@ class ModuloConfiguracion(ModuloBase):
         hh.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
         for c in (2,3,4,5): hh.setSectionResizeMode(c, QHeaderView.ResizeToContents)
-        self._tbl_cierres.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_cierres.setAlternatingRowColors(True)
-        self._tbl_cierres.verticalHeader().setVisible(False)
+        self._setup_table_defaults(self._tbl_cierres)
         hist_lay.addWidget(self._tbl_cierres)
         lay.addWidget(grp_hist)
 
@@ -705,9 +722,7 @@ class ModuloConfiguracion(ModuloBase):
         hh.setSectionResizeMode(0, QHeaderView.Stretch)
         for index in (1, 2, 3, 4, 5, 6):
             hh.setSectionResizeMode(index, QHeaderView.ResizeToContents)
-        self._tbl_happy_hour.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_happy_hour.verticalHeader().setVisible(False)
-        self._tbl_happy_hour.setAlternatingRowColors(True)
+        self._setup_table_defaults(self._tbl_happy_hour, actions_column=6)
         lay.addWidget(self._tbl_happy_hour)
         self._cargar_happy_hour_rules()
 
@@ -740,11 +755,13 @@ class ModuloConfiguracion(ModuloBase):
             actions_layout.setContentsMargins(2, 2, 2, 2)
             rule_id = int(rule["id"])
             active = bool(rule.get("activo"))
-            btn_edit = QPushButton("✏️")
-            btn_edit.setFixedSize(26, 24)
+            btn_edit = self._create_action_button("✏️", "Editar regla Happy Hour", "edit")
             btn_edit.clicked.connect(lambda _, rid=rule_id: self._editar_happy_hour_rule(rid))
-            btn_toggle = QPushButton("⏸" if active else "▶")
-            btn_toggle.setFixedSize(26, 24)
+            btn_toggle = self._create_action_button(
+                "⏸" if active else "▶",
+                "Desactivar regla" if active else "Activar regla",
+                "deactivate" if active else "activate",
+            )
             btn_toggle.clicked.connect(lambda _, rid=rule_id, new_state=not active: self._toggle_happy_hour_rule(rid, new_state))
             actions_layout.addWidget(btn_edit)
             actions_layout.addWidget(btn_toggle)
@@ -905,9 +922,7 @@ class ModuloConfiguracion(ModuloBase):
         hh = self._tbl_suc_v13.horizontalHeader()
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
         for i in (0,2,3,4): hh.setSectionResizeMode(i, QHeaderView.ResizeToContents)
-        self._tbl_suc_v13.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_suc_v13.verticalHeader().setVisible(False)
-        self._tbl_suc_v13.setAlternatingRowColors(True)
+        self._setup_table_defaults(self._tbl_suc_v13, actions_column=5)
         suc_lay.addWidget(self._tbl_suc_v13)
         sub_tabs.addTab(tab_suc, "🏪 Sucursales")
 
@@ -930,9 +945,7 @@ class ModuloConfiguracion(ModuloBase):
         hh2 = self._tbl_usr_v13.horizontalHeader()
         hh2.setSectionResizeMode(1, QHeaderView.Stretch)
         for i in (0,2,3,4): hh2.setSectionResizeMode(i, QHeaderView.ResizeToContents)
-        self._tbl_usr_v13.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_usr_v13.verticalHeader().setVisible(False)
-        self._tbl_usr_v13.setAlternatingRowColors(True)
+        self._setup_table_defaults(self._tbl_usr_v13, actions_column=5)
         usr_lay.addWidget(self._tbl_usr_v13)
         sub_tabs.addTab(tab_usr, "👤 Usuarios")
 
@@ -945,9 +958,7 @@ class ModuloConfiguracion(ModuloBase):
             ["Nombre","Descripción","# Usuarios","Acciones"])
         hh3 = self._tbl_roles_v13.horizontalHeader()
         hh3.setSectionResizeMode(1, QHeaderView.Stretch)
-        self._tbl_roles_v13.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_roles_v13.verticalHeader().setVisible(False)
-        self._tbl_roles_v13.setAlternatingRowColors(True)
+        self._setup_table_defaults(self._tbl_roles_v13, actions_column=3)
         roles_lay.addWidget(self._tbl_roles_v13)
         sub_tabs.addTab(tab_roles, "🔑 Roles")
 
@@ -960,9 +971,7 @@ class ModuloConfiguracion(ModuloBase):
             ["Fecha","Usuario","Módulo","Acción","Detalle"])
         hh4 = self._tbl_audit_v13.horizontalHeader()
         hh4.setSectionResizeMode(4, QHeaderView.Stretch)
-        self._tbl_audit_v13.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tbl_audit_v13.verticalHeader().setVisible(False)
-        self._tbl_audit_v13.setAlternatingRowColors(True)
+        self._setup_table_defaults(self._tbl_audit_v13)
         audit_lay.addWidget(self._tbl_audit_v13)
         sub_tabs.addTab(tab_audit, "📋 Auditoría")
 
@@ -976,7 +985,7 @@ class ModuloConfiguracion(ModuloBase):
         elif idx == 3: self._cargar_auditoria_v13()
 
     def _cargar_sucursales_v13(self):
-        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout
+        from PyQt5.QtWidgets import QWidget, QHBoxLayout
         try:
             rows = self.company_profile_service.list_branch_delivery_rows()
         except Exception as exc:
@@ -997,8 +1006,7 @@ class ModuloConfiguracion(ModuloBase):
             btn_w = QWidget()
             bl = QHBoxLayout(btn_w)
             bl.setContentsMargins(2, 2, 2, 2)
-            btn_ed = QPushButton("✏️")
-            btn_ed.setFixedSize(26, 24)
+            btn_ed = self._create_action_button("✏️", "Editar sucursal", "edit")
             btn_ed.clicked.connect(lambda _, sid=suc_id: self._editar_sucursal_v13(sid))
             bl.addWidget(btn_ed)
             self._tbl_suc_v13.setCellWidget(ri, 5, btn_w)
@@ -1090,7 +1098,7 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _cargar_usuarios_v13(self):
-        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout
+        from PyQt5.QtWidgets import QWidget, QHBoxLayout
         from PyQt5.QtCore import Qt
         try:
             rows = self.user_management_service.list_users()
@@ -1108,9 +1116,13 @@ class ModuloConfiguracion(ModuloBase):
                 self._tbl_usr_v13.setItem(ri, ci, it)
             uid = r[0]
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
-            btn_ed = QPushButton("✏️"); btn_ed.setFixedSize(26,24)
+            btn_ed = self._create_action_button("✏️", "Editar usuario", "edit")
             btn_ed.clicked.connect(lambda _, uid=uid: self._editar_usuario_v13(uid))
-            btn_tog = QPushButton("✅" if r[5] else "❌"); btn_tog.setFixedSize(26,24)
+            btn_tog = self._create_action_button(
+                "✅" if r[5] else "❌",
+                "Desactivar usuario" if r[5] else "Activar usuario",
+                "deactivate" if r[5] else "activate",
+            )
             btn_tog.clicked.connect(
                 lambda _, uid=uid, a=r[5]: self._toggle_usuario(uid, not a))
             bl.addWidget(btn_ed); bl.addWidget(btn_tog)
@@ -1230,7 +1242,7 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _cargar_roles_v13(self):
-        from PyQt5.QtWidgets import QPushButton, QWidget, QHBoxLayout
+        from PyQt5.QtWidgets import QWidget, QHBoxLayout
         from PyQt5.QtCore import Qt
         try:
             rows = self.role_management_service.list_roles()
@@ -1245,9 +1257,7 @@ class ModuloConfiguracion(ModuloBase):
                 it.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
                 self._tbl_roles_v13.setItem(ri, ci, it)
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
-            btn_perm = QPushButton("🔑 Permisos")
-            btn_perm.setObjectName("secondaryBtn")
-            apply_tooltip(btn_perm, f"Editar permisos del rol {r[1]}")
+            btn_perm = self._create_action_button("🔑 Permisos", f"Editar permisos del rol {r[1]}", "primary")
             btn_perm.clicked.connect(
                 lambda _, rid=r[0], rnom=r[1]: self._editar_permisos_rol(rid, rnom))
             bl.addWidget(btn_perm)
