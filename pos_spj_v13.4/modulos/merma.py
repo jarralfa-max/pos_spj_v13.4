@@ -341,9 +341,12 @@ class ModuloMerma(QWidget):
         if not ok_pin or not pin:
             QMessageBox.warning(self, "Autorización", "Operación cancelada: PIN requerido.")
             return False
+<<<<<<< HEAD
         from core.permissions import verificar_permiso
         if not verificar_permiso(self.container, "MERMA.autorizar", self):
             return False
+=======
+>>>>>>> origin/main
         from core.services.discount_guard import DiscountGuard
         try:
             guard = DiscountGuard(self.container.db)
