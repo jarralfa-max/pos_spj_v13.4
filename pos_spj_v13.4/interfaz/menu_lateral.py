@@ -38,17 +38,6 @@ MODULOS = [
     "inteligencia_bi",  # UNIFICADO: Incluye BI, BI Pro y Decisiones
 ]
 
-# Módulos que SIEMPRE deben ser visibles sin importar los toggles de ModuleConfig
-# (Fase 0 whitelist — Plan Maestro SPJ v13.4)
-WHITELIST_SIEMPRE_VISIBLE = {
-    "FINANZAS_UNIFICADAS",  # UNIFICADO: Reemplaza TESORERIA + FINANZAS + PROVEEDORES
-    "ACTIVOS",
-    "PLANEACION_COMPRAS",
-    "WHATSAPP",
-    "INTELIGENCIA_BI",  # UNIFICADO: Reemplaza DECISIONES + BI_PRO + INTELIGENCIA_BI
-    "CONFIG_SEGURIDAD",
-}
-
 def _build_sidebar_qss() -> str:
     """
     Genera el QSS del sidebar desde design_tokens.Colors.SIDEBAR.
@@ -170,6 +159,9 @@ class MenuLateral(QFrame):
         self._permisos = set()
         self._rol = ""
         self._menu_buttons = []
+        self._permission_visible_by_code: dict[str, bool] = {}
+        self._feature_visible_by_code: dict[str, bool] = {}
+        self._search_text = ""
         self._configurar_ui()
 
     def enforce_dark_mode(self) -> None:
@@ -373,70 +365,59 @@ class MenuLateral(QFrame):
         return lbl
 
     def set_permisos(self, permisos: set, rol: str = "") -> None:
-        """
-        Filtra los botones del menú según los permisos del usuario activo.
-        Llámalo desde main_window después de login exitoso.
-        """
-        self._permisos = permisos
-        self._rol = rol.lower()
+        """Filtra botones del menú según permisos configurados, no por rol textual."""
+        del rol
+        self._permisos = {str(perm).upper() for perm in (permisos or set())}
+        self._rol = ""
 
-        # Módulos restringidos por rol
-        SOLO_ADMIN_GERENTE = {
-            "FINANZAS_UNIFICADAS", "RRHH", "ACTIVOS", "CONFIG_SEGURIDAD",
-            "CONFIG_MODULOS", "CONFIG_HARDWARE",
-        }
-        SOLO_ADMIN = {"CONFIG_SEGURIDAD", "CONFIG_MODULOS"}
-        GERENTE_O_SUPERIOR = {"INTELIGENCIA_BI", "PREDICCIONES"}
-
-        from PyQt5.QtWidgets import QPushButton as _QPB
-        for btn in self.findChildren(_QPB):
-            codigo = btn.property("modulo_codigo")
-            if not codigo or codigo == "LOGOUT":
-                continue
-            visible = True
-            if codigo in SOLO_ADMIN and self._rol not in ("admin", "administrador"):
-                visible = False
-            elif codigo in SOLO_ADMIN_GERENTE and self._rol not in ("admin", "administrador", "gerente"):
-                visible = False
-            elif codigo in GERENTE_O_SUPERIOR and self._rol not in ("admin", "administrador", "gerente"):
-                visible = False
-            btn.setVisible(visible)
+        for btn in self._menu_buttons:
+            codigo = str(btn.property("modulo_codigo") or "")
+            self._permission_visible_by_code[codigo] = self._is_allowed_by_permissions(codigo)
+        self._apply_access_filters()
 
     def set_module_config(self, module_config) -> None:
-        """
-        Muestra u oculta botones según feature flags del ModuleConfig (FASES 1-13).
-        Se llama desde main_window después del login exitoso.
-
-        Módulos avanzados que se ocultan si su toggle está desactivado:
-          franchise_mode_enabled  → (solo info — no hay módulo UI independiente)
-          forecasting_enabled     → PLANEACION_COMPRAS
-          whatsapp_integration_enabled → WHATSAPP
-          rrhh_enabled            → RRHH
-          finance_enabled         → FINANZAS_UNIFICADAS (reemplaza treasury_central_enabled)
-        """
-        # Mapeo: código de botón → clave de toggle en module_config
-        TOGGLE_MAP = {
+        """Aplica feature flags sólo para ocultar; nunca concede acceso negado."""
+        toggle_map = {
             "PLANEACION_COMPRAS": "forecasting_enabled",
-            "WHATSAPP":           "whatsapp_integration_enabled",
-            "RRHH":               "rrhh_enabled",
+            "WHATSAPP": "whatsapp_integration_enabled",
+            "RRHH": "rrhh_enabled",
             "FINANZAS_UNIFICADAS": "finance_enabled",
-            "INTELIGENCIA_BI":    "analytics_enabled",
+            "INTELIGENCIA_BI": "analytics_enabled",
         }
 
-        from PyQt5.QtWidgets import QPushButton as _QPB
-        for btn in self.findChildren(_QPB):
-            codigo = btn.property("modulo_codigo")
-            if not codigo or codigo == "LOGOUT":
-                continue
-            # Módulos en whitelist SIEMPRE visibles (Fase 0 — Plan Maestro)
-            if codigo in WHITELIST_SIEMPRE_VISIBLE:
+        for btn in self._menu_buttons:
+            codigo = str(btn.property("modulo_codigo") or "")
+            toggle_key = toggle_map.get(codigo)
+            self._feature_visible_by_code[codigo] = (
+                True if toggle_key is None else bool(module_config.is_enabled(toggle_key))
+            )
+        self._apply_access_filters()
+
+    def _is_allowed_by_permissions(self, codigo: str) -> bool:
+        if codigo == "LOGOUT":
+            return True
+        permission_view = f"{codigo}.ver".upper()
+        permission_access = f"{codigo}.acceder".upper()
+        return "*" in self._permisos or permission_view in self._permisos or permission_access in self._permisos
+
+    def _apply_access_filters(self) -> None:
+        for btn in self._menu_buttons:
+            codigo = str(btn.property("modulo_codigo") or "")
+            if codigo == "LOGOUT":
                 btn.setVisible(True)
                 continue
-            toggle_key = TOGGLE_MAP.get(codigo)
-            if toggle_key is not None:
-                enabled = module_config.is_enabled(toggle_key)
-                if not enabled:
-                    btn.setVisible(False)
+            permission_visible = self._permission_visible_by_code.get(codigo, True)
+            feature_visible = self._feature_visible_by_code.get(codigo, True)
+            search_visible = self._matches_search(btn, self._search_text)
+            btn.setVisible(permission_visible and feature_visible and search_visible)
+
+    def _matches_search(self, btn: QPushButton, text: str) -> bool:
+        needle = self._normalizar(text)
+        if not needle:
+            return True
+        label = self._normalizar(str(btn.property("menu_label") or ""))
+        codigo = self._normalizar(str(btn.property("modulo_codigo") or ""))
+        return needle in label or needle in codigo
 
     def actualizar_logo(self, logo_path: str = "", nombre: str = "SPJ POS") -> None:
         """Actualiza el logo y nombre del negocio en el sidebar."""
@@ -508,13 +489,9 @@ class MenuLateral(QFrame):
         self.txt_buscar_modulo.selectAll()
 
     def _filtrar_modulos_menu(self, text: str) -> None:
-        """Filtra botones de módulos por texto para menús con muchos accesos."""
-        needle = self._normalizar(text)
-        for btn in self._menu_buttons:
-            label = self._normalizar(str(btn.property("menu_label") or ""))
-            codigo = self._normalizar(str(btn.property("modulo_codigo") or ""))
-            visible = (not needle) or (needle in label) or (needle in codigo)
-            btn.setVisible(visible)
+        """Filtra por texto sin romper permisos ni feature flags."""
+        self._search_text = text or ""
+        self._apply_access_filters()
 
     @staticmethod
     def _normalizar(texto: str) -> str:
