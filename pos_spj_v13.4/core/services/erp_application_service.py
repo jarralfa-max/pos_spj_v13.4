@@ -22,7 +22,6 @@ CADA operación:
 USO:
     app = container.app_service
     app.registrar_compra(producto_id=1, cantidad=50, costo=85.50, ...)
-    app.registrar_merma(producto_id=1, cantidad=2, motivo="Caducidad", ...)
 """
 from __future__ import annotations
 import logging
@@ -84,40 +83,6 @@ class ERPApplicationService:
 
         except Exception as e:
             logger.error("registrar_compra FALLÓ: %s", e)
-            return {"ok": False, "error": str(e)}
-
-    def registrar_merma(self, producto_id: int, cantidad: float,
-                        motivo: str = "", usuario: str = "",
-                        sucursal_id: int = 0) -> Dict:
-        """
-        Registra salida de inventario por merma.
-        1. Movimiento de inventario (salida)
-        2. Actualiza stock
-        3. Registra pérdida en tesorería
-        """
-        sid = sucursal_id or self.sucursal_id
-        op_id = str(uuid.uuid4())[:8]
-        ref = f"MERMA-{op_id}"
-
-        try:
-            costo_unit = self._get_costo_producto(producto_id)
-            self._salida_directa(producto_id, cantidad, "MERMA", ref, usuario, sid)
-
-            # Registrar pérdida financiera
-            costo_total = round(cantidad * costo_unit, 2)
-            if self.treasury:
-                try:
-                    self.treasury.registrar_egreso(
-                        "merma", f"Merma prod #{producto_id}: {motivo}",
-                        costo_total, sid, ref, usuario)
-                except Exception:
-                    pass
-
-            logger.info("MERMA: prod=%d qty=%.3f motivo=%s", producto_id, cantidad, motivo)
-            return {"ok": True, "referencia": ref, "costo_perdido": costo_total}
-
-        except Exception as e:
-            logger.error("registrar_merma FALLÓ: %s", e)
             return {"ok": False, "error": str(e)}
 
     def registrar_entrada_produccion(self, producto_id: int, cantidad: float,

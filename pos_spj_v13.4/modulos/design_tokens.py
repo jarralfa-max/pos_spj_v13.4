@@ -180,6 +180,10 @@ class Colors:
     WARNING_HOVER = "#F59E0B"
     INFO_BASE = "#0891B2"
     INFO_HOVER = "#06B6D4"
+    DANGER_BG = DangerColors().BG_SOFT
+    SUCCESS_BG = SuccessColors().BG_SOFT
+    WARNING_BG = WarningColors().BG_SOFT
+    INFO_BG = InfoColors().BG_SOFT
     ACCENT_BASE = "#7C3AED"
     ACCENT_HOVER = "#8B5CF6"
 
@@ -192,6 +196,7 @@ class Colors:
     TEXT_PRIMARY = NeutralColors().SLATE_800
     TEXT_SECONDARY = NeutralColors().SLATE_500
     TEXT_MUTED = NeutralColors().SLATE_400
+    TEXT_INVERTED = NeutralColors().WHITE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
