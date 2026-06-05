@@ -20,7 +20,9 @@ Uso:
 """
 from __future__ import annotations
 import logging
-from typing import Set, Optional
+from typing import Set
+
+from core.security.permission_catalog import normalize_permission
 
 logger = logging.getLogger("spj.session")
 
@@ -75,7 +77,7 @@ class SessionContext:
 
     @property
     def es_admin(self) -> bool:
-        return self._rol in ('admin', 'superadmin')
+        return self._rol in ('admin', 'superadmin', 'administrador')
 
     @property
     def es_gerente(self) -> bool:
@@ -92,7 +94,7 @@ class SessionContext:
         self._user_id = user_data.get('id', 0)
         self._usuario = user_data.get('username', '')
         self._nombre_completo = user_data.get('nombre', self._usuario)
-        self._rol = user_data.get('rol', 'cajero')
+        self._rol = str(user_data.get('rol', 'cajero') or 'cajero').strip().lower()
         self._sucursal_id = user_data.get('sucursal_id', 1)
         self._sucursal_nombre = user_data.get('sucursal_nombre', 'Principal')
         self._sucursales_disponibles = user_data.get('sucursales_disponibles', [])
@@ -110,8 +112,8 @@ class SessionContext:
         logger.info("Sucursal cambiada: %s (%s)", nombre, sucursal_id)
 
     def set_permisos(self, permisos: Set[str]) -> None:
-        """Carga los permisos RBAC del usuario para la sucursal activa."""
-        self._permisos = set(permisos)
+        """Carga permisos normalizados del usuario para la sucursal activa."""
+        self._permisos = {normalize_permission(perm) for perm in (permisos or set()) if str(perm or "").strip()}
         logger.debug("Permisos cargados: %d", len(self._permisos))
 
     def clear(self) -> None:
@@ -128,7 +130,8 @@ class SessionContext:
         Admin siempre tiene todos los permisos."""
         if self.es_admin:
             return True
-        return codigo_permiso in self._permisos
+        normalized = normalize_permission(codigo_permiso)
+        return "*" in self._permisos or normalized in self._permisos
 
     def requiere_permiso(self, codigo_permiso: str, accion: str = "") -> bool:
         """Verifica permiso y lanza excepción si no lo tiene.
