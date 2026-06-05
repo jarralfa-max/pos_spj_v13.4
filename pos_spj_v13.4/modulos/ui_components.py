@@ -28,15 +28,15 @@ USO:
 from PyQt5.QtWidgets import (
     QPushButton, QLineEdit, QFrame, QLabel, QVBoxLayout, 
     QHBoxLayout, QWidget, QToolTip, QGraphicsDropShadowEffect,
-    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QTableWidget, QHeaderView, QAbstractItemView,
     QComboBox, QProgressBar, QMessageBox, QTabWidget, QScrollArea, QSizePolicy, QDialog
 )
-from PyQt5.QtCore import Qt, QPoint, QTimer, QSize, pyqtSignal, QObject, QEvent, QPropertyAnimation, QEasingCurve, QRect
-from PyQt5.QtGui import QFont, QPalette, QColor
+from PyQt5.QtCore import Qt, QPoint, QTimer, QSize, pyqtSignal, QObject, QEvent, QPropertyAnimation, QEasingCurve
+from PyQt5.QtGui import QFont, QColor
 import logging
 
 from modulos.design_tokens import (
-    Colors, Spacing, Typography, Borders, Shadows, ComponentStyles
+    Colors, Spacing, Typography, Borders
 )
 
 logger = logging.getLogger("spj.ui_components")
@@ -955,27 +955,33 @@ class PageHeader(QFrame):
     """
 
     def __init__(self, parent=None, title: str = "", subtitle: str = "",
-                 with_separator: bool = True):
+                 with_separator: bool = True, compact: bool = False):
         super().__init__(parent)
         self.setObjectName("pageHeader")
+        self.setProperty("compact", compact)
 
         # Si no hay separador inferior, dejar al QSS sin border-bottom.
         if not with_separator:
             self.setProperty("noSeparator", True)
 
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 12)
-        outer.setSpacing(Spacing.MD)
+        bottom_margin = 6 if compact else 12
+        outer.setContentsMargins(0, 0, 0, bottom_margin)
+        outer.setSpacing(Spacing.SM if compact else Spacing.MD)
+        if compact:
+            self.setMaximumHeight(90)
+            self.setMinimumHeight(56)
 
         # Columna izquierda: título + subtítulo
         left = QVBoxLayout()
-        left.setSpacing(2)
+        left.setSpacing(0 if compact else 2)
         left.setContentsMargins(0, 0, 0, 0)
 
         self.title_label = QLabel(title, self)
         self.title_label.setObjectName("pageTitle")
+        title_size = "17px" if compact else "18px"
         self.title_label.setStyleSheet(
-            f"font-size: 18px; font-weight: {Typography.WEIGHT_BOLD};"
+            f"font-size: {title_size}; font-weight: {Typography.WEIGHT_BOLD};"
             f" background: transparent; border: none;"
         )
         left.addWidget(self.title_label)

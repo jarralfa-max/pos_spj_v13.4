@@ -110,6 +110,33 @@ class ModuloConfiguracion(ModuloBase):
         apply_tooltip(button, tooltip)
         return button
 
+    def _style_dialog_buttons(
+        self,
+        button_box: QDialogButtonBox,
+        *,
+        accept_text: str = "Guardar",
+        cancel_text: str = "Cancelar",
+        accept_object_name: str = "primaryBtn",
+    ) -> QDialogButtonBox:
+        """Apply Spanish labels and design-system object names to dialog buttons."""
+        accept_roles = (QDialogButtonBox.Save, QDialogButtonBox.Ok)
+        for standard_button in accept_roles:
+            button = button_box.button(standard_button)
+            if button is None:
+                continue
+            button.setText("Aceptar" if standard_button == QDialogButtonBox.Ok else accept_text)
+            button.setObjectName(accept_object_name)
+            button.setCursor(Qt.PointingHandCursor)
+            apply_tooltip(button, button.text())
+
+        cancel_button = button_box.button(QDialogButtonBox.Cancel)
+        if cancel_button is not None:
+            cancel_button.setText(cancel_text)
+            cancel_button.setObjectName("secondaryBtn")
+            cancel_button.setCursor(Qt.PointingHandCursor)
+            apply_tooltip(cancel_button, cancel_text)
+        return button_box
+
     def init_ui(self):
         """Inicializa la interfaz de usuario"""
         layout = QVBoxLayout()
@@ -119,6 +146,7 @@ class ModuloConfiguracion(ModuloBase):
             self,
             title="⚙️ Configuración",
             subtitle="Empresa, usuarios, permisos, pagos, Happy Hour y cierre mensual.",
+            compact=True,
         )
         layout.addWidget(header)
 
@@ -445,7 +473,10 @@ class ModuloConfiguracion(ModuloBase):
             except ValueError as exc:
                 QMessageBox.warning(self, "Dato fiscal inválido", f"La tasa IVA guardada no es válida: {exc}")
         self.cmb_sucursal_inst.clear()
+        self.cmb_sucursal_inst.addItem("-- Selecciona sucursal --", None)
         sucs = self.company_profile_service.branches_for_company_settings()
+        if not sucs:
+            QMessageBox.warning(self, "Sucursales", "No hay sucursales activas configuradas.")
         for sid, nombre in sucs:
             self.cmb_sucursal_inst.addItem(nombre, sid)
         configured_branch = settings.get('sucursal_instalacion_id')
@@ -465,6 +496,10 @@ class ModuloConfiguracion(ModuloBase):
         if not nombre:
             QMessageBox.warning(self, "Aviso", "El nombre del negocio es obligatorio.")
             return
+        suc_id = self.cmb_sucursal_inst.currentData() if hasattr(self, 'cmb_sucursal_inst') else None
+        if suc_id is None:
+            QMessageBox.warning(self, "Aviso", "Selecciona la sucursal de esta terminal.")
+            return
         datos = {
             'nombre_empresa': nombre,
             'eslogan_empresa': self.emp_eslogan.text().strip(),
@@ -476,6 +511,7 @@ class ModuloConfiguracion(ModuloBase):
             'regimen_fiscal': self.emp_regimen.text().strip(),
             'logo_path': self.emp_logo_path.text().strip(),
             'tasa_iva': str(float(self.emp_tasa_iva.value()) / 100),
+            'sucursal_instalacion_id': str(suc_id),
         }
         if hasattr(self, 'cmb_sucursal_inst'):
             suc_id = self.cmb_sucursal_inst.currentData()
@@ -849,7 +885,7 @@ class ModuloConfiguracion(ModuloBase):
             if branch_index >= 0:
                 combo_branch.setCurrentIndex(branch_index)
 
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btns = self._style_dialog_buttons(QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel))
         btns.accepted.connect(dlg.accept)
         btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
@@ -1069,7 +1105,7 @@ class ModuloConfiguracion(ModuloBase):
             except Exception as exc:
                 QMessageBox.warning(self, "Configuración incompleta", f"No se pudo cargar la sucursal: {exc}")
 
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btns = self._style_dialog_buttons(QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel))
         btns.accepted.connect(dlg.accept)
         btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
@@ -1195,7 +1231,7 @@ class ModuloConfiguracion(ModuloBase):
                 QMessageBox.critical(self, "Error", f"No se pudo cargar el usuario: {exc}")
                 return
 
-        btns = QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel)
+        btns = self._style_dialog_buttons(QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel))
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)
 
@@ -1312,7 +1348,7 @@ class ModuloConfiguracion(ModuloBase):
         scroll.setWidgetResizable(True)
         lay.addWidget(scroll)
 
-        btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        btns = self._style_dialog_buttons(QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel))
         btns.accepted.connect(dlg.accept)
         btns.rejected.connect(dlg.reject)
         lay.addWidget(btns)

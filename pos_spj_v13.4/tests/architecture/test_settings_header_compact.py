@@ -8,6 +8,7 @@ def test_settings_header_uses_compact_page_header() -> None:
 
     assert "Configuración del Sistema" not in content
     assert "PageHeader" in content
+    assert "compact=True" in content
     assert "⚙️ Configuración" in content
     assert "Empresa, usuarios, permisos, pagos, Happy Hour y cierre mensual." in content
     assert "title.setAlignment(Qt.AlignCenter)" not in content
