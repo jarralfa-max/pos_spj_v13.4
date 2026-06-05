@@ -513,6 +513,10 @@ class ModuloConfiguracion(ModuloBase):
             'tasa_iva': str(float(self.emp_tasa_iva.value()) / 100),
             'sucursal_instalacion_id': str(suc_id),
         }
+        if hasattr(self, 'cmb_sucursal_inst'):
+            suc_id = self.cmb_sucursal_inst.currentData()
+            if suc_id:
+                datos['sucursal_instalacion_id'] = str(suc_id)
         try:
             self.system_settings_service.save_many(datos)
             QMessageBox.information(self, "✅ Guardado",
