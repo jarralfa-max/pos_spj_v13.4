@@ -58,5 +58,10 @@ class SearchSelector(QWidget):
             return None
         return item.data(32)
 
+    def clear(self) -> None:
+        self._search_box.clear()
+        self._results.clear()
+        self._options = []
+
     def _emit_selected(self, item: QListWidgetItem) -> None:
         self.selected.emit(item.data(32))
