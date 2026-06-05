@@ -250,14 +250,14 @@ class ModuloMerma(QWidget):
             else:
                 self.lbl_valor_perdida.setStyleSheet(
                     f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.DANGER_BASE}; "
-                    f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER_BG}; border-radius: {Borders.RADIUS_MD};")
+                    f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER.BG_SOFT}; border-radius: {Borders.RADIUS_MD};")
         else:
             self.lbl_valor_perdida.setText("$0.00")
 
     def _registrar(self) -> None:
         from core.permissions import verificar_permiso
         try:
-            if not verificar_permiso(self.container, "inventario.ajustar", self):
+            if not verificar_permiso(self.container, "MERMA.crear", self):
                 return
         except Exception:
             pass
@@ -341,6 +341,12 @@ class ModuloMerma(QWidget):
         if not ok_pin or not pin:
             QMessageBox.warning(self, "Autorización", "Operación cancelada: PIN requerido.")
             return False
+<<<<<<< HEAD
+        from core.permissions import verificar_permiso
+        if not verificar_permiso(self.container, "MERMA.autorizar", self):
+            return False
+=======
+>>>>>>> origin/main
         from core.services.discount_guard import DiscountGuard
         try:
             guard = DiscountGuard(self.container.db)

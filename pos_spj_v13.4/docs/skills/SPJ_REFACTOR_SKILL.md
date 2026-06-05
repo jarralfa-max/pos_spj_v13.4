@@ -60,6 +60,7 @@ Estas reglas son no negociables.
 28. No usar SQL exclusivo de SQLite en código nuevo si puede afectar PostgreSQL futuro.
 29. No duplicar rutas para la misma operación.
 30. Cada módulo refactorizado debe quedar cubierto por tests unitarios, integración, arquitectura y checklist manual.
+31. Toda nueva carpeta del refactor (`backend/`, `frontend/`, `tests/`, `docs/`, etc.) debe crearse dentro de `pos_spj_v13.4/pos_spj_v13.4/`; está prohibido crear duplicados en la raíz externa del repositorio.
 
 ---
 
