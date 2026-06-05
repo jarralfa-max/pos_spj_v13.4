@@ -54,11 +54,14 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
         actor="admin",
     )
 
-    matrix = permission_query.permission_matrix()
-    assert matrix == [("CONFIGURACION", ["editar", "ver"])]
+    matrix = dict(permission_query.permission_matrix())
+    assert "ver" in matrix["POS"]
+    assert "ver" in matrix["CAJA"]
+    assert "ver" in matrix["CONFIG_SEGURIDAD"]
+    assert "editar" in matrix["CONFIGURACION"]
 
-    module_access._cache[role_id] = {("CONFIGURACION", "editar"): False}
-    permissions = {("CONFIGURACION", "ver"): True, ("CONFIGURACION", "editar"): True}
+    module_access._cache[role_id] = {("CONFIG_SEGURIDAD", "editar"): False}
+    permissions = {("CONFIG_SEGURIDAD", "ver"): True, ("CONFIG_SEGURIDAD", "editar"): True}
     module_access.save_role_permissions(
         role_id,
         permissions,
@@ -67,10 +70,10 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
     )
 
     saved = permission_query.role_permissions(role_id)
-    assert saved[("CONFIGURACION", "ver")] is True
-    assert saved[("CONFIGURACION", "editar")] is True
-    assert module_access.has_permission(role_id, "CONFIGURACION", "editar") is True
-    assert module_access._cache[role_id][("CONFIGURACION", "editar")] is True
+    assert saved[("CONFIG_SEGURIDAD", "ver")] is True
+    assert saved[("CONFIG_SEGURIDAD", "editar")] is True
+    assert module_access.has_permission(role_id, "CONFIG_SEGURIDAD", "editar") is True
+    assert module_access._cache[role_id][("CONFIG_SEGURIDAD", "editar")] is True
 
     module_path = REPO_ROOT / "pos_spj_v13.4" / "modulos" / "configuracion.py"
     assert "get_legacy_users" not in module_path.read_text(encoding="utf-8")

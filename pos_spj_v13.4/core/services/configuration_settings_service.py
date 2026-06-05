@@ -355,6 +355,9 @@ class PermissionQueryService:
     def permission_codes_for_role_name(self, role_name: str) -> set[str]:
         return self._repository.permission_codes_for_role_name(role_name)
 
+    def permission_codes_for_user(self, user_id: int) -> set[str]:
+        return self._repository.permission_codes_for_user(user_id)
+
     def permission_matrix(self) -> list[tuple[str, list[str]]]:
         return self._repository.permission_matrix()
 

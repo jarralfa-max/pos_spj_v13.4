@@ -2,6 +2,7 @@
 # repositories/config_repository.py
 import logging
 
+from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS, normalize_permission
 logger = logging.getLogger(__name__)
 
 class ConfigRepository:
@@ -138,6 +139,10 @@ class ConfigRepository:
         self._commit()
 
     def permission_matrix(self) -> list[tuple[str, list[str]]]:
+        matrix: dict[str, list[str]] = {
+            module: list(actions)
+            for module, actions in CANONICAL_MODULE_PERMISSIONS.items()
+        }
         rows = self.db.execute(
             """
             SELECT DISTINCT modulo, accion
@@ -146,10 +151,12 @@ class ConfigRepository:
             ORDER BY modulo, accion
             """
         ).fetchall()
-        matrix: dict[str, list[str]] = {}
         for row in rows:
-            matrix.setdefault(str(row[0]), []).append(str(row[1]))
-        if not matrix and self._table_exists("permisos"):
+            module = str(row[0]).strip().upper()
+            action = str(row[1]).strip().lower()
+            if action and action not in matrix.setdefault(module, []):
+                matrix[module].append(action)
+        if self._table_exists("permisos"):
             permission_rows = self.db.execute(
                 """
                 SELECT modulo, codigo
@@ -159,10 +166,10 @@ class ConfigRepository:
                 """
             ).fetchall()
             for row in permission_rows:
-                module = str(row[0])
+                module = str(row[0]).strip().upper()
                 code = str(row[1])
-                action = code.split(".")[-1] if "." in code else code
-                if action not in matrix.setdefault(module, []):
+                action = code.split(".")[-1].strip().lower() if "." in code else code.strip().lower()
+                if action and action not in matrix.setdefault(module, []):
                     matrix[module].append(action)
         return [(module, actions) for module, actions in matrix.items()]
 
@@ -508,12 +515,20 @@ class ConfigRepository:
         row = self.db.execute("SELECT id FROM roles WHERE nombre=?", (role_name,)).fetchone()
         if not row:
             return set()
-        role_id = row[0]
+        return self.permission_codes_for_role_id(int(row[0]))
+
+    def permission_codes_for_role_id(self, role_id: int) -> set[str]:
         rows = self.db.execute(
             "SELECT modulo, accion FROM rol_permisos WHERE rol_id=? AND permitido=1",
             (role_id,),
         ).fetchall()
-        return {f"{row[0]}.{row[1]}" for row in rows}
+        return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
+
+    def permission_codes_for_user(self, user_id: int) -> set[str]:
+        row = self.db.execute("SELECT rol FROM usuarios WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            return set()
+        return self.permission_codes_for_role_name(str(row[0]))
 
     def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
         rows = self.db.execute(

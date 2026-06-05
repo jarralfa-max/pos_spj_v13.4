@@ -161,6 +161,7 @@ class MenuLateral(QFrame):
         self._menu_buttons = []
         self._permission_visible_by_code: dict[str, bool] = {}
         self._feature_visible_by_code: dict[str, bool] = {}
+        self._hidden_reasons_by_code: dict[str, str] = {}
         self._search_text = ""
         self._configurar_ui()
 
@@ -401,6 +402,7 @@ class MenuLateral(QFrame):
         return "*" in self._permisos or permission_view in self._permisos or permission_access in self._permisos
 
     def _apply_access_filters(self) -> None:
+        self._hidden_reasons_by_code.clear()
         for btn in self._menu_buttons:
             codigo = str(btn.property("modulo_codigo") or "")
             if codigo == "LOGOUT":
@@ -409,7 +411,18 @@ class MenuLateral(QFrame):
             permission_visible = self._permission_visible_by_code.get(codigo, True)
             feature_visible = self._feature_visible_by_code.get(codigo, True)
             search_visible = self._matches_search(btn, self._search_text)
-            btn.setVisible(permission_visible and feature_visible and search_visible)
+            visible = permission_visible and feature_visible and search_visible
+            btn.setVisible(visible)
+            if not visible:
+                if not permission_visible:
+                    self._hidden_reasons_by_code[codigo] = "permission"
+                elif not feature_visible:
+                    self._hidden_reasons_by_code[codigo] = "feature_flag"
+                elif not search_visible:
+                    self._hidden_reasons_by_code[codigo] = "search"
+
+    def hidden_reason(self, module_code: str) -> str:
+        return self._hidden_reasons_by_code.get(str(module_code or ""), "")
 
     def _matches_search(self, btn: QPushButton, text: str) -> bool:
         needle = self._normalizar(text)
