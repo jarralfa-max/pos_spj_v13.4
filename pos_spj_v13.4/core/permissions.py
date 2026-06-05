@@ -25,31 +25,11 @@ Usage in modules:
 from __future__ import annotations
 import logging
 import functools
-from typing import Optional
+from core.security.permission_catalog import module_view_permission
 
 logger = logging.getLogger("spj.permissions")
 
-# ── Mapa de permisos por módulo (para enforcement automático) ─────────────────
-PERMISOS_MODULO = {
-    "POS":              "ventas.realizar",
-    "CAJA":             "caja.abrir",
-    "INVENTARIO":       "inventario.ver",
-    "PRODUCTOS":        "productos.crear",
-    "CLIENTES":         "clientes.ver",
-    "DELIVERY":         "ventas.realizar",
-    "COMPRAS":          "inventario.comprar",
-    "TRANSFERENCIAS":   "inventario.transferir",
-    "MERMA":            "inventario.ajustar",
-    "PRODUCCION":       "inventario.ajustar",
-    "RRHH":             "rrhh.ver",
-    "TESORERIA":        "finanzas.ver",
-    "GROWTH_ENGINE":    "config.ver",
-    "INTELIGENCIA_BI":  "reportes.bi",
-    "PREDICCIONES":     "reportes.bi",
-    "CONFIG_SEGURIDAD": "config.editar",
-    "CONFIG_HARDWARE":  "config.editar",
-    "ACTIVOS":          "finanzas.ver",
-}
+# El acceso a módulos usa el catálogo canónico `MODULO.ver`.
 
 
 def verificar_permiso(container, codigo_permiso: str,
@@ -123,11 +103,6 @@ def requiere_permiso(codigo_permiso: str):
 
 def verificar_acceso_modulo(container, codigo_modulo: str,
                             parent_widget=None) -> bool:
-    """
-    Verifica si el usuario puede acceder a un módulo completo.
-    Usa el mapa PERMISOS_MODULO para determinar qué permiso necesita.
-    """
-    permiso = PERMISOS_MODULO.get(codigo_modulo)
-    if not permiso:
-        return True  # Módulo sin restricción definida
+    """Verifica acceso a módulo usando el permiso canónico `MODULO.ver`."""
+    permiso = module_view_permission(codigo_modulo)
     return verificar_permiso(container, permiso, parent_widget)
