@@ -132,8 +132,10 @@ class ModuloMerma(QWidget):
             provider=self._buscar_productos,
             placeholder="🔍 Buscar producto por nombre...",
         )
+        # Ruta canónica de selección: SearchSelector emite selected.
+        # No conectar señales privadas de _results; al limpiar resultados tras
+        # seleccionar se puede invalidar el QListWidgetItem y cerrar PyQt.
         self.product_selector.selected.connect(self._on_producto_selected)
-        self.product_selector._results.itemClicked.connect(self._log_producto_result_click)
         form.addRow("Producto:", self.product_selector)
 
         self.lbl_producto_info = QLabel("")
@@ -257,12 +259,7 @@ class ModuloMerma(QWidget):
             return
 
         product_id = str(option.id) if option.id is not None else ""
-        logger.info("[MERMA] click en fila product_id=%s label=%s", product_id, option.label)
-        logger.info("[MERMA] producto_id recuperado product_id=%s", product_id)
-        logger.info(
-            "[MERMA] producto seleccionado desde SearchSelector product_id=%s label=%s",
-            product_id, option.label,
-        )
+        logger.info("[MERMA] producto seleccionado desde SearchSelector product_id=%s label=%s", product_id, option.label)
         if not product_id:
             logger.warning("[MERMA] selección sin producto_id option=%r", option)
             return
@@ -361,14 +358,8 @@ class ModuloMerma(QWidget):
         notas = self.txt_notas.text().strip()
         fecha = self.date_edit.date().toString("yyyy-MM-dd")
         valor_perdida = round(cantidad * costo_unitario, 2)
-        logger.info(
-            "[MERMA] registro de merma iniciado product_id=%s quantity=%.2f",
-            product_id, cantidad,
-        )
-        logger.info(
-            "[MERMA] validación stock actual=%.2f cantidad=%.2f",
-            stock_actual, cantidad,
-        )
+        logger.info("[MERMA] registro de merma iniciado product_id=%s quantity=%.2f", product_id, cantidad)
+        logger.info("[MERMA] validación stock actual=%.2f cantidad=%.2f", stock_actual, cantidad)
         logger.info("[MERMA] registro de merma product_id usado product_id=%s", product_id)
 
         if cantidad > stock_actual:
