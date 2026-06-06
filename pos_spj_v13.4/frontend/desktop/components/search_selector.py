@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Callable, Iterable
 
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -17,6 +18,8 @@ class SearchOption:
 
 
 SearchProvider = Callable[[str], Iterable[SearchOption]]
+
+logger = logging.getLogger("spj.search_selector")
 
 
 class SearchSelector(QWidget):
@@ -36,8 +39,8 @@ class SearchSelector(QWidget):
         layout.addWidget(self._results)
 
         self._search_box.textChanged.connect(self.refresh)
+        self._search_box.returnPressed.connect(self._emit_current_selected)
         self._results.itemClicked.connect(self._emit_selected)
-        self._results.itemActivated.connect(self._emit_selected)
 
     def set_provider(self, provider: SearchProvider) -> None:
         self._provider = provider
@@ -45,7 +48,11 @@ class SearchSelector(QWidget):
 
     def refresh(self, query: str | None = None) -> None:
         query_text = self._search_box.text() if query is None else query
-        self._options = list(self._provider(query_text.strip()))
+        try:
+            self._options = list(self._provider(query_text.strip()))
+        except Exception:
+            logger.exception("SearchSelector provider failed query=%r", query_text)
+            self._options = []
         self._results.clear()
         for option in self._options:
             text = option.label if not option.subtitle else f"{option.label} — {option.subtitle}"
@@ -61,9 +68,15 @@ class SearchSelector(QWidget):
         return item.data(Qt.UserRole) or item.data(32)
 
     def set_text_silently(self, text: str) -> None:
-        self._search_box.blockSignals(True)
-        self._search_box.setText(text)
-        self._search_box.blockSignals(False)
+        was_blocked = self._search_box.blockSignals(True)
+        try:
+            self._search_box.setText(text)
+        finally:
+            self._search_box.blockSignals(was_blocked)
+
+    def clear_selection(self) -> None:
+        self._results.clearSelection()
+        self._results.setCurrentRow(-1)
 
     def clear_results(self) -> None:
         self._results.clear()
@@ -76,6 +89,11 @@ class SearchSelector(QWidget):
     def clear(self) -> None:
         self._search_box.clear()
         self.clear_results()
+
+    def _emit_current_selected(self) -> None:
+        item = self._results.currentItem()
+        if item is not None:
+            self._emit_selected(item)
 
     def _emit_selected(self, item: QListWidgetItem) -> None:
         option = item.data(Qt.UserRole) or item.data(32)

@@ -229,7 +229,7 @@ class ModuloMerma(QWidget):
     def _buscar_productos(self, query: str):
         logger.info("[MERMA] búsqueda ejecutada query=%r", query)
         try:
-            results = self._waste_query_service.search_products(query)
+            results = self._waste_query_service.search_products(query, {"branch_id": str(self.sucursal_id)})
         except Exception:
             logger.exception("[MERMA] error al buscar productos query=%r", query)
             self._product_search_cache = {}
@@ -270,7 +270,7 @@ class ModuloMerma(QWidget):
         metadata = self._product_search_cache.get(product_id)
         if metadata is None:
             logger.warning("[MERMA] producto_id no encontrado en caché; consultando por id product_id=%s", product_id)
-            metadata = self._waste_repository.get_product_for_waste(product_id)
+            metadata = self._waste_repository.get_product_for_waste(product_id, branch_id=str(self.sucursal_id))
 
         if metadata is None:
             self._selected_product = None
@@ -336,6 +336,7 @@ class ModuloMerma(QWidget):
                 return
         except Exception:
             logger.exception("[MERMA] No se pudo validar el permiso MERMA.crear")
+            QMessageBox.critical(self, "Error", "No se pudo validar el permiso para registrar merma.")
             return
 
         if not self._selected_product:
@@ -349,7 +350,7 @@ class ModuloMerma(QWidget):
         product = self._selected_product
         product_id = product.get("id")
         if product_id in (None, ""):
-            logger.warning("[MERMA] registrar_merma sin product_id product=%r", product)
+            logger.warning("[MERMA] registro de merma sin product_id product=%r", product)
             QMessageBox.warning(self, "Aviso", "El producto seleccionado no tiene un ID válido.")
             return
         nombre = str(product.get("name", ""))
@@ -361,14 +362,14 @@ class ModuloMerma(QWidget):
         fecha = self.date_edit.date().toString("yyyy-MM-dd")
         valor_perdida = round(cantidad * costo_unitario, 2)
         logger.info(
-            "[MERMA] registrar_merma iniciado product_id=%s quantity=%.2f",
+            "[MERMA] registro de merma iniciado product_id=%s quantity=%.2f",
             product_id, cantidad,
         )
         logger.info(
             "[MERMA] validación stock actual=%.2f cantidad=%.2f",
             stock_actual, cantidad,
         )
-        logger.info("[MERMA] registrar_merma producto_id usado product_id=%s", product_id)
+        logger.info("[MERMA] registro de merma product_id usado product_id=%s", product_id)
 
         if cantidad > stock_actual:
             resp = QMessageBox.warning(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import date
 
 from backend.application.commands.waste_commands import RegisterWasteCommand
 from backend.application.services.waste_application_service import WasteApplicationService
@@ -125,7 +126,7 @@ def test_waste_query_service_reads_products_history_and_summary() -> None:
         product_id=1,
         quantity=1.25,
         reason="Caducidad / vencimiento",
-        date="2026-06-05",
+        date=date.today().isoformat(),
     ))
 
     products = repository.search_products("arra")
@@ -136,3 +137,73 @@ def test_waste_query_service_reads_products_history_and_summary() -> None:
     assert rows[0].values["product_name"] == "Arrachera"
     assert rows[0].values["loss_value"] == 156.88
     assert summary.value["records"] == 1
+
+
+def test_waste_repository_uses_branch_inventory_for_waste_stock_and_decrease() -> None:
+    conn = _db()
+    conn.execute("UPDATE productos SET existencia = 14 WHERE id = 1")
+    conn.execute("""
+        CREATE TABLE branch_inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            batch_id INTEGER,
+            quantity REAL NOT NULL DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE inventario_actual (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER NOT NULL,
+            sucursal_id INTEGER NOT NULL,
+            cantidad REAL NOT NULL DEFAULT 0,
+            costo_promedio REAL DEFAULT 0,
+            ultima_actualizacion TEXT DEFAULT (datetime('now')),
+            UNIQUE(producto_id, sucursal_id)
+        )
+    """)
+    conn.execute(
+        "INSERT INTO branch_inventory(product_id, branch_id, quantity, batch_id) VALUES (1, 1, 10, NULL)"
+    )
+    conn.execute(
+        "INSERT INTO branch_inventory(product_id, branch_id, quantity, batch_id) VALUES (1, 2, 4, NULL)"
+    )
+    conn.execute(
+        "INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad) VALUES (1, 1, 10)"
+    )
+    conn.execute(
+        "INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad) VALUES (1, 2, 4)"
+    )
+    conn.commit()
+
+    repository = WasteRepository(conn)
+    use_case = RegisterWasteUseCase(app_service=WasteApplicationService(repository=repository))
+
+    product = repository.get_product_for_waste(1, branch_id="2")
+    search_result = repository.search_products("arra", branch_id="2")[0]
+    result = use_case.execute(RegisterWasteCommand(
+        operation_id="branch-waste-1",
+        branch_id="2",
+        user_name="ana",
+        product_id=1,
+        quantity=1.5,
+        reason="Merma de sucursal",
+        date="2026-06-05",
+    ))
+
+    assert product["stock"] == 4.0
+    assert search_result.metadata["stock"] == 4.0
+    assert result.success is True
+    assert conn.execute(
+        "SELECT quantity FROM branch_inventory WHERE product_id = 1 AND branch_id = 2 AND batch_id IS NULL"
+    ).fetchone()[0] == 2.5
+    assert conn.execute(
+        "SELECT quantity FROM branch_inventory WHERE product_id = 1 AND branch_id = 1 AND batch_id IS NULL"
+    ).fetchone()[0] == 10.0
+    assert conn.execute(
+        "SELECT cantidad FROM inventario_actual WHERE producto_id = 1 AND sucursal_id = 2"
+    ).fetchone()[0] == 2.5
+    assert conn.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0] == 12.5
+    branch_row = conn.execute("SELECT sucursal_id FROM mermas WHERE operation_id = 'branch-waste-1'").fetchone()
+    assert str(branch_row[0]) == "2"

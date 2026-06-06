@@ -13,6 +13,8 @@ class WasteRepository:
 
     def __init__(self, connection) -> None:
         self._connection = connection
+        self._table_exists_cache: dict[str, bool] = {}
+        self._table_columns_cache: dict[str, set[str]] = {}
 
     def operation_exists(self, operation_id: str) -> bool:
         row = self._connection.execute(
@@ -21,28 +23,30 @@ class WasteRepository:
         ).fetchone()
         return row is not None
 
-    def get_product_for_waste(self, product_id: int | str) -> dict[str, Any] | None:
+    def get_product_for_waste(self, product_id: int | str, *, branch_id: str | int | None = None) -> dict[str, Any] | None:
+        stock_expr, stock_params = self._branch_stock_expression(branch_id)
         row = self._connection.execute(
-            """
-            SELECT id, nombre, COALESCE(precio_compra,0), COALESCE(unidad,'kg'), COALESCE(existencia,0)
-            FROM productos
-            WHERE id = ? AND COALESCE(activo,1) = 1
+            f"""
+            SELECT p.id, p.nombre, COALESCE(p.precio_compra,0), COALESCE(p.unidad,'kg'), {stock_expr}
+            FROM productos p
+            WHERE p.id = ? AND COALESCE(p.activo,1) = 1
             """,
-            (product_id,),
+            (*stock_params, product_id),
         ).fetchone()
         return self._product_dict(row) if row else None
 
-    def search_products(self, query: str, *, limit: int = 30) -> list[SearchResult]:
+    def search_products(self, query: str, *, limit: int = 30, branch_id: str | int | None = None) -> list[SearchResult]:
         like = f"%{query.strip()}%"
+        stock_expr, stock_params = self._branch_stock_expression(branch_id)
         rows = self._connection.execute(
-            """
-            SELECT id, nombre, COALESCE(precio_compra,0), COALESCE(unidad,'kg'), COALESCE(existencia,0)
-            FROM productos
-            WHERE COALESCE(activo,1) = 1 AND (? = '%%' OR nombre LIKE ?)
-            ORDER BY nombre
+            f"""
+            SELECT p.id, p.nombre, COALESCE(p.precio_compra,0), COALESCE(p.unidad,'kg'), {stock_expr}
+            FROM productos p
+            WHERE COALESCE(p.activo,1) = 1 AND (? = '%%' OR p.nombre LIKE ?)
+            ORDER BY p.nombre
             LIMIT ?
             """,
-            (like, like, limit),
+            (*stock_params, like, like, limit),
         ).fetchall()
         results: list[SearchResult] = []
         for row in rows:
@@ -80,7 +84,15 @@ class WasteRepository:
         )
         return str(cursor.lastrowid or entry["operation_id"])
 
-    def decrease_inventory_for_waste(self, product_id: int | str, quantity: float) -> None:
+    def decrease_inventory_for_waste(
+        self,
+        product_id: int | str,
+        quantity: float,
+        *,
+        branch_id: str | int | None = None,
+    ) -> None:
+        if branch_id is not None:
+            self._decrease_branch_inventory(product_id, quantity, branch_id)
         self._connection.execute(
             "UPDATE productos SET existencia = MAX(0, COALESCE(existencia,0) - ?) WHERE id = ?",
             (quantity, product_id),
@@ -131,6 +143,110 @@ class WasteRepository:
         records = int(row[0]) if row else 0
         loss_value = round(float(row[1] or 0), 2) if row else 0.0
         return KpiMetric("daily_waste", "Merma de hoy", {"records": records, "loss_value": loss_value})
+
+
+    def _branch_stock_expression(self, branch_id: str | int | None) -> tuple[str, list[Any]]:
+        stock_sources = []
+        params: list[Any] = []
+        if branch_id is not None and self._table_exists("branch_inventory"):
+            stock_sources.append(
+                "(SELECT SUM(COALESCE(quantity,0)) "
+                "FROM branch_inventory bi "
+                "WHERE bi.product_id = p.id AND bi.branch_id = ?)"
+            )
+            params.append(branch_id)
+        if branch_id is not None and self._table_exists("inventario_actual"):
+            stock_sources.append(
+                "(SELECT COALESCE(ia.cantidad,0) "
+                "FROM inventario_actual ia "
+                "WHERE ia.producto_id = p.id AND ia.sucursal_id = ? "
+                "LIMIT 1)"
+            )
+            params.append(branch_id)
+        stock_sources.append("COALESCE(p.existencia,0)")
+        return f"COALESCE({', '.join(stock_sources)}, 0)", params
+
+    def _decrease_branch_inventory(self, product_id: int | str, quantity: float, branch_id: str | int) -> None:
+        if self._table_exists("inventario_actual"):
+            updated = self._connection.execute(
+                """
+                UPDATE inventario_actual
+                SET cantidad = MAX(0, COALESCE(cantidad,0) - ?),
+                    ultima_actualizacion = datetime('now')
+                WHERE producto_id = ? AND sucursal_id = ?
+                """,
+                (quantity, product_id, branch_id),
+            ).rowcount
+            if not updated:
+                self._connection.execute(
+                    """
+                    INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
+                    VALUES (?, ?, 0)
+                    """,
+                    (product_id, branch_id),
+                )
+        if self._table_exists("branch_inventory"):
+            columns = self._table_columns("branch_inventory")
+            has_batch = "batch_id" in columns
+            has_updated_at = "updated_at" in columns
+            where_batch = " AND batch_id IS NULL" if has_batch else ""
+            set_updated_at = ", updated_at = datetime('now')" if has_updated_at else ""
+            updated = self._connection.execute(
+                f"""
+                UPDATE branch_inventory
+                SET quantity = MAX(0, COALESCE(quantity,0) - ?){set_updated_at}
+                WHERE product_id = ? AND branch_id = ?{where_batch}
+                """,
+                (quantity, product_id, branch_id),
+            ).rowcount
+            if not updated:
+                if has_batch and has_updated_at:
+                    self._connection.execute(
+                        """
+                        INSERT INTO branch_inventory (product_id, branch_id, quantity, batch_id, updated_at)
+                        VALUES (?, ?, 0, NULL, datetime('now'))
+                        """,
+                        (product_id, branch_id),
+                    )
+                elif has_updated_at:
+                    self._connection.execute(
+                        """
+                        INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
+                        VALUES (?, ?, 0, datetime('now'))
+                        """,
+                        (product_id, branch_id),
+                    )
+                elif has_batch:
+                    self._connection.execute(
+                        """
+                        INSERT INTO branch_inventory (product_id, branch_id, quantity, batch_id)
+                        VALUES (?, ?, 0, NULL)
+                        """,
+                        (product_id, branch_id),
+                    )
+                else:
+                    self._connection.execute(
+                        """
+                        INSERT INTO branch_inventory (product_id, branch_id, quantity)
+                        VALUES (?, ?, 0)
+                        """,
+                        (product_id, branch_id),
+                    )
+
+    def _table_exists(self, table_name: str) -> bool:
+        if table_name not in self._table_exists_cache:
+            row = self._connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                (table_name,),
+            ).fetchone()
+            self._table_exists_cache[table_name] = row is not None
+        return self._table_exists_cache[table_name]
+
+    def _table_columns(self, table_name: str) -> set[str]:
+        if table_name not in self._table_columns_cache:
+            rows = self._connection.execute(f"PRAGMA table_info({table_name})").fetchall()
+            self._table_columns_cache[table_name] = {str(row[1]) for row in rows}
+        return self._table_columns_cache[table_name]
 
     def _product_dict(self, row) -> dict[str, Any]:
         return {
