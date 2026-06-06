@@ -15,9 +15,15 @@ from backend.shared.events.event_names import EventName
 
 class WasteRepositoryProtocol(Protocol):
     def operation_exists(self, operation_id: str) -> bool: ...
-    def get_product_for_waste(self, product_id: int | str) -> Any: ...
+    def get_product_for_waste(self, product_id: int | str, *, branch_id: str | int | None = None) -> Any: ...
     def register_waste(self, entry: dict[str, Any]) -> str: ...
-    def decrease_inventory_for_waste(self, product_id: int | str, quantity: float) -> None: ...
+    def decrease_inventory_for_waste(
+        self,
+        product_id: int | str,
+        quantity: float,
+        *,
+        branch_id: str | int | None = None,
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -92,7 +98,7 @@ class WasteApplicationService:
         if self._repository.operation_exists(command.operation_id):
             return UseCaseResult(False, command.operation_id, message="WASTE_OPERATION_ALREADY_REGISTERED")
 
-        product = self._repository.get_product_for_waste(product_id)
+        product = self._repository.get_product_for_waste(product_id, branch_id=branch_id)
         if product is None:
             return UseCaseResult(False, command.operation_id, message="WASTE_PRODUCT_NOT_FOUND")
 
@@ -115,7 +121,7 @@ class WasteApplicationService:
             "date": waste_date,
         }
         waste_id = self._repository.register_waste(entry)
-        self._repository.decrease_inventory_for_waste(product_id, quantity)
+        self._repository.decrease_inventory_for_waste(product_id, quantity, branch_id=branch_id)
         if hasattr(self._repository, "save_changes"):
             self._repository.save_changes()
 
