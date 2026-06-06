@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
 
@@ -36,6 +36,7 @@ class SearchSelector(QWidget):
         layout.addWidget(self._results)
 
         self._search_box.textChanged.connect(self.refresh)
+        self._results.itemClicked.connect(self._emit_selected)
         self._results.itemActivated.connect(self._emit_selected)
 
     def set_provider(self, provider: SearchProvider) -> None:
@@ -49,19 +50,30 @@ class SearchSelector(QWidget):
         for option in self._options:
             text = option.label if not option.subtitle else f"{option.label} — {option.subtitle}"
             item = QListWidgetItem(text)
-            item.setData(32, option)
+            item.setData(Qt.UserRole, option)
+            item.setData(32, option)  # legacy role kept for existing tests/callers
             self._results.addItem(item)
 
     def selected_option(self) -> SearchOption | None:
         item = self._results.currentItem()
         if item is None:
             return None
-        return item.data(32)
+        return item.data(Qt.UserRole) or item.data(32)
 
-    def clear(self) -> None:
-        self._search_box.clear()
+    def set_text_silently(self, text: str) -> None:
+        self._search_box.blockSignals(True)
+        self._search_box.setText(text)
+        self._search_box.blockSignals(False)
+
+    def clear_results(self) -> None:
         self._results.clear()
         self._options = []
 
+    def clear(self) -> None:
+        self._search_box.clear()
+        self.clear_results()
+
     def _emit_selected(self, item: QListWidgetItem) -> None:
-        self.selected.emit(item.data(32))
+        option = item.data(Qt.UserRole) or item.data(32)
+        if option is not None:
+            self.selected.emit(option)

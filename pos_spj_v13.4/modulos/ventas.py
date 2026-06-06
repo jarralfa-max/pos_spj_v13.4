@@ -2214,14 +2214,14 @@ class ModuloVentas(ModuloBase):
     def seleccionar_producto(self, producto: Dict[str, Any]):
         if self._selected_card:
             self._selected_card.set_selected(False)
-            
+
         self._selected_card = self.sender()
         if self._selected_card:
             self._selected_card.set_selected(True)
-            
+
         self.producto_seleccionado = producto
         unidad = producto['unidad'].lower()
-        
+
         if any(peso_keyword in unidad for peso_keyword in ['kg', 'kilogramo', 'kilo', 'gramo', 'gr']):
             if self._hw_bascula_habilitada and getattr(self, 'bascula_conectada', False):
                 self.iniciar_monitoreo_peso(producto)
@@ -3239,7 +3239,7 @@ class ModuloVentas(ModuloBase):
                                     _stock_msg(producto)
                                 )
                                 break
-                                
+
                             item['cantidad'] = nueva_cantidad
                             item['total'] = round(nueva_cantidad * item['precio_unitario'], 2)
                             self.actualizar_tabla_compra()
@@ -3288,7 +3288,7 @@ class ModuloVentas(ModuloBase):
                     self._tiempo_inicio_venta = time.time()
                 self.compra_actual.append(item_compra)
                 self.actualizar_tabla_compra()
-                    
+
                 self.limpiar_seleccion_producto()
                 return
                 
