@@ -122,6 +122,7 @@ class ModuloMerma(QWidget):
             placeholder="🔍 Buscar producto por nombre...",
         )
         self.product_selector.selected.connect(self._on_producto_selected)
+        self.product_selector._results.itemClicked.connect(self._log_producto_result_click)
         form.addRow("Producto:", self.product_selector)
 
         self.lbl_producto_info = QLabel("")
