@@ -77,8 +77,19 @@ def test_search_selector_uses_provider_without_mass_combo_loading() -> None:
 
     selector.refresh("res")
 
-    selected = selector._results.item(0).data(32)
-    assert selected == components.SearchOption(id="p1", label="Producto res")
+    expected = components.SearchOption(id="p1", label="Producto res")
+    item = selector._results.item(0)
+    selected = item.data(qt_core.Qt.UserRole)
+    assert selected == expected
+    assert item.data(32) == expected
+
+    emitted = []
+    selector.selected.connect(emitted.append)
+    selector._results.itemClicked.emit(item)
+    assert emitted == [expected]
+
+    selector.set_selected_label("Producto res")
+    assert selector.selected_option() is None
 
 
 def test_address_input_supports_map_suggestions_and_manual_fallback() -> None:
