@@ -2308,17 +2308,12 @@ class ModuloVentas(ModuloBase):
         if self._selected_card and self._selected_card is not sender:
             self._selected_card.set_selected(False)
 
-        self._selected_card = sender if isinstance(sender, ProductCard) else None
+        self._selected_card = self.sender()
         if self._selected_card:
             self._selected_card.set_selected(True)
 
         self.producto_seleccionado = producto
-        logger.info(
-            "Estado de producto actualizado: producto_seleccionado_id=%s carrito_items=%d",
-            producto_id, len(self.compra_actual)
-        )
-
-        unidad = str(producto.get('unidad') or '').lower()
+        unidad = producto['unidad'].lower()
 
         if any(peso_keyword in unidad for peso_keyword in ['kg', 'kilogramo', 'kilo', 'gramo', 'gr']):
             logger.info("Producto cargado para captura por peso: product_id=%s unidad=%s", producto_id, unidad)
@@ -3338,8 +3333,7 @@ class ModuloVentas(ModuloBase):
                                     self, "Stock Insuficiente",
                                     _stock_msg(producto)
                                 )
-                                self.limpiar_seleccion_producto()
-                                return
+                                break
 
                             item['cantidad'] = nueva_cantidad
                             item['total'] = round(nueva_cantidad * item['precio_unitario'], 2)
@@ -3397,10 +3391,6 @@ class ModuloVentas(ModuloBase):
                     self._tiempo_inicio_venta = time.time()
                 self.compra_actual.append(item_compra)
                 self.actualizar_tabla_compra()
-                logger.info(
-                    "Producto adicional agregado al carrito desde selección: product_id=%s cantidad=%s items=%d",
-                    producto.get('id'), cantidad, len(self.compra_actual)
-                )
 
                 self.limpiar_seleccion_producto()
                 return
