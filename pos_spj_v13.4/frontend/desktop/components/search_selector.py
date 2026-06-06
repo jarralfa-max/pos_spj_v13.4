@@ -69,6 +69,10 @@ class SearchSelector(QWidget):
         self._results.clear()
         self._options = []
 
+    def set_selected_label(self, text: str) -> None:
+        self.set_text_silently(text)
+        self.clear_results()
+
     def clear(self) -> None:
         self._search_box.clear()
         self.clear_results()
