@@ -233,22 +233,18 @@ class ModuloMerma(QWidget):
         logger.info("[MERMA] resultados renderizados count=%d", len(options))
         return options
 
-    def _log_producto_result_click(self, item) -> None:
-        row = self.product_selector._results.row(item)
-        option = item.data(Qt.UserRole) or item.data(32)
-        product_id = getattr(option, "id", None)
-        logger.info("[MERMA] click en fila row=%s", row)
-        logger.info("[MERMA] producto_id recuperado product_id=%s", product_id)
-        if product_id in (None, ""):
-            logger.warning("[MERMA] resultado sin producto_id row=%s text=%r", row, item.text())
-
     def _on_producto_selected(self, option: SearchOption):
         if option is None:
             logger.warning("[MERMA] selección recibida sin opción")
             return
 
         product_id = str(option.id) if option.id is not None else ""
+        logger.info("[MERMA] click en fila product_id=%s label=%s", product_id, option.label)
         logger.info("[MERMA] producto_id recuperado product_id=%s", product_id)
+        logger.info(
+            "[MERMA] producto seleccionado desde SearchSelector product_id=%s label=%s",
+            product_id, option.label,
+        )
         if not product_id:
             logger.warning("[MERMA] selección sin producto_id option=%r", option)
             return
@@ -270,10 +266,8 @@ class ModuloMerma(QWidget):
         self._selected_product = metadata
         logger.info("[MERMA] producto seleccionado product_id=%s nombre=%s", metadata.get("id"), metadata.get("name"))
 
-        self.product_selector._search_box.blockSignals(True)
-        self.product_selector._search_box.setText(option.label)
-        self.product_selector._search_box.blockSignals(False)
-        self.product_selector._results.clear()
+        self.product_selector.set_text_silently(option.label)
+        self.product_selector.clear_results()
 
         unidad = str(metadata.get("unit", "kg"))
         stock = float(metadata.get("stock", 0))

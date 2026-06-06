@@ -60,10 +60,18 @@ class SearchSelector(QWidget):
             return None
         return item.data(Qt.UserRole) or item.data(32)
 
-    def clear(self) -> None:
-        self._search_box.clear()
+    def set_text_silently(self, text: str) -> None:
+        self._search_box.blockSignals(True)
+        self._search_box.setText(text)
+        self._search_box.blockSignals(False)
+
+    def clear_results(self) -> None:
         self._results.clear()
         self._options = []
+
+    def clear(self) -> None:
+        self._search_box.clear()
+        self.clear_results()
 
     def _emit_selected(self, item: QListWidgetItem) -> None:
         option = item.data(Qt.UserRole) or item.data(32)
