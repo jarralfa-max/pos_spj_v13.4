@@ -259,7 +259,12 @@ class ModuloMerma(QWidget):
             return
 
         product_id = str(option.id) if option.id is not None else ""
-        logger.info("[MERMA] producto seleccionado desde SearchSelector product_id=%s label=%s", product_id, option.label)
+        logger.info("[MERMA] click en fila product_id=%s label=%s", product_id, option.label)
+        logger.info("[MERMA] producto_id recuperado product_id=%s", product_id)
+        logger.info(
+            "[MERMA] producto seleccionado desde SearchSelector product_id=%s label=%s",
+            product_id, option.label,
+        )
         if not product_id:
             logger.warning("[MERMA] selección sin producto_id option=%r", option)
             return
@@ -358,8 +363,14 @@ class ModuloMerma(QWidget):
         notas = self.txt_notas.text().strip()
         fecha = self.date_edit.date().toString("yyyy-MM-dd")
         valor_perdida = round(cantidad * costo_unitario, 2)
-        logger.info("[MERMA] registro de merma iniciado product_id=%s quantity=%.2f", product_id, cantidad)
-        logger.info("[MERMA] validación stock actual=%.2f cantidad=%.2f", stock_actual, cantidad)
+        logger.info(
+            "[MERMA] registro de merma iniciado product_id=%s quantity=%.2f",
+            product_id, cantidad,
+        )
+        logger.info(
+            "[MERMA] validación stock actual=%.2f cantidad=%.2f",
+            stock_actual, cantidad,
+        )
         logger.info("[MERMA] registro de merma product_id usado product_id=%s", product_id)
 
         if cantidad > stock_actual:
@@ -367,7 +378,8 @@ class ModuloMerma(QWidget):
                 self, "⚠️ Stock insuficiente",
                 f"La merma ({cantidad:.2f} {unidad}) es mayor al stock actual "
                 f"({stock_actual:.2f} {unidad}).\n\n"
-                "La existencia se ajustará a cero y se registrará la diferencia para auditoría.\n"
+                "La cantidad supera el stock. La existencia se ajustará a cero y "
+                "la diferencia quedará documentada para auditoría.\n"
                 "¿Registrar de todas formas?",
                 QMessageBox.Yes | QMessageBox.No)
             if resp != QMessageBox.Yes:

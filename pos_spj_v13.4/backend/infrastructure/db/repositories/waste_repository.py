@@ -102,6 +102,10 @@ class WasteRepository:
         if hasattr(self._connection, "commit"):
             self._connection.commit()
 
+    def rollback_changes(self) -> None:
+        if hasattr(self._connection, "rollback"):
+            self._connection.rollback()
+
     def list_waste_records(self, *, branch_id: str | int, period: str = "Hoy", search: str = "", limit: int = 500) -> list[TableRow]:
         where_period = {
             "Hoy": "AND COALESCE(m.fecha, substr(m.created_at,1,10)) >= date('now')",

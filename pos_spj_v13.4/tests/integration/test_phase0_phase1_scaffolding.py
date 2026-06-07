@@ -89,6 +89,7 @@ def test_phase0_architecture_docs_and_phase1_guardrails_are_installed() -> None:
         "backend/application/dto/use_case_result.py",
         "core/services/configuration_settings_service.py",
         "migrations/standalone/096_configuration_services_schema.py",
+        "migrations/standalone/097_waste_schema_integrity.py",
     ]
 
     missing_paths = [path for path in required_paths if not (REPO_ROOT / "pos_spj_v13.4" / path).is_file()]
