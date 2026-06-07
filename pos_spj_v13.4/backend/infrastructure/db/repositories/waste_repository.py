@@ -25,9 +25,10 @@ class WasteRepository:
 
     def get_product_for_waste(self, product_id: int | str, *, branch_id: str | int | None = None) -> dict[str, Any] | None:
         stock_expr, stock_params = self._branch_stock_expression(branch_id)
+        cost_expr = self._product_cost_expression()
         row = self._connection.execute(
             f"""
-            SELECT p.id, p.nombre, COALESCE(p.precio_compra,0), COALESCE(p.unidad,'kg'), {stock_expr}
+            SELECT p.id, p.nombre, {cost_expr}, COALESCE(p.unidad,'kg'), {stock_expr}
             FROM productos p
             WHERE p.id = ? AND COALESCE(p.activo,1) = 1
             """,
@@ -38,9 +39,10 @@ class WasteRepository:
     def search_products(self, query: str, *, limit: int = 30, branch_id: str | int | None = None) -> list[SearchResult]:
         like = f"%{query.strip()}%"
         stock_expr, stock_params = self._branch_stock_expression(branch_id)
+        cost_expr = self._product_cost_expression()
         rows = self._connection.execute(
             f"""
-            SELECT p.id, p.nombre, COALESCE(p.precio_compra,0), COALESCE(p.unidad,'kg'), {stock_expr}
+            SELECT p.id, p.nombre, {cost_expr}, COALESCE(p.unidad,'kg'), {stock_expr}
             FROM productos p
             WHERE COALESCE(p.activo,1) = 1 AND (? = '%%' OR p.nombre LIKE ?)
             ORDER BY p.nombre
@@ -90,12 +92,29 @@ class WasteRepository:
         quantity: float,
         *,
         branch_id: str | int | None = None,
+        unit_cost: float = 0.0,
+        operation_id: str | None = None,
+        reason: str = "",
+        user_name: str = "",
     ) -> None:
+        stock_before = self._stock_for_product(product_id, branch_id=branch_id)
+        stock_after = max(0.0, stock_before - float(quantity))
         if branch_id is not None:
             self._decrease_branch_inventory(product_id, quantity, branch_id)
         self._connection.execute(
             "UPDATE productos SET existencia = MAX(0, COALESCE(existencia,0) - ?) WHERE id = ?",
             (quantity, product_id),
+        )
+        self._insert_inventory_movement_for_waste(
+            product_id=product_id,
+            quantity=quantity,
+            branch_id=branch_id,
+            unit_cost=unit_cost,
+            operation_id=operation_id,
+            reason=reason,
+            user_name=user_name,
+            stock_before=stock_before,
+            stock_after=stock_after,
         )
 
     def save_changes(self) -> None:
@@ -148,6 +167,23 @@ class WasteRepository:
         loss_value = round(float(row[1] or 0), 2) if row else 0.0
         return KpiMetric("daily_waste", "Merma de hoy", {"records": records, "loss_value": loss_value})
 
+    def _product_cost_expression(self) -> str:
+        columns = self._table_columns("productos") if self._table_exists("productos") else set()
+        candidates = [
+            column for column in ("precio_compra", "costo", "precio_costo", "costo_unitario")
+            if column in columns
+        ]
+        if not candidates:
+            return "0"
+        return "COALESCE(" + ", ".join(f"NULLIF(p.{column}, 0)" for column in candidates) + ", 0)"
+
+    def _stock_for_product(self, product_id: int | str, *, branch_id: str | int | None = None) -> float:
+        stock_expr, stock_params = self._branch_stock_expression(branch_id)
+        row = self._connection.execute(
+            f"SELECT {stock_expr} FROM productos p WHERE p.id = ?",
+            (*stock_params, product_id),
+        ).fetchone()
+        return float(row[0] or 0) if row else 0.0
 
     def _branch_stock_expression(self, branch_id: str | int | None) -> tuple[str, list[Any]]:
         stock_sources = []
@@ -190,52 +226,123 @@ class WasteRepository:
                     (product_id, branch_id),
                 )
         if self._table_exists("branch_inventory"):
-            columns = self._table_columns("branch_inventory")
-            has_batch = "batch_id" in columns
-            has_updated_at = "updated_at" in columns
-            where_batch = " AND batch_id IS NULL" if has_batch else ""
+            self._decrease_branch_inventory_rows(product_id, quantity, branch_id)
+
+    def _decrease_branch_inventory_rows(self, product_id: int | str, quantity: float, branch_id: str | int) -> None:
+        columns = self._table_columns("branch_inventory")
+        has_batch = "batch_id" in columns
+        has_updated_at = "updated_at" in columns
+        order_by = "CASE WHEN batch_id IS NULL THEN 0 ELSE 1 END, rowid" if has_batch else "rowid"
+        rows = self._connection.execute(
+            f"""
+            SELECT rowid, COALESCE(quantity,0)
+            FROM branch_inventory
+            WHERE product_id = ? AND branch_id = ?
+            ORDER BY {order_by}
+            """,
+            (product_id, branch_id),
+        ).fetchall()
+        remaining = max(0.0, float(quantity))
+        for rowid, current_qty in rows:
+            if remaining <= 1e-9:
+                break
+            current = float(current_qty or 0)
+            decrease = min(current, remaining)
+            new_qty = max(0.0, current - decrease)
             set_updated_at = ", updated_at = datetime('now')" if has_updated_at else ""
-            updated = self._connection.execute(
-                f"""
-                UPDATE branch_inventory
-                SET quantity = MAX(0, COALESCE(quantity,0) - ?){set_updated_at}
-                WHERE product_id = ? AND branch_id = ?{where_batch}
+            self._connection.execute(
+                f"UPDATE branch_inventory SET quantity = ?{set_updated_at} WHERE rowid = ?",
+                (new_qty, rowid),
+            )
+            remaining -= decrease
+        if not rows:
+            self._insert_empty_branch_inventory(product_id, branch_id, has_batch, has_updated_at)
+
+    def _insert_empty_branch_inventory(
+        self,
+        product_id: int | str,
+        branch_id: str | int,
+        has_batch: bool,
+        has_updated_at: bool,
+    ) -> None:
+        if has_batch and has_updated_at:
+            self._connection.execute(
+                """
+                INSERT INTO branch_inventory (product_id, branch_id, quantity, batch_id, updated_at)
+                VALUES (?, ?, 0, NULL, datetime('now'))
                 """,
-                (quantity, product_id, branch_id),
-            ).rowcount
-            if not updated:
-                if has_batch and has_updated_at:
-                    self._connection.execute(
-                        """
-                        INSERT INTO branch_inventory (product_id, branch_id, quantity, batch_id, updated_at)
-                        VALUES (?, ?, 0, NULL, datetime('now'))
-                        """,
-                        (product_id, branch_id),
-                    )
-                elif has_updated_at:
-                    self._connection.execute(
-                        """
-                        INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
-                        VALUES (?, ?, 0, datetime('now'))
-                        """,
-                        (product_id, branch_id),
-                    )
-                elif has_batch:
-                    self._connection.execute(
-                        """
-                        INSERT INTO branch_inventory (product_id, branch_id, quantity, batch_id)
-                        VALUES (?, ?, 0, NULL)
-                        """,
-                        (product_id, branch_id),
-                    )
-                else:
-                    self._connection.execute(
-                        """
-                        INSERT INTO branch_inventory (product_id, branch_id, quantity)
-                        VALUES (?, ?, 0)
-                        """,
-                        (product_id, branch_id),
-                    )
+                (product_id, branch_id),
+            )
+        elif has_updated_at:
+            self._connection.execute(
+                """
+                INSERT INTO branch_inventory (product_id, branch_id, quantity, updated_at)
+                VALUES (?, ?, 0, datetime('now'))
+                """,
+                (product_id, branch_id),
+            )
+        elif has_batch:
+            self._connection.execute(
+                """
+                INSERT INTO branch_inventory (product_id, branch_id, quantity, batch_id)
+                VALUES (?, ?, 0, NULL)
+                """,
+                (product_id, branch_id),
+            )
+        else:
+            self._connection.execute(
+                """
+                INSERT INTO branch_inventory (product_id, branch_id, quantity)
+                VALUES (?, ?, 0)
+                """,
+                (product_id, branch_id),
+            )
+
+    def _insert_inventory_movement_for_waste(
+        self,
+        *,
+        product_id: int | str,
+        quantity: float,
+        branch_id: str | int | None,
+        unit_cost: float,
+        operation_id: str | None,
+        reason: str,
+        user_name: str,
+        stock_before: float,
+        stock_after: float,
+    ) -> None:
+        if not self._table_exists("movimientos_inventario"):
+            return
+        import uuid as _uuid
+        columns = self._table_columns("movimientos_inventario")
+        values: dict[str, Any] = {
+            "uuid": str(_uuid.uuid4()),
+            "producto_id": product_id,
+            "tipo": "MERMA",
+            "tipo_movimiento": "waste",
+            "tipo_movimiento_v2": "waste",
+            "cantidad": float(quantity),
+            "existencia_anterior": stock_before,
+            "existencia_nueva": stock_after,
+            "costo_unitario": float(unit_cost or 0),
+            "costo_total": round(float(quantity) * float(unit_cost or 0), 2),
+            "descripcion": reason or "Merma",
+            "referencia": operation_id,
+            "referencia_tipo": "WASTE",
+            "nota": reason or "Merma",
+            "operation_id": operation_id,
+            "usuario": user_name or "",
+            "sucursal_id": branch_id,
+            "fecha": datetime.now().isoformat(),
+        }
+        insert_columns = [column for column in values if column in columns]
+        if not insert_columns:
+            return
+        placeholders = ", ".join("?" for _ in insert_columns)
+        self._connection.execute(
+            f"INSERT INTO movimientos_inventario ({', '.join(insert_columns)}) VALUES ({placeholders})",
+            tuple(values[column] for column in insert_columns),
+        )
 
     def _table_exists(self, table_name: str) -> bool:
         if table_name not in self._table_exists_cache:

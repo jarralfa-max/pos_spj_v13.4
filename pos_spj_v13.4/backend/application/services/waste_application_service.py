@@ -27,6 +27,10 @@ class WasteRepositoryProtocol(Protocol):
         quantity: float,
         *,
         branch_id: str | int | None = None,
+        unit_cost: float = 0.0,
+        operation_id: str | None = None,
+        reason: str = "",
+        user_name: str = "",
     ) -> None: ...
     def save_changes(self) -> None: ...
     def rollback_changes(self) -> None: ...
@@ -128,7 +132,15 @@ class WasteApplicationService:
         }
         try:
             waste_id = self._repository.register_waste(entry)
-            self._repository.decrease_inventory_for_waste(product_id, quantity, branch_id=branch_id)
+            self._repository.decrease_inventory_for_waste(
+                product_id,
+                quantity,
+                branch_id=branch_id,
+                unit_cost=unit_cost,
+                operation_id=command.operation_id,
+                reason=command.reason,
+                user_name=command.user_name or "",
+            )
             self._repository.save_changes()
         except Exception:
             if hasattr(self._repository, "rollback_changes"):
@@ -179,6 +191,8 @@ class WasteApplicationService:
                 user_id=command.user_id,
                 operation_id=command.operation_id,
             )
+            if hasattr(self._repository, "save_changes"):
+                self._repository.save_changes()
         except Exception:
             side_effect_errors.append("WASTE_FINANCE_RECORD_FAILED")
             logger.exception(

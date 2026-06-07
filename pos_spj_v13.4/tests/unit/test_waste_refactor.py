@@ -302,7 +302,17 @@ def test_register_waste_event_publish_failure_is_logged_non_fatal_after_persiste
 
 
 class FailingDecreaseWasteRepository(WasteRepository):
-    def decrease_inventory_for_waste(self, product_id, quantity, *, branch_id=None) -> None:
+    def decrease_inventory_for_waste(
+        self,
+        product_id,
+        quantity,
+        *,
+        branch_id=None,
+        unit_cost=0.0,
+        operation_id=None,
+        reason="",
+        user_name="",
+    ) -> None:
         raise RuntimeError("inventory update failed")
 
 
@@ -332,6 +342,172 @@ def test_register_waste_rolls_back_when_inventory_decrease_fails(caplog) -> None
     assert finance.entries == []
     assert events == []
     assert "critical persistence failed; rolled back" in caplog.text
+
+
+def test_register_waste_uses_real_cost_fallback_records_inventory_movement_and_financial_log() -> None:
+    from core.services.finance.general_ledger_service import GeneralLedgerService
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("""
+        CREATE TABLE productos (
+            id INTEGER PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            precio_compra REAL,
+            costo REAL,
+            precio_costo REAL,
+            costo_unitario REAL,
+            unidad TEXT,
+            existencia REAL,
+            activo INTEGER
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE mermas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER NOT NULL,
+            sucursal_id INTEGER NOT NULL,
+            cantidad REAL NOT NULL,
+            unidad TEXT,
+            motivo TEXT,
+            costo_unitario REAL,
+            valor_perdida REAL,
+            notas TEXT,
+            usuario TEXT,
+            operation_id TEXT,
+            created_at TEXT,
+            fecha TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE movimientos_inventario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER,
+            tipo TEXT,
+            tipo_movimiento TEXT,
+            cantidad REAL,
+            existencia_anterior REAL,
+            existencia_nueva REAL,
+            costo_unitario REAL,
+            costo_total REAL,
+            descripcion TEXT,
+            referencia TEXT,
+            referencia_tipo TEXT,
+            operation_id TEXT,
+            usuario TEXT,
+            sucursal_id TEXT,
+            fecha TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE financial_event_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            evento TEXT,
+            modulo TEXT,
+            referencia_id TEXT,
+            monto REAL,
+            cuenta_debe TEXT,
+            cuenta_haber TEXT,
+            usuario_id TEXT,
+            sucursal_id TEXT,
+            metadata TEXT,
+            timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute(
+        """
+        INSERT INTO productos(id, nombre, precio_compra, costo, precio_costo, costo_unitario, unidad, existencia, activo)
+        VALUES (1, 'Producto costo real', 0, 50, 40, 30, 'kg', 10, 1)
+        """
+    )
+    conn.commit()
+
+    repository = WasteRepository(conn)
+    service = WasteApplicationService(
+        repository=repository,
+        finance_handler=GeneralLedgerService(conn),
+    )
+
+    result = service.register(RegisterWasteCommand(
+        operation_id="cost-fallback-op",
+        branch_id="1",
+        user_name="ana",
+        product_id=1,
+        quantity=2.0,
+        reason="Merma por daño",
+        date="2026-06-05",
+    ))
+
+    assert result.success is True
+    assert result.data["unit_cost"] == 50.0
+    assert result.data["loss_value"] == 100.0
+    assert conn.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0] == 8.0
+    waste_row = conn.execute(
+        """
+        SELECT cantidad, costo_unitario, valor_perdida
+        FROM mermas
+        WHERE operation_id = 'cost-fallback-op'
+        """
+    ).fetchone()
+    assert waste_row == (2.0, 50.0, 100.0)
+    movement_row = conn.execute(
+        """
+        SELECT tipo, tipo_movimiento, cantidad, existencia_anterior, existencia_nueva,
+               costo_unitario, costo_total, operation_id
+        FROM movimientos_inventario
+        WHERE operation_id = 'cost-fallback-op'
+        """
+    ).fetchone()
+    assert movement_row == ("MERMA", "waste", 2.0, 10.0, 8.0, 50.0, 100.0, "cost-fallback-op")
+    finance_row = conn.execute(
+        """
+        SELECT evento, modulo, monto, cuenta_debe, cuenta_haber
+        FROM financial_event_log
+        WHERE evento = 'WASTE_REGISTERED'
+        """
+    ).fetchone()
+    assert finance_row == ("WASTE_REGISTERED", "waste", 100.0, "mermas_y_deterioro", "inventario_almacen")
+
+
+def test_branch_inventory_decrease_consumes_only_needed_rows_without_discounting_every_row() -> None:
+    conn = _db()
+    conn.execute("UPDATE productos SET existencia = 10 WHERE id = 1")
+    conn.execute("""
+        CREATE TABLE branch_inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            batch_id INTEGER,
+            quantity REAL NOT NULL DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.execute(
+        "INSERT INTO branch_inventory(product_id, branch_id, quantity, batch_id) VALUES (1, 1, 7, NULL)"
+    )
+    conn.execute(
+        "INSERT INTO branch_inventory(product_id, branch_id, quantity, batch_id) VALUES (1, 1, 3, 99)"
+    )
+    conn.commit()
+
+    repository = WasteRepository(conn)
+    result = WasteApplicationService(repository=repository).register(RegisterWasteCommand(
+        operation_id="branch-row-safe-op",
+        branch_id="1",
+        user_name="ana",
+        product_id=1,
+        quantity=2.0,
+        reason="Merma parcial",
+        date="2026-06-05",
+    ))
+
+    assert result.success is True
+    rows = conn.execute(
+        "SELECT batch_id, quantity FROM branch_inventory WHERE product_id = 1 AND branch_id = 1 ORDER BY batch_id IS NOT NULL, batch_id"
+    ).fetchall()
+    assert rows[0] == (None, 5.0)
+    assert rows[1] == (99, 3.0)
+    assert sum(row[1] for row in rows) == 8.0
+    assert conn.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0] == 8.0
 
 
 def _index_names(conn: sqlite3.Connection, table: str) -> set[str]:

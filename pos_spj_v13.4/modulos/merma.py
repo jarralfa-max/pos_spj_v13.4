@@ -420,6 +420,16 @@ class ModuloMerma(QWidget):
             QMessageBox.critical(self, "Error", result.message or "No se pudo registrar la merma.")
             return
 
+        result_data = dict(result.data or {})
+        result_unit_cost = _safe_float(result_data.get("unit_cost"))
+        result_loss_value = _safe_float(result_data.get("loss_value"))
+        if result_unit_cost > 0:
+            costo_unitario = result_unit_cost
+        if result_loss_value > 0 or valor_perdida <= 0:
+            valor_perdida = result_loss_value
+        if result_data.get("product_name"):
+            nombre = str(result_data.get("product_name"))
+
         self._registrar_auditoria(result.entity_id or operation_id, nombre, cantidad, unidad, costo_unitario, valor_perdida, motivo)
         Toast.success(
             self, "✅ Merma registrada",
@@ -484,6 +494,7 @@ class ModuloMerma(QWidget):
         self.spin_cantidad.setValue(0.00)
         self.txt_notas.clear()
         self._selected_product = None
+        self._product_search_cache = {}
         self.lbl_producto_info.setText("")
         self.lbl_valor_perdida.setText("$0.00")
         self.product_selector.clear()

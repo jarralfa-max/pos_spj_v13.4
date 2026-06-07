@@ -35,6 +35,37 @@ def _connection() -> sqlite3.Connection:
             fecha TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE movimientos_inventario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER,
+            tipo TEXT,
+            tipo_movimiento TEXT,
+            cantidad REAL,
+            existencia_anterior REAL,
+            existencia_nueva REAL,
+            costo_unitario REAL,
+            costo_total REAL,
+            operation_id TEXT,
+            sucursal_id TEXT,
+            fecha TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE financial_event_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            evento TEXT,
+            modulo TEXT,
+            referencia_id TEXT,
+            monto REAL,
+            cuenta_debe TEXT,
+            cuenta_haber TEXT,
+            usuario_id TEXT,
+            sucursal_id TEXT,
+            metadata TEXT,
+            timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.execute(
         "INSERT INTO productos(id, nombre, precio_compra, unidad, existencia, activo) VALUES (1, 'Arrachera', 120, 'kg', 5, 1)"
     )
@@ -48,10 +79,12 @@ def _qt_merma_widget():
     except Exception as exc:  # pragma: no cover - environment dependent Qt libraries
         pytest.skip(f"PyQt5 widgets unavailable: {exc}")
 
+    from core.services.finance.general_ledger_service import GeneralLedgerService
     from modulos.merma import ModuloMerma
 
     app = QApplication.instance() or QApplication([])
-    container = SimpleNamespace(db=_connection(), sucursal_id=1)
+    db = _connection()
+    container = SimpleNamespace(db=db, sucursal_id=1, finance_service=GeneralLedgerService(db))
     widget = ModuloMerma(container)
     return app, widget
 
@@ -135,9 +168,63 @@ def test_merma_register_valid_waste_uses_selected_product_and_decreases_inventor
     ).fetchone()
     stock = widget.container.db.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0]
 
+    movement_row = widget.container.db.execute(
+        "SELECT tipo, tipo_movimiento, cantidad, existencia_anterior, existencia_nueva FROM movimientos_inventario"
+    ).fetchone()
+    finance_row = widget.container.db.execute(
+        "SELECT evento, monto FROM financial_event_log WHERE evento = 'WASTE_REGISTERED'"
+    ).fetchone()
+
     assert row == (1, 2.0, 240.0, "tester")
     assert stock == 3.0
+    assert movement_row == ("MERMA", "waste", 2.0, 5.0, 3.0)
+    assert finance_row == ("WASTE_REGISTERED", 240.0)
     assert widget._selected_product is None
+    widget.deleteLater()
+    app.processEvents()
+
+
+def test_merma_register_high_value_requests_pin_before_use_case(monkeypatch) -> None:
+    app, widget = _qt_merma_widget()
+    warnings = []
+    pins = []
+
+    from PyQt5.QtWidgets import QMessageBox, QInputDialog
+    from modulos.merma import SearchOption
+    import core.permissions as permissions
+    import modulos.merma as merma_module
+    from core.services.discount_guard import DiscountGuard
+
+    monkeypatch.setattr(permissions, "verificar_permiso", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        lambda _parent, title, message, *args: warnings.append((title, message)) or QMessageBox.Yes,
+    )
+    monkeypatch.setattr(QInputDialog, "getText", lambda *_args, **_kwargs: ("1234", True))
+    monkeypatch.setattr(DiscountGuard, "solicitar_pin_gerente", lambda _self, _db, pin: pins.append(pin) or True)
+    monkeypatch.setattr(merma_module.Toast, "success", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(widget, "_registrar_auditoria", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(widget, "_cargar_historial", lambda: None)
+
+    option = widget._buscar_productos("arra")[0]
+    widget._on_producto_selected(SearchOption(id=option.id, label=option.label, subtitle=option.subtitle))
+    widget.spin_cantidad.setValue(5.00)
+    widget.set_usuario_actual("tester")
+
+    widget._registrar()
+
+    row = widget.container.db.execute(
+        "SELECT cantidad, costo_unitario, valor_perdida FROM mermas"
+    ).fetchone()
+    finance_row = widget.container.db.execute(
+        "SELECT evento, monto FROM financial_event_log WHERE evento = 'WASTE_REGISTERED'"
+    ).fetchone()
+
+    assert any(title == "⚠️ Merma de alto valor" for title, _message in warnings)
+    assert pins == ["1234"]
+    assert row == (5.0, 120.0, 600.0)
+    assert finance_row == ("WASTE_REGISTERED", 600.0)
     widget.deleteLater()
     app.processEvents()
 
