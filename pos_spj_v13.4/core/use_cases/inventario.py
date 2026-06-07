@@ -103,6 +103,7 @@ class GestionarInventarioUC:
                 "cantidad":    cantidad,
                 "stock_nuevo": stock_nuevo,
                 "usuario":     usuario,
+                "operation_id": op_id,
                 "op_id":       op_id,
             })
             return ResultadoInventario(ok=True, operacion_id=op_id, stock_nuevo=stock_nuevo)
@@ -151,6 +152,7 @@ class GestionarInventarioUC:
                 "delta":       delta,
                 "motivo":      motivo,
                 "usuario":     usuario,
+                "operation_id": op_id,
                 "op_id":       op_id,
             })
             return ResultadoInventario(
@@ -206,6 +208,7 @@ class GestionarInventarioUC:
                 "sucursal_origen":  sucursal_origen,
                 "sucursal_destino": sucursal_destino,
                 "usuario":          usuario,
+                "operation_id":     op_id,
                 "op_id":            op_id,
             })
             return ResultadoInventario(ok=True, operacion_id=op_id, stock_nuevo=stock_nuevo)
