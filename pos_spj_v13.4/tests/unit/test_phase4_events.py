@@ -63,6 +63,13 @@ def test_in_memory_event_bus_dispatches_typed_events_to_subscribers() -> None:
     assert received == [event]
 
 
+def test_inventory_event_catalog_contains_required_canonical_events() -> None:
+    assert EventName.INVENTORY_MOVEMENT_RECORDED.value == "INVENTORY_MOVEMENT_RECORDED"
+    assert EventName.INVENTORY_STOCK_UPDATED.value == "INVENTORY_STOCK_UPDATED"
+    assert EventName.INVENTORY_STOCK_LOW.value == "INVENTORY_STOCK_LOW"
+
+
+
 def test_event_dispatcher_mirrors_typed_events_to_legacy_bus() -> None:
     bus = InMemoryEventBus()
     legacy = LegacyRecorder()

@@ -16,9 +16,12 @@ from PyQt5.QtWidgets import (
 )
 
 from backend.application.commands.waste_commands import RegisterWasteCommand
+from backend.application.queries.inventory_query_service import InventoryQueryService
 from backend.application.queries.waste_query_service import WasteQueryService
+from backend.application.services.inventory_application_service import InventoryApplicationService
 from backend.application.services.waste_application_service import WasteApplicationService, WasteFinanceHandler
 from backend.application.use_cases.register_waste_use_case import RegisterWasteUseCase
+from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
 from backend.infrastructure.db.repositories.waste_repository import WasteRepository
 from frontend.desktop.components.search_selector import SearchOption, SearchSelector
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
@@ -88,14 +91,21 @@ class ModuloMerma(QWidget):
 
     def _build_backend_services(self, container) -> None:
         repository = WasteRepository(container.db)
+        inventory_repository = InventoryRepository(container.db)
         self._waste_repository = repository
+        self._inventory_query_service = InventoryQueryService(inventory_repository)
         event_bus = self._resolve_event_bus(container)
+        inventory_service = InventoryApplicationService(
+            repository=inventory_repository,
+            event_bus=event_bus,
+        )
         finance_service = getattr(container, "finance_service", None) or getattr(container, "treasury_service", None)
         finance_handler = WasteFinanceHandler(finance_service)
         self._waste_query_service = WasteQueryService(repository)
         self._register_waste_use_case = RegisterWasteUseCase(
             app_service=WasteApplicationService(
                 repository=repository,
+                inventory_service=inventory_service,
                 event_bus=event_bus,
                 finance_handler=finance_handler,
             )
@@ -263,11 +273,16 @@ class ModuloMerma(QWidget):
             self._product_search_cache = {}
             return []
 
-        self._product_search_cache = {str(result.id): dict(result.metadata or {}) for result in results}
-        options = [
-            SearchOption(id=result.id, label=result.label, subtitle=result.subtitle)
-            for result in results
-        ]
+        self._product_search_cache = {}
+        options = []
+        for result in results:
+            metadata = dict(result.metadata or {})
+            metadata["stock"] = self._canonical_stock_quantity(result.id)
+            self._product_search_cache[str(result.id)] = metadata
+            unit = str(metadata.get("unit") or "kg")
+            unit_cost = _safe_float(metadata.get("unit_cost"))
+            subtitle = f"Stock: {metadata['stock']:.2f} {unit} | Costo: ${unit_cost:.2f}"
+            options.append(SearchOption(id=result.id, label=result.label, subtitle=subtitle))
         logger.info("[MERMA] productos encontrados count=%d query=%r", len(results), query)
         logger.info("[MERMA] resultados renderizados count=%d", len(options))
         return options
@@ -311,7 +326,7 @@ class ModuloMerma(QWidget):
         metadata["id"] = metadata.get("id", product_id)
         metadata["name"] = str(metadata.get("name") or option.label or f"Producto #{product_id}")
         metadata["unit"] = str(metadata.get("unit") or "kg")
-        metadata["stock"] = _safe_float(metadata.get("stock"))
+        metadata["stock"] = self._canonical_stock_quantity(product_id)
         metadata["unit_cost"] = _safe_float(metadata.get("unit_cost"))
         self._selected_product = metadata
         logger.info(
@@ -331,6 +346,10 @@ class ModuloMerma(QWidget):
             "[MERMA] UI actualizada product_id=%s unidad=%s stock=%.2f costo=%.2f",
             metadata.get("id"), unidad, stock, costo,
         )
+
+    def _canonical_stock_quantity(self, product_id: int | str) -> float:
+        stock = self._inventory_query_service.get_stock(int(product_id), int(self.sucursal_id))
+        return _safe_float(stock.quantity)
 
     def _actualizar_valor_perdida(self):
         if self._selected_product:
@@ -400,16 +419,13 @@ class ModuloMerma(QWidget):
         logger.info("[MERMA] registro de merma product_id usado product_id=%s", product_id)
 
         if cantidad > stock_actual:
-            resp = QMessageBox.warning(
+            QMessageBox.warning(
                 self, "⚠️ Stock insuficiente",
                 f"La merma ({cantidad:.2f} {unidad}) es mayor al stock actual "
                 f"({stock_actual:.2f} {unidad}).\n\n"
-                "La cantidad supera el stock. La existencia se ajustará a cero y "
-                "la diferencia quedará documentada para auditoría.\n"
-                "¿Registrar de todas formas?",
-                QMessageBox.Yes | QMessageBox.No)
-            if resp != QMessageBox.Yes:
-                return
+                "No se puede registrar una merma que deje inventario en negativo.",
+            )
+            return
 
         if valor_perdida >= UMBRAL_VALOR_ALTO:
             resp = QMessageBox.warning(

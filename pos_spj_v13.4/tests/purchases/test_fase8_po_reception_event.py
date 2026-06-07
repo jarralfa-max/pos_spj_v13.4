@@ -10,7 +10,7 @@ Verifica (sin instanciar PyQt5):
 4. ReceivePOAdapter.register_partial_receipt() calls _publish_recepcion (AST)
 5. State transitions: ABIERTA→PARCIAL (partial) and ABIERTA→RECIBIDA (full) — integration
 6. Partial receipt + full receipt guard: closed PO rejects new receipts
-7. No inventory logic added to _on_refresh (no duplicate add_stock)
+7. No inventory logic added to _on_refresh (no duplicate increase_stock)
 8. No SQL in _on_refresh, no banned colors in FASE 8 modified methods
 
 No PyQt5 instantiation.
@@ -123,7 +123,7 @@ def _make_po_container(conn: sqlite3.Connection,
     container.db = conn
     if mock_inv:
         inv = MagicMock()
-        inv.add_stock = MagicMock()
+        inv.increase_stock = MagicMock()
         container.inventory_service = inv
     else:
         container.inventory_service = None
@@ -203,11 +203,11 @@ class TestOnRefreshHandlesPOEvent:
             "para garantizar que el refresh corre en el hilo de UI."
         )
 
-    def test_does_not_call_add_stock(self):
+    def test_does_not_call_increase_stock(self):
         """_on_refresh no debe duplicar la lógica de inventario."""
         src = self._src()
-        assert "add_stock" not in src, (
-            "_on_refresh NO debe llamar add_stock — eso ya lo hace ReceivePOAdapter. "
+        assert "increase_stock" not in src, (
+            "_on_refresh NO debe llamar increase_stock — eso ya lo hace ReceivePOAdapter. "
             "Solo debe refrescar la UI."
         )
 
@@ -426,7 +426,7 @@ class TestReceivePOAdapterStateTransitions:
         assert po_row["estado"] == "RECIBIDA"
 
     def test_inventory_service_called_per_item(self):
-        """inventory_service.add_stock is called once per received item."""
+        """inventory_service.increase_stock is called once per received item."""
         adapter, conn, po_id, RI = self._setup()
         result = adapter.register_partial_receipt(
             po_id=po_id,
@@ -434,8 +434,8 @@ class TestReceivePOAdapterStateTransitions:
             usuario="admin", sucursal_id=1, proveedor_id=1,
         )
         assert result.ok
-        # Verify add_stock was called exactly once
-        adapter._container.inventory_service.add_stock.assert_called_once()
+        # Verify increase_stock was called exactly once
+        adapter._container.inventory_service.increase_stock.assert_called_once()
 
     def test_publishes_recepcion_confirmada_event(self):
         """register_partial_receipt publishes RECEPCION_CONFIRMADA after success."""
@@ -473,10 +473,10 @@ class TestReceivePOAdapterStateTransitions:
 class TestNoDuplicateInventoryInOnRefresh:
     """_on_refresh must NOT add inventory logic — that belongs in ReceivePOAdapter."""
 
-    def test_no_add_stock_in_on_refresh(self):
+    def test_no_increase_stock_in_on_refresh(self):
         src = _compras_method("_on_refresh")
         assert src is not None
-        assert "add_stock" not in src
+        assert "increase_stock" not in src
 
     def test_no_register_purchase_in_on_refresh(self):
         src = _compras_method("_on_refresh")
