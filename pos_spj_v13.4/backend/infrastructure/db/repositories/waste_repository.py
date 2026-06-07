@@ -96,15 +96,23 @@ class WasteRepository:
         operation_id: str | None = None,
         reason: str = "",
         user_name: str = "",
-    ) -> None:
+    ) -> dict[str, Any]:
         stock_before = self._stock_for_product(product_id, branch_id=branch_id)
-        stock_after = max(0.0, stock_before - float(quantity))
-        if branch_id is not None:
-            self._decrease_branch_inventory(product_id, quantity, branch_id)
-        self._connection.execute(
-            "UPDATE productos SET existencia = MAX(0, COALESCE(existencia,0) - ?) WHERE id = ?",
-            (quantity, product_id),
-        )
+        source = self._inventory_source_for_waste(product_id, branch_id)
+
+        if source == "inventario_actual":
+            self._decrease_current_inventory(product_id, quantity, branch_id)
+            self._sync_product_stock_from_inventory_table(product_id, "inventario_actual")
+        elif source == "branch_inventory":
+            self._decrease_branch_inventory_rows(product_id, quantity, branch_id)
+            self._sync_product_stock_from_inventory_table(product_id, "branch_inventory")
+        else:
+            self._connection.execute(
+                "UPDATE productos SET existencia = MAX(0, COALESCE(existencia,0) - ?) WHERE id = ?",
+                (quantity, product_id),
+            )
+
+        stock_after = self._stock_for_product(product_id, branch_id=branch_id)
         self._insert_inventory_movement_for_waste(
             product_id=product_id,
             quantity=quantity,
@@ -116,6 +124,11 @@ class WasteRepository:
             stock_before=stock_before,
             stock_after=stock_after,
         )
+        return {
+            "inventory_source": source,
+            "stock_before": stock_before,
+            "stock_after": stock_after,
+        }
 
     def save_changes(self) -> None:
         if hasattr(self._connection, "commit"):
@@ -188,13 +201,6 @@ class WasteRepository:
     def _branch_stock_expression(self, branch_id: str | int | None) -> tuple[str, list[Any]]:
         stock_sources = []
         params: list[Any] = []
-        if branch_id is not None and self._table_exists("branch_inventory"):
-            stock_sources.append(
-                "(SELECT SUM(COALESCE(quantity,0)) "
-                "FROM branch_inventory bi "
-                "WHERE bi.product_id = p.id AND bi.branch_id = ?)"
-            )
-            params.append(branch_id)
         if branch_id is not None and self._table_exists("inventario_actual"):
             stock_sources.append(
                 "(SELECT COALESCE(ia.cantidad,0) "
@@ -203,30 +209,64 @@ class WasteRepository:
                 "LIMIT 1)"
             )
             params.append(branch_id)
+        if branch_id is not None and self._table_exists("branch_inventory"):
+            stock_sources.append(
+                "(SELECT SUM(COALESCE(quantity,0)) "
+                "FROM branch_inventory bi "
+                "WHERE bi.product_id = p.id AND bi.branch_id = ?)"
+            )
+            params.append(branch_id)
         stock_sources.append("COALESCE(p.existencia,0)")
         return f"COALESCE({', '.join(stock_sources)}, 0)", params
 
-    def _decrease_branch_inventory(self, product_id: int | str, quantity: float, branch_id: str | int) -> None:
-        if self._table_exists("inventario_actual"):
-            updated = self._connection.execute(
-                """
-                UPDATE inventario_actual
-                SET cantidad = MAX(0, COALESCE(cantidad,0) - ?),
-                    ultima_actualizacion = datetime('now')
-                WHERE producto_id = ? AND sucursal_id = ?
-                """,
-                (quantity, product_id, branch_id),
-            ).rowcount
-            if not updated:
-                self._connection.execute(
-                    """
-                    INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-                    VALUES (?, ?, 0)
-                    """,
-                    (product_id, branch_id),
-                )
-        if self._table_exists("branch_inventory"):
-            self._decrease_branch_inventory_rows(product_id, quantity, branch_id)
+    def _inventory_source_for_waste(self, product_id: int | str, branch_id: str | int | None) -> str:
+        if branch_id is not None and self._table_exists("inventario_actual"):
+            row = self._connection.execute(
+                "SELECT 1 FROM inventario_actual WHERE producto_id = ? AND sucursal_id = ? LIMIT 1",
+                (product_id, branch_id),
+            ).fetchone()
+            if row is not None:
+                return "inventario_actual"
+        if branch_id is not None and self._table_exists("branch_inventory"):
+            row = self._connection.execute(
+                "SELECT 1 FROM branch_inventory WHERE product_id = ? AND branch_id = ? LIMIT 1",
+                (product_id, branch_id),
+            ).fetchone()
+            if row is not None:
+                return "branch_inventory"
+        return "productos"
+
+    def _decrease_current_inventory(self, product_id: int | str, quantity: float, branch_id: str | int | None) -> None:
+        if branch_id is None:
+            return
+        self._connection.execute(
+            """
+            UPDATE inventario_actual
+            SET cantidad = MAX(0, COALESCE(cantidad,0) - ?),
+                ultima_actualizacion = datetime('now')
+            WHERE producto_id = ? AND sucursal_id = ?
+            """,
+            (quantity, product_id, branch_id),
+        )
+
+    def _sync_product_stock_from_inventory_table(self, product_id: int | str, table_name: str) -> None:
+        if table_name == "inventario_actual":
+            row = self._connection.execute(
+                "SELECT COALESCE(SUM(COALESCE(cantidad,0)),0) FROM inventario_actual WHERE producto_id = ?",
+                (product_id,),
+            ).fetchone()
+        elif table_name == "branch_inventory":
+            row = self._connection.execute(
+                "SELECT COALESCE(SUM(COALESCE(quantity,0)),0) FROM branch_inventory WHERE product_id = ?",
+                (product_id,),
+            ).fetchone()
+        else:
+            return
+        total_stock = float(row[0] or 0) if row else 0.0
+        self._connection.execute(
+            "UPDATE productos SET existencia = ? WHERE id = ?",
+            (total_stock, product_id),
+        )
 
     def _decrease_branch_inventory_rows(self, product_id: int | str, quantity: float, branch_id: str | int) -> None:
         columns = self._table_columns("branch_inventory")

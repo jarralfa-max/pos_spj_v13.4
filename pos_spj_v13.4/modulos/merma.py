@@ -20,7 +20,6 @@ from backend.application.queries.waste_query_service import WasteQueryService
 from backend.application.services.waste_application_service import WasteApplicationService, WasteFinanceHandler
 from backend.application.use_cases.register_waste_use_case import RegisterWasteUseCase
 from backend.infrastructure.db.repositories.waste_repository import WasteRepository
-from backend.shared.events.event_bus import InMemoryEventBus
 from frontend.desktop.components.search_selector import SearchOption, SearchSelector
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.ui_components import (
@@ -31,6 +30,23 @@ from modulos.ui_components import (
 logger = logging.getLogger("spj.modulo.merma")
 
 UMBRAL_VALOR_ALTO = 500.0
+
+
+class CoreEventBusAdapter:
+    """Publishes typed backend events into the legacy/global core EventBus."""
+
+    def __init__(self, core_bus) -> None:
+        self._core_bus = core_bus
+
+    def publish(self, event) -> None:
+        event_data = event.to_dict()
+        payload = {**dict(event_data.get("payload") or {}), **event_data}
+        payload.pop("payload", None)
+        event_name = str(event_data.get("event_name") or getattr(event.event_name, "value", event.event_name))
+        self._core_bus.publish(event_name, payload)
+        if event_name == "WASTE_REGISTERED":
+            self._core_bus.publish("MERMA_REGISTRADA", payload)
+            self._core_bus.publish("AJUSTE_INVENTARIO", payload)
 
 
 def _safe_float(value, default: float = 0.0) -> float:
@@ -73,7 +89,7 @@ class ModuloMerma(QWidget):
     def _build_backend_services(self, container) -> None:
         repository = WasteRepository(container.db)
         self._waste_repository = repository
-        event_bus = getattr(container, "waste_event_bus", None) or InMemoryEventBus()
+        event_bus = self._resolve_event_bus(container)
         finance_service = getattr(container, "finance_service", None) or getattr(container, "treasury_service", None)
         finance_handler = WasteFinanceHandler(finance_service)
         self._waste_query_service = WasteQueryService(repository)
@@ -84,6 +100,16 @@ class ModuloMerma(QWidget):
                 finance_handler=finance_handler,
             )
         )
+
+    def _resolve_event_bus(self, container):
+        event_bus = getattr(container, "waste_event_bus", None)
+        if event_bus is not None:
+            return event_bus
+        core_bus = getattr(container, "event_bus", None)
+        if core_bus is None:
+            from core.events.event_bus import get_bus
+            core_bus = get_bus()
+        return CoreEventBusAdapter(core_bus)
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         self.usuario = usuario

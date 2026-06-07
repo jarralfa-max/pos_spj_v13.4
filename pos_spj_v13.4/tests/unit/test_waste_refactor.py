@@ -90,6 +90,9 @@ def test_register_waste_use_case_persists_decreases_inventory_finance_and_event(
     assert events[0].event_name == EventName.WASTE_REGISTERED
     assert events[0].operation_id == "op-waste-1"
     assert events[0].payload["product_id"] == 1
+    assert events[0].payload["stock_before"] == 10.0
+    assert events[0].payload["stock_after"] == 7.5
+    assert events[0].payload["inventory_source"] == "productos"
 
 
 def test_register_waste_use_case_rejects_duplicate_operation_id() -> None:
@@ -197,7 +200,7 @@ def test_waste_repository_uses_branch_inventory_for_waste_stock_and_decrease() -
     assert result.success is True
     assert conn.execute(
         "SELECT quantity FROM branch_inventory WHERE product_id = 1 AND branch_id = 2 AND batch_id IS NULL"
-    ).fetchone()[0] == 2.5
+    ).fetchone()[0] == 4.0
     assert conn.execute(
         "SELECT quantity FROM branch_inventory WHERE product_id = 1 AND branch_id = 1 AND batch_id IS NULL"
     ).fetchone()[0] == 10.0
@@ -205,6 +208,9 @@ def test_waste_repository_uses_branch_inventory_for_waste_stock_and_decrease() -
         "SELECT cantidad FROM inventario_actual WHERE producto_id = 1 AND sucursal_id = 2"
     ).fetchone()[0] == 2.5
     assert conn.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0] == 12.5
+    assert result.data["inventory_source"] == "inventario_actual"
+    assert result.data["stock_before"] == 4.0
+    assert result.data["stock_after"] == 2.5
     branch_row = conn.execute("SELECT sucursal_id FROM mermas WHERE operation_id = 'branch-waste-1'").fetchone()
     assert str(branch_row[0]) == "2"
 
@@ -342,6 +348,79 @@ def test_register_waste_rolls_back_when_inventory_decrease_fails(caplog) -> None
     assert finance.entries == []
     assert events == []
     assert "critical persistence failed; rolled back" in caplog.text
+
+
+def test_register_waste_prefers_current_inventory_and_does_not_double_discount() -> None:
+    conn = _db()
+    conn.execute("UPDATE productos SET existencia = 10 WHERE id = 1")
+    conn.execute("""
+        CREATE TABLE inventario_actual (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER NOT NULL,
+            sucursal_id INTEGER NOT NULL,
+            cantidad REAL NOT NULL DEFAULT 0,
+            ultima_actualizacion TEXT DEFAULT (datetime('now')),
+            UNIQUE(producto_id, sucursal_id)
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE branch_inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            batch_id INTEGER,
+            quantity REAL NOT NULL DEFAULT 0
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE movimientos_inventario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            producto_id INTEGER,
+            tipo TEXT,
+            tipo_movimiento TEXT,
+            cantidad REAL,
+            existencia_anterior REAL,
+            existencia_nueva REAL,
+            operation_id TEXT
+        )
+    """)
+    conn.execute("INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad) VALUES (1, 1, 10)")
+    conn.execute("INSERT INTO branch_inventory(product_id, branch_id, quantity, batch_id) VALUES (1, 1, 7, NULL)")
+    conn.execute("INSERT INTO branch_inventory(product_id, branch_id, quantity, batch_id) VALUES (1, 1, 3, 22)")
+    conn.commit()
+
+    bus = InMemoryEventBus()
+    events = []
+    bus.subscribe(EventName.WASTE_REGISTERED, events.append)
+    service = WasteApplicationService(repository=WasteRepository(conn), event_bus=bus)
+
+    result = service.register(RegisterWasteCommand(
+        operation_id="single-source-op",
+        branch_id="1",
+        user_name="ana",
+        product_id=1,
+        quantity=1.0,
+        reason="Merma exacta",
+        date="2026-06-05",
+    ))
+
+    assert result.success is True
+    assert result.data["inventory_source"] == "inventario_actual"
+    assert result.data["stock_before"] == 10.0
+    assert result.data["stock_after"] == 9.0
+    assert conn.execute("SELECT cantidad FROM inventario_actual WHERE producto_id = 1 AND sucursal_id = 1").fetchone()[0] == 9.0
+    assert conn.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0] == 9.0
+    branch_rows = conn.execute(
+        "SELECT batch_id, quantity FROM branch_inventory WHERE product_id = 1 AND branch_id = 1 ORDER BY batch_id IS NOT NULL, batch_id"
+    ).fetchall()
+    assert branch_rows == [(None, 7.0), (22, 3.0)]
+    movement_row = conn.execute(
+        "SELECT tipo, tipo_movimiento, cantidad, existencia_anterior, existencia_nueva, operation_id FROM movimientos_inventario"
+    ).fetchone()
+    assert movement_row == ("MERMA", "waste", 1.0, 10.0, 9.0, "single-source-op")
+    assert events[0].operation_id == "single-source-op"
+    assert events[0].payload["stock_before"] == 10.0
+    assert events[0].payload["stock_after"] == 9.0
 
 
 def test_register_waste_uses_real_cost_fallback_records_inventory_movement_and_financial_log() -> None:

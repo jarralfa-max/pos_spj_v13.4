@@ -31,7 +31,7 @@ class WasteRepositoryProtocol(Protocol):
         operation_id: str | None = None,
         reason: str = "",
         user_name: str = "",
-    ) -> None: ...
+    ) -> Any: ...
     def save_changes(self) -> None: ...
     def rollback_changes(self) -> None: ...
 
@@ -132,7 +132,7 @@ class WasteApplicationService:
         }
         try:
             waste_id = self._repository.register_waste(entry)
-            self._repository.decrease_inventory_for_waste(
+            inventory_result = self._repository.decrease_inventory_for_waste(
                 product_id,
                 quantity,
                 branch_id=branch_id,
@@ -140,7 +140,7 @@ class WasteApplicationService:
                 operation_id=command.operation_id,
                 reason=command.reason,
                 user_name=command.user_name or "",
-            )
+            ) or {}
             self._repository.save_changes()
         except Exception:
             if hasattr(self._repository, "rollback_changes"):
@@ -156,6 +156,11 @@ class WasteApplicationService:
                 command.operation_id, product_id,
             )
             return UseCaseResult(False, command.operation_id, message="WASTE_REGISTER_FAILED")
+
+        inventory_result = dict(inventory_result or {})
+        stock_before = inventory_result.get("stock_before")
+        stock_after = inventory_result.get("stock_after")
+        inventory_source = inventory_result.get("inventory_source")
 
         side_effect_errors: list[str] = []
         event = create_domain_event(
@@ -176,6 +181,9 @@ class WasteApplicationService:
                 "unit_cost": unit_cost,
                 "loss_value": loss_value,
                 "date": waste_date,
+                "stock_before": stock_before,
+                "stock_after": stock_after,
+                "inventory_source": inventory_source,
             },
         )
 
@@ -226,6 +234,9 @@ class WasteApplicationService:
                 "unit_cost": unit_cost,
                 "loss_value": loss_value,
                 "date": waste_date,
+                "stock_before": stock_before,
+                "stock_after": stock_after,
+                "inventory_source": inventory_source,
                 "side_effect_errors": tuple(side_effect_errors),
             },
             events=published_events,
