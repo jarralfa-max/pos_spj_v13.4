@@ -21,19 +21,24 @@ class WasteRepositoryProtocol(Protocol):
     def operation_exists(self, operation_id: str) -> bool: ...
     def get_product_for_waste(self, product_id: int | str, *, branch_id: str | int | None = None) -> Any: ...
     def register_waste(self, entry: dict[str, Any]) -> str: ...
-    def decrease_inventory_for_waste(
-        self,
-        product_id: int | str,
-        quantity: float,
-        *,
-        branch_id: str | int | None = None,
-        unit_cost: float = 0.0,
-        operation_id: str | None = None,
-        reason: str = "",
-        user_name: str = "",
-    ) -> Any: ...
     def save_changes(self) -> None: ...
     def rollback_changes(self) -> None: ...
+
+
+class InventoryApplicationServiceProtocol(Protocol):
+    def decrease_stock(
+        self,
+        product_id: int,
+        branch_id: int,
+        quantity: float,
+        unit: str,
+        reason: str,
+        operation_id: str,
+        source_module: str,
+        reference_type: str | None = None,
+        reference_id: str | None = None,
+        user_name: str = "",
+    ) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -83,10 +88,12 @@ class WasteApplicationService:
         self,
         *,
         repository: WasteRepositoryProtocol,
+        inventory_service: InventoryApplicationServiceProtocol,
         event_bus: EventBus | None = None,
         finance_handler: WasteFinanceHandler | Any | None = None,
     ) -> None:
         self._repository = repository
+        self._inventory_service = inventory_service
         self._event_bus = event_bus or InMemoryEventBus()
         if finance_handler is None or hasattr(finance_handler, "record_loss"):
             self._finance_handler = finance_handler or WasteFinanceHandler()
@@ -130,17 +137,24 @@ class WasteApplicationService:
             "operation_id": command.operation_id,
             "date": waste_date,
         }
+        inventory_events: tuple[Any, ...] = ()
         try:
             waste_id = self._repository.register_waste(entry)
-            inventory_result = self._repository.decrease_inventory_for_waste(
-                product_id,
-                quantity,
-                branch_id=branch_id,
-                unit_cost=unit_cost,
-                operation_id=command.operation_id,
+            inventory_result = self._inventory_service.decrease_stock(
+                product_id=int(product_id),
+                branch_id=int(branch_id),
+                quantity=quantity,
+                unit=unit,
                 reason=command.reason,
-                user_name=command.user_name or "",
-            ) or {}
+                operation_id=command.operation_id,
+                source_module="waste",
+                reference_type="WASTE",
+                reference_id=str(waste_id),
+                user_name=command.user_name or "system",
+            )
+            if not getattr(inventory_result, "success", False):
+                raise RuntimeError(getattr(inventory_result, "message", "WASTE_INVENTORY_DECREASE_FAILED"))
+            inventory_events = tuple(getattr(inventory_result, "events", ()) or ())
             self._repository.save_changes()
         except Exception:
             if hasattr(self._repository, "rollback_changes"):
@@ -157,10 +171,9 @@ class WasteApplicationService:
             )
             return UseCaseResult(False, command.operation_id, message="WASTE_REGISTER_FAILED")
 
-        inventory_result = dict(inventory_result or {})
-        stock_before = inventory_result.get("stock_before")
-        stock_after = inventory_result.get("stock_after")
-        inventory_source = inventory_result.get("inventory_source")
+        stock_before = getattr(inventory_result, "stock_before", None)
+        stock_after = getattr(inventory_result, "stock_after", None)
+        inventory_source = "inventory_stock"
 
         side_effect_errors: list[str] = []
         event = create_domain_event(
@@ -208,13 +221,12 @@ class WasteApplicationService:
                 command.operation_id, waste_id,
             )
 
-        published_events: tuple[Any, ...]
+        published_events: tuple[Any, ...] = inventory_events
         try:
             self._event_bus.publish(event)
-            published_events = (event,)
+            published_events = (*inventory_events, event)
         except Exception:
             side_effect_errors.append("WASTE_EVENT_PUBLISH_FAILED")
-            published_events = ()
             logger.exception(
                 "[WASTE] event publish failed operation_id=%s waste_id=%s event=%s",
                 command.operation_id, waste_id, EventName.WASTE_REGISTERED.value,

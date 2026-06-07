@@ -27,11 +27,32 @@ def test_legacy_waste_application_route_was_removed() -> None:
     assert "def registrar_merma" not in service_source
 
 
-def test_waste_ui_stock_warning_matches_zero_floor_inventory_rule() -> None:
+def test_waste_ui_stock_warning_blocks_negative_canonical_inventory() -> None:
     source = MERMA_UI.read_text(encoding="utf-8")
-    assert "inventario en negativo" not in source.lower()
-    assert "La cantidad supera el stock. La existencia se ajustará a cero" in source
-    assert "la diferencia quedará documentada para auditoría" in source
+    assert "No se puede registrar una merma que deje inventario en negativo" in source
+    assert "La existencia se ajustará a cero" not in source
+    assert "la diferencia quedará documentada para auditoría" not in source
+
+
+def test_waste_backend_does_not_use_legacy_inventory_sources_operationally() -> None:
+    backend_files = [
+        PACKAGE_ROOT / "backend" / "application" / "services" / "waste_application_service.py",
+        PACKAGE_ROOT / "backend" / "infrastructure" / "db" / "repositories" / "waste_repository.py",
+    ]
+    forbidden = [
+        "decrease_inventory_for_waste",
+        "inventario_actual",
+        "branch_inventory",
+        "movimientos_inventario",
+        "UPDATE productos SET existencia",
+        "p.existencia",
+    ]
+    violations = {
+        str(path.relative_to(PACKAGE_ROOT)): [token for token in forbidden if token in path.read_text(encoding="utf-8")]
+        for path in backend_files
+    }
+    assert {path: tokens for path, tokens in violations.items() if tokens} == {}
+
 
 
 def test_waste_phase11_architecture_audit_documented() -> None:
