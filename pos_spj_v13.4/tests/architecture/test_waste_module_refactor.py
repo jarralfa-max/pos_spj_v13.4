@@ -25,3 +25,27 @@ def test_waste_ui_uses_canonical_services_and_search_selector() -> None:
 def test_legacy_waste_application_route_was_removed() -> None:
     service_source = (PACKAGE_ROOT / "core" / "services" / "erp_application_service.py").read_text(encoding="utf-8")
     assert "def registrar_merma" not in service_source
+
+
+def test_waste_ui_stock_warning_matches_zero_floor_inventory_rule() -> None:
+    source = MERMA_UI.read_text(encoding="utf-8")
+    assert "inventario en negativo" not in source.lower()
+    assert "La cantidad supera el stock. La existencia se ajustará a cero" in source
+    assert "la diferencia quedará documentada para auditoría" in source
+
+
+def test_waste_phase11_architecture_audit_documented() -> None:
+    doc = PACKAGE_ROOT / "docs" / "architecture" / "WASTE_MODULE_PHASE11_AUDIT.md"
+    assert doc.is_file()
+    source = doc.read_text(encoding="utf-8")
+    required = [
+        "RegisterWasteUseCase",
+        "WasteApplicationService",
+        "WasteRepository",
+        "WasteQueryService",
+        "WasteAuthorizationService",
+        "outbox",
+        "auto_audit",
+        "No se modifica código funcional en Fase 11",
+    ]
+    assert [token for token in required if token not in source] == []

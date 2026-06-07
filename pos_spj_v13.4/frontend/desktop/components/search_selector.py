@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Callable, Iterable
 
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
 
@@ -17,6 +18,8 @@ class SearchOption:
 
 
 SearchProvider = Callable[[str], Iterable[SearchOption]]
+
+logger = logging.getLogger("spj.search_selector")
 
 
 class SearchSelector(QWidget):
@@ -36,7 +39,8 @@ class SearchSelector(QWidget):
         layout.addWidget(self._results)
 
         self._search_box.textChanged.connect(self.refresh)
-        self._results.itemActivated.connect(self._emit_selected)
+        self._search_box.returnPressed.connect(self._emit_current_selected)
+        self._results.itemClicked.connect(self._emit_selected)
 
     def set_provider(self, provider: SearchProvider) -> None:
         self._provider = provider
@@ -44,24 +48,54 @@ class SearchSelector(QWidget):
 
     def refresh(self, query: str | None = None) -> None:
         query_text = self._search_box.text() if query is None else query
-        self._options = list(self._provider(query_text.strip()))
+        try:
+            self._options = list(self._provider(query_text.strip()))
+        except Exception:
+            logger.exception("SearchSelector provider failed query=%r", query_text)
+            self._options = []
         self._results.clear()
         for option in self._options:
             text = option.label if not option.subtitle else f"{option.label} — {option.subtitle}"
             item = QListWidgetItem(text)
-            item.setData(32, option)
+            item.setData(Qt.UserRole, option)
+            item.setData(32, option)  # legacy role kept for existing tests/callers
             self._results.addItem(item)
 
     def selected_option(self) -> SearchOption | None:
         item = self._results.currentItem()
         if item is None:
             return None
-        return item.data(32)
+        return item.data(Qt.UserRole) or item.data(32)
 
-    def clear(self) -> None:
-        self._search_box.clear()
+    def set_text_silently(self, text: str) -> None:
+        was_blocked = self._search_box.blockSignals(True)
+        try:
+            self._search_box.setText(text)
+        finally:
+            self._search_box.blockSignals(was_blocked)
+
+    def clear_selection(self) -> None:
+        self._results.clearSelection()
+        self._results.setCurrentRow(-1)
+
+    def clear_results(self) -> None:
         self._results.clear()
         self._options = []
 
+    def set_selected_label(self, text: str) -> None:
+        self.set_text_silently(text)
+        self.clear_results()
+
+    def clear(self) -> None:
+        self._search_box.clear()
+        self.clear_results()
+
+    def _emit_current_selected(self) -> None:
+        item = self._results.currentItem()
+        if item is not None:
+            self._emit_selected(item)
+
     def _emit_selected(self, item: QListWidgetItem) -> None:
-        self.selected.emit(item.data(32))
+        option = item.data(Qt.UserRole) or item.data(32)
+        if option is not None:
+            self.selected.emit(option)

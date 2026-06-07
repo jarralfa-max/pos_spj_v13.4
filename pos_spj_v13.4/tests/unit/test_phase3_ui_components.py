@@ -77,8 +77,77 @@ def test_search_selector_uses_provider_without_mass_combo_loading() -> None:
 
     selector.refresh("res")
 
-    selected = selector._results.item(0).data(32)
-    assert selected == components.SearchOption(id="p1", label="Producto res")
+    expected = components.SearchOption(id="p1", label="Producto res")
+    item = selector._results.item(0)
+    selected = item.data(qt_core.Qt.UserRole)
+    assert selected == expected
+    assert item.data(32) == expected
+
+    emitted = []
+    selector.selected.connect(emitted.append)
+    selector._results.itemClicked.emit(item)
+    selector._results.itemActivated.emit(item)
+    assert emitted == [expected]
+
+    selector._results.setCurrentItem(item)
+    selector._search_box.returnPressed.emit()
+    assert emitted == [expected, expected]
+
+    selector.clear_selection()
+    assert selector.selected_option() is None
+
+    selector.set_selected_label("Producto res")
+    assert selector.selected_option() is None
+
+
+def test_search_selector_click_handler_can_clear_results_without_duplicate_emit() -> None:
+    _qt_core, components, _application = _qt_components()
+    selector = components.SearchSelector(
+        provider=lambda query: [components.SearchOption(id="p1", label=f"Producto {query}")]
+    )
+    selector.refresh("res")
+    item = selector._results.item(0)
+
+    emitted = []
+
+    def _on_selected(option):
+        emitted.append(option)
+        selector.set_selected_label(option.label)
+
+    selector.selected.connect(_on_selected)
+
+    selector._results.itemClicked.emit(item)
+    selector._results.itemActivated.emit(item)
+
+    assert emitted == [components.SearchOption(id="p1", label="Producto res")]
+    assert selector._results.count() == 0
+    assert selector.selected_option() is None
+
+
+def test_search_selector_logs_provider_failures(caplog) -> None:
+    _qt_core, components, _application = _qt_components()
+
+    def failing_provider(_query: str):
+        raise RuntimeError("boom")
+
+    selector = components.SearchSelector(provider=failing_provider)
+
+    with caplog.at_level("ERROR", logger="spj.search_selector"):
+        selector.refresh("x")
+
+    assert selector.selected_option() is None
+    assert selector._results.count() == 0
+    assert "SearchSelector provider failed" in caplog.text
+
+
+def test_merma_uses_search_selector_public_selected_signal_only() -> None:
+    source = (REPO_ROOT / "pos_spj_v13.4" / "modulos" / "merma.py").read_text(encoding="utf-8")
+
+    assert "self.product_selector.selected.connect(self._on_producto_selected)" in source
+    assert "self.product_selector._results.itemClicked.connect" not in source
+    assert "_log_producto_result_click" not in source
+    assert "product_selector._search_box" not in source
+    assert "product_selector._results" not in source
 
 
 def test_address_input_supports_map_suggestions_and_manual_fallback() -> None:
