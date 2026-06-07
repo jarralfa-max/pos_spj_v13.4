@@ -416,7 +416,7 @@ def test_register_waste_uses_real_cost_fallback_records_inventory_movement_and_f
     conn.execute(
         """
         INSERT INTO productos(id, nombre, precio_compra, costo, precio_costo, costo_unitario, unidad, existencia, activo)
-        VALUES (1, 'Producto costo real', 0, 50, 40, 30, 'kg', 10, 1)
+        VALUES (1, 'Producto costo real', '', 50, 40, 30, 'kg', 10, 1)
         """
     )
     conn.commit()

@@ -175,7 +175,7 @@ class WasteRepository:
         ]
         if not candidates:
             return "0"
-        return "COALESCE(" + ", ".join(f"NULLIF(p.{column}, 0)" for column in candidates) + ", 0)"
+        return "COALESCE(" + ", ".join(f"NULLIF(CAST(p.{column} AS REAL), 0)" for column in candidates) + ", 0)"
 
     def _stock_for_product(self, product_id: int | str, *, branch_id: str | int | None = None) -> float:
         stock_expr, stock_params = self._branch_stock_expression(branch_id)
