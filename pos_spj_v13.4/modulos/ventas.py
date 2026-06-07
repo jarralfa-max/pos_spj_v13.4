@@ -36,7 +36,7 @@ from PyQt5.QtWidgets import (
     QHeaderView, QRadioButton, QScrollArea, QListWidget, QListWidgetItem,
     QInputDialog, QGraphicsDropShadowEffect, QDialogButtonBox, QCompleter, QSpinBox
 )
-from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel, QThread
+from PyQt5.QtCore import Qt, QDateTime, QTimer, pyqtSignal, QLocale, QPropertyAnimation, QRect, QUrl, QSize, QStringListModel, QThread, QEvent
 from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont, QPalette, QBrush, QPainter
 
 # Importación de la clase base y utilidades
@@ -159,6 +159,7 @@ class ProductCard(QFrame):
         self._is_hovering   = False
         self.original_size  = QSize(self.CARD_W, self.CARD_H)
         self.zoom_size      = QSize(self.ZOOM_W, self.ZOOM_H)
+        self._last_selection_emit_ms = 0.0
 
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(self.CARD_W, self.CARD_H)
@@ -271,6 +272,41 @@ class ProductCard(QFrame):
             self._lbl_stock_badge.setFixedHeight(20)
             self._lbl_stock_badge.adjustSize()
 
+        self._install_selection_event_filters()
+
+    def _install_selection_event_filters(self):
+        """Ensure clicks on labels/child widgets select the product card."""
+        for child in self.findChildren(QWidget):
+            child.installEventFilter(self)
+            child.setCursor(self.cursor())
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick):
+            if event.button() == Qt.LeftButton:
+                self._emit_selection(event.type())
+                return True
+        return super().eventFilter(obj, event)
+
+    def _emit_selection(self, event_type=None):
+        now_ms = time.monotonic() * 1000
+        if now_ms - self._last_selection_emit_ms < 500:
+            logger.debug(
+                "Click duplicado ignorado en tarjeta de producto: event_type=%s product_id=%s",
+                event_type, self.producto.get('id')
+            )
+            return
+        self._last_selection_emit_ms = now_ms
+
+        product_id = self.producto.get('id')
+        if product_id in (None, ''):
+            logger.warning("Click en tarjeta de producto sin id estable: %s", self.producto)
+            return
+        logger.info(
+            "Producto clickeado en grid: event_type=%s product_id=%s nombre=%s",
+            event_type, product_id, self.producto.get('nombre')
+        )
+        self.product_selected.emit(self.producto)
+
     def _position_overlays(self):
         """Position star and badge overlays over the image area."""
         if hasattr(self, '_btn_star'):
@@ -305,8 +341,17 @@ class ProductCard(QFrame):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self.product_selected.emit(self.producto)
-            super().mousePressEvent(event)
+            self._emit_selection(event.type())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._emit_selection(event.type())
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
     def set_selected(self, selected: bool):
         self.is_selected = selected
@@ -2132,102 +2177,152 @@ class ModuloVentas(ModuloBase):
             self.cargar_productos_interactivos(texto.strip(), categoria=cat)
 
     def cargar_productos_interactivos(self, filtro: str = "", categoria: str = ""):
+        productos = self._buscar_productos_catalogo(filtro=filtro, categoria=categoria)
+        logger.info(
+            "Búsqueda de productos: filtro=%r categoria=%r resultados=%d",
+            filtro, categoria, len(productos)
+        )
+        self._renderizar_productos(productos)
+
+    def _buscar_productos_catalogo(self, filtro: str = "", categoria: str = ""):
+        """Busca productos visibles y devuelve filas con id estable."""
+        try:
+            catalog_qs = self._product_catalog_qs
+            if catalog_qs:
+                return catalog_qs.list_visible_products(
+                    branch_id=self.sucursal_id, filtro=filtro, categoria=categoria
+                )
+
+            cursor = self.conexion.cursor()
+            # DEPRECATED fallback: SQL directo legacy
+            query = """
+                SELECT p.id, p.nombre, p.precio,
+                       COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
+                       p.unidad, p.categoria,
+                       p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
+                       COALESCE(p.codigo_barras,'') as codigo_barras,
+                       COALESCE(p.codigo,'') as codigo
+                FROM productos p
+                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
+                WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
+            """
+            params = [self.sucursal_id]
+            if filtro:
+                query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
+                             OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
+                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
+            if categoria:
+                query += " AND COALESCE(p.categoria,'') = ?"
+                params.append(categoria)
+            query += " ORDER BY p.nombre"
+            cursor.execute(query, params)
+            return cursor.fetchall()
+        except Exception:
+            logger.exception(
+                "Error al buscar productos: filtro=%r categoria=%r sucursal_id=%s",
+                filtro, categoria, self.sucursal_id
+            )
+            self.mostrar_mensaje("Error", "Error al cargar productos. Revisa el log para más detalle.", QMessageBox.Critical)
+            return []
+
+    def _normalizar_producto_para_card(self, producto):
+        if isinstance(producto, dict):
+            producto_data = dict(producto)
+        else:
+            producto_data = {
+                'id': producto[0],
+                'nombre': producto[1],
+                'precio': float(producto[2]),
+                'existencia': float(producto[3]),
+                'unidad': producto[4],
+                'categoria': producto[5],
+                'stock_minimo': float(producto[6]),
+                'imagen_path': producto[7],
+                'es_compuesto': producto[8],
+                'es_subproducto': producto[9],
+                'codigo_barras': producto[10],
+                'codigo': producto[11]
+            }
+        if producto_data.get('id') in (None, ''):
+            logger.warning("Producto omitido por falta de id estable: %s", producto_data)
+            return None
+        if 'existencia' not in producto_data and 'stock_sucursal' in producto_data:
+            producto_data['existencia'] = producto_data.get('stock_sucursal')
+        producto_data['precio'] = float(producto_data.get('precio') or 0)
+        producto_data['existencia'] = float(producto_data.get('existencia') or 0)
+        producto_data['stock_minimo'] = float(producto_data.get('stock_minimo') or 0)
+        producto_data['unidad'] = producto_data.get('unidad') or 'pz'
+        producto_data['nombre'] = producto_data.get('nombre') or f"Producto #{producto_data['id']}"
+        return producto_data
+
+    def _renderizar_productos(self, productos) -> None:
         for i in reversed(range(self.grid_productos.count())):
             widget = self.grid_productos.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
 
-        try:
-            catalog_qs = self._product_catalog_qs
-            if catalog_qs:
-                productos = catalog_qs.list_visible_products(
-                    branch_id=self.sucursal_id, filtro=filtro, categoria=categoria
-                )
-            else:
-                cursor = self.conexion.cursor()
-                # DEPRECATED fallback: SQL directo legacy
-                query = """
-                    SELECT p.id, p.nombre, p.precio,
-                           COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
-                           p.unidad, p.categoria,
-                           p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
-                           COALESCE(p.codigo_barras,'') as codigo_barras,
-                           COALESCE(p.codigo,'') as codigo
-                    FROM productos p
-                    LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-                    WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
-                """
-                params = [self.sucursal_id]
-                if filtro:
-                    query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
-                                 OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
-                    params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
-                if categoria:
-                    query += " AND COALESCE(p.categoria,'') = ?"
-                    params.append(categoria)
-                query += " ORDER BY p.nombre"
-                cursor.execute(query, params)
-                productos = cursor.fetchall()
+        # Responsive column count: fill available viewport width with fixed-width cards
+        _spacing = self.grid_productos.spacing()
+        _card_cell = ProductCard.CARD_W + _spacing   # card fixed width + one gap
+        _vp_w = self.scroll_area_productos.viewport().width()
+        if _vp_w < 40:
+            # Viewport not yet laid out; approximate from scroll area minus scrollbar
+            _vp_w = max(300, self.scroll_area_productos.width() - 22)
+        col_count = max(2, _vp_w // _card_cell)
 
-            # Responsive column count: fill available viewport width with fixed-width cards
-            _spacing = self.grid_productos.spacing()
-            _card_cell = ProductCard.CARD_W + _spacing   # card fixed width + one gap
-            _vp_w = self.scroll_area_productos.viewport().width()
-            if _vp_w < 40:
-                # Viewport not yet laid out; approximate from scroll area minus scrollbar
-                _vp_w = max(300, self.scroll_area_productos.width() - 22)
-            col_count = max(2, _vp_w // _card_cell)
+        rendered = 0
+        for producto in productos:
+            producto_data = self._normalizar_producto_para_card(producto)
+            if not producto_data:
+                continue
+            card = ProductCard(producto_data)
+            card.product_selected.connect(self.seleccionar_producto)
 
-            for i, producto in enumerate(productos):
-                if isinstance(producto, dict):
-                    producto_data = producto
-                else:
-                    producto_data = {
-                        'id': producto[0],
-                        'nombre': producto[1],
-                        'precio': float(producto[2]),
-                        'existencia': float(producto[3]),
-                        'unidad': producto[4],
-                        'categoria': producto[5],
-                        'stock_minimo': float(producto[6]),
-                        'imagen_path': producto[7],
-                        'es_compuesto': producto[8],
-                        'es_subproducto': producto[9],
-                        'codigo_barras': producto[10],
-                        'codigo': producto[11]
-                    }
+            row = rendered // col_count
+            col = rendered % col_count
+            self.grid_productos.addWidget(card, row, col)
+            rendered += 1
 
-                card = ProductCard(producto_data)
-                card.product_selected.connect(self.seleccionar_producto)
-
-                row = i // col_count
-                col = i % col_count
-                self.grid_productos.addWidget(card, row, col)
-
-        except sqlite3.Error as e:
-            self.mostrar_mensaje("Error", f"Error al cargar productos: {str(e)}", QMessageBox.Critical)
+        logger.info("Resultados de productos pintados en UI: cards=%d columnas=%d", rendered, col_count)
 
     def buscar_productos(self):
         filtro = self.txt_busqueda.text().strip()
         self.cargar_productos_interactivos(filtro)
 
     def seleccionar_producto(self, producto: Dict[str, Any]):
-        if self._selected_card:
+        if not isinstance(producto, dict):
+            logger.warning("Selección de producto inválida: payload=%r", producto)
+            return
+
+        producto_id = producto.get('id')
+        if producto_id in (None, ''):
+            logger.warning("Selección de producto sin id estable: %s", producto)
+            return
+
+        sender = self.sender()
+        logger.info(
+            "Producto seleccionado: product_id=%s nombre=%s sender=%s",
+            producto_id, producto.get('nombre'), type(sender).__name__ if sender else None
+        )
+
+        if self._selected_card and self._selected_card is not sender:
             self._selected_card.set_selected(False)
-            
+
         self._selected_card = self.sender()
         if self._selected_card:
             self._selected_card.set_selected(True)
-            
+
         self.producto_seleccionado = producto
         unidad = producto['unidad'].lower()
-        
+
         if any(peso_keyword in unidad for peso_keyword in ['kg', 'kilogramo', 'kilo', 'gramo', 'gr']):
+            logger.info("Producto cargado para captura por peso: product_id=%s unidad=%s", producto_id, unidad)
             if self._hw_bascula_habilitada and getattr(self, 'bascula_conectada', False):
                 self.iniciar_monitoreo_peso(producto)
             else:
                 self._solicitar_peso_manual_producto(producto)
         else:
+            logger.info("Producto cargado para agregar por unidad: product_id=%s unidad=%s", producto_id, unidad)
             self.agregar_producto_por_unidad(producto)
 
     def _solicitar_peso_manual_producto(self, producto: Dict[str, Any]):
@@ -3239,12 +3334,17 @@ class ModuloVentas(ModuloBase):
                                     _stock_msg(producto)
                                 )
                                 break
-                                
+
                             item['cantidad'] = nueva_cantidad
                             item['total'] = round(nueva_cantidad * item['precio_unitario'], 2)
                             self.actualizar_tabla_compra()
+                            logger.info(
+                                "Carrito actualizado desde selección: product_id=%s cantidad=%s items=%d",
+                                producto.get('id'), nueva_cantidad, len(self.compra_actual)
+                            )
                             self.mostrar_mensaje("Éxito", f"Cantidad actualizada: {nueva_cantidad:.3f} {producto['unidad']}")
-                            break
+                            self.limpiar_seleccion_producto()
+                            return
                 else:
                     total_item = round(cantidad * producto['precio'], 2)
                     import uuid as _uuid_mod
@@ -3281,14 +3381,17 @@ class ModuloVentas(ModuloBase):
                         if resp != QMessageBox.Yes:
                             return
                 except Exception:
-                    pass  # No bloquea si falla la consulta
+                    logger.exception(
+                        "No se pudo validar stock antes de agregar al carrito: product_id=%s",
+                        producto.get('id')
+                    )
 
                 if not self._tiempo_inicio_venta:
                     import time
                     self._tiempo_inicio_venta = time.time()
                 self.compra_actual.append(item_compra)
                 self.actualizar_tabla_compra()
-                    
+
                 self.limpiar_seleccion_producto()
                 return
                 
@@ -3314,6 +3417,10 @@ class ModuloVentas(ModuloBase):
 
         self.compra_actual.append(item_compra)
         self.actualizar_tabla_compra()
+        logger.info(
+            "Producto agregado al carrito desde selección: product_id=%s cantidad=%s items=%d",
+            producto.get('id'), cantidad, len(self.compra_actual)
+        )
         self.limpiar_seleccion_producto()
 
     def limpiar_seleccion_producto(self):
