@@ -14,12 +14,13 @@ Architecture:
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QDialog, QDialogButtonBox, QComboBox, QDoubleSpinBox,
+    QMessageBox, QDialog, QDialogButtonBox, QComboBox,
     QTextEdit, QLineEdit, QScrollArea, QSizePolicy, QFileDialog, QSplitter, QTabWidget,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -31,10 +32,17 @@ from modulos.ui_components import (
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.kpi_card import KPICard
-from core.services.inventory_query_service import get_recent_movements, get_inventory_operational_kpis
+from backend.application.commands.inventory_commands import (
+    AdjustInventoryCommand,
+    RegisterInventoryEntryCommand,
+)
+from backend.application.queries.inventory_query_service import InventoryQueryService
+from backend.application.services.inventory_application_service import InventoryApplicationService
+from frontend.desktop.components.money_input import MoneyInput
+from frontend.desktop.components.quantity_input import QuantityInput
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
-    AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
+    AJUSTE_INVENTARIO, COMPRA_REGISTRADA, get_bus,
 )
 
 logger = logging.getLogger("spj.inventario")
@@ -267,29 +275,21 @@ class _InsightsPanel(QFrame):
         self._lbl_no_mov.hide()
         root.addWidget(self._lbl_no_mov)
 
-    def refresh(self, db, sucursal_id: int) -> None:
-        self._refresh_alerts(db, sucursal_id)
-        self._refresh_movements(db, sucursal_id)
+    def refresh(self, query_service: InventoryQueryService, sucursal_id: int) -> None:
+        self._refresh_alerts(query_service)
+        self._refresh_movements(query_service, sucursal_id)
 
-    def _refresh_alerts(self, db, sucursal_id: int) -> None:
+    def _refresh_alerts(self, query_service: InventoryQueryService) -> None:
         while self._alerts_lyt.count():
             item = self._alerts_lyt.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
         alertas = []
-        try:
-            rows = db.execute(
-                "SELECT nombre, existencia, COALESCE(stock_minimo,5), unidad "
-                "FROM productos WHERE existencia <= COALESCE(stock_minimo,5) AND activo=1 "
-                "ORDER BY existencia ASC LIMIT 8"
-            ).fetchall()
-            for r in rows:
-                stock = float(r[1] or 0)
-                health = _HEALTH_CRITICAL if stock <= 0 else _HEALTH_LOW
-                alertas.append((str(r[0]), stock, str(r[3] or ""), health))
-        except Exception:
-            pass
+        for r in query_service.list_low_stock_alerts(limit=8):
+            stock = float(r[1] or 0)
+            health = _HEALTH_CRITICAL if stock <= 0 else _HEALTH_LOW
+            alertas.append((str(r[0]), stock, str(r[3] or ""), health))
 
         if not alertas:
             self._lbl_no_alerts.show()
@@ -316,43 +316,13 @@ class _InsightsPanel(QFrame):
             rl.addWidget(lbl, 1)
             self._alerts_lyt.addWidget(row)
 
-    def _refresh_movements(self, db, sucursal_id: int) -> None:
+    def _refresh_movements(self, query_service: InventoryQueryService, sucursal_id: int) -> None:
         while self._mov_lyt.count() > 1:
             item = self._mov_lyt.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        movs = []
-        try:
-            rows = db.execute(
-                "SELECT im.movement_type, im.quantity, im.usuario, im.created_at, p.nombre "
-                "FROM inventory_movements im "
-                "JOIN productos p ON p.id = im.product_id "
-                "WHERE im.branch_id = ? "
-                "ORDER BY im.created_at DESC LIMIT 12",
-                [sucursal_id]
-            ).fetchall()
-            for r in rows:
-                movs.append({
-                    "movement_type": r[0], "quantity": r[1],
-                    "usuario": r[2], "created_at": r[3], "nombre": r[4],
-                })
-        except Exception:
-            try:
-                rows = db.execute(
-                    "SELECT tipo, cantidad, usuario, created_at, "
-                    "(SELECT nombre FROM productos WHERE id=a.producto_id) "
-                    "FROM ajustes_inventario a "
-                    "WHERE sucursal_id=? ORDER BY created_at DESC LIMIT 12",
-                    [sucursal_id]
-                ).fetchall()
-                for r in rows:
-                    movs.append({
-                        "movement_type": r[0], "quantity": r[1],
-                        "usuario": r[2], "created_at": r[3], "nombre": r[4],
-                    })
-            except Exception:
-                pass
+        movs = query_service.list_recent_feed(branch_id=sucursal_id, limit=12)
 
         if not movs:
             self._lbl_no_mov.show()
@@ -414,9 +384,7 @@ class _AuditAdjustDialog(QDialog):
         root.addWidget(lbl_cnt)
 
         cnt_row = QHBoxLayout()
-        self.spin_nuevo = QDoubleSpinBox(self)
-        self.spin_nuevo.setRange(0, 999_999)
-        self.spin_nuevo.setDecimals(3)
+        self.spin_nuevo = QuantityInput(self)
         self.spin_nuevo.setValue(stock_actual)
         self.spin_nuevo.setObjectName("inputField")
         self.spin_nuevo.setSuffix(f"  {unidad}")
@@ -538,18 +506,13 @@ class _StockEntryDialog(QDialog):
         root.addWidget(_divider(self))
 
         root.addWidget(QLabel(f"Cantidad a ingresar ({unidad}) *"))
-        self.spin_qty = QDoubleSpinBox(self)
-        self.spin_qty.setRange(0.001, 999_999)
-        self.spin_qty.setDecimals(3)
-        self.spin_qty.setValue(1.0)
+        self.spin_qty = QuantityInput(self)
+        self.spin_qty.setMinimum(0.001)
         self.spin_qty.setObjectName("inputField")
         root.addWidget(self.spin_qty)
 
         root.addWidget(QLabel("Costo unitario (opcional)"))
-        self.spin_costo = QDoubleSpinBox(self)
-        self.spin_costo.setRange(0, 999_999)
-        self.spin_costo.setDecimals(2)
-        self.spin_costo.setPrefix("$")
+        self.spin_costo = MoneyInput(self)
         self.spin_costo.setObjectName("inputField")
         root.addWidget(self.spin_costo)
 
@@ -583,7 +546,7 @@ class _StockEntryDialog(QDialog):
 class _MovHistoryDialog(QDialog):
     """Read-only audit trail for a single product."""
 
-    def __init__(self, prod_id: int, nombre: str, db, sucursal_id: int, parent=None):
+    def __init__(self, prod_id: int, nombre: str, query_service: InventoryQueryService, sucursal_id: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Historial de Movimientos — {nombre}")
         self.setMinimumSize(600, 400)
@@ -616,17 +579,9 @@ class _MovHistoryDialog(QDialog):
         tabla.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         tabla.setAlternatingRowColors(True)
 
-        try:
-            rows = db.execute(
-                "SELECT created_at, movement_type, quantity, usuario, "
-                "COALESCE(reference_type,''), COALESCE(operation_id,'') "
-                "FROM inventory_movements "
-                "WHERE product_id=? AND branch_id=? "
-                "ORDER BY created_at DESC LIMIT 100",
-                [prod_id, sucursal_id]
-            ).fetchall()
-        except Exception:
-            rows = []
+        rows = query_service.list_product_history(
+            product_id=prod_id, branch_id=sucursal_id, limit=100
+        )
 
         for i, r in enumerate(rows):
             tabla.insertRow(i)
@@ -670,6 +625,12 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.container      = container
         self.sucursal_id    = 1
         self.usuario_actual = ""
+        self._inventory_query = InventoryQueryService(container.db)
+        self._inventory_app = InventoryApplicationService(
+            db=container.db,
+            inventory_service=container.inventory_service,
+            event_bus=get_bus(),
+        )
 
         self._prod_data: list[dict] = []  # cached for export
 
@@ -1014,36 +975,15 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 self._loading.hide()
 
     def _do_cargar(self) -> None:
-        db = self.container.db
         self._prod_data = []
 
-        try:
-            rows = db.execute(
-                "SELECT p.id, p.nombre, COALESCE(p.categoria,''), "
-                "COALESCE(bi.quantity, p.existencia, 0),"
-                "COALESCE(p.stock_minimo, 5), COALESCE(p.unidad,'pza') "
-                "FROM productos p "
-                "LEFT JOIN branch_inventory bi "
-                "    ON bi.product_id=p.id AND bi.branch_id=? "
-                "WHERE p.activo=1 ORDER BY p.nombre",
-                [self.sucursal_id]
-            ).fetchall()
-        except Exception as e:
-            logger.warning("cargar inventario: %s", e)
-            rows = []
+        rows = self._inventory_query.list_inventory_rows(branch_id=self.sucursal_id)
+        if not rows:
+            logger.warning("cargar inventario: sin filas para sucursal %s", self.sucursal_id)
 
-        # Fetch last movement timestamps
-        _last_mov: dict[int, str] = {}
-        try:
-            ts_rows = db.execute(
-                "SELECT product_id, MAX(created_at) "
-                "FROM inventory_movements WHERE branch_id=? "
-                "GROUP BY product_id",
-                [self.sucursal_id]
-            ).fetchall()
-            _last_mov = {int(r[0]): str(r[1] or "")[:16] for r in ts_rows}
-        except Exception:
-            pass
+        _last_mov = self._inventory_query.get_last_movement_by_product(
+            branch_id=self.sucursal_id
+        )
 
         self.tabla.setRowCount(0)
         self.tabla_disponibilidad.setRowCount(0)
@@ -1124,25 +1064,28 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         if hasattr(self, "_empty_state"):
             self._empty_state.setVisible(count == 0)
 
-        self._refresh_kpis(db)
+        self._refresh_kpis(None)
         self._populate_categories()
 
         if hasattr(self, "_insights"):
             try:
-                self._insights.refresh(db, self.sucursal_id)
+                self._insights.refresh(self._inventory_query, self.sucursal_id)
             except Exception:
                 pass
 
     def _cargar_movimientos_tab(self) -> None:
         self.tabla_movimientos.setRowCount(0)
-        rows = get_recent_movements(self.container.db, self.sucursal_id, limit=200)
+        rows = self._inventory_query.list_recent_movements(branch_id=self.sucursal_id, limit=200)
         for i, r in enumerate(rows):
             self.tabla_movimientos.insertRow(i)
             for j, v in enumerate(r):
                 self.tabla_movimientos.setItem(i, j, QTableWidgetItem(str(v or "")))
 
     def _refresh_kpis(self, db) -> None:
-        data = get_inventory_operational_kpis(db, self.sucursal_id, self._prod_data)
+        del db
+        data = self._inventory_query.get_operational_kpis(
+            branch_id=self.sucursal_id, product_data=self._prod_data
+        )
         self._kpi_bajo.set_valor(str(data.get("stock_bajo", 0)))
         self._kpi_sin.set_valor(str(data.get("sin_stock_fisico", 0)))
         self._kpi_virtual.set_valor(str(data.get("virtual_disponible", 0)))
@@ -1242,14 +1185,16 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
         r = dlg.resultado
         try:
-            uc = GestionarInventarioUC.desde_container(self.container)
-            res = uc.registrar_entrada(
-                producto_id  = prod["id"],
-                cantidad     = r["cantidad"],
-                sucursal_id  = self.sucursal_id,
-                usuario      = self.usuario_actual or "sistema",
-                costo_unit   = r["costo_unit"],
-                notas        = r["referencia"],
+            res = self._inventory_app.register_entry(
+                RegisterInventoryEntryCommand(
+                    operation_id=f"INV-UI-{uuid.uuid4().hex[:12].upper()}",
+                    product_id=prod["id"],
+                    quantity=r["cantidad"],
+                    branch_id=str(self.sucursal_id),
+                    user_name=self.usuario_actual or "sistema",
+                    unit_cost=r["costo_unit"],
+                    notes=r["referencia"],
+                )
             )
             if not res.ok:
                 raise Exception(res.error)
@@ -1283,20 +1228,16 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
         r = dlg.resultado
         try:
-            uc = getattr(self.container, "uc_inventario", None)
-            if uc:
-                res = uc.registrar_ajuste(
-                    prod["id"], r["cantidad_nueva"],
-                    self.sucursal_id, self.usuario_actual or "sistema",
-                    r["motivo"],
+            res = self._inventory_app.adjust_stock(
+                AdjustInventoryCommand(
+                    operation_id=f"INV-UI-{uuid.uuid4().hex[:12].upper()}",
+                    product_id=prod["id"],
+                    new_quantity=r["cantidad_nueva"],
+                    branch_id=str(self.sucursal_id),
+                    user_name=self.usuario_actual or "sistema",
+                    reason=r["motivo"],
                 )
-            else:
-                uc2 = GestionarInventarioUC.desde_container(self.container)
-                res = uc2.registrar_ajuste(
-                    prod["id"], r["cantidad_nueva"],
-                    self.sucursal_id, self.usuario_actual or "sistema",
-                    r["motivo"],
-                )
+            )
             if not res.ok:
                 raise Exception(res.error)
             Toast.success(
@@ -1315,7 +1256,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             return
         dlg = _MovHistoryDialog(
             prod["id"], prod["nombre"],
-            self.container.db, self.sucursal_id, self
+            self._inventory_query, self.sucursal_id, self
         )
         dlg.exec_()
 
@@ -1377,6 +1318,3 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             except Exception as e:
                 QMessageBox.critical(self, "Error", str(e))
 
-
-# ── Import needed by _accion_entrada / _accion_ajuste ────────────────────────
-from core.use_cases.inventario import GestionarInventarioUC  # noqa: E402
