@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 from backend.application.queries.base_query_service import BaseQueryService, KpiMetric, QueryFilters, SearchResult, TableRow
 
 
@@ -10,7 +12,12 @@ class WasteQueryService(BaseQueryService):
 
     def search_products(self, query: str, filters: QueryFilters | None = None) -> list[SearchResult]:
         if hasattr(self._data_source, "search_products"):
-            return list(self._data_source.search_products(query))
+            filters = filters or {}
+            branch_id = filters.get("branch_id")
+            search_products = self._data_source.search_products
+            if "branch_id" in inspect.signature(search_products).parameters:
+                return list(search_products(query, branch_id=branch_id))
+            return list(search_products(query))
         return list(self.search(query, filters))
 
     def search_waste_records(self, query: str, filters: QueryFilters | None = None) -> list[SearchResult]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date as date_type
+import logging
 from typing import Any, Protocol
 
 from backend.application.commands.waste_commands import RegisterWasteCommand
@@ -13,11 +14,26 @@ from backend.shared.events.event_contracts import create_domain_event
 from backend.shared.events.event_names import EventName
 
 
+logger = logging.getLogger(__name__)
+
+
 class WasteRepositoryProtocol(Protocol):
     def operation_exists(self, operation_id: str) -> bool: ...
-    def get_product_for_waste(self, product_id: int | str) -> Any: ...
+    def get_product_for_waste(self, product_id: int | str, *, branch_id: str | int | None = None) -> Any: ...
     def register_waste(self, entry: dict[str, Any]) -> str: ...
-    def decrease_inventory_for_waste(self, product_id: int | str, quantity: float) -> None: ...
+    def decrease_inventory_for_waste(
+        self,
+        product_id: int | str,
+        quantity: float,
+        *,
+        branch_id: str | int | None = None,
+        unit_cost: float = 0.0,
+        operation_id: str | None = None,
+        reason: str = "",
+        user_name: str = "",
+    ) -> None: ...
+    def save_changes(self) -> None: ...
+    def rollback_changes(self) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -92,7 +108,7 @@ class WasteApplicationService:
         if self._repository.operation_exists(command.operation_id):
             return UseCaseResult(False, command.operation_id, message="WASTE_OPERATION_ALREADY_REGISTERED")
 
-        product = self._repository.get_product_for_waste(product_id)
+        product = self._repository.get_product_for_waste(product_id, branch_id=branch_id)
         if product is None:
             return UseCaseResult(False, command.operation_id, message="WASTE_PRODUCT_NOT_FOUND")
 
@@ -114,23 +130,34 @@ class WasteApplicationService:
             "operation_id": command.operation_id,
             "date": waste_date,
         }
-        waste_id = self._repository.register_waste(entry)
-        self._repository.decrease_inventory_for_waste(product_id, quantity)
-        if hasattr(self._repository, "save_changes"):
+        try:
+            waste_id = self._repository.register_waste(entry)
+            self._repository.decrease_inventory_for_waste(
+                product_id,
+                quantity,
+                branch_id=branch_id,
+                unit_cost=unit_cost,
+                operation_id=command.operation_id,
+                reason=command.reason,
+                user_name=command.user_name or "",
+            )
             self._repository.save_changes()
+        except Exception:
+            if hasattr(self._repository, "rollback_changes"):
+                try:
+                    self._repository.rollback_changes()
+                except Exception:
+                    logger.exception(
+                        "[WASTE] rollback failed operation_id=%s product_id=%s",
+                        command.operation_id, product_id,
+                    )
+            logger.exception(
+                "[WASTE] critical persistence failed; rolled back operation_id=%s product_id=%s",
+                command.operation_id, product_id,
+            )
+            return UseCaseResult(False, command.operation_id, message="WASTE_REGISTER_FAILED")
 
-        self._finance_handler.record_loss(
-            amount=loss_value,
-            product_id=product_id,
-            quantity=quantity,
-            reason=command.reason,
-            waste_id=waste_id,
-            branch_id=branch_id,
-            user_name=command.user_name,
-            user_id=command.user_id,
-            operation_id=command.operation_id,
-        )
-
+        side_effect_errors: list[str] = []
         event = create_domain_event(
             event_name=EventName.WASTE_REGISTERED,
             operation_id=command.operation_id,
@@ -151,7 +178,39 @@ class WasteApplicationService:
                 "date": waste_date,
             },
         )
-        self._event_bus.publish(event)
+
+        try:
+            self._finance_handler.record_loss(
+                amount=loss_value,
+                product_id=product_id,
+                quantity=quantity,
+                reason=command.reason,
+                waste_id=waste_id,
+                branch_id=branch_id,
+                user_name=command.user_name,
+                user_id=command.user_id,
+                operation_id=command.operation_id,
+            )
+            if hasattr(self._repository, "save_changes"):
+                self._repository.save_changes()
+        except Exception:
+            side_effect_errors.append("WASTE_FINANCE_RECORD_FAILED")
+            logger.exception(
+                "[WASTE] finance side-effect failed operation_id=%s waste_id=%s",
+                command.operation_id, waste_id,
+            )
+
+        published_events: tuple[Any, ...]
+        try:
+            self._event_bus.publish(event)
+            published_events = (event,)
+        except Exception:
+            side_effect_errors.append("WASTE_EVENT_PUBLISH_FAILED")
+            published_events = ()
+            logger.exception(
+                "[WASTE] event publish failed operation_id=%s waste_id=%s event=%s",
+                command.operation_id, waste_id, EventName.WASTE_REGISTERED.value,
+            )
 
         return UseCaseResult(
             True,
@@ -167,6 +226,7 @@ class WasteApplicationService:
                 "unit_cost": unit_cost,
                 "loss_value": loss_value,
                 "date": waste_date,
+                "side_effect_errors": tuple(side_effect_errors),
             },
-            events=(event,),
+            events=published_events,
         )
