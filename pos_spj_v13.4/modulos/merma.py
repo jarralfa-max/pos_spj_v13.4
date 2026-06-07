@@ -132,6 +132,9 @@ class ModuloMerma(QWidget):
             provider=self._buscar_productos,
             placeholder="🔍 Buscar producto por nombre...",
         )
+        # Ruta canónica de selección: SearchSelector emite selected.
+        # No conectar señales privadas de _results; al limpiar resultados tras
+        # seleccionar se puede invalidar el QListWidgetItem y cerrar PyQt.
         self.product_selector.selected.connect(self._on_producto_selected)
         form.addRow("Producto:", self.product_selector)
 
