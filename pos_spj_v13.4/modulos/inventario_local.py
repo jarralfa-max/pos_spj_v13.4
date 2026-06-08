@@ -20,7 +20,7 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-    QMessageBox, QDialog, QDialogButtonBox, QComboBox, QDoubleSpinBox,
+    QMessageBox, QDialog, QDialogButtonBox, QComboBox,
     QTextEdit, QLineEdit, QScrollArea, QSizePolicy, QFileDialog, QSplitter, QTabWidget,
 )
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -42,7 +42,7 @@ from core.services.inventory_query_service import (
 )
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
-    AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
+    AJUSTE_INVENTARIO, COMPRA_REGISTRADA, get_bus,
 )
 
 logger = logging.getLogger("spj.inventario")
@@ -275,11 +275,11 @@ class _InsightsPanel(QFrame):
         self._lbl_no_mov.hide()
         root.addWidget(self._lbl_no_mov)
 
-    def refresh(self, db, sucursal_id: int) -> None:
-        self._refresh_alerts(db, sucursal_id)
-        self._refresh_movements(db, sucursal_id)
+    def refresh(self, query_service: InventoryQueryService, sucursal_id: int) -> None:
+        self._refresh_alerts(query_service)
+        self._refresh_movements(query_service, sucursal_id)
 
-    def _refresh_alerts(self, db, sucursal_id: int) -> None:
+    def _refresh_alerts(self, query_service: InventoryQueryService) -> None:
         while self._alerts_lyt.count():
             item = self._alerts_lyt.takeAt(0)
             if item.widget():
@@ -323,7 +323,7 @@ class _InsightsPanel(QFrame):
             rl.addWidget(lbl, 1)
             self._alerts_lyt.addWidget(row)
 
-    def _refresh_movements(self, db, sucursal_id: int) -> None:
+    def _refresh_movements(self, query_service: InventoryQueryService, sucursal_id: int) -> None:
         while self._mov_lyt.count() > 1:
             item = self._mov_lyt.takeAt(0)
             if item.widget():
@@ -391,9 +391,7 @@ class _AuditAdjustDialog(QDialog):
         root.addWidget(lbl_cnt)
 
         cnt_row = QHBoxLayout()
-        self.spin_nuevo = QDoubleSpinBox(self)
-        self.spin_nuevo.setRange(0, 999_999)
-        self.spin_nuevo.setDecimals(3)
+        self.spin_nuevo = QuantityInput(self)
         self.spin_nuevo.setValue(stock_actual)
         self.spin_nuevo.setObjectName("inputField")
         self.spin_nuevo.setSuffix(f"  {unidad}")
@@ -515,18 +513,13 @@ class _StockEntryDialog(QDialog):
         root.addWidget(_divider(self))
 
         root.addWidget(QLabel(f"Cantidad a ingresar ({unidad}) *"))
-        self.spin_qty = QDoubleSpinBox(self)
-        self.spin_qty.setRange(0.001, 999_999)
-        self.spin_qty.setDecimals(3)
-        self.spin_qty.setValue(1.0)
+        self.spin_qty = QuantityInput(self)
+        self.spin_qty.setMinimum(0.001)
         self.spin_qty.setObjectName("inputField")
         root.addWidget(self.spin_qty)
 
         root.addWidget(QLabel("Costo unitario (opcional)"))
-        self.spin_costo = QDoubleSpinBox(self)
-        self.spin_costo.setRange(0, 999_999)
-        self.spin_costo.setDecimals(2)
-        self.spin_costo.setPrefix("$")
+        self.spin_costo = MoneyInput(self)
         self.spin_costo.setObjectName("inputField")
         root.addWidget(self.spin_costo)
 
@@ -560,7 +553,7 @@ class _StockEntryDialog(QDialog):
 class _MovHistoryDialog(QDialog):
     """Read-only audit trail for a single product."""
 
-    def __init__(self, prod_id: int, nombre: str, db, sucursal_id: int, parent=None):
+    def __init__(self, prod_id: int, nombre: str, query_service: InventoryQueryService, sucursal_id: int, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Historial de Movimientos — {nombre}")
         self.setMinimumSize(600, 400)
@@ -985,7 +978,6 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 self._loading.hide()
 
     def _do_cargar(self) -> None:
-        db = self.container.db
         self._prod_data = []
 
         rows = get_inventory_product_rows(db, self.sucursal_id)
@@ -1071,25 +1063,28 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         if hasattr(self, "_empty_state"):
             self._empty_state.setVisible(count == 0)
 
-        self._refresh_kpis(db)
+        self._refresh_kpis(None)
         self._populate_categories()
 
         if hasattr(self, "_insights"):
             try:
-                self._insights.refresh(db, self.sucursal_id)
+                self._insights.refresh(self._inventory_query, self.sucursal_id)
             except Exception:
                 pass
 
     def _cargar_movimientos_tab(self) -> None:
         self.tabla_movimientos.setRowCount(0)
-        rows = get_recent_movements(self.container.db, self.sucursal_id, limit=200)
+        rows = self._inventory_query.list_recent_movements(branch_id=self.sucursal_id, limit=200)
         for i, r in enumerate(rows):
             self.tabla_movimientos.insertRow(i)
             for j, v in enumerate(r):
                 self.tabla_movimientos.setItem(i, j, QTableWidgetItem(str(v or "")))
 
     def _refresh_kpis(self, db) -> None:
-        data = get_inventory_operational_kpis(db, self.sucursal_id, self._prod_data)
+        del db
+        data = self._inventory_query.get_operational_kpis(
+            branch_id=self.sucursal_id, product_data=self._prod_data
+        )
         self._kpi_bajo.set_valor(str(data.get("stock_bajo", 0)))
         self._kpi_sin.set_valor(str(data.get("sin_stock_fisico", 0)))
         self._kpi_virtual.set_valor(str(data.get("virtual_disponible", 0)))
@@ -1265,7 +1260,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             return
         dlg = _MovHistoryDialog(
             prod["id"], prod["nombre"],
-            self.container.db, self.sucursal_id, self
+            self._inventory_query, self.sucursal_id, self
         )
         dlg.exec_()
 
