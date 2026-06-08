@@ -35,11 +35,6 @@ from modulos.kpi_card import KPICard
 from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
 from backend.application.queries.inventory_query_service import InventoryQueryService
 from backend.application.services.inventory_application_service import InventoryApplicationService
-from core.services.inventory_query_service import (
-    get_recent_movements, get_inventory_operational_kpis,
-    get_inventory_feed_movements, get_product_movement_history,
-    get_inventory_product_rows, get_inventory_last_movement_map,
-)
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
     AJUSTE_INVENTARIO, COMPRA_REGISTRADA, get_bus,
@@ -276,10 +271,10 @@ class _InsightsPanel(QFrame):
         root.addWidget(self._lbl_no_mov)
 
     def refresh(self, query_service: InventoryQueryService, sucursal_id: int) -> None:
-        self._refresh_alerts(query_service)
+        self._refresh_alerts(query_service, sucursal_id)
         self._refresh_movements(query_service, sucursal_id)
 
-    def _refresh_alerts(self, query_service: InventoryQueryService) -> None:
+    def _refresh_alerts(self, query_service: InventoryQueryService, sucursal_id: int) -> None:
         while self._alerts_lyt.count():
             item = self._alerts_lyt.takeAt(0)
             if item.widget():
@@ -287,7 +282,7 @@ class _InsightsPanel(QFrame):
 
         alertas = []
         try:
-            for product in get_inventory_product_rows(db, sucursal_id):
+            for product in query_service.list_stock_rows(sucursal_id):
                 stock = float(product[3] or 0)
                 minimum = float(product[4] or 0)
                 if stock <= minimum:
@@ -329,7 +324,7 @@ class _InsightsPanel(QFrame):
             if item.widget():
                 item.widget().deleteLater()
 
-        movs = get_inventory_feed_movements(db, sucursal_id, limit=12)
+        movs = query_service.list_feed_movements(sucursal_id, limit=12)
 
         if not movs:
             self._lbl_no_mov.show()
@@ -586,7 +581,7 @@ class _MovHistoryDialog(QDialog):
         tabla.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         tabla.setAlternatingRowColors(True)
 
-        rows = get_product_movement_history(db, prod_id, sucursal_id, limit=100)
+        rows = query_service.list_product_history(prod_id, sucursal_id, limit=100)
 
 
         for i, r in enumerate(rows):
@@ -980,8 +975,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
     def _do_cargar(self) -> None:
         self._prod_data = []
 
-        rows = get_inventory_product_rows(db, self.sucursal_id)
-        _last_mov = get_inventory_last_movement_map(db, self.sucursal_id)
+        rows = self._inventory_query.list_stock_rows(self.sucursal_id)
+        _last_mov = self._inventory_query.get_last_movement_map(self.sucursal_id)
 
 
         self.tabla.setRowCount(0)
@@ -993,7 +988,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             nombre   = str(r[1] or "")
             cat      = str(r[2] or "")
             stock    = float(r[3] or 0)
-            minimo   = float(r[4] or 5)
+            minimo   = float(r[4] or 0)
             unidad   = str(r[5] or "")
             health   = _classify_stock(stock, minimo)
             last_mov = _last_mov.get(prod_id, "—")
