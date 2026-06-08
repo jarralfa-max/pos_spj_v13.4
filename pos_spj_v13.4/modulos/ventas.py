@@ -22,6 +22,7 @@ import json
 import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from uuid import uuid4
 
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
@@ -1341,9 +1342,7 @@ class ModuloVentas(ModuloBase):
             elif prod_repo:
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
             else:
-                cursor = self.conexion.cursor()
-                cursor.execute("SELECT nombre, COALESCE(codigo_barras,'') FROM productos WHERE COALESCE(oculto,0) = 0")
-                productos = cursor.fetchall()
+                productos = []
             sugerencias = []
             for nombre, codigo in productos:
                 sugerencias.append(nombre)
@@ -3963,6 +3962,55 @@ class ModuloVentas(ModuloBase):
             self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
             self.mostrar_mensaje("Éxito", f"Venta '{venta_data['nombre']}' reanudada.")
 
+    def _procesar_venta_via_uc(self, carrito_limpio, datos_pago, usuario, cliente_id):
+        """Ejecuta la venta por la ruta canónica del caso de uso, no desde la UI."""
+        from core.use_cases.venta import ItemCarrito, DatosPago as _DP
+
+        _uc = getattr(self.container, 'uc_venta', None)
+        if _uc is None:
+            raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
+
+        _items_uc = [
+            ItemCarrito(
+                producto_id=it['product_id'],
+                cantidad=float(it['qty']),
+                precio_unit=float(it['unit_price']),
+                nombre=it.get('name', ''),
+                es_compuesto=int(it.get('es_compuesto', 0)),
+            )
+            for it in carrito_limpio
+        ]
+        _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
+        if datos_pago.get('amount_paid_real') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
+        elif datos_pago.get('amount_paid') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
+        elif _lineas_pago:
+            _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
+        else:
+            from core.services.payment_normalization import is_credit_sale
+            _monto_pagado_real = 0.0 if is_credit_sale(datos_pago.get('forma_pago')) else float(
+                datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0
+            )
+
+        operation_id = f"sale-ui-{uuid4()}"
+        _dp = _DP(
+            forma_pago=datos_pago['forma_pago'],
+            monto_pagado=_monto_pagado_real,
+            total_pagado=_monto_pagado_real,
+            pago_mixto=_lineas_pago,
+            cliente_id=cliente_id,
+            descuento_global=float(datos_pago.get('descuento', 0)),
+            puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
+            descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
+            notas=f"Venta POS Mostrador. Cajero: {usuario}.",
+            sucursal_id=self.sucursal_id,
+            usuario=usuario,
+            operation_id=operation_id,
+            reserva_id=self._reserva_activa_id,
+        )
+        return _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
+
     def procesar_pago(self):
         if not self.compra_actual:
             QMessageBox.warning(self, "Advertencia", "No hay productos en el carrito.")
@@ -4190,38 +4238,8 @@ class ModuloVentas(ModuloBase):
                 )
                 return
 
-            from core.use_cases.venta import ItemCarrito, DatosPago as _DP
-            _uc = getattr(self.container, 'uc_venta', None)
-            if _uc is None:
-                raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
-            _items_uc = [ItemCarrito(producto_id=it['product_id'], cantidad=float(it['qty']), precio_unit=float(it['unit_price']), nombre=it.get('name', ''), es_compuesto=int(it.get('es_compuesto', 0))) for it in carrito_limpio]
-            _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
-            if datos_pago.get('amount_paid_real') is not None:
-                _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
-            elif datos_pago.get('amount_paid') is not None:
-                _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
-            elif _lineas_pago:
-                _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
-            elif is_credit_sale(datos_pago.get('forma_pago')):
-                _monto_pagado_real = 0.0
-            else:
-                _monto_pagado_real = float(datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0)
-            _dp = _DP(
-                forma_pago=datos_pago['forma_pago'],
-                monto_pagado=_monto_pagado_real,
-                total_pagado=_monto_pagado_real,
-                pago_mixto=_lineas_pago,
-                cliente_id=cliente_id,
-                descuento_global=float(datos_pago.get('descuento', 0)),
-                puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
-                descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
-                notas=f"Venta POS Mostrador. Cajero: {usuario}.",
-                sucursal_id=self.sucursal_id,
-                usuario=usuario,
-                reserva_id=self._reserva_activa_id,
-            )
             self._venta_timing["t_uc_start"] = time.perf_counter()
-            result = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
+            result = self._procesar_venta_via_uc(carrito_limpio, datos_pago, usuario, cliente_id)
             self._on_checkout_success(result, datos_pago, usuario, cliente_id)
             return
         except PermissionError as e:

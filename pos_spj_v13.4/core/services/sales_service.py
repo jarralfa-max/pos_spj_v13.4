@@ -542,13 +542,14 @@ class SalesService:
                      amount_paid: float, client_id: int = None, client_phone: str = None,
                      client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
                      loyalty_redemption_pts: int = 0, return_details: bool = False,
-                     payment_breakdown: dict | None = None, reservation_id: int | None = None):
+                     payment_breakdown: dict | None = None, reservation_id: int | None = None,
+                     operation_id: str | None = None):
         """
         Ejecuta la venta completa y devuelve el Folio y el Ticket HTML.
         
         :param items: Lista de diccionarios [{'product_id': 1, 'qty': 1.12, 'unit_price': 100, 'es_compuesto': 0, 'name': 'Pollo'}, ...]
         """
-        operation_id = str(uuid.uuid4())
+        operation_id = str(operation_id or uuid.uuid4())
         reservation_id = int(reservation_id or 0)
         reservation_confirmed = False
 
@@ -860,6 +861,7 @@ class SalesService:
                 get_bus().publish(VENTA_COMPLETADA, {
                     "venta_id":      sale_id,
                     "folio":         folio,
+                    "operation_id":  operation_id,
                     "branch_id":     branch_id,
                     "sucursal_id":   branch_id,
                     "total":         total_a_pagar,
@@ -1070,7 +1072,7 @@ class SalesService:
                             amount_paid: float, client_id: int = None, client_phone: str = None,
                             client_level: str = 'bronce', discount: float = 0.0, notes: str = "",
                             loyalty_redemption_pts: int = 0, payment_breakdown: dict | None = None,
-                            reservation_id: int | None = None):
+                            reservation_id: int | None = None, operation_id: str | None = None):
         from core.services.sales.sale_execution_result import (
             SaleExecutionItem, SaleExecutionResult, SaleLoyaltyResult, SalePaymentResult,
         )
@@ -1084,6 +1086,7 @@ class SalesService:
             return_details=True,
             payment_breakdown=payment_breakdown,
             reservation_id=reservation_id,
+            operation_id=operation_id,
         )
         if not details.get("operation_id"):
             warnings.append("operation_id no disponible en el resultado interno de venta")
