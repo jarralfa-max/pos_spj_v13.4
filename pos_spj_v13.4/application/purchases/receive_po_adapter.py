@@ -9,7 +9,7 @@ duplicar lógica de QR, transferencias ni kardex.
 
 RUTA DE RECEPCIÓN PO:
     UI Recepción → ReceivePOAdapter
-                     → inventory_service.add_stock()    (existente)
+                     → inventory_service.increase_stock()    (existente)
                      → lote_service.registrar_lote()    (existente, opcional)
                      → purchase_order_repo.update_*()   (estado PO)
                      → PurchaseRepository.create_purchase() (trazabilidad sin stock)
@@ -66,7 +66,7 @@ class ReceivePOAdapter:
     Dependencias inyectadas (no hardcodeadas):
         purchase_order_repo  — PurchaseOrderRepository
         purchase_repo        — PurchaseRepository opcional (trazabilidad, sin stock)
-        inventory_service    — UnifiedInventoryService.add_stock()
+        inventory_service    — InventoryApplicationService.increase_stock()
         lote_service         — LoteService.registrar_lote() (opcional)
         event_bus            — EventBus (RECEPCION_CONFIRMADA)
     """
@@ -123,7 +123,7 @@ class ReceivePOAdapter:
 
         Flujo:
           1. Valida que la PO existe y está en estado recibible
-          2. Para cada item recibido → inventory_service.add_stock()
+          2. Para cada item recibido → inventory_service.increase_stock()
           3. Para cada item con lote → lote_service.registrar_lote() (si disponible)
           4. Actualiza recibido en ordenes_compra_items
           5. Recalcula completion ratio → actualiza estado PO (PARCIAL/RECIBIDA)
@@ -150,28 +150,34 @@ class ReceivePOAdapter:
         warnings: list[str] = []
 
         # ── 2 + 3. Inventario + Lotes ─────────────────────────────────────────
-        inv_svc   = getattr(self._container, "inventory_service", None)
-        lote_svc  = getattr(self._container, "lote_service", None)
+        container_attrs = getattr(self._container, "__dict__", {})
+        inv_svc = container_attrs.get("inventory_application_service")
+        if inv_svc is None:
+            inv_svc = container_attrs.get("inventory_service") or getattr(self._container, "inventory_service", None)
+        lote_svc = container_attrs.get("lote_service") or getattr(self._container, "lote_service", None)
 
         for item in received_items:
             if item.qty_received <= 0:
                 continue
-            # add_stock — punto único de afectación de inventario
+            # increase_stock — ruta canónica de afectación de inventario
             if inv_svc:
                 try:
-                    inv_svc.add_stock(
-                        product_id=item.product_id,
-                        branch_id=sucursal_id,
-                        qty=item.qty_received,
-                        unit_cost=item.unit_cost,
-                        reference_type="COMPRA_PO",
+                    inventory_result = inv_svc.increase_stock(
+                        product_id=int(item.product_id),
+                        branch_id=int(sucursal_id),
+                        quantity=float(item.qty_received),
+                        unit="unit",
+                        reason=f"Recepción PO {po.get('folio', po_id)}",
+                        operation_id=f"{operation_id}:{item.product_id}",
+                        source_module="purchase_reception",
+                        reference_type="PURCHASE_ORDER_RECEIPT",
                         reference_id=str(po_id),
-                        operation_id=f"{operation_id}_{item.product_id}",
-                        user=usuario,
-                        notes=f"Recepción PO {po.get('folio', po_id)}",
+                        user_name=usuario or "system",
                     )
+                    if not getattr(inventory_result, "success", False):
+                        raise RuntimeError(getattr(inventory_result, "message", "PURCHASE_RECEPTION_INVENTORY_FAILED"))
                 except Exception as e:
-                    logger.error("add_stock prod=%d: %s", item.product_id, e)
+                    logger.error("increase_stock prod=%d: %s", item.product_id, e)
                     warnings.append(f"Inventario prod {item.product_id}: {e}")
 
             # registrar_lote — opcional, solo si viene lote en el item
@@ -208,7 +214,7 @@ class ReceivePOAdapter:
         # ── 6. Crear registro en 'compras' con purchase_order_id ───────────────
         # Fase 6: NO usar el servicio de compra directa desde una ruta PO.
         # Ese servicio vuelve a afectar inventario/lotes/finanzas; aquí el stock
-        # ya fue recibido arriba por inventory_service.add_stock().
+        # ya fue recibido arriba por inventory_service.increase_stock().
         folio = self._create_receipt_purchase_record(
             po=po,
             po_id=po_id,

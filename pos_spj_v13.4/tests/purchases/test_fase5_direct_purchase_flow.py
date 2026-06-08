@@ -14,6 +14,7 @@ Verifica (sin instanciar PyQt5):
 from __future__ import annotations
 
 import ast
+import importlib
 import json
 import os
 import re
@@ -137,26 +138,35 @@ def _make_db() -> sqlite3.Connection:
             usuario TEXT
         );
     """)
+    importlib.import_module("migrations.standalone.098_canonical_inventory").run(conn)
+
     # Seed test data
     conn.execute("INSERT INTO proveedores (nombre) VALUES ('Prov Test')")
     conn.execute("INSERT INTO productos (nombre, existencia) VALUES ('Pollo', 100)")
+    conn.execute("INSERT INTO inventory_stock(product_id, branch_id, quantity, unit) VALUES (1, 1, 100, 'unit')")
     conn.commit()
     return conn
 
 
 def _make_mock_inventory_service(db):
-    """Stub that updates productos.existencia directly — no complex logic needed."""
+    """Stub that updates canonical inventory_stock directly for purchase tests."""
     svc = MagicMock()
 
-    def _add_stock(product_id, branch_id, qty, unit_cost, operation_id,
-                   reference_type, reference_id, user, notes):
-        # No db.commit() here — we're inside a SAVEPOINT; committing would release it.
+    def _increase_stock(product_id, branch_id, quantity, unit, reason, operation_id,
+                        source_module, reference_type=None, reference_id=None, user_name=""):
         db.execute(
-            "UPDATE productos SET existencia=existencia+?, precio_compra=? WHERE id=?",
-            (qty, unit_cost, product_id),
+            """
+            INSERT INTO inventory_stock(product_id, branch_id, quantity, unit)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(product_id, branch_id) DO UPDATE SET
+                quantity = quantity + excluded.quantity,
+                unit = excluded.unit
+            """,
+            (product_id, branch_id, quantity, unit),
         )
+        return MagicMock(success=True, stock_before=None, stock_after=None, events=())
 
-    svc.add_stock.side_effect = _add_stock
+    svc.increase_stock.side_effect = _increase_stock
     return svc
 
 
@@ -347,8 +357,8 @@ class TestRegistrarCompraUCHappyPath:
 
     def test_inventory_updated(self):
         resultado, db = self._run(qty=5.0)
-        row = db.execute("SELECT existencia FROM productos WHERE id=1").fetchone()
-        assert float(row["existencia"]) == 105.0, "Stock should have increased by 5"
+        row = db.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()
+        assert float(row["quantity"]) == 105.0, "Canonical stock should have increased by 5"
 
     def test_credito_pago_marks_status(self):
         from application.use_cases.registrar_compra_uc import (
@@ -765,7 +775,7 @@ class TestPurchaseServiceSavepoint:
         repo = PurchaseRepository(db)
 
         inv_svc = MagicMock()
-        inv_svc.add_stock.side_effect = RuntimeError("stock error")
+        inv_svc.increase_stock.side_effect = RuntimeError("stock error")
 
         svc = PurchaseService(db, repo, inv_svc, None)
 
@@ -780,10 +790,10 @@ class TestPurchaseServiceSavepoint:
         assert "Operación cancelada" in str(exc_info.value)
         count = db.execute("SELECT COUNT(*) FROM compras").fetchone()[0]
         details = db.execute("SELECT COUNT(*) FROM detalles_compra").fetchone()[0]
-        stock = db.execute("SELECT existencia FROM productos WHERE id=1").fetchone()[0]
+        stock = db.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0]
         assert count == 0, "No debe quedar cabecera si inventario falla"
         assert details == 0, "No deben quedar detalles si inventario falla"
-        assert float(stock) == 100.0, "No debe moverse stock si se cancela el savepoint"
+        assert float(stock) == 100.0, "No debe moverse stock canónico si se cancela el savepoint"
 
     def test_successful_purchase_commits(self):
         """On success, purchase header is visible after register_purchase returns."""
