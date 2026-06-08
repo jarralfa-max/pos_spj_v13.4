@@ -30,6 +30,33 @@ class RegisterInventoryMovementCommand(BaseCommand):
 
 
 @dataclass(frozen=True)
+class RegisterInventoryEntryCommand(BaseCommand):
+    """Canonical stock entry command used by inventory UI.
+
+    This is not a legacy command: it maps to InventoryApplicationService.increase_stock
+    and keeps UI code from constructing raw movement records.
+    """
+
+    product_id: int = 0
+    quantity: float = 0.0
+    unit: str = "unit"
+    unit_cost: float = 0.0
+    source_module: str = "inventory"
+    reference_type: str | None = "inventory_entry"
+    reference_id: str | None = None
+    notes: str = ""
+    reason: str = "Entrada de mercancía"
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        _validate_product_id(self.product_id)
+        _validate_branch_id(self.branch_id)
+        _validate_positive_quantity(self.quantity)
+        if not self.source_module:
+            raise ValueError("source_module is required")
+
+
+@dataclass(frozen=True)
 class AdjustInventoryCommand(BaseCommand):
     product_id: int = 0
     new_quantity: float = 0.0
