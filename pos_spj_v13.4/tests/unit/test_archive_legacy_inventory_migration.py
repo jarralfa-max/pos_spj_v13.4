@@ -69,3 +69,40 @@ def test_archive_legacy_inventory_migration_drops_recreated_sources_when_archive
     assert "legacy_inventario_actual" in tables
     assert "legacy_branch_inventory" in tables
     assert "legacy_movimientos_inventario" in tables
+
+
+def test_archive_legacy_inventory_migration_repairs_broken_negative_inventory_view() -> None:
+    migration = importlib.import_module("migrations.standalone.099_archive_legacy_inventory_sources")
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(
+        """
+        CREATE TABLE inventory_stock (product_id INTEGER, branch_id INTEGER, quantity REAL);
+        CREATE TABLE inventario_actual (id INTEGER PRIMARY KEY, producto_id INTEGER, sucursal_id INTEGER, cantidad REAL);
+        CREATE TABLE branch_inventory (id INTEGER PRIMARY KEY, product_id INTEGER, branch_id INTEGER, quantity REAL);
+        CREATE VIEW v_negative_inventory AS SELECT * FROM branch_inventory_old;
+        INSERT INTO inventory_stock(product_id, branch_id, quantity) VALUES (1, 1, -2);
+        """
+    )
+
+    migration.run(conn)
+    migration.run(conn)
+
+    view_sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='view' AND name='v_negative_inventory'"
+    ).fetchone()[0]
+    assert "inventory_stock" in view_sql
+    assert "branch_inventory_old" not in view_sql
+    assert conn.execute("SELECT product_id, branch_id, quantity FROM v_negative_inventory").fetchone() == (1, 1, -2)
+
+
+def test_archive_legacy_inventory_migration_runs_without_branch_inventory_old_or_view() -> None:
+    migration = importlib.import_module("migrations.standalone.099_archive_legacy_inventory_sources")
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE inventory_stock (product_id INTEGER, branch_id INTEGER, quantity REAL)")
+
+    migration.run(conn)
+    migration.run(conn)
+
+    assert conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='view' AND name='v_negative_inventory'"
+    ).fetchone() is not None

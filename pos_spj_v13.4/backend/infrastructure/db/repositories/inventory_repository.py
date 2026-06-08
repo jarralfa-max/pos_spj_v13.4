@@ -39,6 +39,10 @@ class InventoryRepository:
     def __init__(self, connection) -> None:
         self._connection = connection
 
+    @property
+    def connection(self):
+        return self._connection
+
     def get_stock(self, product_id: int, branch_id: int) -> InventoryStockRecord:
         row = self._connection.execute(
             """
