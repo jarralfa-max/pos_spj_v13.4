@@ -10,7 +10,7 @@ Protegen contra:
   - Cambios en PurchaseInventoryHandler que rompan kardex
 
 Cobertura:
-- add_stock() se llama por cada item al registrar compra
+- increase_stock() se llama por cada item al registrar compra
 - El stock aumenta en la sucursal correcta
 - Cada item se procesa independientemente
 - El inventario solo se afecta en recepción, no en creación de PR/PO
@@ -68,7 +68,7 @@ def service(db, inv_svc):
     svc = PurchaseService(db, repo, inv_svc, fin_svc)
     with patch("core.events.event_bus.get_bus") as mock_bus:
         bus = MagicMock()
-        bus.handler_count.return_value = 0  # no event handlers — direct fallback
+        bus.handler_count.return_value = 0
         bus.publish_async = MagicMock()
         mock_bus.return_value = bus
         yield svc, inv_svc
@@ -76,7 +76,7 @@ def service(db, inv_svc):
 
 class TestPurchaseInventoryEffects:
 
-    def test_add_stock_called_for_each_item_via_fallback(self, service):
+    def test_increase_stock_called_for_each_item(self, service):
         svc, inv = service
         items = [
             {"product_id": 1, "qty": 10.0, "unit_cost": 50.0},
@@ -86,44 +86,43 @@ class TestPurchaseInventoryEffects:
             provider_id=1, branch_id=1, user="admin",
             items=items, payment_method="CONTADO", amount_paid=1100.0,
         )
-        # In fallback path (no event handlers), inventory_service.add_stock
-        # should be called once per item
-        assert inv.add_stock.call_count == len(items), (
-            f"add_stock debe llamarse {len(items)} veces, "
-            f"se llamó {inv.add_stock.call_count}"
+        # Canonical inventory_service.increase_stock should be called once per item.
+        assert inv.increase_stock.call_count == len(items), (
+            f"increase_stock debe llamarse {len(items)} veces, "
+            f"se llamó {inv.increase_stock.call_count}"
         )
 
-    def test_add_stock_receives_correct_product_id(self, service):
+    def test_increase_stock_receives_correct_product_id(self, service):
         svc, inv = service
         items = [{"product_id": 3, "qty": 7.0, "unit_cost": 90.0}]
         svc.register_purchase(
             provider_id=1, branch_id=1, user="admin",
             items=items, payment_method="CONTADO", amount_paid=630.0,
         )
-        call_kwargs = inv.add_stock.call_args
+        call_kwargs = inv.increase_stock.call_args
         args, kwargs = call_kwargs
         # product_id must appear as positional or keyword arg
         product_ids_passed = list(args) + list(kwargs.values())
         assert 3 in product_ids_passed or kwargs.get("product_id") == 3, (
-            "add_stock debe recibir product_id=3"
+            "increase_stock debe recibir product_id=3"
         )
 
-    def test_add_stock_receives_correct_branch(self, service):
+    def test_increase_stock_receives_correct_branch(self, service):
         svc, inv = service
         items = [{"product_id": 1, "qty": 2.0, "unit_cost": 100.0}]
         svc.register_purchase(
             provider_id=1, branch_id=7, user="admin",
             items=items, payment_method="CONTADO", amount_paid=200.0,
         )
-        call_args = inv.add_stock.call_args
+        call_args = inv.increase_stock.call_args
         args, kwargs = call_args
         all_args = list(args) + list(kwargs.values())
         assert 7 in all_args or kwargs.get("branch_id") == 7 or kwargs.get("sucursal_id") == 7, (
-            "add_stock debe recibir branch_id/sucursal_id=7"
+            "increase_stock debe recibir branch_id/sucursal_id=7"
         )
 
     def test_inventory_not_affected_when_no_items(self, service):
-        """Sin items, add_stock nunca debe llamarse (compra vacía)."""
+        """Sin items, increase_stock nunca debe llamarse (compra vacía)."""
         svc, inv = service
         try:
             svc.register_purchase(
@@ -132,44 +131,44 @@ class TestPurchaseInventoryEffects:
             )
         except Exception:
             pass  # compra vacía puede fallar — lo que importa es no afectar inventario
-        assert inv.add_stock.call_count == 0, "compra vacía no debe tocar inventario"
+        assert inv.increase_stock.call_count == 0, "compra vacía no debe tocar inventario"
 
     def test_inventory_single_item_not_duplicated(self, service):
-        """Un solo item → add_stock llamado exactamente una vez."""
+        """Un solo item → increase_stock llamado exactamente una vez."""
         svc, inv = service
         items = [{"product_id": 1, "qty": 5.0, "unit_cost": 50.0}]
         svc.register_purchase(
             provider_id=1, branch_id=1, user="admin",
             items=items, payment_method="CONTADO", amount_paid=250.0,
         )
-        assert inv.add_stock.call_count == 1, (
-            f"un item → add_stock debe llamarse 1 vez, "
-            f"se llamó {inv.add_stock.call_count} (posible duplicación)"
+        assert inv.increase_stock.call_count == 1, (
+            f"un item → increase_stock debe llamarse 1 vez, "
+            f"se llamó {inv.increase_stock.call_count} (posible duplicación)"
         )
 
     def test_pr_must_not_affect_inventory(self):
         """
-        Contrato pre-implementación: PR no debe llamar add_stock.
-        Verificar que no existe ningún módulo PR que llame add_stock directamente.
+        Contrato pre-implementación: PR no debe llamar increase_stock.
+        Verificar que no existe ningún módulo PR que llame increase_stock directamente.
         """
         # Si el módulo PR no existe aún, el test pasa (es el estado esperado)
         try:
             from application.purchases import purchase_request_uc
-            # Si existe, verificar que no expone add_stock
-            assert not hasattr(purchase_request_uc, "add_stock"), (
-                "PR UC no debe exponer add_stock"
+            # Si existe, verificar que no expone increase_stock
+            assert not hasattr(purchase_request_uc, "increase_stock"), (
+                "PR UC no debe exponer increase_stock"
             )
         except ImportError:
             pass  # módulo PR no existe todavía — comportamiento esperado en Fase 0
 
     def test_po_must_not_affect_inventory(self):
         """
-        Contrato pre-implementación: PO no debe llamar add_stock.
+        Contrato pre-implementación: PO no debe llamar increase_stock.
         """
         try:
             from application.purchases import purchase_order_uc
-            assert not hasattr(purchase_order_uc, "add_stock"), (
-                "PO UC no debe exponer add_stock"
+            assert not hasattr(purchase_order_uc, "increase_stock"), (
+                "PO UC no debe exponer increase_stock"
             )
         except ImportError:
             pass  # módulo PO no existe todavía — comportamiento esperado en Fase 0

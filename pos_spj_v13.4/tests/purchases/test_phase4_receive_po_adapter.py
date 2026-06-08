@@ -7,7 +7,7 @@ Verifica:
 1. ReceivePOAdapter importa correctamente (contrato Phase 1 ahora pasa)
 2. get_po_lines() devuelve líneas con cantidad, recibido, pendiente
 3. get_po_status() devuelve estado actual
-4. register_partial_receipt() llama add_stock() UNA VEZ por item
+4. register_partial_receipt() llama increase_stock() UNA VEZ por item
 5. register_partial_receipt() NO duplica movimientos
 6. Recepción parcial → po_estado = PARCIAL
 7. Recepción completa → po_estado = RECIBIDA
@@ -18,7 +18,7 @@ Verifica:
 12. items_received vacío → error claro
 13. Se crea compra con purchase_order_id vinculado sin llamar register_purchase
 14. Se publica RECEPCION_CONFIRMADA
-15. ReceivePOAdapter NO tiene add_stock propio
+15. ReceivePOAdapter NO tiene increase_stock propio
 16. AppContainer registra receive_po_adapter
 """
 import sys, os
@@ -141,13 +141,13 @@ class TestReceivePOAdapterImport:
         r = ReceiptResult(ok=True, po_estado="PARCIAL", completion=0.5)
         assert r.ok
 
-    def test_adapter_has_no_own_add_stock(self):
-        """El adaptador no reimplementa add_stock."""
+    def test_adapter_has_no_own_increase_stock(self):
+        """El adaptador no reimplementa increase_stock."""
         import inspect
         from application.purchases.receive_po_adapter import ReceivePOAdapter
-        # No debe definir un método add_stock propio
-        assert not hasattr(ReceivePOAdapter, "add_stock"), (
-            "ReceivePOAdapter no debe tener add_stock propio — usa inventory_service"
+        # No debe definir un método increase_stock propio
+        assert not hasattr(ReceivePOAdapter, "increase_stock"), (
+            "ReceivePOAdapter no debe tener increase_stock propio — usa inventory_service"
         )
 
     def test_package_exports_adapter(self):
@@ -216,7 +216,7 @@ class TestRegisterPartialReceipt:
             )
         assert result.ok, f"error: {result.error}"
 
-    def test_add_stock_called_once_per_item(self, db, po_repo):
+    def test_increase_stock_called_once_per_item(self, db, po_repo):
         from application.purchases.receive_po_adapter import ReceivePOAdapter
         po_id, _ = _make_po(db, po_repo)
         container = _make_container(db, po_repo)
@@ -226,9 +226,9 @@ class TestRegisterPartialReceipt:
                 po_id=po_id, received_items=self._make_items(),
                 usuario="almacen", sucursal_id=1, proveedor_id=1,
             )
-        assert container.inventory_service.add_stock.call_count == 2, (
-            f"add_stock debe llamarse 2 veces (una por item), "
-            f"se llamó {container.inventory_service.add_stock.call_count}"
+        assert container.inventory_service.increase_stock.call_count == 2, (
+            f"increase_stock debe llamarse 2 veces (una por item), "
+            f"se llamó {container.inventory_service.increase_stock.call_count}"
         )
 
     def test_no_duplicate_inventory_for_single_item(self, db, po_repo):
@@ -243,8 +243,8 @@ class TestRegisterPartialReceipt:
                 po_id=po_id, received_items=items,
                 usuario="almacen", sucursal_id=1, proveedor_id=1,
             )
-        assert container.inventory_service.add_stock.call_count == 1, (
-            "Un item → add_stock exactamente 1 vez (sin duplicación)"
+        assert container.inventory_service.increase_stock.call_count == 1, (
+            "Un item → increase_stock exactamente 1 vez (sin duplicación)"
         )
 
     def test_partial_receipt_sets_po_estado_parcial(self, db, po_repo):
@@ -391,7 +391,7 @@ class TestReceivePOValidation:
             usuario="almacen", sucursal_id=1, proveedor_id=1,
         )
         assert not result.ok
-        assert container.inventory_service.add_stock.call_count == 0
+        assert container.inventory_service.increase_stock.call_count == 0
 
     def test_received_po_blocks_further_receipt(self, db, po_repo):
         from application.purchases.receive_po_adapter import ReceivePOAdapter, ReceiptItem
@@ -433,8 +433,8 @@ class TestAppContainerPhase4:
         ReceivePOAdapter existe y cumple la interfaz esperada.
         """
         from application.purchases.receive_po_adapter import ReceivePOAdapter
-        assert not hasattr(ReceivePOAdapter, "_add_stock"), (
-            "ReceivePOAdapter no debe tener _add_stock propio"
+        assert not hasattr(ReceivePOAdapter, "_increase_stock"), (
+            "ReceivePOAdapter no debe tener _increase_stock propio"
         )
         assert hasattr(ReceivePOAdapter, "get_po_lines")
         assert hasattr(ReceivePOAdapter, "register_partial_receipt")

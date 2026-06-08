@@ -217,7 +217,12 @@ class AppContainer:
         # Opcionales
         self.promotion_engine = PromotionEngine(self.promo_repo)
         self.sync_service = SyncService(self.db)
-        self.purchase_service = PurchaseService(self.db, self.purchase_repo, self.inventory_service, self.finance_service)
+        from backend.application.services.inventory_application_service import InventoryApplicationService
+        from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
+        self.inventory_application_service = InventoryApplicationService(
+            repository=InventoryRepository(self.db),
+        )
+        self.purchase_service = PurchaseService(self.db, self.purchase_repo, self.inventory_application_service, self.finance_service)
 
         # =========================================================
         # CAPA 4: EL ORQUESTADOR PRINCIPAL (Ventas)

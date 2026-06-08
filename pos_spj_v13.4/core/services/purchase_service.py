@@ -75,42 +75,30 @@ class PurchaseService:
             # Guardar los renglones (productos) de la compra
             self.purchase_repo.save_purchase_items(compra_id, items)
 
-            # 2. AUTOMATIZACIÓN DE INVENTARIO (event bus or direct fallback)
-            from core.events.event_bus import get_bus
-            from core.events.domain_events import PURCHASE_ITEMS_PROCESS
-            _bus = get_bus()
+            # 2. CANONICAL INVENTORY INCREASE
             inv_errors = []
-            if _bus.handler_count(PURCHASE_ITEMS_PROCESS) > 0:
-                _bus.publish(PURCHASE_ITEMS_PROCESS, {
-                    "branch_id":    branch_id,
-                    "sucursal_id":  branch_id,
-                    "operation_id": operation_id,
-                    "compra_id":    compra_id,
-                    "folio":        folio,
-                    "user":         user,
-                    "usuario":      user,
-                    "items":        items,
-                }, strict=True)
-            else:
-                for item in items:
-                    try:
-                        self.inventory_service.add_stock(
-                            product_id     = item['product_id'],
-                            branch_id      = branch_id,
-                            qty            = item['qty'],
-                            unit_cost      = item['unit_cost'],
-                            operation_id   = operation_id,
-                            reference_type = "COMPRA",
-                            reference_id   = str(compra_id),
-                            user           = user,
-                            notes          = f"Entrada por compra {folio}",
-                        )
-                    except Exception as _inv_e:
-                        inv_errors.append(
-                            f"{item.get('nombre', item['product_id'])}: {_inv_e}")
-                        logger.error(
-                            "add_stock FAILED prod=%s compra=%s: %s",
-                            item['product_id'], folio, _inv_e)
+            for item in items:
+                try:
+                    inventory_result = self.inventory_service.increase_stock(
+                        product_id=int(item['product_id']),
+                        branch_id=int(branch_id),
+                        quantity=float(item['qty']),
+                        unit=str(item.get('unit') or item.get('unidad') or 'unit'),
+                        reason=f"Entrada por compra {folio}",
+                        operation_id=f"{operation_id}:{item['product_id']}",
+                        source_module="purchase",
+                        reference_type="PURCHASE",
+                        reference_id=str(compra_id),
+                        user_name=user or "system",
+                    )
+                    if not getattr(inventory_result, "success", False):
+                        raise RuntimeError(getattr(inventory_result, "message", "PURCHASE_INVENTORY_INCREASE_FAILED"))
+                except Exception as _inv_e:
+                    inv_errors.append(
+                        f"{item.get('nombre', item['product_id'])}: {_inv_e}")
+                    logger.error(
+                        "increase_stock FAILED prod=%s compra=%s: %s",
+                        item['product_id'], folio, _inv_e)
 
             if inv_errors:
                 # Fase 5: inventario es parte del flujo DIRECT; si falla,
@@ -250,8 +238,8 @@ class PurchaseService:
         - Trazabilidad completa: lote compra → lote producción → venta
         - Alertas de caducidad por lote
 
-        Nota: solo actualiza la tabla `lotes` — NO toca `productos.existencia`
-        porque PurchaseService.add_stock() ya lo hizo.
+        Nota: solo actualiza la tabla `lotes`; el stock canónico ya fue
+        actualizado por PurchaseService.increase_stock().
         """
         from datetime import datetime
 
@@ -328,16 +316,20 @@ class PurchaseService:
                 if qty <= 0:
                     continue
                 try:
-                    self.inventory_service.deduct_stock(
-                        product_id     = pid,
-                        branch_id      = branch_id,
-                        qty            = qty,
-                        reference_type = "CANCELACION",
-                        reference_id   = str(compra_id),
-                        operation_id   = _sp,
-                        user           = user,
-                        notes          = f"Reversión por cancelación {folio}",
+                    inventory_result = self.inventory_service.decrease_stock(
+                        product_id=int(pid),
+                        branch_id=int(branch_id),
+                        quantity=float(qty),
+                        unit=str(item.get("unit") or item.get("unidad") or "unit"),
+                        reason=f"Reversión por cancelación {folio}",
+                        operation_id=f"{_sp}:{pid}",
+                        source_module="purchase",
+                        reference_type="PURCHASE_CANCEL",
+                        reference_id=str(compra_id),
+                        user_name=user or "system",
                     )
+                    if not getattr(inventory_result, "success", False):
+                        raise ValueError(getattr(inventory_result, "message", "PURCHASE_CANCEL_INVENTORY_DECREASE_FAILED"))
                 except ValueError as _ve:
                     # Stock insuficiente — reversal parcial; still cancel the purchase
                     _w = f"Producto {pid}: stock insuficiente para revertir ({_ve})"

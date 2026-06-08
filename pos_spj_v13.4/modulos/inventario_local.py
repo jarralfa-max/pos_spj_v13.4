@@ -31,7 +31,11 @@ from modulos.ui_components import (
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.kpi_card import KPICard
-from core.services.inventory_query_service import get_recent_movements, get_inventory_operational_kpis
+from core.services.inventory_query_service import (
+    get_recent_movements, get_inventory_operational_kpis,
+    get_inventory_feed_movements, get_product_movement_history,
+    get_inventory_product_rows, get_inventory_last_movement_map,
+)
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
     AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
@@ -322,37 +326,7 @@ class _InsightsPanel(QFrame):
             if item.widget():
                 item.widget().deleteLater()
 
-        movs = []
-        try:
-            rows = db.execute(
-                "SELECT im.movement_type, im.quantity, im.usuario, im.created_at, p.nombre "
-                "FROM inventory_movements im "
-                "JOIN productos p ON p.id = im.product_id "
-                "WHERE im.branch_id = ? "
-                "ORDER BY im.created_at DESC LIMIT 12",
-                [sucursal_id]
-            ).fetchall()
-            for r in rows:
-                movs.append({
-                    "movement_type": r[0], "quantity": r[1],
-                    "usuario": r[2], "created_at": r[3], "nombre": r[4],
-                })
-        except Exception:
-            try:
-                rows = db.execute(
-                    "SELECT tipo, cantidad, usuario, created_at, "
-                    "(SELECT nombre FROM productos WHERE id=a.producto_id) "
-                    "FROM ajustes_inventario a "
-                    "WHERE sucursal_id=? ORDER BY created_at DESC LIMIT 12",
-                    [sucursal_id]
-                ).fetchall()
-                for r in rows:
-                    movs.append({
-                        "movement_type": r[0], "quantity": r[1],
-                        "usuario": r[2], "created_at": r[3], "nombre": r[4],
-                    })
-            except Exception:
-                pass
+        movs = get_inventory_feed_movements(db, sucursal_id, limit=12)
 
         if not movs:
             self._lbl_no_mov.show()
@@ -616,17 +590,8 @@ class _MovHistoryDialog(QDialog):
         tabla.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         tabla.setAlternatingRowColors(True)
 
-        try:
-            rows = db.execute(
-                "SELECT created_at, movement_type, quantity, usuario, "
-                "COALESCE(reference_type,''), COALESCE(operation_id,'') "
-                "FROM inventory_movements "
-                "WHERE product_id=? AND branch_id=? "
-                "ORDER BY created_at DESC LIMIT 100",
-                [prod_id, sucursal_id]
-            ).fetchall()
-        except Exception:
-            rows = []
+        rows = get_product_movement_history(db, prod_id, sucursal_id, limit=100)
+
 
         for i, r in enumerate(rows):
             tabla.insertRow(i)
@@ -1017,33 +982,9 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         db = self.container.db
         self._prod_data = []
 
-        try:
-            rows = db.execute(
-                "SELECT p.id, p.nombre, COALESCE(p.categoria,''), "
-                "COALESCE(bi.quantity, p.existencia, 0),"
-                "COALESCE(p.stock_minimo, 5), COALESCE(p.unidad,'pza') "
-                "FROM productos p "
-                "LEFT JOIN branch_inventory bi "
-                "    ON bi.product_id=p.id AND bi.branch_id=? "
-                "WHERE p.activo=1 ORDER BY p.nombre",
-                [self.sucursal_id]
-            ).fetchall()
-        except Exception as e:
-            logger.warning("cargar inventario: %s", e)
-            rows = []
+        rows = get_inventory_product_rows(db, self.sucursal_id)
+        _last_mov = get_inventory_last_movement_map(db, self.sucursal_id)
 
-        # Fetch last movement timestamps
-        _last_mov: dict[int, str] = {}
-        try:
-            ts_rows = db.execute(
-                "SELECT product_id, MAX(created_at) "
-                "FROM inventory_movements WHERE branch_id=? "
-                "GROUP BY product_id",
-                [self.sucursal_id]
-            ).fetchall()
-            _last_mov = {int(r[0]): str(r[1] or "")[:16] for r in ts_rows}
-        except Exception:
-            pass
 
         self.tabla.setRowCount(0)
         self.tabla_disponibilidad.setRowCount(0)
