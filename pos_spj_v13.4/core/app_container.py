@@ -7,7 +7,6 @@ import logging
 from repositories.config_repository import ConfigRepository
 from repositories.security_repository import SecurityRepository
 from repositories.auth_repository import AuthRepository
-from repositories.inventory_repository import InventoryRepository
 from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
 from repositories.sales_repository import SalesRepository
@@ -27,8 +26,10 @@ from core.services.config_service import ConfigService
 from core.services.feature_flag_service import FeatureFlagService
 from core.services.security_service import SecurityService
 from core.services.auth_service import AuthService
+from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
+from backend.application.services.inventory_application_service import InventoryApplicationService
+from backend.application.queries.inventory_query_service import InventoryQueryService
 
-from core.services.inventory.unified_inventory_service import UnifiedInventoryService
 from core.services.finance_service import FinanceService
 from core.services.loyalty_service import LoyaltyService
 from core.services.recipe_engine import RecipeEngine
@@ -73,7 +74,8 @@ class AppContainer:
         self.config_repo = ConfigRepository(self.db)
         self.security_repo = SecurityRepository(self.db)
         self.auth_repo = AuthRepository(self.db)
-        self.inventory_repo = InventoryRepository(self.db)
+        self.inventory_repository = InventoryRepository(self.db)
+        self.inventory_query_service = InventoryQueryService(repository=self.inventory_repository)
         self.recipe_repo = RecipeRepository(self.db)
         self.finance_repo = FinanceRepository(self.db)
         self.sales_repo = SalesRepository(self.db)
@@ -134,9 +136,11 @@ class AppContainer:
         ## =========================================================
         # CAPA 3: SERVICIOS DE NEGOCIO (Los motores del ERP)
         # =========================================================
-        self.inventory_service = UnifiedInventoryService(
-            conn=self.db, sucursal_id=self.sucursal_id
+        self.inventory_application_service = InventoryApplicationService(
+            repository=self.inventory_repository,
         )
+        # Compatibility alias only: points to canonical InventoryApplicationService.
+        self.inventory_service = self.inventory_application_service
 
         self.finance_service = FinanceService(self.db) # Solo recibe 1 parámetro
         self.loyalty_service = LoyaltyService(self.db, finance_service=self.finance_service)  # module_config set below
@@ -217,11 +221,6 @@ class AppContainer:
         # Opcionales
         self.promotion_engine = PromotionEngine(self.promo_repo)
         self.sync_service = SyncService(self.db)
-        from backend.application.services.inventory_application_service import InventoryApplicationService
-        from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
-        self.inventory_application_service = InventoryApplicationService(
-            repository=InventoryRepository(self.db),
-        )
         self.purchase_service = PurchaseService(self.db, self.purchase_repo, self.inventory_application_service, self.finance_service)
 
         # =========================================================

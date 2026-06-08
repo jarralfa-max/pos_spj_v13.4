@@ -49,16 +49,18 @@ class GestionarInventarioUC:
                                    costo_unit=45.0, proveedor_id=3)
     """
 
-    def __init__(self, db, inventory_service, event_bus=None):
+    def __init__(self, db, inventory_service, inventory_query_service=None, event_bus=None):
         self._db  = db
         self._inv = inventory_service
+        self._query = inventory_query_service
         self._bus = event_bus
 
     @classmethod
     def desde_container(cls, container) -> "GestionarInventarioUC":
         return cls(
             db                = container.db,
-            inventory_service = container.inventory_service,
+            inventory_service = container.inventory_application_service,
+            inventory_query_service = container.inventory_query_service,
             event_bus         = _get_bus(),
         )
 
@@ -80,19 +82,22 @@ class GestionarInventarioUC:
 
         op_id = _gen_op_id()
         try:
-            stock_antes = self._inv.get_stock(producto_id, sucursal_id)
-            self._inv.add_stock(
-                product_id    = producto_id,
-                branch_id     = sucursal_id,
-                qty           = cantidad,
-                unit_cost     = costo_unit,
-                reference_type = "ENTRADA" if not referencia else referencia,
-                reference_id  = str(proveedor_id or ""),
-                operation_id  = op_id,
-                user          = usuario,
-                notes         = notas,
+            stock_antes = self._stock_quantity(producto_id, sucursal_id)
+            result = self._inv.increase_stock(
+                product_id=producto_id,
+                branch_id=sucursal_id,
+                quantity=cantidad,
+                unit="unit",
+                reason=notas or referencia or "Entrada manual de inventario",
+                operation_id=op_id,
+                source_module="inventory_use_case",
+                reference_type="INVENTORY_ENTRY",
+                reference_id=str(proveedor_id or referencia or "") or None,
+                user_name=usuario,
             )
-            stock_nuevo = self._inv.get_stock(producto_id, sucursal_id)
+            if not result.success:
+                raise ValueError(result.message)
+            stock_nuevo = float(result.stock_after)
             self._audit("ENTRADA", producto_id, sucursal_id, usuario,
                         f"antes={stock_antes:.3f}", f"despues={stock_nuevo:.3f} (+{cantidad:.3f})",
                         op_id)
@@ -123,24 +128,22 @@ class GestionarInventarioUC:
     ) -> ResultadoInventario:
         op_id = _gen_op_id()
         try:
-            stock_antes = self._inv.get_stock(producto_id, sucursal_id)
+            stock_antes = self._stock_quantity(producto_id, sucursal_id)
             delta = cantidad_nueva - stock_antes
-            if delta > 0:
-                self._inv.add_stock(
-                    product_id=producto_id, branch_id=sucursal_id,
-                    qty=delta, unit_cost=0.0,
-                    reference_type="AJUSTE", reference_id="",
-                    operation_id=op_id,
-                    user=usuario, notes=motivo,
-                )
-            elif delta < 0:
-                self._inv.deduct_stock(
-                    product_id=producto_id, branch_id=sucursal_id,
-                    qty=abs(delta),
-                    reference_type="AJUSTE", reference_id="",
-                    operation_id=op_id,
-                    user=usuario, notes=motivo,
-                )
+            result = self._inv.adjust_stock(
+                product_id=producto_id,
+                branch_id=sucursal_id,
+                new_quantity=cantidad_nueva,
+                unit="unit",
+                reason=motivo,
+                operation_id=op_id,
+                source_module="inventory_use_case",
+                reference_type="INVENTORY_ADJUSTMENT",
+                reference_id=None,
+                user_name=usuario,
+            )
+            if not result.success:
+                raise ValueError(result.message)
             self._audit("AJUSTE", producto_id, sucursal_id, usuario,
                         str(stock_antes), str(cantidad_nueva), op_id)
             self._bus_publish("AJUSTE_INVENTARIO", {
@@ -180,25 +183,22 @@ class GestionarInventarioUC:
 
         op_id = _gen_op_id()
         try:
-            # Salida de origen
-            self._inv.deduct_stock(
-                product_id=producto_id, branch_id=sucursal_origen,
-                qty=cantidad,
-                reference_type="TRASPASO_SALIDA",
+            result = self._inv.transfer_stock(
+                product_id=producto_id,
+                from_branch_id=sucursal_origen,
+                to_branch_id=sucursal_destino,
+                quantity=cantidad,
+                unit="unit",
+                reason=notas or "Traspaso entre sucursales",
+                operation_id=op_id,
+                source_module="inventory_use_case",
+                reference_type="INVENTORY_TRANSFER",
                 reference_id=str(sucursal_destino),
-                operation_id=op_id,
-                user=usuario, notes=notas,
+                user_name=usuario,
             )
-            # Entrada en destino
-            self._inv.add_stock(
-                product_id=producto_id, branch_id=sucursal_destino,
-                qty=cantidad, unit_cost=0.0,
-                reference_type="TRASPASO_ENTRADA",
-                reference_id=str(sucursal_origen),
-                operation_id=op_id,
-                user=usuario, notes=notas,
-            )
-            stock_nuevo = self._inv.get_stock(producto_id, sucursal_destino)
+            if not result.success:
+                raise ValueError(result.message)
+            stock_nuevo = self._stock_quantity(producto_id, sucursal_destino)
             self._audit("TRASPASO", producto_id, sucursal_origen, usuario,
                         f"suc={sucursal_origen} cant={cantidad}",
                         f"suc_dest={sucursal_destino}", op_id)
@@ -217,6 +217,11 @@ class GestionarInventarioUC:
             return ResultadoInventario(ok=False, error=str(e))
 
     # ── Helpers internos ──────────────────────────────────────────────────────
+
+    def _stock_quantity(self, producto_id: int, sucursal_id: int) -> float:
+        if self._query is None:
+            return 0.0
+        return float(self._query.get_stock(producto_id, sucursal_id).quantity)
 
     def _audit(
         self,

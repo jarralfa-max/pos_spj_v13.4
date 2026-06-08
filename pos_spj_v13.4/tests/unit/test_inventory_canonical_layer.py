@@ -5,7 +5,11 @@ import sqlite3
 
 import pytest
 
-from backend.application.commands.inventory_commands import AdjustInventoryCommand, RegisterInventoryMovementCommand
+from backend.application.commands.inventory_commands import (
+    AdjustInventoryCommand,
+    RegisterInventoryEntryCommand,
+    RegisterInventoryMovementCommand,
+)
 from backend.application.queries.inventory_query_service import InventoryQueryService
 from backend.application.services.inventory_application_service import InventoryApplicationService
 from backend.application.use_cases.adjust_inventory_use_case import AdjustInventoryUseCase
@@ -233,4 +237,32 @@ def test_command_validation_requires_context() -> None:
             product_id=1,
             quantity=1,
             movement_type="INCREASE",
+        ).validate_context()
+
+
+def test_register_inventory_entry_command_validates_canonical_entry_context() -> None:
+    command = RegisterInventoryEntryCommand(
+        operation_id="op-entry-command",
+        branch_id="1",
+        user_name="ana",
+        product_id=1,
+        quantity=2,
+        unit="kg",
+        unit_cost=3.5,
+        source_module="inventory-test",
+    )
+
+    command.validate_context()
+
+
+def test_register_inventory_entry_command_rejects_negative_unit_cost() -> None:
+    with pytest.raises(ValueError):
+        RegisterInventoryEntryCommand(
+            operation_id="op-entry-command",
+            branch_id="1",
+            user_name="ana",
+            product_id=1,
+            quantity=2,
+            unit_cost=-1,
+            source_module="inventory-test",
         ).validate_context()

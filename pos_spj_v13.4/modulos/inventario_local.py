@@ -32,6 +32,9 @@ from modulos.ui_components import (
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.kpi_card import KPICard
+from backend.infrastructure.db.repositories.inventory_repository import InventoryRepository
+from backend.application.queries.inventory_query_service import InventoryQueryService
+from backend.application.services.inventory_application_service import InventoryApplicationService
 from core.services.inventory_query_service import (
     get_recent_movements, get_inventory_operational_kpis,
     get_inventory_feed_movements, get_product_movement_history,
@@ -283,10 +286,17 @@ class _InsightsPanel(QFrame):
                 item.widget().deleteLater()
 
         alertas = []
-        for r in query_service.list_low_stock_alerts(limit=8):
-            stock = float(r[1] or 0)
-            health = _HEALTH_CRITICAL if stock <= 0 else _HEALTH_LOW
-            alertas.append((str(r[0]), stock, str(r[3] or ""), health))
+        try:
+            for product in get_inventory_product_rows(db, sucursal_id):
+                stock = float(product[3] or 0)
+                minimum = float(product[4] or 0)
+                if stock <= minimum:
+                    health = _HEALTH_CRITICAL if stock <= 0 else _HEALTH_LOW
+                    alertas.append((str(product[1]), stock, str(product[5] or ""), health))
+                if len(alertas) >= 8:
+                    break
+        except Exception:
+            pass
 
         if not alertas:
             self._lbl_no_alerts.show()
@@ -621,12 +631,9 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.container      = container
         self.sucursal_id    = 1
         self.usuario_actual = ""
-        self._inventory_query = InventoryQueryService(container.db)
-        self._inventory_app = InventoryApplicationService(
-            db=container.db,
-            inventory_service=container.inventory_service,
-            event_bus=get_bus(),
-        )
+        self._inventory_repository = InventoryRepository(container.db)
+        self._inventory_query = InventoryQueryService(repository=self._inventory_repository)
+        self._inventory_app = InventoryApplicationService(repository=self._inventory_repository)
 
         self._prod_data: list[dict] = []  # cached for export
 
@@ -1177,19 +1184,21 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
         r = dlg.resultado
         try:
-            res = self._inventory_app.register_entry(
-                RegisterInventoryEntryCommand(
-                    operation_id=f"INV-UI-{uuid.uuid4().hex[:12].upper()}",
-                    product_id=prod["id"],
-                    quantity=r["cantidad"],
-                    branch_id=str(self.sucursal_id),
-                    user_name=self.usuario_actual or "sistema",
-                    unit_cost=r["costo_unit"],
-                    notes=r["referencia"],
-                )
+            operation_id = f"inventory-entry-{uuid.uuid4()}"
+            result = self._inventory_app.increase_stock(
+                product_id=prod["id"],
+                branch_id=self.sucursal_id,
+                quantity=r["cantidad"],
+                unit=prod["unidad"],
+                reason=r["referencia"] or "Entrada manual de inventario",
+                operation_id=operation_id,
+                source_module="inventory_ui",
+                reference_type="INVENTORY_ENTRY",
+                reference_id=r["referencia"] or None,
+                user_name=self.usuario_actual or "sistema",
             )
-            if not res.ok:
-                raise Exception(res.error)
+            if not result.success:
+                raise Exception(result.message)
             Toast.success(
                 self, "Entrada registrada",
                 f"+{r['cantidad']:.3f} {prod['unidad']} → {prod['nombre']}"
@@ -1220,21 +1229,24 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
         r = dlg.resultado
         try:
-            res = self._inventory_app.adjust_stock(
-                AdjustInventoryCommand(
-                    operation_id=f"INV-UI-{uuid.uuid4().hex[:12].upper()}",
-                    product_id=prod["id"],
-                    new_quantity=r["cantidad_nueva"],
-                    branch_id=str(self.sucursal_id),
-                    user_name=self.usuario_actual or "sistema",
-                    reason=r["motivo"],
-                )
+            operation_id = f"inventory-adjust-{uuid.uuid4()}"
+            result = self._inventory_app.adjust_stock(
+                product_id=prod["id"],
+                branch_id=self.sucursal_id,
+                new_quantity=r["cantidad_nueva"],
+                unit=prod["unidad"],
+                reason=r["motivo"],
+                operation_id=operation_id,
+                source_module="inventory_ui",
+                reference_type="INVENTORY_ADJUSTMENT",
+                reference_id=None,
+                user_name=self.usuario_actual or "sistema",
             )
-            if not res.ok:
-                raise Exception(res.error)
+            if not result.success:
+                raise Exception(result.message)
             Toast.success(
                 self, "Ajuste registrado",
-                f"Stock ajustado a {r['cantidad_nueva']:.3f} — op. {res.operacion_id[:8]}"
+                f"Stock ajustado a {r['cantidad_nueva']:.3f} — op. {result.operation_id[:8]}"
             )
             self.cargar_datos()
         except Exception as e:
@@ -1309,4 +1321,3 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 Toast.info(self, "Guardado como CSV", f"openpyxl no instalado — {path2}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", str(e))
-
