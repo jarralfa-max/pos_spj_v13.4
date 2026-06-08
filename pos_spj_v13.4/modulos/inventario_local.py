@@ -32,14 +32,11 @@ from modulos.ui_components import (
 )
 from modulos.spj_refresh_mixin import RefreshMixin
 from modulos.kpi_card import KPICard
-from backend.application.commands.inventory_commands import (
-    AdjustInventoryCommand,
-    RegisterInventoryEntryCommand,
+from core.services.inventory_query_service import (
+    get_recent_movements, get_inventory_operational_kpis,
+    get_inventory_feed_movements, get_product_movement_history,
+    get_inventory_product_rows, get_inventory_last_movement_map,
 )
-from backend.application.queries.inventory_query_service import InventoryQueryService
-from backend.application.services.inventory_application_service import InventoryApplicationService
-from frontend.desktop.components.money_input import MoneyInput
-from frontend.desktop.components.quantity_input import QuantityInput
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
     AJUSTE_INVENTARIO, COMPRA_REGISTRADA, get_bus,
@@ -322,7 +319,7 @@ class _InsightsPanel(QFrame):
             if item.widget():
                 item.widget().deleteLater()
 
-        movs = query_service.list_recent_feed(branch_id=sucursal_id, limit=12)
+        movs = get_inventory_feed_movements(db, sucursal_id, limit=12)
 
         if not movs:
             self._lbl_no_mov.show()
@@ -579,9 +576,8 @@ class _MovHistoryDialog(QDialog):
         tabla.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         tabla.setAlternatingRowColors(True)
 
-        rows = query_service.list_product_history(
-            product_id=prod_id, branch_id=sucursal_id, limit=100
-        )
+        rows = get_product_movement_history(db, prod_id, sucursal_id, limit=100)
+
 
         for i, r in enumerate(rows):
             tabla.insertRow(i)
@@ -977,13 +973,9 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
     def _do_cargar(self) -> None:
         self._prod_data = []
 
-        rows = self._inventory_query.list_inventory_rows(branch_id=self.sucursal_id)
-        if not rows:
-            logger.warning("cargar inventario: sin filas para sucursal %s", self.sucursal_id)
+        rows = get_inventory_product_rows(db, self.sucursal_id)
+        _last_mov = get_inventory_last_movement_map(db, self.sucursal_id)
 
-        _last_mov = self._inventory_query.get_last_movement_by_product(
-            branch_id=self.sucursal_id
-        )
 
         self.tabla.setRowCount(0)
         self.tabla_disponibilidad.setRowCount(0)
