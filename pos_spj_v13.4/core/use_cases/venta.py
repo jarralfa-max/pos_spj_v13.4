@@ -262,6 +262,7 @@ class ProcesarVentaUC:
                     loyalty_redemption_pts=int(datos_pago.puntos_canjeados or 0),
                     notes=datos_pago.notas,
                     reservation_id=datos_pago.reserva_id,
+                    operation_id=datos_pago.operation_id,
                 )
                 folio = rich.folio
                 ticket_html = rich.ticket_html
