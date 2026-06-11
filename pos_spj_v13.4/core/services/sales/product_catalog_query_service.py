@@ -20,17 +20,17 @@ class ProductCatalogQueryService:
         return [r[0] if not hasattr(r, 'keys') else r['categoria'] for r in rows]
 
     def list_visible_products(self, branch_id: int, filtro: str = "", categoria: str = "") -> List[Dict[str, Any]]:
+        stock_expr, stock_join, params = self._stock_source_sql(branch_id)
         query = (
             "SELECT p.id, p.nombre, p.precio, "
-            "COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal, "
+            f"{stock_expr} as stock_sucursal, "
             "p.unidad, p.categoria, p.stock_minimo, p.imagen_path, "
             "p.es_compuesto, p.es_subproducto, "
             "COALESCE(p.codigo_barras,'') as codigo_barras, COALESCE(p.codigo,'') as codigo "
             "FROM productos p "
-            "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
+            f"{stock_join}"
             "WHERE p.oculto = 0 AND COALESCE(p.activo,1)=1"
         )
-        params: List[Any] = [branch_id]
         if filtro:
             query += (
                 " AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ? "
@@ -62,6 +62,37 @@ class ProductCatalogQueryService:
                 'codigo_barras': get('codigo_barras', 10),
             })
         return out
+
+
+    def _stock_source_sql(self, branch_id: int) -> tuple[str, str, List[Any]]:
+        """Return stock expression/join for the schema available in this DB.
+
+        Some development/customer databases have already archived the legacy
+        branch_inventory table but have not populated it again. The POS catalog
+        must still render products using canonical inventory_stock when present,
+        or productos.existencia as a read-only fallback. This method never creates
+        schema; migrations remain the only schema owner.
+        """
+        if self._table_exists("branch_inventory"):
+            return (
+                "COALESCE(bi.quantity, p.existencia, 0)",
+                "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? ",
+                [branch_id],
+            )
+        if self._table_exists("inventory_stock"):
+            return (
+                "COALESCE(istock.quantity, p.existencia, 0)",
+                "LEFT JOIN inventory_stock istock ON istock.product_id=p.id AND istock.branch_id=? ",
+                [branch_id],
+            )
+        return "COALESCE(p.existencia, 0)", "", []
+
+    def _table_exists(self, table_name: str) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name=? LIMIT 1",
+            (table_name,),
+        ).fetchone()
+        return row is not None
 
     def get_product_by_barcode(self, branch_id: int, barcode: str) -> Dict[str, Any] | None:
         rows = self.list_visible_products(branch_id=branch_id, filtro=str(barcode or ""))
