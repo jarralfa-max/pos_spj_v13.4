@@ -65,27 +65,19 @@ class ProductCatalogQueryService:
 
 
     def _stock_source_sql(self, branch_id: int) -> tuple[str, str, List[Any]]:
-        """Return stock expression/join for the schema available in this DB.
+        """Return the canonical stock expression for the POS catalog.
 
-        Some development/customer databases have already archived the legacy
-        branch_inventory table but have not populated it again. The POS catalog
-        must still render products using canonical inventory_stock when present,
-        or productos.existencia as a read-only fallback. This method never creates
-        schema; migrations remain the only schema owner.
+        Operational stock has one source of truth: inventory_stock. When the
+        canonical table is not present yet, the catalog renders stock as zero
+        instead of silently reading legacy stock columns or tables.
         """
-        if self._table_exists("branch_inventory"):
-            return (
-                "COALESCE(bi.quantity, p.existencia, 0)",
-                "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? ",
-                [branch_id],
-            )
         if self._table_exists("inventory_stock"):
             return (
-                "COALESCE(istock.quantity, p.existencia, 0)",
+                "COALESCE(istock.quantity, 0)",
                 "LEFT JOIN inventory_stock istock ON istock.product_id=p.id AND istock.branch_id=? ",
                 [branch_id],
             )
-        return "COALESCE(p.existencia, 0)", "", []
+        return "0", "", []
 
     def _table_exists(self, table_name: str) -> bool:
         row = self.db.execute(

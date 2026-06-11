@@ -2184,38 +2184,20 @@ class ModuloVentas(ModuloBase):
         self._renderizar_productos(productos)
 
     def _buscar_productos_catalogo(self, filtro: str = "", categoria: str = ""):
-        """Busca productos visibles y devuelve filas con id estable."""
+        """Busca productos visibles mediante QueryService de catálogo POS."""
         try:
             catalog_qs = self._product_catalog_qs
             if catalog_qs:
                 return catalog_qs.list_visible_products(
                     branch_id=self.sucursal_id, filtro=filtro, categoria=categoria
                 )
-
-            cursor = self.conexion.cursor()
-            # DEPRECATED fallback: SQL directo legacy
-            query = """
-                SELECT p.id, p.nombre, p.precio,
-                       COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
-                       p.unidad, p.categoria,
-                       p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
-                       COALESCE(p.codigo_barras,'') as codigo_barras,
-                       COALESCE(p.codigo,'') as codigo
-                FROM productos p
-                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-                WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
-            """
-            params = [self.sucursal_id]
-            if filtro:
-                query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
-                             OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
-                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
-            if categoria:
-                query += " AND COALESCE(p.categoria,'') = ?"
-                params.append(categoria)
-            query += " ORDER BY p.nombre"
-            cursor.execute(query, params)
-            return cursor.fetchall()
+            logger.error("ProductCatalogQueryService no disponible para catálogo de ventas.")
+            self.mostrar_mensaje(
+                "Error",
+                "No se pudo cargar el catálogo de productos. Servicio de consulta no disponible.",
+                QMessageBox.Critical,
+            )
+            return []
         except Exception:
             logger.exception(
                 "Error al buscar productos: filtro=%r categoria=%r sucursal_id=%s",
