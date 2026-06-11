@@ -22,6 +22,7 @@ import json
 import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from uuid import uuid4
 
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
@@ -1341,9 +1342,7 @@ class ModuloVentas(ModuloBase):
             elif prod_repo:
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
             else:
-                cursor = self.conexion.cursor()
-                cursor.execute("SELECT nombre, COALESCE(codigo_barras,'') FROM productos WHERE COALESCE(oculto,0) = 0")
-                productos = cursor.fetchall()
+                productos = []
             sugerencias = []
             for nombre, codigo in productos:
                 sugerencias.append(nombre)
@@ -2185,38 +2184,20 @@ class ModuloVentas(ModuloBase):
         self._renderizar_productos(productos)
 
     def _buscar_productos_catalogo(self, filtro: str = "", categoria: str = ""):
-        """Busca productos visibles y devuelve filas con id estable."""
+        """Busca productos visibles mediante QueryService de catálogo POS."""
         try:
             catalog_qs = self._product_catalog_qs
             if catalog_qs:
                 return catalog_qs.list_visible_products(
                     branch_id=self.sucursal_id, filtro=filtro, categoria=categoria
                 )
-
-            cursor = self.conexion.cursor()
-            # DEPRECATED fallback: SQL directo legacy
-            query = """
-                SELECT p.id, p.nombre, p.precio,
-                       COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
-                       p.unidad, p.categoria,
-                       p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
-                       COALESCE(p.codigo_barras,'') as codigo_barras,
-                       COALESCE(p.codigo,'') as codigo
-                FROM productos p
-                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-                WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
-            """
-            params = [self.sucursal_id]
-            if filtro:
-                query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
-                             OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
-                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
-            if categoria:
-                query += " AND COALESCE(p.categoria,'') = ?"
-                params.append(categoria)
-            query += " ORDER BY p.nombre"
-            cursor.execute(query, params)
-            return cursor.fetchall()
+            logger.error("ProductCatalogQueryService no disponible para catálogo de ventas.")
+            self.mostrar_mensaje(
+                "Error",
+                "No se pudo cargar el catálogo de productos. Servicio de consulta no disponible.",
+                QMessageBox.Critical,
+            )
+            return []
         except Exception:
             logger.exception(
                 "Error al buscar productos: filtro=%r categoria=%r sucursal_id=%s",
@@ -3963,6 +3944,55 @@ class ModuloVentas(ModuloBase):
             self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
             self.mostrar_mensaje("Éxito", f"Venta '{venta_data['nombre']}' reanudada.")
 
+    def _procesar_venta_via_uc(self, carrito_limpio, datos_pago, usuario, cliente_id):
+        """Ejecuta la venta por la ruta canónica del caso de uso, no desde la UI."""
+        from core.use_cases.venta import ItemCarrito, DatosPago as _DP
+
+        _uc = getattr(self.container, 'uc_venta', None)
+        if _uc is None:
+            raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
+
+        _items_uc = [
+            ItemCarrito(
+                producto_id=it['product_id'],
+                cantidad=float(it['qty']),
+                precio_unit=float(it['unit_price']),
+                nombre=it.get('name', ''),
+                es_compuesto=int(it.get('es_compuesto', 0)),
+            )
+            for it in carrito_limpio
+        ]
+        _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
+        if datos_pago.get('amount_paid_real') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
+        elif datos_pago.get('amount_paid') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
+        elif _lineas_pago:
+            _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
+        else:
+            from core.services.payment_normalization import is_credit_sale
+            _monto_pagado_real = 0.0 if is_credit_sale(datos_pago.get('forma_pago')) else float(
+                datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0
+            )
+
+        operation_id = f"sale-ui-{uuid4()}"
+        _dp = _DP(
+            forma_pago=datos_pago['forma_pago'],
+            monto_pagado=_monto_pagado_real,
+            total_pagado=_monto_pagado_real,
+            pago_mixto=_lineas_pago,
+            cliente_id=cliente_id,
+            descuento_global=float(datos_pago.get('descuento', 0)),
+            puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
+            descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
+            notas=f"Venta POS Mostrador. Cajero: {usuario}.",
+            sucursal_id=self.sucursal_id,
+            usuario=usuario,
+            operation_id=operation_id,
+            reserva_id=self._reserva_activa_id,
+        )
+        return _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
+
     def procesar_pago(self):
         if not self.compra_actual:
             QMessageBox.warning(self, "Advertencia", "No hay productos en el carrito.")
@@ -4190,38 +4220,8 @@ class ModuloVentas(ModuloBase):
                 )
                 return
 
-            from core.use_cases.venta import ItemCarrito, DatosPago as _DP
-            _uc = getattr(self.container, 'uc_venta', None)
-            if _uc is None:
-                raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
-            _items_uc = [ItemCarrito(producto_id=it['product_id'], cantidad=float(it['qty']), precio_unit=float(it['unit_price']), nombre=it.get('name', ''), es_compuesto=int(it.get('es_compuesto', 0))) for it in carrito_limpio]
-            _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
-            if datos_pago.get('amount_paid_real') is not None:
-                _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
-            elif datos_pago.get('amount_paid') is not None:
-                _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
-            elif _lineas_pago:
-                _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
-            elif is_credit_sale(datos_pago.get('forma_pago')):
-                _monto_pagado_real = 0.0
-            else:
-                _monto_pagado_real = float(datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0)
-            _dp = _DP(
-                forma_pago=datos_pago['forma_pago'],
-                monto_pagado=_monto_pagado_real,
-                total_pagado=_monto_pagado_real,
-                pago_mixto=_lineas_pago,
-                cliente_id=cliente_id,
-                descuento_global=float(datos_pago.get('descuento', 0)),
-                puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
-                descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
-                notas=f"Venta POS Mostrador. Cajero: {usuario}.",
-                sucursal_id=self.sucursal_id,
-                usuario=usuario,
-                reserva_id=self._reserva_activa_id,
-            )
             self._venta_timing["t_uc_start"] = time.perf_counter()
-            result = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
+            result = self._procesar_venta_via_uc(carrito_limpio, datos_pago, usuario, cliente_id)
             self._on_checkout_success(result, datos_pago, usuario, cliente_id)
             return
         except PermissionError as e:
