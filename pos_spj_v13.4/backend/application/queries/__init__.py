@@ -51,3 +51,5 @@ __all__ = [
     "PurchasePlanningQueryService",
     "BusinessIntelligenceQueryService",
 ]
+from backend.application.queries.hardware_settings_query_service import HardwareSettingsQueryService
+from backend.application.queries.ticket_settings_query_service import TicketSettingsQueryService

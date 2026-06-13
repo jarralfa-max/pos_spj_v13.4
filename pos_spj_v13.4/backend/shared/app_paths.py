@@ -50,6 +50,10 @@ class AppPaths:
         return self.user_data_dir / "logs"
 
     @property
+    def product_images_dir(self) -> Path:
+        return self.user_data_dir / "imagenes_productos"
+
+    @property
     def updater_dir(self) -> Path:
         return self.user_data_dir / "updater"
 
@@ -70,6 +74,7 @@ class AppPaths:
             self.database_dir,
             self.backups_dir,
             self.logs_dir,
+            self.product_images_dir,
             self.downloads_dir,
             self.manifests_dir,
         ):
