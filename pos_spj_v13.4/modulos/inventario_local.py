@@ -291,7 +291,7 @@ class _InsightsPanel(QFrame):
                 if len(alertas) >= 8:
                     break
         except Exception:
-            pass
+            logger.exception("Error al cargar alertas de inventario")
 
         if not alertas:
             self._lbl_no_alerts.show()
@@ -621,7 +621,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
                 "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
             ])
         except Exception:
-            pass
+            logger.exception("No se pudo inicializar refresh de inventario")
 
         self.container      = container
         self.sucursal_id    = 1
@@ -651,7 +651,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         try:
             self.cargar_datos()
         except Exception:
-            pass
+            logger.exception("No se pudo refrescar inventario por evento %s", event_type)
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -729,7 +729,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self._kpi_click_mode = "none"
         self._kpi_bajo    = _InvKPICard("Stock bajo",             "—", "⚠️", "warning")
         self._kpi_sin     = _InvKPICard("Sin stock físico",       "—", "🚨", "danger")
-        self._kpi_virtual = _InvKPICard("Virtual disponible",     "—", "🧩", "info")
+        self._kpi_virtual = _InvKPICard("Stock virtual",          "Pendiente", "🧩", "info")
         self._kpi_res     = _InvKPICard("Reservados",             "—", "🔒", "primary")
         self._kpi_mov     = _InvKPICard("Movimientos hoy",        "—", "📋", "success")
         for key, card in (
@@ -761,7 +761,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
         self._tabs_inv.addTab(self._tab_exist, "Existencias")
         self._tabs_inv.addTab(self._tab_disp, "Disponibilidad")
-        self._tabs_inv.addTab(self._tab_virtual, "Stock virtual")
+        self._tabs_inv.addTab(self._tab_virtual, "Stock virtual (pendiente)")
         self._tabs_inv.addTab(self._tab_mov, "Movimientos")
         self._tabs_inv.addTab(self._tab_res, "Reservas")
         self._tabs_inv.addTab(self._tab_aj, "Ajustes")
@@ -1035,17 +1035,30 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
             # Col 6: Último movimiento
             self.tabla.setItem(i, 6, QTableWidgetItem(last_mov))
-            reservado = 0.0
-            disp_fis = stock - reservado
-            modo = "DIRECTO" if disp_fis > 0 else "NO DISPONIBLE"
-            self.tabla_disponibilidad.insertRow(i)
-            for j, v in enumerate([nombre, f"{stock:.3f}", f"{reservado:.3f}", f"{disp_fis:.3f}", "0.000", f"{disp_fis:.3f}", modo]):
-                self.tabla_disponibilidad.setItem(i, j, QTableWidgetItem(v))
+
+        availability_by_id = {
+            int(row["product_id"]): row
+            for row in self._inventory_query.list_availability_rows(self.sucursal_id)
+        }
+        self.tabla_disponibilidad.setRowCount(0)
+        for row_idx, product in enumerate(self._prod_data):
+            availability = availability_by_id.get(product["id"], {})
+            physical = float(availability.get("physical_stock", product["stock"]) or 0.0)
+            reserved = float(availability.get("reserved", 0.0) or 0.0)
+            available = float(availability.get("physical_available", max(0.0, physical - reserved)) or 0.0)
+            sale_available = float(availability.get("sale_available", available) or 0.0)
+            mode = str(availability.get("mode") or ("DIRECTO" if sale_available > 0 else "NO DISPONIBLE"))
+            self.tabla_disponibilidad.insertRow(row_idx)
+            for j, v in enumerate([
+                product["nombre"], f"{physical:.3f}", f"{reserved:.3f}",
+                f"{available:.3f}", "Pendiente", f"{sale_available:.3f}", mode,
+            ]):
+                self.tabla_disponibilidad.setItem(row_idx, j, QTableWidgetItem(v))
 
         self.tabla_virtual.setRowCount(1)
-        self.tabla_virtual.setItem(0, 0, QTableWidgetItem("Stock virtual no calculado todavía."))
+        self.tabla_virtual.setItem(0, 0, QTableWidgetItem("Stock virtual pendiente de implementación."))
         for c in range(1, 8):
-            self.tabla_virtual.setItem(0, c, QTableWidgetItem("—"))
+            self.tabla_virtual.setItem(0, c, QTableWidgetItem("Pendiente"))
         self._cargar_movimientos_tab()
 
         count = len(rows)
@@ -1065,7 +1078,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             try:
                 self._insights.refresh(self._inventory_query, self.sucursal_id)
             except Exception:
-                pass
+                logger.exception("No se pudo refrescar panel de insights de inventario")
 
     def _cargar_movimientos_tab(self) -> None:
         self.tabla_movimientos.setRowCount(0)
@@ -1082,8 +1095,9 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         )
         self._kpi_bajo.set_valor(str(data.get("stock_bajo", 0)))
         self._kpi_sin.set_valor(str(data.get("sin_stock_fisico", 0)))
-        self._kpi_virtual.set_valor(str(data.get("virtual_disponible", 0)))
-        self._kpi_res.set_valor(str(data.get("reservados", 0)))
+        virtual_value = data.get("virtual_disponible")
+        self._kpi_virtual.set_valor("Pendiente" if virtual_value is None else str(virtual_value))
+        self._kpi_res.set_valor(f"{float(data.get("reservados", 0) or 0):.3f}")
         self._kpi_mov.set_valor(str(data.get("mov_hoy", 0)))
 
     def _on_kpi_click(self, key: str) -> None:
@@ -1162,10 +1176,11 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         """Stock entry — audited, movement-driven."""
         try:
             from core.permissions import verificar_permiso
-            if not verificar_permiso(self.container, "inventario.entrada", self):
+            if not verificar_permiso(self.container, "INVENTARIO.entrada", self):
                 return
         except Exception:
-            pass
+            logger.exception("No se pudo verificar permiso INVENTARIO.entrada")
+            return
 
         prod = self._selected_product()
         if not prod:
@@ -1200,17 +1215,18 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             )
             self.cargar_datos()
         except Exception as e:
-            logger.exception("inventario.entrada")
+            logger.exception("INVENTARIO.entrada")
             QMessageBox.critical(self, "Error en entrada", _to_business_inventory_error(e))
 
     def _accion_ajuste(self) -> None:
         """Audited inventory adjustment — requires reason + observation."""
         try:
             from core.permissions import verificar_permiso
-            if not verificar_permiso(self.container, "inventario.ajustar", self):
+            if not verificar_permiso(self.container, "INVENTARIO.ajustar", self):
                 return
         except Exception:
-            pass
+            logger.exception("No se pudo verificar permiso INVENTARIO.ajustar")
+            return
 
         prod = self._selected_product()
         if not prod:
@@ -1245,7 +1261,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             )
             self.cargar_datos()
         except Exception as e:
-            logger.exception("inventario.ajuste")
+            logger.exception("INVENTARIO.ajustar")
             QMessageBox.critical(self, "Error en ajuste", _to_business_inventory_error(e))
 
     def _accion_historial(self) -> None:

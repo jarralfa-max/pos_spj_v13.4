@@ -81,18 +81,17 @@ class StockReservationService:
         self.expirar_huerfanas()
         try:
             row = self.db.execute(
-                "SELECT COALESCE(quantity,0) FROM branch_inventory "
+                "SELECT COALESCE(quantity,0) FROM inventory_stock "
                 "WHERE branch_id=? AND product_id=?",
                 (self.branch_id, producto_id),
             ).fetchone()
+            fisico = float(row[0]) if row else 0.0
         except Exception as exc:
-            logger.debug("branch_inventory no disponible, usando inventory: %s", exc)
-            row = self.db.execute(
-                "SELECT COALESCE(stock,0) FROM inventory "
-                "WHERE branch_id=? AND product_id=?",
-                (self.branch_id, producto_id),
-            ).fetchone()
-        fisico = float(row[0]) if row else 0.0
+            logger.error(
+                "inventory_stock no disponible para stock operativo; producto_id=%s branch_id=%s: %s",
+                producto_id, self.branch_id, exc,
+            )
+            fisico = 0.0
         row2 = self.db.execute(
             "SELECT COALESCE(SUM(d.cantidad),0) "
             "FROM stock_reserva_detalles d "
