@@ -17,6 +17,7 @@ class RegisterInventoryMovementCommand(BaseCommand):
     reference_type: str | None = None
     reference_id: str | None = None
     reason: str = ""
+    notes: str = ""
 
     def validate_context(self) -> None:
         super().validate_context()
@@ -39,6 +40,7 @@ class RegisterInventoryEntryCommand(BaseCommand):
     reference_type: str | None = None
     reference_id: str | None = None
     reason: str = ""
+    notes: str = ""
 
     def validate_context(self) -> None:
         super().validate_context()

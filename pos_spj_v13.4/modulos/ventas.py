@@ -22,6 +22,7 @@ import json
 import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from uuid import uuid4
 
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
@@ -42,6 +43,9 @@ from PyQt5.QtGui import QIcon, QDoubleValidator, QPixmap, QImage, QColor, QFont,
 # Importación de la clase base y utilidades
 from .base import ModuloBase
 from presentation.sales.workers.ticket_output_worker import TicketOutputWorker
+from backend.application.queries.hardware_settings_query_service import HardwareSettingsQueryService
+from backend.application.queries.ticket_settings_query_service import TicketSettingsQueryService
+from backend.application.use_cases.create_customer_use_case import CreateCustomerCommand, CreateCustomerUseCase
 
 logger = logging.getLogger("spj.ventas") 
 
@@ -1206,6 +1210,9 @@ class ModuloVentas(ModuloBase):
         self.sucursal_nombre = "Principal"
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
         self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
+        self._hardware_settings_qs = HardwareSettingsQueryService(self.conexion)
+        self._ticket_settings_qs = TicketSettingsQueryService(self.conexion, getattr(self.container, 'config_service', None))
+        self._create_customer_uc = CreateCustomerUseCase(self.conexion, getattr(self.container, 'cliente_repo', None))
         self._reserva_activa_id: Optional[int] = None
 
         self._theme_initialized = False
@@ -1280,11 +1287,8 @@ class ModuloVentas(ModuloBase):
     def _product_catalog_qs(self):
         svc = getattr(self, "_product_catalog_query_service", None)
         if svc is None:
-            try:
-                from core.services.sales.product_catalog_query_service import ProductCatalogQueryService
-                svc = ProductCatalogQueryService(self.conexion)
-            except Exception:
-                svc = None
+            from core.services.sales.product_catalog_query_service import ProductCatalogQueryService
+            svc = ProductCatalogQueryService(self.conexion)
             self._product_catalog_query_service = svc
         return svc
 
@@ -1313,6 +1317,9 @@ class ModuloVentas(ModuloBase):
         self.sucursal_nombre = sucursal_nombre
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
         self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
+        self._hardware_settings_qs = HardwareSettingsQueryService(self.conexion)
+        self._ticket_settings_qs = TicketSettingsQueryService(self.conexion, getattr(self.container, 'config_service', None))
+        self._create_customer_uc = CreateCustomerUseCase(self.conexion, getattr(self.container, 'cliente_repo', None))
         if hasattr(self, "lbl_estado_terminal"):
             status_text = f"Terminal: ❌ No disponible  |  🏪 {sucursal_nombre}"
             self.lbl_estado_terminal.setText(status_text)
@@ -1341,9 +1348,7 @@ class ModuloVentas(ModuloBase):
             elif prod_repo:
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
             else:
-                cursor = self.conexion.cursor()
-                cursor.execute("SELECT nombre, COALESCE(codigo_barras,'') FROM productos WHERE COALESCE(oculto,0) = 0")
-                productos = cursor.fetchall()
+                productos = []
             sugerencias = []
             for nombre, codigo in productos:
                 sugerencias.append(nombre)
@@ -2106,23 +2111,7 @@ class ModuloVentas(ModuloBase):
 
         categorias = [""]  # "" = Todos
         try:
-            catalog_qs = self._product_catalog_qs
-            prod_repo = self._prod_repo
-            if catalog_qs:
-                categorias += catalog_qs.get_categories()
-            elif prod_repo:
-                categorias += prod_repo.get_categories()
-            else:
-                rows = self.conexion.execute(
-                    "SELECT DISTINCT COALESCE(categoria,'') FROM productos "
-                    "WHERE COALESCE(oculto,0)=0 AND COALESCE(activo,1)=1 "
-                    "AND categoria IS NOT NULL AND categoria != '' "
-                    "ORDER BY categoria"
-                ).fetchall()
-                for row in rows:
-                    cat = row[0] if not hasattr(row, 'keys') else row['COALESCE(categoria,\'\')']
-                    if cat:
-                        categorias.append(cat)
+            categorias += self._product_catalog_qs.get_categories()
         except Exception as e:
             logger.debug("_cargar_categorias: %s", e)
 
@@ -2185,38 +2174,20 @@ class ModuloVentas(ModuloBase):
         self._renderizar_productos(productos)
 
     def _buscar_productos_catalogo(self, filtro: str = "", categoria: str = ""):
-        """Busca productos visibles y devuelve filas con id estable."""
+        """Busca productos visibles mediante QueryService de catálogo POS."""
         try:
             catalog_qs = self._product_catalog_qs
             if catalog_qs:
                 return catalog_qs.list_visible_products(
                     branch_id=self.sucursal_id, filtro=filtro, categoria=categoria
                 )
-
-            cursor = self.conexion.cursor()
-            # DEPRECATED fallback: SQL directo legacy
-            query = """
-                SELECT p.id, p.nombre, p.precio,
-                       COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal,
-                       p.unidad, p.categoria,
-                       p.stock_minimo, p.imagen_path, p.es_compuesto, p.es_subproducto,
-                       COALESCE(p.codigo_barras,'') as codigo_barras,
-                       COALESCE(p.codigo,'') as codigo
-                FROM productos p
-                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-                WHERE p.oculto = 0 AND COALESCE(p.activo,1) = 1
-            """
-            params = [self.sucursal_id]
-            if filtro:
-                query += """ AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ?
-                             OR COALESCE(p.codigo_barras,'') = ? OR COALESCE(p.codigo,'') = ?)"""
-                params += [f'%{filtro}%', filtro, f'%{filtro}%', filtro, filtro]
-            if categoria:
-                query += " AND COALESCE(p.categoria,'') = ?"
-                params.append(categoria)
-            query += " ORDER BY p.nombre"
-            cursor.execute(query, params)
-            return cursor.fetchall()
+            logger.error("ProductCatalogQueryService no disponible para catálogo de ventas.")
+            self.mostrar_mensaje(
+                "Error",
+                "No se pudo cargar el catálogo de productos. Servicio de consulta no disponible.",
+                QMessageBox.Critical,
+            )
+            return []
         except Exception:
             logger.exception(
                 "Error al buscar productos: filtro=%r categoria=%r sucursal_id=%s",
@@ -2333,7 +2304,7 @@ class ModuloVentas(ModuloBase):
             self,
             f"Peso manual — {nombre}",
             f"Báscula no activa. Ingresa el peso ({unidad}):",
-            value=0.500,
+            value=0.0,
             min=0.001,
             max=9999.0,
             decimals=3,
@@ -2355,25 +2326,18 @@ class ModuloVentas(ModuloBase):
         self._banner_sin_impresora.setVisible(not tiene_impresora)
 
     def _cargar_hardware_config(self) -> None:
-        """Load hardware config from DB. Uses 'activo' column (not 'habilitado')."""
+        """Carga configuración de hardware vía QueryService."""
         try:
-            rows = self.conexion.execute(
-                "SELECT tipo, COALESCE(activo,1) as activo, configuraciones FROM hardware_config"
-            ).fetchall()
-            for row in rows:
-                tipo     = row[0] if not hasattr(row, 'keys') else row['tipo']
-                hab      = row[1] if not hasattr(row, 'keys') else row['activo']
-                cfg_json = row[2] if not hasattr(row, 'keys') else row['configuraciones']
-                try:
-                    cfg = json.loads(cfg_json) if cfg_json else {}
-                except Exception:
-                    cfg = {}
+            for row in self._hardware_settings_qs.list_active_configs():
+                tipo = row["type"]
+                hab = row["active"]
+                cfg = row["config"]
                 if tipo in ("impresora", "ticket"):
                     self._hw_impresora_habilitada = bool(hab)
-                    self._hw_impresora_cfg        = cfg
+                    self._hw_impresora_cfg = cfg
                 elif tipo == "cajon":
                     self._hw_cajon_habilitado = bool(hab)
-                    self._hw_cajon_cfg        = cfg
+                    self._hw_cajon_cfg = cfg
                 elif tipo == "scanner":
                     self._scanner_minlen = int(cfg.get("min_len", 3))
                     debounce = int(cfg.get("debounce_ms", 80))
@@ -2381,14 +2345,12 @@ class ModuloVentas(ModuloBase):
                 elif tipo == "bascula":
                     self._hw_bascula_habilitada = bool(hab)
                     self._hw_bascula_cfg = cfg
-            import logging
-            logging.getLogger(__name__).debug(
+            logger.debug(
                 "HW config loaded: impresora=%s cajon=%s",
                 self._hw_impresora_habilitada, self._hw_cajon_habilitado)
             self._actualizar_banner_impresora()
         except Exception as _e:
-            import logging
-            logging.getLogger(__name__).warning("_cargar_hardware_config: %s", _e)
+            logger.warning("_cargar_hardware_config: %s", _e)
 
     def keyPressEvent(self, event) -> None:
         """
@@ -3267,7 +3229,7 @@ class ModuloVentas(ModuloBase):
                 cantidad, ok = QInputDialog.getDouble(
                     self, "Peso Manual", 
                     f"Ingrese el peso para {self.producto_pendiente['nombre']} (kg):",
-                    value=0.100, min=0.001, max=9999.0, decimals=3
+                    value=0.0, min=0.001, max=9999.0, decimals=3
                 )
                 if ok and cantidad > 0:
                     self.agregar_producto_directo(self.producto_pendiente, cantidad)
@@ -3277,7 +3239,7 @@ class ModuloVentas(ModuloBase):
         cantidad, ok = QInputDialog.getDouble(
             self, "Cantidad", 
             f"Ingrese la cantidad para {producto['nombre']}:",
-            value=1.0, min=0.001, max=9999.0, decimals=3
+            value=0.0, min=0.001, max=9999.0, decimals=3
         )
         if ok and cantidad > 0:
             self.agregar_producto_directo(producto, cantidad)
@@ -3809,60 +3771,24 @@ class ModuloVentas(ModuloBase):
     def guardar_nuevo_cliente(self, cliente_data: Dict[str, Any]):
         try:
             tarjeta_id = cliente_data.get('tarjeta_id', '')
-
-            # Si se proporcionó tarjeta, verificar si ya está asignada a otro cliente
-            if tarjeta_id:
-                existing = self.conexion.execute(
-                    "SELECT c.id, c.nombre FROM clientes c "
-                    "JOIN tarjetas_fidelidad t ON t.id_cliente = c.id "
-                    "WHERE t.codigo = ? AND t.activa = 1 LIMIT 1",
-                    (tarjeta_id,)
-                ).fetchone()
-                if existing:
-                    eid = existing['id'] if hasattr(existing, 'keys') else existing[0]
-                    enombre = existing['nombre'] if hasattr(existing, 'keys') else existing[1]
-                    self.seleccionar_cliente(eid)
-                    self.mostrar_mensaje("Info", f"Tarjeta ya asignada a: {enombre}")
-                    return
-
             codigo_qr = tarjeta_id or (
                 f"CLI_{datetime.now().strftime('%Y%m%d%H%M%S')}" if cliente_data['generar_tarjeta'] else None)
 
-            _cli = self._cli_repo
-            if _cli:
-                cliente_id = _cli.crear(
-                    nombre=cliente_data['nombre'],
-                    telefono=cliente_data.get('telefono', ''),
+            result = self._create_customer_uc.execute(
+                CreateCustomerCommand(
+                    name=cliente_data['nombre'],
+                    phone=cliente_data.get('telefono', ''),
                     email=cliente_data.get('email', ''),
-                    direccion=cliente_data.get('direccion', ''),
-                    codigo_fidelidad=codigo_qr,
+                    address=cliente_data.get('direccion', ''),
+                    loyalty_code=codigo_qr,
+                    operation_id=f"sales-customer-{uuid4()}",
                 )
-            else:
-                cursor = self.conexion.cursor()
-                cursor.execute(
-                    "INSERT INTO clientes (nombre, telefono, email, direccion, puntos, codigo_qr, activo) "
-                    "VALUES (?, ?, ?, ?, 0, ?, 1)",
-                    (cliente_data['nombre'], cliente_data.get('telefono', ''),
-                     cliente_data.get('email', ''), cliente_data.get('direccion', ''), codigo_qr),
-                )
-                cliente_id = cursor.lastrowid
-                self.conexion.commit()
-
-            # Asignar tarjeta de fidelidad si se proporcionó código
-            if tarjeta_id:
-                try:
-                    self.conexion.execute(
-                        "INSERT OR IGNORE INTO tarjetas_fidelidad "
-                        "(codigo, id_cliente, nivel, activa, fecha_emision) "
-                        "VALUES (?, ?, 'Bronce', 1, datetime('now'))",
-                        (tarjeta_id, cliente_id),
-                    )
-                    try:
-                        self.conexion.commit()
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+            )
+            if result.get("existing"):
+                self.seleccionar_cliente(int(result["id"]))
+                self.mostrar_mensaje("Info", f"Tarjeta ya asignada a: {result.get('name', '')}")
+                return
+            cliente_id = int(result["id"])
 
             self.cliente_actual = {
                 'id': cliente_id, 'nombre': cliente_data['nombre'],
@@ -3962,6 +3888,55 @@ class ModuloVentas(ModuloBase):
             else: self.limpiar_cliente()
             self.btn_reanudar.setText(f"▶️ Reanudar ({len(self.ventas_en_espera)})")
             self.mostrar_mensaje("Éxito", f"Venta '{venta_data['nombre']}' reanudada.")
+
+    def _procesar_venta_via_uc(self, carrito_limpio, datos_pago, usuario, cliente_id):
+        """Ejecuta la venta por la ruta canónica del caso de uso, no desde la UI."""
+        from core.use_cases.venta import ItemCarrito, DatosPago as _DP
+
+        _uc = getattr(self.container, 'uc_venta', None)
+        if _uc is None:
+            raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
+
+        _items_uc = [
+            ItemCarrito(
+                producto_id=it['product_id'],
+                cantidad=float(it['qty']),
+                precio_unit=float(it['unit_price']),
+                nombre=it.get('name', ''),
+                es_compuesto=int(it.get('es_compuesto', 0)),
+            )
+            for it in carrito_limpio
+        ]
+        _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
+        if datos_pago.get('amount_paid_real') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
+        elif datos_pago.get('amount_paid') is not None:
+            _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
+        elif _lineas_pago:
+            _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
+        else:
+            from core.services.payment_normalization import is_credit_sale
+            _monto_pagado_real = 0.0 if is_credit_sale(datos_pago.get('forma_pago')) else float(
+                datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0
+            )
+
+        operation_id = f"sale-ui-{uuid4()}"
+        _dp = _DP(
+            forma_pago=datos_pago['forma_pago'],
+            monto_pagado=_monto_pagado_real,
+            total_pagado=_monto_pagado_real,
+            pago_mixto=_lineas_pago,
+            cliente_id=cliente_id,
+            descuento_global=float(datos_pago.get('descuento', 0)),
+            puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
+            descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
+            notas=f"Venta POS Mostrador. Cajero: {usuario}.",
+            sucursal_id=self.sucursal_id,
+            usuario=usuario,
+            operation_id=operation_id,
+            reserva_id=self._reserva_activa_id,
+        )
+        return _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
 
     def procesar_pago(self):
         if not self.compra_actual:
@@ -4190,38 +4165,8 @@ class ModuloVentas(ModuloBase):
                 )
                 return
 
-            from core.use_cases.venta import ItemCarrito, DatosPago as _DP
-            _uc = getattr(self.container, 'uc_venta', None)
-            if _uc is None:
-                raise RuntimeError("ProcesarVentaUC no disponible en AppContainer.")
-            _items_uc = [ItemCarrito(producto_id=it['product_id'], cantidad=float(it['qty']), precio_unit=float(it['unit_price']), nombre=it.get('name', ''), es_compuesto=int(it.get('es_compuesto', 0))) for it in carrito_limpio]
-            _lineas_pago = dict(datos_pago.get("lineas") or datos_pago.get("breakdown") or {})
-            if datos_pago.get('amount_paid_real') is not None:
-                _monto_pagado_real = float(datos_pago.get('amount_paid_real') or 0.0)
-            elif datos_pago.get('amount_paid') is not None:
-                _monto_pagado_real = float(datos_pago.get('amount_paid') or 0.0)
-            elif _lineas_pago:
-                _monto_pagado_real = float(sum(float(v or 0.0) for v in _lineas_pago.values()))
-            elif is_credit_sale(datos_pago.get('forma_pago')):
-                _monto_pagado_real = 0.0
-            else:
-                _monto_pagado_real = float(datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0)
-            _dp = _DP(
-                forma_pago=datos_pago['forma_pago'],
-                monto_pagado=_monto_pagado_real,
-                total_pagado=_monto_pagado_real,
-                pago_mixto=_lineas_pago,
-                cliente_id=cliente_id,
-                descuento_global=float(datos_pago.get('descuento', 0)),
-                puntos_canjeados=int(datos_pago.get('puntos_canjeados', 0) or 0),
-                descuento_puntos=float(datos_pago.get('descuento_puntos', 0.0) or 0.0),
-                notas=f"Venta POS Mostrador. Cajero: {usuario}.",
-                sucursal_id=self.sucursal_id,
-                usuario=usuario,
-                reserva_id=self._reserva_activa_id,
-            )
             self._venta_timing["t_uc_start"] = time.perf_counter()
-            result = _uc.ejecutar(_items_uc, _dp, self.sucursal_id, usuario)
+            result = self._procesar_venta_via_uc(carrito_limpio, datos_pago, usuario, cliente_id)
             self._on_checkout_success(result, datos_pago, usuario, cliente_id)
             return
         except PermissionError as e:
@@ -4431,13 +4376,8 @@ class ModuloVentas(ModuloBase):
         empresa_tel = ""
 
         try:
-            _cs = getattr(self.container, 'config_service', None)
             def _cfg(k, d=""):
-                if _cs:
-                    v = _cs.get(k, d)
-                    return v if v else d
-                r = self.container.db.execute("SELECT valor FROM configuraciones WHERE clave=?", (k,)).fetchone()
-                return r[0] if r and r[0] else d
+                return self._ticket_settings_qs.get(k, d)
 
             # Plantilla del diseñador
             plantilla = _cfg('ticket_template_html', '')

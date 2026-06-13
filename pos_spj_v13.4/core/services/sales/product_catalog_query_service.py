@@ -20,17 +20,17 @@ class ProductCatalogQueryService:
         return [r[0] if not hasattr(r, 'keys') else r['categoria'] for r in rows]
 
     def list_visible_products(self, branch_id: int, filtro: str = "", categoria: str = "") -> List[Dict[str, Any]]:
+        stock_expr, stock_join, params = self._stock_source_sql(branch_id)
         query = (
             "SELECT p.id, p.nombre, p.precio, "
-            "COALESCE(bi.quantity, p.existencia, 0) as stock_sucursal, "
+            f"{stock_expr} as stock_sucursal, "
             "p.unidad, p.categoria, p.stock_minimo, p.imagen_path, "
             "p.es_compuesto, p.es_subproducto, "
             "COALESCE(p.codigo_barras,'') as codigo_barras, COALESCE(p.codigo,'') as codigo "
             "FROM productos p "
-            "LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=? "
+            f"{stock_join}"
             "WHERE p.oculto = 0 AND COALESCE(p.activo,1)=1"
         )
-        params: List[Any] = [branch_id]
         if filtro:
             query += (
                 " AND (p.nombre LIKE ? OR p.id = ? OR p.categoria LIKE ? "
@@ -62,6 +62,29 @@ class ProductCatalogQueryService:
                 'codigo_barras': get('codigo_barras', 10),
             })
         return out
+
+
+    def _stock_source_sql(self, branch_id: int) -> tuple[str, str, List[Any]]:
+        """Return the canonical stock expression for the POS catalog.
+
+        Operational stock has one source of truth: inventory_stock. When the
+        canonical table is not present yet, the catalog renders stock as zero
+        instead of silently reading legacy stock columns or tables.
+        """
+        if self._table_exists("inventory_stock"):
+            return (
+                "COALESCE(istock.quantity, 0)",
+                "LEFT JOIN inventory_stock istock ON istock.product_id=p.id AND istock.branch_id=? ",
+                [branch_id],
+            )
+        return "0", "", []
+
+    def _table_exists(self, table_name: str) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name=? LIMIT 1",
+            (table_name,),
+        ).fetchone()
+        return row is not None
 
     def get_product_by_barcode(self, branch_id: int, barcode: str) -> Dict[str, Any] | None:
         rows = self.list_visible_products(branch_id=branch_id, filtro=str(barcode or ""))
