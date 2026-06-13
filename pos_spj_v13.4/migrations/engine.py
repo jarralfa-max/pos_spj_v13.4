@@ -97,6 +97,7 @@ MIGRATIONS = [
     _Migration("097",  "migrations.standalone.097_waste_schema_integrity"),
     _Migration("098",  "migrations.standalone.098_canonical_inventory"),
     _Migration("099",  "migrations.standalone.099_archive_legacy_inventory_sources"),
+    _Migration("100",  "migrations.standalone.100_inventory_movements_incremental_columns"),
 ]
 
 def _ensure_tracking_table(conn):

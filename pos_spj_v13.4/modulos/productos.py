@@ -31,6 +31,7 @@ from modulos.dialogs.receta_dialog import DialogoReceta
 from core.services.recipes.recipe_service import RecipeService
 from modulos.kpi_card import KPICard
 from core.services.product_catalog_query_service import get_product_configuration_kpis, get_catalog_filter_ids
+from backend.application.queries.product_query_service import ProductQueryService
 from backend.application.services.product_catalog_service import ProductCatalogService
 from backend.application.services.product_image_service import ProductImageService
 from backend.application.use_cases.deactivate_product_use_case import DeactivateProductCommand, DeactivateProductUseCase
@@ -263,10 +264,11 @@ class DialogoProducto(QDialog):
     def cargar_categorias(self):
         """Carga las categorías únicas existentes mediante QueryService."""
         try:
-            for category in self.product_query_service.list_categories():
+            product_query = ProductQueryService.from_connection(self.container.db)
+            for category in product_query.list_categories():
                 self.cmb_categoria.addItem(category)
         except Exception:
-            pass
+            logger.exception("No se pudieron cargar categorías de productos")
 
     def cargar_imagen(self):
         """Abre el diálogo para seleccionar una imagen."""
@@ -423,6 +425,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
         self.sucursal_id = 1
         self.usuario_actual = ""
+        self._product_query = ProductQueryService.from_connection(self.conexion)
         self._product_catalog_service = ProductCatalogService(self.conexion)
         self._deactivate_product_uc = DeactivateProductUseCase(self._product_catalog_service)
         self._restore_product_uc = RestoreProductUseCase(self._product_catalog_service)
@@ -833,7 +836,6 @@ class ModuloProductos(QWidget, RefreshMixin):
     def cargar_catalogo(self):
         if hasattr(self, "_loading_catalogo"):
             self._loading_catalogo.show()
-
         busqueda = self.txt_buscar_prod.text().strip()
 
         filtro_cat = ""
@@ -847,12 +849,12 @@ class ModuloProductos(QWidget, RefreshMixin):
             filtro_estado = {0: "active", 1: "deleted", 2: "all"}.get(self.cmb_filtro_estado.currentIndex(), "active")
 
         try:
-            table_rows = self.product_query_service.list_for_table({
-                "query": busqueda,
-                "category": filtro_cat,
-                "state": filtro_estado,
-            })
-            rows = [row.values for row in table_rows]
+            rows = self._product_query.list_catalog_rows(
+                search=busqueda,
+                category=filtro_cat,
+                status_filter=filtro_estado,
+                limit=1000,
+            )
             db = self.container.db if hasattr(self.container, 'db') else self.conexion
             kpi_mode = getattr(self, "_kpi_filter_mode", "all")
             if kpi_mode in {"sin_tipo", "receta_pendiente", "sin_costo"}:
