@@ -4,3 +4,5 @@ from backend.application.services.sales_application_service import SalesApplicat
 from backend.application.services.waste_application_service import WasteApplicationService, WasteFinanceHandler
 
 __all__ = ["SalesApplicationService", "WasteApplicationService", "WasteFinanceHandler"]
+from backend.application.services.product_catalog_service import ProductCatalogService
+from backend.application.services.product_image_service import ProductImageService
