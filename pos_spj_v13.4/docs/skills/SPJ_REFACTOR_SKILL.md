@@ -4,6 +4,113 @@
 
 ---
 
+# REGLA CERO — UUIDv7 COMO ÚNICA IDENTIDAD
+
+Esta regla es obligatoria y tiene prioridad sobre cualquier instrucción posterior de este skill.
+
+## Decisión no negociable
+
+Toda entidad persistente, relación funcional, evento, comando, DTO, caso de uso, repositorio, API y operación sincronizable debe utilizar **UUIDv7 como única identidad**.
+
+Queda prohibido conservar dentro del runtime:
+
+- IDs enteros funcionales.
+- `INTEGER PRIMARY KEY AUTOINCREMENT`.
+- `legacy_id`.
+- escritura dual.
+- lectura dual.
+- fallback de UUID a entero.
+- tablas paralelas de compatibilidad.
+- contratos `int | str`.
+- conversiones `int(product_id)`, `int(sale_id)`, `int(branch_id)` o equivalentes.
+- `lastrowid` como identidad de dominio.
+- `MAX(id) + 1`.
+- folios, SKU, códigos de barras o números de ticket como clave primaria.
+
+## Generador obligatorio
+
+Debe existir una sola fuente de generación:
+
+```text
+backend/shared/ids.py
+```
+
+Contrato:
+
+```python
+def new_uuid() -> str:
+    """Return a canonical lowercase UUIDv7 string."""
+```
+
+Ningún widget PyQt, repositorio o motor de base de datos puede generar una identidad distinta para la misma entidad.
+
+## Persistencia
+
+SQLite:
+
+```sql
+id TEXT PRIMARY KEY
+```
+
+PostgreSQL:
+
+```sql
+id UUID PRIMARY KEY
+```
+
+Todas las claves foráneas funcionales deben almacenar UUID:
+
+```sql
+product_id TEXT NOT NULL
+branch_id TEXT NOT NULL
+sale_id TEXT NOT NULL
+customer_id TEXT
+reservation_id TEXT
+```
+
+## Migración obligatoria
+
+La migración a UUID debe ejecutarse como un **corte total, global y atómico**:
+
+1. cerrar la aplicación;
+2. crear backup completo;
+3. bloquear otras instancias;
+4. abrir transacción exclusiva;
+5. crear tablas nuevas con UUIDv7;
+6. usar mapas temporales `old_id → uuid` solo durante la migración;
+7. copiar y reescribir todas las PK y FK;
+8. validar conteos y referencias;
+9. eliminar tablas antiguas;
+10. renombrar tablas nuevas;
+11. ejecutar `PRAGMA foreign_key_check`;
+12. confirmar la transacción;
+13. eliminar mapas temporales;
+14. iniciar únicamente con el esquema UUID.
+
+Si algo falla:
+
+- rollback;
+- restaurar backup;
+- bloquear el inicio normal;
+- registrar el error.
+
+No se permite dejar una migración parcial.
+
+## Criterio de terminado
+
+Un módulo no puede declararse migrado al 100% mientras:
+
+- use IDs enteros;
+- tenga PK o FK funcionales enteras;
+- use `AUTOINCREMENT`;
+- use `lastrowid`;
+- convierta IDs con `int(...)`;
+- exponga IDs enteros en UI, eventos o API;
+- mantenga compatibilidad legacy;
+- carezca de tests de integridad UUIDv7.
+
+---
+
 ## 0. Propósito
 
 Este archivo debe usarse como instrucción permanente para Codex durante la migración/refactor del repositorio.
@@ -29,6 +136,8 @@ El objetivo es transformar el proyecto en una arquitectura limpia, mantenible, p
 ## 1. Reglas maestras obligatorias
 
 Estas reglas son no negociables.
+
+**Prioridad absoluta:** la REGLA CERO de UUIDv7 prevalece sobre cualquier contrato, tabla o implementación existente.
 
 1. Backend en inglés.
 2. Frontend visible al usuario en español.
@@ -61,6 +170,19 @@ Estas reglas son no negociables.
 29. No duplicar rutas para la misma operación.
 30. Cada módulo refactorizado debe quedar cubierto por tests unitarios, integración, arquitectura y checklist manual.
 31. Toda nueva carpeta del refactor (`backend/`, `frontend/`, `tests/`, `docs/`, etc.) debe crearse dentro de `pos_spj_v13.4/pos_spj_v13.4/`; está prohibido crear duplicados en la raíz externa del repositorio.
+
+32. Toda entidad persistente y toda relación funcional debe usar UUIDv7 como única identidad.
+33. SQLite almacena UUID como `TEXT`; PostgreSQL debe usar el tipo nativo `UUID`.
+34. Está prohibido crear nuevas PK funcionales `INTEGER PRIMARY KEY AUTOINCREMENT`.
+35. Está prohibido mantener `legacy_id`, escritura dual, lectura dual, fallback de UUID a entero o tablas paralelas de compatibilidad.
+36. Está prohibido usar `lastrowid`, `MAX(id) + 1` o secuencias locales como identidad de dominio.
+37. Está prohibido convertir identificadores de dominio con `int(product_id)`, `int(sale_id)`, `int(branch_id)` o equivalentes.
+38. Folios, SKU, códigos de barras, números de ticket y códigos visibles no sustituyen al UUID.
+39. Toda migración de identidad debe ser directa, global, atómica, respaldada y validada antes de iniciar la aplicación.
+40. Toda entidad, Command, DTO, Use Case, QueryService, Repository, evento, outbox y futura API debe transportar UUID.
+41. `operation_id`, `event_id` y `entity_id` son UUID distintos y no deben reutilizarse entre sí.
+42. Un módulo no puede considerarse migrado mientras use IDs enteros o referencias funcionales enteras.
+
 
 ---
 
@@ -135,6 +257,219 @@ Ejemplos:
 - Crear producto → `CreateProductUseCase`
 - Convertir cotización a venta → `ConvertQuoteToSaleUseCase`
 - Generar plan de compras → `GeneratePurchasePlanUseCase`
+
+### 3.1 Política obligatoria de identidad UUID
+
+```text
+Una entidad.
+Un UUID.
+Una sola identidad.
+```
+
+#### Decisión no negociable
+
+Todas las entidades persistentes del ERP deben usar UUIDv7 como única identidad.
+
+No se permite conservar dentro del runtime:
+
+- ID entero junto con UUID.
+- `legacy_id`.
+- escritura dual.
+- lectura dual.
+- fallback de UUID a entero.
+- adaptadores permanentes de compatibilidad.
+- tablas paralelas.
+- contratos `int | str` para el mismo identificador.
+
+La aplicación está en desarrollo. La migración se ejecutará como corte total para evitar múltiples fuentes de verdad.
+
+#### Generador único
+
+Debe existir:
+
+```text
+backend/shared/ids.py
+```
+
+Contrato:
+
+```python
+def new_uuid() -> str:
+    """Return a canonical lowercase UUIDv7 string."""
+```
+
+Reglas:
+
+1. El UUID se genera una sola vez en dominio o aplicación.
+2. PyQt no genera IDs.
+3. Los repositorios no reemplazan un UUID recibido.
+4. SQLite y PostgreSQL no generan la identidad de dominio.
+5. Está prohibido dispersar `uuid.uuid4()` u otros generadores por el repositorio.
+6. Toda validación de UUID debe usar una utilidad compartida.
+
+#### Representación por motor
+
+SQLite:
+
+```sql
+id TEXT PRIMARY KEY
+```
+
+PostgreSQL:
+
+```sql
+id UUID PRIMARY KEY
+```
+
+Las claves foráneas conservan nombres como `product_id`, `sale_id` o `branch_id`, pero su tipo de dominio siempre es UUID/string.
+
+#### Prohibiciones de código
+
+Queda prohibido en código migrado:
+
+```python
+product_id: int
+sale_id: int
+branch_id: int
+customer_id: int
+user_id: int
+reservation_id: int
+```
+
+Queda prohibido:
+
+```python
+int(product_id)
+int(sale_id)
+int(branch_id)
+int(customer_id)
+int(reservation_id)
+```
+
+Queda prohibido usar:
+
+```text
+lastrowid
+MAX(id) + 1
+INTEGER PRIMARY KEY AUTOINCREMENT
+```
+
+para entidades funcionales.
+
+#### Folios y códigos visibles
+
+UUID no sustituye:
+
+- folio de venta.
+- SKU.
+- código de barras.
+- número de ticket.
+- número de empleado.
+- número de cliente.
+- número de orden.
+- código de tarjeta.
+
+Estos campos son referencias comerciales y nunca la clave primaria de dominio.
+
+#### Alcance obligatorio
+
+Deben usar UUID como identidad única:
+
+- sucursales.
+- usuarios.
+- roles.
+- permisos asignados.
+- productos.
+- categorías.
+- clientes.
+- proveedores.
+- ventas.
+- detalles de venta.
+- pagos.
+- cajas.
+- cortes.
+- inventario por sucursal.
+- movimientos de inventario.
+- reservas de stock.
+- detalles de reserva.
+- mermas.
+- recetas.
+- componentes de recetas.
+- producciones.
+- lotes.
+- compras.
+- órdenes de compra.
+- recepciones.
+- transferencias.
+- detalles de transferencia.
+- cotizaciones.
+- pedidos.
+- delivery.
+- direcciones.
+- activos.
+- mantenimientos.
+- empleados.
+- nómina.
+- fidelidad.
+- promociones.
+- notificaciones.
+- outbox.
+- auditorías.
+- trabajos de impresión.
+- tablas puente y relaciones entre entidades.
+
+#### Contratos y eventos
+
+Todo Command, DTO, Use Case, QueryService, Repository y evento debe aceptar UUID.
+
+Todo evento crítico debe incluir, cuando corresponda:
+
+```text
+event_id
+operation_id
+entity_id
+branch_id
+user_id
+timestamp
+source_module
+payload
+```
+
+`event_id`, `operation_id` y `entity_id` deben ser UUID independientes.
+
+#### Corte total de migración
+
+No se permite una fase de convivencia dentro del runtime.
+
+La migración debe:
+
+1. cerrar la aplicación;
+2. bloquear otra instancia;
+3. crear backup completo de SQLite;
+4. registrar checksum y versión del esquema;
+5. abrir una transacción exclusiva;
+6. crear tablas nuevas con PK/FK UUID;
+7. crear mapas temporales `old_integer_id → new_uuid` únicamente dentro de la migración;
+8. copiar y transformar todos los datos;
+9. validar conteos y relaciones;
+10. eliminar tablas antiguas;
+11. renombrar las tablas nuevas;
+12. recrear índices, constraints y triggers;
+13. ejecutar `PRAGMA foreign_key_check`;
+14. ejecutar pruebas de integridad;
+15. confirmar la transacción;
+16. eliminar mapas temporales;
+17. arrancar únicamente con el esquema UUID.
+
+Si cualquier validación falla:
+
+1. rollback;
+2. cerrar conexión;
+3. restaurar backup;
+4. registrar el error;
+5. impedir inicio normal.
+
+La aplicación nunca debe operar con una migración UUID incompleta.
 
 ---
 
@@ -224,6 +559,14 @@ tests/architecture/test_no_entity_combo_mass_loading.py
 tests/architecture/test_no_hardcoded_paths.py
 tests/architecture/test_no_deprecated_services_with_business_logic.py
 tests/architecture/test_event_payload_contracts.py
+tests/architecture/test_all_entity_ids_are_uuid.py
+tests/architecture/test_no_integer_primary_keys.py
+tests/architecture/test_no_autoincrement_entities.py
+tests/architecture/test_no_int_id_casts.py
+tests/architecture/test_no_lastrowid_entity_identity.py
+tests/architecture/test_events_use_uuid_ids.py
+tests/architecture/test_api_uses_uuid_ids.py
+tests/architecture/test_no_legacy_identity_paths.py
 ```
 
 Los tests pueden iniciar con allowlist temporal, pero deben:
@@ -264,6 +607,55 @@ Debe soportar:
 - Backup automático previo a actualización.
 - AppData para datos persistentes.
 - API futura sin duplicar lógica.
+
+---
+
+### FASE 2.5 — Corte total de identidad a UUID
+
+Esta fase es obligatoria antes de continuar con refactors funcionales.
+
+Crear:
+
+```text
+backend/shared/ids.py
+migrations/standalone/200_uuid_only_schema_cutover.py
+tests/integration/test_uuid_schema_migration.py
+tests/integration/test_uuid_foreign_key_integrity.py
+tests/integration/test_uuid_offline_collision_resistance.py
+tests/integration/test_uuid_sales_inventory_flow.py
+tests/integration/test_uuid_reservation_flow.py
+tests/integration/test_uuid_product_recipe_flow.py
+```
+
+Tareas obligatorias:
+
+1. Auditar todas las PK, FK, columnas `*_id`, DTO, comandos, eventos y contratos.
+2. Construir un grafo completo de dependencias.
+3. Crear backup automático previo al corte.
+4. Reconstruir todas las tablas funcionales con PK/FK UUID.
+5. Usar mapas temporales de migración solo dentro de la transacción.
+6. Eliminar tablas y columnas enteras anteriores.
+7. Eliminar `AUTOINCREMENT`, `lastrowid` e `int(..._id)`.
+8. Actualizar dominio, aplicación, infraestructura, PyQt, API, eventos, outbox, fixtures, seeds y tests.
+9. Ejecutar `PRAGMA foreign_key_check`.
+10. Bloquear el arranque si la migración no queda completa.
+11. No dejar compatibilidad legacy.
+12. No dejar escritura o lectura dual.
+
+Criterios de aceptación:
+
+```text
+[ ] Cero PK funcionales enteras.
+[ ] Cero FK funcionales enteras.
+[ ] Cero `INTEGER PRIMARY KEY AUTOINCREMENT` en tablas funcionales.
+[ ] Cero `lastrowid` como identidad.
+[ ] Cero casts `int(..._id)`.
+[ ] Cero `legacy_id`.
+[ ] Cero contratos `int | str`.
+[ ] Cero tablas paralelas.
+[ ] Todos los eventos usan UUID.
+[ ] Todos los tests UUID pasan.
+```
 
 ---
 
@@ -456,7 +848,7 @@ CompleteMaintenanceUseCase
 
 Orden obligatorio recomendado:
 
-1. Configuración
+1. Configuración / configuración módulo
 2. Merma
 3. Productos
 4. Procesamiento cárnico
@@ -475,6 +867,8 @@ Orden obligatorio recomendado:
 17. WhatsApp pedidos
 18. Finanzas
 19. RRHH
+20. Compras
+21. Ventas
 
 Cada módulo debe cumplir checklist de aceptación.
 
@@ -507,6 +901,14 @@ Un módulo no se considera terminado si no cumple:
 [ ] Tests de arquitectura.
 [ ] Validación manual documentada.
 [ ] Código legacy eliminado.
+[ ] Todas las entidades usan UUIDv7 como única identidad.
+[ ] Todas las FK funcionales usan UUID.
+[ ] Sin PK `INTEGER AUTOINCREMENT`.
+[ ] Sin `lastrowid` para identidad.
+[ ] Sin casts `int(..._id)`.
+[ ] Sin `legacy_id`, escritura dual o fallback.
+[ ] Eventos, DTO, Commands, UseCases y API usan UUID.
+[ ] Migración UUID validada con integridad referencial.
 ```
 
 ---
@@ -573,6 +975,10 @@ ProductQueryService
 
 Reglas:
 
+- `products.id` es UUIDv7.
+- Toda referencia a producto usa `product_id` UUID.
+- No existe ID entero alterno ni `legacy_id`.
+- Inventario, ventas, compras, recetas, producción, merma, transferencias, etiquetas, pedidos y cotizaciones usan el mismo UUID.
 - Tipos de producto en backend.
 - Receta configurada por servicio.
 - Precios/costos por servicio.
@@ -870,6 +1276,55 @@ Debe conectar con:
 
 ---
 
+### 7.17 Inventario
+
+Crear o consolidar:
+
+```text
+InventoryApplicationService
+InventoryQueryService
+InventoryAvailabilityQueryService
+InventoryRepository
+StockReservationApplicationService
+```
+
+Reglas:
+
+- `inventory_stock` usa PK compuesta `(branch_id, product_id)` con UUID.
+- `inventory_movements.id`, `operation_id`, `product_id` y `branch_id` son UUID.
+- Reservas y detalles de reserva usan UUID.
+- `inventory_stock` es la única fuente de stock físico.
+- La disponibilidad es `físico - reservado`.
+- No usar `productos.existencia`, `branch_inventory` ni tablas legacy.
+- No crear schema desde servicios.
+
+---
+
+### 7.18 Ventas
+
+Crear o consolidar:
+
+```text
+CreateSaleUseCase
+CancelSaleUseCase
+SaleApplicationService
+SaleQueryService
+SaleInventoryHandler
+SaleFinanceHandler
+```
+
+Reglas:
+
+- `sales.id`, `sale_items.id`, `product_id`, `branch_id`, `customer_id`, `user_id` y `operation_id` son UUID.
+- Folio es un campo comercial independiente.
+- La venta usa disponibilidad canónica de inventario.
+- La reserva propia se excluye durante la validación y se confirma atómicamente.
+- Venta, inventario, caja y finanzas comparten una sola UnitOfWork.
+- No usar `lastrowid` para identificar la venta.
+- No aceptar IDs enteros.
+
+---
+
 ## 8. Validación continua
 
 Después de cada fase o módulo, Codex debe ejecutar:
@@ -898,6 +1353,18 @@ Next module
 ---
 
 ## 9. Política de eliminación de legacy
+
+La política general es eliminar toda ruta legacy tan pronto exista una ruta canónica protegida por tests.
+
+Para identidad UUID la regla es más estricta:
+
+- No se permite compatibilidad permanente.
+- No se permite escritura dual.
+- No se permite lectura dual.
+- No se permite `legacy_id`.
+- No se permite fallback de UUID a entero.
+- No se permiten tablas paralelas.
+- Los mapas `old_id → UUID` solo pueden existir dentro de la migración atómica y deben eliminarse antes del commit.
 
 Se elimina código legacy cuando:
 
@@ -954,7 +1421,9 @@ Reglas:
 - Cero SQL en UI.
 - Cero schema changes fuera de migrations.
 - Componentes estándar para teléfono, búsqueda, dirección y números.
-- Eventos con operation_id.
+- Eventos con `event_id`, `operation_id` y `entity_id` UUID.
+- Cero IDs enteros funcionales.
+- Cero `legacy_id`, escritura dual o fallback.
 - Reporte final obligatorio.
 
 Ejecuta solo una fase o un módulo por vez.
@@ -984,7 +1453,9 @@ Debes:
 10. Mantener lógica de negocio funcional.
 11. Eliminar legacy muerto.
 12. Ejecutar pruebas.
-13. Reportar cambios, riesgos y validación manual.
+13. Migrar toda identidad y relación del módulo a UUIDv7.
+14. Eliminar PK/FK enteras, casts `int(..._id)`, `lastrowid` y compatibilidad legacy.
+15. Reportar cambios, riesgos y validación manual.
 ```
 
 ---
@@ -1023,5 +1494,7 @@ API FastAPI futura
 No parchar.
 No duplicar.
 No ocultar legacy.
+Un UUID por entidad.
+Cero identidad dual.
 Proteger, extraer, probar, eliminar.
 ```
