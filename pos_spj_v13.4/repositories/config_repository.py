@@ -16,25 +16,6 @@ class ConfigRepository:
         rows = cursor.execute("SELECT * FROM sucursales WHERE activa = 1").fetchall()
         return [dict(row) for row in rows]
 
-    def create_branch(self, nombre: str, direccion: str, telefono: str):
-        cursor = self.db.cursor()
-        cursor.execute("""
-            INSERT INTO sucursales (nombre, direccion, telefono, activa)
-            VALUES (?, ?, ?, 1)
-        """, (nombre, direccion, telefono))
-        return cursor.lastrowid
-
-    def update_branch(self, branch_id: int, nombre: str, direccion: str, telefono: str):
-        cursor = self.db.cursor()
-        cursor.execute("""
-            UPDATE sucursales SET nombre = ?, direccion = ?, telefono = ? WHERE id = ?
-        """, (nombre, direccion, telefono, branch_id))
-
-    def disable_branch(self, branch_id: int):
-        """Soft Delete para sucursales."""
-        cursor = self.db.cursor()
-        cursor.execute("UPDATE sucursales SET activa = 0 WHERE id = ?", (branch_id,))
-
     # --- AJUSTES GLOBALES (Key-Value) ---
     def get_setting(self, key: str, default_value: str = "") -> str:
         cursor = self.db.cursor()

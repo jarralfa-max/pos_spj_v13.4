@@ -26,10 +26,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict
+
+from backend.shared.ids import new_uuid
 
 
 def _utc_now() -> str:
@@ -37,7 +38,7 @@ def _utc_now() -> str:
 
 
 def _new_uuid() -> str:
-    return str(uuid.uuid4())
+    return new_uuid()
 
 
 @dataclass(frozen=True)

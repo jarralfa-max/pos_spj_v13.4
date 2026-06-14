@@ -36,9 +36,33 @@
       "dependencies": [
         "CONFIGURACION-01-SCOPE"
       ],
-      "iteration": 1,
-      "completed_actions": [],
-      "forbidden_reselection": []
+      "iteration": 7,
+      "completed_actions": [
+        "replaced Configuracion UI uuid4 operation id generator with backend.shared.ids.new_uuid",
+        "removed unused legacy branch repository helpers that returned lastrowid without the canonical CompanyProfileService path",
+        "added unit protection for UUIDv7 operation id generation and removed legacy branch identity helpers",
+        "migrated shared DomainEvent default event_id generation from uuid4 to backend.shared.ids.new_uuid",
+        "added UUIDv7 event_id to Configuracion PermissionEventPublisher fallback events",
+        "added unit protection for Configuracion permission events carrying UUIDv7 event_id values",
+        "migrated legacy core.domain.events DomainEvent event_id and operation_id defaults to backend.shared.ids.new_uuid",
+        "added regression protection that core.domain.events DomainEvent emits UUIDv7 event_id and operation_id values",
+        "migrated RRHH shared event operation_id helper from prefix-uuid4 strings to backend.shared.ids.new_uuid",
+        "added regression protection that RRHH event operation ids are canonical lowercase UUIDv7 values without legacy prefixes",
+        "removed Configuracion permission event branch_id fallback to integer one for branch-agnostic events",
+        "added regression protection that branch-agnostic permission events receive canonical lowercase UUIDv7 branch_id values",
+        "enforced canonical lowercase UUIDv7 operation_id values in PermissionEventPublisher",
+        "updated role permission integration flow to use canonical UUIDv7 operation ids and reject legacy op-* strings"
+      ],
+      "forbidden_reselection": [
+        "reintroducing uuid4 for Configuracion operation_id generation",
+        "reintroducing unused create_branch/update_branch/disable_branch repository helpers",
+        "reintroducing uuid4 as DomainEvent event_id default",
+        "publishing Configuracion permission fallback events without event_id",
+        "reintroducing uuid.uuid4 in core.domain.events DomainEvent identity defaults",
+        "reintroducing prefix-based uuid4 operation_id generation in core.rrhh.events",
+        "reintroducing integer branch_id fallback values in PermissionEventPublisher",
+        "publishing Configuracion permission events with legacy op-* operation_id strings"
+      ]
     },
     {
       "id": "CONFIGURACION-03-UI",
