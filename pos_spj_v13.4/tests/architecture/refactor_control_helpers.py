@@ -1,41 +1,33 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 from pathlib import Path
+from types import ModuleType
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PACKAGE_ROOT.parent
-REFACTOR_DIR = PACKAGE_ROOT / "docs" / "refactor"
-MODULES_DIR = REFACTOR_DIR / "modules"
-CONTROL_FILE_NAMES = {
-    "MASTER_REFACTOR_STATE.md",
-    "MODULE_QUEUE.md",
-    "CURRENT_MODULE.md",
-    "GLOBAL_VIOLATIONS.md",
-    "UUIDV7_CUTOVER_REPORT.md",
-    "refactor_state.json",
-}
-REQUIRED_CONTROL_PATHS = [
-    REFACTOR_DIR / "MASTER_REFACTOR_STATE.md",
-    REFACTOR_DIR / "MODULE_QUEUE.md",
-    REFACTOR_DIR / "CURRENT_MODULE.md",
-    REFACTOR_DIR / "GLOBAL_VIOLATIONS.md",
-    REFACTOR_DIR / "UUIDV7_CUTOVER_REPORT.md",
-    REFACTOR_DIR / "refactor_state.json",
-    MODULES_DIR / "README.md",
+BOOTSTRAP_PATH = PACKAGE_ROOT / "tools" / "refactor_control" / "bootstrap_refactor_state.py"
+
+
+def load_bootstrap_module() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("bootstrap_refactor_state", BOOTSTRAP_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+BOOTSTRAP = load_bootstrap_module()
+REFACTOR_DIR = BOOTSTRAP.BASE_PATH
+MODULES_DIR = BOOTSTRAP.MODULES_PATH
+CONTROL_FILE_NAMES = set(BOOTSTRAP.INITIAL_FILES) | {"refactor_state.json"}
+REQUIRED_CONTROL_PATHS = [REFACTOR_DIR / relative_path for relative_path in BOOTSTRAP.INITIAL_FILES] + [
+    REFACTOR_DIR / "refactor_state.json"
 ]
-ALLOWED_STATES = {
-    "PENDING",
-    "AUDIT",
-    "PROTECTION",
-    "IMPLEMENTATION",
-    "LEGACY_REMOVAL",
-    "INTEGRATION",
-    "VALIDATION",
-    "BLOCKED",
-    "DONE",
-}
+ALLOWED_STATES = set(BOOTSTRAP.ALLOWED_MODULE_STATES)
+EXPECTED_QUEUE_CODES = [code for code, _name in BOOTSTRAP.MODULE_QUEUE]
 
 
 def load_refactor_state() -> dict:
