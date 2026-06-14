@@ -401,20 +401,18 @@ class RecipeResolver:
     def _get_stock(self, product_id: int, branch_id: int) -> float:
         try:
             row = self._db.execute(
-                """SELECT COALESCE(bi.quantity, p.existencia, 0)
-                   FROM productos p
-                   LEFT JOIN branch_inventory bi
-                          ON bi.product_id = p.id AND bi.branch_id = ?
-                   WHERE p.id = ?""",
-                (branch_id, product_id),
+                """SELECT COALESCE(quantity, 0)
+                   FROM inventory_stock
+                   WHERE product_id = ? AND branch_id = ?""",
+                (product_id, branch_id),
             ).fetchone()
             return float(row[0]) if row else 0.0
-        except Exception:
-            row = self._db.execute(
-                "SELECT COALESCE(existencia, 0) FROM productos WHERE id = ?",
-                (product_id,)
-            ).fetchone()
-            return float(row[0]) if row else 0.0
+        except Exception as exc:
+            logger.error(
+                "inventory_stock no disponible para resolver receta; product_id=%s branch_id=%s: %s",
+                product_id, branch_id, exc,
+            )
+            return 0.0
 
     def _product_col(self) -> str:
         """Return the column name for the product FK on product_recipes."""

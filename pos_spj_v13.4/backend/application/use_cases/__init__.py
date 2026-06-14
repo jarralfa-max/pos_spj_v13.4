@@ -23,7 +23,12 @@ __all__ = [
     "ReceiveTransferUseCase",
     "CreateDeliveryOrderUseCase",
     "CreateProductUseCase",
+    "UpdateProductUseCase",
     "GenerateZCutUseCase",
     "ConvertQuoteToSaleUseCase",
     "GeneratePurchasePlanUseCase",
 ]
+from backend.application.use_cases.deactivate_product_use_case import DeactivateProductUseCase
+from backend.application.use_cases.restore_product_use_case import RestoreProductUseCase
+from backend.application.use_cases.create_customer_use_case import CreateCustomerUseCase
+from backend.application.use_cases.update_product_use_case import UpdateProductUseCase

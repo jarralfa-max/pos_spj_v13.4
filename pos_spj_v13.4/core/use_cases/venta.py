@@ -169,16 +169,20 @@ class ProcesarVentaUC:
     def __init__(
         self,
         sales_service,
-        inventory_service,
-        finance_service,
-        loyalty_service,
-        ticket_engine,
+        inventory_service = None,
+        finance_service = None,
+        loyalty_service = None,
+        ticket_engine = None,
         sync_service   = None,
         event_bus      = None,
         cfdi_service   = None,
+        inventory_query_service = None,
+        inventory_availability_service = None,
     ):
         self._sales     = sales_service
         self._inventory = inventory_service
+        self._inventory_query = inventory_query_service
+        self._inventory_availability = inventory_availability_service
         self._finance   = finance_service
         self._loyalty   = loyalty_service
         self._ticket    = ticket_engine
@@ -198,6 +202,7 @@ class ProcesarVentaUC:
             sync_service      = getattr(container, "sync_service",   None),
             event_bus         = _get_bus(),
             cfdi_service      = getattr(container, "cfdi_service",  None),
+            inventory_query_service = getattr(container, "inventory_query_service", None),
         )
 
     # ── Punto de entrada principal ────────────────────────────────────────────
@@ -262,6 +267,7 @@ class ProcesarVentaUC:
                     loyalty_redemption_pts=int(datos_pago.puntos_canjeados or 0),
                     notes=datos_pago.notas,
                     reservation_id=datos_pago.reserva_id,
+                    operation_id=datos_pago.operation_id,
                 )
                 folio = rich.folio
                 ticket_html = rich.ticket_html
@@ -362,20 +368,36 @@ class ProcesarVentaUC:
         self, items: List[ItemCarrito], sucursal_id: int
     ) -> str | None:
         """Verifica stock antes de ejecutar la venta. Retorna error o None."""
+        stock_reader = self._inventory_availability or self._inventory_query
+        if stock_reader is None:
+            # Compatibilidad con adaptadores legacy: solo usar un InventoryService
+            # histórico si expone get_stock. La ruta canónica desde AppContainer
+            # inyecta InventoryQueryService y nunca lee desde InventoryApplicationService.
+            stock_reader = self._inventory if hasattr(self._inventory, "get_stock") else None
+        if stock_reader is None:
+            return "No se pudo validar stock: servicio de consulta de inventario no disponible."
+
+        required_by_product: Dict[int, float] = {}
+        names_by_product: Dict[int, str] = {}
         for item in items:
             if item.es_compuesto:
-                continue  # inventario de combos se valida en SalesService
+                continue  # componentes se validan al resolver BOM dentro del handler
+            product_id = int(item.producto_id)
+            required_by_product[product_id] = required_by_product.get(product_id, 0.0) + float(item.cantidad or 0.0)
+            names_by_product[product_id] = item.nombre
+
+        for product_id, required_qty in required_by_product.items():
             try:
-                disponible = self._inventory.get_stock(
-                    item.producto_id, sucursal_id
+                stock_record = stock_reader.get_stock(product_id, sucursal_id)
+                disponible = float(getattr(stock_record, "quantity", stock_record) or 0.0)
+            except Exception as exc:
+                logger.exception("Validar stock producto=%s falló", product_id)
+                return f"No se pudo validar stock para '{names_by_product.get(product_id, product_id)}': {exc}"
+            if disponible < required_qty:
+                return (
+                    f"Stock insuficiente para '{names_by_product.get(product_id, product_id)}': "
+                    f"disponible {disponible:.3f}, requerido {required_qty:.3f}"
                 )
-                if disponible < item.cantidad:
-                    return (
-                        f"Stock insuficiente para '{item.nombre}': "
-                        f"disponible {disponible:.3f}, requerido {item.cantidad:.3f}"
-                    )
-            except Exception as e:
-                logger.warning("Validar stock producto=%s: %s", item.producto_id, e)
         return None
 
     def validar_precios_bajo_costo(
