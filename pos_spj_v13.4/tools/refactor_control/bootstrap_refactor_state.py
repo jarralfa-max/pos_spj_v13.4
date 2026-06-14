@@ -26,7 +26,6 @@ ALLOWED_MODULE_STATES = (
 )
 
 MODULE_QUEUE: tuple[tuple[str, str], ...] = (
-    ("UUIDV7_CUTOVER", "Corte global UUIDv7"),
     ("CONFIGURACION", "Configuración"),
     ("MERMA", "Merma"),
     ("PRODUCTOS", "Productos"),
@@ -36,31 +35,26 @@ MODULE_QUEUE: tuple[tuple[str, str], ...] = (
     ("RECETAS", "Recetas"),
     ("PRODUCCION", "Producción"),
     ("TRANSFERENCIAS", "Transferencias"),
-    ("COMPRAS", "Compras"),
-    ("RECEPCION", "Recepción"),
+    ("DELIVERY", "Delivery"),
+    ("CAJA", "Caja"),
+    ("BI_DASHBOARD", "BI / Dashboard"),
     ("PLANEACION_COMPRAS", "Planeación de compras"),
     ("COTIZACIONES", "Cotizaciones"),
-    ("PEDIDOS", "Pedidos"),
-    ("DELIVERY", "Delivery"),
-    ("WHATSAPP", "WhatsApp"),
-    ("CLIENTES", "Clientes"),
-    ("PROVEEDORES", "Proveedores"),
-    ("CAJA", "Caja"),
-    ("FINANZAS", "Finanzas"),
-    ("CUENTAS_COBRAR", "Cuentas por cobrar"),
-    ("CUENTAS_PAGAR", "Cuentas por pagar"),
-    ("ACTIVOS", "Activos"),
-    ("MANTENIMIENTO", "Mantenimiento"),
-    ("RRHH", "Recursos humanos"),
     ("FIDELIDAD", "Fidelidad"),
     ("TARJETAS_FIDELIDAD", "Tarjetas de fidelidad"),
-    ("PROMOCIONES", "Promociones"),
+    ("ACTIVOS", "Activos"),
+    ("CLIENTES", "Clientes"),
+    ("PROVEEDORES", "Proveedores"),
+    ("COMPRAS", "Compras"),
+    ("RECEPCION", "Recepción"),
+    ("PEDIDOS", "Pedidos"),
     ("TICKETS", "Tickets"),
     ("ETIQUETAS", "Etiquetas"),
     ("HARDWARE", "Hardware"),
     ("NOTIFICACIONES", "Notificaciones"),
-    ("DASHBOARD", "Dashboard"),
-    ("BI", "Inteligencia de negocios"),
+    ("WHATSAPP", "WhatsApp"),
+    ("FINANZAS", "Finanzas"),
+    ("RRHH", "Recursos humanos"),
     ("REPORTES", "Reportes"),
     ("API", "API FastAPI"),
     ("SINCRONIZACION", "Sincronización"),
@@ -69,10 +63,7 @@ MODULE_QUEUE: tuple[tuple[str, str], ...] = (
     ("CIERRE_GLOBAL", "Cierre global"),
 )
 
-
 def _module_report_for(code: str) -> str:
-    if code == "UUIDV7_CUTOVER":
-        return "docs/refactor/UUIDV7_CUTOVER_REPORT.md"
     return f"docs/refactor/modules/{code.lower()}.md"
 
 
@@ -134,7 +125,7 @@ def _initial_state() -> dict[str, Any]:
         "schema_version": 1,
         "skill_version": "uuidv7-strict",
         "global_status": "IN_PROGRESS",
-        "current_module": "UUIDV7_CUTOVER",
+        "current_module": "CONFIGURACION",
         "global_iteration": 0,
         "last_completed_module": None,
         "modules": {
@@ -526,7 +517,7 @@ def _normalize_state(state: dict[str, Any]) -> dict[str, Any]:
             normalized["modules"][code]["status"] = "PENDING"
         normalized["modules"][code]["report"] = _module_report_for(code)
     if normalized.get("current_module") not in normalized["modules"]:
-        normalized["current_module"] = "UUIDV7_CUTOVER"
+        normalized["current_module"] = "CONFIGURACION"
     return normalized
 
 

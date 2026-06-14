@@ -55,7 +55,7 @@ def test_bootstrap_refactor_state_repairs_invalid_json_with_backup():
 
         assert "refactor_state.json" in "\n".join(result["repaired"])
         assert list(base_path.glob("refactor_state.json.bak.*"))
-        assert json.loads(state_path.read_text(encoding="utf-8"))["current_module"] == "UUIDV7_CUTOVER"
+        assert json.loads(state_path.read_text(encoding="utf-8"))["current_module"] == "CONFIGURACION"
     finally:
         if package_tmp.exists():
             shutil.rmtree(package_tmp)

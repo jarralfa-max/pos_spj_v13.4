@@ -1,22 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "skill_version": "uuidv7-strict",
   "global_status": "IN_PROGRESS",
-  "current_module": "UUIDV7_CUTOVER",
-  "global_iteration": 0,
+  "current_module": "CONFIGURACION",
+  "global_iteration": 7,
   "last_completed_module": null,
   "modules": {
-    "UUIDV7_CUTOVER": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/UUIDV7_CUTOVER_REPORT.md"
-    },
     "CONFIGURACION": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "AUDIT",
+      "iteration": 2,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
@@ -86,21 +78,29 @@
       "tests_failed": null,
       "report": "docs/refactor/modules/transferencias.md"
     },
-    "COMPRAS": {
+    "DELIVERY": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/compras.md"
+      "report": "docs/refactor/modules/delivery.md"
     },
-    "RECEPCION": {
+    "CAJA": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/recepcion.md"
+      "report": "docs/refactor/modules/caja.md"
+    },
+    "BI_DASHBOARD": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/bi_dashboard.md"
     },
     "PLANEACION_COMPRAS": {
       "status": "PENDING",
@@ -118,29 +118,29 @@
       "tests_failed": null,
       "report": "docs/refactor/modules/cotizaciones.md"
     },
-    "PEDIDOS": {
+    "FIDELIDAD": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/pedidos.md"
+      "report": "docs/refactor/modules/fidelidad.md"
     },
-    "DELIVERY": {
+    "TARJETAS_FIDELIDAD": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/delivery.md"
+      "report": "docs/refactor/modules/tarjetas_fidelidad.md"
     },
-    "WHATSAPP": {
+    "ACTIVOS": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/whatsapp.md"
+      "report": "docs/refactor/modules/activos.md"
     },
     "CLIENTES": {
       "status": "PENDING",
@@ -158,85 +158,29 @@
       "tests_failed": null,
       "report": "docs/refactor/modules/proveedores.md"
     },
-    "CAJA": {
+    "COMPRAS": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/caja.md"
+      "report": "docs/refactor/modules/compras.md"
     },
-    "FINANZAS": {
+    "RECEPCION": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/finanzas.md"
+      "report": "docs/refactor/modules/recepcion.md"
     },
-    "CUENTAS_COBRAR": {
+    "PEDIDOS": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/cuentas_cobrar.md"
-    },
-    "CUENTAS_PAGAR": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/modules/cuentas_pagar.md"
-    },
-    "ACTIVOS": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/modules/activos.md"
-    },
-    "MANTENIMIENTO": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/modules/mantenimiento.md"
-    },
-    "RRHH": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/modules/rrhh.md"
-    },
-    "FIDELIDAD": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/modules/fidelidad.md"
-    },
-    "TARJETAS_FIDELIDAD": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/modules/tarjetas_fidelidad.md"
-    },
-    "PROMOCIONES": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
-      "report": "docs/refactor/modules/promociones.md"
+      "report": "docs/refactor/modules/pedidos.md"
     },
     "TICKETS": {
       "status": "PENDING",
@@ -270,21 +214,29 @@
       "tests_failed": null,
       "report": "docs/refactor/modules/notificaciones.md"
     },
-    "DASHBOARD": {
+    "WHATSAPP": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/dashboard.md"
+      "report": "docs/refactor/modules/whatsapp.md"
     },
-    "BI": {
+    "FINANZAS": {
       "status": "PENDING",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
-      "report": "docs/refactor/modules/bi.md"
+      "report": "docs/refactor/modules/finanzas.md"
+    },
+    "RRHH": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/rrhh.md"
     },
     "REPORTES": {
       "status": "PENDING",
