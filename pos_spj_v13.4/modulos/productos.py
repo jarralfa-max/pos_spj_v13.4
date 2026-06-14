@@ -9,8 +9,8 @@ from modulos.ui_components import (
     LoadingIndicator, EmptyStateWidget, PageHeader, Toast,
 )
 import os
-import shutil
 from datetime import datetime
+from uuid import uuid4
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -31,11 +31,18 @@ from modulos.dialogs.receta_dialog import DialogoReceta
 from core.services.recipes.recipe_service import RecipeService
 from modulos.kpi_card import KPICard
 from core.services.product_catalog_query_service import get_product_configuration_kpis, get_catalog_filter_ids
+from backend.application.commands.product_commands import CreateProductCommand, UpdateProductCommand
+from backend.application.queries.product_query_service import ProductQueryService
+from backend.application.services.product_catalog_service import ProductCatalogService
+from backend.application.services.product_image_service import ProductImageService
+from backend.application.use_cases.create_product_use_case import CreateProductUseCase
+from backend.application.use_cases.deactivate_product_use_case import DeactivateProductCommand, DeactivateProductUseCase
+from backend.application.use_cases.restore_product_use_case import RestoreProductCommand, RestoreProductUseCase
+from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
+from backend.domain.services.product_type_policy import ProductTypePolicy
 
 logger = logging.getLogger(__name__)
 
-# Asegurar que el directorio de imágenes exista
-os.makedirs("imagenes_productos", exist_ok=True)
 
 class DialogoProducto(QDialog):
     """
@@ -45,8 +52,15 @@ class DialogoProducto(QDialog):
     def __init__(self, container, producto_id=None, parent=None):
         super().__init__(parent)
         self.container = container
+        self.db = container.db if hasattr(container, 'db') else container
         self.producto_id = producto_id
         self.ruta_imagen_actual = None
+        self.product_query_service = ProductQueryService.from_connection(self.db)
+        self.product_type_policy = ProductTypePolicy()
+        product_service = ProductCatalogService(self.db)
+        self.create_product_use_case = CreateProductUseCase(app_service=product_service)
+        self.update_product_use_case = UpdateProductUseCase(app_service=product_service)
+        self._product_image_service = ProductImageService()
         
         self.setWindowTitle("Nuevo Producto" if not producto_id else f"Editar Producto #{producto_id}")
         self.setMinimumSize(650, 500)
@@ -89,7 +103,7 @@ class DialogoProducto(QDialog):
         # ================= CAMPOS BASE =================
         
         self.cmb_tipo = QComboBox()
-        self.cmb_tipo.addItems(["Simple", "Compuesto", "Procesable", "Subproducto", "Producido", "Insumo", "Servicio"])
+        self.cmb_tipo.addItems(self.product_query_service.type_labels_es())
         self.cmb_tipo.currentTextChanged.connect(self.al_cambiar_tipo)
         
         self.txt_nombre = QLineEdit()
@@ -261,21 +275,17 @@ class DialogoProducto(QDialog):
     def cargar_categorias(self):
         """Carga las categorías únicas existentes."""
         try:
-            cursor = self.container.db.cursor()
-            cats = cursor.execute("SELECT DISTINCT categoria FROM productos WHERE categoria IS NOT NULL").fetchall()
-            self.cmb_categoria.addItems([c[0] for c in cats])
-        except: pass
+            for category in self.product_query_service.list_categories():
+                self.cmb_categoria.addItem(category)
+        except Exception:
+            logger.exception("No se pudieron cargar categorías de productos")
 
     def cargar_imagen(self):
         """Abre el diálogo para seleccionar una imagen."""
         ruta, _ = QFileDialog.getOpenFileName(self, "Seleccionar Imagen", "", "Imágenes (*.png *.jpg *.jpeg *.webp)")
         if ruta:
-            # Copiar a la carpeta local del proyecto
-            nombre_archivo = f"prod_{datetime.now().strftime('%Y%m%d%H%M%S')}{os.path.splitext(ruta)[1]}"
-            ruta_destino = os.path.join("imagenes_productos", nombre_archivo)
-            
             try:
-                shutil.copy(ruta, ruta_destino)
+                ruta_destino = self._product_image_service.store_image(ruta)
                 self.ruta_imagen_actual = ruta_destino
                 self.mostrar_imagen_previa(ruta_destino)
             except Exception as e:
@@ -515,13 +525,19 @@ class ModuloProductos(QWidget, RefreshMixin):
     """
     def __init__(self, container, parent=None):
         super().__init__(parent)
-        try: self._init_refresh(container, ["PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO", "COMPRA_REGISTRADA"])
-        except Exception: pass
+        try:
+            self._init_refresh(container, ["PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO", "COMPRA_REGISTRADA"])
+        except Exception:
+            logger.exception("No se pudo inicializar refresh de productos")
         self.container = container # 🧠 Recibimos el Cerebro
         # Extraemos la db para mantener compatibilidad si algo lo requiere
         self.conexion = container.db if hasattr(container, 'db') else container
         self.sucursal_id = 1
         self.usuario_actual = ""
+        self.product_query_service = ProductQueryService.from_connection(self.conexion)
+        self._product_catalog_service = ProductCatalogService(self.conexion)
+        self._deactivate_product_uc = DeactivateProductUseCase(self._product_catalog_service)
+        self._restore_product_uc = RestoreProductUseCase(self._product_catalog_service)
 
         # ── Scanner de código de barras ───────────────────────────────────────
         # Captura input de lectores HID (teclado-emulado).
@@ -664,7 +680,9 @@ class ModuloProductos(QWidget, RefreshMixin):
 
         # v13.30: Filtro de estado
         self.cmb_filtro_estado = QComboBox()
-        self.cmb_filtro_estado.addItems(["✅ Activos", "❌ Eliminados", "📋 Todos"])
+        self.cmb_filtro_estado.addItem("✅ Activos", "active")
+        self.cmb_filtro_estado.addItem("❌ Eliminados", "deleted")
+        self.cmb_filtro_estado.addItem("📋 Todos", "all")
         self.cmb_filtro_estado.setMinimumWidth(130)
         self.cmb_filtro_estado.currentIndexChanged.connect(self.cargar_catalogo)
         
@@ -932,14 +950,6 @@ class ModuloProductos(QWidget, RefreshMixin):
     def cargar_catalogo(self):
         if hasattr(self, "_loading_catalogo"):
             self._loading_catalogo.show()
-        # Ensure codigo_barras column exists on any existing DB
-        try:
-            db = self.container.db if hasattr(self.container, 'db') else self.conexion
-            db.execute("ALTER TABLE productos ADD COLUMN codigo_barras TEXT DEFAULT ''")
-            try: db.commit()
-            except Exception: pass
-        except Exception: pass
-
         busqueda = self.txt_buscar_prod.text().strip()
 
         # v13.30: Leer filtros
@@ -949,37 +959,17 @@ class ModuloProductos(QWidget, RefreshMixin):
             if not cat_text.startswith("📁"):
                 filtro_cat = cat_text
 
-        filtro_estado = 0  # 0=activos, 1=eliminados, 2=todos
+        filtro_estado = "active"
         if hasattr(self, 'cmb_filtro_estado'):
-            filtro_estado = self.cmb_filtro_estado.currentIndex()
+            filtro_estado = self.cmb_filtro_estado.currentData() or "active"
 
         try:
-            query = ("SELECT id, codigo, COALESCE(codigo_barras,'') as codigo_barras, "
-                     "nombre, categoria, precio, existencia, COALESCE(activo,1) as activo "
-                     "FROM productos WHERE 1=1")
-            params = []
-
-            # Filtro estado
-            if filtro_estado == 0:
-                query += " AND COALESCE(activo,1)=1"
-            elif filtro_estado == 1:
-                query += " AND COALESCE(activo,1)=0"
-            # else: todos
-
-            # Filtro categoría
-            if filtro_cat:
-                query += " AND categoria=?"
-                params.append(filtro_cat)
-
-            # Búsqueda texto
-            if busqueda:
-                query += " AND (nombre LIKE ? OR codigo LIKE ? OR COALESCE(codigo_barras,'') LIKE ?)"
-                params.extend([f'%{busqueda}%', f'%{busqueda}%', f'%{busqueda}%'])
-
-            query += " ORDER BY activo DESC, nombre ASC LIMIT 1000"
-
-            cursor = self.container.db.cursor() if hasattr(self.container, 'db') else self.conexion.cursor()
-            rows = cursor.execute(query, params).fetchall()
+            rows = self.product_query_service.list_catalog_rows(
+                search=busqueda,
+                category=filtro_cat,
+                status_filter=filtro_estado,
+                limit=1000,
+            )
             db = self.container.db if hasattr(self.container, 'db') else self.conexion
             kpi_mode = getattr(self, "_kpi_filter_mode", "all")
             if kpi_mode in {"sin_tipo", "receta_pendiente", "sin_costo"}:
@@ -1078,9 +1068,11 @@ class ModuloProductos(QWidget, RefreshMixin):
         # v13.30: Verificar permiso
         try:
             from core.permissions import verificar_permiso
-            if not verificar_permiso(self.container, "productos.crear", self):
+            if not verificar_permiso(self.container, "PRODUCTOS.crear", self):
                 return
-        except Exception: pass
+        except Exception:
+            logger.exception("No se pudo verificar permiso PRODUCTOS.crear")
+            return
         dlg = DialogoProducto(self.container, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self.cargar_catalogo()
@@ -1088,9 +1080,11 @@ class ModuloProductos(QWidget, RefreshMixin):
     def abrir_editar_producto(self, producto_id):
         try:
             from core.permissions import verificar_permiso
-            if not verificar_permiso(self.container, "productos.editar", self):
+            if not verificar_permiso(self.container, "PRODUCTOS.editar", self):
                 return
-        except Exception: pass
+        except Exception:
+            logger.exception("No se pudo verificar permiso PRODUCTOS.editar")
+            return
         dlg = DialogoProducto(self.container, producto_id=producto_id, parent=self)
         if dlg.exec_() == QDialog.Accepted:
             self.cargar_catalogo()
@@ -1100,9 +1094,11 @@ class ModuloProductos(QWidget, RefreshMixin):
         # v13.30: Verificar permiso
         try:
             from core.permissions import verificar_permiso
-            if not verificar_permiso(self.container, "productos.eliminar", self):
+            if not verificar_permiso(self.container, "PRODUCTOS.eliminar", self):
                 return
-        except Exception: pass
+        except Exception:
+            logger.exception("No se pudo verificar permiso PRODUCTOS.eliminar")
+            return
         resp = QMessageBox.question(
             self, "Confirmar Borrado", 
             f"¿Está seguro de eliminar el producto '{nombre}'?\n(Se ocultará del catálogo pero se mantendrá en el historial).",
@@ -1110,13 +1106,13 @@ class ModuloProductos(QWidget, RefreshMixin):
         )
         if resp == QMessageBox.Yes:
             try:
-                cursor = self.container.db.cursor() if hasattr(self.container, 'db') else self.conexion.cursor()
-                # SOFT DELETE
-                cursor.execute("UPDATE productos SET oculto = 1, activo = 0 WHERE id = ?", (producto_id,))
-                
-                if hasattr(self.container, 'db'): self.container.db.commit()
-                else: self.conexion.commit()
-                
+                self._deactivate_product_uc.execute(
+                    DeactivateProductCommand(
+                        product_id=int(producto_id),
+                        operation_id=f"product-deactivate-{uuid4()}",
+                        user_name=self.usuario_actual or "sistema",
+                    )
+                )
                 Toast.success(self, "Producto eliminado", "El producto se eliminó correctamente.")
                 self.cargar_catalogo()
             except Exception as e:
@@ -1659,10 +1655,13 @@ class ModuloProductos(QWidget, RefreshMixin):
         nuevo = 0 if activo_actual else 1
         label = "activado" if nuevo else "ocultado del POS"
         try:
-            db = self.container.db if hasattr(self.container,'db') else self.conexion
-            db.execute("UPDATE productos SET activo=? WHERE id=?", (nuevo, producto_id))
-            try: db.commit()
-            except Exception: pass
+            self._product_catalog_service.set_product_active(
+                product_id=int(producto_id),
+                active=bool(nuevo),
+                operation_id=f"product-state-{uuid4()}",
+                user_name=self.usuario_actual or "sistema",
+            )
+            Toast.success(self, "Producto actualizado", f"Producto {label} correctamente.")
             self.cargar_catalogo()
         except Exception as e:
         # [spj-dedup removed local QMessageBox import]
@@ -1678,12 +1677,13 @@ class ModuloProductos(QWidget, RefreshMixin):
         if resp != QMessageBox.Yes:
             return
         try:
-            db = self.container.db if hasattr(self.container, 'db') else self.conexion
-            db.execute("UPDATE productos SET activo=1, oculto=0 WHERE id=?", (producto_id,))
-            try:
-                db.commit()
-            except Exception:
-                pass
+            self._restore_product_uc.execute(
+                RestoreProductCommand(
+                    product_id=int(producto_id),
+                    operation_id=f"product-restore-{uuid4()}",
+                    user_name=self.usuario_actual or "sistema",
+                )
+            )
             Toast.success(self, "✅ Restaurado", f"Producto '{nombre}' restaurado correctamente.")
             self.cargar_catalogo()
         except Exception as e:

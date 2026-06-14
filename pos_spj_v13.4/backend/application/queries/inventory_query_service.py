@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from backend.infrastructure.db.repositories.inventory_repository import (
     InventoryMovementRecord,
     InventoryRepository,
     InventoryStockRecord,
 )
+
+
+logger = logging.getLogger("spj.inventory.query")
 
 
 class InventoryQueryService:
@@ -50,7 +55,54 @@ class InventoryQueryService:
                 (int(branch_id),),
             ).fetchall()
         except Exception:
+            logger.exception("Error listing inventory stock rows for branch_id=%s", branch_id)
             return []
+
+    def list_availability_rows(self, branch_id: int) -> list[dict]:
+        """Return physical and sale availability from canonical stock and active reservations."""
+        try:
+            rows = self._connection.execute(
+                """
+                SELECT p.id,
+                       p.nombre,
+                       COALESCE(s.quantity, 0) AS physical_stock,
+                       COALESCE(res.reserved_qty, 0) AS reserved_qty
+                FROM productos p
+                LEFT JOIN inventory_stock s
+                    ON s.product_id = p.id AND s.branch_id = ?
+                LEFT JOIN (
+                    SELECT d.producto_id, SUM(d.cantidad) AS reserved_qty
+                    FROM stock_reserva_detalles d
+                    JOIN stock_reservas r ON r.id = d.reserva_id
+                    WHERE r.estado = 'activa' AND r.branch_id = ?
+                    GROUP BY d.producto_id
+                ) res ON res.producto_id = p.id
+                WHERE COALESCE(p.activo, 1) = 1
+                ORDER BY p.nombre
+                """,
+                (int(branch_id), int(branch_id)),
+            ).fetchall()
+        except Exception:
+            logger.exception("Error listing inventory availability rows for branch_id=%s", branch_id)
+            return []
+
+        out: list[dict] = []
+        for row in rows:
+            product_id = int(row[0])
+            physical = float(row[2] or 0.0)
+            reserved = float(row[3] or 0.0)
+            available = max(0.0, physical - reserved)
+            out.append({
+                "product_id": product_id,
+                "name": str(row[1] or ""),
+                "physical_stock": physical,
+                "reserved": reserved,
+                "physical_available": available,
+                "virtual_available": None,
+                "sale_available": available,
+                "mode": "DIRECTO" if available > 0 else "NO DISPONIBLE",
+            })
+        return out
 
     def get_last_movement_map(self, branch_id: int) -> dict[int, str]:
         try:
@@ -65,6 +117,7 @@ class InventoryQueryService:
             ).fetchall()
             return {int(row[0]): str(row[1] or "")[:16] for row in rows}
         except Exception:
+            logger.exception("Error loading last movement map for branch_id=%s", branch_id)
             return {}
 
     def get_operational_kpis(self, branch_id: int, product_data: list[dict] | None = None, **kwargs) -> dict:
@@ -83,12 +136,19 @@ class InventoryQueryService:
             ).fetchone()
             movements_today = int((row[0] if row else 0) or 0)
         except Exception:
+            logger.exception("Error counting today inventory movements for branch_id=%s", branch_id)
             movements_today = 0
+        reserved_total = 0.0
+        try:
+            availability = self.list_availability_rows(branch_id)
+            reserved_total = sum(float(row.get("reserved") or 0.0) for row in availability)
+        except Exception:
+            logger.exception("Error calculating reserved KPI for branch_id=%s", branch_id)
         return {
             "stock_bajo": stock_low,
             "sin_stock_fisico": out_of_stock,
-            "virtual_disponible": 0,
-            "reservados": 0,
+            "virtual_disponible": None,
+            "reservados": reserved_total,
             "mov_hoy": movements_today,
         }
 
@@ -113,6 +173,7 @@ class InventoryQueryService:
                 (int(branch_id), int(limit)),
             ).fetchall()
         except Exception:
+            logger.exception("Error listing recent inventory movements for branch_id=%s", branch_id)
             return []
 
     def list_feed_movements(self, branch_id: int, limit: int = 12) -> list[dict]:
@@ -149,6 +210,7 @@ class InventoryQueryService:
                 (int(product_id), int(branch_id), int(limit)),
             ).fetchall()
         except Exception:
+            logger.exception("Error listing product inventory history product_id=%s branch_id=%s", product_id, branch_id)
             return []
 
     # Backward-compatible aliases for tests/use cases that already depend on the
