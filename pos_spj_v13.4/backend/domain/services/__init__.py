@@ -1,5 +1,5 @@
-"""Domain services and policies."""
+"""Domain service exports."""
 
-from backend.domain.services.product_type_policy import ProductTypePolicy, ProductTypeRules
+from .product_type_policy import ProductTypePolicy
 
-__all__ = ["ProductTypePolicy", "ProductTypeRules"]
+__all__ = ["ProductTypePolicy"]

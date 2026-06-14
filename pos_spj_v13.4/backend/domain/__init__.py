@@ -1,1 +1,1 @@
-"""Backend domain layer."""
+"""Domain layer for canonical backend policies."""

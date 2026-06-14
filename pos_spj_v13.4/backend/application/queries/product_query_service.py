@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from backend.domain.services.product_type_policy import ProductTypePolicy
 from backend.application.queries.base_query_service import BaseQueryService, KpiMetric, QueryFilters, SearchResult, TableRow
 from backend.domain.services.product_type_policy import ProductTypePolicy
 
@@ -123,6 +124,8 @@ class SQLiteProductQueryDataSource:
 
 logger = logging.getLogger("spj.products.query")
 
+logger = logging.getLogger("spj.products.query")
+
 
 class ProductQueryService(BaseQueryService):
     scope = "products"
@@ -145,10 +148,10 @@ class ProductQueryService(BaseQueryService):
     def get_kpis(self, filters: QueryFilters | None = None) -> list[KpiMetric]:
         return list(self.metrics(filters))
 
-    def list_catalog_rows(self, search: str = "", category: str = "", status_filter: int = 0, limit: int = 1000) -> list[dict]:
+    def list_catalog_rows(self, search: str = "", category: str = "", status_filter: str = "active", limit: int = 1000) -> list[dict]:
         """Return product catalog rows for the desktop table without SQL in UI.
 
-        status_filter: 0 active, 1 inactive/deleted, 2 all.
+        status_filter accepts the semantic values: ``active``, ``deleted`` or ``all``.
         """
         if self._db is None:
             return []
@@ -161,9 +164,13 @@ class ProductQueryService(BaseQueryService):
             "FROM productos WHERE 1=1"
         )
         params: list[Any] = []
-        if int(status_filter) == 0:
+        normalized_status = (status_filter or "active").strip().lower()
+        allowed_statuses = {"active", "deleted", "all"}
+        if normalized_status not in allowed_statuses:
+            raise ValueError("status_filter must be one of: active, deleted, all")
+        if normalized_status == "active":
             query += " AND COALESCE(activo,1)=1"
-        elif int(status_filter) == 1:
+        elif normalized_status == "deleted":
             query += " AND COALESCE(activo,1)=0"
         if category:
             query += " AND categoria=?"
@@ -179,6 +186,10 @@ class ProductQueryService(BaseQueryService):
             logger.exception("Error listing product catalog rows")
             return []
         return [self._row_to_dict(row) for row in rows]
+
+    def type_labels_es(self) -> list[str]:
+        """Return Spanish product type labels for desktop UI widgets."""
+        return ProductTypePolicy.type_labels_es()
 
     def list_categories(self) -> list[str]:
         if self._db is None:

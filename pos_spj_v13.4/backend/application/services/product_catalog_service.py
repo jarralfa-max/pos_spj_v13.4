@@ -14,6 +14,89 @@ class ProductCatalogService:
     def __init__(self, db_conn: Any) -> None:
         self._db = db_conn
 
+
+    def create_product(self, command: Any) -> dict:
+        """Create a product through the canonical catalog service."""
+        if not getattr(command, "name", ""):
+            raise ValueError("product name is required")
+        cursor = self._db.cursor()
+        try:
+            cursor.execute(
+                """
+                INSERT INTO productos (
+                    nombre, codigo, codigo_barras, categoria, precio, precio_compra, precio_minimo_venta,
+                    unidad, stock_minimo, tipo_producto, es_compuesto, es_subproducto,
+                    imagen_path, existencia, oculto, activo
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+                """,
+                (
+                    command.name,
+                    command.code,
+                    command.barcode,
+                    command.category,
+                    float(command.price or 0),
+                    float(command.purchase_price or 0),
+                    float(command.minimum_sale_price or 0),
+                    command.unit,
+                    float(command.stock_minimum or 0),
+                    command.product_type,
+                    1 if command.is_composite else 0,
+                    1 if command.is_byproduct else 0,
+                    command.image_path,
+                    1 if command.active else 0,
+                ),
+            )
+            self._db.commit()
+        except Exception:
+            logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
+            try:
+                self._db.rollback()
+            except Exception:
+                logger.exception("Product catalog create rollback failed")
+            raise
+        return {"ok": True, "product_id": int(cursor.lastrowid), "operation_id": command.operation_id, "action": "create"}
+
+    def update_product(self, command: Any) -> dict:
+        """Update a product through the canonical catalog service."""
+        if int(getattr(command, "product_id", 0) or 0) <= 0:
+            raise ValueError("product_id is required")
+        try:
+            self._db.execute(
+                """
+                UPDATE productos SET
+                    nombre=?, codigo=?, codigo_barras=?, categoria=?, precio=?, precio_compra=?, precio_minimo_venta=?,
+                    unidad=?, stock_minimo=?, tipo_producto=?, es_compuesto=?, es_subproducto=?, activo=?,
+                    imagen_path=?, ultima_actualizacion=datetime('now')
+                WHERE id=?
+                """,
+                (
+                    command.name,
+                    command.code,
+                    command.barcode,
+                    command.category,
+                    float(command.price or 0),
+                    float(command.purchase_price or 0),
+                    float(command.minimum_sale_price or 0),
+                    command.unit,
+                    float(command.stock_minimum or 0),
+                    command.product_type,
+                    1 if command.is_composite else 0,
+                    1 if command.is_byproduct else 0,
+                    1 if command.active else 0,
+                    command.image_path,
+                    int(command.product_id),
+                ),
+            )
+            self._db.commit()
+        except Exception:
+            logger.exception("Product catalog update failed product_id=%s operation_id=%s", command.product_id, command.operation_id)
+            try:
+                self._db.rollback()
+            except Exception:
+                logger.exception("Product catalog update rollback failed product_id=%s", command.product_id)
+            raise
+        return {"ok": True, "product_id": int(command.product_id), "operation_id": command.operation_id, "action": "update"}
+
     def deactivate_product(self, product_id: int, operation_id: str, user_name: str = "") -> dict:
         """Soft-delete a product while preserving history."""
         return self._set_product_state(

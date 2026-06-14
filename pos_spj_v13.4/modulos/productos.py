@@ -31,11 +31,15 @@ from modulos.dialogs.receta_dialog import DialogoReceta
 from core.services.recipes.recipe_service import RecipeService
 from modulos.kpi_card import KPICard
 from core.services.product_catalog_query_service import get_product_configuration_kpis, get_catalog_filter_ids
+from backend.application.commands.product_commands import CreateProductCommand, UpdateProductCommand
 from backend.application.queries.product_query_service import ProductQueryService
 from backend.application.services.product_catalog_service import ProductCatalogService
 from backend.application.services.product_image_service import ProductImageService
+from backend.application.use_cases.create_product_use_case import CreateProductUseCase
 from backend.application.use_cases.deactivate_product_use_case import DeactivateProductCommand, DeactivateProductUseCase
 from backend.application.use_cases.restore_product_use_case import RestoreProductCommand, RestoreProductUseCase
+from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
+from backend.domain.services.product_type_policy import ProductTypePolicy
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +52,14 @@ class DialogoProducto(QDialog):
     def __init__(self, container, producto_id=None, parent=None):
         super().__init__(parent)
         self.container = container
+        self.db = container.db if hasattr(container, 'db') else container
         self.producto_id = producto_id
         self.ruta_imagen_actual = None
+        self.product_query_service = ProductQueryService.from_connection(self.db)
+        self.product_type_policy = ProductTypePolicy()
+        product_service = ProductCatalogService(self.db)
+        self.create_product_use_case = CreateProductUseCase(app_service=product_service)
+        self.update_product_use_case = UpdateProductUseCase(app_service=product_service)
         self._product_image_service = ProductImageService()
         
         self.setWindowTitle("Nuevo Producto" if not producto_id else f"Editar Producto #{producto_id}")
@@ -93,8 +103,7 @@ class DialogoProducto(QDialog):
         # ================= CAMPOS BASE =================
         
         self.cmb_tipo = QComboBox()
-        for label in self.product_query_service.type_labels_es():
-            self.cmb_tipo.addItem(label)
+        self.cmb_tipo.addItems(self.product_query_service.type_labels_es())
         self.cmb_tipo.currentTextChanged.connect(self.al_cambiar_tipo)
         
         self.txt_nombre = QLineEdit()
@@ -264,8 +273,7 @@ class DialogoProducto(QDialog):
     def cargar_categorias(self):
         """Carga las categorías únicas existentes mediante QueryService."""
         try:
-            product_query = ProductQueryService.from_connection(self.container.db)
-            for category in product_query.list_categories():
+            for category in self.product_query_service.list_categories():
                 self.cmb_categoria.addItem(category)
         except Exception:
             logger.exception("No se pudieron cargar categorías de productos")
@@ -425,7 +433,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
         self.sucursal_id = 1
         self.usuario_actual = ""
-        self._product_query = ProductQueryService.from_connection(self.conexion)
+        self.product_query_service = ProductQueryService.from_connection(self.conexion)
         self._product_catalog_service = ProductCatalogService(self.conexion)
         self._deactivate_product_uc = DeactivateProductUseCase(self._product_catalog_service)
         self._restore_product_uc = RestoreProductUseCase(self._product_catalog_service)
@@ -567,7 +575,9 @@ class ModuloProductos(QWidget, RefreshMixin):
 
         # v13.30: Filtro de estado
         self.cmb_filtro_estado = QComboBox()
-        self.cmb_filtro_estado.addItems(["✅ Activos", "❌ Eliminados", "📋 Todos"])
+        self.cmb_filtro_estado.addItem("✅ Activos", "active")
+        self.cmb_filtro_estado.addItem("❌ Eliminados", "deleted")
+        self.cmb_filtro_estado.addItem("📋 Todos", "all")
         self.cmb_filtro_estado.setMinimumWidth(130)
         self.cmb_filtro_estado.currentIndexChanged.connect(self.cargar_catalogo)
         
@@ -846,10 +856,10 @@ class ModuloProductos(QWidget, RefreshMixin):
 
         filtro_estado = "active"
         if hasattr(self, 'cmb_filtro_estado'):
-            filtro_estado = {0: "active", 1: "deleted", 2: "all"}.get(self.cmb_filtro_estado.currentIndex(), "active")
+            filtro_estado = self.cmb_filtro_estado.currentData() or "active"
 
         try:
-            rows = self._product_query.list_catalog_rows(
+            rows = self.product_query_service.list_catalog_rows(
                 search=busqueda,
                 category=filtro_cat,
                 status_filter=filtro_estado,
