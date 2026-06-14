@@ -260,20 +260,18 @@ class DialogoProducto(QDialog):
         self._actualizar_hint_tipo(tipo)
 
     def _actualizar_hint_tipo(self, tipo: str):
-        hints = {
-            "Simple": "Producto que se compra y vende directamente.",
-            "Compuesto": "Producto vendido como paquete/combo. Puede descontar componentes al venderse.",
-            "Procesable": "Producto que puede transformarse en subproductos. Ejemplo: pollo entero.",
-            "Subproducto": "Producto generado por un despiece o usado como componente de otros productos.",
-            "Producido": "Producto elaborado a partir de insumos o subproductos.",
-            "Insumo": "Producto usado como ingrediente/material.",
-            "Servicio": "No controla inventario físico.",
-        }
         if hasattr(self, "lbl_tipo_help"):
-            self.lbl_tipo_help.setText(hints.get(tipo, ""))
+            self.lbl_tipo_help.setText(self.product_query_service.type_help_es(tipo))
+        if all(hasattr(self, name) for name in ("chk_se_vende", "chk_es_inventariable", "chk_permite_receta", "chk_permite_stock_virtual", "chk_descuenta_componentes")):
+            rules = self.product_query_service.type_rules(tipo)
+            self.chk_se_vende.setChecked(bool(rules["is_sellable"]))
+            self.chk_es_inventariable.setChecked(bool(rules["is_inventory_tracked"]))
+            self.chk_permite_receta.setChecked(bool(rules["allows_recipe"]))
+            self.chk_permite_stock_virtual.setChecked(bool(rules["allows_virtual_stock"]))
+            self.chk_descuenta_componentes.setChecked(bool(rules["deducts_components_on_sale"]))
 
     def cargar_categorias(self):
-        """Carga las categorías únicas existentes."""
+        """Carga las categorías únicas existentes mediante QueryService."""
         try:
             for category in self.product_query_service.list_categories():
                 self.cmb_categoria.addItem(category)
@@ -304,215 +302,115 @@ class DialogoProducto(QDialog):
         self.lbl_imagen.setText("Sin Imagen")
 
     def cargar_datos_producto(self):
-        """Si estamos editando, carga los datos actuales del producto."""
+        """Si estamos editando, carga los datos actuales del producto mediante QueryService."""
         try:
-            cursor = self.container.db.cursor()
-            prod = cursor.execute("SELECT * FROM productos WHERE id = ?", (self.producto_id,)).fetchone()
-            if prod:
-                p = dict(prod)
+            p = self.product_query_service.get_product(self.producto_id)
+            if p:
                 self.txt_nombre.setText(p.get('nombre', ''))
                 self.txt_codigo.setText(p.get('codigo', ''))
                 self.txt_codigo_barras.setText(p.get('codigo_barras', ''))
                 self.cmb_categoria.setCurrentText(p.get('categoria', ''))
-                self.txt_precio.setValue(p.get('precio', 0.0))
-                self.txt_costo.setValue(p.get('precio_compra', 0.0) or p.get('costo', 0.0))
+                self.txt_precio.setValue(float(p.get('precio') or 0.0))
+                self.txt_costo.setValue(float(p.get('precio_compra') or p.get('costo') or 0.0))
                 self.cmb_unidad.setCurrentText(p.get('unidad', 'pza'))
                 self.cmb_unidad_venta.setCurrentText(p.get('unidad_venta', p.get('unidad', 'pza')))
                 self.cmb_unidad_compra.setCurrentText(p.get('unidad_compra', p.get('unidad', 'pza')))
                 self.cmb_estado.setCurrentText("Activo" if int(p.get('activo', 1) or 1) == 1 else "Inactivo")
-                self.txt_stock_minimo.setValue(p.get('stock_minimo', 0.0))
-                
-                tipo = p.get('tipo_producto', 'simple')
-                if p.get('es_compuesto'): tipo = "Compuesto"
-                if p.get('es_subproducto'): tipo = "Subproducto"
-                self.cmb_tipo.setCurrentText(tipo.capitalize())
+                self.txt_stock_minimo.setValue(float(p.get('stock_minimo') or 0.0))
+                if hasattr(self, "txt_precio_minimo"):
+                    self.txt_precio_minimo.setValue(float(p.get('precio_minimo_venta') or 0.0))
+
+                rules = ProductTypePolicy.rules_for(p.get('tipo_producto'))
+                self.cmb_tipo.setCurrentText(rules.label_es)
                 self._actualizar_hint_tipo(self.cmb_tipo.currentText())
 
-                existencia = p.get('existencia', 0.0) or 0.0
+                existencia = float(p.get('existencia') or 0.0)
                 self.lbl_stock_fisico.setText(f"Stock físico actual: {existencia:.3f} {self.cmb_unidad.currentText()}")
                 self.lbl_disponible_venta.setText(f"Disponible venta: {existencia:.3f} {self.cmb_unidad.currentText()}")
-                
+
                 self.ruta_imagen_actual = p.get('imagen_path')
                 self.mostrar_imagen_previa(self.ruta_imagen_actual)
         except Exception as e:
             logger.error(f"Error cargando producto {self.producto_id}: {e}")
 
     def _auto_calcular_precio_minimo(self) -> None:
-        """Auto-calcula el precio mínimo como costo × (1 + margen_objetivo%)."""
-        try:
-            costo = self.txt_costo.value()
-            if costo > 0 and hasattr(self, 'txt_precio_minimo'):
-                # Get margen_objetivo from DB or default to 30%
-                margen = 30.0
-                try:
-                    r = self.container.db.execute(
-                        "SELECT COALESCE(AVG(margen_objetivo_pct),30) FROM productos WHERE id=?",
-                        (self.producto_id or 0,)).fetchone()
-                    if r and r[0]: margen = float(r[0])
-                except Exception:
-                    pass
-                precio_min = round(costo * (1 + margen / 100), 2)
-                # Only auto-set if currently empty or lower than cost
-                current = self.txt_precio_minimo.value()
-                if current < costo:
-                    self.txt_precio_minimo.setValue(precio_min)
-        except Exception:
-            pass
+        """Reservado para SystemSettingsService; no aplica defaults numéricos arbitrarios."""
+        return
 
     def guardar_producto(self):
         nombre = self.txt_nombre.text().strip()
-        precio = self.txt_precio.value()
-        
         if not nombre:
             QMessageBox.warning(self, "Validación", "El nombre es obligatorio.")
             return
-            
-        tipo = self.cmb_tipo.currentText()
-        tipo_str = (tipo or "Simple").strip().lower()
-        es_compuesto = 1 if tipo_str == "compuesto" else 0
-        es_subproducto = 1 if tipo_str == "subproducto" else 0
 
-        # codigo_val must be defined before the if/else so both branches can use it
-        codigo_val = self.txt_codigo.text().strip() or None
+        duplicate = self.product_query_service.find_duplicate_name(
+            nombre, exclude_product_id=self.producto_id if self.producto_id else None
+        )
+        allow_duplicate_name = False
+        if duplicate:
+            resp = QMessageBox.question(
+                self, "⚠️ Producto similar existe",
+                f"Ya existe un producto activo con el nombre '{nombre}'\n"
+                f"(Código: {duplicate.get('codigo')}, ID: {duplicate.get('id')})\n\n"
+                "¿Deseas guardarlo de todas formas?",
+                QMessageBox.Yes | QMessageBox.No)
+            if resp != QMessageBox.Yes:
+                return
+            allow_duplicate_name = True
 
-        # v13.30: Auto-generar código único si está vacío
-        if not codigo_val:
-            import uuid as _uuid
-            codigo_val = f"P-{_uuid.uuid4().hex[:8].upper()}"
+        command_kwargs = dict(
+            operation_id=f"product-{uuid4()}",
+            branch_id=str(getattr(self.container, 'sucursal_id', 1)),
+            user_name=getattr(self, "usuario_actual", "Sistema") or "Sistema",
+            name=nombre,
+            sku=self.txt_codigo.text().strip() or None,
+            barcode=self.txt_codigo_barras.text().strip(),
+            category=self.cmb_categoria.currentText().strip(),
+            sale_price=self.txt_precio.value(),
+            purchase_price=self.txt_costo.value(),
+            minimum_sale_price=getattr(self, "txt_precio_minimo", type("x", (), {"value": lambda s: 0.0})()).value(),
+            unit=self.cmb_unidad.currentText(),
+            sale_unit=self.cmb_unidad_venta.currentText(),
+            purchase_unit=self.cmb_unidad_compra.currentText(),
+            minimum_stock=self.txt_stock_minimo.value(),
+            product_type=ProductTypePolicy.normalize(self.cmb_tipo.currentText()),
+            image_path=self.ruta_imagen_actual,
+            active=(self.cmb_estado.currentText() == "Activo"),
+            allow_duplicate_name=allow_duplicate_name,
+        )
+        command = (
+            UpdateProductCommand(product_id=self.producto_id, **command_kwargs)
+            if self.producto_id
+            else CreateProductCommand(**command_kwargs)
+        )
+        result = (
+            self.update_product_use_case.execute(command)
+            if self.producto_id
+            else self.create_product_use_case.execute(command)
+        )
+        if not result.success:
+            if result.message == "PRODUCT_SKU_DUPLICATE":
+                QMessageBox.warning(self, "Código duplicado", "El código capturado ya está en uso por otro producto.")
+                return
+            QMessageBox.critical(self, "No se pudo guardar", "No fue posible guardar el producto. Revise la información e intente nuevamente.")
+            return
 
-        try:
-            cursor = self.container.db.cursor()
-            if self.producto_id:
-                # UPDATE — check for duplicate codigo (excluding self)
-                if codigo_val:
-                    existing = cursor.execute(
-                        "SELECT id FROM productos WHERE codigo=? AND id!=?",
-                        (codigo_val, self.producto_id)
-                    ).fetchone()
-                    if existing:
-        # [spj-dedup removed local QMessageBox import]
-                        QMessageBox.warning(self, "Código duplicado",
-                            f"El código '{codigo_val}' ya está en uso por otro producto.")
-                        return
-                query = """
-                    UPDATE productos SET 
-                        nombre=?, codigo=?, codigo_barras=?, categoria=?, precio=?, precio_compra=?, precio_minimo_venta=?, 
-                        unidad=?, stock_minimo=?, tipo_producto=?, es_compuesto=?, es_subproducto=?, activo=?,
-                        imagen_path=?, ultima_actualizacion=datetime('now')
-                    WHERE id=?
-                """
-                cursor.execute(query, (
-                    nombre, codigo_val, self.txt_codigo_barras.text(), self.cmb_categoria.currentText(),
-                    precio, self.txt_costo.value(), getattr(self, "txt_precio_minimo", type("x", (), {"value": lambda s: 0})()).value(), self.cmb_unidad.currentText(), self.txt_stock_minimo.value(),
-                    tipo_str, es_compuesto, es_subproducto, (1 if self.cmb_estado.currentText() == "Activo" else 0), self.ruta_imagen_actual, self.producto_id
-                ))
-            else:
-                # INSERT
-                # v13.30: Verificar duplicado por código
-                existing = cursor.execute(
-                    "SELECT id, nombre FROM productos WHERE codigo=?", (codigo_val,)
-                ).fetchone()
-                if existing:
-                    QMessageBox.warning(
-                        self, "Código duplicado",
-                        f"El código '{codigo_val}' ya existe (Producto: {existing[1]}).\n"
-                        "Usa un código diferente o deja el campo vacío para autogenerar."
-                    )
-                    return
+        if result.data.get("recipe_pending"):
+            QMessageBox.information(
+                self, "Receta pendiente",
+                "El producto fue guardado con receta permitida.\n\n"
+                "⚠️  Aún no tiene una receta activa.\n"
+                "Administra la receta desde Productos > Receta antes de procesarlo en ventas o producción.")
 
-                # v13.30: Verificar duplicado por nombre (evitar productos repetidos)
-                dup_nombre = cursor.execute(
-                    "SELECT id, codigo FROM productos WHERE LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND activo=1",
-                    (nombre,)
-                ).fetchone()
-                if dup_nombre:
-                    resp = QMessageBox.question(
-                        self, "⚠️ Producto similar existe",
-                        f"Ya existe un producto activo con el nombre '{nombre}'\n"
-                        f"(Código: {dup_nombre[1]}, ID: {dup_nombre[0]})\n\n"
-                        "¿Deseas guardarlo de todas formas?",
-                        QMessageBox.Yes | QMessageBox.No)
-                    if resp != QMessageBox.Yes:
-                        return
-
-                query = """
-                    INSERT INTO productos (
-                        nombre, codigo, codigo_barras, categoria, precio, precio_compra, 
-                        unidad, stock_minimo, tipo_producto, es_compuesto, es_subproducto, 
-                        imagen_path, existencia, oculto, activo
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 1)
-                """
-                cursor.execute(query, (
-                    nombre, codigo_val, self.txt_codigo_barras.text().strip(), self.cmb_categoria.currentText(),
-                    precio, self.txt_costo.value(), self.cmb_unidad.currentText(), self.txt_stock_minimo.value(),
-                    tipo_str, es_compuesto, es_subproducto, self.ruta_imagen_actual
-                ))
-                
-            # ── Validate composite product has a recipe ──────────────────────────
-            if es_compuesto:
-                nuevo_id = self.producto_id
-                if not nuevo_id:
-                    row_id = cursor.execute("SELECT last_insert_rowid()").fetchone()
-                    nuevo_id = row_id[0] if row_id else None
-                if nuevo_id:
-                    rec = self.container.db.execute(
-                        "SELECT id FROM product_recipes WHERE base_product_id=? AND is_active=1",
-                        (nuevo_id,)).fetchone()
-                    if not rec:
-                        from PyQt5.QtWidgets import QMessageBox as _QMB
-                        _QMB.information(
-                            self, "Receta pendiente",
-                            "El producto fue guardado como compuesto.\n\n"
-                            "⚠️  Aún no tiene una receta activa.\n"
-                            "Administra la receta desde Productos > Receta "
-                            "antes de procesarlo en ventas o producción.")
-
-            self.container.db.commit()
-
-            # Registrar en Auditoría
-            if hasattr(self.container, 'audit_service'):
-                accion = "ACTUALIZAR_PRODUCTO" if self.producto_id else "CREAR_PRODUCTO"
-                self.container.audit_service.log_change(
-                    usuario="Sistema", accion=accion, modulo="PRODUCTOS",
-                    entidad="productos", entidad_id=str(self.producto_id)
-                )
-
-            # Publicar al EventBus — actualiza dashboard y sugerencias de forma reactiva
-            try:
-                from core.events.event_bus import get_bus
-                get_bus().publish(
-                    "PRODUCTO_MODIFICADO",
-                    {
-                        "producto_id": self.producto_id,
-                        "nombre": nombre,
-                        "precio": precio,
-                        "sucursal_id": getattr(self.container, 'sucursal_id', 1),
-                        "accion": "actualizar" if self.producto_id else "crear",
-                    }
-                )
-            except Exception:
-                pass  # EventBus opcional — no bloquea el guardado
-
-            # EventBus: notificar cambio de producto
-            try:
-                from core.events.event_bus import get_bus, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO
-                evento = PRODUCTO_ACTUALIZADO if self.producto_id else PRODUCTO_CREADO
-                get_bus().publish(evento, {
-                    "producto_id": self.producto_id,
-                    "nombre":      nombre,
-                    "precio":      precio,
-                }, async_=True)
-            except Exception: pass
-
-            self.accept()
-    
-        except Exception as e:
-            self.container.db.rollback()
-            logger.exception("productos.guardar")
-            QMessageBox.critical(
-                self, "No se pudo guardar",
-                "No fue posible guardar el producto. Revise la información e intente nuevamente."
+        if hasattr(self.container, 'audit_service'):
+            accion = "ACTUALIZAR_PRODUCTO" if self.producto_id else "CREAR_PRODUCTO"
+            self.container.audit_service.log_change(
+                usuario="Sistema", accion=accion, modulo="PRODUCTOS",
+                entidad="productos", entidad_id=str(result.entity_id)
             )
+
+        self.producto_id = int(result.entity_id) if result.entity_id and str(result.entity_id).isdigit() else self.producto_id
+        self.accept()
 
 # ==============================================================================
 # MODULO PRINCIPAL (Centro de Productos y Producción)
@@ -532,6 +430,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.container = container # 🧠 Recibimos el Cerebro
         # Extraemos la db para mantener compatibilidad si algo lo requiere
         self.conexion = container.db if hasattr(container, 'db') else container
+        self.product_query_service = ProductQueryService.from_connection(self.conexion)
         self.sucursal_id = 1
         self.usuario_actual = ""
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
@@ -669,12 +568,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.cmb_filtro_cat.setMinimumWidth(140)
         self.cmb_filtro_cat.currentIndexChanged.connect(self.cargar_catalogo)
         try:
-            db = self.container.db if hasattr(self.container, 'db') else self.conexion
-            cats = db.execute(
-                "SELECT DISTINCT categoria FROM productos WHERE categoria IS NOT NULL AND categoria!='' ORDER BY categoria"
-            ).fetchall()
-            for r in cats:
-                self.cmb_filtro_cat.addItem(r[0])
+            for category in self.product_query_service.list_categories():
+                self.cmb_filtro_cat.addItem(category)
         except Exception:
             pass
 
@@ -789,9 +684,10 @@ class ModuloProductos(QWidget, RefreshMixin):
             return None
         try:
             pid = int(self.tabla_productos.item(row, 0).text())
-            db = self.container.db if hasattr(self.container, 'db') else self.conexion
-            r = db.execute("SELECT id,nombre,tipo_producto FROM productos WHERE id=?", (pid,)).fetchone()
-            return dict(r) if r else None
+            p = self.product_query_service.get_product(pid)
+            if not p:
+                return None
+            return {"id": p.get("id"), "nombre": p.get("nombre"), "tipo_producto": p.get("tipo_producto")}
         except Exception:
             return None
 
@@ -952,7 +848,6 @@ class ModuloProductos(QWidget, RefreshMixin):
             self._loading_catalogo.show()
         busqueda = self.txt_buscar_prod.text().strip()
 
-        # v13.30: Leer filtros
         filtro_cat = ""
         if hasattr(self, 'cmb_filtro_cat'):
             cat_text = self.cmb_filtro_cat.currentText()
@@ -983,31 +878,24 @@ class ModuloProductos(QWidget, RefreshMixin):
             for row_idx, row_data in enumerate(rows):
                 self.tabla_productos.insertRow(row_idx)
                 prod_id = row_data['id']
-                activo = int(row_data['activo']) if 'activo' in row_data.keys() else 1
+                activo = int(row_data.get('activo', 1) or 1)
                 is_deleted = not activo
 
-                # Color de fondo para productos eliminados
                 bg_color = _QC(Colors.DANGER.BG_SOFT) if is_deleted else None
 
                 self.tabla_productos.setItem(row_idx, 0, QTableWidgetItem(str(prod_id)))
-                self.tabla_productos.setItem(row_idx, 1, QTableWidgetItem(str(row_data['codigo'] or '')))
-                self.tabla_productos.setItem(row_idx, 2, QTableWidgetItem(
-                    str(row_data['codigo_barras'] if 'codigo_barras' in row_data.keys() else '')))
-                self.tabla_productos.setItem(row_idx, 3, QTableWidgetItem(str(row_data['nombre'])))
-                self.tabla_productos.setItem(row_idx, 4, QTableWidgetItem(str(row_data['categoria'] or '')))
-                self.tabla_productos.setItem(row_idx, 5, QTableWidgetItem(f"${row_data['precio']:.2f}"))
-                self.tabla_productos.setItem(row_idx, 6, QTableWidgetItem(f"{row_data['existencia']:.3f}"))
+                self.tabla_productos.setItem(row_idx, 1, QTableWidgetItem(str(row_data.get('codigo') or '')))
+                self.tabla_productos.setItem(row_idx, 2, QTableWidgetItem(str(row_data.get('codigo_barras') or '')))
+                self.tabla_productos.setItem(row_idx, 3, QTableWidgetItem(str(row_data.get('nombre') or '')))
+                self.tabla_productos.setItem(row_idx, 4, QTableWidgetItem(str(row_data.get('categoria') or '')))
+                self.tabla_productos.setItem(row_idx, 5, QTableWidgetItem(f"${float(row_data.get('precio') or 0):.2f}"))
+                self.tabla_productos.setItem(row_idx, 6, QTableWidgetItem(f"{float(row_data.get('existencia') or 0):.3f}"))
 
-                # v13.30: Estado con color y texto claro
                 estado_txt = "✅ Activo" if activo else "❌ Eliminado"
                 estado_item = QTableWidgetItem(estado_txt)
-                if is_deleted:
-                    estado_item.setForeground(_QC(Colors.DANGER_HOVER))
-                else:
-                    estado_item.setForeground(_QC(Colors.SUCCESS_BASE))
+                estado_item.setForeground(_QC(Colors.SUCCESS_BASE if activo else Colors.DANGER_HOVER))
                 self.tabla_productos.setItem(row_idx, 7, estado_item)
 
-                # v13.30: Colorear toda la fila si está eliminado
                 if bg_color:
                     for ci in range(8):
                         it = self.tabla_productos.item(row_idx, ci)
@@ -1015,7 +903,6 @@ class ModuloProductos(QWidget, RefreshMixin):
                             it.setBackground(bg_color)
                             it.setForeground(_QC(Colors.NEUTRAL.SLATE_400))
 
-                # ── Acciones ──────────────────────────────────────────────
                 _cell = _QW(); _lay = _HL(_cell)
                 _lay.setContentsMargins(2, 2, 2, 2); _lay.setSpacing(2)
 
@@ -1025,33 +912,27 @@ class ModuloProductos(QWidget, RefreshMixin):
                 _lay.addWidget(btn_editar)
 
                 if activo:
-                    # Producto activo: ocultar + eliminar
                     btn_toggle = create_table_button(self, "🙈", "Ocultar del POS", "warning")
                     btn_toggle.setFixedSize(28, 26)
-                    btn_toggle.clicked.connect(
-                        lambda _, pid=prod_id, a=activo: self._toggle_activo(pid, a))
+                    btn_toggle.clicked.connect(lambda _, pid=prod_id, a=activo: self._toggle_activo(pid, a))
                     _lay.addWidget(btn_toggle)
 
                     btn_del = create_table_button(self, "🗑️", "Eliminar (soft delete)", "danger")
                     btn_del.setFixedSize(28, 26)
-                    btn_del.clicked.connect(
-                        lambda _, pid=prod_id, nom=row_data['nombre']: self.eliminar_producto(pid, nom))
+                    btn_del.clicked.connect(lambda _, pid=prod_id, nom=row_data.get('nombre', ''): self.eliminar_producto(pid, nom))
                     _lay.addWidget(btn_del)
                 else:
                     btn_restaurar = create_table_button(self, "♻️", "Restaurar producto", "success")
                     btn_restaurar.setFixedSize(28, 26)
-                    btn_restaurar.clicked.connect(
-                        lambda _, pid=prod_id, nom=row_data['nombre']: self._restaurar_producto(pid, nom))
+                    btn_restaurar.clicked.connect(lambda _, pid=prod_id, nom=row_data.get('nombre', ''): self._restaurar_producto(pid, nom))
                     _lay.addWidget(btn_restaurar)
 
                 self.tabla_productos.setCellWidget(row_idx, 8, _cell)
 
-            # v13.30: Actualizar conteo
             if hasattr(self, 'lbl_conteo'):
                 total = len(rows)
-                activos = sum(1 for r in rows if int(r['activo'] if 'activo' in r.keys() else 1))
-                self.lbl_conteo.setText(
-                    f"Mostrando {total} productos ({activos} activos, {total - activos} eliminados)")
+                activos = sum(1 for r in rows if int(r.get('activo', 1) or 1))
+                self.lbl_conteo.setText(f"Mostrando {total} productos ({activos} activos, {total - activos} eliminados)")
             if hasattr(self, "_empty_catalogo"):
                 self._empty_catalogo.setVisible(len(rows) == 0)
             self._refresh_kpi_productos()

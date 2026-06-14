@@ -22,12 +22,69 @@ from PyQt5.QtCore import Qt
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_secondary_button,
 )
+from frontend.desktop.components.search_selector import SearchOption, SearchSelector
 from repositories.recetas import (
     RecetaError, RecetaCyclicError, RecetaSelfReferenceError,
     RecetaPercentageError, RecetaDuplicadaError,
 )
 
 logger = logging.getLogger("spj.ui.dialogs.receta")
+
+
+class _RecipeProductSelector(SearchSelector):
+    """SearchSelector adapter for recipe product selection."""
+
+    def __init__(self, productos: List[Dict], parent=None, *, placeholder: str) -> None:
+        self._productos = productos
+        self._selected_id = None
+        self._selected_label = ""
+        super().__init__(parent, provider=self._provide, placeholder=placeholder)
+        self.selected.connect(self._on_selected)
+
+    def _provide(self, query: str):
+        text = (query or "").strip().lower()
+        matches = []
+        for product in self._productos:
+            label = str(product.get("nombre") or "")
+            code = str(product.get("codigo") or "")
+            if text and text not in label.lower() and text not in code.lower():
+                continue
+            matches.append(SearchOption(
+                id=str(product.get("id")),
+                label=label,
+                subtitle=str(product.get("unidad") or "kg"),
+            ))
+            if len(matches) >= 50:
+                break
+        return matches
+
+    def _on_selected(self, option: SearchOption) -> None:
+        self._selected_id = int(option.id) if str(option.id).isdigit() else option.id
+        self._selected_label = option.label
+        self.set_selected_label(option.label)
+
+    def currentData(self):
+        return self._selected_id
+
+    def currentText(self):
+        return self._selected_label
+
+    def findData(self, value):
+        for index, product in enumerate(self._productos):
+            if product.get("id") == value:
+                return index
+        return -1
+
+    def setCurrentIndex(self, index: int) -> None:
+        if index < 0 or index >= len(self._productos):
+            return
+        product = self._productos[index]
+        self._selected_id = product.get("id")
+        self._selected_label = str(product.get("nombre") or "")
+        self.set_selected_label(self._selected_label)
+
+    def addItem(self, *_args, **_kwargs) -> None:
+        return
 
 
 class DialogoReceta(QDialog):
@@ -69,12 +126,9 @@ class DialogoReceta(QDialog):
         self._e_nombre = QLineEdit()
         self._e_nombre.setPlaceholderText("Nombre de la receta…")
 
-        self._combo_base = QComboBox()
-        self._combo_base.addItem("— Seleccionar producto base —", None)
-        for p in self._productos:
-            self._combo_base.addItem(
-                f"{p['nombre']} [{p.get('unidad', 'kg')}]", p["id"]
-            )
+        self._combo_base = _RecipeProductSelector(
+            self._productos, self, placeholder="Buscar producto base…"
+        )
 
         self._combo_tipo_receta = QComboBox()
         self._combo_tipo_receta.addItem("SUBPRODUCTO — Para productos procesables", "SUBPRODUCTO")
@@ -105,10 +159,9 @@ class DialogoReceta(QDialog):
 
         # Add-component row
         add_row = QHBoxLayout()
-        self._combo_comp = QComboBox()
-        self._combo_comp.addItem("— Componente —", None)
-        for p in self._productos:
-            self._combo_comp.addItem(p["nombre"], p["id"])
+        self._combo_comp = _RecipeProductSelector(
+            self._productos, self, placeholder="Buscar componente…"
+        )
 
         self._spin_rend = QDoubleSpinBox()
         self._spin_rend.setRange(0, 100); self._spin_rend.setDecimals(3); self._spin_rend.setSuffix(" %")
