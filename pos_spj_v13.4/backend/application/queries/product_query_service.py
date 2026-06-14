@@ -126,6 +126,8 @@ logger = logging.getLogger("spj.products.query")
 
 logger = logging.getLogger("spj.products.query")
 
+logger = logging.getLogger("spj.products.query")
+
 
 class ProductQueryService(BaseQueryService):
     scope = "products"
