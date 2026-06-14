@@ -1,0 +1,96 @@
+{
+  "module": "CONFIGURACION",
+  "batch": "CONFIGURACION-01-SCOPE",
+  "status": "DONE",
+  "skill_authority": "docs/skills/SPJ_REFACTOR_SKILL.md",
+  "canonical_owner": "Configuración owns global system settings, module enablement, company/branch administration, permissions administration, SMTP/payment-provider settings, monthly closing settings, Happy Hour rule administration, hardware settings entrypoints, and UI/theme preferences.",
+  "canonical_files": [
+    "modulos/configuracion.py",
+    "core/services/configuration_settings_service.py",
+    "repositories/config_repository.py",
+    "core/module_config.py",
+    "core/services/config_service.py",
+    "modulos/config_hardware.py",
+    "modulos/config_interfaz.py",
+    "modulos/config_modules.py",
+    "core/repositories/hardware_config_repository.py",
+    "backend/application/queries/hardware_settings_query_service.py",
+    "backend/application/queries/ticket_settings_query_service.py",
+    "migrations/m050_hardware_config_canonical.py",
+    "migrations/standalone/096_configuration_services_schema.py"
+  ],
+  "shared_dependencies": [
+    {
+      "path": "core/repositories/whatsapp_config_repository.py",
+      "owner": "WHATSAPP",
+      "configuration_scope": "Shared configuration repository consumed by WhatsApp-specific panels and credentials; Configuración may expose navigation but must not own WhatsApp business rules."
+    },
+    {
+      "path": "modulos/ticket_designer.py",
+      "owner": "TICKETS",
+      "configuration_scope": "Ticket layout and print-template configuration belongs to Tickets; Configuración only owns official business identity values consumed by ticket rendering."
+    },
+    {
+      "path": "modulos/fidelidad_config.py",
+      "owner": "FIDELIDAD",
+      "configuration_scope": "Loyalty program settings belong to Fidelidad even if persisted in configuraciones."
+    },
+    {
+      "path": "modulos/rrhh_turnos.py",
+      "owner": "RRHH",
+      "configuration_scope": "Shift notification settings belong to RRHH even if persisted in configuraciones."
+    }
+  ],
+  "owned_capabilities": [
+    "General settings readiness and key/value persistence through SystemSettingsService and ConfigRepository.",
+    "Module enablement toggles through ModuleSettingsService and core/module_config.py.",
+    "Company profile, branches and delivery profile administration through CompanyProfileService.",
+    "SMTP, Mercado Pago and security setting forms through SettingsApplicationService, EmailSettingsService and PaymentProviderSettingsService.",
+    "Monthly closing administration through ClosingPeriodService.",
+    "Happy Hour rule administration through HappyHourSettingsService while pricing execution remains outside Configuración.",
+    "User, role and permission administration through UserManagementService, RoleManagementService, PermissionQueryService and ModuleAccessService.",
+    "Hardware setup UI and canonical hardware config repository/query services for devices consumed by other modules.",
+    "Theme/UI preferences and module availability UI."
+  ],
+  "scope_findings": [
+    {
+      "id": "CFG-SCOPE-001",
+      "severity": "INFO",
+      "description": "ConfigRepository is the remaining SQL boundary for Configuración; direct SQL in PyQt is not part of the accepted scope.",
+      "next_batch": "CONFIGURACION-04-QUERIES"
+    },
+    {
+      "id": "CFG-SCOPE-002",
+      "severity": "FOLLOW_UP",
+      "description": "Identity issues such as int branch ids, uuid4 operation ids and lastrowid returns are in scope but assigned to CONFIGURACION-02-IDENTITY.",
+      "next_batch": "CONFIGURACION-02-IDENTITY"
+    },
+    {
+      "id": "CFG-SCOPE-003",
+      "severity": "FOLLOW_UP",
+      "description": "Commit/rollback ownership and repository transaction boundaries are in scope but assigned to CONFIGURACION-08-TRANSACTIONS.",
+      "next_batch": "CONFIGURACION-08-TRANSACTIONS"
+    }
+  ],
+  "out_of_scope_candidates": [
+    "WhatsApp-specific credentials, webhook diagnostics and AI intent settings beyond shared configuration keys.",
+    "Ticket template design and print layout editing beyond official company identity values.",
+    "Loyalty and birthday/referral program rules beyond generic settings storage.",
+    "RRHH shift-notification content beyond generic settings storage."
+  ],
+  "protections": [
+    "tests/architecture/test_configuracion_scope.py"
+  ],
+  "negative_searches": [
+    {
+      "pattern": "modulos/configuracion.py outside package root",
+      "result": 0
+    },
+    {
+      "pattern": "docs/refactor outside package root",
+      "result": 0
+    }
+  ],
+  "remaining_scope_violations": 0,
+  "next_batch": "CONFIGURACION-02-IDENTITY"
+}
