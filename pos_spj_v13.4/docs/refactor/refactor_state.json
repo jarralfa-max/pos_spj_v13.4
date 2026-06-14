@@ -1,0 +1,338 @@
+{
+  "schema_version": 1,
+  "skill_version": "uuidv7-strict",
+  "global_status": "IN_PROGRESS",
+  "current_module": "UUIDV7_CUTOVER",
+  "global_iteration": 0,
+  "last_completed_module": null,
+  "modules": {
+    "UUIDV7_CUTOVER": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/UUIDV7_CUTOVER_REPORT.md"
+    },
+    "CONFIGURACION": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/configuracion.md"
+    },
+    "MERMA": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/merma.md"
+    },
+    "PRODUCTOS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/productos.md"
+    },
+    "INVENTARIO": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/inventario.md"
+    },
+    "VENTAS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/ventas.md"
+    },
+    "PROCESAMIENTO_CARNICO": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/procesamiento_carnico.md"
+    },
+    "RECETAS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/recetas.md"
+    },
+    "PRODUCCION": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/produccion.md"
+    },
+    "TRANSFERENCIAS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/transferencias.md"
+    },
+    "COMPRAS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/compras.md"
+    },
+    "RECEPCION": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/recepcion.md"
+    },
+    "PLANEACION_COMPRAS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/planeacion_compras.md"
+    },
+    "COTIZACIONES": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/cotizaciones.md"
+    },
+    "PEDIDOS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/pedidos.md"
+    },
+    "DELIVERY": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/delivery.md"
+    },
+    "WHATSAPP": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/whatsapp.md"
+    },
+    "CLIENTES": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/clientes.md"
+    },
+    "PROVEEDORES": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/proveedores.md"
+    },
+    "CAJA": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/caja.md"
+    },
+    "FINANZAS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/finanzas.md"
+    },
+    "CUENTAS_COBRAR": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/cuentas_cobrar.md"
+    },
+    "CUENTAS_PAGAR": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/cuentas_pagar.md"
+    },
+    "ACTIVOS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/activos.md"
+    },
+    "MANTENIMIENTO": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/mantenimiento.md"
+    },
+    "RRHH": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/rrhh.md"
+    },
+    "FIDELIDAD": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/fidelidad.md"
+    },
+    "TARJETAS_FIDELIDAD": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/tarjetas_fidelidad.md"
+    },
+    "PROMOCIONES": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/promociones.md"
+    },
+    "TICKETS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/tickets.md"
+    },
+    "ETIQUETAS": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/etiquetas.md"
+    },
+    "HARDWARE": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/hardware.md"
+    },
+    "NOTIFICACIONES": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/notificaciones.md"
+    },
+    "DASHBOARD": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/dashboard.md"
+    },
+    "BI": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/bi.md"
+    },
+    "REPORTES": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/reportes.md"
+    },
+    "API": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/api.md"
+    },
+    "SINCRONIZACION": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/sincronizacion.md"
+    },
+    "INSTALADOR": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/instalador.md"
+    },
+    "ACTUALIZADOR": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/actualizador.md"
+    },
+    "CIERRE_GLOBAL": {
+      "status": "PENDING",
+      "iteration": 0,
+      "score": 0,
+      "open_violations": null,
+      "tests_failed": null,
+      "report": "docs/refactor/modules/cierre_global.md"
+    }
+  }
+}
