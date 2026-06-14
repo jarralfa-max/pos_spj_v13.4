@@ -1,0 +1,5776 @@
+{
+  "phase": "UUIDV7_CUTOVER",
+  "batch": "UUID-02-SCHEMA_GRAPH",
+  "status": "IN_PROGRESS",
+  "summary": {
+    "files_scanned": 106,
+    "files_with_schema_signals": 78,
+    "tables_detected": 382,
+    "foreign_keys_detected": 53,
+    "id_columns_detected": 792,
+    "integer_pk_autoincrement_files": [
+      "migrations/093_create_delivery_core.sql",
+      "migrations/094_add_delivery_outbox.sql",
+      "migrations/engine.py",
+      "migrations/m000_base_schema.py",
+      "migrations/m050_hardware_config_canonical.py",
+      "migrations/standalone/016_concurrency_events.py",
+      "migrations/standalone/023_enterprise_upgrade.py",
+      "migrations/standalone/024_enterprise_blocks_5_8.py",
+      "migrations/standalone/025_sync_batch_log.py",
+      "migrations/standalone/026_final_structural_hardening.py",
+      "migrations/standalone/027_inventory_hardening.py",
+      "migrations/standalone/028_sales_transaction_hardening.py",
+      "migrations/standalone/029_reversals_hardening.py",
+      "migrations/standalone/030_recetas_industriales.py",
+      "migrations/standalone/031_inventory_engine.py",
+      "migrations/standalone/032_bi_tables.py",
+      "migrations/standalone/032_meat_production.py",
+      "migrations/standalone/033_demand_forecast.py",
+      "migrations/standalone/035_finance_erp.py",
+      "migrations/standalone/036_whatsapp_rasa.py",
+      "migrations/standalone/038_transfer_suggestions.py",
+      "migrations/standalone/040_qr_reception.py",
+      "migrations/standalone/041_notification_inbox.py",
+      "migrations/standalone/042_whatsapp_multicanal.py",
+      "migrations/standalone/043_price_history.py",
+      "migrations/standalone/044_cotizaciones.py",
+      "migrations/standalone/046_comisiones_happy_hour.py",
+      "migrations/standalone/047_v13_schema.py",
+      "migrations/standalone/049_v134_intelligent_erp.py",
+      "migrations/standalone/050_wa_integration.py",
+      "migrations/standalone/051_fix_kpi_snapshots.py",
+      "migrations/standalone/052_financial_event_log.py",
+      "migrations/standalone/053_meat_production_tables.py",
+      "migrations/standalone/056_print_job_log.py",
+      "migrations/standalone/057_loyalty_ledger_unificado.py",
+      "migrations/standalone/058_scan_event_log.py",
+      "migrations/standalone/059_plan_cuentas.py",
+      "migrations/standalone/060_depreciacion_acumulada.py",
+      "migrations/standalone/062_bi_analytics_tables.py",
+      "migrations/standalone/063_audit_log_table.py",
+      "migrations/standalone/066_erp_financial_model.py",
+      "migrations/standalone/067_meat_erp_improvements.py",
+      "migrations/standalone/070_delivery_enterprise_lifecycle.py",
+      "migrations/standalone/073_temp_purchase_drafts.py",
+      "migrations/standalone/075_plantillas_compra.py",
+      "migrations/standalone/076_purchase_requests.py",
+      "migrations/standalone/077_purchase_requests.py",
+      "migrations/standalone/082_treasury_tables.py",
+      "migrations/standalone/083_financial_traceability_tables.py",
+      "migrations/standalone/084_capital_movements.py",
+      "migrations/standalone/091_scheduled_demand_events.py",
+      "migrations/standalone/092_loyalty_ledger_canonicalization.py",
+      "migrations/standalone/094_rrhh_delivery_cleanup_schema.py",
+      "migrations/standalone/096_configuration_services_schema.py",
+      "migrations/standalone/098_canonical_inventory.py"
+    ]
+  },
+  "entries": [
+    {
+      "file": "migrations/093_create_delivery_core.sql",
+      "tables": [
+        "delivery_items",
+        "delivery_order_history",
+        "delivery_orders",
+        "drivers"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "whatsapp_order_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "driver_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "delivery_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "order_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "event_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "venta_id",
+          "type": "IS NOT NULL"
+        },
+        {
+          "name": "whatsapp_order_id",
+          "type": "IS NOT NULL"
+        },
+        {
+          "name": "idx_delivery_items_delivery_id",
+          "type": "ON delivery"
+        },
+        {
+          "name": "idx_delivery_history_event_id",
+          "type": "ON delivery"
+        }
+      ]
+    },
+    {
+      "file": "migrations/094_add_delivery_outbox.sql",
+      "tables": [
+        "delivery_outbox_events"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "aggregate_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/095_add_delivery_history_audit.sql",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "idx_delivery_history_event_id",
+          "type": "ON delivery"
+        }
+      ]
+    },
+    {
+      "file": "migrations/engine.py",
+      "tables": [
+        "schema_migrations",
+        "y"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/fix_finanzas_schema.sql",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/m000_base_schema.py",
+      "tables": [
+        "accounts_payable",
+        "accounts_receivable",
+        "activos",
+        "ajustes_inventario",
+        "alertas_config",
+        "alertas_log",
+        "ap_payments",
+        "ar_payments",
+        "asistencias",
+        "asset_maintenance",
+        "assets",
+        "audit_logs",
+        "batch_movements",
+        "batch_tree_audits",
+        "batches",
+        "bot_sessions",
+        "branch_inventory",
+        "branch_inventory_batches",
+        "caja_operations",
+        "cajas",
+        "card_assignment_history",
+        "card_batches",
+        "categorias",
+        "chicken_batches",
+        "cierre_mensual",
+        "cierres_caja",
+        "clientes",
+        "clientes_diarios",
+        "clientes_lista_precio",
+        "componentes_producto",
+        "compras",
+        "compras_inventariables",
+        "compras_pollo",
+        "conciliation_runs",
+        "config_diseno_tarjetas",
+        "config_programa_fidelidad",
+        "configuraciones",
+        "cotizaciones",
+        "cotizaciones_detalle",
+        "credit_notes",
+        "delivery_orders",
+        "demand_forecast",
+        "detalles_compra",
+        "detalles_venta",
+        "devoluciones",
+        "devoluciones_detalle",
+        "driver_locations",
+        "drivers",
+        "email_config",
+        "email_schedule",
+        "evaluaciones_personal",
+        "event_log",
+        "facturas_cfdi",
+        "feature_flags",
+        "forecast_cache",
+        "forecast_metrics",
+        "forecast_run_log",
+        "gastos",
+        "gastos_fijos",
+        "gastos_futuros",
+        "growth_ledger",
+        "growth_metas",
+        "growth_misiones",
+        "growth_misiones_progreso",
+        "growth_otp",
+        "hardware_config",
+        "historial",
+        "historico_puntos",
+        "historico_tarjetas",
+        "inventario_actual",
+        "inventario_diario",
+        "inventario_global",
+        "inventario_subproductos",
+        "inventario_sucursal",
+        "inventory_movements",
+        "inventory_reservations",
+        "json_audit_log",
+        "json_log_events",
+        "kpi_snapshots",
+        "links_pago",
+        "listas_precio",
+        "login_attempts",
+        "login_blocks",
+        "logs",
+        "lotes",
+        "loyalty_budget_caps",
+        "loyalty_challenge_progress",
+        "loyalty_challenges",
+        "loyalty_community_contributions",
+        "loyalty_community_goals",
+        "loyalty_config",
+        "loyalty_level_history",
+        "loyalty_multiplier_rules",
+        "loyalty_points_log",
+        "loyalty_programs",
+        "loyalty_redemption_limits",
+        "loyalty_roi_tracking",
+        "loyalty_scores",
+        "loyalty_snapshots",
+        "loyalty_ticket_messages",
+        "mantenimientos",
+        "marketing_messages",
+        "mermas",
+        "movimientos_caja",
+        "movimientos_inventario",
+        "movimientos_lote",
+        "movimientos_trazabilidad",
+        "nomina_pagos",
+        "nomina_records",
+        "notification_inbox",
+        "ordenes_compra",
+        "ordenes_compra_items",
+        "paquetes",
+        "paquetes_componentes",
+        "payments",
+        "pedidos_whatsapp",
+        "pedidos_whatsapp_items",
+        "permisos",
+        "personal",
+        "precios_lista",
+        "precios_volumen",
+        "produccion_detalle",
+        "producciones",
+        "product_forecast_config",
+        "product_recipe_components",
+        "product_recipes",
+        "product_recipes_abarrotes",
+        "production_alerts",
+        "production_batches",
+        "production_cost_ledger",
+        "production_outputs",
+        "production_yield_analysis",
+        "productos",
+        "productos_deletion_guard",
+        "promotion_rules",
+        "proveedores",
+        "puntos",
+        "recepcion_items",
+        "recepciones",
+        "recepciones_pollo",
+        "receta_componentes",
+        "recetas",
+        "recetas_consumo",
+        "recetas_consumo_detalle",
+        "recipe_dependency_graph",
+        "referidos",
+        "rendimiento_derivados",
+        "rendimiento_pollo",
+        "replenishment_recommendations",
+        "report_export_log",
+        "reporte_exports",
+        "rol_permisos",
+        "roles",
+        "roles_permisos",
+        "sale_refunds",
+        "sucursales",
+        "suppliers",
+        "sync_batch_log",
+        "sync_conflicts",
+        "sync_inbox",
+        "sync_outbox",
+        "sync_state",
+        "sync_version_history",
+        "system_constants",
+        "system_integrity_reports",
+        "system_locks",
+        "tarjetas_fidelidad",
+        "ticket_design_config",
+        "tipos_cambio",
+        "transfer_items",
+        "transferencia_detalle",
+        "transferencias",
+        "transferencias_inventario",
+        "transfers",
+        "traspasos_inventario",
+        "traspasos_pollo",
+        "trazabilidad_qr",
+        "turno_actual",
+        "turno_asignaciones",
+        "turno_notificaciones_log",
+        "turno_roles",
+        "turnos_caja",
+        "unidades_conversion",
+        "unidades_medida",
+        "usuarios",
+        "usuarios_roles",
+        "ventas",
+        "ventas_diarias",
+        "whatsapp_numeros",
+        "whatsapp_queue"
+      ],
+      "primary_keys": [
+        {
+          "column": "clave",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "clave",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "key",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "producto_id",
+          "definition": "INTEGER PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "rol_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "permiso_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "rol_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_compuesto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "producto_componente_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER PRIMARY KEY"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "lote_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "compra_ref_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "referencia_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "bib_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "reference_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_origen_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_destino_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "turno_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "pedido_wa_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sale_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sale_item_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sale_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "devolucion_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/m001_enterprise_ajustes.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "sucursal_id",
+          "type": "para control multi"
+        },
+        {
+          "name": "lote_origen_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "target_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/m050_hardware_config_canonical.py",
+      "tables": [
+        "hardware_config"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/016_concurrency_events.py",
+      "tables": [
+        "IF",
+        "concurrency_events",
+        "conn"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "device_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL UNIQUE"
+        },
+        {
+          "name": "device_id",
+          "type": "TEXT    NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "idx_ce_operation_id",
+          "type": "ON concurrency"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/022_industrial_hardening.py",
+      "tables": [
+        "sync_conflicts",
+        "system_integrity_reports"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "branch_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY"
+        },
+        {
+          "name": "event_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "and week"
+        },
+        {
+          "name": "product_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/023_enterprise_upgrade.py",
+      "tables": [
+        "caja_operations",
+        "config_diseno_tarjetas",
+        "historico_tarjetas",
+        "inventory_reservations",
+        "json_audit_log",
+        "kpi_snapshots",
+        "loyalty_budget_caps",
+        "loyalty_challenge_progress",
+        "loyalty_challenges",
+        "loyalty_community_goals",
+        "loyalty_multiplier_rules",
+        "loyalty_redemption_limits",
+        "loyalty_roi_tracking",
+        "loyalty_ticket_messages",
+        "productos_deletion_guard",
+        "recipe_dependency_graph",
+        "report_export_log",
+        "sync_batch_log",
+        "sync_version_history",
+        "system_constants",
+        "tarjetas_fidelidad",
+        "transfer_items",
+        "transfers"
+      ],
+      "primary_keys": [
+        {
+          "column": "producto_id",
+          "definition": "INTEGER PRIMARY KEY REFERENCES productos(id) ON DELETE RESTRICT"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "key",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "reservation_id",
+          "type": "column"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER PRIMARY KEY REFERENCES"
+        },
+        {
+          "name": "parent_recipe_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "child_product_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY"
+        },
+        {
+          "name": "branch_origin_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_dest_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT UNIQUE"
+        },
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY"
+        },
+        {
+          "name": "transfer_id",
+          "type": "TEXT NOT NULL REFERENCES"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "reservation_id",
+          "type": "FK to batch"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "challenge_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "on ventas for idempotency"
+        },
+        {
+          "name": "uq_ventas_operation_id",
+          "type": "ON ventas"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT NOT NULL UNIQUE"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT NOT NULL UNIQUE"
+        },
+        {
+          "name": "device_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "event_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "device_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "entity_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/024_enterprise_blocks_5_8.py",
+      "tables": [
+        "caja_operations",
+        "json_log_events",
+        "kpi_snapshots",
+        "loyalty_budget_caps",
+        "loyalty_challenge_progress",
+        "loyalty_challenges",
+        "loyalty_community_contributions",
+        "loyalty_community_goals",
+        "loyalty_level_history",
+        "loyalty_multiplier_rules",
+        "loyalty_points_log",
+        "loyalty_redemption_limits",
+        "loyalty_roi_tracking",
+        "loyalty_scores",
+        "movimientos_caja",
+        "system_constants"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "branch_id",
+          "definition": "INTEGER PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "cliente_id",
+          "definition": "INTEGER PRIMARY KEY REFERENCES clientes(id) ON DELETE CASCADE"
+        },
+        {
+          "column": "key",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "challenge_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "goal_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER PRIMARY KEY"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER PRIMARY KEY REFERENCES"
+        },
+        {
+          "name": "uq_ventas_operation_id",
+          "type": "ON ventas"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL UNIQUE"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/025_sync_batch_log.py",
+      "tables": [
+        "sync_batch_log",
+        "sync_version_history"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT    NOT NULL UNIQUE"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "event_id",
+          "type": "TEXT    NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/026_final_structural_hardening.py",
+      "tables": [
+        "json_log_events",
+        "schema_migrations",
+        "system_constants"
+      ],
+      "primary_keys": [
+        {
+          "column": "key",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "version",
+          "definition": "TEXT PRIMARY KEY"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/027_inventory_hardening.py",
+      "tables": [
+        "branch_inventory",
+        "inventory_movements"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "branch_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "branch_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "branch_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "batch_id",
+          "type": "ELSE NULL END"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "reference_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/028_sales_transaction_hardening.py",
+      "tables": [
+        "payments"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "venta_id"
+          ],
+          "references_table": "ventas",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "created"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "operation_id",
+          "type": "y credit"
+        },
+        {
+          "name": "operation_id",
+          "type": "debe ser O"
+        },
+        {
+          "name": "idx_ventas_operation_id",
+          "type": "ON ventas"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/029_reversals_hardening.py",
+      "tables": [
+        "credit_notes",
+        "sale_refunds"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "sale_id"
+          ],
+          "references_table": "ventas",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sale_item_id"
+          ],
+          "references_table": "detalles_venta",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sale_id"
+          ],
+          "references_table": "ventas",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "reference_id",
+          "type": "en movimientos"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sale_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sale_item_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sale_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "reference_id",
+          "type": "en movimientos"
+        },
+        {
+          "name": "reference_id",
+          "type": "a movimientos"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/030_recetas_industriales.py",
+      "tables": [
+        "producciones",
+        "product_recipe_components",
+        "recetas"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "receta_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "base_product_id",
+          "type": "desde product"
+        },
+        {
+          "name": "product_id",
+          "type": "WHERE base"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "recipe_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "component_product_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/031_inventory_engine.py",
+      "tables": [
+        "IF",
+        "ajustes_inventario",
+        "configuracioneses",
+        "inventario_actual",
+        "mermas",
+        "recepcion_items",
+        "recepciones",
+        "transfer_items",
+        "transferencia_detalle",
+        "transferencias",
+        "transfers",
+        "unidades_conversion",
+        "unidades_medida"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "producto_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sucursal_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "origen_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "destino_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "transferencia_id"
+          ],
+          "references_table": "transferencias",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "producto_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "branch_origin_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "branch_dest_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "transfer_id"
+          ],
+          "references_table": "transfers",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "proveedor_id"
+          ],
+          "references_table": "proveedores",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sucursal_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "recepcion_id"
+          ],
+          "references_table": "recepciones",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "producto_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "producto_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sucursal_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "producto_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sucursal_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "max_id",
+          "type": "FROM branch"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL\n        GROUP BY"
+        },
+        {
+          "name": "product_id",
+          "type": "HAVING COUNT"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL AND id"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "origen_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "destino_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "transferencia_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "ID",
+          "type": "de la sucursal que"
+        },
+        {
+          "name": "id",
+          "type": "TEXT    PRIMARY KEY"
+        },
+        {
+          "name": "branch_origin_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_dest_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "TEXT    PRIMARY KEY"
+        },
+        {
+          "name": "transfer_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "recepcion_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "IS NOT NULL AND"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "IS NOT NULL\n        BEGIN"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/032_bi_tables.py",
+      "tables": [
+        "IF",
+        "clientes_diarios",
+        "inventario_diario",
+        "kpi_snapshots",
+        "production_alerts",
+        "production_batches",
+        "production_cost_ledger",
+        "production_outputs",
+        "production_yield_analysis",
+        "report_export_log",
+        "reporte_exports",
+        "ventas_diarias"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "sucursal_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "producto_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sucursal_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "sucursal_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_source_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "branch_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "receta_id"
+          ],
+          "references_table": "recetas",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "batch_id"
+          ],
+          "references_table": "production_batches",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "batch_id"
+          ],
+          "references_table": "production_batches",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "batch_id"
+          ],
+          "references_table": "production_batches",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "batch_id"
+          ],
+          "references_table": "production_batches",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "output_id"
+          ],
+          "references_table": "production_outputs",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "TEXT    PRIMARY KEY"
+        },
+        {
+          "name": "product_source_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "receta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "TEXT    PRIMARY KEY"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "TEXT    PRIMARY KEY"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT    NOT NULL UNIQUE"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "output_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/032_meat_production.py",
+      "tables": [
+        "meat_production_runs",
+        "meat_production_yields"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "run_id"
+          ],
+          "references_table": "meat_production_runs",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "source_product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "run_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "yield_product_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/033_demand_forecast.py",
+      "tables": [
+        "demand_forecast",
+        "replenishment_recommendations"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "run_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "run_id",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/035_finance_erp.py",
+      "tables": [
+        "accounts_payable",
+        "accounts_receivable",
+        "suppliers"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "supplier_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "client_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/036_whatsapp_rasa.py",
+      "tables": [
+        "import",
+        "marketing_messages",
+        "rasa_sessions",
+        "whatsapp_queue"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "pedido_activo_id"
+          ],
+          "references_table": "pedidos",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sender_id",
+          "type": "TEXT    NOT NULL UNIQUE"
+        },
+        {
+          "name": "pedido_activo_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/038_transfer_suggestions.py",
+      "tables": [
+        "transfer_suggestions"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "origin_branch_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "dest_branch_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "origin_branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "dest_branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "transfer_id",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/039_branch_products.py",
+      "tables": [
+        "branch_products"
+      ],
+      "primary_keys": [],
+      "foreign_keys": [
+        {
+          "columns": [
+            "branch_id"
+          ],
+          "references_table": "sucursales",
+          "references_columns": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "sucursal_id",
+          "type": "implica que el producto"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "WHERE p"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/040_qr_reception.py",
+      "tables": [
+        "contenedores_qr"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/041_notification_inbox.py",
+      "tables": [
+        "notification_inbox"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "empleado_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/042_whatsapp_multicanal.py",
+      "tables": [
+        "whatsapp_numeros"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "meta_phone_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "IS NOT NULL THEN"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/043_price_history.py",
+      "tables": [
+        "historial_precios"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "producto_id"
+          ],
+          "references_table": "productos",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/044_cotizaciones.py",
+      "tables": [
+        "cotizaciones",
+        "cotizaciones_detalle"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER REFERENCES clientes"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER REFERENCES ventas"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cotizacion_id",
+          "type": "INTEGER NOT NULL\n                             REFERENCES"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER REFERENCES productos"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/045_performance_indexes.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "idx_dv_venta_id",
+          "type": "ON detalles"
+        },
+        {
+          "name": "idx_dv_producto_id",
+          "type": "ON detalles"
+        },
+        {
+          "name": "cliente_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/046_comisiones_happy_hour.py",
+      "tables": [
+        "comisiones_acumuladas",
+        "comisiones_config",
+        "happy_hour_rules"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "venta_id",
+          "type": "INTEGER REFERENCES ventas"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "aplica"
+        },
+        {
+          "name": "id",
+          "type": "de producto\n            mensaje"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/047_v13_schema.py",
+      "tables": [
+        "anticipo_config",
+        "anticipo_reglas",
+        "lotes_tarjetas_pdf",
+        "ordenes_cotizacion",
+        "rol_permisos",
+        "usuarios_sucursales"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "clave",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cotizacion_id",
+          "type": "INTEGER REFERENCES cotizaciones"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER REFERENCES clientes"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "payment_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "rol_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "empleado_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_principal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "usuario_id",
+          "type": "en personal"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "add"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "add"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "add"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "add"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "add"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "usuario_id",
+          "type": "add"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/048_sync_improvements.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "operation_id",
+          "type": "en tablas de sync"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/048_v131_hardening.py",
+      "tables": [
+        "sync_state"
+      ],
+      "primary_keys": [
+        {
+          "column": "key",
+          "definition": "TEXT PRIMARY KEY"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "sucursal_id",
+          "type": "exista"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "device_id",
+          "type": "TEXT DEFAULT"
+        },
+        {
+          "name": "origin_device_id",
+          "type": "TEXT DEFAULT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/049_v134_intelligent_erp.py",
+      "tables": [
+        "decision_log",
+        "hr_auditoria_log",
+        "hr_pago_log",
+        "module_toggles"
+      ],
+      "primary_keys": [
+        {
+          "column": "clave",
+          "definition": "TEXT PRIMARY KEY"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "empleado_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "empleado_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/050_wa_integration.py",
+      "tables": [
+        "IF",
+        "ordenes_compra",
+        "wa_event_log",
+        "wa_reminder_queue"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER DEFAULT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "venta_ref_id",
+          "type": "INTEGER DEFAULT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/051_fix_kpi_snapshots.py",
+      "tables": [
+        "kpi_snapshots"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/052_financial_event_log.py",
+      "tables": [
+        "financial_event_log"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "referencia_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/053_meat_production_tables.py",
+      "tables": [
+        "IF",
+        "meat_production_runs",
+        "meat_production_yields"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "run_id"
+          ],
+          "references_table": "meat_production_runs",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "source_product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "run_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "yield_product_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/054_sync_improvements_orphan.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "operation_id",
+          "type": "y uuid a\nevent"
+        },
+        {
+          "name": "operation_id",
+          "type": "en tablas de sync"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/056_print_job_log.py",
+      "tables": [
+        "print_job_log"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER  PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "job_id",
+          "type": "TEXT     NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER  DEFAULT"
+        },
+        {
+          "name": "idx_print_job_log_job_id",
+          "type": "ON print"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/057_loyalty_ledger_unificado.py",
+      "tables": [
+        "loyalty_ledger"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/058_scan_event_log.py",
+      "tables": [
+        "scan_event_log"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/059_plan_cuentas.py",
+      "tables": [
+        "plan_cuentas"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "padre_id",
+          "type": "INTEGER REFERENCES plan"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/060_depreciacion_acumulada.py",
+      "tables": [
+        "depreciacion_acumulada",
+        "y"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "activo_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "cuenta_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/062_bi_analytics_tables.py",
+      "tables": [
+        "IF",
+        "bi_branch_ranking",
+        "bi_product_profit",
+        "bi_sales_daily",
+        "bi_transformations"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/063_audit_log_table.py",
+      "tables": [
+        "audit_log"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "entity_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/064_fix_missing_columns.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "venta_id",
+          "type": "exists"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/065_performance_indexes_views.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "venta_id",
+          "type": "LEFT JOIN productos p"
+        },
+        {
+          "name": "producto_id",
+          "type": "WHERE v"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/066_erp_financial_model.py",
+      "tables": [
+        "auditoria_eventos",
+        "catalogo_cuentas_contables",
+        "conciliaciones_financieras",
+        "cortes_caja_erp",
+        "cuentas_financieras",
+        "documentos_financieros",
+        "ledger_financiero",
+        "movimientos_financieros",
+        "pagos_cobros",
+        "pagos_cobros_aplicaciones",
+        "terceros"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cuenta_padre_id",
+          "type": "INTEGER REFERENCES catalogo"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "tercero_id",
+          "type": "INTEGER REFERENCES terceros"
+        },
+        {
+          "name": "documento_origen_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "caja_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "tercero_id",
+          "type": "INTEGER REFERENCES terceros"
+        },
+        {
+          "name": "cuenta_financiera_id",
+          "type": "INTEGER REFERENCES cuentas"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "caja_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "pago_cobro_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "documento_financiero_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cuenta_financiera_id",
+          "type": "INTEGER REFERENCES cuentas"
+        },
+        {
+          "name": "origen_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "tercero_id",
+          "type": "INTEGER REFERENCES terceros"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "caja_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "entidad_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "tercero_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "caja_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "entidad_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "caja_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cuenta_financiera_id",
+          "type": "INTEGER REFERENCES cuentas"
+        },
+        {
+          "name": "usuario_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/066_unificar_esquema_recetas.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "legacy_receta_id",
+          "type": "a product"
+        },
+        {
+          "name": "legacy_receta_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "output_product_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "legacy_receta_componente_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "AS id"
+        },
+        {
+          "name": "id",
+          "type": "AS id"
+        },
+        {
+          "name": "producto_base_id",
+          "type": "AS producto"
+        },
+        {
+          "name": "id",
+          "type": "FROM product"
+        },
+        {
+          "name": "producto_base_id",
+          "type": "como product"
+        },
+        {
+          "name": "output_product_id",
+          "type": "cur"
+        },
+        {
+          "name": "id",
+          "type": "FROM product"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/067_meat_erp_improvements.py",
+      "tables": [
+        "merma_log"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "lote_id",
+          "type": "INTEGER REFERENCES lotes"
+        },
+        {
+          "name": "produccion_id",
+          "type": "INTEGER REFERENCES producciones"
+        },
+        {
+          "name": "batch_id",
+          "type": "TEXT REFERENCES production"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "AS producto"
+        },
+        {
+          "name": "producto_id",
+          "type": "GROUP BY p"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/068_fix_branch_inventory_unique.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "batch_id",
+          "type": "IS NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL\n     para detecci"
+        },
+        {
+          "name": "batch_id",
+          "type": "NULL\n    try"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL\n            GROUP BY"
+        },
+        {
+          "name": "branch_id",
+          "type": "HAVING COUNT"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL"
+        },
+        {
+          "name": "batch_id",
+          "type": "IS NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/069_delivery_weight_reservation.py",
+      "tables": [
+        "inventory_reservations"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "TEXT PRIMARY KEY"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "TEXT PRIMARY KEY"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/070_delivery_enterprise_lifecycle.py",
+      "tables": [
+        "delivery_driver_cuts"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "corte_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "driver_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "idx_delivery_driver_id",
+          "type": "ON delivery"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/073_temp_purchase_drafts.py",
+      "tables": [
+        "temp_purchase_drafts"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/075_plantillas_compra.py",
+      "tables": [
+        "plantillas_compra",
+        "plantillas_compra_items"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "plantilla_id",
+          "type": "INTEGER NOT NULL\n                             REFERENCES"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/076_purchase_requests.py",
+      "tables": [
+        "purchase_request_items",
+        "purchase_requests"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER NOT NULL DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "pr_id",
+          "type": "INTEGER NOT NULL REFERENCES"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/077_ordenes_compra_erp.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "idx_oc_pr_id",
+          "type": "ON ordenes"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/077_purchase_requests.py",
+      "tables": [
+        "purchase_request_events",
+        "purchase_request_items",
+        "purchase_requests"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "proveedor_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "pr_id",
+          "type": "INTEGER NOT NULL\n                                   REFERENCES"
+        },
+        {
+          "name": "producto_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "pr_id",
+          "type": "INTEGER NOT NULL\n                           REFERENCES"
+        },
+        {
+          "name": "ix_pr_items_pr_id",
+          "type": "ON purchase"
+        },
+        {
+          "name": "ix_pr_events_pr_id",
+          "type": "ON purchase"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/078_compras_po_link.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "purchase_order_id",
+          "type": "IS NULL"
+        },
+        {
+          "name": "purchase_order_id",
+          "type": "IS NOT NULL"
+        },
+        {
+          "name": "purchase_order_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "idx_compras_po_id",
+          "type": "ON compras"
+        },
+        {
+          "name": "purchase_order_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/080_caja_turno_id_link.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "turno_id",
+          "type": "FK to cierres"
+        },
+        {
+          "name": "branch_id",
+          "type": "index on movimientos"
+        },
+        {
+          "name": "turno_id",
+          "type": "to cierres"
+        },
+        {
+          "name": "turno_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/082_treasury_tables.py",
+      "tables": [
+        "gastos_futuros",
+        "pagos_cobros",
+        "pagos_cobros_aplicaciones",
+        "treasury_capital",
+        "treasury_gastos_fijos",
+        "treasury_ledger"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "tercero_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "usuario_id",
+          "type": "TEXT    DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "pago_cobro_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "documento_id",
+          "type": "INTEGER NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/083_financial_traceability_tables.py",
+      "tables": [
+        "asset_depreciation_entries",
+        "financial_documents",
+        "financial_trace_log",
+        "fixed_assets",
+        "journal_entries",
+        "maintenance_records",
+        "operating_supplies",
+        "reconciliation_records",
+        "treasury_movements"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "asset_id"
+          ],
+          "references_table": "fixed_assets",
+          "references_columns": [
+            "id"
+          ]
+        }
+      ],
+      "id_columns": [
+        {
+          "name": "operation_id",
+          "type": "UNIQUE"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "party_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "financial_document_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "supplier_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "financial_document_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "treasury_movement_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "journal_entry_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "asset_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "journal_entry_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "asset_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "supplier_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "financial_document_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "treasury_movement_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "journal_entry_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "supplier_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "financial_document_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "treasury_movement_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "journal_entry_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/084_capital_movements.py",
+      "tables": [
+        "capital_movements"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "partner_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT    UNIQUE NOT NULL"
+        },
+        {
+          "name": "journal_entry_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "treasury_movement_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/085_product_type_flags.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "AND  pr"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/087_whatsapp_sale_detail_columns.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "producto_id",
+          "type": "IS NOT NULL"
+        },
+        {
+          "name": "idx_detalles_venta_venta_id",
+          "type": "ON detalles"
+        },
+        {
+          "name": "idx_detalles_venta_producto_id",
+          "type": "ON detalles"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/091_scheduled_demand_events.py",
+      "tables": [
+        "scheduled_demand_events"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "sale_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "customer_id",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/092_loyalty_ledger_canonicalization.py",
+      "tables": [
+        "loyalty_ledger",
+        "loyalty_ledger_new"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "sucursal_id",
+          "type": "INTEGER DEFAULT"
+        },
+        {
+          "name": "id",
+          "type": "AS TEXT"
+        },
+        {
+          "name": "cliente_id",
+          "type": "IS NOT NULL"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/093_rrhh_payroll_traceability.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "operation_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "source_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL AND"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/094_rrhh_delivery_cleanup_schema.py",
+      "tables": [
+        "puestos",
+        "vacaciones_personal"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "personal_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "personal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "idx_drivers_personal_id",
+          "type": "ON drivers"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/095_rrhh_identity_links.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "personal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "idx_usuarios_personal_id",
+          "type": "ON usuarios"
+        },
+        {
+          "name": "personal_id",
+          "type": "INTEGER"
+        },
+        {
+          "name": "idx_drivers_personal_id",
+          "type": "ON drivers"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/096_configuration_services_schema.py",
+      "tables": [
+        "config_programa_fidelidad",
+        "module_toggles"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "clave",
+          "definition": "TEXT PRIMARY KEY"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/097_waste_schema_integrity.py",
+      "tables": [],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "operation_id",
+          "type": "FROM mermas\n        WHERE operation"
+        },
+        {
+          "name": "operation_id",
+          "type": "HAVING COUNT"
+        },
+        {
+          "name": "operation_id",
+          "type": "values found"
+        },
+        {
+          "name": "operation_id",
+          "type": "IS NOT NULL AND"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/098_canonical_inventory.py",
+      "tables": [
+        "inventory_movements",
+        "inventory_stock"
+      ],
+      "primary_keys": [
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "column": "id",
+          "definition": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        }
+      ],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "id",
+          "type": "INTEGER PRIMARY KEY AUTOINCREMENT"
+        },
+        {
+          "name": "operation_id",
+          "type": "TEXT NOT NULL"
+        },
+        {
+          "name": "product_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "branch_id",
+          "type": "INTEGER NOT NULL"
+        },
+        {
+          "name": "reference_id",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "file": "migrations/standalone/100_inventory_movements_incremental_columns.py",
+      "tables": [
+        "IF"
+      ],
+      "primary_keys": [],
+      "foreign_keys": [],
+      "id_columns": [
+        {
+          "name": "id",
+          "type": "WHERE operation"
+        }
+      ]
+    }
+  ]
+}

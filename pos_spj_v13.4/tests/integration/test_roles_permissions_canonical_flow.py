@@ -5,6 +5,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "pos_spj_v13.4"))
 
+from backend.shared.ids import new_uuid  # noqa: E402
 from core.services.configuration_settings_service import (  # noqa: E402
     ModuleAccessService,
     PermissionEventPublisher,
@@ -43,14 +44,14 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
         role_id=None,
         name="gerente_config",
         description="Gerente de configuración",
-        operation_id="op-create-role",
+        operation_id=new_uuid(),
         actor="admin",
     )
     role_service.save_role(
         role_id=role_id,
         name="gerente_config",
         description="Gerente actualizado",
-        operation_id="op-update-role",
+        operation_id=new_uuid(),
         actor="admin",
     )
 
@@ -65,7 +66,7 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
     module_access.save_role_permissions(
         role_id,
         permissions,
-        operation_id="op-save-permissions",
+        operation_id=new_uuid(),
         actor="admin",
     )
 
@@ -82,3 +83,4 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
     assert "ROLE_PERMISSIONS_UPDATED" in event_names
     assert "MODULE_ACCESS_UPDATED" in event_names
     assert all(event["operation_id"] for event in publisher.published_events)
+    assert all(event["operation_id"][14] == "7" for event in publisher.published_events)

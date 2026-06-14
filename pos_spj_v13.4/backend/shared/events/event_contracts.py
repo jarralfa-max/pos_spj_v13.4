@@ -5,9 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Mapping
-from uuid import uuid4
-
 from backend.shared.events.event_names import EventName
+from backend.shared.ids import new_uuid
 
 
 EventPayload = Mapping[str, Any]
@@ -27,7 +26,7 @@ class DomainEvent:
     branch_id: str
     source_module: str
     payload: EventPayload = field(default_factory=dict)
-    event_id: str = field(default_factory=lambda: str(uuid4()))
+    event_id: str = field(default_factory=new_uuid)
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     user_id: str | None = None
     user_name: str | None = None
@@ -65,7 +64,7 @@ class DomainEvent:
             else datetime.now(timezone.utc)
         )
         return cls(
-            event_id=str(data.get("event_id") or uuid4()),
+            event_id=str(data.get("event_id") or new_uuid()),
             event_name=EventName(str(data["event_name"])),
             operation_id=str(data["operation_id"]),
             entity_id=str(data["entity_id"]),
