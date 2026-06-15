@@ -1,0 +1,301 @@
+{
+  "phase": "CONFIGURACION",
+  "status": "IN_PROGRESS",
+  "active_batch": "CONFIGURACION-02-IDENTITY",
+  "batches": [
+    {
+      "id": "CONFIGURACION-01-SCOPE",
+      "category": "scope",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "DONE",
+      "violations": 0,
+      "dependencies": [],
+      "iteration": 1,
+      "completed_actions": [
+        "read SPJ_REFACTOR_SKILL.md authority before scope audit",
+        "inventoried canonical Configuracion UI, service, repository, query, migration and test surfaces",
+        "classified shared configuration dependencies owned by WhatsApp, Tickets, Fidelidad and RRHH",
+        "created architecture protection for scope inventory and package-only paths",
+        "confirmed no remaining CONFIGURACION-01-SCOPE violations"
+      ],
+      "forbidden_reselection": [
+        "reopening scope inventory without a reproducible scope-regression test",
+        "treating control-file maintenance as Configuracion functional scope work"
+      ]
+    },
+    {
+      "id": "CONFIGURACION-02-IDENTITY",
+      "category": "identity",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "IN_PROGRESS",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-01-SCOPE"
+      ],
+      "iteration": 9,
+      "completed_actions": [
+        "replaced Configuracion UI uuid4 operation id generator with backend.shared.ids.new_uuid",
+        "removed unused legacy branch repository helpers that returned lastrowid without the canonical CompanyProfileService path",
+        "added unit protection for UUIDv7 operation id generation and removed legacy branch identity helpers",
+        "migrated shared DomainEvent default event_id generation from uuid4 to backend.shared.ids.new_uuid",
+        "added UUIDv7 event_id to Configuracion PermissionEventPublisher fallback events",
+        "added unit protection for Configuracion permission events carrying UUIDv7 event_id values",
+        "migrated legacy core.domain.events DomainEvent event_id and operation_id defaults to backend.shared.ids.new_uuid",
+        "added regression protection that core.domain.events DomainEvent emits UUIDv7 event_id and operation_id values",
+        "migrated RRHH shared event operation_id helper from prefix-uuid4 strings to backend.shared.ids.new_uuid",
+        "added regression protection that RRHH event operation ids are canonical lowercase UUIDv7 values without legacy prefixes",
+        "removed Configuracion permission event branch_id fallback to integer one for branch-agnostic events",
+        "added regression protection that branch-agnostic permission events receive canonical lowercase UUIDv7 branch_id values",
+        "enforced canonical lowercase UUIDv7 operation_id values in PermissionEventPublisher",
+        "updated role permission integration flow to use canonical UUIDv7 operation ids and reject legacy op-* strings",
+        "enforced canonical lowercase UUIDv7 branch_id values in PermissionEventPublisher when payload branch context is present",
+        "removed integer branch_id from UserManagementService permission event payloads so branch-agnostic events receive canonical UUIDv7 branch_id values",
+        "enforced canonical lowercase UUIDv7 entity_id values in PermissionEventPublisher",
+        "removed integer user_id and role_id values from Configuracion permission event payloads",
+        "resolved user and role labels through ConfigRepository helpers before event publication without exposing integer identities"
+      ],
+      "forbidden_reselection": [
+        "reintroducing uuid4 for Configuracion operation_id generation",
+        "reintroducing unused create_branch/update_branch/disable_branch repository helpers",
+        "reintroducing uuid4 as DomainEvent event_id default",
+        "publishing Configuracion permission fallback events without event_id",
+        "reintroducing uuid.uuid4 in core.domain.events DomainEvent identity defaults",
+        "reintroducing prefix-based uuid4 operation_id generation in core.rrhh.events",
+        "reintroducing integer branch_id fallback values in PermissionEventPublisher",
+        "publishing Configuracion permission events with legacy op-* operation_id strings",
+        "publishing Configuracion permission events with integer branch_id payload values",
+        "publishing Configuracion permission events with legacy non-UUID entity_id strings",
+        "publishing Configuracion permission event payloads with integer user_id or role_id values"
+      ]
+    },
+    {
+      "id": "CONFIGURACION-03-UI",
+      "category": "ui",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-02-IDENTITY"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-04-QUERIES",
+      "category": "queries",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-03-UI"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-05-MUTATIONS",
+      "category": "mutations",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-04-QUERIES"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-06-DOMAIN_RULES",
+      "category": "domain_rules",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-05-MUTATIONS"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-07-PERSISTENCE",
+      "category": "persistence",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-06-DOMAIN_RULES"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-08-TRANSACTIONS",
+      "category": "transactions",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-07-PERSISTENCE"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-09-EVENTS",
+      "category": "events",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-08-TRANSACTIONS"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-10-PERMISSIONS",
+      "category": "permissions",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-09-EVENTS"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-11-INTEGRATIONS",
+      "category": "integrations",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-10-PERMISSIONS"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-12-API_READINESS",
+      "category": "api_readiness",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-11-INTEGRATIONS"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-13-SQLITE_POSTGRESQL",
+      "category": "sqlite_postgresql",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-12-API_READINESS"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-14-LEGACY_REMOVAL",
+      "category": "legacy_removal",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-13-SQLITE_POSTGRESQL"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-15-TESTS",
+      "category": "tests",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-14-LEGACY_REMOVAL"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-16-MANUAL_VALIDATION",
+      "category": "manual_validation",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-15-TESTS"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    },
+    {
+      "id": "CONFIGURACION-17-FINAL_GATES",
+      "category": "final_gates",
+      "scope": [
+        "CONFIGURACION"
+      ],
+      "status": "PENDING",
+      "violations": null,
+      "dependencies": [
+        "CONFIGURACION-16-MANUAL_VALIDATION"
+      ],
+      "iteration": 0,
+      "completed_actions": [],
+      "forbidden_reselection": []
+    }
+  ]
+}

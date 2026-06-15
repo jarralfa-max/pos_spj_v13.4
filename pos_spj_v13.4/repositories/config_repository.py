@@ -16,25 +16,6 @@ class ConfigRepository:
         rows = cursor.execute("SELECT * FROM sucursales WHERE activa = 1").fetchall()
         return [dict(row) for row in rows]
 
-    def create_branch(self, nombre: str, direccion: str, telefono: str):
-        cursor = self.db.cursor()
-        cursor.execute("""
-            INSERT INTO sucursales (nombre, direccion, telefono, activa)
-            VALUES (?, ?, ?, 1)
-        """, (nombre, direccion, telefono))
-        return cursor.lastrowid
-
-    def update_branch(self, branch_id: int, nombre: str, direccion: str, telefono: str):
-        cursor = self.db.cursor()
-        cursor.execute("""
-            UPDATE sucursales SET nombre = ?, direccion = ?, telefono = ? WHERE id = ?
-        """, (nombre, direccion, telefono, branch_id))
-
-    def disable_branch(self, branch_id: int):
-        """Soft Delete para sucursales."""
-        cursor = self.db.cursor()
-        cursor.execute("UPDATE sucursales SET activa = 0 WHERE id = ?", (branch_id,))
-
     # --- AJUSTES GLOBALES (Key-Value) ---
     def get_setting(self, key: str, default_value: str = "") -> str:
         cursor = self.db.cursor()
@@ -475,6 +456,10 @@ class ConfigRepository:
             (user_id,),
         ).fetchone()
 
+    def username_for_id(self, user_id: int) -> str | None:
+        row = self.db.execute("SELECT usuario FROM usuarios WHERE id=?", (user_id,)).fetchone()
+        return str(row[0]) if row else None
+
     def save_user_v13(self, *, user_id: int | None, username: str, name: str, email: str, role: str,
                       branch_id: int, active: bool, employee_id: int | None, password_hash: str | None) -> None:
         if user_id:
@@ -588,6 +573,10 @@ class ConfigRepository:
             else:
                 resolved.discard(code)
         return resolved
+
+    def role_name_for_id(self, role_id: int) -> str | None:
+        row = self.db.execute("SELECT nombre FROM roles WHERE id=?", (role_id,)).fetchone()
+        return str(row[0]) if row else None
 
     def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
         rows = self.db.execute(

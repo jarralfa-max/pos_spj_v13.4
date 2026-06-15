@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
+from backend.shared.ids import new_uuid
 from core.module_config import DEFAULT_TOGGLES
 from repositories.config_repository import ConfigRepository
 
@@ -223,14 +225,33 @@ class PermissionEventPublisher:
         self._event_bus = event_bus
         self.published_events: list[Any] = []
 
+    def _branch_id_for_event(self, payload: dict[str, Any]) -> str:
+        branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "").strip()
+        if branch_id:
+            return self._require_uuidv7(branch_id, "branch_id")
+        return new_uuid()
+
+    def _require_uuidv7(self, value: str, field_name: str) -> str:
+        normalized = str(value or "").strip().lower()
+        try:
+            parsed = UUID(normalized)
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be a canonical lowercase UUIDv7") from exc
+        if parsed.version != 7 or normalized != str(parsed):
+            raise ValueError(f"{field_name} must be a canonical lowercase UUIDv7")
+        return normalized
+
     def publish(self, event_name: str, *, operation_id: str, entity_id: str, user_name: str, payload: dict[str, Any]) -> None:
         if not operation_id:
             raise ValueError("operation_id is required")
+        operation_id = self._require_uuidv7(operation_id, "operation_id")
+        entity_id = self._require_uuidv7(entity_id, "entity_id")
         event = {
+            "event_id": new_uuid(),
             "event_name": event_name,
             "operation_id": operation_id,
             "entity_id": entity_id,
-            "branch_id": str(payload.get("branch_id", "1")),
+            "branch_id": self._branch_id_for_event(payload),
             "user_name": user_name,
             "source_module": "CONFIGURATION",
             "payload": payload,
@@ -244,7 +265,7 @@ class PermissionEventPublisher:
                 self._event_bus.publish(create_domain_event(
                     event_name=EventName(event_name),
                     operation_id=operation_id,
-                    entity_id=str(entity_id),
+                    entity_id=entity_id,
                     branch_id=str(event["branch_id"]),
                     user_name=user_name,
                     source_module="CONFIGURATION",
@@ -296,19 +317,20 @@ class UserManagementService:
         self._events.publish(
             "USER_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=username,
+            entity_id=new_uuid(),
             user_name=actor,
-            payload={"user_id": user_id, "username": username, "role": role, "branch_id": branch_id},
+            payload={"username": username, "role": role},
         )
 
     def set_user_active(self, user_id: int, active: bool, *, operation_id: str, actor: str) -> None:
         self._repository.set_user_active(user_id, active)
+        username = self._repository.username_for_id(user_id) or ""
         self._events.publish(
             "USER_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=str(user_id),
+            entity_id=new_uuid(),
             user_name=actor,
-            payload={"user_id": user_id, "active": active},
+            payload={"username": username, "active": active},
         )
 
 
@@ -336,9 +358,9 @@ class RoleManagementService:
         self._events.publish(
             "ROLE_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=str(saved_id),
+            entity_id=new_uuid(),
             user_name=actor,
-            payload={"role_id": saved_id, "role_name": name},
+            payload={"role_name": name},
         )
         return saved_id
 
@@ -383,19 +405,20 @@ class ModuleAccessService:
     ) -> None:
         self._repository.save_role_permissions(role_id, permissions)
         self.invalidate_cache(role_id)
+        role_name = self._repository.role_name_for_id(role_id) or ""
         self._events.publish(
             "ROLE_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=str(role_id),
+            entity_id=new_uuid(),
             user_name=actor,
-            payload={"role_id": role_id, "permissions": {f"{m}.{a}": v for (m, a), v in permissions.items()}},
+            payload={"role_name": role_name, "permissions": {f"{m}.{a}": v for (m, a), v in permissions.items()}},
         )
         self._events.publish(
             "MODULE_ACCESS_UPDATED",
             operation_id=operation_id,
-            entity_id=str(role_id),
+            entity_id=new_uuid(),
             user_name=actor,
-            payload={"role_id": role_id},
+            payload={"role_name": role_name},
         )
 
     def has_permission(self, role_id: int, module: str, action: str) -> bool:

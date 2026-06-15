@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any, ClassVar, Dict, Optional, Protocol
-from uuid import uuid4
-
+from backend.shared.ids import new_uuid
 from core.events.event_bus import get_bus
 
 # ── Canonical event names ────────────────────────────────────────────────────
@@ -48,8 +47,12 @@ PAGO_REPARTIDOR_GENERADO = "PAGO_REPARTIDOR_GENERADO"
 
 
 def new_operation_id(prefix: str = "rrhh") -> str:
-    """Create a non-empty idempotency key for RRHH application events."""
-    return f"{prefix}-{uuid4().hex}"
+    """Create a canonical UUIDv7 idempotency key for RRHH application events.
+
+    The ``prefix`` argument is kept for call-site compatibility while the
+    runtime identity is the UUIDv7 value mandated by the refactor skill.
+    """
+    return new_uuid()
 
 
 class RRHHEventPayload(Protocol):

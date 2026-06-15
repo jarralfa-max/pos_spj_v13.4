@@ -19,7 +19,7 @@ from modulos.components.address_autocomplete_input import AddressAutocompleteInp
 from frontend.desktop.components.integer_input import IntegerInput
 from frontend.desktop.components.percent_input import PercentInput
 from modulos.spj_phone_widget import PhoneWidget
-from uuid import uuid4
+from backend.shared.ids import new_uuid
 
 class ModuloConfiguracion(ModuloBase):
     def __init__(self, conexion, parent=None):
@@ -63,7 +63,7 @@ class ModuloConfiguracion(ModuloBase):
         self.sucursal_nombre = sucursal_nombre
 
     def _operation_id(self) -> str:
-        return str(uuid4())
+        return new_uuid()
 
     def _actor_name(self) -> str:
         return getattr(self, "usuario_actual", "Sistema")
