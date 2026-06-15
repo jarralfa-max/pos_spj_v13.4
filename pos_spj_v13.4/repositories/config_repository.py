@@ -456,6 +456,10 @@ class ConfigRepository:
             (user_id,),
         ).fetchone()
 
+    def username_for_id(self, user_id: int) -> str | None:
+        row = self.db.execute("SELECT usuario FROM usuarios WHERE id=?", (user_id,)).fetchone()
+        return str(row[0]) if row else None
+
     def save_user_v13(self, *, user_id: int | None, username: str, name: str, email: str, role: str,
                       branch_id: int, active: bool, employee_id: int | None, password_hash: str | None) -> None:
         if user_id:
@@ -569,6 +573,10 @@ class ConfigRepository:
             else:
                 resolved.discard(code)
         return resolved
+
+    def role_name_for_id(self, role_id: int) -> str | None:
+        row = self.db.execute("SELECT nombre FROM roles WHERE id=?", (role_id,)).fetchone()
+        return str(row[0]) if row else None
 
     def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
         rows = self.db.execute(

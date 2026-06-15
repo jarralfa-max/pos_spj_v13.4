@@ -190,3 +190,53 @@ Continuar `CONFIGURACION-02-IDENTITY`.
 - El flujo de integración de roles/permisos usa `backend.shared.ids.new_uuid()` en lugar de cadenas legacy `op-*`.
 - Añadida protección unitaria contra `operation_id` legacy en eventos de permisos.
 - Violaciones restantes del lote: aún no cerrado; siguen pendientes las PK/FK enteras y retornos `lastrowid` que requieren migración atómica de identidad.
+
+### Iteración 8 — CONFIGURACION-02-IDENTITY (validación branch_id de permisos)
+
+- `PermissionEventPublisher` valida `branch_id`/`sucursal_id` explícito como UUIDv7 canónico antes de publicar.
+- `UserManagementService.save_user()` deja de enviar el `branch_id` entero en el payload del evento de permisos; el publicador genera un `branch_id` UUIDv7 para el evento branch-agnostic.
+- Añadida protección unitaria que rechaza `branch_id` entero en eventos de permisos.
+- Violaciones restantes del lote: aún no cerrado; continúan pendientes las PK/FK enteras y retornos `lastrowid` persistentes que requieren migración atómica de identidad.
+
+### CONFIGURACION-02-IDENTITY — Iteración 9
+
+MÓDULO: CONFIGURACION
+LOTE: CONFIGURACION-02-IDENTITY
+ITERACIÓN: 9
+ESTADO INICIAL: IN_PROGRESS
+ESTADO FINAL: IN_PROGRESS
+
+HALLAZGOS:
+- Los eventos de permisos aún podían publicar `entity_id` no canónico y payloads con `user_id`/`role_id` enteros de tablas actuales.
+
+CAUSAS RAÍZ:
+- La persistencia de usuarios y roles sigue usando IDs enteros mientras el contrato de eventos ya exige UUIDv7 para identidad externa.
+
+TESTS DE PROTECCIÓN:
+- Se agregó protección para rechazar `entity_id` legacy en `PermissionEventPublisher`.
+- Se agregó protección negativa para impedir `entity_id=str(user_id|role_id|saved_id)` y payloads con `user_id`/`role_id` enteros en eventos de Configuración.
+
+CAMBIOS:
+- `PermissionEventPublisher` valida `entity_id` como UUIDv7 canónico.
+- Los servicios de usuarios, roles y accesos de módulo publican `entity_id` generado con `new_uuid()`.
+- Los payloads de eventos sustituyen IDs enteros por etiquetas (`username`, `role_name`) resueltas desde `ConfigRepository`.
+
+LEGACY ELIMINADO:
+- Eliminada publicación de `user_id`/`role_id` enteros en eventos de permisos de Configuración.
+
+BÚSQUEDAS NEGATIVAS:
+- `entity_id=str(user_id)`, `entity_id=str(role_id)`, `entity_id=str(saved_id)`, `payload={"user_id": user_id`, `payload={"role_id": role_id`, `payload={"role_id": saved_id`.
+
+TESTS EJECUTADOS:
+- `python -m pytest pos_spj_v13.4/tests/unit/test_configuracion_refactor_services.py pos_spj_v13.4/tests/integration/test_roles_permissions_canonical_flow.py pos_spj_v13.4/tests/architecture/test_uuidv7_cutover_protection.py -q`
+- `python -m pytest pos_spj_v13.4/tests/architecture -q`
+- `python -m compileall pos_spj_v13.4`
+
+INTEGRACIONES:
+- Flujo integrado de roles/permisos mantiene persistencia por rol entero interna, pero eventos externos no exponen identidad entera.
+
+VIOLACIONES RESTANTES:
+- CONFIGURACION-02-IDENTITY sigue IN_PROGRESS por identidades enteras persistentes pendientes de migración en esquema/DTO/repositorio.
+
+SIGUIENTE LOTE:
+- Continuar CONFIGURACION-02-IDENTITY hasta cerrar PK/FK/DTO/repositorios UUIDv7 sin identidad dual.

@@ -36,7 +36,7 @@
       "dependencies": [
         "CONFIGURACION-01-SCOPE"
       ],
-      "iteration": 7,
+      "iteration": 9,
       "completed_actions": [
         "replaced Configuracion UI uuid4 operation id generator with backend.shared.ids.new_uuid",
         "removed unused legacy branch repository helpers that returned lastrowid without the canonical CompanyProfileService path",
@@ -51,7 +51,12 @@
         "removed Configuracion permission event branch_id fallback to integer one for branch-agnostic events",
         "added regression protection that branch-agnostic permission events receive canonical lowercase UUIDv7 branch_id values",
         "enforced canonical lowercase UUIDv7 operation_id values in PermissionEventPublisher",
-        "updated role permission integration flow to use canonical UUIDv7 operation ids and reject legacy op-* strings"
+        "updated role permission integration flow to use canonical UUIDv7 operation ids and reject legacy op-* strings",
+        "enforced canonical lowercase UUIDv7 branch_id values in PermissionEventPublisher when payload branch context is present",
+        "removed integer branch_id from UserManagementService permission event payloads so branch-agnostic events receive canonical UUIDv7 branch_id values",
+        "enforced canonical lowercase UUIDv7 entity_id values in PermissionEventPublisher",
+        "removed integer user_id and role_id values from Configuracion permission event payloads",
+        "resolved user and role labels through ConfigRepository helpers before event publication without exposing integer identities"
       ],
       "forbidden_reselection": [
         "reintroducing uuid4 for Configuracion operation_id generation",
@@ -61,7 +66,10 @@
         "reintroducing uuid.uuid4 in core.domain.events DomainEvent identity defaults",
         "reintroducing prefix-based uuid4 operation_id generation in core.rrhh.events",
         "reintroducing integer branch_id fallback values in PermissionEventPublisher",
-        "publishing Configuracion permission events with legacy op-* operation_id strings"
+        "publishing Configuracion permission events with legacy op-* operation_id strings",
+        "publishing Configuracion permission events with integer branch_id payload values",
+        "publishing Configuracion permission events with legacy non-UUID entity_id strings",
+        "publishing Configuracion permission event payloads with integer user_id or role_id values"
       ]
     },
     {

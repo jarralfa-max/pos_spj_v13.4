@@ -84,3 +84,5 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
     assert "MODULE_ACCESS_UPDATED" in event_names
     assert all(event["operation_id"] for event in publisher.published_events)
     assert all(event["operation_id"][14] == "7" for event in publisher.published_events)
+    assert all(event["entity_id"][14] == "7" for event in publisher.published_events)
+    assert all("role_id" not in event["payload"] for event in publisher.published_events)
