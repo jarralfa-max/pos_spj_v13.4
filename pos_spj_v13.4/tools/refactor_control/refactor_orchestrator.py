@@ -1,9 +1,9 @@
-"""Continuous Codex orchestrator for the SPJ refactor loop.
+"""Continuous subprocess-isolated orchestrator for the SPJ refactor.
 
-This runner lives outside the application runtime. It reads the canonical
-refactor control files, validates their consistency, starts a Codex thread, and
-asks the agent to execute one functional batch per iteration until the global
-state is marked ``DONE``.
+Each Codex turn runs in a fresh child process. The parent process owns timeout,
+heartbeat, retry, state validation, and Windows process-tree termination. This
+prevents a blocked SDK notification queue or dead transport from freezing the
+full refactor loop indefinitely.
 """
 
 from __future__ import annotations
@@ -12,38 +12,32 @@ import argparse
 import json
 import logging
 import os
+import signal
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 LOGGER = logging.getLogger("spj.refactor.runner")
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = Path(os.environ.get("SPJ_PROJECT_ROOT", PACKAGE_ROOT)).resolve()
 REFACTOR_DIR = PROJECT_ROOT / "docs" / "refactor"
+RUNS_DIR = REFACTOR_DIR / "runs"
 STATE_FILE = REFACTOR_DIR / "refactor_state.json"
 WORK_QUEUE_FILE = REFACTOR_DIR / "work_queue.json"
 SKILL_FILE = PROJECT_ROOT / "docs" / "skills" / "SPJ_REFACTOR_SKILL.md"
+WORKER_FILE = PACKAGE_ROOT / "tools" / "refactor_control" / "refactor_turn_worker.py"
+
 DEFAULT_SLEEP_SECONDS = 5.0
 DEFAULT_RETRY_SECONDS = 30.0
 DEFAULT_MAX_STALLED_ITERATIONS = 2
-
-
-class CodexThread(Protocol):
-    def run(self, instruction: str) -> Any:
-        """Run one Codex instruction and return the SDK result."""
-
-
-class CodexClient(Protocol):
-    def __enter__(self) -> "CodexClient":
-        """Enter the SDK context manager."""
-
-    def __exit__(self, exc_type: object, exc: object, traceback: object) -> object:
-        """Exit the SDK context manager."""
-
-    def thread_start(self, *, model: str, sandbox: Any) -> CodexThread:
-        """Start a Codex thread."""
+DEFAULT_TURN_TIMEOUT_SECONDS = 30 * 60
+DEFAULT_MAX_TURN_RETRIES = 3
+DEFAULT_HEARTBEAT_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -58,6 +52,18 @@ class ProgressSnapshot:
     batch_status: str
     batch_iteration: int
     batch_completed_actions: int
+
+
+@dataclass(frozen=True)
+class TurnResult:
+    """Result produced by one isolated Codex worker process."""
+
+    returncode: int
+    stdout: str
+    stderr: str
+    timed_out: bool
+    elapsed_seconds: float
+    run_id: str
 
 
 def _ensure_inside_project(path: Path) -> Path:
@@ -209,31 +215,162 @@ def is_finished(
     return state.get("global_status") == "DONE"
 
 
-def _start_thread(codex_client: CodexClient, model: str) -> CodexThread:
-    """Start a Codex SDK thread using workspace-write sandboxing."""
+def _new_run_id(iteration: int, attempt: int) -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"{stamp}-i{iteration:04d}-a{attempt:02d}"
+
+
+def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
+    """Terminate the worker and all descendants, including Codex/PowerShell."""
+
+    if process.poll() is not None:
+        return
+
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=5)
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
+def run_codex_turn_subprocess(
+    *,
+    instruction: str,
+    model: str,
+    iteration: int,
+    attempt: int,
+    timeout_seconds: float,
+    heartbeat_seconds: float,
+    worker_file: Path = WORKER_FILE,
+    runs_dir: Path = RUNS_DIR,
+) -> TurnResult:
+    """Execute one Codex turn in a fresh process with a hard timeout."""
+
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be greater than zero")
+    if heartbeat_seconds <= 0:
+        raise ValueError("heartbeat_seconds must be greater than zero")
+
+    worker_path = _ensure_inside_project(worker_file)
+    if not worker_path.exists():
+        raise FileNotFoundError(f"Missing Codex turn worker: {worker_path}")
+
+    safe_runs_dir = _ensure_inside_project(runs_dir)
+    safe_runs_dir.mkdir(parents=True, exist_ok=True)
+    run_id = _new_run_id(iteration, attempt)
+    instruction_path = safe_runs_dir / f"{run_id}-request.md"
+    stdout_path = safe_runs_dir / f"{run_id}-response.log"
+    stderr_path = safe_runs_dir / f"{run_id}-stderr.log"
+    instruction_path.write_text(instruction, encoding="utf-8")
+
+    command = [
+        sys.executable,
+        str(worker_path),
+        "--model",
+        model,
+        "--instruction-file",
+        str(instruction_path),
+    ]
+
+    creationflags = 0
+    popen_kwargs: dict[str, Any] = {}
+    if os.name == "nt":
+        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    started = time.monotonic()
+    process = subprocess.Popen(
+        command,
+        cwd=str(PROJECT_ROOT),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=creationflags,
+        **popen_kwargs,
+    )
+
+    next_heartbeat = started + heartbeat_seconds
+    timed_out = False
 
     try:
-        from openai_codex import Sandbox
-    except ImportError as exc:  # pragma: no cover - depends on local runner installation.
-        raise RuntimeError("Install openai_codex to run the SPJ refactor orchestrator") from exc
-    return codex_client.thread_start(model=model, sandbox=Sandbox.workspace_write)
+        while process.poll() is None:
+            now = time.monotonic()
+            elapsed = now - started
+            if elapsed >= timeout_seconds:
+                timed_out = True
+                LOGGER.error(
+                    "Turn timeout | run_id=%s | pid=%s | elapsed=%.1fs | limit=%.1fs",
+                    run_id,
+                    process.pid,
+                    elapsed,
+                    timeout_seconds,
+                )
+                _terminate_process_tree(process)
+                break
 
+            if now >= next_heartbeat:
+                LOGGER.info(
+                    "Codex activo | run_id=%s | pid=%s | elapsed=%.1fs | remaining=%.1fs",
+                    run_id,
+                    process.pid,
+                    elapsed,
+                    max(0.0, timeout_seconds - elapsed),
+                )
+                next_heartbeat = now + heartbeat_seconds
 
-def _result_text(result: Any) -> str:
-    return str(getattr(result, "final_response", result))
+            time.sleep(min(1.0, heartbeat_seconds))
+
+        try:
+            stdout, stderr = process.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            _terminate_process_tree(process)
+            stdout, stderr = process.communicate()
+    except KeyboardInterrupt:
+        _terminate_process_tree(process)
+        raise
+
+    elapsed = time.monotonic() - started
+    returncode = process.returncode if process.returncode is not None else -1
+    stdout_path.write_text(stdout or "", encoding="utf-8")
+    stderr_path.write_text(stderr or "", encoding="utf-8")
+
+    return TurnResult(
+        returncode=returncode,
+        stdout=stdout or "",
+        stderr=stderr or "",
+        timed_out=timed_out,
+        elapsed_seconds=elapsed,
+        run_id=run_id,
+    )
 
 
 def run_loop(
     *,
-    codex_client: CodexClient | None = None,
     model: str = "gpt-5.4",
     sleep_seconds: float = DEFAULT_SLEEP_SECONDS,
     retry_seconds: float = DEFAULT_RETRY_SECONDS,
     max_iterations: int | None = None,
     dry_run: bool = False,
     max_stalled_iterations: int = DEFAULT_MAX_STALLED_ITERATIONS,
+    turn_timeout_seconds: float = DEFAULT_TURN_TIMEOUT_SECONDS,
+    max_turn_retries: int = DEFAULT_MAX_TURN_RETRIES,
+    heartbeat_seconds: float = DEFAULT_HEARTBEAT_SECONDS,
 ) -> None:
-    """Run Codex iterations until DONE, a configured limit, or a stall."""
+    """Run isolated Codex turns until DONE, limit, stall, or repeated failure."""
 
     logging.basicConfig(level=logging.INFO)
     initial_state = load_state()
@@ -251,67 +388,89 @@ def run_loop(
         raise ValueError("max_iterations must be greater than zero")
     if max_stalled_iterations <= 0:
         raise ValueError("max_stalled_iterations must be greater than zero")
+    if max_turn_retries <= 0:
+        raise ValueError("max_turn_retries must be greater than zero")
 
-    if codex_client is None:
-        try:
-            from openai_codex import Codex
-        except ImportError as exc:  # pragma: no cover - depends on local runner installation.
-            raise RuntimeError("Install openai_codex to run the SPJ refactor orchestrator") from exc
-        codex_client = Codex()
+    iteration = 0
+    stalled_iterations = 0
 
-    with codex_client as codex:
-        thread = _start_thread(codex, model)
-        iteration = 0
-        stalled_iterations = 0
+    while not is_finished():
+        if max_iterations is not None and iteration >= max_iterations:
+            LOGGER.info("Iteration limit reached: %s", max_iterations)
+            break
 
-        while not is_finished():
-            if max_iterations is not None and iteration >= max_iterations:
-                LOGGER.info("Iteration limit reached: %s", max_iterations)
-                break
+        iteration += 1
+        state = load_state()
+        before = progress_snapshot()
+        instruction = build_instruction(state)
 
-            iteration += 1
-            state = load_state()
-            before = progress_snapshot()
+        LOGGER.info(
+            "Iteración %s | módulo=%s | lote=%s",
+            iteration,
+            state.get("current_module"),
+            state.get("current_batch"),
+        )
 
-            LOGGER.info(
-                "Iteración %s | módulo=%s | lote=%s",
-                iteration,
-                state.get("current_module"),
-                state.get("current_batch"),
+        successful_turn = False
+        last_error = ""
+
+        for attempt in range(1, max_turn_retries + 1):
+            result = run_codex_turn_subprocess(
+                instruction=instruction,
+                model=model,
+                iteration=iteration,
+                attempt=attempt,
+                timeout_seconds=turn_timeout_seconds,
+                heartbeat_seconds=heartbeat_seconds,
             )
 
-            try:
-                result = thread.run(build_instruction(state))
-                LOGGER.info("Respuesta Codex:\n%s", _result_text(result))
-            except KeyboardInterrupt:
-                LOGGER.warning("Ejecución detenida por el usuario.")
-                raise
-            except Exception:
-                LOGGER.exception(
-                    "Falló la iteración %s. Reintentando en %s segundos.",
-                    iteration,
-                    retry_seconds,
+            if result.returncode == 0 and not result.timed_out:
+                LOGGER.info(
+                    "Codex turn completed | run_id=%s | elapsed=%.1fs\n%s",
+                    result.run_id,
+                    result.elapsed_seconds,
+                    result.stdout.strip(),
                 )
+                successful_turn = True
+                break
+
+            reason = "TIMEOUT" if result.timed_out else f"EXIT_{result.returncode}"
+            last_error = result.stderr.strip() or result.stdout.strip() or reason
+            LOGGER.error(
+                "Codex turn failed | run_id=%s | reason=%s | attempt=%s/%s\n%s",
+                result.run_id,
+                reason,
+                attempt,
+                max_turn_retries,
+                last_error[-4000:],
+            )
+
+            if attempt < max_turn_retries:
+                LOGGER.info("Retrying same batch with a fresh worker in %.1fs", retry_seconds)
                 time.sleep(retry_seconds)
-                continue
 
-            after = progress_snapshot()
-            if after == before:
-                stalled_iterations += 1
-                LOGGER.warning(
-                    "No canonical progress detected after iteration %s (%s/%s)",
-                    iteration,
-                    stalled_iterations,
-                    max_stalled_iterations,
+        if not successful_turn:
+            raise RuntimeError(
+                f"Codex turn failed after {max_turn_retries} fresh-process attempts: {last_error}"
+            )
+
+        after = progress_snapshot()
+        if after == before:
+            stalled_iterations += 1
+            LOGGER.warning(
+                "No canonical progress detected after iteration %s (%s/%s)",
+                iteration,
+                stalled_iterations,
+                max_stalled_iterations,
+            )
+            if stalled_iterations >= max_stalled_iterations:
+                raise RuntimeError(
+                    "Refactor orchestrator stalled: state and work queue did not change"
                 )
-                if stalled_iterations >= max_stalled_iterations:
-                    raise RuntimeError(
-                        "Refactor orchestrator stalled: state and work queue did not change"
-                    )
-            else:
-                stalled_iterations = 0
+        else:
+            stalled_iterations = 0
 
-            time.sleep(sleep_seconds)
+        time.sleep(sleep_seconds)
 
     if is_finished():
         LOGGER.info("Refactor global marcado como DONE.")
@@ -327,7 +486,25 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--max-stalled-iterations",
         type=int,
         default=DEFAULT_MAX_STALLED_ITERATIONS,
-        help="Stop after N iterations without canonical state progress",
+        help="Stop after N successful turns without canonical state progress",
+    )
+    parser.add_argument(
+        "--turn-timeout-seconds",
+        type=float,
+        default=DEFAULT_TURN_TIMEOUT_SECONDS,
+        help="Hard timeout for each isolated Codex turn",
+    )
+    parser.add_argument(
+        "--max-turn-retries",
+        type=int,
+        default=DEFAULT_MAX_TURN_RETRIES,
+        help="Fresh-process retries for a failed or timed-out turn",
+    )
+    parser.add_argument(
+        "--heartbeat-seconds",
+        type=float,
+        default=DEFAULT_HEARTBEAT_SECONDS,
+        help="Interval for active-turn heartbeat logging",
     )
     return parser
 
@@ -340,6 +517,9 @@ def main(argv: list[str] | None = None) -> None:
         max_iterations=max_iterations,
         dry_run=args.dry_run,
         max_stalled_iterations=args.max_stalled_iterations,
+        turn_timeout_seconds=args.turn_timeout_seconds,
+        max_turn_retries=args.max_turn_retries,
+        heartbeat_seconds=args.heartbeat_seconds,
     )
 
 
