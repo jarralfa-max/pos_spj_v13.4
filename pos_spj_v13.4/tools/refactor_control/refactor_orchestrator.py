@@ -220,7 +220,7 @@ def _new_run_id(iteration: int, attempt: int) -> str:
     return f"{stamp}-i{iteration:04d}-a{attempt:02d}"
 
 
-def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
+def _terminate_process_tree(process: subprocess.Popen[Any]) -> None:
     """Terminate the worker and all descendants, including Codex/PowerShell."""
 
     if process.poll() is not None:
@@ -291,67 +291,68 @@ def run_codex_turn_subprocess(
         popen_kwargs["start_new_session"] = True
 
     started = time.monotonic()
-    process = subprocess.Popen(
-        command,
-        cwd=str(PROJECT_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        creationflags=creationflags,
-        **popen_kwargs,
-    )
-
-    next_heartbeat = started + heartbeat_seconds
     timed_out = False
 
-    try:
-        while process.poll() is None:
-            now = time.monotonic()
-            elapsed = now - started
-            if elapsed >= timeout_seconds:
-                timed_out = True
-                LOGGER.error(
-                    "Turn timeout | run_id=%s | pid=%s | elapsed=%.1fs | limit=%.1fs",
-                    run_id,
-                    process.pid,
-                    elapsed,
-                    timeout_seconds,
-                )
-                _terminate_process_tree(process)
-                break
+    with stdout_path.open("w", encoding="utf-8", errors="replace") as stdout_file, stderr_path.open(
+        "w", encoding="utf-8", errors="replace"
+    ) as stderr_file:
+        process = subprocess.Popen(
+            command,
+            cwd=str(PROJECT_ROOT),
+            stdout=stdout_file,
+            stderr=stderr_file,
+            creationflags=creationflags,
+            **popen_kwargs,
+        )
 
-            if now >= next_heartbeat:
-                LOGGER.info(
-                    "Codex activo | run_id=%s | pid=%s | elapsed=%.1fs | remaining=%.1fs",
-                    run_id,
-                    process.pid,
-                    elapsed,
-                    max(0.0, timeout_seconds - elapsed),
-                )
-                next_heartbeat = now + heartbeat_seconds
-
-            time.sleep(min(1.0, heartbeat_seconds))
+        next_heartbeat = started + heartbeat_seconds
 
         try:
-            stdout, stderr = process.communicate(timeout=10)
-        except subprocess.TimeoutExpired:
+            while process.poll() is None:
+                now = time.monotonic()
+                elapsed = now - started
+                if elapsed >= timeout_seconds:
+                    timed_out = True
+                    LOGGER.error(
+                        "Turn timeout | run_id=%s | pid=%s | elapsed=%.1fs | limit=%.1fs",
+                        run_id,
+                        process.pid,
+                        elapsed,
+                        timeout_seconds,
+                    )
+                    _terminate_process_tree(process)
+                    break
+
+                if now >= next_heartbeat:
+                    LOGGER.info(
+                        "Codex activo | run_id=%s | pid=%s | elapsed=%.1fs | remaining=%.1fs",
+                        run_id,
+                        process.pid,
+                        elapsed,
+                        max(0.0, timeout_seconds - elapsed),
+                    )
+                    next_heartbeat = now + heartbeat_seconds
+
+                time.sleep(min(1.0, heartbeat_seconds))
+
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                _terminate_process_tree(process)
+                process.wait(timeout=10)
+        except KeyboardInterrupt:
             _terminate_process_tree(process)
-            stdout, stderr = process.communicate()
-    except KeyboardInterrupt:
-        _terminate_process_tree(process)
-        raise
+            raise
 
     elapsed = time.monotonic() - started
+    stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
+    stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
     returncode = process.returncode if process.returncode is not None else -1
-    stdout_path.write_text(stdout or "", encoding="utf-8")
-    stderr_path.write_text(stderr or "", encoding="utf-8")
 
     return TurnResult(
         returncode=returncode,
-        stdout=stdout or "",
-        stderr=stderr or "",
+        stdout=stdout,
+        stderr=stderr,
         timed_out=timed_out,
         elapsed_seconds=elapsed,
         run_id=run_id,
