@@ -8,8 +8,8 @@ from typing import Any
 
 @dataclass(frozen=True)
 class InventoryStockRecord:
-    product_id: int
-    branch_id: int
+    product_id: str
+    branch_id: str
     quantity: float
     unit: str
     updated_at: str | None = None
@@ -18,8 +18,8 @@ class InventoryStockRecord:
 @dataclass(frozen=True)
 class InventoryMovementRecord:
     operation_id: str
-    product_id: int
-    branch_id: int
+    product_id: str
+    branch_id: str
     movement_type: str
     quantity: float
     stock_before: float
@@ -43,7 +43,7 @@ class InventoryRepository:
     def connection(self):
         return self._connection
 
-    def get_stock(self, product_id: int, branch_id: int) -> InventoryStockRecord:
+    def get_stock(self, product_id: str, branch_id: str) -> InventoryStockRecord:
         row = self._connection.execute(
             """
             SELECT product_id, branch_id, quantity, unit, updated_at
@@ -68,7 +68,7 @@ class InventoryRepository:
             updated_at=None if row[4] is None else str(row[4]),
         )
 
-    def list_stock(self, branch_id: int) -> list[InventoryStockRecord]:
+    def list_stock(self, branch_id: str) -> list[InventoryStockRecord]:
         rows = self._connection.execute(
             """
             SELECT product_id, branch_id, quantity, unit, updated_at
@@ -92,8 +92,8 @@ class InventoryRepository:
     def list_movements(
         self,
         *,
-        product_id: int | None = None,
-        branch_id: int | None = None,
+        product_id: str | None = None,
+        branch_id: str | None = None,
     ) -> list[InventoryMovementRecord]:
         filters: list[str] = []
         params: list[Any] = []
@@ -121,8 +121,8 @@ class InventoryRepository:
         self,
         *,
         operation_id: str,
-        product_id: int,
-        branch_id: int,
+        product_id: str,
+        branch_id: str,
         movement_type: str,
     ) -> InventoryMovementRecord | None:
         row = self._connection.execute(

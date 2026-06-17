@@ -11,15 +11,15 @@ from backend.application.queries.inventory_query_service import InventoryQuerySe
 @dataclass(frozen=True)
 class GetInventoryStockCommand:
     operation_id: str
-    product_id: int
-    branch_id: int
+    product_id: str
+    branch_id: str
 
     def validate_context(self) -> None:
         if not self.operation_id:
             raise ValueError("operation_id is required")
-        if int(self.product_id or 0) <= 0:
+        if not str(self.product_id or "").strip():
             raise ValueError("product_id is required")
-        if int(self.branch_id or 0) <= 0:
+        if not str(self.branch_id or "").strip():
             raise ValueError("branch_id is required")
 
 

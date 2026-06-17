@@ -97,7 +97,7 @@ class ProductCatalogService:
             raise
         return {"ok": True, "product_id": int(command.product_id), "operation_id": command.operation_id, "action": "update"}
 
-    def deactivate_product(self, product_id: int, operation_id: str, user_name: str = "") -> dict:
+    def deactivate_product(self, product_id: str, operation_id: str, user_name: str = "") -> dict:
         """Soft-delete a product while preserving history."""
         return self._set_product_state(
             product_id=product_id,
@@ -108,7 +108,7 @@ class ProductCatalogService:
             action="deactivate",
         )
 
-    def restore_product(self, product_id: int, operation_id: str, user_name: str = "") -> dict:
+    def restore_product(self, product_id: str, operation_id: str, user_name: str = "") -> dict:
         """Restore a soft-deleted product to the visible catalog."""
         return self._set_product_state(
             product_id=product_id,
@@ -119,7 +119,7 @@ class ProductCatalogService:
             action="restore",
         )
 
-    def set_product_active(self, product_id: int, active: bool, operation_id: str, user_name: str = "") -> dict:
+    def set_product_active(self, product_id: str, active: bool, operation_id: str, user_name: str = "") -> dict:
         """Toggle product POS visibility without deleting catalog history."""
         return self._set_product_state(
             product_id=product_id,
@@ -133,14 +133,14 @@ class ProductCatalogService:
     def _set_product_state(
         self,
         *,
-        product_id: int,
+        product_id: str,
         active: int,
         hidden: int,
         operation_id: str,
         user_name: str,
         action: str,
     ) -> dict:
-        if int(product_id) <= 0:
+        if not str(product_id or "").strip():
             raise ValueError("product_id is required")
         if not operation_id:
             raise ValueError("operation_id is required")

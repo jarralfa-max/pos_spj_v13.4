@@ -18,6 +18,6 @@ class CreateSaleCommand(BaseCommand):
 
     items: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
     payment: Mapping[str, Any] = field(default_factory=dict)
-    customer_id: int | str | None = None
+    customer_id: str | None = None
     notes: str = ""
-    reservation_id: int | str | None = None
+    reservation_id: str | None = None

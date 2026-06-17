@@ -9,7 +9,7 @@ from backend.application.commands.base_command import BaseCommand
 
 @dataclass(frozen=True)
 class RegisterInventoryMovementCommand(BaseCommand):
-    product_id: int = 0
+    product_id: str = ""
     quantity: float = 0.0
     unit: str = "unit"
     movement_type: str = ""
@@ -32,7 +32,7 @@ class RegisterInventoryMovementCommand(BaseCommand):
 
 @dataclass(frozen=True)
 class RegisterInventoryEntryCommand(BaseCommand):
-    product_id: int = 0
+    product_id: str = ""
     quantity: float = 0.0
     unit: str = "unit"
     unit_cost: float = 0.0
@@ -55,7 +55,7 @@ class RegisterInventoryEntryCommand(BaseCommand):
 
 @dataclass(frozen=True)
 class AdjustInventoryCommand(BaseCommand):
-    product_id: int = 0
+    product_id: str = ""
     new_quantity: float = 0.0
     unit: str = "unit"
     source_module: str = "inventory"
@@ -75,9 +75,9 @@ class AdjustInventoryCommand(BaseCommand):
 
 @dataclass(frozen=True)
 class TransferInventoryCommand(BaseCommand):
-    product_id: int = 0
-    from_branch_id: int = 0
-    to_branch_id: int = 0
+    product_id: str = ""
+    from_branch_id: str = ""
+    to_branch_id: str = ""
     quantity: float = 0.0
     unit: str = "unit"
     source_module: str = "inventory"
@@ -91,19 +91,19 @@ class TransferInventoryCommand(BaseCommand):
         _validate_branch_id(self.from_branch_id)
         _validate_branch_id(self.to_branch_id)
         _validate_positive_quantity(self.quantity)
-        if int(self.from_branch_id) == int(self.to_branch_id):
+        if str(self.from_branch_id) == str(self.to_branch_id):
             raise ValueError("from_branch_id and to_branch_id must be different")
         if not self.source_module:
             raise ValueError("source_module is required")
 
 
-def _validate_product_id(product_id: int) -> None:
-    if int(product_id or 0) <= 0:
+def _validate_product_id(product_id: str) -> None:
+    if not str(product_id or "").strip():
         raise ValueError("product_id is required")
 
 
-def _validate_branch_id(branch_id: int | str) -> None:
-    if int(branch_id or 0) <= 0:
+def _validate_branch_id(branch_id: str) -> None:
+    if not str(branch_id or "").strip():
         raise ValueError("branch_id is required")
 
 

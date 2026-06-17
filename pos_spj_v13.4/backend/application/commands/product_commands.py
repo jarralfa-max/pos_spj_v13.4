@@ -27,4 +27,4 @@ class CreateProductCommand(BaseCommand):
 
 @dataclass(frozen=True)
 class UpdateProductCommand(CreateProductCommand):
-    product_id: int = 0
+    product_id: str = ""

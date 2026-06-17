@@ -50,8 +50,8 @@ class InventoryApplicationService:
 
     def increase_stock(
         self,
-        product_id: int,
-        branch_id: int,
+        product_id: str,
+        branch_id: str,
         quantity: float,
         unit: str,
         reason: str,
@@ -80,8 +80,8 @@ class InventoryApplicationService:
 
     def decrease_stock(
         self,
-        product_id: int,
-        branch_id: int,
+        product_id: str,
+        branch_id: str,
         quantity: float,
         unit: str,
         reason: str,
@@ -196,8 +196,8 @@ class InventoryApplicationService:
 
     def adjust_stock(
         self,
-        product_id: int | Any,
-        branch_id: int | None = None,
+        product_id: str | Any,
+        branch_id: str | None = None,
         new_quantity: float | None = None,
         unit: str = "unit",
         reason: str = "",
@@ -235,9 +235,9 @@ class InventoryApplicationService:
 
     def transfer_stock(
         self,
-        product_id: int,
-        from_branch_id: int,
-        to_branch_id: int,
+        product_id: str,
+        from_branch_id: str,
+        to_branch_id: str,
         quantity: float,
         unit: str,
         reason: str,
@@ -385,8 +385,8 @@ class InventoryApplicationService:
     def _change_stock(
         self,
         *,
-        product_id: int,
-        branch_id: int,
+        product_id: str,
+        branch_id: str,
         quantity: float,
         unit: str,
         reason: str,

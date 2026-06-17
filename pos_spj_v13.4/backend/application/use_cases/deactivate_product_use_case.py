@@ -9,7 +9,7 @@ from backend.application.services.product_catalog_service import ProductCatalogS
 
 @dataclass(frozen=True)
 class DeactivateProductCommand:
-    product_id: int
+    product_id: str
     operation_id: str
     user_name: str = ""
 

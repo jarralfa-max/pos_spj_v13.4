@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class WasteRepositoryProtocol(Protocol):
     def operation_exists(self, operation_id: str) -> bool: ...
-    def get_product_for_waste(self, product_id: int | str, *, branch_id: str | int | None = None) -> Any: ...
+    def get_product_for_waste(self, product_id: str, *, branch_id: str | None = None) -> Any: ...
     def register_waste(self, entry: dict[str, Any]) -> str: ...
     def save_changes(self) -> None: ...
     def rollback_changes(self) -> None: ...
@@ -28,8 +28,8 @@ class WasteRepositoryProtocol(Protocol):
 class InventoryApplicationServiceProtocol(Protocol):
     def decrease_stock(
         self,
-        product_id: int,
-        branch_id: int,
+        product_id: str,
+        branch_id: str,
         quantity: float,
         unit: str,
         reason: str,
@@ -47,7 +47,7 @@ class WasteFinanceHandler:
 
     finance_service: Any | None = None
 
-    def record_loss(self, *, amount: float, product_id: int | str, quantity: float, reason: str,
+    def record_loss(self, *, amount: float, product_id: str, quantity: float, reason: str,
                     waste_id: str, branch_id: str, user_name: str | None, user_id: str | None,
                     operation_id: str) -> None:
         if amount <= 0 or self.finance_service is None:
