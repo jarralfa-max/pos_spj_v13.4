@@ -232,3 +232,129 @@ def test_usuario_without_sucursal():
     rows = repo.list_users_v13()
     assert len(rows) == 1
     assert rows[0]["sucursal_uuid_val"] is None
+
+
+# ---------------------------------------------------------------------------
+# Happy Hour ambiguous-uuid tests (added for fix: ambiguous column name: uuid)
+# ---------------------------------------------------------------------------
+
+def _make_hhr_db(with_sucursal_uuid: bool = True, with_hhr_uuid: bool = True) -> sqlite3.Connection:
+    """Build minimal in-memory DB with happy_hour_rules + sucursales both having uuid."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    sucursal_uuid = "019ed300-0000-7000-8000-aaaaaaaaaaaa"
+    rule_uuid = "019ed300-0000-7000-8000-bbbbbbbbbbbb"
+
+    extra_s = ", uuid TEXT" if True else ""
+    conn.execute(
+        f"CREATE TABLE sucursales (id INTEGER PRIMARY KEY, nombre TEXT, activa INTEGER{extra_s})"
+    )
+    conn.execute(
+        f"INSERT INTO sucursales VALUES (1,'Principal',1,'{sucursal_uuid}')"
+    )
+
+    hhr_cols = "id INTEGER PRIMARY KEY, nombre TEXT, hora_inicio TEXT, hora_fin TEXT, "
+    hhr_cols += "dias_semana TEXT, tipo_descuento TEXT, valor REAL, aplica_a TEXT, "
+    hhr_cols += "aplica_valor TEXT, mensaje_wa TEXT, activo INTEGER, sucursal_id INTEGER"
+    if with_sucursal_uuid:
+        hhr_cols += ", sucursal_uuid TEXT"
+    if with_hhr_uuid:
+        hhr_cols += ", uuid TEXT"
+    conn.execute(f"CREATE TABLE happy_hour_rules ({hhr_cols})")
+
+    if with_sucursal_uuid and with_hhr_uuid:
+        conn.execute(
+            "INSERT INTO happy_hour_rules VALUES (1,'HH Test','10:00','12:00','lun-vie',"
+            f"'porcentaje',10,'todo','','',1,1,'{sucursal_uuid}','{rule_uuid}')"
+        )
+    elif with_sucursal_uuid:
+        conn.execute(
+            "INSERT INTO happy_hour_rules VALUES (1,'HH Test','10:00','12:00','lun-vie',"
+            f"'porcentaje',10,'todo','','',1,1,'{sucursal_uuid}')"
+        )
+    else:
+        conn.execute(
+            "INSERT INTO happy_hour_rules VALUES (1,'HH Test','10:00','12:00','lun-vie',"
+            "'porcentaje',10,'todo','','',1,1)"
+        )
+    conn.commit()
+    return conn
+
+
+def test_list_happy_hour_rules_no_ambiguous_uuid():
+    """list_happy_hour_rules does not raise ambiguous column when both tables have uuid."""
+    import sys
+    sys.path.insert(0, str(ROOT / "pos_spj_v13.4"))
+    from repositories.config_repository import ConfigRepository
+    conn = _make_hhr_db(with_sucursal_uuid=True, with_hhr_uuid=True)
+    repo = ConfigRepository(conn)
+    rows = repo.list_happy_hour_rules()
+    assert len(rows) == 1
+    assert rows[0]["nombre"] == "HH Test"
+
+
+def test_list_happy_hour_rules_global_rule_null_sucursal():
+    """Happy Hour with sucursal_uuid IS NULL (global rule) loads without error."""
+    import sys
+    sys.path.insert(0, str(ROOT / "pos_spj_v13.4"))
+    from repositories.config_repository import ConfigRepository
+    conn = _make_hhr_db(with_sucursal_uuid=True, with_hhr_uuid=True)
+    conn.execute("UPDATE happy_hour_rules SET sucursal_uuid=NULL, sucursal_id=NULL")
+    conn.commit()
+    repo = ConfigRepository(conn)
+    rows = repo.list_happy_hour_rules()
+    assert len(rows) == 1
+
+
+def test_list_happy_hour_rules_old_db_no_sucursal_uuid():
+    """Old DB without sucursal_uuid column: graceful fallback, no RuntimeError."""
+    import sys
+    sys.path.insert(0, str(ROOT / "pos_spj_v13.4"))
+    from repositories.config_repository import ConfigRepository
+    conn = _make_hhr_db(with_sucursal_uuid=False, with_hhr_uuid=False)
+    repo = ConfigRepository(conn)
+    rows = repo.list_happy_hour_rules()
+    assert len(rows) == 1
+
+
+def test_list_happy_hour_rules_multiple_rules():
+    """Multiple rules load without error and count is preserved."""
+    import sys
+    sys.path.insert(0, str(ROOT / "pos_spj_v13.4"))
+    from repositories.config_repository import ConfigRepository
+    from backend.shared.ids import new_uuid
+    conn = _make_hhr_db(with_sucursal_uuid=True, with_hhr_uuid=True)
+    conn.execute(
+        "INSERT INTO happy_hour_rules VALUES (2,'HH2','14:00','16:00','mar',"
+        f"'monto',50,'todo','','',1,1,?,?)",
+        (new_uuid(), new_uuid()),
+    )
+    conn.commit()
+    repo = ConfigRepository(conn)
+    rows = repo.list_happy_hour_rules()
+    assert len(rows) == 2
+
+
+def test_get_happy_hour_rule_by_uuid():
+    """get_happy_hour_rule retrieves correct row by UUID without ambiguity."""
+    import sys
+    sys.path.insert(0, str(ROOT / "pos_spj_v13.4"))
+    from repositories.config_repository import ConfigRepository
+    conn = _make_hhr_db(with_sucursal_uuid=True, with_hhr_uuid=True)
+    rule_uuid = "019ed300-0000-7000-8000-bbbbbbbbbbbb"
+    repo = ConfigRepository(conn)
+    rule = repo.get_happy_hour_rule(rule_uuid)
+    assert rule is not None
+    assert rule["id"] == rule_uuid
+
+
+def test_pragma_integrity_after_hhr_queries():
+    """PRAGMA integrity_check passes after list_happy_hour_rules on migrated DB."""
+    import sys
+    sys.path.insert(0, str(ROOT / "pos_spj_v13.4"))
+    from repositories.config_repository import ConfigRepository
+    conn = _make_hhr_db(with_sucursal_uuid=True, with_hhr_uuid=True)
+    repo = ConfigRepository(conn)
+    repo.list_happy_hour_rules()
+    result = conn.execute("PRAGMA integrity_check").fetchone()[0]
+    assert result == "ok"
