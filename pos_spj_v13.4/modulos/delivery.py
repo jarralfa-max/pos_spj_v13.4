@@ -184,7 +184,7 @@ class AsignarDriverDialog(QDialog):
             branch_id = int(getattr(self.parent(), "sucursal_id", 1) or 1)
             rows = self.parent().driver_service.list_active_drivers(branch_id) if hasattr(self.parent(), "driver_service") else []
             for r in rows:
-                label = f"{r.get("nombre","")} · {r.get("telefono","")} · {r.get("vehiculo","")}"
+                label = f"{r.get('nombre', '')} · {r.get('telefono', '')} · {r.get('vehiculo', '')}"
                 self.combo_driver.addItem(label, r.get("id"))
             if self.combo_driver.count() == 0:
                 self.combo_driver.addItem("Sin repartidores registrados", None)

@@ -1097,7 +1097,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self._kpi_sin.set_valor(str(data.get("sin_stock_fisico", 0)))
         virtual_value = data.get("virtual_disponible")
         self._kpi_virtual.set_valor("Pendiente" if virtual_value is None else str(virtual_value))
-        self._kpi_res.set_valor(f"{float(data.get("reservados", 0) or 0):.3f}")
+        self._kpi_res.set_valor(f"{float(data.get('reservados', 0) or 0):.3f}")
         self._kpi_mov.set_valor(str(data.get("mov_hoy", 0)))
 
     def _on_kpi_click(self, key: str) -> None:
