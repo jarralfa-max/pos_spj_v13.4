@@ -139,7 +139,7 @@ class ProductQueryService(BaseQueryService):
     @classmethod
     def from_connection(cls, db_conn: Any) -> "ProductQueryService":
         """Build a SQLite-backed product query service for legacy desktop wiring."""
-        return cls(db_conn=db_conn)
+        return cls(data_source=SQLiteProductQueryDataSource(db_conn), db_conn=db_conn)
 
     def search_products(self, query: str, filters: QueryFilters | None = None) -> list[SearchResult]:
         return list(self.search(query, filters))

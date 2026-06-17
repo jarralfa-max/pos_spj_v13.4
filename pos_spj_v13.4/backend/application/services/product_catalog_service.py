@@ -5,97 +5,209 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from backend.application.dto.use_case_result import UseCaseResult
+from backend.domain.services.product_type_policy import ProductTypePolicy
+from backend.shared.events.event_contracts import create_domain_event
+from backend.shared.events.event_names import EventName
+
 logger = logging.getLogger("spj.products.catalog")
 
 
 class ProductCatalogService:
     """Canonical application service for product catalog mutations."""
 
-    def __init__(self, db_conn: Any) -> None:
-        self._db = db_conn
+    def __init__(self, db_conn: Any = None, *, repository: Any = None, event_bus: Any = None) -> None:
+        self._repository = repository
+        self._event_bus = event_bus
+        # Legacy path: direct db_conn without repository
+        self._db = db_conn if db_conn is not None and repository is None else (
+            getattr(repository, "_connection", None) if repository is not None else None
+        )
 
-
-    def create_product(self, command: Any) -> dict:
+    def create_product(self, command: Any) -> UseCaseResult:
         """Create a product through the canonical catalog service."""
         if not getattr(command, "name", ""):
             raise ValueError("product name is required")
-        cursor = self._db.cursor()
-        try:
-            cursor.execute(
-                """
-                INSERT INTO productos (
-                    nombre, codigo, codigo_barras, categoria, precio, precio_compra, precio_minimo_venta,
-                    unidad, stock_minimo, tipo_producto, es_compuesto, es_subproducto,
-                    imagen_path, existencia, oculto, activo
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
-                """,
-                (
-                    command.name,
-                    command.code,
-                    command.barcode,
-                    command.category,
-                    float(command.price or 0),
-                    float(command.purchase_price or 0),
-                    float(command.minimum_sale_price or 0),
-                    command.unit,
-                    float(command.stock_minimum or 0),
-                    command.product_type,
-                    1 if command.is_composite else 0,
-                    1 if command.is_byproduct else 0,
-                    command.image_path,
-                    1 if command.active else 0,
-                ),
-            )
-            self._db.commit()
-        except Exception:
-            logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
-            try:
-                self._db.rollback()
-            except Exception:
-                logger.exception("Product catalog create rollback failed")
-            raise
-        return {"ok": True, "product_id": int(cursor.lastrowid), "operation_id": command.operation_id, "action": "create"}
 
-    def update_product(self, command: Any) -> dict:
-        """Update a product through the canonical catalog service."""
-        if int(getattr(command, "product_id", 0) or 0) <= 0:
-            raise ValueError("product_id is required")
-        try:
-            self._db.execute(
-                """
-                UPDATE productos SET
-                    nombre=?, codigo=?, codigo_barras=?, categoria=?, precio=?, precio_compra=?, precio_minimo_venta=?,
-                    unidad=?, stock_minimo=?, tipo_producto=?, es_compuesto=?, es_subproducto=?, activo=?,
-                    imagen_path=?, ultima_actualizacion=datetime('now')
-                WHERE id=?
-                """,
-                (
-                    command.name,
-                    command.code,
-                    command.barcode,
-                    command.category,
-                    float(command.price or 0),
-                    float(command.purchase_price or 0),
-                    float(command.minimum_sale_price or 0),
-                    command.unit,
-                    float(command.stock_minimum or 0),
-                    command.product_type,
-                    1 if command.is_composite else 0,
-                    1 if command.is_byproduct else 0,
-                    1 if command.active else 0,
-                    command.image_path,
-                    int(command.product_id),
-                ),
-            )
-            self._db.commit()
-        except Exception:
-            logger.exception("Product catalog update failed product_id=%s operation_id=%s", command.product_id, command.operation_id)
+        canonical_type = ProductTypePolicy.canonical_from_label(getattr(command, "product_type", "simple"))
+        rules = ProductTypePolicy.rules_for(canonical_type)
+
+        if self._repository is not None:
+            product_data = {
+                "name": command.name,
+                "sku": getattr(command, "sku", None) or getattr(command, "code", None),
+                "barcode": getattr(command, "barcode", ""),
+                "category": command.category,
+                "sale_price": float(getattr(command, "sale_price", None) or getattr(command, "price", 0)),
+                "purchase_price": float(command.purchase_price or 0),
+                "minimum_sale_price": float(command.minimum_sale_price or 0),
+                "unit": command.unit,
+                "minimum_stock": float(getattr(command, "minimum_stock", None) or getattr(command, "stock_minimum", 0)),
+                "product_type": canonical_type,
+                "is_composite": 1 if rules.is_composite else 0,
+                "is_byproduct": 1 if rules.is_byproduct else 0,
+                "image_path": getattr(command, "image_path", None),
+                "active": 1 if getattr(command, "active", True) else 0,
+            }
             try:
-                self._db.rollback()
+                product_id_str = self._repository.create(product_data)
+                self._repository._connection.commit()
             except Exception:
-                logger.exception("Product catalog update rollback failed product_id=%s", command.product_id)
-            raise
-        return {"ok": True, "product_id": int(command.product_id), "operation_id": command.operation_id, "action": "update"}
+                logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
+                try:
+                    self._repository._connection.rollback()
+                except Exception:
+                    pass
+                raise
+        else:
+            # Legacy direct db_conn path
+            cursor = self._db.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO productos (
+                        nombre, codigo, codigo_barras, categoria, precio, precio_compra, precio_minimo_venta,
+                        unidad, stock_minimo, tipo_producto, es_compuesto, es_subproducto,
+                        imagen_path, existencia, oculto, activo
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+                    """,
+                    (
+                        command.name,
+                        getattr(command, "sku", None) or getattr(command, "code", None),
+                        getattr(command, "barcode", ""),
+                        command.category,
+                        float(getattr(command, "sale_price", None) or getattr(command, "price", 0)),
+                        float(command.purchase_price or 0),
+                        float(command.minimum_sale_price or 0),
+                        command.unit,
+                        float(getattr(command, "minimum_stock", None) or getattr(command, "stock_minimum", 0)),
+                        canonical_type,
+                        1 if rules.is_composite else 0,
+                        1 if rules.is_byproduct else 0,
+                        getattr(command, "image_path", None),
+                        1 if getattr(command, "active", True) else 0,
+                    ),
+                )
+                self._db.commit()
+                product_id_str = str(cursor.lastrowid)
+            except Exception:
+                logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
+                try:
+                    self._db.rollback()
+                except Exception:
+                    pass
+                raise
+
+        recipe_pending = rules.allows_recipe
+        data = {
+            "recipe_pending": recipe_pending,
+            "product_type": canonical_type,
+        }
+
+        # Publish event if bus available
+        if self._event_bus is not None:
+            try:
+                event = create_domain_event(
+                    event_name=EventName.PRODUCT_CREATED,
+                    operation_id=command.operation_id,
+                    entity_id=product_id_str,
+                    branch_id=getattr(command, "branch_id", "1"),
+                    source_module="product_catalog",
+                    user_name=getattr(command, "user_name", None) or "system",
+                    payload={**data, "name": command.name},
+                )
+                self._event_bus.publish(event)
+            except Exception:
+                logger.exception("Failed to publish PRODUCT_CREATED event operation_id=%s", command.operation_id)
+
+        return UseCaseResult(
+            success=True,
+            operation_id=command.operation_id,
+            entity_id=product_id_str,
+            message="PRODUCT_CREATED",
+            data=data,
+        )
+
+    def update_product(self, command: Any) -> UseCaseResult:
+        """Update a product through the canonical catalog service."""
+        product_id = getattr(command, "product_id", None)
+        if not product_id:
+            raise ValueError("product_id is required")
+
+        canonical_type = ProductTypePolicy.canonical_from_label(getattr(command, "product_type", "simple"))
+        rules = ProductTypePolicy.rules_for(canonical_type)
+
+        if self._repository is not None:
+            product_data = {
+                "name": command.name,
+                "sku": getattr(command, "sku", None) or getattr(command, "code", None),
+                "barcode": getattr(command, "barcode", ""),
+                "category": command.category,
+                "sale_price": float(getattr(command, "sale_price", None) or getattr(command, "price", 0)),
+                "purchase_price": float(command.purchase_price or 0),
+                "minimum_sale_price": float(command.minimum_sale_price or 0),
+                "unit": command.unit,
+                "minimum_stock": float(getattr(command, "minimum_stock", None) or getattr(command, "stock_minimum", 0)),
+                "product_type": canonical_type,
+                "is_composite": 1 if rules.is_composite else 0,
+                "is_byproduct": 1 if rules.is_byproduct else 0,
+                "image_path": getattr(command, "image_path", None),
+                "active": 1 if getattr(command, "active", True) else 0,
+            }
+            try:
+                self._repository.update(product_id, product_data)
+                self._repository._connection.commit()
+            except Exception:
+                logger.exception("Product catalog update failed product_id=%s", product_id)
+                try:
+                    self._repository._connection.rollback()
+                except Exception:
+                    pass
+                raise
+        else:
+            try:
+                self._db.execute(
+                    """
+                    UPDATE productos SET
+                        nombre=?, codigo=?, codigo_barras=?, categoria=?, precio=?, precio_compra=?, precio_minimo_venta=?,
+                        unidad=?, stock_minimo=?, tipo_producto=?, es_compuesto=?, es_subproducto=?, activo=?,
+                        imagen_path=?, ultima_actualizacion=datetime('now')
+                    WHERE id=?
+                    """,
+                    (
+                        command.name,
+                        getattr(command, "sku", None) or getattr(command, "code", None),
+                        getattr(command, "barcode", ""),
+                        command.category,
+                        float(getattr(command, "sale_price", None) or getattr(command, "price", 0)),
+                        float(command.purchase_price or 0),
+                        float(command.minimum_sale_price or 0),
+                        command.unit,
+                        float(getattr(command, "minimum_stock", None) or getattr(command, "stock_minimum", 0)),
+                        canonical_type,
+                        1 if rules.is_composite else 0,
+                        1 if rules.is_byproduct else 0,
+                        1 if getattr(command, "active", True) else 0,
+                        getattr(command, "image_path", None),
+                        product_id,
+                    ),
+                )
+                self._db.commit()
+            except Exception:
+                logger.exception("Product catalog update failed product_id=%s", product_id)
+                try:
+                    self._db.rollback()
+                except Exception:
+                    pass
+                raise
+
+        return UseCaseResult(
+            success=True,
+            operation_id=command.operation_id,
+            entity_id=str(product_id),
+            message="PRODUCT_UPDATED",
+            data={"product_type": canonical_type},
+        )
 
     def deactivate_product(self, product_id: str, operation_id: str, user_name: str = "") -> dict:
         """Soft-delete a product while preserving history."""
@@ -144,22 +256,23 @@ class ProductCatalogService:
             raise ValueError("product_id is required")
         if not operation_id:
             raise ValueError("operation_id is required")
+        db = self._db or (getattr(self._repository, "_connection", None) if self._repository else None)
         try:
-            self._db.execute(
+            db.execute(
                 "UPDATE productos SET oculto = ?, activo = ? WHERE id = ?",
-                (int(hidden), int(active), int(product_id)),
+                (int(hidden), int(active), product_id),
             )
-            self._db.commit()
+            db.commit()
         except Exception:
             logger.exception("Product catalog state change failed action=%s product_id=%s", action, product_id)
             try:
-                self._db.rollback()
+                db.rollback()
             except Exception:
-                logger.exception("Product catalog rollback failed action=%s product_id=%s", action, product_id)
+                pass
             raise
         return {
             "ok": True,
-            "product_id": int(product_id),
+            "product_id": product_id,
             "active": int(active),
             "hidden": int(hidden),
             "operation_id": operation_id,

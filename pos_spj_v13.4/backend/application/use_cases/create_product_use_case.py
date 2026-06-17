@@ -20,5 +20,8 @@ class CreateProductUseCase(BaseUseCase[CreateProductCommand]):
             return self._handler(command)
         if self._app_service is None:
             return UseCaseResult.not_implemented(command.operation_id, use_case_name=self.name)
-        data = self._app_service.create_product(command)
+        result = self._app_service.create_product(command)
+        if isinstance(result, UseCaseResult):
+            return result
+        data = result
         return UseCaseResult(success=True, operation_id=command.operation_id, entity_id=str(data.get("product_id")) if isinstance(data, dict) and data.get("product_id") is not None else None, data=data if isinstance(data, dict) else {"result": data})
