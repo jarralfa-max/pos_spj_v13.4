@@ -23,7 +23,7 @@ class WasteRepository:
         ).fetchone()
         return row is not None
 
-    def get_product_for_waste(self, product_id: int | str, *, branch_id: str | int | None = None) -> dict[str, Any] | None:
+    def get_product_for_waste(self, product_id: str, *, branch_id: str | None = None) -> dict[str, Any] | None:
         stock_expr, stock_params = self._branch_stock_expression(branch_id)
         cost_expr = self._product_cost_expression()
         row = self._connection.execute(
@@ -84,7 +84,7 @@ class WasteRepository:
                 entry["date"],
             ),
         )
-        return str(cursor.lastrowid or entry["operation_id"])
+        return str(entry["operation_id"])
 
     def save_changes(self) -> None:
         if hasattr(self._connection, "commit"):

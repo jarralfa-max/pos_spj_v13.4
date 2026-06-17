@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 
 from PyQt5.QtCore import Qt, QDate
 from PyQt5.QtGui import QColor, QFont
@@ -16,6 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from backend.application.commands.waste_commands import RegisterWasteCommand
+from backend.shared.ids import new_uuid
 from backend.application.queries.inventory_query_service import InventoryQueryService
 from backend.application.queries.waste_query_service import WasteQueryService
 from backend.application.services.inventory_application_service import InventoryApplicationService
@@ -347,8 +347,8 @@ class ModuloMerma(QWidget):
             metadata.get("id"), unidad, stock, costo,
         )
 
-    def _canonical_stock_quantity(self, product_id: int | str) -> float:
-        stock = self._inventory_query_service.get_stock(int(product_id), int(self.sucursal_id))
+    def _canonical_stock_quantity(self, product_id: str) -> float:
+        stock = self._inventory_query_service.get_stock(product_id, str(self.sucursal_id))
         return _safe_float(stock.quantity)
 
     def _actualizar_valor_perdida(self):
@@ -441,7 +441,7 @@ class ModuloMerma(QWidget):
             if not self._validar_pin_alto_valor(nombre, valor_perdida):
                 return
 
-        operation_id = str(uuid.uuid4())
+        operation_id = new_uuid()
         result = self._register_waste_use_case.execute(RegisterWasteCommand(
             operation_id=operation_id,
             branch_id=str(self.sucursal_id),

@@ -11,7 +11,7 @@ from backend.application.commands.base_command import BaseCommand
 class RegisterWasteCommand(BaseCommand):
     """Command for the canonical waste registration route."""
 
-    product_id: int | str = 0
+    product_id: str = ""
     quantity: float = 0.0
     reason: str = ""
     notes: str = ""
