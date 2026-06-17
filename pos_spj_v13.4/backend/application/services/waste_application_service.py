@@ -141,8 +141,8 @@ class WasteApplicationService:
         try:
             waste_id = self._repository.register_waste(entry)
             inventory_result = self._inventory_service.decrease_stock(
-                product_id=int(product_id),
-                branch_id=int(branch_id),
+                product_id=product_id,
+                branch_id=branch_id,
                 quantity=quantity,
                 unit=unit,
                 reason=command.reason,
