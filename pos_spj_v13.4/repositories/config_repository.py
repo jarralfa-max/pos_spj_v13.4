@@ -516,17 +516,29 @@ class ConfigRepository:
         ).fetchall()
         return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
 
-    def permission_codes_for_user(self, user_id: int, branch_id: int | None = None) -> set[str]:
-        row = self.db.execute("SELECT id, rol FROM usuarios WHERE id=?", (user_id,)).fetchone()
+    def permission_codes_for_user(self, user_id, branch_id=None) -> set[str]:
+        uid = str(user_id).strip() if user_id is not None else ""
+        row = None
+        if uid:
+            # Try UUID lookup first (post-migration), fall back to integer id
+            try:
+                from uuid import UUID as _UUID
+                _UUID(uid)
+                row = self.db.execute("SELECT id, rol FROM usuarios WHERE uuid=?", (uid,)).fetchone()
+            except (ValueError, AttributeError):
+                pass
+            if row is None:
+                row = self.db.execute("SELECT id, rol FROM usuarios WHERE id=?", (uid,)).fetchone()
         if not row:
             logger.warning("User not found while resolving permissions: %s", user_id)
             return set()
         normalized_role = self._normalize_role(row[1])
         if normalized_role in {"admin", "superadmin", "administrador"}:
             return {"*"}
+        int_id = int(row[0])
         permissions = set(self.permission_codes_for_role_name(normalized_role))
-        permissions = self._apply_user_permission_overrides(int(row[0]), permissions)
-        permissions = self._apply_branch_permission_restrictions(int(row[0]), branch_id, permissions)
+        permissions = self._apply_user_permission_overrides(int_id, permissions)
+        permissions = self._apply_branch_permission_restrictions(int_id, branch_id, permissions)
         return {normalize_permission(permission) for permission in permissions}
 
     def _apply_user_permission_overrides(self, user_id: int, permissions: set[str]) -> set[str]:
