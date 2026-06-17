@@ -99,6 +99,7 @@ MIGRATIONS = [
     _Migration("099",  "migrations.standalone.099_archive_legacy_inventory_sources"),
     _Migration("100",  "migrations.standalone.100_inventory_movements_incremental_columns"),
     _Migration("101",  "migrations.standalone.101_entity_uuid_columns"),
+    _Migration("102",  "migrations.standalone.102_extended_uuid_columns"),
 ]
 
 def _ensure_tracking_table(conn):

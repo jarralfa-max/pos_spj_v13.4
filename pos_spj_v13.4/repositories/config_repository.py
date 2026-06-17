@@ -697,9 +697,10 @@ class ConfigRepository:
         normalized_role = self._normalize_role(row[1])
         if normalized_role in {"admin", "superadmin", "administrador"}:
             return {"*"}
+        int_id = int(row[0])
         permissions = set(self.permission_codes_for_role_name(normalized_role))
-        permissions = self._apply_user_permission_overrides(int(row[0]), permissions)
-        permissions = self._apply_branch_permission_restrictions(int(row[0]), branch_id, permissions)
+        permissions = self._apply_user_permission_overrides(int_id, permissions)
+        permissions = self._apply_branch_permission_restrictions(int_id, branch_id, permissions)
         return {normalize_permission(permission) for permission in permissions}
 
     def _apply_user_permission_overrides(self, user_row_id: int, permissions: set[str]) -> set[str]:

@@ -756,7 +756,7 @@ class MainWindow(QMainWindow):
             from repositories.config_repository import ConfigRepository
 
             permission_query = PermissionQueryService(ConfigRepository(self.container.db))
-            user_id = int(self.usuario_actual.get("id") or self.usuario_actual.get("user_id") or 0)
+            user_id = str(self.usuario_actual.get("id") or self.usuario_actual.get("user_id") or "")
             permisos = permission_query.permission_codes_for_user(user_id, sucursal_id)
             if hasattr(self.menu, 'set_permisos'):
                 self.menu.set_permisos(permisos, rol)
