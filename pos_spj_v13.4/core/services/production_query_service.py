@@ -307,25 +307,28 @@ def get_stock(db, product_id: int, sucursal_id: int) -> float:
     """
     Return current stock for a product at a branch.
 
-    Primary: inventario_actual.cantidad.
-    Fallback: productos.existencia (global).
+    Delegates to InventoryBalanceQueryService — the canonical single source of
+    truth that reads from inventario_actual (with fallback to productos.existencia).
+    This ensures Producción and Inventario always see the same value.
     """
-    sql_inv = (
-        "SELECT COALESCE(cantidad, 0) AS qty FROM inventario_actual "
-        "WHERE producto_id=? AND sucursal_id=?"
-    )
-    row = _fetchone(db, sql_inv, (product_id, sucursal_id))
+    try:
+        from backend.application.queries.inventory_balance_service import (
+            InventoryBalanceQueryService,
+        )
+        return InventoryBalanceQueryService(db).get_product_balance_float(
+            int(product_id), int(sucursal_id)
+        )
+    except Exception as exc:
+        logger.debug("get_stock: balance service unavailable: %s", exc)
+
+    # Legacy fallback (should never be reached in normal operation)
+    row = _fetchone(db,
+        "SELECT COALESCE(cantidad, 0) FROM inventario_actual WHERE producto_id=? AND sucursal_id=?",
+        (product_id, sucursal_id))
     if row is not None:
-        qty = row["qty"] if hasattr(row, "keys") or isinstance(row, dict) else row[0]
-        return float(qty or 0)
-
-    sql_prod = "SELECT COALESCE(existencia, 0) AS qty FROM productos WHERE id=?"
-    row2 = _fetchone(db, sql_prod, (product_id,))
-    if row2 is not None:
-        qty2 = row2["qty"] if hasattr(row2, "keys") or isinstance(row2, dict) else row2[0]
-        return float(qty2 or 0)
-
-    return 0.0
+        return float(row[0] if not isinstance(row, dict) else row.get("COALESCE(cantidad, 0)", 0) or 0)
+    row2 = _fetchone(db, "SELECT COALESCE(existencia, 0) FROM productos WHERE id=?", (product_id,))
+    return float((row2[0] if row2 and not isinstance(row2, dict) else 0) or 0)
 
 
 def get_stocks_for_products(

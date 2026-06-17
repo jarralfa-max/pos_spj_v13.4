@@ -105,6 +105,7 @@ MIGRATIONS = [
     _Migration("105",  "migrations.standalone.105_movimientos_inventario"),
     _Migration("106",  "migrations.standalone.106_inventario_actual_branch"),
     _Migration("107",  "migrations.standalone.107_productos_costo_column"),
+    _Migration("108",  "migrations.standalone.108_sync_inventory_stock"),
 ]
 
 def _ensure_tracking_table(conn):
