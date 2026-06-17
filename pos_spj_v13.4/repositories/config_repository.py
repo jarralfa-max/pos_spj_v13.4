@@ -1,40 +1,128 @@
-
-# repositories/config_repository.py
 import logging
+from uuid import UUID
 
+from backend.shared.ids import new_uuid
 from core.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS, normalize_permission
+
 logger = logging.getLogger(__name__)
 
+
 class ConfigRepository:
-    """Acceso a datos para Sucursales y Configuraciones del Sistema."""
+    """Acceso a datos para Configuración con contratos canónicos UUID."""
+
     def __init__(self, db_conn):
         self.db = db_conn
 
+    def _commit(self) -> None:
+        try:
+            self.db.commit()
+        except Exception:
+            pass
+
+    def _table_exists(self, table_name: str) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,),
+        ).fetchone()
+        return bool(row)
+
+    def _column_exists(self, table_name: str, column_name: str) -> bool:
+        try:
+            rows = self.db.execute(f"PRAGMA table_info({table_name})").fetchall()
+        except Exception:
+            return False
+        return any(str(row[1]) == column_name for row in rows)
+
+    def _uuid_column(self, table_name: str) -> str | None:
+        return "uuid" if self._column_exists(table_name, "uuid") else None
+
+    def _require_uuid_column(self, table_name: str) -> str:
+        uuid_column = self._uuid_column(table_name)
+        if not uuid_column:
+            raise RuntimeError(f"{table_name} requires UUID migration before Configuracion can operate")
+        return uuid_column
+
+    def _require_uuidv7(self, value: str, field_name: str) -> str:
+        normalized = str(value or "").strip().lower()
+        try:
+            parsed = UUID(normalized)
+        except ValueError as exc:
+            raise ValueError(f"{field_name} must be a canonical lowercase UUIDv7") from exc
+        if parsed.version != 7 or normalized != str(parsed):
+            raise ValueError(f"{field_name} must be a canonical lowercase UUIDv7")
+        return normalized
+
+    def _select_identity_sql(self, table_name: str, *, alias: str = "id") -> str:
+        uuid_column = self._require_uuid_column(table_name)
+        return f"{uuid_column} AS {alias}"
+
+    def _row_id_from_uuid(self, table_name: str, entity_id: str | None) -> int | None:
+        if not entity_id:
+            return None
+        uuid_column = self._require_uuid_column(table_name)
+        row = self.db.execute(f"SELECT id FROM {table_name} WHERE {uuid_column}=?", (entity_id,)).fetchone()
+        return int(row[0]) if row else None
+
+    def _uuid_from_row_id(self, table_name: str, row_id: int | None) -> str | None:
+        if row_id is None:
+            return None
+        uuid_column = self._require_uuid_column(table_name)
+        row = self.db.execute(f"SELECT {uuid_column} FROM {table_name} WHERE id=?", (row_id,)).fetchone()
+        return str(row[0]) if row and row[0] else None
+
+    def _resolve_db_identifier(self, table_name: str, entity_id: str) -> tuple[str, object]:
+        uuid_column = self._require_uuid_column(table_name)
+        return uuid_column, self._require_uuidv7(entity_id, f"{table_name}.id")
+
+    def _resolve_branch_row(self, branch_id: str | None) -> tuple[int | None, str | None]:
+        if not branch_id:
+            return None, None
+        branch_uuid = self._require_uuidv7(branch_id, "branch_id")
+        row_id = self._row_id_from_uuid("sucursales", branch_uuid)
+        if row_id is None:
+            raise ValueError("branch_id must reference an existing branch UUID")
+        return row_id, branch_uuid
+
+    def _resolve_role_row(self, role_id: str) -> tuple[int | None, str | None]:
+        role_uuid = self._require_uuidv7(role_id, "role_id")
+        row_id = self._row_id_from_uuid("roles", role_uuid)
+        if row_id is None:
+            raise ValueError("role_id must reference an existing role UUID")
+        return row_id, role_uuid
+
+    def _resolve_user_row(self, user_id: str) -> tuple[int | None, str | None]:
+        user_uuid = self._require_uuidv7(user_id, "user_id")
+        row_id = self._row_id_from_uuid("usuarios", user_uuid)
+        if row_id is None:
+            raise ValueError("user_id must reference an existing user UUID")
+        return row_id, user_uuid
+
     # --- SUCURSALES ---
     def get_all_branches(self) -> list:
-        cursor = self.db.cursor()
-        rows = cursor.execute("SELECT * FROM sucursales WHERE activa = 1").fetchall()
+        identity = self._select_identity_sql("sucursales")
+        rows = self.db.execute(
+            f"SELECT {identity}, nombre, direccion, telefono, activa FROM sucursales WHERE activa = 1"
+        ).fetchall()
         return [dict(row) for row in rows]
 
     # --- AJUSTES GLOBALES (Key-Value) ---
     def get_setting(self, key: str, default_value: str = "") -> str:
-        cursor = self.db.cursor()
-        row = cursor.execute("SELECT valor FROM configuraciones WHERE clave = ?", (key,)).fetchone()
-        return row['valor'] if row else default_value
+        row = self.db.execute("SELECT valor FROM configuraciones WHERE clave = ?", (key,)).fetchone()
+        return row["valor"] if row else default_value
 
     def save_setting(self, key: str, value: str):
-        cursor = self.db.cursor()
-        cursor.execute("""
+        self.db.execute(
+            """
             INSERT INTO configuraciones (clave, valor) VALUES (?, ?)
             ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor
-        """, (key, str(value)))
+            """,
+            (key, str(value)),
+        )
         self._commit()
-        
+
     def get_all_settings(self) -> dict:
-        """Obtiene todas las configuraciones de la base de datos."""
-        cursor = self.db.cursor()
-        rows = cursor.execute("SELECT clave, valor FROM configuraciones").fetchall()
-        return {row['clave']: row['valor'] for row in rows}
+        rows = self.db.execute("SELECT clave, valor FROM configuraciones").fetchall()
+        return {row["clave"]: row["valor"] for row in rows}
 
     def settings_schema_is_ready(self) -> bool:
         required_tables = {
@@ -154,15 +242,9 @@ class ConfigRepository:
                     matrix[module].append(action)
         return [(module, actions) for module, actions in matrix.items()]
 
-    def _table_exists(self, table_name: str) -> bool:
-        row = self.db.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-            (table_name,),
-        ).fetchone()
-        return bool(row)
-
-    def get_branch(self, branch_id: int) -> dict | None:
-        row = self.db.execute("SELECT * FROM sucursales WHERE id=?", (branch_id,)).fetchone()
+    def get_branch(self, branch_id: str) -> dict | None:
+        column, value = self._resolve_db_identifier("sucursales", branch_id)
+        row = self.db.execute(f"SELECT * FROM sucursales WHERE {column}=?", (value,)).fetchone()
         return dict(row) if row else None
 
     def save_branch(
@@ -172,32 +254,43 @@ class ConfigRepository:
         address: str | None,
         phone: str | None,
         active: bool,
-        branch_id: int | None = None,
-    ) -> int:
+        branch_id: str | None = None,
+    ) -> str:
+        branch_row_id, branch_uuid = self._resolve_branch_row(branch_id)
         if branch_id is not None:
-            self.db.execute(
-                "UPDATE sucursales SET nombre=?, direccion=?, telefono=?, activa=? WHERE id=?",
-                (name, address, phone, 1 if active else 0, branch_id),
-            )
+            assignments = ["nombre=?", "direccion=?", "telefono=?", "activa=?"]
+            params: list[object] = [name, address, phone, 1 if active else 0]
+            assignments.insert(0, "uuid=?")
+            params.insert(0, branch_uuid)
+            params.append(branch_uuid)
+            self.db.execute(f"UPDATE sucursales SET {', '.join(assignments)} WHERE uuid=?", tuple(params))
             self._commit()
-            return branch_id
-        cursor = self.db.execute(
-            "INSERT INTO sucursales (nombre, direccion, telefono, activa) VALUES (?, ?, ?, ?)",
-            (name, address, phone, 1 if active else 0),
+            return str(branch_uuid)
+
+        new_branch_uuid = new_uuid()
+        fields = ["nombre", "direccion", "telefono", "activa"]
+        values: list[object] = [name, address, phone, 1 if active else 0]
+        self._require_uuid_column("sucursales")
+        fields.insert(0, "uuid")
+        values.insert(0, new_branch_uuid)
+        placeholders = ",".join("?" for _ in fields)
+        self.db.execute(
+            f"INSERT INTO sucursales ({','.join(fields)}) VALUES ({placeholders})",
+            tuple(values),
         )
         self._commit()
-        return int(cursor.lastrowid)
+        return new_branch_uuid
 
-
-    def get_branch_delivery_profile(self, branch_id: int) -> dict | None:
+    def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
+        column, value = self._resolve_db_identifier("sucursales", branch_id)
         row = self.db.execute(
-            """
+            f"""
             SELECT nombre, direccion, telefono, hora_apertura, hora_cierre,
                    dias_operacion, acepta_pedidos_fuera_horario, mensaje_fuera_horario
             FROM sucursales
-            WHERE id=?
+            WHERE {column}=?
             """,
-            (branch_id,),
+            (value,),
         ).fetchone()
         return dict(row) if row else None
 
@@ -212,38 +305,11 @@ class ConfigRepository:
         operation_days: str,
         accepts_after_hours_orders: bool,
         after_hours_message: str,
-        branch_id: int | None = None,
-    ) -> int:
+        branch_id: str | None = None,
+    ) -> str:
+        branch_row_id, branch_uuid = self._resolve_branch_row(branch_id)
         if branch_id is not None:
-            self.db.execute(
-                """
-                UPDATE sucursales SET nombre=?, direccion=?, telefono=?,
-                    hora_apertura=?, hora_cierre=?, dias_operacion=?,
-                    acepta_pedidos_fuera_horario=?, mensaje_fuera_horario=?
-                WHERE id=?
-                """,
-                (
-                    name,
-                    address,
-                    phone,
-                    opening_time,
-                    closing_time,
-                    operation_days,
-                    1 if accepts_after_hours_orders else 0,
-                    after_hours_message,
-                    branch_id,
-                ),
-            )
-            self._commit()
-            return branch_id
-        cursor = self.db.execute(
-            """
-            INSERT INTO sucursales
-                (nombre, direccion, telefono, hora_apertura, hora_cierre,
-                 dias_operacion, acepta_pedidos_fuera_horario, mensaje_fuera_horario, activa)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """,
-            (
+            params: list[object] = [
                 name,
                 address,
                 phone,
@@ -252,46 +318,110 @@ class ConfigRepository:
                 operation_days,
                 1 if accepts_after_hours_orders else 0,
                 after_hours_message,
-            ),
+            ]
+            sql = """
+                UPDATE sucursales SET nombre=?, direccion=?, telefono=?,
+                    hora_apertura=?, hora_cierre=?, dias_operacion=?,
+                    acepta_pedidos_fuera_horario=?, mensaje_fuera_horario=?
+            """
+            sql += ", uuid=? WHERE uuid=?"
+            params.extend([branch_uuid, branch_uuid])
+            self.db.execute(sql, tuple(params))
+            self._commit()
+            return str(branch_uuid)
+
+        new_branch_uuid = new_uuid()
+        fields = [
+            "nombre",
+            "direccion",
+            "telefono",
+            "hora_apertura",
+            "hora_cierre",
+            "dias_operacion",
+            "acepta_pedidos_fuera_horario",
+            "mensaje_fuera_horario",
+            "activa",
+        ]
+        values: list[object] = [
+            name,
+            address,
+            phone,
+            opening_time,
+            closing_time,
+            operation_days,
+            1 if accepts_after_hours_orders else 0,
+            after_hours_message,
+            1,
+        ]
+        self._require_uuid_column("sucursales")
+        fields.insert(0, "uuid")
+        values.insert(0, new_branch_uuid)
+        placeholders = ",".join("?" for _ in fields)
+        self.db.execute(
+            f"INSERT INTO sucursales ({','.join(fields)}) VALUES ({placeholders})",
+            tuple(values),
         )
         self._commit()
-        return int(cursor.lastrowid)
+        return new_branch_uuid
 
     def _happy_hour_row_to_dict(self, row) -> dict:
         keys = [
-            "id", "nombre", "hora_inicio", "hora_fin", "dias_semana",
-            "tipo_descuento", "valor", "aplica_a", "aplica_valor",
-            "mensaje_wa", "activo", "sucursal_id",
+            "id",
+            "nombre",
+            "hora_inicio",
+            "hora_fin",
+            "dias_semana",
+            "tipo_descuento",
+            "valor",
+            "aplica_a",
+            "aplica_valor",
+            "mensaje_wa",
+            "activo",
+            "sucursal_id",
         ]
         if hasattr(row, "keys"):
             return {key: row[key] for key in row.keys()}
         return {key: row[index] for index, key in enumerate(keys) if index < len(row)}
 
     def list_happy_hour_rules(self) -> list[dict]:
+        identity = self._select_identity_sql("happy_hour_rules")
+        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
+            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
+        branch_identity = "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
+        join_sql = "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
         rows = self.db.execute(
-            """
-            SELECT id, nombre, hora_inicio, hora_fin, dias_semana, tipo_descuento,
-                   valor, aplica_a, aplica_valor, mensaje_wa, activo, sucursal_id
-            FROM happy_hour_rules
-            ORDER BY nombre
+            f"""
+            SELECT {identity}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana, h.tipo_descuento,
+                   h.valor, h.aplica_a, h.aplica_valor, h.mensaje_wa, h.activo, {branch_identity}
+            FROM happy_hour_rules h
+            {join_sql}
+            ORDER BY h.nombre
             """
         ).fetchall()
         return [self._happy_hour_row_to_dict(row) for row in rows]
 
-    def get_happy_hour_rule(self, rule_id: int) -> dict | None:
+    def get_happy_hour_rule(self, rule_id: str) -> dict | None:
+        column, value = self._resolve_db_identifier("happy_hour_rules", rule_id)
+        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
+            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
+        join_sql = "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
+        branch_identity = "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
         row = self.db.execute(
-            """
-            SELECT id, nombre, hora_inicio, hora_fin, dias_semana, tipo_descuento,
-                   valor, aplica_a, aplica_valor, mensaje_wa, activo, sucursal_id
-            FROM happy_hour_rules
-            WHERE id=?
+            f"""
+            SELECT {self._select_identity_sql('happy_hour_rules')}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana, h.tipo_descuento,
+                   h.valor, h.aplica_a, h.aplica_valor, h.mensaje_wa, h.activo, {branch_identity}
+            FROM happy_hour_rules h
+            {join_sql}
+            WHERE h.{column}=?
             """,
-            (rule_id,),
+            (value,),
         ).fetchone()
         return self._happy_hour_row_to_dict(row) if row else None
 
-    def save_happy_hour_rule(self, rule: dict) -> int:
-        values = (
+    def save_happy_hour_rule(self, rule: dict) -> str:
+        branch_row_id, branch_uuid = self._resolve_branch_row(str(rule.get("sucursal_id") or "").strip() or None)
+        rule_uuid = str(rule.get("id") or "").strip() or new_uuid()
+        values: list[object] = [
             rule["nombre"],
             rule["hora_inicio"],
             rule["hora_fin"],
@@ -302,56 +432,56 @@ class ConfigRepository:
             rule.get("aplica_valor") or "",
             rule.get("mensaje_wa") or "",
             1 if rule.get("activo") else 0,
-            int(rule.get("sucursal_id") or 1),
-        )
-        rule_id = rule.get("id")
-        if rule_id:
+        ]
+        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
+            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
+        values.append(branch_uuid or "")
+        columns = [
+            "nombre",
+            "hora_inicio",
+            "hora_fin",
+            "dias_semana",
+            "tipo_descuento",
+            "valor",
+            "aplica_a",
+            "aplica_valor",
+            "mensaje_wa",
+            "activo",
+            "sucursal_uuid",
+        ]
+        self._require_uuid_column("happy_hour_rules")
+        columns.insert(0, "uuid")
+        values.insert(0, rule_uuid)
+
+        existing_column, existing_value = self._resolve_db_identifier("happy_hour_rules", rule_uuid)
+        existing = None
+        if rule.get("id"):
+            existing = self.db.execute(f"SELECT 1 FROM happy_hour_rules WHERE {existing_column}=?", (existing_value,)).fetchone()
+        if existing:
+            assignments = ",".join(f"{column}=?" for column in columns)
+            update_params = list(values)
+            update_params.append(existing_value)
+            self.db.execute(f"UPDATE happy_hour_rules SET {assignments} WHERE {existing_column}=?", tuple(update_params))
+        else:
+            placeholders = ",".join("?" for _ in columns)
             self.db.execute(
-                """
-                UPDATE happy_hour_rules
-                SET nombre=?, hora_inicio=?, hora_fin=?, dias_semana=?,
-                    tipo_descuento=?, valor=?, aplica_a=?, aplica_valor=?,
-                    mensaje_wa=?, activo=?, sucursal_id=?
-                WHERE id=?
-                """,
-                values + (int(rule_id),),
+                f"INSERT INTO happy_hour_rules ({','.join(columns)}) VALUES ({placeholders})",
+                tuple(values),
             )
-            self._commit()
-            return int(rule_id)
-        cursor = self.db.execute(
-            """
-            INSERT INTO happy_hour_rules
-                (nombre, hora_inicio, hora_fin, dias_semana, tipo_descuento,
-                 valor, aplica_a, aplica_valor, mensaje_wa, activo, sucursal_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            values,
-        )
         self._commit()
-        return int(cursor.lastrowid)
+        return rule_uuid
 
-    def set_happy_hour_rule_active(self, rule_id: int, active: bool) -> None:
+    def set_happy_hour_rule_active(self, rule_id: str, active: bool) -> None:
+        column, value = self._resolve_db_identifier("happy_hour_rules", rule_id)
         self.db.execute(
-            "UPDATE happy_hour_rules SET activo=? WHERE id=?",
-            (1 if active else 0, rule_id),
+            f"UPDATE happy_hour_rules SET activo=? WHERE {column}=?",
+            (1 if active else 0, value),
         )
         self._commit()
-
-    def _commit(self) -> None:
-        try:
-            self.db.commit()
-        except Exception:
-            pass
 
     # --- CONFIGURATION MODULE READ/WRITE ADAPTERS ---
-
-
-
-
-
-
     def monthly_close_exists(self, period: str) -> bool:
-        row = self.db.execute("SELECT id FROM cierre_mensual WHERE periodo=?", (period,)).fetchone()
+        row = self.db.execute("SELECT 1 FROM cierre_mensual WHERE periodo=?", (period,)).fetchone()
         return bool(row)
 
     def calculate_monthly_close_totals(self, start_date: str, end_date: str) -> dict[str, float]:
@@ -378,14 +508,21 @@ class ConfigRepository:
             "waste": float(waste[0] if waste else 0),
         }
 
-    def save_monthly_close(self, *, period: str, closed_by: str, totals: dict[str, float], branch_id: int) -> None:
+    def save_monthly_close(self, *, period: str, closed_by: str, totals: dict[str, float], branch_id: str) -> None:
+        branch_row_id, branch_uuid = self._resolve_branch_row(branch_id)
+        fields = ["periodo", "cerrado_por", "total_ventas", "total_compras", "total_merma"]
+        values: list[object] = [period, closed_by, totals["sales"], totals["purchases"], totals["waste"]]
+        self._require_uuid_column("cierre_mensual")
+        fields.insert(0, "uuid")
+        values.insert(0, new_uuid())
+        if not self._column_exists("cierre_mensual", "sucursal_uuid"):
+            raise RuntimeError("cierre_mensual requires sucursal_uuid migration before Configuracion can operate")
+        fields.append("sucursal_uuid")
+        values.append(branch_uuid or "")
+        placeholders = ",".join("?" for _ in fields)
         self.db.execute(
-            """
-            INSERT INTO cierre_mensual
-                (periodo, cerrado_por, total_ventas, total_compras, total_merma, sucursal_id)
-            VALUES (?,?,?,?,?,?)
-            """,
-            (period, closed_by, totals["sales"], totals["purchases"], totals["waste"], branch_id),
+            f"INSERT INTO cierre_mensual ({','.join(fields)}) VALUES ({placeholders})",
+            tuple(values),
         )
         self._commit()
 
@@ -399,49 +536,46 @@ class ConfigRepository:
             (limit,),
         ).fetchall()
 
+    def active_branches_for_selector(self) -> list[tuple[str, str]]:
+        rows = self.db.execute(
+            f"SELECT {self._select_identity_sql('sucursales')}, nombre FROM sucursales WHERE activa=1 ORDER BY nombre"
+        ).fetchall()
+        return [(str(row[0]), row[1]) for row in rows]
 
-
-
-
-
-
-
-
-
-    def active_branches_for_selector(self) -> list[tuple[int, str]]:
-        rows = self.db.execute("SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY id").fetchall()
-        return [(row[0], row[1]) for row in rows]
-
-    def branches_for_company_settings(self) -> list[tuple[int, str]]:
-        rows = self.db.execute("SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY nombre").fetchall()
-        return [(row[0], row[1]) for row in rows]
+    def branches_for_company_settings(self) -> list[tuple[str, str]]:
+        return self.active_branches_for_selector()
 
     def list_branch_delivery_rows(self) -> list[tuple]:
-        return self.db.execute(
-            """
-            SELECT id,nombre,COALESCE(direccion,''),
-                   COALESCE(hora_apertura,''),COALESCE(hora_cierre,''),
-                   COALESCE(dias_operacion,''),activa
+        rows = self.db.execute(
+            f"""
+            SELECT {self._select_identity_sql('sucursales')}, nombre, COALESCE(direccion,''),
+                   COALESCE(hora_apertura,''), COALESCE(hora_cierre,''),
+                   COALESCE(dias_operacion,''), activa
             FROM sucursales ORDER BY nombre
             """
         ).fetchall()
+        return [tuple(row) for row in rows]
 
     def list_users_v13(self) -> list[tuple]:
+        identity = self._select_identity_sql("usuarios")
+        if not self._column_exists("usuarios", "sucursal_uuid"):
+            raise RuntimeError("usuarios requires sucursal_uuid migration before Configuracion can operate")
+        branch_join = "LEFT JOIN sucursales s ON s.uuid = u.sucursal_uuid"
         return self.db.execute(
-            """
-            SELECT u.id,u.usuario,u.nombre,
+            f"""
+            SELECT {identity}, u.usuario, u.nombre,
                    COALESCE(r.nombre,'cajero') as rol,
                    COALESCE(s.nombre,'Principal') as sucursal,
                    u.activo
             FROM usuarios u
             LEFT JOIN roles r ON r.nombre=u.rol
-            LEFT JOIN sucursales s ON s.id=u.sucursal_id
+            {branch_join}
             ORDER BY u.nombre LIMIT 200
             """
         ).fetchall()
 
     def role_names(self) -> list[str]:
-        rows = self.db.execute("SELECT nombre FROM roles ORDER BY id").fetchall()
+        rows = self.db.execute("SELECT nombre FROM roles ORDER BY nombre").fetchall()
         return [row[0] for row in rows]
 
     def active_employees_for_selector(self) -> list[tuple[int, str]]:
@@ -450,49 +584,83 @@ class ConfigRepository:
         ).fetchall()
         return [(row[0], str(row[1]).strip()) for row in rows]
 
-    def get_user_form_data(self, user_id: int) -> tuple | None:
+    def get_user_form_data(self, user_id: str) -> tuple | None:
+        column, value = self._resolve_db_identifier("usuarios", user_id)
+        if not self._column_exists("usuarios", "sucursal_uuid"):
+            raise RuntimeError("usuarios requires sucursal_uuid migration before Configuracion can operate")
+        branch_column = "sucursal_uuid"
         return self.db.execute(
-            "SELECT usuario,nombre,email,rol,sucursal_id,activo,empleado_id FROM usuarios WHERE id=?",
-            (user_id,),
+            f"SELECT usuario,nombre,email,rol,{branch_column},activo,empleado_id FROM usuarios WHERE {column}=?",
+            (value,),
         ).fetchone()
 
-    def username_for_id(self, user_id: int) -> str | None:
-        row = self.db.execute("SELECT usuario FROM usuarios WHERE id=?", (user_id,)).fetchone()
+    def username_for_uuid(self, user_id: str) -> str | None:
+        column, value = self._resolve_db_identifier("usuarios", user_id)
+        row = self.db.execute(f"SELECT usuario FROM usuarios WHERE {column}=?", (value,)).fetchone()
         return str(row[0]) if row else None
 
-    def save_user_v13(self, *, user_id: int | None, username: str, name: str, email: str, role: str,
-                      branch_id: int, active: bool, employee_id: int | None, password_hash: str | None) -> None:
-        if user_id:
-            if password_hash:
-                self.db.execute(
-                    "UPDATE usuarios SET usuario=?,nombre=?,email=?,rol=?,sucursal_id=?,activo=?,empleado_id=?,password_hash=? WHERE id=?",
-                    (username, name, email, role, branch_id, 1 if active else 0, employee_id, password_hash, user_id),
-                )
-            else:
-                self.db.execute(
-                    "UPDATE usuarios SET usuario=?,nombre=?,email=?,rol=?,sucursal_id=?,activo=?,empleado_id=? WHERE id=?",
-                    (username, name, email, role, branch_id, 1 if active else 0, employee_id, user_id),
-                )
-        else:
-            cursor = self.db.execute(
-                "INSERT INTO usuarios(usuario,nombre,email,password_hash,rol,sucursal_id,activo,empleado_id) VALUES(?,?,?,?,?,?,?,?)",
-                (username, name, email, password_hash, role, branch_id, 1 if active else 0, employee_id),
-            )
-            if employee_id:
-                self.db.execute("UPDATE personal SET usuario_id=? WHERE id=?", (cursor.lastrowid, employee_id))
-        self._commit()
+    def save_user_v13(
+        self,
+        *,
+        user_id: str | None,
+        username: str,
+        name: str,
+        email: str,
+        role: str,
+        branch_id: str,
+        active: bool,
+        employee_id: int | None,
+        password_hash: str | None,
+    ) -> str:
+        branch_row_id, branch_uuid = self._resolve_branch_row(branch_id)
+        persisted_user_id = user_id or new_uuid()
+        role_fields = ["usuario", "nombre", "email", "rol", "activo", "empleado_id"]
+        role_values: list[object] = [username, name, email, role, 1 if active else 0, employee_id]
+        self._require_uuid_column("usuarios")
+        role_fields.insert(0, "uuid")
+        role_values.insert(0, persisted_user_id)
+        if password_hash is not None:
+            role_fields.append("password_hash")
+            role_values.append(password_hash)
+        if not self._column_exists("usuarios", "sucursal_uuid"):
+            raise RuntimeError("usuarios requires sucursal_uuid migration before Configuracion can operate")
+        role_fields.append("sucursal_uuid")
+        role_values.append(branch_uuid or "")
 
-    def set_user_active(self, user_id: int, active: bool) -> None:
-        self.db.execute("UPDATE usuarios SET activo=? WHERE id=?", (1 if active else 0, user_id))
+        existing = None
+        if user_id:
+            column, value = self._resolve_db_identifier("usuarios", user_id)
+            existing = self.db.execute(f"SELECT id FROM usuarios WHERE {column}=?", (value,)).fetchone()
+        if existing:
+            assignments = ",".join(f"{field}=?" for field in role_fields)
+            params = list(role_values) + [persisted_user_id]
+            self.db.execute(f"UPDATE usuarios SET {assignments} WHERE uuid=?", tuple(params))
+            user_row_id = int(existing[0])
+        else:
+            placeholders = ",".join("?" for _ in role_fields)
+            self.db.execute(
+                f"INSERT INTO usuarios({','.join(role_fields)}) VALUES({placeholders})",
+                tuple(role_values),
+            )
+            user_row_id = self._row_id_from_uuid("usuarios", persisted_user_id)
+        if employee_id and user_row_id is not None:
+            self.db.execute("UPDATE personal SET usuario_id=? WHERE id=?", (user_row_id, employee_id))
+        self._commit()
+        return persisted_user_id
+
+    def set_user_active(self, user_id: str, active: bool) -> None:
+        column, value = self._resolve_db_identifier("usuarios", user_id)
+        self.db.execute(f"UPDATE usuarios SET activo=? WHERE {column}=?", (1 if active else 0, value))
         self._commit()
 
     def list_roles_v13(self) -> list[tuple]:
+        identity = self._select_identity_sql("roles")
         return self.db.execute(
-            """
-            SELECT r.id, r.nombre, r.descripcion, COUNT(u.id) as num_usuarios
+            f"""
+            SELECT {identity}, r.nombre, r.descripcion, COUNT(u.id) as num_usuarios
             FROM roles r
             LEFT JOIN usuarios u ON u.rol=r.nombre AND u.activo=1
-            GROUP BY r.id ORDER BY r.id
+            GROUP BY r.id ORDER BY r.nombre
             """
         ).fetchall()
 
@@ -507,17 +675,22 @@ class ConfigRepository:
         if not row:
             logger.warning("Role not found while resolving permissions: %s", role_name)
             return set()
-        return self.permission_codes_for_role_id(int(row[0]))
+        role_uuid = self._uuid_from_row_id("roles", int(row[0]))
+        return self.permission_codes_for_role_id(role_uuid)
 
-    def permission_codes_for_role_id(self, role_id: int) -> set[str]:
+    def permission_codes_for_role_id(self, role_id: str) -> set[str]:
+        role_row_id, role_uuid = self._resolve_role_row(role_id)
+        if not self._column_exists("rol_permisos", "rol_uuid"):
+            raise RuntimeError("rol_permisos requires rol_uuid migration before Configuracion can operate")
         rows = self.db.execute(
-            "SELECT modulo, accion FROM rol_permisos WHERE rol_id=? AND permitido=1",
-            (role_id,),
+            "SELECT modulo, accion FROM rol_permisos WHERE rol_uuid=? AND permitido=1",
+            (role_uuid,),
         ).fetchall()
         return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
 
-    def permission_codes_for_user(self, user_id: int, branch_id: int | None = None) -> set[str]:
-        row = self.db.execute("SELECT id, rol FROM usuarios WHERE id=?", (user_id,)).fetchone()
+    def permission_codes_for_user(self, user_id: str, branch_id: str | None = None) -> set[str]:
+        column, value = self._resolve_db_identifier("usuarios", user_id)
+        row = self.db.execute(f"SELECT id, rol FROM usuarios WHERE {column}=?", (value,)).fetchone()
         if not row:
             logger.warning("User not found while resolving permissions: %s", user_id)
             return set()
@@ -529,7 +702,7 @@ class ConfigRepository:
         permissions = self._apply_branch_permission_restrictions(int(row[0]), branch_id, permissions)
         return {normalize_permission(permission) for permission in permissions}
 
-    def _apply_user_permission_overrides(self, user_id: int, permissions: set[str]) -> set[str]:
+    def _apply_user_permission_overrides(self, user_row_id: int, permissions: set[str]) -> set[str]:
         if not self._table_exists("usuario_permisos"):
             return permissions
         rows = self.db.execute(
@@ -538,7 +711,7 @@ class ConfigRepository:
             FROM usuario_permisos
             WHERE usuario_id=? AND COALESCE(modulo, '') != '' AND COALESCE(accion, '') != ''
             """,
-            (user_id,),
+            (user_row_id,),
         ).fetchall()
         resolved = set(permissions)
         for row in rows:
@@ -550,10 +723,11 @@ class ConfigRepository:
         return resolved
 
     def _apply_branch_permission_restrictions(
-        self, user_id: int, branch_id: int | None, permissions: set[str]
+        self, user_row_id: int, branch_id: str | None, permissions: set[str]
     ) -> set[str]:
         if branch_id is None or not self._table_exists("usuario_sucursal_permisos"):
             return permissions
+        branch_row_id, _ = self._resolve_branch_row(branch_id)
         rows = self.db.execute(
             """
             SELECT modulo, accion, permitido
@@ -561,7 +735,7 @@ class ConfigRepository:
             WHERE usuario_id=? AND sucursal_id=?
               AND COALESCE(modulo, '') != '' AND COALESCE(accion, '') != ''
             """,
-            (user_id, branch_id),
+            (user_row_id, branch_row_id),
         ).fetchall()
         if not rows:
             return permissions
@@ -574,24 +748,29 @@ class ConfigRepository:
                 resolved.discard(code)
         return resolved
 
-    def role_name_for_id(self, role_id: int) -> str | None:
-        row = self.db.execute("SELECT nombre FROM roles WHERE id=?", (role_id,)).fetchone()
+    def role_name_for_id(self, role_id: str) -> str | None:
+        column, value = self._resolve_db_identifier("roles", role_id)
+        row = self.db.execute(f"SELECT nombre FROM roles WHERE {column}=?", (value,)).fetchone()
         return str(row[0]) if row else None
 
-    def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
+    def role_permissions(self, role_id: str) -> dict[tuple[str, str], bool]:
+        role_row_id, role_uuid = self._resolve_role_row(role_id)
+        if not self._column_exists("rol_permisos", "rol_uuid"):
+            raise RuntimeError("rol_permisos requires rol_uuid migration before Configuracion can operate")
         rows = self.db.execute(
-            "SELECT modulo, accion, permitido FROM rol_permisos WHERE rol_id=?",
-            (role_id,),
+            "SELECT modulo, accion, permitido FROM rol_permisos WHERE rol_uuid=?",
+            (role_uuid,),
         ).fetchall()
         return {(row[0], row[1]): bool(row[2]) for row in rows}
 
-    def save_role_permissions(self, role_id: int, permissions: dict[tuple[str, str], bool]) -> None:
-        self.db.execute("DELETE FROM rol_permisos WHERE rol_id=?", (role_id,))
+    def save_role_permissions(self, role_id: str, permissions: dict[tuple[str, str], bool]) -> None:
+        role_row_id, role_uuid = self._resolve_role_row(role_id)
+        if not self._column_exists("rol_permisos", "rol_uuid"):
+            raise RuntimeError("rol_permisos requires rol_uuid migration before Configuracion can operate")
+        self.db.execute("DELETE FROM rol_permisos WHERE rol_uuid=?", (role_uuid,))
+        insert_sql = "INSERT INTO rol_permisos(rol_uuid,modulo,accion,permitido) VALUES(?,?,?,?)"
         for (module, action), allowed in permissions.items():
-            self.db.execute(
-                "INSERT INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(?,?,?,?)",
-                (role_id, module, action, 1 if allowed else 0),
-            )
+            self.db.execute(insert_sql, (role_uuid, module, action, 1 if allowed else 0))
         self._commit()
 
     def audit_log_rows(self, limit: int = 200) -> list[tuple]:
@@ -600,19 +779,26 @@ class ConfigRepository:
             (limit,),
         ).fetchall()
 
-
-
-    def save_role(self, *, role_id: int | None, name: str, description: str) -> int:
-        if role_id is not None:
+    def save_role(self, *, role_id: str | None, name: str, description: str) -> str:
+        persisted_role_id = role_id or new_uuid()
+        role_fields = ["nombre", "descripcion"]
+        role_values: list[object] = [name, description]
+        self._require_uuid_column("roles")
+        role_fields.insert(0, "uuid")
+        role_values.insert(0, persisted_role_id)
+        existing = None
+        if role_id:
+            column, value = self._resolve_db_identifier("roles", role_id)
+            existing = self.db.execute(f"SELECT id FROM roles WHERE {column}=?", (value,)).fetchone()
+        if existing:
+            assignments = ",".join(f"{field}=?" for field in role_fields)
+            params = list(role_values) + [persisted_role_id]
+            self.db.execute(f"UPDATE roles SET {assignments} WHERE uuid=?", tuple(params))
+        else:
+            placeholders = ",".join("?" for _ in role_fields)
             self.db.execute(
-                "UPDATE roles SET nombre=?, descripcion=? WHERE id=?",
-                (name, description, role_id),
+                f"INSERT INTO roles({','.join(role_fields)}) VALUES({placeholders})",
+                tuple(role_values),
             )
-            self._commit()
-            return role_id
-        cursor = self.db.execute(
-            "INSERT INTO roles(nombre, descripcion) VALUES(?, ?)",
-            (name, description),
-        )
         self._commit()
-        return int(cursor.lastrowid)
+        return persisted_role_id

@@ -63,7 +63,7 @@ class CompanyProfileService:
     def __init__(self, repository: ConfigRepository) -> None:
         self._repository = repository
 
-    def get_branch(self, branch_id: int) -> dict | None:
+    def get_branch(self, branch_id: str) -> dict | None:
         return self._repository.get_branch(branch_id)
 
     def save_branch(
@@ -73,8 +73,8 @@ class CompanyProfileService:
         address: str | None,
         phone: str | None,
         active: bool,
-        branch_id: int | None = None,
-    ) -> int:
+        branch_id: str | None = None,
+    ) -> str:
         return self._repository.save_branch(
             name=name,
             address=address,
@@ -83,15 +83,14 @@ class CompanyProfileService:
             branch_id=branch_id,
         )
 
-    def get_branch_delivery_profile(self, branch_id: int) -> dict | None:
+    def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
         return self._repository.get_branch_delivery_profile(branch_id)
 
-    def branches_for_company_settings(self) -> list[tuple[int, str]]:
+    def branches_for_company_settings(self) -> list[tuple[str, str]]:
         return self._repository.branches_for_company_settings()
 
     def list_branch_delivery_rows(self) -> list[tuple]:
         return self._repository.list_branch_delivery_rows()
-
 
     def save_branch_delivery_profile(
         self,
@@ -104,8 +103,8 @@ class CompanyProfileService:
         operation_days: str,
         accepts_after_hours_orders: bool,
         after_hours_message: str,
-        branch_id: int | None = None,
-    ) -> int:
+        branch_id: str | None = None,
+    ) -> str:
         return self._repository.save_branch_delivery_profile(
             name=name,
             address=address,
@@ -117,6 +116,7 @@ class CompanyProfileService:
             after_hours_message=after_hours_message,
             branch_id=branch_id,
         )
+
 
 class SettingsApplicationService:
     """Application boundary for settings readiness and shared configuration values."""
@@ -183,7 +183,7 @@ class ClosingPeriodService:
     def calculate_totals(self, start_date: str, end_date: str) -> dict[str, float]:
         return self._repository.calculate_monthly_close_totals(start_date, end_date)
 
-    def close_period(self, *, period: str, closed_by: str, totals: dict[str, float], branch_id: int) -> None:
+    def close_period(self, *, period: str, closed_by: str, totals: dict[str, float], branch_id: str) -> None:
         self._repository.save_monthly_close(period=period, closed_by=closed_by, totals=totals, branch_id=branch_id)
 
     def history(self, limit: int = 24) -> list[tuple]:
@@ -204,17 +204,17 @@ class HappyHourSettingsService:
     def list_rules(self) -> list[dict[str, Any]]:
         return [self._to_ui_rule(rule) for rule in self._repository.list_happy_hour_rules()]
 
-    def get_rule(self, rule_id: int) -> dict[str, Any] | None:
+    def get_rule(self, rule_id: str) -> dict[str, Any] | None:
         rule = self._repository.get_happy_hour_rule(rule_id)
         return self._to_ui_rule(rule) if rule else None
 
-    def save_rule(self, rule: dict[str, Any]) -> int:
+    def save_rule(self, rule: dict[str, Any]) -> str:
         prepared = dict(rule)
         if "message" in prepared:
             prepared["mensaje_wa"] = prepared.pop("message")
         return self._repository.save_happy_hour_rule(prepared)
 
-    def set_rule_active(self, rule_id: int, active: bool) -> None:
+    def set_rule_active(self, rule_id: str, active: bool) -> None:
         self._repository.set_happy_hour_rule_active(rule_id, active)
 
 
@@ -262,15 +262,17 @@ class PermissionEventPublisher:
                 from backend.shared.events.event_contracts import create_domain_event
                 from backend.shared.events.event_names import EventName
 
-                self._event_bus.publish(create_domain_event(
-                    event_name=EventName(event_name),
-                    operation_id=operation_id,
-                    entity_id=entity_id,
-                    branch_id=str(event["branch_id"]),
-                    user_name=user_name,
-                    source_module="CONFIGURATION",
-                    payload=payload,
-                ))
+                self._event_bus.publish(
+                    create_domain_event(
+                        event_name=EventName(event_name),
+                        operation_id=operation_id,
+                        entity_id=entity_id,
+                        branch_id=str(event["branch_id"]),
+                        user_name=user_name,
+                        source_module="CONFIGURATION",
+                        payload=payload,
+                    )
+                )
             except Exception:
                 self._event_bus.publish(event)
 
@@ -285,25 +287,25 @@ class UserManagementService:
     def list_users(self) -> list[tuple]:
         return self._repository.list_users_v13()
 
-    def get_user_form_data(self, user_id: int) -> tuple | None:
+    def get_user_form_data(self, user_id: str) -> tuple | None:
         return self._repository.get_user_form_data(user_id)
 
     def save_user(
         self,
         *,
-        user_id: int | None,
+        user_id: str | None,
         username: str,
         name: str,
         email: str,
         role: str,
-        branch_id: int,
+        branch_id: str,
         active: bool,
         employee_id: int | None,
         password_hash: str | None,
         operation_id: str,
         actor: str,
-    ) -> None:
-        self._repository.save_user_v13(
+    ) -> str:
+        persisted_user_id = self._repository.save_user_v13(
             user_id=user_id,
             username=username,
             name=name,
@@ -317,18 +319,19 @@ class UserManagementService:
         self._events.publish(
             "USER_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=new_uuid(),
+            entity_id=persisted_user_id,
             user_name=actor,
-            payload={"username": username, "role": role},
+            payload={"username": username, "role": role, "branch_id": branch_id},
         )
+        return persisted_user_id
 
-    def set_user_active(self, user_id: int, active: bool, *, operation_id: str, actor: str) -> None:
+    def set_user_active(self, user_id: str, active: bool, *, operation_id: str, actor: str) -> None:
         self._repository.set_user_active(user_id, active)
-        username = self._repository.username_for_id(user_id) or ""
+        username = self._repository.username_for_uuid(user_id) or ""
         self._events.publish(
             "USER_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=new_uuid(),
+            entity_id=user_id,
             user_name=actor,
             payload={"username": username, "active": active},
         )
@@ -347,22 +350,22 @@ class RoleManagementService:
     def role_names(self) -> list[str]:
         return self._repository.role_names()
 
-    def active_branches_for_selector(self) -> list[tuple[int, str]]:
+    def active_branches_for_selector(self) -> list[tuple[str, str]]:
         return self._repository.active_branches_for_selector()
 
     def active_employees_for_selector(self) -> list[tuple[int, str]]:
         return self._repository.active_employees_for_selector()
 
-    def save_role(self, *, role_id: int | None, name: str, description: str, operation_id: str, actor: str) -> int:
-        saved_id = self._repository.save_role(role_id=role_id, name=name, description=description)
+    def save_role(self, *, role_id: str | None, name: str, description: str, operation_id: str, actor: str) -> str:
+        persisted_role_id = self._repository.save_role(role_id=role_id, name=name, description=description)
         self._events.publish(
             "ROLE_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=new_uuid(),
+            entity_id=persisted_role_id,
             user_name=actor,
             payload={"role_name": name},
         )
-        return saved_id
+        return persisted_role_id
 
 
 class PermissionQueryService:
@@ -371,13 +374,13 @@ class PermissionQueryService:
     def __init__(self, repository: ConfigRepository) -> None:
         self._repository = repository
 
-    def role_permissions(self, role_id: int) -> dict[tuple[str, str], bool]:
+    def role_permissions(self, role_id: str) -> dict[tuple[str, str], bool]:
         return self._repository.role_permissions(role_id)
 
     def permission_codes_for_role_name(self, role_name: str) -> set[str]:
         return self._repository.permission_codes_for_role_name(role_name)
 
-    def permission_codes_for_user(self, user_id: int, branch_id: int | None = None) -> set[str]:
+    def permission_codes_for_user(self, user_id: str, branch_id: str | None = None) -> set[str]:
         return self._repository.permission_codes_for_user(user_id, branch_id)
 
     def permission_matrix(self) -> list[tuple[str, list[str]]]:
@@ -393,11 +396,11 @@ class ModuleAccessService:
     def __init__(self, repository: ConfigRepository, event_publisher: PermissionEventPublisher | None = None) -> None:
         self._repository = repository
         self._events = event_publisher or PermissionEventPublisher()
-        self._cache: dict[int, dict[tuple[str, str], bool]] = {}
+        self._cache: dict[str, dict[tuple[str, str], bool]] = {}
 
     def save_role_permissions(
         self,
-        role_id: int,
+        role_id: str,
         permissions: dict[tuple[str, str], bool],
         *,
         operation_id: str,
@@ -406,27 +409,28 @@ class ModuleAccessService:
         self._repository.save_role_permissions(role_id, permissions)
         self.invalidate_cache(role_id)
         role_name = self._repository.role_name_for_id(role_id) or ""
+        payload = {"role_name": role_name, "permissions": {f"{m}.{a}": v for (m, a), v in permissions.items()}}
         self._events.publish(
             "ROLE_PERMISSIONS_UPDATED",
             operation_id=operation_id,
-            entity_id=new_uuid(),
+            entity_id=role_id,
             user_name=actor,
-            payload={"role_name": role_name, "permissions": {f"{m}.{a}": v for (m, a), v in permissions.items()}},
+            payload=payload,
         )
         self._events.publish(
             "MODULE_ACCESS_UPDATED",
             operation_id=operation_id,
-            entity_id=new_uuid(),
+            entity_id=role_id,
             user_name=actor,
             payload={"role_name": role_name},
         )
 
-    def has_permission(self, role_id: int, module: str, action: str) -> bool:
+    def has_permission(self, role_id: str, module: str, action: str) -> bool:
         if role_id not in self._cache:
             self._cache[role_id] = self._repository.role_permissions(role_id)
         return self._cache[role_id].get((module, action), False)
 
-    def invalidate_cache(self, role_id: int | None = None) -> None:
+    def invalidate_cache(self, role_id: str | None = None) -> None:
         if role_id is None:
             self._cache.clear()
         else:
