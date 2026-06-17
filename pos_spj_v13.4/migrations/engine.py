@@ -104,6 +104,7 @@ MIGRATIONS = [
     _Migration("104",  "migrations.standalone.104_rol_permisos_uuid_columns"),
     _Migration("105",  "migrations.standalone.105_movimientos_inventario"),
     _Migration("106",  "migrations.standalone.106_inventario_actual_branch"),
+    _Migration("107",  "migrations.standalone.107_productos_costo_column"),
 ]
 
 def _ensure_tracking_table(conn):

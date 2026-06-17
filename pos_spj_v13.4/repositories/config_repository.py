@@ -755,7 +755,26 @@ class ConfigRepository:
         return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
 
     def permission_codes_for_user(self, user_id: str, branch_id: str | None = None) -> set[str]:
-        column, value = self._resolve_db_identifier("usuarios", user_id)
+        # Accept legacy integer IDs (e.g. "1") until all DBs are migrated to UUID
+        user_id_str = str(user_id or "").strip()
+        has_uuid_col = self._column_exists("usuarios", "uuid")
+        try:
+            from uuid import UUID as _UUID
+            _UUID(user_id_str)
+            is_uuid = True
+        except (ValueError, AttributeError):
+            is_uuid = False
+
+        if is_uuid and has_uuid_col:
+            column, value = "uuid", user_id_str
+        else:
+            # Fallback: try integer id lookup
+            try:
+                column, value = "id", int(user_id_str)
+            except (ValueError, TypeError):
+                logger.warning("permission_codes_for_user: invalid user_id %r — returning empty set", user_id_str)
+                return set()
+
         row = self.db.execute(f"SELECT id, rol FROM usuarios WHERE {column}=?", (value,)).fetchone()
         if not row:
             logger.warning("User not found while resolving permissions: %s", user_id)
