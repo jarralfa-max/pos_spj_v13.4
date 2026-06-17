@@ -13,6 +13,14 @@ class ConfigRepository:
     def __init__(self, db_conn):
         self.db = db_conn
 
+    @staticmethod
+    def _to_int(value: object) -> int | None:
+        """Safely coerce value to int; returns None on failure."""
+        try:
+            return int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+
     def _commit(self) -> None:
         try:
             self.db.commit()
@@ -39,7 +47,11 @@ class ConfigRepository:
     def _require_uuid_column(self, table_name: str) -> str:
         uuid_column = self._uuid_column(table_name)
         if not uuid_column:
-            raise RuntimeError(f"{table_name} requires UUID migration before Configuracion can operate")
+            logger.warning(
+                "%s: uuid column not found — falling back to integer id (run migrations 101-103)",
+                table_name,
+            )
+            return "id"
         return uuid_column
 
     def _require_uuidv7(self, value: str, field_name: str) -> str:
@@ -71,26 +83,53 @@ class ConfigRepository:
         return str(row[0]) if row and row[0] else None
 
     def _resolve_db_identifier(self, table_name: str, entity_id: str) -> tuple[str, object]:
-        uuid_column = self._require_uuid_column(table_name)
-        return uuid_column, self._require_uuidv7(entity_id, f"{table_name}.id")
+        has_uuid = self._column_exists(table_name, "uuid")
+        if has_uuid:
+            return "uuid", self._require_uuidv7(entity_id, f"{table_name}.id")
+        # Pre-migration fallback: accept integer id strings directly
+        logger.warning(
+            "%s: uuid column not found — resolving by integer id (run migrations 101-103)",
+            table_name,
+        )
+        try:
+            return "id", self._to_int(entity_id)
+        except (TypeError, ValueError):
+            return "id", entity_id
 
     def _resolve_branch_row(self, branch_id: str | None) -> tuple[int | None, str | None]:
         if not branch_id:
             return None, None
-        branch_uuid = self._require_uuidv7(branch_id, "branch_id")
-        row_id = self._row_id_from_uuid("sucursales", branch_uuid)
-        if row_id is None:
-            raise ValueError("branch_id must reference an existing branch UUID")
-        return row_id, branch_uuid
+        if self._column_exists("sucursales", "uuid"):
+            branch_uuid = self._require_uuidv7(branch_id, "branch_id")
+            row_id = self._row_id_from_uuid("sucursales", branch_uuid)
+            if row_id is None:
+                raise ValueError("branch_id must reference an existing branch UUID")
+            return row_id, branch_uuid
+        # Pre-migration fallback: accept integer branch id
+        logger.warning("sucursales: uuid column not found — resolving branch by integer id")
+        row_id = self._to_int(branch_id)
+        return row_id, None
 
     def _resolve_role_row(self, role_id: str) -> tuple[int | None, str | None]:
-        role_uuid = self._require_uuidv7(role_id, "role_id")
-        row_id = self._row_id_from_uuid("roles", role_uuid)
-        if row_id is None:
-            raise ValueError("role_id must reference an existing role UUID")
-        return row_id, role_uuid
+        if self._column_exists("roles", "uuid"):
+            role_uuid = self._require_uuidv7(role_id, "role_id")
+            row_id = self._row_id_from_uuid("roles", role_uuid)
+            if row_id is None:
+                raise ValueError("role_id must reference an existing role UUID")
+            return row_id, role_uuid
+        # Pre-migration fallback: accept integer role id
+        logger.warning("roles: uuid column not found — resolving role by integer id")
+        row_id = self._to_int(role_id)
+        return row_id, None
 
     def _resolve_user_row(self, user_id: str) -> tuple[int | None, str | None]:
+        if not self._column_exists("usuarios", "uuid"):
+            logger.warning("usuarios: uuid column not found — resolving user by integer id")
+            try:
+                row_id = self._to_int(user_id)
+            except (TypeError, ValueError):
+                row_id = None
+            return row_id, None
         user_uuid = self._require_uuidv7(user_id, "user_id")
         row_id = self._row_id_from_uuid("usuarios", user_uuid)
         if row_id is None:
@@ -260,25 +299,32 @@ class ConfigRepository:
         if branch_id is not None:
             assignments = ["nombre=?", "direccion=?", "telefono=?", "activa=?"]
             params: list[object] = [name, address, phone, 1 if active else 0]
-            assignments.insert(0, "uuid=?")
-            params.insert(0, branch_uuid)
-            params.append(branch_uuid)
-            self.db.execute(f"UPDATE sucursales SET {', '.join(assignments)} WHERE uuid=?", tuple(params))
+            if self._column_exists("sucursales", "uuid") and branch_uuid:
+                assignments.insert(0, "uuid=?")
+                params.insert(0, branch_uuid)
+                where_col, where_val = "uuid", branch_uuid
+            else:
+                where_col, where_val = "id", branch_id
+            params.append(where_val)
+            self.db.execute(f"UPDATE sucursales SET {', '.join(assignments)} WHERE {where_col}=?", tuple(params))
             self._commit()
-            return str(branch_uuid)
+            return branch_id
 
         new_branch_uuid = new_uuid()
         fields = ["nombre", "direccion", "telefono", "activa"]
         values: list[object] = [name, address, phone, 1 if active else 0]
-        self._require_uuid_column("sucursales")
-        fields.insert(0, "uuid")
-        values.insert(0, new_branch_uuid)
+        if self._column_exists("sucursales", "uuid"):
+            fields.insert(0, "uuid")
+            values.insert(0, new_branch_uuid)
         placeholders = ",".join("?" for _ in fields)
-        self.db.execute(
+        cursor = self.db.execute(
             f"INSERT INTO sucursales ({','.join(fields)}) VALUES ({placeholders})",
             tuple(values),
         )
         self._commit()
+        # When uuid column doesn't exist, return the integer row id so get_branch() can find the row
+        if not self._column_exists("sucursales", "uuid"):
+            return str(cursor.lastrowid)
         return new_branch_uuid
 
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
@@ -385,10 +431,19 @@ class ConfigRepository:
 
     def list_happy_hour_rules(self) -> list[dict]:
         identity = self._select_identity_sql("happy_hour_rules")
-        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
-            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
-        branch_identity = "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
-        join_sql = "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
+        has_sucursal_uuid = self._column_exists("happy_hour_rules", "sucursal_uuid")
+        if not has_sucursal_uuid:
+            logger.warning("happy_hour_rules.sucursal_uuid not found — run migration 103; using integer join")
+        branch_identity = (
+            "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
+            if has_sucursal_uuid
+            else "CAST(h.sucursal_id AS TEXT) AS sucursal_id"
+        )
+        join_sql = (
+            "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
+            if has_sucursal_uuid
+            else "LEFT JOIN sucursales s ON s.id = h.sucursal_id"
+        )
         rows = self.db.execute(
             f"""
             SELECT {identity}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana, h.tipo_descuento,
@@ -402,10 +457,19 @@ class ConfigRepository:
 
     def get_happy_hour_rule(self, rule_id: str) -> dict | None:
         column, value = self._resolve_db_identifier("happy_hour_rules", rule_id)
-        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
-            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
-        join_sql = "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
-        branch_identity = "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
+        has_sucursal_uuid = self._column_exists("happy_hour_rules", "sucursal_uuid")
+        if not has_sucursal_uuid:
+            logger.warning("happy_hour_rules.sucursal_uuid not found — run migration 103; using integer join")
+        join_sql = (
+            "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
+            if has_sucursal_uuid
+            else "LEFT JOIN sucursales s ON s.id = h.sucursal_id"
+        )
+        branch_identity = (
+            "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
+            if has_sucursal_uuid
+            else "CAST(h.sucursal_id AS TEXT) AS sucursal_id"
+        )
         row = self.db.execute(
             f"""
             SELECT {self._select_identity_sql('happy_hour_rules')}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana, h.tipo_descuento,
@@ -433,25 +497,16 @@ class ConfigRepository:
             rule.get("mensaje_wa") or "",
             1 if rule.get("activo") else 0,
         ]
-        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
-            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
-        values.append(branch_uuid or "")
         columns = [
-            "nombre",
-            "hora_inicio",
-            "hora_fin",
-            "dias_semana",
-            "tipo_descuento",
-            "valor",
-            "aplica_a",
-            "aplica_valor",
-            "mensaje_wa",
-            "activo",
-            "sucursal_uuid",
+            "nombre", "hora_inicio", "hora_fin", "dias_semana", "tipo_descuento",
+            "valor", "aplica_a", "aplica_valor", "mensaje_wa", "activo",
         ]
-        self._require_uuid_column("happy_hour_rules")
-        columns.insert(0, "uuid")
-        values.insert(0, rule_uuid)
+        if self._column_exists("happy_hour_rules", "sucursal_uuid"):
+            columns.append("sucursal_uuid")
+            values.append(branch_uuid or "")
+        if self._column_exists("happy_hour_rules", "uuid"):
+            columns.insert(0, "uuid")
+            values.insert(0, rule_uuid)
 
         existing_column, existing_value = self._resolve_db_identifier("happy_hour_rules", rule_uuid)
         existing = None
@@ -512,13 +567,15 @@ class ConfigRepository:
         branch_row_id, branch_uuid = self._resolve_branch_row(branch_id)
         fields = ["periodo", "cerrado_por", "total_ventas", "total_compras", "total_merma"]
         values: list[object] = [period, closed_by, totals["sales"], totals["purchases"], totals["waste"]]
-        self._require_uuid_column("cierre_mensual")
-        fields.insert(0, "uuid")
-        values.insert(0, new_uuid())
-        if not self._column_exists("cierre_mensual", "sucursal_uuid"):
-            raise RuntimeError("cierre_mensual requires sucursal_uuid migration before Configuracion can operate")
-        fields.append("sucursal_uuid")
-        values.append(branch_uuid or "")
+        if self._column_exists("cierre_mensual", "uuid"):
+            fields.insert(0, "uuid")
+            values.insert(0, new_uuid())
+        if self._column_exists("cierre_mensual", "sucursal_uuid"):
+            fields.append("sucursal_uuid")
+            values.append(branch_uuid or "")
+        elif branch_row_id is not None and self._column_exists("cierre_mensual", "sucursal_id"):
+            fields.append("sucursal_id")
+            values.append(branch_row_id)
         placeholders = ",".join("?" for _ in fields)
         self.db.execute(
             f"INSERT INTO cierre_mensual ({','.join(fields)}) VALUES ({placeholders})",
@@ -557,18 +614,36 @@ class ConfigRepository:
         return [tuple(row) for row in rows]
 
     def list_users_v13(self) -> list[tuple]:
-        identity = self._select_identity_sql("usuarios")
-        if not self._column_exists("usuarios", "sucursal_uuid"):
-            raise RuntimeError("usuarios requires sucursal_uuid migration before Configuracion can operate")
-        branch_join = "LEFT JOIN sucursales s ON s.uuid = u.sucursal_uuid"
+        # Prefer uuid-based join when migration 102 columns exist; fall back to integer id
+        has_user_uuid = self._column_exists("usuarios", "uuid")
+        has_sucursal_uuid = (
+            self._column_exists("usuarios", "sucursal_uuid")
+            and self._column_exists("sucursales", "uuid")
+        )
+        user_id_expr = "u.uuid AS id" if has_user_uuid else "u.id"
+        user_uuid_expr = "u.uuid AS usuario_uuid" if has_user_uuid else "NULL AS usuario_uuid"
+        branch_uuid_expr = (
+            "s.uuid AS sucursal_uuid_val"
+            if self._column_exists("sucursales", "uuid")
+            else "NULL AS sucursal_uuid_val"
+        )
+        branch_join = (
+            "LEFT JOIN sucursales s ON s.uuid = u.sucursal_uuid"
+            if has_sucursal_uuid
+            else "LEFT JOIN sucursales s ON s.id = u.sucursal_id"
+        )
         return self.db.execute(
             f"""
-            SELECT {identity}, u.usuario, u.nombre,
-                   COALESCE(r.nombre,'cajero') as rol,
-                   COALESCE(s.nombre,'Principal') as sucursal,
-                   u.activo
+            SELECT {user_id_expr},
+                   u.usuario,
+                   u.nombre,
+                   COALESCE(r.nombre,'cajero') AS rol,
+                   COALESCE(s.nombre,'Principal') AS sucursal,
+                   u.activo,
+                   {user_uuid_expr},
+                   {branch_uuid_expr}
             FROM usuarios u
-            LEFT JOIN roles r ON r.nombre=u.rol
+            LEFT JOIN roles r ON r.nombre = u.rol
             {branch_join}
             ORDER BY u.nombre LIMIT 200
             """
@@ -586,13 +661,19 @@ class ConfigRepository:
 
     def get_user_form_data(self, user_id: str) -> tuple | None:
         column, value = self._resolve_db_identifier("usuarios", user_id)
-        if not self._column_exists("usuarios", "sucursal_uuid"):
-            raise RuntimeError("usuarios requires sucursal_uuid migration before Configuracion can operate")
-        branch_column = "sucursal_uuid"
+        branch_column = (
+            "sucursal_uuid"
+            if self._column_exists("usuarios", "sucursal_uuid")
+            else "sucursal_id"
+        )
         return self.db.execute(
             f"SELECT usuario,nombre,email,rol,{branch_column},activo,empleado_id FROM usuarios WHERE {column}=?",
             (value,),
         ).fetchone()
+
+    def username_for_id(self, user_id: int | str) -> str | None:
+        row = self.db.execute("SELECT usuario FROM usuarios WHERE id=?", (self._to_int(user_id),)).fetchone()
+        return str(row[0]) if row else None
 
     def username_for_uuid(self, user_id: str) -> str | None:
         column, value = self._resolve_db_identifier("usuarios", user_id)
@@ -616,16 +697,18 @@ class ConfigRepository:
         persisted_user_id = user_id or new_uuid()
         role_fields = ["usuario", "nombre", "email", "rol", "activo", "empleado_id"]
         role_values: list[object] = [username, name, email, role, 1 if active else 0, employee_id]
-        self._require_uuid_column("usuarios")
-        role_fields.insert(0, "uuid")
-        role_values.insert(0, persisted_user_id)
+        if self._column_exists("usuarios", "uuid"):
+            role_fields.insert(0, "uuid")
+            role_values.insert(0, persisted_user_id)
         if password_hash is not None:
             role_fields.append("password_hash")
             role_values.append(password_hash)
-        if not self._column_exists("usuarios", "sucursal_uuid"):
-            raise RuntimeError("usuarios requires sucursal_uuid migration before Configuracion can operate")
-        role_fields.append("sucursal_uuid")
-        role_values.append(branch_uuid or "")
+        if self._column_exists("usuarios", "sucursal_uuid"):
+            role_fields.append("sucursal_uuid")
+            role_values.append(branch_uuid or "")
+        elif branch_row_id is not None and self._column_exists("usuarios", "sucursal_id"):
+            role_fields.append("sucursal_id")
+            role_values.append(branch_row_id)
 
         existing = None
         if user_id:
@@ -680,12 +763,19 @@ class ConfigRepository:
 
     def permission_codes_for_role_id(self, role_id: str) -> set[str]:
         role_row_id, role_uuid = self._resolve_role_row(role_id)
-        if not self._column_exists("rol_permisos", "rol_uuid"):
-            raise RuntimeError("rol_permisos requires rol_uuid migration before Configuracion can operate")
-        rows = self.db.execute(
-            "SELECT modulo, accion FROM rol_permisos WHERE rol_uuid=? AND permitido=1",
-            (role_uuid,),
-        ).fetchall()
+        if self._column_exists("rol_permisos", "rol_uuid"):
+            rows = self.db.execute(
+                "SELECT modulo, accion FROM rol_permisos WHERE rol_uuid=? AND permitido=1",
+                (role_uuid,),
+            ).fetchall()
+        elif role_row_id is not None and self._column_exists("rol_permisos", "rol_id"):
+            rows = self.db.execute(
+                "SELECT modulo, accion FROM rol_permisos WHERE rol_id=? AND permitido=1",
+                (role_row_id,),
+            ).fetchall()
+        else:
+            logger.warning("rol_permisos.rol_uuid not found — run migration 104; returning empty permissions")
+            return set()
         return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
 
     def permission_codes_for_user(self, user_id: str, branch_id: str | None = None) -> set[str]:
@@ -756,22 +846,36 @@ class ConfigRepository:
 
     def role_permissions(self, role_id: str) -> dict[tuple[str, str], bool]:
         role_row_id, role_uuid = self._resolve_role_row(role_id)
-        if not self._column_exists("rol_permisos", "rol_uuid"):
-            raise RuntimeError("rol_permisos requires rol_uuid migration before Configuracion can operate")
-        rows = self.db.execute(
-            "SELECT modulo, accion, permitido FROM rol_permisos WHERE rol_uuid=?",
-            (role_uuid,),
-        ).fetchall()
+        if self._column_exists("rol_permisos", "rol_uuid"):
+            rows = self.db.execute(
+                "SELECT modulo, accion, permitido FROM rol_permisos WHERE rol_uuid=?",
+                (role_uuid,),
+            ).fetchall()
+        elif role_row_id is not None and self._column_exists("rol_permisos", "rol_id"):
+            rows = self.db.execute(
+                "SELECT modulo, accion, permitido FROM rol_permisos WHERE rol_id=?",
+                (role_row_id,),
+            ).fetchall()
+        else:
+            logger.warning("rol_permisos.rol_uuid not found — run migration 104; returning empty dict")
+            return {}
         return {(row[0], row[1]): bool(row[2]) for row in rows}
 
     def save_role_permissions(self, role_id: str, permissions: dict[tuple[str, str], bool]) -> None:
         role_row_id, role_uuid = self._resolve_role_row(role_id)
-        if not self._column_exists("rol_permisos", "rol_uuid"):
-            raise RuntimeError("rol_permisos requires rol_uuid migration before Configuracion can operate")
-        self.db.execute("DELETE FROM rol_permisos WHERE rol_uuid=?", (role_uuid,))
-        insert_sql = "INSERT INTO rol_permisos(rol_uuid,modulo,accion,permitido) VALUES(?,?,?,?)"
-        for (module, action), allowed in permissions.items():
-            self.db.execute(insert_sql, (role_uuid, module, action, 1 if allowed else 0))
+        if self._column_exists("rol_permisos", "rol_uuid"):
+            self.db.execute("DELETE FROM rol_permisos WHERE rol_uuid=?", (role_uuid,))
+            insert_sql = "INSERT INTO rol_permisos(rol_uuid,modulo,accion,permitido) VALUES(?,?,?,?)"
+            for (module, action), allowed in permissions.items():
+                self.db.execute(insert_sql, (role_uuid, module, action, 1 if allowed else 0))
+        elif role_row_id is not None and self._column_exists("rol_permisos", "rol_id"):
+            self.db.execute("DELETE FROM rol_permisos WHERE rol_id=?", (role_row_id,))
+            insert_sql = "INSERT INTO rol_permisos(rol_id,modulo,accion,permitido) VALUES(?,?,?,?)"
+            for (module, action), allowed in permissions.items():
+                self.db.execute(insert_sql, (role_row_id, module, action, 1 if allowed else 0))
+        else:
+            logger.warning("rol_permisos.rol_uuid not found — run migration 104; permissions not saved")
+            return
         self._commit()
 
     def audit_log_rows(self, limit: int = 200) -> list[tuple]:
@@ -784,17 +888,22 @@ class ConfigRepository:
         persisted_role_id = role_id or new_uuid()
         role_fields = ["nombre", "descripcion"]
         role_values: list[object] = [name, description]
-        self._require_uuid_column("roles")
-        role_fields.insert(0, "uuid")
-        role_values.insert(0, persisted_role_id)
+        has_uuid = self._column_exists("roles", "uuid")
+        if has_uuid:
+            role_fields.insert(0, "uuid")
+            role_values.insert(0, persisted_role_id)
+        else:
+            logger.warning("roles: uuid column not found — saving without uuid (run migrations 101-103)")
         existing = None
         if role_id:
             column, value = self._resolve_db_identifier("roles", role_id)
             existing = self.db.execute(f"SELECT id FROM roles WHERE {column}=?", (value,)).fetchone()
         if existing:
             assignments = ",".join(f"{field}=?" for field in role_fields)
-            params = list(role_values) + [persisted_role_id]
-            self.db.execute(f"UPDATE roles SET {assignments} WHERE uuid=?", tuple(params))
+            where_col = "uuid" if has_uuid else "id"
+            update_id = persisted_role_id if has_uuid else existing[0]
+            params = list(role_values) + [update_id]
+            self.db.execute(f"UPDATE roles SET {assignments} WHERE {where_col}=?", tuple(params))
         else:
             placeholders = ",".join("?" for _ in role_fields)
             self.db.execute(
@@ -802,4 +911,9 @@ class ConfigRepository:
                 tuple(role_values),
             )
         self._commit()
+        if not has_uuid:
+            # Pre-migration: return string of integer row id so callers can look up the role again
+            row = self.db.execute("SELECT id FROM roles WHERE nombre=?", (name,)).fetchone()
+            if row:
+                return str(row[0])
         return persisted_role_id
