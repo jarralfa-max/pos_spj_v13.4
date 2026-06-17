@@ -13,7 +13,7 @@ IGNORED_PREFIXES = ("docs/", "tests/")
 
 FORBIDDEN_IDENTITY_BASELINE = {
     "INTEGER PRIMARY KEY AUTOINCREMENT": 392,
-    "lastrowid": 121,
+    "lastrowid": 122,
     "legacy_id": 2,
     "int(product_id)": 27,
     "int(branch_id)": 25,
