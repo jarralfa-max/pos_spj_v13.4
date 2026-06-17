@@ -10,7 +10,7 @@ from modulos.ui_components import (
 )
 import os
 from datetime import datetime
-from uuid import uuid4
+from backend.shared.ids import new_uuid as uuid4
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
