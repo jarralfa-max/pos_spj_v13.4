@@ -193,6 +193,50 @@ class ProductQueryService(BaseQueryService):
         """Return Spanish product type labels for desktop UI widgets."""
         return ProductTypePolicy.type_labels_es()
 
+    def find_duplicate_name(
+        self,
+        name: str,
+        *,
+        exclude_product_id: int | str | None = None,
+    ) -> dict[str, Any] | None:
+        """Check for an existing active product with the same name."""
+        if self._db is None:
+            return None
+        try:
+            params: list[Any] = [name]
+            query = (
+                "SELECT id, codigo FROM productos "
+                "WHERE LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND COALESCE(activo,1)=1"
+            )
+            if exclude_product_id is not None:
+                query += " AND id!=?"
+                params.append(exclude_product_id)
+            row = self._db.execute(query, params).fetchone()
+        except Exception:
+            logger.exception("Error checking duplicate product name '%s'", name)
+            return None
+        return None if row is None else self._row_to_dict(row)
+
+    def type_help_es(self, tipo: str) -> str:
+        """Return Spanish help text for a product type label or canonical key."""
+        return ProductTypePolicy.rules_for(tipo).help_es
+
+    def type_rules(self, tipo: str) -> dict:
+        """Return operational rules dict for a product type label or canonical key."""
+        rules = ProductTypePolicy.rules_for(tipo)
+        return {
+            "canonical":                 rules.canonical,
+            "label_es":                  rules.label_es,
+            "help_es":                   rules.help_es,
+            "is_composite":              rules.is_composite,
+            "is_byproduct":              rules.is_byproduct,
+            "allows_recipe":             rules.allows_recipe,
+            "allows_virtual_stock":      rules.allows_virtual_stock,
+            "deducts_components_on_sale": rules.deducts_components_on_sale,
+            "is_inventory_tracked":      rules.is_inventory_tracked,
+            "is_sellable":               rules.is_sellable,
+        }
+
     def list_categories(self) -> list[str]:
         if self._db is None:
             return []
