@@ -1,4 +1,4 @@
-# Cola maestra de módulos
+# Cola maestra de mÃ³dulos
 
 ## Estados permitidos
 
@@ -16,21 +16,21 @@ DONE
 
 ## Cola
 
-| Orden | Código                | Módulo                   | Estado  |
+| Orden | CÃ³digo                | MÃ³dulo                   | Estado  |
 | ----: | --------------------- | ------------------------ | ------- |
-|     1 | CONFIGURACION         | Configuración            | AUDIT   |
+|     1 | CONFIGURACION         | ConfiguraciÃ³n            | IMPLEMENTATION |
 |     2 | MERMA                 | Merma                    | PENDING |
 |     3 | PRODUCTOS             | Productos                | PENDING |
 |     4 | INVENTARIO            | Inventario               | PENDING |
 |     5 | VENTAS                | Ventas                   | PENDING |
-|     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | PENDING |
+|     6 | PROCESAMIENTO_CARNICO | Procesamiento cÃ¡rnico    | PENDING |
 |     7 | RECETAS               | Recetas                  | PENDING |
-|     8 | PRODUCCION            | Producción               | PENDING |
+|     8 | PRODUCCION            | ProducciÃ³n               | PENDING |
 |     9 | TRANSFERENCIAS        | Transferencias           | PENDING |
 |    10 | DELIVERY              | Delivery                 | PENDING |
 |    11 | CAJA                  | Caja                     | PENDING |
 |    12 | BI_DASHBOARD          | BI / Dashboard           | PENDING |
-|    13 | PLANEACION_COMPRAS    | Planeación de compras    | PENDING |
+|    13 | PLANEACION_COMPRAS    | PlaneaciÃ³n de compras    | PENDING |
 |    14 | COTIZACIONES          | Cotizaciones             | PENDING |
 |    15 | FIDELIDAD             | Fidelidad                | PENDING |
 |    16 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | PENDING |
@@ -38,7 +38,7 @@ DONE
 |    18 | CLIENTES              | Clientes                 | PENDING |
 |    19 | PROVEEDORES           | Proveedores              | PENDING |
 |    20 | COMPRAS               | Compras                  | PENDING |
-|    21 | RECEPCION             | Recepción                | PENDING |
+|    21 | RECEPCION             | RecepciÃ³n                | PENDING |
 |    22 | PEDIDOS               | Pedidos                  | PENDING |
 |    23 | TICKETS               | Tickets                  | PENDING |
 |    24 | ETIQUETAS             | Etiquetas                | PENDING |
@@ -49,15 +49,15 @@ DONE
 |    29 | RRHH                  | Recursos humanos         | PENDING |
 |    30 | REPORTES              | Reportes                 | PENDING |
 |    31 | API                   | API FastAPI              | PENDING |
-|    32 | SINCRONIZACION        | Sincronización           | PENDING |
+|    32 | SINCRONIZACION        | SincronizaciÃ³n           | PENDING |
 |    33 | INSTALADOR            | Instalador               | PENDING |
 |    34 | ACTUALIZADOR          | Actualizador             | PENDING |
 |    35 | CIERRE_GLOBAL         | Cierre global            | PENDING |
 
 ## Regla
 
-Codex selecciona siempre el primer módulo que no esté en `DONE`, salvo que una dependencia documentada obligue a reordenar temporalmente la cola.
+Codex selecciona siempre el primer mÃ³dulo que no estÃ© en `DONE`, salvo que una dependencia documentada obligue a reordenar temporalmente la cola.
 
 ## Fuente de autoridad
 
-La cola sigue `SPJ_REFACTOR_SKILL.md`; UUIDv7 se trata como lote obligatorio dentro de cada módulo, no como sustituto del refactor completo.
+La cola sigue `SPJ_REFACTOR_SKILL.md`; UUIDv7 se trata como lote obligatorio dentro de cada mÃ³dulo, no como sustituto del refactor completo.
