@@ -75,24 +75,26 @@ class UnifiedInventoryService:
     def __init__(self, conn=None, sucursal_id=1, usuario="Sistema"):
         self.conn=conn or get_connection(); self.sucursal_id=sucursal_id; self.usuario=usuario
     def get_stock(self, producto_id, sucursal_id=None):
-        r=self.conn.execute("SELECT COALESCE(existencia,0) FROM productos WHERE id=?",(producto_id,)).fetchone()
+        sid = sucursal_id or self.sucursal_id
+        try:
+            ia_row = self.conn.execute(
+                "SELECT COALESCE(cantidad, 0) FROM inventario_actual "
+                "WHERE producto_id=? AND sucursal_id=?",
+                (producto_id, sid),
+            ).fetchone()
+            if ia_row is not None:
+                return float(ia_row[0])
+        except Exception:
+            pass
+        r = self.conn.execute(
+            "SELECT COALESCE(existencia, 0) FROM productos WHERE id=?", (producto_id,)
+        ).fetchone()
         return float(r[0]) if r else 0.0
 
     def get_stock_sucursal(self, producto_id, branch_id=None):
-        """Retorna stock del producto, priorizando branch_inventory si existe."""
+        """Retorna stock del producto para la sucursal, priorizando inventario_actual."""
         sid = branch_id or self.sucursal_id
-        try:
-            row = self.conn.execute(
-                """SELECT COALESCE(bi.quantity, p.existencia, 0)
-                   FROM productos p
-                   LEFT JOIN branch_inventory bi
-                          ON bi.product_id = p.id AND bi.branch_id = ?
-                   WHERE p.id = ?""",
-                (sid, producto_id),
-            ).fetchone()
-            return float(row[0]) if row else 0.0
-        except Exception:
-            return self.get_stock(producto_id)
+        return self.get_stock(producto_id, sucursal_id=sid)
 
     def get_low_stock(self, sucursal_id=None):
         return [dict(r) for r in self.conn.execute(
@@ -254,13 +256,29 @@ class UnifiedInventoryService:
         _mid_holder = [None]
 
         def _write(c):
-            row = c.execute(
-                "SELECT existencia, nombre FROM productos WHERE id=?", (product_id,)
+            prod_row = c.execute(
+                "SELECT nombre FROM productos WHERE id=?", (product_id,)
             ).fetchone()
-            if not row:
+            if not prod_row:
                 raise InventoryError(f"Producto {product_id} no existe")
-            stock_ant = float(row[0] or 0)
-            nombre = row[1]
+            nombre = prod_row[0]
+
+            # Read branch-specific stock from inventario_actual (canonical).
+            # Fall back to productos.existencia only when no branch row exists yet.
+            ia_row = c.execute(
+                "SELECT COALESCE(cantidad, 0) FROM inventario_actual "
+                "WHERE producto_id=? AND sucursal_id=?",
+                (product_id, sucursal_id),
+            ).fetchone()
+            if ia_row is not None:
+                stock_ant = float(ia_row[0])
+            else:
+                ex_row = c.execute(
+                    "SELECT COALESCE(existencia, 0) FROM productos WHERE id=?",
+                    (product_id,),
+                ).fetchone()
+                stock_ant = float(ex_row[0]) if ex_row else 0.0
+
             stock_nuevo = round(stock_ant + delta, 4)
             if stock_nuevo < -1e-6:
                 raise StockInsuficienteError(nombre, stock_ant, qty_abs)
@@ -279,11 +297,6 @@ class UnifiedInventoryService:
                 str(ref) if ref else None,
                 _effective_user, sucursal_id,
             )).lastrowid
-
-            c.execute(
-                "UPDATE productos SET existencia=? WHERE id=?",
-                (stock_nuevo, product_id)
-            )
             # FIX FALLA-6: actualizar costo_promedio cuando se provee metadata con unit_cost
             _unit_cost = float(metadata.get("unit_cost") or metadata.get("costo_unitario") or 0)
             if _unit_cost > 0 and delta > 0:
