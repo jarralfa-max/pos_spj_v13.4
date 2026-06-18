@@ -136,3 +136,11 @@ OPERATING_SUPPLY_PURCHASED = "operating_supply_purchased" # insumo operativo com
 FINANCIAL_TRACE_COMPLETED  = "financial_trace_completed" # traza financiera completada OK
 FINANCIAL_TRACE_FAILED     = "financial_trace_failed"    # traza financiera falló
 
+# ── Eventos de sesión y sucursal ──────────────────────────────────────────────
+# Published POST-COMMIT by MainWindow._propagar_usuario after the config is
+# persisted. Payload fields:
+#   event_id, operation_id, user_id, previous_branch_id, active_branch_id,
+#   active_branch_name, timestamp, source_module
+ACTIVE_BRANCH_CHANGED = "active_branch_changed"
+
+
