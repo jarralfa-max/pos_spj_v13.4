@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import logging
-import uuid
+from backend.shared.ids import new_uuid
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -131,8 +131,8 @@ class TransferRepository:
         if not items:
             raise TransferError("NO_ITEMS")
 
-        transfer_id = str(uuid.uuid4())
-        operation_id = str(uuid.uuid4())
+        transfer_id = new_uuid()
+        operation_id = new_uuid()
 
         with self.db.transaction("TRANSFER_DISPATCH") as conn:
 
@@ -205,7 +205,7 @@ class TransferRepository:
                         quantity_sent, unit, batch_id, notes
                     ) VALUES (?,?,?,?,?,?,?)
                 """, (
-                    str(uuid.uuid4()),
+                    new_uuid(),
                     transfer_id,
                     item["product_id"],
                     float(item["quantity_sent"]),
@@ -381,7 +381,7 @@ class TransferRepository:
         origin_branch_id = transfer["branch_origin_id"]
         items = self.get_items(transfer_id)
 
-        cancel_op_id = str(uuid.uuid4())
+        cancel_op_id = new_uuid()
 
         with self.db.transaction("TRANSFER_CANCEL") as conn:
             # Build restore movements — return quantity to origin
