@@ -16,6 +16,7 @@ from core.delivery.infrastructure.delivery_schema_migrator import DeliverySchema
 from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
 from core.delivery.application.activate_scheduled_order import ActivateScheduledOrderUseCase
 from core.delivery.application.adjust_delivery_weight import AdjustDeliveryWeightUseCase
+from core.delivery.application.assign_delivery_driver import AssignDeliveryDriverUseCase
 from core.delivery.application.cancel_delivery_order import CancelDeliveryOrderUseCase
 from core.delivery.application.change_delivery_status import ChangeDeliveryStatusUseCase
 from core.delivery.application.create_delivery_order import CreateDeliveryOrderUseCase
@@ -152,6 +153,28 @@ class DeliveryService:
             logger.warning("No se pudo validar ajuste pendiente delivery order=%s: %s", order_id, exc)
             return False
 
+    def assign_driver(
+        self,
+        order_id: int,
+        driver_id: int,
+        tiempo_estimado: str = "",
+        notas: str = "",
+        usuario: str = "sistema",
+    ) -> dict:
+        """Assign driver and atomically transition order to 'preparacion'."""
+        return AssignDeliveryDriverUseCase(
+            db=self.db,
+            repository=self.repository,
+            publisher=self._publish,
+            outbox_repository=self.outbox_repository,
+        ).execute(
+            order_id=order_id,
+            driver_id=driver_id,
+            tiempo_estimado=tiempo_estimado,
+            notas=notas,
+            usuario=usuario,
+        )
+
     def _change_status_use_case(self) -> ChangeDeliveryStatusUseCase:
         return ChangeDeliveryStatusUseCase(
             db=self.db,
@@ -170,9 +193,17 @@ class DeliveryService:
         usuario: str,
         responsable: str = "",
         observacion: str = "",
+        pago_metodo: str = "",
+        pago_monto: float = 0.0,
     ) -> None:
         return self._change_status_use_case().execute(
-            order_id, status, usuario=usuario, responsable=responsable, observacion=observacion
+            order_id,
+            status,
+            usuario=usuario,
+            responsable=responsable,
+            observacion=observacion,
+            pago_metodo=pago_metodo,
+            pago_monto=pago_monto,
         )
 
     def update_order_status(
@@ -182,10 +213,18 @@ class DeliveryService:
         usuario: str = "sistema",
         responsable: str = "",
         observacion: str = "",
+        pago_metodo: str = "",
+        pago_monto: float = 0.0,
     ) -> None:
         """Legacy alias for callers using a more explicit method name."""
         return self.update_status(
-            order_id, status, usuario=usuario, responsable=responsable, observacion=observacion
+            order_id,
+            status,
+            usuario=usuario,
+            responsable=responsable,
+            observacion=observacion,
+            pago_metodo=pago_metodo,
+            pago_monto=pago_monto,
         )
 
     def activate_scheduled_order(self, order_id: int, usuario: str = "sistema") -> Dict[str, Any]:
