@@ -139,10 +139,83 @@ def apply_fix(conn: sqlite3.Connection, producto_id: int, nombre: str) -> None:
     """, (str(uuid.uuid4()), producto_id))
 
 
+def check_vs_movements(conn: sqlite3.Connection) -> list[dict]:
+    """
+    Compare inventario_actual per branch against movement ledger reconstruction.
+    Returns rows where the materialised value differs from the ledger sum.
+    """
+    try:
+        rows = conn.execute(
+            """
+            SELECT ia.producto_id,
+                   ia.sucursal_id,
+                   COALESCE(p.nombre, '') AS nombre,
+                   COALESCE(p.unidad,'kg') AS unidad,
+                   COALESCE(ia.cantidad, 0) AS saldo_mat,
+                   COALESCE(saldo.saldo_mov, 0) AS saldo_mov,
+                   COALESCE(ia.cantidad, 0) - COALESCE(saldo.saldo_mov, 0) AS diferencia
+            FROM inventario_actual ia
+            JOIN productos p ON p.id = ia.producto_id
+            LEFT JOIN (
+                SELECT producto_id, sucursal_id,
+                       SUM(CASE
+                           WHEN tipo IN ('ENTRADA','PRODUCCION','DEVOLUCION') THEN cantidad
+                           WHEN tipo IN ('SALIDA','MERMA','TRASPASO','AJUSTE') THEN -cantidad
+                           ELSE 0
+                       END) AS saldo_mov
+                FROM movimientos_inventario
+                GROUP BY producto_id, sucursal_id
+            ) saldo ON saldo.producto_id = ia.producto_id
+                    AND saldo.sucursal_id = ia.sucursal_id
+            WHERE ABS(COALESCE(ia.cantidad,0) - COALESCE(saldo.saldo_mov,0)) > 0.001
+            ORDER BY ABS(diferencia) DESC
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as exc:
+        print(f"ERROR check_vs_movements: {exc}", file=sys.stderr)
+        return []
+
+
+def repair_from_movements(conn: sqlite3.Connection, mismatches: list[dict]) -> int:
+    """Correct inventario_actual.cantidad to match the movement ledger. Returns fixed count."""
+    import uuid as _uuid
+    fixed = 0
+    for row in mismatches:
+        try:
+            conn.execute(
+                """
+                UPDATE inventario_actual
+                SET cantidad = ?, ultima_actualizacion = datetime('now')
+                WHERE producto_id = ? AND sucursal_id = ?
+                """,
+                (float(row["saldo_mov"]), int(row["producto_id"]), int(row["sucursal_id"])),
+            )
+            conn.execute(
+                """
+                INSERT INTO movimientos_inventario
+                    (uuid, producto_id, tipo, tipo_movimiento, cantidad,
+                     descripcion, referencia, usuario, sucursal_id, fecha)
+                VALUES (?, ?, 'AJUSTE', 'RECONCILIACION', 0,
+                        'Reparación automática de inventario_actual', 'REPAIR',
+                        'sistema', ?, datetime('now'))
+                """,
+                (str(_uuid.uuid4()), int(row["producto_id"]), int(row["sucursal_id"])),
+            )
+            fixed += 1
+        except Exception as exc:
+            print(f"  ERROR repair producto_id={row['producto_id']} sucursal={row['sucursal_id']}: {exc}", file=sys.stderr)
+    conn.commit()
+    return fixed
+
+
 def main():
     parser = argparse.ArgumentParser(description="Reconcilia tablas de inventario")
     parser.add_argument("--db", default=DEFAULT_DB, help="Ruta a la BD SQLite")
-    parser.add_argument("--fix", action="store_true", help="Aplicar correcciones automáticas")
+    parser.add_argument("--fix", action="store_true", help="Aplicar correcciones (modo legacy)")
+    parser.add_argument("--check", action="store_true", help="Verificar vs ledger de movimientos")
+    parser.add_argument("--repair", action="store_true", help="Reparar inventario_actual desde ledger")
+    parser.add_argument("--backup", action="store_true", help="Crear .bak antes de reparar")
     parser.add_argument("--quiet", action="store_true", help="Solo mostrar divergencias")
     args = parser.parse_args()
 
@@ -150,8 +223,41 @@ def main():
         print(f"ERROR: BD no encontrada: {args.db}", file=sys.stderr)
         sys.exit(1)
 
+    if (args.repair or args.fix) and args.backup:
+        import shutil
+        bak = args.db + ".bak"
+        shutil.copy2(args.db, bak)
+        print(f"Backup creado: {bak}")
+
     conn = get_conn(args.db)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # ── NEW: --check / --repair against movement ledger ─────────────────────
+    if args.check or args.repair:
+        mismatches = check_vs_movements(conn)
+        if not mismatches:
+            print("✅ inventario_actual concuerda con ledger de movimientos.")
+            if not args.fix:
+                sys.exit(0)
+        else:
+            print(f"⚠️  {len(mismatches)} fila(s) divergen del ledger:")
+            fmt = "{:<6} {:<4} {:<25} {:>12} {:>12} {:>10}"
+            print(fmt.format("ProdID", "Suc", "Nombre", "materializado", "movimientos", "diferencia"))
+            print("-" * 75)
+            for row in mismatches:
+                print(fmt.format(
+                    row["producto_id"], row["sucursal_id"], str(row["nombre"])[:25],
+                    f"{float(row['saldo_mat']):.4f}",
+                    f"{float(row['saldo_mov']):.4f}",
+                    f"{float(row['diferencia']):.4f}",
+                ))
+            if args.repair:
+                fixed = repair_from_movements(conn, mismatches)
+                print(f"\n✅ Reparados {fixed}/{len(mismatches)} filas.")
+                sys.exit(0 if fixed == len(mismatches) else 1)
+            sys.exit(1)
+        if not args.fix:
+            sys.exit(0)
 
     if not args.quiet:
         print(f"\n{'='*60}")
