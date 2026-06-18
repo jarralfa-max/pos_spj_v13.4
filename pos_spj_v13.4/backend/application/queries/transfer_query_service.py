@@ -193,10 +193,10 @@ class SQLiteTransferQueryDataSource:
             ).fetchall()
         except Exception:
             logger.exception("get_branches query failed")
-            return [{"id": 1, "nombre": "Principal"}]
-        result = [{"id": int(self._v(r,"id",0)), "nombre": str(self._v(r,"nombre",1))} for r in rows]
+            return []
+        result = [{"id": self._v(r,"id",0), "nombre": str(self._v(r,"nombre",1))} for r in rows]
         if exclude_branch_id is not None:
-            result = [b for b in result if b["id"] != exclude_branch_id]
+            result = [b for b in result if str(b["id"]) != str(exclude_branch_id)]
         return result
 
     def list_products_for_dispatch(self, sucursal_id: int) -> list[dict]:

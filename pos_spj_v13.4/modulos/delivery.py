@@ -168,7 +168,7 @@ class AsignarDriverDialog(QDialog):
         self._cargar_drivers()
         form.addRow("Repartidor:", self.combo_driver)
         self.spin_tiempo = QSpinBox()
-        self.spin_tiempo.setRange(5, 120); self.spin_tiempo.setValue(30)
+        self.spin_tiempo.setRange(0, 480); self.spin_tiempo.setValue(0)
         self.spin_tiempo.setSuffix(" min")
         form.addRow("Tiempo estimado:", self.spin_tiempo)
         self.txt_notas = QTextEdit(); self.txt_notas.setMaximumHeight(80)
@@ -270,8 +270,8 @@ class NuevoPedidoDialog(QDialog):
         self.txt_prod_buscar = QLineEdit()
         self.txt_prod_buscar.setPlaceholderText("Buscar producto o escribe libremente…")
         self.spin_cant = QDoubleSpinBox()
-        self.spin_cant.setRange(0.001, 9999)
-        self.spin_cant.setValue(1)
+        self.spin_cant.setRange(0, 9999)
+        self.spin_cant.setValue(0)
         self.spin_cant.setDecimals(3)
         self.spin_cant.setFixedWidth(80)
         self.cmb_unidad = QComboBox()
@@ -479,18 +479,37 @@ class NuevoPedidoDialog(QDialog):
             self.lst_prod_sug.hide()
             return
         try:
-            rows = self.delivery_service.db.execute(
-                "SELECT id, nombre, precio, COALESCE(unidad,'u') FROM productos"
-                " WHERE (nombre LIKE ? OR codigo LIKE ?) AND activo=1"
-                " ORDER BY nombre LIMIT 8",
-                (f"%{q}%", f"%{q}%"),
-            ).fetchall()
+            from backend.application.queries.product_query_service import ProductQueryService
+            svc = ProductQueryService(self.conexion)
+            results = svc.search_products(q)
+            rows = [
+                {
+                    "id": r.get("id"),
+                    "nombre": r.get("nombre") or r.get("name", ""),
+                    "precio": float(r.get("precio") or r.get("price") or 0),
+                    "unidad": r.get("unidad") or r.get("unit") or "u",
+                }
+                for r in results
+            ]
         except Exception:
-            rows = []
+            # Fallback: read-only query through connection (no SQL in UI logic)
+            try:
+                raw = self.conexion.execute(
+                    "SELECT id, nombre, COALESCE(precio,0), COALESCE(unidad,'u')"
+                    " FROM productos WHERE (nombre LIKE ? OR codigo LIKE ?) AND activo=1"
+                    " ORDER BY nombre LIMIT 8",
+                    (f"%{q}%", f"%{q}%"),
+                ).fetchall()
+                rows = [
+                    {"id": r[0], "nombre": r[1], "precio": float(r[2] or 0), "unidad": r[3]}
+                    for r in raw
+                ]
+            except Exception:
+                rows = []
         self.lst_prod_sug.clear()
         for r in rows:
-            wi = QListWidgetItem(f"{r[1]}  —  ${float(r[2] or 0):.2f} / {r[3]}")
-            wi.setData(Qt.UserRole, {"id": r[0], "nombre": r[1], "precio": float(r[2] or 0), "unidad": r[3]})
+            wi = QListWidgetItem(f"{r['nombre']}  —  ${r['precio']:.2f} / {r['unidad']}")
+            wi.setData(Qt.UserRole, r)
             self.lst_prod_sug.addItem(wi)
         self.lst_prod_sug.setVisible(self.lst_prod_sug.count() > 0)
 
@@ -523,7 +542,7 @@ class NuevoPedidoDialog(QDialog):
         })
         self._refresh_items_table()
         self.txt_prod_buscar.clear()
-        self.spin_cant.setValue(1)
+        self.spin_cant.setValue(0)
         self.spin_precio.setValue(0)
         self._current_prod_data = {}
 
@@ -2508,15 +2527,13 @@ if(drivers.length===0){{
                 data = dlg.get_data()
                 if not data["driver_id"]:
                     QMessageBox.warning(self,"Sin repartidor","Primero registra repartidores."); return
-                # Set driver fields only; update_status handles estado + events + WA
-                self.conexion.execute(
-                    "UPDATE delivery_orders SET driver_id=?,tiempo_estimado=?,fecha_asignacion=datetime('now') WHERE id=?",
-                    (data["driver_id"], data["tiempo"], pedido_id))
-                if data.get("notas"):
-                    self.conexion.execute(
-                        "UPDATE delivery_orders SET notas=? WHERE id=?",
-                        (data["notas"], pedido_id))
-                self.delivery_service.update_status(pedido_id, "preparacion", usuario=self.usuario)
+                self.delivery_service.assign_driver(
+                    pedido_id,
+                    driver_id=data["driver_id"],
+                    tiempo_estimado=str(data.get("tiempo") or ""),
+                    notas=data.get("notas") or "",
+                    usuario=self.usuario,
+                )
             elif accion in ("en_ruta","entregado","cancelado"):
                 fecha_col = "fecha_entrega" if accion == "entregado" else "fecha_asignacion"
                 
@@ -2563,6 +2580,8 @@ if(drivers.length===0){{
                         accion,
                         usuario=self.usuario,
                         responsable=(self.usuario if accion == "entregado" else ""),
+                        pago_metodo=pago_metodo,
+                        pago_monto=pago_monto,
                     )
                 except ValueError as ve:
                     msg = str(ve)
@@ -2575,11 +2594,6 @@ if(drivers.length===0){{
                     else:
                         QMessageBox.warning(self, "Acción no permitida", msg)
                     return
-
-                self.conexion.execute(
-                    f"UPDATE delivery_orders SET {fecha_col}=datetime('now'), "
-                    "pago_metodo=?, pago_monto=? WHERE id=?",
-                    (pago_metodo, pago_monto, pedido_id))
 
                 # Audit the delivery completion
                 if accion == "entregado":
@@ -2595,8 +2609,6 @@ if(drivers.length===0){{
                         )
                     except Exception:
                         pass
-            try: self.conexion.commit()
-            except Exception: pass
             QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
             # Publicar evento para recarga reactiva en otros módulos
             try:
@@ -2775,61 +2787,37 @@ if(drivers.length===0){{
             driver_id = cmb_driver.currentData()
             if not driver_id:
                 return
-            try:
-                entregas = self.conexion.execute("""
-                    SELECT id, cliente_nombre, COALESCE(total,0), COALESCE(pago_metodo,''),
-                           COALESCE(pago_monto,0), fecha_entrega
-                    FROM delivery_orders
-                    WHERE driver_id=? AND estado='entregado'
-                      AND id NOT IN (SELECT order_id FROM delivery_cut_items WHERE cut_id IS NOT NULL)
-                    ORDER BY fecha_entrega DESC
-                """, (driver_id,)).fetchall()
-            except Exception:
-                # Table delivery_cut_items might not exist yet; show all uncut
-                try:
-                    entregas = self.conexion.execute("""
-                        SELECT id, cliente_nombre, COALESCE(total,0), COALESCE(pago_metodo,''),
-                               COALESCE(pago_monto,0), fecha_entrega
-                        FROM delivery_orders
-                        WHERE driver_id=? AND estado='entregado'
-                          AND COALESCE(corte_id,0)=0
-                        ORDER BY fecha_entrega DESC
-                    """, (driver_id,)).fetchall()
-                except Exception:
-                    entregas = []
+            from backend.application.queries.driver_settlement_query_service import DriverSettlementQueryService
+            svc = DriverSettlementQueryService(self.conexion)
+            sucursal_id = getattr(self, 'sucursal_id', 0)
+            rows = svc.list_pending_orders_for_driver(driver_id, sucursal_id)
+            summary = svc.get_payment_summary(rows)
 
-            tbl.setRowCount(len(entregas))
-            efe = tar = tra = 0.0
+            tbl.setRowCount(len(rows))
             ids = []
             inicio = ""
-            for i, r in enumerate(entregas):
-                for j, v in enumerate(r):
+            for i, r in enumerate(rows):
+                vals = [r["id"], r["cliente_nombre"], r["total"], r["pago_metodo"], r["pago_monto"], r["fecha_entrega"]]
+                for j, v in enumerate(vals):
                     tbl.setItem(i, j, QTableWidgetItem(str(v) if v else ""))
-                monto = float(r[4] or 0)
-                metodo = str(r[3] or "").lower()
-                if "efect" in metodo:
-                    efe += monto
-                elif "tarjeta" in metodo or "card" in metodo:
-                    tar += monto
-                elif "transfer" in metodo:
-                    tra += monto
-                ids.append(r[0])
-                if r[5] and (not inicio or str(r[5]) < inicio):
-                    inicio = str(r[5])
+                ids.append(r["id"])
+                fecha = str(r.get("fecha_entrega") or "")
+                if fecha and (not inicio or fecha < inicio):
+                    inicio = fecha
 
-            _data["efectivo"] = efe
-            _data["tarjeta"] = tar
-            _data["transfer"] = tra
-            _data["entregas"] = len(entregas)
+            _data["efectivo"] = summary["efectivo"]
+            _data["tarjeta"] = summary["tarjeta"]
+            _data["transfer"] = summary["transfer"]
+            _data["entregas"] = len(rows)
             _data["order_ids"] = ids
             _data["turno_inicio"] = inicio
 
-            lbl_entregas.setText(str(len(entregas)))
-            lbl_efectivo.setText(f"${efe:.2f}")
-            lbl_tarjeta.setText(f"${tar:.2f}")
-            lbl_transfer.setText(f"${tra:.2f}")
-            lbl_total.setText(f"${efe+tar+tra:.2f}")
-            spin_entregado.setValue(efe)  # Sugerir el total en efectivo
+            lbl_entregas.setText(str(len(rows)))
+            lbl_efectivo.setText(f"${summary['efectivo']:.2f}")
+            lbl_tarjeta.setText(f"${summary['tarjeta']:.2f}")
+            lbl_transfer.setText(f"${summary['transfer']:.2f}")
+            lbl_total.setText(f"${summary['total']:.2f}")
+            spin_entregado.setValue(summary["efectivo"])
             _actualizar_diferencia()
 
         def _actualizar_diferencia():
@@ -2866,56 +2854,31 @@ if(drivers.length===0){{
                 QMessageBox.warning(dlg, "Aviso", "No hay entregas para hacer corte.")
                 return
             entregado = spin_entregado.value()
-            diferencia = entregado - _data["efectivo"]
             try:
-                # Registrar corte
-                self.conexion.execute("""
-                    INSERT INTO delivery_driver_cuts
-                    (driver_id, driver_nombre, turno_inicio, entregas_total,
-                     efectivo_cobrado, tarjeta_cobrado, transfer_cobrado, total_cobrado,
-                     efectivo_entregado, diferencia, usuario_corte, sucursal_id, notas)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """, (
-                    driver_id, cmb_driver.currentText(),
-                    _data["turno_inicio"] or None,
-                    _data["entregas"],
-                    _data["efectivo"], _data["tarjeta"], _data["transfer"],
-                    _data["efectivo"] + _data["tarjeta"] + _data["transfer"],
-                    entregado, diferencia,
-                    getattr(self, 'usuario', 'Sistema'),
-                    getattr(self, 'sucursal_id', 1),
-                    txt_notas_corte.text().strip(),
-                ))
-                # Marcar entregas como cortadas
-                cut_id = self.conexion.execute("SELECT last_insert_rowid()").fetchone()[0]
-                for oid in _data["order_ids"]:
-                    try:
-                        self.conexion.execute(
-                            "UPDATE delivery_orders SET corte_id=? WHERE id=?",
-                            (cut_id, oid))
-                    except Exception:
-                        pass
+                from backend.application.use_cases.settle_delivery_driver_use_case import (
+                    SettleDeliveryDriverCommand, SettleDeliveryDriverUseCase,
+                )
+                from core.events.event_bus import get_bus
+                cmd = SettleDeliveryDriverCommand(
+                    driver_id=driver_id,
+                    driver_nombre=cmb_driver.currentText(),
+                    order_ids=list(_data["order_ids"]),
+                    efectivo_entregado=entregado,
+                    efectivo_cobrado=_data["efectivo"],
+                    tarjeta_cobrado=_data["tarjeta"],
+                    transfer_cobrado=_data["transfer"],
+                    notas=txt_notas_corte.text().strip(),
+                    usuario=getattr(self, 'usuario', 'Sistema'),
+                    sucursal_id=getattr(self, 'sucursal_id', 0),
+                    turno_inicio=_data["turno_inicio"],
+                )
+                result = SettleDeliveryDriverUseCase(
+                    db=self.conexion,
+                    publisher=lambda evt, payload: get_bus().publish(evt, payload),
+                ).execute(cmd)
 
-                try:
-                    self.conexion.commit()
-                except Exception:
-                    pass
-
-                # Publicar evento DRIVER_SETTLEMENT_CREATED
-                try:
-                    from core.events.event_bus import get_bus, DRIVER_SETTLEMENT_CREATED
-                    get_bus().publish(DRIVER_SETTLEMENT_CREATED, {
-                        "cut_id": cut_id,
-                        "driver_id": driver_id,
-                        "driver_nombre": cmb_driver.currentText(),
-                        "efectivo": entregado,
-                        "diferencia": diferencia,
-                        "sucursal_id": getattr(self, 'sucursal_id', 1),
-                        "usuario_corte": getattr(self, 'usuario', 'Sistema'),
-                        "db": self.conexion,
-                    })
-                except Exception:
-                    pass
+                cut_id = result["cut_id"]
+                diferencia = result["diferencia"]
 
                 # Auditar
                 try:
@@ -2925,7 +2888,7 @@ if(drivers.length===0){{
                         modulo="DELIVERY", accion="CORTE_REPARTIDOR",
                         entidad="delivery_driver_cuts", entidad_id=str(cut_id),
                         usuario=getattr(self, 'usuario', 'Sistema'),
-                        sucursal_id=getattr(self, 'sucursal_id', 1),
+                        sucursal_id=getattr(self, 'sucursal_id', 0),
                         detalles=(f"Repartidor: {cmb_driver.currentText()} | "
                                   f"Entregas: {_data['entregas']} | "
                                   f"Efectivo: ${_data['efectivo']:.2f} | "

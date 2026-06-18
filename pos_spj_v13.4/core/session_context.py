@@ -35,8 +35,9 @@ class SessionContext:
         self._usuario: str = ""
         self._nombre_completo: str = ""
         self._rol: str = ""
-        self._sucursal_id: int = 1
-        self._sucursal_nombre: str = "Principal"
+        self._sucursal_id: int = 0         # legacy integer, kept for backward compat
+        self._sucursal_nombre: str = ""    # display name only — NOT identity
+        self._active_branch_id: str = ""   # canonical UUID — single source of truth
         self._permisos: Set[str] = set()
         self._is_active: bool = False
         self._sucursales_disponibles: list = []
@@ -68,6 +69,11 @@ class SessionContext:
         return self._sucursal_nombre
 
     @property
+    def active_branch_id(self) -> str:
+        """Canonical UUID of the active branch — single source of truth."""
+        return self._active_branch_id
+
+    @property
     def permisos(self) -> Set[str]:
         return frozenset(self._permisos)
 
@@ -95,21 +101,35 @@ class SessionContext:
         self._usuario = user_data.get('username', '')
         self._nombre_completo = user_data.get('nombre', self._usuario)
         self._rol = str(user_data.get('rol', 'cajero') or 'cajero').strip().lower()
-        self._sucursal_id = user_data.get('sucursal_id', 1)
-        self._sucursal_nombre = user_data.get('sucursal_nombre', 'Principal')
+        self._sucursal_id = user_data.get('sucursal_id', 0)
+        self._sucursal_nombre = user_data.get('sucursal_nombre', '')
+        # Prefer explicit UUID; fall back to string repr of integer id (never 'Principal')
+        self._active_branch_id = (
+            str(user_data.get('active_branch_id') or user_data.get('sucursal_uuid') or "").strip()
+            or (str(self._sucursal_id) if self._sucursal_id else "")
+        )
         self._sucursales_disponibles = user_data.get('sucursales_disponibles', [])
         self._is_active = True
         logger.info(
-            "Sesión iniciada: %s (%s) en sucursal %s [%s]",
+            "Sesión iniciada: %s (%s) en sucursal '%s' [active_branch_id=%s legacy_id=%s]",
             self._nombre_completo, self._rol,
-            self._sucursal_nombre, self._sucursal_id)
+            self._sucursal_nombre, self._active_branch_id, self._sucursal_id,
+        )
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal(self, sucursal_id: int, nombre: str = "",
+                     active_branch_id: str = "") -> None:
         """Cambia la sucursal activa (para usuarios multi-branch)."""
         self._sucursal_id = sucursal_id
         if nombre:
             self._sucursal_nombre = nombre
-        logger.info("Sucursal cambiada: %s (%s)", nombre, sucursal_id)
+        if active_branch_id:
+            self._active_branch_id = active_branch_id
+        elif not self._active_branch_id and sucursal_id:
+            self._active_branch_id = str(sucursal_id)
+        logger.info(
+            "Sucursal cambiada: '%s' (legacy_id=%s active_branch_id=%s)",
+            nombre, sucursal_id, self._active_branch_id,
+        )
 
     def set_permisos(self, permisos: Set[str]) -> None:
         """Carga permisos normalizados del usuario para la sucursal activa."""
@@ -117,7 +137,7 @@ class SessionContext:
         logger.debug("Permisos cargados: %d", len(self._permisos))
 
     def clear(self) -> None:
-        """Cierra la sesión — limpia todo."""
+        """Cierra la sesión — limpia todo. No restaura 'Principal' ni sucursal_id=1."""
         old_user = self._usuario
         self.__init__()
         if old_user:
@@ -159,6 +179,12 @@ class SessionContext:
             "rol": self._rol,
             "sucursal_id": self._sucursal_id,
             "sucursal_nombre": self._sucursal_nombre,
+            "active_branch_id": self._active_branch_id,
             "is_active": self._is_active,
             "n_permisos": len(self._permisos),
         }
+
+    @property
+    def is_branch_resolved(self) -> bool:
+        """True when active_branch_id has been set (not empty)."""
+        return bool(self._active_branch_id)

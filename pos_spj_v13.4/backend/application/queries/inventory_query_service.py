@@ -48,53 +48,63 @@ class InventoryQueryService:
         """
         Return product stock rows for UI tables.
 
-        Primary source: inventory_stock (canonical write path from InventoryRepository).
-        Fallback:       inventario_actual (updated by UnifiedInventoryService / production).
-
-        If inventory_stock has a row for this branch, it is used. If not (because
-        the movement was written by the legacy path), inventario_actual.cantidad is
-        used. This keeps Producción and Inventario in sync regardless of which writer
-        touched the stock last.
+        Reads from inventario_actual (written by UnifiedInventoryService/production)
+        and inventory_stock (written by InventoryApplicationService/purchases). Both
+        tables store branch-specific stock — neither leaks global values. productos.existencia
+        is intentionally excluded (it is a global sum and must NOT be used as stock source).
         """
         has_inv_actual = _tbl_exists(self._connection, "inventario_actual")
+        has_inv_stock = _tbl_exists(self._connection, "inventory_stock")
 
-        if has_inv_actual:
+        if has_inv_actual and has_inv_stock:
             try:
-                # Prefer inventory_stock; fall back to inventario_actual per product
                 return self._connection.execute(
                     """
                     SELECT p.id,
                            p.nombre,
                            COALESCE(p.categoria, ''),
-                           COALESCE(s.quantity, ia.cantidad, p.existencia, 0) AS qty,
+                           COALESCE(ia.cantidad, s.quantity, 0) AS qty,
                            COALESCE(p.stock_minimo, 0),
-                           COALESCE(s.unit, p.unidad, 'kg')
+                           COALESCE(p.unidad, 'kg')
                     FROM productos p
-                    LEFT JOIN inventory_stock s
-                        ON s.product_id = p.id AND s.branch_id = ?
                     LEFT JOIN inventario_actual ia
                         ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                    LEFT JOIN inventory_stock s
+                        ON s.product_id = p.id AND s.branch_id = ?
                     WHERE COALESCE(p.activo, 1) = 1
                     ORDER BY p.nombre
                     """,
                     (int(branch_id), int(branch_id)),
                 ).fetchall()
             except Exception:
-                logger.exception(
-                    "Error listing inventory stock rows (with fallback) for branch_id=%s",
-                    branch_id,
-                )
+                logger.exception("Error listing inventory stock rows for branch_id=%s", branch_id)
+                return []
+
+        if has_inv_actual:
+            try:
+                return self._connection.execute(
+                    """
+                    SELECT p.id, p.nombre, COALESCE(p.categoria, ''),
+                           COALESCE(ia.cantidad, 0), COALESCE(p.stock_minimo, 0),
+                           COALESCE(p.unidad, 'kg')
+                    FROM productos p
+                    LEFT JOIN inventario_actual ia
+                        ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                    WHERE COALESCE(p.activo, 1) = 1
+                    ORDER BY p.nombre
+                    """,
+                    (int(branch_id),),
+                ).fetchall()
+            except Exception:
+                logger.exception("Error listing inventory stock rows (ia-only) for branch_id=%s", branch_id)
                 return []
 
         try:
             return self._connection.execute(
                 """
-                SELECT p.id,
-                       p.nombre,
-                       COALESCE(p.categoria, ''),
-                       COALESCE(s.quantity, 0),
-                       COALESCE(p.stock_minimo, 0),
-                       COALESCE(s.unit, p.unidad, 'unit')
+                SELECT p.id, p.nombre, COALESCE(p.categoria, ''),
+                       COALESCE(s.quantity, 0), COALESCE(p.stock_minimo, 0),
+                       COALESCE(s.unit, p.unidad, 'kg')
                 FROM productos p
                 LEFT JOIN inventory_stock s
                     ON s.product_id = p.id AND s.branch_id = ?
@@ -104,56 +114,41 @@ class InventoryQueryService:
                 (int(branch_id),),
             ).fetchall()
         except Exception:
-            logger.exception("Error listing inventory stock rows for branch_id=%s", branch_id)
+            logger.exception("Error listing inventory stock rows (is-only) for branch_id=%s", branch_id)
             return []
 
     def list_availability_rows(self, branch_id: int) -> list[dict]:
-        """
-        Return physical and sale availability.
-
-        Stock source: COALESCE(inventory_stock.quantity, inventario_actual.cantidad)
-        so that production movements (written to inventario_actual) are visible here.
-        """
-        has_inv_actual = _tbl_exists(self._connection, "inventario_actual")
-        qty_expr = (
-            "COALESCE(s.quantity, ia.cantidad, 0)"
-            if has_inv_actual
-            else "COALESCE(s.quantity, 0)"
-        )
-        ia_join = (
-            "LEFT JOIN inventario_actual ia ON ia.producto_id = p.id AND ia.sucursal_id = ?"
-            if has_inv_actual
-            else ""
-        )
-
-        params_res: list = [int(branch_id), int(branch_id)]
-        params_main: list = [int(branch_id)]
-        if has_inv_actual:
-            params_main.append(int(branch_id))
-        params_main.append(int(branch_id))
-
-        try:
-            rows = self._connection.execute(
-                f"""
-                SELECT p.id,
-                       p.nombre,
-                       {qty_expr} AS physical_stock,
-                       COALESCE(res.reserved_qty, 0) AS reserved_qty
-                FROM productos p
-                LEFT JOIN inventory_stock s
-                    ON s.product_id = p.id AND s.branch_id = ?
-                {ia_join}
-                LEFT JOIN (
+        """Return physical and sale availability from inventario_actual (canonical)."""
+        has_reservas = _tbl_exists(self._connection, "stock_reserva_detalles")
+        res_join = (
+            """LEFT JOIN (
                     SELECT d.producto_id, SUM(d.cantidad) AS reserved_qty
                     FROM stock_reserva_detalles d
                     JOIN stock_reservas r ON r.id = d.reserva_id
                     WHERE r.estado = 'activa' AND r.branch_id = ?
                     GROUP BY d.producto_id
-                ) res ON res.producto_id = p.id
+                ) res ON res.producto_id = p.id"""
+            if has_reservas
+            else ""
+        )
+        params = [int(branch_id)]
+        if has_reservas:
+            params = [int(branch_id), int(branch_id)]
+        try:
+            rows = self._connection.execute(
+                f"""
+                SELECT p.id,
+                       p.nombre,
+                       COALESCE(ia.cantidad, 0) AS physical_stock,
+                       {'COALESCE(res.reserved_qty, 0)' if has_reservas else '0'} AS reserved_qty
+                FROM productos p
+                LEFT JOIN inventario_actual ia
+                    ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                {res_join}
                 WHERE COALESCE(p.activo, 1) = 1
                 ORDER BY p.nombre
                 """,
-                params_main,
+                params,
             ).fetchall()
         except Exception:
             logger.exception("Error listing inventory availability rows for branch_id=%s", branch_id)
