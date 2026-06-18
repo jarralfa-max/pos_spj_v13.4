@@ -1373,12 +1373,21 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self._txt_busqueda = create_input(self, "Buscar folio, cliente o teléfono")
         self._txt_busqueda.setClearButtonEnabled(True)
         self._txt_busqueda.textChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
-        self._flt_estado = create_combo(self, ["Todos", "pendiente", "preparacion", "en_ruta", "entregado", "cancelado"], "Estado")
-        self._flt_estado.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
-        self._flt_flujo = create_combo(self, ["Todos", "counter", "delivery", "scheduled"], "Flujo")
-        self._flt_flujo.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
-        self._flt_origen = create_combo(self, ["Todos", "whatsapp", "counter", "quote", "scheduled"], "Origen")
-        self._flt_origen.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        self._flt_estado = QComboBox()
+        self._flt_estado.setPlaceholderText("Estado")
+        for _lbl, _val in [("Todos", None), ("Pendiente", "pendiente"), ("Preparación", "preparacion"), ("En ruta", "en_ruta"), ("Entregado", "entregado"), ("Cancelado", "cancelado")]:
+            self._flt_estado.addItem(_lbl, _val)
+        self._flt_estado.currentIndexChanged.connect(lambda _i: self.cargar_pedidos(silent=True))
+        self._flt_flujo = QComboBox()
+        self._flt_flujo.setPlaceholderText("Flujo")
+        for _lbl, _val in [("Todos", None), ("Mostrador", "counter"), ("Delivery", "delivery"), ("Programado", "scheduled")]:
+            self._flt_flujo.addItem(_lbl, _val)
+        self._flt_flujo.currentIndexChanged.connect(lambda _i: self.cargar_pedidos(silent=True))
+        self._flt_origen = QComboBox()
+        self._flt_origen.setPlaceholderText("Origen")
+        for _lbl, _val in [("Todos", None), ("WhatsApp", "whatsapp"), ("Mostrador", "counter"), ("Cotización", "quote"), ("Programado", "scheduled")]:
+            self._flt_origen.addItem(_lbl, _val)
+        self._flt_origen.currentIndexChanged.connect(lambda _i: self.cargar_pedidos(silent=True))
         self._flt_fecha = QDateEdit(QDate.currentDate())
         self._flt_fecha.setCalendarPopup(True)
         self._flt_fecha.setDisplayFormat("yyyy-MM-dd")
@@ -2134,14 +2143,14 @@ if(drivers.length===0){{
             ]).lower()
             if q not in blob:
                 return False
-        estado = self._flt_estado.currentText()
-        if estado != "Todos" and str(pedido.get("estado") or "").strip().lower() != estado:
+        estado = self._flt_estado.currentData()
+        if estado is not None and str(pedido.get("estado") or "").strip().lower() != estado:
             return False
-        flujo = self._flt_flujo.currentText()
-        if flujo != "Todos" and self._infer_workflow_for_ui(pedido) != flujo:
+        flujo = self._flt_flujo.currentData()
+        if flujo is not None and self._infer_workflow_for_ui(pedido) != flujo:
             return False
-        origen = self._flt_origen.currentText()
-        if origen != "Todos":
+        origen = self._flt_origen.currentData()
+        if origen is not None:
             src = str(pedido.get("source") or pedido.get("origen") or "").strip().lower()
             if src != origen:
                 return False
@@ -2656,33 +2665,8 @@ if(drivers.length===0){{
                 "total":         data.get("total", 0),
                 "pago_metodo":   data.get("pago_metodo", ""),
                 "sucursal_id":   data.get("sucursal_id", 1),
+                "items":         data.get("items") or [],
             }, usuario=self.usuario)
-
-            # Persist line items to delivery_items
-            items = data.get("items") or []
-            if items and order_id:
-                for it in items:
-                    try:
-                        self.conexion.execute(
-                            "INSERT INTO delivery_items "
-                            "(delivery_id, producto_id, nombre, cantidad, precio_unitario, subtotal, unidad) "
-                            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                            (
-                                order_id,
-                                it.get("producto_id"),
-                                it["nombre"],
-                                it["cantidad"],
-                                it["precio"],
-                                it["subtotal"],
-                                it.get("unidad", "u"),
-                            ),
-                        )
-                    except Exception as exc:
-                        logger.debug("delivery_items insert: %s", exc)
-                try:
-                    self.conexion.commit()
-                except Exception:
-                    pass
 
             QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
             Toast.success(self, "Pedido creado", "Pedido de delivery creado exitosamente.")
