@@ -33,7 +33,16 @@ class ChangeDeliveryStatusUseCase:
         self.get_order_items = get_order_items or (lambda _order_id: [])
         self.outbox_repository = outbox_repository
 
-    def execute(self, order_id: int, status: str, usuario: str, responsable: str = "", observacion: str = "") -> None:
+    def execute(
+        self,
+        order_id: int,
+        status: str,
+        usuario: str,
+        responsable: str = "",
+        observacion: str = "",
+        pago_metodo: str = "",
+        pago_monto: float = 0.0,
+    ) -> None:
         target = DeliveryStateMachine().normalize_status(status).value
         self._validate_workflow_transition(order_id, target)
 
@@ -54,8 +63,28 @@ class ChangeDeliveryStatusUseCase:
             responsable=responsable,
             reason=f"delivery_status_{target}",
             metadata={"target_status": target, "source": "ChangeDeliveryStatusUseCase"},
-            commit=self.outbox_repository is None,
+            commit=False,
         )
+
+        # Capture payment atomically with status change when delivering
+        if target == "entregado" and pago_metodo:
+            try:
+                self.db.execute(
+                    "UPDATE delivery_orders SET pago_metodo=?, pago_monto=?, fecha_entrega=datetime('now') WHERE id=?",
+                    (pago_metodo, float(pago_monto), order_id),
+                )
+            except Exception:
+                # fecha_entrega column may not exist in older schema versions
+                try:
+                    self.db.execute(
+                        "UPDATE delivery_orders SET pago_metodo=?, pago_monto=? WHERE id=?",
+                        (pago_metodo, float(pago_monto), order_id),
+                    )
+                except Exception:
+                    pass
+
+        if self.outbox_repository is None:
+            self.db.commit()
         order = self.repository.get_order(order_id) or {}
         if self.sale_projection is not None:
             self.sale_projection.project_status_for_order(order, target)
