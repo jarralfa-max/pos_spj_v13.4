@@ -588,7 +588,10 @@ class ModuloConfiguracion(ModuloBase):
         if values.get('smtp_host'):
             self.smtp_host.setText(str(values['smtp_host']))
         if values.get('smtp_port'):
-            self.smtp_port.setValue(int(values['smtp_port']))
+            try:
+                self.smtp_port.setValue(int(float(values['smtp_port'])))
+            except (ValueError, TypeError):
+                pass
         if values.get('smtp_user'):
             self.smtp_user.setText(str(values['smtp_user']))
         if values.get('smtp_password'):
