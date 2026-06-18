@@ -242,22 +242,77 @@ class DialogoLogin(QDialog):
         super().mouseMoveEvent(event)
 
     def _leer_sucursal_instalacion(self) -> dict:
-        """Lee la sucursal configurada para ESTA instalación."""
+        """Lee la sucursal configurada para ESTA instalación.
+
+        Returns {'id': int|None, 'uuid': str|None, 'nombre': str}.
+        Never falls back to 'Principal' or id=1 — returns empty dict keys so
+        callers can detect an un-configured installation.
+        """
+        import logging as _log
+        _logger = _log.getLogger(__name__)
         try:
             db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if not db:
-                return {'id': 1, 'nombre': 'Principal'}
+                _logger.warning("_leer_sucursal_instalacion: no db connection available")
+                return {'id': None, 'uuid': None, 'nombre': ''}
             row = db.execute(
                 "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
             ).fetchone()
-            suc_id = int(row[0]) if row and row[0] else 1
+            if not row or not row[0]:
+                _logger.info("_leer_sucursal_instalacion: key not configured")
+                return {'id': None, 'uuid': None, 'nombre': ''}
+            stored = str(row[0]).strip()
+
+            # Case A — stored value looks like a UUID (migration 101+ path)
+            if len(stored) > 8 and '-' in stored:
+                has_uuid_col = bool(db.execute(
+                    "SELECT 1 FROM pragma_table_info('sucursales') WHERE name='uuid'"
+                ).fetchone())
+                if has_uuid_col:
+                    suc_row = db.execute(
+                        "SELECT id, nombre FROM sucursales WHERE uuid=? AND COALESCE(activa,1)=1",
+                        (stored,)
+                    ).fetchone()
+                    if suc_row:
+                        _logger.info(
+                            "_leer_sucursal_instalacion: resolved UUID '%s' → '%s'",
+                            stored, suc_row[1],
+                        )
+                        return {'id': suc_row[0], 'uuid': stored, 'nombre': suc_row[1]}
+                _logger.warning(
+                    "_leer_sucursal_instalacion: UUID '%s' not found in sucursales (active)", stored
+                )
+                return {'id': None, 'uuid': stored, 'nombre': ''}
+
+            # Case B — stored value is an integer string (legacy path)
+            try:
+                suc_id = int(stored)
+            except ValueError:
+                _logger.warning(
+                    "_leer_sucursal_instalacion: unrecognised stored value '%s'", stored
+                )
+                return {'id': None, 'uuid': None, 'nombre': ''}
+
             suc_row = db.execute(
-                "SELECT nombre FROM sucursales WHERE id=?", (suc_id,)
+                "SELECT id, nombre FROM sucursales WHERE id=? AND COALESCE(activa,1)=1",
+                (suc_id,)
             ).fetchone()
-            nombre = suc_row[0] if suc_row else 'Principal'
-            return {'id': suc_id, 'nombre': nombre}
-        except Exception:
-            return {'id': 1, 'nombre': 'Principal'}
+            if suc_row:
+                _logger.info(
+                    "_leer_sucursal_instalacion: resolved integer id %s → '%s'",
+                    suc_id, suc_row[1],
+                )
+                return {'id': suc_row[0], 'uuid': None, 'nombre': suc_row[1]}
+
+            _logger.warning(
+                "_leer_sucursal_instalacion: integer id %s not found in sucursales (active)", suc_id
+            )
+            return {'id': suc_id, 'uuid': None, 'nombre': ''}
+
+        except Exception as exc:
+            import logging as _log2
+            _log2.getLogger(__name__).error("_leer_sucursal_instalacion error: %s", exc)
+            return {'id': None, 'uuid': None, 'nombre': ''}
 
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
@@ -474,8 +529,17 @@ class DialogoLogin(QDialog):
                 self.lbl_error.setText("❌  Usuario o contraseña incorrectos.")
                 return
 
-            resultado['sucursal_id']     = self._sucursal_instalacion['id']
-            resultado['sucursal_nombre'] = self._sucursal_instalacion['nombre']
+            # Inject the installation's configured branch.
+            # _sucursal_instalacion['id'] may be None if not configured yet.
+            inst = self._sucursal_instalacion
+            if inst.get('id') is not None:
+                resultado['sucursal_id'] = inst['id']
+            if inst.get('nombre'):
+                resultado['sucursal_nombre'] = inst['nombre']
+            if inst.get('uuid'):
+                resultado['active_branch_id'] = inst['uuid']
+            elif inst.get('id') is not None:
+                resultado['active_branch_id'] = str(inst['id'])
             self.usuario_autenticado = resultado
             self.accept()
 
@@ -726,11 +790,12 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-        usuario     = self.usuario_actual.get("username", "")
-        nombre      = self.usuario_actual.get("nombre", usuario)
-        rol         = self.usuario_actual.get("rol", "cajero")
-        sucursal_id = self.usuario_actual.get("sucursal_id", 1)
-        nombre_suc  = self.usuario_actual.get("sucursal_nombre", "Principal")
+        usuario          = self.usuario_actual.get("username", "")
+        nombre           = self.usuario_actual.get("nombre", usuario)
+        rol              = self.usuario_actual.get("rol", "cajero")
+        sucursal_id      = self.usuario_actual.get("sucursal_id") or 0
+        nombre_suc       = self.usuario_actual.get("sucursal_nombre") or ""
+        active_branch_id = self.usuario_actual.get("active_branch_id") or (str(sucursal_id) if sucursal_id else "")
 
         # v13.4: Actualizar barra de sesión
         if hasattr(self, '_session_bar'):
@@ -791,6 +856,25 @@ class MainWindow(QMainWindow):
             self.container.set_sucursal_activa(sucursal_id, nombre_suc)
         except Exception as _e:
             import logging; logging.getLogger(__name__).debug("set_sucursal_activa: %s", _e)
+
+        # Publicar ACTIVE_BRANCH_CHANGED post-login (post-commit)
+        try:
+            from core.events.domain_events import ACTIVE_BRANCH_CHANGED
+            from core.events.event_bus import EventBus
+            from backend.shared.ids import new_uuid
+            from datetime import datetime, timezone
+            EventBus().publish(ACTIVE_BRANCH_CHANGED, {
+                "event_id":          new_uuid(),
+                "operation_id":      new_uuid(),
+                "user_id":           str(self.usuario_actual.get("id") or ""),
+                "previous_branch_id": "",
+                "active_branch_id":  active_branch_id,
+                "active_branch_name": nombre_suc,
+                "timestamp":         datetime.now(timezone.utc).isoformat(),
+                "source_module":     "main_window._propagar_usuario",
+            })
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("ACTIVE_BRANCH_CHANGED publish: %s", _e)
 
         # ── Session timeout: cierra sesión por inactividad ────────────────────
         self._arrancar_session_timeout()
