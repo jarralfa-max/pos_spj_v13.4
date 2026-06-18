@@ -603,7 +603,20 @@ class ModuloProduccion(ModuloBase):
                 raise RuntimeError(result.message)
 
             try:
-                get_bus().publish("PRODUCCION_REGISTRADA", {"event_type": "PRODUCCION_REGISTRADA"})
+                import datetime as _dt
+                from core.events.event_bus import INVENTARIO_ACTUALIZADO
+                _payload = {
+                    "event_type":    "PRODUCCION_REGISTRADA",
+                    "sucursal_id":   _suc,
+                    "producto_ids":  result.data.get("product_ids", []),
+                    "origen":        "PRODUCCION",
+                    "referencia_id": result.entity_id,
+                    "timestamp":     _dt.datetime.utcnow().isoformat(),
+                }
+                _bus = get_bus()
+                _bus.publish("PRODUCCION_REGISTRADA", _payload)
+                # Trigger canonical inventory refresh in Inventario module
+                _bus.publish(INVENTARIO_ACTUALIZADO, {**_payload, "event_type": INVENTARIO_ACTUALIZADO})
             except Exception as exc:
                 logger.debug("No se pudo publicar PRODUCCION_REGISTRADA: %s", exc)
 

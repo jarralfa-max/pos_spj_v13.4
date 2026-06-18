@@ -356,8 +356,10 @@ class UnifiedInventoryService:
 
         mid = _mid_holder[0]
         try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("inventory_movement", {
+            import datetime as _dt
+            from core.events.event_bus import get_bus, INVENTARIO_ACTUALIZADO
+            _bus = get_bus()
+            _bus.publish("inventory_movement", {
                 "movement_id": mid,
                 "product_id": product_id,
                 "quantity": delta,
@@ -365,6 +367,15 @@ class UnifiedInventoryService:
                 "reference": str(ref) if ref else None,
                 "sucursal_id": sucursal_id,
                 "metadata": metadata,
+            })
+            # Canonical stock-change event — received by Inventario module to refresh UI
+            _bus.publish(INVENTARIO_ACTUALIZADO, {
+                "event_type":    INVENTARIO_ACTUALIZADO,
+                "sucursal_id":   sucursal_id,
+                "producto_ids":  [product_id],
+                "origen":        movement_type,
+                "referencia_id": str(ref) if ref else None,
+                "timestamp":     _dt.datetime.utcnow().isoformat(),
             })
         except Exception as _e:
             logger.warning("process_movement event non-fatal: %s", _e)

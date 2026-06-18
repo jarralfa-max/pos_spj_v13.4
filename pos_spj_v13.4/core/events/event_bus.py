@@ -49,6 +49,9 @@ AJUSTE_INVENTARIO       = "AJUSTE_INVENTARIO"
 PRODUCTO_ACTUALIZADO    = "PRODUCTO_ACTUALIZADO"
 PRODUCTO_CREADO         = "PRODUCTO_CREADO"
 PRODUCTO_ELIMINADO      = "PRODUCTO_ELIMINADO"
+# Evento canónico de cambio de stock — publicado por TODOS los escritores de inventario.
+# Payload obligatorio: sucursal_id, producto_ids, origen, referencia_id, timestamp
+INVENTARIO_ACTUALIZADO  = "INVENTARIO_ACTUALIZADO"
 # Pedidos WhatsApp / Delivery
 PEDIDO_NUEVO            = "PEDIDO_NUEVO"
 PEDIDO_ACTUALIZADO      = "PEDIDO_ACTUALIZADO"

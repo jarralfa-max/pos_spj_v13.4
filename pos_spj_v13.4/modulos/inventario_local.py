@@ -37,7 +37,9 @@ from backend.application.queries.inventory_query_service import InventoryQuerySe
 from backend.application.services.inventory_application_service import InventoryApplicationService
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
-    AJUSTE_INVENTARIO, COMPRA_REGISTRADA, get_bus,
+    AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
+    PRODUCCION_COMPLETADA, PRODUCCION_REGISTRADA, INVENTARIO_ACTUALIZADO,
+    get_bus,
 )
 
 logger = logging.getLogger("spj.inventario")
@@ -615,10 +617,13 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def __init__(self, container, parent=None):
         super().__init__(parent)
+        self._inventory_dirty = False   # True when data may be stale (missed events while hidden)
         try:
             self._init_refresh(container, [
-                "VENTA_COMPLETADA", "PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO",
-                "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
+                VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
+                AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
+                PRODUCCION_REGISTRADA, PRODUCCION_COMPLETADA,
+                INVENTARIO_ACTUALIZADO,
             ])
         except Exception:
             logger.exception("No se pudo inicializar refresh de inventario")
@@ -648,10 +653,50 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.usuario_actual = usuario
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
+        """
+        Called by RefreshMixin in the Qt main thread after debounce.
+
+        Filters events by sucursal_id when possible so branch B does not
+        trigger a reload in branch A.  If the module is hidden, marks it
+        dirty so showEvent() will reload it when it becomes visible again.
+        """
+        # Sucursal filter: skip events from a different branch
+        event_suc = data.get("sucursal_id")
+        if event_suc is not None and int(event_suc) != int(self.sucursal_id):
+            logger.debug(
+                "Inventario: event %s from sucursal %s skipped (active=%s)",
+                event_type, event_suc, self.sucursal_id,
+            )
+            return
+
+        if not self.isVisible():
+            # Module is behind another tab — mark dirty, reload on show
+            self._inventory_dirty = True
+            logger.debug(
+                "Inventario: module hidden, marked dirty for event %s", event_type
+            )
+            return
+
         try:
+            logger.debug(
+                "Inventario: refreshing for event %s sucursal=%s",
+                event_type, self.sucursal_id,
+            )
+            self._inventory_dirty = False
             self.cargar_datos()
         except Exception:
             logger.exception("No se pudo refrescar inventario por evento %s", event_type)
+
+    def showEvent(self, event):
+        """Reload data when module becomes visible if it missed events while hidden."""
+        super().showEvent(event)
+        if getattr(self, "_inventory_dirty", False):
+            self._inventory_dirty = False
+            logger.debug("Inventario: became visible with dirty flag — reloading")
+            try:
+                self.cargar_datos()
+            except Exception:
+                logger.exception("Inventario: showEvent reload failed")
 
     # ── UI construction ───────────────────────────────────────────────────────
 
