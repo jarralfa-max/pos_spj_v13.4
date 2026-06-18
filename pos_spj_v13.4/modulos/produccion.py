@@ -64,11 +64,12 @@ def _norm_tipo_receta(value: str) -> str:
     return str(value or "").strip().lower()
 
 
-def _build_lote_balance_preview(movs_teoricos: list, reales: dict[int, float]) -> dict:
-    expected = {}
+def _build_lote_balance_preview(movs_teoricos: list, reales: dict) -> dict:
+    expected: dict[str, float] = {}
     for m in movs_teoricos:
         if float(m.get("delta", 0)) > 0:
-            expected[int(m["product_id"])] = expected.get(int(m["product_id"]), 0.0) + float(m["delta"])
+            pid = str(m["product_id"])
+            expected[pid] = expected.get(pid, 0.0) + float(m["delta"])
     total_exp = sum(expected.values())
     total_real = sum(float(v or 0) for v in reales.values())
     return {
@@ -413,47 +414,64 @@ class ModuloProduccion(ModuloBase):
     # ── Datos ─────────────────────────────────────────────────────────────────
 
     def _build_tab_carnica(self) -> QWidget:
-        """Tab de producción cárnica — integra lógica de produccion_carnica.py."""
+        """Tab de producción cárnica — usa SearchSelector y ExecuteMeatProductionUseCase."""
         from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-            QGroupBox, QFormLayout, QLabel, QComboBox, QDoubleSpinBox,
-            QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox)
-        w = QWidget(); lay = QVBoxLayout(w)
+            QGroupBox, QFormLayout, QLabel, QDoubleSpinBox,
+            QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox)
+        from modulos.spj_product_search import ProductSearchWidget
+
+        w = QWidget()
+        lay = QVBoxLayout(w)
 
         grp_in = QGroupBox("Ingresar lote a producción cárnica")
         form = QFormLayout(grp_in)
 
-        self._car_cmb_producto = QComboBox()
-        self._car_spin_peso    = QDoubleSpinBox(); self._car_spin_peso.setRange(0.001,9999); self._car_spin_peso.setDecimals(3); self._car_spin_peso.setSuffix(" kg")
-        self._car_spin_merma   = QDoubleSpinBox(); self._car_spin_merma.setRange(0,100); self._car_spin_merma.setDecimals(1); self._car_spin_merma.setSuffix(" %")
-        form.addRow("Producto:", self._car_cmb_producto)
+        db_conn = getattr(self.conexion, '_conn', None) or getattr(self.conexion, 'conn', None) or self.conexion
+        self._car_search = ProductSearchWidget(db=db_conn, placeholder="Buscar producto cárnico…", show_stock=False)
+        self._car_selected_product: dict | None = None
+        self._car_lbl_producto = QLabel("Sin selección")
+
+        self._car_spin_peso = QDoubleSpinBox()
+        self._car_spin_peso.setRange(0.0, 9999.0)
+        self._car_spin_peso.setDecimals(3)
+        self._car_spin_peso.setValue(0.0)
+        self._car_spin_peso.setSuffix(" kg")
+
+        self._car_spin_merma = QDoubleSpinBox()
+        self._car_spin_merma.setRange(0.0, 100.0)
+        self._car_spin_merma.setDecimals(1)
+        self._car_spin_merma.setValue(0.0)
+        self._car_spin_merma.setSuffix(" %")
+
+        form.addRow("Buscar producto:", self._car_search)
+        form.addRow("Seleccionado:", self._car_lbl_producto)
         form.addRow("Peso bruto:", self._car_spin_peso)
         form.addRow("Merma esperada:", self._car_spin_merma)
         lay.addWidget(grp_in)
 
         btn_row = QHBoxLayout()
-        btn_proc = create_danger_button(self, "⚙️ Procesar lote cárnico", "Procesar lote de producción cárnica con cálculo de merma")
-        btn_row.addWidget(btn_proc); btn_row.addStretch()
+        btn_proc = create_danger_button(self, "⚙️ Procesar lote cárnico",
+                                        "Procesar lote de producción cárnica con cálculo de merma")
+        btn_row.addWidget(btn_proc)
+        btn_row.addStretch()
         lay.addLayout(btn_row)
 
-        self._car_tabla = QTableWidget(); self._car_tabla.setColumnCount(5)
-        self._car_tabla.setHorizontalHeaderLabels(["Fecha","Producto","Bruto kg","Merma kg","Neto kg"])
-        hh = self._car_tabla.horizontalHeader()
-        hh.setSectionResizeMode(1, QHeaderView.Stretch)
+        self._car_tabla = QTableWidget()
+        self._car_tabla.setColumnCount(5)
+        self._car_tabla.setHorizontalHeaderLabels(["Fecha", "Producto", "Bruto kg", "Merma kg", "Neto kg"])
+        self._car_tabla.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         lay.addWidget(self._car_tabla)
 
+        self._car_search.producto_seleccionado.connect(self._on_car_product_selected)
         btn_proc.clicked.connect(self._procesar_lote_carnico)
-        self._cargar_productos_carnica()
         self._cargar_hist_carnica()
         return w
 
-    def _cargar_productos_carnica(self):
-        self._car_cmb_producto.clear()
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
-        if not conn:
-            return
-        for r in _pqs.get_productos_activos(conn):
-            self._car_cmb_producto.addItem(r["nombre"], r["id"])
+    def _on_car_product_selected(self, product: dict) -> None:
+        """Store selected product from SearchWidget — UUID-based, no int casts."""
+        self._car_selected_product = product
+        nombre = product.get("nombre", product.get("label", str(product.get("id", ""))))
+        self._car_lbl_producto.setText(nombre)
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh al recibir eventos del EventBus."""
@@ -462,14 +480,18 @@ class ModuloProduccion(ModuloBase):
         except Exception as exc:
             logger.debug("No se pudo refrescar historial cárnico: %s", exc)
 
-    def _cargar_hist_carnica(self):
+    def _cargar_hist_carnica(self) -> None:
         from PyQt5.QtWidgets import QTableWidgetItem
-        conn = self._conexion if hasattr(self, '_conexion') else (
-            self.conexion if hasattr(self, 'conexion') else None)
+        from backend.application.queries.production_query_service import MeatProductionQueryService
+        conn = getattr(self, 'conexion', None)
         if not conn:
             self._car_tabla.setRowCount(0)
             return
-        rows = _pqs.get_historial_carnica(conn)
+        try:
+            rows = MeatProductionQueryService.from_connection(conn).list_carnica_history()
+        except Exception as exc:
+            logger.warning("_cargar_hist_carnica: %s", exc)
+            rows = []
         self._car_tabla.setRowCount(0)
         for i, r in enumerate(rows):
             self._car_tabla.insertRow(i)
@@ -477,25 +499,31 @@ class ModuloProduccion(ModuloBase):
                                     r["peso_bruto"], r["merma"], r["peso_neto"]]):
                 self._car_tabla.setItem(i, j, QTableWidgetItem(str(v) if v else ""))
 
-    def _procesar_lote_carnico(self):
-        """
-        Delega al RecipeEngine — registra la producción con trazabilidad completa.
-        Busca la receta activa del producto seleccionado (tipo subproducto).
-        """
-        prod_id = self._car_cmb_producto.currentData()
+    def _procesar_lote_carnico(self) -> None:
+        """Delega a ExecuteMeatProductionUseCase — trazabilidad completa, UUIDs."""
+        from PyQt5.QtWidgets import QMessageBox, QInputDialog
+
+        if not self._car_selected_product:
+            QMessageBox.warning(self, "Aviso", "Selecciona un producto.")
+            return
+
+        prod_id = str(self._car_selected_product.get("id", ""))
         if not prod_id:
-            QMessageBox.warning(self, "Aviso", "Selecciona un producto."); return
+            QMessageBox.warning(self, "Aviso", "Producto sin identificador.")
+            return
 
         peso = self._car_spin_peso.value()
         if peso <= 0:
-            QMessageBox.warning(self, "Aviso", "El peso debe ser mayor a cero."); return
+            QMessageBox.warning(self, "Aviso", "El peso debe ser mayor a cero.")
+            return
 
-        conn = getattr(self, '_conexion', None) or getattr(self, 'conexion', None)
-        if not conn: return
+        conn = getattr(self, 'conexion', None)
+        if not conn:
+            return
 
-        # Find active recipe for this base product
-        rec_row = _pqs.get_receta_by_product_id(conn, prod_id)
-
+        from backend.application.queries.production_query_service import MeatProductionQueryService
+        pqs = MeatProductionQueryService.from_connection(conn)
+        rec_row = pqs.get_recipe_by_product_id(prod_id)
         if not rec_row:
             QMessageBox.warning(
                 self, "Sin receta",
@@ -503,88 +531,106 @@ class ModuloProduccion(ModuloBase):
                 "Créala desde Productos > Tab Receta antes de registrar producción.")
             return
 
-        receta_id  = rec_row["id"]
+        receta_id = str(rec_row["id"])
         receta_nom = rec_row["nombre_receta"]
 
-        # Preview before confirming (teórico)
-        _suc = getattr(self, 'sucursal_id', 1)
+        _suc = str(getattr(self, 'sucursal_id', "") or "")
         _usr = getattr(self, 'usuario_actual', '') or getattr(self, 'usuario', 'Sistema')
+
         try:
             if self._svc is not None:
                 preview = self._svc.preview_receta(receta_id, peso)
             else:
                 preview = self._engine.preview_produccion(receta_id, peso)
-        except Exception as _pe:
-            QMessageBox.critical(self, "Error al previsualizar", str(_pe)); return
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al previsualizar", str(exc))
+            return
 
-        # Capturar salida real por componente antes de cerrar lote
-        reales = {}
+        # Capturar salida real por componente — claves UUID (str), no int
+        reales: dict[str, float] = {}
         for m in preview:
             if float(m.get("delta", 0)) <= 0:
                 continue
             ptxt = f"Peso real de salida para {m['nombre']} (kg):"
-            val, ok = QInputDialog.getDouble(self, "Captura real", ptxt, abs(float(m["delta"])), 0.0, 99999.0, 3)
+            val, ok = QInputDialog.getDouble(
+                self, "Captura real", ptxt, abs(float(m["delta"])), 0.0, 99999.0, 3)
             if not ok:
                 return
-            reales[int(m["product_id"])] = float(val)
+            reales[str(m["product_id"])] = float(val)
 
-        bal = _build_lote_balance_preview(preview, reales)
+        bal = _build_lote_balance_preview(preview, {str(k): v for k, v in reales.items()})
         lines = [f"Receta: {receta_nom}", f"Entrada: {peso:.3f} kg", ""]
         for m in preview:
             arrow = "▼ SALIDA" if m['delta'] < 0 else "▲ ENTRADA"
             lines.append(f"{arrow}  {m['nombre']}: {abs(m['delta']):.3f} kg")
-        lines += ["", "Captura REAL:", *(f"• #{pid}: {kg:.3f} kg" for pid, kg in reales.items())]
+        lines += ["", "Captura REAL:",
+                  *(f"• {pid}: {kg:.3f} kg" for pid, kg in reales.items())]
         lines += [f"Teórico total: {bal['total_expected']:.3f} kg",
                   f"Real total: {bal['total_real']:.3f} kg",
                   f"Diferencia: {bal['difference']:+.3f} kg"]
 
         resp = QMessageBox.question(self, "Confirmar producción",
-            "\n".join(lines) + "\n\n¿Ejecutar?",
-            QMessageBox.Yes | QMessageBox.No)
-        if resp != QMessageBox.Yes: return
+                                    "\n".join(lines) + "\n\n¿Ejecutar?",
+                                    QMessageBox.Yes | QMessageBox.No)
+        if resp != QMessageBox.Yes:
+            return
 
         try:
-            # FASE 8: flujo real por lote (sin ejecutar_produccion directa)
             if self._svc is None:
-                raise RuntimeError("ProductionApplicationService no disponible para flujo por lote.")
-            opened = self._svc.abrir_lote(
-                producto_origen_id=prod_id,
-                peso_kg=peso,
-                sucursal_id=_suc,
-                usuario=_usr,
-                receta_id=receta_id,
-            )
-            if not getattr(opened, "ok", False):
-                raise RuntimeError(getattr(opened, "error", "No se pudo abrir lote"))
-            batch_id = opened.batch_id
-            for pid, kg in reales.items():
-                self._svc.agregar_subproducto(batch_id=batch_id, producto_id=pid, peso_kg=kg, is_waste=False)
+                raise RuntimeError("ProductionApplicationService no disponible.")
+
+            from backend.application.commands.production_commands import ExecuteMeatProductionCommand
+            from backend.application.use_cases.execute_meat_production_use_case import ExecuteMeatProductionUseCase
+            from backend.shared.ids import new_uuid
+
             merma_kg = max(0.0, peso - bal["total_real"])
-            if merma_kg > 0:
-                self._svc.agregar_subproducto(batch_id=batch_id, producto_id=prod_id, peso_kg=merma_kg, is_waste=True)
-            y = self._svc.preview_lote(batch_id)
-            res = self._svc.cerrar_lote(batch_id=batch_id, sucursal_id=_suc, usuario=_usr)
-            if not getattr(res, "ok", False):
-                raise RuntimeError(getattr(res, "error", "No se pudo cerrar lote"))
+            outputs = tuple({"product_id": pid, "weight_kg": kg} for pid, kg in reales.items())
+
+            uc = ExecuteMeatProductionUseCase(production_service=self._svc)
+            cmd = ExecuteMeatProductionCommand(
+                operation_id=new_uuid(),
+                branch_id=_suc,
+                user_name=_usr,
+                product_id=prod_id,
+                recipe_id=receta_id,
+                batch_weight_kg=peso,
+                outputs=outputs,
+                waste_kg=merma_kg,
+            )
+            result = uc.execute(cmd)
+
+            if not result.success:
+                raise RuntimeError(result.message)
+
             try:
-                get_bus().publish("PRODUCCION_REGISTRADA", {"event_type": "PRODUCCION_REGISTRADA"})
+                import datetime as _dt
+                from core.events.event_bus import INVENTARIO_ACTUALIZADO
+                _payload = {
+                    "event_type":    "PRODUCCION_REGISTRADA",
+                    "sucursal_id":   _suc,
+                    "producto_ids":  result.data.get("product_ids", []),
+                    "origen":        "PRODUCCION",
+                    "referencia_id": result.entity_id,
+                    "timestamp":     _dt.datetime.utcnow().isoformat(),
+                }
+                _bus = get_bus()
+                _bus.publish("PRODUCCION_REGISTRADA", _payload)
+                # Trigger canonical inventory refresh in Inventario module
+                _bus.publish(INVENTARIO_ACTUALIZADO, {**_payload, "event_type": INVENTARIO_ACTUALIZADO})
             except Exception as exc:
                 logger.debug("No se pudo publicar PRODUCCION_REGISTRADA: %s", exc)
 
-            # Build result summary
-            result_lines = [
-                f"Lote {res.folio} cerrado",
-                f"Rendimiento: {getattr(res, 'rendimiento_pct', 0):.2f}%",
-                f"Merma registrada: {merma_kg:.3f} kg",
-                "",
-                f"Diferencia esperado vs real: {bal['difference']:+.3f} kg",
-            ]
+            folio = result.data.get("folio", result.entity_id)
+            rend = result.data.get("rendimiento_pct", 0.0)
             QMessageBox.information(self, "✅ Producción Registrada",
-                "\n".join(result_lines))
+                                    f"Lote {folio} cerrado\n"
+                                    f"Rendimiento: {rend:.2f}%\n"
+                                    f"Merma registrada: {merma_kg:.3f} kg\n\n"
+                                    f"Diferencia esperado vs real: {bal['difference']:+.3f} kg")
             self._cargar_hist_carnica()
 
-        except Exception as e:
-            QMessageBox.critical(self, "Error en producción", str(e))
+        except Exception as exc:
+            QMessageBox.critical(self, "Error en producción", str(exc))
 
 
 

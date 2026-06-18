@@ -387,39 +387,61 @@ class ConfigRepository:
             return {key: row[key] for key in row.keys()}
         return {key: row[index] for index, key in enumerate(keys) if index < len(row)}
 
+    def _hhr_select_parts(self) -> tuple[str, str, str]:
+        """Return (id_expr, branch_expr, join_sql) for happy_hour_rules queries.
+
+        All column references use table aliases to avoid ambiguous column name errors
+        when sucursales also has a uuid column.
+        """
+        has_hhr_uuid = self._column_exists("happy_hour_rules", "uuid")
+        has_sucursal_uuid = self._column_exists("happy_hour_rules", "sucursal_uuid")
+        has_s_uuid = self._column_exists("sucursales", "uuid")
+
+        id_expr = "h.uuid AS id" if has_hhr_uuid else "h.id AS id"
+
+        if has_sucursal_uuid and has_s_uuid:
+            branch_expr = "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
+            join_sql = "LEFT JOIN sucursales AS s ON s.uuid = h.sucursal_uuid"
+        elif has_sucursal_uuid:
+            branch_expr = "h.sucursal_uuid AS sucursal_id"
+            join_sql = ""
+        else:
+            logger.warning(
+                "happy_hour_rules.sucursal_uuid not found — run migration 103; "
+                "sucursal_id will be integer"
+            )
+            branch_expr = "CAST(h.sucursal_id AS TEXT) AS sucursal_id"
+            join_sql = "LEFT JOIN sucursales AS s ON s.id = h.sucursal_id"
+
+        return id_expr, branch_expr, join_sql
+
     def list_happy_hour_rules(self) -> list[dict]:
-        identity = self._select_identity_sql("happy_hour_rules")
-        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
-            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
-        branch_identity = "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
-        join_sql = "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
-        rows = self.db.execute(
-            f"""
-            SELECT {identity}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana, h.tipo_descuento,
-                   h.valor, h.aplica_a, h.aplica_valor, h.mensaje_wa, h.activo, {branch_identity}
-            FROM happy_hour_rules h
+        id_expr, branch_expr, join_sql = self._hhr_select_parts()
+        sql = f"""
+            SELECT {id_expr}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana,
+                   h.tipo_descuento, h.valor, h.aplica_a, h.aplica_valor,
+                   h.mensaje_wa, h.activo, {branch_expr}
+            FROM happy_hour_rules AS h
             {join_sql}
             ORDER BY h.nombre
-            """
-        ).fetchall()
+        """
+        logger.debug("list_happy_hour_rules SQL: %s", sql.strip())
+        rows = self.db.execute(sql).fetchall()
         return [self._happy_hour_row_to_dict(row) for row in rows]
 
     def get_happy_hour_rule(self, rule_id: str) -> dict | None:
         column, value = self._resolve_db_identifier("happy_hour_rules", rule_id)
-        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
-            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
-        join_sql = "LEFT JOIN sucursales s ON s.uuid = h.sucursal_uuid"
-        branch_identity = "COALESCE(h.sucursal_uuid, s.uuid) AS sucursal_id"
-        row = self.db.execute(
-            f"""
-            SELECT {self._select_identity_sql('happy_hour_rules')}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana, h.tipo_descuento,
-                   h.valor, h.aplica_a, h.aplica_valor, h.mensaje_wa, h.activo, {branch_identity}
-            FROM happy_hour_rules h
+        id_expr, branch_expr, join_sql = self._hhr_select_parts()
+        sql = f"""
+            SELECT {id_expr}, h.nombre, h.hora_inicio, h.hora_fin, h.dias_semana,
+                   h.tipo_descuento, h.valor, h.aplica_a, h.aplica_valor,
+                   h.mensaje_wa, h.activo, {branch_expr}
+            FROM happy_hour_rules AS h
             {join_sql}
             WHERE h.{column}=?
-            """,
-            (value,),
-        ).fetchone()
+        """
+        logger.debug("get_happy_hour_rule SQL: %s | params: %s", sql.strip(), (value,))
+        row = self.db.execute(sql, (value,)).fetchone()
         return self._happy_hour_row_to_dict(row) if row else None
 
     def save_happy_hour_rule(self, rule: dict) -> str:
@@ -437,25 +459,23 @@ class ConfigRepository:
             rule.get("mensaje_wa") or "",
             1 if rule.get("activo") else 0,
         ]
-        if not self._column_exists("happy_hour_rules", "sucursal_uuid"):
-            raise RuntimeError("happy_hour_rules requires sucursal_uuid migration before Configuracion can operate")
-        values.append(branch_uuid or "")
+        has_sucursal_uuid_col = self._column_exists("happy_hour_rules", "sucursal_uuid")
+        if has_sucursal_uuid_col:
+            values.append(branch_uuid or "")
         columns = [
-            "nombre",
-            "hora_inicio",
-            "hora_fin",
-            "dias_semana",
-            "tipo_descuento",
-            "valor",
-            "aplica_a",
-            "aplica_valor",
-            "mensaje_wa",
-            "activo",
-            "sucursal_uuid",
+            "nombre", "hora_inicio", "hora_fin", "dias_semana",
+            "tipo_descuento", "valor", "aplica_a", "aplica_valor",
+            "mensaje_wa", "activo",
         ]
-        self._require_uuid_column("happy_hour_rules")
-        columns.insert(0, "uuid")
-        values.insert(0, rule_uuid)
+        if has_sucursal_uuid_col:
+            columns.append("sucursal_uuid")
+        elif self._column_exists("happy_hour_rules", "sucursal_id") and branch_row_id is not None:
+            columns.append("sucursal_id")
+            values.append(branch_row_id)
+        has_hhr_uuid = self._column_exists("happy_hour_rules", "uuid")
+        if has_hhr_uuid:
+            columns.insert(0, "uuid")
+            values.insert(0, rule_uuid)
 
         existing_column, existing_value = self._resolve_db_identifier("happy_hour_rules", rule_uuid)
         existing = None
@@ -735,7 +755,26 @@ class ConfigRepository:
         return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
 
     def permission_codes_for_user(self, user_id: str, branch_id: str | None = None) -> set[str]:
-        column, value = self._resolve_db_identifier("usuarios", user_id)
+        # Accept legacy integer IDs (e.g. "1") until all DBs are migrated to UUID
+        user_id_str = str(user_id or "").strip()
+        has_uuid_col = self._column_exists("usuarios", "uuid")
+        try:
+            from uuid import UUID as _UUID
+            _UUID(user_id_str)
+            is_uuid = True
+        except (ValueError, AttributeError):
+            is_uuid = False
+
+        if is_uuid and has_uuid_col:
+            column, value = "uuid", user_id_str
+        else:
+            # Fallback: try integer id lookup
+            try:
+                column, value = "id", int(user_id_str)
+            except (ValueError, TypeError):
+                logger.warning("permission_codes_for_user: invalid user_id %r — returning empty set", user_id_str)
+                return set()
+
         row = self.db.execute(f"SELECT id, rol FROM usuarios WHERE {column}=?", (value,)).fetchone()
         if not row:
             logger.warning("User not found while resolving permissions: %s", user_id)

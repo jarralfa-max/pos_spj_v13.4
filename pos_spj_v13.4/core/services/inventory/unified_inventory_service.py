@@ -158,6 +158,24 @@ class UnifiedInventoryService:
                         ultima_actualizacion=datetime('now')
                 """, (producto_id, sid, stock_nuevo))
             _sync_branch_inventory(c, producto_id, sid, delta)
+
+            # Sync inventory_stock so canonical read model stays in sync
+            try:
+                _ur = c.execute(
+                    "SELECT COALESCE(unidad,'kg') FROM productos WHERE id=?", (producto_id,)
+                ).fetchone()
+                c.execute(
+                    """
+                    INSERT INTO inventory_stock (product_id, branch_id, quantity, unit, updated_at)
+                    VALUES (?,?,?,?,CURRENT_TIMESTAMP)
+                    ON CONFLICT(product_id, branch_id) DO UPDATE SET
+                        quantity=excluded.quantity, unit=excluded.unit,
+                        updated_at=CURRENT_TIMESTAMP
+                    """,
+                    (producto_id, sid, stock_nuevo, str(_ur[0] if _ur else "kg")),
+                )
+            except Exception:
+                pass
         return mid
     def adjust_stock(self, producto_id, new_qty, reason="Ajuste", sucursal_id=None):
         """Ajusta el stock al valor exacto new_qty, creando movimiento de ajuste."""
@@ -305,6 +323,31 @@ class UnifiedInventoryService:
                 """, (product_id, sucursal_id, stock_nuevo))
             _sync_branch_inventory(c, product_id, sucursal_id, delta)
 
+            # ── Sync inventory_stock (canonical table read by InventoryQueryService) ──
+            # This keeps the canonical read model in sync with the legacy write path.
+            # Without this, the Inventario module shows stale/zero values after
+            # production movements that only write to inventario_actual.
+            try:
+                unit_row = c.execute(
+                    "SELECT COALESCE(unidad,'kg') FROM productos WHERE id=?",
+                    (product_id,),
+                ).fetchone()
+                _unit = str(unit_row[0] if unit_row else "kg")
+                c.execute(
+                    """
+                    INSERT INTO inventory_stock
+                        (product_id, branch_id, quantity, unit, updated_at)
+                    VALUES (?,?,?,?,CURRENT_TIMESTAMP)
+                    ON CONFLICT(product_id, branch_id) DO UPDATE SET
+                        quantity=excluded.quantity,
+                        unit=excluded.unit,
+                        updated_at=CURRENT_TIMESTAMP
+                    """,
+                    (product_id, sucursal_id, stock_nuevo, _unit),
+                )
+            except Exception as _e:
+                logger.debug("process_movement: inventory_stock sync skipped: %s", _e)
+
         if conn is not None:
             _write(conn)
         else:
@@ -313,8 +356,10 @@ class UnifiedInventoryService:
 
         mid = _mid_holder[0]
         try:
-            from core.events.event_bus import get_bus
-            get_bus().publish("inventory_movement", {
+            import datetime as _dt
+            from core.events.event_bus import get_bus, INVENTARIO_ACTUALIZADO
+            _bus = get_bus()
+            _bus.publish("inventory_movement", {
                 "movement_id": mid,
                 "product_id": product_id,
                 "quantity": delta,
@@ -322,6 +367,15 @@ class UnifiedInventoryService:
                 "reference": str(ref) if ref else None,
                 "sucursal_id": sucursal_id,
                 "metadata": metadata,
+            })
+            # Canonical stock-change event — received by Inventario module to refresh UI
+            _bus.publish(INVENTARIO_ACTUALIZADO, {
+                "event_type":    INVENTARIO_ACTUALIZADO,
+                "sucursal_id":   sucursal_id,
+                "producto_ids":  [product_id],
+                "origen":        movement_type,
+                "referencia_id": str(ref) if ref else None,
+                "timestamp":     _dt.datetime.utcnow().isoformat(),
             })
         except Exception as _e:
             logger.warning("process_movement event non-fatal: %s", _e)
