@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from core.delivery.domain.credit_policy import credit_amount, requires_credit_check
 from core.delivery.domain.events import DeliveryEvents
 from core.delivery.domain.state_machine import DeliveryStateMachine
 from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
@@ -25,6 +26,7 @@ class ChangeDeliveryStatusUseCase:
         get_order_items: Callable[[int], list[dict[str, Any]]] | None = None,
         outbox_repository=None,
         inventory_service=None,
+        credit_service=None,
     ) -> None:
         self.db = db
         self.repository = repository
@@ -34,6 +36,8 @@ class ChangeDeliveryStatusUseCase:
         self.get_order_items = get_order_items or (lambda _order_id: [])
         self.outbox_repository = outbox_repository
         self.inventory_service = inventory_service
+        # Optional CustomerCreditService — gates orders that leave a balance on account.
+        self.credit_service = credit_service
 
     def execute(
         self,
@@ -96,6 +100,24 @@ class ChangeDeliveryStatusUseCase:
                     logger.warning(
                         "No se pudo verificar stock producto %s: %s", pid, exc
                     )
+
+        # ── Customer credit gate before releasing the order to preparation ──────
+        # Only orders that leave a balance owed on the customer's account
+        # (e.g. "Anticipo + saldo" / explicit credit) are validated. Immediate
+        # payment methods (cash/card on delivery, prepaid) are not blocked.
+        if target == "preparacion" and self.credit_service is not None:
+            if requires_credit_check(order_before.get("pago_metodo")):
+                cliente_id = order_before.get("cliente_id")
+                if cliente_id:
+                    amount = credit_amount(
+                        order_before.get("total") or 0,
+                        order_before.get("anticipo") or 0,
+                    )
+                    ok, reason = self.credit_service.validate_credit(cliente_id, float(amount))
+                    if not ok:
+                        raise ValueError(
+                            f"No se puede preparar: {reason or 'crédito insuficiente'}"
+                        )
 
         self.repository.update_status(
             order_id,

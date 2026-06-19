@@ -18,6 +18,7 @@ class DeliveryEvents(StrEnum):
     TOTAL_UPDATED = "DELIVERY_TOTAL_UPDATED"
     INVENTORY_COMMIT_REQUIRED = "INVENTORY_COMMIT_REQUIRED"
     INVENTORY_RELEASE_REQUIRED = "INVENTORY_RELEASE_REQUIRED"
+    INVENTORY_RESERVATION_ADJUSTED = "INVENTORY_RESERVATION_ADJUSTED"
     CUSTOMER_NOTIFICATION_REQUESTED = "CUSTOMER_NOTIFICATION_REQUESTED"
     SCHEDULED_ORDER_ACTIVATED = "DELIVERY_SCHEDULED_ORDER_ACTIVATED"
 
@@ -42,6 +43,7 @@ EVENT_PAYLOAD_CONTRACTS: Mapping[DeliveryEvents, EventContract] = {
     DeliveryEvents.TOTAL_UPDATED: EventContract(("order_id", "old_total", "new_total", "folio", "cliente_tel"), "Total recalculado."),
     DeliveryEvents.INVENTORY_COMMIT_REQUIRED: EventContract(("order_id", "operation_id", "items", "sucursal_id"), "Commit físico de inventario requerido.", critical=True),
     DeliveryEvents.INVENTORY_RELEASE_REQUIRED: EventContract(("order_id", "operation_id", "reason"), "Liberación de reserva requerida.", critical=True),
+    DeliveryEvents.INVENTORY_RESERVATION_ADJUSTED: EventContract(("order_id", "operation_id", "product_id", "branch_id", "new_qty"), "Reserva de inventario ajustada a la cantidad real preparada.", critical=True),
     DeliveryEvents.CUSTOMER_NOTIFICATION_REQUESTED: EventContract(("order_id", "canal", "template", "params", "cliente_tel"), "Notificación a cliente requerida.", critical=True),
     DeliveryEvents.SCHEDULED_ORDER_ACTIVATED: EventContract(("order_id", "workflow_type", "usuario", "sucursal_id"), "Pedido programado activado."),
 }
