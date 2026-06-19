@@ -592,16 +592,16 @@ class NuevoPedidoDialog(QDialog):
         # Stock pre-flight: warn if any item with producto_id has insufficient available stock
         sin_stock = []
         try:
-            from core.services.reservation_service import ReservationService
-            rs = ReservationService()
+            from core.services.inventory_balance_service import InventoryBalanceService
+            _inv_svc = InventoryBalanceService(self.conexion)
             sucursal_id = self.combo_sucursal.currentIndex() + 1
             for it in self._items:
                 pid = it.get("producto_id")
                 if not pid:
                     continue
-                available = rs.get_available_stock(
-                    self.conexion, product_id=pid, branch_id=sucursal_id
-                )
+                available = float(_inv_svc.get_available_stock(
+                    product_id=pid, branch_id=sucursal_id
+                ))
                 if available < it["cantidad"]:
                     sin_stock.append(
                         f"• {it['nombre']}: solicitado {it['cantidad']:.3g}, disponible {available:.3g}"
@@ -2351,12 +2351,14 @@ if(drivers.length===0){{
                 return
             elif accion in ("preparacion", "preparar"):
                 from core.services.reservation_service import ReservationService, VARIABLE_WEIGHT_UNITS
+                from core.services.inventory_balance_service import InventoryBalanceService
                 items = self.delivery_service.get_order_items(pedido_id)
 
                 # Stock gate: must have valid reservation OR sufficient available stock
-                _svc = ReservationService()
+                _res_svc = ReservationService()
+                _inv_svc = InventoryBalanceService(self.conexion)
                 _sucursal = getattr(self, 'sucursal_id', 1)
-                _reservas = _svc.get_reservations_for_operation(self.conexion, str(pedido_id))
+                _reservas = _res_svc.get_reservations_for_operation(self.conexion, str(pedido_id))
                 _bloqueados = []
                 for _it in items:
                     _pid = _it.get("producto_id")
@@ -2370,7 +2372,15 @@ if(drivers.length===0){{
                         if r.get("product_id") == _pid and not r.get("released")
                     )
                     if _res_qty < _qty:
-                        _avail = _svc.get_available_stock(self.conexion, _pid, _sucursal)
+                        try:
+                            _avail = float(_inv_svc.get_available_stock(_pid, _sucursal))
+                        except Exception as _exc:
+                            import logging as _log
+                            _log.getLogger("spj.delivery.ui").exception(
+                                "No se pudo consultar stock producto=%s sucursal=%s: %s",
+                                _pid, _sucursal, _exc,
+                            )
+                            _avail = 0.0
                         if _avail < _qty:
                             _bloqueados.append(
                                 f"• {_it.get('nombre','Producto')}: "
