@@ -1111,6 +1111,7 @@ def _wire_delivery_handlers(bus, container) -> None:
 
     DELIVERY_ORDER_RESERVED     → DeliveryReserveStockHandler     (priority=100)
     stock_liberar_solicitado    → DeliveryReservationReleaseHandler (priority=100)
+    INVENTORY_RELEASE_REQUIRED  → DeliveryReservationReleaseHandler (priority=100)
     DELIVERY_ITEM_WEIGHT_ADJUSTED → DeliveryWeightAdjustmentHandler (priority=100)
     DELIVERY_ITEM_WEIGHT_ADJUSTED → DeliveryWhatsAppNotificationHandler (priority=10)
     DELIVERY_TOTAL_UPDATED      → DeliveryPaymentUpdateHandler     (priority=50)
@@ -1120,6 +1121,7 @@ def _wire_delivery_handlers(bus, container) -> None:
         DELIVERY_RESERVATION_RELEASED,
         DELIVERY_ITEM_WEIGHT_ADJUSTED,
         DELIVERY_TOTAL_UPDATED,
+        INVENTORY_RELEASE_REQUIRED,
     )
     from core.events.handlers.delivery_handler import (
         DeliveryReserveStockHandler,
@@ -1146,9 +1148,16 @@ def _wire_delivery_handlers(bus, container) -> None:
         priority=100,
         label="delivery_reserve_stock",
     )
-    # Release reservations when order is cancelled (existing event name)
+    # Release reservations when order is cancelled (legacy event name)
     bus.subscribe(
         "stock_liberar_solicitado",
+        release_handler.handle,
+        priority=100,
+        label="delivery_reservation_release_legacy",
+    )
+    # Release reservations via new canonical event (ChangeDeliveryStatusUseCase)
+    bus.subscribe(
+        INVENTORY_RELEASE_REQUIRED,
         release_handler.handle,
         priority=100,
         label="delivery_reservation_release",
