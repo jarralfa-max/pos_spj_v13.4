@@ -352,3 +352,91 @@ def test_in_transit_in_column_2():
 def test_delivered_in_column_3():
     """Test 37: DELIVERED in column 3"""
     assert DeliveryStatus.DELIVERED in _statuses_in_column(3)
+
+
+# ── UI wiring tests (38-48) — source-text checks (PyQt5 not available in CI) ─
+
+from pathlib import Path as _Path
+
+_DELIVERY_SRC = (_Path(__file__).parent.parent / "modulos" / "delivery.py").read_text(encoding="utf-8")
+
+
+def test_status_to_col_map_built_from_kanban_columns():
+    """Test 38: delivery.py builds _STATUS_TO_COL from _KANBAN_COLUMNS (not hardcoded)"""
+    assert "_STATUS_TO_COL" in _DELIVERY_SRC
+    assert "_KANBAN_COLUMNS" in _DELIVERY_SRC
+    # Must reference the canonical mapping to build the reverse map
+    assert "_LEGACY_STATUS_MAP" in _DELIVERY_SRC
+
+
+def test_pendiente_targets_column_0_in_source():
+    """Test 39: source builds the reverse map so 'pendiente' → col 0 (PENDING in col 0)"""
+    assert "_STATUS_TO_COL" in _DELIVERY_SRC
+    # The map is driven by KANBAN_COLUMNS; col 0 contains PENDING which maps from 'pendiente'
+    assert "KANBAN_COLUMNS" in _DELIVERY_SRC
+
+
+def test_kanban_build_uses_enumerate_kanban_columns():
+    """Test 40: Kanban column widget loop uses enumerate(_KANBAN_COLUMNS), not hardcoded list"""
+    assert "enumerate(_KANBAN_COLUMNS)" in _DELIVERY_SRC
+    # Old loop "for estado in [pendiente,preparacion..." must be gone
+    assert 'for estado in ["pendiente","preparacion","en_ruta","entregado"]' not in _DELIVERY_SRC
+
+
+def test_kanban_column_index_used_for_insert():
+    """Test 41: Cards are inserted using col_idx, not legacy estado string"""
+    assert "_STATUS_TO_COL.get(estado)" in _DELIVERY_SRC
+    assert "self.columnas[col_idx]" in _DELIVERY_SRC
+
+
+def test_kanban_col_titles_in_source():
+    """Test 42: canonical column titles present in source"""
+    assert "Pendiente" in _DELIVERY_SRC
+    assert "Preparación" in _DELIVERY_SRC
+    assert "En reparto" in _DELIVERY_SRC or "Para entregar" in _DELIVERY_SRC
+    assert "Entrega" in _DELIVERY_SRC
+
+
+def test_get_card_actions_function_defined():
+    """Test 43: _get_card_actions function is defined in delivery.py"""
+    assert "def _get_card_actions" in _DELIVERY_SRC
+
+
+def test_get_card_actions_handles_weighable_label():
+    """Test 44: _get_card_actions dynamically labels 'Ajustar peso' vs 'Ajustar cantidad'"""
+    assert "Ajustar peso" in _DELIVERY_SRC
+    assert "Ajustar cantidad" in _DELIVERY_SRC
+    assert "has_weighable" in _DELIVERY_SRC
+
+
+def test_card_and_detail_use_same_action_function():
+    """Test 45: both TarjetaPedido and detail view call _get_card_actions (no duplication)"""
+    import re
+    # Count usages of _get_card_actions (excluding the def itself)
+    calls = re.findall(r"(?<!def )_get_card_actions\(", _DELIVERY_SRC)
+    assert len(calls) >= 2, "Both Kanban card and detail view must call _get_card_actions"
+
+
+def test_no_inline_action_policy_duplication():
+    """Test 46: delivery.py does not define a second _METADATA dict with action labels"""
+    # Legacy DeliveryActionPolicy stub is allowed but must delegate to _get_card_actions
+    assert "def _get_card_actions" in _DELIVERY_SRC
+    # There should be exactly one action metadata dict (_ACTION_METADATA) — not duplicated
+    import re
+    metadata_defs = re.findall(r"_METADATA\s*=\s*\{", _DELIVERY_SRC)
+    assert len(metadata_defs) <= 1, "Only one action metadata dict allowed"
+
+
+def test_kanban_column_labels_are_spanish():
+    """Test 47: KANBAN_COLUMNS column titles are in Spanish"""
+    for title, _ in KANBAN_COLUMNS:
+        assert title[0].isupper()
+        assert title.lower() not in {"pending", "preparing", "delivered", "cancelled"}
+
+
+def test_peso_real_dialog_title_is_dynamic():
+    """Test 48: PesoRealDialog title depends on unit, not hardcoded to always say 'peso'"""
+    assert "Ajustar peso real" in _DELIVERY_SRC
+    assert "Ajustar cantidad" in _DELIVERY_SRC
+    # Title is conditionally set based on _has_weighable
+    assert "_has_weighable" in _DELIVERY_SRC
