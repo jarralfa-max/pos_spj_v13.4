@@ -221,6 +221,22 @@ class DeliverySchemaMigrator:
             """
         )
 
+        # Idempotent print log: one row per (delivery_id, document_type).
+        # Guarantees a retry never prints the same operative/receipt twice.
+        self.db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS delivery_print_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                delivery_id INTEGER NOT NULL,
+                document_type TEXT NOT NULL,
+                operation_id TEXT,
+                printer_id TEXT,
+                status TEXT DEFAULT 'printed',
+                printed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
     def _add_missing_columns(self, table: str, column_definitions: Iterable[str]) -> None:
         existing = self._column_names(table)
         for definition in column_definitions:
@@ -250,5 +266,6 @@ class DeliverySchemaMigrator:
             "CREATE INDEX IF NOT EXISTS idx_delivery_outbox_pending ON delivery_outbox_events(status, id)",
             "CREATE INDEX IF NOT EXISTS idx_delivery_outbox_aggregate ON delivery_outbox_events(aggregate_type, aggregate_id)",
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_outbox_operation ON delivery_outbox_events(event_type, aggregate_id, operation_id) WHERE operation_id IS NOT NULL",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_print_doc ON delivery_print_log(delivery_id, document_type)",
         ):
             self.db.execute(sql)

@@ -99,6 +99,39 @@ class ReservationService:
             logger.info("Released %d reservation(s) for op=%s", count, operation_id)
         return count
 
+    def adjust_reservation(
+        self,
+        db,
+        operation_id: str,
+        product_id: int,
+        new_qty: float,
+        branch_id: int = 1,
+    ) -> int:
+        """Re-set the active reservation for *operation_id*+*product_id* to *new_qty*.
+
+        Called after a weight/quantity adjustment so the soft-lock reflects the
+        real prepared quantity instead of the original requested quantity.
+
+        Idempotent by construction: it writes an ABSOLUTE value, so replaying the
+        same adjustment yields the same row state. Returns rows updated (0 or 1).
+        """
+        with _LOCK:
+            cur = db.execute(
+                "UPDATE inventory_reservations SET reserved_qty=? "
+                "WHERE operation_id=? AND product_id=? AND released=0",
+                (new_qty, operation_id, product_id),
+            )
+            count = cur.rowcount
+            try:
+                db.commit()
+            except Exception:
+                pass
+        logger.info(
+            "Adjusted reservation op=%s product_id=%s new_qty=%.3f rows=%d",
+            operation_id, product_id, new_qty, count,
+        )
+        return count
+
     def commit_reservation(
         self,
         db,
