@@ -48,6 +48,7 @@ from core.db.connection import get_connection
 from core.services.delivery_service import DeliveryService
 from core.delivery.domain.state_machine import DeliveryStateMachine
 from core.services.order_badge_service import OrderBadgeService
+from core.delivery.application.query_service import DeliveryQueryService as _DeliveryQueryService
 from core.utils.delivery_ui_filters import (
     infer_workflow_for_ui as _infer_workflow_for_ui_fn,
     matches_operational_tab as _matches_operational_tab_fn,
@@ -275,7 +276,10 @@ class NuevoPedidoDialog(QDialog):
         self.spin_cant.setDecimals(3)
         self.spin_cant.setFixedWidth(80)
         self.cmb_unidad = QComboBox()
-        self.cmb_unidad.addItems(["kg", "g", "u", "pza", "lt", "ml", "lb", "caja", "docena"])
+        # Unit labels from canonical map — never hardcode string "kg" in UI
+        from core.delivery.domain.value_objects import UNIT_LABELS_ES, UnitCode as _UC
+        _unit_labels = [UNIT_LABELS_ES.get(u, u.value) for u in _UC]
+        self.cmb_unidad.addItems(_unit_labels)
         self.cmb_unidad.setFixedWidth(68)
         self.spin_precio = QDoubleSpinBox()
         self.spin_precio.setRange(0, 999999)
@@ -433,12 +437,7 @@ class NuevoPedidoDialog(QDialog):
         if not q:
             return
         try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre, COALESCE(telefono,''), COALESCE(direccion,'')"
-                " FROM clientes WHERE (nombre LIKE ? OR telefono LIKE ?) AND activo=1"
-                " ORDER BY nombre LIMIT 12",
-                (f"%{q}%", f"%{q}%"),
-            ).fetchall()
+            rows = _DeliveryQueryService(self.conexion).search_customers(q)
         except Exception:
             rows = []
         if not rows:
@@ -478,34 +477,7 @@ class NuevoPedidoDialog(QDialog):
         if len(q) < 2:
             self.lst_prod_sug.hide()
             return
-        try:
-            from backend.application.queries.product_query_service import ProductQueryService
-            svc = ProductQueryService(self.conexion)
-            results = svc.search_products(q)
-            rows = [
-                {
-                    "id": r.get("id"),
-                    "nombre": r.get("nombre") or r.get("name", ""),
-                    "precio": float(r.get("precio") or r.get("price") or 0),
-                    "unidad": r.get("unidad") or r.get("unit") or "u",
-                }
-                for r in results
-            ]
-        except Exception:
-            # Fallback: read-only query through connection (no SQL in UI logic)
-            try:
-                raw = self.conexion.execute(
-                    "SELECT id, nombre, COALESCE(precio,0), COALESCE(unidad,'u')"
-                    " FROM productos WHERE (nombre LIKE ? OR codigo LIKE ?) AND activo=1"
-                    " ORDER BY nombre LIMIT 8",
-                    (f"%{q}%", f"%{q}%"),
-                ).fetchall()
-                rows = [
-                    {"id": r[0], "nombre": r[1], "precio": float(r[2] or 0), "unidad": r[3]}
-                    for r in raw
-                ]
-            except Exception:
-                rows = []
+        rows = _DeliveryQueryService(self.conexion).search_products(q)
         self.lst_prod_sug.clear()
         for r in rows:
             wi = QListWidgetItem(f"{r['nombre']}  —  ${r['precio']:.2f} / {r['unidad']}")
@@ -923,7 +895,7 @@ class PesoRealDialog(QDialog):
         for row, item in enumerate(items):
             nombre   = item.get("nombre", "")
             req_qty  = float(item.get("cantidad") or 0)
-            unit     = item.get("unidad", "kg")
+            unit     = item.get("unidad") or ""
             price    = float(item.get("precio_unitario") or 0)
 
             self.tbl.setItem(row, 0, QTableWidgetItem(nombre))
@@ -1032,7 +1004,7 @@ class PesoRealDialog(QDialog):
         req_qty   = float(item.get("cantidad") or 0)
         price     = float(item.get("precio_unitario") or 0)
         prep_qty  = self._spin_widgets[row].value()
-        unit      = item.get("unidad", "kg")
+        unit      = item.get("unidad") or ""
 
         diff = prep_qty - req_qty
         sign = "+" if diff >= 0 else ""
@@ -1101,7 +1073,7 @@ class PesoRealDialog(QDialog):
                 "prepared_qty":     self._spin_widgets[row].value(),
                 "requested_qty":    float(item.get("cantidad") or 0),
                 "unit_price":       float(item.get("precio_unitario") or 0),
-                "unit":             item.get("unidad", "kg"),
+                "unit":             item.get("unidad") or "",
                 "adjustment_reason": reason,
             }
             for row, item in enumerate(self._items)
@@ -1216,25 +1188,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
 
     def _count_pending_whatsapp_sales(self) -> int:
         """Best-effort diagnostic count: ventas WA pending that may still require sync."""
-        try:
-            exists = self.conexion.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ventas' LIMIT 1"
-            ).fetchone()
-            if not exists:
-                return 0
-            cols = {r[1] for r in self.conexion.execute("PRAGMA table_info(ventas)").fetchall()}
-            if "id" not in cols:
-                return 0
-            where = ["1=1"]
-            if "canal" in cols:
-                where.append("lower(canal)='whatsapp'")
-            if "estado" in cols:
-                where.append("lower(estado) IN ('pendiente','pendiente_wa','en_preparacion','preparacion','en_ruta','programado')")
-            return int(self.conexion.execute(
-                f"SELECT COUNT(*) FROM ventas WHERE {' AND '.join(where)}"
-            ).fetchone()[0] or 0)
-        except Exception:
-            return 0
+        return _DeliveryQueryService(self.conexion).count_pending_whatsapp_sales()
 
     # ── Interfaz de sesión — compatible con SessionManager ────────────────
     def set_sesion(self, usuario: str, rol: str) -> None:
@@ -1509,14 +1463,8 @@ class ModuloDelivery(QWidget, RefreshMixin):
             view = QWebEngineView()
             # Build drivers data + pedidos geolocalizados
             try:
-                rows = self.conexion.execute(
-                    "SELECT c.nombre, dl.lat, dl.lng, dl.actualizado "
-                    "FROM driver_locations dl "
-                    "JOIN empleados c ON c.id = dl.chofer_id "
-                    "ORDER BY dl.actualizado DESC"
-                ).fetchall()
-                drivers_js = str([{"name": r[0], "lat": float(r[1] or 20.967),
-                                   "lng": float(r[2] or -89.623)} for r in rows])
+                rows = _DeliveryQueryService(self.conexion).get_driver_locations()
+                drivers_js = str(rows)
             except Exception:
                 drivers_js = "[]"
             pedidos_js = str([
@@ -1788,127 +1736,17 @@ if(drivers.length===0){{
             return
         self._seleccionar_pedido(self._pedidos_cache[row])
 
-    def _table_exists(self, table_name: str) -> bool:
-        try:
-            row = self.conexion.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
-                (table_name,),
-            ).fetchone()
-            return bool(row)
-        except Exception:
-            return False
-
-    def _columns_of(self, table_name: str):
-        try:
-            return [r[1] for r in self.conexion.execute(f"PRAGMA table_info({table_name})").fetchall()]
-        except Exception:
-            return []
-
-    def _safe_load_order_items(self, order_id: int, sale_id: Optional[int] = None):
+    def _safe_load_order_items(self, order_id, sale_id=None):
         """Carga ítems del pedido con degradación segura por diferencias de esquema."""
-        try:
-            if self._table_exists("delivery_items"):
-                cols = set(self._columns_of("delivery_items"))
-                prepared_expr = "COALESCE(prepared_qty, cantidad)" if "prepared_qty" in cols else "cantidad"
-                adjustment_expr = "COALESCE(adjustment_status, '')" if "adjustment_status" in cols else "''"
-                rows = self.conexion.execute(
-                    f"SELECT nombre, cantidad AS requested_qty, {prepared_expr} AS prepared_qty, "
-                    f"precio_unitario, subtotal, {adjustment_expr} AS adjustment_status "
-                    f"FROM delivery_items WHERE delivery_id=? ORDER BY id LIMIT 50",
-                    (order_id,)
-                ).fetchall()
-                if rows:
-                    return rows
-        except Exception as exc:
-            logger.warning("Delivery items load failed for order=%s: %s", order_id, exc)
+        return _DeliveryQueryService(self.conexion).load_order_items(order_id, sale_id)
 
-        if sale_id:
-            try:
-                if self._table_exists("detalles_venta"):
-                    rows = self.conexion.execute(
-                        "SELECT COALESCE(p.nombre, dv.producto_nombre, 'Producto'), dv.cantidad, dv.cantidad, "
-                        "COALESCE(dv.precio_unitario, 0), COALESCE(dv.subtotal, 0), '' "
-                        "FROM detalles_venta dv "
-                        "LEFT JOIN productos p ON p.id = dv.producto_id "
-                        "WHERE dv.venta_id=? LIMIT 50",
-                        (sale_id,),
-                    ).fetchall()
-                    if rows:
-                        return rows
-                if self._table_exists("venta_items"):
-                    rows = self.conexion.execute(
-                        "SELECT COALESCE(vi.producto_nombre, 'Producto'), vi.cantidad, vi.cantidad, "
-                        "COALESCE(vi.precio_unitario, 0), COALESCE(vi.subtotal, 0), '' "
-                        "FROM venta_items vi WHERE vi.venta_id=? LIMIT 50",
-                        (sale_id,),
-                    ).fetchall()
-                    if rows:
-                        return rows
-            except Exception as exc:
-                logger.warning("Delivery item fallback failed for sale=%s: %s", sale_id, exc)
-        return []
-
-    def _safe_load_order_history(self, order_id: int, current_status: str):
+    def _safe_load_order_history(self, order_id, current_status: str = ""):
         """Carga historial de pedido con fallback legacy."""
-        try:
-            if self._table_exists("delivery_order_history"):
-                rows = self.conexion.execute(
-                    "SELECT estado_anterior, estado_nuevo, usuario, fecha, observacion "
-                    "FROM delivery_order_history WHERE order_id=? ORDER BY fecha ASC LIMIT 40",
-                    (order_id,),
-                ).fetchall()
-                if rows:
-                    lines = []
-                    for prev_s, new_s, user, when, note in rows:
-                        parts = [str(when or "")[:19], f"{prev_s or '-'} → {new_s or '-'}"]
-                        if user:
-                            parts.append(f"por {user}")
-                        if note:
-                            parts.append(str(note))
-                        lines.append(" · ".join(parts))
-                    return "\n".join(lines)
-        except Exception as exc:
-            logger.warning("Delivery history load failed (new table) order=%s: %s", order_id, exc)
-        try:
-            if self._table_exists("delivery_status_events"):
-                rows = self.conexion.execute(
-                    "SELECT to_status, created_at, note FROM delivery_status_events "
-                    "WHERE order_id=? ORDER BY created_at ASC LIMIT 40",
-                    (order_id,),
-                ).fetchall()
-                if rows:
-                    return "\n".join([f"{str(r[1])[:19]} · {r[0]}{(' · ' + str(r[2])) if r[2] else ''}" for r in rows])
-        except Exception as exc:
-            logger.warning("Delivery history load failed (legacy table) order=%s: %s", order_id, exc)
-        return f"Creado\nEstado actual · {current_status}"
+        return _DeliveryQueryService(self.conexion).load_order_history(order_id, current_status)
 
-    def _safe_load_whatsapp_conversation(self, order_id: int, pedido: dict) -> str:
+    def _safe_load_whatsapp_conversation(self, order_id, pedido: dict) -> str:
         """Carga conversación WA si existe en DB ERP; si no, entrega fallback no intrusivo."""
-        try:
-            if self._table_exists("whatsapp_messages"):
-                cols = set(self._columns_of("whatsapp_messages"))
-                required = {"pedido_id", "mensaje", "tipo", "fecha"}
-                if required.issubset(cols):
-                    rows = self.conexion.execute(
-                        "SELECT mensaje, tipo, fecha FROM whatsapp_messages "
-                        "WHERE pedido_id=? ORDER BY fecha ASC LIMIT 12",
-                        (order_id,),
-                    ).fetchall()
-                    if rows:
-                        lines = []
-                        for msg_text, msg_tipo, msg_fecha in rows:
-                            is_out = str(msg_tipo or "").lower() in ("enviado", "out", "bot", "sistema")
-                            prefix = "→" if is_out else "←"
-                            hora = str(msg_fecha or "")[-8:][:5]
-                            lines.append(f"[{hora}] {prefix} {msg_text}")
-                        return "\n".join(lines)
-        except Exception as exc:
-            logger.warning("Delivery WA conversation load failed order=%s: %s", order_id, exc)
-        wa_id = pedido.get("whatsapp_order_id") or ""
-        snippet = (pedido.get("notas") or "")[:80]
-        if wa_id:
-            return f"Pedido WA #{wa_id}\n{snippet}" if snippet else f"Pedido WA #{wa_id}"
-        return "Sin conversación registrada en ERP"
+        return _DeliveryQueryService(self.conexion).load_whatsapp_conversation(order_id, pedido)
 
     def _seleccionar_pedido(self, pedido: dict) -> None:
         """Rellena el panel de detalle con los datos del pedido seleccionado."""
@@ -2091,22 +1929,19 @@ if(drivers.length===0){{
         try:
             from delivery.asignacion_repartidor import AsignacionRepartidor
             asign = AsignacionRepartidor(self.conexion)
-            pendientes = self.conexion.execute(
-                "SELECT id FROM delivery_orders WHERE estado='pendiente' AND driver_id IS NULL "
-                "AND sucursal_id=? ORDER BY fecha_solicitud",
-                (self.sucursal_id,)
-            ).fetchall()
-            if not pendientes:
+            _qs = _DeliveryQueryService(self.conexion)
+            pending_ids = _qs.get_pending_unassigned_order_ids(self.sucursal_id)
+            if not pending_ids:
                 Toast.info(self, "Auto-Asignación", "No hay pedidos pendientes sin repartidor.")
                 return
             asignados = 0
-            for row in pendientes:
-                rep_id = asign.asignar_automatico(row[0])
+            for order_id in pending_ids:
+                rep_id = asign.asignar_automatico(order_id)
                 if rep_id:
                     asignados += 1
             Toast.success(
                 self, "✅ Auto-Asignación",
-                f"{asignados}/{len(pendientes)} pedidos asignados.",
+                f"{asignados}/{len(pending_ids)} pedidos asignados.",
             )
             QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
         except Exception as e:
@@ -2261,16 +2096,10 @@ if(drivers.length===0){{
         Sound is emitted only once per new dedupe key (or inbox row id fallback).
         """
         branch_id = self._get_branch_id_for_counts()
-        try:
-            rows = self.conexion.execute(
-                "SELECT id, titulo, mensaje, tipo, dedupe_key, order_id "
-                "FROM notification_inbox "
-                "WHERE COALESCE(sucursal_id,1)=? AND COALESCE(leido,0)=0 "
-                "AND id>? "
-                "ORDER BY id ASC LIMIT 30",
-                (branch_id, int(self._last_notif_rowid or 0)),
-            ).fetchall()
-        except Exception:
+        rows = _DeliveryQueryService(self.conexion).get_notification_inbox(
+            branch_id, self._last_notif_rowid
+        )
+        if rows is None:
             return
         if not rows:
             return
@@ -2308,12 +2137,11 @@ if(drivers.length===0){{
                 printer.print_both(pedido_id)
                 return
             elif accion == "reactivar":
-                row = self.conexion.execute(
-                    "SELECT estado FROM delivery_orders WHERE id=?", (pedido_id,)
-                ).fetchone()
-                if not row:
+                _qs = _DeliveryQueryService(self.conexion)
+                order_raw = _qs.get_order_raw(pedido_id)
+                if not order_raw:
                     return
-                if row[0] not in ("entregado", "cancelado"):
+                if order_raw.get("estado") not in ("entregado", "cancelado"):
                     QMessageBox.information(self, "Reactivar", "Solo pedidos entregados o cancelados pueden reactivarse.")
                     return
                 reply = QMessageBox.question(
@@ -2328,10 +2156,9 @@ if(drivers.length===0){{
                 return
             elif accion == "ver_detalle":
                 # Show read-only detail dialog for delivered orders
-                row = self.conexion.execute(
-                    "SELECT * FROM delivery_orders WHERE id=?", (pedido_id,)
-                ).fetchone()
-                if not row:
+                _qs = _DeliveryQueryService(self.conexion)
+                order_raw = _qs.get_order_raw(pedido_id)
+                if not order_raw:
                     return
                 from PyQt5.QtWidgets import QTextEdit
                 dlg_det = QDialog(self)
@@ -2340,8 +2167,7 @@ if(drivers.length===0){{
                 v = QVBoxLayout(dlg_det)
                 txt = QTextEdit()
                 txt.setReadOnly(True)
-                d = dict(row)
-                content = "\n".join(f"{k}: {v2}" for k, v2 in d.items() if v2 is not None)
+                content = "\n".join(f"{k}: {v2}" for k, v2 in order_raw.items() if v2 is not None)
                 txt.setPlainText(content)
                 v.addWidget(txt)
                 bb = QDialogButtonBox(QDialogButtonBox.Close)
@@ -2413,7 +2239,7 @@ if(drivers.length===0){{
                                 prepared_qty=adj["prepared_qty"],
                                 prepared_by=self.usuario,
                                 adjustment_reason=adj.get("adjustment_reason", ""),
-                                unit=adj.get("unit", "kg"),
+                                unit=adj.get("unit") or "",
                             )
                         except Exception as exc:
                             logger.warning("adjust_item_weight item=%s: %s", adj["item_id"], exc)
@@ -2428,11 +2254,8 @@ if(drivers.length===0){{
                 QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
                 return
             elif accion == "ajustar_peso":
-                estado_row = self.conexion.execute(
-                    "SELECT COALESCE(estado,'') FROM delivery_orders WHERE id=?",
-                    (pedido_id,),
-                ).fetchone()
-                estado_actual = str((estado_row[0] if estado_row else "") or "").strip().lower()
+                _order_raw = _DeliveryQueryService(self.conexion).get_order_raw(pedido_id) or {}
+                estado_actual = str(_order_raw.get("estado") or "").strip().lower()
                 if estado_actual != "preparacion":
                     QMessageBox.warning(
                         self,
@@ -2459,7 +2282,7 @@ if(drivers.length===0){{
                             prepared_qty=adj["prepared_qty"],
                             prepared_by=self.usuario,
                             adjustment_reason=adj.get("adjustment_reason", ""),
-                            unit=adj.get("unit", "kg"),
+                            unit=adj.get("unit") or "",
                         )
                     except Exception as exc:
                         logger.warning("adjust_item_weight item=%s: %s", adj["item_id"], exc)
@@ -2486,22 +2309,16 @@ if(drivers.length===0){{
                 )
                 return
             elif accion == "notificar_wa":
-                row = self.conexion.execute(
-                    "SELECT cliente_nombre, cliente_tel, estado FROM delivery_orders WHERE id=?",
-                    (pedido_id,)
-                ).fetchone()
-                if not row or not row[1]:
+                _row = _DeliveryQueryService(self.conexion).get_order_raw(pedido_id) or {}
+                if not _row.get("cliente_tel"):
                     QMessageBox.warning(self, "Sin teléfono", "El pedido no tiene teléfono de cliente."); return
-                self._notificar_whatsapp(pedido_id, row[2], {})
-                Toast.success(self, "WhatsApp", f"Notificación enviada a {row[1]}")
+                self._notificar_whatsapp(pedido_id, _row.get("estado", ""), {})
+                Toast.success(self, "WhatsApp", f"Notificación enviada a {_row.get('cliente_tel','')}")
                 return
             elif accion == "link_pago":
-                row = self.conexion.execute(
-                    "SELECT id, folio, total, cliente_tel FROM delivery_orders WHERE id=?",
-                    (pedido_id,)
-                ).fetchone()
-                folio = (row[1] or f"DEL-{pedido_id}") if row else f"DEL-{pedido_id}"
-                total = float(row[2] or 0) if row else 0
+                _row = _DeliveryQueryService(self.conexion).get_order_raw(pedido_id) or {}
+                folio = (_row.get("folio") or f"DEL-{pedido_id}")
+                total = float(_row.get("total") or 0)
 
                 # Try MercadoPago first; fall back to generic URL
                 link = None
@@ -2567,14 +2384,8 @@ if(drivers.length===0){{
                     lay_pago = QVBoxLayout(dlg_pago)
                     form_pago = QFormLayout()
                     
-                    # Get order total
-                    try:
-                        ord_row = self.conexion.execute(
-                            "SELECT COALESCE(total,0) FROM delivery_orders WHERE id=?",
-                            (pedido_id,)).fetchone()
-                        total_pedido = float(ord_row[0]) if ord_row else 0.0
-                    except Exception:
-                        total_pedido = 0.0
+                    # Get order total via query service (no SQL in UI)
+                    total_pedido = _DeliveryQueryService(self.conexion).get_order_total(pedido_id)
                     
                     cmb_metodo = QComboBox()
                     cmb_metodo.addItems(["Efectivo","Tarjeta","Transferencia","Ya pagado (online)","Sin cobro"])
@@ -2644,16 +2455,18 @@ if(drivers.length===0){{
 
     def _notificar_whatsapp(self, pedido_id, accion, data):
         try:
-            row = self.conexion.execute(
-                "SELECT cliente_nombre, cliente_tel FROM delivery_orders WHERE id=?",(pedido_id,)).fetchone()
-            if not row or not row[1]: return
+            _order = _DeliveryQueryService(self.conexion).get_order_raw(pedido_id) or {}
+            tel = _order.get("cliente_tel") or ""
+            nombre = _order.get("cliente_nombre") or ""
+            if not tel:
+                return
             from integrations.whatsapp_service import WhatsAppService
             wa = WhatsAppService(self.conexion)
             if accion == "en_ruta":
-                dr = data.get("repartidor","Repartidor")
-                wa.notificar_delivery_en_camino(row[1],row[0],str(pedido_id),dr,data.get("tiempo",30))
+                dr = data.get("repartidor", "Repartidor")
+                wa.notificar_delivery_en_camino(tel, nombre, str(pedido_id), dr, data.get("tiempo", 30))
             elif accion == "entregado":
-                wa.notificar_delivery_entregado(row[1],row[0],str(pedido_id))
+                wa.notificar_delivery_entregado(tel, nombre, str(pedido_id))
         except Exception as e:
             logger.debug("WA notify: %s", e)
 
@@ -2705,13 +2518,8 @@ if(drivers.length===0){{
         # Selector de repartidor
         form = QFormLayout()
         cmb_driver = QComboBox()
-        try:
-            rows = self.conexion.execute(
-                "SELECT id, nombre FROM drivers WHERE activo=1 ORDER BY nombre").fetchall()
-            for r in rows:
-                cmb_driver.addItem(r[1], r[0])
-        except Exception:
-            pass
+        for r in _DeliveryQueryService(self.conexion).get_active_drivers():
+            cmb_driver.addItem(r[1], r[0])
         form.addRow("Repartidor:", cmb_driver)
         lay.addLayout(form)
 
@@ -2932,38 +2740,27 @@ if(drivers.length===0){{
         hh.setSectionResizeMode(1, QHeaderView.Stretch)
         lay.addWidget(tbl)
 
-        try:
-            rows = self.conexion.execute("""
-                SELECT id, driver_nombre,
-                       COALESCE(fecha, turno_fin, datetime('now')) AS fecha,
-                       entregas_total,
-                       efectivo_cobrado, tarjeta_cobrado, transfer_cobrado,
-                       efectivo_entregado, diferencia, usuario_corte
-                FROM delivery_driver_cuts
-                ORDER BY COALESCE(fecha, turno_fin) DESC LIMIT 100
-            """).fetchall()
-            tbl.setRowCount(len(rows))
-            if not rows:
-                empty = QLabel("No hay cortes registrados aún.")
-                empty.setAlignment(Qt.AlignCenter)
-                empty.setObjectName("textMuted")
-                lay.addWidget(empty)
-            for i, r in enumerate(rows):
-                for j, v in enumerate(r):
-                    val = v
-                    if j in (4, 5, 6, 7, 8) and v is not None:
-                        val = f"${float(v):.2f}"
-                    item = QTableWidgetItem(str(val) if val is not None else "")
-                    # Color diferencia
-                    if j == 8 and v is not None:
-                        diff = float(v)
-                        if abs(diff) > 0.01:
-                            item.setForeground(QColor(Colors.DANGER_HOVER) if diff < 0 else QColor(Colors.WARNING_HOVER))
-                        else:
-                            item.setForeground(QColor(Colors.SUCCESS_BASE))
-                    tbl.setItem(i, j, item)
-        except Exception as e:
-            lay.addWidget(QLabel(f"Error cargando historial: {e}"))
+        rows = _DeliveryQueryService(self.conexion).get_driver_cut_history()
+        tbl.setRowCount(len(rows))
+        if not rows:
+            empty = QLabel("No hay cortes registrados aún.")
+            empty.setAlignment(Qt.AlignCenter)
+            empty.setObjectName("textMuted")
+            lay.addWidget(empty)
+        for i, r in enumerate(rows):
+            for j, v in enumerate(r):
+                val = v
+                if j in (4, 5, 6, 7, 8) and v is not None:
+                    val = f"${float(v):.2f}"
+                item = QTableWidgetItem(str(val) if val is not None else "")
+                # Color diferencia
+                if j == 8 and v is not None:
+                    diff = float(v)
+                    if abs(diff) > 0.01:
+                        item.setForeground(QColor(Colors.DANGER_HOVER) if diff < 0 else QColor(Colors.WARNING_HOVER))
+                    else:
+                        item.setForeground(QColor(Colors.SUCCESS_BASE))
+                tbl.setItem(i, j, item)
 
         btn_cerrar = QPushButton("Cerrar")
         btn_cerrar.setObjectName("secondaryBtn")
