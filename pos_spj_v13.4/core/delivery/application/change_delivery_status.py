@@ -75,7 +75,7 @@ class ChangeDeliveryStatusUseCase:
         # ── Stock availability check before marking as preparacion ─────────────
         if target == "preparacion" and self.inventory_service is not None:
             items = self.get_order_items(order_id)
-            branch_id = int(order_before.get("sucursal_id") or 1)
+            branch_id = order_before.get("sucursal_id") or 1
             for item in items:
                 pid = item.get("producto_id")
                 qty = float(item.get("cantidad") or 0)
