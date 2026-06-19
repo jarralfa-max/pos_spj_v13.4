@@ -15,15 +15,14 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QMessageBox, QDialog, QDialogButtonBox, QComboBox,
-    QTextEdit, QLineEdit, QScrollArea, QSizePolicy, QFileDialog, QSplitter, QTabWidget,
+    QTextEdit, QLineEdit, QScrollArea, QSizePolicy, QFileDialog, QTabWidget,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor
 
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
@@ -38,9 +37,9 @@ from backend.application.services.inventory_application_service import Inventory
 from core.events.event_bus import (
     VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
     AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
-    PRODUCCION_COMPLETADA, PRODUCCION_REGISTRADA, INVENTARIO_ACTUALIZADO,
-    get_bus,
 )
+from frontend.desktop.components.quantity_input import QuantityInput
+from frontend.desktop.components.money_input import MoneyInput
 
 logger = logging.getLogger("spj.inventario")
 
@@ -88,12 +87,6 @@ _ADJUSTMENT_REASONS = [
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _card_frame(parent=None, object_name: str = "kpiCard") -> QFrame:
-    f = QFrame(parent)
-    f.setObjectName(object_name)
-    return f
-
 
 def _section_lbl(text: str, parent=None) -> QLabel:
     lbl = QLabel(text.upper(), parent)
@@ -617,13 +610,10 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def __init__(self, container, parent=None):
         super().__init__(parent)
-        self._inventory_dirty = False   # True when data may be stale (missed events while hidden)
         try:
             self._init_refresh(container, [
-                VENTA_COMPLETADA, PRODUCTO_ACTUALIZADO, PRODUCTO_CREADO,
-                AJUSTE_INVENTARIO, COMPRA_REGISTRADA,
-                PRODUCCION_REGISTRADA, PRODUCCION_COMPLETADA,
-                INVENTARIO_ACTUALIZADO,
+                "VENTA_COMPLETADA", "PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO",
+                "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
             ])
         except Exception:
             logger.exception("No se pudo inicializar refresh de inventario")
@@ -653,50 +643,10 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.usuario_actual = usuario
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
-        """
-        Called by RefreshMixin in the Qt main thread after debounce.
-
-        Filters events by sucursal_id when possible so branch B does not
-        trigger a reload in branch A.  If the module is hidden, marks it
-        dirty so showEvent() will reload it when it becomes visible again.
-        """
-        # Sucursal filter: skip events from a different branch
-        event_suc = data.get("sucursal_id")
-        if event_suc is not None and int(event_suc) != int(self.sucursal_id):
-            logger.debug(
-                "Inventario: event %s from sucursal %s skipped (active=%s)",
-                event_type, event_suc, self.sucursal_id,
-            )
-            return
-
-        if not self.isVisible():
-            # Module is behind another tab — mark dirty, reload on show
-            self._inventory_dirty = True
-            logger.debug(
-                "Inventario: module hidden, marked dirty for event %s", event_type
-            )
-            return
-
         try:
-            logger.debug(
-                "Inventario: refreshing for event %s sucursal=%s",
-                event_type, self.sucursal_id,
-            )
-            self._inventory_dirty = False
             self.cargar_datos()
         except Exception:
             logger.exception("No se pudo refrescar inventario por evento %s", event_type)
-
-    def showEvent(self, event):
-        """Reload data when module becomes visible if it missed events while hidden."""
-        super().showEvent(event)
-        if getattr(self, "_inventory_dirty", False):
-            self._inventory_dirty = False
-            logger.debug("Inventario: became visible with dirty flag — reloading")
-            try:
-                self.cargar_datos()
-            except Exception:
-                logger.exception("Inventario: showEvent reload failed")
 
     # ── UI construction ───────────────────────────────────────────────────────
 
@@ -1025,8 +975,6 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
 
         self.tabla.setRowCount(0)
-        self.tabla_disponibilidad.setRowCount(0)
-        self.tabla_virtual.setRowCount(0)
 
         for i, r in enumerate(rows):
             prod_id  = int(r[0])
@@ -1133,8 +1081,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             for j, v in enumerate(r):
                 self.tabla_movimientos.setItem(i, j, QTableWidgetItem(str(v or "")))
 
-    def _refresh_kpis(self, db) -> None:
-        del db
+    def _refresh_kpis(self, _db=None) -> None:
         data = self._inventory_query.get_operational_kpis(
             branch_id=self.sucursal_id, product_data=self._prod_data
         )

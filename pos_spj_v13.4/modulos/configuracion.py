@@ -341,7 +341,6 @@ class ModuloConfiguracion(ModuloBase):
 
     def _ejecutar_cierre_mensual(self) -> None:
         """Calcula y guarda el cierre del período seleccionado."""
-        from PyQt5.QtWidgets import QMessageBox
         periodo = self._dte_cierre.date().toString("yyyy-MM")
         usuario = getattr(self, 'usuario_actual', 'Sistema')
 
@@ -389,15 +388,13 @@ class ModuloConfiguracion(ModuloBase):
                 f"✅ {periodo} cerrado — Ventas ${total_ventas:,.2f}")
             self._lbl_cierre_status.setObjectName("textSuccess")
             self._cargar_historial_cierres()
-            from PyQt5.QtWidgets import QMessageBox as _QMB
-            _QMB.information(self, "Cierre ejecutado",
+            QMessageBox.information(self, "Cierre ejecutado",
                 f"Periodo {periodo} cerrado. "
                 f"Ventas: ${total_ventas:,.2f} | "
                 f"Compras: ${total_compras:,.2f} | "
                 f"Merma: ${total_merma:,.2f}")
         except Exception as e:
-            from PyQt5.QtWidgets import QMessageBox as _QMB
-            _QMB.critical(self, "Error", str(e))
+            QMessageBox.critical(self, "Error", str(e))
             self._lbl_cierre_status.setText(f"❌ {e}")
             self._lbl_cierre_status.setObjectName("textDanger")
 
@@ -420,7 +417,6 @@ class ModuloConfiguracion(ModuloBase):
                 f"${float(r[4] or 0):,.2f}",
                 f"${float(r[5] or 0):,.2f}",
             ]
-            from PyQt5.QtCore import Qt
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -551,6 +547,7 @@ class ModuloConfiguracion(ModuloBase):
         configured_branch = settings.get('sucursal_instalacion_id')
         if configured_branch:
 <<<<<<< HEAD
+<<<<<<< HEAD
             selected_branch = self._find_option_by_id(
                 [(str(branch_id), str(branch_name)) for branch_id, branch_name in sucs],
                 str(configured_branch),
@@ -581,6 +578,17 @@ class ModuloConfiguracion(ModuloBase):
             finally:
                 self.cmb_sucursal_inst.blockSignals(False)
 >>>>>>> 71fbed6f4849380a8a2a4e115b6a5844f00241fd
+=======
+            try:
+                suc_id = int(configured_branch)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Sucursal inválida", f"La sucursal configurada no es válida: {exc}")
+                return
+            for index in range(self.cmb_sucursal_inst.count()):
+                if self.cmb_sucursal_inst.itemData(index) == suc_id:
+                    self.cmb_sucursal_inst.setCurrentIndex(index)
+                    break
+>>>>>>> d54e4892302fb7960f4b554ea58cac8d8aaece11
 
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
@@ -876,7 +884,11 @@ class ModuloConfiguracion(ModuloBase):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(2, 2, 2, 2)
+<<<<<<< HEAD
             rule_id = str(rule["id"])
+=======
+            rule_id = rule["id"]
+>>>>>>> d54e4892302fb7960f4b554ea58cac8d8aaece11
             active = bool(rule.get("activo"))
             btn_edit = self._create_action_button("✏️", "Editar regla Happy Hour", "edit")
             btn_edit.clicked.connect(lambda _, rid=rule_id: self._editar_happy_hour_rule(rid))
@@ -1261,7 +1273,6 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_usuarios_v13(self):
         from PyQt5.QtWidgets import QWidget, QHBoxLayout
-        from PyQt5.QtCore import Qt
         try:
             rows = self.user_management_service.list_users()
         except Exception as exc:
@@ -1417,7 +1428,6 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_roles_v13(self):
         from PyQt5.QtWidgets import QWidget, QHBoxLayout
-        from PyQt5.QtCore import Qt
         try:
             rows = self.role_management_service.list_roles()
         except Exception as exc:
@@ -1517,7 +1527,6 @@ class ModuloConfiguracion(ModuloBase):
             )
 
     def _cargar_auditoria_v13(self):
-        from PyQt5.QtCore import Qt
         try:
             rows = self.permission_query_service.audit_log_rows(limit=200)
         except Exception as exc:
@@ -1535,9 +1544,3 @@ class ModuloConfiguracion(ModuloBase):
         """Maneja el cierre del módulo"""
         self.registrar_actualizacion("modulo_cerrado", {"modulo": "configuraciones"})
         super().closeEvent(event)
-
-
-
-# =============================================================================
-# DIÁLOGO PARA CREAR / EDITAR SUCURSAL
-# =============================================================================

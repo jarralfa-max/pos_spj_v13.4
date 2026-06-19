@@ -33,6 +33,9 @@ from modulos.ui_components import (
 logger = logging.getLogger("spj.modulo.merma")
 
 UMBRAL_VALOR_ALTO = 500.0
+_MAX_QTY = 99_999.0
+_DEFAULT_UNIT = "kg"
+_ZERO_DISPLAY = "$0.00"
 
 
 class CoreEventBusAdapter:
@@ -179,14 +182,14 @@ class ModuloMerma(QWidget):
         form.addRow("", self.lbl_producto_info)
 
         self.spin_cantidad = QDoubleSpinBox()
-        self.spin_cantidad.setRange(0.00, 99999.00)
+        self.spin_cantidad.setRange(0.00, _MAX_QTY)
         self.spin_cantidad.setDecimals(2)
         self.spin_cantidad.setValue(0.00)
         self.spin_cantidad.setStyleSheet(f"padding: {Spacing.XS}; font-size: {Typography.SIZE_SM};")
         self.spin_cantidad.valueChanged.connect(self._actualizar_valor_perdida)
         form.addRow("Cantidad:", self.spin_cantidad)
 
-        self.lbl_valor_perdida = QLabel("$0.00")
+        self.lbl_valor_perdida = QLabel(_ZERO_DISPLAY)
         self.lbl_valor_perdida.setObjectName("heading")
         self.lbl_valor_perdida.setStyleSheet(f"color: {Colors.DANGER_BASE};")
         form.addRow("Valor pérdida:", self.lbl_valor_perdida)
@@ -279,7 +282,7 @@ class ModuloMerma(QWidget):
             metadata = dict(result.metadata or {})
             metadata["stock"] = self._canonical_stock_quantity(result.id)
             self._product_search_cache[str(result.id)] = metadata
-            unit = str(metadata.get("unit") or "kg")
+            unit = str(metadata.get("unit") or _DEFAULT_UNIT)
             unit_cost = _safe_float(metadata.get("unit_cost"))
             subtitle = f"Stock: {metadata['stock']:.2f} {unit} | Costo: ${unit_cost:.2f}"
             options.append(SearchOption(id=result.id, label=result.label, subtitle=subtitle))
@@ -300,8 +303,6 @@ class ModuloMerma(QWidget):
             return
 
         product_id = str(option.id) if option.id is not None else ""
-        logger.info("[MERMA] click en fila product_id=%s label=%s", product_id, option.label)
-        logger.info("[MERMA] producto_id recuperado product_id=%s", product_id)
         logger.info(
             "[MERMA] producto seleccionado desde SearchSelector product_id=%s label=%s",
             product_id, option.label,
@@ -325,7 +326,7 @@ class ModuloMerma(QWidget):
         metadata = dict(metadata)
         metadata["id"] = metadata.get("id", product_id)
         metadata["name"] = str(metadata.get("name") or option.label or f"Producto #{product_id}")
-        metadata["unit"] = str(metadata.get("unit") or "kg")
+        metadata["unit"] = str(metadata.get("unit") or _DEFAULT_UNIT)
         metadata["stock"] = self._canonical_stock_quantity(product_id)
         metadata["unit_cost"] = _safe_float(metadata.get("unit_cost"))
         self._selected_product = metadata
@@ -366,7 +367,7 @@ class ModuloMerma(QWidget):
                     f"font-size: {Typography.SIZE_LG}; font-weight: bold; color: {Colors.DANGER_BASE}; "
                     f"padding: {Spacing.XS} {Spacing.SM}; background-color: {Colors.DANGER.BG_SOFT}; border-radius: {Borders.RADIUS_MD};")
         else:
-            self.lbl_valor_perdida.setText("$0.00")
+            self.lbl_valor_perdida.setText(_ZERO_DISPLAY)
 
     def _registrar(self) -> None:
         try:
@@ -401,7 +402,7 @@ class ModuloMerma(QWidget):
             QMessageBox.warning(self, "Aviso", "El producto seleccionado no tiene un ID válido.")
             return
         nombre = str(product.get("name", ""))
-        unidad = str(product.get("unit", "kg"))
+        unidad = str(product.get("unit", _DEFAULT_UNIT))
         stock_actual = _safe_float(product.get("stock"))
         costo_unitario = _safe_float(product.get("unit_cost"))
         motivo = self.cmb_motivo.currentText()
@@ -416,7 +417,6 @@ class ModuloMerma(QWidget):
             "[MERMA] validación stock actual=%.2f cantidad=%.2f",
             stock_actual, cantidad,
         )
-        logger.info("[MERMA] registro de merma product_id usado product_id=%s", product_id)
 
         if cantidad > stock_actual:
             QMessageBox.warning(
@@ -538,7 +538,7 @@ class ModuloMerma(QWidget):
         self._selected_product = None
         self._product_search_cache = {}
         self.lbl_producto_info.setText("")
-        self.lbl_valor_perdida.setText("$0.00")
+        self.lbl_valor_perdida.setText(_ZERO_DISPLAY)
         self.product_selector.clear()
 
     def _cargar_historial(self):
@@ -567,7 +567,7 @@ class ModuloMerma(QWidget):
                     values.get("date", ""),
                     values.get("product_name", ""),
                     f"{cant:.2f}",
-                    values.get("unit", "kg"),
+                    values.get("unit", _DEFAULT_UNIT),
                     f"${_safe_float(values.get('unit_cost')):.2f}",
                     f"${valor:.2f}",
                     values.get("reason", ""),
@@ -596,7 +596,7 @@ class ModuloMerma(QWidget):
                 self._hist_empty.setVisible(n_registros == 0)
             summary = self._waste_query_service.get_daily_summary({"branch_id": str(self.sucursal_id)}).value
             self.lbl_resumen.setText(
-                f"Hoy: {int(summary.get('records', 0))} mermas  —  "
+                f"Hoy: {summary.get('records', 0)} mermas  —  "
                 f"Pérdida: ${_safe_float(summary.get('loss_value')):.2f}")
             logger.info("[MERMA] historial cargado count=%d", n_registros)
         except Exception:
