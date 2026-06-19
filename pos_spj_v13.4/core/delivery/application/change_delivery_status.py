@@ -204,6 +204,32 @@ class ChangeDeliveryStatusUseCase:
             self._enqueue(DeliveryEvents.INVENTORY_COMMIT_REQUIRED.value, order_id, commit_payload, operation_id=inventory_operation_id)
             events_to_publish.append((DeliveryEvents.INVENTORY_COMMIT_REQUIRED.value, commit_payload))
 
+            # Canonical cobrable document shared with Caja/Finanzas (defect 11/14).
+            final_total = float(order.get("total") or 0)
+            advance_paid = float(order.get("anticipo") or 0)
+            paid_amount = float(pago_monto or 0)
+            balance_due = max(final_total - advance_paid - paid_amount, 0.0)
+            total_finalized_payload = {
+                "order_id": order_id,
+                "delivery_id": order_id,
+                "customer_id": order.get("cliente_id"),
+                "branch_id": sucursal_id,
+                "estimated_total": final_total,
+                "final_total": final_total,
+                "advance_paid": advance_paid,
+                "balance_due": balance_due,
+                "payment_method": pago_metodo or order.get("pago_metodo") or "",
+                "cash_on_delivery_amount": paid_amount,
+                "folio": folio,
+            }
+            self._enqueue(
+                DeliveryEvents.TOTAL_FINALIZED.value,
+                order_id,
+                total_finalized_payload,
+                operation_id=f"delivery:{order_id}:total_finalized",
+            )
+            events_to_publish.append((DeliveryEvents.TOTAL_FINALIZED.value, total_finalized_payload))
+
         notification_payload = {
             "order_id": order_id,
             "canal": "whatsapp",
