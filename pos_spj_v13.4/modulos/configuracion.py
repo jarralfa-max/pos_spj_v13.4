@@ -550,6 +550,7 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.warning(self, "Sucursales", "No hay sucursales activas configuradas.")
         configured_branch = settings.get('sucursal_instalacion_id')
         if configured_branch:
+<<<<<<< HEAD
             selected_branch = self._find_option_by_id(
                 [(str(branch_id), str(branch_name)) for branch_id, branch_name in sucs],
                 str(configured_branch),
@@ -557,6 +558,29 @@ class ModuloConfiguracion(ModuloBase):
             if selected_branch is not None:
                 self._selected_install_branch_option = selected_branch
                 self.branch_install_selector.set_selected_label(selected_branch.label)
+=======
+            stored = str(configured_branch).strip()
+            self.cmb_sucursal_inst.blockSignals(True)
+            try:
+                # findData matches itemData by string equality (itemData is str from active_branches_for_selector)
+                idx = self.cmb_sucursal_inst.findData(stored)
+                if idx < 0 and stored.isdigit():
+                    # Legacy path: stored is integer string, itemData may also be integer string
+                    for i in range(self.cmb_sucursal_inst.count()):
+                        d = self.cmb_sucursal_inst.itemData(i)
+                        if d is not None and str(d) == stored:
+                            idx = i
+                            break
+                if idx >= 0:
+                    self.cmb_sucursal_inst.setCurrentIndex(idx)
+                else:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "_cargar_empresa: configured branch '%s' not found in selector", stored
+                    )
+            finally:
+                self.cmb_sucursal_inst.blockSignals(False)
+>>>>>>> 71fbed6f4849380a8a2a4e115b6a5844f00241fd
 
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
@@ -639,10 +663,7 @@ class ModuloConfiguracion(ModuloBase):
         if values.get('smtp_host'):
             self.smtp_host.setText(str(values['smtp_host']))
         if values.get('smtp_port'):
-            try:
-                self.smtp_port.setValue(int(float(values['smtp_port'])))
-            except (ValueError, TypeError):
-                pass
+            self.smtp_port.setValue(int(values['smtp_port']))
         if values.get('smtp_user'):
             self.smtp_user.setText(str(values['smtp_user']))
         if values.get('smtp_password'):
