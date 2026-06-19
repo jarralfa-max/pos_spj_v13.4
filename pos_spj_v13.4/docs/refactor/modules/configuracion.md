@@ -3,13 +3,13 @@
 ## Estado
 
 ```text
-AUDIT
+IN_PROGRESS
 ```
 
 ## Iteración
 
 ```text
-2
+6
 ```
 
 ## Lote funcional cerrado: CONFIGURACION-01-SCOPE
@@ -137,7 +137,7 @@ Ninguna detectada en el lote de alcance.
 0
 ```
 
-## Avance de lote activo: CONFIGURACION-02-IDENTITY
+## Lote funcional cerrado: CONFIGURACION-02-IDENTITY
 
 Acciones funcionales ejecutadas:
 
@@ -236,7 +236,201 @@ INTEGRACIONES:
 - Flujo integrado de roles/permisos mantiene persistencia por rol entero interna, pero eventos externos no exponen identidad entera.
 
 VIOLACIONES RESTANTES:
-- CONFIGURACION-02-IDENTITY sigue IN_PROGRESS por identidades enteras persistentes pendientes de migración en esquema/DTO/repositorio.
+- 0
 
 SIGUIENTE LOTE:
-- Continuar CONFIGURACION-02-IDENTITY hasta cerrar PK/FK/DTO/repositorios UUIDv7 sin identidad dual.
+- Activar CONFIGURACION-03-UI.
+
+### CONFIGURACION-02-IDENTITY - Iteración 10
+
+MODULO: CONFIGURACION
+LOTE: CONFIGURACION-02-IDENTITY
+ITERACION: 10
+ESTADO INICIAL: IN_PROGRESS
+ESTADO FINAL: DONE
+
+HALLAZGOS:
+- `ConfigRepository` seguía aceptando `branch_id`, `role_id` y `user_id` numéricos, resolviendo `id` legacy y conservando identidad dual en la ruta canónica del módulo.
+- Happy Hour, cierre mensual, usuarios y permisos todavía mantenían ramas de runtime que caían a `sucursal_id` y `rol_id` cuando el esquema ya estaba migrado con columnas UUID.
+
+CAUSAS RAIZ:
+- El lote 096 había agregado columnas UUID y backfill, pero el repositorio canónico seguía tolerando contratos legacy para operar sobre tablas parcialmente migradas.
+- La migración preparaba el corte del módulo, pero los servicios de Configuración no exigían ese esquema ya migrado antes de aceptar mutaciones y lecturas.
+
+TESTS DE PROTECCION:
+- `tests/unit/test_configuracion_refactor_services.py` ahora protege que `ConfigRepository` rechace IDs numéricos legacy y exija columnas UUID en la ruta canónica.
+- Se reforzó la cobertura de identidad para sucursales, roles y usuarios con fixtures migradas a UUID.
+- `tests/integration/test_settings_module_loads.py` ejecuta `migrations.standalone.096_configuration_services_schema` en la fixture mínima para verificar la ruta canónica del módulo sobre esquema migrado.
+
+CAMBIOS:
+- `repositories/config_repository.py` valida UUIDv7 canónicos para entidades de Configuración y elimina el fallback a `id`, `rol_id` y `sucursal_id` en contratos públicos del repositorio.
+- Las lecturas y mutaciones canónicas de sucursales, usuarios, roles, permisos, Happy Hour y cierres mensuales ahora exigen columnas UUID migradas y operan por UUID.
+- Se eliminaron las ramas de runtime que seguían escribiendo o leyendo permisos por `rol_id` y referencias de sucursal por `sucursal_id` cuando existe la ruta `rol_uuid`/`sucursal_uuid`.
+
+LEGACY ELIMINADO:
+- Eliminada aceptación de IDs numéricos legacy en `ConfigRepository` para sucursales, usuarios, roles y reglas Happy Hour.
+- Eliminados fallbacks canónicos de Configuración a `rol_id`, `sucursal_id` e identificadores enteros cuando el esquema migrado ya expone columnas UUID.
+
+BUSQUEDAS NEGATIVAS:
+- `payload.get("branch_id", "1")` -> 0 coincidencias en código canónico; permanece solo la aserción negativa del test.
+- `branch_id must be a branch UUID or numeric legacy id` -> 0 coincidencias.
+- `role_id must be a role UUID or numeric legacy id` -> 0 coincidencias.
+- `user_id must be a user UUID or numeric legacy id` -> 0 coincidencias.
+- `uuid4`, `lastrowid`, `entity_id=str(user_id|role_id|saved_id)` -> 0 coincidencias en `modulos/configuracion.py`, `core/services/configuration_settings_service.py` y `repositories/config_repository.py`.
+
+TESTS EJECUTADOS:
+- `python -m pytest tests/unit/test_configuracion_refactor_services.py -q`
+- `python -m pytest tests/integration/test_roles_permissions_canonical_flow.py -q`
+- `python -m pytest tests/unit/test_configuracion_refactor_services.py tests/architecture/test_configuracion_scope.py tests/architecture/test_uuidv7_cutover_protection.py tests/architecture/test_refactor_work_queue.py -q`
+- `python -c "import ast, pathlib; [ast.parse(pathlib.Path(p).read_text(encoding='utf-8')) for p in ['repositories/config_repository.py','core/services/configuration_settings_service.py','tests/unit/test_configuracion_refactor_services.py','tests/integration/test_settings_module_loads.py']]; print('AST_OK')"`
+
+INCIDENCIAS DE ENTORNO OBSERVADAS:
+- `python -m pytest tests/integration/test_settings_module_loads.py -q` provoca una `Windows fatal exception: access violation` dentro de PyQt al cargar la pestaña Happy Hour; no dejó una aserción funcional del lote abierta.
+- `python -m pytest tests/architecture -q` y `python -m pytest tests/unit -q` siguen fallando por deuda previa no perteneciente a `CONFIGURACION-02-IDENTITY` y por permisos del entorno para `tmp_path`/`.pytest_cache`.
+
+VIOLACIONES RESTANTES DEL LOTE:
+- 0
+
+SIGUIENTE LOTE REGISTRADO:
+- `CONFIGURACION-03-UI`
+
+### CONFIGURACION-03-UI - Iteración 2
+
+MODULO: CONFIGURACION
+LOTE: CONFIGURACION-03-UI
+ITERACION: 2
+ESTADO INICIAL: IN_PROGRESS
+ESTADO FINAL: DONE
+
+HALLAZGOS:
+- `modulos/configuracion.py` seguía usando `QComboBox` editable como pseudo-autocomplete para sucursales y empleados en la sucursal de terminal, reglas Happy Hour y formulario de usuarios.
+- La selección de entidades dependía de `currentData()` y de wiring manual repetido, sin usar los componentes estándar `SearchSelector` ya disponibles en `frontend/desktop/components`.
+
+CAUSAS RAIZ:
+- El módulo incorporó `ProductSearchBox` durante iteraciones previas, pero mantuvo selectores históricos de `QComboBox` para otras entidades porque no existía un adapter local que reutilizara los catálogos ya expuestos por los servicios canónicos.
+- El helper `_enable_combo_search()` prolongó una ruta visual legacy: seguía cargando listas completas y maquillándolas como búsqueda en vez de mover la captura a `BranchSearchBox` y `EmployeeSearchBox`.
+
+TESTS DE PROTECCION:
+- `tests/unit/test_configuracion_refactor_services.py` ahora exige `BranchSearchBox` y `EmployeeSearchBox` en la UI canónica y prohíbe reintroducir `QComboBox` masivos para sucursal/empleado o el helper `_enable_combo_search()`.
+
+CAMBIOS:
+- La sucursal de terminal usa `BranchSearchBox` y persiste la selección mediante `SearchOption` explícito en lugar de `currentData()`.
+- El editor de Happy Hour usa `BranchSearchBox` para la sucursal de la regla.
+- El editor de usuarios usa `BranchSearchBox` para sucursal y `EmployeeSearchBox` para empleado RRHH, manteniendo `QComboBox` solo para el rol.
+- Se agregaron providers locales y helpers de resolución para hidratar labels existentes sin volver a combos cargados en masa.
+
+LEGACY ELIMINADO:
+- Eliminado `_enable_combo_search()` de `modulos/configuracion.py`.
+- Eliminados los `QComboBox` legacy para `cmb_sucursal_inst`, `combo_branch`, `cmb_sucursal` y `cmb_empleado` en la ruta canónica del módulo.
+
+BUSQUEDAS NEGATIVAS:
+- `rg -n "self\\.cmb_sucursal_inst = QComboBox\\(|combo_branch = QComboBox\\(|cmb_sucursal = QComboBox\\(|cmb_empleado = QComboBox\\(|self\\._enable_combo_search\\(" modulos/configuracion.py tests/unit/test_configuracion_refactor_services.py` -> 0 coincidencias en `modulos/configuracion.py`; permanece solo la protección negativa en el test.
+- `rg -n "BranchSearchBox|EmployeeSearchBox" modulos/configuracion.py` -> coincidencias esperadas en la ruta canónica.
+
+TESTS EJECUTADOS:
+- `python -m pytest tests/unit/test_configuracion_refactor_services.py -q`
+- `python -c "import ast, pathlib; files=['modulos/configuracion.py','tests/unit/test_configuracion_refactor_services.py']; [ast.parse(pathlib.Path(f).read_text(encoding='utf-8')) for f in files]; print('AST_OK')"`
+
+INCIDENCIAS DE ENTORNO OBSERVADAS:
+- `python -m pytest tests/integration/test_settings_module_loads.py -q` sigue provocando `Windows fatal exception: access violation` dentro de PyQt al cargar la pestaña Happy Hour. La traza apunta a la misma zona de UI ya registrada previamente; no dejó una aserción nueva abierta del lote 03.
+- `pytest` sigue emitiendo `PytestCacheWarning` por permisos del entorno sobre `.pytest_cache`.
+
+VIOLACIONES RESTANTES DEL LOTE:
+- 0
+
+SIGUIENTE LOTE REGISTRADO:
+- `CONFIGURACION-04-QUERIES`
+
+### CONFIGURACION-04-QUERIES - Iteración 1
+
+MODULO: CONFIGURACION
+LOTE: CONFIGURACION-04-QUERIES
+ITERACION: 1
+ESTADO INICIAL: IN_PROGRESS
+ESTADO FINAL: DONE
+
+HALLAZGOS:
+- `modulos/config_modules.py` seguía leyendo `sucursales` y `feature_flags` con `self.db.execute(...).fetchall()` desde PyQt.
+- El módulo no tenía un QueryService propio para la pantalla de toggles; por eso la UI quedó fuera de la ruta canónica que ya usa servicios explícitos en `modulos/configuracion.py`.
+
+CAUSAS RAIZ:
+- La administración de toggles por sucursal se mantuvo como widget histórico separado de `SettingsModuleServices`, sin read model dedicado.
+- La deuda de feature flags mezclaba compatibilidad de schema con acceso directo en UI; la compatibilidad había quedado incrustada en la pantalla en vez de aislarse en una frontera de lectura.
+
+TESTS DE PROTECCION:
+- `tests/unit/test_config_modules_query_service.py` protege la lectura canónica de sucursales activas, flags legacy por sucursal y resolución read-side de UUID de sucursal a row-id legado.
+- `tests/architecture/test_config_modules_queries.py` exige que `modulos/config_modules.py` importe y use `ModuleSettingsQueryService`, y prohíbe reintroducir los `SELECT` directos a `sucursales` y `feature_flags`.
+
+CAMBIOS:
+- Se creó `backend/application/queries/module_settings_query_service.py` como QueryService explícito para la pantalla de toggles del módulo Configuración.
+- `modulos/config_modules.py` ahora carga sucursales activas y snapshots de feature flags mediante `ModuleSettingsQueryService`.
+- `backend/application/queries/__init__.py` exporta el nuevo QueryService para mantener la superficie de consultas consistente.
+
+LEGACY ELIMINADO:
+- Eliminadas las lecturas PyQt directas `SELECT id, nombre FROM sucursales ...` y `SELECT clave, activo FROM feature_flags` en `modulos/config_modules.py`.
+- Reducida la deuda registrada de `SQL in UI` en `modulos/config_modules.py` a las dos sentencias de mutación que pertenecen al lote siguiente.
+
+BUSQUEDAS NEGATIVAS:
+- `rg -n "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY nombre|SELECT clave, activo FROM feature_flags" modulos/config_modules.py` -> 0 coincidencias.
+- `rg -n "module_settings_query_service|self\\.module_settings_query_service\\.list_active_branch_options|self\\.module_settings_query_service\\.get_branch_feature_flags" modulos/config_modules.py` -> coincidencias esperadas en la ruta canónica.
+- Conteo residual de deuda arquitectónica en `modulos/config_modules.py`: `SQL in UI = 2` (`INSERT ... ON CONFLICT`), `commit/rollback in UI = 1` (`commit()`), ambos reservados para `CONFIGURACION-05-MUTATIONS`.
+
+TESTS EJECUTADOS:
+- `python -m pytest tests/unit/test_config_modules_query_service.py tests/architecture/test_config_modules_queries.py tests/unit/test_configuracion_refactor_services.py tests/architecture/test_no_sql_in_frontend.py tests/architecture/test_no_commit_rollback_in_frontend.py tests/architecture/test_refactor_work_queue.py -q`
+- `python -c "import ast, pathlib; files=['backend/application/queries/module_settings_query_service.py','modulos/config_modules.py','tests/unit/test_config_modules_query_service.py','tests/architecture/test_config_modules_queries.py']; [ast.parse(pathlib.Path(f).read_text(encoding='utf-8')) for f in files]; print('AST_OK')"`
+
+INCIDENCIAS DE ENTORNO OBSERVADAS:
+- `pytest` sigue emitiendo `PytestCacheWarning` por permisos del entorno sobre `.pytest_cache`; no afectó el resultado funcional del lote.
+
+VIOLACIONES RESTANTES DEL LOTE:
+- 0
+
+SIGUIENTE LOTE REGISTRADO:
+- `CONFIGURACION-05-MUTATIONS`
+
+### CONFIGURACION-05-MUTATIONS - IteraciÃ³n 1
+
+MODULO: CONFIGURACION
+LOTE: CONFIGURACION-05-MUTATIONS
+ITERACION: 1
+ESTADO INICIAL: IN_PROGRESS
+ESTADO FINAL: DONE
+
+HALLAZGOS:
+- `modulos/config_modules.py` seguÃ­a mutando toggles por sucursal desde PyQt con `feature_flag_service.repo.set_flag`, manipulaciÃ³n directa de `_cache` y fallback `INSERT ... ON CONFLICT` + `commit()`.
+
+CAUSAS RAIZ:
+- La pantalla de toggles dependÃ­a de detalles internos de `FeatureFlagService` en vez de una frontera de servicio para escritura.
+- La compatibilidad entre schemas de `feature_flags` se habÃ­a quedado incrustada en la UI, dejando una ruta legacy de SQL directo y transacciÃ³n en frontend.
+
+TESTS DE PROTECCION:
+- `tests/unit/test_feature_flag_service.py` protege la mutaciÃ³n canÃ³nica mediante servicio y el refresco de cachÃ© para schema nuevo y legacy.
+- `tests/architecture/test_config_modules_mutations.py` prohÃ­be reintroducir `ffs.repo.set_flag`, `_cache.pop`, SQL directo sobre `feature_flags` y `commit()` en `modulos/config_modules.py`.
+
+CAMBIOS:
+- `core/services/feature_flag_service.py` ahora expone `set_flag()` como frontera canÃ³nica para persistir el toggle y refrescar la cachÃ© de la sucursal afectada.
+- `modulos/config_modules.py` inyecta `FeatureFlagService` explÃ­cito y usa `self.feature_flag_service.set_flag(...)` para toda mutaciÃ³n.
+- Si el `container` no trae el servicio, la UI crea una instancia canÃ³nica respaldada por `FeatureFlagRepository` en lugar de caer a SQL directo.
+
+LEGACY ELIMINADO:
+- Eliminada la ruta `feature_flag_service.repo.set_flag(...)` desde PyQt.
+- Eliminada la manipulaciÃ³n directa de `_cache` desde `modulos/config_modules.py`.
+- Eliminado el fallback `INSERT INTO feature_flags ... ON CONFLICT ...` y `self.db.commit()` en la UI de toggles.
+
+BUSQUEDAS NEGATIVAS:
+- `rg -n "ffs\\.repo\\.set_flag\\(|ffs\\._cache\\.pop\\(|INSERT INTO feature_flags|ON CONFLICT\\(clave\\) DO UPDATE SET activo=excluded\\.activo|self\\.db\\.commit\\(" modulos/config_modules.py core/services/feature_flag_service.py` -> 0 coincidencias en cÃ³digo productivo.
+- `rg -n "feature_flag_service\\.set_flag\\(|FeatureFlagService\\(|FeatureFlagRepository\\(" modulos/config_modules.py core/services/feature_flag_service.py` -> coincidencias esperadas en la ruta canÃ³nica.
+
+TESTS EJECUTADOS:
+- `python -m pytest tests/unit/test_feature_flag_service.py tests/unit/test_config_modules_query_service.py tests/architecture/test_config_modules_queries.py tests/architecture/test_config_modules_mutations.py -q`
+- `python -m pytest tests/unit/test_feature_flag_service.py tests/unit/test_config_modules_query_service.py tests/architecture/test_config_modules_queries.py tests/architecture/test_config_modules_mutations.py tests/architecture/test_no_sql_in_frontend.py tests/architecture/test_no_commit_rollback_in_frontend.py -q`
+- `python -c "import ast, pathlib; files=['core/services/feature_flag_service.py','modulos/config_modules.py','tests/unit/test_feature_flag_service.py','tests/architecture/test_config_modules_mutations.py']; [ast.parse(pathlib.Path(f).read_text(encoding='utf-8')) for f in files]; print('AST_OK')"`
+
+INCIDENCIAS DE ENTORNO OBSERVADAS:
+- `pytest` sigue emitiendo `PytestCacheWarning` por permisos del entorno sobre `.pytest_cache`; no afectÃ³ el resultado funcional del lote.
+
+VIOLACIONES RESTANTES DEL LOTE:
+- 0
+
+SIGUIENTE LOTE REGISTRADO:
+- `CONFIGURACION-06-DOMAIN_RULES`

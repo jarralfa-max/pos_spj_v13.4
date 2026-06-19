@@ -44,10 +44,18 @@ def test_configuracion_work_queue_has_required_batch_order_and_active_batch():
     assert [batch["id"] for batch in queue["batches"]] == EXPECTED_CONFIG_BATCH_ORDER
     active = [batch for batch in queue["batches"] if batch["status"] == "IN_PROGRESS"]
     assert len(active) == 1
-    assert queue["active_batch"] == active[0]["id"] == "CONFIGURACION-02-IDENTITY"
+    assert queue["active_batch"] == active[0]["id"] == "CONFIGURACION-06-DOMAIN_RULES"
     by_id = {batch["id"]: batch for batch in queue["batches"]}
     assert by_id["CONFIGURACION-01-SCOPE"]["status"] == "DONE"
     assert by_id["CONFIGURACION-01-SCOPE"]["violations"] == 0
+    assert by_id["CONFIGURACION-02-IDENTITY"]["status"] == "DONE"
+    assert by_id["CONFIGURACION-02-IDENTITY"]["violations"] == 0
+    assert by_id["CONFIGURACION-03-UI"]["status"] == "DONE"
+    assert by_id["CONFIGURACION-03-UI"]["violations"] == 0
+    assert by_id["CONFIGURACION-04-QUERIES"]["status"] == "DONE"
+    assert by_id["CONFIGURACION-04-QUERIES"]["violations"] == 0
+    assert by_id["CONFIGURACION-05-MUTATIONS"]["status"] == "DONE"
+    assert by_id["CONFIGURACION-05-MUTATIONS"]["violations"] == 0
 
 
 def test_configuracion_batch_dependencies_reference_prior_batches():

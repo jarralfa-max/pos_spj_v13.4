@@ -1119,6 +1119,9 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self.container = None
             self.conexion  = conexion_o_container
         self.usuario = usuario
+        self.sucursal_id: int = 0
+        self.sucursal_nombre: str = ""
+        self.rol: str = ""
         self.delivery_service = DeliveryService(self.conexion)
         self.driver_service = DriverService(self.conexion)
         self._pedidos_cache = []
@@ -1244,10 +1247,8 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self.set_sesion(usuario, rol)
 
     def set_sucursal(self, sucursal_id: int, sucursal_nombre: str = "") -> None:
-        if hasattr(self, "sucursal_id"):
-            self.sucursal_id = sucursal_id
-        if hasattr(self, "sucursal_nombre"):
-            self.sucursal_nombre = sucursal_nombre
+        self.sucursal_id = sucursal_id
+        self.sucursal_nombre = sucursal_nombre
 
     def cerrar_sesion(self) -> None:
         self.usuario = ""

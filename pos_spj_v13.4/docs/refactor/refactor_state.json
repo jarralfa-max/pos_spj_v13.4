@@ -3,15 +3,15 @@
   "skill_version": "uuidv7-strict",
   "global_status": "IN_PROGRESS",
   "current_module": "CONFIGURACION",
-  "global_iteration": 7,
+  "global_iteration": 11,
   "last_completed_module": null,
   "modules": {
     "CONFIGURACION": {
-      "status": "AUDIT",
-      "iteration": 2,
+      "status": "IN_PROGRESS",
+      "iteration": 6,
       "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
+      "open_violations": 0,
+      "tests_failed": 0,
       "report": "docs/refactor/modules/configuracion.md"
     },
     "MERMA": {

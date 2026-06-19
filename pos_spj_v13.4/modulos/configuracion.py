@@ -14,7 +14,10 @@ from .base import ModuloBase
 # Design System Imports
 from modulos.ui_components import PageHeader, create_danger_button, apply_tooltip
 
+from backend.application.queries.product_query_service import ProductQueryService
 from core.services.configuration_settings_service import SettingsModuleServices
+from frontend.desktop.components import BranchSearchBox, EmployeeSearchBox, ProductSearchBox
+from frontend.desktop.components.search_selector import SearchOption
 from modulos.components.address_autocomplete_input import AddressAutocompleteInput
 from frontend.desktop.components.integer_input import IntegerInput
 from frontend.desktop.components.percent_input import PercentInput
@@ -45,6 +48,7 @@ class ModuloConfiguracion(ModuloBase):
         self.permission_query_service = services.permission_query_service
         self.module_access_service = services.module_access_service
         self.permission_event_publisher = services.permission_event_publisher
+        self.product_query_service = ProductQueryService.from_connection(self.conexion)
         try:
             self.settings_application_service.assert_ready()
         except RuntimeError as exc:
@@ -57,7 +61,7 @@ class ModuloConfiguracion(ModuloBase):
         self.usuario_actual = usuario
         self.rol_actual = rol
 
-    def set_sucursal(self, sucursal_id: int, sucursal_nombre: str):
+    def set_sucursal(self, sucursal_id: str, sucursal_nombre: str):
         """Recibe la sucursal activa desde MainWindow."""
         self.sucursal_id     = sucursal_id
         self.sucursal_nombre = sucursal_nombre
@@ -68,12 +72,78 @@ class ModuloConfiguracion(ModuloBase):
     def _actor_name(self) -> str:
         return getattr(self, "usuario_actual", "Sistema")
 
-    def _enable_combo_search(self, combo: QComboBox) -> None:
-        combo.setEditable(True)
-        combo.setInsertPolicy(QComboBox.NoInsert)
-        completer = combo.completer()
-        if completer is not None:
-            completer.setFilterMode(Qt.MatchContains)
+    def _search_happy_hour_products(self, query: str) -> list[SearchOption]:
+        options: list[SearchOption] = []
+        for result in self.product_query_service.search_products(query):
+            category = str((result.metadata or {}).get("category") or "").strip()
+            subtitle = category or str(result.subtitle or "").strip()
+            options.append(SearchOption(id=str(result.id), label=str(result.label), subtitle=subtitle))
+        return options
+
+    def _filter_search_options(
+        self,
+        options: list[tuple[str, str]],
+        query: str,
+        *,
+        empty_label: str | None = None,
+    ) -> list[SearchOption]:
+        normalized_query = str(query or "").strip().lower()
+        results: list[SearchOption] = []
+        if empty_label is not None and not normalized_query:
+            results.append(SearchOption(id="", label=empty_label))
+        for option_id, label in options:
+            normalized_id = str(option_id).strip()
+            normalized_label = str(label).strip()
+            haystack = f"{normalized_label} {normalized_id}".lower()
+            if normalized_query and normalized_query not in haystack:
+                continue
+            results.append(SearchOption(id=normalized_id, label=normalized_label))
+        return results
+
+    def _branch_search_options(self) -> list[tuple[str, str]]:
+        return [(str(branch_id), str(branch_name)) for branch_id, branch_name in self.role_management_service.active_branches_for_selector()]
+
+    def _company_branch_search_options(self) -> list[tuple[str, str]]:
+        return [(str(branch_id), str(branch_name)) for branch_id, branch_name in self.company_profile_service.branches_for_company_settings()]
+
+    def _employee_search_options(self) -> list[tuple[str, str]]:
+        return [(str(employee_id), str(label)) for employee_id, label in self.role_management_service.active_employees_for_selector()]
+
+    def _search_branch_options(self, query: str) -> list[SearchOption]:
+        return self._filter_search_options(self._branch_search_options(), query)
+
+    def _search_company_branch_options(self, query: str) -> list[SearchOption]:
+        return self._filter_search_options(self._company_branch_search_options(), query)
+
+    def _search_employee_options(self, query: str) -> list[SearchOption]:
+        return self._filter_search_options(self._employee_search_options(), query, empty_label="(ninguno)")
+
+    def _find_option_by_id(self, options: list[tuple[str, str]], option_id: str | None) -> SearchOption | None:
+        normalized_id = str(option_id or "").strip()
+        if not normalized_id:
+            return None
+        for current_id, label in options:
+            if str(current_id).strip() == normalized_id:
+                return SearchOption(id=str(current_id), label=str(label))
+        return None
+
+    def _on_install_branch_selected(self, option: SearchOption) -> None:
+        self._selected_install_branch_option = option
+        self.branch_install_selector.set_selected_label(option.label)
+
+    def _load_happy_hour_product_option(self, product_id: str | None) -> SearchOption | None:
+        normalized_id = str(product_id or "").strip()
+        if not normalized_id:
+            return None
+        product = self.product_query_service.get_product(normalized_id)
+        if not product:
+            return SearchOption(id=normalized_id, label=f"Producto {normalized_id}")
+        category = str(product.get("categoria") or "").strip()
+        return SearchOption(
+            id=normalized_id,
+            label=str(product.get("nombre") or f"Producto {normalized_id}"),
+            subtitle=category,
+        )
 
     def _on_nav_changed(self, row: int) -> None:
         """Sync stack with nav selection."""
@@ -311,7 +381,7 @@ class ModuloConfiguracion(ModuloBase):
                 period=periodo,
                 closed_by=usuario,
                 totals=totals,
-                branch_id=getattr(self, 'sucursal_id', 1),
+                branch_id=str(getattr(self, 'sucursal_id', new_uuid())),
             )
 
             self._lbl_cierre_status.setText(
@@ -420,12 +490,13 @@ class ModuloConfiguracion(ModuloBase):
 
         grp4 = QGroupBox("📍 Sucursal de esta terminal")
         f4 = QFormLayout(grp4)
-        self.cmb_sucursal_inst = QComboBox()
-        self._enable_combo_search(self.cmb_sucursal_inst)
-        self.cmb_sucursal_inst.setToolTip(
+        self.branch_install_selector = BranchSearchBox(self, provider=self._search_company_branch_options)
+        self._selected_install_branch_option: SearchOption | None = None
+        self.branch_install_selector.selected.connect(self._on_install_branch_selected)
+        self.branch_install_selector.setToolTip(
             "Define a qué sucursal pertenece esta computadora.\n"
             "Todos los usuarios que inicien sesión aquí operarán en esta sucursal.")
-        f4.addRow("Sucursal:", self.cmb_sucursal_inst)
+        f4.addRow("Sucursal:", self.branch_install_selector)
         lbl_info_suc = QLabel(
             "⚠️ Esta configuración determina la sucursal para TODA esta terminal.\n"
             "Inventario, ventas y caja se filtrarán por esta sucursal.")
@@ -468,15 +539,46 @@ class ModuloConfiguracion(ModuloBase):
                 self.emp_tasa_iva.setValue(float(settings['tasa_iva']) * 100)
             except ValueError as exc:
                 QMessageBox.warning(self, "Dato fiscal inválido", f"La tasa IVA guardada no es válida: {exc}")
-        self.cmb_sucursal_inst.clear()
-        self.cmb_sucursal_inst.addItem("-- Selecciona sucursal --", None)
+        self._selected_install_branch_option = None
+        self.branch_install_selector.clear()
         sucs = self.company_profile_service.branches_for_company_settings()
         if not sucs:
             QMessageBox.warning(self, "Sucursales", "No hay sucursales activas configuradas.")
-        for sid, nombre in sucs:
-            self.cmb_sucursal_inst.addItem(nombre, sid)
         configured_branch = settings.get('sucursal_instalacion_id')
         if configured_branch:
+<<<<<<< HEAD
+<<<<<<< HEAD
+            selected_branch = self._find_option_by_id(
+                [(str(branch_id), str(branch_name)) for branch_id, branch_name in sucs],
+                str(configured_branch),
+            )
+            if selected_branch is not None:
+                self._selected_install_branch_option = selected_branch
+                self.branch_install_selector.set_selected_label(selected_branch.label)
+=======
+            stored = str(configured_branch).strip()
+            self.cmb_sucursal_inst.blockSignals(True)
+            try:
+                # findData matches itemData by string equality (itemData is str from active_branches_for_selector)
+                idx = self.cmb_sucursal_inst.findData(stored)
+                if idx < 0 and stored.isdigit():
+                    # Legacy path: stored is integer string, itemData may also be integer string
+                    for i in range(self.cmb_sucursal_inst.count()):
+                        d = self.cmb_sucursal_inst.itemData(i)
+                        if d is not None and str(d) == stored:
+                            idx = i
+                            break
+                if idx >= 0:
+                    self.cmb_sucursal_inst.setCurrentIndex(idx)
+                else:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "_cargar_empresa: configured branch '%s' not found in selector", stored
+                    )
+            finally:
+                self.cmb_sucursal_inst.blockSignals(False)
+>>>>>>> 71fbed6f4849380a8a2a4e115b6a5844f00241fd
+=======
             try:
                 suc_id = int(configured_branch)
             except ValueError as exc:
@@ -486,14 +588,15 @@ class ModuloConfiguracion(ModuloBase):
                 if self.cmb_sucursal_inst.itemData(index) == suc_id:
                     self.cmb_sucursal_inst.setCurrentIndex(index)
                     break
+>>>>>>> d54e4892302fb7960f4b554ea58cac8d8aaece11
 
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Aviso", "El nombre del negocio es obligatorio.")
             return
-        suc_id = self.cmb_sucursal_inst.currentData() if hasattr(self, 'cmb_sucursal_inst') else None
-        if suc_id is None:
+        suc_id = self._selected_install_branch_option.id if self._selected_install_branch_option is not None else ""
+        if not suc_id:
             QMessageBox.warning(self, "Aviso", "Selecciona la sucursal de esta terminal.")
             return
         datos = {
@@ -781,7 +884,11 @@ class ModuloConfiguracion(ModuloBase):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(2, 2, 2, 2)
+<<<<<<< HEAD
+            rule_id = str(rule["id"])
+=======
             rule_id = rule["id"]
+>>>>>>> d54e4892302fb7960f4b554ea58cac8d8aaece11
             active = bool(rule.get("activo"))
             btn_edit = self._create_action_button("✏️", "Editar regla Happy Hour", "edit")
             btn_edit.clicked.connect(lambda _, rid=rule_id: self._editar_happy_hour_rule(rid))
@@ -795,7 +902,7 @@ class ModuloConfiguracion(ModuloBase):
             actions_layout.addWidget(btn_toggle)
             self._tbl_happy_hour.setCellWidget(row_index, 6, actions_widget)
 
-    def _editar_happy_hour_rule(self, rule_id: int | None) -> None:
+    def _editar_happy_hour_rule(self, rule_id: str | None) -> None:
         dlg = QDialog(self)
         dlg.setWindowTitle("Regla Happy Hour")
         dlg.setMinimumWidth(520)
@@ -815,13 +922,34 @@ class ModuloConfiguracion(ModuloBase):
         combo_scope = QComboBox()
         combo_scope.addItem("Todos", "todos")
         combo_scope.addItem("Categoría", "categoria")
-        combo_scope.addItem("Producto ID", "producto_id")
+        combo_scope.addItem("Producto", "producto_id")
         txt_scope_value = QLineEdit()
         txt_scope_value.setPlaceholderText("Vacío si aplica a todos")
-        combo_branch = QComboBox()
-        self._enable_combo_search(combo_branch)
-        for branch_id, branch_name in self.role_management_service.active_branches_for_selector():
-            combo_branch.addItem(branch_name, branch_id)
+        product_selector = ProductSearchBox(dlg, provider=self._search_happy_hour_products)
+        product_selector.hide()
+        selected_product_option: SearchOption | None = None
+        branch_selector = BranchSearchBox(dlg, provider=self._search_branch_options)
+        selected_branch_option: SearchOption | None = None
+
+        def _on_product_selected(option: SearchOption) -> None:
+            nonlocal selected_product_option
+            selected_product_option = option
+            product_selector.set_selected_label(option.label)
+
+        def _on_branch_selected(option: SearchOption) -> None:
+            nonlocal selected_branch_option
+            selected_branch_option = option
+            branch_selector.set_selected_label(option.label)
+
+        def _on_scope_changed() -> None:
+            scope = combo_scope.currentData()
+            txt_scope_value.setVisible(scope == "categoria")
+            product_selector.setVisible(scope == "producto_id")
+            if scope != "producto_id":
+                product_selector.clear_results()
+
+        product_selector.selected.connect(_on_product_selected)
+        branch_selector.selected.connect(_on_branch_selected)
         days_widget = QWidget()
         days_layout = QHBoxLayout(days_widget)
         days_layout.setContentsMargins(0, 0, 0, 0)
@@ -842,7 +970,8 @@ class ModuloConfiguracion(ModuloBase):
         form.addRow("Descuento:", spin_discount)
         form.addRow("Aplica a:", combo_scope)
         form.addRow("Valor aplica:", txt_scope_value)
-        form.addRow("Sucursal:", combo_branch)
+        form.addRow("Producto:", product_selector)
+        form.addRow("Sucursal:", branch_selector)
         form.addRow("Días:", days_widget)
         form.addRow("Mensaje:", txt_message)
         form.addRow("", chk_active)
@@ -867,15 +996,22 @@ class ModuloConfiguracion(ModuloBase):
             scope_index = combo_scope.findData(rule.get("aplica_a"))
             if scope_index >= 0:
                 combo_scope.setCurrentIndex(scope_index)
-            txt_scope_value.setText(rule.get("aplica_valor") or "")
+            if rule.get("aplica_a") == "producto_id":
+                selected_product_option = self._load_happy_hour_product_option(rule.get("aplica_valor"))
+                if selected_product_option is not None:
+                    product_selector.set_selected_label(selected_product_option.label)
+            else:
+                txt_scope_value.setText(rule.get("aplica_valor") or "")
             for day in str(rule.get("dias_semana") or "").split(","):
                 if day.isdigit() and int(day) in days:
                     days[int(day)].setChecked(True)
             txt_message.setPlainText(rule.get("message") or "")
             chk_active.setChecked(bool(rule.get("activo")))
-            branch_index = combo_branch.findData(rule.get("sucursal_id"))
-            if branch_index >= 0:
-                combo_branch.setCurrentIndex(branch_index)
+            selected_branch_option = self._find_option_by_id(self._branch_search_options(), rule.get("sucursal_id"))
+            if selected_branch_option is not None:
+                branch_selector.set_selected_label(selected_branch_option.label)
+        _on_scope_changed()
+        combo_scope.currentIndexChanged.connect(_on_scope_changed)
 
         btns = self._style_dialog_buttons(QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel))
         btns.accepted.connect(dlg.accept)
@@ -891,7 +1027,17 @@ class ModuloConfiguracion(ModuloBase):
         if not selected_days:
             QMessageBox.warning(dlg, "Aviso", "Selecciona al menos un día.")
             return
+        scope_value = ""
+        scope = combo_scope.currentData()
+        if scope == "categoria":
+            scope_value = txt_scope_value.text().strip()
+        elif scope == "producto_id":
+            if selected_product_option is None:
+                QMessageBox.warning(dlg, "Aviso", "Selecciona un producto válido para la regla.")
+                return
+            scope_value = str(selected_product_option.id)
         try:
+            branch_id = selected_branch_option.id if selected_branch_option is not None else None
             self.happy_hour_settings_service.save_rule({
                 "id": rule_id,
                 "nombre": txt_name.text().strip(),
@@ -900,17 +1046,17 @@ class ModuloConfiguracion(ModuloBase):
                 "dias_semana": selected_days,
                 "tipo_descuento": combo_type.currentData(),
                 "valor": float(spin_discount.value()),
-                "aplica_a": combo_scope.currentData(),
-                "aplica_valor": txt_scope_value.text().strip(),
+                "aplica_a": scope,
+                "aplica_valor": scope_value,
                 "message": txt_message.toPlainText().strip(),
                 "activo": chk_active.isChecked(),
-                "sucursal_id": combo_branch.currentData(),
+                "sucursal_id": branch_id,
             })
             self._cargar_happy_hour_rules()
         except Exception as exc:
             QMessageBox.critical(dlg, "Error", str(exc))
 
-    def _toggle_happy_hour_rule(self, rule_id: int, active: bool) -> None:
+    def _toggle_happy_hour_rule(self, rule_id: str, active: bool) -> None:
         try:
             self.happy_hour_settings_service.set_rule_active(rule_id, active)
             self._cargar_happy_hour_rules()
@@ -1171,33 +1317,41 @@ class ModuloConfiguracion(ModuloBase):
         txt_pass     = QLineEdit(); txt_pass.setEchoMode(QLineEdit.Password)
         txt_pass.setPlaceholderText("(dejar vacío para no cambiar)" if usuario_id else "Contraseña")
         cmb_rol      = QComboBox()
-        cmb_sucursal = QComboBox()
-        self._enable_combo_search(cmb_rol)
-        self._enable_combo_search(cmb_sucursal)
+        branch_selector = BranchSearchBox(dlg, provider=self._search_branch_options)
         chk_activo   = QCheckBox("Activo"); chk_activo.setChecked(True)
-        cmb_empleado = QComboBox(); cmb_empleado.addItem("(ninguno)", None)
-        self._enable_combo_search(cmb_empleado)
+        employee_selector = EmployeeSearchBox(dlg, provider=self._search_employee_options)
         lbl_emp_hint = QLabel("Vincula este usuario a un empleado de RRHH")
         lbl_emp_hint.setObjectName("caption")
+        selected_branch_option: SearchOption | None = None
+        selected_employee_option: SearchOption | None = SearchOption(id="", label="(ninguno)")
+
+        def _on_branch_selected(option: SearchOption) -> None:
+            nonlocal selected_branch_option
+            selected_branch_option = option
+            branch_selector.set_selected_label(option.label)
+
+        def _on_employee_selected(option: SearchOption) -> None:
+            nonlocal selected_employee_option
+            selected_employee_option = option
+            employee_selector.set_selected_label(option.label)
 
         try:
             for rn in self.role_management_service.role_names():
                 cmb_rol.addItem(rn)
-            for sid, nombre in self.role_management_service.active_branches_for_selector():
-                cmb_sucursal.addItem(nombre, sid)
-            for emp_id, label in self.role_management_service.active_employees_for_selector():
-                cmb_empleado.addItem(label, emp_id)
         except Exception as exc:
             QMessageBox.critical(self, "Configuración incompleta", f"No se pudieron cargar selectores de usuario: {exc}")
             return
+        branch_selector.selected.connect(_on_branch_selected)
+        employee_selector.selected.connect(_on_employee_selected)
+        employee_selector.set_selected_label("(ninguno)")
 
         form.addRow("Usuario*:", txt_usuario)
         form.addRow("Nombre:", txt_nombre)
         form.addRow("Email:", txt_email)
         form.addRow("Contraseña:", txt_pass)
         form.addRow("Rol:", cmb_rol)
-        form.addRow("Sucursal:", cmb_sucursal)
-        form.addRow("Empleado RRHH:", cmb_empleado)
+        form.addRow("Sucursal:", branch_selector)
+        form.addRow("Empleado RRHH:", employee_selector)
         form.addRow("", lbl_emp_hint)
         form.addRow("", chk_activo)
         lay.addLayout(form)
@@ -1210,14 +1364,13 @@ class ModuloConfiguracion(ModuloBase):
                     txt_email.setText(row[2] or "")
                     idx = cmb_rol.findText(row[3] or "cajero")
                     if idx >= 0: cmb_rol.setCurrentIndex(idx)
-                    for i in range(cmb_sucursal.count()):
-                        if cmb_sucursal.itemData(i) == row[4]:
-                            cmb_sucursal.setCurrentIndex(i); break
+                    selected_branch_option = self._find_option_by_id(self._branch_search_options(), row[4])
+                    if selected_branch_option is not None:
+                        branch_selector.set_selected_label(selected_branch_option.label)
                     chk_activo.setChecked(bool(row[5]))
-                    if row[6]:
-                        for i in range(cmb_empleado.count()):
-                            if cmb_empleado.itemData(i) == row[6]:
-                                cmb_empleado.setCurrentIndex(i); break
+                    selected_employee_option = self._find_option_by_id(self._employee_search_options(), row[6])
+                    if selected_employee_option is not None:
+                        employee_selector.set_selected_label(selected_employee_option.label)
             except Exception as exc:
                 QMessageBox.critical(self, "Error", f"No se pudo cargar el usuario: {exc}")
                 return
@@ -1236,8 +1389,13 @@ class ModuloConfiguracion(ModuloBase):
             _bcrypt = None
         try:
             pwd_raw = txt_pass.text()
-            suc_id  = cmb_sucursal.currentData() or 1
-            emp_id  = cmb_empleado.currentData()
+            suc_id = selected_branch_option.id if selected_branch_option is not None else ""
+            if not suc_id:
+                QMessageBox.warning(self, "Aviso", "Selecciona una sucursal válida.")
+                return
+            emp_id = None
+            if selected_employee_option is not None and selected_employee_option.id:
+                emp_id = int(selected_employee_option.id)
             pwd_hash = None
             if pwd_raw:
                 pwd_hash = (_bcrypt.hashpw(pwd_raw.encode(), _bcrypt.gensalt()).decode()
