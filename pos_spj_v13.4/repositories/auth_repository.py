@@ -55,13 +55,6 @@ class AuthRepository:
             if not row:
                 return None
 
-<<<<<<< HEAD
-=======
-            suc_id = (row['sucursal_id'] if has_suc else 0) or 0
-            suc_nombre = (row['sucursal_nombre'] if has_suc else "") or ""
-            suc_uuid = (row['sucursal_uuid'] if has_suc else None) or None
-
->>>>>>> 6eb5dd41930c853555dae4e9e62f3feff81c4b33
             user_data = {
                 'id': row['id'],
                 'username': row['usuario'],
