@@ -104,11 +104,6 @@ class _AddrWorker(QRunnable):
         self._signals.results.emit(data[:self._limit], self._request_id)
 
 
-ESTADOS = ["pendiente","preparacion","en_ruta","entregado","cancelado"]
-ESTADO_COLOR = {
-    "pendiente": Colors.WARNING_BASE,"preparacion":Colors.PRIMARY_BASE,"en_ruta":Colors.ACCENT_BASE,
-    "entregado":Colors.SUCCESS_BASE,"cancelado":Colors.DANGER_BASE
-}
 
 # ── Canonical action policy — imported from domain layer (no duplication here) ──
 from core.delivery.application.action_policy import DeliveryActionPolicy as _CanonicalActionPolicy
@@ -140,6 +135,21 @@ _KANBAN_COL_COLORS = [
     Colors.ACCENT_BASE,    # En reparto / Para entregar
     Colors.SUCCESS_BASE,   # Entrega
 ]
+
+# Build ESTADOS and ESTADO_COLOR from the domain enum (single source of truth).
+_STATUS_COLOR_MAP: dict[_DeliveryStatus, str] = {
+    _DeliveryStatus.PENDING: Colors.WARNING_BASE,
+    _DeliveryStatus.PREPARING: Colors.PRIMARY_BASE,
+    _DeliveryStatus.IN_TRANSIT: Colors.ACCENT_BASE,
+    _DeliveryStatus.DELIVERED: Colors.SUCCESS_BASE,
+    _DeliveryStatus.CANCELLED: Colors.DANGER_BASE,
+    _DeliveryStatus.READY_FOR_PICKUP: Colors.ACCENT_BASE,
+    _DeliveryStatus.READY_FOR_DISPATCH: Colors.ACCENT_BASE,
+    _DeliveryStatus.ASSIGNED: Colors.PRIMARY_BASE,
+}
+ESTADOS = list(_LEGACY_STATUS_MAP.keys())
+ESTADO_COLOR = {legacy: _STATUS_COLOR_MAP.get(canonical, Colors.TEXT_SECONDARY)
+                for legacy, canonical in _LEGACY_STATUS_MAP.items()}
 
 # Canonical action metadata for legacy state machine action keys
 _ACTION_METADATA = {
