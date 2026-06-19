@@ -521,10 +521,16 @@ class DriverSettlementFinanceHandler:
         driver_name  = str(payload.get("driver_nombre") or payload.get("driver_id") or "repartidor")
         efectivo     = float(payload.get("efectivo") or payload.get("efectivo_entregado") or 0)
         diferencia   = float(payload.get("diferencia") or 0)
+        comision     = float(payload.get("comision") or payload.get("commission") or 0)
         sucursal_id  = int(payload.get("sucursal_id") or 1)
         usuario      = str(payload.get("usuario_corte") or "sistema")
 
         if cut_id is None:
+            return
+
+        # Idempotency: skip if this cut was already posted to the treasury ledger.
+        if self._already_posted(cut_id):
+            logger.info("DriverSettlement: cut=%s already posted — skip", cut_id)
             return
 
         try:
@@ -540,7 +546,7 @@ class DriverSettlementFinanceHandler:
                 ),
             )
 
-            # Finance journal: caja_delivery debe / cuentas_repartidores haber
+            # Finance journal (GL): caja_delivery debe / cuentas_repartidores haber
             try:
                 from core.services.enterprise.finance_service import FinanceService
                 fs = FinanceService(self.db)
@@ -559,16 +565,63 @@ class DriverSettlementFinanceHandler:
             except Exception as exc:
                 logger.debug("DriverSettlementFinanceHandler asiento: %s", exc)
 
+            # Treasury cash flow (defect 13): cash handed in, shortage/surplus, commission.
+            self._post_treasury(cut_id, driver_name, efectivo, diferencia, comision, sucursal_id, usuario)
+
             try:
                 self.db.commit()
             except Exception:
                 pass
             logger.info(
-                "DriverSettlement: cut=%s driver=%s efectivo=%.2f diff=%.2f",
-                cut_id, driver_name, efectivo, diferencia,
+                "DriverSettlement: cut=%s driver=%s efectivo=%.2f diff=%.2f comision=%.2f",
+                cut_id, driver_name, efectivo, diferencia, comision,
             )
         except Exception as exc:
             logger.error("DriverSettlementFinanceHandler error cut=%s: %s", cut_id, exc)
+
+    def _already_posted(self, cut_id) -> bool:
+        try:
+            row = self.db.execute(
+                "SELECT 1 FROM treasury_ledger WHERE referencia=? LIMIT 1",
+                (str(cut_id),),
+            ).fetchone()
+            return row is not None
+        except Exception:
+            return False
+
+    def _post_treasury(self, cut_id, driver_name, efectivo, diferencia, comision, sucursal_id, usuario) -> None:
+        try:
+            from core.services.finance.treasury_service import TreasuryService
+            ts = TreasuryService(self.db)
+        except Exception as exc:
+            logger.debug("DriverSettlement treasury unavailable: %s", exc)
+            return
+        ref = str(cut_id)
+        if efectivo > 0:
+            ts.registrar_ingreso(
+                categoria="delivery_corte_efectivo",
+                concepto=f"Corte repartidor {driver_name}",
+                monto=efectivo, sucursal_id=sucursal_id, referencia=ref, usuario=usuario,
+            )
+        # diferencia = efectivo_entregado - efectivo_cobrado: negative=faltante, positive=sobrante.
+        if diferencia < 0:
+            ts.registrar_egreso(
+                categoria="delivery_faltante",
+                concepto=f"Faltante corte {driver_name}",
+                monto=abs(diferencia), sucursal_id=sucursal_id, referencia=ref, usuario=usuario,
+            )
+        elif diferencia > 0:
+            ts.registrar_ingreso(
+                categoria="delivery_sobrante",
+                concepto=f"Sobrante corte {driver_name}",
+                monto=diferencia, sucursal_id=sucursal_id, referencia=ref, usuario=usuario,
+            )
+        if comision > 0:
+            ts.registrar_egreso(
+                categoria="delivery_comision",
+                concepto=f"Comisión repartidor {driver_name}",
+                monto=comision, sucursal_id=sucursal_id, referencia=ref, usuario=usuario,
+            )
 
 
 class PurchaseSuggestionHandler:

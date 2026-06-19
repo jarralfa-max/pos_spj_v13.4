@@ -29,6 +29,7 @@ class AdjustDeliveryWeightUseCase:
         recalculate_order_total: Callable[[int], float] | None = None,
         sync_sale_total: Callable[[int, float], None] | None = None,
         outbox_repository=None,
+        adjust_reservation: Callable[[str, int, float, int], int] | None = None,
     ) -> None:
         self.db = db
         self.repository = repository
@@ -37,6 +38,9 @@ class AdjustDeliveryWeightUseCase:
         self.recalculate_order_total = recalculate_order_total
         self.sync_sale_total = sync_sale_total or (lambda _order_id, _new_total: None)
         self.outbox_repository = outbox_repository
+        # Re-adjusts the inventory soft-lock to the real prepared quantity.
+        # Signature: (operation_id, product_id, new_qty, branch_id) -> rows_updated
+        self.adjust_reservation = adjust_reservation
 
     def _enqueue(self, event_type: str, order_id: int, payload: dict[str, Any], operation_id: str | None = None) -> None:
         if self.outbox_repository is None:
@@ -144,6 +148,37 @@ class AdjustDeliveryWeightUseCase:
             prepared_by=prepared_by,
             adjustment_reason=adjustment_reason,
         )
+
+        # ── Re-adjust inventory soft-lock to the real prepared quantity ──────────
+        # The reservation was created at order creation with the requested qty.
+        # After a real weight/quantity adjustment the lock must reflect the
+        # prepared qty so available stock stays accurate. Idempotent (absolute set).
+        product_id = item_row.get("producto_id") or item_row.get("product_id")
+        branch_id = order.get("sucursal_id") or 1
+        if self.adjust_reservation is not None and product_id:
+            operation_id = f"delivery:{order_id}"
+            try:
+                self.adjust_reservation(operation_id, product_id, prepared_qty, branch_id)
+                self._enqueue(
+                    DeliveryEvents.INVENTORY_RESERVATION_ADJUSTED.value,
+                    order_id,
+                    {
+                        "order_id": order_id,
+                        "operation_id": operation_id,
+                        "product_id": product_id,
+                        "branch_id": branch_id,
+                        "new_qty": prepared_qty,
+                    },
+                    operation_id=f"{operation_id}:item:{item_id}:reservation:{prepared_qty}",
+                )
+            except Exception as exc:
+                # A reservation-adjustment failure must not lose the weight change;
+                # surface it in logs but keep the accepted adjustment.
+                logger.warning(
+                    "No se pudo ajustar la reserva order=%s product=%s: %s",
+                    order_id, product_id, exc,
+                )
+
         if self.recalculate_order_total is None:
             raise RuntimeError("recalculate_order_total dependency is required")
         new_total = self.recalculate_order_total(order_id)

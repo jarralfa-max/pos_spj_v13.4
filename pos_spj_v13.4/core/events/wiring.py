@@ -1275,6 +1275,17 @@ def _wire_driver_settlement_handler(bus, container) -> None:
         label="driver_settlement_finance",
     )
 
+    # Revenue recognition when a delivery total is finalized (defect 11/14)
+    from core.events.event_bus import DELIVERY_TOTAL_FINALIZED
+    from core.events.handlers.delivery_finance_handler import DeliveryRevenueFinanceHandler
+    revenue_handler = DeliveryRevenueFinanceHandler(db)
+    bus.subscribe(
+        DELIVERY_TOTAL_FINALIZED,
+        revenue_handler.handle,
+        priority=50,
+        label="delivery_revenue_finance",
+    )
+
     # Also wire PurchaseSuggestionHandler
     from core.events.event_bus import PURCHASE_SUGGESTION_CREATED
     from core.events.handlers.delivery_handler import PurchaseSuggestionHandler

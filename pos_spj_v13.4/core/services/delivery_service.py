@@ -186,7 +186,31 @@ class DeliveryService:
             get_order_items=self.get_order_items,
             outbox_repository=self.outbox_repository,
             inventory_service=InventoryBalanceService(self.db) if self.db is not None else None,
+            credit_service=self._credit_service(),
+            print_coordinator=self._print_coordinator(),
         )
+
+    def _print_coordinator(self):
+        """Canonical auto-print coordinator. Returns None if unavailable."""
+        if self.db is None:
+            return None
+        try:
+            from core.delivery.application.print_coordinator import DeliveryPrintCoordinator
+            return DeliveryPrintCoordinator(self.db)
+        except Exception as exc:
+            logger.debug("DeliveryPrintCoordinator unavailable: %s", exc)
+            return None
+
+    def _credit_service(self):
+        """Canonical customer-credit gate. Returns None if unavailable."""
+        if self.db is None:
+            return None
+        try:
+            from application.services.customer_credit_service import CustomerCreditService
+            return CustomerCreditService(self.db)
+        except Exception as exc:
+            logger.debug("CustomerCreditService unavailable: %s", exc)
+            return None
 
     def update_status(
         self,
@@ -269,6 +293,16 @@ class DeliveryService:
     def _recalculate_order_total(self, order_id: int) -> float:
         return self.order_total_service.recalculate_order_total(order_id, commit=False)
 
+    def _adjust_reservation(self, operation_id: str, product_id, new_qty: float, branch_id) -> int:
+        """Re-set the inventory soft-lock to the real prepared quantity.
+
+        Canonical route: ReservationService.adjust_reservation. Idempotent.
+        """
+        from core.services.reservation_service import ReservationService
+        return ReservationService().adjust_reservation(
+            self.db, operation_id, product_id, float(new_qty), branch_id or 1
+        )
+
     def _sync_venta_total(self, order_id: int, new_total: float) -> None:
         try:
             order = self.repository.get_order(order_id) or {}
@@ -317,6 +351,7 @@ class DeliveryService:
             recalculate_order_total=self._recalculate_order_total,
             sync_sale_total=self._sync_venta_total,
             outbox_repository=self.outbox_repository,
+            adjust_reservation=self._adjust_reservation,
         ).execute(
             order_id=order_id,
             item_id=item_id,
