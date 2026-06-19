@@ -107,46 +107,100 @@ ESTADO_COLOR = {
     "entregado":Colors.SUCCESS_BASE,"cancelado":Colors.DANGER_BASE
 }
 
-# ── Action policy: single source of truth for which buttons appear per state ──
+# ── Canonical action policy — imported from domain layer (no duplication here) ──
+from core.delivery.application.action_policy import DeliveryActionPolicy as _CanonicalActionPolicy
+from core.delivery.domain.value_objects import (
+    DeliveryStatus as _DeliveryStatus,
+    FulfillmentType as _FulfillmentType,
+    PaymentStatus as _PaymentStatus,
+    DeliveryAction as _DeliveryAction,
+    UnitCode as _UnitCode,
+    LEGACY_STATUS_MAP as _LEGACY_STATUS_MAP,
+    WEIGHABLE_UNITS as _WEIGHABLE_UNITS,
+    UNIT_LABELS_ES as _UNIT_LABELS_ES,
+)
+from core.delivery.application.kanban_config import KANBAN_COLUMNS as _KANBAN_COLUMNS
+from core.delivery.application.quantity_formatter import QuantityFormatter as _QuantityFormatter
 
-class DeliveryActionPolicy:
-    """UI action metadata adapter backed by the domain state machine.
+# Build reverse map: legacy DB status string → kanban column index (0-3)
+_STATUS_TO_COL: dict[str, int] = {}
+for _col_idx, (_col_title, _col_statuses) in enumerate(_KANBAN_COLUMNS):
+    for _ds in _col_statuses:
+        for _legacy, _canonical in _LEGACY_STATUS_MAP.items():
+            if _canonical == _ds:
+                _STATUS_TO_COL[_legacy] = _col_idx
+        _STATUS_TO_COL[_ds.value] = _col_idx
 
-    Widgets can still receive legacy tuple actions, but the workflow decision
-    comes from ``DeliveryStateMachine`` rather than hardcoded UI state rules.
+_KANBAN_COL_COLORS = [
+    Colors.WARNING_BASE,   # Pendiente
+    Colors.PRIMARY_BASE,   # Preparación
+    Colors.ACCENT_BASE,    # En reparto / Para entregar
+    Colors.SUCCESS_BASE,   # Entrega
+]
+
+# Canonical action metadata for legacy state machine action keys
+_ACTION_METADATA = {
+    "preparacion":         ("▶",  "Preparar",            "success"),
+    "cancelado":           ("✖",  "Cancelar pedido",      "danger"),
+    "ajustar_peso":        ("⚖️", "Ajustar peso",         "warning"),
+    "ajustar_cantidad":    ("✏️", "Ajustar cantidad",     "warning"),
+    "en_ruta":             ("🛵", "En Ruta",              "primary"),
+    "asignar":             ("👤", "Asignar repartidor",   "primary"),
+    "entregado":           ("✅", "Marcar entregado",     "success"),
+    "notificar_wa":        ("📲", "Notificar por WA",     "secondary"),
+    "imprimir":            ("🖨️", "Imprimir ticket",      "secondary"),
+    "reactivar":           ("♻️", "Reactivar pedido",     "warning"),
+    "activar_programado":  ("▶",  "Activar ahora",        "success"),
+    "reprogramar":         ("🗓️", "Reprogramar",          "warning"),
+}
+
+
+def _get_card_actions(pedido: dict) -> list[dict]:
+    """Single route for card action buttons — used by Kanban AND list.
+
+    Delegates to delivery_service.get_valid_actions when available so that the
+    domain state machine drives which actions appear.  Metadata (icon, label,
+    style) comes from _ACTION_METADATA; the label for weight/quantity adjustment
+    is resolved from the order items' units so it is never hardcoded.
     """
-
-    _METADATA = {
-        "preparacion": ("▶", "Preparar", "success"),
-        "cancelado": ("✖", "Cancelar pedido", "danger"),
-        "ajustar_peso": ("⚖️", "Ajustar peso", "warning"),
-        "en_ruta": ("🛵", "En Ruta", "primary"),
-        "asignar": ("👤", "Asignar repartidor", "primary"),
-        "entregado": ("✅", "Marcar entregado", "success"),
-        "notificar_wa": ("📲", "Notificar por WA", "secondary"),
-        "imprimir": ("🖨️", "Imprimir ticket", "secondary"),
-        "reactivar": ("♻️", "Reactivar pedido", "warning"),
-        "activar_programado": ("▶", "Activar ahora", "success"),
-        "reprogramar": ("🗓️", "Reprogramar", "warning"),
+    estado = (pedido.get("estado") or "pendiente").strip().lower()
+    order_context = {
+        "estado": estado,
+        "workflow_type": pedido.get("workflow_type", ""),
+        "adjustment_pending": bool(int(pedido.get("adjustment_pending") or 0)),
+        "scheduled_at": pedido.get("scheduled_at"),
+        "delivery_type": pedido.get("delivery_type", ""),
+        "responsable": pedido.get("responsable", ""),
     }
+    action_keys: list[str] = []
+    try:
+        action_keys = DeliveryStateMachine().get_valid_actions(order_context)
+    except Exception:
+        pass
 
+    # Determine if items are weighable to swap label
+    items = pedido.get("items") or []
+    has_weighable = any(
+        _LEGACY_STATUS_MAP.get(  # reuse map as sanity check; here just unit lookup
+            str(it.get("unidad") or "").lower(), None
+        ) is None and str(it.get("unidad") or "").lower() in {u.value for u in _WEIGHABLE_UNITS}
+        for it in items
+    ) if items else True  # fallback: assume weighable when no item data
+
+    result = []
+    for key in action_keys:
+        icon, label, style = _ACTION_METADATA.get(key, ("", key, "secondary"))
+        if key == "ajustar_peso":
+            label = "Ajustar peso" if has_weighable else "Ajustar cantidad"
+        result.append({"icon": icon, "label": label, "key": key, "style": style})
+    return result
+
+
+# Keep for legacy callers that still reference the old class name
+class DeliveryActionPolicy:
     @classmethod
     def get_actions(cls, estado: str, *, workflow_type: str = "", adjustment_pending: bool = False) -> list:
-        order_context = {
-            "estado": estado,
-            "workflow_type": workflow_type,
-            "adjustment_pending": adjustment_pending,
-        }
-        action_keys = DeliveryStateMachine().get_valid_actions(order_context)
-        return [
-            (
-                cls._METADATA.get(key, ("", key, "secondary"))[0],
-                cls._METADATA.get(key, ("", key, "secondary"))[1],
-                key,
-                cls._METADATA.get(key, ("", key, "secondary"))[2],
-            )
-            for key in action_keys
-        ]
+        return _get_card_actions({"estado": estado, "workflow_type": workflow_type, "adjustment_pending": adjustment_pending})
 
 
 def _matches_operational_tab(pedido: dict, tab_key: str | None) -> bool:
@@ -778,24 +832,8 @@ class TarjetaPedido(QFrame):
             "secondary": create_secondary_button,
         }
 
-        parent_widget = self.parent()
-        if hasattr(parent_widget, "delivery_service"):
-            actions = parent_widget.delivery_service.get_valid_actions(
-                status=estado,
-                workflow_type=pedido.get("workflow_type", ""),
-                adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
-                scheduled_at=pedido.get("scheduled_at"),
-                delivery_type=pedido.get("delivery_type", ""),
-            )
-        else:
-            actions = [
-                {"icon": i, "label": t, "key": a, "style": s}
-                for i, t, a, s in DeliveryActionPolicy.get_actions(
-                    estado,
-                    workflow_type=pedido.get("workflow_type", ""),
-                    adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
-                )
-            ]
+        # Single route for all card actions — same function used by list view
+        actions = _get_card_actions(pedido)
         for action in actions:
             icon_text = action.get("icon", "")
             tooltip = action.get("label", "")
@@ -843,7 +881,12 @@ class PesoRealDialog(QDialog):
         self._tolerance_units = float(tolerance_units)
         self._items = items
 
-        self.setWindowTitle("Ajustar peso real")
+        # Title reflects unit type: weighable → "Ajustar peso", countable → "Ajustar cantidad"
+        _has_weighable = any(
+            str(it.get("unidad") or "").lower() in {u.value for u in _WEIGHABLE_UNITS}
+            for it in items
+        )
+        self.setWindowTitle("Ajustar peso real" if _has_weighable else "Ajustar cantidad")
         self.setMinimumSize(620, 400)
         self.setWindowModality(Qt.ApplicationModal)
 
@@ -1411,25 +1454,27 @@ class ModuloDelivery(QWidget, RefreshMixin):
         kanban_layout = QVBoxLayout(kanban_widget)
         kanban_layout.setContentsMargins(0, 0, 0, 0)
         splitter = QSplitter(Qt.Horizontal)
+        # self.columnas is keyed by column index (0-3), not by legacy status string.
+        # Use _STATUS_TO_COL to find the column for any legacy DB status value.
         self.columnas = {}
-        for estado in ["pendiente","preparacion","en_ruta","entregado"]:
-            from PyQt5.QtWidgets import QScrollArea
+        from PyQt5.QtWidgets import QScrollArea
+        for col_idx, (col_title, _col_statuses) in enumerate(_KANBAN_COLUMNS):
             col_widget = QWidget()
             col_layout = QVBoxLayout(col_widget)
             col_layout.setContentsMargins(0, 0, 0, 0)
             col_layout.setSpacing(0)
-            color = ESTADO_COLOR[estado]
-            titulo = QLabel(estado.upper().replace("_"," "))
+            color = _KANBAN_COL_COLORS[col_idx]
+            titulo = QLabel(col_title)
             titulo.setObjectName("subheading")
             titulo.setStyleSheet(
                 f"color: {color}; font-weight: bold; padding: {Spacing.SM};"
                 f" border-bottom: 2px solid {color};")
             col_layout.addWidget(titulo)
             scroll_content = QWidget()
-            self.columnas[estado] = QVBoxLayout(scroll_content)
-            self.columnas[estado].setContentsMargins(4, 4, 4, 4)
-            self.columnas[estado].setSpacing(4)
-            self.columnas[estado].addStretch()
+            self.columnas[col_idx] = QVBoxLayout(scroll_content)
+            self.columnas[col_idx].setContentsMargins(4, 4, 4, 4)
+            self.columnas[col_idx].setSpacing(4)
+            self.columnas[col_idx].addStretch()
             scroll_area = QScrollArea()
             scroll_area.setWidget(scroll_content)
             scroll_area.setWidgetResizable(True)
@@ -1823,13 +1868,8 @@ if(drivers.length===0){{
             "warning": create_warning_button, "danger": create_danger_button,
             "secondary": create_secondary_button,
         }
-        for action in self.delivery_service.get_valid_actions(
-            status=estado,
-            workflow_type=pedido.get("workflow_type", ""),
-            adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
-            scheduled_at=pedido.get("scheduled_at"),
-            delivery_type=pedido.get("delivery_type", ""),
-        ):
+        # Single route — same function as Kanban cards
+        for action in _get_card_actions(pedido):
             icon_text = action.get("icon", "")
             tooltip = action.get("label", "")
             accion = action.get("key", "")
@@ -2013,8 +2053,8 @@ if(drivers.length===0){{
             self._loading.show()
         kanban_visibles = 0
         lista_count = 0
-        # Clear kanban columns
-        for estado, col_layout in self.columnas.items():
+        # Clear kanban columns (columnas is keyed by col_idx 0-3)
+        for _col_idx, col_layout in self.columnas.items():
             while col_layout.count() > 1:
                 item = col_layout.takeAt(0)
                 if item.widget(): item.widget().deleteLater()
@@ -2043,10 +2083,11 @@ if(drivers.length===0){{
                     continue
                 if not self._matches_advanced_filters(p):
                     continue
-                if estado in self.columnas:
+                col_idx = _STATUS_TO_COL.get(estado)
+                if col_idx is not None:
                     card = TarjetaPedido(p)
                     card.accion_requerida.connect(self.ejecutar_accion)
-                    self.columnas[estado].insertWidget(self.columnas[estado].count() - 1, card)
+                    self.columnas[col_idx].insertWidget(self.columnas[col_idx].count() - 1, card)
                     kanban_visibles += 1
 
             self.lbl_stats.setText(
