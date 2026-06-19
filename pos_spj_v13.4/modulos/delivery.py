@@ -55,6 +55,9 @@ from core.utils.delivery_ui_filters import (
     matches_scheduled_window as _matches_scheduled_window_fn,
 )
 from core.services.driver_service import DriverService
+from frontend.desktop.components.product_search_box import ProductSearchBox
+from frontend.desktop.components.search_selector import SearchOption
+from backend.application.queries.product_query_service import ProductQueryService as _ProductQueryService
 logger = logging.getLogger("spj.delivery")
 
 
@@ -321,18 +324,23 @@ class NuevoPedidoDialog(QDialog):
         pl = QVBoxLayout(grp_prod)
         pl.setSpacing(4)
 
+        # Unit labels from canonical map — never hardcode string "kg" in UI
+        from core.delivery.domain.value_objects import UNIT_LABELS_ES, UnitCode as _UC
+        _unit_labels = [UNIT_LABELS_ES.get(u, u.value) for u in _UC]
+
+        # Product SearchSelector — routes queries through ProductQueryService (no SQL in UI)
+        self._search_results_cache: dict = {}
+        self.prod_search = ProductSearchBox(self, provider=self._search_products_provider)
+        self.prod_search.setMaximumHeight(110)
+        pl.addWidget(self.prod_search)
+
         add_row = QHBoxLayout()
-        self.txt_prod_buscar = QLineEdit()
-        self.txt_prod_buscar.setPlaceholderText("Buscar producto o escribe libremente…")
         self.spin_cant = QDoubleSpinBox()
         self.spin_cant.setRange(0, 9999)
         self.spin_cant.setValue(0)
         self.spin_cant.setDecimals(3)
         self.spin_cant.setFixedWidth(80)
         self.cmb_unidad = QComboBox()
-        # Unit labels from canonical map — never hardcode string "kg" in UI
-        from core.delivery.domain.value_objects import UNIT_LABELS_ES, UnitCode as _UC
-        _unit_labels = [UNIT_LABELS_ES.get(u, u.value) for u in _UC]
         self.cmb_unidad.addItems(_unit_labels)
         self.cmb_unidad.setFixedWidth(68)
         self.spin_precio = QDoubleSpinBox()
@@ -343,7 +351,6 @@ class NuevoPedidoDialog(QDialog):
         btn_add_prod = create_success_button(self, "➕ Agregar", "Agregar producto al pedido")
         btn_add_prod.setFixedWidth(100)
 
-        add_row.addWidget(self.txt_prod_buscar, 3)
         add_row.addWidget(QLabel("Cant:"))
         add_row.addWidget(self.spin_cant)
         add_row.addWidget(self.cmb_unidad)
@@ -351,12 +358,6 @@ class NuevoPedidoDialog(QDialog):
         add_row.addWidget(self.spin_precio)
         add_row.addWidget(btn_add_prod)
         pl.addLayout(add_row)
-
-        # Product search suggestions
-        self.lst_prod_sug = QListWidget()
-        self.lst_prod_sug.setMaximumHeight(72)
-        self.lst_prod_sug.hide()
-        pl.addWidget(self.lst_prod_sug)
 
         # Items table
         self.tbl_items = QTableWidget(0, 5)
@@ -465,7 +466,7 @@ class NuevoPedidoDialog(QDialog):
 
         # ── WIRING ───────────────────────────────────────────────────────
         btn_add_prod.clicked.connect(self._agregar_item)
-        self.lst_prod_sug.itemClicked.connect(self._seleccionar_producto)
+        self.prod_search.selected.connect(self._on_product_selected)
         self.spin_anticipo.valueChanged.connect(self._actualizar_saldo)
 
         # Address debounce + request-ID cancellation
@@ -477,13 +478,6 @@ class NuevoPedidoDialog(QDialog):
         self._debounce.timeout.connect(self._do_search)
         self.txt_direccion.textChanged.connect(self._on_dir_changed)
         self.lst_sugerencias.itemClicked.connect(self._tomar_sugerencia)
-
-        # Product debounce
-        self._prod_debounce = QTimer(self)
-        self._prod_debounce.setSingleShot(True)
-        self._prod_debounce.setInterval(300)
-        self._prod_debounce.timeout.connect(self._do_prod_search)
-        self.txt_prod_buscar.textChanged.connect(lambda _: self._prod_debounce.start())
 
     # ── CLIENT SEARCH ─────────────────────────────────────────────────────
     def _buscar_cliente(self) -> None:
@@ -525,32 +519,46 @@ class NuevoPedidoDialog(QDialog):
         if direccion and not self.txt_direccion.text().strip():
             self.txt_direccion.setText(direccion)
 
-    # ── PRODUCT SEARCH ────────────────────────────────────────────────────
-    def _do_prod_search(self) -> None:
-        q = self.txt_prod_buscar.text().strip()
+    # ── PRODUCT SEARCH — routed through ProductQueryService (no SQL in UI) ──────
+    def _search_products_provider(self, q: str) -> list[SearchOption]:
         if len(q) < 2:
-            self.lst_prod_sug.hide()
-            return
-        rows = _DeliveryQueryService(self.conexion).search_products(q)
-        self.lst_prod_sug.clear()
-        for r in rows:
-            wi = QListWidgetItem(f"{r['nombre']}  —  ${r['precio']:.2f} / {r['unidad']}")
-            wi.setData(Qt.UserRole, r)
-            self.lst_prod_sug.addItem(wi)
-        self.lst_prod_sug.setVisible(self.lst_prod_sug.count() > 0)
+            return []
+        try:
+            results = _ProductQueryService.from_connection(self.conexion).search_products(q)
+        except Exception:
+            logger.exception("Product search failed query=%r", q)
+            return []
+        self._search_results_cache = {r.id: r for r in results}
+        return [
+            SearchOption(
+                id=r.id,
+                label=r.label,
+                subtitle=f"${r.metadata.get('price', 0):.2f} / {r.metadata.get('unit', '')}",
+            )
+            for r in results
+        ]
 
-    def _seleccionar_producto(self, item: QListWidgetItem) -> None:
-        data = item.data(Qt.UserRole) or {}
-        self.txt_prod_buscar.setText(data.get("nombre", ""))
-        self.spin_precio.setValue(data.get("precio", 0))
-        idx = self.cmb_unidad.findText(data.get("unidad", "u"))
+    def _on_product_selected(self, option: SearchOption) -> None:
+        r = self._search_results_cache.get(option.id)
+        meta = r.metadata if r is not None else {}
+        self._current_prod_data = {
+            "id": option.id,
+            "nombre": option.label,
+            "precio": meta.get("price", 0),
+            "unidad": meta.get("unit", ""),
+        }
+        self.spin_precio.setValue(float(meta.get("price", 0) or 0))
+        unit_label = str(meta.get("unit", ""))
+        idx = self.cmb_unidad.findText(unit_label)
         if idx >= 0:
             self.cmb_unidad.setCurrentIndex(idx)
-        self._current_prod_data = data
-        self.lst_prod_sug.hide()
+        self.prod_search.set_selected_label(option.label)
 
     def _agregar_item(self) -> None:
-        nombre = self.txt_prod_buscar.text().strip()
+        nombre = (
+            self._current_prod_data.get("nombre")
+            or self.prod_search._search_box.text().strip()
+        )
         if not nombre:
             QMessageBox.warning(self, "Producto requerido", "Escribe el nombre del producto.")
             return
@@ -567,7 +575,7 @@ class NuevoPedidoDialog(QDialog):
             "producto_id": self._current_prod_data.get("id"),
         })
         self._refresh_items_table()
-        self.txt_prod_buscar.clear()
+        self.prod_search.clear()
         self.spin_cant.setValue(0)
         self.spin_precio.setValue(0)
         self._current_prod_data = {}

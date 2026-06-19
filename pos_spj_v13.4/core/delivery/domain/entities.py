@@ -25,7 +25,7 @@ class DeliveryItem:
     cantidad: float = 0.0
     precio_unitario: float = 0.0
     subtotal: float = 0.0
-    unidad: str = "kg"
+    unidad: str = ""
     requested_qty: float | None = None
     prepared_qty: float | None = None
     final_qty: float | None = None
@@ -47,7 +47,7 @@ class DeliveryItem:
             cantidad=qty,
             precio_unitario=price,
             subtotal=subtotal,
-            unidad=data.get("unidad") or "kg",
+            unidad=data.get("unidad") or "",
             requested_qty=data.get("requested_qty"),
             prepared_qty=data.get("prepared_qty"),
             final_qty=data.get("final_qty"),
