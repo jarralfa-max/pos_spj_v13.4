@@ -63,7 +63,7 @@ class AuthRepository:
 
             suc_id = (row['sucursal_id'] if has_suc else 0) or 0
             suc_nombre = (row['sucursal_nombre'] if has_suc else "") or ""
-            suc_uuid = (row.get('sucursal_uuid') if has_suc else None) or None
+            suc_uuid = (row['sucursal_uuid'] if has_suc else None) or None
 
             user_data = {
                 'id': row['id'],
