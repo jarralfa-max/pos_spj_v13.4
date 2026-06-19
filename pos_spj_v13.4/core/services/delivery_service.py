@@ -19,6 +19,7 @@ from core.delivery.application.adjust_delivery_weight import AdjustDeliveryWeigh
 from core.delivery.application.assign_delivery_driver import AssignDeliveryDriverUseCase
 from core.delivery.application.cancel_delivery_order import CancelDeliveryOrderUseCase
 from core.delivery.application.change_delivery_status import ChangeDeliveryStatusUseCase
+from core.services.inventory_balance_service import InventoryBalanceService
 from core.delivery.application.create_delivery_order import CreateDeliveryOrderUseCase
 from core.delivery.application.sync_whatsapp_orders import SyncWhatsAppOrdersUseCase
 
@@ -184,6 +185,7 @@ class DeliveryService:
             publisher=self._publish,
             get_order_items=self.get_order_items,
             outbox_repository=self.outbox_repository,
+            inventory_service=InventoryBalanceService(self.db) if self.db is not None else None,
         )
 
     def update_status(

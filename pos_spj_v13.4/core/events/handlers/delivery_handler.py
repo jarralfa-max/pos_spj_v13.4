@@ -73,8 +73,13 @@ class DeliveryReserveStockHandler:
 class DeliveryReservationReleaseHandler:
     """Releases all reservations when an order is cancelled.
 
-    Triggered by: stock_liberar_solicitado  (existing event from DeliveryService)
-    Payload: {order_id}
+    Triggered by:
+      - stock_liberar_solicitado  (legacy event from DeliveryService, payload: {order_id})
+      - INVENTORY_RELEASE_REQUIRED (new event from ChangeDeliveryStatusUseCase,
+        payload: {order_id, operation_id, reason})
+
+    The operation_id is tried first; if absent, falls back to "delivery:{order_id}"
+    and then to the raw order_id string (legacy compatibility).
     """
 
     def __init__(self, db) -> None:
@@ -86,9 +91,20 @@ class DeliveryReservationReleaseHandler:
         order_id = str(payload.get("order_id", ""))
         if not order_id:
             return
+        # Prefer explicit operation_id (new event format); fall back to legacy forms
+        operation_id = (
+            payload.get("operation_id")
+            or f"delivery:{order_id}"
+        )
         try:
-            released = svc.release_by_operation(self.db, operation_id=order_id)
-            logger.info("ReservationRelease: order=%s released=%d row(s)", order_id, released)
+            released = svc.release_by_operation(self.db, operation_id=str(operation_id))
+            if released == 0:
+                # Legacy fallback: reservations may have been stored with bare order_id
+                released = svc.release_by_operation(self.db, operation_id=order_id)
+            logger.info(
+                "ReservationRelease: order=%s operation_id=%s released=%d row(s)",
+                order_id, operation_id, released,
+            )
         except Exception as exc:
             logger.error("ReservationRelease error order=%s: %s", order_id, exc)
 
