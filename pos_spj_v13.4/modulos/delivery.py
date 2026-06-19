@@ -2349,7 +2349,7 @@ if(drivers.length===0){{
                 v.addWidget(bb)
                 dlg_det.exec_()
                 return
-            elif accion == "preparar":
+            elif accion in ("preparacion", "preparar"):
                 from core.services.reservation_service import ReservationService, VARIABLE_WEIGHT_UNITS
                 items = self.delivery_service.get_order_items(pedido_id)
 
