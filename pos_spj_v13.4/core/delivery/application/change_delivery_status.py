@@ -24,6 +24,7 @@ class ChangeDeliveryStatusUseCase:
         publisher: EventPublisher = NoopPublisher,
         get_order_items: Callable[[int], list[dict[str, Any]]] | None = None,
         outbox_repository=None,
+        inventory_service=None,
     ) -> None:
         self.db = db
         self.repository = repository
@@ -32,6 +33,7 @@ class ChangeDeliveryStatusUseCase:
         self.publisher = publisher
         self.get_order_items = get_order_items or (lambda _order_id: [])
         self.outbox_repository = outbox_repository
+        self.inventory_service = inventory_service
 
     def execute(self, order_id: int, status: str, usuario: str, responsable: str = "", observacion: str = "") -> None:
         target = DeliveryStateMachine().normalize_status(status).value
@@ -39,6 +41,32 @@ class ChangeDeliveryStatusUseCase:
 
         if target == "entregado" and not responsable:
             raise ValueError("No se puede entregar sin responsable")
+
+        # ── Stock availability check before marking as preparacion ─────────────
+        if target == "preparacion" and self.inventory_service is not None:
+            order_before = self.repository.get_order(order_id) or {}
+            items = self.get_order_items(order_id)
+            branch_id = order_before.get("sucursal_id") or 1
+            for item in items:
+                pid = item.get("producto_id")
+                qty = float(item.get("cantidad") or 0)
+                if not pid or qty <= 0:
+                    continue
+                try:
+                    avail = self.inventory_service.get_available_stock(
+                        product_id=pid, branch_id=branch_id
+                    )
+                    if avail is not None and avail < qty:
+                        raise ValueError(
+                            f"Stock insuficiente: {item.get('nombre', str(pid))} "
+                            f"— disponible {avail}, requerido {qty}"
+                        )
+                except ValueError:
+                    raise
+                except Exception as exc:
+                    logger.warning(
+                        "No se pudo verificar stock producto %s: %s", pid, exc
+                    )
 
         if target in ("en_ruta", "entregado") and self._has_pending_adjustment(order_id):
             self.repository.mark_adjustment_blocked(order_id, target)

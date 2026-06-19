@@ -2115,14 +2115,14 @@ if(drivers.length===0){{
             ]).lower()
             if q not in blob:
                 return False
-        estado = self._flt_estado.currentText()
-        if estado != "Todos" and str(pedido.get("estado") or "").strip().lower() != estado:
+        estado = self._flt_estado.currentData()
+        if estado is not None and str(pedido.get("estado") or "").strip().lower() != estado:
             return False
-        flujo = self._flt_flujo.currentText()
-        if flujo != "Todos" and self._infer_workflow_for_ui(pedido) != flujo:
+        flujo = self._flt_flujo.currentData()
+        if flujo is not None and self._infer_workflow_for_ui(pedido) != flujo:
             return False
-        origen = self._flt_origen.currentText()
-        if origen != "Todos":
+        origen = self._flt_origen.currentData()
+        if origen is not None:
             src = str(pedido.get("source") or pedido.get("origen") or "").strip().lower()
             if src != origen:
                 return False
@@ -2595,8 +2595,6 @@ if(drivers.length===0){{
                         )
                     except Exception:
                         pass
-            try: self.conexion.commit()
-            except Exception: pass
             QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
             # Publicar evento para recarga reactiva en otros módulos
             try:
@@ -2667,10 +2665,6 @@ if(drivers.length===0){{
                         )
                     except Exception as exc:
                         logger.debug("delivery_items insert: %s", exc)
-                try:
-                    self.conexion.commit()
-                except Exception:
-                    pass
 
             QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
             Toast.success(self, "Pedido creado", "Pedido de delivery creado exitosamente.")
@@ -2895,11 +2889,6 @@ if(drivers.length===0){{
                             (cut_id, oid))
                     except Exception:
                         pass
-
-                try:
-                    self.conexion.commit()
-                except Exception:
-                    pass
 
                 # Publicar evento DRIVER_SETTLEMENT_CREATED
                 try:

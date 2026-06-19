@@ -16,10 +16,12 @@ from core.delivery.infrastructure.delivery_schema_migrator import DeliverySchema
 from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
 from core.delivery.application.activate_scheduled_order import ActivateScheduledOrderUseCase
 from core.delivery.application.adjust_delivery_weight import AdjustDeliveryWeightUseCase
+from core.delivery.application.assign_delivery_driver import AssignDeliveryDriverUseCase
 from core.delivery.application.cancel_delivery_order import CancelDeliveryOrderUseCase
 from core.delivery.application.change_delivery_status import ChangeDeliveryStatusUseCase
 from core.delivery.application.create_delivery_order import CreateDeliveryOrderUseCase
 from core.delivery.application.sync_whatsapp_orders import SyncWhatsAppOrdersUseCase
+from core.services.inventory_balance_service import InventoryBalanceService
 
 logger = logging.getLogger("spj.services.delivery")
 
@@ -161,6 +163,7 @@ class DeliveryService:
             publisher=self._publish,
             get_order_items=self.get_order_items,
             outbox_repository=self.outbox_repository,
+            inventory_service=InventoryBalanceService(self.db) if self.db is not None else None,
         )
 
     def update_status(
