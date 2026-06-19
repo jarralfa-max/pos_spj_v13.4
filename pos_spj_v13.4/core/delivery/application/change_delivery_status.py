@@ -27,6 +27,7 @@ class ChangeDeliveryStatusUseCase:
         outbox_repository=None,
         inventory_service=None,
         credit_service=None,
+        print_coordinator=None,
     ) -> None:
         self.db = db
         self.repository = repository
@@ -38,6 +39,8 @@ class ChangeDeliveryStatusUseCase:
         self.inventory_service = inventory_service
         # Optional CustomerCreditService — gates orders that leave a balance on account.
         self.credit_service = credit_service
+        # Optional DeliveryPrintCoordinator — auto-prints documents after commit.
+        self.print_coordinator = print_coordinator
 
     def execute(
         self,
@@ -221,6 +224,13 @@ class ChangeDeliveryStatusUseCase:
 
         for event_name, event_payload in events_to_publish:
             self.publisher(event_name, event_payload)
+
+        # ── Auto-print AFTER commit — a printer failure never reverts the state ──
+        if self.print_coordinator is not None:
+            try:
+                self.print_coordinator.print_for_transition(order, target)
+            except Exception as exc:
+                logger.warning("auto-print falló order=%s estado=%s: %s", order_id, target, exc)
 
         self._safe_wa_notify(order, target)
         if self.whatsapp_service is not None:

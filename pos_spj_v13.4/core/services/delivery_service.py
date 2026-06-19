@@ -187,7 +187,19 @@ class DeliveryService:
             outbox_repository=self.outbox_repository,
             inventory_service=InventoryBalanceService(self.db) if self.db is not None else None,
             credit_service=self._credit_service(),
+            print_coordinator=self._print_coordinator(),
         )
+
+    def _print_coordinator(self):
+        """Canonical auto-print coordinator. Returns None if unavailable."""
+        if self.db is None:
+            return None
+        try:
+            from core.delivery.application.print_coordinator import DeliveryPrintCoordinator
+            return DeliveryPrintCoordinator(self.db)
+        except Exception as exc:
+            logger.debug("DeliveryPrintCoordinator unavailable: %s", exc)
+            return None
 
     def _credit_service(self):
         """Canonical customer-credit gate. Returns None if unavailable."""
