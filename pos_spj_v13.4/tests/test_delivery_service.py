@@ -50,6 +50,7 @@ def test_create_and_update_delivery_order():
     orders = svc.list_orders()
     assert any(o["id"] == oid for o in orders)
 
+    svc.update_status(oid, "preparacion", usuario="tester")
     svc.update_status(oid, "en_ruta", usuario="tester")
     svc.update_status(oid, "entregado", usuario="tester", responsable="carlos")
 

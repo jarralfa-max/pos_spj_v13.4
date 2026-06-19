@@ -48,27 +48,6 @@ class CreateDeliveryOrderUseCase:
         operation_id = f"delivery:{order_id}"
         items = payload.get("items") or []
         if items:
-            for _it in items:
-                try:
-                    self.db.execute(
-                        "INSERT INTO delivery_items "
-                        "(delivery_id, producto_id, nombre, cantidad, precio_unitario, subtotal, unidad) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            order_id,
-                            _it.get("producto_id"),
-                            _it.get("nombre", ""),
-                            _it.get("cantidad", 0),
-                            _it.get("precio", _it.get("precio_unitario", 0)),
-                            _it.get("subtotal", 0),
-                            _it.get("unidad", "u"),
-                        ),
-                    )
-                except Exception as _exc:
-                    import logging as _log
-                    _log.getLogger("spj.delivery.application.create").debug(
-                        "delivery_items insert: %s", _exc
-                    )
             reserved_payload = {
                 "order_id": order_id,
                 "operation_id": operation_id,

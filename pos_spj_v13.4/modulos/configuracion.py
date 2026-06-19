@@ -477,15 +477,16 @@ class ModuloConfiguracion(ModuloBase):
             self.cmb_sucursal_inst.addItem(nombre, sid)
         configured_branch = settings.get('sucursal_instalacion_id')
         if configured_branch:
+            stored = str(configured_branch).strip()
+            self.cmb_sucursal_inst.blockSignals(True)
             try:
-                suc_id = int(configured_branch)
-            except ValueError as exc:
-                QMessageBox.warning(self, "Sucursal inválida", f"La sucursal configurada no es válida: {exc}")
-                return
-            for index in range(self.cmb_sucursal_inst.count()):
-                if self.cmb_sucursal_inst.itemData(index) == suc_id:
-                    self.cmb_sucursal_inst.setCurrentIndex(index)
-                    break
+                for index in range(self.cmb_sucursal_inst.count()):
+                    d = self.cmb_sucursal_inst.itemData(index)
+                    if d is not None and str(d) == stored:
+                        self.cmb_sucursal_inst.setCurrentIndex(index)
+                        break
+            finally:
+                self.cmb_sucursal_inst.blockSignals(False)
 
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
