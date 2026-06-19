@@ -60,7 +60,7 @@ class AdjustDeliveryWeightUseCase:
         prepared_qty: float,
         prepared_by: str,
         adjustment_reason: str = "",
-        unit: str = "kg",
+        unit: str = "",
     ) -> dict[str, Any]:
         order = self.repository.get_order(order_id) or {}
         estado = (order.get("estado") or "").lower()

@@ -341,7 +341,7 @@ class DeliveryService:
         prepared_qty: float,
         prepared_by: str,
         adjustment_reason: str = "",
-        unit: str = "kg",
+        unit: str = "",
     ) -> Dict[str, Any]:
         return AdjustDeliveryWeightUseCase(
             db=self.db,
@@ -368,7 +368,7 @@ class DeliveryService:
         prepared_qty: float,
         prepared_by: str,
         adjustment_reason: str = "",
-        unit: str = "kg",
+        unit: str = "",
     ) -> Dict[str, Any]:
         """Legacy alias for adjust_item_weight."""
         return self.adjust_item_weight(

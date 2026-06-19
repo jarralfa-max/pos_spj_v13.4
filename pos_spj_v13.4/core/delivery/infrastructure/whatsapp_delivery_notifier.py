@@ -41,7 +41,7 @@ class WhatsAppDeliveryNotifier:
         item_name: str = "Producto",
         requested_qty: float = 0,
         prepared_qty: float = 0,
-        unit: str = "kg",
+        unit: str = "",
         new_subtotal: float = 0,
         diff_qty: float | None = None,
     ) -> bool:
@@ -64,7 +64,7 @@ class WhatsAppDeliveryNotifier:
         folio: str,
         requested_qty: float,
         prepared_qty: float,
-        unit: str = "kg",
+        unit: str = "",
         new_total: float = 0,
         payment_url: str = "",
     ) -> bool:
@@ -106,7 +106,7 @@ class WhatsAppDeliveryNotifier:
                 item_name=str(params.get("item_name") or "Producto"),
                 requested_qty=float(params.get("requested_qty") or 0),
                 prepared_qty=float(params.get("prepared_qty") or 0),
-                unit=str(params.get("unit") or "kg"),
+                unit=str(params.get("unit") or ""),
                 new_subtotal=float(params.get("new_subtotal") or 0),
                 diff_qty=float(params.get("diff_qty") or 0),
             )
@@ -116,7 +116,7 @@ class WhatsAppDeliveryNotifier:
                 folio=folio,
                 requested_qty=float(params.get("requested_qty") or 0),
                 prepared_qty=float(params.get("prepared_qty") or 0),
-                unit=str(params.get("unit") or "kg"),
+                unit=str(params.get("unit") or ""),
                 new_total=float(params.get("new_total") or params.get("total") or 0),
                 payment_url=str(params.get("payment_url") or ""),
             )
