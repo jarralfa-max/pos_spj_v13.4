@@ -34,6 +34,14 @@ def run(conn) -> None:
             pago_monto    REAL DEFAULT 0
         )
     """)
+    # Add created_at if table pre-existed without it (migration idempotency)
+    try:
+        conn.execute(
+            "ALTER TABLE delivery_driver_cuts ADD COLUMN created_at DATETIME DEFAULT (datetime('now'))"
+        )
+    except Exception:
+        pass  # column already exists
+
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_ddc_driver ON delivery_driver_cuts(driver_id, created_at)"
     )

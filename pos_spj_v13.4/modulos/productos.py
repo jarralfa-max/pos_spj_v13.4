@@ -1,11 +1,10 @@
 
 # modulos/productos.py
-from modulos.spj_styles import spj_btn, apply_btn_styles
-from modulos.design_tokens import Colors, Spacing, Typography, Borders
+from modulos.design_tokens import Colors, Spacing
 from modulos.ui_components import (
     create_primary_button, create_success_button, create_danger_button,
-    create_secondary_button, create_table_button, create_input_field, create_input, create_combo,
-    create_heading, create_subheading, create_caption, apply_tooltip,
+    create_secondary_button, create_table_button, create_input, create_combo,
+    create_subheading, create_caption,
     LoadingIndicator, EmptyStateWidget, PageHeader, Toast,
 )
 import os
@@ -18,14 +17,12 @@ from PyQt5.QtWidgets import (
     QTableWidget, QTableWidgetItem, QDialog, QDialogButtonBox, QHeaderView,
     QAbstractItemView, QFrame, QSplitter, QGridLayout, QListWidget,
     QListWidgetItem, QCompleter, QDateEdit, QTimeEdit, QTabWidget,
-    QRadioButton, QButtonGroup, QCheckBox, QSpinBox, QTextEdit, QMenu,
-    QAction, QToolBar, QStatusBar, QProgressBar, QSlider, QDial,
-    QCalendarWidget, QColorDialog, QFontDialog, QFileDialog, QInputDialog,
-    QErrorMessage, QProgressDialog, QSplashScreen, QSystemTrayIcon,
-    QStyleFactory, QApplication, QSizePolicy, QStackedWidget, QScrollArea
+    QCheckBox, QSpinBox, QTextEdit,
+    QProgressBar, QFileDialog,
+    QProgressDialog, QSizePolicy, QScrollArea
 )
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QFont, QPixmap
+from PyQt5.QtGui import QPixmap
 import logging
 from modulos.dialogs.receta_dialog import DialogoReceta
 from core.services.recipes.recipe_service import RecipeService
@@ -433,7 +430,6 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
         self.sucursal_id = 1
         self.usuario_actual = ""
-        self.product_query_service = ProductQueryService.from_connection(self.conexion)
         self._product_catalog_service = ProductCatalogService(self.conexion)
         self._deactivate_product_uc = DeactivateProductUseCase(self._product_catalog_service)
         self._restore_product_uc = RestoreProductUseCase(self._product_catalog_service)
@@ -841,7 +837,7 @@ class ModuloProductos(QWidget, RefreshMixin):
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """Auto-refresh catalog on product or purchase events."""
         try: self.cargar_catalogo()
-        except Exception: pass
+        except Exception as e: logger.debug("refresh error: %s", e)
 
     def cargar_catalogo(self):
         if hasattr(self, "_loading_catalogo"):
@@ -998,80 +994,6 @@ class ModuloProductos(QWidget, RefreshMixin):
                 self.cargar_catalogo()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo eliminar: {e}")
-
-    # =========================================================
-    # PESTAÑA 2: INGENIERÍA DE RECETAS (Estructura Base)
-    # =========================================================
-    def setup_tab_recetas(self):
-        layout = QHBoxLayout(self.tab_recetas)
-        
-        panel_lista = QGroupBox("Recetas de Despiece (Cortes)")
-        layout_lista = QVBoxLayout(panel_lista)
-        self.lista_recetas = QListWidget()
-        layout_lista.addWidget(self.lista_recetas)
-        layout_lista.addWidget(QPushButton("📝 Crear Nueva Receta"))
-        
-        panel_detalle = QGroupBox("Configuración de Rendimiento")
-        layout_detalle = QVBoxLayout(panel_detalle)
-        layout_detalle.addWidget(QLabel("Seleccione una receta a la izquierda para ver su configuración.\n\nEjemplo: 'Despiece Pollo Estándar' -> 30% Pechuga, 20% Pierna, 5% Merma."))
-        layout_detalle.addStretch()
-        
-        layout.addWidget(panel_lista, 1)
-        layout.addWidget(panel_detalle, 2)
-
-    def cargar_recetas(self):
-        # Aquí se cargarán las recetas usando tu RecipeRepository en el futuro
-        self.lista_recetas.clear()
-        self.lista_recetas.addItem("Despiece Pollo Estándar (Teórico)")
-
-    # =========================================================
-    # PESTAÑA 3: PROCESAMIENTO CÁRNICO (EJECUCIÓN DE DESPIECE)
-    # =========================================================
-    def setup_tab_procesamiento(self):
-        layout = QVBoxLayout(self.tab_procesamiento)
-        
-        instrucciones = create_caption(self, "Seleccione una receta e ingrese el peso de la materia prima para ejecutar el despiece en el inventario.")
-        layout.addWidget(instrucciones)
-        
-        panel_proc = QGroupBox("Orden de Producción")
-        panel_proc.setObjectName("styledGroup")
-        form_proc = QFormLayout(panel_proc)
-        
-        self.cmb_receta_ejecutar = create_combo(self, ["Seleccione una receta..."])
-        self.txt_peso_entrada = QDoubleSpinBox()
-        self.txt_peso_entrada.setRange(0.1, 9999.0)
-        self.txt_peso_entrada.setSuffix(" kg")
-        self.txt_peso_entrada.setDecimals(2)
-        self.txt_peso_entrada.setObjectName("inputField")
-        
-        self.txt_merma_real = QDoubleSpinBox()
-        self.txt_merma_real.setRange(0.0, 999.0)
-        self.txt_merma_real.setSuffix(" kg")
-        self.txt_merma_real.setObjectName("inputField")
-        self.txt_merma_real.setToolTip("Pese la merma real (huesos, sangre). Dejar en 0 usa el teórico.")
-        
-        form_proc.addRow("Receta a Ejecutar:", self.cmb_receta_ejecutar)
-        form_proc.addRow("Peso de Materia Prima (Pollo Entero):", self.txt_peso_entrada)
-        form_proc.addRow("Merma Física Real (Opcional):", self.txt_merma_real)
-        
-        layout.addWidget(panel_proc)
-        
-        self.btn_ejecutar_despiece = create_primary_button(self, "⚙️ Iniciar Despiece y Actualizar Inventario", 
-            "Ejecutar el despiece de la receta seleccionada y actualizar el inventario automáticamente")
-        self.btn_ejecutar_despiece.clicked.connect(self.ejecutar_produccion)
-        layout.addWidget(self.btn_ejecutar_despiece)
-        
-        layout.addStretch()
-
-    def cargar_recetas_para_procesamiento(self):
-        self.cmb_receta_ejecutar.clear()
-        try:
-            cursor = self.container.db.cursor() if hasattr(self.container, 'db') else self.conexion.cursor()
-            rows = cursor.execute("SELECT id, nombre_receta FROM product_recipes WHERE activa = 1").fetchall()
-            for row in rows:
-                self.cmb_receta_ejecutar.addItem(row['nombre_receta'], row['id'])
-        except Exception as e:
-            pass
 
     def ejecutar_produccion(self):
         if self.cmb_receta_ejecutar.currentIndex() == -1:
@@ -1644,5 +1566,5 @@ class ModuloProductos(QWidget, RefreshMixin):
     def closeEvent(self, event):
         """Detiene timers activos al cerrar el módulo."""
         try: self._scanner_timer.stop()
-        except Exception: pass
+        except Exception as e: logger.debug("closeEvent cleanup: %s", e)
         super().closeEvent(event)

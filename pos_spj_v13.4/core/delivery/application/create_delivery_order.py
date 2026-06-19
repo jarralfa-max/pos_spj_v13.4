@@ -42,12 +42,33 @@ class CreateDeliveryOrderUseCase:
             payload["lng"] = payload.get("lng")
 
         payload["usuario"] = usuario
-        order_id = self.repository.create_order(payload, commit=self.outbox_repository is None)
+        order_id = self.repository.create_order(payload, commit=False)
         events_to_publish: list[tuple[str, dict[str, Any]]] = []
 
         operation_id = f"delivery:{order_id}"
         items = payload.get("items") or []
         if items:
+            for _it in items:
+                try:
+                    self.db.execute(
+                        "INSERT INTO delivery_items "
+                        "(delivery_id, producto_id, nombre, cantidad, precio_unitario, subtotal, unidad) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            order_id,
+                            _it.get("producto_id"),
+                            _it.get("nombre", ""),
+                            _it.get("cantidad", 0),
+                            _it.get("precio", _it.get("precio_unitario", 0)),
+                            _it.get("subtotal", 0),
+                            _it.get("unidad", "u"),
+                        ),
+                    )
+                except Exception as _exc:
+                    import logging as _log
+                    _log.getLogger("spj.delivery.application.create").debug(
+                        "delivery_items insert: %s", _exc
+                    )
             reserved_payload = {
                 "order_id": order_id,
                 "operation_id": operation_id,
@@ -81,8 +102,7 @@ class CreateDeliveryOrderUseCase:
             "usuario": usuario,
         }
         events_to_publish.append(("DELIVERY_ORDER_CREATED", created_payload))
-        if self.outbox_repository is not None:
-            self.db.commit()
+        self.db.commit()
 
         for event_name, event_payload in events_to_publish:
             self.publisher(event_name, event_payload)
