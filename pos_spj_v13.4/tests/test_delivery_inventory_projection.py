@@ -131,3 +131,29 @@ def test_outbox_processor_can_route_inventory_handlers():
     assert result == {"processed": 1, "failed": 0}
     assert db.execute("SELECT reserved_qty FROM inventory_reservations WHERE operation_id='delivery:3'").fetchone()[0] == 1
     assert db.execute("SELECT status FROM delivery_outbox_events").fetchone()[0] == "done"
+
+
+def test_release_handler_accepts_inventory_release_required_payload():
+    """DeliveryReservationReleaseHandler must handle INVENTORY_RELEASE_REQUIRED payloads.
+
+    ChangeDeliveryStatusUseCase publishes {order_id, operation_id, reason} when cancelled.
+    The handler must use operation_id (not bare order_id) to release reservations.
+    """
+    db = _db()
+    projection = DeliveryInventoryProjectionService(ReservationServiceInventoryAdapter(db))
+
+    # Reserve first
+    projection.handle_order_reserved({
+        "order_id": 99,
+        "operation_id": "delivery:99",
+        "items": [{"producto_id": 10, "cantidad": 3}],
+        "branch_id": 1,
+    })
+    assert db.execute("SELECT COUNT(*) FROM inventory_reservations WHERE operation_id='delivery:99' AND released=0").fetchone()[0] == 1
+
+    # Simulate what ChangeDeliveryStatusUseCase publishes for cancelado
+    from core.events.handlers.delivery_handler import DeliveryReservationReleaseHandler
+    handler = DeliveryReservationReleaseHandler(db)
+    handler.handle({"order_id": 99, "operation_id": "delivery:99", "reason": "cancelado"})
+
+    assert db.execute("SELECT released FROM inventory_reservations WHERE operation_id='delivery:99'").fetchone()[0] == 1
