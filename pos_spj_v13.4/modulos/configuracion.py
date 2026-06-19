@@ -271,7 +271,6 @@ class ModuloConfiguracion(ModuloBase):
 
     def _ejecutar_cierre_mensual(self) -> None:
         """Calcula y guarda el cierre del período seleccionado."""
-        from PyQt5.QtWidgets import QMessageBox
         periodo = self._dte_cierre.date().toString("yyyy-MM")
         usuario = getattr(self, 'usuario_actual', 'Sistema')
 
@@ -319,15 +318,13 @@ class ModuloConfiguracion(ModuloBase):
                 f"✅ {periodo} cerrado — Ventas ${total_ventas:,.2f}")
             self._lbl_cierre_status.setObjectName("textSuccess")
             self._cargar_historial_cierres()
-            from PyQt5.QtWidgets import QMessageBox as _QMB
-            _QMB.information(self, "Cierre ejecutado",
+            QMessageBox.information(self, "Cierre ejecutado",
                 f"Periodo {periodo} cerrado. "
                 f"Ventas: ${total_ventas:,.2f} | "
                 f"Compras: ${total_compras:,.2f} | "
                 f"Merma: ${total_merma:,.2f}")
         except Exception as e:
-            from PyQt5.QtWidgets import QMessageBox as _QMB
-            _QMB.critical(self, "Error", str(e))
+            QMessageBox.critical(self, "Error", str(e))
             self._lbl_cierre_status.setText(f"❌ {e}")
             self._lbl_cierre_status.setObjectName("textDanger")
 
@@ -350,7 +347,6 @@ class ModuloConfiguracion(ModuloBase):
                 f"${float(r[4] or 0):,.2f}",
                 f"${float(r[5] or 0):,.2f}",
             ]
-            from PyQt5.QtCore import Qt
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -481,27 +477,15 @@ class ModuloConfiguracion(ModuloBase):
             self.cmb_sucursal_inst.addItem(nombre, sid)
         configured_branch = settings.get('sucursal_instalacion_id')
         if configured_branch:
-            stored = str(configured_branch).strip()
-            self.cmb_sucursal_inst.blockSignals(True)
             try:
-                # findData matches itemData by string equality (itemData is str from active_branches_for_selector)
-                idx = self.cmb_sucursal_inst.findData(stored)
-                if idx < 0 and stored.isdigit():
-                    # Legacy path: stored is integer string, itemData may also be integer string
-                    for i in range(self.cmb_sucursal_inst.count()):
-                        d = self.cmb_sucursal_inst.itemData(i)
-                        if d is not None and str(d) == stored:
-                            idx = i
-                            break
-                if idx >= 0:
-                    self.cmb_sucursal_inst.setCurrentIndex(idx)
-                else:
-                    import logging
-                    logging.getLogger(__name__).warning(
-                        "_cargar_empresa: configured branch '%s' not found in selector", stored
-                    )
-            finally:
-                self.cmb_sucursal_inst.blockSignals(False)
+                suc_id = int(configured_branch)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Sucursal inválida", f"La sucursal configurada no es válida: {exc}")
+                return
+            for index in range(self.cmb_sucursal_inst.count()):
+                if self.cmb_sucursal_inst.itemData(index) == suc_id:
+                    self.cmb_sucursal_inst.setCurrentIndex(index)
+                    break
 
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
@@ -525,10 +509,6 @@ class ModuloConfiguracion(ModuloBase):
             'tasa_iva': str(float(self.emp_tasa_iva.value()) / 100),
             'sucursal_instalacion_id': str(suc_id),
         }
-        if hasattr(self, 'cmb_sucursal_inst'):
-            suc_id = self.cmb_sucursal_inst.currentData()
-            if suc_id:
-                datos['sucursal_instalacion_id'] = str(suc_id)
         try:
             self.system_settings_service.save_many(datos)
             QMessageBox.information(self, "✅ Guardado",
@@ -588,10 +568,7 @@ class ModuloConfiguracion(ModuloBase):
         if values.get('smtp_host'):
             self.smtp_host.setText(str(values['smtp_host']))
         if values.get('smtp_port'):
-            try:
-                self.smtp_port.setValue(int(float(values['smtp_port'])))
-            except (ValueError, TypeError):
-                pass
+            self.smtp_port.setValue(int(values['smtp_port']))
         if values.get('smtp_user'):
             self.smtp_user.setText(str(values['smtp_user']))
         if values.get('smtp_password'):
@@ -804,7 +781,7 @@ class ModuloConfiguracion(ModuloBase):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(2, 2, 2, 2)
-            rule_id = int(rule["id"])
+            rule_id = rule["id"]
             active = bool(rule.get("activo"))
             btn_edit = self._create_action_button("✏️", "Editar regla Happy Hour", "edit")
             btn_edit.clicked.connect(lambda _, rid=rule_id: self._editar_happy_hour_rule(rid))
@@ -1150,7 +1127,6 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_usuarios_v13(self):
         from PyQt5.QtWidgets import QWidget, QHBoxLayout
-        from PyQt5.QtCore import Qt
         try:
             rows = self.user_management_service.list_users()
         except Exception as exc:
@@ -1294,7 +1270,6 @@ class ModuloConfiguracion(ModuloBase):
 
     def _cargar_roles_v13(self):
         from PyQt5.QtWidgets import QWidget, QHBoxLayout
-        from PyQt5.QtCore import Qt
         try:
             rows = self.role_management_service.list_roles()
         except Exception as exc:
@@ -1394,7 +1369,6 @@ class ModuloConfiguracion(ModuloBase):
             )
 
     def _cargar_auditoria_v13(self):
-        from PyQt5.QtCore import Qt
         try:
             rows = self.permission_query_service.audit_log_rows(limit=200)
         except Exception as exc:
@@ -1412,9 +1386,3 @@ class ModuloConfiguracion(ModuloBase):
         """Maneja el cierre del módulo"""
         self.registrar_actualizacion("modulo_cerrado", {"modulo": "configuraciones"})
         super().closeEvent(event)
-
-
-
-# =============================================================================
-# DIÁLOGO PARA CREAR / EDITAR SUCURSAL
-# =============================================================================
