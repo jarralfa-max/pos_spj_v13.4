@@ -98,16 +98,17 @@ class DeliveryQueryService:
         Returns:
             List of DeliveryOrderViewDTO sorted by created_at DESC.
         """
-        try:
-            orders_raw = self._fetch_orders(branch_id=branch_id, date=date)
-        except Exception as exc:
-            logger.exception("DeliveryQueryService.list_orders DB error: %s", exc)
-            return []
+        # Fetch-level failures must surface, never silently yield an empty board.
+        orders_raw = self._fetch_orders(branch_id=branch_id, date=date)
 
         result: list[DeliveryOrderViewDTO] = []
+        dropped = 0
         for raw in orders_raw:
             dto = self._build_order_dto(raw)
             if dto is None:
+                # A single un-buildable order must not hide the rest; it is logged
+                # with context inside _build_order_dto. Count it for instrumentation.
+                dropped += 1
                 continue
 
             # Apply enum-level filters (after mapping)
@@ -118,87 +119,169 @@ class DeliveryQueryService:
 
             result.append(dto)
 
+        logger.info(
+            "DeliveryQueryService.list_orders: rows=%d dto_built=%d dropped=%d "
+            "branch_id=%s status=%s fulfillment=%s date=%s",
+            len(orders_raw), len(result), dropped,
+            branch_id, status, fulfillment_type, date,
+        )
         return result
 
+    def count_orders(self, branch_id: str | None = None) -> int:
+        """Lightweight count of delivery orders via the canonical route.
+
+        Used by background pollers to decide whether a board refresh is needed
+        without building full DTOs.
+        """
+        cols = self._delivery_order_columns()
+        where = ""
+        params: list[Any] = []
+        if branch_id is not None and "sucursal_id" in cols:
+            where = "WHERE sucursal_id = ?"
+            params.append(branch_id)
+        try:
+            row = self._db.execute(
+                f"SELECT COUNT(*) FROM delivery_orders {where}", params
+            ).fetchone()
+            return int(row[0]) if row else 0
+        except Exception:
+            logger.exception("DeliveryQueryService.count_orders failed")
+            return 0
+
     # ── Private helpers ───────────────────────────────────────────────────────
+
+    # Logical field → ordered list of candidate DB columns. The first column
+    # that exists in the table is used; otherwise a literal default is emitted.
+    # This keeps the single canonical query resilient across divergent schemas
+    # (base m000 vs DeliverySchemaMigrator) so no order is ever lost to a
+    # missing-column SQL error.
+    _FIELD_COLUMNS: tuple[tuple[str, tuple[str, ...], str], ...] = (
+        ("folio", ("folio",), "''"),
+        ("branch_id", ("sucursal_id",), "''"),
+        ("customer_name", ("cliente_nombre",), "''"),
+        ("customer_tel", ("cliente_tel",), "''"),
+        ("delivery_type", ("delivery_type",), "''"),
+        ("estado", ("estado",), "'pendiente'"),
+        ("pago_metodo", ("pago_metodo",), "''"),
+        ("pago_monto", ("pago_monto",), "0"),
+        ("workflow_type", ("workflow_type",), "''"),
+        ("direccion", ("direccion",), "''"),
+        ("source", ("source_channel", "source", "origen"), "''"),
+        ("scheduled_at", ("scheduled_at", "fecha_programada"), "''"),
+    )
+    _DATE_CANDIDATES: tuple[str, ...] = (
+        "fecha_actualizacion", "fecha_solicitud", "fecha", "created_at",
+    )
+
+    def _table_exists(self, table: str) -> bool:
+        try:
+            return bool(self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                (table,),
+            ).fetchone())
+        except Exception:
+            return False
+
+    def _delivery_order_columns(self) -> set[str]:
+        try:
+            return {
+                r[1] for r in self._db.execute(
+                    "PRAGMA table_info(delivery_orders)"
+                ).fetchall()
+            }
+        except Exception:
+            return set()
+
+    def _build_orders_sql(self, cols: set[str], where_sql: str, with_join: bool) -> str:
+        prefix = "o." if with_join else ""
+
+        def coalesce(terms: list[str]) -> str:
+            # COALESCE requires >= 2 args; a single term is passed through as-is.
+            return terms[0] if len(terms) == 1 else f"COALESCE({', '.join(terms)})"
+
+        def col_expr(candidates: tuple[str, ...], default: str, alias: str) -> str:
+            present = [f"{prefix}{c}" for c in candidates if c in cols]
+            if present:
+                return f"{coalesce(present + [default])} AS {alias}"
+            return f"{default} AS {alias}"
+
+        selects = [f"{prefix}id"]
+        for alias, candidates, default in self._FIELD_COLUMNS:
+            selects.append(col_expr(candidates, default, alias))
+        selects.append(f"{prefix}driver_id")
+        selects.append(
+            "COALESCE(d.nombre, '') AS driver_name" if with_join else "'' AS driver_name"
+        )
+        # created_at + ordering both rely on whichever date columns exist.
+        date_present = [f"{prefix}{c}" for c in self._DATE_CANDIDATES if c in cols]
+        created_expr = coalesce(date_present + ["''"]) if date_present else "''"
+        selects.append(f"{created_expr} AS created_at")
+        selects.append(
+            f"{coalesce([f'{prefix}total', '0'])} AS total" if "total" in cols else "0 AS total"
+        )
+        selects.append(
+            f"{prefix}adjustment_pending" if "adjustment_pending" in cols else "0 AS adjustment_pending"
+        )
+        order_expr = coalesce(date_present) if date_present else f"{prefix}id"
+        join_sql = "LEFT JOIN drivers d ON d.id = o.driver_id" if with_join else ""
+        return (
+            f"SELECT {', '.join(selects)} "
+            f"FROM delivery_orders {'o ' if with_join else ''}"
+            f"{join_sql} {where_sql} "
+            f"ORDER BY {order_expr} DESC LIMIT 500"
+        )
 
     def _fetch_orders(
         self, branch_id: str | None, date: str | None
     ) -> list[dict[str, Any]]:
-        """Execute the DB query and return raw row dicts."""
-        where_clauses: list[str] = []
-        params: list[Any] = []
+        """Execute the DB query and return raw row dicts.
 
-        if branch_id is not None:
-            where_clauses.append("o.sucursal_id = ?")
-            params.append(branch_id)
-
-        if date is not None:
-            where_clauses.append("DATE(o.fecha_solicitud) = ?")
-            params.append(date)
-
-        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-
-        sql = f"""
-            SELECT
-                o.id,
-                COALESCE(o.folio, '') AS folio,
-                COALESCE(o.sucursal_id, '') AS branch_id,
-                COALESCE(o.cliente_nombre, '') AS customer_name,
-                COALESCE(o.cliente_tel, '') AS customer_tel,
-                COALESCE(o.delivery_type, '') AS delivery_type,
-                COALESCE(o.estado, 'pendiente') AS estado,
-                COALESCE(o.pago_metodo, '') AS pago_metodo,
-                COALESCE(o.pago_monto, 0) AS pago_monto,
-                o.driver_id,
-                COALESCE(d.nombre, '') AS driver_name,
-                COALESCE(o.fecha_solicitud, '') AS created_at,
-                COALESCE(o.total, 0) AS total,
-                o.adjustment_pending,
-                COALESCE(o.workflow_type, '') AS workflow_type
-            FROM delivery_orders o
-            LEFT JOIN drivers d ON d.id = o.driver_id
-            {where_sql}
-            ORDER BY o.fecha_solicitud DESC
-            LIMIT 500
+        Schema-aware: only columns that exist are referenced, so the canonical
+        read never fails (and never silently empties the board) because of a
+        column the current schema variant happens not to have.
         """
+        # Guard: table not yet created (migrations not run) — not an error.
+        if not self._table_exists("delivery_orders"):
+            logger.info("delivery_orders table does not exist yet — returning empty list")
+            return []
+        cols = self._delivery_order_columns()
+
+        def build_where(prefix: str) -> tuple[str, list[Any]]:
+            clauses: list[str] = []
+            ps: list[Any] = []
+            if branch_id is not None and "sucursal_id" in cols:
+                clauses.append(f"{prefix}sucursal_id = ?")
+                ps.append(branch_id)
+            if date is not None:
+                date_col = next(
+                    (c for c in self._DATE_CANDIDATES if c in cols), None
+                )
+                if date_col is not None:
+                    clauses.append(f"DATE({prefix}{date_col}) = ?")
+                    ps.append(date)
+            where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+            return where, ps
+
+        where_join, params_join = build_where("o.")
         try:
-            rows = self._db.execute(sql, params).fetchall()
+            sql = self._build_orders_sql(cols, where_join, with_join=True)
+            rows = self._db.execute(sql, params_join).fetchall()
         except Exception:
-            # Fallback without driver join if drivers table doesn't exist
-            sql_fallback = f"""
-                SELECT
-                    id,
-                    COALESCE(folio, '') AS folio,
-                    COALESCE(sucursal_id, '') AS branch_id,
-                    COALESCE(cliente_nombre, '') AS customer_name,
-                    COALESCE(cliente_tel, '') AS customer_tel,
-                    COALESCE(delivery_type, '') AS delivery_type,
-                    COALESCE(estado, 'pendiente') AS estado,
-                    COALESCE(pago_metodo, '') AS pago_metodo,
-                    COALESCE(pago_monto, 0) AS pago_monto,
-                    driver_id,
-                    '' AS driver_name,
-                    COALESCE(fecha_solicitud, '') AS created_at,
-                    COALESCE(total, 0) AS total,
-                    adjustment_pending,
-                    COALESCE(workflow_type, '') AS workflow_type
-                FROM delivery_orders
-                {where_sql}
-                ORDER BY fecha_solicitud DESC
-                LIMIT 500
-            """
-            rows = self._db.execute(sql_fallback, params).fetchall()
+            # Fallback without the drivers join if that table is absent.
+            where_plain, params_plain = build_where("")
+            sql_fallback = self._build_orders_sql(cols, where_plain, with_join=False)
+            rows = self._db.execute(sql_fallback, params_plain).fetchall()
 
         # Convert rows to dicts
         if rows and hasattr(rows[0], "keys"):
             return [dict(r) for r in rows]
-        # Positional fallback
+        # Positional fallback — must match the SELECT order in _build_orders_sql.
         keys = [
             "id", "folio", "branch_id", "customer_name", "customer_tel",
             "delivery_type", "estado", "pago_metodo", "pago_monto",
+            "workflow_type", "direccion", "source", "scheduled_at",
             "driver_id", "driver_name", "created_at", "total",
-            "adjustment_pending", "workflow_type",
+            "adjustment_pending",
         ]
         return [dict(zip(keys, r)) for r in rows]
 
@@ -260,6 +343,10 @@ class DeliveryQueryService:
             fulfillment_type = _map_legacy_fulfillment(raw.get("delivery_type"))
             payment_status = _map_payment_status(raw)
             has_driver = bool(raw.get("driver_id"))
+            try:
+                adjustment_pending = bool(int(raw.get("adjustment_pending") or 0))
+            except (TypeError, ValueError):
+                adjustment_pending = bool(raw.get("adjustment_pending"))
 
             available_actions = _ACTION_POLICY.available_actions(
                 status=status,
@@ -290,6 +377,12 @@ class DeliveryQueryService:
                 available_actions=available_actions,
                 created_at=str(raw.get("created_at") or ""),
                 total=Decimal(str(raw.get("total") or 0)),
+                direccion=str(raw.get("direccion") or ""),
+                workflow_type=str(raw.get("workflow_type") or ""),
+                scheduled_at=str(raw.get("scheduled_at") or ""),
+                source=str(raw.get("source") or ""),
+                adjustment_pending=adjustment_pending,
+                status_legacy=(str(raw.get("estado") or "").strip().lower() or "pendiente"),
             )
         except Exception as exc:
             logger.exception(

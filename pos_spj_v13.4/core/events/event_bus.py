@@ -172,6 +172,7 @@ DELIVERY_ORDER_RESERVED       = "DELIVERY_ORDER_RESERVED"         # order_id, it
 DELIVERY_RESERVATION_RELEASED = "DELIVERY_RESERVATION_RELEASED"   # order_id, operation_id, released_count
 DELIVERY_ITEM_WEIGHT_ADJUSTED = "DELIVERY_ITEM_WEIGHT_ADJUSTED"   # order_id, item_id, requested_qty, prepared_qty, new_total, cliente_tel, folio
 DELIVERY_TOTAL_UPDATED        = "DELIVERY_TOTAL_UPDATED"          # order_id, old_total, new_total, folio, cliente_tel, cliente_email
+DELIVERY_TOTAL_FINALIZED      = "DELIVERY_TOTAL_FINALIZED"        # order_id, delivery_id, customer_id, branch_id, final_total, balance_due, payment_method
 DELIVERY_PAYMENT_UPDATED      = "DELIVERY_PAYMENT_UPDATED"        # order_id, payment_url, preference_id, new_total
 
 # Delivery lifecycle — full flow state machine (v13.30)
