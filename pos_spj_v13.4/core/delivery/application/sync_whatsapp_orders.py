@@ -26,6 +26,17 @@ class SyncWhatsAppOrdersUseCase:
                         DeliveryEvents.ORDER_CREATED.value,
                         {"order_id": oid, "payload": item, "source_channel": "whatsapp", "canal": "whatsapp"},
                     )
+                    items = item.get("items") or []
+                    if items:
+                        self.publisher(
+                            DeliveryEvents.ORDER_RESERVED.value,
+                            {
+                                "order_id": oid,
+                                "operation_id": f"delivery:{oid}",
+                                "items": items,
+                                "branch_id": item.get("sucursal_id", 1),
+                            },
+                        )
                     pulled = True
                 except Exception as exc:
                     logger.warning("pull_orders_from_whatsapp upsert failed: %s", exc)
@@ -61,7 +72,18 @@ class SyncWhatsAppOrdersUseCase:
                 "source_channel": "whatsapp",
             }
             try:
-                self.repository.upsert_order_from_whatsapp(payload, usuario="sync_local_ventas")
+                oid = self.repository.upsert_order_from_whatsapp(payload, usuario="sync_local_ventas")
+                items = payload.get("items") or []
+                if items:
+                    self.publisher(
+                        DeliveryEvents.ORDER_RESERVED.value,
+                        {
+                            "order_id": oid,
+                            "operation_id": f"delivery:{oid}",
+                            "items": items,
+                            "branch_id": payload.get("sucursal_id", 1),
+                        },
+                    )
                 imported += 1
             except Exception as exc:
                 logger.warning("sync_pending_sales_to_delivery_orders upsert failed venta_id=%s: %s", venta_id, exc)
