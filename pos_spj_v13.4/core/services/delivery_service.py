@@ -340,8 +340,30 @@ class DeliveryService:
                 "adjustment_requested_at", "adjustment_responded_at", "adjustment_response",
                 "tolerance_units"]
         if rows and hasattr(rows[0], "keys"):
-            return [dict(r) for r in rows]
-        return [dict(zip(cols, r)) for r in rows]
+            items = [dict(r) for r in rows]
+        else:
+            items = [dict(zip(cols, r)) for r in rows]
+        # Secondary resolution: when producto_id is NULL (WhatsApp-sourced items),
+        # the JOIN returned no product row. Look up by item name in productos so the
+        # product's configured unit replaces whatever legacy default is in unidad.
+        for item in items:
+            if item.get("producto_id"):
+                continue
+            nombre = (item.get("nombre") or "").strip()
+            if not nombre:
+                continue
+            try:
+                row = self.db.execute(
+                    "SELECT unidad FROM productos WHERE nombre=? AND activo=1 LIMIT 1",
+                    (nombre,),
+                ).fetchone()
+                if row:
+                    unit = row[0] if not hasattr(row, "keys") else row["unidad"]
+                    if unit:
+                        item["unidad"] = unit
+            except Exception:
+                pass
+        return items
 
     def autocomplete_address(self, query: str):
         return self.geocoding_service.autocomplete(query)
