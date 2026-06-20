@@ -757,7 +757,7 @@ class NuevoPedidoDialog(QDialog):
         }
 
 class TarjetaPedido(QFrame):
-    accion_requerida = pyqtSignal(int, str)  # pedido_id, accion
+    accion_requerida = pyqtSignal(object, str)  # pedido_id (str), accion
     def __init__(self, pedido: dict, parent=None):
         super().__init__(parent)
         self.pedido = pedido
@@ -2203,7 +2203,7 @@ if(drivers.length===0){{
             if order_id:
                 logger.info("Notificación delivery recibida para pedido=%s dedupe=%s", order_id, dedupe_key)
 
-    def ejecutar_accion(self, pedido_id: int, accion: str):
+    def ejecutar_accion(self, pedido_id, accion: str):
         try:
             if accion == "imprimir":
                 from core.services.ticket_printer_service import TicketPrinterService
