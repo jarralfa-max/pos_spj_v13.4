@@ -173,6 +173,15 @@ class DeliveryQueryService:
         "fecha_actualizacion", "fecha_solicitud", "fecha", "created_at",
     )
 
+    def _table_exists(self, table: str) -> bool:
+        try:
+            return bool(self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+                (table,),
+            ).fetchone())
+        except Exception:
+            return False
+
     def _delivery_order_columns(self) -> set[str]:
         try:
             return {
@@ -231,6 +240,10 @@ class DeliveryQueryService:
         read never fails (and never silently empties the board) because of a
         column the current schema variant happens not to have.
         """
+        # Guard: table not yet created (migrations not run) — not an error.
+        if not self._table_exists("delivery_orders"):
+            logger.info("delivery_orders table does not exist yet — returning empty list")
+            return []
         cols = self._delivery_order_columns()
 
         def build_where(prefix: str) -> tuple[str, list[Any]]:
