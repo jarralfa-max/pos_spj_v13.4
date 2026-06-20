@@ -235,3 +235,33 @@ def test_assign_driver_routes_through_use_case():
     assert "AssignDeliveryDriverUseCase" in src, (
         "delivery_service.py must use AssignDeliveryDriverUseCase for assign_driver"
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SINGLE CANONICAL READ ROUTE (board orders) — DeliveryQueryService only
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_board_read_uses_query_service_not_repository_route():
+    """The board must read orders through DeliveryQueryService, never through
+    the legacy delivery_service.list_orders repository route (single source)."""
+    src = _source(DELIVERY_UI)
+    assert "delivery_service.list_orders" not in src, (
+        "modulos/delivery.py still reads orders via delivery_service.list_orders — "
+        "the board must use DeliveryQueryService (single canonical read route)."
+    )
+
+
+def test_board_uses_single_shared_visual_state():
+    """cargar_pedidos must populate the shared _current_orders DTO collection."""
+    src = _source(DELIVERY_UI)
+    assert "self._current_orders" in src, (
+        "Board must keep a single shared visual state (_current_orders) of DTOs."
+    )
+
+
+def test_board_uses_single_dto_to_view_mapper():
+    """Both presentations must project the DTO through the one canonical mapper."""
+    src = _source(DELIVERY_UI)
+    assert "_dto_to_view_fn" in src, (
+        "Board must map DTOs through the single dto_to_view mapper."
+    )

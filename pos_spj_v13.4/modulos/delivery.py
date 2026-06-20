@@ -50,6 +50,7 @@ from core.delivery.domain.state_machine import DeliveryStateMachine
 from core.services.order_badge_service import OrderBadgeService
 from core.delivery.application.query_service import DeliveryQueryService as _DeliveryQueryService
 from core.utils.delivery_ui_filters import (
+    dto_to_view as _dto_to_view_fn,
     infer_workflow_for_ui as _infer_workflow_for_ui_fn,
     matches_operational_tab as _matches_operational_tab_fn,
     matches_scheduled_window as _matches_scheduled_window_fn,
@@ -1158,6 +1159,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self.delivery_service = DeliveryService(self.conexion)
         self.driver_service = DriverService(self.conexion)
         self._pedidos_cache = []
+        self._current_orders = ()  # canonical shared visual state (tuple of DTOs)
         self._seen_notification_keys: set[str] = set()
         self._last_notif_rowid: int = 0
         self._init_ui()
@@ -1224,8 +1226,9 @@ class ModuloDelivery(QWidget, RefreshMixin):
         try:
             before = len(self._pedidos_cache)
             self.delivery_service.pull_orders_from_whatsapp()
-            after_check = self.delivery_service.list_orders()
-            if len(after_check) != before:
+            # Canonical read route (single source) for the refresh decision.
+            after_count = _DeliveryQueryService(self.conexion).count_orders(branch_id=None)
+            if after_count != before:
                 QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
         except Exception as exc:
             logger.debug("_pull_wa_orders_bg: %s", exc)
@@ -2077,8 +2080,16 @@ if(drivers.length===0){{
                 item = col_layout.takeAt(0)
                 if item.widget(): item.widget().deleteLater()
         try:
-            filtro_repo = filtro if filtro in ESTADOS else None
-            pedidos = self.delivery_service.list_orders(filtro_repo)
+            # ── Single canonical read route ──────────────────────────────────
+            # SQLite → DeliveryQueryService → DTO → shared visual state.
+            # branch_id=None → all branches (board default); the query service is
+            # resilient to missing `drivers`/`ventas` tables, unlike the legacy
+            # repository route this replaces.
+            dtos = _DeliveryQueryService(self.conexion).list_orders(branch_id=None)
+            self._current_orders = tuple(dtos)
+            # One mapper, two presentations: project the canonical DTOs into the
+            # view shape both Kanban and list consume. No second query.
+            pedidos = [_dto_to_view_fn(d) for d in dtos]
             self._pedidos_cache = pedidos
 
             # Build lista-view items
@@ -2111,7 +2122,11 @@ if(drivers.length===0){{
             self.lbl_stats.setText(
                 f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pendiente', 'preparacion', 'en_ruta'])} · Total cargados: {len(lista_pedidos)}"
             )
-            logger.info("Delivery load: raw=%s filtered=%s filtro=%s", len(pedidos), len(lista_pedidos), filtro)
+            logger.info(
+                "Delivery board: dtos=%s view_rows=%s list_rows=%s kanban_cards=%s filtro=%s",
+                len(self._current_orders), len(pedidos), len(lista_pedidos),
+                kanban_visibles, filtro,
+            )
             self._safe_update_filter_tabs(pedidos, counts)
             self._safe_update_kpi(pedidos)
             self._safe_refresh_operational_header()
