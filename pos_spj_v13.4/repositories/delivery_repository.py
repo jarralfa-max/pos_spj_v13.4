@@ -318,10 +318,13 @@ class DeliveryRepository:
             venta_id = sale.get("id")
             items: List[Dict[str, Any]] = []
             if venta_id and cols_det and "venta_id" in cols_det:
+                nombre_expr = "COALESCE(producto_nombre,'') AS producto_nombre" if "producto_nombre" in cols_det else "'' AS producto_nombre"
+                precio_expr = "COALESCE(precio_unitario,0) AS precio_unitario" if "precio_unitario" in cols_det else "0 AS precio_unitario"
+                subtotal_expr = "COALESCE(subtotal,0) AS subtotal" if "subtotal" in cols_det else "0 AS subtotal"
                 det_rows = self.db.execute(
-                    "SELECT producto_id, COALESCE(producto_nombre,'') AS producto_nombre, "
-                    "COALESCE(cantidad,0) AS cantidad, COALESCE(precio_unitario,0) AS precio_unitario, "
-                    "COALESCE(subtotal,0) AS subtotal "
+                    f"SELECT producto_id, {nombre_expr}, "
+                    f"COALESCE(cantidad,0) AS cantidad, {precio_expr}, "
+                    f"{subtotal_expr} "
                     "FROM detalles_venta WHERE venta_id=?",
                     (venta_id,),
                 ).fetchall()
