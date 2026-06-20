@@ -54,3 +54,12 @@ class DeliveryOrderViewDTO:
     available_actions: tuple[DeliveryAction, ...]
     created_at: str
     total: Decimal
+    # ── Operational fields consumed by the board presenters (Kanban + list) ──
+    # These keep the canonical route lossless: every datum the UI renders comes
+    # from this single DTO, never from a second query.
+    direccion: str = ""
+    workflow_type: str = ""
+    scheduled_at: str = ""
+    source: str = ""
+    adjustment_pending: bool = False
+    status_legacy: str = ""          # raw normalized DB status (tab/column filters)

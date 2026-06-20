@@ -1,6 +1,42 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
+
+
+def dto_to_view(dto: Any) -> dict:
+    """Single canonical mapper: DeliveryOrderViewDTO → presenter view dict.
+
+    Both the Kanban cards and the list rows render from the dict produced here,
+    so there is exactly one projection from the canonical DTO to the board UI.
+    Pure function (no SQL, no Qt) — kept here so it can be unit-tested headlessly.
+    """
+    driver_name = dto.driver_name or "Sin asignar"
+    fulfillment = dto.fulfillment_type.value  # "pickup" | "delivery"
+    total = float(dto.total)
+    return {
+        "id": dto.order_id,
+        "folio": dto.folio,
+        "cliente_nombre": dto.customer_name,
+        "cliente_tel": dto.customer_tel,
+        "estado": dto.status_legacy,          # legacy Spanish status for filters/columns
+        "status_label_es": dto.status_label_es,
+        "total": total,
+        "monto_total": total,
+        "workflow_type": dto.workflow_type,
+        "delivery_type": fulfillment,
+        "tipo_entrega": fulfillment,
+        "direccion": dto.direccion,
+        "driver_nombre": driver_name,
+        "driver_id": dto.driver_id,
+        "adjustment_pending": 1 if dto.adjustment_pending else 0,
+        "source": dto.source,
+        "origen": dto.source,
+        "scheduled_at": dto.scheduled_at,
+        "fecha": dto.created_at,
+        "created_at": dto.created_at,
+        "fecha_solicitud": dto.created_at,
+    }
 
 
 def infer_workflow_for_ui(pedido: dict) -> str:
