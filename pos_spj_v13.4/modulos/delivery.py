@@ -115,6 +115,7 @@ from core.delivery.domain.value_objects import (
     DeliveryAction as _DeliveryAction,
     UnitCode as _UnitCode,
     LEGACY_STATUS_MAP as _LEGACY_STATUS_MAP,
+    LEGACY_UNIT_MAP as _LEGACY_UNIT_MAP,
     WEIGHABLE_UNITS as _WEIGHABLE_UNITS,
     UNIT_LABELS_ES as _UNIT_LABELS_ES,
 )
@@ -2250,7 +2251,7 @@ if(drivers.length===0){{
                 dlg_det.exec_()
                 return
             elif accion in ("preparacion", "preparar"):
-                from core.services.reservation_service import ReservationService, VARIABLE_WEIGHT_UNITS
+                from core.services.reservation_service import ReservationService
                 from core.services.inventory_balance_service import InventoryBalanceService
                 items = self.delivery_service.get_order_items(pedido_id)
 
@@ -2295,10 +2296,16 @@ if(drivers.length===0){{
                     )
                     return
 
-                # Check for variable-weight items before marking as "preparacion"
+                # Identify truly weighable items using the canonical domain set.
+                # WEIGHABLE_UNITS (kg, g, L) is the single source of truth — not the
+                # raw string set in reservation_service which matched "kg" blindly even
+                # when delivery_items.unidad was mis-stored. Unit comes from productos
+                # via get_order_items (LEFT JOIN productos p ON p.id = i.producto_id).
                 var_items = [
                     it for it in items
-                    if ReservationService.is_variable_weight(it.get("unidad", ""))
+                    if _LEGACY_UNIT_MAP.get(
+                        (it.get("unidad") or "").strip().lower(), _UnitCode.PIECE
+                    ) in _WEIGHABLE_UNITS
                 ]
                 if var_items:
                     dlg_peso = PesoRealDialog(var_items, parent=self)
@@ -2337,9 +2344,12 @@ if(drivers.length===0){{
                         "Solo puedes ajustar peso cuando el pedido está en estado Preparación.",
                     )
                     return
-                from core.services.reservation_service import ReservationService
                 items = self.delivery_service.get_order_items(pedido_id)
-                var_items = [it for it in items if ReservationService.is_variable_weight(it.get("unidad", ""))]
+                var_items = [
+                    it for it in items
+                    if _LEGACY_UNIT_MAP.get((it.get("unidad") or "").strip().lower(), _UnitCode.PIECE)
+                    in _WEIGHABLE_UNITS
+                ]
                 if not var_items:
                     QMessageBox.information(
                         self, "Sin ítems de peso variable",
