@@ -7,7 +7,6 @@ from repositories.delivery_repository import DeliveryRepository
 from core.services.delivery_whatsapp_service import DeliveryWhatsAppService
 from core.services.geocoding_service import GeocodingService
 from core.delivery.application.delivery_total_service import DeliveryTotalService
-from core.delivery.domain.events import DeliveryEvents
 from core.delivery.domain.state_machine import DeliveryStateMachine
 from core.delivery.infrastructure.whatsapp_delivery_notifier import WhatsAppDeliveryNotifier
 from core.events.event_bus import get_bus
@@ -25,28 +24,12 @@ from core.delivery.application.sync_whatsapp_orders import SyncWhatsAppOrdersUse
 
 logger = logging.getLogger("spj.services.delivery")
 
-ADJUSTMENT_PENDING = "pending_customer"
-ADJUSTMENT_ACCEPTED = "accepted"
-ADJUSTMENT_REJECTED = "rejected"
-ADJUSTMENT_NONE = "none"
-
-LEGACY_COMPATIBILITY_METHODS = frozenset({
-    "_ensure_adjustment_columns",
-    "_sync_venta_total",
-    "_notify_adjustment_pending",
-    "_validate_workflow_transition",
-    "_release_stock",
-    "sync_pending_sales_to_delivery_orders",
-})
-
 
 class DeliveryService:
-    """Backward-compatible facade for the delivery bounded context.
+    """Application service facade for the delivery bounded context.
 
-    Public methods keep the legacy service API stable while delegating real
-    behavior to application use cases, projections and infrastructure adapters.
-    Internal methods listed in `LEGACY_COMPATIBILITY_METHODS` are deprecated
-    shims retained for UI/tests/handlers during the phased migration.
+    All mutations delegate to application use cases. Reads delegate to
+    the repository or query services. No business logic lives here.
     """
     def __init__(
         self,
@@ -143,10 +126,6 @@ class DeliveryService:
     def create_order(self, data: Dict[str, Any], usuario: str = "sistema") -> int:
         return self._create_order_use_case().execute(data, usuario=usuario)
 
-    def create_delivery_order(self, data: Dict[str, Any], usuario: str = "sistema") -> int:
-        """Legacy alias kept for callers that adopted the explicit name."""
-        return self.create_order(data, usuario=usuario)
-
     def _has_pending_adjustment(self, order_id: int) -> bool:
         try:
             return self.repository.has_pending_adjustment(order_id)
@@ -232,27 +211,6 @@ class DeliveryService:
             pago_monto=pago_monto,
         )
 
-    def update_order_status(
-        self,
-        order_id: int,
-        status: str,
-        usuario: str = "sistema",
-        responsable: str = "",
-        observacion: str = "",
-        pago_metodo: str = "",
-        pago_monto: float = 0.0,
-    ) -> None:
-        """Legacy alias for callers using a more explicit method name."""
-        return self.update_status(
-            order_id,
-            status,
-            usuario=usuario,
-            responsable=responsable,
-            observacion=observacion,
-            pago_metodo=pago_metodo,
-            pago_monto=pago_monto,
-        )
-
     def activate_scheduled_order(self, order_id: int, usuario: str = "sistema") -> Dict[str, Any]:
         return ActivateScheduledOrderUseCase(
             db=self.db,
@@ -265,30 +223,6 @@ class DeliveryService:
         return CancelDeliveryOrderUseCase(self._change_status_use_case()).execute(
             order_id, usuario=usuario, motivo=motivo
         )
-
-    def cancel_delivery_order(self, order_id: int, usuario: str = "sistema", motivo: str = "") -> Dict[str, Any]:
-        """Legacy alias retained while callers migrate to cancel_order."""
-        return self.cancel_order(order_id, usuario=usuario, motivo=motivo)
-
-    def _validate_workflow_transition(self, order_id: int, target_status: str) -> None:
-        order = self.repository.get_order(order_id) or {}
-        workflow_type = (order.get("workflow_type") or "").strip().lower()
-        delivery_type = (order.get("delivery_type") or "").strip().lower()
-        scheduled_at = order.get("scheduled_at")
-
-        if not workflow_type:
-            if scheduled_at:
-                workflow_type = "scheduled"
-            elif delivery_type in ("pickup", "sucursal"):
-                workflow_type = "counter"
-            else:
-                workflow_type = "delivery"
-
-        if workflow_type == "scheduled" and target_status in ("preparacion", "en_ruta", "entregado"):
-            raise ValueError("Pedido programado: primero debe activarse antes de pasar a flujo operativo.")
-
-        if workflow_type == "counter" and target_status == "en_ruta":
-            raise ValueError("Flujo mostrador no permite estado 'en_ruta'.")
 
     def _recalculate_order_total(self, order_id: int) -> float:
         return self.order_total_service.recalculate_order_total(order_id, commit=False)
@@ -341,7 +275,7 @@ class DeliveryService:
         prepared_qty: float,
         prepared_by: str,
         adjustment_reason: str = "",
-        unit: str = "kg",
+        unit: str = "",
     ) -> Dict[str, Any]:
         return AdjustDeliveryWeightUseCase(
             db=self.db,
@@ -359,20 +293,6 @@ class DeliveryService:
             prepared_by=prepared_by,
             adjustment_reason=adjustment_reason,
             unit=unit,
-        )
-
-    def adjust_weight(
-        self,
-        order_id: int,
-        item_id: int,
-        prepared_qty: float,
-        prepared_by: str,
-        adjustment_reason: str = "",
-        unit: str = "kg",
-    ) -> Dict[str, Any]:
-        """Legacy alias for adjust_item_weight."""
-        return self.adjust_item_weight(
-            order_id, item_id, prepared_qty, prepared_by, adjustment_reason=adjustment_reason, unit=unit
         )
 
     def get_order_items(self, order_id: int) -> List[Dict[str, Any]]:
@@ -408,56 +328,6 @@ class DeliveryService:
             whatsapp_service=self.whatsapp_service,
             publisher=self._publish,
         ).pull_orders_from_whatsapp()
-
-    def sync_pending_sales_to_delivery_orders(self) -> int:
-        """Deprecated compatibility shim for local ventas -> delivery_orders sync."""
-        return SyncWhatsAppOrdersUseCase(
-            db=self.db,
-            repository=self.repository,
-            whatsapp_service=self.whatsapp_service,
-            publisher=self._publish,
-        ).sync_pending_sales_to_delivery_orders()
-
-    def _safe_wa_notify(self, order: Dict[str, Any], status: str) -> None:
-        """Deprecated notification shim. Prefer CUSTOMER_NOTIFICATION_REQUESTED outbox events."""
-        order_id = order.get("id")
-        folio = order.get("folio") or str(order_id or "")
-        if self.outbox_repository is not None and order_id:
-            self.outbox_repository.enqueue(
-                event_type=DeliveryEvents.CUSTOMER_NOTIFICATION_REQUESTED.value,
-                aggregate_id=int(order_id),
-                payload={
-                    "order_id": int(order_id),
-                    "canal": "whatsapp",
-                    "template": status,
-                    "params": {"folio": folio, "status": status},
-                    "cliente_tel": order.get("cliente_tel", ""),
-                },
-                operation_id=f"delivery:{order_id}:legacy_notify:{status}",
-                commit=True,
-            )
-            return
-        ok = self.whatsapp_service.notify_status(
-            phone=order.get("cliente_tel", ""),
-            folio=folio,
-            status=status,
-        )
-        self._publish("notificacion_whatsapp_enviada", {
-            "order_id": order.get("id"), "status": status, "ok": bool(ok)
-        })
-
-    def _release_stock(self, order_id: int) -> None:
-        """Deprecated release shim; emits legacy event and records outbox release when available."""
-        payload = {"order_id": order_id, "operation_id": f"delivery:{order_id}", "reason": "legacy_release_stock"}
-        if self.outbox_repository is not None:
-            self.outbox_repository.enqueue(
-                event_type=DeliveryEvents.INVENTORY_RELEASE_REQUIRED.value,
-                aggregate_id=order_id,
-                payload=payload,
-                operation_id=payload["operation_id"],
-                commit=True,
-            )
-        self._publish("stock_liberar_solicitado", {"order_id": order_id})
 
     def _publish(self, event: str, payload: Dict[str, Any]) -> None:
         try:
