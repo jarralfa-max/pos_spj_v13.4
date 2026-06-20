@@ -140,3 +140,35 @@ def test_kg_product_in_var_items():
     items = svc.get_order_items(1)
     var_items = [it for it in items if _is_weighable(it.get("unidad", ""))]
     assert len(var_items) == 1
+
+
+def test_name_lookup_resolves_unit_when_producto_id_null():
+    """WhatsApp items (producto_id=NULL) resolve unit from productos by name."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE delivery_orders(id INTEGER PRIMARY KEY, estado TEXT DEFAULT 'pendiente');
+        CREATE TABLE productos(id INTEGER PRIMARY KEY, nombre TEXT, unidad TEXT, activo INTEGER DEFAULT 1);
+        CREATE TABLE delivery_items(
+            id INTEGER PRIMARY KEY, delivery_id INTEGER, nombre TEXT,
+            cantidad REAL, precio_unitario REAL DEFAULT 0, subtotal REAL DEFAULT 0,
+            unidad TEXT, producto_id INTEGER,
+            requested_qty REAL DEFAULT 0, prepared_qty REAL, final_qty REAL,
+            prepared_by TEXT, prepared_at TEXT, adjustment_reason TEXT,
+            tolerance_exceeded INTEGER DEFAULT 0,
+            pending_prepared_qty REAL, pending_subtotal REAL,
+            adjustment_status TEXT, adjustment_requested_at TEXT,
+            adjustment_responded_at TEXT, adjustment_response TEXT,
+            tolerance_units REAL DEFAULT 0.2
+        );
+        INSERT INTO delivery_orders VALUES(1, 'preparacion');
+        INSERT INTO productos VALUES(10, 'Piña Enchilada PREMIER', 'pza', 1);
+        -- WhatsApp item: producto_id is NULL, unidad defaulted to 'kg'
+        INSERT INTO delivery_items(id, delivery_id, nombre, cantidad, unidad, producto_id, requested_qty)
+        VALUES(1, 1, 'Piña Enchilada PREMIER', 5, 'kg', NULL, 5);
+    """)
+    svc = DeliveryService(conn)
+    items = svc.get_order_items(1)
+    assert items[0]["unidad"] == "pza", "name-based lookup must replace legacy 'kg' with product's real unit"
+    var_items = [it for it in items if _is_weighable(it.get("unidad", ""))]
+    assert var_items == [], "pza product must not appear in var_items even when stored as 'kg'"

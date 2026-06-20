@@ -38,7 +38,19 @@ class SaleDeliveryProjectionService:
         sale_status = self.STATUS_TO_SALE_STATUS.get(normalize_status(status))
         if not sale_status:
             return False
-        self.db.execute("UPDATE ventas SET estado=? WHERE id=?", (sale_status, int(venta_id)))
+        try:
+            self.db.execute("UPDATE ventas SET estado=? WHERE id=?", (sale_status, int(venta_id)))
+        except Exception as exc:
+            # The ventas table may have a state-machine trigger (trg_protect_sale_estado)
+            # that only allows transitions from 'completada'/'CANCEL_PENDING'. Delivery
+            # logistics is the source of truth; ventas projection is secondary and must
+            # never abort the delivery state transition.
+            logger.warning(
+                "project_status: ventas.estado projection skipped venta_id=%s "
+                "delivery_status=%s → sale_status=%s: %s",
+                venta_id, status, sale_status, exc,
+            )
+            return False
         return True
 
     def project_total_for_order(self, order: Mapping[str, Any] | None, total: float) -> bool:
