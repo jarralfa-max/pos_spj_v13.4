@@ -316,7 +316,7 @@ def get_stock(db, product_id: int, sucursal_id: int) -> float:
             InventoryBalanceQueryService,
         )
         return InventoryBalanceQueryService(db).get_product_balance_float(
-            int(product_id), int(sucursal_id)
+            str(product_id), str(sucursal_id)
         )
     except Exception as exc:
         logger.debug("get_stock: balance service unavailable: %s", exc)

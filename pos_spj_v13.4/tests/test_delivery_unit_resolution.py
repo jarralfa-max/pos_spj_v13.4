@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 import pytest
 from core.delivery.domain.value_objects import (
-    LEGACY_UNIT_MAP, WEIGHABLE_UNITS, UnitCode,
+    WEIGHABLE_UNITS, UnitCode, resolve_unit,
 )
 from core.services.delivery_service import DeliveryService
 
@@ -55,8 +55,7 @@ def _conn_with_items(product_unit: str, item_unidad: str = "kg") -> sqlite3.Conn
 
 def _is_weighable(unit_str: str) -> bool:
     """Canonical filter used in ejecutar_accion."""
-    code = LEGACY_UNIT_MAP.get((unit_str or "").strip().lower(), UnitCode.PIECE)
-    return code in WEIGHABLE_UNITS
+    return resolve_unit(unit_str) in WEIGHABLE_UNITS
 
 
 # ── Unit map tests ────────────────────────────────────────────────────────────

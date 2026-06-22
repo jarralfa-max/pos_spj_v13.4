@@ -134,7 +134,7 @@ class SQLiteTransferQueryDataSource:
         branch_id = filters.get("branch_id")
         if branch_id:
             conditions.append("(t.branch_origin_id=? OR t.branch_dest_id=?)")
-            params.extend([int(branch_id), int(branch_id)])
+            params.extend([str(branch_id), str(branch_id)])
 
         status = filters.get("status") or filters.get("estado")
         if status:
@@ -214,7 +214,7 @@ class SQLiteTransferQueryDataSource:
             )
             ia_join = (
                 f"LEFT JOIN inventario_actual ia "
-                f"ON ia.producto_id=p.id AND ia.sucursal_id={int(sucursal_id)}"
+                f"ON ia.producto_id=p.id AND ia.sucursal_id='"+str(sucursal_id)+"'"
                 if has_ia
                 else ""
             )

@@ -112,16 +112,14 @@ class InventoryApplicationService:
         """Compatibility adapter for legacy inventory-entry callers.
 
         New code should use RegisterInventoryMovementUseCase or increase_stock().
-        This adapter keeps existing protection tests green while delegating the
-        actual stock mutation to the injected legacy inventory_service.
         """
         if self._legacy_inventory_service is None:
             result = self.increase_stock(
-                command.product_id,
-                int(command.branch_id),
+                str(command.product_id),
+                str(command.branch_id),
                 command.quantity,
                 command.unit,
-                command.reason or command.notes if hasattr(command, "notes") else command.reason,
+                command.reason or getattr(command, "notes", None) or "",
                 command.operation_id,
                 command.source_module,
                 command.reference_type,
@@ -134,54 +132,11 @@ class InventoryApplicationService:
                 operacion_id=result.operation_id,
             )
         command.validate_context()
-        current = float(self._legacy_inventory_service.get_stock(command.product_id, int(command.branch_id)) or 0.0)
+        current = float(self._legacy_inventory_service.get_stock(command.product_id, str(command.branch_id)) or 0.0)
         operation_id = command.operation_id
         getattr(self._legacy_inventory_service, "add" + "_stock")(
             product_id=command.product_id,
-            branch_id=int(command.branch_id),
-            qty=float(command.quantity),
-            unit=command.unit,
-            operation_id=operation_id,
-            user=command.user_name or "",
-            notes=getattr(command, "notes", "") or command.reason,
-        )
-        stock_after = current + float(command.quantity)
-        if self._legacy_db is not None and hasattr(self._legacy_db, "commit"):
-            self._legacy_db.commit()
-        self._publish_legacy_event("INVENTORY_ENTRY_REGISTERED", command, stock_after)
-        return SimpleNamespace(ok=True, stock_nuevo=stock_after, operacion_id=operation_id)
-
-    def register_entry(self, command: Any) -> Any:
-        """Compatibility adapter for legacy inventory-entry callers.
-
-        New code should use RegisterInventoryMovementUseCase or increase_stock().
-        This adapter keeps existing protection tests green while delegating the
-        actual stock mutation to the injected legacy inventory_service.
-        """
-        if self._legacy_inventory_service is None:
-            result = self.increase_stock(
-                command.product_id,
-                int(command.branch_id),
-                command.quantity,
-                command.unit,
-                command.reason or command.notes if hasattr(command, "notes") else command.reason,
-                command.operation_id,
-                command.source_module,
-                command.reference_type,
-                command.reference_id,
-                command.user_name or "",
-            )
-            return SimpleNamespace(
-                ok=result.success,
-                stock_nuevo=result.stock_after,
-                operacion_id=result.operation_id,
-            )
-        command.validate_context()
-        current = float(self._legacy_inventory_service.get_stock(command.product_id, int(command.branch_id)) or 0.0)
-        operation_id = command.operation_id
-        getattr(self._legacy_inventory_service, "add" + "_stock")(
-            product_id=command.product_id,
-            branch_id=int(command.branch_id),
+            branch_id=str(command.branch_id),
             qty=float(command.quantity),
             unit=command.unit,
             operation_id=operation_id,
@@ -213,13 +168,13 @@ class InventoryApplicationService:
         target_quantity = float(new_quantity)
         if target_quantity < 0:
             return InventoryMutationResult(False, operation_id, message="INVENTORY_NEGATIVE_STOCK_NOT_ALLOWED")
-        current = self._repository.get_stock(product_id=int(product_id), branch_id=int(branch_id))
+        current = self._repository.get_stock(product_id=str(product_id), branch_id=str(branch_id))
         delta = target_quantity - current.quantity
         movement_type = "ADJUST_INCREASE" if delta >= 0 else "ADJUST_DECREASE"
         movement = InventoryMovementRecord(
             operation_id=operation_id,
-            product_id=int(product_id),
-            branch_id=int(branch_id),
+            product_id=str(product_id),
+            branch_id=str(branch_id),
             movement_type=movement_type,
             quantity=abs(delta),
             stock_before=current.quantity,
@@ -249,18 +204,18 @@ class InventoryApplicationService:
     ) -> InventoryMutationResult:
         self._validate_context(product_id, from_branch_id, operation_id, source_module, user_name)
         self._validate_context(product_id, to_branch_id, operation_id, source_module, user_name)
-        if int(from_branch_id) == int(to_branch_id):
+        if str(from_branch_id) == str(to_branch_id):
             return InventoryMutationResult(False, operation_id, message="INVENTORY_TRANSFER_BRANCHES_MUST_DIFFER")
         qty = self._positive_quantity(quantity)
-        origin = self._repository.get_stock(product_id=int(product_id), branch_id=int(from_branch_id))
-        destination = self._repository.get_stock(product_id=int(product_id), branch_id=int(to_branch_id))
+        origin = self._repository.get_stock(product_id=str(product_id), branch_id=str(from_branch_id))
+        destination = self._repository.get_stock(product_id=str(product_id), branch_id=str(to_branch_id))
         origin_after = origin.quantity - qty
         if origin_after < 0:
             return InventoryMutationResult(False, operation_id, stock_before=origin.quantity, message="INVENTORY_NEGATIVE_STOCK_NOT_ALLOWED")
         outgoing = InventoryMovementRecord(
             operation_id=operation_id,
-            product_id=int(product_id),
-            branch_id=int(from_branch_id),
+            product_id=str(product_id),
+            branch_id=str(from_branch_id),
             movement_type="TRANSFER_OUT",
             quantity=qty,
             stock_before=origin.quantity,
@@ -274,8 +229,8 @@ class InventoryApplicationService:
         )
         incoming = InventoryMovementRecord(
             operation_id=operation_id,
-            product_id=int(product_id),
-            branch_id=int(to_branch_id),
+            product_id=str(product_id),
+            branch_id=str(to_branch_id),
             movement_type="TRANSFER_IN",
             quantity=qty,
             stock_before=destination.quantity,
@@ -327,12 +282,11 @@ class InventoryApplicationService:
             events=events,
         )
 
-
     def _adjust_stock_legacy(self, command: Any) -> Any:
         if self._legacy_inventory_service is None:
             result = self.adjust_stock(
-                command.product_id,
-                int(command.branch_id),
+                str(command.product_id),
+                str(command.branch_id),
                 command.new_quantity,
                 command.unit,
                 command.reason,
@@ -348,7 +302,7 @@ class InventoryApplicationService:
                 operacion_id=result.operation_id,
             )
         command.validate_context()
-        current = float(self._legacy_inventory_service.get_stock(command.product_id, int(command.branch_id)) or 0.0)
+        current = float(self._legacy_inventory_service.get_stock(command.product_id, str(command.branch_id)) or 0.0)
         target = float(command.new_quantity)
         delta = target - current
         operation_id = command.operation_id
@@ -356,7 +310,7 @@ class InventoryApplicationService:
         mutation = getattr(self._legacy_inventory_service, mutation_name)
         mutation(
             product_id=command.product_id,
-            branch_id=int(command.branch_id),
+            branch_id=str(command.branch_id),
             qty=abs(delta),
             unit=command.unit,
             operation_id=operation_id,
@@ -372,14 +326,12 @@ class InventoryApplicationService:
         payload = {
             "operation_id": command.operation_id,
             "product_id": command.product_id,
-            "branch_id": int(command.branch_id),
+            "branch_id": str(command.branch_id),
             "stock_after": stock_after,
         }
         try:
             self._event_bus.publish(event_name, payload, async_=False)
         except TypeError:
-            # Canonical EventBus implementations expect DomainEvent; legacy tests
-            # inject a bus with the older publish(event, payload) signature.
             pass
 
     def _change_stock(
@@ -401,14 +353,14 @@ class InventoryApplicationService:
     ) -> InventoryMutationResult:
         self._validate_context(product_id, branch_id, operation_id, source_module, user_name)
         qty = self._positive_quantity(quantity)
-        current = self._repository.get_stock(product_id=int(product_id), branch_id=int(branch_id))
+        current = self._repository.get_stock(product_id=str(product_id), branch_id=str(branch_id))
         stock_after = current.quantity + signed_delta
         if stock_after < 0:
             return InventoryMutationResult(False, operation_id, stock_before=current.quantity, message="INVENTORY_NEGATIVE_STOCK_NOT_ALLOWED")
         movement = InventoryMovementRecord(
             operation_id=operation_id,
-            product_id=int(product_id),
-            branch_id=int(branch_id),
+            product_id=str(product_id),
+            branch_id=str(branch_id),
             movement_type=movement_type,
             quantity=qty,
             stock_before=current.quantity,
@@ -501,11 +453,15 @@ class InventoryApplicationService:
         }
 
     @staticmethod
-    def _validate_context(product_id: int, branch_id: int, operation_id: str, source_module: str, user_name: str) -> None:
-        if int(product_id or 0) <= 0:
-            raise ValueError("product_id is required")
-        if int(branch_id or 0) <= 0:
-            raise ValueError("branch_id is required")
+    def _validate_context(product_id: str, branch_id: str, operation_id: str, source_module: str, user_name: str) -> None:
+        if not str(product_id or "").strip():
+            raise ValueError("product_id is required — expected UUIDv7, got empty/None")
+        if str(product_id or "").strip().isdigit():
+            raise ValueError(f"Legacy integer identity rejected: product_id={product_id}. Expected UUIDv7.")
+        if not str(branch_id or "").strip():
+            raise ValueError("branch_id is required — expected UUIDv7, got empty/None")
+        if str(branch_id or "").strip().isdigit():
+            raise ValueError(f"Legacy integer identity rejected: branch_id={branch_id}. Expected UUIDv7.")
         if not operation_id:
             raise ValueError("operation_id is required")
         if not source_module:

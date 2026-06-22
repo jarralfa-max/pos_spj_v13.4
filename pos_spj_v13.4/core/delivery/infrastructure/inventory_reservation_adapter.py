@@ -61,12 +61,12 @@ class ReservationServiceInventoryAdapter:
             if not product_id or qty <= 0:
                 skipped += 1
                 continue
-            if self._active_reservation_exists(operation_id, int(product_id), branch_id):
+            if self._active_reservation_exists(operation_id, str(product_id), branch_id):
                 skipped += 1
                 continue
             self.reservation_service.reserve(
                 db=self.db,
-                product_id=int(product_id),
+                product_id=str(product_id),
                 qty=qty,
                 operation_id=operation_id,
                 branch_id=branch_id,
@@ -98,12 +98,12 @@ class ReservationServiceInventoryAdapter:
             if not product_id or qty <= 0:
                 skipped += 1
                 continue
-            item_operation_id = self._item_operation_id(order_id, item, int(product_id))
+            item_operation_id = self._item_operation_id(order_id, item, str(product_id))
             if self._movement_exists(item_operation_id):
                 skipped += 1
                 continue
             inventory_service.deduct_stock(
-                product_id=int(product_id),
+                product_id=str(product_id),
                 branch_id=branch_id,
                 qty=qty,
                 reference_type="delivery_prepared",

@@ -187,7 +187,7 @@ class StockReservationService:
         get_bus().publish(AJUSTE_INVENTARIO, {
             "motivo": "stock_reserva_confirmada",
             "reserva_id": reserva_id,
-            "venta_id": int(venta_id or 0),
+            "venta_id": str(venta_id or ""),
             "folio": str(folio or ""),
             "branch_id": self.branch_id,
         })

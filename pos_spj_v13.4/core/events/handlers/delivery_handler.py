@@ -47,7 +47,7 @@ class DeliveryReserveStockHandler:
             try:
                 svc.reserve(
                     db=db,
-                    product_id=int(product_id),
+                    product_id=str(product_id),
                     qty=qty,
                     operation_id=operation_id,
                     branch_id=branch_id,
@@ -160,7 +160,7 @@ class DeliveryWeightAdjustmentHandler:
             old_total = float(old_row[0]) if old_row else 0.0
 
             from core.services.order_total_service import OrderTotalService
-            new_total = OrderTotalService(db).recalculate_order_total(int(order_id))
+            new_total = OrderTotalService(db).recalculate_order_total(str(order_id))
 
             logger.info(
                 "WeightAdjust: order=%s item=%s req=%.3f prep=%.3f "
@@ -470,7 +470,7 @@ class InventoryCommitHandler:
                     svc.commit_reservation(
                         db=db,
                         operation_id=operation_id,
-                        product_id=int(product_id),
+                        product_id=str(product_id),
                         actual_qty=actual_qty,
                         branch_id=branch_id,
                     )
@@ -500,7 +500,7 @@ class InventoryCommitHandler:
             try:
                 svc.commit_reservation(
                     db=db, operation_id=operation_id,
-                    product_id=int(product_id), actual_qty=qty, branch_id=branch_id,
+                    product_id=str(product_id), actual_qty=qty, branch_id=branch_id,
                 )
             except Exception as exc:
                 logger.warning("InventoryCommit item fallback product=%s: %s", product_id, exc)

@@ -64,14 +64,15 @@ class AccountsReceivableService:
                 logger.info("create_cxc: folio=%s already exists — skipping", folio)
                 return 0
 
-            cursor = self.db.execute(
+            from backend.shared.ids import new_uuid as _new_uuid
+            cxc_id = _new_uuid()
+            self.db.execute(
                 """INSERT INTO cuentas_por_cobrar
-                       (cliente_id, venta_id, folio, monto_original, saldo_pendiente,
+                       (id, cliente_id, venta_id, folio, monto_original, saldo_pendiente,
                         sucursal_id, estado)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pendiente')""",
-                (cliente_id, sale_id, folio, monto, monto, sucursal_id),
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente')""",
+                (cxc_id, cliente_id, sale_id, folio, monto, monto, sucursal_id),
             )
-            cxc_id = cursor.lastrowid
 
             self.db.execute(
                 "UPDATE clientes "

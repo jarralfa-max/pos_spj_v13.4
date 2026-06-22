@@ -66,7 +66,7 @@ class DesktopNotificationService:
                 title,
                 message,
                 json.dumps(data or {}, ensure_ascii=False, default=str),
-                int(branch_id),
+                str(branch_id),
                 dedupe_key,
                 severity,
             ),
@@ -106,7 +106,7 @@ class DesktopNotificationService:
             ORDER BY id DESC
             LIMIT ?
             """,
-            (int(branch_id), int(limit)),
+            (str(branch_id), int(limit)),
         ).fetchall()
         return [dict(r) for r in rows]
 

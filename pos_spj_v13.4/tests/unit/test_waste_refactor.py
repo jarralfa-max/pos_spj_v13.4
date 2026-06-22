@@ -13,6 +13,11 @@ from backend.infrastructure.db.repositories.waste_repository import WasteReposit
 from backend.shared.events.event_bus import InMemoryEventBus
 from backend.shared.events.event_names import EventName
 
+# Canonical UUIDs for all test entities
+PRODUCT_UUID = "01900000-0000-7000-8000-000000000001"
+BRANCH_1_UUID = "01900000-0000-7000-8000-000000000011"
+BRANCH_2_UUID = "01900000-0000-7000-8000-000000000012"
+
 
 class FinanceSpy:
     def __init__(self) -> None:
@@ -27,7 +32,7 @@ def _db() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
     conn.execute("""
         CREATE TABLE productos (
-            id INTEGER PRIMARY KEY,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             precio_compra REAL,
             costo REAL,
@@ -40,9 +45,9 @@ def _db() -> sqlite3.Connection:
     """)
     conn.execute("""
         CREATE TABLE mermas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER NOT NULL,
-            sucursal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            producto_id TEXT NOT NULL,
+            sucursal_id TEXT NOT NULL,
             cantidad REAL NOT NULL,
             unidad TEXT,
             motivo TEXT,
@@ -59,11 +64,18 @@ def _db() -> sqlite3.Connection:
     conn.execute(
         """
         INSERT INTO productos(id, nombre, precio_compra, costo, precio_costo, costo_unitario, unidad, existencia, activo)
-        VALUES (1, 'Arrachera', 125.5, NULL, NULL, NULL, 'kg', 10, 1)
-        """
+        VALUES (?, 'Arrachera', 125.5, NULL, NULL, NULL, 'kg', 10, 1)
+        """,
+        (PRODUCT_UUID,),
     )
-    conn.execute("INSERT INTO inventory_stock(product_id, branch_id, quantity, unit) VALUES (1, 1, 10, 'kg')")
-    conn.execute("INSERT INTO inventory_stock(product_id, branch_id, quantity, unit) VALUES (1, 2, 10, 'kg')")
+    conn.execute(
+        "INSERT INTO inventory_stock(product_id, branch_id, quantity, unit) VALUES (?, ?, 10, 'kg')",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    )
+    conn.execute(
+        "INSERT INTO inventory_stock(product_id, branch_id, quantity, unit) VALUES (?, ?, 10, 'kg')",
+        (PRODUCT_UUID, BRANCH_2_UUID),
+    )
     conn.commit()
     return conn
 
@@ -96,9 +108,9 @@ def test_register_waste_use_case_persists_decreases_canonical_inventory_finance_
 
     result = use_case.execute(RegisterWasteCommand(
         operation_id="op-waste-1",
-        branch_id="2",
+        branch_id=BRANCH_2_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=2.5,
         reason="Caducidad / vencimiento",
         notes="empaque abierto",
@@ -111,8 +123,11 @@ def test_register_waste_use_case_persists_decreases_canonical_inventory_finance_
     assert result.data["inventory_source"] == "inventory_stock"
     assert result.data["stock_before"] == 10.0
     assert result.data["stock_after"] == 7.5
-    assert conn.execute("SELECT existencia FROM productos WHERE id=1").fetchone()[0] == 10.0
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=2").fetchone()[0] == 7.5
+    assert conn.execute("SELECT existencia FROM productos WHERE id=?", (PRODUCT_UUID,)).fetchone()[0] == 10.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_2_UUID),
+    ).fetchone()[0] == 7.5
     movement_row = conn.execute(
         """
         SELECT operation_id, movement_type, quantity, stock_before, stock_after, source_module, reference_type
@@ -122,7 +137,7 @@ def test_register_waste_use_case_persists_decreases_canonical_inventory_finance_
     ).fetchone()
     assert movement_row == ("op-waste-1", "DECREASE", 2.5, 10.0, 7.5, "waste", "WASTE")
     waste_row = conn.execute("SELECT producto_id, cantidad, valor_perdida, operation_id FROM mermas").fetchone()
-    assert waste_row == (1, 2.5, 313.75, "op-waste-1")
+    assert waste_row == (PRODUCT_UUID, 2.5, 313.75, "op-waste-1")
     assert len(finance.entries) == 1
     assert finance.entries[0]["monto"] == 313.75
     assert len(waste_events) == 1
@@ -137,9 +152,9 @@ def test_register_waste_use_case_rejects_duplicate_operation_id() -> None:
     use_case = RegisterWasteUseCase(app_service=_waste_service(conn))
     command = RegisterWasteCommand(
         operation_id="dup-op",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=1,
         reason="Daño en manipulación",
         date="2026-06-05",
@@ -152,7 +167,10 @@ def test_register_waste_use_case_rejects_duplicate_operation_id() -> None:
     assert second.success is False
     assert second.message == "WASTE_OPERATION_ALREADY_REGISTERED"
     assert conn.execute("SELECT COUNT(*) FROM mermas").fetchone()[0] == 1
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 9.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 9.0
 
 
 def test_waste_query_service_reads_canonical_stock_products_history_and_summary() -> None:
@@ -161,17 +179,17 @@ def test_waste_query_service_reads_canonical_stock_products_history_and_summary(
     service = _waste_service(conn)
     service.register(RegisterWasteCommand(
         operation_id="query-op",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=1.25,
         reason="Caducidad / vencimiento",
         date=date.today().isoformat(),
     ))
 
-    products = repository.search_products("arra", branch_id="1")
-    rows = repository.list_waste_records(branch_id="1", period="Todo")
-    summary = repository.get_daily_summary(branch_id="1")
+    products = repository.search_products("arra", branch_id=BRANCH_1_UUID)
+    rows = repository.list_waste_records(branch_id=BRANCH_1_UUID, period="Todo")
+    summary = repository.get_daily_summary(branch_id=BRANCH_1_UUID)
 
     assert products[0].label == "Arrachera"
     assert products[0].metadata["unit"] == "kg"
@@ -185,9 +203,9 @@ def test_merma_of_one_over_stock_ten_leaves_canonical_stock_nine() -> None:
 
     result = _waste_service(conn).register(RegisterWasteCommand(
         operation_id="waste-one-from-ten",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=1,
         reason="Merma exacta",
         date="2026-06-05",
@@ -196,7 +214,10 @@ def test_merma_of_one_over_stock_ten_leaves_canonical_stock_nine() -> None:
     assert result.success is True
     assert result.data["stock_before"] == 10.0
     assert result.data["stock_after"] == 9.0
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 9.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 9.0
 
 
 def test_register_waste_blocks_negative_canonical_stock_and_rolls_back_waste() -> None:
@@ -204,9 +225,9 @@ def test_register_waste_blocks_negative_canonical_stock_and_rolls_back_waste() -
 
     result = _waste_service(conn).register(RegisterWasteCommand(
         operation_id="negative-stock-op",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=11.0,
         reason="Cantidad inválida",
         date="2026-06-05",
@@ -215,74 +236,98 @@ def test_register_waste_blocks_negative_canonical_stock_and_rolls_back_waste() -
     assert result.success is False
     assert result.message == "WASTE_REGISTER_FAILED"
     assert conn.execute("SELECT COUNT(*) FROM mermas WHERE operation_id = 'negative-stock-op'").fetchone()[0] == 0
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 10.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 10.0
     assert conn.execute("SELECT COUNT(*) FROM inventory_movements WHERE operation_id = 'negative-stock-op'").fetchone()[0] == 0
 
 
 def test_waste_is_multi_branch_and_does_not_affect_other_branch() -> None:
     conn = _db()
-    conn.execute("UPDATE inventory_stock SET quantity = 5 WHERE product_id=1 AND branch_id=2")
+    conn.execute(
+        "UPDATE inventory_stock SET quantity = 5 WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_2_UUID),
+    )
     conn.commit()
 
     result = _waste_service(conn).register(RegisterWasteCommand(
         operation_id="branch-one-only",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=1,
         reason="Merma sucursal 1",
         date="2026-06-05",
     ))
 
     assert result.success is True
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 9.0
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=2").fetchone()[0] == 5.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 9.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_2_UUID),
+    ).fetchone()[0] == 5.0
 
 
 def test_waste_does_not_touch_legacy_inventory_tables_or_product_existence() -> None:
     conn = _db()
     conn.execute("""
         CREATE TABLE branch_inventory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            branch_id TEXT NOT NULL,
+            product_id TEXT NOT NULL,
             quantity REAL NOT NULL DEFAULT 0
         )
     """)
     conn.execute("""
         CREATE TABLE inventario_actual (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER NOT NULL,
-            sucursal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            producto_id TEXT NOT NULL,
+            sucursal_id TEXT NOT NULL,
             cantidad REAL NOT NULL DEFAULT 0
         )
     """)
     conn.execute("""
         CREATE TABLE movimientos_inventario (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER,
+            id TEXT PRIMARY KEY,
+            producto_id TEXT,
             cantidad REAL,
             operation_id TEXT
         )
     """)
-    conn.execute("INSERT INTO branch_inventory(product_id, branch_id, quantity) VALUES (1, 1, 99)")
-    conn.execute("INSERT INTO inventario_actual(producto_id, sucursal_id, cantidad) VALUES (1, 1, 88)")
+    conn.execute(
+        "INSERT INTO branch_inventory(id, product_id, branch_id, quantity) VALUES (?, ?, ?, 99)",
+        ("bi-1", PRODUCT_UUID, BRANCH_1_UUID),
+    )
+    conn.execute(
+        "INSERT INTO inventario_actual(id, producto_id, sucursal_id, cantidad) VALUES (?, ?, ?, 88)",
+        ("ia-1", PRODUCT_UUID, BRANCH_1_UUID),
+    )
     conn.commit()
 
     result = _waste_service(conn).register(RegisterWasteCommand(
         operation_id="legacy-untouched-op",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=1,
         reason="Merma canónica",
         date="2026-06-05",
     ))
 
     assert result.success is True
-    assert conn.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0] == 10.0
-    assert conn.execute("SELECT quantity FROM branch_inventory WHERE product_id = 1 AND branch_id = 1").fetchone()[0] == 99.0
-    assert conn.execute("SELECT cantidad FROM inventario_actual WHERE producto_id = 1 AND sucursal_id = 1").fetchone()[0] == 88.0
+    assert conn.execute("SELECT existencia FROM productos WHERE id = ?", (PRODUCT_UUID,)).fetchone()[0] == 10.0
+    assert conn.execute(
+        "SELECT quantity FROM branch_inventory WHERE product_id = ? AND branch_id = ?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 99.0
+    assert conn.execute(
+        "SELECT cantidad FROM inventario_actual WHERE producto_id = ? AND sucursal_id = ?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 88.0
     assert conn.execute("SELECT COUNT(*) FROM movimientos_inventario").fetchone()[0] == 0
 
 
@@ -304,9 +349,9 @@ def test_register_waste_finance_failure_is_logged_non_fatal_and_event_still_publ
 
     result = _waste_service(conn, bus=bus, finance_handler=ExplodingFinanceHandler()).register(RegisterWasteCommand(
         operation_id="finance-side-effect-fails",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=1.0,
         reason="Merma con finanzas caídas",
         date="2026-06-05",
@@ -315,7 +360,10 @@ def test_register_waste_finance_failure_is_logged_non_fatal_and_event_still_publ
     assert result.success is True
     assert result.data["side_effect_errors"] == ("WASTE_FINANCE_RECORD_FAILED",)
     assert conn.execute("SELECT COUNT(*) FROM mermas WHERE operation_id = 'finance-side-effect-fails'").fetchone()[0] == 1
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 9.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 9.0
     assert len(events) == 1
     assert "finance side-effect failed" in caplog.text
 
@@ -331,9 +379,9 @@ def test_register_waste_event_publish_failure_is_logged_non_fatal_after_persiste
         finance_handler=finance,
     ).register(RegisterWasteCommand(
         operation_id="event-side-effect-fails",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=1.0,
         reason="Merma con eventos caídos",
         date="2026-06-05",
@@ -342,7 +390,10 @@ def test_register_waste_event_publish_failure_is_logged_non_fatal_after_persiste
     assert result.success is True
     assert result.data["side_effect_errors"] == ("WASTE_EVENT_PUBLISH_FAILED",)
     assert conn.execute("SELECT COUNT(*) FROM mermas WHERE operation_id = 'event-side-effect-fails'").fetchone()[0] == 1
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 9.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 9.0
     assert len(finance.entries) == 1
     assert "event publish failed" in caplog.text
 
@@ -351,10 +402,13 @@ def test_register_waste_uses_real_cost_fallback_and_financial_log() -> None:
     from core.services.finance.general_ledger_service import GeneralLedgerService
 
     conn = _db()
-    conn.execute("UPDATE productos SET precio_compra = '', costo = 50, precio_costo = 40, costo_unitario = 30 WHERE id = 1")
+    conn.execute(
+        "UPDATE productos SET precio_compra = '', costo = 50, precio_costo = 40, costo_unitario = 30 WHERE id = ?",
+        (PRODUCT_UUID,),
+    )
     conn.execute("""
         CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             evento TEXT,
             modulo TEXT,
             referencia_id TEXT,
@@ -371,9 +425,9 @@ def test_register_waste_uses_real_cost_fallback_and_financial_log() -> None:
 
     result = _waste_service(conn, finance_handler=GeneralLedgerService(conn)).register(RegisterWasteCommand(
         operation_id="cost-fallback-op",
-        branch_id="1",
+        branch_id=BRANCH_1_UUID,
         user_name="ana",
-        product_id=1,
+        product_id=PRODUCT_UUID,
         quantity=2.0,
         reason="Merma por daño",
         date="2026-06-05",
@@ -382,8 +436,11 @@ def test_register_waste_uses_real_cost_fallback_and_financial_log() -> None:
     assert result.success is True
     assert result.data["unit_cost"] == 50.0
     assert result.data["loss_value"] == 100.0
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 8.0
-    assert conn.execute("SELECT existencia FROM productos WHERE id = 1").fetchone()[0] == 10.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PRODUCT_UUID, BRANCH_1_UUID),
+    ).fetchone()[0] == 8.0
+    assert conn.execute("SELECT existencia FROM productos WHERE id = ?", (PRODUCT_UUID,)).fetchone()[0] == 10.0
     waste_row = conn.execute(
         """
         SELECT cantidad, costo_unitario, valor_perdida
@@ -421,12 +478,12 @@ def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
 def test_waste_schema_integrity_migration_adds_required_columns_indexes_and_unique_operation_id() -> None:
     migration = importlib.import_module("migrations.standalone.097_waste_schema_integrity")
     conn = sqlite3.connect(":memory:")
-    conn.execute("CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT)")
+    conn.execute("CREATE TABLE productos (id TEXT PRIMARY KEY, nombre TEXT)")
     conn.execute("""
         CREATE TABLE mermas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER NOT NULL,
-            sucursal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            producto_id TEXT NOT NULL,
+            sucursal_id TEXT NOT NULL,
             cantidad REAL NOT NULL,
             unidad TEXT,
             motivo TEXT,
@@ -449,13 +506,13 @@ def test_waste_schema_integrity_migration_adds_required_columns_indexes_and_uniq
     assert "idx_productos_nombre" in _index_names(conn, "productos")
 
     conn.execute("""
-        INSERT INTO mermas(producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
-        VALUES (1, 1, 1, 'Rotura', 'ana', 'same-op')
+        INSERT INTO mermas(id, producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
+        VALUES ('m1', 'p1', 's1', 1, 'Rotura', 'ana', 'same-op')
     """)
     try:
         conn.execute("""
-            INSERT INTO mermas(producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
-            VALUES (1, 1, 1, 'Rotura', 'ana', 'same-op')
+            INSERT INTO mermas(id, producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
+            VALUES ('m2', 'p1', 's1', 1, 'Rotura', 'ana', 'same-op')
         """)
     except sqlite3.IntegrityError:
         duplicate_rejected = True
@@ -469,9 +526,9 @@ def test_waste_schema_integrity_migration_skips_unique_index_when_existing_dupli
     conn = sqlite3.connect(":memory:")
     conn.execute("""
         CREATE TABLE mermas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER NOT NULL,
-            sucursal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            producto_id TEXT NOT NULL,
+            sucursal_id TEXT NOT NULL,
             cantidad REAL NOT NULL,
             unidad TEXT,
             motivo TEXT,
@@ -481,12 +538,12 @@ def test_waste_schema_integrity_migration_skips_unique_index_when_existing_dupli
         )
     """)
     conn.execute("""
-        INSERT INTO mermas(producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
-        VALUES (1, 1, 1, 'Rotura', 'ana', 'dup-op')
+        INSERT INTO mermas(id, producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
+        VALUES ('m1', 'p1', 's1', 1, 'Rotura', 'ana', 'dup-op')
     """)
     conn.execute("""
-        INSERT INTO mermas(producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
-        VALUES (1, 1, 2, 'Rotura', 'ana', 'dup-op')
+        INSERT INTO mermas(id, producto_id, sucursal_id, cantidad, motivo, usuario, operation_id)
+        VALUES ('m2', 'p1', 's1', 2, 'Rotura', 'ana', 'dup-op')
     """)
 
     migration.run(conn)

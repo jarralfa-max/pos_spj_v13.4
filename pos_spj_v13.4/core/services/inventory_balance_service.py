@@ -50,8 +50,8 @@ class InventoryBalanceService:
         if not branch_id:
             raise ValueError("branch_id requerido")
 
-        pid = int(product_id)
-        bid = int(branch_id)
+        pid = str(product_id)
+        bid = str(branch_id)
 
         if self._query_svc is not None:
             try:

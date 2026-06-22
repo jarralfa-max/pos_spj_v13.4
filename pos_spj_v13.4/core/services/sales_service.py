@@ -284,7 +284,7 @@ class SalesService:
             raise ValueError("Mercado Pago pendiente requiere items para reservar stock.")
 
         self._ensure_pending_sales_intents_table()
-        branch_id = int(branch_id or 1)
+        branch_id = str(branch_id or "")
         folio = f"MP-{uuid.uuid4().hex[:12].upper()}"
         normalized_items = self._normalize_items_payload(items)
         reservation_items = [
@@ -828,11 +828,11 @@ class SalesService:
             if self.loyalty_service:
                 try:
                     raffle_tickets_snapshot = self.loyalty_service.process_raffles_for_sale(
-                        venta_id=int(sale_id),
+                        venta_id=str(sale_id),
                         cliente_id=int(client_id or 0),
                         folio=str(folio),
                         total=float(total_a_pagar),
-                        sucursal_id=int(branch_id),
+                        sucursal_id=str(branch_id),
                         payment_method=str(payment_method or ""),
                         items=carrito_final,
                         sale_datetime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -982,7 +982,7 @@ class SalesService:
         if return_details:
             return {
                 "ok": True,
-                "venta_id": int(sale_id or 0),
+                "venta_id": str(sale_id or ""),
                 "folio": str(folio),
                 "operation_id": str(operation_id),
                 "subtotal": round(float(subtotal), 2),
@@ -1303,7 +1303,7 @@ class SalesService:
         try:
             row = self.db.execute(
                 "SELECT id, folio, total, sucursal_id, estado FROM ventas WHERE id=?",
-                (int(venta_id),)
+                (str(venta_id),)
             ).fetchone()
             if not row:
                 raise VentaError(f"VENTA_NO_ENCONTRADA: id={venta_id}")
@@ -1317,7 +1317,7 @@ class SalesService:
 
             detalles = self.db.execute(
                 "SELECT producto_id, cantidad FROM detalles_venta WHERE venta_id=?",
-                (int(venta_id),)
+                (str(venta_id),)
             ).fetchall()
 
             with _txn(self.db):
@@ -1338,13 +1338,13 @@ class SalesService:
                 try:
                     self.db.execute(
                         "UPDATE ventas SET estado='cancelada', notas=? WHERE id=?",
-                        (motivo, int(venta_id))
+                        (motivo, str(venta_id))
                     )
                 except Exception as exc:
                     logger.warning("Cancelación de venta sin columna notas; usando fallback estado-only venta_id=%s: %s", venta_id, exc)
                     self.db.execute(
                         "UPDATE ventas SET estado='cancelada' WHERE id=?",
-                        (int(venta_id),)
+                        (str(venta_id),)
                     )
 
                 # Asiento contable (debe=ventas ↔ haber=inventario)
@@ -1356,7 +1356,7 @@ class SalesService:
                             concepto=f"Anulación venta {folio}: {motivo}",
                             monto=total,
                             modulo="VENTAS",
-                            referencia_id=int(venta_id),
+                            referencia_id=str(venta_id),
                             usuario_id=usuario_id,
                             sucursal_id=sucursal_id,
                             evento="VENTA_ANULADA",
