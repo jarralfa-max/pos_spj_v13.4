@@ -96,7 +96,7 @@ class DeliveryOrder:
     cliente_nombre: str = ""
     cliente_tel: str = ""
     direccion: str = ""
-    estado: DeliveryStatus = DeliveryStatus.PENDIENTE
+    estado: DeliveryStatus = DeliveryStatus.PENDING
     workflow_type: DeliveryWorkflowType | None = None
     delivery_type: DeliveryType | None = None
     scheduled_at: str | datetime | None = None

@@ -9,6 +9,7 @@ from typing import Any
 
 from core.delivery.domain.events import DeliveryEvents
 from core.delivery.domain.policies import WeightAdjustmentPolicy
+from core.delivery.domain.value_objects import DeliveryStatus
 
 from .ports import EventPublisher, NoopPublisher
 
@@ -65,8 +66,8 @@ class AdjustDeliveryWeightUseCase:
     ) -> dict[str, Any]:
         order = self.repository.get_order(order_id) or {}
         estado = (order.get("estado") or "").lower()
-        if estado != "preparacion":
-            raise ValueError("El ajuste de peso/cantidad solo puede hacerse en estado 'preparacion'.")
+        if estado != DeliveryStatus.PREPARING.value:
+            raise ValueError(f"El ajuste de peso/cantidad solo puede hacerse en estado '{DeliveryStatus.PREPARING.value}'.")
 
         item_row = self.repository.get_item_for_weight_adjustment(order_id, item_id)
         if not item_row:

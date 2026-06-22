@@ -112,7 +112,6 @@ from core.delivery.domain.value_objects import (
     PaymentStatus as _PaymentStatus,
     DeliveryAction as _DeliveryAction,
     UnitCode as _UnitCode,
-    LEGACY_STATUS_MAP as _LEGACY_STATUS_MAP,
     LEGACY_UNIT_MAP as _LEGACY_UNIT_MAP,
     WEIGHABLE_UNITS as _WEIGHABLE_UNITS,
     UNIT_LABELS_ES as _UNIT_LABELS_ES,
@@ -120,13 +119,10 @@ from core.delivery.domain.value_objects import (
 from core.delivery.application.kanban_config import KANBAN_COLUMNS as _KANBAN_COLUMNS
 from core.delivery.application.quantity_formatter import QuantityFormatter as _QuantityFormatter
 
-# Build reverse map: legacy DB status string → kanban column index (0-3)
+# Build reverse map: DeliveryStatus enum value → kanban column index (0-3)
 _STATUS_TO_COL: dict[str, int] = {}
 for _col_idx, (_col_title, _col_statuses) in enumerate(_KANBAN_COLUMNS):
     for _ds in _col_statuses:
-        for _legacy, _canonical in _LEGACY_STATUS_MAP.items():
-            if _canonical == _ds:
-                _STATUS_TO_COL[_legacy] = _col_idx
         _STATUS_TO_COL[_ds.value] = _col_idx
 
 _KANBAN_COL_COLORS = [
@@ -143,31 +139,37 @@ _STATUS_COLOR_MAP: dict[_DeliveryStatus, str] = {
     _DeliveryStatus.IN_TRANSIT: Colors.ACCENT_BASE,
     _DeliveryStatus.DELIVERED: Colors.SUCCESS_BASE,
     _DeliveryStatus.CANCELLED: Colors.DANGER_BASE,
+    _DeliveryStatus.SCHEDULED: Colors.WARNING_BASE,
     _DeliveryStatus.READY_FOR_PICKUP: Colors.ACCENT_BASE,
     _DeliveryStatus.READY_FOR_DISPATCH: Colors.ACCENT_BASE,
     _DeliveryStatus.ASSIGNED: Colors.PRIMARY_BASE,
 }
-ESTADOS = list(_LEGACY_STATUS_MAP.keys())
-ESTADO_COLOR = {legacy: _STATUS_COLOR_MAP.get(canonical, Colors.TEXT_SECONDARY)
-                for legacy, canonical in _LEGACY_STATUS_MAP.items()}
+ESTADOS = [ds.value for ds in _DeliveryStatus]
+ESTADO_COLOR = {ds.value: _STATUS_COLOR_MAP.get(ds, Colors.TEXT_SECONDARY) for ds in _DeliveryStatus}
 
 _STATUS_LABELS_ES: dict[str, str] = {
-    "pendiente": "Pendiente", "preparacion": "Preparación", "en_ruta": "En ruta",
-    "entregado": "Entregado", "cancelado": "Cancelado", "programado": "Programado",
+    "pending": "Pendiente",
+    "preparing": "Preparación",
+    "in_transit": "En ruta",
+    "delivered": "Entregado",
+    "cancelled": "Cancelado",
     "scheduled": "Programado",
+    "assigned": "Asignado",
+    "ready_for_pickup": "Listo para recoger",
+    "ready_for_dispatch": "Listo para envío",
 }
 _WORKFLOW_LABELS_ES: dict[str, str] = {"counter": "Mostrador", "delivery": "Reparto", "scheduled": "Programado"}
 _ORIGIN_LABELS_ES: dict[str, str] = {"whatsapp": "WhatsApp", "counter": "Mostrador", "quote": "Cotización", "scheduled": "Programado"}
 
-# Canonical action metadata for legacy state machine action keys
+# Action metadata keyed by canonical English action strings from state_machine
 _ACTION_METADATA = {
-    "preparacion":         ("▶",  "Preparar",            "success"),
-    "cancelado":           ("✖",  "Cancelar pedido",      "danger"),
+    "preparing":           ("▶",  "Preparar",            "success"),
+    "cancelled":           ("✖",  "Cancelar pedido",      "danger"),
     "ajustar_peso":        ("⚖️", "Ajustar peso",         "warning"),
     "ajustar_cantidad":    ("✏️", "Ajustar cantidad",     "warning"),
-    "en_ruta":             ("🛵", "En Ruta",              "primary"),
+    "in_transit":          ("🛵", "En Ruta",              "primary"),
     "asignar":             ("👤", "Asignar repartidor",   "primary"),
-    "entregado":           ("✅", "Marcar entregado",     "success"),
+    "delivered":           ("✅", "Marcar entregado",     "success"),
     "notificar_wa":        ("📲", "Notificar por WA",     "secondary"),
     "imprimir":            ("🖨️", "Imprimir ticket",      "secondary"),
     "reactivar":           ("♻️", "Reactivar pedido",     "warning"),
@@ -184,7 +186,7 @@ def _get_card_actions(pedido: dict) -> list[dict]:
     style) comes from _ACTION_METADATA; the label for weight/quantity adjustment
     is resolved from the order items' units so it is never hardcoded.
     """
-    estado = (pedido.get("estado") or "pendiente").strip().lower()
+    estado = (pedido.get("estado") or "pending").strip().lower()
     order_context = {
         "estado": estado,
         "workflow_type": pedido.get("workflow_type", ""),
@@ -201,10 +203,9 @@ def _get_card_actions(pedido: dict) -> list[dict]:
 
     # Determine if items are weighable to swap label
     items = pedido.get("items") or []
+    _weighable_values = {u.value for u in _WEIGHABLE_UNITS}
     has_weighable = any(
-        _LEGACY_STATUS_MAP.get(  # reuse map as sanity check; here just unit lookup
-            str(it.get("unidad") or "").lower(), None
-        ) is None and str(it.get("unidad") or "").lower() in {u.value for u in _WEIGHABLE_UNITS}
+        str(it.get("unidad") or "").lower() in _weighable_values
         for it in items
     ) if items else True  # fallback: assume weighable when no item data
 
@@ -777,7 +778,7 @@ class TarjetaPedido(QFrame):
         _origin_es = lambda raw: _ORIGIN_LABELS_ES.get((raw or "").strip().lower(), "Mostrador")
         _workflow_es = lambda raw: _WORKFLOW_LABELS_ES.get((raw or "").strip().lower(), "Reparto")
         self.setFrameShape(QFrame.StyledPanel)
-        color = ESTADO_COLOR.get(pedido.get("estado","pendiente"), Colors.TEXT_SECONDARY)
+        color = ESTADO_COLOR.get(pedido.get("estado", "pending"), Colors.TEXT_SECONDARY)
         self.setObjectName("cardPedido")
         # Estilo dinámico solo para borde de estado y fondo
         self.setStyleSheet(f"""
@@ -832,7 +833,7 @@ class TarjetaPedido(QFrame):
         btns = QVBoxLayout()
         btns.setSpacing(3)
         btns.setContentsMargins(4, 0, 0, 0)
-        estado = pedido.get("estado","pendiente")
+        estado = pedido.get("estado", "pending")
         pid = self.pedido["id"]
 
         _style_factory = {
@@ -1371,7 +1372,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self,
             [
                 "Todos", "counter", "delivery", "scheduled", "ajustes", "historial",
-                "pendiente", "preparacion", "en_ruta", "entregado", "cancelado",
+                "pending", "preparing", "in_transit", "delivered", "cancelled",
             ],
             "Seleccionar estado para filtrar"
         )
@@ -1385,7 +1386,7 @@ class ModuloDelivery(QWidget, RefreshMixin):
         self._txt_busqueda.textChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
         self._flt_estado = QComboBox()
         self._flt_estado.setPlaceholderText("Estado")
-        for _lbl, _val in [("Todos", None), ("Pendiente", "pendiente"), ("Preparación", "preparacion"), ("En ruta", "en_ruta"), ("Entregado", "entregado"), ("Cancelado", "cancelado")]:
+        for _lbl, _val in [("Todos", None), ("Pendiente", "pending"), ("Preparación", "preparing"), ("En ruta", "in_transit"), ("Entregado", "delivered"), ("Cancelado", "cancelled")]:
             self._flt_estado.addItem(_lbl, _val)
         self._flt_estado.currentIndexChanged.connect(lambda _i: self.cargar_pedidos(silent=True))
         self._flt_flujo = QComboBox()
@@ -1658,14 +1659,14 @@ if(drivers.length===0){{
         counts = OrderBadgeService(self.conexion).get_badge_counts(
             branch_id=self._get_branch_id_for_counts()
         )
-        nuevos = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "pendiente")
-        preparacion = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "preparacion")
-        reparto = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "en_ruta")
+        nuevos = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "pending")
+        preparacion = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "preparing")
+        reparto = sum(1 for p in pedidos if str(p.get("estado") or "").lower() == "in_transit")
         programados = int(counts.get("orders_scheduled", 0))
         ajustes = int(counts.get("adjustments_pending", 0))
         retrasados = sum(
             1 for p in pedidos
-            if str(p.get("estado") or "").lower() in ("pendiente", "preparacion", "en_ruta")
+            if str(p.get("estado") or "").lower() in ("pending", "preparing", "in_transit")
             and str(p.get("fecha_actualizacion") or p.get("fecha", ""))[:10] < hoy
         )
         self._kpi["nuevos"].set_valor(str(nuevos))
@@ -1808,7 +1809,7 @@ if(drivers.length===0){{
     def _seleccionar_pedido(self, pedido: dict) -> None:
         """Rellena el panel de detalle con los datos del pedido seleccionado."""
         pid    = pedido.get("id", "")
-        estado = pedido.get("estado", "pendiente")
+        estado = pedido.get("estado", "pending")
         color  = ESTADO_COLOR.get(estado, Colors.TEXT_SECONDARY)
 
         self._det_header.setText(
@@ -1900,7 +1901,7 @@ if(drivers.length===0){{
         _workflow_es = lambda raw: _WORKFLOW_LABELS_ES.get((raw or "").strip().lower(), "Reparto")
         self._lst_pedidos.clear()
         for pedido in pedidos:
-            estado = pedido.get("estado", "pendiente")
+            estado = pedido.get("estado", "pending")
             color  = ESTADO_COLOR.get(estado, Colors.TEXT_SECONDARY)
             pid    = pedido.get("id", "")
             nombre = pedido.get("cliente_nombre", "N/A")
@@ -2074,7 +2075,7 @@ if(drivers.length===0){{
 
             counts = {e: 0 for e in ESTADOS}
             for p in pedidos:
-                estado = p.get("estado", "pendiente")
+                estado = p.get("estado", "pending")
                 counts[estado] = counts.get(estado, 0) + 1
                 if not _matches_operational_tab(p, None if filtro == "Todos" else filtro):
                     continue
@@ -2090,7 +2091,7 @@ if(drivers.length===0){{
                     kanban_visibles += 1
 
             self.lbl_stats.setText(
-                f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pendiente', 'preparacion', 'en_ruta'])} · Total cargados: {len(lista_pedidos)}"
+                f"Pedidos activos: {sum(counts.get(e, 0) for e in ['pending', 'preparing', 'in_transit'])} · Total cargados: {len(lista_pedidos)}"
             )
             logger.info(
                 "Delivery board: dtos=%s view_rows=%s list_rows=%s kanban_cards=%s filtro=%s",
@@ -2185,7 +2186,7 @@ if(drivers.length===0){{
                 order_raw = _qs.get_order_raw(pedido_id)
                 if not order_raw:
                     return
-                if order_raw.get("estado") not in ("entregado", "cancelado"):
+                if order_raw.get("estado") not in ("delivered", "cancelled"):
                     QMessageBox.information(self, "Reactivar", "Solo pedidos entregados o cancelados pueden reactivarse.")
                     return
                 reply = QMessageBox.question(
@@ -2195,7 +2196,7 @@ if(drivers.length===0){{
                 )
                 if reply != QMessageBox.Yes:
                     return
-                self.delivery_service.update_status(pedido_id, "pendiente", usuario=self.usuario)
+                self.delivery_service.update_status(pedido_id, "pending", usuario=self.usuario)
                 QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
                 return
             elif accion == "ver_detalle":
@@ -2219,7 +2220,7 @@ if(drivers.length===0){{
                 v.addWidget(bb)
                 dlg_det.exec_()
                 return
-            elif accion in ("preparacion", "preparar"):
+            elif accion in ("preparing", "preparar"):
                 from core.services.reservation_service import ReservationService
                 from core.services.inventory_balance_service import InventoryBalanceService
                 items = self.delivery_service.get_order_items(pedido_id)
@@ -2299,14 +2300,14 @@ if(drivers.length===0){{
                     )
 
                 self.delivery_service.update_status(
-                    pedido_id, "preparacion", usuario=self.usuario
+                    pedido_id, "preparing", usuario=self.usuario
                 )
                 QTimer.singleShot(0, lambda: self.cargar_pedidos(silent=True))
                 return
             elif accion == "ajustar_peso":
                 _order_raw = _DeliveryQueryService(self.conexion).get_order_raw(pedido_id) or {}
                 estado_actual = str(_order_raw.get("estado") or "").strip().lower()
-                if estado_actual != "preparacion":
+                if estado_actual != "preparing":
                     QMessageBox.warning(
                         self,
                         "Acción no permitida",
@@ -2424,11 +2425,11 @@ if(drivers.length===0){{
                     notas=data.get("notas") or "",
                     usuario=self.usuario,
                 )
-            elif accion in ("en_ruta","entregado","cancelado"):
+            elif accion in ("in_transit", "delivered", "cancelled"):
                 # If delivered, capture payment method and amount
                 pago_metodo = ""
                 pago_monto  = 0.0
-                if accion == "entregado":
+                if accion == "delivered":
                     dlg_pago = QDialog(self)
                     dlg_pago.setWindowTitle("Registrar Cobro de Entrega")
                     dlg_pago.setMinimumWidth(320)
@@ -2461,7 +2462,7 @@ if(drivers.length===0){{
                         pedido_id,
                         accion,
                         usuario=self.usuario,
-                        responsable=(self.usuario if accion == "entregado" else ""),
+                        responsable=(self.usuario if accion == "delivered" else ""),
                         pago_metodo=pago_metodo,
                         pago_monto=pago_monto,
                     )
@@ -2478,7 +2479,7 @@ if(drivers.length===0){{
                     return
 
                 # Audit the delivery completion
-                if accion == "entregado":
+                if accion == "delivered":
                     try:
                         from core.services.auto_audit import audit_write
                         audit_write(
@@ -2513,10 +2514,10 @@ if(drivers.length===0){{
                 return
             from integrations.whatsapp_service import WhatsAppService
             wa = WhatsAppService(self.conexion)
-            if accion == "en_ruta":
+            if accion == "in_transit":
                 dr = data.get("repartidor", "Repartidor")
                 wa.notificar_delivery_en_camino(tel, nombre, str(pedido_id), dr, data.get("tiempo", 30))
-            elif accion == "entregado":
+            elif accion == "delivered":
                 wa.notificar_delivery_entregado(tel, nombre, str(pedido_id))
         except Exception as e:
             logger.debug("WA notify: %s", e)

@@ -4,7 +4,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from core.delivery.domain.states import DeliveryStatus, normalize_status
+from core.delivery.domain.states import normalize_status
+from core.delivery.domain.value_objects import DeliveryStatus
 
 logger = logging.getLogger("spj.delivery.projections.sales")
 
@@ -17,11 +18,11 @@ class SaleDeliveryProjectionService:
     """
 
     STATUS_TO_SALE_STATUS: Mapping[DeliveryStatus, str] = {
-        DeliveryStatus.PENDIENTE: "pendiente_wa",
-        DeliveryStatus.PREPARACION: "en_preparacion",
-        DeliveryStatus.EN_RUTA: "en_ruta",
-        DeliveryStatus.ENTREGADO: "entregada",
-        DeliveryStatus.CANCELADO: "cancelada",
+        DeliveryStatus.PENDING: "pendiente_wa",
+        DeliveryStatus.PREPARING: "en_preparacion",
+        DeliveryStatus.IN_TRANSIT: "en_ruta",
+        DeliveryStatus.DELIVERED: "entregada",
+        DeliveryStatus.CANCELLED: "cancelada",
     }
 
     def __init__(self, db) -> None:

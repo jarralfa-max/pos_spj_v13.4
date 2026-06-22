@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.delivery.domain.value_objects import DeliveryStatus
 from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
 
 from .ports import EventPublisher, NoopPublisher
@@ -27,8 +28,8 @@ class ActivateScheduledOrderUseCase:
             raise ValueError("Pedido no encontrado.")
 
         current_status = (order.get("estado") or "").strip().lower()
-        if current_status not in ("programado", "scheduled"):
-            raise ValueError("Solo se pueden activar pedidos en estado programado.")
+        if current_status != DeliveryStatus.SCHEDULED.value:
+            raise ValueError(f"Solo se pueden activar pedidos en estado '{DeliveryStatus.SCHEDULED.value}'.")
 
         delivery_type = (order.get("delivery_type") or order.get("tipo_entrega") or "").strip().lower()
         target_workflow = "counter" if delivery_type in ("pickup", "sucursal") else "delivery"
