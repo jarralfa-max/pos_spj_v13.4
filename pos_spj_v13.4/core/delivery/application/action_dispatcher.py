@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from core.delivery.domain.value_objects import DeliveryAction
+from core.delivery.domain.value_objects import DeliveryAction, DeliveryStatus
 
 logger = logging.getLogger("spj.delivery.application.action_dispatcher")
 
@@ -79,10 +79,10 @@ class DeliveryActionDispatcher:
             return self._dispatch_assign_driver(order_id, usuario=usuario, **kwargs)
 
         elif action == DeliveryAction.START_ROUTE:
-            return self._dispatch_change_status(order_id, "en_ruta", usuario=usuario, **kwargs)
+            return self._dispatch_change_status(order_id, DeliveryStatus.IN_TRANSIT.value, usuario=usuario, **kwargs)
 
         elif action == DeliveryAction.COMPLETE_DELIVERY:
-            return self._dispatch_change_status(order_id, "entregado", usuario=usuario, **kwargs)
+            return self._dispatch_change_status(order_id, DeliveryStatus.DELIVERED.value, usuario=usuario, **kwargs)
 
         elif action == DeliveryAction.CANCEL:
             return self._dispatch_cancel(order_id, usuario=usuario, **kwargs)
@@ -107,7 +107,7 @@ class DeliveryActionDispatcher:
     ) -> dict[str, Any]:
         self._change_status_uc.execute(
             order_id,
-            "preparacion",
+            DeliveryStatus.PREPARING.value,
             usuario=usuario,
             observacion=kwargs.get("observacion", ""),
         )
@@ -123,7 +123,7 @@ class DeliveryActionDispatcher:
         # For counter orders the UC will set listo_entrega.
         # However for simplicity we pass a special sentinel and let
         # the service decide; or the UI passes the resolved status.
-        target = kwargs.get("target_status", "listo_envio")
+        target = kwargs.get("target_status", DeliveryStatus.READY_FOR_DISPATCH.value)
         self._change_status_uc.execute(
             order_id,
             target,
@@ -171,7 +171,7 @@ class DeliveryActionDispatcher:
             order_id,
             target_status,
             usuario=usuario,
-            responsable=kwargs.get("responsable", usuario if target_status == "entregado" else ""),
+            responsable=kwargs.get("responsable", usuario if target_status == DeliveryStatus.DELIVERED.value else ""),
             observacion=kwargs.get("observacion", ""),
             pago_metodo=kwargs.get("pago_metodo", ""),
             pago_monto=float(kwargs.get("pago_monto") or 0),
@@ -190,7 +190,7 @@ class DeliveryActionDispatcher:
         else:
             self._change_status_uc.execute(
                 order_id,
-                "cancelado",
+                DeliveryStatus.CANCELLED.value,
                 usuario=usuario,
                 observacion=kwargs.get("motivo", ""),
             )

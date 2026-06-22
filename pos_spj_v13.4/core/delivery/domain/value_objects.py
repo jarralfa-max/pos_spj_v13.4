@@ -63,6 +63,7 @@ class DeliveryStatus(str, Enum):
     IN_TRANSIT = "in_transit"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
+    SCHEDULED = "scheduled"
 
 
 class FulfillmentType(str, Enum):
@@ -137,20 +138,7 @@ STATUS_LABELS_ES: dict[DeliveryStatus, str] = {
     DeliveryStatus.IN_TRANSIT: "En ruta",
     DeliveryStatus.DELIVERED: "Entregado",
     DeliveryStatus.CANCELLED: "Cancelado",
-}
-
-
-# ── Legacy string mappings (used by QueryService, not DB) ─────────────────────
-
-LEGACY_STATUS_MAP: dict[str, DeliveryStatus] = {
-    "pendiente": DeliveryStatus.PENDING,
-    "preparacion": DeliveryStatus.PREPARING,
-    "en_ruta": DeliveryStatus.IN_TRANSIT,
-    "entregado": DeliveryStatus.DELIVERED,
-    "cancelado": DeliveryStatus.CANCELLED,
-    "listo_entrega": DeliveryStatus.READY_FOR_PICKUP,
-    "listo_envio": DeliveryStatus.READY_FOR_DISPATCH,
-    "asignado": DeliveryStatus.ASSIGNED,
+    DeliveryStatus.SCHEDULED: "Programado",
 }
 
 LEGACY_UNIT_MAP: dict[str, UnitCode] = {

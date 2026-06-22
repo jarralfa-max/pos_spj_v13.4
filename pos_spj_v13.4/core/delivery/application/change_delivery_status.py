@@ -7,6 +7,7 @@ from typing import Any
 from core.delivery.domain.credit_policy import credit_amount, requires_credit_check
 from core.delivery.domain.events import DeliveryEvents
 from core.delivery.domain.state_machine import DeliveryStateMachine
+from core.delivery.domain.value_objects import DeliveryStatus
 from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
 
 from .ports import EventPublisher, NoopPublisher, StatusNotifier
@@ -62,7 +63,7 @@ class ChangeDeliveryStatusUseCase:
         logger.debug("execute: order_id=%s current=%s target=%s", order_id, order_before.get("estado"), target)
 
         # Pending adjustment check has priority over transition validation
-        if target in ("en_ruta", "entregado") and self._has_pending_adjustment(order_id):
+        if target in (DeliveryStatus.IN_TRANSIT.value, DeliveryStatus.DELIVERED.value) and self._has_pending_adjustment(order_id):
             self.repository.mark_adjustment_blocked(order_id, target)
             raise ValueError(
                 "No se puede cambiar de estado: hay un ajuste de peso/cantidad pendiente de aceptación del cliente."
@@ -76,11 +77,11 @@ class ChangeDeliveryStatusUseCase:
 
         self._validate_workflow_transition(order_id, target)
 
-        if target == "entregado" and not responsable:
+        if target == DeliveryStatus.DELIVERED.value and not responsable:
             raise ValueError("No se puede entregar sin responsable")
 
-        # ── Stock availability check before marking as preparacion ─────────────
-        if target == "preparacion" and self.inventory_service is not None:
+        # ── Stock availability check before marking as preparing ──────────────
+        if target == DeliveryStatus.PREPARING.value and self.inventory_service is not None:
             items = self.get_order_items(order_id)
             branch_id = order_before.get("sucursal_id") or 1
             for item in items:
@@ -108,7 +109,7 @@ class ChangeDeliveryStatusUseCase:
         # Only orders that leave a balance owed on the customer's account
         # (e.g. "Anticipo + saldo" / explicit credit) are validated. Immediate
         # payment methods (cash/card on delivery, prepaid) are not blocked.
-        if target == "preparacion" and self.credit_service is not None:
+        if target == DeliveryStatus.PREPARING.value and self.credit_service is not None:
             if requires_credit_check(order_before.get("pago_metodo")):
                 cliente_id = order_before.get("cliente_id")
                 if cliente_id:
@@ -134,7 +135,7 @@ class ChangeDeliveryStatusUseCase:
         )
 
         # Capture payment atomically with status change when delivering
-        if target == "entregado" and pago_metodo:
+        if target == DeliveryStatus.DELIVERED.value and pago_metodo:
             try:
                 self.db.execute(
                     "UPDATE delivery_orders SET pago_metodo=?, pago_monto=?, fecha_entrega=datetime('now') WHERE id=?",
@@ -170,21 +171,21 @@ class ChangeDeliveryStatusUseCase:
 
         inventory_operation_id = f"delivery:{order_id}"
 
-        if target == "cancelado":
-            release_payload = {"order_id": order_id, "operation_id": inventory_operation_id, "reason": observacion or "cancelado"}
+        if target == DeliveryStatus.CANCELLED.value:
+            release_payload = {"order_id": order_id, "operation_id": inventory_operation_id, "reason": observacion or "cancelled"}
             cancelled_payload = {**base, "motivo": observacion or ""}
             self._enqueue(DeliveryEvents.INVENTORY_RELEASE_REQUIRED.value, order_id, release_payload, operation_id=release_payload["operation_id"])
-            self._enqueue(DeliveryEvents.ORDER_CANCELLED.value, order_id, cancelled_payload, operation_id=f"delivery:{order_id}:cancelado")
+            self._enqueue(DeliveryEvents.ORDER_CANCELLED.value, order_id, cancelled_payload, operation_id=f"delivery:{order_id}:cancelled")
             events_to_publish.append((DeliveryEvents.INVENTORY_RELEASE_REQUIRED.value, release_payload))
             events_to_publish.append((DeliveryEvents.ORDER_CANCELLED.value, cancelled_payload))
-        if target == "preparacion":
+        if target == DeliveryStatus.PREPARING.value:
             events_to_publish.append((DeliveryEvents.ORDER_PREPARING.value, base))
-        if target == "en_ruta":
+        if target == DeliveryStatus.IN_TRANSIT.value:
             events_to_publish.append((
                 DeliveryEvents.OUT_FOR_DELIVERY.value,
                 {**base, "_event_type": "DELIVERY_OUT_FOR_DELIVERY", "driver_id": order.get("driver_id"), "cliente_tel": cliente_tel},
             ))
-        if target == "entregado":
+        if target == DeliveryStatus.DELIVERED.value:
             delivered_payload = {
                 **base,
                 "_event_type": "DELIVERY_ORDER_DELIVERED",
@@ -296,10 +297,10 @@ class ChangeDeliveryStatusUseCase:
             else:
                 workflow_type = "delivery"
 
-        if workflow_type == "scheduled" and target_status in ("preparacion", "en_ruta", "entregado"):
+        if workflow_type == "scheduled" and target_status in (DeliveryStatus.PREPARING.value, DeliveryStatus.IN_TRANSIT.value, DeliveryStatus.DELIVERED.value):
             raise ValueError("Pedido programado: primero debe activarse antes de pasar a flujo operativo.")
-        if workflow_type == "counter" and target_status == "en_ruta":
-            raise ValueError("Flujo mostrador no permite estado 'en_ruta'.")
+        if workflow_type == "counter" and target_status == DeliveryStatus.IN_TRANSIT.value:
+            raise ValueError("Flujo mostrador no permite estado 'in_transit'.")
 
     def _safe_wa_notify(self, order: dict[str, Any], status: str) -> None:
         if self.outbox_repository is not None or self.whatsapp_service is None:
