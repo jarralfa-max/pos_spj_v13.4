@@ -34,8 +34,10 @@ _COUNTER_WORKFLOWS = frozenset({"counter", "pickup", "sucursal", "mostrador"})
 class DeliveryPrintPolicy:
     """Decide the documents to print for a given status transition."""
 
-    def documents_for(self, status: str, workflow_type: str = "") -> tuple[DeliveryDocument, ...]:
-        target = (status or "").strip().lower()
+    def documents_for(self, status, workflow_type: str = "") -> tuple[DeliveryDocument, ...]:
+        # Accept DeliveryStatus enum or str
+        status_val = status.value if hasattr(status, "value") else str(status)
+        target = (status_val or "").strip().lower()
         workflow = (workflow_type or "").strip().lower()
 
         if target == DISPATCH_STATUS:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import uuid
+from decimal import Decimal
 from collections.abc import Callable
 from typing import Any
 
@@ -86,7 +87,7 @@ class AdjustDeliveryWeightUseCase:
             "tolerance_exceeded": decision.tolerance_exceeded,
         }
 
-        old_total = round(float(order.get("total") or 0), 2)
+        old_total = Decimal(str(order.get("total") or "0")).quantize(Decimal("0.01"))
 
         if adj["tolerance_exceeded"]:
             token = uuid.uuid4().hex

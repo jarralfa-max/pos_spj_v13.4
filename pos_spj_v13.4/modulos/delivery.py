@@ -106,8 +106,6 @@ class _AddrWorker(QRunnable):
 
 
 
-# ── Canonical action policy — imported from domain layer (no duplication here) ──
-from core.delivery.application.action_policy import DeliveryActionPolicy as _CanonicalActionPolicy
 from core.delivery.domain.value_objects import (
     DeliveryStatus as _DeliveryStatus,
     FulfillmentType as _FulfillmentType,
@@ -152,6 +150,14 @@ _STATUS_COLOR_MAP: dict[_DeliveryStatus, str] = {
 ESTADOS = list(_LEGACY_STATUS_MAP.keys())
 ESTADO_COLOR = {legacy: _STATUS_COLOR_MAP.get(canonical, Colors.TEXT_SECONDARY)
                 for legacy, canonical in _LEGACY_STATUS_MAP.items()}
+
+_STATUS_LABELS_ES: dict[str, str] = {
+    "pendiente": "Pendiente", "preparacion": "Preparación", "en_ruta": "En ruta",
+    "entregado": "Entregado", "cancelado": "Cancelado", "programado": "Programado",
+    "scheduled": "Programado",
+}
+_WORKFLOW_LABELS_ES: dict[str, str] = {"counter": "Mostrador", "delivery": "Reparto", "scheduled": "Programado"}
+_ORIGIN_LABELS_ES: dict[str, str] = {"whatsapp": "WhatsApp", "counter": "Mostrador", "quote": "Cotización", "scheduled": "Programado"}
 
 # Canonical action metadata for legacy state machine action keys
 _ACTION_METADATA = {
@@ -459,7 +465,12 @@ class NuevoPedidoDialog(QDialog):
         self.txt_notas = QLineEdit()
         self.txt_notas.setPlaceholderText("Notas para el repartidor: referencias, instrucciones especiales…")
         self.combo_sucursal = QComboBox()
-        self.combo_sucursal.addItems(["Sucursal Principal", "Sucursal 2", "Sucursal 3"])
+        try:
+            rows = conexion.execute("SELECT id, nombre FROM sucursales ORDER BY nombre").fetchall()
+            for _sid, _snombre in rows:
+                self.combo_sucursal.addItem(_snombre, _sid)
+        except Exception:
+            self.combo_sucursal.addItem("Sucursal Principal", 1)
         extra.addWidget(QLabel("Notas:"))
         extra.addWidget(self.txt_notas, 3)
         extra.addWidget(QLabel("Sucursal:"))
@@ -640,7 +651,7 @@ class NuevoPedidoDialog(QDialog):
         try:
             from core.services.inventory_balance_service import InventoryBalanceService
             _inv_svc = InventoryBalanceService(self.conexion)
-            sucursal_id = self.combo_sucursal.currentIndex() + 1
+            sucursal_id = self.combo_sucursal.currentData() or 1
             for it in self._items:
                 pid = it.get("producto_id")
                 if not pid:
@@ -754,7 +765,7 @@ class NuevoPedidoDialog(QDialog):
             "anticipo":      self.spin_anticipo.value(),
             "condicion":     condicion,
             "notas":         notas,
-            "sucursal_id":   self.combo_sucursal.currentIndex() + 1,
+            "sucursal_id":   self.combo_sucursal.currentData() or 1,
         }
 
 class TarjetaPedido(QFrame):
@@ -762,29 +773,9 @@ class TarjetaPedido(QFrame):
     def __init__(self, pedido: dict, parent=None):
         super().__init__(parent)
         self.pedido = pedido
-        def _status_es(raw: str) -> str:
-            return {
-                "pendiente": "Pendiente",
-                "preparacion": "Preparación",
-                "en_ruta": "En ruta",
-                "entregado": "Entregado",
-                "cancelado": "Cancelado",
-                "programado": "Programado",
-                "scheduled": "Programado",
-            }.get((raw or "").strip().lower(), raw or "Pendiente")
-        def _origin_es(raw: str) -> str:
-            return {
-                "whatsapp": "WhatsApp",
-                "counter": "Mostrador",
-                "quote": "Cotización",
-                "scheduled": "Programado",
-            }.get((raw or "").strip().lower(), "Mostrador")
-        def _workflow_es(raw: str) -> str:
-            return {
-                "counter": "Mostrador",
-                "delivery": "Reparto",
-                "scheduled": "Programado",
-            }.get((raw or "").strip().lower(), "Reparto")
+        _status_es = lambda raw: _STATUS_LABELS_ES.get((raw or "").strip().lower(), raw or "Pendiente")
+        _origin_es = lambda raw: _ORIGIN_LABELS_ES.get((raw or "").strip().lower(), "Mostrador")
+        _workflow_es = lambda raw: _WORKFLOW_LABELS_ES.get((raw or "").strip().lower(), "Reparto")
         self.setFrameShape(QFrame.StyledPanel)
         color = ESTADO_COLOR.get(pedido.get("estado","pendiente"), Colors.TEXT_SECONDARY)
         self.setObjectName("cardPedido")
@@ -1361,14 +1352,13 @@ class ModuloDelivery(QWidget, RefreshMixin):
             self._filter_tab_btns[tab_label] = tb
             tabs_bar.addWidget(tb)
         self._filter_tab_btns["Todos"].setChecked(True)
-        self._scheduled_window_combo = create_combo(
-            self,
-            ["Hoy", "Mañana", "Esta semana", "Próximos 30 días", "Todos"],
-            "Ventana de pedidos programados",
-        )
+        self._scheduled_window_combo = QComboBox()
+        self._scheduled_window_combo.setToolTip("Ventana de pedidos programados")
+        for _lbl, _val in [("Hoy","today"),("Mañana","tomorrow"),("Esta semana","week"),("Próximos 30 días","month"),("Todos","all")]:
+            self._scheduled_window_combo.addItem(_lbl, _val)
         self._scheduled_window_combo.setFixedHeight(28)
         self._scheduled_window_combo.hide()
-        self._scheduled_window_combo.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        self._scheduled_window_combo.currentIndexChanged.connect(lambda _i: self.cargar_pedidos(silent=True))
         tabs_bar.addWidget(self._scheduled_window_combo)
         tabs_bar.addStretch()
         self.lbl_stats = QLabel()
@@ -1906,22 +1896,8 @@ if(drivers.length===0){{
 
     def _actualizar_lista_view(self, pedidos: list) -> None:
         """Repopula la QListWidget de la vista lista con los pedidos actuales."""
-        def _status_es(raw: str) -> str:
-            return {
-                "pendiente": "Pendiente",
-                "preparacion": "Preparación",
-                "en_ruta": "En ruta",
-                "entregado": "Entregado",
-                "cancelado": "Cancelado",
-                "programado": "Programado",
-                "scheduled": "Programado",
-            }.get((raw or "").strip().lower(), raw or "Pendiente")
-        def _workflow_es(raw: str) -> str:
-            return {
-                "counter": "Mostrador",
-                "delivery": "Reparto",
-                "scheduled": "Programado",
-            }.get((raw or "").strip().lower(), "Reparto")
+        _status_es = lambda raw: _STATUS_LABELS_ES.get((raw or "").strip().lower(), raw or "Pendiente")
+        _workflow_es = lambda raw: _WORKFLOW_LABELS_ES.get((raw or "").strip().lower(), "Reparto")
         self._lst_pedidos.clear()
         for pedido in pedidos:
             estado = pedido.get("estado", "pendiente")
@@ -2063,14 +2039,7 @@ if(drivers.length===0){{
 
     def cargar_pedidos(self, silent: bool = False):
         filtro = self.combo_filtro.currentText()
-        scheduled_window_map = {
-            "Hoy": "today",
-            "Mañana": "tomorrow",
-            "Esta semana": "week",
-            "Próximos 30 días": "month",
-            "Todos": "all",
-        }
-        scheduled_window = scheduled_window_map.get(self._scheduled_window_combo.currentText(), "all")
+        scheduled_window = self._scheduled_window_combo.currentData() or "all"
         if not silent:
             self._loading.show()
         kanban_visibles = 0
@@ -2456,8 +2425,6 @@ if(drivers.length===0){{
                     usuario=self.usuario,
                 )
             elif accion in ("en_ruta","entregado","cancelado"):
-                fecha_col = "fecha_entrega" if accion == "entregado" else "fecha_asignacion"
-                
                 # If delivered, capture payment method and amount
                 pago_metodo = ""
                 pago_monto  = 0.0

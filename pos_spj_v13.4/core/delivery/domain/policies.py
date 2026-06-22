@@ -63,12 +63,6 @@ class WeightAdjustmentPolicy:
         return float(Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
-class DeliveryWorkflowPolicy:
-    @staticmethod
-    def requires_driver(workflow_type: str | DeliveryWorkflowType | None) -> bool:
-        return normalize_workflow_type(workflow_type) == DeliveryWorkflowType.DELIVERY
-
-
 class DeliveryTotalPolicy:
     @staticmethod
     def calculate_total(subtotals: Iterable[float]) -> float:

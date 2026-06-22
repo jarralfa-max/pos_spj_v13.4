@@ -705,7 +705,7 @@ class DeliveryQueryService:
     def get_pending_unassigned_order_ids(self, branch_id: str) -> list[str]:
         """Return IDs of pending delivery orders with no driver assigned."""
         try:
-            rows = self._conn.execute(
+            rows = self._db.execute(
                 "SELECT id FROM delivery_orders "
                 "WHERE estado='pendiente' AND driver_id IS NULL "
                 "AND sucursal_id=? ORDER BY fecha_solicitud",
