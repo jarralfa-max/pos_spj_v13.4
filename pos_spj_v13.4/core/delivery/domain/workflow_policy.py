@@ -55,3 +55,8 @@ class DeliveryWorkflowPolicy:
     ) -> bool:
         """Return True if the transition is permitted."""
         return to_status in self.allowed_transitions(from_status, fulfillment_type)
+
+    @staticmethod
+    def requires_driver(workflow_type: str | None) -> bool:
+        """Return True when this workflow type requires a driver assignment."""
+        return (workflow_type or "").strip().lower() == FulfillmentType.DELIVERY.value

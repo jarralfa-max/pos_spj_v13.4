@@ -49,7 +49,6 @@ from core.services.delivery_service import DeliveryService
 from core.delivery.domain.state_machine import DeliveryStateMachine
 from core.services.order_badge_service import OrderBadgeService
 from core.delivery.application.query_service import DeliveryQueryService as _DeliveryQueryService
-from repositories.delivery_repository import DeliveryRepository as _DeliveryRepository
 from core.utils.delivery_ui_filters import (
     dto_to_view as _dto_to_view_fn,
     infer_workflow_for_ui as _infer_workflow_for_ui_fn,
@@ -107,7 +106,6 @@ class _AddrWorker(QRunnable):
 
 
 
-# ── Canonical action policy — imported from domain layer (no duplication here) ──
 from core.delivery.domain.value_objects import (
     DeliveryStatus as _DeliveryStatus,
     FulfillmentType as _FulfillmentType,
@@ -153,6 +151,14 @@ ESTADOS = list(_LEGACY_STATUS_MAP.keys())
 ESTADO_COLOR = {legacy: _STATUS_COLOR_MAP.get(canonical, Colors.TEXT_SECONDARY)
                 for legacy, canonical in _LEGACY_STATUS_MAP.items()}
 
+_STATUS_LABELS_ES: dict[str, str] = {
+    "pendiente": "Pendiente", "preparacion": "Preparación", "en_ruta": "En ruta",
+    "entregado": "Entregado", "cancelado": "Cancelado", "programado": "Programado",
+    "scheduled": "Programado",
+}
+_WORKFLOW_LABELS_ES: dict[str, str] = {"counter": "Mostrador", "delivery": "Reparto", "scheduled": "Programado"}
+_ORIGIN_LABELS_ES: dict[str, str] = {"whatsapp": "WhatsApp", "counter": "Mostrador", "quote": "Cotización", "scheduled": "Programado"}
+
 # Canonical action metadata for legacy state machine action keys
 _ACTION_METADATA = {
     "preparacion":         ("▶",  "Preparar",            "success"),
@@ -167,28 +173,6 @@ _ACTION_METADATA = {
     "reactivar":           ("♻️", "Reactivar pedido",     "warning"),
     "activar_programado":  ("▶",  "Activar ahora",        "success"),
     "reprogramar":         ("🗓️", "Reprogramar",          "warning"),
-}
-
-# ── Display label helpers (single source) ────────────────────────────────────
-_STATUS_LABELS_ES: dict = {
-    "pendiente": "Pendiente",
-    "preparacion": "Preparación",
-    "en_ruta": "En ruta",
-    "entregado": "Entregado",
-    "cancelado": "Cancelado",
-    "programado": "Programado",
-    "scheduled": "Programado",
-}
-_WORKFLOW_LABELS_ES: dict = {
-    "counter": "Mostrador",
-    "delivery": "Reparto",
-    "scheduled": "Programado",
-}
-_ORIGIN_LABELS_ES: dict = {
-    "whatsapp": "WhatsApp",
-    "counter": "Mostrador",
-    "quote": "Cotización",
-    "scheduled": "Programado",
 }
 
 
@@ -481,12 +465,12 @@ class NuevoPedidoDialog(QDialog):
         self.txt_notas = QLineEdit()
         self.txt_notas.setPlaceholderText("Notas para el repartidor: referencias, instrucciones especiales…")
         self.combo_sucursal = QComboBox()
-        _suc_rows = _DeliveryRepository(conexion).list_active_branches()
-        if _suc_rows:
-            for _suc in _suc_rows:
-                self.combo_sucursal.addItem(_suc["nombre"], _suc["id"])
-        else:
-            self.combo_sucursal.addItem("Principal", 1)
+        try:
+            rows = conexion.execute("SELECT id, nombre FROM sucursales ORDER BY nombre").fetchall()
+            for _sid, _snombre in rows:
+                self.combo_sucursal.addItem(_snombre, _sid)
+        except Exception:
+            self.combo_sucursal.addItem("Sucursal Principal", 1)
         extra.addWidget(QLabel("Notas:"))
         extra.addWidget(self.txt_notas, 3)
         extra.addWidget(QLabel("Sucursal:"))
@@ -1369,12 +1353,12 @@ class ModuloDelivery(QWidget, RefreshMixin):
             tabs_bar.addWidget(tb)
         self._filter_tab_btns["Todos"].setChecked(True)
         self._scheduled_window_combo = QComboBox()
-        self._scheduled_window_combo.setPlaceholderText("Ventana de pedidos programados")
-        for _lbl, _val in [("Hoy", "today"), ("Mañana", "tomorrow"), ("Esta semana", "week"), ("Próximos 30 días", "month"), ("Todos", "all")]:
+        self._scheduled_window_combo.setToolTip("Ventana de pedidos programados")
+        for _lbl, _val in [("Hoy","today"),("Mañana","tomorrow"),("Esta semana","week"),("Próximos 30 días","month"),("Todos","all")]:
             self._scheduled_window_combo.addItem(_lbl, _val)
         self._scheduled_window_combo.setFixedHeight(28)
         self._scheduled_window_combo.hide()
-        self._scheduled_window_combo.currentTextChanged.connect(lambda _t: self.cargar_pedidos(silent=True))
+        self._scheduled_window_combo.currentIndexChanged.connect(lambda _i: self.cargar_pedidos(silent=True))
         tabs_bar.addWidget(self._scheduled_window_combo)
         tabs_bar.addStretch()
         self.lbl_stats = QLabel()
@@ -1383,11 +1367,14 @@ class ModuloDelivery(QWidget, RefreshMixin):
         layout.addLayout(tabs_bar)
 
         # Hidden combo drives the actual query — tabs sync into it
-        self.combo_filtro = QComboBox()
-        self.combo_filtro.setPlaceholderText("Seleccionar estado para filtrar")
-        for _fv in ["Todos", "counter", "delivery", "scheduled", "ajustes", "historial",
-                    "pendiente", "preparacion", "en_ruta", "entregado", "cancelado"]:
-            self.combo_filtro.addItem(_fv, _fv)
+        self.combo_filtro = create_combo(
+            self,
+            [
+                "Todos", "counter", "delivery", "scheduled", "ajustes", "historial",
+                "pendiente", "preparacion", "en_ruta", "entregado", "cancelado",
+            ],
+            "Seleccionar estado para filtrar"
+        )
         self.combo_filtro.hide()
         self.combo_filtro.currentTextChanged.connect(self.cargar_pedidos)
         # ── Filtros rápidos (Fase 9) ───────────────────────────────────────
@@ -2051,7 +2038,7 @@ if(drivers.length===0){{
         return True
 
     def cargar_pedidos(self, silent: bool = False):
-        filtro = self.combo_filtro.currentData() or self.combo_filtro.currentText()
+        filtro = self.combo_filtro.currentText()
         scheduled_window = self._scheduled_window_combo.currentData() or "all"
         if not silent:
             self._loading.show()
