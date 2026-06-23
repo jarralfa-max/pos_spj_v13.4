@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
-import uuid
 from decimal import Decimal
+
+from backend.shared.ids import new_uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -91,7 +92,7 @@ class AdjustDeliveryWeightUseCase:
         old_total = Decimal(str(order.get("total") or "0")).quantize(Decimal("0.01"))
 
         if adj["tolerance_exceeded"]:
-            token = uuid.uuid4().hex
+            token = new_uuid()
             self.repository.mark_item_adjustment_pending(
                 order_id=order_id,
                 item_id=item_id,
