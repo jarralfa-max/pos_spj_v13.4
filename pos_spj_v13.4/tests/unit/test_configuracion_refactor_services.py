@@ -54,17 +54,28 @@ def test_module_settings_service_wraps_module_toggles() -> None:
 
 
 def test_company_profile_service_saves_branch_profile() -> None:
+    from uuid import UUID
+
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, direccion TEXT, telefono TEXT, activa INTEGER)")
+    # Canonical post-migration-101 schema: sucursales carries a uuid identity.
+    conn.execute(
+        "CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, "
+        "nombre TEXT, direccion TEXT, telefono TEXT, activa INTEGER)"
+    )
     service = CompanyProfileService(ConfigRepository(conn))
 
     branch_id = service.save_branch(name="Principal", address="Centro", phone="+5215512345678", active=True)
     conn.commit()
 
+    # save_branch must mint a canonical UUIDv7 identity, never an integer id.
+    assert UUID(branch_id).version == 7
+    assert branch_id == branch_id.lower()
+
     branch = service.get_branch(branch_id)
     assert branch["nombre"] == "Principal"
     assert branch["telefono"] == "+5215512345678"
+    assert branch["uuid"] == branch_id
 
 
 def test_configuration_migration_owns_schema_and_default_seed() -> None:

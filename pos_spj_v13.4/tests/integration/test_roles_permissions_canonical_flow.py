@@ -18,16 +18,17 @@ from repositories.config_repository import ConfigRepository  # noqa: E402
 def _connection() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
+    # Canonical post-migration-102/104 schema: roles/rol_permisos carry uuid identity.
     conn.executescript(
         """
-        CREATE TABLE roles(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, descripcion TEXT);
-        CREATE TABLE usuarios(id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, nombre TEXT, rol TEXT, sucursal_id INTEGER, activo INTEGER DEFAULT 1);
-        CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activa INTEGER DEFAULT 1);
-        CREATE TABLE rol_permisos(rol_id INTEGER, modulo TEXT, accion TEXT, permitido INTEGER);
+        CREATE TABLE roles(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, nombre TEXT UNIQUE, descripcion TEXT);
+        CREATE TABLE usuarios(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, usuario TEXT, nombre TEXT, rol TEXT, sucursal_id INTEGER, sucursal_uuid TEXT, activo INTEGER DEFAULT 1);
+        CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, nombre TEXT, activa INTEGER DEFAULT 1);
+        CREATE TABLE rol_permisos(rol_id INTEGER, rol_uuid TEXT, modulo TEXT, accion TEXT, permitido INTEGER);
         CREATE TABLE audit_logs(fecha TEXT, usuario TEXT, modulo TEXT, accion TEXT, detalles TEXT);
         INSERT INTO sucursales(nombre, activa) VALUES('Principal', 1);
-        INSERT INTO rol_permisos(rol_id, modulo, accion, permitido) VALUES(1, 'CONFIGURACION', 'ver', 1);
-        INSERT INTO rol_permisos(rol_id, modulo, accion, permitido) VALUES(1, 'CONFIGURACION', 'editar', 1);
+        INSERT INTO rol_permisos(modulo, accion, permitido) VALUES('CONFIGURACION', 'ver', 1);
+        INSERT INTO rol_permisos(modulo, accion, permitido) VALUES('CONFIGURACION', 'editar', 1);
         """
     )
     return conn

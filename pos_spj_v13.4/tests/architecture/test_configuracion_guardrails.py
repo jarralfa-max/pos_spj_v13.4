@@ -125,15 +125,18 @@ BASELINE: dict[str, dict[str, int]] = {
         "except_pass": 1,
     },
     "repositories/config_repository.py": {
-        "sql_select": 42,
+        # FASE 2 added tolerant label resolvers (username_for_id/role_name_for_id
+        # via _resolve_label) so events carry names, not integer ids: +1 select,
+        # +1 execute vs the FASE 0 baseline.
+        "sql_select": 43,
         "sql_insert": 11,
         "sql_update": 11,
         "sql_delete": 2,
         "commit": 1,          # repository owns commit -> CONFIGURACION-08-TRANSACTIONS
-        "cursor_execute": 64,
-        "lastrowid": 1,       # functional identity from lastrowid
+        "cursor_execute": 65,
+        "lastrowid": 1,       # transitional pre-101 fallback -> migration 200 cutover
         "int_id_cast": 1,     # int(..._id) cast of a functional id
-        "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) identity fallback
+        "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) pre-103 fallback
         "legacy_lower": 1,    # comment accepting legacy integer ids
         "principal_fallback": 1,
         "except_pass": 1,

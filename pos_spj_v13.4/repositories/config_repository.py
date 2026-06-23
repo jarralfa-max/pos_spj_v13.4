@@ -640,6 +640,39 @@ class ConfigRepository:
         row = self.db.execute(f"SELECT usuario FROM usuarios WHERE {column}=?", (value,)).fetchone()
         return str(row[0]) if row else None
 
+    @staticmethod
+    def _looks_like_uuid(value) -> bool:
+        try:
+            UUID(str(value))
+            return True
+        except (ValueError, AttributeError, TypeError):
+            return False
+
+    def _resolve_label(self, table: str, label_column: str, entity_id) -> str | None:
+        """Resolve a human label for an entity from either its uuid or row id.
+
+        Used to enrich domain events with names (e.g. ``usuario``/``nombre``)
+        instead of exposing integer identifiers. This is a read-only label
+        lookup, not an identity contract, so it accepts the internal id the
+        caller already holds during the transitional dual-column period.
+        """
+        if entity_id is None or entity_id == "":
+            return None
+        if self._column_exists(table, "uuid") and self._looks_like_uuid(entity_id):
+            row = self.db.execute(
+                f"SELECT {label_column} FROM {table} WHERE uuid=?", (str(entity_id),)
+            ).fetchone()
+            if row:
+                return str(row[0])
+        row = self.db.execute(
+            f"SELECT {label_column} FROM {table} WHERE id=?", (entity_id,)
+        ).fetchone()
+        return str(row[0]) if row else None
+
+    def username_for_id(self, user_id) -> str | None:
+        """Resolve a username from a uuid or integer row id (event label)."""
+        return self._resolve_label("usuarios", "usuario", user_id)
+
     def save_user_v13(
         self,
         *,
@@ -834,10 +867,9 @@ class ConfigRepository:
                 resolved.discard(code)
         return resolved
 
-    def role_name_for_id(self, role_id: str) -> str | None:
-        column, value = self._resolve_db_identifier("roles", role_id)
-        row = self.db.execute(f"SELECT nombre FROM roles WHERE {column}=?", (value,)).fetchone()
-        return str(row[0]) if row else None
+    def role_name_for_id(self, role_id) -> str | None:
+        """Resolve a role name from a uuid or integer row id (event label)."""
+        return self._resolve_label("roles", "nombre", role_id)
 
     def role_permissions(self, role_id: str) -> dict[tuple[str, str], bool]:
         role_row_id, role_uuid = self._resolve_role_row(role_id)
