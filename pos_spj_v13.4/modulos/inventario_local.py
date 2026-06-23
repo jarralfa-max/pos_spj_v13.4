@@ -977,7 +977,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
         self.tabla.setRowCount(0)
 
         for i, r in enumerate(rows):
-            prod_id  = int(r[0])
+            prod_id  = str(r[0])
             nombre   = str(r[1] or "")
             cat      = str(r[2] or "")
             stock    = float(r[3] or 0)
@@ -1030,7 +1030,7 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             self.tabla.setItem(i, 6, QTableWidgetItem(last_mov))
 
         availability_by_id = {
-            int(row["product_id"]): row
+            str(row["product_id"]): row
             for row in self._inventory_query.list_availability_rows(self.sucursal_id)
         }
         self.tabla_disponibilidad.setRowCount(0)
