@@ -1,5 +1,5 @@
-from backend.shared.ids import new_uuid
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import json
 import logging

@@ -177,7 +177,7 @@ def _create_core_config(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sucursales (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             nombre      TEXT    NOT NULL,
             direccion   TEXT,
             telefono    TEXT,
@@ -326,17 +326,24 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS productos (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                   TEXT PRIMARY KEY,
             codigo               TEXT UNIQUE,
+            codigo_barras        TEXT,
             nombre               TEXT NOT NULL,
             descripcion          TEXT,
             categoria            TEXT DEFAULT 'General',
             precio               REAL NOT NULL DEFAULT 0,
             precio_compra        REAL DEFAULT 0,
+            precio_minimo_venta  REAL DEFAULT 0,
             existencia           REAL DEFAULT 0,
             stock_minimo         REAL DEFAULT 5.0,
             unidad               TEXT DEFAULT 'kg',
-            sucursal_id          INTEGER DEFAULT 1,
+            tipo_producto        TEXT DEFAULT 'simple',
+            es_compuesto         INTEGER DEFAULT 0,
+            es_subproducto       INTEGER DEFAULT 0,
+            imagen_path          TEXT,
+            oculto               INTEGER DEFAULT 0,
+            sucursal_id          TEXT,
             activo               INTEGER DEFAULT 1,
             is_active            INTEGER DEFAULT 1,
             es_paquete           INTEGER DEFAULT 0,
