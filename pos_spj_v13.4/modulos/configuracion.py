@@ -1237,7 +1237,9 @@ class ModuloConfiguracion(ModuloBase):
             _bcrypt = None
         try:
             pwd_raw = txt_pass.text()
-            suc_id  = cmb_sucursal.currentData() or 1
+            suc_id  = cmb_sucursal.currentData()
+            if not suc_id:
+                QMessageBox.warning(self, "Aviso", "Selecciona la sucursal del usuario."); return
             emp_id  = cmb_empleado.currentData()
             pwd_hash = None
             if pwd_raw:

@@ -97,30 +97,25 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # ---------------------------------------------------------------------------
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/configuracion.py": {
-        "or_1": 1,            # `cmb_sucursal.currentData() or 1` integer branch fallback
-        "currentText": 1,     # role identity taken from a combobox label
-        "row_id_index": 1,    # rule["id"] used as identity
+        # FASE 1 removed `cmb_sucursal.currentData() or 1` integer branch fallback.
+        "currentText": 1,     # role identity taken from a combobox label -> FASE 2/4
+        "row_id_index": 1,    # rule["id"] used as identity -> FASE 2/4
         "system_settings": 4,
     },
     "modulos/config_modules.py": {
-        "sql_select": 2,
-        "sql_insert": 1,
-        "sql_update": 1,
-        "commit": 1,
-        "cursor_execute": 3,
-        "principal_fallback": 1,
-        "except_pass": 2,
-        "feature_flags": 2,   # feature_flags read/written directly from UI
+        # FASE 1 removed all SQL, commit, "Principal" fallback and direct
+        # feature_flags usage; toggles now go through FeatureFlagService.
+        "except_pass": 1,     # menu-refresh swallow -> FASE 8
     },
     "modulos/config_hardware.py": {
-        "commit": 3,
-        "sucursal_id_eq_1": 1,
-        "currentText": 17,
-        "except_pass": 2,
+        # FASE 1 removed commit()x3, sucursal_id=1 and ensure_schema/seed_defaults
+        # from the UI; persistence now goes through HardwareSettingsService.
+        "currentText": 17,    # device value reads -> FASE 4
+        "except_pass": 1,     # ticket tipo_idx swallow -> FASE 8
     },
     "modulos/config_interfaz.py": {
-        "currentText": 2,
-        "except_pass": 1,
+        "currentText": 2,     # theme value reads -> FASE 4
+        "except_pass": 1,     # prefs load swallow -> FASE 8
     },
     "core/services/configuration_settings_service.py": {
         "system_settings": 24,

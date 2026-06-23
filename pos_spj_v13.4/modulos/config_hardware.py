@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
 )
 
-from core.repositories.hardware_config_repository import HardwareConfigRepository
+from backend.application.services.hardware_settings_service import HardwareSettingsService
 from modulos.design_tokens import Spacing
 
 logger = logging.getLogger("spj.config_hardware")
@@ -33,25 +33,17 @@ class ModuloConfigHardware(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container = container
-        self.db = container.db
-        self.repo = HardwareConfigRepository(self.db)
-        self.sucursal_id = 1
-        try:
-            self.repo.ensure_schema()
-            self.repo.seed_defaults()
-            try:
-                self.db.commit()
-            except Exception:
-                pass
-        except Exception:
-            logger.exception("No se pudo asegurar hardware_config")
+        # Ruta canónica: la UI delega lecturas/escrituras al application service.
+        # El schema de hardware_config lo crean las migraciones (m000/m050), no la UI.
+        self.hardware_settings_service = HardwareSettingsService(container.db)
+        self.sucursal_id = None
         self._init_ui()
         QTimer.singleShot(200, self._cargar_todo)
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         return None
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal(self, sucursal_id, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
 
     def _init_ui(self):
@@ -229,9 +221,7 @@ class ModuloConfigHardware(QWidget):
 
     def _cargar_todo(self):
         try:
-            self.repo.ensure_schema()
-            self.repo.seed_defaults()
-            cfg_map = {tipo: self.repo.get_config(tipo) for tipo in ("bascula", "ticket", "etiquetas", "cajon", "scanner", "red")}
+            cfg_map = self.hardware_settings_service.load_all()
         except Exception as exc:
             logger.exception("No se pudo cargar hardware_config: %s", exc)
             QMessageBox.critical(self, "Error", f"No se pudo cargar configuración de hardware:\n{exc}")
@@ -319,9 +309,7 @@ class ModuloConfigHardware(QWidget):
             },
         }
         try:
-            for tipo, cfg in configs.items():
-                self.repo.save_config(tipo, HardwareConfigRepository.DEFAULT_TYPES.get(tipo, tipo.capitalize()), cfg, activo=1)
-            self.db.commit()
+            self.hardware_settings_service.save_all(configs)
             self._reload_runtime_services()
             QMessageBox.information(self, "✅ Guardado", "Configuración de hardware guardada y aplicada.")
         except Exception as exc:
@@ -410,8 +398,7 @@ class ModuloConfigHardware(QWidget):
             "corte": self.chk_ticket_corte.isChecked(),
             "abrir_cajon": self.chk_ticket_cajon.isChecked(),
         }
-        self.repo.save_config("ticket", HardwareConfigRepository.DEFAULT_TYPES["ticket"], cfg, activo=1)
-        self.db.commit()
+        self.hardware_settings_service.save_one("ticket", cfg)
 
     def _test_etiqueta(self):
         QMessageBox.information(self, "Prueba etiquetas", "Guarda la configuración y prueba desde el módulo de Etiquetas.")
