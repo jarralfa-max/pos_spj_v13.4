@@ -34,7 +34,7 @@ class DeliveryRevenueFinanceHandler:
             logger.info("delivery revenue already posted order=%s — skip", order_id)
             return
 
-        branch_id = int(payload.get("branch_id") or 1)
+        branch_id = str(payload.get("branch_id") or "")
         folio = payload.get("folio") or f"DEL-{order_id}"
         try:
             finance = self._finance_service()

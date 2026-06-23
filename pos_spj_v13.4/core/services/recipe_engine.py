@@ -23,6 +23,7 @@
 #   - FALLA-2: costo por piezas → costo por kg total
 #   - FALLA-7: doble update existencia → eliminado de _registrar_movimiento_legacy
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -124,7 +125,7 @@ class RecipeEngine:
         if cantidad_base <= 0:
             raise RecipeEngineError("cantidad_base debe ser positiva")
 
-        op_id = operation_id or str(uuid.uuid4())
+        op_id = operation_id or new_uuid()
         suc_id = sucursal_id or self.branch_id
 
         # FIX BUG-1: exponer conn del context manager para usarlo explícitamente
@@ -189,7 +190,7 @@ class RecipeEngine:
                             teorico_kg = mov["delta"]
                             comp = next((c for c in componentes_db
                                          if c.get("component_product_id") == pid
-                                         or c.get("producto_id") == pid), {})
+                                         or c.get("product_id") == pid), {})
                             tolerancia = float(comp.get("tolerancia_pct") or 2.0) / 100.0
                             diferencia_rel = abs(real_kg - teorico_kg) / teorico_kg if teorico_kg > 0 else 0
                             if diferencia_rel > tolerancia:
@@ -516,7 +517,7 @@ class RecipeEngine:
                     usuario, sucursal_id, fecha
                 ) VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
             """, (
-                str(uuid.uuid4()), mov["product_id"], tipo_mov, tipo_desc,
+                new_uuid(), mov["product_id"], tipo_mov, tipo_desc,
                 abs(mov["delta"]),
                 f"Produccion #{produccion_id} — {mov['nombre']}",
                 produccion_id, "PRODUCCION", usuario, sucursal_id,

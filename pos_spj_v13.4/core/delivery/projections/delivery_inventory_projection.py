@@ -20,17 +20,17 @@ class DeliveryInventoryProjectionService:
         }
 
     def handle_order_reserved(self, payload: dict[str, Any]) -> dict[str, int]:
-        order_id = int(payload.get("order_id") or 0)
+        order_id = str(payload.get("order_id") or "")
         operation_id = str(payload.get("operation_id") or f"delivery:{order_id}")
         return self.inventory_reservations.reserve_for_order(
             order_id=order_id,
             items=list(payload.get("items") or []),
-            branch_id=int(payload.get("branch_id") or payload.get("sucursal_id") or 1),
+            branch_id=str(payload.get("branch_id") or payload.get("sucursal_id") or ""),
             operation_id=operation_id,
         )
 
     def handle_inventory_release_required(self, payload: dict[str, Any]) -> dict[str, int]:
-        order_id = int(payload.get("order_id") or 0)
+        order_id = str(payload.get("order_id") or "")
         operation_id = str(payload.get("operation_id") or f"delivery:{order_id}")
         return self.inventory_reservations.release_for_order(
             order_id=order_id,
@@ -39,11 +39,11 @@ class DeliveryInventoryProjectionService:
         )
 
     def handle_inventory_commit_required(self, payload: dict[str, Any]) -> dict[str, int]:
-        order_id = int(payload.get("order_id") or 0)
+        order_id = str(payload.get("order_id") or "")
         operation_id = str(payload.get("operation_id") or f"delivery:{order_id}")
         return self.inventory_reservations.commit_for_order(
             order_id=order_id,
             items=list(payload.get("items") or []),
-            branch_id=int(payload.get("branch_id") or payload.get("sucursal_id") or 1),
+            branch_id=str(payload.get("branch_id") or payload.get("sucursal_id") or ""),
             operation_id=operation_id,
         )

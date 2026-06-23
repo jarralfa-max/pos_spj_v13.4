@@ -253,7 +253,7 @@ class ProductQueryService(BaseQueryService):
         if self._db is None:
             return None
         try:
-            row = self._db.execute("SELECT * FROM productos WHERE id = ?", (int(product_id),)).fetchone()
+            row = self._db.execute("SELECT * FROM productos WHERE id = ?", (str(product_id),)).fetchone()
         except Exception:
             logger.exception("Error loading product_id=%s", product_id)
             return None

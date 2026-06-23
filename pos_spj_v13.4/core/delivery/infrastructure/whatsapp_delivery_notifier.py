@@ -17,6 +17,12 @@ class WhatsAppDeliveryNotifier:
 
     STATUS_TEMPLATES: dict[str, str] = {
         "pedido_recibido": "✅ Recibimos tu pedido {folio}. Lo estamos validando.",
+        "pending": "✅ Tu pedido {folio} quedó registrado.",
+        "preparing": "👩‍🍳 Tu pedido {folio} está en preparación.",
+        "in_transit": "🛵 Tu pedido {folio} va en ruta.",
+        "delivered": "🎉 Tu pedido {folio} fue entregado. ¡Gracias!",
+        "cancelled": "❌ Tu pedido {folio} fue cancelado.",
+        # Spanish compat aliases — removed after all instances upgrade
         "pendiente": "✅ Tu pedido {folio} quedó registrado.",
         "preparacion": "👩‍🍳 Tu pedido {folio} está en preparación.",
         "en_ruta": "🛵 Tu pedido {folio} va en ruta.",

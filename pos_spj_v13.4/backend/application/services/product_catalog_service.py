@@ -9,6 +9,7 @@ from backend.application.dto.use_case_result import UseCaseResult
 from backend.domain.services.product_type_policy import ProductTypePolicy
 from backend.shared.events.event_contracts import create_domain_event
 from backend.shared.events.event_names import EventName
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.products.catalog")
 
@@ -19,7 +20,6 @@ class ProductCatalogService:
     def __init__(self, db_conn: Any = None, *, repository: Any = None, event_bus: Any = None) -> None:
         self._repository = repository
         self._event_bus = event_bus
-        # Legacy path: direct db_conn without repository
         self._db = db_conn if db_conn is not None and repository is None else (
             getattr(repository, "_connection", None) if repository is not None else None
         )
@@ -60,18 +60,19 @@ class ProductCatalogService:
                     pass
                 raise
         else:
-            # Legacy direct db_conn path
+            product_uuid = new_uuid()
             cursor = self._db.cursor()
             try:
                 cursor.execute(
                     """
                     INSERT INTO productos (
-                        nombre, codigo, codigo_barras, categoria, precio, precio_compra, precio_minimo_venta,
+                        id, nombre, codigo, codigo_barras, categoria, precio, precio_compra, precio_minimo_venta,
                         unidad, stock_minimo, tipo_producto, es_compuesto, es_subproducto,
                         imagen_path, existencia, oculto, activo
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
                     """,
                     (
+                        product_uuid,
                         command.name,
                         getattr(command, "sku", None) or getattr(command, "code", None),
                         getattr(command, "barcode", ""),
@@ -89,7 +90,7 @@ class ProductCatalogService:
                     ),
                 )
                 self._db.commit()
-                product_id_str = str(cursor.lastrowid)
+                product_id_str = product_uuid
             except Exception:
                 logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
                 try:
@@ -104,14 +105,13 @@ class ProductCatalogService:
             "product_type": canonical_type,
         }
 
-        # Publish event if bus available
         if self._event_bus is not None:
             try:
                 event = create_domain_event(
                     event_name=EventName.PRODUCT_CREATED,
                     operation_id=command.operation_id,
                     entity_id=product_id_str,
-                    branch_id=getattr(command, "branch_id", "1"),
+                    branch_id=getattr(command, "branch_id", "") or "",
                     source_module="product_catalog",
                     user_name=getattr(command, "user_name", None) or "system",
                     payload={**data, "name": command.name},

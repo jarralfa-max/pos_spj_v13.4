@@ -30,7 +30,7 @@ def legacy_sale_to_whatsapp_order(row: Dict[str, Any], items: Iterable[Dict[str,
 
     mapped_items = [
         OrderItem(
-            product_id=item.get("producto_id") or item.get("product_id"),
+            product_id=item.get("product_id"),
             product_name=item.get("nombre") or item.get("product_name") or "",
             quantity=float(item.get("cantidad") or item.get("quantity") or 0),
             unit_price=float(item.get("precio_unitario") or item.get("unit_price") or 0),

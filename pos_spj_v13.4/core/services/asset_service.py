@@ -21,15 +21,15 @@ class AssetService:
             cursor = self.db.cursor()
             
             # Generamos un código temporal, lo actualizaremos con el ID real
+            from backend.shared.ids import new_uuid as _new_uuid
+            activo_id = _new_uuid()
             cursor.execute("""
-                INSERT INTO activos (nombre, categoria, numero_serie, valor_adquisicion, vida_util_anios, estado, fecha_adquisicion)
-                VALUES (?, ?, ?, ?, ?, 'activo', date('now'))
-            """, (nombre, categoria, numero_serie, valor, vida_util))
-            
-            activo_id = cursor.lastrowid
-            
-            # Generar Código Corporativo de Etiqueta (Ej. ACT-00015)
-            codigo_etiqueta = f"ACT-{str(activo_id).zfill(5)}"
+                INSERT INTO activos (id, nombre, categoria, numero_serie, valor_adquisicion, vida_util_anios, estado, fecha_adquisicion)
+                VALUES (?, ?, ?, ?, ?, ?, 'activo', date('now'))
+            """, (activo_id, nombre, categoria, numero_serie, valor, vida_util))
+
+            # Generar Código Corporativo de Etiqueta visible (folio — no identidad)
+            codigo_etiqueta = f"ACT-{activo_id[:8].upper()}"
             
             # Si tuviéramos un campo 'codigo' en la tabla activos, lo actualizaríamos aquí.
             # Por ahora, usamos el ID formateado visualmente en la UI, o lo guardamos en notas.

@@ -184,7 +184,7 @@ class DeliveryRepository:
                         qty,
                         price,
                         subtotal,
-                        it.get("unidad") or "kg",
+                        it.get("unidad") or "",
                         qty,
                     ),
                 )
@@ -501,6 +501,16 @@ class DeliveryRepository:
             self.db.execute("UPDATE delivery_orders SET total=? WHERE id=?", (float(total), order_id))
         if commit:
             self.db.commit()
+
+    def list_active_branches(self) -> List[Dict[str, Any]]:
+        """Return active branches as list of dicts with id and nombre."""
+        try:
+            rows = self.db.execute(
+                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY id"
+            ).fetchall()
+            return [{"id": r[0], "nombre": r[1]} for r in rows]
+        except Exception:
+            return []
 
     def get_order(self, order_id: int) -> Optional[Dict[str, Any]]:
         row = self.db.execute("SELECT * FROM delivery_orders WHERE id=?", (order_id,)).fetchone()

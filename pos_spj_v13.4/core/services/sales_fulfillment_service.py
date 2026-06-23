@@ -58,7 +58,7 @@ class SaleFulfillmentService:
         select_parts.append("COALESCE(es_subproducto,0) AS es_subproducto" if "es_subproducto" in cols else "0 AS es_subproducto")
         return self.db.execute(
             f"SELECT {', '.join(select_parts)} FROM productos WHERE id=? LIMIT 1",
-            (int(product_id),),
+            (str(product_id),),
         ).fetchone()
 
     def _row_value(self, row, key: str, idx: int, default=None):
@@ -94,9 +94,9 @@ class SaleFulfillmentService:
             qty = float(qty or 0)
             if qty <= 0:
                 continue
-            available = float(self.avail.physical_stock(int(pid), int(branch_id)) or 0)
+            available = float(self.avail.physical_stock(str(pid), str(branch_id)) or 0)
             if available + 1e-9 < qty:
-                nombre, unidad = self._product_name_unit(int(pid))
+                nombre, unidad = self._product_name_unit(str(pid))
                 shortages.append(f"{nombre}: requiere {qty:.3f} {unidad}, disponible {available:.3f} {unidad}")
         if shortages:
             raise ValueError("STOCK_INSUFICIENTE: " + "; ".join(shortages))
@@ -157,7 +157,7 @@ class SaleFulfillmentService:
         where = f"{product_col}=?"
         if "is_active" in recipe_cols:
             where += " AND is_active=1"
-        row = self.db.execute(f"SELECT id FROM product_recipes WHERE {where} LIMIT 1", (int(product_id),)).fetchone()
+        row = self.db.execute(f"SELECT id FROM product_recipes WHERE {where} LIMIT 1", (str(product_id),)).fetchone()
         if not row:
             return None
         try:

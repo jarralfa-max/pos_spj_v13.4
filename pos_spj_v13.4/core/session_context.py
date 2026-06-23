@@ -137,7 +137,7 @@ class SessionContext:
         logger.debug("Permisos cargados: %d", len(self._permisos))
 
     def clear(self) -> None:
-        """Cierra la sesión — limpia todo. No restaura 'Principal' ni sucursal_id=1."""
+        """Cierra la sesión — limpia todo. No restaura '' ni sucursal_id=1."""
         old_user = self._usuario
         self.__init__()
         if old_user:

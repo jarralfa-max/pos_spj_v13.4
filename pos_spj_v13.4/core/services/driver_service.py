@@ -44,8 +44,8 @@ class DriverService:
             raise ValueError("Repartidor no encontrado")
         if not int(driver.get("activo") or 0):
             raise ValueError("El repartidor no está activo")
-        order_branch = int(order.get("sucursal_id") or 1)
-        driver_branch = int(driver.get("sucursal_id") or 1)
+        order_branch = str(order.get("sucursal_id") or order.get("branch_id") or "")
+        driver_branch = str(driver.get("sucursal_id") or driver.get("branch_id") or "")
         if driver_branch not in (0, order_branch):
             raise ValueError("El repartidor pertenece a otra sucursal")
         status = (order.get("estado") or "").lower()

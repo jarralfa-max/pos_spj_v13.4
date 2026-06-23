@@ -17,15 +17,16 @@ from __future__ import annotations
 
 from enum import Enum
 
+from .value_objects import DeliveryStatus
+
 
 class DeliveryDocument(str, Enum):
     DRIVER_OPERATIVE = "driver_operative"
     CUSTOMER_RECEIPT = "customer_receipt"
 
 
-# Legacy DB status that triggers dispatch printing. "en_ruta" == IN_TRANSIT.
-DISPATCH_STATUS = "en_ruta"
-DELIVERED_STATUS = "entregado"
+DISPATCH_STATUS = DeliveryStatus.IN_TRANSIT.value
+DELIVERED_STATUS = DeliveryStatus.DELIVERED.value
 
 # Counter / pickup workflows do not dispatch a driver.
 _COUNTER_WORKFLOWS = frozenset({"counter", "pickup", "sucursal", "mostrador"})
@@ -34,8 +35,10 @@ _COUNTER_WORKFLOWS = frozenset({"counter", "pickup", "sucursal", "mostrador"})
 class DeliveryPrintPolicy:
     """Decide the documents to print for a given status transition."""
 
-    def documents_for(self, status: str, workflow_type: str = "") -> tuple[DeliveryDocument, ...]:
-        target = (status or "").strip().lower()
+    def documents_for(self, status, workflow_type: str = "") -> tuple[DeliveryDocument, ...]:
+        # Accept DeliveryStatus enum or str
+        status_val = status.value if hasattr(status, "value") else str(status)
+        target = (status_val or "").strip().lower()
         workflow = (workflow_type or "").strip().lower()
 
         if target == DISPATCH_STATUS:

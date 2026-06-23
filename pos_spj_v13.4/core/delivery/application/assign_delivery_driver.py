@@ -13,7 +13,7 @@ logger = logging.getLogger("spj.delivery.application.assign_driver")
 
 
 class AssignDeliveryDriverUseCase:
-    """Assign driver + transition to 'preparacion' atomically.
+    """Assign driver + transition to 'preparing' atomically.
 
     Replaces the UI's direct SQL UPDATE that previously split driver
     assignment from the status change into two separate database writes.
@@ -40,7 +40,7 @@ class AssignDeliveryDriverUseCase:
         notas: str = "",
         usuario: str = "sistema",
     ) -> dict[str, Any]:
-        """Assign driver and move order to 'preparacion'.
+        """Assign driver and move order to 'preparing'.
 
         Args:
             order_id: Delivery order primary key.
@@ -63,9 +63,9 @@ class AssignDeliveryDriverUseCase:
         if order is None:
             raise ValueError(f"Pedido {order_id} no encontrado")
 
-        # Validate the state machine permits transitioning to preparacion
+        # Validate the state machine permits transitioning to preparing
         state_machine = DeliveryStateMachine()
-        state_machine.assert_can_transition(order, "preparacion")
+        state_machine.assert_can_transition(order, "preparing")
 
         # Write driver fields + transition atomically
         self.db.execute(
@@ -88,7 +88,7 @@ class AssignDeliveryDriverUseCase:
 
         self.repository.update_status(
             order_id,
-            "preparacion",
+            "preparing",
             usuario=usuario,
             observacion=f"Repartidor asignado: {driver_id}",
             reason="driver_assigned",

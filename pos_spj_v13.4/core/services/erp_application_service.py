@@ -24,6 +24,7 @@ USO:
     app.registrar_compra(producto_id=1, cantidad=50, costo=85.50, ...)
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging
 import uuid
 from datetime import datetime
@@ -60,7 +61,7 @@ class ERPApplicationService:
         3. Registra egreso en tesorería
         """
         sid = sucursal_id or self.sucursal_id
-        op_id = str(uuid.uuid4())[:8]
+        op_id = new_uuid().replace('-', '')[-8:]
         ref = referencia or f"COMPRA-{op_id}"
 
         try:
@@ -90,7 +91,7 @@ class ERPApplicationService:
                                       sucursal_id: int = 0) -> Dict:
         """Registra entrada por producción (producto terminado)."""
         sid = sucursal_id or self.sucursal_id
-        ref = referencia or f"PROD-{str(uuid.uuid4())[:8]}"
+        ref = referencia or f"PROD-{new_uuid().replace('-', '')[-8:]}"
         try:
             costo = self._get_costo_producto(producto_id)
             self._entrada_directa(producto_id, cantidad, costo,
@@ -104,7 +105,7 @@ class ERPApplicationService:
                                      sucursal_id: int = 0) -> Dict:
         """Registra salida por consumo en producción (materia prima)."""
         sid = sucursal_id or self.sucursal_id
-        ref = referencia or f"CONSUMO-{str(uuid.uuid4())[:8]}"
+        ref = referencia or f"CONSUMO-{new_uuid().replace('-', '')[-8:]}"
         try:
             self._salida_directa(producto_id, cantidad,
                                   "CONSUMO", ref, usuario, sid)
@@ -127,7 +128,7 @@ class ERPApplicationService:
             if abs(diff) < 0.001:
                 return {"ok": True, "sin_cambio": True}
 
-            ref = f"AJUSTE-{str(uuid.uuid4())[:8]}"
+            ref = f"AJUSTE-{new_uuid().replace('-', '')[-8:]}"
             if diff > 0:
                 self._entrada_directa(producto_id, diff, 0,
                                        "AJUSTE", ref, usuario, sid)

@@ -1,6 +1,7 @@
 """Use case for quick customer creation from sales."""
 
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 from dataclasses import dataclass
 from typing import Any
@@ -43,12 +44,12 @@ class CreateCustomerUseCase:
                     codigo_fidelidad=command.loyalty_code,
                 )
             else:
-                cur = self._db.execute(
-                    "INSERT INTO clientes (nombre, telefono, email, direccion, puntos, codigo_qr, activo) "
-                    "VALUES (?, ?, ?, ?, 0, ?, 1)",
-                    (command.name.strip(), command.phone, command.email, command.address, command.loyalty_code),
+                customer_id = new_uuid()
+                self._db.execute(
+                    "INSERT INTO clientes (id, nombre, telefono, email, direccion, puntos, codigo_qr, activo) "
+                    "VALUES (?, ?, ?, ?, ?, 0, ?, 1)",
+                    (customer_id, command.name.strip(), command.phone, command.email, command.address, command.loyalty_code),
                 )
-                customer_id = cur.lastrowid
             if command.loyalty_code:
                 self._db.execute(
                     "INSERT OR IGNORE INTO tarjetas_fidelidad "
@@ -64,7 +65,7 @@ class CreateCustomerUseCase:
             except Exception:
                 logger.exception("Rollback failed during customer creation operation_id=%s", command.operation_id)
             raise
-        return {"ok": True, "existing": False, "id": int(customer_id), "name": command.name.strip()}
+        return {"ok": True, "existing": False, "id": str(customer_id), "name": command.name.strip()}
 
     def find_customer_by_loyalty_code(self, loyalty_code: str) -> dict | None:
         try:

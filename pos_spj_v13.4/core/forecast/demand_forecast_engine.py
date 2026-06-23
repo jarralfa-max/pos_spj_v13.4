@@ -21,6 +21,7 @@
 #   • Nunca forecast negativo
 
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import math
@@ -294,7 +295,7 @@ class DemandForecastEngine:
 
         n = 0
         for (fdate, fqty) in result["forecast_by_day"]:
-            fid    = str(uuid.uuid4())
+            fid    = new_uuid()
             dow    = 0
             try:
                 dow = date.fromisoformat(fdate).weekday()
@@ -371,7 +372,7 @@ class DemandForecastEngine:
 
         # Guardar métricas
         try:
-            mid = str(uuid.uuid4())
+            mid = new_uuid()
             self.db.execute("""
                 INSERT INTO forecast_metrics
                     (id, product_id, branch_id, method, mae, rmse, mape, bias,
