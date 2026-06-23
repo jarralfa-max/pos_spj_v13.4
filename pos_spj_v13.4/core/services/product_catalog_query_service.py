@@ -40,7 +40,7 @@ def get_product_configuration_kpis(db) -> Dict[str, int]:
     }
 
 
-def get_catalog_filter_ids(db, filter_key: str) -> Set[int]:
+def get_catalog_filter_ids(db, filter_key: str) -> Set[str]:
     queries = {
         "sin_tipo": (
             "SELECT id FROM productos WHERE COALESCE(activo,1)=1 "
@@ -61,7 +61,9 @@ def get_catalog_filter_ids(db, filter_key: str) -> Set[int]:
     if not q:
         return set()
     rows = db.execute(q).fetchall()
-    out: Set[int] = set()
+    out: Set[str] = set()
     for r in rows:
-        out.add(int((r["id"] if hasattr(r, "keys") else r[0]) or 0))
+        val = r["id"] if hasattr(r, "keys") else r[0]
+        if val:
+            out.add(str(val))
     return out
