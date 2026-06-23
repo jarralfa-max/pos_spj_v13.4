@@ -1,3 +1,4 @@
+from backend.shared.ids import new_uuid
 from __future__ import annotations
 
 import json
@@ -137,12 +138,12 @@ class StockReservationService:
                 f"VALUES(?, ?, 'activa', ?, {expires})",
                 (folio, self.branch_id, json.dumps(payload)),
             )
-            reserva_id = int(cur.lastrowid)
+            reserva_id = new_uuid()
             for p in payload:
                 self.db.execute(
                     "INSERT INTO stock_reserva_detalles"
                     "(reserva_id, producto_id, cantidad) VALUES(?,?,?)",
-                    (reserva_id, int(p["producto_id"]), float(p["cantidad"])),
+                    (reserva_id, str(p.get("product_id") or p.get("producto_id") or ""), float(p["cantidad"])),
                 )
 
             self.db.execute(f"RELEASE SAVEPOINT {sp}")

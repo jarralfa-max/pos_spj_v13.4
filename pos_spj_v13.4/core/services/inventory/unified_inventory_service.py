@@ -130,7 +130,7 @@ class UnifiedInventoryService:
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))""",(
                 new_uuid(),producto_id,tipo_mapa[movement_type],movement_type,quantity,
                 stock_ant,stock_nuevo,cost_unit,cost_unit*quantity,
-                notas or movement_type,reference,self.usuario,sid)).lastrowid
+                notas or movement_type,reference,self.usuario,sid))
             c.execute("UPDATE productos SET existencia=? WHERE id=?",(stock_nuevo,producto_id))
             # Sync inventory_stock con costo promedio ponderado
             if cost_unit > 0 and delta > 0:
@@ -297,7 +297,7 @@ class UnifiedInventoryService:
                 metadata.get("notas") or movement_type,
                 str(ref) if ref else None,
                 _effective_user, sucursal_id,
-            )).lastrowid
+            ))
             # FIX FALLA-6: actualizar costo_promedio cuando se provee metadata con unit_cost
             _unit_cost = float(metadata.get("unit_cost") or metadata.get("costo_unitario") or 0)
             if _unit_cost > 0 and delta > 0:

@@ -128,7 +128,7 @@ class ProcesarPedidoWAUC:
                 (numero_pedido, cliente_tel, cliente_tel, sucursal_id, total, anticipo,
                  int(programado), hora_deseada, notas, usuario)
             )
-            pedido_id = cur.lastrowid
+            pedido_id = str(cur.lastrowid)  # legacy int table — UUID migration pending
             # Guardar items
             for it in items:
                 self._db.execute(

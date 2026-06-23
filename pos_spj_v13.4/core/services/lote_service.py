@@ -74,7 +74,8 @@ class LoteService:
                 VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                 (new_uuid(), producto_id, numero_lote, proveedor_id,
                  peso_kg, peso_kg, costo_kg, fecha_caducidad,
-                 self.sucursal_id, temperatura, observaciones)).lastrowid
+                 self.sucursal_id, temperatura, observaciones))
+            lid = c.execute("SELECT id FROM lotes WHERE numero_lote=? AND producto_id=? ORDER BY rowid DESC LIMIT 1", (numero_lote, producto_id)).fetchone()[0]  # noqa: capture UUID just inserted
             c.execute("""INSERT INTO movimientos_lote
                 (lote_id,tipo,cantidad_kg,referencia,usuario)
                 VALUES(?,'recepcion',?,?,?)""",

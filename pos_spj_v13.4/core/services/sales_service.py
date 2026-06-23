@@ -1410,17 +1410,18 @@ class SalesService:
 
             folio = self._generate_unique_sale_folio()
             cambio = self._calculate_change(payment_method, payment_lines, total)
-            cur = self.db.execute(
+            venta_id = new_uuid()
+            self.db.execute(
                 """
                 INSERT INTO ventas(
-                    folio, sucursal_id, usuario, cliente_id, subtotal, descuento, total,
+                    id, folio, sucursal_id, usuario, cliente_id, subtotal, descuento, total,
                     forma_pago, efectivo_recibido, cambio, estado, fecha
-                ) VALUES (?,1,?,?,?,?,?,?,?,?, 'completada', datetime('now'))
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'completada', datetime('now'))
                 """,
-                (folio, usuario, client_id, subtotal, float(discount or 0), total,
+                (venta_id, folio, getattr(self, 'sucursal_id', '') or '', usuario, client_id,
+                 subtotal, float(discount or 0), total,
                  payment_method, amount_paid_real, cambio)
             )
-            venta_id = int(cur.lastrowid)
 
             for i in items_payload:
                 qty = float(i["qty"])
