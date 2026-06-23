@@ -338,14 +338,14 @@ class ModuloConfiguracion(ModuloBase):
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"No se pudo cargar el historial de cierres: {exc}")
             return
-        for ri, r in enumerate(rows):
+        for ri, cierre in enumerate(rows):
             self._tbl_cierres.insertRow(ri)
             vals = [
-                str(r[0] or ""), str(r[1] or ""),
-                str(r[2] or "")[:16],
-                f"${float(r[3] or 0):,.2f}",
-                f"${float(r[4] or 0):,.2f}",
-                f"${float(r[5] or 0):,.2f}",
+                cierre.period, cierre.closed_by,
+                cierre.closing_date[:16],
+                f"${cierre.total_sales:,.2f}",
+                f"${cierre.total_purchases:,.2f}",
+                f"${cierre.total_waste:,.2f}",
             ]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
@@ -765,15 +765,14 @@ class ModuloConfiguracion(ModuloBase):
             rules = []
         self._tbl_happy_hour.setRowCount(len(rules))
         for row_index, rule in enumerate(rules):
-            days = str(rule.get("dias_semana") or "")
-            day_count = len([day for day in days.split(",") if day])
+            day_count = len([day for day in rule.days_of_week.split(",") if day])
             values = [
-                rule.get("nombre") or "",
-                f"{rule.get('hora_inicio') or ''}–{rule.get('hora_fin') or ''}",
+                rule.name,
+                f"{rule.start_time}–{rule.end_time}",
                 f"{day_count} días/sem",
-                f"{float(rule.get('valor') or 0):.2f} %" if rule.get("tipo_descuento") == "porcentaje" else f"${float(rule.get('valor') or 0):.2f}",
-                rule.get("aplica_a") or "",
-                "✅ Activa" if rule.get("activo") else "❌ Inactiva",
+                f"{rule.value:.2f} %" if rule.discount_type == "porcentaje" else f"${rule.value:.2f}",
+                rule.applies_to,
+                "✅ Activa" if rule.active else "❌ Inactiva",
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
@@ -782,8 +781,8 @@ class ModuloConfiguracion(ModuloBase):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(2, 2, 2, 2)
-            rule_id = rule["id"]
-            active = bool(rule.get("activo"))
+            rule_id = rule.id
+            active = rule.active
             btn_edit = self._create_action_button("✏️", "Editar regla Happy Hour", "edit")
             btn_edit.clicked.connect(lambda _, rid=rule_id: self._editar_happy_hour_rule(rid))
             btn_toggle = self._create_action_button(
@@ -858,23 +857,23 @@ class ModuloConfiguracion(ModuloBase):
             if not rule:
                 QMessageBox.warning(self, "Aviso", "La regla seleccionada no existe.")
                 return
-            txt_name.setText(rule.get("nombre") or "")
-            txt_start.setText(rule.get("hora_inicio") or "")
-            txt_end.setText(rule.get("hora_fin") or "")
-            spin_discount.setValue(float(rule.get("valor") or 0))
-            type_index = combo_type.findData(rule.get("tipo_descuento"))
+            txt_name.setText(rule.name)
+            txt_start.setText(rule.start_time)
+            txt_end.setText(rule.end_time)
+            spin_discount.setValue(rule.value)
+            type_index = combo_type.findData(rule.discount_type)
             if type_index >= 0:
                 combo_type.setCurrentIndex(type_index)
-            scope_index = combo_scope.findData(rule.get("aplica_a"))
+            scope_index = combo_scope.findData(rule.applies_to)
             if scope_index >= 0:
                 combo_scope.setCurrentIndex(scope_index)
-            txt_scope_value.setText(rule.get("aplica_valor") or "")
-            for day in str(rule.get("dias_semana") or "").split(","):
+            txt_scope_value.setText(rule.applies_value)
+            for day in rule.days_of_week.split(","):
                 if day.isdigit() and int(day) in days:
                     days[int(day)].setChecked(True)
-            txt_message.setPlainText(rule.get("message") or "")
-            chk_active.setChecked(bool(rule.get("activo")))
-            branch_index = combo_branch.findData(rule.get("sucursal_id"))
+            txt_message.setPlainText(rule.message)
+            chk_active.setChecked(rule.active)
+            branch_index = combo_branch.findData(rule.branch_id)
             if branch_index >= 0:
                 combo_branch.setCurrentIndex(branch_index)
 
@@ -1021,17 +1020,18 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", f"No se pudieron cargar sucursales: {exc}")
             rows = []
         self._tbl_suc_v13.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            dias_n = str(r[5]).count(',') + 1 if r[5] else 0
-            vals = [r[1], r[2], f"{r[3]}–{r[4]}", f"{dias_n} días/sem",
-                    "✅ Activa" if r[6] else "❌ Inactiva"]
+        for ri, branch in enumerate(rows):
+            dias_n = branch.operation_days.count(',') + 1 if branch.operation_days else 0
+            vals = [branch.name, branch.address, f"{branch.opening_time}–{branch.closing_time}",
+                    f"{dias_n} días/sem",
+                    "✅ Activa" if branch.active else "❌ Inactiva"]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                 if ci == 0:
-                    it.setData(Qt.UserRole, r[0])
+                    it.setData(Qt.UserRole, branch.id)
                 self._tbl_suc_v13.setItem(ri, ci, it)
-            suc_id = r[0]
+            suc_id = branch.id
             btn_w = QWidget()
             bl = QHBoxLayout(btn_w)
             bl.setContentsMargins(2, 2, 2, 2)
@@ -1134,25 +1134,25 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", f"No se pudieron cargar usuarios: {exc}")
             rows = []
         self._tbl_usr_v13.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            vals = [r[1], r[2] or "", r[3], r[4],
-                    "✅ Activo" if r[5] else "❌ Inactivo"]
+        for ri, user in enumerate(rows):
+            vals = [user.username, user.name, user.role, user.branch_name,
+                    "✅ Activo" if user.active else "❌ Inactivo"]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(str(v))
                 it.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
-                if ci == 0: it.setData(Qt.UserRole, r[0])
+                if ci == 0: it.setData(Qt.UserRole, user.id)
                 self._tbl_usr_v13.setItem(ri, ci, it)
-            uid = r[0]
+            uid = user.id
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
             btn_ed = self._create_action_button("✏️", "Editar usuario", "edit")
             btn_ed.clicked.connect(lambda _, uid=uid: self._editar_usuario_v13(uid))
             btn_tog = self._create_action_button(
-                "✅" if r[5] else "❌",
-                "Desactivar usuario" if r[5] else "Activar usuario",
-                "deactivate" if r[5] else "activate",
+                "✅" if user.active else "❌",
+                "Desactivar usuario" if user.active else "Activar usuario",
+                "deactivate" if user.active else "activate",
             )
             btn_tog.clicked.connect(
-                lambda _, uid=uid, a=r[5]: self._toggle_usuario(uid, not a))
+                lambda _, uid=uid, a=user.active: self._toggle_usuario(uid, not a))
             bl.addWidget(btn_ed); bl.addWidget(btn_tog)
             self._tbl_usr_v13.setCellWidget(ri, 5, btn_w)
 
@@ -1205,19 +1205,19 @@ class ModuloConfiguracion(ModuloBase):
 
         if usuario_id:
             try:
-                row = self.user_management_service.get_user_form_data(usuario_id)
-                if row:
-                    txt_usuario.setText(row[0] or ""); txt_nombre.setText(row[1] or "")
-                    txt_email.setText(row[2] or "")
-                    idx = cmb_rol.findText(row[3] or "cajero")
+                user = self.user_management_service.get_user_form_data(usuario_id)
+                if user:
+                    txt_usuario.setText(user.username); txt_nombre.setText(user.name)
+                    txt_email.setText(user.email)
+                    idx = cmb_rol.findText(user.role or "cajero")
                     if idx >= 0: cmb_rol.setCurrentIndex(idx)
                     for i in range(cmb_sucursal.count()):
-                        if cmb_sucursal.itemData(i) == row[4]:
+                        if str(cmb_sucursal.itemData(i)) == user.branch_id:
                             cmb_sucursal.setCurrentIndex(i); break
-                    chk_activo.setChecked(bool(row[5]))
-                    if row[6]:
+                    chk_activo.setChecked(user.active)
+                    if user.employee_id:
                         for i in range(cmb_empleado.count()):
-                            if cmb_empleado.itemData(i) == row[6]:
+                            if cmb_empleado.itemData(i) == user.employee_id:
                                 cmb_empleado.setCurrentIndex(i); break
             except Exception as exc:
                 QMessageBox.critical(self, "Error", f"No se pudo cargar el usuario: {exc}")
@@ -1237,7 +1237,9 @@ class ModuloConfiguracion(ModuloBase):
             _bcrypt = None
         try:
             pwd_raw = txt_pass.text()
-            suc_id  = cmb_sucursal.currentData() or 1
+            suc_id  = cmb_sucursal.currentData()
+            if not suc_id:
+                QMessageBox.warning(self, "Aviso", "Selecciona la sucursal del usuario."); return
             emp_id  = cmb_empleado.currentData()
             pwd_hash = None
             if pwd_raw:
@@ -1277,16 +1279,16 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", f"No se pudieron cargar roles: {exc}")
             rows = []
         self._tbl_roles_v13.setRowCount(len(rows))
-        for ri, r in enumerate(rows):
-            vals = [r[1], r[2] or "", str(r[3])]
+        for ri, role in enumerate(rows):
+            vals = [role.name, role.description, str(role.user_count)]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable|Qt.ItemIsEnabled)
                 self._tbl_roles_v13.setItem(ri, ci, it)
             btn_w = QWidget(); bl = QHBoxLayout(btn_w); bl.setContentsMargins(2,2,2,2)
-            btn_perm = self._create_action_button("🔑 Permisos", f"Editar permisos del rol {r[1]}", "primary")
+            btn_perm = self._create_action_button("🔑 Permisos", f"Editar permisos del rol {role.name}", "primary")
             btn_perm.clicked.connect(
-                lambda _, rid=r[0], rnom=r[1]: self._editar_permisos_rol(rid, rnom))
+                lambda _, rid=role.id, rnom=role.name: self._editar_permisos_rol(rid, rnom))
             bl.addWidget(btn_perm)
             self._tbl_roles_v13.setCellWidget(ri, 3, btn_w)
 

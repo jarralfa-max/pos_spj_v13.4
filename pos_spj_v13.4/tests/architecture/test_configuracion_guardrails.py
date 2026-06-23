@@ -97,32 +97,31 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # ---------------------------------------------------------------------------
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/configuracion.py": {
-        "or_1": 1,            # `cmb_sucursal.currentData() or 1` integer branch fallback
-        "currentText": 1,     # role identity taken from a combobox label
-        "row_id_index": 1,    # rule["id"] used as identity
+        # FASE 1 removed the integer branch fallback; FASE 4 removed rule["id"]
+        # and all positional row indexing — entity rows are now consumed as DTOs.
+        "currentText": 1,     # role selected by name (roles are keyed by name) -> later
         "system_settings": 4,
     },
     "modulos/config_modules.py": {
-        "sql_select": 2,
-        "sql_insert": 1,
-        "sql_update": 1,
-        "commit": 1,
-        "cursor_execute": 3,
-        "principal_fallback": 1,
-        "except_pass": 2,
-        "feature_flags": 2,   # feature_flags read/written directly from UI
+        # FASE 1 removed all SQL, commit, "Principal" fallback and direct
+        # feature_flags usage; toggles now go through FeatureFlagService.
+        "except_pass": 1,     # menu-refresh swallow -> FASE 8
     },
     "modulos/config_hardware.py": {
-        "commit": 3,
-        "sucursal_id_eq_1": 1,
-        "currentText": 17,
-        "except_pass": 2,
+        # FASE 1 removed commit()x3, sucursal_id=1 and ensure_schema/seed_defaults
+        # from the UI; persistence now goes through HardwareSettingsService.
+        "currentText": 17,    # device value reads -> FASE 4
+        "except_pass": 1,     # ticket tipo_idx swallow -> FASE 8
     },
     "modulos/config_interfaz.py": {
-        "currentText": 2,
-        "except_pass": 1,
+        "currentText": 2,     # theme value reads -> FASE 4
+        "except_pass": 1,     # prefs load swallow -> FASE 8
     },
     "core/services/configuration_settings_service.py": {
+        # FASE 3: the application service owns the transaction boundary and
+        # commits via ConnectionUnitOfWork (uow.commit()) before publishing
+        # events. These are the canonical commits — not UI/repository commits.
+        "commit": 4,
         "system_settings": 24,
     },
     "core/services/config_service.py": {},
@@ -130,18 +129,21 @@ BASELINE: dict[str, dict[str, int]] = {
         "except_pass": 1,
     },
     "repositories/config_repository.py": {
-        "sql_select": 42,
+        # FASE 2 added tolerant label resolvers (username_for_id/role_name_for_id
+        # via _resolve_label) so events carry names, not integer ids: +1 select,
+        # +1 execute vs the FASE 0 baseline.
+        "sql_select": 43,
         "sql_insert": 11,
         "sql_update": 11,
         "sql_delete": 2,
-        "commit": 1,          # repository owns commit -> CONFIGURACION-08-TRANSACTIONS
-        "cursor_execute": 64,
-        "lastrowid": 1,       # functional identity from lastrowid
+        # FASE 3 removed _commit() (and its except: pass) — the repository no
+        # longer commits/rolls back; services own the UnitOfWork boundary.
+        "cursor_execute": 65,
+        "lastrowid": 1,       # transitional pre-101 fallback -> migration 200 cutover
         "int_id_cast": 1,     # int(..._id) cast of a functional id
-        "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) identity fallback
+        "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) pre-103 fallback
         "legacy_lower": 1,    # comment accepting legacy integer ids
         "principal_fallback": 1,
-        "except_pass": 1,
     },
     "repositories/settings_repository.py": {
         "sql_select": 1,

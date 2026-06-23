@@ -13,11 +13,12 @@ class ConfigRepository:
     def __init__(self, db_conn):
         self.db = db_conn
 
-    def _commit(self) -> None:
-        try:
-            self.db.commit()
-        except Exception:
-            pass
+    @property
+    def connection(self):
+        """Expose the underlying connection so the owning service/use case can
+        drive the UnitOfWork transaction boundary. The repository itself never
+        commits or rolls back."""
+        return self.db
 
     def _table_exists(self, table_name: str) -> bool:
         row = self.db.execute(
@@ -56,9 +57,10 @@ class ConfigRepository:
             raise ValueError(f"{field_name} must be a canonical lowercase UUIDv7")
         return normalized
 
-    def _select_identity_sql(self, table_name: str, *, alias: str = "id") -> str:
+    def _select_identity_sql(self, table_name: str, *, alias: str = "id", table_alias: str | None = None) -> str:
         uuid_column = self._require_uuid_column(table_name)
-        return f"{uuid_column} AS {alias}"
+        qualified = f"{table_alias}.{uuid_column}" if table_alias else uuid_column
+        return f"{qualified} AS {alias}"
 
     def _row_id_from_uuid(self, table_name: str, entity_id: str | None) -> int | None:
         if not entity_id:
@@ -122,7 +124,6 @@ class ConfigRepository:
             """,
             (key, str(value)),
         )
-        self._commit()
 
     def get_all_settings(self) -> dict:
         rows = self.db.execute("SELECT clave, valor FROM configuraciones").fetchall()
@@ -194,7 +195,6 @@ class ConfigRepository:
             """,
             (name, points_per_peso, levels, requirements, discounts, 1 if active else 0),
         )
-        self._commit()
 
     def get_module_toggles(self) -> dict[str, bool]:
         rows = self.db.execute("SELECT clave, activo FROM module_toggles").fetchall()
@@ -209,7 +209,6 @@ class ConfigRepository:
             """,
             (key, 1 if enabled else 0),
         )
-        self._commit()
 
     def permission_matrix(self) -> list[tuple[str, list[str]]]:
         matrix: dict[str, list[str]] = {
@@ -268,7 +267,6 @@ class ConfigRepository:
             params.insert(0, branch_uuid)
             params.append(branch_uuid)
             self.db.execute(f"UPDATE sucursales SET {', '.join(assignments)} WHERE uuid=?", tuple(params))
-            self._commit()
             return str(branch_uuid)
 
         new_branch_uuid = new_uuid()
@@ -282,7 +280,6 @@ class ConfigRepository:
             f"INSERT INTO sucursales ({','.join(fields)}) VALUES ({placeholders})",
             tuple(values),
         )
-        self._commit()
         return new_branch_uuid
 
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
@@ -331,7 +328,6 @@ class ConfigRepository:
             sql += ", uuid=? WHERE uuid=?"
             params.extend([branch_uuid, branch_uuid])
             self.db.execute(sql, tuple(params))
-            self._commit()
             return str(branch_uuid)
 
         new_branch_uuid = new_uuid()
@@ -365,7 +361,6 @@ class ConfigRepository:
             f"INSERT INTO sucursales ({','.join(fields)}) VALUES ({placeholders})",
             tuple(values),
         )
-        self._commit()
         return new_branch_uuid
 
     def _happy_hour_row_to_dict(self, row) -> dict:
@@ -492,7 +487,6 @@ class ConfigRepository:
                 f"INSERT INTO happy_hour_rules ({','.join(columns)}) VALUES ({placeholders})",
                 tuple(values),
             )
-        self._commit()
         return rule_uuid
 
     def set_happy_hour_rule_active(self, rule_id: str, active: bool) -> None:
@@ -501,7 +495,6 @@ class ConfigRepository:
             f"UPDATE happy_hour_rules SET activo=? WHERE {column}=?",
             (1 if active else 0, value),
         )
-        self._commit()
 
     # --- CONFIGURATION MODULE READ/WRITE ADAPTERS ---
     def monthly_close_exists(self, period: str) -> bool:
@@ -550,7 +543,6 @@ class ConfigRepository:
             f"INSERT INTO cierre_mensual ({','.join(fields)}) VALUES ({placeholders})",
             tuple(values),
         )
-        self._commit()
 
     def get_monthly_closures(self, limit: int = 24) -> list[tuple]:
         return self.db.execute(
@@ -640,6 +632,39 @@ class ConfigRepository:
         row = self.db.execute(f"SELECT usuario FROM usuarios WHERE {column}=?", (value,)).fetchone()
         return str(row[0]) if row else None
 
+    @staticmethod
+    def _looks_like_uuid(value) -> bool:
+        try:
+            UUID(str(value))
+            return True
+        except (ValueError, AttributeError, TypeError):
+            return False
+
+    def _resolve_label(self, table: str, label_column: str, entity_id) -> str | None:
+        """Resolve a human label for an entity from either its uuid or row id.
+
+        Used to enrich domain events with names (e.g. ``usuario``/``nombre``)
+        instead of exposing integer identifiers. This is a read-only label
+        lookup, not an identity contract, so it accepts the internal id the
+        caller already holds during the transitional dual-column period.
+        """
+        if entity_id is None or entity_id == "":
+            return None
+        if self._column_exists(table, "uuid") and self._looks_like_uuid(entity_id):
+            row = self.db.execute(
+                f"SELECT {label_column} FROM {table} WHERE uuid=?", (str(entity_id),)
+            ).fetchone()
+            if row:
+                return str(row[0])
+        row = self.db.execute(
+            f"SELECT {label_column} FROM {table} WHERE id=?", (entity_id,)
+        ).fetchone()
+        return str(row[0]) if row else None
+
+    def username_for_id(self, user_id) -> str | None:
+        """Resolve a username from a uuid or integer row id (event label)."""
+        return self._resolve_label("usuarios", "usuario", user_id)
+
     def save_user_v13(
         self,
         *,
@@ -701,7 +726,6 @@ class ConfigRepository:
             )
         if employee_id and user_row_id is not None:
             self.db.execute("UPDATE personal SET usuario_id=? WHERE id=?", (user_row_id, employee_id))
-        self._commit()
         if not has_user_uuid and user_row_id is not None:
             return str(user_row_id)
         return persisted_user_id
@@ -709,10 +733,9 @@ class ConfigRepository:
     def set_user_active(self, user_id: str, active: bool) -> None:
         column, value = self._resolve_db_identifier("usuarios", user_id)
         self.db.execute(f"UPDATE usuarios SET activo=? WHERE {column}=?", (1 if active else 0, value))
-        self._commit()
 
     def list_roles_v13(self) -> list[tuple]:
-        identity = self._select_identity_sql("roles")
+        identity = self._select_identity_sql("roles", table_alias="r")
         return self.db.execute(
             f"""
             SELECT {identity}, r.nombre, r.descripcion, COUNT(u.id) as num_usuarios
@@ -834,10 +857,9 @@ class ConfigRepository:
                 resolved.discard(code)
         return resolved
 
-    def role_name_for_id(self, role_id: str) -> str | None:
-        column, value = self._resolve_db_identifier("roles", role_id)
-        row = self.db.execute(f"SELECT nombre FROM roles WHERE {column}=?", (value,)).fetchone()
-        return str(row[0]) if row else None
+    def role_name_for_id(self, role_id) -> str | None:
+        """Resolve a role name from a uuid or integer row id (event label)."""
+        return self._resolve_label("roles", "nombre", role_id)
 
     def role_permissions(self, role_id: str) -> dict[tuple[str, str], bool]:
         role_row_id, role_uuid = self._resolve_role_row(role_id)
@@ -871,7 +893,6 @@ class ConfigRepository:
         else:
             logger.warning("rol_permisos: no usable identity column found — run migrations; permissions not saved")
             return
-        self._commit()
 
     def audit_log_rows(self, limit: int = 200) -> list[tuple]:
         return self.db.execute(
@@ -900,5 +921,4 @@ class ConfigRepository:
                 f"INSERT INTO roles({','.join(role_fields)}) VALUES({placeholders})",
                 tuple(role_values),
             )
-        self._commit()
         return persisted_role_id

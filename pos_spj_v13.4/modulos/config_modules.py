@@ -13,6 +13,9 @@ from PyQt5.QtWidgets import (
     QComboBox, QMessageBox, QCheckBox
 )
 
+from core.services.configuration_settings_service import CompanyProfileService
+from repositories.config_repository import ConfigRepository
+
 logger = logging.getLogger("spj.config_modules")
 
 MODULOS_SISTEMA = [
@@ -45,15 +48,17 @@ class ModuloConfigModulos(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container   = container
-        self.db          = container.db
-        self.sucursal_id = getattr(container, 'sucursal_id', 1)
+        self.sucursal_id = getattr(container, 'sucursal_id', None)
+        self.feature_flag_service = getattr(container, 'feature_flag_service', None)
+        # Ruta canónica de sólo lectura para listar sucursales (sin SQL en la UI).
+        self.company_profile_service = CompanyProfileService(ConfigRepository(container.db))
         self._build_ui()
         self._cargar()
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:
         pass
 
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal(self, sucursal_id, nombre: str = "") -> None:
         self.sucursal_id = sucursal_id
         self._cargar()
 
@@ -103,29 +108,26 @@ class ModuloConfigModulos(QWidget):
         lay.addLayout(btn_row)
 
     def _cargar_sucursales(self):
+        self.cmb_sucursal.blockSignals(True)
+        self.cmb_sucursal.clear()
         try:
-            rows = self.db.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY nombre"
-            ).fetchall()
-            self.cmb_sucursal.blockSignals(True)
-            self.cmb_sucursal.clear()
-            for r in rows:
-                self.cmb_sucursal.addItem(r[1], r[0])
-            self.cmb_sucursal.blockSignals(False)
-        except Exception:
-            self.cmb_sucursal.addItem("Principal", 1)
+            branches = self.company_profile_service.branches_for_company_settings()
+        except Exception as exc:
+            branches = []
+            logger.warning("No se pudieron cargar sucursales: %s", exc)
+        for branch_id, nombre in branches:
+            self.cmb_sucursal.addItem(nombre, branch_id)
+        self.cmb_sucursal.blockSignals(False)
 
     def _cargar(self):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
-        # Load current flags from DB
+        # Lectura de flags vía servicio canónico (sin SQL en la UI).
         flags = {}
-        try:
-            rows = self.db.execute(
-                "SELECT clave, activo FROM feature_flags"
-            ).fetchall()
-            flags = {r[0]: bool(r[1]) for r in rows}
-        except Exception:
-            pass
+        if self.feature_flag_service is not None and suc_id is not None:
+            try:
+                flags = self.feature_flag_service.get_branch_flags(suc_id)
+            except Exception as exc:
+                logger.warning("No se pudieron cargar feature flags: %s", exc)
 
         self.tbl.setRowCount(len(MODULOS_SISTEMA))
         for ri, (codigo, nombre, default) in enumerate(MODULOS_SISTEMA):
@@ -158,20 +160,11 @@ class ModuloConfigModulos(QWidget):
 
     def _toggle(self, codigo: str, activo: bool):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
+        if self.feature_flag_service is None or suc_id is None:
+            logger.warning("_toggle %s: feature_flag_service/sucursal no disponible", codigo)
+            return
         try:
-            ffs = getattr(self.container, 'feature_flag_service', None)
-            if ffs and hasattr(ffs, 'repo') and hasattr(ffs.repo, 'set_flag'):
-                ffs.repo.set_flag(codigo, suc_id, activo)
-                ffs._cache.pop(suc_id, None)  # invalidate cache
-            else:
-                # Fallback: direct DB
-                self.db.execute("""
-                    INSERT INTO feature_flags(clave, activo, descripcion)
-                    VALUES(?,?,?)
-                    ON CONFLICT(clave) DO UPDATE SET activo=excluded.activo
-                """, (codigo, int(activo), codigo))
-                try: self.db.commit()
-                except Exception: pass
+            self.feature_flag_service.set_enabled(codigo, suc_id, activo)
         except Exception as e:
             logger.warning("_toggle %s: %s", codigo, e)
 
