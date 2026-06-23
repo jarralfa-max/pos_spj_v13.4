@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from backend.infrastructure.db.unit_of_work import ConnectionUnitOfWork
 from backend.shared.ids import new_uuid
 from core.module_config import DEFAULT_TOGGLES
 from repositories.config_repository import ConfigRepository
@@ -31,11 +32,13 @@ class SystemSettingsService:
         return {key: str(values.get(key, defaults.get(key, ""))) for key in keys}
 
     def set_setting(self, key: str, value: Any) -> None:
-        self._repository.save_setting(key, str(value))
+        with ConnectionUnitOfWork(self._repository.connection):
+            self._repository.save_setting(key, str(value))
 
     def save_many(self, settings: dict[str, Any]) -> None:
-        for key, value in settings.items():
-            self.set_setting(key, value)
+        with ConnectionUnitOfWork(self._repository.connection):
+            for key, value in settings.items():
+                self._repository.save_setting(key, str(value))
 
 
 class ModuleSettingsService:
@@ -51,7 +54,8 @@ class ModuleSettingsService:
         return self.get_all().get(key, self._defaults.get(key, True))
 
     def set_enabled(self, module_key: str, enabled: bool) -> None:
-        self._repository.set_module_toggle(self.normalize_key(module_key), enabled)
+        with ConnectionUnitOfWork(self._repository.connection):
+            self._repository.set_module_toggle(self.normalize_key(module_key), enabled)
 
     def get_all(self) -> dict[str, bool]:
         toggles = dict(self._defaults)
@@ -75,13 +79,14 @@ class CompanyProfileService:
         active: bool,
         branch_id: str | None = None,
     ) -> str:
-        return self._repository.save_branch(
-            name=name,
-            address=address,
-            phone=phone,
-            active=active,
-            branch_id=branch_id,
-        )
+        with ConnectionUnitOfWork(self._repository.connection):
+            return self._repository.save_branch(
+                name=name,
+                address=address,
+                phone=phone,
+                active=active,
+                branch_id=branch_id,
+            )
 
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
         return self._repository.get_branch_delivery_profile(branch_id)
@@ -105,17 +110,18 @@ class CompanyProfileService:
         after_hours_message: str,
         branch_id: str | None = None,
     ) -> str:
-        return self._repository.save_branch_delivery_profile(
-            name=name,
-            address=address,
-            phone=phone,
-            opening_time=opening_time,
-            closing_time=closing_time,
-            operation_days=operation_days,
-            accepts_after_hours_orders=accepts_after_hours_orders,
-            after_hours_message=after_hours_message,
-            branch_id=branch_id,
-        )
+        with ConnectionUnitOfWork(self._repository.connection):
+            return self._repository.save_branch_delivery_profile(
+                name=name,
+                address=address,
+                phone=phone,
+                opening_time=opening_time,
+                closing_time=closing_time,
+                operation_days=operation_days,
+                accepts_after_hours_orders=accepts_after_hours_orders,
+                after_hours_message=after_hours_message,
+                branch_id=branch_id,
+            )
 
 
 class SettingsApplicationService:
@@ -184,7 +190,8 @@ class ClosingPeriodService:
         return self._repository.calculate_monthly_close_totals(start_date, end_date)
 
     def close_period(self, *, period: str, closed_by: str, totals: dict[str, float], branch_id: str) -> None:
-        self._repository.save_monthly_close(period=period, closed_by=closed_by, totals=totals, branch_id=branch_id)
+        with ConnectionUnitOfWork(self._repository.connection):
+            self._repository.save_monthly_close(period=period, closed_by=closed_by, totals=totals, branch_id=branch_id)
 
     def history(self, limit: int = 24) -> list[tuple]:
         return self._repository.get_monthly_closures(limit=limit)
@@ -212,10 +219,12 @@ class HappyHourSettingsService:
         prepared = dict(rule)
         if "message" in prepared:
             prepared["mensaje_wa"] = prepared.pop("message")
-        return self._repository.save_happy_hour_rule(prepared)
+        with ConnectionUnitOfWork(self._repository.connection):
+            return self._repository.save_happy_hour_rule(prepared)
 
     def set_rule_active(self, rule_id: str, active: bool) -> None:
-        self._repository.set_happy_hour_rule_active(rule_id, active)
+        with ConnectionUnitOfWork(self._repository.connection):
+            self._repository.set_happy_hour_rule_active(rule_id, active)
 
 
 class PermissionEventPublisher:
@@ -305,17 +314,19 @@ class UserManagementService:
         operation_id: str,
         actor: str,
     ) -> str:
-        persisted_user_id = self._repository.save_user_v13(
-            user_id=user_id,
-            username=username,
-            name=name,
-            email=email,
-            role=role,
-            branch_id=branch_id,
-            active=active,
-            employee_id=employee_id,
-            password_hash=password_hash,
-        )
+        with ConnectionUnitOfWork(self._repository.connection) as uow:
+            persisted_user_id = self._repository.save_user_v13(
+                user_id=user_id,
+                username=username,
+                name=name,
+                email=email,
+                role=role,
+                branch_id=branch_id,
+                active=active,
+                employee_id=employee_id,
+                password_hash=password_hash,
+            )
+            uow.commit()
         self._events.publish(
             "USER_PERMISSIONS_UPDATED",
             operation_id=operation_id,
@@ -326,8 +337,10 @@ class UserManagementService:
         return persisted_user_id
 
     def set_user_active(self, user_id: str, active: bool, *, operation_id: str, actor: str) -> None:
-        self._repository.set_user_active(user_id, active)
-        username = self._repository.username_for_uuid(user_id) or ""
+        with ConnectionUnitOfWork(self._repository.connection) as uow:
+            self._repository.set_user_active(user_id, active)
+            username = self._repository.username_for_uuid(user_id) or ""
+            uow.commit()
         self._events.publish(
             "USER_PERMISSIONS_UPDATED",
             operation_id=operation_id,
@@ -357,7 +370,9 @@ class RoleManagementService:
         return self._repository.active_employees_for_selector()
 
     def save_role(self, *, role_id: str | None, name: str, description: str, operation_id: str, actor: str) -> str:
-        persisted_role_id = self._repository.save_role(role_id=role_id, name=name, description=description)
+        with ConnectionUnitOfWork(self._repository.connection) as uow:
+            persisted_role_id = self._repository.save_role(role_id=role_id, name=name, description=description)
+            uow.commit()
         self._events.publish(
             "ROLE_PERMISSIONS_UPDATED",
             operation_id=operation_id,
@@ -406,9 +421,11 @@ class ModuleAccessService:
         operation_id: str,
         actor: str,
     ) -> None:
-        self._repository.save_role_permissions(role_id, permissions)
+        with ConnectionUnitOfWork(self._repository.connection) as uow:
+            self._repository.save_role_permissions(role_id, permissions)
+            role_name = self._repository.role_name_for_id(role_id) or ""
+            uow.commit()
         self.invalidate_cache(role_id)
-        role_name = self._repository.role_name_for_id(role_id) or ""
         payload = {"role_name": role_name, "permissions": {f"{m}.{a}": v for (m, a), v in permissions.items()}}
         self._events.publish(
             "ROLE_PERMISSIONS_UPDATED",

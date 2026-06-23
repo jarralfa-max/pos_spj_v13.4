@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from backend.infrastructure.db.unit_of_work import ConnectionUnitOfWork
 from core.repositories.hardware_config_repository import HardwareConfigRepository
 
 # Canonical hardware domains rendered by the hardware panel, in display order.
@@ -30,21 +31,16 @@ class HardwareSettingsService:
 
     def save_all(self, configs: Dict[str, Dict[str, Any]]) -> None:
         """Persist every provided hardware config in a single transaction."""
-        for tipo, config in configs.items():
-            self._persist(tipo, config)
-        self._commit()
+        with ConnectionUnitOfWork(self._connection):
+            for tipo, config in configs.items():
+                self._persist(tipo, config)
 
     def save_one(self, tipo: str, config: Dict[str, Any]) -> None:
         """Persist a single hardware domain config (e.g. the ticket printer)."""
-        self._persist(tipo, config)
-        self._commit()
+        with ConnectionUnitOfWork(self._connection):
+            self._persist(tipo, config)
 
     # -- internals ---------------------------------------------------------
     def _persist(self, tipo: str, config: Dict[str, Any]) -> None:
         nombre = HardwareConfigRepository.DEFAULT_TYPES.get(tipo, tipo.capitalize())
         self._repository.save_config(tipo, nombre, config, activo=1)
-
-    def _commit(self) -> None:
-        commit = getattr(self._connection, "commit", None)
-        if callable(commit):
-            commit()

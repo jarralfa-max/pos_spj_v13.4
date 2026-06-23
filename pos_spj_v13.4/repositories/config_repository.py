@@ -13,11 +13,12 @@ class ConfigRepository:
     def __init__(self, db_conn):
         self.db = db_conn
 
-    def _commit(self) -> None:
-        try:
-            self.db.commit()
-        except Exception:
-            pass
+    @property
+    def connection(self):
+        """Expose the underlying connection so the owning service/use case can
+        drive the UnitOfWork transaction boundary. The repository itself never
+        commits or rolls back."""
+        return self.db
 
     def _table_exists(self, table_name: str) -> bool:
         row = self.db.execute(
@@ -122,7 +123,6 @@ class ConfigRepository:
             """,
             (key, str(value)),
         )
-        self._commit()
 
     def get_all_settings(self) -> dict:
         rows = self.db.execute("SELECT clave, valor FROM configuraciones").fetchall()
@@ -194,7 +194,6 @@ class ConfigRepository:
             """,
             (name, points_per_peso, levels, requirements, discounts, 1 if active else 0),
         )
-        self._commit()
 
     def get_module_toggles(self) -> dict[str, bool]:
         rows = self.db.execute("SELECT clave, activo FROM module_toggles").fetchall()
@@ -209,7 +208,6 @@ class ConfigRepository:
             """,
             (key, 1 if enabled else 0),
         )
-        self._commit()
 
     def permission_matrix(self) -> list[tuple[str, list[str]]]:
         matrix: dict[str, list[str]] = {
@@ -268,7 +266,6 @@ class ConfigRepository:
             params.insert(0, branch_uuid)
             params.append(branch_uuid)
             self.db.execute(f"UPDATE sucursales SET {', '.join(assignments)} WHERE uuid=?", tuple(params))
-            self._commit()
             return str(branch_uuid)
 
         new_branch_uuid = new_uuid()
@@ -282,7 +279,6 @@ class ConfigRepository:
             f"INSERT INTO sucursales ({','.join(fields)}) VALUES ({placeholders})",
             tuple(values),
         )
-        self._commit()
         return new_branch_uuid
 
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
@@ -331,7 +327,6 @@ class ConfigRepository:
             sql += ", uuid=? WHERE uuid=?"
             params.extend([branch_uuid, branch_uuid])
             self.db.execute(sql, tuple(params))
-            self._commit()
             return str(branch_uuid)
 
         new_branch_uuid = new_uuid()
@@ -365,7 +360,6 @@ class ConfigRepository:
             f"INSERT INTO sucursales ({','.join(fields)}) VALUES ({placeholders})",
             tuple(values),
         )
-        self._commit()
         return new_branch_uuid
 
     def _happy_hour_row_to_dict(self, row) -> dict:
@@ -492,7 +486,6 @@ class ConfigRepository:
                 f"INSERT INTO happy_hour_rules ({','.join(columns)}) VALUES ({placeholders})",
                 tuple(values),
             )
-        self._commit()
         return rule_uuid
 
     def set_happy_hour_rule_active(self, rule_id: str, active: bool) -> None:
@@ -501,7 +494,6 @@ class ConfigRepository:
             f"UPDATE happy_hour_rules SET activo=? WHERE {column}=?",
             (1 if active else 0, value),
         )
-        self._commit()
 
     # --- CONFIGURATION MODULE READ/WRITE ADAPTERS ---
     def monthly_close_exists(self, period: str) -> bool:
@@ -550,7 +542,6 @@ class ConfigRepository:
             f"INSERT INTO cierre_mensual ({','.join(fields)}) VALUES ({placeholders})",
             tuple(values),
         )
-        self._commit()
 
     def get_monthly_closures(self, limit: int = 24) -> list[tuple]:
         return self.db.execute(
@@ -734,7 +725,6 @@ class ConfigRepository:
             )
         if employee_id and user_row_id is not None:
             self.db.execute("UPDATE personal SET usuario_id=? WHERE id=?", (user_row_id, employee_id))
-        self._commit()
         if not has_user_uuid and user_row_id is not None:
             return str(user_row_id)
         return persisted_user_id
@@ -742,7 +732,6 @@ class ConfigRepository:
     def set_user_active(self, user_id: str, active: bool) -> None:
         column, value = self._resolve_db_identifier("usuarios", user_id)
         self.db.execute(f"UPDATE usuarios SET activo=? WHERE {column}=?", (1 if active else 0, value))
-        self._commit()
 
     def list_roles_v13(self) -> list[tuple]:
         identity = self._select_identity_sql("roles")
@@ -903,7 +892,6 @@ class ConfigRepository:
         else:
             logger.warning("rol_permisos: no usable identity column found — run migrations; permissions not saved")
             return
-        self._commit()
 
     def audit_log_rows(self, limit: int = 200) -> list[tuple]:
         return self.db.execute(
@@ -932,5 +920,4 @@ class ConfigRepository:
                 f"INSERT INTO roles({','.join(role_fields)}) VALUES({placeholders})",
                 tuple(role_values),
             )
-        self._commit()
         return persisted_role_id

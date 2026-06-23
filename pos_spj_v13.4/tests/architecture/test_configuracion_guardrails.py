@@ -118,6 +118,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "except_pass": 1,     # prefs load swallow -> FASE 8
     },
     "core/services/configuration_settings_service.py": {
+        # FASE 3: the application service owns the transaction boundary and
+        # commits via ConnectionUnitOfWork (uow.commit()) before publishing
+        # events. These are the canonical commits — not UI/repository commits.
+        "commit": 4,
         "system_settings": 24,
     },
     "core/services/config_service.py": {},
@@ -132,14 +136,14 @@ BASELINE: dict[str, dict[str, int]] = {
         "sql_insert": 11,
         "sql_update": 11,
         "sql_delete": 2,
-        "commit": 1,          # repository owns commit -> CONFIGURACION-08-TRANSACTIONS
+        # FASE 3 removed _commit() (and its except: pass) — the repository no
+        # longer commits/rolls back; services own the UnitOfWork boundary.
         "cursor_execute": 65,
         "lastrowid": 1,       # transitional pre-101 fallback -> migration 200 cutover
         "int_id_cast": 1,     # int(..._id) cast of a functional id
         "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) pre-103 fallback
         "legacy_lower": 1,    # comment accepting legacy integer ids
         "principal_fallback": 1,
-        "except_pass": 1,
     },
     "repositories/settings_repository.py": {
         "sql_select": 1,
