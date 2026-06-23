@@ -105,3 +105,74 @@ def test_no_dual_where_clauses():
         if pat.search(src):
             violations.append(relpath)
     assert not violations, "Dual legacy WHERE clauses found in:\n" + "\n".join(violations)
+
+
+def test_no_producto_id_as_item_identity():
+    """No item.get('producto_id') or payload.get('producto_id') as entity identity.
+
+    'producto_id' is the legacy Spanish key; canonical key is 'product_id'.
+    Only string-literal imports/docstrings and migration files are excluded.
+    """
+    violations = []
+    pat = re.compile(r'\.get\(["\']producto_id["\']')
+    excl = ("migrations", "scripts", "seed")
+    for abs_path, relpath in _business_files():
+        if any(ex in relpath for ex in excl):
+            continue
+        src = open(abs_path).read()
+        for lineno, line in enumerate(src.splitlines(), 1):
+            stripped = line.strip()
+            if pat.search(stripped) and not stripped.startswith("#"):
+                violations.append(f"{relpath}:{lineno}: {stripped}")
+    assert not violations, "Legacy .get('producto_id') found:\n" + "\n".join(violations)
+
+
+def test_no_uuid4_for_entity_ids():
+    """uuid.uuid4() must not be used to generate entity IDs; use new_uuid() instead."""
+    violations = []
+    pat = re.compile(r'\buuid\.uuid4\(\)')
+    # new_uuid() is the canonical generator; uuid4 is forbidden for entity IDs
+    excl = ("shared/ids.py", "migrations", "scripts")
+    for abs_path, relpath in _business_files():
+        if any(ex in relpath for ex in excl):
+            continue
+        src = open(abs_path).read()
+        for lineno, line in enumerate(src.splitlines(), 1):
+            stripped = line.strip()
+            if pat.search(stripped) and not stripped.startswith("#"):
+                violations.append(f"{relpath}:{lineno}: {stripped}")
+    assert not violations, "uuid.uuid4() used for entity IDs:\n" + "\n".join(violations)
+
+
+def test_no_principal_as_branch_fallback():
+    """'Principal' must not be used as a silent branch identity fallback."""
+    violations = []
+    pat = re.compile(r'["\']Principal["\']')
+    excl = ("migrations", "scripts", "seed", "tests")
+    for abs_path, relpath in _business_files():
+        if any(ex in relpath for ex in excl):
+            continue
+        src = open(abs_path).read()
+        for lineno, line in enumerate(src.splitlines(), 1):
+            stripped = line.strip()
+            if pat.search(stripped) and not stripped.startswith("#"):
+                violations.append(f"{relpath}:{lineno}: {stripped}")
+    assert not violations, "'Principal' branch fallback found:\n" + "\n".join(violations)
+
+
+def test_no_inventario_actual_in_business_code():
+    """inventario_actual (legacy table) must not be queried in business code.
+
+    Only migrations are allowed to reference it (for historical drop/rename).
+    """
+    violations = []
+    pat = re.compile(r'\binventario_actual\b')
+    for abs_path, relpath in _business_files():
+        if "migrations" in relpath:
+            continue
+        src = open(abs_path).read()
+        for lineno, line in enumerate(src.splitlines(), 1):
+            stripped = line.strip()
+            if pat.search(stripped) and not stripped.startswith("#"):
+                violations.append(f"{relpath}:{lineno}: {stripped}")
+    assert not violations, "Legacy inventario_actual table referenced:\n" + "\n".join(violations)
