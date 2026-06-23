@@ -1,3 +1,4 @@
+from backend.shared.ids import new_uuid
 
 # core/services/purchase_service.py
 import uuid
@@ -36,7 +37,7 @@ class PurchaseService:
         :param items: Lista de diccionarios [{'product_id': 1, 'qty': 100, 'unit_cost': 50.0}, ...]
         """
         # Generamos un ID único para rastrear todo este movimiento en conjunto
-        operation_id = str(uuid.uuid4())
+        operation_id = new_uuid()
         finance_warnings: list[str] = []
         
         # Calculamos el subtotal físico y el total fiscal de la compra directa.
@@ -49,7 +50,7 @@ class PurchaseService:
         # Determinamos si se pagó completa o quedó a crédito
         status = "completada" if amount_paid >= total_purchase else "credito"
 
-        _sp = f"compra_{uuid.uuid4().hex[:8]}"
+        _sp = f"compra_{new_uuid().replace('-', '')[:8]}"
         _sp_released = False
         try:
             # Use SAVEPOINT (compatible with isolation_level=None / autocommit)
@@ -80,7 +81,7 @@ class PurchaseService:
             for item in items:
                 try:
                     inventory_result = self.inventory_service.increase_stock(
-                        product_id=int(item['product_id']),
+                        product_id=str(item['product_id']),
                         branch_id=str(branch_id),
                         quantity=float(item['qty']),
                         unit=str(item.get('unit') or item.get('unidad') or 'unit'),
@@ -304,7 +305,7 @@ class PurchaseService:
         purchase is still cancelled so the record stays accurate.
         """
         warnings: list[str] = []
-        _sp = f"cancel_{uuid.uuid4().hex[:8]}"
+        _sp = f"cancel_{new_uuid().replace('-', '')[:8]}"
         try:
             self.db.execute(f"SAVEPOINT {_sp}")
 

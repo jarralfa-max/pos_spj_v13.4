@@ -27,6 +27,7 @@
 #
 # Versión: 1.0 — Fase 9
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -302,10 +303,10 @@ class ProductionEngine:
             raise ProductionEngineError("created_by es obligatorio")
 
         bid = branch_id or self.branch_id
-        op_id = operation_id or str(uuid.uuid4())
-        batch_id = str(uuid.uuid4())
+        op_id = operation_id or new_uuid()
+        batch_id = new_uuid()
 
-        sp = f"sp_ob_{uuid.uuid4().hex[:8]}"
+        sp = f"sp_ob_{new_uuid().replace('-', '')[:8]}"
         folio = self._generar_folio(self.db)
 
         self.db.execute(f"SAVEPOINT {sp}")
@@ -364,7 +365,7 @@ class ProductionEngine:
         if weight < 0:
             raise InvalidWeightError("peso no puede ser negativo")
 
-        sp = f"sp_ao_{uuid.uuid4().hex[:8]}"
+        sp = f"sp_ao_{new_uuid().replace('-', '')[:8]}"
         self.db.execute(f"SAVEPOINT {sp}")
         try:
             batch = self._get_batch(self.db, batch_id)
@@ -378,7 +379,7 @@ class ProductionEngine:
             if not prod:
                 raise ProductionEngineError(f"Producto {product_id} no existe o no activo")
 
-            output_id = str(uuid.uuid4())
+            output_id = new_uuid()
             self.db.execute("""
                 INSERT INTO production_outputs
                     (id, batch_id, product_id, weight, expected_pct,
@@ -411,7 +412,7 @@ class ProductionEngine:
 
     def remove_output(self, batch_id: str, product_id: int) -> None:
         """Elimina un subproducto del lote (solo si abierto)."""
-        sp = f"sp_ro_{uuid.uuid4().hex[:8]}"
+        sp = f"sp_ro_{new_uuid().replace('-', '')[:8]}"
         self.db.execute(f"SAVEPOINT {sp}")
         try:
             batch = self._get_batch(self.db, batch_id)
@@ -515,7 +516,7 @@ class ProductionEngine:
             11. INSERT production_cost_ledger
             12. Publicar PRODUCTION_BATCH_CREATED
         """
-        op_id = str(uuid.uuid4())
+        op_id = new_uuid()
         inv_eng = InventoryEngine(self.db, self.branch_id, closed_by)
 
         # FIX BUG-2: exponer conn del context manager para usarlo en todas las operaciones
@@ -640,7 +641,7 @@ class ProductionEngine:
                 """, (out_yield.cost_allocated, batch_id, out_yield.product_id))
 
             # ── 10. Análisis de rendimiento ───────────────────────────────
-            yield_analysis_id = str(uuid.uuid4())
+            yield_analysis_id = new_uuid()
             conn.execute("""
                 INSERT INTO production_yield_analysis
                     (id, batch_id, expected_yield, real_yield,
@@ -680,11 +681,11 @@ class ProductionEngine:
             for a in allocations:
                 if a.cost_per_kg > 0:
                     allocator.update_product_average_cost(a.product_id, a.cost_per_kg)
-                    # Actualizar también inventario_actual.costo_promedio
+                    # Actualizar también inventory_stock.costo_promedio
                     conn.execute("""
-                        UPDATE inventario_actual
+                        UPDATE inventory_stock
                         SET costo_promedio = ?
-                        WHERE producto_id = ? AND sucursal_id = ?
+                        WHERE product_id = ? AND branch_id = ?
                     """, (a.cost_per_kg, a.product_id, bid))
 
         # Publicar PRODUCTION_BATCH_CREATED (fuera de transacción) con payload enriquecido
@@ -717,7 +718,7 @@ class ProductionEngine:
 
     def cancel_batch(self, batch_id: str, cancelled_by: str, motivo: str = "") -> None:
         """Cancela un lote si está abierto."""
-        sp = f"sp_cb_{uuid.uuid4().hex[:8]}"
+        sp = f"sp_cb_{new_uuid().replace('-', '')[:8]}"
         self.db.execute(f"SAVEPOINT {sp}")
         try:
             batch = self._get_batch(self.db, batch_id)

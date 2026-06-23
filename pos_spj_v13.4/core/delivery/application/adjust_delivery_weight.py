@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 import os
-import uuid
 from decimal import Decimal
+
+from backend.shared.ids import new_uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -91,7 +92,7 @@ class AdjustDeliveryWeightUseCase:
         old_total = Decimal(str(order.get("total") or "0")).quantize(Decimal("0.01"))
 
         if adj["tolerance_exceeded"]:
-            token = uuid.uuid4().hex
+            token = new_uuid()
             self.repository.mark_item_adjustment_pending(
                 order_id=order_id,
                 item_id=item_id,
@@ -155,8 +156,8 @@ class AdjustDeliveryWeightUseCase:
         # The reservation was created at order creation with the requested qty.
         # After a real weight/quantity adjustment the lock must reflect the
         # prepared qty so available stock stays accurate. Idempotent (absolute set).
-        product_id = item_row.get("producto_id") or item_row.get("product_id")
-        branch_id = order.get("sucursal_id") or 1
+        product_id = item_row.get("product_id")
+        branch_id = str(order.get("branch_id") or order.get("sucursal_id") or "")
         if self.adjust_reservation is not None and product_id:
             operation_id = f"delivery:{order_id}"
             try:

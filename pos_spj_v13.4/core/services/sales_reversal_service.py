@@ -20,6 +20,7 @@
 #
 # Versión: 1.0 — Fase 3 hardening
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -244,7 +245,7 @@ class SalesReversalService:
         if not usuario or not usuario.strip():
             raise UsuarioRequeridoError("usuario es obligatorio")
 
-        operation_id = f"CANCEL-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"CANCEL-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("SALE_CANCEL") as _:
             conn = self.db.conn
@@ -429,7 +430,7 @@ class SalesReversalService:
         if not items:
             raise OperacionSinItemsError("La lista de ítems para devolución está vacía")
 
-        operation_id = f"REFUND-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"REFUND-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("SALE_REFUND") as _:
             conn = self.db.conn
@@ -639,7 +640,7 @@ class SalesReversalService:
         if amount <= 0:
             raise ReversalError(f"MONTO_INVALIDO: amount={amount} debe ser positivo")
 
-        operation_id = f"CREDIT-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"CREDIT-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("CREDIT_NOTE") as _:
             conn = self.db.conn

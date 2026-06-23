@@ -47,7 +47,7 @@ class SaleFinanceHandler:
                 category      = "VENTAS_MOSTRADOR",
                 description   = f"Ingreso por venta {payload.get('folio', '')}",
                 payment_method= payment_method,
-                branch_id     = int(payload.get("branch_id", payload.get("sucursal_id", 1))),
+                branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or ""),
                 user          = str(payload.get("user", payload.get("usuario", "sistema"))),
                 operation_id  = str(payload.get("operation_id", "")),
                 reference_id  = payload.get("sale_id", payload.get("venta_id")),
@@ -87,7 +87,7 @@ class CreditSaleFinanceHandler:
         cliente_id  = payload.get("cliente_id") or payload.get("customer_id")
         sale_id     = payload.get("sale_id") or payload.get("venta_id")
         folio       = str(payload.get("folio", ""))
-        sucursal_id = int(payload.get("branch_id", payload.get("sucursal_id", 1)))
+        sucursal_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
 
         if total <= 0 or not cliente_id or not sale_id:
             logger.warning(
@@ -157,7 +157,7 @@ class SaleCancelledFinanceHandler:
         payment_method = str(payload.get("payment_method", payload.get("forma_pago", "")))
         folio          = str(payload.get("folio", ""))
         sale_id        = payload.get("venta_id") or payload.get("sale_id")
-        sucursal_id    = int(payload.get("sucursal_id", payload.get("branch_id", 1)))
+        sucursal_id = str(payload.get("sucursal_id") or payload.get("branch_id") or "")
         cliente_id     = payload.get("cliente_id")
 
         if total <= 0 or not sale_id:
@@ -298,7 +298,7 @@ class PayrollFinanceHandler:
                 debit_account=debit_account,
                 credit_account=credit_account,
                 amount=amount,
-                branch_id=int(payload.get("sucursal_id", payload.get("branch_id", 1)) or 1),
+                branch_id=str(payload.get("sucursal_id") or payload.get("branch_id") or ""),
                 user=str(payload.get("usuario", payload.get("user", "sistema"))),
                 metadata=metadata,
             )
@@ -311,7 +311,7 @@ class PayrollFinanceHandler:
                 monto=amount,
                 modulo="rrhh",
                 referencia_id=source_id,
-                sucursal_id=int(payload.get("sucursal_id", payload.get("branch_id", 1)) or 1),
+                sucursal_id=str(payload.get("sucursal_id") or payload.get("branch_id") or ""),
                 evento=event_type,
                 metadata=metadata,
             )

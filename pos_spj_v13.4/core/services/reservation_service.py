@@ -10,15 +10,19 @@ Stock availability:
 
 Thread-safety: all writes use a module-level RLock so concurrent order creation
 from multiple workers does not double-reserve the same stock.
+
+Identity contract: product_id and branch_id MUST be UUIDv7 strings.
+Any digit-only string is rejected immediately with an explicit error.
 """
 from __future__ import annotations
 
 import logging
 import os
-import uuid
 from datetime import datetime, timedelta
 from threading import RLock
-from typing import List, Optional
+from typing import List
+
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.services.reservation")
 
@@ -31,6 +35,19 @@ VARIABLE_WEIGHT_UNITS = frozenset({"kg", "g", "lb", "oz", "gr"})
 TOLERANCE_UNITS = float(os.environ.get("DELIVERY_WEIGHT_TOLERANCE_UNITS", "0.2"))
 
 
+def _require_uuid(value: str | None, field: str) -> str:
+    """Validate that *value* looks like a UUID (not a bare integer). Returns str."""
+    s = str(value or "").strip()
+    if not s:
+        raise ValueError(f"Legacy identity rejected: {field} is empty. Expected UUIDv7.")
+    if s.isdigit():
+        raise ValueError(
+            f"Legacy identity rejected: {field}={s}. Expected UUIDv7, got integer. "
+            "Delete the DB and reseed with UUID-only schema."
+        )
+    return s
+
+
 class ReservationService:
     """Manages inventory_reservations table to support soft-lock of stock."""
 
@@ -39,43 +56,42 @@ class ReservationService:
     def reserve(
         self,
         db,
-        product_id: int,
+        product_id: str,
         qty: float,
         operation_id: str,
-        branch_id: int = 1,
+        branch_id: str,
         operation_type: str = "delivery",
         expires_hours: int = 24,
     ) -> str:
         """Reserve *qty* units for *operation_id*.
 
         Returns the reservation UUID. Raises ValueError if available stock < qty.
+        product_id and branch_id must be UUIDv7 strings — integer IDs are rejected.
         """
-        reservation_id = uuid.uuid4().hex
+        pid = _require_uuid(product_id, "product_id")
+        bid = _require_uuid(branch_id, "branch_id")
+        reservation_id = new_uuid()
         expires_at = (datetime.utcnow() + timedelta(hours=expires_hours)).isoformat()
 
         with _LOCK:
-            available = self.get_available_stock(db, product_id, branch_id)
+            available = self.get_available_stock(db, pid, bid)
             if available < qty:
                 raise ValueError(
                     f"Stock insuficiente para reservar: disponible={available:.3f}, "
-                    f"solicitado={qty:.3f}, producto_id={product_id}"
+                    f"solicitado={qty:.3f}, product_id={pid}"
                 )
             db.execute(
                 """INSERT INTO inventory_reservations
                    (id, branch_id, product_id, reserved_qty, operation_id,
                     operation_type, expires_at, released)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)""",
-                (reservation_id, branch_id, product_id, qty,
+                (reservation_id, bid, pid, qty,
                  operation_id, operation_type, expires_at),
             )
-            try:
-                db.commit()
-            except Exception:
-                pass
 
         logger.info(
-            "Reserved product_id=%d qty=%.3f op=%s branch=%d expires=%s",
-            product_id, qty, operation_id, branch_id, expires_at,
+            "Reserved product_id=%s qty=%.3f op=%s branch=%s expires=%s",
+            pid, qty, operation_id, bid, expires_at,
         )
         return reservation_id
 
@@ -91,10 +107,6 @@ class ReservationService:
                 (operation_id,),
             )
             count = cur.rowcount
-            try:
-                db.commit()
-            except Exception:
-                pass
         if count:
             logger.info("Released %d reservation(s) for op=%s", count, operation_id)
         return count
@@ -103,9 +115,9 @@ class ReservationService:
         self,
         db,
         operation_id: str,
-        product_id: int,
+        product_id: str,
         new_qty: float,
-        branch_id: int = 1,
+        branch_id: str,
     ) -> int:
         """Re-set the active reservation for *operation_id*+*product_id* to *new_qty*.
 
@@ -115,20 +127,17 @@ class ReservationService:
         Idempotent by construction: it writes an ABSOLUTE value, so replaying the
         same adjustment yields the same row state. Returns rows updated (0 or 1).
         """
+        pid = _require_uuid(product_id, "product_id")
         with _LOCK:
             cur = db.execute(
                 "UPDATE inventory_reservations SET reserved_qty=? "
                 "WHERE operation_id=? AND product_id=? AND released=0",
-                (new_qty, operation_id, product_id),
+                (new_qty, operation_id, pid),
             )
             count = cur.rowcount
-            try:
-                db.commit()
-            except Exception:
-                pass
         logger.info(
             "Adjusted reservation op=%s product_id=%s new_qty=%.3f rows=%d",
-            operation_id, product_id, new_qty, count,
+            operation_id, pid, new_qty, count,
         )
         return count
 
@@ -136,15 +145,17 @@ class ReservationService:
         self,
         db,
         operation_id: str,
-        product_id: int,
+        product_id: str,
         actual_qty: float,
-        branch_id: int = 1,
+        branch_id: str,
     ) -> None:
         """Convert a reservation to a confirmed inventory movement.
 
         Releases the reservation lock and (via InventoryService) deducts
         the actual_qty from physical stock — not the reserved amount.
         """
+        pid = _require_uuid(product_id, "product_id")
+        bid = _require_uuid(branch_id, "branch_id")
         released = self.release_by_operation(db, operation_id)
         if released == 0:
             logger.warning("commit_reservation: no active reservation for op=%s", operation_id)
@@ -153,8 +164,8 @@ class ReservationService:
             from core.services.inventory_service import InventoryService as InvSvc
             inv = InvSvc(db)
             inv.deduct_stock(
-                product_id=product_id,
-                branch_id=branch_id,
+                product_id=pid,
+                branch_id=bid,
                 qty=actual_qty,
                 reference_type="delivery_prepared",
                 reference_id=operation_id,
@@ -166,8 +177,10 @@ class ReservationService:
             logger.error("commit_reservation: inventory deduct failed op=%s: %s", operation_id, exc)
             raise
 
-    def get_reserved_qty(self, db, product_id: int, branch_id: int) -> float:
+    def get_reserved_qty(self, db, product_id: str, branch_id: str) -> float:
         """Sum of active, non-expired reservations for this product/branch."""
+        pid = _require_uuid(product_id, "product_id")
+        bid = _require_uuid(branch_id, "branch_id")
         try:
             row = db.execute(
                 """SELECT COALESCE(SUM(reserved_qty), 0)
@@ -175,31 +188,36 @@ class ReservationService:
                    WHERE product_id=? AND branch_id=?
                      AND released=0
                      AND expires_at > datetime('now')""",
-                (product_id, branch_id),
+                (pid, bid),
             ).fetchone()
             return float(row[0]) if row else 0.0
         except Exception as exc:
             logger.debug("get_reserved_qty error: %s", exc)
             return 0.0
 
-    def get_available_stock(self, db, product_id: int, branch_id: int) -> float:
-        """Physical stock minus active reservations."""
+    def get_available_stock(self, db, product_id: str, branch_id: str) -> float:
+        """Physical stock minus active reservations.
+
+        Reads from inventory_stock (canonical) — never from the legacy integer-keyed table.
+        """
+        pid = _require_uuid(product_id, "product_id")
+        bid = _require_uuid(branch_id, "branch_id")
         try:
             row = db.execute(
-                "SELECT COALESCE(cantidad, 0) FROM inventario_actual "
-                "WHERE producto_id=? AND sucursal_id=?",
-                (product_id, branch_id),
+                "SELECT COALESCE(quantity, 0) FROM inventory_stock "
+                "WHERE product_id=? AND branch_id=?",
+                (pid, bid),
             ).fetchone()
             physical = float(row[0]) if row else 0.0
         except Exception as exc:
             logger.debug("get_available_stock physical query error: %s", exc)
             physical = 0.0
 
-        reserved = self.get_reserved_qty(db, product_id, branch_id)
+        reserved = self.get_reserved_qty(db, pid, bid)
         available = max(0.0, physical - reserved)
         logger.debug(
-            "available_stock product=%d branch=%d physical=%.3f reserved=%.3f available=%.3f",
-            product_id, branch_id, physical, reserved, available,
+            "available_stock product=%s branch=%s physical=%.3f reserved=%.3f available=%.3f",
+            pid, bid, physical, reserved, available,
         )
         return available
 

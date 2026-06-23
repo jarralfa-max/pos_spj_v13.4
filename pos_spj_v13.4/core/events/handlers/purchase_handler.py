@@ -31,7 +31,7 @@ class PurchaseInventoryHandler:
         self._inv = inventory_service
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        branch_id    = int(payload.get("branch_id", 1))
+        branch_id = str(payload.get("branch_id") or "")
         operation_id = str(payload.get("operation_id", ""))
         compra_id    = payload.get("compra_id", "")
         folio        = str(payload.get("folio", ""))
@@ -84,7 +84,7 @@ class PurchaseFinanceHandler:
 
         folio       = str(payload.get("folio", ""))
         compra_id   = payload.get("compra_id", payload.get("purchase_id"))
-        sucursal_id = int(payload.get("sucursal_id", payload.get("branch_id", 1)))
+        sucursal_id = str(payload.get("sucursal_id") or payload.get("branch_id") or "")
         usuario     = str(payload.get("usuario", payload.get("user", "sistema")))
 
         try:

@@ -1,6 +1,7 @@
 
 # core/services/cotizacion_service.py — SPJ POS v10
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging, uuid
 from datetime import datetime, date, timedelta
 from core.db.connection import get_connection, transaction
@@ -53,7 +54,7 @@ class CotizacionService:
                 (uuid,folio,cliente_id,cliente_nombre,subtotal,descuento,total,notas,
                  vigencia_dias,fecha_vencimiento,usuario,sucursal_id)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (str(uuid.uuid4()),folio,cliente_id,cliente_nombre,
+                (new_uuid(),folio,cliente_id,cliente_nombre,
                  subtotal,descuento_global,total,notas,vigencia_dias,venc,
                  self.usuario,self.sucursal_id)).lastrowid
             for i in items:
@@ -61,7 +62,7 @@ class CotizacionService:
                 c.execute("""INSERT INTO cotizaciones_detalle
                     (cotizacion_id,producto_id,nombre,cantidad,unidad,precio_unitario,descuento_pct,subtotal)
                     VALUES(?,?,?,?,?,?,?,?)""",
-                    (cid,i.get("producto_id"),i.get("nombre",""),i["cantidad"],
+                    (cid,i.get("product_id"),i.get("nombre",""),i["cantidad"],
                      i.get("unidad","kg"),i["precio_unitario"],i.get("descuento_pct",0),sub))
         logger.info("Cotizacion %s creada: total=$%.2f", folio, total)
         return {"cotizacion_id":cid,"folio":folio,"total":total,"vencimiento":venc}

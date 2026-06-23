@@ -126,7 +126,7 @@ class CFDIService:
             forma_pago_cfdi = forma_pago_cfdi_map.get(
                 str(venta_d.get("forma_pago","")).lower(), "01")
 
-            uuid_cfdi = str(uuid.uuid4()).upper()
+            uuid_cfdi = new_uuid().upper()
 
             # Build XML
             conceptos_xml = ""
@@ -282,7 +282,7 @@ class CFDIService:
         # Extract UUID from timbrado XML
         import re
         m = re.search(r'UUID="([A-F0-9\-]+)"', xml_resp, re.I)
-        uuid_timbre = m.group(1) if m else str(uuid.uuid4()).upper()
+        uuid_timbre = m.group(1) if m else new_uuid().upper()
         return xml_resp, uuid_timbre
 
     def cancelar_cfdi(self, uuid_cfdi: str, motivo: str = "02") -> dict:

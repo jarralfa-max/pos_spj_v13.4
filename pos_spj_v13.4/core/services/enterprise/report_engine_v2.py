@@ -285,15 +285,15 @@ class ReportEngineV2:
         if branch_id:
             rows = self.db.fetchall(f"""
                 SELECT p.id, p.nombre, p.unidad, p.codigo,
-                       COALESCE(ia.cantidad, p.existencia, 0) AS stock,
+                       COALESCE(ia.quantity, p.existencia, 0) AS stock,
                        COALESCE(p.stock_minimo, 0) AS stock_min,
                        COALESCE(p.precio_compra, p.costo, 0) AS costo,
                        COALESCE(p.precio, 0) AS precio,
                        c.nombre AS categoria,
                        ia.ultima_actualizacion AS updated
                 FROM productos p
-                LEFT JOIN inventario_actual ia
-                    ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                LEFT JOIN inventory_stock ia
+                    ON ia.product_id = p.id AND ia.branch_id = ?
                 LEFT JOIN categorias c ON c.id = p.categoria_id
                 WHERE p.activo=1 {cat_f}
                 ORDER BY p.nombre

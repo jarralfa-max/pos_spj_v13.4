@@ -9,6 +9,7 @@ Corte Z: cierre formal de turno/día.
   - Imprime resumen via PrinterService
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging, uuid
 from datetime import datetime
 from core.db.connection import get_connection, transaction
@@ -224,7 +225,7 @@ class CierreCajaService:
                      num_anulaciones,efectivo_contado,fondo_inicial,
                      diferencia,comentarios)
                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (str(uuid.uuid4()), tipo, self.sucursal_id, self.usuario,
+                    (new_uuid(), tipo, self.sucursal_id, self.usuario,
                      turno["turno"] if turno else "N/A", fecha_desde,
                      resumen["total_ventas"], resumen["num_ventas"],
                      resumen["total_efectivo"], resumen["total_tarjeta"],

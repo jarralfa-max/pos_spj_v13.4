@@ -42,6 +42,6 @@ class ActivateScheduledOrderUseCase:
             "order_id": order_id,
             "workflow_type": target_workflow,
             "usuario": usuario,
-            "sucursal_id": int(order.get("sucursal_id") or 1),
+            "sucursal_id": str(order.get("sucursal_id") or order.get("branch_id") or ""),
         })
         return {"order_id": order_id, "workflow_type": target_workflow, "status": "pending"}

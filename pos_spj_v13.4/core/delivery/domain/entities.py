@@ -42,7 +42,7 @@ class DeliveryItem:
         return cls(
             id=data.get("id"),
             delivery_id=data.get("delivery_id"),
-            producto_id=data.get("producto_id") or data.get("product_id"),
+            producto_id=data.get("product_id"),
             nombre=data.get("nombre") or data.get("producto_nombre") or data.get("name") or "Producto",
             cantidad=qty,
             precio_unitario=price,

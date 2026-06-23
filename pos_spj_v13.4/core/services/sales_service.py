@@ -1,3 +1,4 @@
+from backend.shared.ids import new_uuid
 from core.services.auto_audit import audit_write
 
 # core/services/sales_service.py
@@ -72,7 +73,7 @@ class SalesService:
         """
         base = datetime.now().strftime("%Y%m%d%H%M%S%f")
         for _ in range(5):
-            folio = f"V{base}-{uuid.uuid4().hex[:4].upper()}"
+            folio = f"V{base}-{new_uuid().replace('-', '')[:4].upper()}"
             try:
                 row = self.db.execute(
                     "SELECT 1 FROM ventas WHERE folio=? LIMIT 1", (folio,)
@@ -82,7 +83,7 @@ class SalesService:
             except Exception as exc:
                 logger.warning("No se pudo validar unicidad de folio; usando folio generado: %s", exc)
                 return folio
-        return f"V{base}-{uuid.uuid4().hex[:8].upper()}"
+        return f"V{base}-{new_uuid().replace('-', '')[:8].upper()}"
 
     def _validate_stock_pre_sale(self, items: list, branch_id: int) -> None:
         """
@@ -118,7 +119,7 @@ class SalesService:
     def _resolve_sale_items(self, items: list, branch_id: int) -> list:
         resolved = []
         for item in items:
-            pid = int(item["product_id"])
+            pid = str(item["product_id"])
             qty = float(item["qty"])
             lines = self._fulfillment.resolve_item(pid, qty, branch_id)
             for ln in lines:
@@ -285,10 +286,10 @@ class SalesService:
 
         self._ensure_pending_sales_intents_table()
         branch_id = str(branch_id or "")
-        folio = f"MP-{uuid.uuid4().hex[:12].upper()}"
+        folio = f"MP-{new_uuid().replace('-', '')[:12].upper()}"
         normalized_items = self._normalize_items_payload(items)
         reservation_items = [
-            {"id": int(item["product_id"]), "cantidad": float(item["qty"])}
+            {"id": str(item["product_id"]), "cantidad": float(item["qty"])}
             for item in normalized_items
         ]
         from core.services.stock_reservation_service import StockReservationService
@@ -549,7 +550,7 @@ class SalesService:
         
         :param items: Lista de diccionarios [{'product_id': 1, 'qty': 1.12, 'unit_price': 100, 'es_compuesto': 0, 'name': 'Pollo'}, ...]
         """
-        operation_id = str(operation_id or uuid.uuid4())
+        operation_id = (operation_id or new_uuid())
         reservation_id = int(reservation_id or 0)
         reservation_confirmed = False
 
@@ -1312,7 +1313,7 @@ class SalesService:
 
             folio = row["folio"] or str(venta_id)
             total = float(row["total"] or 0)
-            sucursal_id = int(row["sucursal_id"] or 1)
+            sucursal_id = str(row["sucursal_id"] or "")
             usuario = str(usuario_id or "sistema")
 
             detalles = self.db.execute(
@@ -1409,17 +1410,18 @@ class SalesService:
 
             folio = self._generate_unique_sale_folio()
             cambio = self._calculate_change(payment_method, payment_lines, total)
-            cur = self.db.execute(
+            venta_id = new_uuid()
+            self.db.execute(
                 """
                 INSERT INTO ventas(
-                    folio, sucursal_id, usuario, cliente_id, subtotal, descuento, total,
+                    id, folio, sucursal_id, usuario, cliente_id, subtotal, descuento, total,
                     forma_pago, efectivo_recibido, cambio, estado, fecha
-                ) VALUES (?,1,?,?,?,?,?,?,?,?, 'completada', datetime('now'))
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'completada', datetime('now'))
                 """,
-                (folio, usuario, client_id, subtotal, float(discount or 0), total,
+                (venta_id, folio, getattr(self, 'sucursal_id', '') or '', usuario, client_id,
+                 subtotal, float(discount or 0), total,
                  payment_method, amount_paid_real, cambio)
             )
-            venta_id = int(cur.lastrowid)
 
             for i in items_payload:
                 qty = float(i["qty"])

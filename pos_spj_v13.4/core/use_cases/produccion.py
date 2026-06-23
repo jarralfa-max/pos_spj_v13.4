@@ -22,6 +22,7 @@ ProductionEngine ejecuta la lógica de cálculo pura.
 Este UC agrega: validación de entrada, eventos, sync, audit.
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -133,7 +134,7 @@ class GestionarProduccionUC:
         Cierra el lote: valida balance, mueve inventario, distribuye costos.
         Publica PRODUCCION_COMPLETADA al EventBus.
         """
-        operation_id = str(uuid.uuid4())
+        operation_id = new_uuid()
 
         try:
             # FIX BUG-5: close_batch espera `closed_by`, no `user`; no tiene `operation_id`

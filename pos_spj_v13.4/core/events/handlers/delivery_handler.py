@@ -32,13 +32,13 @@ class DeliveryReserveStockHandler:
         from core.services.reservation_service import ReservationService, VARIABLE_WEIGHT_UNITS
         svc = ReservationService()
         items = payload.get("items") or []
-        branch_id = int(payload.get("branch_id") or 1)
+        branch_id = str(payload.get("branch_id") or "")
         operation_id = str(payload.get("operation_id") or payload.get("order_id", ""))
         db = payload.get("db") or self.db
         reserved = 0
 
         for item in items:
-            product_id = item.get("producto_id") or item.get("product_id")
+            product_id = item.get("product_id")
             if not product_id:
                 continue
             qty = float(item.get("cantidad") or item.get("qty") or 0)
@@ -317,7 +317,7 @@ class DeliveryLifecycleAuditHandler:
         order_id   = payload.get("order_id")
         folio      = payload.get("folio") or str(order_id or "")
         usuario    = payload.get("usuario") or payload.get("responsable") or "sistema"
-        sucursal_id = int(payload.get("sucursal_id") or 1)
+        sucursal_id = str(payload.get("sucursal_id") or payload.get("branch_id") or "")
         total      = payload.get("total") or payload.get("new_total")
         details    = f"folio={folio}"
         if total is not None:
@@ -415,7 +415,7 @@ class DeliveryNotificationDispatchHandler:
                 cliente_tel=str(payload.get("cliente_tel") or ""),
                 folio=str(payload.get("folio") or ""),
                 priority=str(payload.get("priority") or "normal"),
-                sucursal_id=int(payload.get("sucursal_id") or 1),
+                sucursal_id=str(payload.get("sucursal_id") or payload.get("branch_id") or ""),
                 metadata=params,
             ))
         except Exception as exc:
@@ -441,7 +441,7 @@ class InventoryCommitHandler:
         from core.services.reservation_service import ReservationService
         order_id     = payload.get("order_id")
         operation_id = str(payload.get("operation_id") or order_id or "")
-        branch_id    = int(payload.get("branch_id") or payload.get("sucursal_id") or 1)
+        branch_id    = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
         db           = payload.get("db") or self.db
 
         if not operation_id:
@@ -476,11 +476,11 @@ class InventoryCommitHandler:
                     )
                     committed += 1
                     _publish_safe("AJUSTE_INVENTARIO", {
-                        "producto_id": product_id,
+                        "product_id": product_id,
                         "cantidad": -actual_qty,
                         "tipo": "delivery_commit",
                         "referencia_id": order_id,
-                        "sucursal_id": branch_id,
+                        "branch_id": branch_id,
                         "operation_id": operation_id,
                     })
                 except Exception as exc:
@@ -493,7 +493,7 @@ class InventoryCommitHandler:
 
     def _commit_from_items(self, db, items, operation_id, branch_id, svc) -> None:
         for item in items:
-            product_id = item.get("producto_id") or item.get("product_id")
+            product_id = item.get("product_id")
             qty = float(item.get("final_qty") or item.get("prepared_qty") or item.get("cantidad") or 0)
             if not product_id or qty <= 0:
                 continue
@@ -522,7 +522,7 @@ class DriverSettlementFinanceHandler:
         efectivo     = float(payload.get("efectivo") or payload.get("efectivo_entregado") or 0)
         diferencia   = float(payload.get("diferencia") or 0)
         comision     = float(payload.get("comision") or payload.get("commission") or 0)
-        sucursal_id  = int(payload.get("sucursal_id") or 1)
+        sucursal_id  = str(payload.get("sucursal_id") or payload.get("branch_id") or "")
         usuario      = str(payload.get("usuario_corte") or "sistema")
 
         if cut_id is None:
@@ -541,7 +541,7 @@ class DriverSettlementFinanceHandler:
                 " VALUES(?,?,?,?,?,?,?,datetime('now'))",
                 (
                     "CORTE_REPARTIDOR", "DELIVERY", "delivery_driver_cuts",
-                    str(cut_id), usuario, sucursal_id,
+                    str(cut_id), usuario, str(sucursal_id),
                     f"driver={driver_name} efectivo=${efectivo:.2f} diff=${diferencia:.2f}",
                 ),
             )
@@ -635,12 +635,12 @@ class PurchaseSuggestionHandler:
         self.db = db
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        producto_id      = payload.get("producto_id")
+        product_id       = payload.get("product_id")
         cantidad_sug     = float(payload.get("cantidad_sugerida") or 0)
         motivo           = str(payload.get("motivo") or "stock_bajo")
-        sucursal_id      = int(payload.get("sucursal_id") or 1)
+        branch_id        = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
 
-        if not producto_id:
+        if not product_id:
             return
         try:
             self.db.execute(
@@ -649,7 +649,7 @@ class PurchaseSuggestionHandler:
                 " VALUES(?,?,?,?,?,?,?,datetime('now'))",
                 (
                     "SUGERENCIA_COMPRA", "COMPRAS", "productos",
-                    str(producto_id), "sistema", sucursal_id,
+                    str(product_id), "sistema", branch_id,
                     f"qty_sugerida={cantidad_sug:.2f} motivo={motivo}",
                 ),
             )
@@ -658,10 +658,10 @@ class PurchaseSuggestionHandler:
             except Exception:
                 pass
             _publish_safe("STOCK_BAJO_MINIMO", {
-                "producto_id": producto_id,
+                "product_id": product_id,
                 "cantidad_sugerida": cantidad_sug,
                 "motivo": motivo,
-                "sucursal_id": sucursal_id,
+                "branch_id": branch_id,
             })
             logger.info(
                 "PurchaseSuggestion: producto=%s qty=%.2f motivo=%s",
