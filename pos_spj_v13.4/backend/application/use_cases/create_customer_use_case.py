@@ -64,7 +64,7 @@ class CreateCustomerUseCase:
             except Exception:
                 logger.exception("Rollback failed during customer creation operation_id=%s", command.operation_id)
             raise
-        return {"ok": True, "existing": False, "id": int(customer_id), "name": command.name.strip()}
+        return {"ok": True, "existing": False, "id": str(customer_id), "name": command.name.strip()}
 
     def find_customer_by_loyalty_code(self, loyalty_code: str) -> dict | None:
         try:

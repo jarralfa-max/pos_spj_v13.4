@@ -202,7 +202,7 @@ class SaleInventoryHandler:
             )
 
     def _deduct_via_resolver(self, product_id, sale_qty, branch_id, sale_id, operation_id, user, folio) -> None:
-        totals = self._resolve_bom_with_resolver(int(product_id), float(sale_qty), int(branch_id))
+        totals = self._resolve_bom_with_resolver(str(product_id), float(sale_qty), str(branch_id))
         for component_id, quantity in totals.items():
             self._decrease_or_raise(
                 product_id=component_id,

@@ -31,20 +31,20 @@ class InventoryQueryService:
         self._repository = repository
         self._connection = repository.connection
 
-    def get_stock(self, product_id: int, branch_id: int) -> InventoryStockRecord:
-        return self._repository.get_stock(product_id=int(product_id), branch_id=int(branch_id))
+    def get_stock(self, product_id: str, branch_id: str) -> InventoryStockRecord:
+        return self._repository.get_stock(product_id=str(product_id), branch_id=str(branch_id))
 
-    def list_stock(self, branch_id: int) -> list[InventoryStockRecord]:
-        return self._repository.list_stock(branch_id=int(branch_id))
+    def list_stock(self, branch_id: str) -> list[InventoryStockRecord]:
+        return self._repository.list_stock(branch_id=str(branch_id))
 
     def list_movements(
         self,
-        product_id: int | None = None,
-        branch_id: int | None = None,
+        product_id: str | None = None,
+        branch_id: str | None = None,
     ) -> list[InventoryMovementRecord]:
         return self._repository.list_movements(product_id=product_id, branch_id=branch_id)
 
-    def list_stock_rows(self, branch_id: int):
+    def list_stock_rows(self, branch_id: str):
         """
         Return product stock rows for UI tables.
 
@@ -74,7 +74,7 @@ class InventoryQueryService:
                     WHERE COALESCE(p.activo, 1) = 1
                     ORDER BY p.nombre
                     """,
-                    (int(branch_id), int(branch_id)),
+                    (str(branch_id), str(branch_id)),
                 ).fetchall()
             except Exception:
                 logger.exception("Error listing inventory stock rows for branch_id=%s", branch_id)
@@ -93,7 +93,7 @@ class InventoryQueryService:
                     WHERE COALESCE(p.activo, 1) = 1
                     ORDER BY p.nombre
                     """,
-                    (int(branch_id),),
+                    (str(branch_id),),
                 ).fetchall()
             except Exception:
                 logger.exception("Error listing inventory stock rows (ia-only) for branch_id=%s", branch_id)
@@ -111,13 +111,13 @@ class InventoryQueryService:
                 WHERE COALESCE(p.activo, 1) = 1
                 ORDER BY p.nombre
                 """,
-                (int(branch_id),),
+                (str(branch_id),),
             ).fetchall()
         except Exception:
             logger.exception("Error listing inventory stock rows (is-only) for branch_id=%s", branch_id)
             return []
 
-    def list_availability_rows(self, branch_id: int) -> list[dict]:
+    def list_availability_rows(self, branch_id: str) -> list[dict]:
         """Return physical and sale availability from inventario_actual (canonical)."""
         has_reservas = _tbl_exists(self._connection, "stock_reserva_detalles")
         res_join = (
@@ -131,9 +131,9 @@ class InventoryQueryService:
             if has_reservas
             else ""
         )
-        params = [int(branch_id)]
+        params: list = [str(branch_id)]
         if has_reservas:
-            params = [int(branch_id), int(branch_id)]
+            params = [str(branch_id), str(branch_id)]
         try:
             rows = self._connection.execute(
                 f"""
@@ -156,7 +156,7 @@ class InventoryQueryService:
 
         out: list[dict] = []
         for row in rows:
-            product_id = int(row[0])
+            product_id = str(row[0])
             physical = float(row[2] or 0.0)
             reserved = float(row[3] or 0.0)
             available = max(0.0, physical - reserved)
@@ -172,7 +172,7 @@ class InventoryQueryService:
             })
         return out
 
-    def get_last_movement_map(self, branch_id: int) -> dict[int, str]:
+    def get_last_movement_map(self, branch_id: str) -> dict[str, str]:
         try:
             rows = self._connection.execute(
                 """
@@ -181,14 +181,14 @@ class InventoryQueryService:
                 WHERE branch_id = ?
                 GROUP BY product_id
                 """,
-                (int(branch_id),),
+                (str(branch_id),),
             ).fetchall()
-            return {int(row[0]): str(row[1] or "")[:16] for row in rows}
+            return {str(row[0]): str(row[1] or "")[:16] for row in rows}
         except Exception:
             logger.exception("Error loading last movement map for branch_id=%s", branch_id)
             return {}
 
-    def get_operational_kpis(self, branch_id: int, product_data: list[dict] | None = None, **kwargs) -> dict:
+    def get_operational_kpis(self, branch_id: str, product_data: list[dict] | None = None, **kwargs) -> dict:
         product_data = product_data if product_data is not None else kwargs.get("prod_data", [])
         stock_low = sum(1 for product in product_data if product.get("health") == "BAJO MÍN.")
         out_of_stock = sum(1 for product in product_data if product.get("health") == "SIN STOCK")
@@ -200,7 +200,7 @@ class InventoryQueryService:
                 FROM inventory_movements
                 WHERE branch_id = ? AND DATE(created_at) = DATE('now')
                 """,
-                (int(branch_id),),
+                (str(branch_id),),
             ).fetchone()
             movements_today = int((row[0] if row else 0) or 0)
         except Exception:
@@ -220,7 +220,7 @@ class InventoryQueryService:
             "mov_hoy": movements_today,
         }
 
-    def list_recent_movements(self, branch_id: int, limit: int = 200):
+    def list_recent_movements(self, branch_id: str, limit: int = 200):
         try:
             return self._connection.execute(
                 """
@@ -235,16 +235,16 @@ class InventoryQueryService:
                 FROM inventory_movements im
                 JOIN productos p ON p.id = im.product_id
                 WHERE im.branch_id = ?
-                ORDER BY im.created_at DESC, im.id DESC
+                ORDER BY im.created_at DESC
                 LIMIT ?
                 """,
-                (int(branch_id), int(limit)),
+                (str(branch_id), int(limit)),
             ).fetchall()
         except Exception:
             logger.exception("Error listing recent inventory movements for branch_id=%s", branch_id)
             return []
 
-    def list_feed_movements(self, branch_id: int, limit: int = 12) -> list[dict]:
+    def list_feed_movements(self, branch_id: str, limit: int = 12) -> list[dict]:
         rows = self.list_recent_movements(branch_id=branch_id, limit=limit)
         return [
             {
@@ -260,7 +260,7 @@ class InventoryQueryService:
             for row in rows
         ]
 
-    def list_product_history(self, product_id: int, branch_id: int, limit: int = 100):
+    def list_product_history(self, product_id: str, branch_id: str, limit: int = 100):
         try:
             return self._connection.execute(
                 """
@@ -272,10 +272,10 @@ class InventoryQueryService:
                        COALESCE(operation_id, '')
                 FROM inventory_movements
                 WHERE product_id = ? AND branch_id = ?
-                ORDER BY created_at DESC, id DESC
+                ORDER BY created_at DESC
                 LIMIT ?
                 """,
-                (int(product_id), int(branch_id), int(limit)),
+                (str(product_id), str(branch_id), int(limit)),
             ).fetchall()
         except Exception:
             logger.exception("Error listing product inventory history product_id=%s branch_id=%s", product_id, branch_id)
@@ -283,8 +283,8 @@ class InventoryQueryService:
 
     # Backward-compatible aliases for tests/use cases that already depend on the
     # canonical QueryService object, not on the legacy core service module.
-    def list_inventory_rows(self, branch_id: int):
+    def list_inventory_rows(self, branch_id: str):
         return self.list_stock_rows(branch_id)
 
-    def get_last_movement_by_product(self, branch_id: int) -> dict[int, str]:
+    def get_last_movement_by_product(self, branch_id: str) -> dict[str, str]:
         return self.get_last_movement_map(branch_id)

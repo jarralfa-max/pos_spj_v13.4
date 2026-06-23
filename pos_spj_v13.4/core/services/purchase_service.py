@@ -81,7 +81,7 @@ class PurchaseService:
                 try:
                     inventory_result = self.inventory_service.increase_stock(
                         product_id=int(item['product_id']),
-                        branch_id=int(branch_id),
+                        branch_id=str(branch_id),
                         quantity=float(item['qty']),
                         unit=str(item.get('unit') or item.get('unidad') or 'unit'),
                         reason=f"Entrada por compra {folio}",
@@ -318,7 +318,7 @@ class PurchaseService:
                 try:
                     inventory_result = self.inventory_service.decrease_stock(
                         product_id=int(pid),
-                        branch_id=int(branch_id),
+                        branch_id=str(branch_id),
                         quantity=float(qty),
                         unit=str(item.get("unit") or item.get("unidad") or "unit"),
                         reason=f"Reversión por cancelación {folio}",

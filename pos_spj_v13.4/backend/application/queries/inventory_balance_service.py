@@ -87,7 +87,7 @@ class InventoryBalanceQueryService:
             fuente           str      — "inventario_actual" | "productos.existencia"
         """
         producto_id = int(producto_id)
-        sucursal_id = int(sucursal_id)
+        sucursal_id = str(sucursal_id)
 
         stock_fisico = _ZERO
         fuente = "unknown"
@@ -172,7 +172,7 @@ class InventoryBalanceQueryService:
         Return balance for every active product at a given branch.
         Used by both Producción and Inventario UI tables.
         """
-        sucursal_id = int(sucursal_id)
+        sucursal_id = str(sucursal_id)
         out: list[dict[str, Any]] = []
 
         if self._has_inv_actual:
@@ -243,7 +243,7 @@ class InventoryBalanceQueryService:
         Columns: producto_id, nombre, unidad, saldo_materializado,
                  saldo_movimientos, diferencia
         """
-        sucursal_id = int(sucursal_id)
+        sucursal_id = str(sucursal_id)
         rows: list[dict[str, Any]] = []
 
         if not self._has_inv_actual:

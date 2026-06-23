@@ -136,7 +136,7 @@ class SalesReversalService:
         # Compatibilidad con wrappers legacy que exponen .conn (tests/legacy adapters)
         raw_conn = getattr(db, "conn", db)
         self.db = wrap(raw_conn)
-        self.branch_id = int(branch_id or 1)
+        self.branch_id = str(branch_id or "")
         self._finance = finance_service
 
     # ── Helpers internos ─────────────────────────────────────────────────────
@@ -318,8 +318,8 @@ class SalesReversalService:
                     from core.services.sales.sale_loyalty_policy import SaleLoyaltyPolicy
                     _lp = SaleLoyaltyPolicy(conn, loyalty_service=getattr(self, "loyalty_service", None))
                     _lp.reverse_points(
-                        cliente_id=int(cliente_id),
-                        venta_id=int(sale_id),
+                        cliente_id=str(cliente_id),
+                        venta_id=str(sale_id),
                         puntos=int(puntos),
                         operation_id=f"{operation_id}:reverse_loyalty",
                         usuario=str(usuario),

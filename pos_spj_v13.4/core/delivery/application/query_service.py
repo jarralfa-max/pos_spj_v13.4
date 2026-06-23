@@ -15,12 +15,12 @@ from core.delivery.domain.states import normalize_status
 from core.delivery.domain.value_objects import (
     DeliveryStatus,
     FulfillmentType,
-    LEGACY_UNIT_MAP,
     PaymentStatus,
     STATUS_LABELS_ES,
     UNIT_LABELS_ES,
     UnitCode,
     WEIGHABLE_UNITS,
+    resolve_unit,
 )
 
 logger = logging.getLogger("spj.delivery.application.query_service")
@@ -47,13 +47,8 @@ def _map_legacy_fulfillment(raw: str | None) -> FulfillmentType:
 
 
 def _map_legacy_unit(raw: str | None) -> UnitCode:
-    """Map a legacy unidad string from productos table to UnitCode enum."""
-    normalized = (raw or "").strip().lower()
-    if normalized in LEGACY_UNIT_MAP:
-        return LEGACY_UNIT_MAP[normalized]
-    if normalized:
-        logger.warning("Unknown unit %r — defaulting to PIECE", raw)
-    return UnitCode.PIECE
+    """Map a unit string from productos table to canonical UnitCode enum."""
+    return resolve_unit(raw)
 
 
 def _map_payment_status(row: dict[str, Any]) -> PaymentStatus:

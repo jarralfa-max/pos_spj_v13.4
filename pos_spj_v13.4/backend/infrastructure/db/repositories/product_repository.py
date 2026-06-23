@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from backend.shared.ids import new_uuid
+
 
 class ProductRepository:
     """Owns product persistence details for catalog use cases."""
@@ -58,15 +60,17 @@ class ProductRepository:
         return row is not None
 
     def create(self, product_data: dict[str, Any]) -> str:
-        cursor = self._connection.execute(
+        product_uuid = product_data.get("id") or new_uuid()
+        self._connection.execute(
             """
             INSERT INTO productos (
-                nombre, codigo, codigo_barras, categoria, precio, precio_compra,
+                id, nombre, codigo, codigo_barras, categoria, precio, precio_compra,
                 precio_minimo_venta, unidad, stock_minimo, tipo_producto, es_compuesto,
                 es_subproducto, imagen_path, existencia, oculto, activo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
             """,
             (
+                product_uuid,
                 product_data["name"],
                 product_data["sku"],
                 product_data["barcode"],
@@ -83,7 +87,7 @@ class ProductRepository:
                 1 if product_data["active"] else 0,
             ),
         )
-        return str(cursor.lastrowid)
+        return product_uuid
 
     def update(self, product_id: int | str, product_data: dict[str, Any]) -> str:
         updated_at = datetime.now(timezone.utc).isoformat()

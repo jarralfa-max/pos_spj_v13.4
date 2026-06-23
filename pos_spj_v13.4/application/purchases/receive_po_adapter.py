@@ -164,7 +164,7 @@ class ReceivePOAdapter:
                 try:
                     inventory_result = inv_svc.increase_stock(
                         product_id=int(item.product_id),
-                        branch_id=int(sucursal_id),
+                        branch_id=str(sucursal_id),
                         quantity=float(item.qty_received),
                         unit="unit",
                         reason=f"Recepción PO {po.get('folio', po_id)}",

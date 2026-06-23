@@ -112,7 +112,7 @@ from core.delivery.domain.value_objects import (
     PaymentStatus as _PaymentStatus,
     DeliveryAction as _DeliveryAction,
     UnitCode as _UnitCode,
-    LEGACY_UNIT_MAP as _LEGACY_UNIT_MAP,
+    resolve_unit as _resolve_unit,
     WEIGHABLE_UNITS as _WEIGHABLE_UNITS,
     UNIT_LABELS_ES as _UNIT_LABELS_ES,
 )
@@ -2273,9 +2273,7 @@ if(drivers.length===0){{
                 # via get_order_items (LEFT JOIN productos p ON p.id = i.producto_id).
                 var_items = [
                     it for it in items
-                    if _LEGACY_UNIT_MAP.get(
-                        (it.get("unidad") or "").strip().lower(), _UnitCode.PIECE
-                    ) in _WEIGHABLE_UNITS
+                    if _resolve_unit(it.get("unidad")) in _WEIGHABLE_UNITS
                 ]
                 if var_items:
                     dlg_peso = PesoRealDialog(var_items, parent=self)
@@ -2317,8 +2315,7 @@ if(drivers.length===0){{
                 items = self.delivery_service.get_order_items(pedido_id)
                 var_items = [
                     it for it in items
-                    if _LEGACY_UNIT_MAP.get((it.get("unidad") or "").strip().lower(), _UnitCode.PIECE)
-                    in _WEIGHABLE_UNITS
+                    if _resolve_unit(it.get("unidad")) in _WEIGHABLE_UNITS
                 ]
                 if not var_items:
                     QMessageBox.information(

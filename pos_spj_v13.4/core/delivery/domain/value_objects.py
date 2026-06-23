@@ -141,7 +141,7 @@ STATUS_LABELS_ES: dict[DeliveryStatus, str] = {
     DeliveryStatus.SCHEDULED: "Programado",
 }
 
-LEGACY_UNIT_MAP: dict[str, UnitCode] = {
+_UNIT_ALIASES: dict[str, UnitCode] = {
     "kg": UnitCode.KILOGRAM,
     "kilogramo": UnitCode.KILOGRAM,
     "kilo": UnitCode.KILOGRAM,
@@ -160,3 +160,13 @@ LEGACY_UNIT_MAP: dict[str, UnitCode] = {
     "paquete": UnitCode.PACK,
     "paq": UnitCode.PACK,
 }
+
+
+def resolve_unit(raw: str | None) -> UnitCode:
+    """Resolve a raw unit string to canonical UnitCode, checking canonical values first."""
+    normalized = (raw or "").strip().lower()
+    try:
+        return UnitCode(normalized)
+    except ValueError:
+        pass
+    return _UNIT_ALIASES.get(normalized, UnitCode.PIECE)

@@ -40,7 +40,7 @@ class SaleDeliveryProjectionService:
         if not sale_status:
             return False
         try:
-            self.db.execute("UPDATE ventas SET estado=? WHERE id=?", (sale_status, int(venta_id)))
+            self.db.execute("UPDATE ventas SET estado=? WHERE id=?", (sale_status, str(venta_id)))
         except Exception as exc:
             # The ventas table may have a state-machine trigger (trg_protect_sale_estado)
             # that only allows transitions from 'completada'/'CANCEL_PENDING'. Delivery
@@ -62,7 +62,7 @@ class SaleDeliveryProjectionService:
     def project_total(self, venta_id: Any, total: float) -> bool:
         if not venta_id or not self._has_column("ventas", "total"):
             return False
-        self.db.execute("UPDATE ventas SET total=? WHERE id=?", (float(total), int(venta_id)))
+        self.db.execute("UPDATE ventas SET total=? WHERE id=?", (float(total), str(venta_id)))
         return True
 
     def project_scheduled_activation(self, venta_id: Any, workflow_type: str) -> bool:
@@ -79,7 +79,7 @@ class SaleDeliveryProjectionService:
             values.append("pendiente")
         if not assignments:
             return False
-        values.append(int(venta_id))
+        values.append(str(venta_id))
         self.db.execute(f"UPDATE ventas SET {', '.join(assignments)} WHERE id=?", tuple(values))
         return True
 
