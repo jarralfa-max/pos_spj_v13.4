@@ -7,8 +7,11 @@ explicit backend boundary for configuration reads and mutations.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
+
+CONFIGURATION_EVENT_SCHEMA_VERSION = 1
 
 from backend.application.dto.configuracion_dtos import (
     BranchDeliveryRowDTO,
@@ -265,6 +268,8 @@ class PermissionEventPublisher:
             "branch_id": self._branch_id_for_event(payload),
             "user_name": user_name,
             "source_module": "CONFIGURATION",
+            "occurred_at": datetime.now(timezone.utc).isoformat(),
+            "schema_version": CONFIGURATION_EVENT_SCHEMA_VERSION,
             "payload": payload,
         }
         self.published_events.append(event)
@@ -415,6 +420,7 @@ class ModuleAccessService:
         self._repository = repository
         self._events = event_publisher or PermissionEventPublisher()
         self._cache: dict[str, dict[tuple[str, str], bool]] = {}
+        self._processed_operations: set[str] = set()
 
     def save_role_permissions(
         self,
@@ -424,6 +430,10 @@ class ModuleAccessService:
         operation_id: str,
         actor: str,
     ) -> None:
+        # operation_id idempotency: a replayed command is a no-op (no second
+        # mutation, no duplicate event).
+        if operation_id in self._processed_operations:
+            return
         with ConnectionUnitOfWork(self._repository.connection) as uow:
             self._repository.save_role_permissions(role_id, permissions)
             role_name = self._repository.role_name_for_id(role_id) or ""
@@ -444,6 +454,7 @@ class ModuleAccessService:
             user_name=actor,
             payload={"role_name": role_name},
         )
+        self._processed_operations.add(operation_id)
 
     def has_permission(self, role_id: str, module: str, action: str) -> bool:
         if role_id not in self._cache:
