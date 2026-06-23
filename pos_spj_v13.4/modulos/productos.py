@@ -608,6 +608,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.tabla_productos.setColumnCount(9)
         self.tabla_productos.setHorizontalHeaderLabels(
             ["ID", "Código", "Cód.Barras", "Nombre", "Categoría", "Precio", "Stock", "Estado", "Acciones"])
+        self.tabla_productos.setColumnHidden(0, True)
         self.tabla_productos.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
         self.tabla_productos.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla_productos.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -679,7 +680,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         if row < 0:
             return None
         try:
-            pid = int(self.tabla_productos.item(row, 0).text())
+            pid = self.tabla_productos.item(row, 0).text()
             p = self.product_query_service.get_product(pid)
             if not p:
                 return None
@@ -865,7 +866,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             kpi_mode = getattr(self, "_kpi_filter_mode", "all")
             if kpi_mode in {"sin_tipo", "receta_pendiente", "sin_costo"}:
                 ids = get_catalog_filter_ids(db, kpi_mode)
-                rows = [r for r in rows if int(r['id']) in ids]
+                rows = [r for r in rows if str(r['id']) in ids]
 
             self.tabla_productos.setRowCount(0)
             from PyQt5.QtGui import QColor as _QC
@@ -1228,7 +1229,7 @@ class ModuloProductos(QWidget, RefreshMixin):
 
         item_id = tabla.item(tabla.currentRow(), 0)
         if not item_id: return
-        prod_id  = int(item_id.text()) if item_id.text().isdigit() else None
+        prod_id = item_id.text().strip()
         if not prod_id: return
 
         try:
