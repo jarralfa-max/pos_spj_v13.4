@@ -71,7 +71,7 @@ class InventoryBalanceService:
                     pid, bid, exc,
                 )
 
-        # Fallback: direct SQL (handles schemas without inventario_actual)
+        # Fallback: direct SQL (handles schemas without inventory_stock)
         raw = self._query_stock(str(pid), str(bid))
         physical = Decimal(str(raw.get("physical_stock") or 0))
         reserved = Decimal(str(raw.get("reserved_stock") or 0))
@@ -100,13 +100,13 @@ class InventoryBalanceService:
             return None
 
     def _query_stock(self, product_id: str, branch_id: str) -> dict:
-        """Direct SQL fallback — tries inventario_actual then productos.existencia."""
-        # inventario_actual is the canonical branch-aware table
+        """Direct SQL fallback — tries inventory_stock then productos.existencia."""
+        # inventory_stock is the canonical branch-aware table
         try:
             row = self.db.execute(
-                "SELECT COALESCE(cantidad, 0) AS physical_stock, 0 AS reserved_stock, "
-                "'' AS base_unit FROM inventario_actual "
-                "WHERE producto_id=? AND sucursal_id=?",
+                "SELECT COALESCE(quantity, 0) AS physical_stock, 0 AS reserved_stock, "
+                "'' AS base_unit FROM inventory_stock "
+                "WHERE product_id=? AND branch_id=?",
                 (product_id, branch_id),
             ).fetchone()
             if row:

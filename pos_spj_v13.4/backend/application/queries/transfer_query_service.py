@@ -204,17 +204,17 @@ class SQLiteTransferQueryDataSource:
         try:
             has_ia = bool(
                 self._db.execute(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventario_actual'"
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_stock'"
                 ).fetchone()
             )
             stock_expr = (
-                "COALESCE(ia.cantidad, p.existencia, 0)"
+                "COALESCE(ia.quantity, p.existencia, 0)"
                 if has_ia
                 else "COALESCE(p.existencia, 0)"
             )
             ia_join = (
-                f"LEFT JOIN inventario_actual ia "
-                f"ON ia.producto_id=p.id AND ia.sucursal_id='"+str(sucursal_id)+"'"
+                f"LEFT JOIN inventory_stock ia "
+                f"ON ia.product_id=p.id AND ia.branch_id='"+str(sucursal_id)+"'"
                 if has_ia
                 else ""
             )

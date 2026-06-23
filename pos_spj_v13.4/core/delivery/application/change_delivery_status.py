@@ -85,7 +85,7 @@ class ChangeDeliveryStatusUseCase:
             items = self.get_order_items(order_id)
             branch_id = order_before.get("sucursal_id") or 1
             for item in items:
-                pid = item.get("producto_id")
+                pid = item.get("product_id")
                 qty = float(item.get("cantidad") or 0)
                 if not pid or qty <= 0:
                     continue

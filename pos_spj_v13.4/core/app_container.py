@@ -57,7 +57,7 @@ class AppContainer:
 
         # sucursal_id dinámico — proxy al SessionContext (compat con módulos existentes)
         self.sucursal_id: int = 1
-        self.sucursal_nombre: str = "Principal"
+        self.sucursal_nombre: str = ""
         logger.info("Inicializando AppContainer...")
 
         # 0. CONEXIÓN A BASE DE DATOS
@@ -1033,7 +1033,7 @@ class AppContainer:
         if hasattr(self, 'session'):
             self.session.clear()
         self.sucursal_id = 1
-        self.sucursal_nombre = "Principal"
+        self.sucursal_nombre = ""
 
     def close(self):
         """Cierra la base de datos limpiamente al apagar el ERP."""

@@ -1,6 +1,7 @@
 
 # core/services/inventory/unified_inventory_service.py — SPJ POS v7
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging, uuid
 from typing import List
 from core.db.connection import get_connection, transaction
@@ -78,8 +79,8 @@ class UnifiedInventoryService:
         sid = sucursal_id or self.sucursal_id
         try:
             ia_row = self.conn.execute(
-                "SELECT COALESCE(cantidad, 0) FROM inventario_actual "
-                "WHERE producto_id=? AND sucursal_id=?",
+                "SELECT COALESCE(quantity, 0) FROM inventory_stock "
+                "WHERE product_id=? AND branch_id=?",
                 (producto_id, sid),
             ).fetchone()
             if ia_row is not None:
@@ -92,7 +93,7 @@ class UnifiedInventoryService:
         return float(r[0]) if r else 0.0
 
     def get_stock_sucursal(self, producto_id, branch_id=None):
-        """Retorna stock del producto para la sucursal, priorizando inventario_actual."""
+        """Retorna stock del producto para la sucursal, priorizando inventory_stock."""
         sid = branch_id or self.sucursal_id
         return self.get_stock(producto_id, sucursal_id=sid)
 
@@ -127,15 +128,15 @@ class UnifiedInventoryService:
                 (uuid,producto_id,tipo,tipo_movimiento,cantidad,existencia_anterior,existencia_nueva,
                  costo_unitario,costo_total,descripcion,referencia,usuario,sucursal_id,fecha)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))""",(
-                str(uuid.uuid4()),producto_id,tipo_mapa[movement_type],movement_type,quantity,
+                new_uuid(),producto_id,tipo_mapa[movement_type],movement_type,quantity,
                 stock_ant,stock_nuevo,cost_unit,cost_unit*quantity,
                 notas or movement_type,reference,self.usuario,sid)).lastrowid
             c.execute("UPDATE productos SET existencia=? WHERE id=?",(stock_nuevo,producto_id))
-            # Sync inventario_actual con costo promedio ponderado
+            # Sync inventory_stock con costo promedio ponderado
             if cost_unit > 0 and delta > 0:
                 _cr = c.execute(
-                    "SELECT COALESCE(costo_promedio,0) FROM inventario_actual "
-                    "WHERE producto_id=? AND sucursal_id=?", (producto_id, sid)
+                    "SELECT COALESCE(costo_promedio,0) FROM inventory_stock "
+                    "WHERE product_id=? AND branch_id=?", (producto_id, sid)
                 ).fetchone()
                 _ca = float(_cr[0]) if _cr else 0.0
                 _cn = round((stock_ant * _ca + quantity * cost_unit) / stock_nuevo, 4) if stock_nuevo > 0 else cost_unit
@@ -144,7 +145,7 @@ class UnifiedInventoryService:
 
             if _cn is not None:
                 c.execute("""
-                    INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad, costo_promedio)
+                    INSERT INTO inventory_stock (product_id, branch_id, quantity, costo_promedio)
                     VALUES (?,?,?,?)
                     ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
                         cantidad=excluded.cantidad,
@@ -153,7 +154,7 @@ class UnifiedInventoryService:
                 """, (producto_id, sid, stock_nuevo, _cn))
             else:
                 c.execute("""
-                    INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad, costo_promedio)
+                    INSERT INTO inventory_stock (product_id, branch_id, quantity, costo_promedio)
                     VALUES (?,?,?,0)
                     ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
                         cantidad=excluded.cantidad,
@@ -209,7 +210,7 @@ class UnifiedInventoryService:
                     (uuid,producto_id,tipo,tipo_movimiento,cantidad,existencia_anterior,existencia_nueva,
                      descripcion,referencia,usuario,sucursal_id,fecha)
                     VALUES(?,?,'AJUSTE','adjustment',?,?,?,?,?,?,?,datetime('now'))""",
-                    (str(_uuid.uuid4()), producto_id, abs(diff),
+                    (str(_new_uuid()), producto_id, abs(diff),
                      current, stock_nuevo,
                      reason or "Ajuste", reason, self.usuario, sucursal_id or self.sucursal_id))
                 c.execute("UPDATE productos SET existencia=? WHERE id=?", (stock_nuevo, producto_id))
@@ -263,11 +264,11 @@ class UnifiedInventoryService:
                 raise InventoryError(f"Producto {product_id} no existe")
             nombre = prod_row[0]
 
-            # Read branch-specific stock from inventario_actual (canonical).
+            # Read branch-specific stock from inventory_stock (canonical).
             # Fall back to productos.existencia only when no branch row exists yet.
             ia_row = c.execute(
-                "SELECT COALESCE(cantidad, 0) FROM inventario_actual "
-                "WHERE producto_id=? AND sucursal_id=?",
+                "SELECT COALESCE(quantity, 0) FROM inventory_stock "
+                "WHERE product_id=? AND branch_id=?",
                 (product_id, sucursal_id),
             ).fetchone()
             if ia_row is not None:
@@ -291,7 +292,7 @@ class UnifiedInventoryService:
                      descripcion, referencia, usuario, sucursal_id, fecha)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
             """, (
-                str(uuid.uuid4()), product_id, tipo_col, movement_type, qty_abs,
+                new_uuid(), product_id, tipo_col, movement_type, qty_abs,
                 stock_ant, stock_nuevo,
                 metadata.get("notas") or movement_type,
                 str(ref) if ref else None,
@@ -302,8 +303,8 @@ class UnifiedInventoryService:
             if _unit_cost > 0 and delta > 0:
                 # Costo promedio ponderado: (stock_ant*costo_ant + qty*costo_nuevo) / stock_nuevo
                 _costo_row = c.execute(
-                    "SELECT COALESCE(costo_promedio, 0) FROM inventario_actual "
-                    "WHERE producto_id=? AND sucursal_id=?", (product_id, sucursal_id)
+                    "SELECT COALESCE(costo_promedio, 0) FROM inventory_stock "
+                    "WHERE product_id=? AND branch_id=?", (product_id, sucursal_id)
                 ).fetchone()
                 _costo_ant = float(_costo_row[0]) if _costo_row else 0.0
                 if stock_nuevo > 0:
@@ -317,7 +318,7 @@ class UnifiedInventoryService:
 
             if _costo_nuevo is not None:
                 c.execute("""
-                    INSERT INTO inventario_actual
+                    INSERT INTO inventory_stock
                         (producto_id, sucursal_id, cantidad, costo_promedio)
                     VALUES (?,?,?,?)
                     ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
@@ -327,7 +328,7 @@ class UnifiedInventoryService:
                 """, (product_id, sucursal_id, stock_nuevo, _costo_nuevo))
             else:
                 c.execute("""
-                    INSERT INTO inventario_actual
+                    INSERT INTO inventory_stock
                         (producto_id, sucursal_id, cantidad, costo_promedio)
                     VALUES (?,?,?,0)
                     ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET
@@ -339,7 +340,7 @@ class UnifiedInventoryService:
             # ── Sync inventory_stock (canonical table read by InventoryQueryService) ──
             # This keeps the canonical read model in sync with the legacy write path.
             # Without this, the Inventario module shows stale/zero values after
-            # production movements that only write to inventario_actual.
+            # production movements that only write to inventory_stock.
             try:
                 unit_row = c.execute(
                     "SELECT COALESCE(unidad,'kg') FROM productos WHERE id=?",

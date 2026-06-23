@@ -20,6 +20,7 @@ como `data/spj.db` o `spj_pos_database.db` fuera de `/data`.
 """
 
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import sqlite3
 import threading
 import time
@@ -280,7 +281,7 @@ def transaction(conn):
     import uuid
 
     raw_conn = unwrap(conn)
-    sp = f"sp_{uuid.uuid4().hex[:8]}"
+    sp = f"sp_{new_uuid().replace('-', '')[:8]}"
     lock = _get_conn_lock(raw_conn)
 
     with lock:

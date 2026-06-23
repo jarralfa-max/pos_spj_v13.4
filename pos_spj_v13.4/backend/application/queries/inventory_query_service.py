@@ -48,12 +48,12 @@ class InventoryQueryService:
         """
         Return product stock rows for UI tables.
 
-        Reads from inventario_actual (written by UnifiedInventoryService/production)
+        Reads from inventory_stock (written by UnifiedInventoryService/production)
         and inventory_stock (written by InventoryApplicationService/purchases). Both
         tables store branch-specific stock — neither leaks global values. productos.existencia
         is intentionally excluded (it is a global sum and must NOT be used as stock source).
         """
-        has_inv_actual = _tbl_exists(self._connection, "inventario_actual")
+        has_inv_actual = _tbl_exists(self._connection, "inventory_stock")
         has_inv_stock = _tbl_exists(self._connection, "inventory_stock")
 
         if has_inv_actual and has_inv_stock:
@@ -63,12 +63,12 @@ class InventoryQueryService:
                     SELECT p.id,
                            p.nombre,
                            COALESCE(p.categoria, ''),
-                           COALESCE(ia.cantidad, s.quantity, 0) AS qty,
+                           COALESCE(ia.quantity, s.quantity, 0) AS qty,
                            COALESCE(p.stock_minimo, 0),
                            COALESCE(p.unidad, 'kg')
                     FROM productos p
-                    LEFT JOIN inventario_actual ia
-                        ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                    LEFT JOIN inventory_stock ia
+                        ON ia.product_id = p.id AND ia.branch_id = ?
                     LEFT JOIN inventory_stock s
                         ON s.product_id = p.id AND s.branch_id = ?
                     WHERE COALESCE(p.activo, 1) = 1
@@ -85,11 +85,11 @@ class InventoryQueryService:
                 return self._connection.execute(
                     """
                     SELECT p.id, p.nombre, COALESCE(p.categoria, ''),
-                           COALESCE(ia.cantidad, 0), COALESCE(p.stock_minimo, 0),
+                           COALESCE(ia.quantity, 0), COALESCE(p.stock_minimo, 0),
                            COALESCE(p.unidad, 'kg')
                     FROM productos p
-                    LEFT JOIN inventario_actual ia
-                        ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                    LEFT JOIN inventory_stock ia
+                        ON ia.product_id = p.id AND ia.branch_id = ?
                     WHERE COALESCE(p.activo, 1) = 1
                     ORDER BY p.nombre
                     """,
@@ -118,7 +118,7 @@ class InventoryQueryService:
             return []
 
     def list_availability_rows(self, branch_id: str) -> list[dict]:
-        """Return physical and sale availability from inventario_actual (canonical)."""
+        """Return physical and sale availability from inventory_stock (canonical)."""
         has_reservas = _tbl_exists(self._connection, "stock_reserva_detalles")
         res_join = (
             """LEFT JOIN (
@@ -139,11 +139,11 @@ class InventoryQueryService:
                 f"""
                 SELECT p.id,
                        p.nombre,
-                       COALESCE(ia.cantidad, 0) AS physical_stock,
+                       COALESCE(ia.quantity, 0) AS physical_stock,
                        {'COALESCE(res.reserved_qty, 0)' if has_reservas else '0'} AS reserved_qty
                 FROM productos p
-                LEFT JOIN inventario_actual ia
-                    ON ia.producto_id = p.id AND ia.sucursal_id = ?
+                LEFT JOIN inventory_stock ia
+                    ON ia.product_id = p.id AND ia.branch_id = ?
                 {res_join}
                 WHERE COALESCE(p.activo, 1) = 1
                 ORDER BY p.nombre

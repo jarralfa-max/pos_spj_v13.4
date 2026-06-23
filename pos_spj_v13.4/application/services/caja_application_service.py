@@ -5,6 +5,7 @@ CajaApplicationService — Fuente única de verdad para operaciones de caja.
 Ruta canónica: UI → CajaApplicationService → DB
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -401,11 +402,11 @@ class CajaApplicationService:
         esperado = round(fondo + ventas_efectivo + ingresos - retiros, 2)
         diferencia = round(efectivo_fisico - esperado, 2)
 
-        cierre_uuid = str(uuid.uuid4())
+        cierre_uuid = new_uuid()
         fecha_cierre = datetime.now().isoformat()
 
         # 7. Transacción atómica
-        sp = f"sp_corte_{uuid.uuid4().hex[:6]}"
+        sp = f"sp_corte_{new_uuid().replace('-', '')[:6]}"
         try:
             self.db.execute(f"SAVEPOINT {sp}")
 

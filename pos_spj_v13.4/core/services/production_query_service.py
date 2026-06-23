@@ -308,7 +308,7 @@ def get_stock(db, product_id: int, sucursal_id: int) -> float:
     Return current stock for a product at a branch.
 
     Delegates to InventoryBalanceQueryService — the canonical single source of
-    truth that reads from inventario_actual (with fallback to productos.existencia).
+    truth that reads from inventory_stock (with fallback to productos.existencia).
     This ensures Producción and Inventario always see the same value.
     """
     try:
@@ -323,7 +323,7 @@ def get_stock(db, product_id: int, sucursal_id: int) -> float:
 
     # Legacy fallback (should never be reached in normal operation)
     row = _fetchone(db,
-        "SELECT COALESCE(cantidad, 0) FROM inventario_actual WHERE producto_id=? AND sucursal_id=?",
+        "SELECT COALESCE(quantity, 0) FROM inventory_stock WHERE product_id=? AND branch_id=?",
         (product_id, sucursal_id))
     if row is not None:
         return float(row[0] if not isinstance(row, dict) else row.get("COALESCE(cantidad, 0)", 0) or 0)

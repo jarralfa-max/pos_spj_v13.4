@@ -10,7 +10,7 @@ Registered by wiring.py:
 
 FASE 6: ProductionFinanceHandler now accepts db= and uses ProductionCostService to
   1. read actual cost data from production_cost_ledger (not the sparse event payload)
-  2. update costo_promedio in productos + inventario_actual for each output product
+  2. update costo_promedio in productos + inventory_stock for each output product
   3. post accurate double-entry GL journal entries
 """
 from __future__ import annotations

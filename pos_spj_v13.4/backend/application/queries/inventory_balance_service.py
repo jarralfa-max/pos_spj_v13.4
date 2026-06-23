@@ -2,7 +2,7 @@
 InventoryBalanceQueryService — canonical single source of truth for product stock.
 
 Both Producción Cárnica and Inventario modules MUST read through this service.
-It reads from inventario_actual (the table all writers update) and enriches
+It reads from inventory_stock (the table all writers update) and enriches
 the result with reservation data when available.
 
 Usage:
@@ -54,15 +54,15 @@ class InventoryBalanceQueryService:
     """
     Single canonical read path for product inventory balances.
 
-    Primary source: inventario_actual (branch-aware, updated by ALL writers).
-    Fallback:       productos.existencia  (global, only when inventario_actual missing).
+    Primary source: inventory_stock (branch-aware, updated by ALL writers).
+    Fallback:       productos.existencia  (global, only when inventory_stock missing).
 
     Returns Decimal values to avoid float rounding drift.
     """
 
     def __init__(self, conn) -> None:
         self._db = conn
-        self._has_inv_actual = _tbl_exists(conn, "inventario_actual")
+        self._has_inv_actual = _tbl_exists(conn, "inventory_stock")
         self._has_reservas = _tbl_exists(conn, "stock_reservas")
 
     # ── Public API ─────────────────────────────────────────────────────────────
@@ -79,12 +79,12 @@ class InventoryBalanceQueryService:
             producto_id      int
             sucursal_id      int
             unidad_base      str
-            stock_fisico     Decimal  — physical stock in inventario_actual
+            stock_fisico     Decimal  — physical stock in inventory_stock
             stock_reservado  Decimal  — committed to active reservas
             stock_comprometido Decimal — (currently = reservado; extend for pedidos)
             stock_transito   Decimal  — (reserved for future: transfers in transit)
             stock_disponible Decimal  — stock_fisico - stock_reservado
-            fuente           str      — "inventario_actual" | "productos.existencia"
+            fuente           str      — "inventory_stock" | "productos.existencia"
         """
         producto_id = int(producto_id)
         sucursal_id = str(sucursal_id)
@@ -94,13 +94,13 @@ class InventoryBalanceQueryService:
 
         if self._has_inv_actual:
             row = self._db.execute(
-                "SELECT COALESCE(cantidad, 0) FROM inventario_actual "
-                "WHERE producto_id=? AND sucursal_id=?",
+                "SELECT COALESCE(quantity, 0) FROM inventory_stock "
+                "WHERE product_id=? AND branch_id=?",
                 (producto_id, sucursal_id),
             ).fetchone()
             if row is not None:
                 stock_fisico = _dec(row[0])
-                fuente = "inventario_actual"
+                fuente = "inventory_stock"
             else:
                 # No branch row yet — fall back to productos.existencia (global)
                 row2 = self._db.execute(
@@ -178,16 +178,16 @@ class InventoryBalanceQueryService:
         if self._has_inv_actual:
             rows = self._db.execute(
                 """
-                SELECT ia.producto_id,
+                SELECT ia.product_id,
                        p.nombre,
                        '' AS categoria,
-                       COALESCE(ia.cantidad, 0)      AS stock_fisico,
+                       COALESCE(ia.quantity, 0)      AS stock_fisico,
                        COALESCE(p.stock_minimo, 0)   AS stock_minimo,
                        COALESCE(ia.costo_promedio, 0) AS costo_promedio,
                        COALESCE(p.unidad, 'kg')       AS unidad_base
-                FROM inventario_actual ia
-                JOIN productos p ON p.id = ia.producto_id
-                WHERE ia.sucursal_id = ?
+                FROM inventory_stock ia
+                JOIN productos p ON p.id = ia.product_id
+                WHERE ia.branch_id = ?
                   AND COALESCE(p.activo, 1) = 1
                 ORDER BY p.nombre
                 """,
@@ -206,7 +206,7 @@ class InventoryBalanceQueryService:
                     "unidad_base":    str(r[6] or "kg"),
                     "stock_reservado":  _ZERO,
                     "stock_disponible": fisico,
-                    "fuente":         "inventario_actual",
+                    "fuente":         "inventory_stock",
                 })
         else:
             rows = self._db.execute(
@@ -237,7 +237,7 @@ class InventoryBalanceQueryService:
 
     def get_reconciliation_report(self, sucursal_id: int) -> list[dict[str, Any]]:
         """
-        Compare materialised stock in inventario_actual vs reconstructed from
+        Compare materialised stock in inventory_stock vs reconstructed from
         movimientos_inventario.  Returns rows where difference != 0.
 
         Columns: producto_id, nombre, unidad, saldo_materializado,
@@ -247,7 +247,7 @@ class InventoryBalanceQueryService:
         rows: list[dict[str, Any]] = []
 
         if not self._has_inv_actual:
-            logger.warning("get_reconciliation_report: inventario_actual table missing")
+            logger.warning("get_reconciliation_report: inventory_stock table missing")
             return rows
 
         has_movimientos = _tbl_exists(self._db, "movimientos_inventario")
@@ -258,13 +258,13 @@ class InventoryBalanceQueryService:
         try:
             result = self._db.execute(
                 """
-                SELECT ia.producto_id,
+                SELECT ia.product_id,
                        p.nombre,
                        COALESCE(p.unidad,'kg')       AS unidad,
-                       COALESCE(ia.cantidad, 0)       AS saldo_mat,
+                       COALESCE(ia.quantity, 0)       AS saldo_mat,
                        COALESCE(saldo.saldo_mov, 0)   AS saldo_mov
-                FROM inventario_actual ia
-                JOIN productos p ON p.id = ia.producto_id
+                FROM inventory_stock ia
+                JOIN productos p ON p.id = ia.product_id
                 LEFT JOIN (
                     SELECT producto_id,
                            SUM(CASE
@@ -275,9 +275,9 @@ class InventoryBalanceQueryService:
                     FROM movimientos_inventario
                     WHERE sucursal_id = ?
                     GROUP BY producto_id
-                ) saldo ON saldo.producto_id = ia.producto_id
-                WHERE ia.sucursal_id = ?
-                ORDER BY ABS(COALESCE(ia.cantidad,0) - COALESCE(saldo.saldo_mov,0)) DESC
+                ) saldo ON saldo.producto_id = ia.product_id
+                WHERE ia.branch_id = ?
+                ORDER BY ABS(COALESCE(ia.quantity,0) - COALESCE(saldo.saldo_mov,0)) DESC
                 """,
                 (sucursal_id, sucursal_id),
             ).fetchall()

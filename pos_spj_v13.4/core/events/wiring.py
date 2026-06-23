@@ -500,7 +500,7 @@ def _wire_inventario(bus, container) -> None:
     def _on_stock_bajo(data: dict) -> None:
         logger.warning(
             "Stock bajo: producto=%s sucursal=%s stock=%.3f minimo=%.3f",
-            data.get("producto_id"),
+            data.get("product_id"),
             data.get("sucursal_id"),
             data.get("stock_actual", 0),
             data.get("stock_minimo", 0),
@@ -704,7 +704,7 @@ def _wire_precio_margen(bus, container) -> None:
                 "(accion,modulo,entidad,entidad_id,usuario,sucursal_id,detalles,fecha)"
                 " VALUES('PRECIO_BAJO_MARGEN','VENTAS','productos',?,?,?,?,datetime('now'))",
                 (
-                    data.get("producto_id"),
+                    data.get("product_id"),
                     data.get("usuario", "cajero"),
                     data.get("sucursal_id", 1),
                     (f"Precio=${float(data.get('precio_venta',0)):.2f} "
@@ -834,7 +834,7 @@ def _wire_wa_events(bus, container) -> None:
             fs = getattr(container, "actionable_forecast", None)
             if fs and hasattr(fs, "registrar_demanda_wa"):
                 fs.registrar_demanda_wa(
-                    producto_id=data.get("producto_id"),
+                    producto_id=data.get("product_id"),
                     cantidad=data.get("demanda_est", 0),
                     periodo=data.get("periodo", ""),
                 )
@@ -869,15 +869,15 @@ def _wire_merma_financiero(bus, container) -> None:
             fs.registrar_asiento(
                 debe="mermas_y_deterioro",
                 haber="inventario_almacen",
-                concepto=f"Merma: {data.get('motivo', 'N/A')} — producto {data.get('producto_id', '')}",
+                concepto=f"Merma: {data.get('motivo', 'N/A')} — producto {data.get('product_id', '')}",
                 monto=abs(valor),
                 modulo="merma",
-                referencia_id=data.get("merma_id") or data.get("producto_id"),
+                referencia_id=data.get("merma_id") or data.get("product_id"),
                 usuario_id=data.get("usuario_id"),
                 sucursal_id=data.get("sucursal_id", 1),
                 evento="MERMA_REGISTRADA",
                 metadata={
-                    "producto_id": data.get("producto_id"),
+                    "product_id": data.get("product_id"),
                     "cantidad": data.get("cantidad"),
                     "motivo": data.get("motivo"),
                 },
@@ -908,7 +908,7 @@ def _wire_merma_inventario(bus, container) -> None:
             if cantidad <= 0:
                 return
             inv.ajustar_merma(
-                producto_id=data.get("producto_id"),
+                producto_id=data.get("product_id"),
                 cantidad=cantidad,
                 branch_id=data.get("sucursal_id", 1),
                 referencia_id=str(data.get("merma_id", "MERMA")),

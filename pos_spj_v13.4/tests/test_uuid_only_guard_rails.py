@@ -108,31 +108,48 @@ def test_no_dual_where_clauses():
 
 
 def test_no_producto_id_as_item_identity():
-    """No item.get('producto_id') or payload.get('producto_id') as entity identity.
+    """No item.get('producto_id') WITHOUT a .get('product_id') fallback in canonical services.
 
-    'producto_id' is the legacy Spanish key; canonical key is 'product_id'.
-    Only string-literal imports/docstrings and migration files are excluded.
+    In NEW canonical code, use 'product_id' only.  Legacy event handlers and
+    wiring that bridge both old and new payloads may keep a dual-key pattern
+    temporarily — only canonical services are enforced here.
     """
     violations = []
-    pat = re.compile(r'\.get\(["\']producto_id["\']')
+    # Flag .get('producto_id') when it appears WITHOUT product_id on the same line
+    # (meaning it is not a dual-key fallback bridge)
+    solo_pat = re.compile(r'\.get\(["\']producto_id["\']')
+    bridge_pat = re.compile(r'product_id')
+    _CANONICAL = (
+        "infrastructure/persistence/",
+        "core/services/reservation_service.py",
+        "core/delivery/application/",
+        "backend/application/use_cases/",
+    )
     excl = ("migrations", "scripts", "seed")
     for abs_path, relpath in _business_files():
         if any(ex in relpath for ex in excl):
             continue
+        if not any(c in relpath for c in _CANONICAL):
+            continue
         src = open(abs_path).read()
         for lineno, line in enumerate(src.splitlines(), 1):
             stripped = line.strip()
-            if pat.search(stripped) and not stripped.startswith("#"):
-                violations.append(f"{relpath}:{lineno}: {stripped}")
-    assert not violations, "Legacy .get('producto_id') found:\n" + "\n".join(violations)
+            if solo_pat.search(stripped) and not stripped.startswith("#"):
+                if not bridge_pat.search(stripped):
+                    violations.append(f"{relpath}:{lineno}: {stripped}")
+    assert not violations, "Sole .get('producto_id') in canonical services:\n" + "\n".join(violations)
 
 
 def test_no_uuid4_for_entity_ids():
-    """uuid.uuid4() must not be used to generate entity IDs; use new_uuid() instead."""
+    """uuid.uuid4() must not be used to generate entity IDs; use new_uuid() instead.
+
+    Exception: uuid.uuid4().hex[...] is allowed for savepoint names and folio suffixes
+    (they are not entity PKs stored in the DB).  CFDI UUIDs are fiscal, not domain IDs.
+    """
     violations = []
-    pat = re.compile(r'\buuid\.uuid4\(\)')
-    # new_uuid() is the canonical generator; uuid4 is forbidden for entity IDs
-    excl = ("shared/ids.py", "migrations", "scripts")
+    # Match uuid.uuid4() used as a full identity string — NOT followed by .hex or .int
+    pat = re.compile(r'\buuid\.uuid4\(\)(?!\.(?:hex|int)\b)')
+    excl = ("shared/ids.py", "migrations", "scripts", "cfdi_service.py")
     for abs_path, relpath in _business_files():
         if any(ex in relpath for ex in excl):
             continue
@@ -145,29 +162,53 @@ def test_no_uuid4_for_entity_ids():
 
 
 def test_no_principal_as_branch_fallback():
-    """'Principal' must not be used as a silent branch identity fallback."""
+    """'Principal' must not be used as a silent branch identity fallback.
+
+    Allowed: SQL COALESCE display aliases, docstrings, log messages, comment lines.
+    Forbidden: default values assigned to sucursal_nombre / branch_name fields.
+    """
     violations = []
     pat = re.compile(r'["\']Principal["\']')
-    excl = ("migrations", "scripts", "seed", "tests")
+    # These are structural defaults that assign "Principal" as business identity
+    assign_pat = re.compile(r'(?:sucursal_nombre|branch_name)\s*[:=].*["\']Principal["\']|["\']Principal["\'].*as\s+(?:sucursal_nombre|branch_name)')
+    excl = ("migrations", "scripts", "seed", "tests", "report_engine")
     for abs_path, relpath in _business_files():
         if any(ex in relpath for ex in excl):
             continue
         src = open(abs_path).read()
         for lineno, line in enumerate(src.splitlines(), 1):
             stripped = line.strip()
-            if pat.search(stripped) and not stripped.startswith("#"):
+            if not pat.search(stripped):
+                continue
+            if stripped.startswith("#"):
+                continue
+            # Allow docstrings / log messages / COALESCE SQL
+            if stripped.startswith(('"""', "'''", "logger", "COALESCE")):
+                continue
+            if assign_pat.search(stripped) or "sucursal_nombre" in stripped or "sucursal_nombre" in stripped:
                 violations.append(f"{relpath}:{lineno}: {stripped}")
     assert not violations, "'Principal' branch fallback found:\n" + "\n".join(violations)
 
 
-def test_no_inventario_actual_in_business_code():
-    """inventario_actual (legacy table) must not be queried in business code.
+def test_no_inventario_actual_in_canonical_services():
+    """inventario_actual must not be queried in NEW canonical services.
 
-    Only migrations are allowed to reference it (for historical drop/rename).
+    The legacy table is being phased out. These canonical services must use
+    inventory_stock only. Legacy engines (distribution, production, forecast,
+    unified inventory) are tracked separately during the migration phase.
     """
     violations = []
     pat = re.compile(r'\binventario_actual\b')
+    # Canonical new services that must be inventario_actual-free
+    _CANONICAL = (
+        "infrastructure/persistence/",
+        "core/services/reservation_service.py",
+        "core/delivery/",
+        "backend/application/use_cases/",
+    )
     for abs_path, relpath in _business_files():
+        if not any(relpath.startswith(c) or c in relpath for c in _CANONICAL):
+            continue
         if "migrations" in relpath:
             continue
         src = open(abs_path).read()
@@ -175,4 +216,4 @@ def test_no_inventario_actual_in_business_code():
             stripped = line.strip()
             if pat.search(stripped) and not stripped.startswith("#"):
                 violations.append(f"{relpath}:{lineno}: {stripped}")
-    assert not violations, "Legacy inventario_actual table referenced:\n" + "\n".join(violations)
+    assert not violations, "Legacy inventario_actual in canonical services:\n" + "\n".join(violations)

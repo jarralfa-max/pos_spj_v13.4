@@ -486,7 +486,7 @@ class ReportEngine:
         rows = self.db.fetchall("""
             SELECT
                 DATE(v.fecha)                          AS fecha,
-                COALESCE(s.nombre, 'Principal')        AS sucursal_nombre,
+                COALESCE(s.nombre, '')        AS sucursal_nombre,
                 COUNT(DISTINCT v.id)                   AS tickets,
                 COALESCE(SUM(v.total),0)               AS ingresos,
                 COALESCE(SUM(dv.costo_unitario*dv.cantidad),0) AS costo,

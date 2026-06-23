@@ -347,7 +347,7 @@ class DeliveryService:
         # the JOIN returned no product row. Look up by item name in productos so the
         # product's configured unit replaces whatever legacy default is in unidad.
         for item in items:
-            if item.get("producto_id"):
+            if item.get("product_id"):
                 continue
             nombre = (item.get("nombre") or "").strip()
             if not nombre:

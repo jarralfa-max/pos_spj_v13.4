@@ -15,6 +15,7 @@ Centraliza lógica que antes estaba dispersa entre:
 from __future__ import annotations
 
 import logging
+from backend.shared.ids import new_uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
@@ -216,7 +217,7 @@ def _generar_numero_pedido(db) -> str:
         return f"PED-{hoy}-{n:04d}"
     except Exception:
         import uuid
-        return f"PED-{uuid.uuid4().hex[:8].upper()}"
+        return f"PED-{new_uuid().replace('-', '')[:8].upper()}"
 
 
 def _get_bus():

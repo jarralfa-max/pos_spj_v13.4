@@ -635,7 +635,7 @@ class PurchaseSuggestionHandler:
         self.db = db
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        product_id       = payload.get("product_id") or payload.get("producto_id")
+        product_id       = payload.get("product_id")
         cantidad_sug     = float(payload.get("cantidad_sugerida") or 0)
         motivo           = str(payload.get("motivo") or "stock_bajo")
         branch_id        = str(payload.get("branch_id") or payload.get("sucursal_id") or "")

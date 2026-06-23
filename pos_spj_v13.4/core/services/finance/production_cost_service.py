@@ -3,7 +3,7 @@
 ProductionCostService — reads production_cost_ledger after a batch closes and:
   1. Returns a ProductionCostSummary (raw_material_cost, finished_goods_cost,
      waste_cost, per-product breakdowns) for use by ProductionFinanceHandler.
-  2. Updates costo_promedio in `productos` and `inventario_actual` for each
+  2. Updates costo_promedio in `productos` and `inventory_stock` for each
      non-waste output product using the cost_per_kg computed by CostAllocator.
 
 This service is read/write but never called inside a SAVEPOINT — it runs from
@@ -145,7 +145,7 @@ class ProductionCostService:
 
         Updates two tables:
           productos.costo              — canonical unit cost column
-          inventario_actual.costo_promedio — per-branch average cost cache
+          inventory_stock.costo_promedio — per-branch average cost cache
 
         Skips waste products (their cost is expensed, not inventoried).
         Returns the number of products updated.
@@ -176,8 +176,8 @@ class ProductionCostService:
                 (cost_per_kg, product_id),
             )
             self._db.execute(
-                "UPDATE inventario_actual SET costo_promedio = ? "
-                "WHERE producto_id = ?",
+                "UPDATE inventory_stock SET costo_promedio = ? "
+                "WHERE product_id = ?",
                 (cost_per_kg, product_id),
             )
             updated += 1
@@ -237,7 +237,7 @@ class ProductionCostService:
         waste_cost = 0.0 if waste_mode == "absorb" else round(raw_cost * (waste_qty / total_basis), 4)
         finished_pool = round(raw_cost - waste_cost, 4)
 
-        factor_map = {str(c.get("product_id") or c.get("producto_id") or c.get("component_product_id") or ""): float(c.get("factor_costo") or 1.0) for c in componentes_db}
+        factor_map = {str(c.get("product_id") or c.get("component_product_id") or ""): float(c.get("factor_costo") or 1.0) for c in componentes_db}
         basis = []
         for o in outputs:
             pid = int(o["product_id"]); q = float(o["delta"]); factor = factor_map.get(pid, 1.0)
@@ -252,8 +252,8 @@ class ProductionCostService:
                          (str(produccion_id), f"P{produccion_id}_{pid}", pid, q, 100.0, alloc, cpk))
             conn.execute("UPDATE productos SET precio_compra=? WHERE id=?", (cpk, pid))
             conn.execute("UPDATE productos SET costo=? WHERE id=?", (cpk, pid))
-            conn.execute("INSERT OR IGNORE INTO inventario_actual(producto_id,sucursal_id,cantidad,costo_promedio) VALUES (?,?,0,?)", (pid, sucursal_id, cpk))
-            conn.execute("UPDATE inventario_actual SET costo_promedio=? WHERE producto_id=? AND sucursal_id=?", (cpk, pid, sucursal_id))
+            conn.execute("INSERT OR IGNORE INTO inventory_stock(product_id,branch_id,quantity,costo_promedio) VALUES (?,?,0,?)", (pid, sucursal_id, cpk))
+            conn.execute("UPDATE inventory_stock SET costo_promedio=? WHERE product_id=? AND branch_id=?", (cpk, pid, sucursal_id))
         if waste_cost > 0 and waste_qty > 0:
             conn.execute(
                 "INSERT INTO production_cost_ledger(batch_id, output_id, product_id, weight, pct_utilizable, cost_total, cost_per_kg, is_waste) VALUES (?,?,?,?,?,?,?,1)",

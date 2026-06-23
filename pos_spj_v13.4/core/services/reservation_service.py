@@ -198,7 +198,7 @@ class ReservationService:
     def get_available_stock(self, db, product_id: str, branch_id: str) -> float:
         """Physical stock minus active reservations.
 
-        Reads from inventory_stock (canonical) — never from inventario_actual.
+        Reads from inventory_stock (canonical) — never from the legacy integer-keyed table.
         """
         pid = _require_uuid(product_id, "product_id")
         bid = _require_uuid(branch_id, "branch_id")

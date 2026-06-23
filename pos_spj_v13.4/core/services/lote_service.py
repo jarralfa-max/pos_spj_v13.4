@@ -6,6 +6,7 @@ FIFO automatico: las ventas descargan primero el lote mas antiguo.
 Alertas: lotes a punto de caducar o ya caducados.
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 import logging, uuid
 from datetime import date, datetime, timedelta
 from core.db.connection import get_connection, transaction
@@ -71,7 +72,7 @@ class LoteService:
                  peso_actual_kg,costo_kg,fecha_caducidad,sucursal_id,
                  temperatura_c,observaciones)
                 VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                (str(uuid.uuid4()), producto_id, numero_lote, proveedor_id,
+                (new_uuid(), producto_id, numero_lote, proveedor_id,
                  peso_kg, peso_kg, costo_kg, fecha_caducidad,
                  self.sucursal_id, temperatura, observaciones)).lastrowid
             c.execute("""INSERT INTO movimientos_lote

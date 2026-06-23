@@ -954,7 +954,7 @@ class LoyaltyService:
             if allowed_products or allowed_categories:
                 ok_item = False
                 for it in items:
-                    pid = int((it.get("product_id") or it.get("producto_id") or it.get("id") or 0) or 0)
+                    pid = int((it.get("product_id") or it.get("id") or 0) or 0)
                     cid = int((it.get("category_id") or it.get("categoria_id") or 0) or 0)
                     if (allowed_products and pid in allowed_products) or (allowed_categories and cid in allowed_categories):
                         ok_item = True
