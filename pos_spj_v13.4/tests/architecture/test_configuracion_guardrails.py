@@ -49,7 +49,7 @@ SERVICE_AND_PERSISTENCE_FILES = [
     "core/services/config_service.py",
     "core/module_config.py",
     "repositories/config_repository.py",
-    "repositories/settings_repository.py",
+    # repositories/settings_repository.py deleted in FASE 5 (dead dual-write legacy).
     "core/repositories/hardware_config_repository.py",
     "backend/application/commands/settings_commands.py",
     "backend/application/queries/hardware_settings_query_service.py",
@@ -144,13 +144,6 @@ BASELINE: dict[str, dict[str, int]] = {
         "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) pre-103 fallback
         "legacy_lower": 1,    # comment accepting legacy integer ids
         "principal_fallback": 1,
-    },
-    "repositories/settings_repository.py": {
-        "sql_select": 1,
-        "sql_insert": 1,
-        "sql_update": 3,
-        "cursor_execute": 4,
-        "system_settings": 5,
     },
     "core/repositories/hardware_config_repository.py": {
         "sql_select": 3,
