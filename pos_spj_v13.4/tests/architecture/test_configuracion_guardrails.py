@@ -97,9 +97,9 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # ---------------------------------------------------------------------------
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/configuracion.py": {
-        # FASE 1 removed `cmb_sucursal.currentData() or 1` integer branch fallback.
-        "currentText": 1,     # role identity taken from a combobox label -> FASE 2/4
-        "row_id_index": 1,    # rule["id"] used as identity -> FASE 2/4
+        # FASE 1 removed the integer branch fallback; FASE 4 removed rule["id"]
+        # and all positional row indexing — entity rows are now consumed as DTOs.
+        "currentText": 1,     # role selected by name (roles are keyed by name) -> later
         "system_settings": 4,
     },
     "modulos/config_modules.py": {

@@ -57,9 +57,10 @@ class ConfigRepository:
             raise ValueError(f"{field_name} must be a canonical lowercase UUIDv7")
         return normalized
 
-    def _select_identity_sql(self, table_name: str, *, alias: str = "id") -> str:
+    def _select_identity_sql(self, table_name: str, *, alias: str = "id", table_alias: str | None = None) -> str:
         uuid_column = self._require_uuid_column(table_name)
-        return f"{uuid_column} AS {alias}"
+        qualified = f"{table_alias}.{uuid_column}" if table_alias else uuid_column
+        return f"{qualified} AS {alias}"
 
     def _row_id_from_uuid(self, table_name: str, entity_id: str | None) -> int | None:
         if not entity_id:
@@ -734,7 +735,7 @@ class ConfigRepository:
         self.db.execute(f"UPDATE usuarios SET activo=? WHERE {column}=?", (1 if active else 0, value))
 
     def list_roles_v13(self) -> list[tuple]:
-        identity = self._select_identity_sql("roles")
+        identity = self._select_identity_sql("roles", table_alias="r")
         return self.db.execute(
             f"""
             SELECT {identity}, r.nombre, r.descripcion, COUNT(u.id) as num_usuarios

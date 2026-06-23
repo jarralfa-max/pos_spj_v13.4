@@ -10,6 +10,13 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from backend.application.dto.configuracion_dtos import (
+    BranchDeliveryRowDTO,
+    HappyHourRuleDTO,
+    MonthlyClosingSummaryDTO,
+    RoleSettingsDTO,
+    UserSettingsDTO,
+)
 from backend.infrastructure.db.unit_of_work import ConnectionUnitOfWork
 from backend.shared.ids import new_uuid
 from core.module_config import DEFAULT_TOGGLES
@@ -94,8 +101,8 @@ class CompanyProfileService:
     def branches_for_company_settings(self) -> list[tuple[str, str]]:
         return self._repository.branches_for_company_settings()
 
-    def list_branch_delivery_rows(self) -> list[tuple]:
-        return self._repository.list_branch_delivery_rows()
+    def list_branch_delivery_rows(self) -> list[BranchDeliveryRowDTO]:
+        return [BranchDeliveryRowDTO.from_row(row) for row in self._repository.list_branch_delivery_rows()]
 
     def save_branch_delivery_profile(
         self,
@@ -193,8 +200,8 @@ class ClosingPeriodService:
         with ConnectionUnitOfWork(self._repository.connection):
             self._repository.save_monthly_close(period=period, closed_by=closed_by, totals=totals, branch_id=branch_id)
 
-    def history(self, limit: int = 24) -> list[tuple]:
-        return self._repository.get_monthly_closures(limit=limit)
+    def history(self, limit: int = 24) -> list[MonthlyClosingSummaryDTO]:
+        return [MonthlyClosingSummaryDTO.from_row(row) for row in self._repository.get_monthly_closures(limit=limit)]
 
 
 class HappyHourSettingsService:
@@ -203,17 +210,12 @@ class HappyHourSettingsService:
     def __init__(self, repository: ConfigRepository) -> None:
         self._repository = repository
 
-    def _to_ui_rule(self, rule: dict[str, Any]) -> dict[str, Any]:
-        mapped = dict(rule)
-        mapped["message"] = mapped.pop("mensaje_wa", "")
-        return mapped
+    def list_rules(self) -> list[HappyHourRuleDTO]:
+        return [HappyHourRuleDTO.from_repository_dict(rule) for rule in self._repository.list_happy_hour_rules()]
 
-    def list_rules(self) -> list[dict[str, Any]]:
-        return [self._to_ui_rule(rule) for rule in self._repository.list_happy_hour_rules()]
-
-    def get_rule(self, rule_id: str) -> dict[str, Any] | None:
+    def get_rule(self, rule_id: str) -> HappyHourRuleDTO | None:
         rule = self._repository.get_happy_hour_rule(rule_id)
-        return self._to_ui_rule(rule) if rule else None
+        return HappyHourRuleDTO.from_repository_dict(rule) if rule else None
 
     def save_rule(self, rule: dict[str, Any]) -> str:
         prepared = dict(rule)
@@ -293,11 +295,12 @@ class UserManagementService:
         self._repository = repository
         self._events = event_publisher or PermissionEventPublisher()
 
-    def list_users(self) -> list[tuple]:
-        return self._repository.list_users_v13()
+    def list_users(self) -> list[UserSettingsDTO]:
+        return [UserSettingsDTO.from_list_row(row) for row in self._repository.list_users_v13()]
 
-    def get_user_form_data(self, user_id: str) -> tuple | None:
-        return self._repository.get_user_form_data(user_id)
+    def get_user_form_data(self, user_id: str) -> UserSettingsDTO | None:
+        row = self._repository.get_user_form_data(user_id)
+        return UserSettingsDTO.from_form_row(user_id, row) if row else None
 
     def save_user(
         self,
@@ -357,8 +360,8 @@ class RoleManagementService:
         self._repository = repository
         self._events = event_publisher or PermissionEventPublisher()
 
-    def list_roles(self) -> list[tuple]:
-        return self._repository.list_roles_v13()
+    def list_roles(self) -> list[RoleSettingsDTO]:
+        return [RoleSettingsDTO.from_row(row) for row in self._repository.list_roles_v13()]
 
     def role_names(self) -> list[str]:
         return self._repository.role_names()
