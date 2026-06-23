@@ -56,7 +56,7 @@ class AppContainer:
         self.session = SessionContext()
 
         # sucursal_id dinámico — proxy al SessionContext (compat con módulos existentes)
-        self.sucursal_id: int = 1
+        self.sucursal_id: str = ""
         self.sucursal_nombre: str = ""
         logger.info("Inicializando AppContainer...")
 
@@ -190,8 +190,8 @@ class AppContainer:
         )
 
         # Motores de producción — fuente canónica
-        self.recipe_engine = RecipeEngine(self.db, branch_id=1)
-        self.production_engine = ProductionEngine(self.db, branch_id=1)
+        self.recipe_engine = RecipeEngine(self.db, branch_id="")
+        self.production_engine = ProductionEngine(self.db, branch_id="")
         
         # Motores visuales y de comunicación
         self.ticket_template_engine = TicketTemplateEngine(db_conn=self.db)
@@ -232,7 +232,7 @@ class AppContainer:
         from core.db.connection import _DatabaseShim
         _db_shim = _DatabaseShim(self.db_path)
         self.sales_reversal_service = SalesReversalService(
-            db=_db_shim, branch_id=1,
+            db=_db_shim, branch_id="",
             finance_service=self.finance_service,
         )
 
@@ -652,7 +652,7 @@ class AppContainer:
             from modulos.growth_engine import GrowthEngine
             self.growth_engine = GrowthEngine(
                 db=self.db,
-                sucursal_id=1,
+                sucursal_id="",
                 whatsapp_service=self.whatsapp_service,
             )
         except Exception as _ge:
@@ -992,7 +992,7 @@ class AppContainer:
             import logging as _l
             _l.getLogger("spj.container").warning("EventBus wiring: %s", _e)
 
-    def set_sucursal_activa(self, sucursal_id: int, nombre: str = "") -> None:
+    def set_sucursal_activa(self, sucursal_id: str, nombre: str = "") -> None:
         """
         Cambia la sucursal activa del sistema.
         Propaga a SessionContext + todos los servicios.
@@ -1032,7 +1032,7 @@ class AppContainer:
         """v13.4: Limpia la sesión (logout)."""
         if hasattr(self, 'session'):
             self.session.clear()
-        self.sucursal_id = 1
+        self.sucursal_id = ""
         self.sucursal_nombre = ""
 
     def close(self):
