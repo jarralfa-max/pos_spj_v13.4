@@ -27,7 +27,7 @@ class ScheduledDemandService:
         self._ensure_tables()
         affected = 0
         for item in items:
-            product_id = int(item.get("producto_id") or item.get("product_id") or 0)
+            product_id = str(item.get("product_id") or "")
             if not product_id:
                 continue
             quantity = float(item.get("cantidad") or item.get("quantity") or 0)

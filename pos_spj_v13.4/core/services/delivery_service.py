@@ -234,7 +234,7 @@ class DeliveryService:
         """
         from core.services.reservation_service import ReservationService
         return ReservationService().adjust_reservation(
-            self.db, operation_id, product_id, float(new_qty), branch_id or 1
+            self.db, operation_id, product_id, float(new_qty), str(branch_id or "")
         )
 
     def _sync_venta_total(self, order_id: int, new_total: float) -> None:

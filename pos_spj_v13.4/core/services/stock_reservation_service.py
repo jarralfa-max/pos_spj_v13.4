@@ -116,7 +116,7 @@ class StockReservationService:
         try:
             # Validar disponibilidad DENTRO del SAVEPOINT — evita race conditions
             for item in items:
-                pid = int(item["id"])
+                pid = str(item["id"])
                 cant = float(item["cantidad"])
                 disp = self.stock_disponible(pid)
                 if disp + 1e-6 < cant:

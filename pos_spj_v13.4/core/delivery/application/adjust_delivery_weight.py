@@ -155,8 +155,8 @@ class AdjustDeliveryWeightUseCase:
         # The reservation was created at order creation with the requested qty.
         # After a real weight/quantity adjustment the lock must reflect the
         # prepared qty so available stock stays accurate. Idempotent (absolute set).
-        product_id = item_row.get("producto_id") or item_row.get("product_id")
-        branch_id = order.get("sucursal_id") or 1
+        product_id = item_row.get("product_id")
+        branch_id = str(order.get("branch_id") or order.get("sucursal_id") or "")
         if self.adjust_reservation is not None and product_id:
             operation_id = f"delivery:{order_id}"
             try:

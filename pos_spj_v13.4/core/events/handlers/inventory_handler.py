@@ -27,7 +27,7 @@ class SaleInventoryHandler:
             )
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        branch_id = int(payload.get("branch_id", payload.get("sucursal_id", 1)))
+        branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
         operation_id = str(payload.get("operation_id") or payload.get("sale_id", "EVT"))
         sale_id = str(payload.get("sale_id", payload.get("venta_id", "")))
         user = str(payload.get("user", payload.get("usuario", "sistema")))

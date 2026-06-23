@@ -96,8 +96,8 @@ class ProductionCostService:
 
         batch = dict(batch)
         raw_cost          = float(batch.get("source_cost_total") or 0)
-        source_product_id = int(batch.get("product_source_id") or 0)
-        branch_id         = int(batch.get("branch_id") or 1)
+        source_product_id = str(batch.get("product_source_id") or "")
+        branch_id         = str(batch.get("branch_id") or "")
 
         rows = self._db.execute(
             """
@@ -237,7 +237,7 @@ class ProductionCostService:
         waste_cost = 0.0 if waste_mode == "absorb" else round(raw_cost * (waste_qty / total_basis), 4)
         finished_pool = round(raw_cost - waste_cost, 4)
 
-        factor_map = {int(c.get("producto_id") or c.get("component_product_id") or 0): float(c.get("factor_costo") or 1.0) for c in componentes_db}
+        factor_map = {str(c.get("product_id") or c.get("producto_id") or c.get("component_product_id") or ""): float(c.get("factor_costo") or 1.0) for c in componentes_db}
         basis = []
         for o in outputs:
             pid = int(o["product_id"]); q = float(o["delta"]); factor = factor_map.get(pid, 1.0)

@@ -80,7 +80,7 @@ class PurchaseService:
             for item in items:
                 try:
                     inventory_result = self.inventory_service.increase_stock(
-                        product_id=int(item['product_id']),
+                        product_id=str(item['product_id']),
                         branch_id=str(branch_id),
                         quantity=float(item['qty']),
                         unit=str(item.get('unit') or item.get('unidad') or 'unit'),

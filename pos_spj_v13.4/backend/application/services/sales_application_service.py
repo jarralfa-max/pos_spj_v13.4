@@ -111,7 +111,7 @@ class SalesApplicationService:
     @staticmethod
     def _to_item(item: Mapping[str, Any]) -> ItemCarrito:
         return ItemCarrito(
-            producto_id=int(item.get("product_id") or item.get("producto_id") or item.get("id") or 0),
+            producto_id=str(item.get("product_id") or item.get("id") or ""),
             cantidad=float(item.get("quantity") or item.get("qty") or item.get("cantidad") or 0.0),
             precio_unit=float(item.get("unit_price") or item.get("precio_unitario") or item.get("precio_unit") or 0.0),
             nombre=str(item.get("name") or item.get("nombre") or ""),

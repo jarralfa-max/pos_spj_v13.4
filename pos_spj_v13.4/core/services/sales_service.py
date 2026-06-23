@@ -118,7 +118,7 @@ class SalesService:
     def _resolve_sale_items(self, items: list, branch_id: int) -> list:
         resolved = []
         for item in items:
-            pid = int(item["product_id"])
+            pid = str(item["product_id"])
             qty = float(item["qty"])
             lines = self._fulfillment.resolve_item(pid, qty, branch_id)
             for ln in lines:
@@ -288,7 +288,7 @@ class SalesService:
         folio = f"MP-{uuid.uuid4().hex[:12].upper()}"
         normalized_items = self._normalize_items_payload(items)
         reservation_items = [
-            {"id": int(item["product_id"]), "cantidad": float(item["qty"])}
+            {"id": str(item["product_id"]), "cantidad": float(item["qty"])}
             for item in normalized_items
         ]
         from core.services.stock_reservation_service import StockReservationService
@@ -1312,7 +1312,7 @@ class SalesService:
 
             folio = row["folio"] or str(venta_id)
             total = float(row["total"] or 0)
-            sucursal_id = int(row["sucursal_id"] or 1)
+            sucursal_id = str(row["sucursal_id"] or "")
             usuario = str(usuario_id or "sistema")
 
             detalles = self.db.execute(
