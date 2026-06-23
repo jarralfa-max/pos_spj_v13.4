@@ -71,9 +71,9 @@ class TicketMessageEngine:
         if cliente_id and points_total is None and self.loyalty_service:
             try:
                 if hasattr(self.loyalty_service, "saldo_cliente"):
-                    points_total = int(self.loyalty_service.saldo_cliente(int(cliente_id)))
+                    points_total = int(self.loyalty_service.saldo_cliente(str(cliente_id)))
                 elif hasattr(self.loyalty_service, "saldo"):
-                    points_total = int(self.loyalty_service.saldo(int(cliente_id)))
+                    points_total = int(self.loyalty_service.saldo(str(cliente_id)))
             except Exception as exc:
                 logger.warning("Saldo de puntos no disponible para ticket cliente=%s: %s", cliente_id, exc)
 

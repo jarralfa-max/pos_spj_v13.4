@@ -6,6 +6,7 @@
 # Genera QR individual y exporta PDF de lote para imprenta.
 # Registro completo en card_assignment_history.
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import hashlib
 import io
@@ -132,7 +133,7 @@ class CardBatchEngine:
 
         cod_inicio = f"{pfx}{ts}{start_seq:05d}"
         cod_fin    = f"{pfx}{ts}{start_seq + cantidad - 1:05d}"
-        batch_uuid = str(uuid.uuid4())
+        batch_uuid = new_uuid()
 
         # INSERT lote
         cur = self.conn.execute(

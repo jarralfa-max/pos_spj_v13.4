@@ -11,16 +11,16 @@ from typing import Any
 
 from core.delivery.application.action_policy import DeliveryActionPolicy
 from core.delivery.application.dto import DeliveryItemViewDTO, DeliveryOrderViewDTO
+from core.delivery.domain.states import normalize_status
 from core.delivery.domain.value_objects import (
     DeliveryStatus,
     FulfillmentType,
-    LEGACY_STATUS_MAP,
-    LEGACY_UNIT_MAP,
     PaymentStatus,
     STATUS_LABELS_ES,
     UNIT_LABELS_ES,
     UnitCode,
     WEIGHABLE_UNITS,
+    resolve_unit,
 )
 
 logger = logging.getLogger("spj.delivery.application.query_service")
@@ -29,12 +29,12 @@ _ACTION_POLICY = DeliveryActionPolicy()
 
 
 def _map_legacy_status(raw: str | None) -> DeliveryStatus:
-    """Map a legacy DB status string to DeliveryStatus enum."""
-    normalized = (raw or "").strip().lower()
-    if normalized in LEGACY_STATUS_MAP:
-        return LEGACY_STATUS_MAP[normalized]
-    logger.debug("Unknown delivery status %r — defaulting to PENDING", raw)
-    return DeliveryStatus.PENDING
+    """Map a DB status string to the canonical DeliveryStatus enum."""
+    try:
+        return normalize_status(raw)
+    except ValueError:
+        logger.debug("Unknown delivery status %r — defaulting to PENDING", raw)
+        return DeliveryStatus.PENDING
 
 
 def _map_legacy_fulfillment(raw: str | None) -> FulfillmentType:
@@ -47,13 +47,8 @@ def _map_legacy_fulfillment(raw: str | None) -> FulfillmentType:
 
 
 def _map_legacy_unit(raw: str | None) -> UnitCode:
-    """Map a legacy unidad string from productos table to UnitCode enum."""
-    normalized = (raw or "").strip().lower()
-    if normalized in LEGACY_UNIT_MAP:
-        return LEGACY_UNIT_MAP[normalized]
-    if normalized:
-        logger.warning("Unknown unit %r — defaulting to PIECE", raw)
-    return UnitCode.PIECE
+    """Map a unit string from productos table to canonical UnitCode enum."""
+    return resolve_unit(raw)
 
 
 def _map_payment_status(row: dict[str, Any]) -> PaymentStatus:
@@ -161,7 +156,7 @@ class DeliveryQueryService:
         ("customer_name", ("cliente_nombre",), "''"),
         ("customer_tel", ("cliente_tel",), "''"),
         ("delivery_type", ("delivery_type",), "''"),
-        ("estado", ("estado",), "'pendiente'"),
+        ("estado", ("estado",), "'pending'"),
         ("pago_metodo", ("pago_metodo",), "''"),
         ("pago_monto", ("pago_monto",), "0"),
         ("workflow_type", ("workflow_type",), "''"),
@@ -382,7 +377,7 @@ class DeliveryQueryService:
                 scheduled_at=str(raw.get("scheduled_at") or ""),
                 source=str(raw.get("source") or ""),
                 adjustment_pending=adjustment_pending,
-                status_legacy=(str(raw.get("estado") or "").strip().lower() or "pendiente"),
+                status_legacy=(str(raw.get("estado") or "").strip().lower() or DeliveryStatus.PENDING.value),
             )
         except Exception as exc:
             logger.exception(
@@ -705,9 +700,9 @@ class DeliveryQueryService:
     def get_pending_unassigned_order_ids(self, branch_id: str) -> list[str]:
         """Return IDs of pending delivery orders with no driver assigned."""
         try:
-            rows = self._conn.execute(
+            rows = self._db.execute(
                 "SELECT id FROM delivery_orders "
-                "WHERE estado='pendiente' AND driver_id IS NULL "
+                "WHERE estado='pending' AND driver_id IS NULL "
                 "AND sucursal_id=? ORDER BY fecha_solicitud",
                 (branch_id,),
             ).fetchall()

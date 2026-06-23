@@ -34,7 +34,7 @@ logger = logging.getLogger("spj.use_cases.venta")
 
 @dataclass
 class ItemCarrito:
-    producto_id:   int
+    producto_id:   str
     cantidad:      float
     precio_unit:   float
     nombre:        str = ""

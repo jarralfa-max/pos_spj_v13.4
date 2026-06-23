@@ -3,14 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any, Mapping, TypeVar
 
-
-class DeliveryStatus(StrEnum):
-    PENDIENTE = "pendiente"
-    PREPARACION = "preparacion"
-    EN_RUTA = "en_ruta"
-    ENTREGADO = "entregado"
-    CANCELADO = "cancelado"
-    PROGRAMADO = "programado"
+from .value_objects import DeliveryStatus
 
 
 class DeliveryWorkflowType(StrEnum):
@@ -33,16 +26,6 @@ class AdjustmentStatus(StrEnum):
     CUSTOMER_REJECTED = "customer_rejected"
     EXPIRED = "expired"
 
-
-LEGACY_STATUS_MAP: Mapping[str, DeliveryStatus] = {
-    "asignado": DeliveryStatus.PREPARACION,
-    "listo": DeliveryStatus.PREPARACION,
-    "en_camino": DeliveryStatus.EN_RUTA,
-    "pendiente_wa": DeliveryStatus.PENDIENTE,
-    "en_preparacion": DeliveryStatus.PREPARACION,
-    "entregada": DeliveryStatus.ENTREGADO,
-    "cancelada": DeliveryStatus.CANCELADO,
-}
 
 WORKFLOW_ALIASES: Mapping[str, DeliveryWorkflowType] = {
     "delivery": DeliveryWorkflowType.DELIVERY,
@@ -70,17 +53,39 @@ DELIVERY_TYPE_ALIASES: Mapping[str, DeliveryType] = {
 
 T = TypeVar("T", bound=StrEnum)
 
+# Spanish-to-English migration aliases — only needed while any legacy rows exist.
+# Remove after migration 110 has run on all databases.
+_SPANISH_COMPAT: Mapping[str, DeliveryStatus] = {
+    "pendiente": DeliveryStatus.PENDING,
+    "preparacion": DeliveryStatus.PREPARING,
+    "en_ruta": DeliveryStatus.IN_TRANSIT,
+    "entregado": DeliveryStatus.DELIVERED,
+    "cancelado": DeliveryStatus.CANCELLED,
+    "programado": DeliveryStatus.SCHEDULED,
+    "listo_entrega": DeliveryStatus.READY_FOR_PICKUP,
+    "listo_envio": DeliveryStatus.READY_FOR_DISPATCH,
+    "asignado": DeliveryStatus.ASSIGNED,
+    # very old aliases
+    "pendiente_wa": DeliveryStatus.PENDING,
+    "en_preparacion": DeliveryStatus.PREPARING,
+    "entregada": DeliveryStatus.DELIVERED,
+    "cancelada": DeliveryStatus.CANCELLED,
+    "en_camino": DeliveryStatus.IN_TRANSIT,
+}
+
 
 def _enum_value(value: Any) -> str:
-    return str(value.value if isinstance(value, StrEnum) else value or "").strip().lower()
+    if hasattr(value, "value"):
+        return str(value.value or "").strip().lower()
+    return str(value or "").strip().lower()
 
 
 def normalize_status(status: Any) -> DeliveryStatus:
     raw = _enum_value(status)
     if not raw:
-        return DeliveryStatus.PENDIENTE
-    if raw in LEGACY_STATUS_MAP:
-        return LEGACY_STATUS_MAP[raw]
+        return DeliveryStatus.PENDING
+    if raw in _SPANISH_COMPAT:
+        return _SPANISH_COMPAT[raw]
     try:
         return DeliveryStatus(raw)
     except ValueError as exc:
@@ -115,7 +120,6 @@ def normalize_adjustment_status(status: Any) -> AdjustmentStatus:
     raw = _enum_value(status)
     if not raw:
         return AdjustmentStatus.NONE
-    # Backwards-compatible values currently persisted by DeliveryService.
     if raw == "accepted":
         return AdjustmentStatus.CUSTOMER_ACCEPTED
     if raw == "rejected":

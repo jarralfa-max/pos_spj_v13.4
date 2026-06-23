@@ -64,7 +64,7 @@ class LoyaltyService:
             tasa = float(self._cfg("loyalty_earn_rate", "0.1") or "0.1")
             estrellas = max(0, int(float(total or 0.0) * tasa))
             resultado = self._app.award_points_for_sale(
-                cliente_id=int(cliente_id), venta_id=str(venta_id), puntos=estrellas,
+                cliente_id=str(cliente_id), venta_id=str(venta_id), puntos=estrellas,
                 sucursal_id=self.sucursal_id, usuario=str(cajero or ""),
             )
             if estrellas > 0:
@@ -164,7 +164,7 @@ class LoyaltyService:
         if not self.enabled:
             return {"ok": False, "error": "Fidelización deshabilitada"}
         resultado = self._app.redeem_points_for_sale(
-            cliente_id=int(cliente_id), venta_id=str(venta_id), puntos=int(estrellas),
+            cliente_id=str(cliente_id), venta_id=str(venta_id), puntos=int(estrellas),
             sucursal_id=self.sucursal_id, usuario=str(cajero_id),
         )
         if resultado.get("ok"):
@@ -548,7 +548,7 @@ class LoyaltyService:
         try:
             ref = str(referencia or "")
             app_res = self._app.reverse_redemption(
-                cliente_id=int(cliente_id),
+                cliente_id=str(cliente_id),
                 venta_id=ref,
                 puntos=int(puntos_canjeados),
                 sucursal_id=self.sucursal_id,
@@ -858,10 +858,10 @@ class LoyaltyService:
                     "RAFFLE_TICKET_GRANTED",
                     {
                         "raffle_id": int(raffle_id),
-                        "venta_id": int(venta_id),
-                        "cliente_id": int(cliente_id or 0),
+                        "venta_id": str(venta_id),
+                        "cliente_id": str(cliente_id or ""),
                         "numero_boleto": ticket,
-                        "sucursal_id": int(sucursal_id or self.sucursal_id),
+                        "sucursal_id": str(sucursal_id or self.sucursal_id),
                     },
                     async_=True,
                 )
@@ -954,7 +954,7 @@ class LoyaltyService:
             if allowed_products or allowed_categories:
                 ok_item = False
                 for it in items:
-                    pid = int((it.get("product_id") or it.get("producto_id") or it.get("id") or 0) or 0)
+                    pid = int((it.get("product_id") or it.get("id") or 0) or 0)
                     cid = int((it.get("category_id") or it.get("categoria_id") or 0) or 0)
                     if (allowed_products and pid in allowed_products) or (allowed_categories and cid in allowed_categories):
                         ok_item = True
@@ -985,12 +985,12 @@ class LoyaltyService:
 
     def process_raffles_for_sale(self, venta_id: int, cliente_id: int, folio: str, total: float, sucursal_id: int, payment_method=None, items=None, sale_datetime=None, discount=0) -> list[dict]:
         issued = self.issue_raffle_tickets_for_sale(
-            venta_id=int(venta_id),
+            venta_id=str(venta_id),
             folio_venta=str(folio or ""),
-            cliente_id=int(cliente_id or 0),
+            cliente_id=str(cliente_id or ""),
             cliente_nombre="",
             total=float(total or 0),
-            sucursal_id=int(sucursal_id or self.sucursal_id),
+            sucursal_id=str(sucursal_id or self.sucursal_id),
             sale_datetime=sale_datetime,
             payment_method=str(payment_method or ""),
             items=items or [],
@@ -1028,7 +1028,7 @@ class LoyaltyService:
             "venta_id": int(ticket.get("venta_id") or venta_id or 0),
             "fecha_sorteo": str(raffle.get("fecha_sorteo") or raffle.get("fecha_fin") or ""),
             "fecha_fin": str(raffle.get("fecha_fin") or ""),
-            "sucursal_id": int(sucursal_id or raffle.get("sucursal_id") or self.sucursal_id),
+            "sucursal_id": str(sucursal_id or raffle.get("sucursal_id") or self.sucursal_id),
             "qr_content": qr_content,
             "barcode": numero,
         }
@@ -1051,7 +1051,7 @@ class LoyaltyService:
         dt = str(sale_datetime or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         printable: list[dict] = []
         try:
-            active = self._app.repo.get_active_raffles_for_sale(int(sucursal_id or self.sucursal_id), dt) or []
+            active = self._app.repo.get_active_raffles_for_sale(str(sucursal_id or self.sucursal_id), dt) or []
         except Exception as exc:
             logger.warning("No se pudieron consultar rifas activas venta=%s: %s", venta_id, exc)
             return []
@@ -1074,32 +1074,32 @@ class LoyaltyService:
                 if not eval_result.get("eligible"):
                     continue
                 rules = eval_result.get("rules") or {}
-                existing = self._app.repo.get_tickets_for_sale(rid, int(venta_id))
+                existing = self._app.repo.get_tickets_for_sale(rid, str(venta_id))
                 if existing:
-                    printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=int(venta_id), sucursal_id=int(sucursal_id or self.sucursal_id)) for t in existing])
+                    printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=str(venta_id), sucursal_id=str(sucursal_id or self.sucursal_id)) for t in existing])
                     continue
                 count = self.calculate_raffle_tickets_count(raffle, rules, sale_context)
                 max_customer = int(rules.get("max_tickets_per_customer") or 0)
-                current = self._app.repo.count_customer_tickets(rid, int(cliente_id or 0)) if cliente_id else 0
+                current = self._app.repo.count_customer_tickets(rid, str(cliente_id or "")) if cliente_id else 0
                 if max_customer > 0:
                     count = max(0, min(count, max_customer - current))
                 if count <= 0:
                     continue
                 created_numbers = self.generate_tickets_for_sale(
                     rid,
-                    int(venta_id),
-                    int(cliente_id or 0),
+                    str(venta_id),
+                    str(cliente_id or ""),
                     str(folio_venta or ""),
                     float(total or 0),
-                    int(sucursal_id or self.sucursal_id),
+                    str(sucursal_id or self.sucursal_id),
                     ticket_count=count,
                 )
                 created_number_set = set(created_numbers)
                 created = [
-                    t for t in self._app.repo.get_tickets_for_sale(rid, int(venta_id))
+                    t for t in self._app.repo.get_tickets_for_sale(rid, str(venta_id))
                     if str(t.get("numero_boleto") or "") in created_number_set
                 ]
-                printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=int(venta_id), sucursal_id=int(sucursal_id or self.sucursal_id)) for t in created])
+                printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=str(venta_id), sucursal_id=str(sucursal_id or self.sucursal_id)) for t in created])
             except Exception as exc:
                 logger.warning("Emisión de boletos rifa=%s venta=%s falló: %s", rid, venta_id, exc)
         return printable
@@ -1109,7 +1109,7 @@ class LoyaltyService:
         if cancelled > 0 and self._bus:
             self._bus.publish(
                 "RAFFLE_TICKET_CANCELLED",
-                {"venta_id": int(venta_id), "cancelled": cancelled, "reason": str(reason or ""), "sucursal_id": self.sucursal_id},
+                {"venta_id": str(venta_id), "cancelled": cancelled, "reason": str(reason or ""), "sucursal_id": self.sucursal_id},
                 async_=True,
             )
         return cancelled

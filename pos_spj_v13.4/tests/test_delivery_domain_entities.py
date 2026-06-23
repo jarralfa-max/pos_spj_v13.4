@@ -12,7 +12,7 @@ def test_order_from_mapping_normalizes_legacy_values_and_items():
         "delivery_type": "pickup",
         "items": [{"nombre": "Pollo", "cantidad": 2, "precio_unitario": 50, "adjustment_status": "pending_customer"}],
     })
-    assert order.estado == DeliveryStatus.PREPARACION
+    assert order.estado == DeliveryStatus.PREPARING
     assert order.workflow_type == DeliveryWorkflowType.COUNTER
     assert order.delivery_type == DeliveryType.PICKUP
     assert order.items[0].subtotal == 100.0

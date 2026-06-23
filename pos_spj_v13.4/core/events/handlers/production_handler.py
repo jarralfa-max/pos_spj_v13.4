@@ -10,7 +10,7 @@ Registered by wiring.py:
 
 FASE 6: ProductionFinanceHandler now accepts db= and uses ProductionCostService to
   1. read actual cost data from production_cost_ledger (not the sparse event payload)
-  2. update costo_promedio in productos + inventario_actual for each output product
+  2. update costo_promedio in productos + inventory_stock for each output product
   3. post accurate double-entry GL journal entries
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ class ProductionInventoryHandler:
 
     def handle(self, payload: Dict[str, Any]) -> None:
         conn       = payload.get("conn")
-        branch_id  = int(payload.get("branch_id", 1))
+        branch_id = str(payload.get("branch_id") or "")
         ref_type   = str(payload.get("reference_type", "PRODUCCION"))
         ref_id     = payload.get("reference_id")
         base_op_id = str(payload.get("operation_id", ""))
@@ -108,7 +108,7 @@ class ProductionFinanceHandler:
 
         batch_id    = payload.get("batch_id", "")
         folio       = str(payload.get("folio", batch_id))
-        sucursal_id = int(payload.get("sucursal_id", payload.get("branch_id", 1)))
+        sucursal_id = str(payload.get("sucursal_id") or payload.get("branch_id") or "")
 
         raw_cost      = 0.0
         finished_cost = 0.0

@@ -13,7 +13,7 @@
 # FLUJO POR EJECUCIÓN:
 #   1. Cargar productos activos de la sucursal
 #   2. Para cada producto:
-#       a. Obtener stock actual (inventario_actual)
+#       a. Obtener stock actual (inventory_stock)
 #       b. Ejecutar DemandForecastEngine.forecast_product()
 #       c. Calcular recommended_quantity
 #       d. Determinar tipo: COMPRA | PRODUCCION | TRANSFERENCIA
@@ -23,6 +23,7 @@
 #   4. Publicar FORECAST_GENERATED
 
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import time
@@ -65,8 +66,8 @@ class ReplenishmentEngine:
     def _get_stock(self, product_id: int, branch_id: int) -> float:
         try:
             row = self.db.fetchone("""
-                SELECT COALESCE(cantidad, 0) FROM inventario_actual
-                WHERE producto_id=? AND sucursal_id=?
+                SELECT COALESCE(quantity, 0) FROM inventory_stock
+                WHERE product_id=? AND branch_id=?
             """, (product_id, branch_id))
             return float(row[0]) if row else 0.0
         except Exception:
@@ -151,7 +152,7 @@ class ReplenishmentEngine:
             {run_id, ok, skip, recomendaciones, alertas, duracion_ms}
         """
         t0 = time.monotonic()
-        run_id = str(uuid.uuid4())
+        run_id = new_uuid()
         horizon = int(self._get_config("forecast_horizon_days", str(horizon_days)))
 
         branches = []
@@ -335,7 +336,7 @@ class ReplenishmentEngine:
         avg_daily, forecast, urgency, tipo,
         fuente_prod_id, fuente_qty,
     ) -> None:
-        rec_id = str(uuid.uuid4())
+        rec_id = new_uuid()
         try:
             self.db.execute("""
                 INSERT INTO replenishment_recommendations (

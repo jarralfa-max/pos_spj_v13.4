@@ -1,4 +1,5 @@
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import json
 import logging
@@ -16,7 +17,7 @@ RESERVATION_TTL_MINUTES = 30
 class StockReservationService:
     """Reserva/libera stock lógico para ventas suspendidas."""
 
-    def __init__(self, db, branch_id: int = 1):
+    def __init__(self, db, branch_id: str = ""):
         self.db = db
         self.branch_id = branch_id
         self._ensure_table()
@@ -116,7 +117,7 @@ class StockReservationService:
         try:
             # Validar disponibilidad DENTRO del SAVEPOINT — evita race conditions
             for item in items:
-                pid = int(item["id"])
+                pid = str(item["id"])
                 cant = float(item["cantidad"])
                 disp = self.stock_disponible(pid)
                 if disp + 1e-6 < cant:
@@ -137,12 +138,12 @@ class StockReservationService:
                 f"VALUES(?, ?, 'activa', ?, {expires})",
                 (folio, self.branch_id, json.dumps(payload)),
             )
-            reserva_id = int(cur.lastrowid)
+            reserva_id = new_uuid()
             for p in payload:
                 self.db.execute(
                     "INSERT INTO stock_reserva_detalles"
                     "(reserva_id, producto_id, cantidad) VALUES(?,?,?)",
-                    (reserva_id, int(p["producto_id"]), float(p["cantidad"])),
+                    (reserva_id, str(p.get("product_id") or p.get("producto_id") or ""), float(p["cantidad"])),
                 )
 
             self.db.execute(f"RELEASE SAVEPOINT {sp}")
@@ -187,7 +188,7 @@ class StockReservationService:
         get_bus().publish(AJUSTE_INVENTARIO, {
             "motivo": "stock_reserva_confirmada",
             "reserva_id": reserva_id,
-            "venta_id": int(venta_id or 0),
+            "venta_id": str(venta_id or ""),
             "folio": str(folio or ""),
             "branch_id": self.branch_id,
         })

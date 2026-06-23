@@ -134,7 +134,7 @@ class SQLiteTransferQueryDataSource:
         branch_id = filters.get("branch_id")
         if branch_id:
             conditions.append("(t.branch_origin_id=? OR t.branch_dest_id=?)")
-            params.extend([int(branch_id), int(branch_id)])
+            params.extend([str(branch_id), str(branch_id)])
 
         status = filters.get("status") or filters.get("estado")
         if status:
@@ -204,17 +204,17 @@ class SQLiteTransferQueryDataSource:
         try:
             has_ia = bool(
                 self._db.execute(
-                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventario_actual'"
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_stock'"
                 ).fetchone()
             )
             stock_expr = (
-                "COALESCE(ia.cantidad, p.existencia, 0)"
+                "COALESCE(ia.quantity, p.existencia, 0)"
                 if has_ia
                 else "COALESCE(p.existencia, 0)"
             )
             ia_join = (
-                f"LEFT JOIN inventario_actual ia "
-                f"ON ia.producto_id=p.id AND ia.sucursal_id={int(sucursal_id)}"
+                f"LEFT JOIN inventory_stock ia "
+                f"ON ia.product_id=p.id AND ia.branch_id='"+str(sucursal_id)+"'"
                 if has_ia
                 else ""
             )

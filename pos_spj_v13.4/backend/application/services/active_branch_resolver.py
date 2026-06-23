@@ -7,7 +7,7 @@ Resolution order (per SPJ_REFACTOR_SKILL.md):
   3. saved_branch_id is missing/invalid + multiple allowed branches → raise NoBranchSelectedError.
   4. No allowed branches at all → raise NoAllowedBranchesError.
 
-Never falls back to "Principal" or index 0 as a business rule.
+Never falls back to "" or index 0 as a business rule.
 """
 from __future__ import annotations
 

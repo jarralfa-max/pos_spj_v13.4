@@ -51,7 +51,7 @@ class WhatsAppNotificationHandler:
         folio      = payload.get("folio", "")
         cliente    = payload.get("cliente", "")
         total      = float(payload.get("total", 0))
-        branch     = int(payload.get("sucursal_id") or self.sucursal_id)
+        branch = str(payload.get("sucursal_id") or self.sucursal_id or "")
         tipo       = "pedido_whatsapp_nuevo"
         titulo     = f"Nuevo pedido WA: {folio} — ${total:.2f}"
         empleados  = self._resolver.by_role(tipo, branch)
@@ -71,7 +71,7 @@ class WhatsAppNotificationHandler:
         tipo   = payload.get("subtipo", "anticipo_requerido")
         folio  = payload.get("folio", "")
         monto  = float(payload.get("monto", 0))
-        branch = int(payload.get("sucursal_id") or self.sucursal_id)
+        branch = str(payload.get("sucursal_id") or self.sucursal_id or "")
         empleados = self._resolver.by_role("venta_cancelada", branch)  # gerente+admin
         self._dispatcher.dispatch_staff(
             tipo=tipo, destinatarios=empleados,
@@ -86,7 +86,7 @@ class WhatsAppNotificationHandler:
         repartidor_id = payload.get("repartidor_id") or payload.get("empleado_id")
         folio         = payload.get("folio", "")
         direccion     = payload.get("direccion", "")
-        branch        = int(payload.get("sucursal_id") or self.sucursal_id)
+        branch = str(payload.get("sucursal_id") or self.sucursal_id or "")
         if not repartidor_id:
             return
         emp = self._resolver.by_employee_id(int(repartidor_id))
@@ -118,7 +118,7 @@ class WhatsAppNotificationHandler:
         titulo  = payload.get("titulo", "Alerta crítica")
         mensaje = payload.get("mensaje", "")
         datos   = payload.get("datos", {})
-        branch  = int(payload.get("sucursal_id") or self.sucursal_id)
+        branch = str(payload.get("sucursal_id") or self.sucursal_id or "")
 
         if not self._policy.is_wa_allowed_for_staff(tipo):
             logger.debug("handle_alerta_critica: tipo=%s bloqueado por política", tipo)
@@ -142,7 +142,7 @@ class WhatsAppNotificationHandler:
         titulo  = payload.get("titulo", "Sugerencia de compra")
         mensaje = payload.get("mensaje", titulo)
         datos   = payload.get("datos", {})
-        branch  = int(payload.get("sucursal_id") or self.sucursal_id)
+        branch = str(payload.get("sucursal_id") or self.sucursal_id or "")
         responsibles = self._resolver.by_role(tipo, branch)
         self._dispatcher.dispatch_staff(
             tipo=tipo, destinatarios=responsibles,

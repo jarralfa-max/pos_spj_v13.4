@@ -16,6 +16,7 @@ Cada operación:
   5. Publica evento al EventBus
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -283,7 +284,7 @@ class GestionarInventarioUC:
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _gen_op_id() -> str:
-    return f"INV-{uuid.uuid4().hex[:12].upper()}"
+    return f"INV-{new_uuid().replace('-', '')[:12].upper()}"
 
 
 def _get_bus():

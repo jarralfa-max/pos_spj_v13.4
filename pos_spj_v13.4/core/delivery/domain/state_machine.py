@@ -15,10 +15,10 @@ from .states import (
     normalize_workflow_type,
 )
 
-ACTION_PREPARE = "preparacion"
-ACTION_SEND_TO_ROUTE = "en_ruta"
-ACTION_DELIVER = "entregado"
-ACTION_CANCEL = "cancelado"
+ACTION_PREPARE = "preparing"
+ACTION_SEND_TO_ROUTE = "in_transit"
+ACTION_DELIVER = "delivered"
+ACTION_CANCEL = "cancelled"
 ACTION_REACTIVATE = "reactivar"
 ACTION_ACTIVATE_SCHEDULED = "activar_programado"
 ACTION_RESCHEDULE = "reprogramar"
@@ -71,7 +71,7 @@ class DeliveryStateMachine:
             return explicit_workflow
 
         status = normalize_status(data.get("estado"))
-        if status == DeliveryStatus.PROGRAMADO and not data.get("activated"):
+        if status == DeliveryStatus.SCHEDULED and not data.get("activated"):
             return DeliveryWorkflowType.SCHEDULED
 
         delivery_type = normalize_delivery_type(data.get("delivery_type") or data.get("tipo_entrega"))
@@ -94,34 +94,34 @@ class DeliveryStateMachine:
 
         if current == target:
             return
-        if current == DeliveryStatus.ENTREGADO:
+        if current == DeliveryStatus.DELIVERED:
             raise ValueError("Pedido entregado no puede regresar sin proceso explícito de reverso.")
-        if current == DeliveryStatus.CANCELADO:
-            if not self.allow_cancelled_reactivation or target != DeliveryStatus.PENDIENTE:
+        if current == DeliveryStatus.CANCELLED:
+            if not self.allow_cancelled_reactivation or target != DeliveryStatus.PENDING:
                 raise ValueError("Pedido cancelado solo puede reactivarse a pendiente.")
             return
         if workflow == DeliveryWorkflowType.SCHEDULED and target in {
-            DeliveryStatus.PREPARACION,
-            DeliveryStatus.EN_RUTA,
-            DeliveryStatus.ENTREGADO,
+            DeliveryStatus.PREPARING,
+            DeliveryStatus.IN_TRANSIT,
+            DeliveryStatus.DELIVERED,
         }:
             raise ValueError("Pedido programado: primero debe activarse antes de pasar a flujo operativo.")
-        if workflow == DeliveryWorkflowType.COUNTER and target == DeliveryStatus.EN_RUTA:
-            raise ValueError("Flujo mostrador no permite estado 'en_ruta'.")
-        if workflow == DeliveryWorkflowType.DELIVERY and current == DeliveryStatus.PREPARACION and target == DeliveryStatus.ENTREGADO:
-            raise ValueError("Flujo delivery debe pasar por 'en_ruta' antes de entregarse.")
-        if target == DeliveryStatus.ENTREGADO and not has_responsible:
+        if workflow == DeliveryWorkflowType.COUNTER and target == DeliveryStatus.IN_TRANSIT:
+            raise ValueError("Flujo mostrador no permite estado 'in_transit'.")
+        if workflow == DeliveryWorkflowType.DELIVERY and current == DeliveryStatus.PREPARING and target == DeliveryStatus.DELIVERED:
+            raise ValueError("Flujo delivery debe pasar por 'in_transit' antes de entregarse.")
+        if target == DeliveryStatus.DELIVERED and not has_responsible:
             raise ValueError("No se puede entregar sin responsable.")
-        if target in {DeliveryStatus.EN_RUTA, DeliveryStatus.ENTREGADO} and has_pending_adjustment:
+        if target in {DeliveryStatus.IN_TRANSIT, DeliveryStatus.DELIVERED} and has_pending_adjustment:
             raise ValueError("Hay un ajuste de peso/cantidad pendiente de aceptación del cliente.")
 
         allowed: dict[DeliveryStatus, tuple[DeliveryStatus, ...]] = {
-            DeliveryStatus.PENDIENTE: (DeliveryStatus.PREPARACION, DeliveryStatus.CANCELADO),
-            DeliveryStatus.PREPARACION: (DeliveryStatus.EN_RUTA, DeliveryStatus.ENTREGADO, DeliveryStatus.CANCELADO),
-            DeliveryStatus.EN_RUTA: (DeliveryStatus.ENTREGADO, DeliveryStatus.CANCELADO),
-            DeliveryStatus.PROGRAMADO: (DeliveryStatus.PENDIENTE, DeliveryStatus.CANCELADO),
-            DeliveryStatus.CANCELADO: (DeliveryStatus.PENDIENTE,),
-            DeliveryStatus.ENTREGADO: (),
+            DeliveryStatus.PENDING: (DeliveryStatus.PREPARING, DeliveryStatus.CANCELLED),
+            DeliveryStatus.PREPARING: (DeliveryStatus.IN_TRANSIT, DeliveryStatus.DELIVERED, DeliveryStatus.CANCELLED),
+            DeliveryStatus.IN_TRANSIT: (DeliveryStatus.DELIVERED, DeliveryStatus.CANCELLED),
+            DeliveryStatus.SCHEDULED: (DeliveryStatus.PENDING, DeliveryStatus.CANCELLED),
+            DeliveryStatus.CANCELLED: (DeliveryStatus.PENDING,),
+            DeliveryStatus.DELIVERED: (),
         }
         if target not in allowed[current]:
             raise ValueError(f"Transición delivery inválida: {current.value} -> {target.value}.")
@@ -132,11 +132,11 @@ class DeliveryStateMachine:
         workflow = self.infer_workflow(order)
         has_pending_adjustment = self._has_pending_adjustment(data)
 
-        if status == DeliveryStatus.PROGRAMADO:
+        if status == DeliveryStatus.SCHEDULED:
             return [ACTION_ACTIVATE_SCHEDULED, ACTION_RESCHEDULE, ACTION_CANCEL]
-        if status == DeliveryStatus.PENDIENTE:
+        if status == DeliveryStatus.PENDING:
             return [ACTION_PREPARE, ACTION_CANCEL]
-        if status == DeliveryStatus.PREPARACION:
+        if status == DeliveryStatus.PREPARING:
             actions = [ACTION_ADJUST_WEIGHT, ACTION_CANCEL]
             if workflow == DeliveryWorkflowType.COUNTER:
                 actions.insert(1, ACTION_DELIVER)
@@ -145,13 +145,13 @@ class DeliveryStateMachine:
             if has_pending_adjustment:
                 actions = [a for a in actions if a not in {ACTION_SEND_TO_ROUTE, ACTION_DELIVER}]
             return actions
-        if status == DeliveryStatus.EN_RUTA:
+        if status == DeliveryStatus.IN_TRANSIT:
             actions = [ACTION_DELIVER, ACTION_NOTIFY_WHATSAPP]
             if has_pending_adjustment:
                 actions = [a for a in actions if a != ACTION_DELIVER]
             return actions
-        if status == DeliveryStatus.ENTREGADO:
+        if status == DeliveryStatus.DELIVERED:
             return [ACTION_PRINT]
-        if status == DeliveryStatus.CANCELADO:
+        if status == DeliveryStatus.CANCELLED:
             return [ACTION_REACTIVATE] if self.allow_cancelled_reactivation else []
         return []

@@ -102,12 +102,15 @@ class UnifiedThirdPartyService:
         """
         self._ensure_proveedor_columns()
         try:
-            cursor = self._db.execute("""
+            from backend.shared.ids import new_uuid as _new_uuid
+            proveedor_id = _new_uuid()
+            self._db.execute("""
                 INSERT INTO proveedores
-                (nombre, rfc, telefono, email, contacto, categoria,
+                (id, nombre, rfc, telefono, email, contacto, categoria,
                  direccion, condiciones_pago, limite_credito, banco, notas, activo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             """, (
+                proveedor_id,
                 datos.get("nombre", ""),
                 datos.get("rfc", ""),
                 datos.get("telefono", ""),
@@ -121,7 +124,6 @@ class UnifiedThirdPartyService:
                 datos.get("notas", ""),
             ))
             self._db.commit()
-            proveedor_id = cursor.lastrowid
             
             # Publicar evento
             try:

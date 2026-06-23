@@ -63,6 +63,7 @@ class DeliveryStatus(str, Enum):
     IN_TRANSIT = "in_transit"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
+    SCHEDULED = "scheduled"
 
 
 class FulfillmentType(str, Enum):
@@ -137,23 +138,10 @@ STATUS_LABELS_ES: dict[DeliveryStatus, str] = {
     DeliveryStatus.IN_TRANSIT: "En ruta",
     DeliveryStatus.DELIVERED: "Entregado",
     DeliveryStatus.CANCELLED: "Cancelado",
+    DeliveryStatus.SCHEDULED: "Programado",
 }
 
-
-# ── Legacy string mappings (used by QueryService, not DB) ─────────────────────
-
-LEGACY_STATUS_MAP: dict[str, DeliveryStatus] = {
-    "pendiente": DeliveryStatus.PENDING,
-    "preparacion": DeliveryStatus.PREPARING,
-    "en_ruta": DeliveryStatus.IN_TRANSIT,
-    "entregado": DeliveryStatus.DELIVERED,
-    "cancelado": DeliveryStatus.CANCELLED,
-    "listo_entrega": DeliveryStatus.READY_FOR_PICKUP,
-    "listo_envio": DeliveryStatus.READY_FOR_DISPATCH,
-    "asignado": DeliveryStatus.ASSIGNED,
-}
-
-LEGACY_UNIT_MAP: dict[str, UnitCode] = {
+_UNIT_ALIASES: dict[str, UnitCode] = {
     "kg": UnitCode.KILOGRAM,
     "kilogramo": UnitCode.KILOGRAM,
     "kilo": UnitCode.KILOGRAM,
@@ -172,3 +160,13 @@ LEGACY_UNIT_MAP: dict[str, UnitCode] = {
     "paquete": UnitCode.PACK,
     "paq": UnitCode.PACK,
 }
+
+
+def resolve_unit(raw: str | None) -> UnitCode:
+    """Resolve a raw unit string to canonical UnitCode, checking canonical values first."""
+    normalized = (raw or "").strip().lower()
+    try:
+        return UnitCode(normalized)
+    except ValueError:
+        pass
+    return _UNIT_ALIASES.get(normalized, UnitCode.PIECE)

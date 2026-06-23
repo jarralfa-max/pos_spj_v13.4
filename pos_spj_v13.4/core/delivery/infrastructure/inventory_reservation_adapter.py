@@ -28,8 +28,8 @@ class ReservationServiceInventoryAdapter:
             """
             CREATE TABLE IF NOT EXISTS inventory_reservations (
                 id TEXT PRIMARY KEY,
-                branch_id INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
+                branch_id TEXT NOT NULL,
+                product_id TEXT NOT NULL,
                 reserved_qty REAL NOT NULL CHECK(reserved_qty > 0),
                 operation_id TEXT NOT NULL,
                 operation_type TEXT NOT NULL,
@@ -48,43 +48,43 @@ class ReservationServiceInventoryAdapter:
     def reserve_for_order(
         self,
         *,
-        order_id: int,
+        order_id: str,
         items: list[dict[str, Any]],
-        branch_id: int,
+        branch_id: str,
         operation_id: str,
     ) -> dict[str, int]:
         reserved = 0
         skipped = 0
         for item in items or []:
-            product_id = item.get("producto_id") or item.get("product_id")
+            product_id = item.get("product_id")
             qty = float(item.get("cantidad") or item.get("qty") or 0)
             if not product_id or qty <= 0:
                 skipped += 1
                 continue
-            if self._active_reservation_exists(operation_id, int(product_id), branch_id):
+            if self._active_reservation_exists(operation_id, str(product_id), str(branch_id)):
                 skipped += 1
                 continue
             self.reservation_service.reserve(
                 db=self.db,
-                product_id=int(product_id),
+                product_id=str(product_id),
                 qty=qty,
                 operation_id=operation_id,
-                branch_id=branch_id,
+                branch_id=str(branch_id),
                 operation_type="delivery",
             )
             reserved += 1
         return {"reserved": reserved, "skipped": skipped}
 
-    def release_for_order(self, *, order_id: int, operation_id: str, reason: str = "") -> dict[str, int]:
+    def release_for_order(self, *, order_id: str, operation_id: str, reason: str = "") -> dict[str, int]:
         released = self.reservation_service.release_by_operation(self.db, operation_id=operation_id)
         return {"released": int(released or 0)}
 
     def commit_for_order(
         self,
         *,
-        order_id: int,
+        order_id: str,
         items: list[dict[str, Any]],
-        branch_id: int,
+        branch_id: str,
         operation_id: str,
     ) -> dict[str, int]:
         committed = 0
@@ -93,18 +93,18 @@ class ReservationServiceInventoryAdapter:
 
         inventory_service = InventoryService(self.db)
         for item in items or []:
-            product_id = item.get("producto_id") or item.get("product_id")
+            product_id = item.get("product_id")
             qty = self._commit_qty(item)
             if not product_id or qty <= 0:
                 skipped += 1
                 continue
-            item_operation_id = self._item_operation_id(order_id, item, int(product_id))
+            item_operation_id = self._item_operation_id(order_id, item, str(product_id))
             if self._movement_exists(item_operation_id):
                 skipped += 1
                 continue
             inventory_service.deduct_stock(
-                product_id=int(product_id),
-                branch_id=branch_id,
+                product_id=str(product_id),
+                branch_id=str(branch_id),
                 qty=qty,
                 reference_type="delivery_prepared",
                 reference_id=str(order_id),
@@ -116,7 +116,7 @@ class ReservationServiceInventoryAdapter:
         released = self.reservation_service.release_by_operation(self.db, operation_id=operation_id)
         return {"committed": committed, "skipped": skipped, "released": int(released or 0)}
 
-    def _active_reservation_exists(self, operation_id: str, product_id: int, branch_id: int) -> bool:
+    def _active_reservation_exists(self, operation_id: str, product_id: str, branch_id: str) -> bool:
         row = self.db.execute(
             """
             SELECT 1 FROM inventory_reservations
@@ -143,6 +143,6 @@ class ReservationServiceInventoryAdapter:
         return float(item.get("final_qty") or item.get("prepared_qty") or item.get("cantidad") or item.get("qty") or 0)
 
     @staticmethod
-    def _item_operation_id(order_id: int, item: dict[str, Any], product_id: int) -> str:
+    def _item_operation_id(order_id: str, item: dict[str, Any], product_id: str) -> str:
         item_id = item.get("id") or item.get("item_id") or product_id
         return f"delivery:{order_id}:item:{item_id}:commit"

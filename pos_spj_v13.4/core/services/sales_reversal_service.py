@@ -20,6 +20,7 @@
 #
 # Versión: 1.0 — Fase 3 hardening
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -136,7 +137,7 @@ class SalesReversalService:
         # Compatibilidad con wrappers legacy que exponen .conn (tests/legacy adapters)
         raw_conn = getattr(db, "conn", db)
         self.db = wrap(raw_conn)
-        self.branch_id = int(branch_id or 1)
+        self.branch_id = str(branch_id or "")
         self._finance = finance_service
 
     # ── Helpers internos ─────────────────────────────────────────────────────
@@ -244,7 +245,7 @@ class SalesReversalService:
         if not usuario or not usuario.strip():
             raise UsuarioRequeridoError("usuario es obligatorio")
 
-        operation_id = f"CANCEL-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"CANCEL-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("SALE_CANCEL") as _:
             conn = self.db.conn
@@ -318,8 +319,8 @@ class SalesReversalService:
                     from core.services.sales.sale_loyalty_policy import SaleLoyaltyPolicy
                     _lp = SaleLoyaltyPolicy(conn, loyalty_service=getattr(self, "loyalty_service", None))
                     _lp.reverse_points(
-                        cliente_id=int(cliente_id),
-                        venta_id=int(sale_id),
+                        cliente_id=str(cliente_id),
+                        venta_id=str(sale_id),
                         puntos=int(puntos),
                         operation_id=f"{operation_id}:reverse_loyalty",
                         usuario=str(usuario),
@@ -429,7 +430,7 @@ class SalesReversalService:
         if not items:
             raise OperacionSinItemsError("La lista de ítems para devolución está vacía")
 
-        operation_id = f"REFUND-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"REFUND-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("SALE_REFUND") as _:
             conn = self.db.conn
@@ -639,7 +640,7 @@ class SalesReversalService:
         if amount <= 0:
             raise ReversalError(f"MONTO_INVALIDO: amount={amount} debe ser positivo")
 
-        operation_id = f"CREDIT-{sale_id}-{uuid.uuid4().hex[:8]}"
+        operation_id = f"CREDIT-{sale_id}-{new_uuid().replace('-', '')[:8]}"
 
         with self.db.transaction("CREDIT_NOTE") as _:
             conn = self.db.conn

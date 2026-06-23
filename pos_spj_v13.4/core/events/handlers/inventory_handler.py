@@ -27,7 +27,7 @@ class SaleInventoryHandler:
             )
 
     def handle(self, payload: Dict[str, Any]) -> None:
-        branch_id = int(payload.get("branch_id", payload.get("sucursal_id", 1)))
+        branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
         operation_id = str(payload.get("operation_id") or payload.get("sale_id", "EVT"))
         sale_id = str(payload.get("sale_id", payload.get("venta_id", "")))
         user = str(payload.get("user", payload.get("usuario", "sistema")))
@@ -202,7 +202,7 @@ class SaleInventoryHandler:
             )
 
     def _deduct_via_resolver(self, product_id, sale_qty, branch_id, sale_id, operation_id, user, folio) -> None:
-        totals = self._resolve_bom_with_resolver(int(product_id), float(sale_qty), int(branch_id))
+        totals = self._resolve_bom_with_resolver(str(product_id), float(sale_qty), str(branch_id))
         for component_id, quantity in totals.items():
             self._decrease_or_raise(
                 product_id=component_id,

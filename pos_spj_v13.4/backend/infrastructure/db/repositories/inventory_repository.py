@@ -50,19 +50,19 @@ class InventoryRepository:
             FROM inventory_stock
             WHERE product_id = ? AND branch_id = ?
             """,
-            (int(product_id), int(branch_id)),
+            (str(product_id), str(branch_id)),
         ).fetchone()
         if row is None:
             return InventoryStockRecord(
-                product_id=int(product_id),
-                branch_id=int(branch_id),
+                product_id=str(product_id),
+                branch_id=str(branch_id),
                 quantity=0.0,
                 unit="unit",
                 updated_at=None,
             )
         return InventoryStockRecord(
-            product_id=int(row[0]),
-            branch_id=int(row[1]),
+            product_id=str(row[0]),
+            branch_id=str(row[1]),
             quantity=float(row[2] or 0.0),
             unit=str(row[3] or "unit"),
             updated_at=None if row[4] is None else str(row[4]),
@@ -76,12 +76,12 @@ class InventoryRepository:
             WHERE branch_id = ?
             ORDER BY product_id
             """,
-            (int(branch_id),),
+            (str(branch_id),),
         ).fetchall()
         return [
             InventoryStockRecord(
-                product_id=int(row[0]),
-                branch_id=int(row[1]),
+                product_id=str(row[0]),
+                branch_id=str(row[1]),
                 quantity=float(row[2] or 0.0),
                 unit=str(row[3] or "unit"),
                 updated_at=None if row[4] is None else str(row[4]),
@@ -99,10 +99,10 @@ class InventoryRepository:
         params: list[Any] = []
         if product_id is not None:
             filters.append("product_id = ?")
-            params.append(int(product_id))
+            params.append(str(product_id))
         if branch_id is not None:
             filters.append("branch_id = ?")
-            params.append(int(branch_id))
+            params.append(str(branch_id))
         where = f"WHERE {' AND '.join(filters)}" if filters else ""
         rows = self._connection.execute(
             f"""
@@ -111,7 +111,7 @@ class InventoryRepository:
                    reference_id, reason, user_name, created_at
             FROM inventory_movements
             {where}
-            ORDER BY created_at DESC, id DESC
+            ORDER BY created_at DESC
             """,
             params,
         ).fetchall()
@@ -134,7 +134,7 @@ class InventoryRepository:
             WHERE operation_id = ? AND product_id = ? AND branch_id = ? AND movement_type = ?
             LIMIT 1
             """,
-            (operation_id, int(product_id), int(branch_id), movement_type),
+            (str(operation_id), str(product_id), str(branch_id), movement_type),
         ).fetchone()
         return None if row is None else self._movement_from_row(row)
 
@@ -196,8 +196,8 @@ class InventoryRepository:
     def _movement_from_row(row) -> InventoryMovementRecord:
         return InventoryMovementRecord(
             operation_id=str(row[0]),
-            product_id=int(row[1]),
-            branch_id=int(row[2]),
+            product_id=str(row[1]),
+            branch_id=str(row[2]),
             movement_type=str(row[3]),
             quantity=float(row[4] or 0.0),
             stock_before=float(row[5] or 0.0),

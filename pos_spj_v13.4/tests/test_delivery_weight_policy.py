@@ -1,6 +1,7 @@
 import pytest
 
-from core.delivery.domain.policies import DeliveryTotalPolicy, DeliveryWorkflowPolicy, WeightAdjustmentPolicy
+from core.delivery.domain.policies import DeliveryTotalPolicy, WeightAdjustmentPolicy
+from core.delivery.domain.workflow_policy import DeliveryWorkflowPolicy
 from core.delivery.domain.states import AdjustmentStatus
 
 

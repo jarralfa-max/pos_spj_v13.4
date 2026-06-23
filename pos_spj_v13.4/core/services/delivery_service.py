@@ -234,7 +234,7 @@ class DeliveryService:
         """
         from core.services.reservation_service import ReservationService
         return ReservationService().adjust_reservation(
-            self.db, operation_id, product_id, float(new_qty), branch_id or 1
+            self.db, operation_id, product_id, float(new_qty), str(branch_id or "")
         )
 
     def _sync_venta_total(self, order_id: int, new_total: float) -> None:
@@ -295,28 +295,75 @@ class DeliveryService:
             unit=unit,
         )
 
-    def get_order_items(self, order_id: int) -> List[Dict[str, Any]]:
+    def get_order_items(self, order_id) -> List[Dict[str, Any]]:
+        """Return delivery items with units resolved from productos table.
+
+        The unit column in delivery_items may store a legacy default ("kg") that
+        does not reflect the product's actual configured unit. We LEFT JOIN
+        productos so the product's unit takes precedence; delivery_items.unidad
+        is only used as fallback when the product row is missing.
+        """
         try:
             rows = self.db.execute(
-                """SELECT id, nombre, cantidad, precio_unitario, subtotal, unidad,
-                          producto_id, requested_qty, prepared_qty, final_qty,
-                          prepared_by, prepared_at, adjustment_reason, tolerance_exceeded,
-                          pending_prepared_qty, pending_subtotal, adjustment_status,
-                          adjustment_requested_at, adjustment_responded_at, adjustment_response,
-                          tolerance_units
-                   FROM delivery_items WHERE delivery_id=? ORDER BY id""",
+                """SELECT i.id, i.nombre, i.cantidad, i.precio_unitario, i.subtotal,
+                          COALESCE(p.unidad, i.unidad, '') AS unidad,
+                          i.producto_id, i.requested_qty, i.prepared_qty, i.final_qty,
+                          i.prepared_by, i.prepared_at, i.adjustment_reason, i.tolerance_exceeded,
+                          i.pending_prepared_qty, i.pending_subtotal, i.adjustment_status,
+                          i.adjustment_requested_at, i.adjustment_responded_at, i.adjustment_response,
+                          i.tolerance_units
+                   FROM delivery_items i
+                   LEFT JOIN productos p ON p.id = i.producto_id
+                   WHERE i.delivery_id=? ORDER BY i.id""",
                 (order_id,),
             ).fetchall()
-            cols = ["id", "nombre", "cantidad", "precio_unitario", "subtotal", "unidad",
-                    "producto_id", "requested_qty", "prepared_qty", "final_qty",
-                    "prepared_by", "prepared_at", "adjustment_reason", "tolerance_exceeded",
-                    "pending_prepared_qty", "pending_subtotal", "adjustment_status",
-                    "adjustment_requested_at", "adjustment_responded_at", "adjustment_response",
-                    "tolerance_units"]
-            return [dict(zip(cols, r)) for r in rows]
-        except Exception as exc:
-            logger.debug("get_order_items error: %s", exc)
-            return []
+        except Exception:
+            # Fallback without join if productos table is absent.
+            try:
+                rows = self.db.execute(
+                    """SELECT id, nombre, cantidad, precio_unitario, subtotal, unidad,
+                              producto_id, requested_qty, prepared_qty, final_qty,
+                              prepared_by, prepared_at, adjustment_reason, tolerance_exceeded,
+                              pending_prepared_qty, pending_subtotal, adjustment_status,
+                              adjustment_requested_at, adjustment_responded_at, adjustment_response,
+                              tolerance_units
+                       FROM delivery_items WHERE delivery_id=? ORDER BY id""",
+                    (order_id,),
+                ).fetchall()
+            except Exception as exc:
+                logger.debug("get_order_items error: %s", exc)
+                return []
+        cols = ["id", "nombre", "cantidad", "precio_unitario", "subtotal", "unidad",
+                "producto_id", "requested_qty", "prepared_qty", "final_qty",
+                "prepared_by", "prepared_at", "adjustment_reason", "tolerance_exceeded",
+                "pending_prepared_qty", "pending_subtotal", "adjustment_status",
+                "adjustment_requested_at", "adjustment_responded_at", "adjustment_response",
+                "tolerance_units"]
+        if rows and hasattr(rows[0], "keys"):
+            items = [dict(r) for r in rows]
+        else:
+            items = [dict(zip(cols, r)) for r in rows]
+        # Secondary resolution: when producto_id is NULL (WhatsApp-sourced items),
+        # the JOIN returned no product row. Look up by item name in productos so the
+        # product's configured unit replaces whatever legacy default is in unidad.
+        for item in items:
+            if item.get("product_id"):
+                continue
+            nombre = (item.get("nombre") or "").strip()
+            if not nombre:
+                continue
+            try:
+                row = self.db.execute(
+                    "SELECT unidad FROM productos WHERE nombre=? AND activo=1 LIMIT 1",
+                    (nombre,),
+                ).fetchone()
+                if row:
+                    unit = row[0] if not hasattr(row, "keys") else row["unidad"]
+                    if unit:
+                        item["unidad"] = unit
+            except Exception:
+                pass
+        return items
 
     def autocomplete_address(self, query: str):
         return self.geocoding_service.autocomplete(query)

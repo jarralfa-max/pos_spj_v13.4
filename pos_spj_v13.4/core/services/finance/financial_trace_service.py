@@ -78,7 +78,7 @@ class FinancialTraceService:
             payment_method = str(payload.get("payment_method", payload.get("forma_pago", "Efectivo")))
             sale_id        = payload.get("sale_id") or payload.get("venta_id")
             folio          = str(payload.get("folio", ""))
-            branch_id      = int(payload.get("branch_id", payload.get("sucursal_id", 1)))
+            branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
             user           = str(payload.get("user", payload.get("usuario", "sistema")))
             cliente_id     = payload.get("cliente_id")
 
@@ -179,7 +179,7 @@ class FinancialTraceService:
             folio       = str(payload.get("folio", ""))
             purchase_id = payload.get("compra_id") or payload.get("purchase_id")
             supplier_id = payload.get("supplier_id") or payload.get("proveedor_id")
-            branch_id   = int(payload.get("branch_id", payload.get("sucursal_id", 1)))
+            branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
             user        = str(payload.get("user", payload.get("usuario", "sistema")))
             payment_method = payload.get("payment_method") or payload.get("forma_pago")
             paid_now = bool(payment_method and payment_method not in ("credito", "Credito", ""))
@@ -264,7 +264,7 @@ class FinancialTraceService:
             payment_method = str(payload.get("payment_method", "efectivo"))
             source_module = str(payload.get("source_module", "pagos"))
             source_id    = payload.get("source_id")
-            branch_id    = int(payload.get("branch_id", 1))
+            branch_id = str(payload.get("branch_id") or "")
             user         = str(payload.get("user", "sistema"))
 
             if amount <= 0:
@@ -346,7 +346,7 @@ class FinancialTraceService:
             payment_method = str(payload.get("payment_method", payload.get("metodo_pago", "efectivo")))
             nomina_id    = payload.get("nomina_id") or payload.get("pago_id")
             empleado_id  = payload.get("empleado_id")
-            branch_id    = int(payload.get("branch_id", payload.get("sucursal_id", 1)))
+            branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
             user         = str(payload.get("user", payload.get("usuario", "sistema")))
             meta         = {"nomina_id": nomina_id, "empleado_id": empleado_id}
 
@@ -421,7 +421,7 @@ class FinancialTraceService:
         try:
             cost      = float(payload.get("costo_estimado", payload.get("total_cost", 0)))
             merma_id  = payload.get("merma_id")
-            branch_id = int(payload.get("branch_id", payload.get("sucursal_id", 1)))
+            branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
             user      = str(payload.get("user", payload.get("usuario", "sistema")))
 
             if cost <= 0:
@@ -458,7 +458,7 @@ class FinancialTraceService:
         try:
             amount    = float(payload.get("monto_puntos", payload.get("points_value", 0)))
             event     = str(payload.get("event", "earned"))
-            branch_id = int(payload.get("branch_id", 1))
+            branch_id = str(payload.get("branch_id") or "")
             user      = str(payload.get("user", "sistema"))
 
             if amount <= 0:
@@ -500,7 +500,7 @@ class FinancialTraceService:
         try:
             total     = float(payload.get("total", 0))
             pedido_id = payload.get("pedido_id") or payload.get("delivery_id")
-            branch_id = int(payload.get("branch_id", 1))
+            branch_id = str(payload.get("branch_id") or "")
             user      = str(payload.get("user", "sistema"))
 
             if total <= 0:
@@ -548,7 +548,7 @@ class FinancialTraceService:
             expected  = float(payload.get("expected_amount", 0))
             actual    = float(payload.get("actual_amount", 0))
             diff      = round(actual - expected, 2)
-            branch_id = int(payload.get("branch_id", 1))
+            branch_id = str(payload.get("branch_id") or "")
             user      = str(payload.get("user", "sistema"))
 
             if abs(diff) > 0.01 and self._je:
@@ -593,7 +593,7 @@ class FinancialTraceService:
                     source_module=payload.get("source_module", "activos"),
                     source_id=payload.get("source_id"),
                     source_folio=str(payload.get("folio", "")),
-                    branch_id=int(payload.get("branch_id", 1)),
+                    branch_id = str(payload.get("branch_id") or ""),
                     user=str(payload.get("user", "sistema")),
                     metadata=payload,
                 )
@@ -641,7 +641,7 @@ class FinancialTraceService:
                     source_folio=str(payload.get("folio", "")),
                     payment_method=payload.get("payment_method"),
                     is_capitalizable=bool(payload.get("capitalizable", False)),
-                    branch_id=int(payload.get("branch_id", 1)),
+                    branch_id = str(payload.get("branch_id") or ""),
                     user=str(payload.get("user", "sistema")),
                     metadata=payload,
                 )
@@ -671,7 +671,7 @@ class FinancialTraceService:
                     source_id=payload.get("source_id"),
                     source_folio=str(payload.get("folio", "")),
                     payment_method=payload.get("payment_method"),
-                    branch_id=int(payload.get("branch_id", 1)),
+                    branch_id = str(payload.get("branch_id") or ""),
                     user=str(payload.get("user", "sistema")),
                     metadata=payload,
                 )

@@ -4,7 +4,8 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from core.delivery.domain.states import DeliveryStatus, normalize_status
+from core.delivery.domain.states import normalize_status
+from core.delivery.domain.value_objects import DeliveryStatus
 
 logger = logging.getLogger("spj.delivery.projections.sales")
 
@@ -17,11 +18,11 @@ class SaleDeliveryProjectionService:
     """
 
     STATUS_TO_SALE_STATUS: Mapping[DeliveryStatus, str] = {
-        DeliveryStatus.PENDIENTE: "pendiente_wa",
-        DeliveryStatus.PREPARACION: "en_preparacion",
-        DeliveryStatus.EN_RUTA: "en_ruta",
-        DeliveryStatus.ENTREGADO: "entregada",
-        DeliveryStatus.CANCELADO: "cancelada",
+        DeliveryStatus.PENDING: "pendiente_wa",
+        DeliveryStatus.PREPARING: "en_preparacion",
+        DeliveryStatus.IN_TRANSIT: "en_ruta",
+        DeliveryStatus.DELIVERED: "entregada",
+        DeliveryStatus.CANCELLED: "cancelada",
     }
 
     def __init__(self, db) -> None:
@@ -38,7 +39,19 @@ class SaleDeliveryProjectionService:
         sale_status = self.STATUS_TO_SALE_STATUS.get(normalize_status(status))
         if not sale_status:
             return False
-        self.db.execute("UPDATE ventas SET estado=? WHERE id=?", (sale_status, int(venta_id)))
+        try:
+            self.db.execute("UPDATE ventas SET estado=? WHERE id=?", (sale_status, str(venta_id)))
+        except Exception as exc:
+            # The ventas table may have a state-machine trigger (trg_protect_sale_estado)
+            # that only allows transitions from 'completada'/'CANCEL_PENDING'. Delivery
+            # logistics is the source of truth; ventas projection is secondary and must
+            # never abort the delivery state transition.
+            logger.warning(
+                "project_status: ventas.estado projection skipped venta_id=%s "
+                "delivery_status=%s → sale_status=%s: %s",
+                venta_id, status, sale_status, exc,
+            )
+            return False
         return True
 
     def project_total_for_order(self, order: Mapping[str, Any] | None, total: float) -> bool:
@@ -49,7 +62,7 @@ class SaleDeliveryProjectionService:
     def project_total(self, venta_id: Any, total: float) -> bool:
         if not venta_id or not self._has_column("ventas", "total"):
             return False
-        self.db.execute("UPDATE ventas SET total=? WHERE id=?", (float(total), int(venta_id)))
+        self.db.execute("UPDATE ventas SET total=? WHERE id=?", (float(total), str(venta_id)))
         return True
 
     def project_scheduled_activation(self, venta_id: Any, workflow_type: str) -> bool:
@@ -66,7 +79,7 @@ class SaleDeliveryProjectionService:
             values.append("pendiente")
         if not assignments:
             return False
-        values.append(int(venta_id))
+        values.append(str(venta_id))
         self.db.execute(f"UPDATE ventas SET {', '.join(assignments)} WHERE id=?", tuple(values))
         return True
 

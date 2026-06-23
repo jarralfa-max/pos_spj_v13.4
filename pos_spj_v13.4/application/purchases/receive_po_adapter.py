@@ -24,6 +24,7 @@ REGLAS:
   - Se crea un registro en 'compras' con purchase_order_id para trazabilidad
 """
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import logging
 import uuid
@@ -89,7 +90,7 @@ class ReceivePOAdapter:
             return []
         return [
             {
-                "producto_id":     item.get("producto_id") or item.get("product_id"),
+                "producto_id":     item.get("product_id"),
                 "nombre":          item.get("nombre", ""),
                 "cantidad":        item.get("cantidad", 0),
                 "recibido":        item.get("recibido", 0),
@@ -146,7 +147,7 @@ class ReceivePOAdapter:
         if not received_items:
             return ReceiptResult(ok=False, error="No hay items para recibir.")
 
-        operation_id = str(uuid.uuid4())
+        operation_id = new_uuid()
         warnings: list[str] = []
 
         # ── 2 + 3. Inventario + Lotes ─────────────────────────────────────────
@@ -164,7 +165,7 @@ class ReceivePOAdapter:
                 try:
                     inventory_result = inv_svc.increase_stock(
                         product_id=int(item.product_id),
-                        branch_id=int(sucursal_id),
+                        branch_id=str(sucursal_id),
                         quantity=float(item.qty_received),
                         unit="unit",
                         reason=f"Recepción PO {po.get('folio', po_id)}",
