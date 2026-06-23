@@ -159,3 +159,15 @@ class ExecuteMonthlyClosingCommand(BaseCommand):
             raise ValueError("period is required")
         if not str(self.branch_id or "").strip():
             raise ValueError("branch_id is required")
+
+
+@dataclass(frozen=True)
+class SavePaymentProviderSettingsCommand(BaseCommand):
+    access_token: str = ""
+    webhook_url: str = ""
+    return_url: str = ""
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.access_token or "").strip():
+            raise ValueError("access_token is required")

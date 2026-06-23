@@ -23,6 +23,20 @@ from backend.application.use_cases.save_hardware_config_use_case import SaveHard
 from backend.application.use_cases.save_module_toggle_use_case import SaveModuleToggleUseCase
 from backend.application.use_cases.save_role_permissions_use_case import SaveRolePermissionsUseCase
 from backend.application.use_cases.save_user_use_case import SaveUserUseCase
+from backend.application.use_cases.save_system_setting_use_case import SaveSystemSettingUseCase
+from backend.application.use_cases.save_company_profile_use_case import SaveCompanyProfileUseCase
+from backend.application.use_cases.save_smtp_settings_use_case import SaveSMTPSettingsUseCase
+from backend.application.use_cases.save_payment_provider_settings_use_case import SavePaymentProviderSettingsUseCase
+from backend.application.use_cases.set_user_active_use_case import SetUserActiveUseCase
+from backend.application.use_cases.set_happy_hour_rule_active_use_case import SetHappyHourRuleActiveUseCase
+from backend.application.commands.settings_commands import (
+    SaveSystemSettingCommand,
+    SaveCompanyProfileCommand,
+    SaveSMTPSettingsCommand,
+    SavePaymentProviderSettingsCommand,
+    SetUserActiveCommand,
+    SetHappyHourRuleActiveCommand,
+)
 from backend.application.services.hardware_settings_service import HardwareSettingsService
 from backend.shared.ids import new_uuid
 from core.services.configuration_settings_service import (
@@ -54,6 +68,7 @@ def _conn():
             cerrado_por TEXT, fecha_cierre TEXT, total_ventas REAL, total_compras REAL, total_merma REAL,
             sucursal_uuid TEXT);
         CREATE TABLE module_toggles(clave TEXT PRIMARY KEY, activo INTEGER DEFAULT 1, descripcion TEXT DEFAULT '');
+        CREATE TABLE configuraciones(clave TEXT PRIMARY KEY, valor TEXT, descripcion TEXT);
         """
     )
     branch_uuid = new_uuid()
@@ -150,6 +165,82 @@ def test_save_module_toggle_flow():
     result = uc.execute(cmd)
     assert result.success and result.entity_id == "loyalty"
     assert service.is_enabled("loyalty") is True
+
+
+def test_save_system_setting_flow():
+    conn, branch_uuid, _ = _conn()
+    from core.services.configuration_settings_service import SystemSettingsService
+    svc = SystemSettingsService(ConfigRepository(conn))
+    uc = SaveSystemSettingUseCase(svc)
+    cmd = SaveSystemSettingCommand(
+        operation_id=new_uuid(), branch_id=branch_uuid, user_name="admin",
+        key="tasa_iva", value="16.0",
+    )
+    assert uc.execute(cmd).success
+    assert svc.get_setting("tasa_iva") == "16.0"
+
+
+def test_save_company_profile_flow():
+    conn, branch_uuid, _ = _conn()
+    from core.services.configuration_settings_service import SystemSettingsService
+    svc = SystemSettingsService(ConfigRepository(conn))
+    uc = SaveCompanyProfileUseCase(svc)
+    cmd = SaveCompanyProfileCommand(
+        operation_id=new_uuid(), branch_id=branch_uuid, user_name="admin",
+        name="SPJ", rfc="XAXX010101000", phone="+5215500000000",
+    )
+    assert uc.execute(cmd).success
+    assert svc.get_setting("nombre_empresa") == "SPJ"
+    assert svc.get_setting("rfc") == "XAXX010101000"
+
+
+def test_save_smtp_and_payment_provider_flow():
+    conn, branch_uuid, _ = _conn()
+    from core.services.configuration_settings_service import (
+        EmailSettingsService, PaymentProviderSettingsService, SystemSettingsService,
+    )
+    sys_svc = SystemSettingsService(ConfigRepository(conn))
+    assert SaveSMTPSettingsUseCase(EmailSettingsService(sys_svc)).execute(
+        SaveSMTPSettingsCommand(operation_id=new_uuid(), branch_id=branch_uuid, user_name="a",
+                                host="smtp.x.mx", port=587, username="u", password="p", from_email="g@x.mx")
+    ).success
+    assert sys_svc.get_setting("smtp_host") == "smtp.x.mx"
+
+    assert SavePaymentProviderSettingsUseCase(PaymentProviderSettingsService(sys_svc)).execute(
+        SavePaymentProviderSettingsCommand(operation_id=new_uuid(), branch_id=branch_uuid, user_name="a",
+                                           access_token="TOK", webhook_url="http://x")
+    ).success
+    assert sys_svc.get_setting("mp_access_token") == "TOK"
+
+
+def test_set_user_active_flow():
+    conn, branch_uuid, _ = _conn()
+    publisher = PermissionEventPublisher()
+    user_svc = UserManagementService(ConfigRepository(conn), publisher)
+    uid = SaveUserUseCase(user_svc).execute(
+        SaveUserCommand(operation_id=new_uuid(), branch_id=branch_uuid, user_name="admin",
+                        username="ana", role="gerente")
+    ).entity_id
+    res = SetUserActiveUseCase(user_svc).execute(
+        SetUserActiveCommand(operation_id=new_uuid(), branch_id=branch_uuid, user_name="admin",
+                             user_id=uid, active=False)
+    )
+    assert res.success
+    assert conn.execute("SELECT activo FROM usuarios WHERE uuid=?", (uid,)).fetchone()["activo"] == 0
+
+
+def test_set_happy_hour_rule_active_flow():
+    conn, branch_uuid, _ = _conn()
+    hh = HappyHourSettingsService(ConfigRepository(conn))
+    rid = SaveHappyHourRuleUseCase(hh).execute(
+        SaveHappyHourRuleCommand(operation_id=new_uuid(), branch_id=branch_uuid, user_name="a",
+                                 name="Tarde", discount_percent=10.0, active=True)
+    ).entity_id
+    assert SetHappyHourRuleActiveUseCase(hh).execute(
+        SetHappyHourRuleActiveCommand(operation_id=new_uuid(), branch_id=branch_uuid, user_name="a",
+                                      rule_id=rid, active=False)
+    ).success
+    assert conn.execute("SELECT activo FROM happy_hour_rules WHERE uuid=?", (rid,)).fetchone()["activo"] == 0
 
 
 def test_command_validation_rejects_missing_fields():
