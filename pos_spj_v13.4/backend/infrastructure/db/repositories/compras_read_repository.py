@@ -109,6 +109,71 @@ class ComprasReadRepository:
         ).fetchone()
         return None if row is None else row[0]
 
+    def get_purchase_id_by_folio(self, folio: str) -> Any | None:
+        row = self._connection.execute(
+            "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
+        ).fetchone()
+        return None if row is None else row[0]
+
+    def get_supervisor_pin(self) -> str:
+        """Supervisor PIN from configuracion / settings / parametros (first hit)."""
+        for tabla, col_k, col_v in (("configuracion", "clave", "valor"),
+                                    ("settings", "key", "value"),
+                                    ("parametros", "parametro", "valor")):
+            try:
+                row = self._connection.execute(
+                    f"SELECT {col_v} FROM {tabla} WHERE {col_k}=? LIMIT 1",
+                    ("pin_supervisor",),
+                ).fetchone()
+                if row:
+                    return str(row[0] or "").strip()
+            except Exception:
+                continue
+        return ""
+
+    def list_purchase_history(self, branch_id: str, desde: str, hasta: str, *, limit: int = 200) -> list[tuple]:
+        rows = self._connection.execute(
+            "SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor, "
+            "c.usuario, c.total, c.estado, c.id, "
+            "COALESCE(c.condicion_pago,'liquidado') AS condicion_pago, "
+            "COALESCE(c.moneda,'MXN') AS moneda, "
+            "COALESCE(c.purchase_order_id, 0) AS po_id, "
+            "COALESCE(oc.estado, '') AS po_estado "
+            "FROM compras c "
+            "LEFT JOIN proveedores p ON p.id=c.proveedor_id "
+            "LEFT JOIN ordenes_compra oc ON oc.id=c.purchase_order_id "
+            "WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ? "
+            "ORDER BY c.fecha DESC LIMIT ?",
+            (branch_id, desde, hasta, int(limit)),
+        ).fetchall()
+        return [tuple(r) for r in rows]
+
+    def get_recipe_components(self, product_id: str) -> list[dict[str, Any]]:
+        """Recipe components from receta_componentes (m000 schema)."""
+        rows = self._connection.execute(
+            "SELECT rc.producto_id AS insumo_id, "
+            "COALESCE(rc.cantidad, 0) AS cantidad_insumo, p.nombre AS insumo_nombre "
+            "FROM receta_componentes rc "
+            "JOIN recetas r ON r.id = rc.receta_id "
+            "JOIN productos p ON p.id = rc.producto_id "
+            "WHERE (r.producto_base_id=? OR r.producto_id=?) AND (r.activo=1 OR r.activa=1)",
+            (product_id, product_id),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_recipe_components_v2(self, product_id: str) -> list[dict[str, Any]]:
+        """Fallback recipe components from product_recipe_components."""
+        rows = self._connection.execute(
+            "SELECT rc.component_product_id AS insumo_id, "
+            "COALESCE(rc.cantidad, 0) AS cantidad_insumo, p.nombre AS insumo_nombre "
+            "FROM product_recipe_components rc "
+            "JOIN product_recipes r ON r.id = rc.recipe_id "
+            "JOIN productos p ON p.id = rc.component_product_id "
+            "WHERE r.base_product_id=? AND r.is_active=1",
+            (product_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_purchase_for_reception(self, purchase_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT c.folio, c.total, c.proveedor_id, c.factura, "

@@ -572,22 +572,7 @@ class _PINDialog(QDialog):
     @staticmethod
     def _leer_pin(db) -> str:
         """Lee el PIN de supervisor desde configuracion. Retorna "" si no configurado."""
-        _CONFIGS = [
-            ("configuracion", "clave",    "valor"),
-            ("settings",      "key",      "value"),
-            ("parametros",    "parametro","valor"),
-        ]
-        for tabla, col_k, col_v in _CONFIGS:
-            try:
-                r = db.execute(
-                    f"SELECT {col_v} FROM {tabla} WHERE {col_k}=? LIMIT 1",
-                    ("pin_supervisor",)
-                ).fetchone()
-                if r:
-                    return str(r[0] or "").strip()
-            except Exception:
-                pass
-        return ""
+        return ComprasReadRepository(db).get_supervisor_pin()
 
     @classmethod
     def verificar(cls, db, accion_label: str, parent=None) -> bool:
@@ -618,19 +603,8 @@ class _HistorialLoader(QThread):
 
     def run(self) -> None:
         try:
-            rows = self._db.execute("""
-                SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
-                       c.usuario, c.total, c.estado, c.id,
-                       COALESCE(c.condicion_pago,'liquidado') AS condicion_pago,
-                       COALESCE(c.moneda,'MXN') AS moneda,
-                       COALESCE(c.purchase_order_id, 0) AS po_id,
-                       COALESCE(oc.estado, '') AS po_estado
-                FROM compras c
-                LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                LEFT JOIN ordenes_compra oc ON oc.id=c.purchase_order_id
-                WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
-                ORDER BY c.fecha DESC LIMIT ?
-            """, (self._sucursal, self._desde, self._hasta, self._limit)).fetchall()
+            rows = ComprasReadRepository(self._db).list_purchase_history(
+                self._sucursal, self._desde, self._hasta, limit=self._limit)
             self.loaded.emit(rows)
         except Exception as e:
             self.error.emit(str(e))
@@ -5913,10 +5887,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             # Mark direct purchase as pending physical reception so it shows up
             # in the QR reception tab for the warehouse to verify.
             try:
-                self.container.db.execute(
-                    "UPDATE compras SET estado='para_recepcion' WHERE folio=?",
-                    (folio,)
-                )
+                with ConnectionUnitOfWork(self.container.db):
+                    ComprasWriteRepository(self.container.db).update_purchase_status_by_folio(
+                        folio, "para_recepcion")
             except Exception as _re:
                 logger.debug("_procesar_compra: could not set para_recepcion: %s", _re)
 
@@ -5974,9 +5947,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
         try:
             compra_dict = self._purchase_repo.get_purchase_full(
-                self.container.db.execute(
-                    "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
-                ).fetchone()[0]
+                ComprasReadRepository(self.container.db).get_purchase_id_by_folio(folio)
             )
             if not compra_dict:
                 return
@@ -6144,43 +6115,25 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     nombres.append(item['nombre'])
                 else:
                     # Fallback: query receta_componentes (m000 schema), then product_recipe_components
-                    receta = self.container.db.execute("""
-                        SELECT rc.producto_id AS insumo_id,
-                               COALESCE(rc.cantidad, 0) AS cantidad_insumo,
-                               p.nombre AS insumo_nombre
-                        FROM receta_componentes rc
-                        JOIN recetas r ON r.id = rc.receta_id
-                        JOIN productos p ON p.id = rc.producto_id
-                        WHERE (r.producto_base_id=? OR r.producto_id=?)
-                          AND (r.activo=1 OR r.activa=1)
-                    """, (item['producto_id'], item['producto_id'])).fetchall()
+                    _crepo = ComprasReadRepository(self.container.db)
+                    receta = _crepo.get_recipe_components(item['producto_id'])
                     if not receta:
-                        receta = self.container.db.execute("""
-                            SELECT rc.component_product_id AS insumo_id,
-                                   COALESCE(rc.cantidad, 0) AS cantidad_insumo,
-                                   p.nombre AS insumo_nombre
-                            FROM product_recipe_components rc
-                            JOIN product_recipes r ON r.id = rc.recipe_id
-                            JOIN productos p ON p.id = rc.component_product_id
-                            WHERE r.base_product_id=? AND r.is_active=1
-                        """, (item['producto_id'],)).fetchall()
+                        receta = _crepo.get_recipe_components_v2(item['producto_id'])
                     if receta:
                         _app = getattr(self.container, 'app_service', None)
-                        for comp in receta:
-                            consumo = float(comp['cantidad_insumo'] or 0) * item['cantidad']
-                            if consumo > 0:
-                                if _app:
-                                    _app.registrar_salida_produccion(
-                                        producto_id=comp['insumo_id'],
-                                        cantidad=consumo,
-                                        usuario=getattr(self, 'usuario_actual', ''),
-                                        sucursal_id=self.sucursal_id)
-                                else:
-                                    self.container.db.execute(
-                                        "UPDATE productos SET existencia=existencia-? WHERE id=?",
-                                        (consumo, comp['insumo_id']))
-                        try: self.container.db.commit()
-                        except Exception: pass
+                        with ConnectionUnitOfWork(self.container.db):
+                            _wrepo = ComprasWriteRepository(self.container.db)
+                            for comp in receta:
+                                consumo = float(comp['cantidad_insumo'] or 0) * item['cantidad']
+                                if consumo > 0:
+                                    if _app:
+                                        _app.registrar_salida_produccion(
+                                            producto_id=comp['insumo_id'],
+                                            cantidad=consumo,
+                                            usuario=getattr(self, 'usuario_actual', ''),
+                                            sucursal_id=self.sucursal_id)
+                                    else:
+                                        _wrepo.decrease_product_stock(comp['insumo_id'], consumo)
                         nombres.append(item['nombre'])
             except Exception as e:
                 logger.warning("_procesar_recetas %s: %s", item['nombre'], e)

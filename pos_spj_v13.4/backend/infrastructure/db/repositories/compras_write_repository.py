@@ -92,3 +92,16 @@ class ComprasWriteRepository:
             "UPDATE compras SET estado=? WHERE id=?", (estado, purchase_id)
         )
 
+    def update_purchase_status_by_folio(self, folio: str, estado: str) -> None:
+        self._connection.execute(
+            "UPDATE compras SET estado=? WHERE folio=?", (estado, folio)
+        )
+
+    def decrease_product_stock(self, producto_id: Any, qty: float) -> None:
+        """Raw stock decrement — legacy fallback for recipe consumption when the
+        inventory service is unavailable. Routing through the canonical service is
+        the preferred path (regla 12); kept behaviour-preserving for Fase A."""
+        self._connection.execute(
+            "UPDATE productos SET existencia=existencia-? WHERE id=?", (qty, producto_id)
+        )
+

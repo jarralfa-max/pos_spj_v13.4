@@ -22,7 +22,8 @@ def db():
         CREATE TABLE sucursales (id INTEGER PRIMARY KEY, nombre TEXT, activo INTEGER DEFAULT 1);
         CREATE TABLE compras (id INTEGER PRIMARY KEY, folio TEXT, fecha TEXT, total REAL,
                              estado TEXT, proveedor_id INTEGER, sucursal_id INTEGER,
-                             factura TEXT);
+                             factura TEXT, usuario TEXT, condicion_pago TEXT, moneda TEXT,
+                             purchase_order_id INTEGER);
         INSERT INTO proveedores VALUES (1,'Carnes SA',1,'RFC1','555'),(2,'Inactivo',0,'','');
         INSERT INTO sucursales VALUES (1,'Centro',1),(2,'Cerrada',0);
         INSERT INTO compras (id,folio,fecha,total,estado,proveedor_id,sucursal_id,factura) VALUES
@@ -215,3 +216,40 @@ def test_list_purchases_for_reception(repo):
 def test_list_assigned_containers_for_reception(repo):
     rows = repo.list_assigned_containers_for_reception()
     assert [r["codigo"] for r in rows] == ["K-2"]  # only 'asignado' state
+
+
+def test_get_purchase_id_by_folio(repo):
+    assert repo.get_purchase_id_by_folio("C-1") == 1
+    assert repo.get_purchase_id_by_folio("nope") is None
+
+
+def test_get_supervisor_pin(db, repo):
+    db.execute("CREATE TABLE configuracion (clave TEXT, valor TEXT)")
+    db.execute("INSERT INTO configuracion VALUES ('pin_supervisor','1234')")
+    db.commit()
+    assert repo.get_supervisor_pin() == "1234"
+
+
+def test_get_supervisor_pin_empty_when_unset(repo):
+    assert repo.get_supervisor_pin() == ""
+
+
+def test_list_purchase_history_positional(db, repo):
+    rows = repo.list_purchase_history(1, "2026-01-01", "2026-12-31")
+    # positional tuples: index 0 folio, 5 estado, 6 id
+    assert all(isinstance(r, tuple) for r in rows)
+    folios = {r[0] for r in rows}
+    assert "C-1" in folios
+
+
+def test_get_recipe_components(db, repo):
+    db.executescript(
+        """
+        CREATE TABLE receta_componentes (receta_id INTEGER, producto_id INTEGER, cantidad REAL);
+        INSERT INTO recetas (id, producto_id, producto_base_id, activa, activo) VALUES (5,100,7,1,1);
+        INSERT INTO receta_componentes VALUES (5, 7, 2.0);
+        """
+    )
+    db.commit()
+    comps = repo.get_recipe_components(7)
+    assert comps and comps[0]["insumo_id"] == 7 and comps[0]["cantidad_insumo"] == 2.0

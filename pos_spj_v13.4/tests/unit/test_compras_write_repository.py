@@ -108,6 +108,21 @@ def test_update_purchase_status(repo, db):
     assert db.execute("SELECT estado FROM compras WHERE id=1").fetchone()["estado"] == "completada"
 
 
+def test_update_purchase_status_by_folio(repo, db):
+    db.execute("UPDATE compras SET estado='x' WHERE id=1"); db.commit()
+    db.execute("ALTER TABLE compras ADD COLUMN folio TEXT")
+    db.execute("UPDATE compras SET folio='F-7' WHERE id=1"); db.commit()
+    with ConnectionUnitOfWork(db):
+        repo.update_purchase_status_by_folio("F-7", "para_recepcion")
+    assert db.execute("SELECT estado FROM compras WHERE id=1").fetchone()["estado"] == "para_recepcion"
+
+
+def test_decrease_product_stock(repo, db):
+    with ConnectionUnitOfWork(db):
+        repo.decrease_product_stock(9, 2.0)
+    assert db.execute("SELECT existencia FROM productos WHERE id=9").fetchone()["existencia"] == 3.0
+
+
 def test_assignment_rolls_back_on_error(repo, db):
     """If the product re-insert fails mid-way, the UoW rolls back the whole swap."""
     bad_items = [{"producto_id": 1, "cantidad": 2.0, "costo": 40.0},

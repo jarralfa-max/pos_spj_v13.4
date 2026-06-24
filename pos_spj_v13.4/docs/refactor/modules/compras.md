@@ -10,11 +10,13 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 
 | Patrón | Inicio | Tras tanda 1 |
 |---|---|---|
-| `.execute` | 50 | 44→37→32→26→23→18→**15** |
-| SELECT | 48 | 42→34→29→21→18→13→**13** |
-| INSERT / UPDATE / DELETE | 2 / 14 / 1 | 2 / 14 / 1 |
-| commit | 5 | **4** |
+| `.execute` (SQL) | 50 | **0** ✅ |
+| INSERT / UPDATE / DELETE | 2 / 14 / 1 | **0 / 0 / 0** ✅ |
+| commit | 5 | **0** ✅ |
 | CREATE TABLE (en UI!) | 2 | **0** ✅ → migración 111 |
+
+> **MÓDULO CERRADO:** `compras_pro.py` no ejecuta SQL ni posee transacciones.
+> Lo único restante (`uc.execute()`) son ejecuciones de use case.
 
 ## Tanda 2 — cluster lecturas QR/contenedores ✅
 
@@ -91,12 +93,24 @@ Nota (regla 12): `increase_product_stock` es UPDATE crudo que **omite
 movimientos_inventario**; rutearlo por el servicio canónico de inventario es un
 follow-up F6 (cambia comportamiento → su propia protección).
 
-## Residual (último, detrás de use cases)
+## Escrituras — tanda 3 (cierre) ✅
 
-- `_procesar_compra` (UPDATE compras `para_recepcion`, best-effort tras `RegistrarCompraUC`)
-- `_procesar_recetas` (UPDATE existencia — **solo fallback**; ruta primaria ya usa
-  `registrar_salida_produccion` del servicio de inventario)
-- worker thread `run` (historial) + `_leer_pin` (config 3-tabla)
+Últimas extracciones a repos + UoW:
+- `_procesar_compra`: `update_purchase_status_by_folio` (UoW) + `get_purchase_id_by_folio`
+- `_procesar_recetas`: `get_recipe_components` / `get_recipe_components_v2` (lecturas)
+  + `decrease_product_stock` (fallback) envuelto en UoW; ruta primaria sigue usando
+  `registrar_salida_produccion`
+- worker thread: `_leer_pin` → `get_supervisor_pin`; `_HistorialLoader.run` →
+  `list_purchase_history` (tuplas posicionales)
+
+Tests: read 41 + write 9 (incl. recepción/asignación atómicas). Guardrail
+`test_compras_ui_has_no_executable_sql_or_commit` bloquea cualquier reaparición.
+
+## Follow-up F6 (regla 12)
+
+`increase_product_stock` / `decrease_product_stock` son UPDATE crudos que omiten
+`movimientos_inventario`. Rutearlos por el servicio canónico de inventario cambia
+comportamiento (añade movimientos/asientos) → requiere su propia protección.
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 

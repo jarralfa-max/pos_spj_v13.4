@@ -34,14 +34,13 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented baseline after tanda 1 (supplier/branch read cluster extracted).
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/compras_pro.py": {
-        # reads extracted; schema -> migration 111; generate/assign/reception
-        # writes -> ComprasWriteRepository + UoW. Remaining: _procesar_compra /
-        # _procesar_recetas (best-effort fallbacks behind use cases) and the
-        # worker thread (run/_leer_pin).
-        "cursor_execute": 6,
-        "commit": 1,
-        "sql_select": 12,
-        "sql_update": 9,
+        # FULLY EXTRACTED: zero executable SQL / commit in the UI. All reads go
+        # through ComprasReadRepository, all writes through ComprasWriteRepository
+        # + ConnectionUnitOfWork, schema via migration 111. The remaining
+        # sql_select/sql_update matches are comments/prose, not executable SQL;
+        # the two .execute calls left are use-case executions (uc.execute).
+        "sql_select": 7,
+        "sql_update": 7,
     },
 }
 
@@ -64,6 +63,14 @@ def test_compras_scope_has_no_new_violations():
             if count > base.get(pattern, 0):
                 regressions.append(f"{rel}: '{pattern}' {count} > baseline {base.get(pattern, 0)}")
     assert not regressions, "new COMPRAS violations:\n" + "\n".join(regressions)
+
+
+def test_compras_ui_has_no_executable_sql_or_commit():
+    """compras_pro.py must run no raw SQL and own no transaction (regla 8/9)."""
+    live = _measure("modulos/compras_pro.py")
+    for pattern in ("cursor_execute", "commit", "rollback", "sql_insert",
+                    "sql_delete", "create_table", "lastrowid"):
+        assert live.get(pattern, 0) == 0, f"compras_pro.py regained '{pattern}'={live[pattern]}"
 
 
 def test_compras_documented_findings_snapshot():
