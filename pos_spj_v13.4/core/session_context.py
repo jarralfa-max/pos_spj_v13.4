@@ -111,7 +111,7 @@ class SessionContext:
         self._sucursales_disponibles = user_data.get('sucursales_disponibles', [])
         self._is_active = True
         logger.info(
-            "Sesión iniciada: %s (%s) en sucursal '%s' [active_branch_id=%s legacy_id=%s]",
+            "Sesión iniciada: %s (%s) en sucursal '%s' [active_branch_id=%s sucursal_num=%s]",
             self._nombre_completo, self._rol,
             self._sucursal_nombre, self._active_branch_id, self._sucursal_id,
         )
@@ -127,7 +127,7 @@ class SessionContext:
         elif not self._active_branch_id and sucursal_id:
             self._active_branch_id = str(sucursal_id)
         logger.info(
-            "Sucursal cambiada: '%s' (legacy_id=%s active_branch_id=%s)",
+            "Sucursal cambiada: '%s' (sucursal_num=%s active_branch_id=%s)",
             nombre, sucursal_id, self._active_branch_id,
         )
 
