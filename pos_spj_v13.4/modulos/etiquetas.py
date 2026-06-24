@@ -226,7 +226,7 @@ class ModuloEtiquetas(QWidget):
         self.container   = container
         self.db          = container.db
         self.usuario     = ""
-        self.sucursal_id = getattr(container, 'sucursal_id', 1)
+        self.sucursal_id = getattr(container, 'sucursal_id', '') or ''
         self._nombre_negocio = "SPJ"
         self._productos_cache = []   # [(id, nombre, precio, unidad)]
         self._selected_product_id = None

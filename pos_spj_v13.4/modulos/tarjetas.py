@@ -18,7 +18,7 @@ class ModuloTarjetas(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container   = container
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario     = ""
         self._inner      = None
         self._build()

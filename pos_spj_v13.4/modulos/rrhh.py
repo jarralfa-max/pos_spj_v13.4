@@ -166,7 +166,7 @@ class ModuloRRHH(QWidget):
                 self._init_refresh(container, ["EMPLEADO_ACTUALIZADO"])
         except Exception: pass
         self.container = container
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
         self.employee_service = EmployeeApplicationService(
             SQLiteEmployeeRepository(container.db)
@@ -741,7 +741,7 @@ class ModuloRRHH(QWidget):
                         fecha_fin=self._nomina_fin,
                         metodo_pago=metodo,
                     )
-                    result = _uc.ejecutar(sol, getattr(self, 'sucursal_id', 1), self.usuario_actual)
+                    result = _uc.ejecutar(sol, getattr(self, 'sucursal_id', '') or '', self.usuario_actual)
                     if result.ok:
                         Toast.success(
                             self, "Nómina procesada",

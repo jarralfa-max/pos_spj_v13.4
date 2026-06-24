@@ -315,7 +315,7 @@ class ModuloConfiguracion(ModuloBase):
                 period=periodo,
                 closed_by=usuario,
                 totals=totals,
-                branch_id=getattr(self, 'sucursal_id', 1),
+                branch_id=getattr(self, 'sucursal_id', '') or '',
             )
 
             self._lbl_cierre_status.setText(

@@ -638,7 +638,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container       = container
-        self.sucursal_id     = 1
+        self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual  = ""
         self._usuario_rol    = ""
         self.carrito_compra: list[dict] = []
@@ -1672,7 +1672,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._recv_qr = RecepcionQRWidget(
                 conexion=getattr(self, 'conexion', None),
                 usuario_actual=getattr(self, 'usuario_actual', ''),
-                sucursal_id=getattr(self, 'sucursal_id', 1),
+                sucursal_id=getattr(self, 'sucursal_id', '') or '',
                 container=getattr(self, 'container', None),
             )
             rec_lay = QVBoxLayout(sub_rec)

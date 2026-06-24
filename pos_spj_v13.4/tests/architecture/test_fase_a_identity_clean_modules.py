@@ -1,8 +1,11 @@
-"""Fase A ratchet for modules cleaned of identity debt (branch defaults + casts).
+"""Fase A ratchet for UI modules cleaned of arbitrary sucursal=1 defaults.
 
-These UI modules carry no executable SQL; their only identity debt was arbitrary
-sucursal=1 defaults (and, for some, int(branch) casts). After the Fase A pass
-they must stay at zero. Guards against regressions without a per-module file.
+The Fase A pass removed arbitrary branch defaults from these PyQt modules
+(sucursal must come from the session, never a hardcoded 1 — regla 23, and it
+prevents cross-branch data leaks). They must stay at zero.
+
+INT_CLEAN_MODULES additionally have no int(_id) identity casts; the rest still
+carry a few casts that are later Fase A work (compras_pro, rrhh, fidelidad).
 """
 
 from __future__ import annotations
@@ -12,10 +15,31 @@ from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 
-CLEAN_MODULES = [
+BRANCH_CLEAN_MODULES = [
     "modulos/caja.py",
     "modulos/inventario_local.py",
     "modulos/transferencias.py",
+    "modulos/finanzas_unificadas.py",
+    "modulos/activos.py",
+    "modulos/modulo_growth_engine.py",
+    "modulos/cotizaciones.py",
+    "modulos/reportes_bi_v2.py",
+    "modulos/planeacion_compras.py",
+    "modulos/tarjetas.py",
+    "modulos/compras_pro.py",
+    "modulos/whatsapp/whatsapp_module.py",
+    "modulos/rrhh_turnos.py",
+    "modulos/rrhh.py",
+    "modulos/etiquetas.py",
+    "modulos/clientes.py",
+    "modulos/fidelidad_config.py",
+    "modulos/configuracion.py",
+]
+
+# Subset that is also free of int(_id) identity casts.
+INT_CLEAN_MODULES = [
+    m for m in BRANCH_CLEAN_MODULES
+    if m not in {"modulos/compras_pro.py", "modulos/rrhh.py", "modulos/fidelidad_config.py"}
 ]
 
 ARBITRARY_BRANCH_DEFAULT = re.compile(
@@ -27,19 +51,17 @@ INT_ID_CAST = re.compile(
 )
 
 
+def _read(rel: str) -> str:
+    return (PACKAGE_ROOT / rel).read_text(encoding="utf-8", errors="ignore")
+
+
 def test_clean_modules_have_no_arbitrary_branch_default():
-    offenders = {
-        rel: ARBITRARY_BRANCH_DEFAULT.findall((PACKAGE_ROOT / rel).read_text(encoding="utf-8", errors="ignore"))
-        for rel in CLEAN_MODULES
-    }
-    bad = {rel: len(m) for rel, m in offenders.items() if m}
+    bad = {rel: len(ARBITRARY_BRANCH_DEFAULT.findall(_read(rel)))
+           for rel in BRANCH_CLEAN_MODULES if ARBITRARY_BRANCH_DEFAULT.findall(_read(rel))}
     assert not bad, f"arbitrary sucursal=1 default reintroduced: {bad}"
 
 
-def test_clean_modules_have_no_int_identity_cast():
-    bad = {
-        rel: len(INT_ID_CAST.findall((PACKAGE_ROOT / rel).read_text(encoding="utf-8", errors="ignore")))
-        for rel in CLEAN_MODULES
-        if INT_ID_CAST.findall((PACKAGE_ROOT / rel).read_text(encoding="utf-8", errors="ignore"))
-    }
+def test_int_clean_modules_have_no_int_identity_cast():
+    bad = {rel: len(INT_ID_CAST.findall(_read(rel)))
+           for rel in INT_CLEAN_MODULES if INT_ID_CAST.findall(_read(rel))}
     assert not bad, f"int(_id) identity cast reintroduced: {bad}"

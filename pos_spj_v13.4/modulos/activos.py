@@ -383,7 +383,7 @@ class ModuloActivos(ModuloBase):
         except Exception: pass
         super().__init__(container.db, parent)
         self.container = container
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = "Sistema"
         self.init_ui()
 

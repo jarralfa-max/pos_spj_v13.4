@@ -3176,7 +3176,7 @@ class ModuloFinanzasUnificadas(QWidget):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.container     = container
-        self.sucursal_id   = 1
+        self.sucursal_id   = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
 
         # Servicios existentes
