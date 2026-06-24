@@ -20,7 +20,7 @@ class ProductRepository:
         except Exception:
             pass
 
-    def get_by_id(self, product_id: int | str) -> dict[str, Any] | None:
+    def get_by_id(self, product_id: str) -> dict[str, Any] | None:
         row = self._connection.execute("SELECT * FROM productos WHERE id=?", (product_id,)).fetchone()
         return dict(row) if row is not None else None
 
@@ -30,7 +30,7 @@ class ProductRepository:
         ).fetchall()
         return [str(row[0]) for row in rows]
 
-    def sku_exists(self, sku: str, *, exclude_product_id: int | str | None = None) -> dict[str, Any] | None:
+    def sku_exists(self, sku: str, *, exclude_product_id: str | None = None) -> dict[str, Any] | None:
         if exclude_product_id:
             row = self._connection.execute(
                 "SELECT id, nombre FROM productos WHERE codigo=? AND id!=?",
@@ -40,7 +40,7 @@ class ProductRepository:
             row = self._connection.execute("SELECT id, nombre FROM productos WHERE codigo=?", (sku,)).fetchone()
         return dict(row) if row is not None else None
 
-    def active_name_duplicate(self, name: str, *, exclude_product_id: int | str | None = None) -> dict[str, Any] | None:
+    def active_name_duplicate(self, name: str, *, exclude_product_id: str | None = None) -> dict[str, Any] | None:
         params: list[Any] = [name]
         query = "SELECT id, codigo FROM productos WHERE LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND COALESCE(activo,1)=1"
         if exclude_product_id:
@@ -49,7 +49,7 @@ class ProductRepository:
         row = self._connection.execute(query, params).fetchone()
         return dict(row) if row is not None else None
 
-    def has_active_recipe(self, product_id: int | str) -> bool:
+    def has_active_recipe(self, product_id: str) -> bool:
         try:
             row = self._connection.execute(
                 "SELECT id FROM product_recipes WHERE base_product_id=? AND is_active=1",
@@ -89,7 +89,7 @@ class ProductRepository:
         )
         return product_uuid
 
-    def update(self, product_id: int | str, product_data: dict[str, Any]) -> str:
+    def update(self, product_id: str, product_data: dict[str, Any]) -> str:
         updated_at = datetime.now(timezone.utc).isoformat()
         self._connection.execute(
             """

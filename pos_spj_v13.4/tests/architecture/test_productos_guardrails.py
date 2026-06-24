@@ -69,7 +69,6 @@ BASELINE: dict[str, dict[str, int]] = {
     "backend/application/commands/product_commands.py": {},
     "backend/application/queries/product_query_service.py": {
         "sql_select": 10,
-        "int_str_contract": 3,
     },
     "backend/application/services/product_catalog_service.py": {
         "cursor_execute": 1,
@@ -89,7 +88,6 @@ BASELINE: dict[str, dict[str, int]] = {
         "sql_select": 6,
         "sql_insert": 1,
         "sql_update": 1,
-        "int_str_contract": 5,
     },
 }
 
