@@ -10,11 +10,19 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 
 | Patrón | Inicio | Tras tanda 1 |
 |---|---|---|
-| `.execute` | 50 | **44** |
-| SELECT | 48 | 42 |
+| `.execute` | 50 | 44 (t1) → **37** (t2) |
+| SELECT | 48 | 42 → **34** |
 | INSERT / UPDATE / DELETE | 2 / 14 / 1 | 2 / 14 / 1 |
 | commit | 5 | 5 |
 | CREATE TABLE (en UI!) | 2 | 2 |
+
+## Tanda 2 — cluster lecturas QR/contenedores ✅
+
+7 lecturas → `QrContainersReadRepository` (PyQt-free, 7 tests headless):
+`search_containers`, `get_container_by_code`, `get_container_code`,
+`list_child_containers`, `get_container_products`, `get_container_for_reception`,
+`get_container_products_for_reception`. Devuelve `dict(row)` → el consumo
+`r["col"]` de la UI queda intacto.
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 

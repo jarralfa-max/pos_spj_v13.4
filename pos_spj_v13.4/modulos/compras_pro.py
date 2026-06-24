@@ -10,6 +10,7 @@ Compras a Proveedores.
 from __future__ import annotations
 
 from backend.infrastructure.db.repositories.compras_read_repository import ComprasReadRepository
+from backend.infrastructure.db.repositories.qr_containers_read_repository import QrContainersReadRepository
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.kpi_card import KPICard
 from modulos.ui_components import (
@@ -2035,15 +2036,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not ok or not term.strip():
             return
         try:
-            rows = self.container.db.execute(
-                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
-                   FROM contenedores
-                   WHERE (codigo LIKE ? OR descripcion LIKE ?)
-                     AND id != COALESCE(
-                         (SELECT id FROM contenedores WHERE codigo=? LIMIT 1), -1)
-                   ORDER BY fecha_creado DESC LIMIT 50""",
-                (f"%{term}%", f"%{term}%", self.qr_codigo.text())
-            ).fetchall()
+            rows = QrContainersReadRepository(self.container.db).search_containers(
+                term, exclude_codigo=self.qr_codigo.text(), limit=50)
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e)); return
         if not rows:
@@ -2444,9 +2438,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         codigo = (self.qr_scan_input.text() or "").strip()
         if not codigo: return
         try:
-            r = self.container.db.execute(
-                "SELECT id, codigo, tipo, descripcion, estado, fecha_creado FROM contenedores WHERE codigo=?",
-                (codigo,)).fetchone()
+            r = QrContainersReadRepository(self.container.db).get_container_by_code(codigo)
             if not r:
                 QMessageBox.warning(self,"No encontrado",
                     f"No existe un contenedor con código '{codigo}'.\n"
@@ -2479,13 +2471,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.qr_asg_badge.style().polish(self.qr_asg_badge)
             self._qr_carrito.clear()
             try:
-                rows = self.container.db.execute("""
-                    SELECT cp.producto_id, cp.cantidad, cp.costo_unitario,
-                           p.nombre, COALESCE(p.unidad,'pz') AS unidad
-                    FROM contenedor_productos cp
-                    JOIN productos p ON p.id = cp.producto_id
-                    WHERE cp.contenedor_id=?
-                """, (self._contenedor_seleccionado_id,)).fetchall()
+                rows = QrContainersReadRepository(self.container.db).get_container_products(
+                    self._contenedor_seleccionado_id)
                 for pr in rows:
                     self._qr_carrito.append({
                         "producto_id": pr["producto_id"] if hasattr(pr,"keys") else pr[0],
@@ -3041,11 +3028,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         then any direct products follow.
         """
         try:
-            hijos = self.container.db.execute(
-                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
-                   FROM contenedores WHERE parent_id=? ORDER BY codigo""",
-                (parent_id,)
-            ).fetchall()
+            hijos = QrContainersReadRepository(self.container.db).list_child_containers(parent_id)
             if not hijos:
                 return
             # Prepend a separator row + child rows to tbl_recv_items
@@ -3099,11 +3082,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _qr_recv_cargar_by_id(self, contenedor_id: int) -> None:
         """Load a container by ID (used for drill-down from parent to child)."""
         try:
-            r = self.container.db.execute(
-                "SELECT codigo FROM contenedores WHERE id=? LIMIT 1", (contenedor_id,)
-            ).fetchone()
-            if r:
-                codigo = r[0] if not hasattr(r, "keys") else r["codigo"]
+            codigo = QrContainersReadRepository(self.container.db).get_container_code(contenedor_id)
+            if codigo:
                 self.qr_recv_scan.setText(codigo)
                 self._qr_recv_cargar()
         except Exception as e:
@@ -3113,14 +3093,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         codigo = (self.qr_recv_scan.text() or "").strip()
         if not codigo: return
         try:
-            r = self.container.db.execute("""
-                SELECT c.id, c.codigo, c.tipo, c.estado, c.total,
-                       c.folio_factura, c.comprador,
-                       COALESCE(p.nombre,'(sin proveedor)') AS proveedor
-                FROM contenedores c
-                LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                WHERE c.codigo=?
-            """, (codigo,)).fetchone()
+            r = QrContainersReadRepository(self.container.db).get_container_for_reception(codigo)
             if not r:
                 QMessageBox.warning(self,"No encontrado", f"No existe el contenedor '{codigo}'.")
                 return
@@ -3143,14 +3116,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.qr_recv_meta.setText(
                 f"<b>{prov}</b>  ·  Factura: {fact or '—'}  ·  "
                 f"Comprador: {compr or '—'}  ·  Total: ${float(tot or 0):,.2f}")
-            rows = self.container.db.execute("""
-                SELECT cp.producto_id, cp.cantidad, cp.costo_unitario,
-                       COALESCE(cp.cantidad_recibida, cp.cantidad) AS recibida,
-                       p.nombre, COALESCE(p.unidad,'pz') AS unidad
-                FROM contenedor_productos cp
-                JOIN productos p ON p.id = cp.producto_id
-                WHERE cp.contenedor_id=?
-            """, (self._contenedor_recepcion_id,)).fetchall()
+            rows = QrContainersReadRepository(self.container.db).get_container_products_for_reception(
+                self._contenedor_recepcion_id)
             self.tbl_recv_items.blockSignals(True)
             self.tbl_recv_items.setRowCount(0)
             for pr in rows:

@@ -34,9 +34,10 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented baseline after tanda 1 (supplier/branch read cluster extracted).
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/compras_pro.py": {
-        "cursor_execute": 44,
+        # tanda 1 (supplier/branch) + tanda 2 (QR container reads) extracted.
+        "cursor_execute": 37,
         "commit": 5,
-        "sql_select": 42,
+        "sql_select": 34,
         "sql_insert": 2,
         "sql_update": 14,
         "sql_delete": 1,
