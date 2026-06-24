@@ -9,7 +9,7 @@ from modulos.ui_components import (
 )
 import os
 from datetime import datetime
-from backend.shared.ids import new_uuid as uuid4
+from backend.shared.ids import new_uuid
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -356,7 +356,7 @@ class DialogoProducto(QDialog):
             allow_duplicate_name = True
 
         command_kwargs = dict(
-            operation_id=f"product-{uuid4()}",
+            operation_id=f"product-{new_uuid()}",
             branch_id=str(getattr(self.container, 'sucursal_id', '') or ''),
             user_name=getattr(self, "usuario_actual", "Sistema") or "Sistema",
             name=nombre,
@@ -987,7 +987,7 @@ class ModuloProductos(QWidget, RefreshMixin):
                 self._deactivate_product_uc.execute(
                     DeactivateProductCommand(
                         product_id=int(producto_id),
-                        operation_id=f"product-deactivate-{uuid4()}",
+                        operation_id=f"product-deactivate-{new_uuid()}",
                         user_name=self.usuario_actual or "sistema",
                     )
                 )
@@ -1462,7 +1462,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             self._product_catalog_service.set_product_active(
                 product_id=int(producto_id),
                 active=bool(nuevo),
-                operation_id=f"product-state-{uuid4()}",
+                operation_id=f"product-state-{new_uuid()}",
                 user_name=self.usuario_actual or "sistema",
             )
             Toast.success(self, "Producto actualizado", f"Producto {label} correctamente.")
@@ -1484,7 +1484,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             self._restore_product_uc.execute(
                 RestoreProductCommand(
                     product_id=int(producto_id),
-                    operation_id=f"product-restore-{uuid4()}",
+                    operation_id=f"product-restore-{new_uuid()}",
                     user_name=self.usuario_actual or "sistema",
                 )
             )
