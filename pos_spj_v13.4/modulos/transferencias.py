@@ -62,28 +62,6 @@ _STATUS_COLORS = {
     "PENDING":    _C3,
 }
 
-class _DBWrapper:
-    def __init__(self, conexion):
-        self.conn = conexion
-    def fetchone(self, sql, params=()):
-        r = self.conn.execute(sql, params).fetchone()
-        if r is None: return None
-        if hasattr(r, 'keys'): return r
-        return r
-    def fetchall(self, sql, params=()):
-        return self.conn.execute(sql, params).fetchall()
-    def fetchscalar(self, sql, params=(), default=None):
-        r = self.conn.execute(sql, params).fetchone()
-        return r[0] if r else default
-    def execute(self, sql, params=()):
-        return self.conn.execute(sql, params)
-    def commit(self):
-        try: self.conn.commit()
-        except Exception: pass
-    def rollback(self):
-        try: self.conn.rollback()
-        except Exception: pass
-    
 class ModuloTransferencias(ModuloBase):
     def __init__(self, container, parent=None):
         # 1. Extraer la base de datos del contenedor
@@ -111,6 +89,8 @@ class ModuloTransferencias(ModuloBase):
         self.conexion = wrap(db_conn)
         self._repo    = TransferRepository(self.conexion)
         self._prepo   = ProductoRepository(self.conexion)
+        from backend.infrastructure.db.repositories.transfers_stats_repository import TransfersStatsRepository
+        self._stats_repo = TransfersStatsRepository(self.conexion)
         
         # 5. Inicializar UI y Eventos
         self._init_ui()
@@ -185,16 +165,11 @@ class ModuloTransferencias(ModuloBase):
               ("En tránsito","—",_C.PRIMARY_BASE),("Canceladas","—",_C.DANGER_BASE),
               ("Tiempo promedio","—",_C.INFO_BASE)]
         try:
-            db=self.db if hasattr(self,'db') else None
-            if db:
-                r=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='DISPATCHED'").fetchone()
-                kpis[0]=("Pendientes recepción",str(r[0] or 0),_C.WARNING_BASE)
-                r2=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='RECEIVED' AND DATE(fecha)>=DATE('now','start of month')").fetchone()
-                kpis[1]=("Recibidas este mes",str(r2[0] or 0),_C.SUCCESS_BASE)
-                r3=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='PENDING'").fetchone()
-                kpis[2]=("En tránsito",str(r3[0] or 0),_C.PRIMARY_BASE)
-                r4=db.execute("SELECT COUNT(*) FROM transferencias WHERE estado='CANCELLED' AND DATE(fecha)>=DATE('now','start of month')").fetchone()
-                kpis[3]=("Canceladas",str(r4[0] or 0),_C.DANGER_BASE)
+            c = self._stats_repo.get_status_counts()
+            kpis[0]=("Pendientes recepción",str(c["dispatched"]),_C.WARNING_BASE)
+            kpis[1]=("Recibidas este mes",str(c["received_this_month"]),_C.SUCCESS_BASE)
+            kpis[2]=("En tránsito",str(c["pending"]),_C.PRIMARY_BASE)
+            kpis[3]=("Canceladas",str(c["cancelled_this_month"]),_C.DANGER_BASE)
         except Exception: pass
         for i,(lbl,val,col) in enumerate(kpis):
             if i>0:
