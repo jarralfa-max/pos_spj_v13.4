@@ -10,8 +10,8 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 
 | Patrón | Inicio | Tras tanda 1 |
 |---|---|---|
-| `.execute` | 50 | 44 → 37 → 32 → 26 → **23** (t5) |
-| SELECT | 48 | 42 → 34 → 29 → 21 → **18** |
+| `.execute` | 50 | 44→37→32→26→23→**18** (t6) |
+| SELECT | 48 | 42→34→29→21→18→**13** |
 | INSERT / UPDATE / DELETE | 2 / 14 / 1 | 2 / 14 / 1 |
 | commit | 5 | 5 |
 | CREATE TABLE (en UI!) | 2 | 2 |
@@ -47,12 +47,25 @@ Sitios: `_cargar_po_en_recepcion`, `_cargar_compra_en_recepcion`, `_cargar_docs_
 `list_pending_containers` (dinámico con filtro). Sitios: `_build_subtab_etiqueta`,
 `_build_subtab_asignar`, `_cargar_contenedores_pendientes`.
 
-## Lecturas restantes (tanda 6 reads)
+## Tanda 6 — recepción dinámica + histórico ✅
 
-- `_cargar_contenedores_recepcion` ×3 (listas dinámicas PO/compra/contenedor con tarjetas)
-- `_cargar_historico_qr` + `_on_hist_row_select` (histórico QR + detalle)
-- worker thread `run`/`run` history list (619); `_leer_pin` (3-tabla config, intacto)
-- `_procesar_recetas` (componentes de receta, 2 queries con fallback)
+5 lecturas añadidas a `ComprasReadRepository` (+6 tests): `list_container_history`
+(filtros texto/fecha/proveedor), `get_container_history_detail`,
+`list_pos_for_reception`, `list_purchases_for_reception`,
+`list_assigned_containers_for_reception`. Sitios: `_cargar_historico_qr`,
+`_on_hist_row_select`, `_cargar_contenedores_recepcion` ×3.
+
+**Todas las lecturas de UI extraídas.** `ComprasReadRepository` = 24 métodos.
+
+## Lecturas residuales (no-UI / aparte)
+
+- worker thread `run` (619, historial — clase worker con `self._db`)
+- `_procesar_recetas` (componentes de receta, fallback) + `_leer_pin` (3-tabla config)
+
+## Pendiente (escrituras / schema)
+
+- **Escrituras** (2 INSERT, 14 UPDATE, 1 DELETE, 5 commit) → repos + UoW (riesgo alto).
+- `_ensure_qr_schema` `CREATE TABLE` → migrations.
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 

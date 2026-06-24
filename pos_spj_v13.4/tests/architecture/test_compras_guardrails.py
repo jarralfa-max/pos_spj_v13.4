@@ -34,11 +34,12 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented baseline after tanda 1 (supplier/branch read cluster extracted).
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/compras_pro.py": {
-        # tandas 1-5 extracted (supplier/branch, QR containers, lookups,
-        # reception/docs-ERP/recipes, combos + pending-container list).
-        "cursor_execute": 23,
+        # tandas 1-6 extracted (reads). Remaining executes are mostly writes
+        # (INSERT/UPDATE/DELETE + _ensure_qr_schema CREATE) plus worker history,
+        # recipe components and _leer_pin.
+        "cursor_execute": 18,
         "commit": 5,
-        "sql_select": 18,
+        "sql_select": 13,
         "sql_insert": 2,
         "sql_update": 14,
         "sql_delete": 1,

@@ -2764,15 +2764,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
             # POs en estado PARA_RECEPCION
             try:
-                po_sql = """SELECT oc.id, oc.folio, COALESCE(p.nombre,'—') AS proveedor,
-                                   COALESCE(oc.total,0) AS total
-                            FROM ordenes_compra oc
-                            LEFT JOIN proveedores p ON p.id=oc.proveedor_id
-                            WHERE oc.estado='PARA_RECEPCION'"""
-                po_p: list = []
-                if f: po_sql += " AND (oc.folio LIKE ? OR p.nombre LIKE ?)"; po_p+=[f"%{f}%"]*2
-                po_sql += " ORDER BY oc.fecha_actualizacion DESC LIMIT 100"
-                for r in self.container.db.execute(po_sql, po_p).fetchall():
+                for r in ComprasReadRepository(self.container.db).list_pos_for_reception(filter_text=f, limit=100):
                     po_id = r["id"] if hasattr(r,"keys") else r[0]
                     folio = r["folio"] if hasattr(r,"keys") else r[1]
                     prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
@@ -2794,14 +2786,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
             # Compras directas para_recepcion
             try:
-                cd_sql = """SELECT c.id, c.folio, COALESCE(p.nombre,'—') AS proveedor,
-                                   COALESCE(c.total,0) AS total
-                            FROM compras c LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                            WHERE c.estado='para_recepcion'"""
-                cd_p: list = []
-                if f: cd_sql += " AND (c.folio LIKE ? OR p.nombre LIKE ?)"; cd_p+=[f"%{f}%"]*2
-                cd_sql += " ORDER BY c.fecha DESC LIMIT 100"
-                for r in self.container.db.execute(cd_sql, cd_p).fetchall():
+                for r in ComprasReadRepository(self.container.db).list_purchases_for_reception(filter_text=f, limit=100):
                     cid   = r["id"] if hasattr(r,"keys") else r[0]
                     folio = r["folio"] if hasattr(r,"keys") else r[1]
                     prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
@@ -2822,14 +2807,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             except Exception: pass
 
             # Contenedores asignados
-            sql = """SELECT c.id, c.codigo, c.tipo, COALESCE(p.nombre,'—') AS proveedor,
-                            COALESCE(c.total,0) AS total, c.estado
-                     FROM contenedores c LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                     WHERE c.estado IN ('asignado','en_recepcion','recepcion_parcial')"""
-            params: list = []
-            if f: sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ?)"; params+=[f"%{f}%"]*2
-            sql += " ORDER BY c.fecha_asignado DESC LIMIT 200"
-            for r in self.container.db.execute(sql, params).fetchall():
+            for r in ComprasReadRepository(self.container.db).list_assigned_containers_for_reception(filter_text=f, limit=200):
                 cid  = r["id"] if hasattr(r,"keys") else r[0]
                 cod  = r["codigo"] if hasattr(r,"keys") else r[1]
                 tp   = r["tipo"] if hasattr(r,"keys") else r[2]
@@ -3184,18 +3162,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not it: return
         cod = it.data(Qt.UserRole) or it.text()
         try:
-            r = self.container.db.execute(
-                """SELECT c.codigo, c.tipo, c.estado, c.total,
-                          COALESCE(p.nombre,'—') AS proveedor,
-                          COALESCE(c.folio_factura,'—') AS factura,
-                          COALESCE(s.nombre,'—') AS destino,
-                          c.fecha_creado, c.fecha_asignado, c.fecha_recibido
-                   FROM contenedores c
-                   LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                   LEFT JOIN sucursales s ON s.id = c.sucursal_destino
-                   WHERE c.codigo=? LIMIT 1""",
-                (cod,)
-            ).fetchone()
+            r = ComprasReadRepository(self.container.db).get_container_history_detail(cod)
             if not r: return
             def _g(k, i): return r[k] if hasattr(r,"keys") else r[i]
             tipo = _g("tipo",1); estado = _g("estado",2); total = float(_g("total",3) or 0)
@@ -3589,32 +3556,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             f_ini = (self.qr_hist_fecha_ini.text() or "").strip() if hasattr(self,"qr_hist_fecha_ini") else ""
             f_fin = (self.qr_hist_fecha_fin.text() or "").strip() if hasattr(self,"qr_hist_fecha_fin") else ""
             p_id  = self.qr_hist_prov_combo.currentData() if hasattr(self,"qr_hist_prov_combo") else ""
-            sql = """
-                SELECT c.codigo, c.tipo,
-                       COALESCE(p.nombre,'(sin asignar)') AS proveedor,
-                       COALESCE(c.folio_factura,'—') AS factura,
-                       COALESCE(c.fecha_factura,'—') AS fecha_compra,
-                       COALESCE(s.nombre,'—') AS destino,
-                       c.estado,
-                       c.total,
-                       COALESCE(c.fecha_recibido,'—') AS fecha_recibido
-                FROM contenedores c
-                LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                LEFT JOIN sucursales s ON s.id = c.sucursal_destino
-                WHERE 1=1
-            """
-            params: list = []
-            if f:
-                sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ? OR c.folio_factura LIKE ?)"
-                params += [f"%{f}%"]*3
-            if f_ini:
-                sql += " AND c.fecha_creado >= ?"; params.append(f_ini)
-            if f_fin:
-                sql += " AND c.fecha_creado <= ?"; params.append(f_fin + " 23:59:59")
-            if p_id:
-                sql += " AND c.proveedor_id=?"; params.append(p_id)
-            sql += " ORDER BY c.fecha_creado DESC LIMIT 500"
-            rows = self.container.db.execute(sql, params).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_container_history(
+                filter_text=f, date_from=f_ini, date_to=f_fin,
+                supplier_id=p_id or "", limit=500)
             self.tbl_qr_hist.setRowCount(0)
             est_map = {
                 "generado":  "🏷️ Sin asignar",

@@ -52,20 +52,30 @@ def db():
                                         sucursal_id INTEGER, usuario TEXT, notas TEXT);
         CREATE TABLE ordenes_compra (id INTEGER PRIMARY KEY, folio TEXT, estado TEXT,
                                      proveedor_id INTEGER, total REAL, fecha_creacion TEXT,
-                                     sucursal_id INTEGER, usuario TEXT, notas TEXT);
+                                     sucursal_id INTEGER, usuario TEXT, notas TEXT,
+                                     fecha_actualizacion TEXT);
         CREATE TABLE recetas (id INTEGER PRIMARY KEY, producto_id INTEGER,
                               producto_base_id INTEGER, activa INTEGER, activo INTEGER);
         INSERT INTO detalles_compra VALUES (1,7,3.0,55.0);
         INSERT INTO purchase_requests VALUES (10,'PR-1','PENDIENTE_APROBACION','Carnes',100.0,'2026-06-01',1,'ana','x');
         INSERT INTO purchase_requests VALUES (11,'PR-2','CANCELADA','Carnes',50.0,'2026-06-02',1,'ana','y');
-        INSERT INTO ordenes_compra VALUES (20,'PO-1','ABIERTA',1,200.0,'2026-06-01',1,'ana','z');
+        INSERT INTO ordenes_compra (id,folio,estado,proveedor_id,total,fecha_creacion,sucursal_id,usuario,notas)
+            VALUES (20,'PO-1','ABIERTA',1,200.0,'2026-06-01',1,'ana','z');
         INSERT INTO recetas VALUES (1,7,NULL,1,1);
 
         CREATE TABLE contenedores (id INTEGER PRIMARY KEY, codigo TEXT, tipo TEXT,
-                                   descripcion TEXT, estado TEXT, fecha_creado TEXT);
-        INSERT INTO contenedores VALUES (1,'K-1','caja','x','generado','2026-06-02');
-        INSERT INTO contenedores VALUES (2,'K-2','caja','y','asignado','2026-06-01');
-        INSERT INTO contenedores VALUES (3,'K-3','tarima','z','generado','2026-06-03');
+                                   descripcion TEXT, estado TEXT, fecha_creado TEXT,
+                                   proveedor_id INTEGER, sucursal_destino INTEGER,
+                                   folio_factura TEXT, fecha_factura TEXT, total REAL,
+                                   fecha_recibido TEXT, fecha_asignado TEXT);
+        INSERT INTO contenedores (id,codigo,tipo,descripcion,estado,fecha_creado,proveedor_id,sucursal_destino,folio_factura,total)
+            VALUES (1,'K-1','caja','x','generado','2026-06-02',1,1,'FF-1',500.0),
+                   (2,'K-2','caja','y','asignado','2026-06-01',1,1,'FF-2',200.0),
+                   (3,'K-3','tarima','z','generado','2026-06-03',NULL,NULL,NULL,0.0);
+        INSERT INTO ordenes_compra (id,folio,estado,proveedor_id,total,fecha_actualizacion)
+            VALUES (50,'PO-R','PARA_RECEPCION',1,300.0,'2026-06-01');
+        INSERT INTO compras (id,folio,fecha,total,estado,proveedor_id,sucursal_id,factura)
+            VALUES (5,'C-R','2026-06-04',150.0,'para_recepcion',1,2,NULL);
         """
     )
     conn.commit()
@@ -176,3 +186,32 @@ def test_list_pending_containers_filter(repo):
     # only estado='generado'; K-2 is asignado -> excluded
     assert {r["codigo"] for r in repo.list_pending_containers()} == {"K-1", "K-3"}
     assert [r["codigo"] for r in repo.list_pending_containers(filter_text="K-1")] == ["K-1"]
+
+
+def test_list_container_history(repo):
+    rows = repo.list_container_history()
+    assert {r["codigo"] for r in rows} == {"K-1", "K-2", "K-3"}
+    assert [r["codigo"] for r in repo.list_container_history(filter_text="K-2")] == ["K-2"]
+    assert [r["codigo"] for r in repo.list_container_history(supplier_id=1)] == ["K-1", "K-2"] or \
+        set(r["codigo"] for r in repo.list_container_history(supplier_id=1)) == {"K-1", "K-2"}
+
+
+def test_get_container_history_detail(repo):
+    d = repo.get_container_history_detail("K-1")
+    assert d["tipo"] == "caja" and d["proveedor"] == "Carnes SA" and d["factura"] == "FF-1"
+    assert repo.get_container_history_detail("nope") is None
+
+
+def test_list_pos_for_reception(repo):
+    rows = repo.list_pos_for_reception()
+    assert [r["folio"] for r in rows] == ["PO-R"]
+
+
+def test_list_purchases_for_reception(repo):
+    rows = repo.list_purchases_for_reception()
+    assert [r["folio"] for r in rows] == ["C-R"]
+
+
+def test_list_assigned_containers_for_reception(repo):
+    rows = repo.list_assigned_containers_for_reception()
+    assert [r["codigo"] for r in rows] == ["K-2"]  # only 'asignado' state

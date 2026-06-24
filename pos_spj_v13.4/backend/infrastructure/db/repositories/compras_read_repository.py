@@ -188,6 +188,89 @@ class ComprasReadRepository:
         sql += f" ORDER BY fecha_creado DESC LIMIT {int(limit)}"
         return [dict(r) for r in self._connection.execute(sql, params).fetchall()]
 
+    def list_container_history(
+        self, *, filter_text: str = "", date_from: str = "",
+        date_to: str = "", supplier_id: str = "", limit: int = 500,
+    ) -> list[dict[str, Any]]:
+        sql = (
+            "SELECT c.codigo, c.tipo, "
+            "COALESCE(p.nombre,'(sin asignar)') AS proveedor, "
+            "COALESCE(c.folio_factura,'—') AS factura, "
+            "COALESCE(c.fecha_factura,'—') AS fecha_compra, "
+            "COALESCE(s.nombre,'—') AS destino, c.estado, c.total, "
+            "COALESCE(c.fecha_recibido,'—') AS fecha_recibido "
+            "FROM contenedores c "
+            "LEFT JOIN proveedores p ON p.id = c.proveedor_id "
+            "LEFT JOIN sucursales s ON s.id = c.sucursal_destino WHERE 1=1"
+        )
+        params: list = []
+        if filter_text:
+            sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ? OR c.folio_factura LIKE ?)"
+            params += [f"%{filter_text}%"] * 3
+        if date_from:
+            sql += " AND c.fecha_creado >= ?"; params.append(date_from)
+        if date_to:
+            sql += " AND c.fecha_creado <= ?"; params.append(date_to + " 23:59:59")
+        if supplier_id:
+            sql += " AND c.proveedor_id=?"; params.append(supplier_id)
+        sql += f" ORDER BY c.fecha_creado DESC LIMIT {int(limit)}"
+        return [dict(r) for r in self._connection.execute(sql, params).fetchall()]
+
+    def get_container_history_detail(self, codigo: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT c.codigo, c.tipo, c.estado, c.total, "
+            "COALESCE(p.nombre,'—') AS proveedor, "
+            "COALESCE(c.folio_factura,'—') AS factura, "
+            "COALESCE(s.nombre,'—') AS destino, "
+            "c.fecha_creado, c.fecha_asignado, c.fecha_recibido "
+            "FROM contenedores c "
+            "LEFT JOIN proveedores p ON p.id = c.proveedor_id "
+            "LEFT JOIN sucursales s ON s.id = c.sucursal_destino "
+            "WHERE c.codigo=? LIMIT 1",
+            (codigo,),
+        ).fetchone()
+        return None if row is None else dict(row)
+
+    def _reception_list(self, base: str, filter_cols: str, filter_text: str,
+                        order: str, limit: int) -> list[dict[str, Any]]:
+        sql = base
+        params: list = []
+        if filter_text:
+            sql += f" AND ({filter_cols})"
+            params += [f"%{filter_text}%"] * 2
+        sql += f" {order} LIMIT {int(limit)}"
+        return [dict(r) for r in self._connection.execute(sql, params).fetchall()]
+
+    def list_pos_for_reception(self, *, filter_text: str = "", limit: int = 100) -> list[dict[str, Any]]:
+        return self._reception_list(
+            "SELECT oc.id, oc.folio, COALESCE(p.nombre,'—') AS proveedor, "
+            "COALESCE(oc.total,0) AS total "
+            "FROM ordenes_compra oc LEFT JOIN proveedores p ON p.id=oc.proveedor_id "
+            "WHERE oc.estado='PARA_RECEPCION'",
+            "oc.folio LIKE ? OR p.nombre LIKE ?", filter_text,
+            "ORDER BY oc.fecha_actualizacion DESC", limit,
+        )
+
+    def list_purchases_for_reception(self, *, filter_text: str = "", limit: int = 100) -> list[dict[str, Any]]:
+        return self._reception_list(
+            "SELECT c.id, c.folio, COALESCE(p.nombre,'—') AS proveedor, "
+            "COALESCE(c.total,0) AS total "
+            "FROM compras c LEFT JOIN proveedores p ON p.id=c.proveedor_id "
+            "WHERE c.estado='para_recepcion'",
+            "c.folio LIKE ? OR p.nombre LIKE ?", filter_text,
+            "ORDER BY c.fecha DESC", limit,
+        )
+
+    def list_assigned_containers_for_reception(self, *, filter_text: str = "", limit: int = 200) -> list[dict[str, Any]]:
+        return self._reception_list(
+            "SELECT c.id, c.codigo, c.tipo, COALESCE(p.nombre,'—') AS proveedor, "
+            "COALESCE(c.total,0) AS total, c.estado "
+            "FROM contenedores c LEFT JOIN proveedores p ON p.id=c.proveedor_id "
+            "WHERE c.estado IN ('asignado','en_recepcion','recepcion_parcial')",
+            "c.codigo LIKE ? OR p.nombre LIKE ?", filter_text,
+            "ORDER BY c.fecha_asignado DESC", limit,
+        )
+
     def cxp_pending_summary(self, supplier_id: str, branch_id: str) -> tuple:
         """(count, total) of pending/credit purchases for a supplier+branch."""
         row = self._connection.execute(
