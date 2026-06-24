@@ -9,6 +9,7 @@ Compras a Proveedores.
 """
 from __future__ import annotations
 
+from backend.infrastructure.db.repositories.compras_read_repository import ComprasReadRepository
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.kpi_card import KPICard
 from modulos.ui_components import (
@@ -2346,9 +2347,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _qr_cargar_proveedores_combo(self) -> None:
         """Populate qr_proveedor combo and attach a contains-mode completer."""
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_active_suppliers()
         except Exception:
             rows = []
 
@@ -4822,9 +4821,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_lbl_prov_info'):
             return
         try:
-            row = self.container.db.execute(
-                "SELECT * FROM proveedores WHERE id=?", (prov_id,)
-            ).fetchone()
+            row = ComprasReadRepository(self.container.db).get_supplier(prov_id)
             if not row:
                 self._lbl_prov_info.hide()
                 return
@@ -5047,13 +5044,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
         self._sidebar_recent_list.clear()
         try:
-            rows = self.container.db.execute(
-                """SELECT id, folio, fecha, total, estado
-                   FROM compras
-                   WHERE proveedor_id=? AND sucursal_id=?
-                   ORDER BY fecha DESC, id DESC LIMIT 5""",
-                (prov_id, self.sucursal_id),
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).recent_purchases_for_supplier(
+                prov_id, self.sucursal_id, limit=5)
             if not rows:
                 return
             for r in rows:
@@ -5098,13 +5090,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_cxp_alert_bar'):
             return
         try:
-            row = self.container.db.execute(
-                """SELECT COUNT(*), COALESCE(SUM(total), 0)
-                   FROM compras
-                   WHERE proveedor_id=? AND sucursal_id=?
-                     AND estado IN ('credito', 'pendiente')""",
-                (prov_id, self.sucursal_id),
-            ).fetchone()
+            row = ComprasReadRepository(self.container.db).cxp_pending_summary(prov_id, self.sucursal_id)
             count = int(row[0] or 0)
             monto = float(row[1] or 0)
             if count > 0 and self._tiene_permiso("ver_totales"):
@@ -5499,9 +5485,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
         try:
             self.cmb_sucursal_destino.clear()
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_active_branches()
             if rows:
                 for r in rows:
                     pid  = r['id']     if hasattr(r,'keys') else r[0]
@@ -5522,9 +5506,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def cargar_proveedores(self) -> None:
         try:
             prev_id = self._proveedor_id_selected
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_active_suppliers()
             self._proveedores_cache = [
                 {"id": r['id'], "nombre": r['nombre']}
                 for r in rows
