@@ -619,7 +619,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
             logger.exception("No se pudo inicializar refresh de inventario")
 
         self.container      = container
-        self.sucursal_id    = 1
+        # Sucursal desde la sesión; sin default arbitrario (regla 23).
+        self.sucursal_id    = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
         self._inventory_repository = InventoryRepository(container.db)
         self._inventory_query = InventoryQueryService(repository=self._inventory_repository)

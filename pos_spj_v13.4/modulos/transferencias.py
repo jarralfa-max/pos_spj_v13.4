@@ -100,7 +100,8 @@ class ModuloTransferencias(ModuloBase):
         # 3. Guardar referencias
         self.container       = container
         self.main_window     = parent
-        self.sucursal_id     = 1
+        # Sucursal desde la sesión; sin default arbitrario (regla 23).
+        self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
         self.sucursal_nombre = "Principal"
         self.usuario_actual  = "Sistema"
         self.rol_usuario     = ""
