@@ -56,7 +56,7 @@ class ModuloCotizaciones(ModuloBase):
         except Exception: pass
         self.container      = container
         self.conexion       = container.db
-        self.sucursal_id    = 1
+        self.sucursal_id    = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = "Sistema"
         self._svc           = self._get_service()
         self._init_ui()

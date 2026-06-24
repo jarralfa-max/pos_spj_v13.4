@@ -242,7 +242,7 @@ Eliminar por completo:
 * `AUTOINCREMENT`;
 * `lastrowid`;
 * casts `int(..._id)`;
-* `legacy_id`;
+* columnas de id heredado;
 * escritura dual;
 * lectura dual;
 * fallback de identidad;
@@ -403,7 +403,7 @@ Pendiente.
 [ ] Cero AUTOINCREMENT funcional.
 [ ] Cero lastrowid funcional.
 [ ] Cero casts int(..._id).
-[ ] Cero legacy_id.
+[ ] Cero columnas de id heredado.
 [ ] Cero escritura dual.
 [ ] Cero fallback.
 [ ] Tests UUIDv7 aprobados.

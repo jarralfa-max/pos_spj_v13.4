@@ -126,7 +126,7 @@ class DialogoCorteZCiego(QDialog):
         ("$2",      2.0),   ("$1",    1.0),  ("$0.50", 0.5),
     ]
 
-    def __init__(self, turno_id, cajero, container, sucursal_id=1, parent=None):
+    def __init__(self, turno_id, cajero, container, sucursal_id="", parent=None):
         super().__init__(parent)
         self.turno_id    = turno_id
         self.cajero      = cajero
@@ -571,7 +571,8 @@ class ModuloCaja(QWidget, RefreshMixin):
         except Exception:
             pass
         self.container      = container
-        self.sucursal_id    = 1
+        # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id    = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
         self.rol_actual     = "cajero"
         self.turno_actual   = None

@@ -9,7 +9,7 @@ from modulos.ui_components import (
 )
 import os
 from datetime import datetime
-from backend.shared.ids import new_uuid as uuid4
+from backend.shared.ids import new_uuid
 from modulos.spj_refresh_mixin import RefreshMixin
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
@@ -36,6 +36,9 @@ from backend.application.use_cases.create_product_use_case import CreateProductU
 from backend.application.use_cases.deactivate_product_use_case import DeactivateProductCommand, DeactivateProductUseCase
 from backend.application.use_cases.restore_product_use_case import RestoreProductCommand, RestoreProductUseCase
 from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
+from backend.infrastructure.db.repositories.branch_product_repository import BranchProductRepository
+from backend.infrastructure.db.repositories.product_repository import ProductRepository
+from backend.infrastructure.db.unit_of_work import ConnectionUnitOfWork
 from backend.domain.services.product_type_policy import ProductTypePolicy
 
 logger = logging.getLogger(__name__)
@@ -356,8 +359,8 @@ class DialogoProducto(QDialog):
             allow_duplicate_name = True
 
         command_kwargs = dict(
-            operation_id=f"product-{uuid4()}",
-            branch_id=str(getattr(self.container, 'sucursal_id', 1)),
+            operation_id=f"product-{new_uuid()}",
+            branch_id=str(getattr(self.container, 'sucursal_id', '') or ''),
             user_name=getattr(self, "usuario_actual", "Sistema") or "Sistema",
             name=nombre,
             sku=self.txt_codigo.text().strip() or None,
@@ -406,7 +409,7 @@ class DialogoProducto(QDialog):
                 entidad="productos", entidad_id=str(result.entity_id)
             )
 
-        self.producto_id = int(result.entity_id) if result.entity_id and str(result.entity_id).isdigit() else self.producto_id
+        self.producto_id = str(result.entity_id) if result.entity_id else self.producto_id
         self.accept()
 
 # ==============================================================================
@@ -428,7 +431,10 @@ class ModuloProductos(QWidget, RefreshMixin):
         # Extraemos la db para mantener compatibilidad si algo lo requiere
         self.conexion = container.db if hasattr(container, 'db') else container
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
-        self.sucursal_id = 1
+        self._branch_product_repo = BranchProductRepository(self.conexion)
+        self._product_repo = ProductRepository(self.conexion)
+        # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
         self._product_catalog_service = ProductCatalogService(self.conexion)
         self._deactivate_product_uc = DeactivateProductUseCase(self._product_catalog_service)
@@ -679,7 +685,9 @@ class ModuloProductos(QWidget, RefreshMixin):
         if row < 0:
             return None
         try:
-            pid = int(self.tabla_productos.item(row, 0).text())
+            pid = self.tabla_productos.item(row, 0).text().strip()
+            if not pid:
+                return None
             p = self.product_query_service.get_product(pid)
             if not p:
                 return None
@@ -766,11 +774,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             self._lbl_receta_preview.setText(f"Usado en {len(usados)} receta(s): {', '.join(usados[:5])}" if usados else "Sin usos detectados en recetas activas.")
         self._loading_receta.hide()
 
-    def _buscar_usos_subproducto(self, svc: RecipeService, producto_id: int):
+    def _buscar_usos_subproducto(self, svc: RecipeService, producto_id: str):
         usos = []
         for rec in svc.get_all_recipes(include_inactive=False):
             comps = svc.get_recipe_components(rec["id"])
-            if any(int(c.get("component_product_id") or 0) == int(producto_id) for c in comps):
+            if any(str(c.get("component_product_id") or "") == str(producto_id) for c in comps):
                 usos.append(str(rec.get("nombre_receta") or f"Receta {rec.get('id')}"))
         return usos
 
@@ -865,7 +873,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             kpi_mode = getattr(self, "_kpi_filter_mode", "all")
             if kpi_mode in {"sin_tipo", "receta_pendiente", "sin_costo"}:
                 ids = get_catalog_filter_ids(db, kpi_mode)
-                rows = [r for r in rows if int(r['id']) in ids]
+                rows = [r for r in rows if str(r['id']) in ids]
 
             self.tabla_productos.setRowCount(0)
             from PyQt5.QtGui import QColor as _QC
@@ -985,8 +993,8 @@ class ModuloProductos(QWidget, RefreshMixin):
             try:
                 self._deactivate_product_uc.execute(
                     DeactivateProductCommand(
-                        product_id=int(producto_id),
-                        operation_id=f"product-deactivate-{uuid4()}",
+                        product_id=str(producto_id),
+                        operation_id=f"product-deactivate-{new_uuid()}",
                         user_name=self.usuario_actual or "sistema",
                     )
                 )
@@ -1103,13 +1111,9 @@ class ModuloProductos(QWidget, RefreshMixin):
 
     def _cargar_sucursales_combo_bp(self) -> None:
         try:
-            conn = self.conexion
-            rows = conn.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY id"
-            ).fetchall()
-            for r in rows:
-                self._combo_suc_filter.addItem(f"🏪 {r[1]}", r[0])
-        except Exception as e:
+            for r in self._branch_product_repo.list_active_branches():
+                self._combo_suc_filter.addItem(f"🏪 {r['nombre']}", r["id"])
+        except Exception:
             pass
 
     def _cargar_tabla_branch_products(self) -> None:
@@ -1118,45 +1122,14 @@ class ModuloProductos(QWidget, RefreshMixin):
         from PyQt5.QtCore import Qt
         try:
             branch_id = self._combo_suc_filter.currentData()
-            conn = self.conexion
-
-            if branch_id:
-                rows = conn.execute("""
-                    SELECT s.nombre as suc_nombre, p.nombre as prod_nombre,
-                           bp.activo, bp.precio_local, bp.stock_min_local,
-                           p.precio as precio_global,
-                           bp.branch_id, bp.product_id
-                    FROM branch_products bp
-                    JOIN sucursales s ON s.id = bp.branch_id
-                    JOIN productos   p ON p.id = bp.product_id
-                    WHERE bp.branch_id = ? AND p.activo = 1
-                    ORDER BY p.nombre
-                """, (branch_id,)).fetchall()
-            else:
-                rows = conn.execute("""
-                    SELECT s.nombre as suc_nombre, p.nombre as prod_nombre,
-                           bp.activo, bp.precio_local, bp.stock_min_local,
-                           p.precio as precio_global,
-                           bp.branch_id, bp.product_id
-                    FROM branch_products bp
-                    JOIN sucursales s ON s.id = bp.branch_id
-                    JOIN productos   p ON p.id = bp.product_id
-                    WHERE p.activo = 1
-                    ORDER BY s.nombre, p.nombre
-                """).fetchall()
+            rows = self._branch_product_repo.list_branch_products(branch_id)
 
             self._tbl_bp.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 # Calcular en qué sucursales está inactivo este producto
-                inact = conn.execute("""
-                    SELECT GROUP_CONCAT(s2.nombre, ', ')
-                    FROM sucursales s2
-                    LEFT JOIN branch_products bp2
-                        ON bp2.branch_id = s2.id AND bp2.product_id = ?
-                    WHERE s2.activa = 1
-                      AND (bp2.activo = 0 OR bp2.activo IS NULL)
-                """, (r["product_id"],)).fetchone()
-                inact_txt = inact[0] if inact and inact[0] else "—"
+                inact_txt = self._branch_product_repo.inactive_branches_for_product(
+                    r["product_id"]
+                ) or "—"
 
                 vals = [
                     r["suc_nombre"], r["prod_nombre"],
@@ -1195,16 +1168,11 @@ class ModuloProductos(QWidget, RefreshMixin):
         precio_local = self._spin_bp_precio.value() if self._spin_bp_precio.value() > 0 else None
         stock_min    = self._spin_bp_stock_min.value() if self._spin_bp_stock_min.value() > 0 else None
         try:
-            self.conexion.execute("""
-                INSERT INTO branch_products(branch_id, product_id, activo, precio_local, stock_min_local)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(branch_id, product_id) DO UPDATE SET
-                    activo=excluded.activo,
-                    precio_local=excluded.precio_local,
-                    stock_min_local=excluded.stock_min_local,
-                    updated_at=datetime('now')
-            """, (branch_id, product_id, activo, precio_local, stock_min))
-            self.conexion.commit()
+            with ConnectionUnitOfWork(self.conexion):
+                self._branch_product_repo.upsert_branch_product(
+                    branch_id=branch_id, product_id=product_id, activo=activo,
+                    precio_local=precio_local, stock_min_local=stock_min,
+                )
             Toast.success(self, "Guardado", "Configuración actualizada.")
             self._cargar_tabla_branch_products()
         except Exception as e:
@@ -1228,25 +1196,16 @@ class ModuloProductos(QWidget, RefreshMixin):
 
         item_id = tabla.item(tabla.currentRow(), 0)
         if not item_id: return
-        prod_id  = int(item_id.text()) if item_id.text().isdigit() else None
+        prod_id  = item_id.text().strip() or None
         if not prod_id: return
 
         try:
-            prod_row = self.conexion.execute(
-                "SELECT nombre, precio, precio_compra FROM productos WHERE id=?",
-                (prod_id,)
-            ).fetchone()
-            if not prod_row: return
-            nombre_prod = prod_row[0]
-            precio_actual = float(prod_row[1] or 0)
+            prod = self._branch_product_repo.get_product_basic(prod_id)
+            if not prod: return
+            nombre_prod = prod["nombre"]
+            precio_actual = float(prod["precio"] or 0)
 
-            rows = self.conexion.execute("""
-                SELECT campo, precio_anterior, precio_nuevo,
-                       diferencia_pct, usuario, changed_at
-                FROM historial_precios
-                WHERE producto_id=?
-                ORDER BY changed_at DESC LIMIT 50
-            """, (prod_id,)).fetchall()
+            rows = self._branch_product_repo.list_price_history(prod_id, limit=50)
         except Exception as e:
             QMessageBox.warning(self, "Error", f"No se pudo cargar el historial: {e}")
             return
@@ -1279,11 +1238,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             for i in range(5): hdr.setSectionResizeMode(i, QHeaderView.ResizeToContents)
             tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
-                diff_pct = float(r[3] or 0)
+                diff_pct = float(r["diferencia_pct"] or 0)
                 color = QColor(Colors.DANGER_HOVER) if diff_pct > 10 else                         QColor(Colors.SUCCESS_BASE) if diff_pct < 0 else None
                 vals = [
-                    str(r[0]), f"${float(r[1]):.2f}", f"${float(r[2]):.2f}",
-                    f"{diff_pct:+.1f}%", str(r[4] or "—"), str(r[5] or "")[:16]
+                    str(r["campo"]), f"${float(r['precio_anterior']):.2f}", f"${float(r['precio_nuevo']):.2f}",
+                    f"{diff_pct:+.1f}%", str(r["usuario"] or "—"), str(r["changed_at"] or "")[:16]
                 ]
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
@@ -1359,54 +1318,48 @@ class ModuloProductos(QWidget, RefreshMixin):
             prog.setWindowModality(Qt.WindowModal)
 
             nuevos = actualizados = errores = 0
-            for i, row in enumerate(rows):
-                prog.setValue(i)
-                if prog.wasCanceled():
-                    break
-                try:
-                    nombre = str(row[col['nombre']] or "").strip()
-                    precio = float(row[col['precio']] or 0)
-                    if not nombre or precio < 0:
-                        errores += 1; continue
+            with ConnectionUnitOfWork(self.container.db):
+                for i, row in enumerate(rows):
+                    prog.setValue(i)
+                    if prog.wasCanceled():
+                        break
+                    try:
+                        nombre = str(row[col['nombre']] or "").strip()
+                        precio = float(row[col['precio']] or 0)
+                        if not nombre or precio < 0:
+                            errores += 1; continue
 
-                    vals = {
-                        'nombre':        nombre,
-                        'precio':        precio,
-                        'codigo':        str(row[col['codigo']] or "") if 'codigo' in col else "",
-                        'codigo_barras': str(row[col['codigo_barras']] or "") if 'codigo_barras' in col else "",
-                        'categoria':     str(row[col['categoria']] or "General") if 'categoria' in col else "General",
-                        'precio_compra': float(row[col['precio_compra']] or 0) if 'precio_compra' in col else 0.0,
-                        'unidad':        str(row[col['unidad']] or "kg") if 'unidad' in col else "kg",
-                        'stock_minimo':  float(row[col['stock_minimo']] or 5) if 'stock_minimo' in col else 5.0,
-                    }
+                        vals = {
+                            'nombre':        nombre,
+                            'precio':        precio,
+                            'codigo':        str(row[col['codigo']] or "") if 'codigo' in col else "",
+                            'codigo_barras': str(row[col['codigo_barras']] or "") if 'codigo_barras' in col else "",
+                            'categoria':     str(row[col['categoria']] or "General") if 'categoria' in col else "General",
+                            'precio_compra': float(row[col['precio_compra']] or 0) if 'precio_compra' in col else 0.0,
+                            'unidad':        str(row[col['unidad']] or "kg") if 'unidad' in col else "kg",
+                            'stock_minimo':  float(row[col['stock_minimo']] or 5) if 'stock_minimo' in col else 5.0,
+                        }
 
-                    # Check if exists
-                    existing = self.container.db.execute(
-                        "SELECT id FROM productos WHERE nombre=? OR (codigo!='' AND codigo=?)",
-                        (vals['nombre'], vals['codigo'])
-                    ).fetchone()
+                        # Check if exists
+                        existing_id = self._product_repo.find_id_by_name_or_code(
+                            vals['nombre'], vals['codigo'])
 
-                    if existing:
-                        self.container.db.execute("""
-                            UPDATE productos SET precio=?, precio_compra=?, categoria=?,
-                                unidad=?, stock_minimo=? WHERE id=?
-                        """, (vals['precio'], vals['precio_compra'], vals['categoria'],
-                              vals['unidad'], vals['stock_minimo'], existing[0]))
-                        actualizados += 1
-                    else:
-                        self.container.db.execute("""
-                            INSERT INTO productos
-                                (nombre,codigo,codigo_barras,categoria,precio,precio_compra,
-                                 unidad,stock_minimo,existencia,activo)
-                            VALUES(?,?,?,?,?,?,?,?,0,1)
-                        """, (vals['nombre'], vals['codigo'], vals['codigo_barras'],
-                              vals['categoria'], vals['precio'], vals['precio_compra'],
-                              vals['unidad'], vals['stock_minimo']))
-                        nuevos += 1
-                except Exception:
-                    errores += 1
-
-            self.container.db.commit()
+                        if existing_id:
+                            self._product_repo.update_basic_fields_from_import(
+                                existing_id,
+                                precio=vals['precio'], precio_compra=vals['precio_compra'],
+                                categoria=vals['categoria'], unidad=vals['unidad'],
+                                stock_minimo=vals['stock_minimo'])
+                            actualizados += 1
+                        else:
+                            self._product_repo.insert_from_import(
+                                nombre=vals['nombre'], codigo=vals['codigo'],
+                                codigo_barras=vals['codigo_barras'], categoria=vals['categoria'],
+                                precio=vals['precio'], precio_compra=vals['precio_compra'],
+                                unidad=vals['unidad'], stock_minimo=vals['stock_minimo'])
+                            nuevos += 1
+                    except Exception:
+                        errores += 1
             prog.setValue(total)
 
             Toast.success(
@@ -1453,15 +1406,15 @@ class ModuloProductos(QWidget, RefreshMixin):
             return
         super().keyPressEvent(event)
 
-    def _toggle_activo(self, producto_id: int, activo_actual: int) -> None:
+    def _toggle_activo(self, producto_id: str, activo_actual: int) -> None:
         """Activa o inactiva (oculta del POS) un producto."""
         nuevo = 0 if activo_actual else 1
         label = "activado" if nuevo else "ocultado del POS"
         try:
             self._product_catalog_service.set_product_active(
-                product_id=int(producto_id),
+                product_id=str(producto_id),
                 active=bool(nuevo),
-                operation_id=f"product-state-{uuid4()}",
+                operation_id=f"product-state-{new_uuid()}",
                 user_name=self.usuario_actual or "sistema",
             )
             Toast.success(self, "Producto actualizado", f"Producto {label} correctamente.")
@@ -1470,7 +1423,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         # [spj-dedup removed local QMessageBox import]
             QMessageBox.critical(self, "Error", str(e))
 
-    def _restaurar_producto(self, producto_id: int, nombre: str) -> None:
+    def _restaurar_producto(self, producto_id: str, nombre: str) -> None:
         """v13.30: Restaura un producto eliminado (soft delete → activo)."""
         resp = QMessageBox.question(
             self, "♻️ Restaurar Producto",
@@ -1482,8 +1435,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         try:
             self._restore_product_uc.execute(
                 RestoreProductCommand(
-                    product_id=int(producto_id),
-                    operation_id=f"product-restore-{uuid4()}",
+                    product_id=str(producto_id),
+                    operation_id=f"product-restore-{new_uuid()}",
                     user_name=self.usuario_actual or "sistema",
                 )
             )
@@ -1506,17 +1459,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             return
 
         try:
-            conn = self.conexion
-            row = conn.execute(
-                """SELECT id FROM productos
-                   WHERE (COALESCE(codigo_barras,'') = ? OR codigo = ?)
-                   LIMIT 1""",
-                (codigo, codigo)
-            ).fetchone()
+            prod_id = self._product_repo.find_id_by_barcode_or_code(codigo)
 
-            if row:
+            if prod_id:
                 # Producto encontrado → seleccionar en la tabla
-                self._seleccionar_producto_por_id(row[0])
+                self._seleccionar_producto_por_id(prod_id)
             else:
                 # Producto NO encontrado → abrir diálogo nuevo con código pre-cargado
                 self._abrir_nuevo_producto_con_codigo(codigo)
@@ -1524,7 +1471,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         except Exception as e:
             logger.warning("Scanner productos: %s", e)
 
-    def _seleccionar_producto_por_id(self, producto_id: int) -> None:
+    def _seleccionar_producto_por_id(self, producto_id: str) -> None:
         """Resalta la fila del producto en la tabla del catálogo."""
         from PyQt5.QtWidgets import QTableWidget
         try:

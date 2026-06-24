@@ -379,7 +379,7 @@ class ModuloClientes(ModuloBase):
                 if self._svc and self._svc.dar_de_baja(id_cliente):
                     try:
                         _uid = getattr(self, "usuario_actual", None) or getattr(self, "usuario", "Sistema")
-                        _sid = getattr(self, "sucursal_id", 1)
+                        _sid = getattr(self, "sucursal_id", "") or ""
                         _ctr = getattr(self, "container", None)
                         if _ctr:
                             audit_write(_ctr, modulo="CLIENTES", accion="MODIFICAR_CLIENTE",

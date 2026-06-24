@@ -77,6 +77,8 @@ class SaveUserCommand(BaseCommand):
     user_id: str = ""
     username: str = ""
     full_name: str = ""
+    email: str = ""
+    role: str = ""
     role_id: str = ""
     employee_id: str = ""
     active: bool = True
@@ -86,8 +88,52 @@ class SaveUserCommand(BaseCommand):
         super().validate_context()
         if not str(self.username or "").strip():
             raise ValueError("username is required")
-        if not str(self.role_id or "").strip():
-            raise ValueError("role_id is required")
+        if not str(self.role or self.role_id or "").strip():
+            raise ValueError("role is required")
+
+
+@dataclass(frozen=True)
+class SetUserActiveCommand(BaseCommand):
+    user_id: str = ""
+    active: bool = True
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.user_id or "").strip():
+            raise ValueError("user_id is required")
+
+
+@dataclass(frozen=True)
+class SetHappyHourRuleActiveCommand(BaseCommand):
+    rule_id: str = ""
+    active: bool = True
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.rule_id or "").strip():
+            raise ValueError("rule_id is required")
+
+
+@dataclass(frozen=True)
+class SaveHardwareConfigCommand(BaseCommand):
+    device_type: str = ""
+    config: Mapping[str, Any] = field(default_factory=dict)
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.device_type or "").strip():
+            raise ValueError("device_type is required")
+
+
+@dataclass(frozen=True)
+class SaveModuleToggleCommand(BaseCommand):
+    key: str = ""
+    enabled: bool = True
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.key or "").strip():
+            raise ValueError("key is required")
 
 
 @dataclass(frozen=True)
@@ -113,3 +159,15 @@ class ExecuteMonthlyClosingCommand(BaseCommand):
             raise ValueError("period is required")
         if not str(self.branch_id or "").strip():
             raise ValueError("branch_id is required")
+
+
+@dataclass(frozen=True)
+class SavePaymentProviderSettingsCommand(BaseCommand):
+    access_token: str = ""
+    webhook_url: str = ""
+    return_url: str = ""
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.access_token or "").strip():
+            raise ValueError("access_token is required")

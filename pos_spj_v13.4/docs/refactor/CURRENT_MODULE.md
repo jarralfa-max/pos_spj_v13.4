@@ -28,16 +28,18 @@ Auditar y refactorizar el módulo de Configuración contra todo el checklist de 
 
 ## Hallazgos abiertos
 
-Pendientes de auditoría exhaustiva del módulo.
+F1–F8 ejecutadas (ver `docs/refactor/modules/configuracion.md`, cierre PR #302).
+Restante: corte atómico de identidad UUID (migración 200) — `CONFIGURACION-02-IDENTITY` sigue `IN_PROGRESS`.
 
 ## Tests requeridos
 
-Pendientes de auditoría inicial del módulo.
+Cubiertos: guardrails, single_source, dtos, transactions, uuid_identity,
+use_case_flows, event_idempotency, external_integrations (83 passed del módulo).
 
 ## Bloqueos
 
-Ninguno registrado.
+Ninguno registrado (corte atómico UUID requiere ventana de migración global, no bloqueante para el resto del checklist).
 
 ## Próxima acción
 
-`CONFIGURACION-01-SCOPE` cerrado con inventario funcional. Continuar `CONFIGURACION-02-IDENTITY` para corregir uuid4, lastrowid, int branch_id y contratos enteros del módulo.
+Cerrar `CONFIGURACION-02-IDENTITY` con el corte atómico UUID (migración 200), o avanzar a `MERMA`.

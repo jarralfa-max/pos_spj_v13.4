@@ -39,7 +39,7 @@ class ModuloFidelidadConfig(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container   = container
-        self.sucursal_id = getattr(container, 'sucursal_id', 1)
+        self.sucursal_id = getattr(container, 'sucursal_id', '') or ''
         self.usuario     = ""
         self._ge_widget  = None  # Growth Engine widget (lazy)
         self._last_raffle_winner_by_id = {}
@@ -506,7 +506,7 @@ class ModuloFidelidadConfig(QWidget):
         txt_nombre = QLineEdit(); txt_descripcion = QTextEdit()
         dt_inicio = QDateEdit(); dt_inicio.setCalendarPopup(True); dt_inicio.setDate(QDate.currentDate())
         dt_fin = QDateEdit(); dt_fin.setCalendarPopup(True); dt_fin.setDate(QDate.currentDate().addDays(30))
-        cmb_sucursal = QSpinBox(); cmb_sucursal.setRange(1, 99999); cmb_sucursal.setValue(int(self.sucursal_id))
+        cmb_sucursal = QSpinBox(); cmb_sucursal.setRange(1, 99999); cmb_sucursal.setValue(int(self.sucursal_id) if str(self.sucursal_id or "").isdigit() else 0)
         f1.addRow("Nombre:", txt_nombre); f1.addRow("Descripción:", txt_descripcion)
         f1.addRow("Fecha inicio:", dt_inicio); f1.addRow("Fecha fin:", dt_fin); f1.addRow("Sucursal:", cmb_sucursal)
         tabs.addTab(t1, "Datos generales")

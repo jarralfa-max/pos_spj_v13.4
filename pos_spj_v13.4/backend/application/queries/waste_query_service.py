@@ -23,11 +23,19 @@ class WasteQueryService(BaseQueryService):
     def search_waste_records(self, query: str, filters: QueryFilters | None = None) -> list[SearchResult]:
         return list(self.search(query, filters))
 
+    @staticmethod
+    def _require_branch_id(filters: QueryFilters) -> str:
+        """Branch (sucursal) is a required UUID — no arbitrary default (REGLA CERO / regla 23)."""
+        branch_id = filters.get("branch_id")
+        if not branch_id:
+            raise ValueError("WASTE_BRANCH_ID_REQUIRED")
+        return str(branch_id)
+
     def list_for_table(self, filters: QueryFilters | None = None) -> list[TableRow]:
         if hasattr(self._data_source, "list_waste_records"):
             filters = filters or {}
             return list(self._data_source.list_waste_records(
-                branch_id=filters.get("branch_id", "1"),
+                branch_id=self._require_branch_id(filters),
                 period=str(filters.get("period", "Hoy")),
                 search=str(filters.get("search", "")),
             ))
@@ -36,7 +44,7 @@ class WasteQueryService(BaseQueryService):
     def get_daily_summary(self, filters: QueryFilters | None = None) -> KpiMetric:
         if hasattr(self._data_source, "get_daily_summary"):
             filters = filters or {}
-            return self._data_source.get_daily_summary(branch_id=filters.get("branch_id", "1"))
+            return self._data_source.get_daily_summary(branch_id=self._require_branch_id(filters))
         metrics = list(self.metrics(filters))
         return metrics[0] if metrics else KpiMetric("daily_waste", "Merma de hoy", {"records": 0, "loss_value": 0.0})
 

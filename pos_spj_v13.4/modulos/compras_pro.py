@@ -9,6 +9,11 @@ Compras a Proveedores.
 """
 from __future__ import annotations
 
+from backend.shared.ids import new_uuid
+from backend.infrastructure.db.repositories.compras_read_repository import ComprasReadRepository
+from backend.infrastructure.db.repositories.compras_write_repository import ComprasWriteRepository
+from backend.infrastructure.db.repositories.qr_containers_read_repository import QrContainersReadRepository
+from backend.infrastructure.db.unit_of_work import ConnectionUnitOfWork
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.kpi_card import KPICard
 from modulos.ui_components import (
@@ -568,22 +573,7 @@ class _PINDialog(QDialog):
     @staticmethod
     def _leer_pin(db) -> str:
         """Lee el PIN de supervisor desde configuracion. Retorna "" si no configurado."""
-        _CONFIGS = [
-            ("configuracion", "clave",    "valor"),
-            ("settings",      "key",      "value"),
-            ("parametros",    "parametro","valor"),
-        ]
-        for tabla, col_k, col_v in _CONFIGS:
-            try:
-                r = db.execute(
-                    f"SELECT {col_v} FROM {tabla} WHERE {col_k}=? LIMIT 1",
-                    ("pin_supervisor",)
-                ).fetchone()
-                if r:
-                    return str(r[0] or "").strip()
-            except Exception:
-                pass
-        return ""
+        return ComprasReadRepository(db).get_supervisor_pin()
 
     @classmethod
     def verificar(cls, db, accion_label: str, parent=None) -> bool:
@@ -614,19 +604,8 @@ class _HistorialLoader(QThread):
 
     def run(self) -> None:
         try:
-            rows = self._db.execute("""
-                SELECT c.folio, c.fecha, COALESCE(p.nombre,'(sin proveedor)') as proveedor,
-                       c.usuario, c.total, c.estado, c.id,
-                       COALESCE(c.condicion_pago,'liquidado') AS condicion_pago,
-                       COALESCE(c.moneda,'MXN') AS moneda,
-                       COALESCE(c.purchase_order_id, 0) AS po_id,
-                       COALESCE(oc.estado, '') AS po_estado
-                FROM compras c
-                LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                LEFT JOIN ordenes_compra oc ON oc.id=c.purchase_order_id
-                WHERE c.sucursal_id=? AND c.fecha BETWEEN ? AND ?
-                ORDER BY c.fecha DESC LIMIT ?
-            """, (self._sucursal, self._desde, self._hasta, self._limit)).fetchall()
+            rows = ComprasReadRepository(self._db).list_purchase_history(
+                self._sucursal, self._desde, self._hasta, limit=self._limit)
             self.loaded.emit(rows)
         except Exception as e:
             self.error.emit(str(e))
@@ -638,7 +617,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container       = container
-        self.sucursal_id     = 1
+        self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual  = ""
         self._usuario_rol    = ""
         self.carrito_compra: list[dict] = []
@@ -677,23 +656,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_iva_rate_cached'):
             return self._iva_rate_cached
         try:
-            db = self.container.db
-            for tabla, col_k, col_v in [
-                ('configuraciones', 'clave', 'valor'),
-                ('settings', 'key', 'value'),
-            ]:
-                try:
-                    row = db.execute(
-                        f"SELECT {col_v} FROM {tabla} WHERE {col_k}=? LIMIT 1",
-                        ('iva_rate',)
-                    ).fetchone()
-                    if row:
-                        raw = float(row[0] or _IVA_RATE)
-                        # Accept both fractional (0.16) and percentage (16) forms
-                        self._iva_rate_cached = raw / 100.0 if raw > 1 else raw
-                        return self._iva_rate_cached
-                except Exception:
-                    continue
+            val = ComprasReadRepository(self.container.db).get_config_value('iva_rate')
+            if val is not None:
+                raw = float(val or _IVA_RATE)
+                # Accept both fractional (0.16) and percentage (16) forms
+                self._iva_rate_cached = raw / 100.0 if raw > 1 else raw
+                return self._iva_rate_cached
         except Exception:
             pass
         self._iva_rate_cached = _IVA_RATE
@@ -1672,7 +1640,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self._recv_qr = RecepcionQRWidget(
                 conexion=getattr(self, 'conexion', None),
                 usuario_actual=getattr(self, 'usuario_actual', ''),
-                sucursal_id=getattr(self, 'sucursal_id', 1),
+                sucursal_id=getattr(self, 'sucursal_id', '') or '',
                 container=getattr(self, 'container', None),
             )
             rec_lay = QVBoxLayout(sub_rec)
@@ -1702,68 +1670,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     # ════════════════════════════════════════════════════════════════════════
 
     def _ensure_qr_schema(self) -> None:
-        """Crea tablas para QR/contenedores si no existen. Idempotente."""
-        try:
-            db = self.container.db
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS contenedores (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    codigo          TEXT UNIQUE NOT NULL,
-                    tipo            TEXT NOT NULL DEFAULT 'caja',
-                    descripcion     TEXT,
-                    sucursal_destino INTEGER,
-                    proveedor_id    INTEGER,
-                    comprador       TEXT,
-                    folio_factura   TEXT,
-                    fecha_factura   TEXT,
-                    metodo_pago     TEXT,
-                    forma_pago      TEXT,
-                    plazo_dias      INTEGER DEFAULT 0,
-                    vence_pago      TEXT,
-                    total           REAL DEFAULT 0,
-                    estado          TEXT DEFAULT 'generado',
-                    fecha_creado    TEXT DEFAULT CURRENT_TIMESTAMP,
-                    fecha_asignado  TEXT,
-                    fecha_recibido  TEXT,
-                    usuario_creado  TEXT,
-                    usuario_asign   TEXT,
-                    usuario_recibe  TEXT,
-                    recibido_por    TEXT,
-                    observaciones   TEXT,
-                    compra_id       INTEGER
-                )
-            """)
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS contenedor_productos (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    contenedor_id   INTEGER NOT NULL,
-                    producto_id     INTEGER NOT NULL,
-                    cantidad        REAL NOT NULL DEFAULT 0,
-                    costo_unitario  REAL NOT NULL DEFAULT 0,
-                    cantidad_recibida REAL DEFAULT NULL,
-                    observaciones   TEXT,
-                    FOREIGN KEY(contenedor_id) REFERENCES contenedores(id) ON DELETE CASCADE
-                )
-            """)
-            for col_sql in [
-                "ALTER TABLE contenedores ADD COLUMN comprador TEXT",
-                "ALTER TABLE contenedores ADD COLUMN observaciones TEXT",
-                "ALTER TABLE contenedores ADD COLUMN recibido_por TEXT",
-                "ALTER TABLE contenedores ADD COLUMN sucursal_destino INTEGER",
-                "ALTER TABLE contenedor_productos ADD COLUMN observaciones TEXT",
-                "ALTER TABLE contenedores ADD COLUMN parent_id INTEGER REFERENCES contenedores(id)",
-                "ALTER TABLE contenedores ADD COLUMN seq_num INTEGER",
-            ]:
-                try:
-                    db.execute(col_sql)
-                except Exception:
-                    pass
-            try:
-                db.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.debug("_ensure_qr_schema: %s", e)
+        """No-op: el esquema QR/contenedores lo crea ``migrations/standalone/
+        111_qr_containers_schema.py``. La UI no modifica schema (solo migrations)."""
+        return
 
     def _wrap(self, layout):
         w = QWidget()
@@ -1835,9 +1744,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_parent_combo = QComboBox(); self.qr_parent_combo.setEditable(False)
         self.qr_parent_combo.addItem("— Sin padre —", None)
         try:
-            rows = self.container.db.execute(
-                "SELECT id, codigo, tipo FROM contenedores ORDER BY fecha_creado DESC LIMIT 500"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_containers_brief(limit=500)
             for _r in rows:
                 _cid  = _r["id"]     if hasattr(_r, "keys") else _r[0]
                 _cod  = _r["codigo"] if hasattr(_r, "keys") else _r[1]
@@ -1990,19 +1897,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         try:
             db   = self.container.db
             parent_id = getattr(self, "qr_parent_id", None)
-            db.execute(
-                """INSERT INTO contenedores
-                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id,
-                    sucursal_destino, observaciones)
-                   VALUES (?,?,?,'generado',?,?,?,?)""",
-                (codigo, self._qr_tipo_actual,
-                 self.qr_descripcion.text().strip() or None,
-                 self.usuario_actual or "Sistema",
-                 parent_id,
-                 getattr(self, "qr_sucursal_gen", None) and self.qr_sucursal_gen.currentData(),
-                 (self.qr_obs_gen.toPlainText().strip() or None) if hasattr(self, "qr_obs_gen") else None)
-            )
-            db.commit()
+            with ConnectionUnitOfWork(db):
+                ComprasWriteRepository(db).insert_container(
+                    codigo=codigo, tipo=self._qr_tipo_actual,
+                    descripcion=self.qr_descripcion.text().strip() or None,
+                    usuario_creado=self.usuario_actual or "Sistema",
+                    parent_id=parent_id,
+                    sucursal_destino=getattr(self, "qr_sucursal_gen", None) and self.qr_sucursal_gen.currentData(),
+                    observaciones=(self.qr_obs_gen.toPlainText().strip() or None) if hasattr(self, "qr_obs_gen") else None,
+                )
             self.qr_preview_status.setText("✓ Generado · sin asignar")
             self.qr_preview_status.setProperty("variant", "accent")
             self.qr_preview_status.style().unpolish(self.qr_preview_status)
@@ -2034,15 +1937,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not ok or not term.strip():
             return
         try:
-            rows = self.container.db.execute(
-                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
-                   FROM contenedores
-                   WHERE (codigo LIKE ? OR descripcion LIKE ?)
-                     AND id != COALESCE(
-                         (SELECT id FROM contenedores WHERE codigo=? LIMIT 1), -1)
-                   ORDER BY fecha_creado DESC LIMIT 50""",
-                (f"%{term}%", f"%{term}%", self.qr_codigo.text())
-            ).fetchall()
+            rows = QrContainersReadRepository(self.container.db).search_containers(
+                term, exclude_codigo=self.qr_codigo.text(), limit=50)
         except Exception as e:
             QMessageBox.warning(self, "Error", str(e)); return
         if not rows:
@@ -2231,9 +2127,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.qr_buscador_input = QLineEdit()
             self.qr_buscador_input.setPlaceholderText("🔎 Buscar producto por nombre, código o ID…")
             try:
-                _prod_rows = self.container.db.execute(
-                    "SELECT id, nombre, codigo_barras FROM productos ORDER BY nombre LIMIT 2000"
-                ).fetchall()
+                _prod_rows = ComprasReadRepository(self.container.db).list_products_brief(limit=2000)
                 _prod_labels = []
                 self._qr_prod_map: dict = {}
                 for _r in _prod_rows:
@@ -2346,9 +2240,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _qr_cargar_proveedores_combo(self) -> None:
         """Populate qr_proveedor combo and attach a contains-mode completer."""
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_active_suppliers()
         except Exception:
             rows = []
 
@@ -2388,13 +2280,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, "lst_pendientes"): return
         try:
             f = (self.qr_filtro_cont.text() or "").strip()
-            sql = ("SELECT id, codigo, tipo, fecha_creado, "
-                   "COALESCE(descripcion,'') AS desc "
-                   "FROM contenedores WHERE estado='generado'")
-            params: list = []
-            if f: sql += " AND (codigo LIKE ? OR descripcion LIKE ?)"; params += [f"%{f}%"]*2
-            sql += " ORDER BY fecha_creado DESC LIMIT 200"
-            rows = self.container.db.execute(sql, params).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_pending_containers(
+                filter_text=f, limit=200)
             self.lst_pendientes.clear()
             for r in rows:
                 cid  = r["id"]   if hasattr(r,"keys") else r[0]
@@ -2445,9 +2332,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         codigo = (self.qr_scan_input.text() or "").strip()
         if not codigo: return
         try:
-            r = self.container.db.execute(
-                "SELECT id, codigo, tipo, descripcion, estado, fecha_creado FROM contenedores WHERE codigo=?",
-                (codigo,)).fetchone()
+            r = QrContainersReadRepository(self.container.db).get_container_by_code(codigo)
             if not r:
                 QMessageBox.warning(self,"No encontrado",
                     f"No existe un contenedor con código '{codigo}'.\n"
@@ -2480,13 +2365,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 self.qr_asg_badge.style().polish(self.qr_asg_badge)
             self._qr_carrito.clear()
             try:
-                rows = self.container.db.execute("""
-                    SELECT cp.producto_id, cp.cantidad, cp.costo_unitario,
-                           p.nombre, COALESCE(p.unidad,'pz') AS unidad
-                    FROM contenedor_productos cp
-                    JOIN productos p ON p.id = cp.producto_id
-                    WHERE cp.contenedor_id=?
-                """, (self._contenedor_seleccionado_id,)).fetchall()
+                rows = QrContainersReadRepository(self.container.db).get_container_products(
+                    self._contenedor_seleccionado_id)
                 for pr in rows:
                     self._qr_carrito.append({
                         "producto_id": pr["producto_id"] if hasattr(pr,"keys") else pr[0],
@@ -2521,11 +2401,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         txt = (self.qr_buscador_input.text() or "").strip()
         if not txt: return
         try:
-            row = self.container.db.execute("""
-                SELECT id, nombre, COALESCE(unidad,'pz') AS unidad,
-                       COALESCE(precio_compra, 0) AS costo
-                FROM productos WHERE nombre LIKE ? OR codigo_interno=? OR barcode=? LIMIT 1
-            """, (f"%{txt}%", txt, txt)).fetchone()
+            row = ComprasReadRepository(self.container.db).find_product_for_purchase(txt)
             if row:
                 self._qr_agregar_producto_carrito(dict(row))
                 self.qr_buscador_input.clear()
@@ -2609,32 +2485,23 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         try:
             db = self.container.db
             total = sum(it["cantidad"]*it["costo"] for it in self._qr_carrito)
-            db.execute("""UPDATE contenedores SET
-                proveedor_id=?, comprador=?, folio_factura=?, fecha_factura=?,
-                metodo_pago=?, forma_pago=?, plazo_dias=?, vence_pago=?,
-                sucursal_destino=?, total=?, estado='asignado',
-                fecha_asignado=CURRENT_TIMESTAMP, usuario_asign=?
-                WHERE id=?""",
-                (prov_id,
-                 self.qr_comprador.text().strip() or self.usuario_actual or None,
-                 self.qr_factura.text().strip() or None,
-                 self.qr_fecha_fact.text().strip() or None,
-                 self.qr_metodo_pago.currentText(),
-                 self.qr_forma_pago.currentText(),
-                 int(self.qr_plazo.value()),
-                 self.qr_vence.text().strip() or None,
-                 self.qr_sucursal_destino.currentData(),
-                 total, self.usuario_actual or "Sistema",
-                 self._contenedor_seleccionado_id))
-            db.execute("DELETE FROM contenedor_productos WHERE contenedor_id=?",
-                       (self._contenedor_seleccionado_id,))
-            for it in self._qr_carrito:
-                db.execute("""INSERT INTO contenedor_productos
-                    (contenedor_id, producto_id, cantidad, costo_unitario)
-                    VALUES (?,?,?,?)""",
-                    (self._contenedor_seleccionado_id, it["producto_id"],
-                     float(it["cantidad"]), float(it["costo"])))
-            db.commit()
+            with ConnectionUnitOfWork(db):
+                wrepo = ComprasWriteRepository(db)
+                wrepo.assign_container(
+                    self._contenedor_seleccionado_id,
+                    proveedor_id=prov_id,
+                    comprador=self.qr_comprador.text().strip() or self.usuario_actual or None,
+                    folio_factura=self.qr_factura.text().strip() or None,
+                    fecha_factura=self.qr_fecha_fact.text().strip() or None,
+                    metodo_pago=self.qr_metodo_pago.currentText(),
+                    forma_pago=self.qr_forma_pago.currentText(),
+                    plazo_dias=int(self.qr_plazo.value()),
+                    vence_pago=self.qr_vence.text().strip() or None,
+                    sucursal_destino=self.qr_sucursal_destino.currentData(),
+                    total=total,
+                    usuario_asign=self.usuario_actual or "Sistema",
+                )
+                wrepo.replace_container_products(self._contenedor_seleccionado_id, self._qr_carrito)
             try: Toast.success(self,"Contenedor asignado · listo para recepción").show()
             except Exception: pass
             try:
@@ -2802,15 +2669,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
             # POs en estado PARA_RECEPCION
             try:
-                po_sql = """SELECT oc.id, oc.folio, COALESCE(p.nombre,'—') AS proveedor,
-                                   COALESCE(oc.total,0) AS total
-                            FROM ordenes_compra oc
-                            LEFT JOIN proveedores p ON p.id=oc.proveedor_id
-                            WHERE oc.estado='PARA_RECEPCION'"""
-                po_p: list = []
-                if f: po_sql += " AND (oc.folio LIKE ? OR p.nombre LIKE ?)"; po_p+=[f"%{f}%"]*2
-                po_sql += " ORDER BY oc.fecha_actualizacion DESC LIMIT 100"
-                for r in self.container.db.execute(po_sql, po_p).fetchall():
+                for r in ComprasReadRepository(self.container.db).list_pos_for_reception(filter_text=f, limit=100):
                     po_id = r["id"] if hasattr(r,"keys") else r[0]
                     folio = r["folio"] if hasattr(r,"keys") else r[1]
                     prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
@@ -2832,14 +2691,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
             # Compras directas para_recepcion
             try:
-                cd_sql = """SELECT c.id, c.folio, COALESCE(p.nombre,'—') AS proveedor,
-                                   COALESCE(c.total,0) AS total
-                            FROM compras c LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                            WHERE c.estado='para_recepcion'"""
-                cd_p: list = []
-                if f: cd_sql += " AND (c.folio LIKE ? OR p.nombre LIKE ?)"; cd_p+=[f"%{f}%"]*2
-                cd_sql += " ORDER BY c.fecha DESC LIMIT 100"
-                for r in self.container.db.execute(cd_sql, cd_p).fetchall():
+                for r in ComprasReadRepository(self.container.db).list_purchases_for_reception(filter_text=f, limit=100):
                     cid   = r["id"] if hasattr(r,"keys") else r[0]
                     folio = r["folio"] if hasattr(r,"keys") else r[1]
                     prov  = r["proveedor"] if hasattr(r,"keys") else r[2]
@@ -2860,14 +2712,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             except Exception: pass
 
             # Contenedores asignados
-            sql = """SELECT c.id, c.codigo, c.tipo, COALESCE(p.nombre,'—') AS proveedor,
-                            COALESCE(c.total,0) AS total, c.estado
-                     FROM contenedores c LEFT JOIN proveedores p ON p.id=c.proveedor_id
-                     WHERE c.estado IN ('asignado','en_recepcion','recepcion_parcial')"""
-            params: list = []
-            if f: sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ?)"; params+=[f"%{f}%"]*2
-            sql += " ORDER BY c.fecha_asignado DESC LIMIT 200"
-            for r in self.container.db.execute(sql, params).fetchall():
+            for r in ComprasReadRepository(self.container.db).list_assigned_containers_for_reception(filter_text=f, limit=200):
                 cid  = r["id"] if hasattr(r,"keys") else r[0]
                 cod  = r["codigo"] if hasattr(r,"keys") else r[1]
                 tp   = r["tipo"] if hasattr(r,"keys") else r[2]
@@ -2933,11 +2778,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             po = po_repo.get_by_id(po_id)
             if not po:
                 return
-            prov_row = self.container.db.execute(
-                "SELECT nombre FROM proveedores WHERE id=?",
-                (po.get("proveedor_id", 0),)
-            ).fetchone()
-            prov_nombre = prov_row[0] if prov_row else "—"
+            prov_nombre = ComprasReadRepository(self.container.db).get_supplier_name(
+                po.get("proveedor_id", 0)) or "—"
             self._contenedor_recepcion_id = None
             self._po_recepcion_id = po_id
             self.qr_recv_header.setText(f"📋  PO {po.get('folio', po_id)}")
@@ -2977,14 +2819,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _cargar_compra_en_recepcion(self, compra_id: int) -> None:
         """Load a direct purchase's line items into the reception validation table."""
         try:
-            row_c = self.container.db.execute(
-                """SELECT c.folio, c.total, c.proveedor_id, c.factura,
-                          COALESCE(p.nombre,'—') AS proveedor
-                   FROM compras c
-                   LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                   WHERE c.id=? LIMIT 1""",
-                (compra_id,)
-            ).fetchone()
+            row_c = ComprasReadRepository(self.container.db).get_purchase_for_reception(compra_id)
             if not row_c:
                 return
             folio      = row_c["folio"]    if hasattr(row_c, "keys") else row_c[0]
@@ -2992,14 +2827,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             factura    = row_c["factura"]  if hasattr(row_c, "keys") else row_c[3]
             prov_nombre= row_c["proveedor"] if hasattr(row_c, "keys") else row_c[4]
 
-            items_rows = self.container.db.execute(
-                """SELECT dc.producto_id, COALESCE(pr.nombre, CAST(dc.producto_id AS TEXT)) AS nombre,
-                          COALESCE(pr.unidad,'pz') AS unidad, dc.cantidad, dc.precio_unitario
-                   FROM detalles_compra dc
-                   LEFT JOIN productos pr ON pr.id = dc.producto_id
-                   WHERE dc.compra_id=?""",
-                (compra_id,)
-            ).fetchall()
+            items_rows = ComprasReadRepository(self.container.db).get_purchase_items_for_reception(compra_id)
 
             self._contenedor_recepcion_id = None
             self._po_recepcion_id = None
@@ -3042,11 +2870,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         then any direct products follow.
         """
         try:
-            hijos = self.container.db.execute(
-                """SELECT id, codigo, tipo, COALESCE(descripcion,'') AS desc
-                   FROM contenedores WHERE parent_id=? ORDER BY codigo""",
-                (parent_id,)
-            ).fetchall()
+            hijos = QrContainersReadRepository(self.container.db).list_child_containers(parent_id)
             if not hijos:
                 return
             # Prepend a separator row + child rows to tbl_recv_items
@@ -3100,11 +2924,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _qr_recv_cargar_by_id(self, contenedor_id: int) -> None:
         """Load a container by ID (used for drill-down from parent to child)."""
         try:
-            r = self.container.db.execute(
-                "SELECT codigo FROM contenedores WHERE id=? LIMIT 1", (contenedor_id,)
-            ).fetchone()
-            if r:
-                codigo = r[0] if not hasattr(r, "keys") else r["codigo"]
+            codigo = QrContainersReadRepository(self.container.db).get_container_code(contenedor_id)
+            if codigo:
                 self.qr_recv_scan.setText(codigo)
                 self._qr_recv_cargar()
         except Exception as e:
@@ -3114,14 +2935,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         codigo = (self.qr_recv_scan.text() or "").strip()
         if not codigo: return
         try:
-            r = self.container.db.execute("""
-                SELECT c.id, c.codigo, c.tipo, c.estado, c.total,
-                       c.folio_factura, c.comprador,
-                       COALESCE(p.nombre,'(sin proveedor)') AS proveedor
-                FROM contenedores c
-                LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                WHERE c.codigo=?
-            """, (codigo,)).fetchone()
+            r = QrContainersReadRepository(self.container.db).get_container_for_reception(codigo)
             if not r:
                 QMessageBox.warning(self,"No encontrado", f"No existe el contenedor '{codigo}'.")
                 return
@@ -3144,14 +2958,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.qr_recv_meta.setText(
                 f"<b>{prov}</b>  ·  Factura: {fact or '—'}  ·  "
                 f"Comprador: {compr or '—'}  ·  Total: ${float(tot or 0):,.2f}")
-            rows = self.container.db.execute("""
-                SELECT cp.producto_id, cp.cantidad, cp.costo_unitario,
-                       COALESCE(cp.cantidad_recibida, cp.cantidad) AS recibida,
-                       p.nombre, COALESCE(p.unidad,'pz') AS unidad
-                FROM contenedor_productos cp
-                JOIN productos p ON p.id = cp.producto_id
-                WHERE cp.contenedor_id=?
-            """, (self._contenedor_recepcion_id,)).fetchall()
+            rows = QrContainersReadRepository(self.container.db).get_container_products_for_reception(
+                self._contenedor_recepcion_id)
             self.tbl_recv_items.blockSignals(True)
             self.tbl_recv_items.setRowCount(0)
             for pr in rows:
@@ -3259,18 +3067,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not it: return
         cod = it.data(Qt.UserRole) or it.text()
         try:
-            r = self.container.db.execute(
-                """SELECT c.codigo, c.tipo, c.estado, c.total,
-                          COALESCE(p.nombre,'—') AS proveedor,
-                          COALESCE(c.folio_factura,'—') AS factura,
-                          COALESCE(s.nombre,'—') AS destino,
-                          c.fecha_creado, c.fecha_asignado, c.fecha_recibido
-                   FROM contenedores c
-                   LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                   LEFT JOIN sucursales s ON s.id = c.sucursal_destino
-                   WHERE c.codigo=? LIMIT 1""",
-                (cod,)
-            ).fetchone()
+            r = ComprasReadRepository(self.container.db).get_container_history_detail(cod)
             if not r: return
             def _g(k, i): return r[k] if hasattr(r,"keys") else r[i]
             tipo = _g("tipo",1); estado = _g("estado",2); total = float(_g("total",3) or 0)
@@ -3321,7 +3118,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         items_recib = []
         for r in range(self.tbl_recv_items.rowCount()):
             try:
-                pid = int(self.tbl_recv_items.item(r, 0).text())
+                pid = (self.tbl_recv_items.item(r, 0).text() or "").strip()
                 esp = float((self.tbl_recv_items.item(r, 3).text() or "0").replace(",",""))
                 rec = float((self.tbl_recv_items.item(r, 4).text() or "0").replace(",",""))
                 items_recib.append((pid, rec, esp))
@@ -3335,25 +3132,36 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         try:
             db = self.container.db
             estado_final = "diferencia" if hay_diferencias else "recibido"
-            db.execute("""UPDATE contenedores SET
-                estado=?, fecha_recibido=CURRENT_TIMESTAMP,
-                usuario_recibe=?, recibido_por=?, observaciones=?
-                WHERE id=?""",
-                (estado_final, self.usuario_actual or "Sistema",
-                 self.qr_recv_recibe.text().strip(),
-                 self.qr_recv_obs.toPlainText().strip() or None,
-                 self._contenedor_recepcion_id))
+            cont_id = self._contenedor_recepcion_id
+            wrepo = ComprasWriteRepository(db)
+            with ConnectionUnitOfWork(db):
+                wrepo.mark_container_received(
+                    cont_id,
+                    estado=estado_final,
+                    usuario_recibe=self.usuario_actual or "Sistema",
+                    recibido_por=self.qr_recv_recibe.text().strip(),
+                    observaciones=self.qr_recv_obs.toPlainText().strip() or None,
+                )
+                for pid, rec, _esp in items_recib:
+                    wrepo.set_received_quantity(cont_id, pid, rec)
+            # Stock IN through the canonical inventory service (logs movimientos_inventario,
+            # mirrors _confirmar_recepcion_po). Falls back to a raw write only if absent.
+            svc = getattr(self.container, 'inventory_service', None)
             for pid, rec, _esp in items_recib:
-                db.execute(
-                    "UPDATE contenedor_productos SET cantidad_recibida=? "
-                    "WHERE contenedor_id=? AND producto_id=?",
-                    (rec, self._contenedor_recepcion_id, pid))
+                if rec <= 0:
+                    continue
                 try:
-                    db.execute(
-                        "UPDATE productos SET existencia=COALESCE(existencia,0)+? WHERE id=?",
-                        (rec, pid))
-                except Exception: pass
-            db.commit()
+                    if svc and hasattr(svc, "add_stock"):
+                        svc.add_stock(
+                            product_id=pid, branch_id=self.sucursal_id, qty=rec,
+                            reference_type="RECEPCION_CONTENEDOR", reference_id=str(cont_id),
+                            operation_id=new_uuid(), user=self.usuario_actual or "Sistema",
+                            notes=f"Recepción contenedor {cont_id}")
+                    else:
+                        with ConnectionUnitOfWork(db):
+                            wrepo.increase_product_stock(pid, rec)
+                except Exception:
+                    pass
             try: Toast.success(self, f"Contenedor recibido · estado: {estado_final}").show()
             except Exception: pass
             try:
@@ -3505,16 +3313,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             ):
                 return
         try:
-            row_c = self.container.db.execute(
-                "SELECT folio FROM compras WHERE id=? LIMIT 1", (compra_id,)
-            ).fetchone()
-            folio = (row_c[0] if row_c else str(compra_id))
+            db = self.container.db
+            folio = ComprasReadRepository(db).get_purchase_folio(compra_id) or str(compra_id)
             usuario = self.usuario_actual or "Sistema"
             # Inventory was already updated on purchase registration — just close reception.
             new_estado = "completada"
-            self.container.db.execute(
-                "UPDATE compras SET estado=? WHERE id=?", (new_estado, compra_id)
-            )
+            with ConnectionUnitOfWork(db):
+                ComprasWriteRepository(db).update_purchase_status(compra_id, new_estado)
             obs = (self.qr_recv_obs.toPlainText() or "").strip()
             try:
                 from core.services.auto_audit import audit_write
@@ -3664,32 +3469,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             f_ini = (self.qr_hist_fecha_ini.text() or "").strip() if hasattr(self,"qr_hist_fecha_ini") else ""
             f_fin = (self.qr_hist_fecha_fin.text() or "").strip() if hasattr(self,"qr_hist_fecha_fin") else ""
             p_id  = self.qr_hist_prov_combo.currentData() if hasattr(self,"qr_hist_prov_combo") else ""
-            sql = """
-                SELECT c.codigo, c.tipo,
-                       COALESCE(p.nombre,'(sin asignar)') AS proveedor,
-                       COALESCE(c.folio_factura,'—') AS factura,
-                       COALESCE(c.fecha_factura,'—') AS fecha_compra,
-                       COALESCE(s.nombre,'—') AS destino,
-                       c.estado,
-                       c.total,
-                       COALESCE(c.fecha_recibido,'—') AS fecha_recibido
-                FROM contenedores c
-                LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                LEFT JOIN sucursales s ON s.id = c.sucursal_destino
-                WHERE 1=1
-            """
-            params: list = []
-            if f:
-                sql += " AND (c.codigo LIKE ? OR p.nombre LIKE ? OR c.folio_factura LIKE ?)"
-                params += [f"%{f}%"]*3
-            if f_ini:
-                sql += " AND c.fecha_creado >= ?"; params.append(f_ini)
-            if f_fin:
-                sql += " AND c.fecha_creado <= ?"; params.append(f_fin + " 23:59:59")
-            if p_id:
-                sql += " AND c.proveedor_id=?"; params.append(p_id)
-            sql += " ORDER BY c.fecha_creado DESC LIMIT 500"
-            rows = self.container.db.execute(sql, params).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_container_history(
+                filter_text=f, date_from=f_ini, date_to=f_fin,
+                supplier_id=p_id or "", limit=500)
             self.tbl_qr_hist.setRowCount(0)
             est_map = {
                 "generado":  "🏷️ Sin asignar",
@@ -4227,14 +4009,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PR: %s", e)
             try:
-                rows = self.container.db.execute(
-                    "SELECT id, folio, estado, proveedor_nombre, total,"
-                    "       fecha_creacion, sucursal_id, usuario, notas"
-                    " FROM purchase_requests"
-                    " WHERE sucursal_id=? AND estado NOT IN ('CANCELADA','CONVERTIDA_A_PO')"
-                    " ORDER BY fecha_creacion DESC LIMIT 40",
-                    (self.sucursal_id,),
-                ).fetchall()
+                rows = ComprasReadRepository(self.container.db).list_purchase_requests(
+                    self.sucursal_id, limit=40)
                 for r in rows:
                     def _v(i, k):
                         return r[i] if not hasattr(r, 'keys') else r.get(k)
@@ -4265,13 +4041,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PO: %s", e)
             try:
-                rows = self.container.db.execute(
-                    "SELECT id, folio, estado, proveedor_id, total,"
-                    "       fecha_creacion, sucursal_id, usuario, notas"
-                    " FROM ordenes_compra"
-                    " WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente')"
-                    " ORDER BY fecha_creacion DESC LIMIT 20",
-                ).fetchall()
+                rows = ComprasReadRepository(self.container.db).list_open_purchase_orders(limit=20)
                 for r in rows:
                     def _pv(i, k):
                         return r[i] if not hasattr(r, 'keys') else r.get(k)
@@ -4822,9 +4592,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_lbl_prov_info'):
             return
         try:
-            row = self.container.db.execute(
-                "SELECT * FROM proveedores WHERE id=?", (prov_id,)
-            ).fetchone()
+            row = ComprasReadRepository(self.container.db).get_supplier(prov_id)
             if not row:
                 self._lbl_prov_info.hide()
                 return
@@ -5047,13 +4815,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
         self._sidebar_recent_list.clear()
         try:
-            rows = self.container.db.execute(
-                """SELECT id, folio, fecha, total, estado
-                   FROM compras
-                   WHERE proveedor_id=? AND sucursal_id=?
-                   ORDER BY fecha DESC, id DESC LIMIT 5""",
-                (prov_id, self.sucursal_id),
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).recent_purchases_for_supplier(
+                prov_id, self.sucursal_id, limit=5)
             if not rows:
                 return
             for r in rows:
@@ -5098,13 +4861,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, '_cxp_alert_bar'):
             return
         try:
-            row = self.container.db.execute(
-                """SELECT COUNT(*), COALESCE(SUM(total), 0)
-                   FROM compras
-                   WHERE proveedor_id=? AND sucursal_id=?
-                     AND estado IN ('credito', 'pendiente')""",
-                (prov_id, self.sucursal_id),
-            ).fetchone()
+            row = ComprasReadRepository(self.container.db).cxp_pending_summary(prov_id, self.sucursal_id)
             count = int(row[0] or 0)
             monto = float(row[1] or 0)
             if count > 0 and self._tiene_permiso("ver_totales"):
@@ -5124,9 +4881,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
         self._sidebar_templates_list.clear()
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM plantillas_compra ORDER BY nombre LIMIT 20"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_purchase_templates(limit=20)
             for r in rows:
                 pid  = r[0] if not hasattr(r, 'keys') else r['id']
                 name = r[1] if not hasattr(r, 'keys') else r['nombre']
@@ -5149,13 +4904,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not tpl_id:
             return
         try:
-            rows = self.container.db.execute("""
-                SELECT ti.producto_id, p.nombre, ti.cantidad,
-                       ti.costo_unitario, p.precio_compra
-                FROM plantillas_compra_items ti
-                JOIN productos p ON p.id = ti.producto_id
-                WHERE ti.plantilla_id = ?
-            """, (tpl_id,)).fetchall()
+            rows = ComprasReadRepository(self.container.db).get_template_items(tpl_id)
             if not rows:
                 Toast.success(self, "📋 Plantilla vacía", "La plantilla no tiene ítems."); return
             if self.carrito_compra:
@@ -5499,9 +5248,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
         try:
             self.cmb_sucursal_destino.clear()
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_active_branches()
             if rows:
                 for r in rows:
                     pid  = r['id']     if hasattr(r,'keys') else r[0]
@@ -5522,9 +5269,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def cargar_proveedores(self) -> None:
         try:
             prev_id = self._proveedor_id_selected
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM proveedores WHERE activo=1 ORDER BY nombre"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_active_suppliers()
             self._proveedores_cache = [
                 {"id": r['id'], "nombre": r['nombre']}
                 for r in rows
@@ -5608,12 +5353,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         pid = prod.get('id') or prod.get('producto_id')
         if pid:
             try:
-                row = self.container.db.execute(
-                    "SELECT COALESCE(costo_promedio,0) FROM inventario_actual "
-                    "WHERE producto_id=? LIMIT 1", (pid,)
-                ).fetchone()
-                if row and row[0]:
-                    return float(row[0])
+                cost = ComprasReadRepository(self.container.db).get_avg_cost(pid)
+                if cost:
+                    return cost
             except Exception:
                 pass
         return 0.0
@@ -6161,10 +5903,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             # Mark direct purchase as pending physical reception so it shows up
             # in the QR reception tab for the warehouse to verify.
             try:
-                self.container.db.execute(
-                    "UPDATE compras SET estado='para_recepcion' WHERE folio=?",
-                    (folio,)
-                )
+                with ConnectionUnitOfWork(self.container.db):
+                    ComprasWriteRepository(self.container.db).update_purchase_status_by_folio(
+                        folio, "para_recepcion")
             except Exception as _re:
                 logger.debug("_procesar_compra: could not set para_recepcion: %s", _re)
 
@@ -6222,9 +5963,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
         try:
             compra_dict = self._purchase_repo.get_purchase_full(
-                self.container.db.execute(
-                    "SELECT id FROM compras WHERE folio=? LIMIT 1", (folio,)
-                ).fetchone()[0]
+                ComprasReadRepository(self.container.db).get_purchase_id_by_folio(folio)
             )
             if not compra_dict:
                 return
@@ -6368,19 +6107,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not self.carrito_compra:
             return []
         ids = [it['producto_id'] for it in self.carrito_compra]
-        ph  = ",".join("?" * len(ids))
         try:
-            rows = self.container.db.execute(
-                f"""SELECT DISTINCT c FROM (
-                        SELECT producto_id      AS c FROM recetas
-                        WHERE  producto_id      IN ({ph}) AND (activa=1 OR activo=1)
-                        UNION
-                        SELECT producto_base_id AS c FROM recetas
-                        WHERE  producto_base_id IN ({ph}) AND (activa=1 OR activo=1)
-                    )""",
-                ids + ids
-            ).fetchall()
-            ids_con_receta = {r[0] for r in rows}
+            ids_con_receta = ComprasReadRepository(self.container.db).products_with_recipe(ids)
             return [it for it in self.carrito_compra
                     if it['producto_id'] in ids_con_receta]
         except Exception:
@@ -6403,43 +6131,35 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                     nombres.append(item['nombre'])
                 else:
                     # Fallback: query receta_componentes (m000 schema), then product_recipe_components
-                    receta = self.container.db.execute("""
-                        SELECT rc.producto_id AS insumo_id,
-                               COALESCE(rc.cantidad, 0) AS cantidad_insumo,
-                               p.nombre AS insumo_nombre
-                        FROM receta_componentes rc
-                        JOIN recetas r ON r.id = rc.receta_id
-                        JOIN productos p ON p.id = rc.producto_id
-                        WHERE (r.producto_base_id=? OR r.producto_id=?)
-                          AND (r.activo=1 OR r.activa=1)
-                    """, (item['producto_id'], item['producto_id'])).fetchall()
+                    _crepo = ComprasReadRepository(self.container.db)
+                    receta = _crepo.get_recipe_components(item['producto_id'])
                     if not receta:
-                        receta = self.container.db.execute("""
-                            SELECT rc.component_product_id AS insumo_id,
-                                   COALESCE(rc.cantidad, 0) AS cantidad_insumo,
-                                   p.nombre AS insumo_nombre
-                            FROM product_recipe_components rc
-                            JOIN product_recipes r ON r.id = rc.recipe_id
-                            JOIN productos p ON p.id = rc.component_product_id
-                            WHERE r.base_product_id=? AND r.is_active=1
-                        """, (item['producto_id'],)).fetchall()
+                        receta = _crepo.get_recipe_components_v2(item['producto_id'])
                     if receta:
                         _app = getattr(self.container, 'app_service', None)
+                        _svc = getattr(self.container, 'inventory_service', None)
                         for comp in receta:
                             consumo = float(comp['cantidad_insumo'] or 0) * item['cantidad']
-                            if consumo > 0:
-                                if _app:
-                                    _app.registrar_salida_produccion(
-                                        producto_id=comp['insumo_id'],
-                                        cantidad=consumo,
-                                        usuario=getattr(self, 'usuario_actual', ''),
-                                        sucursal_id=self.sucursal_id)
-                                else:
-                                    self.container.db.execute(
-                                        "UPDATE productos SET existencia=existencia-? WHERE id=?",
-                                        (consumo, comp['insumo_id']))
-                        try: self.container.db.commit()
-                        except Exception: pass
+                            if consumo <= 0:
+                                continue
+                            if _app:
+                                _app.registrar_salida_produccion(
+                                    producto_id=comp['insumo_id'],
+                                    cantidad=consumo,
+                                    usuario=getattr(self, 'usuario_actual', ''),
+                                    sucursal_id=self.sucursal_id)
+                            elif _svc and hasattr(_svc, "deduct_stock"):
+                                # Canonical inventory route (logs movimientos_inventario).
+                                _svc.deduct_stock(
+                                    product_id=comp['insumo_id'], branch_id=self.sucursal_id,
+                                    qty=consumo, reference_type="RECETA_COMPRA",
+                                    reference_id=str(item['producto_id']),
+                                    operation_id=new_uuid(), user=self.usuario_actual or "",
+                                    notes="Receta de compra")
+                            else:
+                                with ConnectionUnitOfWork(self.container.db):
+                                    ComprasWriteRepository(self.container.db).decrease_product_stock(
+                                        comp['insumo_id'], consumo)
                         nombres.append(item['nombre'])
             except Exception as e:
                 logger.warning("_procesar_recetas %s: %s", item['nombre'], e)
@@ -6974,12 +6694,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             )
             self._hist_detail_panel.setVisible(True)
             # Phase 7 — timeline
-            self._refresh_hist_timeline(int(po_id), folio_compra)
+            self._refresh_hist_timeline(po_id, folio_compra)
         except Exception as exc:
             logger.debug("_on_hist_row_selected: %s", exc)
             self._hist_detail_panel.setVisible(False)
 
-    def _refresh_hist_timeline(self, po_id: int, compra_folio: str) -> None:
+    def _refresh_hist_timeline(self, po_id: str, compra_folio: str) -> None:
         """
         FASE 9 — Full documental lifecycle timeline in the history detail panel.
 

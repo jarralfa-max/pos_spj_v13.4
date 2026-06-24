@@ -20,7 +20,7 @@ class ProductRepository:
         except Exception:
             pass
 
-    def get_by_id(self, product_id: int | str) -> dict[str, Any] | None:
+    def get_by_id(self, product_id: str) -> dict[str, Any] | None:
         row = self._connection.execute("SELECT * FROM productos WHERE id=?", (product_id,)).fetchone()
         return dict(row) if row is not None else None
 
@@ -30,7 +30,7 @@ class ProductRepository:
         ).fetchall()
         return [str(row[0]) for row in rows]
 
-    def sku_exists(self, sku: str, *, exclude_product_id: int | str | None = None) -> dict[str, Any] | None:
+    def sku_exists(self, sku: str, *, exclude_product_id: str | None = None) -> dict[str, Any] | None:
         if exclude_product_id:
             row = self._connection.execute(
                 "SELECT id, nombre FROM productos WHERE codigo=? AND id!=?",
@@ -40,7 +40,7 @@ class ProductRepository:
             row = self._connection.execute("SELECT id, nombre FROM productos WHERE codigo=?", (sku,)).fetchone()
         return dict(row) if row is not None else None
 
-    def active_name_duplicate(self, name: str, *, exclude_product_id: int | str | None = None) -> dict[str, Any] | None:
+    def active_name_duplicate(self, name: str, *, exclude_product_id: str | None = None) -> dict[str, Any] | None:
         params: list[Any] = [name]
         query = "SELECT id, codigo FROM productos WHERE LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND COALESCE(activo,1)=1"
         if exclude_product_id:
@@ -49,7 +49,7 @@ class ProductRepository:
         row = self._connection.execute(query, params).fetchone()
         return dict(row) if row is not None else None
 
-    def has_active_recipe(self, product_id: int | str) -> bool:
+    def has_active_recipe(self, product_id: str) -> bool:
         try:
             row = self._connection.execute(
                 "SELECT id FROM product_recipes WHERE base_product_id=? AND is_active=1",
@@ -89,7 +89,7 @@ class ProductRepository:
         )
         return product_uuid
 
-    def update(self, product_id: int | str, product_data: dict[str, Any]) -> str:
+    def update(self, product_id: str, product_data: dict[str, Any]) -> str:
         updated_at = datetime.now(timezone.utc).isoformat()
         self._connection.execute(
             """
@@ -120,6 +120,46 @@ class ProductRepository:
             ),
         )
         return str(product_id)
+
+    # ── lookups / bulk import (extracted from modulos/productos.py, F5) ──────────
+    def find_id_by_barcode_or_code(self, code: str) -> str | None:
+        row = self._connection.execute(
+            """SELECT id FROM productos
+               WHERE (COALESCE(codigo_barras,'') = ? OR codigo = ?)
+               LIMIT 1""",
+            (code, code),
+        ).fetchone()
+        return None if row is None else str(row[0])
+
+    def find_id_by_name_or_code(self, name: str, code: str) -> str | None:
+        row = self._connection.execute(
+            "SELECT id FROM productos WHERE nombre=? OR (codigo!='' AND codigo=?)",
+            (name, code),
+        ).fetchone()
+        return None if row is None else str(row[0])
+
+    def update_basic_fields_from_import(
+        self, product_id: str, *, precio: float, precio_compra: float,
+        categoria: str, unidad: str, stock_minimo: float,
+    ) -> None:
+        self._connection.execute(
+            """UPDATE productos SET precio=?, precio_compra=?, categoria=?,
+                   unidad=?, stock_minimo=? WHERE id=?""",
+            (precio, precio_compra, categoria, unidad, stock_minimo, product_id),
+        )
+
+    def insert_from_import(
+        self, *, nombre: str, codigo: str, codigo_barras: str, categoria: str,
+        precio: float, precio_compra: float, unidad: str, stock_minimo: float,
+    ) -> None:
+        self._connection.execute(
+            """INSERT INTO productos
+                   (nombre,codigo,codigo_barras,categoria,precio,precio_compra,
+                    unidad,stock_minimo,existencia,activo)
+               VALUES(?,?,?,?,?,?,?,?,0,1)""",
+            (nombre, codigo, codigo_barras, categoria, precio, precio_compra,
+             unidad, stock_minimo),
+        )
 
     def save_changes(self) -> None:
         self._connection.commit()

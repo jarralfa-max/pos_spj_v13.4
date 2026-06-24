@@ -96,11 +96,11 @@ class SQLiteProductQueryDataSource:
         ).fetchall()
         return [str(self._value(row, "categoria", 0)) for row in rows]
 
-    def get_product(self, product_id: int | str) -> dict[str, Any] | None:
+    def get_product(self, product_id: str) -> dict[str, Any] | None:
         row = self._connection.execute("SELECT * FROM productos WHERE id=?", (product_id,)).fetchone()
         return self._row_dict(row) if row is not None else None
 
-    def find_duplicate_name(self, name: str, *, exclude_product_id: int | str | None = None) -> dict[str, Any] | None:
+    def find_duplicate_name(self, name: str, *, exclude_product_id: str | None = None) -> dict[str, Any] | None:
         params: list[Any] = [name]
         query = "SELECT id, codigo FROM productos WHERE LOWER(TRIM(nombre))=LOWER(TRIM(?)) AND COALESCE(activo,1)=1"
         if exclude_product_id:
@@ -197,7 +197,7 @@ class ProductQueryService(BaseQueryService):
         self,
         name: str,
         *,
-        exclude_product_id: int | str | None = None,
+        exclude_product_id: str | None = None,
     ) -> dict[str, Any] | None:
         """Check for an existing active product with the same name."""
         if self._db is None:
@@ -249,11 +249,11 @@ class ProductQueryService(BaseQueryService):
             return []
         return [str(row[0] if not hasattr(row, "keys") else row["categoria"]) for row in rows if (row[0] if not hasattr(row, "keys") else row["categoria"])]
 
-    def get_product(self, product_id: int) -> dict | None:
+    def get_product(self, product_id: str) -> dict | None:
         if self._db is None:
             return None
         try:
-            row = self._db.execute("SELECT * FROM productos WHERE id = ?", (str(product_id),)).fetchone()
+            row = self._db.execute("SELECT * FROM productos WHERE id = ?", (product_id,)).fetchone()
         except Exception:
             logger.exception("Error loading product_id=%s", product_id)
             return None

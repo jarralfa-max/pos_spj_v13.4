@@ -38,7 +38,7 @@ class ModuloPlaneacionCompras(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container = container # 🧠 Inyectamos el Ecosistema
-        self.sucursal_id = 1
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.init_ui()
 
     def set_usuario_actual(self, usuario: str, rol: str = "cajero") -> None:

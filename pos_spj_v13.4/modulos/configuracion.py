@@ -15,6 +15,8 @@ from .base import ModuloBase
 from modulos.ui_components import PageHeader, create_danger_button, apply_tooltip
 
 from core.services.configuration_settings_service import SettingsModuleServices
+from backend.application.services.smtp_diagnostics_service import SMTPSettingsApplicationService
+from backend.application.services.payment_provider_verification_service import PaymentProviderVerificationService
 from modulos.components.address_autocomplete_input import AddressAutocompleteInput
 from frontend.desktop.components.integer_input import IntegerInput
 from frontend.desktop.components.percent_input import PercentInput
@@ -45,6 +47,8 @@ class ModuloConfiguracion(ModuloBase):
         self.permission_query_service = services.permission_query_service
         self.module_access_service = services.module_access_service
         self.permission_event_publisher = services.permission_event_publisher
+        self.smtp_diagnostics_service = SMTPSettingsApplicationService()
+        self.payment_provider_verification_service = PaymentProviderVerificationService()
         try:
             self.settings_application_service.assert_ready()
         except RuntimeError as exc:
@@ -311,7 +315,7 @@ class ModuloConfiguracion(ModuloBase):
                 period=periodo,
                 closed_by=usuario,
                 totals=totals,
-                branch_id=getattr(self, 'sucursal_id', 1),
+                branch_id=getattr(self, 'sucursal_id', '') or '',
             )
 
             self._lbl_cierre_status.setText(
@@ -594,31 +598,18 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _test_smtp(self):
-        host  = self.smtp_host.text().strip()
-        port  = self.smtp_port.value()
-        user  = self.smtp_user.text().strip()
-        pwd   = self.smtp_pass.text()
-        dest  = self.smtp_gerente.text().strip() or user
-        if not host or not user:
-            QMessageBox.warning(self, "Aviso", "Completa host y usuario primero."); return
-        try:
-            import smtplib, ssl
-            from email.mime.text import MIMEText
-            msg = MIMEText("Correo de prueba desde SPJ POS v13. Todo funciona correctamente.")
-            msg['Subject'] = "SPJ POS — Prueba de correo"
-            msg['From']    = user
-            msg['To']      = dest
-            ctx = ssl.create_default_context()
-            with smtplib.SMTP(host, port, timeout=10) as s:
-                s.ehlo()
-                if self.smtp_tls.isChecked():
-                    s.starttls(context=ctx)
-                s.login(user, pwd)
-                s.sendmail(user, [dest], msg.as_string())
-            QMessageBox.information(self, "✅ Enviado",
-                f"Correo de prueba enviado a {dest}.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error SMTP", str(e))
+        result = self.smtp_diagnostics_service.send_test_email(
+            host=self.smtp_host.text().strip(),
+            port=self.smtp_port.value(),
+            username=self.smtp_user.text().strip(),
+            password=self.smtp_pass.text(),
+            use_tls=self.smtp_tls.isChecked(),
+            recipient=self.smtp_gerente.text().strip(),
+        )
+        if result.ok:
+            QMessageBox.information(self, "✅ Enviado", result.message)
+        else:
+            QMessageBox.critical(self, "Error SMTP", result.message)
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: 💳 Mercado Pago
@@ -702,29 +693,12 @@ class ModuloConfiguracion(ModuloBase):
             QMessageBox.critical(self, "Error", str(e))
 
     def _verificar_mp_token(self):
-        token = self.mp_token.text().strip()
-        if not token:
-            self.mp_status_lbl.setText("❌ Ingresa el Access Token primero.")
-            self.mp_status_lbl.setObjectName("textDanger")
-            return
         self.mp_status_lbl.setText("⏳ Verificando...")
-        try:
-            import urllib.request, json
-            req = urllib.request.Request(
-                "https://api.mercadopago.com/v1/payment_methods",
-                headers={"Authorization": f"Bearer {token}"}
-            )
-            resp = urllib.request.urlopen(req, timeout=8)
-            data = json.loads(resp.read())
-            if isinstance(data, list) and len(data) > 0:
-                self.mp_status_lbl.setText(f"✅ Token válido — {len(data)} métodos de pago disponibles.")
-                self.mp_status_lbl.setObjectName("textSuccess")
-            else:
-                self.mp_status_lbl.setText("⚠️ Respuesta inesperada del servidor.")
-                self.mp_status_lbl.setObjectName("textWarning")
-        except Exception as e:
-            self.mp_status_lbl.setText(f"❌ Error: {str(e)[:80]}")
-            self.mp_status_lbl.setObjectName("textDanger")
+        result = self.payment_provider_verification_service.verify_mercado_pago_token(
+            self.mp_token.text().strip()
+        )
+        self.mp_status_lbl.setText(("✅ " if result.ok else "❌ ") + result.message)
+        self.mp_status_lbl.setObjectName("textSuccess" if result.ok else "textDanger")
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB: ⏰ Happy Hour

@@ -240,3 +240,44 @@ VIOLACIONES RESTANTES:
 
 SIGUIENTE LOTE:
 - Continuar CONFIGURACION-02-IDENTITY hasta cerrar PK/FK/DTO/repositorios UUIDv7 sin identidad dual.
+
+---
+
+## Cierre F1–F8 (rama `claude/sleepy-goodall-33uld6`, PR #302)
+
+Auditoría exhaustiva del módulo contra el checklist completo de `SPJ_REFACTOR_SKILL.md`.
+El lote `CONFIGURACION-02-IDENTITY` permanece `IN_PROGRESS` (corte atómico UUID = migración 200).
+
+### Fases ejecutadas
+
+| Fase | Entrega | Tests |
+|------|---------|-------|
+| F0 | Guard rails baseline ratchet | `test_configuracion_guardrails.py` |
+| F1 | Sin SQL/commit/`Principal`/`sucursal_id=1`/`or 1` en UI; `HardwareSettingsService`, `FeatureFlagService.set_enabled/get_branch_flags` | guardrails + `test_no_commit_rollback_in_frontend` |
+| F2 | `username_for_id`/`role_name_for_id` (labels, no int en eventos); `save_branch` UUIDv7; fixtures canónicas | `test_configuracion_uuid_identity.py`, `test_configuracion_refactor_services.py` |
+| F3 | `ConnectionUnitOfWork`; `ConfigRepository` sin `_commit`; servicios poseen transacción; eventos post-commit | `test_configuracion_transactions.py` |
+| F4 | DTOs explícitos (`configuracion_dtos.py`); UI consume atributos, no tuplas/rows; **bug fix** `list_roles_v13` ambiguous `uuid` | `test_configuracion_dtos.py` |
+| F5 | Fuente única: borrado `SettingsRepository` (dual-write muerto), bridge legacy hardware fuera de runtime | `test_configuracion_single_source.py` |
+| F6 | UseCases canónicos por acción (12) concretos: Command→UseCase→service→evento | `test_configuracion_use_case_flows.py` |
+| F7 | Contrato evento completo (`occurred_at`/`schema_version`); idempotencia por `operation_id` | `test_configuracion_event_idempotency.py` |
+| F8 | SMTP/MercadoPago/hardware fuera de UI → `DiagnosticResult`; sin `smtplib/serial/urllib/socket/subprocess` en UI | `test_configuracion_external_integrations.py` |
+
+### Suite
+- Tests del módulo CONFIGURACION: **83 passed**.
+- Suite `architecture+unit+integration`: 395 passed, 87 failed (preexistentes, ajenos a CONFIGURACION), 27 skipped — **0 regresiones** introducidas (verificado por diff de fallos en cada fase).
+
+### Legacy eliminado
+- `repositories/settings_repository.py` (dual-write `configuraciones`↔`system_settings`).
+- `ConfigRepository._commit` + 14 llamadas.
+- `_to_ui_rule` (reemplazado por DTO); `migrate_legacy_configuraciones_hardware()` en runtime de `printer_service`.
+
+### Violaciones restantes (→ corte atómico migración 200 / FASE 2.5)
+- PK/FK enteras (`sucursales`/`usuarios`/`roles`), `lastrowid`, `CAST(h.sucursal_id AS TEXT)`, fallback `_require_uuid_column→"id"` — rutas transitorias tras "columna uuid ausente".
+- `hardware_config`: `id INTEGER PRIMARY KEY AUTOINCREMENT` (clave funcional real = `tipo`).
+- `usuarios.rol` por **nombre** (no `role_id` uuid); `employee_id` int (RRHH legacy, aislado).
+- Idempotencia = set in-memory por servicio (outbox persistente con `operation_id` = futuro).
+- `event_outbox` PK `INTEGER AUTOINCREMENT` (infra, no identidad de dominio).
+- `compileall` global bloqueado por `SyntaxError` preexistente en `core/services/stock_reservation_service.py:2` (módulo VENTAS, fuera de alcance).
+
+### Siguiente
+Cerrar `CONFIGURACION-02-IDENTITY` con el corte atómico UUID (migración 200) o avanzar al siguiente módulo (`MERMA`) según prioridad.
