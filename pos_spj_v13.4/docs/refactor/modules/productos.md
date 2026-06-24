@@ -57,12 +57,26 @@ envueltos en `ConnectionUnitOfWork` → **`productos.py` con cero commit/rollbac
 Cubierto por `tests/unit/test_product_catalog_service_uow.py` (4 tests headless:
 commit en éxito, rollback en error sin fila parcial).
 
+### F2 identidad — hecho
+
+Eliminados todos los casts de identidad a entero en `productos.py` (UUID-ready):
+- `product_id=int(producto_id)` → `str(...)` en deactivate/restore/set_active.
+- Comparación componente↔producto en recetas → comparación de strings.
+- `_producto_seleccionado_catalogo`: `int(cell.text())` → str directo a `get_product`.
+- `DialogoProducto.guardar`: `int(result.entity_id)` → `str(...)`.
+- `get_catalog_filter_ids` ahora devuelve `set[str]`; filtro usa `str(r['id']) in ids`.
+- Firmas `producto_id: int` → `str` en 4 métodos.
+
+Los `int(...)` restantes en `productos.py` son sobre el flag `activo` (0/1), no identidad.
+Cubierto por `tests/test_phase3_query_services.py` (query service) — verde.
+
 ### Pendiente
 
-4. **F2 identidad:** `int(producto_id)` (5) restantes en UI → pasar UUID str directo.
-   Riesgo: DB aún con ids int; ligado al corte UUID global.
 5. **F5 resto del service:** el SQL de `product_catalog_service` (INSERT/UPDATE
    directos en la rama sin repo) podría delegarse del todo a `ProductRepository`.
+6. **Corte UUID global (FASE 2.5):** la DB sigue con PK enteras; el runtime ya
+   trata identidad como `str`, pero la migración atómica de esquema queda pendiente
+   (cierra `legacy_id` / `AUTOINCREMENT` del test de cutover, hoy pre-existentes).
 
 ### Pre-existente (no de este refactor)
 

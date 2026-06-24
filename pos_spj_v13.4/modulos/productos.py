@@ -409,7 +409,7 @@ class DialogoProducto(QDialog):
                 entidad="productos", entidad_id=str(result.entity_id)
             )
 
-        self.producto_id = int(result.entity_id) if result.entity_id and str(result.entity_id).isdigit() else self.producto_id
+        self.producto_id = str(result.entity_id) if result.entity_id else self.producto_id
         self.accept()
 
 # ==============================================================================
@@ -685,7 +685,9 @@ class ModuloProductos(QWidget, RefreshMixin):
         if row < 0:
             return None
         try:
-            pid = int(self.tabla_productos.item(row, 0).text())
+            pid = self.tabla_productos.item(row, 0).text().strip()
+            if not pid:
+                return None
             p = self.product_query_service.get_product(pid)
             if not p:
                 return None
@@ -772,11 +774,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             self._lbl_receta_preview.setText(f"Usado en {len(usados)} receta(s): {', '.join(usados[:5])}" if usados else "Sin usos detectados en recetas activas.")
         self._loading_receta.hide()
 
-    def _buscar_usos_subproducto(self, svc: RecipeService, producto_id: int):
+    def _buscar_usos_subproducto(self, svc: RecipeService, producto_id: str):
         usos = []
         for rec in svc.get_all_recipes(include_inactive=False):
             comps = svc.get_recipe_components(rec["id"])
-            if any(int(c.get("component_product_id") or 0) == int(producto_id) for c in comps):
+            if any(str(c.get("component_product_id") or "") == str(producto_id) for c in comps):
                 usos.append(str(rec.get("nombre_receta") or f"Receta {rec.get('id')}"))
         return usos
 
@@ -871,7 +873,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             kpi_mode = getattr(self, "_kpi_filter_mode", "all")
             if kpi_mode in {"sin_tipo", "receta_pendiente", "sin_costo"}:
                 ids = get_catalog_filter_ids(db, kpi_mode)
-                rows = [r for r in rows if int(r['id']) in ids]
+                rows = [r for r in rows if str(r['id']) in ids]
 
             self.tabla_productos.setRowCount(0)
             from PyQt5.QtGui import QColor as _QC
@@ -991,7 +993,7 @@ class ModuloProductos(QWidget, RefreshMixin):
             try:
                 self._deactivate_product_uc.execute(
                     DeactivateProductCommand(
-                        product_id=int(producto_id),
+                        product_id=str(producto_id),
                         operation_id=f"product-deactivate-{new_uuid()}",
                         user_name=self.usuario_actual or "sistema",
                     )
@@ -1404,13 +1406,13 @@ class ModuloProductos(QWidget, RefreshMixin):
             return
         super().keyPressEvent(event)
 
-    def _toggle_activo(self, producto_id: int, activo_actual: int) -> None:
+    def _toggle_activo(self, producto_id: str, activo_actual: int) -> None:
         """Activa o inactiva (oculta del POS) un producto."""
         nuevo = 0 if activo_actual else 1
         label = "activado" if nuevo else "ocultado del POS"
         try:
             self._product_catalog_service.set_product_active(
-                product_id=int(producto_id),
+                product_id=str(producto_id),
                 active=bool(nuevo),
                 operation_id=f"product-state-{new_uuid()}",
                 user_name=self.usuario_actual or "sistema",
@@ -1421,7 +1423,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         # [spj-dedup removed local QMessageBox import]
             QMessageBox.critical(self, "Error", str(e))
 
-    def _restaurar_producto(self, producto_id: int, nombre: str) -> None:
+    def _restaurar_producto(self, producto_id: str, nombre: str) -> None:
         """v13.30: Restaura un producto eliminado (soft delete → activo)."""
         resp = QMessageBox.question(
             self, "♻️ Restaurar Producto",
@@ -1433,7 +1435,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         try:
             self._restore_product_uc.execute(
                 RestoreProductCommand(
-                    product_id=int(producto_id),
+                    product_id=str(producto_id),
                     operation_id=f"product-restore-{new_uuid()}",
                     user_name=self.usuario_actual or "sistema",
                 )
@@ -1469,7 +1471,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         except Exception as e:
             logger.warning("Scanner productos: %s", e)
 
-    def _seleccionar_producto_por_id(self, producto_id: int) -> None:
+    def _seleccionar_producto_por_id(self, producto_id: str) -> None:
         """Resalta la fila del producto en la tabla del catálogo."""
         from PyQt5.QtWidgets import QTableWidget
         try:
