@@ -37,6 +37,7 @@ from backend.application.use_cases.deactivate_product_use_case import Deactivate
 from backend.application.use_cases.restore_product_use_case import RestoreProductCommand, RestoreProductUseCase
 from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
 from backend.infrastructure.db.repositories.branch_product_repository import BranchProductRepository
+from backend.infrastructure.db.repositories.product_repository import ProductRepository
 from backend.domain.services.product_type_policy import ProductTypePolicy
 
 logger = logging.getLogger(__name__)
@@ -430,6 +431,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.conexion = container.db if hasattr(container, 'db') else container
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
         self._branch_product_repo = BranchProductRepository(self.conexion)
+        self._product_repo = ProductRepository(self.conexion)
         # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
         self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
@@ -1335,27 +1337,22 @@ class ModuloProductos(QWidget, RefreshMixin):
                     }
 
                     # Check if exists
-                    existing = self.container.db.execute(
-                        "SELECT id FROM productos WHERE nombre=? OR (codigo!='' AND codigo=?)",
-                        (vals['nombre'], vals['codigo'])
-                    ).fetchone()
+                    existing_id = self._product_repo.find_id_by_name_or_code(
+                        vals['nombre'], vals['codigo'])
 
-                    if existing:
-                        self.container.db.execute("""
-                            UPDATE productos SET precio=?, precio_compra=?, categoria=?,
-                                unidad=?, stock_minimo=? WHERE id=?
-                        """, (vals['precio'], vals['precio_compra'], vals['categoria'],
-                              vals['unidad'], vals['stock_minimo'], existing[0]))
+                    if existing_id:
+                        self._product_repo.update_basic_fields_from_import(
+                            existing_id,
+                            precio=vals['precio'], precio_compra=vals['precio_compra'],
+                            categoria=vals['categoria'], unidad=vals['unidad'],
+                            stock_minimo=vals['stock_minimo'])
                         actualizados += 1
                     else:
-                        self.container.db.execute("""
-                            INSERT INTO productos
-                                (nombre,codigo,codigo_barras,categoria,precio,precio_compra,
-                                 unidad,stock_minimo,existencia,activo)
-                            VALUES(?,?,?,?,?,?,?,?,0,1)
-                        """, (vals['nombre'], vals['codigo'], vals['codigo_barras'],
-                              vals['categoria'], vals['precio'], vals['precio_compra'],
-                              vals['unidad'], vals['stock_minimo']))
+                        self._product_repo.insert_from_import(
+                            nombre=vals['nombre'], codigo=vals['codigo'],
+                            codigo_barras=vals['codigo_barras'], categoria=vals['categoria'],
+                            precio=vals['precio'], precio_compra=vals['precio_compra'],
+                            unidad=vals['unidad'], stock_minimo=vals['stock_minimo'])
                         nuevos += 1
                 except Exception:
                     errores += 1
@@ -1460,17 +1457,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             return
 
         try:
-            conn = self.conexion
-            row = conn.execute(
-                """SELECT id FROM productos
-                   WHERE (COALESCE(codigo_barras,'') = ? OR codigo = ?)
-                   LIMIT 1""",
-                (codigo, codigo)
-            ).fetchone()
+            prod_id = self._product_repo.find_id_by_barcode_or_code(codigo)
 
-            if row:
+            if prod_id:
                 # Producto encontrado → seleccionar en la tabla
-                self._seleccionar_producto_por_id(row[0])
+                self._seleccionar_producto_por_id(prod_id)
             else:
                 # Producto NO encontrado → abrir diálogo nuevo con código pre-cargado
                 self._abrir_nuevo_producto_con_codigo(codigo)

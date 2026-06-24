@@ -33,8 +33,15 @@ y cubierto por `tests/unit/test_branch_product_repository.py` (9 tests, corren s
 Qt). La UI (`_cargar_sucursales_combo_bp`, `_cargar_tabla_branch_products`,
 `_guardar_branch_product`, `_ver_historial_precio`) ahora delega y solo arma widgets.
 
-Reducción en `productos.py`: `.execute` 11→4, SELECT 8→2, INSERT 2→1, UPDATE 2→1,
-`int(_id)` 6→5. Baseline del guardrail bajado.
+Segunda tanda: `_importar_excel` (upsert masivo) y el lookup del scanner
+extraídos a `ProductRepository` (`find_id_by_barcode_or_code`,
+`find_id_by_name_or_code`, `update_basic_fields_from_import`, `insert_from_import`),
+cubiertos por `tests/unit/test_product_repository_import.py` (7 tests headless).
+`cargar_catalogo` ya delegaba en `ProductQueryService` (sin SQL crudo).
+
+**`modulos/productos.py` ahora tiene CERO SQL** (`.execute`/SELECT/INSERT/UPDATE = 0).
+El SQL vive en los repos (su lugar correcto); el baseline del repo subió en
+consecuencia (SELECT 6→8, INSERT/UPDATE 1→2).
 
 Nota: los tests de protección de métodos PyQt directos **siempre se saltan aquí**
 (PyQt5 no instalado). Por eso la protección se hace en la capa repo (headless).
@@ -43,9 +50,8 @@ Nota: los tests de protección de métodos PyQt directos **siempre se saltan aqu
 
 4. **F2 identidad:** `int(producto_id)` (5) restantes en UI → pasar UUID str directo.
    Riesgo: DB aún con ids int; ligado al corte UUID.
-5. **F3 transacción:** `product_catalog_service` (5 commit/5 rollback) → repo + `ConnectionUnitOfWork`.
-6. **F5 resto:** `_importar_excel` (1 execute/insert/update + commit) y `cargar_catalogo`
-   (2 SELECT) → extraer a repo/QueryService de catálogo.
+5. **F3 transacción:** `product_catalog_service` (5 commit/5 rollback) → repo + `ConnectionUnitOfWork`;
+   y los 2 `commit()` restantes en `productos.py` (frontera de tx import/branch-product) → UoW.
 
 ### Pre-existente (no de este refactor)
 

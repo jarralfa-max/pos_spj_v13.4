@@ -121,6 +121,46 @@ class ProductRepository:
         )
         return str(product_id)
 
+    # ── lookups / bulk import (extracted from modulos/productos.py, F5) ──────────
+    def find_id_by_barcode_or_code(self, code: str) -> str | None:
+        row = self._connection.execute(
+            """SELECT id FROM productos
+               WHERE (COALESCE(codigo_barras,'') = ? OR codigo = ?)
+               LIMIT 1""",
+            (code, code),
+        ).fetchone()
+        return None if row is None else str(row[0])
+
+    def find_id_by_name_or_code(self, name: str, code: str) -> str | None:
+        row = self._connection.execute(
+            "SELECT id FROM productos WHERE nombre=? OR (codigo!='' AND codigo=?)",
+            (name, code),
+        ).fetchone()
+        return None if row is None else str(row[0])
+
+    def update_basic_fields_from_import(
+        self, product_id: str, *, precio: float, precio_compra: float,
+        categoria: str, unidad: str, stock_minimo: float,
+    ) -> None:
+        self._connection.execute(
+            """UPDATE productos SET precio=?, precio_compra=?, categoria=?,
+                   unidad=?, stock_minimo=? WHERE id=?""",
+            (precio, precio_compra, categoria, unidad, stock_minimo, product_id),
+        )
+
+    def insert_from_import(
+        self, *, nombre: str, codigo: str, codigo_barras: str, categoria: str,
+        precio: float, precio_compra: float, unidad: str, stock_minimo: float,
+    ) -> None:
+        self._connection.execute(
+            """INSERT INTO productos
+                   (nombre,codigo,codigo_barras,categoria,precio,precio_compra,
+                    unidad,stock_minimo,existencia,activo)
+               VALUES(?,?,?,?,?,?,?,?,0,1)""",
+            (nombre, codigo, codigo_barras, categoria, precio, precio_compra,
+             unidad, stock_minimo),
+        )
+
     def save_changes(self) -> None:
         self._connection.commit()
 
