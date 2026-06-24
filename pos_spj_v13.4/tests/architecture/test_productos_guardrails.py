@@ -57,12 +57,12 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented FASE 0 baseline (measured 2026-06). Drive every number DOWN.
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/productos.py": {
-        "cursor_execute": 11,
+        "cursor_execute": 4,
         "commit": 2,
-        "sql_select": 8,
-        "sql_insert": 2,
-        "sql_update": 2,
-        "int_id_cast": 6,
+        "sql_select": 2,
+        "sql_insert": 1,
+        "sql_update": 1,
+        "int_id_cast": 5,
     },
     "backend/application/commands/product_commands.py": {},
     "backend/application/queries/product_query_service.py": {

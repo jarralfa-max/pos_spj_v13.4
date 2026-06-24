@@ -25,18 +25,27 @@ Ratchet: `tests/architecture/test_productos_guardrails.py` — cada número solo
    → fuente de sesión, sin literal. (`a2aeb72`)
 3. ✅ **uuid4 → `new_uuid()`** — era alias `new_uuid as uuid4` (ya UUIDv7); renombrado. (`cba5dc1`)
 
-### Pendiente (riesgo medio/alto — requiere tests de protección antes, regla 4)
+### F5 SQL en UI — en curso
 
-4. **F2 identidad:** `int(producto_id)` (6) en UI → pasar UUID str directo.
-   Riesgo: DB aún con ids int; ligado al corte UUID o a tests de comportamiento.
-5. **F3 transacción:** `product_catalog_service` (5 commit/5 rollback) → mover SQL a
-   repo + `ConnectionUnitOfWork`; el service deja de hacer SQL/commit.
-6. **F5 SQL en UI:** 11 `.execute` + 2 commit en `productos.py` → QueryService/UseCase.
+Cluster **branch-products + historial de precios** extraído test-first a
+`backend/infrastructure/db/repositories/branch_product_repository.py` (PyQt-free)
+y cubierto por `tests/unit/test_branch_product_repository.py` (9 tests, corren sin
+Qt). La UI (`_cargar_sucursales_combo_bp`, `_cargar_tabla_branch_products`,
+`_guardar_branch_product`, `_ver_historial_precio`) ahora delega y solo arma widgets.
 
-### Bloqueador para 4–6
+Reducción en `productos.py`: `.execute` 11→4, SELECT 8→2, INSERT 2→1, UPDATE 2→1,
+`int(_id)` 6→5. Baseline del guardrail bajado.
 
-`productos.py` casi no tiene tests de comportamiento. Antes de extraer SQL de la UI
-hay que crear tests de protección (regla 4) que capturen el comportamiento actual.
+Nota: los tests de protección de métodos PyQt directos **siempre se saltan aquí**
+(PyQt5 no instalado). Por eso la protección se hace en la capa repo (headless).
+
+### Pendiente
+
+4. **F2 identidad:** `int(producto_id)` (5) restantes en UI → pasar UUID str directo.
+   Riesgo: DB aún con ids int; ligado al corte UUID.
+5. **F3 transacción:** `product_catalog_service` (5 commit/5 rollback) → repo + `ConnectionUnitOfWork`.
+6. **F5 resto:** `_importar_excel` (1 execute/insert/update + commit) y `cargar_catalogo`
+   (2 SELECT) → extraer a repo/QueryService de catálogo.
 
 ### Pre-existente (no de este refactor)
 

@@ -36,6 +36,7 @@ from backend.application.use_cases.create_product_use_case import CreateProductU
 from backend.application.use_cases.deactivate_product_use_case import DeactivateProductCommand, DeactivateProductUseCase
 from backend.application.use_cases.restore_product_use_case import RestoreProductCommand, RestoreProductUseCase
 from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
+from backend.infrastructure.db.repositories.branch_product_repository import BranchProductRepository
 from backend.domain.services.product_type_policy import ProductTypePolicy
 
 logger = logging.getLogger(__name__)
@@ -428,6 +429,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         # Extraemos la db para mantener compatibilidad si algo lo requiere
         self.conexion = container.db if hasattr(container, 'db') else container
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
+        self._branch_product_repo = BranchProductRepository(self.conexion)
         # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
         self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
@@ -1104,13 +1106,9 @@ class ModuloProductos(QWidget, RefreshMixin):
 
     def _cargar_sucursales_combo_bp(self) -> None:
         try:
-            conn = self.conexion
-            rows = conn.execute(
-                "SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY id"
-            ).fetchall()
-            for r in rows:
-                self._combo_suc_filter.addItem(f"🏪 {r[1]}", r[0])
-        except Exception as e:
+            for r in self._branch_product_repo.list_active_branches():
+                self._combo_suc_filter.addItem(f"🏪 {r['nombre']}", r["id"])
+        except Exception:
             pass
 
     def _cargar_tabla_branch_products(self) -> None:
@@ -1119,45 +1117,14 @@ class ModuloProductos(QWidget, RefreshMixin):
         from PyQt5.QtCore import Qt
         try:
             branch_id = self._combo_suc_filter.currentData()
-            conn = self.conexion
-
-            if branch_id:
-                rows = conn.execute("""
-                    SELECT s.nombre as suc_nombre, p.nombre as prod_nombre,
-                           bp.activo, bp.precio_local, bp.stock_min_local,
-                           p.precio as precio_global,
-                           bp.branch_id, bp.product_id
-                    FROM branch_products bp
-                    JOIN sucursales s ON s.id = bp.branch_id
-                    JOIN productos   p ON p.id = bp.product_id
-                    WHERE bp.branch_id = ? AND p.activo = 1
-                    ORDER BY p.nombre
-                """, (branch_id,)).fetchall()
-            else:
-                rows = conn.execute("""
-                    SELECT s.nombre as suc_nombre, p.nombre as prod_nombre,
-                           bp.activo, bp.precio_local, bp.stock_min_local,
-                           p.precio as precio_global,
-                           bp.branch_id, bp.product_id
-                    FROM branch_products bp
-                    JOIN sucursales s ON s.id = bp.branch_id
-                    JOIN productos   p ON p.id = bp.product_id
-                    WHERE p.activo = 1
-                    ORDER BY s.nombre, p.nombre
-                """).fetchall()
+            rows = self._branch_product_repo.list_branch_products(branch_id)
 
             self._tbl_bp.setRowCount(len(rows))
             for ri, r in enumerate(rows):
                 # Calcular en qué sucursales está inactivo este producto
-                inact = conn.execute("""
-                    SELECT GROUP_CONCAT(s2.nombre, ', ')
-                    FROM sucursales s2
-                    LEFT JOIN branch_products bp2
-                        ON bp2.branch_id = s2.id AND bp2.product_id = ?
-                    WHERE s2.activa = 1
-                      AND (bp2.activo = 0 OR bp2.activo IS NULL)
-                """, (r["product_id"],)).fetchone()
-                inact_txt = inact[0] if inact and inact[0] else "—"
+                inact_txt = self._branch_product_repo.inactive_branches_for_product(
+                    r["product_id"]
+                ) or "—"
 
                 vals = [
                     r["suc_nombre"], r["prod_nombre"],
@@ -1196,15 +1163,10 @@ class ModuloProductos(QWidget, RefreshMixin):
         precio_local = self._spin_bp_precio.value() if self._spin_bp_precio.value() > 0 else None
         stock_min    = self._spin_bp_stock_min.value() if self._spin_bp_stock_min.value() > 0 else None
         try:
-            self.conexion.execute("""
-                INSERT INTO branch_products(branch_id, product_id, activo, precio_local, stock_min_local)
-                VALUES(?,?,?,?,?)
-                ON CONFLICT(branch_id, product_id) DO UPDATE SET
-                    activo=excluded.activo,
-                    precio_local=excluded.precio_local,
-                    stock_min_local=excluded.stock_min_local,
-                    updated_at=datetime('now')
-            """, (branch_id, product_id, activo, precio_local, stock_min))
+            self._branch_product_repo.upsert_branch_product(
+                branch_id=branch_id, product_id=product_id, activo=activo,
+                precio_local=precio_local, stock_min_local=stock_min,
+            )
             self.conexion.commit()
             Toast.success(self, "Guardado", "Configuración actualizada.")
             self._cargar_tabla_branch_products()
@@ -1229,25 +1191,16 @@ class ModuloProductos(QWidget, RefreshMixin):
 
         item_id = tabla.item(tabla.currentRow(), 0)
         if not item_id: return
-        prod_id  = int(item_id.text()) if item_id.text().isdigit() else None
+        prod_id  = item_id.text().strip() or None
         if not prod_id: return
 
         try:
-            prod_row = self.conexion.execute(
-                "SELECT nombre, precio, precio_compra FROM productos WHERE id=?",
-                (prod_id,)
-            ).fetchone()
-            if not prod_row: return
-            nombre_prod = prod_row[0]
-            precio_actual = float(prod_row[1] or 0)
+            prod = self._branch_product_repo.get_product_basic(prod_id)
+            if not prod: return
+            nombre_prod = prod["nombre"]
+            precio_actual = float(prod["precio"] or 0)
 
-            rows = self.conexion.execute("""
-                SELECT campo, precio_anterior, precio_nuevo,
-                       diferencia_pct, usuario, changed_at
-                FROM historial_precios
-                WHERE producto_id=?
-                ORDER BY changed_at DESC LIMIT 50
-            """, (prod_id,)).fetchall()
+            rows = self._branch_product_repo.list_price_history(prod_id, limit=50)
         except Exception as e:
             QMessageBox.warning(self, "Error", f"No se pudo cargar el historial: {e}")
             return
@@ -1280,11 +1233,11 @@ class ModuloProductos(QWidget, RefreshMixin):
             for i in range(5): hdr.setSectionResizeMode(i, QHeaderView.ResizeToContents)
             tbl.setRowCount(len(rows))
             for ri, r in enumerate(rows):
-                diff_pct = float(r[3] or 0)
+                diff_pct = float(r["diferencia_pct"] or 0)
                 color = QColor(Colors.DANGER_HOVER) if diff_pct > 10 else                         QColor(Colors.SUCCESS_BASE) if diff_pct < 0 else None
                 vals = [
-                    str(r[0]), f"${float(r[1]):.2f}", f"${float(r[2]):.2f}",
-                    f"{diff_pct:+.1f}%", str(r[4] or "—"), str(r[5] or "")[:16]
+                    str(r["campo"]), f"${float(r['precio_anterior']):.2f}", f"${float(r['precio_nuevo']):.2f}",
+                    f"{diff_pct:+.1f}%", str(r["usuario"] or "—"), str(r["changed_at"] or "")[:16]
                 ]
                 for ci, v in enumerate(vals):
                     it = QTableWidgetItem(v)
