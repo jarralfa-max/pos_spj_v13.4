@@ -220,6 +220,29 @@ La fase se declara terminada cuando:
 
 ---
 
+## 8.5. Implementación (estado)
+
+- ✅ **Motor de corte** `backend/infrastructure/db/uuid_cutover.py`
+  (`UuidCutover` + `TableSpec`): introspectivo (`PRAGMA table_info`), construye
+  mapas `old_id → uuid` para todas las tablas up-front (resuelve auto-refs sin
+  orden topológico), reescribe PK+FK a `TEXT`, valida conteos, corre
+  `PRAGMA foreign_key_check`, todo en una transacción; aborta+rollback ante
+  huérfanos (o `on_orphan="null"`).
+- ✅ **8 tests** (`tests/unit/test_uuid_cutover.py`): PK/FK→UUIDv7, auto-ref,
+  conteos, defaults/columnas preservadas, huérfano→abort+rollback, huérfano→null,
+  unicidad, sin AUTOINCREMENT post-corte.
+- ✅ **Migración 200 scaffold GATED** `migrations/standalone/200_uuid_identity_cutover.py`:
+  **NO registrada** en `engine.py` (nunca auto-corre); rehúsa sin
+  `SPJ_UUID_CUTOVER_CONFIRMED=1` y sin `SPEC_IS_COMPLETE=True`. Tests de gating
+  (`tests/architecture/test_uuid_cutover_migration_gated.py`).
+- ⏳ **Pendiente para ejecutar el corte real:**
+  1. Auditar las 191 tablas y completar `CUTOVER_SPECS` (PK + cada FK → padre).
+     El spec actual cubre solo las entidades núcleo (~13 tablas).
+  2. Pre-auditar integridad (FKs huérfanas) antes del corte.
+  3. Backup verificado + app cerrada + `SPEC_IS_COMPLETE=True` +
+     `SPJ_UUID_CUTOVER_CONFIRMED=1`.
+  4. Tras el corte: bajar a 0 los baselines del cutover test y alinear los 10 rojos.
+
 ## 9. Resumen ejecutivo
 El corte es grande (398 PK, 122 lastrowid, 58 casts, 191 tablas) pero **acotado y
 secuenciable**: Fase A (runtime `str`, incremental, sin downtime, por módulo) y
