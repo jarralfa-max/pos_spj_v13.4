@@ -29,14 +29,26 @@ MERMA llega con la mayor parte del checklist ya cumplido (auditoría previa
 - Servicios/Use Case/Command/Query canónicos presentes; ruta legacy eliminada
   (`test_waste_module_refactor.py`).
 
+### Auditoría por fase (confirmada)
+
+- F1 sin SQL/commit en UI ✅
+- F2 identidad UUIDv7 ✅ (residual `branch_id: str|int`)
+- F3 transacción la posee el application service vía `save_changes()/rollback_changes()` ✅
+- F4 QueryService retorna DTOs tipados (`SearchResult`, `TableRow`, `KpiMetric`) ✅
+- F5 fuente única / ruta legacy eliminada ✅
+- F6 UI → `RegisterWasteUseCase.execute(RegisterWasteCommand)` ✅
+- F7 idempotencia por `operation_exists(operation_id)` + evento `WASTE_REGISTERED` ✅
+- F8 sin integraciones externas crudas en UI ✅
+
 ### Violaciones restantes (documentadas, baja prioridad)
 
 - `waste_repository`: expone `save_changes()`/`rollback_changes()` (commit/rollback
-  con nombre explícito; el repo posee la transacción en lugar de un
-  `ConnectionUnitOfWork`) → alinear en fase de transacciones/identidad.
+  con nombre explícito; el application service orquesta el boundary, pero idealmente
+  vía `ConnectionUnitOfWork`) → alinear en fase de transacciones/identidad.
 - `branch_id: str | int` en varias firmas del repo (`search_products`,
-  `list_waste_records`, `get_daily_summary`) — contrato `int | str` residual,
-  se cierra con el corte atómico de identidad global (migración 200).
+  `list_waste_records`, `get_daily_summary`) — contrato `int | str` residual.
+- `waste_query_service.get_daily_summary` usa default arbitrario `branch_id="1"`.
+- Todos se cierran con el corte atómico de identidad global (migración 200).
 - `metadata["id"]` (construcción de dict) y `currentText()` (motivo/periodo) en
   `merma.py` son valores libres, no identidad — no son violaciones.
 
