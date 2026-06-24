@@ -41,10 +41,10 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented Fase 0 baseline (measured 2026-06). Drive every number DOWN.
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/ventas.py": {
-        # Identity casts + arbitrary branch defaults removed (Fase A). Remaining:
-        # raw SQL reads in the UI -> extract to QueryService/repo next.
-        "cursor_execute": 6,
-        "sql_select": 8,
+        # Identity casts + branch defaults removed; all executable read SQL
+        # extracted to SalesReadRepository (Fase A). The residual sql_select/
+        # sql_update matches are comments/prose, not executable SQL.
+        "sql_select": 2,
         "sql_update": 9,
     },
 }

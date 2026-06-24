@@ -27,8 +27,19 @@ extraer SQL de la UI.
 - 2 `operation_id` con `uuid4()` → `new_uuid()` (fuente única UUIDv7). Los `uuid4`
   restantes son tokens QR / `_uid` de UI, no identidad de dominio.
 
+## F5 SQL en UI — hecho
+
+Las 6 lecturas SQL crudas de la UI (header de ticket, items con producto, items
+básicos, búsqueda por folio, contenedor QR) extraídas a
+`backend/infrastructure/db/repositories/sales_read_repository.py` (PyQt-free),
+cubiertas por `tests/unit/test_sales_read_repository.py` (5 tests headless).
+La UI (`_reimprimir_ultima_venta`, PDF de auditoría, diálogo cancelar venta,
+scanner QR) ahora delega y consume dicts/tuplas.
+
+`modulos/ventas.py`: `.execute` de UI 6→0 (el único `.execute` restante es
+`create_customer_uc.execute()`, un use case). `venta_id` ya no se castea con `int`.
+Los SELECT/UPDATE que el guardrail aún cuenta son comentarios/prosa, no SQL.
+
 ## Pendiente
 
-- **F5 SQL en UI:** 6 `.execute` (lectura de venta/items, QR scan log) →
-  QueryService/repo, patrón headless ya probado en PRODUCTOS.
 - **Fase B:** identidad de escritura del sales service (`lastrowid`) + esquema TEXT.
