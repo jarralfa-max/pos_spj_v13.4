@@ -38,6 +38,11 @@ PATTERNS: dict[str, re.Pattern[str]] = {
     "cast_as_text": re.compile(r"CAST\([^)]*AS\s+TEXT", re.I),
     "uuid4": re.compile(r"uuid4"),
     "external": re.compile(r"\bimport\s+(smtplib|serial|urllib|socket|subprocess)\b"),
+    # regla 23 — no arbitrary branch/sucursal default of 1 (cross-branch data leak)
+    "arbitrary_branch_default": re.compile(
+        r"(branch_id|sucursal_id)\s*=\s*1\b"
+        r"|(branch_id|sucursal_id)[\"']?\s*,\s*[\"']?1[\"']?"
+    ),
 }
 
 # Documented FASE 0 baseline. UI is clean; only the waste repository owns SQL
