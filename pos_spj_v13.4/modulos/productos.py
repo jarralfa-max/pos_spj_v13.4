@@ -38,6 +38,7 @@ from backend.application.use_cases.restore_product_use_case import RestoreProduc
 from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
 from backend.infrastructure.db.repositories.branch_product_repository import BranchProductRepository
 from backend.infrastructure.db.repositories.product_repository import ProductRepository
+from backend.infrastructure.db.unit_of_work import ConnectionUnitOfWork
 from backend.domain.services.product_type_policy import ProductTypePolicy
 
 logger = logging.getLogger(__name__)
@@ -1165,11 +1166,11 @@ class ModuloProductos(QWidget, RefreshMixin):
         precio_local = self._spin_bp_precio.value() if self._spin_bp_precio.value() > 0 else None
         stock_min    = self._spin_bp_stock_min.value() if self._spin_bp_stock_min.value() > 0 else None
         try:
-            self._branch_product_repo.upsert_branch_product(
-                branch_id=branch_id, product_id=product_id, activo=activo,
-                precio_local=precio_local, stock_min_local=stock_min,
-            )
-            self.conexion.commit()
+            with ConnectionUnitOfWork(self.conexion):
+                self._branch_product_repo.upsert_branch_product(
+                    branch_id=branch_id, product_id=product_id, activo=activo,
+                    precio_local=precio_local, stock_min_local=stock_min,
+                )
             Toast.success(self, "Guardado", "Configuración actualizada.")
             self._cargar_tabla_branch_products()
         except Exception as e:
@@ -1315,49 +1316,48 @@ class ModuloProductos(QWidget, RefreshMixin):
             prog.setWindowModality(Qt.WindowModal)
 
             nuevos = actualizados = errores = 0
-            for i, row in enumerate(rows):
-                prog.setValue(i)
-                if prog.wasCanceled():
-                    break
-                try:
-                    nombre = str(row[col['nombre']] or "").strip()
-                    precio = float(row[col['precio']] or 0)
-                    if not nombre or precio < 0:
-                        errores += 1; continue
+            with ConnectionUnitOfWork(self.container.db):
+                for i, row in enumerate(rows):
+                    prog.setValue(i)
+                    if prog.wasCanceled():
+                        break
+                    try:
+                        nombre = str(row[col['nombre']] or "").strip()
+                        precio = float(row[col['precio']] or 0)
+                        if not nombre or precio < 0:
+                            errores += 1; continue
 
-                    vals = {
-                        'nombre':        nombre,
-                        'precio':        precio,
-                        'codigo':        str(row[col['codigo']] or "") if 'codigo' in col else "",
-                        'codigo_barras': str(row[col['codigo_barras']] or "") if 'codigo_barras' in col else "",
-                        'categoria':     str(row[col['categoria']] or "General") if 'categoria' in col else "General",
-                        'precio_compra': float(row[col['precio_compra']] or 0) if 'precio_compra' in col else 0.0,
-                        'unidad':        str(row[col['unidad']] or "kg") if 'unidad' in col else "kg",
-                        'stock_minimo':  float(row[col['stock_minimo']] or 5) if 'stock_minimo' in col else 5.0,
-                    }
+                        vals = {
+                            'nombre':        nombre,
+                            'precio':        precio,
+                            'codigo':        str(row[col['codigo']] or "") if 'codigo' in col else "",
+                            'codigo_barras': str(row[col['codigo_barras']] or "") if 'codigo_barras' in col else "",
+                            'categoria':     str(row[col['categoria']] or "General") if 'categoria' in col else "General",
+                            'precio_compra': float(row[col['precio_compra']] or 0) if 'precio_compra' in col else 0.0,
+                            'unidad':        str(row[col['unidad']] or "kg") if 'unidad' in col else "kg",
+                            'stock_minimo':  float(row[col['stock_minimo']] or 5) if 'stock_minimo' in col else 5.0,
+                        }
 
-                    # Check if exists
-                    existing_id = self._product_repo.find_id_by_name_or_code(
-                        vals['nombre'], vals['codigo'])
+                        # Check if exists
+                        existing_id = self._product_repo.find_id_by_name_or_code(
+                            vals['nombre'], vals['codigo'])
 
-                    if existing_id:
-                        self._product_repo.update_basic_fields_from_import(
-                            existing_id,
-                            precio=vals['precio'], precio_compra=vals['precio_compra'],
-                            categoria=vals['categoria'], unidad=vals['unidad'],
-                            stock_minimo=vals['stock_minimo'])
-                        actualizados += 1
-                    else:
-                        self._product_repo.insert_from_import(
-                            nombre=vals['nombre'], codigo=vals['codigo'],
-                            codigo_barras=vals['codigo_barras'], categoria=vals['categoria'],
-                            precio=vals['precio'], precio_compra=vals['precio_compra'],
-                            unidad=vals['unidad'], stock_minimo=vals['stock_minimo'])
-                        nuevos += 1
-                except Exception:
-                    errores += 1
-
-            self.container.db.commit()
+                        if existing_id:
+                            self._product_repo.update_basic_fields_from_import(
+                                existing_id,
+                                precio=vals['precio'], precio_compra=vals['precio_compra'],
+                                categoria=vals['categoria'], unidad=vals['unidad'],
+                                stock_minimo=vals['stock_minimo'])
+                            actualizados += 1
+                        else:
+                            self._product_repo.insert_from_import(
+                                nombre=vals['nombre'], codigo=vals['codigo'],
+                                codigo_barras=vals['codigo_barras'], categoria=vals['categoria'],
+                                precio=vals['precio'], precio_compra=vals['precio_compra'],
+                                unidad=vals['unidad'], stock_minimo=vals['stock_minimo'])
+                            nuevos += 1
+                    except Exception:
+                        errores += 1
             prog.setValue(total)
 
             Toast.success(

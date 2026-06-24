@@ -57,9 +57,8 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented FASE 0 baseline (measured 2026-06). Drive every number DOWN.
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/productos.py": {
-        # SQL fully extracted to repositories (F5). Remaining: commit (tx
-        # boundary -> F3 UoW) and int(_id) casts (-> F2 identity cutover).
-        "commit": 2,
+        # SQL fully extracted to repositories (F5) and transaction boundaries
+        # moved to ConnectionUnitOfWork (F3). Remaining: int(_id) casts (-> F2).
         "int_id_cast": 5,
     },
     "backend/application/commands/product_commands.py": {},
@@ -67,11 +66,10 @@ BASELINE: dict[str, dict[str, int]] = {
         "sql_select": 10,
     },
     "backend/application/services/product_catalog_service.py": {
-        "cursor_execute": 1,
-        "commit": 5,
-        "rollback": 5,
+        # Transaction boundary moved to ConnectionUnitOfWork (F3): no explicit
+        # commit/rollback in the service. SQL still here pending repo extraction.
         "sql_insert": 1,
-        "sql_update": 5,
+        "sql_update": 4,
     },
     "backend/application/services/product_image_service.py": {},
     "backend/application/use_cases/create_product_use_case.py": {},

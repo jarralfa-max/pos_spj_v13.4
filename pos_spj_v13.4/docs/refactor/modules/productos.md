@@ -46,12 +46,29 @@ consecuencia (SELECT 6→8, INSERT/UPDATE 1→2).
 Nota: los tests de protección de métodos PyQt directos **siempre se saltan aquí**
 (PyQt5 no instalado). Por eso la protección se hace en la capa repo (headless).
 
+### F3 transacciones — hecho
+
+`product_catalog_service` (create/update/_set_product_state) ahora usa
+`ConnectionUnitOfWork` como frontera de transacción: **cero `commit()`/`rollback()`
+literales** en el service (commit en éxito, rollback en error vía context manager).
+Los 2 `commit()` de la UI (`_guardar_branch_product`, `_importar_excel`) también
+envueltos en `ConnectionUnitOfWork` → **`productos.py` con cero commit/rollback**.
+
+Cubierto por `tests/unit/test_product_catalog_service_uow.py` (4 tests headless:
+commit en éxito, rollback en error sin fila parcial).
+
 ### Pendiente
 
 4. **F2 identidad:** `int(producto_id)` (5) restantes en UI → pasar UUID str directo.
-   Riesgo: DB aún con ids int; ligado al corte UUID.
-5. **F3 transacción:** `product_catalog_service` (5 commit/5 rollback) → repo + `ConnectionUnitOfWork`;
-   y los 2 `commit()` restantes en `productos.py` (frontera de tx import/branch-product) → UoW.
+   Riesgo: DB aún con ids int; ligado al corte UUID global.
+5. **F5 resto del service:** el SQL de `product_catalog_service` (INSERT/UPDATE
+   directos en la rama sin repo) podría delegarse del todo a `ProductRepository`.
+
+### Pre-existente (no de este refactor)
+
+`test_product_catalog_refactor::test_create_product_use_case_persists_zero_inventory`
+falla con `sqlite3.IntegrityError: datatype mismatch` (esquema UUID vs int),
+presente antes de estos cambios (verificado con stash).
 
 ### Pre-existente (no de este refactor)
 
