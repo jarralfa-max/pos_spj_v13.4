@@ -10,11 +10,11 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 
 | Patrón | Inicio | Tras tanda 1 |
 |---|---|---|
-| `.execute` | 50 | 44→37→32→26→23→**18** (t6) |
-| SELECT | 48 | 42→34→29→21→18→**13** |
+| `.execute` | 50 | 44→37→32→26→23→18→**15** |
+| SELECT | 48 | 42→34→29→21→18→13→**13** |
 | INSERT / UPDATE / DELETE | 2 / 14 / 1 | 2 / 14 / 1 |
-| commit | 5 | 5 |
-| CREATE TABLE (en UI!) | 2 | 2 |
+| commit | 5 | **4** |
+| CREATE TABLE (en UI!) | 2 | **0** ✅ → migración 111 |
 
 ## Tanda 2 — cluster lecturas QR/contenedores ✅
 
@@ -62,10 +62,16 @@ Sitios: `_cargar_po_en_recepcion`, `_cargar_compra_en_recepcion`, `_cargar_docs_
 - worker thread `run` (619, historial — clase worker con `self._db`)
 - `_procesar_recetas` (componentes de receta, fallback) + `_leer_pin` (3-tabla config)
 
-## Pendiente (escrituras / schema)
+## Schema en UI — cerrado ✅
 
-- **Escrituras** (2 INSERT, 14 UPDATE, 1 DELETE, 5 commit) → repos + UoW (riesgo alto).
-- `_ensure_qr_schema` `CREATE TABLE` → migrations.
+`_ensure_qr_schema` (CREATE TABLE `contenedores`/`contenedor_productos` + 7 ALTER)
+movido a `migrations/standalone/111_qr_containers_schema.py` (registrada en
+`engine.py`, idempotente, 26 columnas). El método de la UI quedó como no-op. Las
+PK enteras se preservan; su corte a UUID `TEXT` es Fase 2.5 (migración 200).
+
+## Pendiente (escrituras)
+
+- **Escrituras** (2 INSERT, 14 UPDATE, 1 DELETE, 4 commit) → repos + UoW (riesgo alto).
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 

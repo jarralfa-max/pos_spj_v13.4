@@ -1693,68 +1693,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     # ════════════════════════════════════════════════════════════════════════
 
     def _ensure_qr_schema(self) -> None:
-        """Crea tablas para QR/contenedores si no existen. Idempotente."""
-        try:
-            db = self.container.db
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS contenedores (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    codigo          TEXT UNIQUE NOT NULL,
-                    tipo            TEXT NOT NULL DEFAULT 'caja',
-                    descripcion     TEXT,
-                    sucursal_destino INTEGER,
-                    proveedor_id    INTEGER,
-                    comprador       TEXT,
-                    folio_factura   TEXT,
-                    fecha_factura   TEXT,
-                    metodo_pago     TEXT,
-                    forma_pago      TEXT,
-                    plazo_dias      INTEGER DEFAULT 0,
-                    vence_pago      TEXT,
-                    total           REAL DEFAULT 0,
-                    estado          TEXT DEFAULT 'generado',
-                    fecha_creado    TEXT DEFAULT CURRENT_TIMESTAMP,
-                    fecha_asignado  TEXT,
-                    fecha_recibido  TEXT,
-                    usuario_creado  TEXT,
-                    usuario_asign   TEXT,
-                    usuario_recibe  TEXT,
-                    recibido_por    TEXT,
-                    observaciones   TEXT,
-                    compra_id       INTEGER
-                )
-            """)
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS contenedor_productos (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    contenedor_id   INTEGER NOT NULL,
-                    producto_id     INTEGER NOT NULL,
-                    cantidad        REAL NOT NULL DEFAULT 0,
-                    costo_unitario  REAL NOT NULL DEFAULT 0,
-                    cantidad_recibida REAL DEFAULT NULL,
-                    observaciones   TEXT,
-                    FOREIGN KEY(contenedor_id) REFERENCES contenedores(id) ON DELETE CASCADE
-                )
-            """)
-            for col_sql in [
-                "ALTER TABLE contenedores ADD COLUMN comprador TEXT",
-                "ALTER TABLE contenedores ADD COLUMN observaciones TEXT",
-                "ALTER TABLE contenedores ADD COLUMN recibido_por TEXT",
-                "ALTER TABLE contenedores ADD COLUMN sucursal_destino INTEGER",
-                "ALTER TABLE contenedor_productos ADD COLUMN observaciones TEXT",
-                "ALTER TABLE contenedores ADD COLUMN parent_id INTEGER REFERENCES contenedores(id)",
-                "ALTER TABLE contenedores ADD COLUMN seq_num INTEGER",
-            ]:
-                try:
-                    db.execute(col_sql)
-                except Exception:
-                    pass
-            try:
-                db.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.debug("_ensure_qr_schema: %s", e)
+        """No-op: el esquema QR/contenedores lo crea ``migrations/standalone/
+        111_qr_containers_schema.py``. La UI no modifica schema (solo migrations)."""
+        return
 
     def _wrap(self, layout):
         w = QWidget()
