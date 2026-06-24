@@ -162,6 +162,32 @@ class ComprasReadRepository:
         ).fetchall()
         return {r[0] for r in rows}
 
+    def list_containers_brief(self, *, limit: int = 500) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            "SELECT id, codigo, tipo FROM contenedores "
+            f"ORDER BY fecha_creado DESC LIMIT {int(limit)}"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_products_brief(self, *, limit: int = 2000) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            "SELECT id, nombre, codigo_barras FROM productos "
+            f"ORDER BY nombre LIMIT {int(limit)}"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_pending_containers(self, *, filter_text: str = "", limit: int = 200) -> list[dict[str, Any]]:
+        sql = (
+            "SELECT id, codigo, tipo, fecha_creado, COALESCE(descripcion,'') AS desc "
+            "FROM contenedores WHERE estado='generado'"
+        )
+        params: list = []
+        if filter_text:
+            sql += " AND (codigo LIKE ? OR descripcion LIKE ?)"
+            params += [f"%{filter_text}%"] * 2
+        sql += f" ORDER BY fecha_creado DESC LIMIT {int(limit)}"
+        return [dict(r) for r in self._connection.execute(sql, params).fetchall()]
+
     def cxp_pending_summary(self, supplier_id: str, branch_id: str) -> tuple:
         """(count, total) of pending/credit purchases for a supplier+branch."""
         row = self._connection.execute(

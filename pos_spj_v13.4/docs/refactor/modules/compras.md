@@ -10,8 +10,8 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 
 | Patrón | Inicio | Tras tanda 1 |
 |---|---|---|
-| `.execute` | 50 | 44 (t1) → 37 (t2) → 32 (t3) → **26** (t4) |
-| SELECT | 48 | 42 → 34 → 29 → **21** |
+| `.execute` | 50 | 44 → 37 → 32 → 26 → **23** (t5) |
+| SELECT | 48 | 42 → 34 → 29 → 21 → **18** |
 | INSERT / UPDATE / DELETE | 2 / 14 / 1 | 2 / 14 / 1 |
 | commit | 5 | 5 |
 | CREATE TABLE (en UI!) | 2 | 2 |
@@ -40,12 +40,19 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 Sitios: `_cargar_po_en_recepcion`, `_cargar_compra_en_recepcion`, `_cargar_docs_erp`
 (fallbacks PR/PO), `_detectar_recetas`.
 
-## Lecturas restantes (tanda 5 reads)
+## Tanda 5 — combos + lista pendientes ✅
 
-Listas dinámicas con tarjetas QWidget (`_cargar_contenedores_pendientes`,
-`_cargar_contenedores_recepcion` ×3, `_cargar_historico_qr`, `_on_hist_row_select`),
-worker thread (`run`/`_verificar`), `_build_subtab_*`, `_procesar_recetas`
-(componentes), `_ofrecer_impresion_recepcion`.
+3 lecturas añadidas a `ComprasReadRepository` (+3 tests): `list_containers_brief`
+(combo padre), `list_products_brief` (combo asignar, LIMIT 2000),
+`list_pending_containers` (dinámico con filtro). Sitios: `_build_subtab_etiqueta`,
+`_build_subtab_asignar`, `_cargar_contenedores_pendientes`.
+
+## Lecturas restantes (tanda 6 reads)
+
+- `_cargar_contenedores_recepcion` ×3 (listas dinámicas PO/compra/contenedor con tarjetas)
+- `_cargar_historico_qr` + `_on_hist_row_select` (histórico QR + detalle)
+- worker thread `run`/`run` history list (619); `_leer_pin` (3-tabla config, intacto)
+- `_procesar_recetas` (componentes de receta, 2 queries con fallback)
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 

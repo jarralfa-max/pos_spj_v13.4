@@ -1826,9 +1826,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_parent_combo = QComboBox(); self.qr_parent_combo.setEditable(False)
         self.qr_parent_combo.addItem("— Sin padre —", None)
         try:
-            rows = self.container.db.execute(
-                "SELECT id, codigo, tipo FROM contenedores ORDER BY fecha_creado DESC LIMIT 500"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_containers_brief(limit=500)
             for _r in rows:
                 _cid  = _r["id"]     if hasattr(_r, "keys") else _r[0]
                 _cod  = _r["codigo"] if hasattr(_r, "keys") else _r[1]
@@ -2215,9 +2213,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             self.qr_buscador_input = QLineEdit()
             self.qr_buscador_input.setPlaceholderText("🔎 Buscar producto por nombre, código o ID…")
             try:
-                _prod_rows = self.container.db.execute(
-                    "SELECT id, nombre, codigo_barras FROM productos ORDER BY nombre LIMIT 2000"
-                ).fetchall()
+                _prod_rows = ComprasReadRepository(self.container.db).list_products_brief(limit=2000)
                 _prod_labels = []
                 self._qr_prod_map: dict = {}
                 for _r in _prod_rows:
@@ -2370,13 +2366,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not hasattr(self, "lst_pendientes"): return
         try:
             f = (self.qr_filtro_cont.text() or "").strip()
-            sql = ("SELECT id, codigo, tipo, fecha_creado, "
-                   "COALESCE(descripcion,'') AS desc "
-                   "FROM contenedores WHERE estado='generado'")
-            params: list = []
-            if f: sql += " AND (codigo LIKE ? OR descripcion LIKE ?)"; params += [f"%{f}%"]*2
-            sql += " ORDER BY fecha_creado DESC LIMIT 200"
-            rows = self.container.db.execute(sql, params).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_pending_containers(
+                filter_text=f, limit=200)
             self.lst_pendientes.clear()
             for r in rows:
                 cid  = r["id"]   if hasattr(r,"keys") else r[0]

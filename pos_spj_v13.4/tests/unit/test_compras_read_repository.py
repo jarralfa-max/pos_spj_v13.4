@@ -33,13 +33,15 @@ def db():
         CREATE TABLE configuraciones (clave TEXT, valor TEXT);
         CREATE TABLE inventario_actual (producto_id INTEGER, costo_promedio REAL);
         CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT, unidad TEXT,
-                                precio_compra REAL, codigo_interno TEXT, barcode TEXT);
+                                precio_compra REAL, codigo_interno TEXT, barcode TEXT,
+                                codigo_barras TEXT);
         CREATE TABLE plantillas_compra (id INTEGER PRIMARY KEY, nombre TEXT);
         CREATE TABLE plantillas_compra_items (plantilla_id INTEGER, producto_id INTEGER,
                                               cantidad REAL, costo_unitario REAL);
         INSERT INTO configuraciones VALUES ('iva_rate','16');
         INSERT INTO inventario_actual VALUES (7, 42.5);
-        INSERT INTO productos VALUES (7,'Pechuga','kg',60.0,'PCH','111');
+        INSERT INTO productos (id,nombre,unidad,precio_compra,codigo_interno,barcode,codigo_barras)
+            VALUES (7,'Pechuga','kg',60.0,'PCH','111','7501');
         INSERT INTO plantillas_compra VALUES (1,'Semanal');
         INSERT INTO plantillas_compra_items VALUES (1,7,5.0,55.0);
 
@@ -58,6 +60,12 @@ def db():
         INSERT INTO purchase_requests VALUES (11,'PR-2','CANCELADA','Carnes',50.0,'2026-06-02',1,'ana','y');
         INSERT INTO ordenes_compra VALUES (20,'PO-1','ABIERTA',1,200.0,'2026-06-01',1,'ana','z');
         INSERT INTO recetas VALUES (1,7,NULL,1,1);
+
+        CREATE TABLE contenedores (id INTEGER PRIMARY KEY, codigo TEXT, tipo TEXT,
+                                   descripcion TEXT, estado TEXT, fecha_creado TEXT);
+        INSERT INTO contenedores VALUES (1,'K-1','caja','x','generado','2026-06-02');
+        INSERT INTO contenedores VALUES (2,'K-2','caja','y','asignado','2026-06-01');
+        INSERT INTO contenedores VALUES (3,'K-3','tarima','z','generado','2026-06-03');
         """
     )
     conn.commit()
@@ -152,3 +160,19 @@ def test_list_open_purchase_orders(repo):
 def test_products_with_recipe(repo):
     assert repo.products_with_recipe([7, 99]) == {7}
     assert repo.products_with_recipe([]) == set()
+
+
+def test_list_containers_brief(repo):
+    rows = repo.list_containers_brief()
+    assert {r["codigo"] for r in rows} == {"K-1", "K-2", "K-3"}
+
+
+def test_list_products_brief(repo):
+    rows = repo.list_products_brief()
+    assert rows[0]["nombre"] == "Pechuga" and rows[0]["codigo_barras"] == "7501"
+
+
+def test_list_pending_containers_filter(repo):
+    # only estado='generado'; K-2 is asignado -> excluded
+    assert {r["codigo"] for r in repo.list_pending_containers()} == {"K-1", "K-3"}
+    assert [r["codigo"] for r in repo.list_pending_containers(filter_text="K-1")] == ["K-1"]
