@@ -10,7 +10,9 @@ Compras a Proveedores.
 from __future__ import annotations
 
 from backend.infrastructure.db.repositories.compras_read_repository import ComprasReadRepository
+from backend.infrastructure.db.repositories.compras_write_repository import ComprasWriteRepository
 from backend.infrastructure.db.repositories.qr_containers_read_repository import QrContainersReadRepository
+from backend.infrastructure.db.unit_of_work import ConnectionUnitOfWork
 from modulos.design_tokens import Colors, Spacing, Typography, Borders
 from modulos.kpi_card import KPICard
 from modulos.ui_components import (
@@ -1920,19 +1922,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         try:
             db   = self.container.db
             parent_id = getattr(self, "qr_parent_id", None)
-            db.execute(
-                """INSERT INTO contenedores
-                   (codigo, tipo, descripcion, estado, usuario_creado, parent_id,
-                    sucursal_destino, observaciones)
-                   VALUES (?,?,?,'generado',?,?,?,?)""",
-                (codigo, self._qr_tipo_actual,
-                 self.qr_descripcion.text().strip() or None,
-                 self.usuario_actual or "Sistema",
-                 parent_id,
-                 getattr(self, "qr_sucursal_gen", None) and self.qr_sucursal_gen.currentData(),
-                 (self.qr_obs_gen.toPlainText().strip() or None) if hasattr(self, "qr_obs_gen") else None)
-            )
-            db.commit()
+            with ConnectionUnitOfWork(db):
+                ComprasWriteRepository(db).insert_container(
+                    codigo=codigo, tipo=self._qr_tipo_actual,
+                    descripcion=self.qr_descripcion.text().strip() or None,
+                    usuario_creado=self.usuario_actual or "Sistema",
+                    parent_id=parent_id,
+                    sucursal_destino=getattr(self, "qr_sucursal_gen", None) and self.qr_sucursal_gen.currentData(),
+                    observaciones=(self.qr_obs_gen.toPlainText().strip() or None) if hasattr(self, "qr_obs_gen") else None,
+                )
             self.qr_preview_status.setText("✓ Generado · sin asignar")
             self.qr_preview_status.setProperty("variant", "accent")
             self.qr_preview_status.style().unpolish(self.qr_preview_status)
@@ -2512,32 +2510,23 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         try:
             db = self.container.db
             total = sum(it["cantidad"]*it["costo"] for it in self._qr_carrito)
-            db.execute("""UPDATE contenedores SET
-                proveedor_id=?, comprador=?, folio_factura=?, fecha_factura=?,
-                metodo_pago=?, forma_pago=?, plazo_dias=?, vence_pago=?,
-                sucursal_destino=?, total=?, estado='asignado',
-                fecha_asignado=CURRENT_TIMESTAMP, usuario_asign=?
-                WHERE id=?""",
-                (prov_id,
-                 self.qr_comprador.text().strip() or self.usuario_actual or None,
-                 self.qr_factura.text().strip() or None,
-                 self.qr_fecha_fact.text().strip() or None,
-                 self.qr_metodo_pago.currentText(),
-                 self.qr_forma_pago.currentText(),
-                 int(self.qr_plazo.value()),
-                 self.qr_vence.text().strip() or None,
-                 self.qr_sucursal_destino.currentData(),
-                 total, self.usuario_actual or "Sistema",
-                 self._contenedor_seleccionado_id))
-            db.execute("DELETE FROM contenedor_productos WHERE contenedor_id=?",
-                       (self._contenedor_seleccionado_id,))
-            for it in self._qr_carrito:
-                db.execute("""INSERT INTO contenedor_productos
-                    (contenedor_id, producto_id, cantidad, costo_unitario)
-                    VALUES (?,?,?,?)""",
-                    (self._contenedor_seleccionado_id, it["producto_id"],
-                     float(it["cantidad"]), float(it["costo"])))
-            db.commit()
+            with ConnectionUnitOfWork(db):
+                wrepo = ComprasWriteRepository(db)
+                wrepo.assign_container(
+                    self._contenedor_seleccionado_id,
+                    proveedor_id=prov_id,
+                    comprador=self.qr_comprador.text().strip() or self.usuario_actual or None,
+                    folio_factura=self.qr_factura.text().strip() or None,
+                    fecha_factura=self.qr_fecha_fact.text().strip() or None,
+                    metodo_pago=self.qr_metodo_pago.currentText(),
+                    forma_pago=self.qr_forma_pago.currentText(),
+                    plazo_dias=int(self.qr_plazo.value()),
+                    vence_pago=self.qr_vence.text().strip() or None,
+                    sucursal_destino=self.qr_sucursal_destino.currentData(),
+                    total=total,
+                    usuario_asign=self.usuario_actual or "Sistema",
+                )
+                wrepo.replace_container_products(self._contenedor_seleccionado_id, self._qr_carrito)
             try: Toast.success(self,"Contenedor asignado · listo para recepción").show()
             except Exception: pass
             try:

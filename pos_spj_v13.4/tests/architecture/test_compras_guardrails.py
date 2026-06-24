@@ -34,15 +34,13 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented baseline after tanda 1 (supplier/branch read cluster extracted).
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/compras_pro.py": {
-        # tandas 1-6 reads extracted; _ensure_qr_schema CREATE moved to
-        # migration 111. Remaining executes are writes (INSERT/UPDATE/DELETE)
-        # plus worker history, recipe components and _leer_pin.
-        "cursor_execute": 15,
-        "commit": 4,
+        # reads extracted; schema -> migration 111; container generate/assign
+        # writes -> ComprasWriteRepository + UoW. Remaining: reception/compra/
+        # recipe UPDATEs (touch inventory — higher risk) plus worker/_leer_pin.
+        "cursor_execute": 11,
+        "commit": 2,
         "sql_select": 13,
-        "sql_insert": 2,
-        "sql_update": 14,
-        "sql_delete": 1,
+        "sql_update": 13,
     },
 }
 

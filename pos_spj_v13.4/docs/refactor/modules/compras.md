@@ -69,9 +69,22 @@ movido a `migrations/standalone/111_qr_containers_schema.py` (registrada en
 `engine.py`, idempotente, 26 columnas). El método de la UI quedó como no-op. Las
 PK enteras se preservan; su corte a UUID `TEXT` es Fase 2.5 (migración 200).
 
-## Pendiente (escrituras)
+## Escrituras — tanda 1 ✅
 
-- **Escrituras** (2 INSERT, 14 UPDATE, 1 DELETE, 4 commit) → repos + UoW (riesgo alto).
+`ComprasWriteRepository` (PyQt-free, sin commit propio) + `ConnectionUnitOfWork`:
+- `insert_container` (`_qr_generar_contenedor`)
+- `assign_container` + `replace_container_products` (`_qr_guardar_asignacion`:
+  UPDATE + DELETE + re-INSERT como una transacción)
+
+4 tests headless, incluido **rollback atómico** (si el re-INSERT falla, el UoW
+revierte UPDATE+DELETE juntos). `.execute` 15→11, commit 4→2, INSERT/DELETE → 0.
+
+## Pendiente (escrituras de inventario — riesgo alto)
+
+- `_qr_confirmar_recepcion` (UPDATE contenedores + contenedor_productos +
+  **productos.existencia**), `_procesar_recetas` (UPDATE existencia),
+  `_confirmar_recepcion_compra` / `_procesar*` (UPDATE compras.estado).
+  Tocan inventario (regla 11) — idealmente vía servicio canónico de inventario.
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 
