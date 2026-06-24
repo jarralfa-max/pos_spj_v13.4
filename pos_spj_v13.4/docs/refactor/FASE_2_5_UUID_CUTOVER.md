@@ -243,18 +243,27 @@ La fase se declara terminada cuando:
   (test). Salida committeada en `migrations/standalone/_cutover_spec_generated.py`,
   importada por la migración 200. El motor se extendió para `pk=None`
   (reescribe FKs sin convertir PK; preserva PK compuesta).
-- ⏳ **Pendiente para ejecutar el corte real:**
-  1. Resolver las **24 FK restantes** (mayoría *context-dependent*: misma columna,
-     distinto padre según la tabla) con overrides por-tabla:
-     `turno_id` (ventas/cierres_caja/movimientos_caja → turnos), `parent_id/padre_id`
-     (self-ref por tabla), `origen_id`/`destino_id` (transferencias → sucursales),
-     `bib_id`/`reservation_id`, `transformation_group_id`, `partner_id`/`tercero_id`,
-     `order_id`, `cuenta_id` (→plan_cuentas), `tarjeta_id`, `paquete_id`, `goal_id`,
-     `ticket_id`, `target_id`, `operacion_id`, `turno_rol_id`.
-  2. Pre-auditar integridad (FKs huérfanas) sobre datos reales.
-  3. Backup verificado + app cerrada + `SPEC_IS_COMPLETE=True` +
-     `SPJ_UUID_CUTOVER_CONFIRMED=1`.
-  4. Tras el corte: bajar a 0 los baselines del cutover test y alinear los 10 rojos.
+- ✅ **FK context-dependent resueltas (24 → 6).** Overrides por-tabla
+  (`TABLE_FK_OVERRIDES` en el builder): `origen_id`/`destino_id` (transferencias→sucursales),
+  `padre_id`/`cuenta_id` (→plan_cuentas), `turno_rol_id`→turno_roles, `paquete_id`→paquetes,
+  `goal_id`→loyalty_community_goals, `bib_id`→branch_inventory_batches. Excluidas como
+  polimórficas/operacionales (no FK real): `operacion_id`, `tercero_id`, `target_id`,
+  `partner_id`, `transformation_group_id`, `transformation_id`, `reservation_id`,
+  `entidad_id`, `party_id`, `sender_id`.
+- ⏳ **6 FK bloqueadas por decisión de dominio (parent inexistente):**
+  | Columna | Tabla(s) | Problema |
+  |---|---|---|
+  | `turno_id` | ventas, cierres_caja, movimientos_caja | no existe tabla `turnos` |
+  | `tarjeta_id` | card_assignment_history | no existe `tarjetas` (solo `card_batches`) |
+  | `order_id` | delivery_cut_items | no existe `delivery_cuts`; ¿→ delivery_orders? |
+  | `ticket_id` | growth_ledger | no existe `tickets`; ¿→ ventas? |
+
+  Mapear a ciegas = corrupción. Requieren que el dueño del dominio confirme la
+  tabla padre real (o declare la columna como denormalizada/muerta). Hasta
+  entonces `SPEC_IS_COMPLETE=False`.
+- ⏳ **Para ejecutar el corte real:** resolver las 6 anteriores → pre-auditar
+  huérfanas sobre datos reales → backup + app cerrada + `SPEC_IS_COMPLETE=True` +
+  `SPJ_UUID_CUTOVER_CONFIRMED=1` → bajar baselines del cutover test a 0 + alinear los 10 rojos.
 
 ## 9. Resumen ejecutivo
 El corte es grande (398 PK, 122 lastrowid, 58 casts, 191 tablas) pero **acotado y

@@ -23,6 +23,24 @@ NON_FK_ID_COLUMNS = {
     "documento_id", "legacy_receta_id", "legacy_receta_componente_id",
     "permiso_id", "rol_id",  # roles/permisos handled as junction config
     "entidad_id", "party_id", "sender_id",  # polimórficos / externos (no FK real)
+    "operacion_id",  # id de operación, no FK de dominio
+    "tercero_id", "target_id", "partner_id",  # polimórficos (cliente/proveedor; producto/categoría)
+    # parents inexistentes en el esquema -> no son FK remapeables (legacy/externos)
+    "transformation_group_id", "transformation_id", "reservation_id",
+}
+
+# Overrides por-tabla para columnas context-dependent (misma columna, distinto
+# padre según la tabla). Resueltos por auditoría manual; el parent debe existir.
+TABLE_FK_OVERRIDES: dict[str, dict[str, str]] = {
+    "transferencias": {"origen_id": "sucursales", "destino_id": "sucursales"},
+    "plan_cuentas": {"padre_id": "plan_cuentas"},  # self-ref jerárquico
+    "depreciacion_acumulada": {"cuenta_id": "plan_cuentas"},
+    "turno_asignaciones": {"turno_rol_id": "turno_roles"},
+    "paquetes_componentes": {"paquete_id": "paquetes"},
+    "loyalty_community_contributions": {"goal_id": "loyalty_community_goals"},
+    "batch_movements": {"bib_id": "branch_inventory_batches"},
+    "movimientos_inventario": {"bib_id": "branch_inventory_batches"},
+    "legacy_movimientos_inventario": {"bib_id": "branch_inventory_batches"},
 }
 
 # FK column -> parent table (convention map; verified against the live schema).
@@ -130,7 +148,7 @@ def build(db_path: str):
                 continue
             if name == "id":
                 continue
-            parent = FK_PARENT.get(name)
+            parent = TABLE_FK_OVERRIDES.get(t, {}).get(name) or FK_PARENT.get(name)
             if parent and parent in existing:
                 fks[name] = parent
             elif name in CONTEXT_DEPENDENT:
