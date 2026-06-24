@@ -8,6 +8,7 @@ import logging
 import re
 import uuid
 from datetime import date, datetime
+from backend.infrastructure.db.repositories.finance_read_repository import FinanceReadRepository
 from typing import List, Dict, Any, Optional
 
 from PyQt5.QtWidgets import (
@@ -785,15 +786,11 @@ class _SeccionResumen(QWidget):
         try:
             db = getattr(getattr(m, "container", None), "db", None)
             if db:
+                _fin = FinanceReadRepository(db)
                 # CxP vencidas (financial_documents mig083 o fallback 0)
                 cxp_venc = 0
                 try:
-                    cxp_venc = db.execute(
-                        "SELECT COUNT(*) FROM financial_documents"
-                        " WHERE document_type='payable'"
-                        " AND status IN ('pending','partial')"
-                        " AND due_date < date('now')"
-                    ).fetchone()[0] or 0
+                    cxp_venc = _fin.count_overdue_payables()
                 except Exception:
                     pass
                 self._alert_cxp.set_value(
@@ -805,12 +802,7 @@ class _SeccionResumen(QWidget):
                 # CxC vencidas
                 cxc_venc = 0
                 try:
-                    cxc_venc = db.execute(
-                        "SELECT COUNT(*) FROM financial_documents"
-                        " WHERE document_type='receivable'"
-                        " AND status IN ('pending','partial')"
-                        " AND due_date < date('now')"
-                    ).fetchone()[0] or 0
+                    cxc_venc = _fin.count_overdue_receivables()
                 except Exception:
                     pass
                 self._alert_cxc.set_value(
@@ -822,11 +814,7 @@ class _SeccionResumen(QWidget):
                 # Diferencias de caja (últimos 30 días, cierres_caja garantizado)
                 dif_caja = 0
                 try:
-                    dif_caja = db.execute(
-                        "SELECT COUNT(*) FROM cierres_caja"
-                        " WHERE ABS(total_ventas - total_efectivo) > 0.01"
-                        " AND fecha_cierre >= date('now','-30 days')"
-                    ).fetchone()[0] or 0
+                    dif_caja = _fin.count_cash_discrepancies(days=30)
                 except Exception:
                     pass
                 self._alert_caja.set_value(
@@ -2871,10 +2859,9 @@ class _SeccionReportes(QWidget):
             if titulo == "Utilidad del período":
                 ingreso = egreso = 0.0
                 if db:
-                    r  = db.execute("SELECT COALESCE(SUM(total),0) FROM ventas WHERE COALESCE(anulado,0)=0").fetchone()
-                    ingreso = float((r or [0])[0] or 0)
-                    r2 = db.execute("SELECT COALESCE(SUM(total),0) FROM compras").fetchone()
-                    egreso  = float((r2 or [0])[0] or 0)
+                    _fin = FinanceReadRepository(db)
+                    ingreso = _fin.sum_sales()
+                    egreso  = _fin.sum_purchases()
                 utilidad = ingreso - egreso
                 signo = "+" if utilidad >= 0 else ""
                 lbl.setText(
@@ -2901,12 +2888,7 @@ class _SeccionReportes(QWidget):
             elif titulo == "Gastos por categoría":
                 if db:
                     try:
-                        cur = db.execute(
-                            "SELECT COALESCE(modulo,'Sin categoría'), SUM(monto) "
-                            "FROM financial_event_log "
-                            "GROUP BY modulo ORDER BY SUM(monto) DESC LIMIT 12"
-                        )
-                        rows = cur.fetchall()
+                        rows = FinanceReadRepository(db).expenses_by_module(limit=12)
                         if rows:
                             lines = [f"{'Categoría':<28} {'Monto':>12}", "─" * 41]
                             for cat, monto in rows:
