@@ -2904,11 +2904,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             po = po_repo.get_by_id(po_id)
             if not po:
                 return
-            prov_row = self.container.db.execute(
-                "SELECT nombre FROM proveedores WHERE id=?",
-                (po.get("proveedor_id", 0),)
-            ).fetchone()
-            prov_nombre = prov_row[0] if prov_row else "—"
+            prov_nombre = ComprasReadRepository(self.container.db).get_supplier_name(
+                po.get("proveedor_id", 0)) or "—"
             self._contenedor_recepcion_id = None
             self._po_recepcion_id = po_id
             self.qr_recv_header.setText(f"📋  PO {po.get('folio', po_id)}")
@@ -2948,14 +2945,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
     def _cargar_compra_en_recepcion(self, compra_id: int) -> None:
         """Load a direct purchase's line items into the reception validation table."""
         try:
-            row_c = self.container.db.execute(
-                """SELECT c.folio, c.total, c.proveedor_id, c.factura,
-                          COALESCE(p.nombre,'—') AS proveedor
-                   FROM compras c
-                   LEFT JOIN proveedores p ON p.id = c.proveedor_id
-                   WHERE c.id=? LIMIT 1""",
-                (compra_id,)
-            ).fetchone()
+            row_c = ComprasReadRepository(self.container.db).get_purchase_for_reception(compra_id)
             if not row_c:
                 return
             folio      = row_c["folio"]    if hasattr(row_c, "keys") else row_c[0]
@@ -2963,14 +2953,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             factura    = row_c["factura"]  if hasattr(row_c, "keys") else row_c[3]
             prov_nombre= row_c["proveedor"] if hasattr(row_c, "keys") else row_c[4]
 
-            items_rows = self.container.db.execute(
-                """SELECT dc.producto_id, COALESCE(pr.nombre, CAST(dc.producto_id AS TEXT)) AS nombre,
-                          COALESCE(pr.unidad,'pz') AS unidad, dc.cantidad, dc.precio_unitario
-                   FROM detalles_compra dc
-                   LEFT JOIN productos pr ON pr.id = dc.producto_id
-                   WHERE dc.compra_id=?""",
-                (compra_id,)
-            ).fetchall()
+            items_rows = ComprasReadRepository(self.container.db).get_purchase_items_for_reception(compra_id)
 
             self._contenedor_recepcion_id = None
             self._po_recepcion_id = None
@@ -4178,14 +4161,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PR: %s", e)
             try:
-                rows = self.container.db.execute(
-                    "SELECT id, folio, estado, proveedor_nombre, total,"
-                    "       fecha_creacion, sucursal_id, usuario, notas"
-                    " FROM purchase_requests"
-                    " WHERE sucursal_id=? AND estado NOT IN ('CANCELADA','CONVERTIDA_A_PO')"
-                    " ORDER BY fecha_creacion DESC LIMIT 40",
-                    (self.sucursal_id,),
-                ).fetchall()
+                rows = ComprasReadRepository(self.container.db).list_purchase_requests(
+                    self.sucursal_id, limit=40)
                 for r in rows:
                     def _v(i, k):
                         return r[i] if not hasattr(r, 'keys') else r.get(k)
@@ -4216,13 +4193,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         except Exception as e:
             logger.debug("_cargar_docs_erp PO: %s", e)
             try:
-                rows = self.container.db.execute(
-                    "SELECT id, folio, estado, proveedor_id, total,"
-                    "       fecha_creacion, sucursal_id, usuario, notas"
-                    " FROM ordenes_compra"
-                    " WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente')"
-                    " ORDER BY fecha_creacion DESC LIMIT 20",
-                ).fetchall()
+                rows = ComprasReadRepository(self.container.db).list_open_purchase_orders(limit=20)
                 for r in rows:
                     def _pv(i, k):
                         return r[i] if not hasattr(r, 'keys') else r.get(k)
@@ -6291,19 +6262,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not self.carrito_compra:
             return []
         ids = [it['producto_id'] for it in self.carrito_compra]
-        ph  = ",".join("?" * len(ids))
         try:
-            rows = self.container.db.execute(
-                f"""SELECT DISTINCT c FROM (
-                        SELECT producto_id      AS c FROM recetas
-                        WHERE  producto_id      IN ({ph}) AND (activa=1 OR activo=1)
-                        UNION
-                        SELECT producto_base_id AS c FROM recetas
-                        WHERE  producto_base_id IN ({ph}) AND (activa=1 OR activo=1)
-                    )""",
-                ids + ids
-            ).fetchall()
-            ids_con_receta = {r[0] for r in rows}
+            ids_con_receta = ComprasReadRepository(self.container.db).products_with_recipe(ids)
             return [it for it in self.carrito_compra
                     if it['producto_id'] in ids_con_receta]
         except Exception:

@@ -97,6 +97,71 @@ class ComprasReadRepository:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def get_supplier_name(self, supplier_id: str) -> str | None:
+        row = self._connection.execute(
+            "SELECT nombre FROM proveedores WHERE id=?", (supplier_id,)
+        ).fetchone()
+        return None if row is None else row[0]
+
+    def get_purchase_for_reception(self, purchase_id: str) -> dict[str, Any] | None:
+        row = self._connection.execute(
+            "SELECT c.folio, c.total, c.proveedor_id, c.factura, "
+            "COALESCE(p.nombre,'—') AS proveedor "
+            "FROM compras c LEFT JOIN proveedores p ON p.id = c.proveedor_id "
+            "WHERE c.id=? LIMIT 1",
+            (purchase_id,),
+        ).fetchone()
+        return None if row is None else dict(row)
+
+    def get_purchase_items_for_reception(self, purchase_id: str) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            "SELECT dc.producto_id, COALESCE(pr.nombre, CAST(dc.producto_id AS TEXT)) AS nombre, "
+            "COALESCE(pr.unidad,'pz') AS unidad, dc.cantidad, dc.precio_unitario "
+            "FROM detalles_compra dc "
+            "LEFT JOIN productos pr ON pr.id = dc.producto_id "
+            "WHERE dc.compra_id=?",
+            (purchase_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_purchase_requests(self, branch_id: str, *, limit: int = 40) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            "SELECT id, folio, estado, proveedor_nombre, total, "
+            "fecha_creacion, sucursal_id, usuario, notas "
+            "FROM purchase_requests "
+            "WHERE sucursal_id=? AND estado NOT IN ('CANCELADA','CONVERTIDA_A_PO') "
+            "ORDER BY fecha_creacion DESC LIMIT ?",
+            (branch_id, int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_open_purchase_orders(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self._connection.execute(
+            "SELECT id, folio, estado, proveedor_id, total, "
+            "fecha_creacion, sucursal_id, usuario, notas "
+            "FROM ordenes_compra "
+            "WHERE estado IN ('ABIERTA','PARCIAL','borrador','pendiente') "
+            "ORDER BY fecha_creacion DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def products_with_recipe(self, product_ids: list) -> set:
+        """Subset of product_ids that have an active recipe (base or output)."""
+        if not product_ids:
+            return set()
+        ph = ",".join("?" * len(product_ids))
+        rows = self._connection.execute(
+            f"SELECT DISTINCT c FROM ("
+            f" SELECT producto_id AS c FROM recetas "
+            f" WHERE producto_id IN ({ph}) AND (activa=1 OR activo=1)"
+            f" UNION "
+            f" SELECT producto_base_id AS c FROM recetas "
+            f" WHERE producto_base_id IN ({ph}) AND (activa=1 OR activo=1))",
+            list(product_ids) + list(product_ids),
+        ).fetchall()
+        return {r[0] for r in rows}
+
     def cxp_pending_summary(self, supplier_id: str, branch_id: str) -> tuple:
         """(count, total) of pending/credit purchases for a supplier+branch."""
         row = self._connection.execute(

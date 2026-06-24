@@ -10,8 +10,8 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 
 | Patrón | Inicio | Tras tanda 1 |
 |---|---|---|
-| `.execute` | 50 | 44 (t1) → 37 (t2) → **32** (t3) |
-| SELECT | 48 | 42 → 34 → **29** |
+| `.execute` | 50 | 44 (t1) → 37 (t2) → 32 (t3) → **26** (t4) |
+| SELECT | 48 | 42 → 34 → 29 → **21** |
 | INSERT / UPDATE / DELETE | 2 / 14 / 1 | 2 / 14 / 1 |
 | commit | 5 | 5 |
 | CREATE TABLE (en UI!) | 2 | 2 |
@@ -31,6 +31,21 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 (inventario_actual), `find_product_for_purchase`, `list_purchase_templates`,
 `get_template_items`. Sitios: `_get_iva_rate`, `_costo_compra_producto`,
 `_qr_agregar_producto_manual`, plantillas sidebar (cargar/poblar).
+
+## Tanda 4 — recepción / docs-ERP / recetas ✅
+
+6 lecturas añadidas a `ComprasReadRepository` (+7 tests headless):
+`get_supplier_name`, `get_purchase_for_reception`, `get_purchase_items_for_reception`,
+`list_purchase_requests`, `list_open_purchase_orders`, `products_with_recipe`.
+Sitios: `_cargar_po_en_recepcion`, `_cargar_compra_en_recepcion`, `_cargar_docs_erp`
+(fallbacks PR/PO), `_detectar_recetas`.
+
+## Lecturas restantes (tanda 5 reads)
+
+Listas dinámicas con tarjetas QWidget (`_cargar_contenedores_pendientes`,
+`_cargar_contenedores_recepcion` ×3, `_cargar_historico_qr`, `_on_hist_row_select`),
+worker thread (`run`/`_verificar`), `_build_subtab_*`, `_procesar_recetas`
+(componentes), `_ofrecer_impresion_recepcion`.
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 
