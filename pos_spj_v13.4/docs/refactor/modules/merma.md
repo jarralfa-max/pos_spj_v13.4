@@ -32,7 +32,7 @@ MERMA llega con la mayor parte del checklist ya cumplido (auditoría previa
 ### Auditoría por fase (confirmada)
 
 - F1 sin SQL/commit en UI ✅
-- F2 identidad UUIDv7 ✅ (residual `branch_id: str|int`)
+- F2 identidad UUIDv7 ✅ (`branch_id` ahora `str` en todas las firmas del repo)
 - F3 transacción la posee el application service vía `save_changes()/rollback_changes()` ✅
 - F4 QueryService retorna DTOs tipados (`SearchResult`, `TableRow`, `KpiMetric`) ✅
 - F5 fuente única / ruta legacy eliminada ✅
@@ -45,10 +45,14 @@ MERMA llega con la mayor parte del checklist ya cumplido (auditoría previa
 - `waste_repository`: expone `save_changes()`/`rollback_changes()` (commit/rollback
   con nombre explícito; el application service orquesta el boundary, pero idealmente
   vía `ConnectionUnitOfWork`) → alinear en fase de transacciones/identidad.
-- `branch_id: str | int` en varias firmas del repo (`search_products`,
-  `list_waste_records`, `get_daily_summary`) — contrato `int | str` residual.
-- `waste_query_service.get_daily_summary` usa default arbitrario `branch_id="1"`.
-- Todos se cierran con el corte atómico de identidad global (migración 200).
+- ~~`branch_id: str | int` en firmas del repo~~ → **RESUELTO**: todas las firmas
+  (`search_products`, `list_waste_records`, `get_daily_summary`, `_branch_stock_expression`)
+  ahora usan `branch_id: str`. Ratchet en `test_waste_repository_branch_id_signatures_are_str`.
+  Verificado: sin casts `int(branch_id)`, el valor se pasa directo como parámetro SQL.
+- `waste_query_service.get_daily_summary` usa default arbitrario `branch_id="1"`
+  (regla 23) → mover a `SystemSettingsService` (pendiente).
+- `save_changes()`/`rollback_changes()` → `ConnectionUnitOfWork` se cierra con el
+  corte atómico de identidad global (migración 200).
 - `metadata["id"]` (construcción de dict) y `currentText()` (motivo/periodo) en
   `merma.py` son valores libres, no identidad — no son violaciones.
 

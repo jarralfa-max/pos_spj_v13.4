@@ -36,7 +36,7 @@ class WasteRepository:
         ).fetchone()
         return self._product_dict(row) if row else None
 
-    def search_products(self, query: str, *, limit: int = 30, branch_id: str | int | None = None) -> list[SearchResult]:
+    def search_products(self, query: str, *, limit: int = 30, branch_id: str | None = None) -> list[SearchResult]:
         like = f"%{query.strip()}%"
         stock_expr, stock_params = self._branch_stock_expression(branch_id)
         cost_expr = self._product_cost_expression()
@@ -94,7 +94,7 @@ class WasteRepository:
         if hasattr(self._connection, "rollback"):
             self._connection.rollback()
 
-    def list_waste_records(self, *, branch_id: str | int, period: str = "Hoy", search: str = "", limit: int = 500) -> list[TableRow]:
+    def list_waste_records(self, *, branch_id: str, period: str = "Hoy", search: str = "", limit: int = 500) -> list[TableRow]:
         where_period = {
             "Hoy": "AND COALESCE(m.fecha, substr(m.created_at,1,10)) >= date('now')",
             "Última semana": "AND COALESCE(m.fecha, substr(m.created_at,1,10)) >= date('now','-7 days')",
@@ -123,7 +123,7 @@ class WasteRepository:
         ).fetchall()
         return [self._row_to_table(row) for row in rows]
 
-    def get_daily_summary(self, *, branch_id: str | int) -> KpiMetric:
+    def get_daily_summary(self, *, branch_id: str) -> KpiMetric:
         row = self._connection.execute(
             """
             SELECT COUNT(*), COALESCE(SUM(COALESCE(valor_perdida,0)),0)
@@ -146,7 +146,7 @@ class WasteRepository:
             return "0"
         return "COALESCE(" + ", ".join(f"NULLIF(CAST(p.{column} AS REAL), 0)" for column in candidates) + ", 0)"
 
-    def _branch_stock_expression(self, branch_id: str | int | None) -> tuple[str, list[Any]]:
+    def _branch_stock_expression(self, branch_id: str | None) -> tuple[str, list[Any]]:
         return "0", []
 
     def _table_exists(self, table_name: str) -> bool:

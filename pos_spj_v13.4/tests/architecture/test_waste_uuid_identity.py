@@ -85,6 +85,14 @@ def test_waste_repository_get_product_signature_is_str():
     )
 
 
+def test_waste_repository_branch_id_signatures_are_str():
+    """All branch_id (sucursal) params must be UUID str — no int | str contracts (REGLA CERO)."""
+    src = _read(WASTE_REPO)
+    assert "branch_id: str | int" not in src and "branch_id: int | str" not in src, (
+        "waste_repository.py has int | str branch_id — sucursal is a UUID, must be str only"
+    )
+
+
 def test_waste_repository_does_not_use_lastrowid_as_entity_id():
     """WasteRepository.register_waste must not return lastrowid as the entity id.
 
