@@ -34,13 +34,14 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented baseline after tanda 1 (supplier/branch read cluster extracted).
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/compras_pro.py": {
-        # reads extracted; schema -> migration 111; container generate/assign
-        # writes -> ComprasWriteRepository + UoW. Remaining: reception/compra/
-        # recipe UPDATEs (touch inventory — higher risk) plus worker/_leer_pin.
-        "cursor_execute": 11,
-        "commit": 2,
-        "sql_select": 13,
-        "sql_update": 13,
+        # reads extracted; schema -> migration 111; generate/assign/reception
+        # writes -> ComprasWriteRepository + UoW. Remaining: _procesar_compra /
+        # _procesar_recetas (best-effort fallbacks behind use cases) and the
+        # worker thread (run/_leer_pin).
+        "cursor_execute": 6,
+        "commit": 1,
+        "sql_select": 12,
+        "sql_update": 9,
     },
 }
 

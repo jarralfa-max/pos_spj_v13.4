@@ -3143,7 +3143,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         items_recib = []
         for r in range(self.tbl_recv_items.rowCount()):
             try:
-                pid = int(self.tbl_recv_items.item(r, 0).text())
+                pid = (self.tbl_recv_items.item(r, 0).text() or "").strip()
                 esp = float((self.tbl_recv_items.item(r, 3).text() or "0").replace(",",""))
                 rec = float((self.tbl_recv_items.item(r, 4).text() or "0").replace(",",""))
                 items_recib.append((pid, rec, esp))
@@ -3157,25 +3157,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         try:
             db = self.container.db
             estado_final = "diferencia" if hay_diferencias else "recibido"
-            db.execute("""UPDATE contenedores SET
-                estado=?, fecha_recibido=CURRENT_TIMESTAMP,
-                usuario_recibe=?, recibido_por=?, observaciones=?
-                WHERE id=?""",
-                (estado_final, self.usuario_actual or "Sistema",
-                 self.qr_recv_recibe.text().strip(),
-                 self.qr_recv_obs.toPlainText().strip() or None,
-                 self._contenedor_recepcion_id))
-            for pid, rec, _esp in items_recib:
-                db.execute(
-                    "UPDATE contenedor_productos SET cantidad_recibida=? "
-                    "WHERE contenedor_id=? AND producto_id=?",
-                    (rec, self._contenedor_recepcion_id, pid))
-                try:
-                    db.execute(
-                        "UPDATE productos SET existencia=COALESCE(existencia,0)+? WHERE id=?",
-                        (rec, pid))
-                except Exception: pass
-            db.commit()
+            with ConnectionUnitOfWork(db):
+                wrepo = ComprasWriteRepository(db)
+                wrepo.mark_container_received(
+                    self._contenedor_recepcion_id,
+                    estado=estado_final,
+                    usuario_recibe=self.usuario_actual or "Sistema",
+                    recibido_por=self.qr_recv_recibe.text().strip(),
+                    observaciones=self.qr_recv_obs.toPlainText().strip() or None,
+                )
+                for pid, rec, _esp in items_recib:
+                    wrepo.set_received_quantity(self._contenedor_recepcion_id, pid, rec)
+                    try:
+                        wrepo.increase_product_stock(pid, rec)
+                    except Exception:
+                        pass
             try: Toast.success(self, f"Contenedor recibido · estado: {estado_final}").show()
             except Exception: pass
             try:
@@ -3327,16 +3323,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             ):
                 return
         try:
-            row_c = self.container.db.execute(
-                "SELECT folio FROM compras WHERE id=? LIMIT 1", (compra_id,)
-            ).fetchone()
-            folio = (row_c[0] if row_c else str(compra_id))
+            db = self.container.db
+            folio = ComprasReadRepository(db).get_purchase_folio(compra_id) or str(compra_id)
             usuario = self.usuario_actual or "Sistema"
             # Inventory was already updated on purchase registration — just close reception.
             new_estado = "completada"
-            self.container.db.execute(
-                "UPDATE compras SET estado=? WHERE id=?", (new_estado, compra_id)
-            )
+            with ConnectionUnitOfWork(db):
+                ComprasWriteRepository(db).update_purchase_status(compra_id, new_estado)
             obs = (self.qr_recv_obs.toPlainText() or "").strip()
             try:
                 from core.services.auto_audit import audit_write

@@ -103,6 +103,12 @@ class ComprasReadRepository:
         ).fetchone()
         return None if row is None else row[0]
 
+    def get_purchase_folio(self, purchase_id: str) -> str | None:
+        row = self._connection.execute(
+            "SELECT folio FROM compras WHERE id=? LIMIT 1", (purchase_id,)
+        ).fetchone()
+        return None if row is None else row[0]
+
     def get_purchase_for_reception(self, purchase_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(
             "SELECT c.folio, c.total, c.proveedor_id, c.factura, "

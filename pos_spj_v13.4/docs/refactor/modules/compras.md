@@ -79,12 +79,24 @@ PK enteras se preservan; su corte a UUID `TEXT` es Fase 2.5 (migración 200).
 4 tests headless, incluido **rollback atómico** (si el re-INSERT falla, el UoW
 revierte UPDATE+DELETE juntos). `.execute` 15→11, commit 4→2, INSERT/DELETE → 0.
 
-## Pendiente (escrituras de inventario — riesgo alto)
+## Escrituras — tanda 2 (recepción) ✅
 
-- `_qr_confirmar_recepcion` (UPDATE contenedores + contenedor_productos +
-  **productos.existencia**), `_procesar_recetas` (UPDATE existencia),
-  `_confirmar_recepcion_compra` / `_procesar*` (UPDATE compras.estado).
-  Tocan inventario (regla 11) — idealmente vía servicio canónico de inventario.
+`ComprasWriteRepository` + UoW: `mark_container_received`, `set_received_quantity`,
+`increase_product_stock`, `update_purchase_status`. Sitios: `_qr_confirmar_recepcion`
+(contenedor + cantidad_recibida + stock, el incremento de stock best-effort),
+`_confirmar_recepcion_compra` (cierre de estado). Fix: `int(pid)` → str.
+6 tests headless (incl. recepción atómica). `.execute` 11→6, commit 2→1.
+
+Nota (regla 12): `increase_product_stock` es UPDATE crudo que **omite
+movimientos_inventario**; rutearlo por el servicio canónico de inventario es un
+follow-up F6 (cambia comportamiento → su propia protección).
+
+## Residual (último, detrás de use cases)
+
+- `_procesar_compra` (UPDATE compras `para_recepcion`, best-effort tras `RegistrarCompraUC`)
+- `_procesar_recetas` (UPDATE existencia — **solo fallback**; ruta primaria ya usa
+  `registrar_salida_produccion` del servicio de inventario)
+- worker thread `run` (historial) + `_leer_pin` (config 3-tabla)
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 

@@ -59,3 +59,36 @@ class ComprasWriteRepository:
                 "(contenedor_id, producto_id, cantidad, costo_unitario) VALUES (?,?,?,?)",
                 (container_id, it["producto_id"], float(it["cantidad"]), float(it["costo"])),
             )
+
+    # ── reception ───────────────────────────────────────────────────────────────
+    def mark_container_received(
+        self, container_id: Any, *, estado: str, usuario_recibe: str,
+        recibido_por: str, observaciones: str | None,
+    ) -> None:
+        self._connection.execute(
+            "UPDATE contenedores SET estado=?, fecha_recibido=CURRENT_TIMESTAMP, "
+            "usuario_recibe=?, recibido_por=?, observaciones=? WHERE id=?",
+            (estado, usuario_recibe, recibido_por, observaciones, container_id),
+        )
+
+    def set_received_quantity(self, container_id: Any, producto_id: Any, cantidad_recibida: float) -> None:
+        self._connection.execute(
+            "UPDATE contenedor_productos SET cantidad_recibida=? "
+            "WHERE contenedor_id=? AND producto_id=?",
+            (cantidad_recibida, container_id, producto_id),
+        )
+
+    def increase_product_stock(self, producto_id: Any, delta: float) -> None:
+        """Raw stock increment used by container reception. NOTE: this bypasses
+        movimientos_inventario; routing it through the canonical inventory service
+        is a follow-up (regla 12) — kept behaviour-preserving for Fase A."""
+        self._connection.execute(
+            "UPDATE productos SET existencia=COALESCE(existencia,0)+? WHERE id=?",
+            (delta, producto_id),
+        )
+
+    def update_purchase_status(self, purchase_id: Any, estado: str) -> None:
+        self._connection.execute(
+            "UPDATE compras SET estado=? WHERE id=?", (estado, purchase_id)
+        )
+
