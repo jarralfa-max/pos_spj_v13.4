@@ -235,10 +235,23 @@ La fase se declara terminada cuando:
   **NO registrada** en `engine.py` (nunca auto-corre); rehúsa sin
   `SPJ_UUID_CUTOVER_CONFIRMED=1` y sin `SPEC_IS_COMPLETE=True`. Tests de gating
   (`tests/architecture/test_uuid_cutover_migration_gated.py`).
+- ✅ **Auditoría de esquema + spec auto-generado.**
+  `tools/refactor_control/build_cutover_spec.py` introspecciona la DB y resuelve
+  FKs por convención (mapa columna→padre + exclusión de ids polimórficos/externos).
+  Resultado sobre el esquema real: **256 tablas** especificadas, **21 junction/config
+  `pk=None`** (PK compuesta o `clave`/`key`), **clausura referencial verificada**
+  (test). Salida committeada en `migrations/standalone/_cutover_spec_generated.py`,
+  importada por la migración 200. El motor se extendió para `pk=None`
+  (reescribe FKs sin convertir PK; preserva PK compuesta).
 - ⏳ **Pendiente para ejecutar el corte real:**
-  1. Auditar las 191 tablas y completar `CUTOVER_SPECS` (PK + cada FK → padre).
-     El spec actual cubre solo las entidades núcleo (~13 tablas).
-  2. Pre-auditar integridad (FKs huérfanas) antes del corte.
+  1. Resolver las **24 FK restantes** (mayoría *context-dependent*: misma columna,
+     distinto padre según la tabla) con overrides por-tabla:
+     `turno_id` (ventas/cierres_caja/movimientos_caja → turnos), `parent_id/padre_id`
+     (self-ref por tabla), `origen_id`/`destino_id` (transferencias → sucursales),
+     `bib_id`/`reservation_id`, `transformation_group_id`, `partner_id`/`tercero_id`,
+     `order_id`, `cuenta_id` (→plan_cuentas), `tarjeta_id`, `paquete_id`, `goal_id`,
+     `ticket_id`, `target_id`, `operacion_id`, `turno_rol_id`.
+  2. Pre-auditar integridad (FKs huérfanas) sobre datos reales.
   3. Backup verificado + app cerrada + `SPEC_IS_COMPLETE=True` +
      `SPJ_UUID_CUTOVER_CONFIRMED=1`.
   4. Tras el corte: bajar a 0 los baselines del cutover test y alinear los 10 rojos.

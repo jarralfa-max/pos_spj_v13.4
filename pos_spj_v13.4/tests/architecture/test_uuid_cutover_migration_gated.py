@@ -30,3 +30,23 @@ def test_200_refuses_when_spec_incomplete(monkeypatch):
     assert mod.SPEC_IS_COMPLETE is False
     with pytest.raises(RuntimeError, match="incompleto"):
         mod.run(object())
+
+
+def test_generated_spec_is_referentially_closed():
+    """Every FK parent referenced in CUTOVER_SPECS must itself be a spec'd table —
+    a parent typo/miss would corrupt the cut."""
+    mod = _mod()
+    names = {s.name for s in mod.CUTOVER_SPECS}
+    dangling = {
+        f"{s.name}.{col} -> {parent}"
+        for s in mod.CUTOVER_SPECS
+        for col, parent in s.fks.items()
+        if parent not in names
+    }
+    assert not dangling, f"FK parents not in spec set: {sorted(dangling)}"
+
+
+def test_generated_spec_has_no_duplicate_tables():
+    mod = _mod()
+    names = [s.name for s in mod.CUTOVER_SPECS]
+    assert len(names) == len(set(names))

@@ -24,39 +24,19 @@ from __future__ import annotations
 import logging
 import os
 
-from backend.infrastructure.db.uuid_cutover import TableSpec, UuidCutover
+from backend.infrastructure.db.uuid_cutover import UuidCutover
 
 logger = logging.getLogger("spj.migrations")
 
-# ── Punto de partida del spec (INCOMPLETO — auditar las 191 tablas antes de correr) ──
-# Cada entrada: TableSpec(tabla, pk="id", fks={columna_fk: tabla_padre}).
-CUTOVER_SPECS: list[TableSpec] = [
-    # raíces
-    TableSpec("sucursales"),
-    TableSpec("productos"),
-    TableSpec("clientes"),
-    TableSpec("proveedores"),
-    TableSpec("usuarios"),
-    TableSpec("categorias"),
-    # ventas
-    TableSpec("ventas", fks={"sucursal_id": "sucursales", "cliente_id": "clientes"}),
-    TableSpec("detalles_venta", fks={"venta_id": "ventas", "producto_id": "productos"}),
-    # compras
-    TableSpec("compras", fks={"sucursal_id": "sucursales", "proveedor_id": "proveedores"}),
-    TableSpec("detalles_compra", fks={"compra_id": "compras", "producto_id": "productos"}),
-    # QR/contenedores (migración 111)
-    TableSpec("contenedores", fks={"proveedor_id": "proveedores",
-                                   "sucursal_destino": "sucursales",
-                                   "parent_id": "contenedores"}),
-    TableSpec("contenedor_productos", fks={"contenedor_id": "contenedores",
-                                           "producto_id": "productos"}),
-    # caja
-    TableSpec("cierres_caja", fks={"sucursal_id": "sucursales"}),
-    # TODO: completar las ~178 tablas restantes (inventario, finanzas, delivery,
-    #       fidelidad, rrhh, transferencias, batches, tickets, etc.) con sus FKs.
-]
+# Spec auto-generado por la auditoría de esquema (256 tablas, 15 junction pk=None).
+# Generado con: python tools/refactor_control/build_cutover_spec.py --db <schema.db>
+from migrations.standalone._cutover_spec_generated import CUTOVER_SPECS  # noqa: E402
 
-SPEC_IS_COMPLETE = False  # poner True solo tras auditar las 191 tablas.
+# El generado resuelve por convención casi todo, pero deja ~24 columnas FK
+# context-dependent / polimórficas SIN mapear (ver comentarios al final del módulo
+# generado). Deben resolverse con overrides por-tabla y validarse contra datos
+# reales antes de habilitar el corte.
+SPEC_IS_COMPLETE = False  # True solo tras resolver las FK context-dependent + pre-auditar huérfanas.
 
 
 def run(conn):

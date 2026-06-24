@@ -32,7 +32,10 @@ from backend.shared.ids import new_uuid
 @dataclass(frozen=True)
 class TableSpec:
     name: str
-    pk: str = "id"
+    # Single integer PK column to convert to UUID, or None for junction/config
+    # tables (composite PK or PK='clave'/'key') that have no own integer identity
+    # but whose FK columns still must be rewritten to point at UUID parents.
+    pk: str | None = "id"
     # functional FK column -> parent table whose PK it references
     fks: dict[str, str] = field(default_factory=dict)
 
@@ -94,6 +97,8 @@ class UuidCutover:
 
     def _build_id_maps(self) -> None:
         for spec in self._specs.values():
+            if spec.pk is None:
+                continue  # junction/config table — no own identity to remap
             rows = self._conn.execute(f'SELECT "{spec.pk}" FROM "{spec.name}"').fetchall()
             self._maps[spec.name] = {r[0]: self._id() for r in rows}
 
@@ -117,13 +122,17 @@ class UuidCutover:
         spec = self._specs[name]
         cols = self._columns(name)
         col_names = [c[1] for c in cols]
-        if spec.pk not in col_names:
+        if spec.pk is not None and spec.pk not in col_names:
             raise UuidCutoverError(f"{name}: pk column '{spec.pk}' not found")
+
+        # Existing PK columns (for junction/config tables we preserve them as a
+        # table-level PRIMARY KEY since FK columns may become TEXT).
+        existing_pk = [c[1] for c in sorted(cols, key=lambda c: c[5]) if c[5]]
 
         # Build the new CREATE TABLE with TEXT id + TEXT fks.
         defs = []
         for _cid, cname, ctype, notnull, dflt, _pk in cols:
-            if cname == spec.pk:
+            if spec.pk is not None and cname == spec.pk:
                 defs.append(f'"{cname}" TEXT PRIMARY KEY')
                 continue
             col_type = "TEXT" if cname in spec.fks else (ctype or "")
@@ -133,6 +142,10 @@ class UuidCutover:
             if dflt is not None:
                 piece += f" DEFAULT {dflt}"
             defs.append(piece)
+        # Preserve composite/non-id PK for pk=None tables.
+        if spec.pk is None and existing_pk:
+            cols_sql = ", ".join(f'"{c}"' for c in existing_pk)
+            defs.append(f"PRIMARY KEY ({cols_sql})")
         self._conn.execute(f'CREATE TABLE "{name}__uuid_new" ({", ".join(defs)})')
 
         # Copy + rewrite every row.

@@ -150,6 +150,34 @@ def test_non_id_columns_and_defaults_preserved():
     assert "DEFAULT 0" in ddl
 
 
+def test_junction_table_with_composite_pk_rewrites_fks_only():
+    """branch_products(branch_id, product_id) has no own id; both columns are FKs
+    forming a composite PK and must be remapped to the parents' new UUIDs."""
+    conn = _db()
+    conn.executescript(
+        """
+        CREATE TABLE branch_products (
+            branch_id INTEGER, product_id INTEGER, precio_local REAL,
+            PRIMARY KEY (branch_id, product_id)
+        );
+        INSERT INTO branch_products VALUES (1, 10, 88.0), (2, 11, 70.0);
+        """
+    )
+    conn.commit()
+    specs = SPECS + [TableSpec("branch_products", pk=None,
+                               fks={"branch_id": "sucursales", "product_id": "productos"})]
+    UuidCutover(conn, specs).run()
+
+    suc1 = conn.execute("SELECT id FROM sucursales WHERE nombre='Centro'").fetchone()["id"]
+    prod10 = conn.execute("SELECT id FROM productos WHERE nombre='Pechuga'").fetchone()["id"]
+    row = conn.execute("SELECT branch_id, product_id, precio_local FROM branch_products WHERE precio_local=88.0").fetchone()
+    assert (row["branch_id"], row["product_id"]) == (suc1, prod10)
+    assert _is_uuid7(row["branch_id"]) and _is_uuid7(row["product_id"])
+    # composite PK preserved in DDL
+    ddl = conn.execute("SELECT sql FROM sqlite_master WHERE name='branch_products'").fetchone()[0].upper()
+    assert "PRIMARY KEY" in ddl
+
+
 def test_idempotent_uuids_are_unique():
     conn = _db()
     UuidCutover(conn, SPECS).run()
