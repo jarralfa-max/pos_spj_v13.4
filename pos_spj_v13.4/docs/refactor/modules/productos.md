@@ -19,15 +19,30 @@ Ratchet: `tests/architecture/test_productos_guardrails.py` — cada número solo
 
 ## Plan F7 (orden por riesgo)
 
-1. **F1 contratos (riesgo bajo, sin runtime):** `product_id: int | str` → `str` en
-   `product_repository` (5) + `product_query_service` (3). Verificar casts `int(product_id)`.
-2. **F1 default sucursal:** `productos.py` `sucursal_id=1` y `getattr(...,'sucursal_id',1)`
-   → fuente de sesión, sin literal (igual que MERMA).
-3. **F2 identidad:** `int(producto_id)` (6) en UI → pasar UUID str directo.
-4. **F3 transacción:** `product_catalog_service` (5 commit/5 rollback) → mover SQL a
+1. ✅ **F1 contratos** — `product_id: int | str` → `str` en `product_repository` (5) +
+   `product_query_service` (4, incl. un `int` suelto). Verificado: sin casts `int(product_id)`. (`2053c1e`)
+2. ✅ **F1 default sucursal** — `productos.py` `sucursal_id=1` y `getattr(...,'sucursal_id',1)`
+   → fuente de sesión, sin literal. (`a2aeb72`)
+3. ✅ **uuid4 → `new_uuid()`** — era alias `new_uuid as uuid4` (ya UUIDv7); renombrado. (`cba5dc1`)
+
+### Pendiente (riesgo medio/alto — requiere tests de protección antes, regla 4)
+
+4. **F2 identidad:** `int(producto_id)` (6) en UI → pasar UUID str directo.
+   Riesgo: DB aún con ids int; ligado al corte UUID o a tests de comportamiento.
+5. **F3 transacción:** `product_catalog_service` (5 commit/5 rollback) → mover SQL a
    repo + `ConnectionUnitOfWork`; el service deja de hacer SQL/commit.
-5. **F1 SQL en UI:** 11 `.execute` + 2 commit en `productos.py` → QueryService/UseCase.
-6. **uuid4 → `new_uuid()`** desde `backend/shared/ids.py`.
+6. **F5 SQL en UI:** 11 `.execute` + 2 commit en `productos.py` → QueryService/UseCase.
+
+### Bloqueador para 4–6
+
+`productos.py` casi no tiene tests de comportamiento. Antes de extraer SQL de la UI
+hay que crear tests de protección (regla 4) que capturen el comportamiento actual.
+
+### Pre-existente (no de este refactor)
+
+10 tests rojos en `production_cost_service` / `production_query_service` /
+`product_catalog_refactor`: esperan `int`, el código ya devuelve `str` UUID
+(`assert '3' == 3`). Alinear a UUID pendiente.
 
 ## Residuales / notas
 
