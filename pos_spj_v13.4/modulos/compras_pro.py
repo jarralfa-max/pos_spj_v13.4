@@ -9,6 +9,7 @@ Compras a Proveedores.
 """
 from __future__ import annotations
 
+from backend.shared.ids import new_uuid
 from backend.infrastructure.db.repositories.compras_read_repository import ComprasReadRepository
 from backend.infrastructure.db.repositories.compras_write_repository import ComprasWriteRepository
 from backend.infrastructure.db.repositories.qr_containers_read_repository import QrContainersReadRepository
@@ -3131,21 +3132,36 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         try:
             db = self.container.db
             estado_final = "diferencia" if hay_diferencias else "recibido"
+            cont_id = self._contenedor_recepcion_id
+            wrepo = ComprasWriteRepository(db)
             with ConnectionUnitOfWork(db):
-                wrepo = ComprasWriteRepository(db)
                 wrepo.mark_container_received(
-                    self._contenedor_recepcion_id,
+                    cont_id,
                     estado=estado_final,
                     usuario_recibe=self.usuario_actual or "Sistema",
                     recibido_por=self.qr_recv_recibe.text().strip(),
                     observaciones=self.qr_recv_obs.toPlainText().strip() or None,
                 )
                 for pid, rec, _esp in items_recib:
-                    wrepo.set_received_quantity(self._contenedor_recepcion_id, pid, rec)
-                    try:
-                        wrepo.increase_product_stock(pid, rec)
-                    except Exception:
-                        pass
+                    wrepo.set_received_quantity(cont_id, pid, rec)
+            # Stock IN through the canonical inventory service (logs movimientos_inventario,
+            # mirrors _confirmar_recepcion_po). Falls back to a raw write only if absent.
+            svc = getattr(self.container, 'inventory_service', None)
+            for pid, rec, _esp in items_recib:
+                if rec <= 0:
+                    continue
+                try:
+                    if svc and hasattr(svc, "add_stock"):
+                        svc.add_stock(
+                            product_id=pid, branch_id=self.sucursal_id, qty=rec,
+                            reference_type="RECEPCION_CONTENEDOR", reference_id=str(cont_id),
+                            operation_id=new_uuid(), user=self.usuario_actual or "Sistema",
+                            notes=f"Recepción contenedor {cont_id}")
+                    else:
+                        with ConnectionUnitOfWork(db):
+                            wrepo.increase_product_stock(pid, rec)
+                except Exception:
+                    pass
             try: Toast.success(self, f"Contenedor recibido · estado: {estado_final}").show()
             except Exception: pass
             try:
@@ -6121,19 +6137,29 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                         receta = _crepo.get_recipe_components_v2(item['producto_id'])
                     if receta:
                         _app = getattr(self.container, 'app_service', None)
-                        with ConnectionUnitOfWork(self.container.db):
-                            _wrepo = ComprasWriteRepository(self.container.db)
-                            for comp in receta:
-                                consumo = float(comp['cantidad_insumo'] or 0) * item['cantidad']
-                                if consumo > 0:
-                                    if _app:
-                                        _app.registrar_salida_produccion(
-                                            producto_id=comp['insumo_id'],
-                                            cantidad=consumo,
-                                            usuario=getattr(self, 'usuario_actual', ''),
-                                            sucursal_id=self.sucursal_id)
-                                    else:
-                                        _wrepo.decrease_product_stock(comp['insumo_id'], consumo)
+                        _svc = getattr(self.container, 'inventory_service', None)
+                        for comp in receta:
+                            consumo = float(comp['cantidad_insumo'] or 0) * item['cantidad']
+                            if consumo <= 0:
+                                continue
+                            if _app:
+                                _app.registrar_salida_produccion(
+                                    producto_id=comp['insumo_id'],
+                                    cantidad=consumo,
+                                    usuario=getattr(self, 'usuario_actual', ''),
+                                    sucursal_id=self.sucursal_id)
+                            elif _svc and hasattr(_svc, "deduct_stock"):
+                                # Canonical inventory route (logs movimientos_inventario).
+                                _svc.deduct_stock(
+                                    product_id=comp['insumo_id'], branch_id=self.sucursal_id,
+                                    qty=consumo, reference_type="RECETA_COMPRA",
+                                    reference_id=str(item['producto_id']),
+                                    operation_id=new_uuid(), user=self.usuario_actual or "",
+                                    notes="Receta de compra")
+                            else:
+                                with ConnectionUnitOfWork(self.container.db):
+                                    ComprasWriteRepository(self.container.db).decrease_product_stock(
+                                        comp['insumo_id'], consumo)
                         nombres.append(item['nombre'])
             except Exception as e:
                 logger.warning("_procesar_recetas %s: %s", item['nombre'], e)

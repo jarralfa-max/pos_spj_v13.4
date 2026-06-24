@@ -106,11 +106,23 @@ follow-up F6 (cambia comportamiento → su propia protección).
 Tests: read 41 + write 9 (incl. recepción/asignación atómicas). Guardrail
 `test_compras_ui_has_no_executable_sql_or_commit` bloquea cualquier reaparición.
 
-## Follow-up F6 (regla 12)
+## F6 — ruteo por servicio canónico de inventario ✅ (regla 12)
 
-`increase_product_stock` / `decrease_product_stock` son UPDATE crudos que omiten
-`movimientos_inventario`. Rutearlos por el servicio canónico de inventario cambia
-comportamiento (añade movimientos/asientos) → requiere su propia protección.
+La recepción de contenedor (`_qr_confirmar_recepcion`) y el consumo de recetas
+(`_procesar_recetas`) ahora registran stock por el **servicio canónico de
+inventario** (`container.inventory_service.add_stock` / `deduct_stock`), que
+loguea `movimientos_inventario` — espejando la ruta ya probada de recepción PO
+(`_confirmar_recepcion_po`, regla 29: una sola ruta). El `increase/decrease_product_stock`
+crudo del repo queda **solo como fallback** si el servicio no está disponible
+(preserva comportamiento en ese caso).
+
+Cambio de comportamiento: la recepción de contenedor antes hacía `UPDATE existencia`
+sin movimiento (bug); ahora genera el movimiento correcto.
+
+> **Limitación de verificación:** son métodos PyQt; no son ejecutables headless
+> en este entorno. Mitigación: se espeja código probado (recepción PO), el
+> servicio de inventario está testeado aparte, y el fallback al repo (testeado)
+> se conserva. Validación manual en la app queda pendiente (checklist).
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 
