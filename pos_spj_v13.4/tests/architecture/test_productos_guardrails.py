@@ -64,7 +64,6 @@ BASELINE: dict[str, dict[str, int]] = {
         "sql_update": 2,
         "int_id_cast": 6,
         "uuid4": 5,
-        "arbitrary_branch_default": 2,
     },
     "backend/application/commands/product_commands.py": {},
     "backend/application/queries/product_query_service.py": {

@@ -357,7 +357,7 @@ class DialogoProducto(QDialog):
 
         command_kwargs = dict(
             operation_id=f"product-{uuid4()}",
-            branch_id=str(getattr(self.container, 'sucursal_id', 1)),
+            branch_id=str(getattr(self.container, 'sucursal_id', '') or ''),
             user_name=getattr(self, "usuario_actual", "Sistema") or "Sistema",
             name=nombre,
             sku=self.txt_codigo.text().strip() or None,
@@ -428,7 +428,8 @@ class ModuloProductos(QWidget, RefreshMixin):
         # Extraemos la db para mantener compatibilidad si algo lo requiere
         self.conexion = container.db if hasattr(container, 'db') else container
         self.product_query_service = ProductQueryService.from_connection(self.conexion)
-        self.sucursal_id = 1
+        # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id = getattr(container, "sucursal_id", "") or ""
         self.usuario_actual = ""
         self._product_catalog_service = ProductCatalogService(self.conexion)
         self._deactivate_product_uc = DeactivateProductUseCase(self._product_catalog_service)
