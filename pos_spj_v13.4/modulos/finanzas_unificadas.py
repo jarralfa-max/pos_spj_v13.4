@@ -9,6 +9,13 @@ import re
 import uuid
 from datetime import date, datetime
 from backend.infrastructure.db.repositories.finance_read_repository import FinanceReadRepository
+
+
+class _Rows:
+    """Adapter so extracted repo lists keep the cursor .fetchall() call sites."""
+    def __init__(self, rows): self._rows = rows
+    def fetchall(self): return self._rows
+
 from typing import List, Dict, Any, Optional
 
 from PyQt5.QtWidgets import (
@@ -836,57 +843,7 @@ class _SeccionResumen(QWidget):
             if not rows:
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
-                    # Construir UNION desde tablas garantizadas por m000_base_schema
-                    parts: List[str] = []
-
-                    # journal_entries (mig 083) — opcional, puede no existir/estar vacía
-                    try:
-                        db.execute("SELECT 1 FROM journal_entries LIMIT 1")
-                        parts.append(
-                            "SELECT created_at AS fecha, event_type AS tipo,"
-                            " 'Finanzas' AS modulo,"
-                            " COALESCE(source_folio,'') AS concepto,"
-                            " amount AS monto, user AS usuario"
-                            " FROM journal_entries"
-                        )
-                    except Exception:
-                        pass
-
-                    # ventas — siempre existe desde m000
-                    parts.append(
-                        "SELECT fecha, 'Venta' AS tipo, 'Ventas' AS modulo,"
-                        " COALESCE(folio,'V-'||id) AS concepto,"
-                        " total AS monto, COALESCE(usuario,'') AS usuario"
-                        " FROM ventas WHERE estado != 'cancelada'"
-                    )
-
-                    # compras — siempre existe desde m000
-                    parts.append(
-                        "SELECT fecha, 'Compra' AS tipo, 'Compras' AS modulo,"
-                        " COALESCE(folio,'C-'||id) AS concepto,"
-                        " total AS monto, COALESCE(usuario,'') AS usuario"
-                        " FROM compras"
-                    )
-
-                    # cierres_caja — siempre existe desde m000
-                    parts.append(
-                        "SELECT fecha_cierre AS fecha, 'Cierre caja' AS tipo,"
-                        " 'Caja' AS modulo,"
-                        " COALESCE(turno,'Cierre-'||id) AS concepto,"
-                        " total_ventas AS monto, COALESCE(usuario,'') AS usuario"
-                        " FROM cierres_caja"
-                    )
-
-                    union_sql = " UNION ALL ".join(parts)
-                    cur = db.execute(
-                        f"SELECT * FROM ({union_sql})"
-                        f" ORDER BY fecha DESC LIMIT 20"
-                    )
-                    rows = [
-                        {"fecha": r[0], "tipo": r[1], "modulo": r[2],
-                         "concepto": r[3], "monto": r[4], "usuario": r[5]}
-                        for r in cur.fetchall()
-                    ]
+                    rows = FinanceReadRepository(db).get_recent_activity(limit=20)
 
             # Normalizar a dict uniforme y guardar cache
             self._rows_actividad = [
@@ -1075,11 +1032,7 @@ class _SeccionCajayConciliacion(QWidget):
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
                     try:
-                        cur = db.execute(
-                            "SELECT fecha_cierre, sucursal_id, usuario, turno, "
-                            "total_ventas, total_efectivo "
-                            "FROM cierres_caja ORDER BY fecha_cierre DESC LIMIT 100"
-                        )
+                        cur = _Rows(FinanceReadRepository(db).list_cash_closures())
                         rows = [
                             {
                                 "fecha":         r[0],
@@ -1428,11 +1381,7 @@ class _SeccionCapital(QWidget):
                 if db:
                     # Intento 1: capital_movements (mig 084)
                     try:
-                        cur = db.execute(
-                            "SELECT created_at, movement_type, partner_name, concept, "
-                            "payment_method, amount, reference, status "
-                            "FROM capital_movements ORDER BY created_at DESC LIMIT 100"
-                        )
+                        cur = _Rows(FinanceReadRepository(db).list_capital_movements())
                         cols = ["created_at", "movement_type", "partner_name", "concept",
                                 "payment_method", "amount", "reference", "status"]
                         rows = [dict(zip(cols, row)) for row in cur.fetchall()]
@@ -1441,10 +1390,7 @@ class _SeccionCapital(QWidget):
                     # Intento 2: treasury_capital (tabla legacy de TreasuryService)
                     if not rows:
                         try:
-                            cur = db.execute(
-                                "SELECT fecha, tipo, usuario, descripcion, '', monto, '', 'confirmado' "
-                                "FROM treasury_capital ORDER BY fecha DESC LIMIT 100"
-                            )
+                            cur = _Rows(FinanceReadRepository(db).list_treasury_capital())
                             cols = ["created_at", "movement_type", "partner_name", "concept",
                                     "payment_method", "amount", "reference", "status"]
                             rows = [dict(zip(cols, row)) for row in cur.fetchall()]
@@ -1999,12 +1945,7 @@ class _SeccionMovimientos(QWidget):
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
                     try:
-                        cur = db.execute(
-                            "SELECT fecha, tipo, categoria, concepto, referencia, "
-                            "ingreso, egreso, usuario "
-                            "FROM treasury_ledger "
-                            "ORDER BY fecha DESC LIMIT 200"
-                        )
+                        cur = _Rows(FinanceReadRepository(db).list_treasury_ledger())
                         rows = [
                             {
                                 "fecha":     r[0],
@@ -2212,12 +2153,7 @@ class _SeccionAsientosContables(QWidget):
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
                     try:
-                        cur = db.execute(
-                            "SELECT created_at, event_type, source_module, "
-                            "debit_account, credit_account, amount, source_folio, user "
-                            "FROM journal_entries "
-                            "ORDER BY created_at DESC LIMIT 200"
-                        )
+                        cur = _Rows(FinanceReadRepository(db).list_journal_entries())
                         rows = [
                             {
                                 "fecha":       r[0],
@@ -2236,12 +2172,7 @@ class _SeccionAsientosContables(QWidget):
                     # Fallback 2: financial_event_log (desde m000 — siempre presente)
                     if not rows and db:
                         try:
-                            cur = db.execute(
-                                "SELECT timestamp, evento, modulo, cuenta_debe, cuenta_haber, "
-                                "monto, referencia_id, usuario_id "
-                                "FROM financial_event_log "
-                                "ORDER BY timestamp DESC LIMIT 200"
-                            )
+                            cur = _Rows(FinanceReadRepository(db).list_financial_event_log())
                             rows = [
                                 {
                                     "fecha":       r[0],
@@ -2597,11 +2528,7 @@ class _SeccionProveedores(QWidget):
         # Fallback defensivo si el servicio falla pero hay db
         if not rows and hasattr(m.container, "db"):
             try:
-                cur = m.container.db.execute(
-                    "SELECT id,nombre,telefono,email,contacto,"
-                    "COALESCE(condiciones_pago,0) FROM proveedores "
-                    "WHERE COALESCE(activo,1)=1 ORDER BY nombre LIMIT 300"
-                )
+                cur = _Rows(FinanceReadRepository(m.container.db).list_active_suppliers())
                 rows = [
                     {"id": r[0], "nombre": r[1], "telefono": r[2], "email": r[3],
                      "contacto": r[4], "condiciones_pago": r[5], "saldo_pendiente": 0.0}
@@ -2708,19 +2635,7 @@ class _SeccionClientesCredito(QWidget):
                 db = getattr(getattr(m, "container", None), "db", None)
                 if db:
                     try:
-                        cur = db.execute(
-                            "SELECT nombre, "
-                            "  COALESCE(limite_credito, credit_limit, 0) AS limite, "
-                            "  COALESCE(saldo, 0) AS saldo_usado, "
-                            "  COALESCE(ultima_compra, '') AS ultima_compra "
-                            "FROM clientes "
-                            "WHERE COALESCE(activo,1)=1 "
-                            "  AND (COALESCE(limite_credito,0)>0 "
-                            "    OR COALESCE(credit_limit,0)>0 "
-                            "    OR COALESCE(allows_credit,0)=1 "
-                            "    OR COALESCE(saldo,0)>0) "
-                            "ORDER BY nombre LIMIT 300"
-                        )
+                        cur = _Rows(FinanceReadRepository(db).list_customer_credit())
                         clientes = [
                             {"nombre": r[0], "limite_credito": float(r[1] or 0),
                              "saldo_credito": float(r[2] or 0), "ultima_compra": r[3] or ""}

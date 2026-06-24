@@ -69,3 +69,43 @@ def test_sum_purchases(repo):
 
 def test_expenses_by_module_ordered_desc(repo):
     assert repo.expenses_by_module() == [("ventas", 150.0), ("compras", 30.0)]
+
+
+@pytest.fixture
+def activity_db():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        """
+        CREATE TABLE ventas (id INTEGER PRIMARY KEY, fecha TEXT, folio TEXT, total REAL,
+                             usuario TEXT, estado TEXT);
+        CREATE TABLE compras (id INTEGER PRIMARY KEY, fecha TEXT, folio TEXT, total REAL,
+                              usuario TEXT);
+        CREATE TABLE cierres_caja (id INTEGER PRIMARY KEY, fecha_cierre TEXT, turno TEXT,
+                                   total_ventas REAL, usuario TEXT);
+        CREATE TABLE journal_entries (created_at TEXT, event_type TEXT, source_folio TEXT,
+                                      amount REAL, user TEXT, source_module TEXT,
+                                      debit_account TEXT, credit_account TEXT);
+        INSERT INTO ventas VALUES (1,'2026-06-03','V-1',100.0,'ana','completada');
+        INSERT INTO ventas VALUES (2,'2026-06-01','V-2',50.0,'ana','cancelada');
+        INSERT INTO compras VALUES (1,'2026-06-02','C-1',40.0,'leo');
+        INSERT INTO cierres_caja VALUES (1,'2026-06-04','M1',100.0,'ana');
+        INSERT INTO journal_entries VALUES ('2026-06-05','asiento','JE-1',10.0,'sys','fin','a','b');
+        """
+    )
+    conn.commit()
+    return conn
+
+
+def test_get_recent_activity_unions_and_orders(activity_db):
+    repo = FinanceReadRepository(activity_db)
+    rows = repo.get_recent_activity(limit=10)
+    # cancelled sale excluded; newest first (journal 06-05, cierre 06-04, venta 06-03, compra 06-02)
+    assert [r["tipo"] for r in rows] == ["asiento", "Cierre caja", "Venta", "Compra"]
+    assert rows[0]["modulo"] == "Finanzas"
+
+
+def test_list_journal_entries(activity_db):
+    repo = FinanceReadRepository(activity_db)
+    rows = repo.list_journal_entries()
+    assert rows[0][1] == "asiento" and rows[0][5] == 10.0
