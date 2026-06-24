@@ -1057,7 +1057,7 @@ class ModuloRRHH(QWidget):
             QMessageBox.warning(self,"Aviso","Selecciona un registro de vacaciones."); return
         vac_id_item = self.tbl_vac.item(row, 0)
         if not vac_id_item: return
-        vac_id = int(vac_id_item.text())
+        vac_id = vac_id_item.text().strip()
         try:
             self.container.db.execute(
                 "UPDATE vacaciones_personal SET estado=? WHERE id=?", (nuevo_estado, vac_id))

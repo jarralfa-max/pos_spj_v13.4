@@ -39,7 +39,9 @@ BRANCH_CLEAN_MODULES = [
 # Subset that is also free of int(_id) identity casts.
 INT_CLEAN_MODULES = [
     m for m in BRANCH_CLEAN_MODULES
-    if m not in {"modulos/compras_pro.py", "modulos/rrhh.py", "modulos/fidelidad_config.py"}
+    # fidelidad_config keeps 3 casts bound to int Qt widgets (QSpinBox /
+    # QInputDialog.getInt) — a regla-20 selector redesign, deferred.
+    if m not in {"modulos/fidelidad_config.py"}
 ]
 
 ARBITRARY_BRANCH_DEFAULT = re.compile(

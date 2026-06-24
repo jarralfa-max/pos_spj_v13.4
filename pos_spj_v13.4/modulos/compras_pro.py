@@ -6974,12 +6974,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             )
             self._hist_detail_panel.setVisible(True)
             # Phase 7 — timeline
-            self._refresh_hist_timeline(int(po_id), folio_compra)
+            self._refresh_hist_timeline(po_id, folio_compra)
         except Exception as exc:
             logger.debug("_on_hist_row_selected: %s", exc)
             self._hist_detail_panel.setVisible(False)
 
-    def _refresh_hist_timeline(self, po_id: int, compra_folio: str) -> None:
+    def _refresh_hist_timeline(self, po_id: str, compra_folio: str) -> None:
         """
         FASE 9 — Full documental lifecycle timeline in the history detail panel.
 
