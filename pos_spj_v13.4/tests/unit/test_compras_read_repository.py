@@ -27,6 +27,19 @@ def db():
         INSERT INTO compras VALUES (1,'C-1','2026-06-01',100.0,'credito',1,1);
         INSERT INTO compras VALUES (2,'C-2','2026-06-02',200.0,'pagada',1,1);
         INSERT INTO compras VALUES (3,'C-3','2026-06-03',300.0,'pendiente',1,1);
+
+        CREATE TABLE configuraciones (clave TEXT, valor TEXT);
+        CREATE TABLE inventario_actual (producto_id INTEGER, costo_promedio REAL);
+        CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT, unidad TEXT,
+                                precio_compra REAL, codigo_interno TEXT, barcode TEXT);
+        CREATE TABLE plantillas_compra (id INTEGER PRIMARY KEY, nombre TEXT);
+        CREATE TABLE plantillas_compra_items (plantilla_id INTEGER, producto_id INTEGER,
+                                              cantidad REAL, costo_unitario REAL);
+        INSERT INTO configuraciones VALUES ('iva_rate','16');
+        INSERT INTO inventario_actual VALUES (7, 42.5);
+        INSERT INTO productos VALUES (7,'Pechuga','kg',60.0,'PCH','111');
+        INSERT INTO plantillas_compra VALUES (1,'Semanal');
+        INSERT INTO plantillas_compra_items VALUES (1,7,5.0,55.0);
         """
     )
     conn.commit()
@@ -62,3 +75,30 @@ def test_cxp_pending_summary(repo):
     # only credito + pendiente count (100 + 300), not pagada
     assert repo.cxp_pending_summary(1, 1) == (2, 400.0)
     assert repo.cxp_pending_summary(1, 99) == (0, 0.0)
+
+
+def test_get_config_value(repo):
+    assert repo.get_config_value("iva_rate") == "16"
+    assert repo.get_config_value("missing") is None
+
+
+def test_get_avg_cost(repo):
+    assert repo.get_avg_cost(7) == 42.5
+    assert repo.get_avg_cost(999) == 0.0
+
+
+def test_find_product_for_purchase(repo):
+    p = repo.find_product_for_purchase("Pech")
+    assert p["id"] == 7 and p["costo"] == 60.0
+    assert repo.find_product_for_purchase("111")["id"] == 7  # barcode
+    assert repo.find_product_for_purchase("zzz") is None
+
+
+def test_list_purchase_templates(repo):
+    assert repo.list_purchase_templates() == [{"id": 1, "nombre": "Semanal"}]
+
+
+def test_get_template_items(repo):
+    items = repo.get_template_items(1)
+    assert items[0]["producto_id"] == 7 and items[0]["cantidad"] == 5.0
+    assert items[0]["nombre"] == "Pechuga"

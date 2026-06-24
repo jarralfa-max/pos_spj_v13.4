@@ -679,23 +679,12 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if hasattr(self, '_iva_rate_cached'):
             return self._iva_rate_cached
         try:
-            db = self.container.db
-            for tabla, col_k, col_v in [
-                ('configuraciones', 'clave', 'valor'),
-                ('settings', 'key', 'value'),
-            ]:
-                try:
-                    row = db.execute(
-                        f"SELECT {col_v} FROM {tabla} WHERE {col_k}=? LIMIT 1",
-                        ('iva_rate',)
-                    ).fetchone()
-                    if row:
-                        raw = float(row[0] or _IVA_RATE)
-                        # Accept both fractional (0.16) and percentage (16) forms
-                        self._iva_rate_cached = raw / 100.0 if raw > 1 else raw
-                        return self._iva_rate_cached
-                except Exception:
-                    continue
+            val = ComprasReadRepository(self.container.db).get_config_value('iva_rate')
+            if val is not None:
+                raw = float(val or _IVA_RATE)
+                # Accept both fractional (0.16) and percentage (16) forms
+                self._iva_rate_cached = raw / 100.0 if raw > 1 else raw
+                return self._iva_rate_cached
         except Exception:
             pass
         self._iva_rate_cached = _IVA_RATE
@@ -2507,11 +2496,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         txt = (self.qr_buscador_input.text() or "").strip()
         if not txt: return
         try:
-            row = self.container.db.execute("""
-                SELECT id, nombre, COALESCE(unidad,'pz') AS unidad,
-                       COALESCE(precio_compra, 0) AS costo
-                FROM productos WHERE nombre LIKE ? OR codigo_interno=? OR barcode=? LIMIT 1
-            """, (f"%{txt}%", txt, txt)).fetchone()
+            row = ComprasReadRepository(self.container.db).find_product_for_purchase(txt)
             if row:
                 self._qr_agregar_producto_carrito(dict(row))
                 self.qr_buscador_input.clear()
@@ -5077,9 +5062,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
         self._sidebar_templates_list.clear()
         try:
-            rows = self.container.db.execute(
-                "SELECT id, nombre FROM plantillas_compra ORDER BY nombre LIMIT 20"
-            ).fetchall()
+            rows = ComprasReadRepository(self.container.db).list_purchase_templates(limit=20)
             for r in rows:
                 pid  = r[0] if not hasattr(r, 'keys') else r['id']
                 name = r[1] if not hasattr(r, 'keys') else r['nombre']
@@ -5102,13 +5085,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         if not tpl_id:
             return
         try:
-            rows = self.container.db.execute("""
-                SELECT ti.producto_id, p.nombre, ti.cantidad,
-                       ti.costo_unitario, p.precio_compra
-                FROM plantillas_compra_items ti
-                JOIN productos p ON p.id = ti.producto_id
-                WHERE ti.plantilla_id = ?
-            """, (tpl_id,)).fetchall()
+            rows = ComprasReadRepository(self.container.db).get_template_items(tpl_id)
             if not rows:
                 Toast.success(self, "📋 Plantilla vacía", "La plantilla no tiene ítems."); return
             if self.carrito_compra:
@@ -5557,12 +5534,9 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         pid = prod.get('id') or prod.get('producto_id')
         if pid:
             try:
-                row = self.container.db.execute(
-                    "SELECT COALESCE(costo_promedio,0) FROM inventario_actual "
-                    "WHERE producto_id=? LIMIT 1", (pid,)
-                ).fetchone()
-                if row and row[0]:
-                    return float(row[0])
+                cost = ComprasReadRepository(self.container.db).get_avg_cost(pid)
+                if cost:
+                    return cost
             except Exception:
                 pass
         return 0.0

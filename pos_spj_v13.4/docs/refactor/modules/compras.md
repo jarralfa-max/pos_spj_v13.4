@@ -10,8 +10,8 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 
 | Patrón | Inicio | Tras tanda 1 |
 |---|---|---|
-| `.execute` | 50 | 44 (t1) → **37** (t2) |
-| SELECT | 48 | 42 → **34** |
+| `.execute` | 50 | 44 (t1) → 37 (t2) → **32** (t3) |
+| SELECT | 48 | 42 → 34 → **29** |
 | INSERT / UPDATE / DELETE | 2 / 14 / 1 | 2 / 14 / 1 |
 | commit | 5 | 5 |
 | CREATE TABLE (en UI!) | 2 | 2 |
@@ -23,6 +23,14 @@ ratchet (`tests/architecture/test_compras_guardrails.py`).
 `list_child_containers`, `get_container_products`, `get_container_for_reception`,
 `get_container_products_for_reception`. Devuelve `dict(row)` → el consumo
 `r["col"]` de la UI queda intacto.
+
+## Tanda 3 — lookups de compra ✅
+
+5 lecturas añadidas a `ComprasReadRepository` (+5 tests headless):
+`get_config_value` (IVA, configuraciones/settings), `get_avg_cost`
+(inventario_actual), `find_product_for_purchase`, `list_purchase_templates`,
+`get_template_items`. Sitios: `_get_iva_rate`, `_costo_compra_producto`,
+`_qr_agregar_producto_manual`, plantillas sidebar (cargar/poblar).
 
 ## Tanda 1 — cluster lecturas proveedor/sucursal ✅
 
