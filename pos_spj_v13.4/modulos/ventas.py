@@ -23,6 +23,7 @@ import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from uuid import uuid4
+from backend.shared.ids import new_uuid
 
 from modulos.spj_phone_widget import PhoneWidget
 from core.services.auto_audit import audit_write
@@ -1206,8 +1207,9 @@ class ModuloVentas(ModuloBase):
         self.peso_inicial = 0.0
         self.monitoreo_inicio = 0
         
-        self.sucursal_id     = 1
-        self.sucursal_nombre = "Principal"
+        # Sucursal desde el contexto de sesión; sin default arbitrario (regla 23).
+        self.sucursal_id     = getattr(container, "sucursal_id", "") or ""
+        self.sucursal_nombre = getattr(container, "sucursal_nombre", "") or "Principal"
         self._stock_reservas = StockReservationService(self.conexion, branch_id=self.sucursal_id)
         self._inventory_availability = InventoryAvailabilityService(self._stock_reservas)
         self._hardware_settings_qs = HardwareSettingsQueryService(self.conexion)
@@ -1343,7 +1345,7 @@ class ModuloVentas(ModuloBase):
             catalog_qs = self._product_catalog_qs
             prod_repo = self._prod_repo
             if catalog_qs:
-                rows = catalog_qs.list_visible_products(branch_id=getattr(self, "sucursal_id", 1))
+                rows = catalog_qs.list_visible_products(branch_id=getattr(self, "sucursal_id", "") or "")
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in rows]
             elif prod_repo:
                 productos = [(p['nombre'], p.get('codigo_barras', '')) for p in prod_repo.get_all()]
@@ -2455,7 +2457,7 @@ class ModuloVentas(ModuloBase):
             try:
                 from core.services.qr_parser_service import QRParserService
                 usuario = getattr(self, 'usuario_actual', '')
-                suc_id  = getattr(self, 'sucursal_id', 1)
+                suc_id  = getattr(self, 'sucursal_id', '') or ''
                 QRParserService.log_scan_raw(
                     self.conexion, codigo, tipo, accion,
                     cliente_id=cliente_id, producto_id=producto_id,
@@ -3781,7 +3783,7 @@ class ModuloVentas(ModuloBase):
                     email=cliente_data.get('email', ''),
                     address=cliente_data.get('direccion', ''),
                     loyalty_code=codigo_qr,
-                    operation_id=f"sales-customer-{uuid4()}",
+                    operation_id=f"sales-customer-{new_uuid()}",
                 )
             )
             if result.get("existing"):
@@ -3920,7 +3922,7 @@ class ModuloVentas(ModuloBase):
                 datos_pago.get('total_pagado') or datos_pago.get('efectivo_recibido') or 0.0
             )
 
-        operation_id = f"sale-ui-{uuid4()}"
+        operation_id = f"sale-ui-{new_uuid()}"
         _dp = _DP(
             forma_pago=datos_pago['forma_pago'],
             monto_pagado=_monto_pagado_real,
@@ -4806,7 +4808,7 @@ class ModuloVentas(ModuloBase):
                 return
             try:
                 from core.services.sales_reversal_service import SalesReversalService
-                branch_id = int(getattr(self, "sucursal_id", 1) or 1)
+                branch_id = str(getattr(self, "sucursal_id", "") or "")
                 usuario = (getattr(self, "usuario_actual", "") or getattr(self, "usuario", "") or "").strip()
                 if not usuario:
                     raise ValueError("Usuario no identificado para cancelar venta.")
