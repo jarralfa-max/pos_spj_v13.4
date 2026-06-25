@@ -1,7 +1,19 @@
 # FASE 2.5 — Corte UUID global, total y atómico (Diseño)
 
-> Estado: **DISEÑO / propuesta revisable.** No ejecutar la migración destructiva
-> sin aprobación. Este documento define el plan; la ejecución es un PR aparte.
+> Estado: **PROBADO + GATED.** El corte (migración 200) corre end-to-end sobre el
+> esquema real bootstrapeado (256 tablas, `PRAGMA foreign_key_check` vacío, 0 PK
+> enteras restantes, índices/triggers preservados). Sigue operator-gated:
+> destructivo, requiere `SPJ_UUID_CUTOVER_CONFIRMED=1` + backup + app cerrada.
+>
+> **Rollout decidido: corte OBLIGATORIO por despliegue.** El runtime ya asume
+> esquema post-corte: `abrir_turno` y `crear_lote` son UUID-native (sin
+> `lastrowid`). Una DB sin cortar (PK entera) rechaza el insert UUID; debe
+> aplicarse la migración 200 tras el bootstrap antes de operar.
+>
+> **Runbook de aplicación:** (1) cerrar la app; (2) backup verificado del `.db`;
+> (3) `python scripts/bootstrap_db.py --db <db>` (m000 + standalones); (4)
+> `SPJ_UUID_CUTOVER_CONFIRMED=1` + `run(conn)` de `200_uuid_identity_cutover`;
+> el paso 13 (`audit_integer_pks`) aborta si queda cualquier PK entera.
 
 Cumple REGLA CERO del skill `spj-refactor`: UUIDv7 como **única** identidad de
 dominio. Cierra `legacy_id`, `INTEGER PRIMARY KEY AUTOINCREMENT`, `lastrowid` y
@@ -268,17 +280,20 @@ La fase se declara terminada cuando:
   |---|---|---|---|
   | `settle_delivery_driver_use_case.py` (+`modulos/delivery.py`) | `order_id`→`delivery_orders` | ✅ UUID-native: `driver_id`/`order_ids`/`sucursal_id` int→str, rechaza ints, `order_id` se guarda str | `tests/integration/test_delivery_cut_uuid_relationships.py` (4) |
   | `modulos/growth_engine.py` | `ticket_id`→`ventas` (loyalty) | ✅ Ruta duplicada de crédito/canje retirada (deprecada → `LoyaltyService` canónico); `ticket_id`→`sale_id` (str, rechaza int); cron de expiración sigue vivo sin referencia de venta | `tests/integration/test_growth_ledger_sale_id_cutover.py` (4) |
-  | `finance_service.py` + `use_cases/finanzas.py` (+`modulos/caja.py`) | `turno_id`→`turnos_caja` | 🟡 Interim: `turno_id` str-typed en cada frontera (afinidad SQLite), sin `int()` cast. Falta: `abrir_turno` UUID-native (sin `lastrowid`) **gated en migración 200** porque `turnos_caja.id` es INTEGER PK | `tests/integration/test_caja_turno_str_identity.py` (4), `test_finanzas_uc_turno_str.py` (2) |
+  | `finance_service.py` + `use_cases/finanzas.py` (+`modulos/caja.py`) | `turno_id`→`turnos_caja` | ✅ **UUID-native**: `abrir_turno` acuña `new_uuid()` en `turnos_caja.id` (sin `lastrowid`); `turno_id` str en cada frontera, sin `int()` cast | `tests/integration/test_caja_turno_str_identity.py` (4), `test_finanzas_uc_turno_str.py` (2) |
   | `core/services/card_batch_engine.py` (+ migración 112) | `tarjeta_id`→`tarjetas_fidelidad`, `batch_id`→`card_batches` | ✅ **Desbloqueado**: la migración 112 agrega las columnas que el motor esperaba (`tarjetas_fidelidad.numero`/`batch_id`/`activa`, `card_batches.generado_por`/`fecha_cierre`) + índice UNIQUE en `numero`; el motor se corrigió (`card_batches.fecha_creacion`, no `fecha_generacion`) y las identidades viajan str (UUIDv7-ready) | `tests/migrations/test_112_card_schema_reconciliation.py` (4), `tests/integration/test_card_batch_engine_lifecycle.py` (3) |
 - ⏳ **Schema evolution restante (migración aparte):** `loyalty_ledger.sale_id`/
   `reference_type`/`reference_id` no existen; el camino canónico vigente usa
   `loyalty_ledger.referencia` (TEXT). `tarjetas_fidelidad.batch_id` ya se agregó
   (migración 112). Las columnas de loyalty son una migración separada si el dueño
   de dominio las requiere.
-- ⏳ **Gated en migración 200 (id INTEGER PK → TEXT):** `abrir_turno`
-  (`turnos_caja.id`) y `crear_lote` (`card_batches.id`) siguen usando `lastrowid`
-  porque SQLite no admite UUID en un INTEGER PK; la versión UUID-native (sin
-  `lastrowid`) se habilita al aplicar el corte 200.
+- ✅ **`lastrowid` de identidad eliminado en `abrir_turno` y `crear_lote`**
+  (UUID-native, asumiendo esquema post-corte). Quedan ocurrencias de `lastrowid`
+  en otros flujos (ver inventario) que se cierran al avanzar sus módulos.
+- 📌 **Pendiente recomendado (no implementado):** guard de arranque (REGLA CERO
+  paso 13) que rechace iniciar la app si queda alguna PK entera, para fallar
+  rápido con instrucciones de correr la migración 200 en vez de un `datatype
+  mismatch` a mitad de operación.
 - ⏳ **Para ejecutar el corte real:** resolver las 6 anteriores → pre-auditar
   huérfanas sobre datos reales → backup + app cerrada + `SPEC_IS_COMPLETE=True` +
   `SPJ_UUID_CUTOVER_CONFIRMED=1` → bajar baselines del cutover test a 0 + alinear los 10 rojos.
