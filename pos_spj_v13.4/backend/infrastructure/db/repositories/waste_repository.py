@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from backend.shared.ids import new_uuid
+
 from backend.application.queries.base_query_service import KpiMetric, SearchResult, TableRow
 
 
@@ -65,11 +67,12 @@ class WasteRepository:
         cursor = self._connection.execute(
             """
             INSERT INTO mermas
-            (producto_id, sucursal_id, cantidad, unidad, motivo, costo_unitario, valor_perdida,
+            (id, producto_id, sucursal_id, cantidad, unidad, motivo, costo_unitario, valor_perdida,
              notas, usuario, operation_id, created_at, fecha)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                new_uuid(),  # REGLA CERO: identidad UUIDv7 de la fila mermas
                 entry["product_id"],
                 entry["branch_id"],
                 entry["quantity"],
