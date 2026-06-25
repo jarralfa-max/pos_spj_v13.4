@@ -1,12 +1,12 @@
 """Auto-generado por tools/refactor_control/build_cutover_spec.py (auditoría de esquema).
 
-NO EDITAR A MANO el grueso. Las FK restantes referencian tablas padre inexistentes
-(turnos/tickets/delivery_cuts/tarjetas) -> requieren decisión de dominio antes de
-SPEC_IS_COMPLETE=True. Ver reporte al final.
+Mapa de relaciones legacy resuelto al 100% (turno_id->turnos_caja, tarjeta_id->
+tarjetas_fidelidad, order_id->delivery_orders, cut_id->delivery_driver_cuts,
+ticket_id->ventas). NO EDITAR A MANO: regenerar con el tool.
 """
 from backend.infrastructure.db.uuid_cutover import TableSpec
 
-# 256 tablas | 15 junction/config (pk=None) | 6 con FK no resueltas
+# 256 tablas | 15 junction/config (pk=None) | 0 con FK no resueltas
 
 CUTOVER_SPECS = [
     TableSpec("accounts_payable", pk="id", fks={"supplier_id": "proveedores", "sucursal_id": "sucursales"}),
@@ -39,12 +39,12 @@ CUTOVER_SPECS = [
     TableSpec("caja_operations", pk="id", fks={"branch_id": "sucursales", "venta_id": "ventas", "sucursal_id": "sucursales"}),
     TableSpec("cajas", pk="id"),
     TableSpec("capital_movements", pk="id", fks={"branch_id": "sucursales", "journal_entry_id": "journal_entries", "treasury_movement_id": "treasury_movements"}),
-    TableSpec("card_assignment_history", pk="id"),
+    TableSpec("card_assignment_history", pk="id", fks={"tarjeta_id": "tarjetas_fidelidad"}),
     TableSpec("card_batches", pk="id"),
     TableSpec("categorias", pk="id"),
     TableSpec("chicken_batches", pk="id", fks={"branch_id": "sucursales", "producto_id": "productos", "compra_global_id": "compras", "parent_batch_id": "batches"}),
     TableSpec("cierre_mensual", pk="id", fks={"sucursal_id": "sucursales"}),
-    TableSpec("cierres_caja", pk="id", fks={"sucursal_id": "sucursales"}),
+    TableSpec("cierres_caja", pk="id", fks={"sucursal_id": "sucursales", "turno_id": "turnos_caja"}),
     TableSpec("clientes", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("clientes_diarios", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("clientes_lista_precio", pk=None, fks={"cliente_id": "clientes", "lista_id": "listas_precio"}),
@@ -67,7 +67,7 @@ CUTOVER_SPECS = [
     TableSpec("cotizaciones_detalle", pk="id", fks={"cotizacion_id": "cotizaciones", "producto_id": "productos"}),
     TableSpec("credit_notes", pk="id", fks={"sale_id": "ventas"}),
     TableSpec("decision_log", pk="id", fks={"sucursal_id": "sucursales"}),
-    TableSpec("delivery_cut_items", pk="id", fks={"cut_id": "cierres_caja"}),
+    TableSpec("delivery_cut_items", pk="id", fks={"cut_id": "delivery_driver_cuts", "order_id": "delivery_orders"}),
     TableSpec("delivery_driver_cuts", pk="id", fks={"driver_id": "drivers", "sucursal_id": "sucursales"}),
     TableSpec("delivery_orders", pk="id", fks={"venta_id": "ventas", "driver_id": "drivers", "cliente_id": "clientes", "sucursal_id": "sucursales", "corte_id": "cierres_caja"}),
     TableSpec("demand_forecast", pk="id", fks={"product_id": "productos", "branch_id": "sucursales"}),
@@ -94,7 +94,7 @@ CUTOVER_SPECS = [
     TableSpec("gastos", pk="id"),
     TableSpec("gastos_fijos", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("gastos_futuros", pk="id", fks={"sucursal_id": "sucursales"}),
-    TableSpec("growth_ledger", pk="id", fks={"cliente_id": "clientes", "sucursal_id": "sucursales", "cajero_id": "usuarios"}),
+    TableSpec("growth_ledger", pk="id", fks={"cliente_id": "clientes", "sucursal_id": "sucursales", "ticket_id": "ventas", "cajero_id": "usuarios"}),
     TableSpec("growth_metas", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("growth_misiones", pk="id"),
     TableSpec("growth_misiones_progreso", pk="id", fks={"cliente_id": "clientes", "mision_id": "growth_misiones"}),
@@ -153,7 +153,7 @@ CUTOVER_SPECS = [
     TableSpec("merma_log", pk="id", fks={"producto_id": "productos", "lote_id": "lotes", "produccion_id": "producciones", "batch_id": "batches", "sucursal_id": "sucursales"}),
     TableSpec("mermas", pk="id", fks={"producto_id": "productos", "sucursal_id": "sucursales"}),
     TableSpec("module_toggles", pk=None),
-    TableSpec("movimientos_caja", pk="id", fks={"sucursal_id": "sucursales", "venta_id": "ventas", "caja_id": "cajas"}),
+    TableSpec("movimientos_caja", pk="id", fks={"sucursal_id": "sucursales", "venta_id": "ventas", "turno_id": "turnos_caja", "caja_id": "cajas"}),
     TableSpec("movimientos_inventario", pk="id", fks={"producto_id": "productos", "proveedor_id": "proveedores", "batch_id": "batches", "bib_id": "branch_inventory_batches", "sucursal_id": "sucursales", "lote_id": "lotes"}),
     TableSpec("movimientos_lote", pk="id", fks={"lote_id": "lotes"}),
     TableSpec("movimientos_trazabilidad", pk="id", fks={"sucursal_id": "sucursales"}),
@@ -259,7 +259,7 @@ CUTOVER_SPECS = [
     TableSpec("usuarios_roles", pk=None, fks={"usuario_id": "usuarios", "sucursal_id": "sucursales"}),
     TableSpec("usuarios_sucursales", pk=None, fks={"usuario_id": "usuarios", "sucursal_id": "sucursales"}),
     TableSpec("vacaciones_personal", pk="id", fks={"personal_id": "personal"}),
-    TableSpec("ventas", pk="id", fks={"sucursal_id": "sucursales", "cliente_id": "clientes"}),
+    TableSpec("ventas", pk="id", fks={"sucursal_id": "sucursales", "cliente_id": "clientes", "turno_id": "turnos_caja"}),
     TableSpec("ventas_diarias", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("wa_event_log", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("wa_reminder_queue", pk="id", fks={"sucursal_id": "sucursales"}),
@@ -267,10 +267,4 @@ CUTOVER_SPECS = [
     TableSpec("whatsapp_queue", pk="id"),
 ]
 
-# === 6 FK NO RESUELTAS (revisar) ===
-#   card_assignment_history: tarjeta_id [context — override por-tabla]
-#   cierres_caja: turno_id [context — override por-tabla]
-#   delivery_cut_items: order_id -> ??
-#   growth_ledger: ticket_id [context — override por-tabla]
-#   movimientos_caja: turno_id [context — override por-tabla]
-#   ventas: turno_id [context — override por-tabla]
+# === 0 FK NO RESUELTAS (revisar) ===

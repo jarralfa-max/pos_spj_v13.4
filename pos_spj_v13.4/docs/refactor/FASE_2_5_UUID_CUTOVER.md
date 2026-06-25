@@ -250,17 +250,28 @@ La fase se declara terminada cuando:
   polimórficas/operacionales (no FK real): `operacion_id`, `tercero_id`, `target_id`,
   `partner_id`, `transformation_group_id`, `transformation_id`, `reservation_id`,
   `entidad_id`, `party_id`, `sender_id`.
-- ⏳ **6 FK bloqueadas por decisión de dominio (parent inexistente):**
-  | Columna | Tabla(s) | Problema |
-  |---|---|---|
-  | `turno_id` | ventas, cierres_caja, movimientos_caja | no existe tabla `turnos` |
-  | `tarjeta_id` | card_assignment_history | no existe `tarjetas` (solo `card_batches`) |
-  | `order_id` | delivery_cut_items | no existe `delivery_cuts`; ¿→ delivery_orders? |
-  | `ticket_id` | growth_ledger | no existe `tickets`; ¿→ ventas? |
+- ✅ **Relaciones legacy resueltas (dueño de dominio confirmó parents).** 0 FK
+  sin resolver en el spec generado. Mapa canónico:
+  | Columna (tabla) | → Padre |
+  |---|---|
+  | `turno_id` (ventas, cierres_caja, movimientos_caja) | `turnos_caja.id` |
+  | `tarjeta_id` (card_assignment_history) | `tarjetas_fidelidad.id` (NO card_batches) |
+  | `order_id` (delivery_cut_items) | `delivery_orders.id` |
+  | `cut_id` (delivery_cut_items) | `delivery_driver_cuts.id` (context — no cierres_caja) |
+  | `ticket_id` (growth_ledger) | `ventas.id` (= venta POS) |
 
-  Mapear a ciegas = corrupción. Requieren que el dueño del dominio confirme la
-  tabla padre real (o declare la columna como denormalizada/muerta). Hasta
-  entonces `SPEC_IS_COMPLETE=False`.
+  Guardrail `tests/architecture/test_uuidv7_relationship_cutover.py` valida el mapa,
+  corre el corte end-to-end sobre un esquema sintético y exige `PRAGMA
+  foreign_key_check` vacío. Reporter de huérfanas: `UuidCutover.report_orphans()`.
+- ⏳ **Pendiente (FASE 4 runtime + schema evolution) — NO ejecutado:**
+  - `loyalty_ledger` necesita columnas `sale_id`/`reference_type`/`reference_id`
+    (no existen); `tarjetas_fidelidad` necesita `batch_id` (no existe). El corte
+    mapea las FK existentes; estas columnas nuevas son migración de schema aparte.
+  - Runtime: `card_batch_engine` (`lastrowid`→`new_uuid()`, DTOs int→str),
+    `growth_engine` (`ticket_id`→`sale_id`, no escribir `growth_ledger`),
+    `settle_delivery_driver_use_case` (`order_ids: list[int]`→`str`), rutas de caja
+    (`turno_id` UUID desde `turnos_caja`). Behavior-changing → requiere tests de
+    protección por archivo (regla 4) antes de tocar.
 - ⏳ **Para ejecutar el corte real:** resolver las 6 anteriores → pre-auditar
   huérfanas sobre datos reales → backup + app cerrada + `SPEC_IS_COMPLETE=True` +
   `SPJ_UUID_CUTOVER_CONFIRMED=1` → bajar baselines del cutover test a 0 + alinear los 10 rojos.

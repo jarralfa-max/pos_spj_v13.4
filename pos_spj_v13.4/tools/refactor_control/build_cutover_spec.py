@@ -41,6 +41,15 @@ TABLE_FK_OVERRIDES: dict[str, dict[str, str]] = {
     "batch_movements": {"bib_id": "branch_inventory_batches"},
     "movimientos_inventario": {"bib_id": "branch_inventory_batches"},
     "legacy_movimientos_inventario": {"bib_id": "branch_inventory_batches"},
+    # relaciones legacy confirmadas por el dueño del dominio (turno/tarjeta/order/ticket)
+    "ventas": {"turno_id": "turnos_caja"},
+    "cierres_caja": {"turno_id": "turnos_caja"},
+    "movimientos_caja": {"turno_id": "turnos_caja"},
+    "card_assignment_history": {"tarjeta_id": "tarjetas_fidelidad"},
+    "delivery_cut_items": {"order_id": "delivery_orders", "cut_id": "delivery_driver_cuts"},
+    # growth_ledger.ticket_id == ventas.id (POS). En el corte se vuelve FK UUID a
+    # ventas; el move a loyalty_ledger.sale_id es trabajo de runtime (FASE 4).
+    "growth_ledger": {"ticket_id": "ventas"},
 }
 
 # FK column -> parent table (convention map; verified against the live schema).

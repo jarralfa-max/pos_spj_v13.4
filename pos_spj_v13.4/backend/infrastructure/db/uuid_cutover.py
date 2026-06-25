@@ -62,6 +62,24 @@ class UuidCutover:
         self._maps: dict[str, dict[Any, str]] = {}
 
     # ── public API ──────────────────────────────────────────────────────────────
+    def report_orphans(self) -> dict[str, list[tuple]]:
+        """Dry-run: list FK values with no matching parent row, per table.column.
+
+        Pre-flight check before a cut — never mutates. Empty dict means every
+        functional FK resolves to a real parent."""
+        report: dict[str, list[tuple]] = {}
+        for spec in self._specs.values():
+            for col, parent in spec.fks.items():
+                rows = self._conn.execute(
+                    f'SELECT child."{spec.pk or "rowid"}", child."{col}" '
+                    f'FROM "{spec.name}" child '
+                    f'LEFT JOIN "{parent}" p ON p."id" = child."{col}" '
+                    f'WHERE child."{col}" IS NOT NULL AND p."id" IS NULL'
+                ).fetchall()
+                if rows:
+                    report[f"{spec.name}.{col}->{parent}"] = [tuple(r) for r in rows]
+        return report
+
     def run(self) -> dict[str, int]:
         """Execute the atomic cutover. Returns row counts per table.
 
