@@ -75,12 +75,12 @@ class InvalidWeightError(ProductionEngineError):
 class BatchOpenDTO:
     batch_id: str
     folio: str
-    product_source_id: int
+    product_source_id: str
     source_nombre: str
     source_weight: float
     source_cost_total: float
-    branch_id: int
-    receta_id: Optional[int]
+    branch_id: str
+    receta_id: Optional[str]
 
 @dataclass
 class BatchCloseDTO:
@@ -96,7 +96,7 @@ class BatchCloseDTO:
 class OutputDTO:
     output_id: str
     batch_id: str
-    product_id: int
+    product_id: str
     nombre: str
     weight: float
     expected_pct: float
@@ -126,7 +126,7 @@ class ProductionEngine:
         result = engine.close_batch(batch.batch_id, closed_by="Juan")
     """
 
-    def __init__(self, db, branch_id: int):
+    def __init__(self, db, branch_id: str):
         from core.db.connection import wrap
         self.db = wrap(db)
         self.branch_id = branch_id
@@ -163,7 +163,7 @@ class ProductionEngine:
         """, (batch_id,)).fetchall()
         return [dict(r) for r in rows]
 
-    def _get_receta_componentes(self, conn, receta_id: int) -> List[dict]:
+    def _get_receta_componentes(self, conn, receta_id: str) -> List[dict]:
         """
         Load recipe components.
 
@@ -202,7 +202,7 @@ class ProductionEngine:
         except Exception:
             return []
 
-    def _get_expected_yield_pct(self, conn, receta_id: int):
+    def _get_expected_yield_pct(self, conn, receta_id: str):
         """
         Return (rendimiento_esperado_pct, merma_esperada_pct) for a recipe.
 
@@ -226,9 +226,9 @@ class ProductionEngine:
         self,
         batch_id: str,
         folio: str,
-        branch_id: int,
+        branch_id: str,
         yr: Optional["YieldResult"] = None,
-        src_prod_id: Optional[int] = None,
+        src_prod_id: Optional[str] = None,
         src_weight: float = 0.0,
         src_cost: float = 0.0,
         allocations: Optional[list] = None,
@@ -284,13 +284,13 @@ class ProductionEngine:
 
     def open_batch(
         self,
-        product_source_id: int,
+        product_source_id: str,
         source_weight: float,
         created_by: str,
         source_cost_total: float = 0.0,
-        receta_id: Optional[int] = None,
+        receta_id: Optional[str] = None,
         notas: str = "",
-        branch_id: Optional[int] = None,
+        branch_id: Optional[str] = None,
         operation_id: Optional[str] = None,
     ) -> BatchOpenDTO:
         """
@@ -356,7 +356,7 @@ class ProductionEngine:
     def add_output(
         self,
         batch_id: str,
-        product_id: int,
+        product_id: str,
         weight: float,
         expected_pct: float = 0.0,
         is_waste: bool = False,
@@ -410,7 +410,7 @@ class ProductionEngine:
             weight=weight, expected_pct=expected_pct, is_waste=is_waste,
         )
 
-    def remove_output(self, batch_id: str, product_id: int) -> None:
+    def remove_output(self, batch_id: str, product_id: str) -> None:
         """Elimina un subproducto del lote (solo si abierto)."""
         sp = f"sp_ro_{new_uuid().replace('-', '')[:8]}"
         self.db.execute(f"SAVEPOINT {sp}")
@@ -745,7 +745,7 @@ class ProductionEngine:
 
     def get_batches(
         self,
-        branch_id: Optional[int] = None,
+        branch_id: Optional[str] = None,
         estado: Optional[str] = None,
         fecha_desde: str = "",
         fecha_hasta: str = "",
@@ -810,8 +810,8 @@ class ProductionEngine:
 
     def get_rendimiento_promedio(
         self,
-        branch_id: Optional[int] = None,
-        product_source_id: Optional[int] = None,
+        branch_id: Optional[str] = None,
+        product_source_id: Optional[str] = None,
         dias: int = 30,
     ) -> Dict:
         """Análisis de rendimiento promedio de los últimos N días."""
@@ -858,7 +858,7 @@ class ProductionEngine:
         """, (f"-{dias}",))
         return [dict(r) for r in rows]
 
-    def get_alertas_activas(self, branch_id: Optional[int] = None) -> List[Dict]:
+    def get_alertas_activas(self, branch_id: Optional[str] = None) -> List[Dict]:
         params = []
         where = "WHERE pa.resuelta=0"
         if branch_id:
@@ -874,7 +874,7 @@ class ProductionEngine:
         """, params)
         return [dict(r) for r in rows]
 
-    def resolver_alerta(self, alerta_id: int) -> None:
+    def resolver_alerta(self, alerta_id: str) -> None:
         self.db.execute(
             "UPDATE production_alerts SET resuelta=1 WHERE id=?",
             (alerta_id,)

@@ -73,7 +73,7 @@ def normalize_recipe_type(tipo: object) -> str:
 
 @dataclass
 class ComponenteResultado:
-    producto_id: int
+    producto_id: str
     nombre: str
     cantidad: float
     unidad: str
@@ -83,8 +83,8 @@ class ComponenteResultado:
 
 @dataclass
 class ProduccionResultDTO:
-    produccion_id: int
-    receta_id: int
+    produccion_id: str
+    receta_id: str
     receta_nombre: str
     tipo_receta: str
     operation_id: str
@@ -98,17 +98,17 @@ class ProduccionResultDTO:
 
 class RecipeEngine:
 
-    def __init__(self, db, branch_id: int):
+    def __init__(self, db, branch_id: str):
         from core.db.connection import wrap
         self.db = wrap(db)
         self.branch_id = branch_id
 
     def ejecutar_produccion(
         self,
-        receta_id: int,
+        receta_id: str,
         cantidad_base: float,
         usuario: str,
-        sucursal_id: Optional[int] = None,
+        sucursal_id: Optional[str] = None,
         notas: str = "",
         operation_id: Optional[str] = None,
         mediciones_reales: Optional[dict] = None,
@@ -526,7 +526,7 @@ class RecipeEngine:
         except Exception as e:
             logger.warning("movimiento_legacy_audit falló (no crítico): %s", e)
 
-    def preview_produccion(self, receta_id: int, cantidad_base: float) -> list:
+    def preview_produccion(self, receta_id: str, cantidad_base: float) -> list:
         receta = self.db.fetchone(
             "SELECT * FROM product_recipes WHERE id = ? AND is_active = 1",
             (receta_id,))
@@ -585,7 +585,7 @@ class RecipeEngine:
         """, params)
         return [dict(r) for r in rows]
 
-    def get_detalle_produccion(self, produccion_id: int) -> list:
+    def get_detalle_produccion(self, produccion_id: str) -> list:
         rows = self.db.fetchall("""
         SELECT pd.*, p.nombre AS producto_nombre, p.unidad
             FROM produccion_detalle pd

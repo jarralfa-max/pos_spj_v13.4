@@ -37,7 +37,7 @@ logger = logging.getLogger("spj.use_cases.produccion")
 @dataclass
 class SubproductoInput:
     """Input para agregar un subproducto al lote."""
-    producto_id: int
+    producto_id: str
     nombre: str
     peso_kg: float
     tipo: str = "corte"  # corte, subproducto, merma
@@ -94,11 +94,11 @@ class GestionarProduccionUC:
 
     def abrir_lote(
         self,
-        producto_origen_id: int,
+        producto_origen_id: str,
         peso_kg: float,
-        sucursal_id: int,
+        sucursal_id: str,
         usuario: str,
-        receta_id: Optional[int] = None,
+        receta_id: Optional[str] = None,
     ) -> ResultadoProduccion:
         """Crea un nuevo lote de producción con la materia prima indicada."""
         if peso_kg <= 0:
@@ -127,7 +127,7 @@ class GestionarProduccionUC:
     def cerrar_lote(
         self,
         batch_id: str,
-        sucursal_id: int,
+        sucursal_id: str,
         usuario: str,
     ) -> ResultadoProduccion:
         """
