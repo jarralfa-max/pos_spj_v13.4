@@ -26,7 +26,11 @@ import logging
 import os
 from typing import Any
 
-from backend.infrastructure.db.uuid_cutover import UuidCutover, UuidCutoverError
+from backend.infrastructure.db.uuid_cutover import (
+    UuidCutover,
+    UuidCutoverError,
+    find_integer_pks,
+)
 
 logger = logging.getLogger("spj.migrations")
 
@@ -43,18 +47,9 @@ SPEC_IS_COMPLETE = True
 def audit_integer_pks(conn: Any) -> dict[str, list[str]]:
     """Return {table: [cols]} for every remaining INTEGER PRIMARY KEY column.
 
-    Post-cut debe estar vacío (REGLA CERO paso 13: bloquear si queda PK entera)."""
-    violations: dict[str, list[str]] = {}
-    for (table,) in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).fetchall():
-        if table.startswith("sqlite_") or table.startswith("schema_"):
-            continue
-        for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall():
-            col_name, col_type, pk = row[1], (row[2] or ""), row[5]
-            if pk and col_type.upper() in ("INTEGER", "INT"):
-                violations.setdefault(table, []).append(col_name)
-    return violations
+    Post-cut debe estar vacío (REGLA CERO paso 13). Reusa la implementación
+    canónica del guard de arranque para no divergir."""
+    return find_integer_pks(conn)
 
 
 def run(conn):

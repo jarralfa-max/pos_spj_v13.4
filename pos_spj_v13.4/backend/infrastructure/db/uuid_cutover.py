@@ -44,6 +44,53 @@ class UuidCutoverError(RuntimeError):
     pass
 
 
+class IntegerIdentityError(RuntimeError):
+    """Raised at startup when the DB still has INTEGER PK identity (un-cut)."""
+
+
+# Infra tables that legitimately keep an integer id (not domain entities).
+_NON_DOMAIN_PREFIXES = ("sqlite_", "schema_")
+
+
+def find_integer_pks(conn: sqlite3.Connection) -> dict[str, list[str]]:
+    """Return {table: [cols]} for every remaining INTEGER PRIMARY KEY column.
+
+    Excludes SQLite/migration infra tables. After the UUIDv7 cut (migración 200)
+    this must be empty — a non-empty result means the DB is un-cut."""
+    out: dict[str, list[str]] = {}
+    for (table,) in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    ).fetchall():
+        if any(table.startswith(p) for p in _NON_DOMAIN_PREFIXES):
+            continue
+        for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall():
+            col_name, col_type, pk = row[1], (row[2] or ""), row[5]
+            if pk and col_type.upper() in ("INTEGER", "INT"):
+                out.setdefault(table, []).append(col_name)
+    return out
+
+
+def assert_uuid_identity(conn: sqlite3.Connection) -> None:
+    """REGLA CERO paso 13: block app start if any INTEGER PK remains.
+
+    The runtime assumes the post-cut TEXT/UUIDv7 schema (e.g. abrir_turno,
+    crear_lote mint UUIDs into id columns). Starting against an un-cut DB would
+    fail later with a cryptic 'datatype mismatch'; fail fast with the runbook."""
+    bad = find_integer_pks(conn)
+    if not bad:
+        return
+    sample = ", ".join(f"{t}.{cols[0]}" for t, cols in list(bad.items())[:8])
+    raise IntegerIdentityError(
+        f"La base de datos NO tiene identidad UUIDv7: quedan {len(bad)} tablas con "
+        f"PRIMARY KEY entera (p.ej. {sample}). El runtime asume el esquema "
+        f"post-corte. Aplica el corte antes de iniciar:\n"
+        f"  1) Cierra la app y respalda el .db.\n"
+        f"  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 "
+        f"(migrations.standalone.200_uuid_identity_cutover.run(conn)).\n"
+        f"El corte es atómico (foreign_key_check + rollback ante cualquier fallo)."
+    )
+
+
 class UuidCutover:
     def __init__(
         self,
