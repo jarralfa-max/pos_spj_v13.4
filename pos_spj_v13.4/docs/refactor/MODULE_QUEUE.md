@@ -19,14 +19,14 @@ DONE
 | Orden | Código                | Módulo                   | Estado  |
 | ----: | --------------------- | ------------------------ | ------- |
 |     1 | CONFIGURACION         | Configuración            | AUDIT   |
-|     2 | MERMA                 | Merma                    | PENDING |
+|     2 | MERMA                 | Merma                    | DONE |
 |     3 | PRODUCTOS             | Productos                | DONE |
 |     4 | INVENTARIO            | Inventario               | PENDING |
 |     5 | VENTAS                | Ventas                   | PENDING |
 |     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
 |     7 | RECETAS               | Recetas                  | PENDING |
 |     8 | PRODUCCION            | Producción               | PENDING |
-|     9 | TRANSFERENCIAS        | Transferencias           | PENDING |
+|     9 | TRANSFERENCIAS        | Transferencias           | AUDIT |
 |    10 | DELIVERY              | Delivery                 | PENDING |
 |    11 | CAJA                  | Caja                     | PENDING |
 |    12 | BI_DASHBOARD          | BI / Dashboard           | PENDING |

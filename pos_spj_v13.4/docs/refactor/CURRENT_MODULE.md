@@ -3,12 +3,12 @@
 ## Código
 
 ```text
-MERMA
+TRANSFERENCIAS
 ```
 
 ## Nombre
 
-Merma.
+Transferencias.
 
 ## Estado
 
