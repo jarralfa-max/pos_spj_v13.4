@@ -1534,8 +1534,8 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             return
         full = None
         try:
-            from repositories.productos import ProductosRepository
-            full = ProductosRepository(self.container.db).get_by_id(int(pid))
+            from repositories.productos import ProductoRepository
+            full = ProductoRepository(self.container.db).get_by_id(str(pid))
         except Exception:
             pass
         if not full:
