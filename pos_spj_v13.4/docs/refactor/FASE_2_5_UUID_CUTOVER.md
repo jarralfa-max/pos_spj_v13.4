@@ -290,10 +290,12 @@ La fase se declara terminada cuando:
 - ✅ **`lastrowid` de identidad eliminado en `abrir_turno` y `crear_lote`**
   (UUID-native, asumiendo esquema post-corte). Quedan ocurrencias de `lastrowid`
   en otros flujos (ver inventario) que se cierran al avanzar sus módulos.
-- 📌 **Pendiente recomendado (no implementado):** guard de arranque (REGLA CERO
-  paso 13) que rechace iniciar la app si queda alguna PK entera, para fallar
-  rápido con instrucciones de correr la migración 200 en vez de un `datatype
-  mismatch` a mitad de operación.
+- ✅ **Guard de arranque (REGLA CERO paso 13) implementado:**
+  `assert_uuid_identity(conn)` (en `backend/infrastructure/db/uuid_cutover.py`)
+  rechaza iniciar la app si queda cualquier PK entera, con el runbook del corte.
+  Cableado en `main.py` tras `verificar_tablas`; la migración 200 reusa la misma
+  `find_integer_pks` para su paso-13 interno. Vive solo en el entrypoint, así que
+  los fixtures de tests con esquema entero no se ven afectados.
 - ⏳ **Para ejecutar el corte real:** resolver las 6 anteriores → pre-auditar
   huérfanas sobre datos reales → backup + app cerrada + `SPEC_IS_COMPLETE=True` +
   `SPJ_UUID_CUTOVER_CONFIRMED=1` → bajar baselines del cutover test a 0 + alinear los 10 rojos.
