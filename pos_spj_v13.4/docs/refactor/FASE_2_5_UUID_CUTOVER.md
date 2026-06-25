@@ -1,7 +1,19 @@
 # FASE 2.5 — Corte UUID global, total y atómico (Diseño)
 
-> Estado: **DISEÑO / propuesta revisable.** No ejecutar la migración destructiva
-> sin aprobación. Este documento define el plan; la ejecución es un PR aparte.
+> Estado: **PROBADO + GATED.** El corte (migración 200) corre end-to-end sobre el
+> esquema real bootstrapeado (256 tablas, `PRAGMA foreign_key_check` vacío, 0 PK
+> enteras restantes, índices/triggers preservados). Sigue operator-gated:
+> destructivo, requiere `SPJ_UUID_CUTOVER_CONFIRMED=1` + backup + app cerrada.
+>
+> **Rollout decidido: corte OBLIGATORIO por despliegue.** El runtime ya asume
+> esquema post-corte: `abrir_turno` y `crear_lote` son UUID-native (sin
+> `lastrowid`). Una DB sin cortar (PK entera) rechaza el insert UUID; debe
+> aplicarse la migración 200 tras el bootstrap antes de operar.
+>
+> **Runbook de aplicación:** (1) cerrar la app; (2) backup verificado del `.db`;
+> (3) `python scripts/bootstrap_db.py --db <db>` (m000 + standalones); (4)
+> `SPJ_UUID_CUTOVER_CONFIRMED=1` + `run(conn)` de `200_uuid_identity_cutover`;
+> el paso 13 (`audit_integer_pks`) aborta si queda cualquier PK entera.
 
 Cumple REGLA CERO del skill `spj-refactor`: UUIDv7 como **única** identidad de
 dominio. Cierra `legacy_id`, `INTEGER PRIMARY KEY AUTOINCREMENT`, `lastrowid` y
@@ -219,6 +231,74 @@ La fase se declara terminada cuando:
 | `operation_id` prefijado rompe parse | Decidir formato en §3.7 antes de Fase B |
 
 ---
+
+## 8.5. Implementación (estado)
+
+- ✅ **Motor de corte** `backend/infrastructure/db/uuid_cutover.py`
+  (`UuidCutover` + `TableSpec`): introspectivo (`PRAGMA table_info`), construye
+  mapas `old_id → uuid` para todas las tablas up-front (resuelve auto-refs sin
+  orden topológico), reescribe PK+FK a `TEXT`, valida conteos, corre
+  `PRAGMA foreign_key_check`, todo en una transacción; aborta+rollback ante
+  huérfanos (o `on_orphan="null"`).
+- ✅ **8 tests** (`tests/unit/test_uuid_cutover.py`): PK/FK→UUIDv7, auto-ref,
+  conteos, defaults/columnas preservadas, huérfano→abort+rollback, huérfano→null,
+  unicidad, sin AUTOINCREMENT post-corte.
+- ✅ **Migración 200 scaffold GATED** `migrations/standalone/200_uuid_identity_cutover.py`:
+  **NO registrada** en `engine.py` (nunca auto-corre); rehúsa sin
+  `SPJ_UUID_CUTOVER_CONFIRMED=1` y sin `SPEC_IS_COMPLETE=True`. Tests de gating
+  (`tests/architecture/test_uuid_cutover_migration_gated.py`).
+- ✅ **Auditoría de esquema + spec auto-generado.**
+  `tools/refactor_control/build_cutover_spec.py` introspecciona la DB y resuelve
+  FKs por convención (mapa columna→padre + exclusión de ids polimórficos/externos).
+  Resultado sobre el esquema real: **256 tablas** especificadas, **21 junction/config
+  `pk=None`** (PK compuesta o `clave`/`key`), **clausura referencial verificada**
+  (test). Salida committeada en `migrations/standalone/_cutover_spec_generated.py`,
+  importada por la migración 200. El motor se extendió para `pk=None`
+  (reescribe FKs sin convertir PK; preserva PK compuesta).
+- ✅ **FK context-dependent resueltas (24 → 6).** Overrides por-tabla
+  (`TABLE_FK_OVERRIDES` en el builder): `origen_id`/`destino_id` (transferencias→sucursales),
+  `padre_id`/`cuenta_id` (→plan_cuentas), `turno_rol_id`→turno_roles, `paquete_id`→paquetes,
+  `goal_id`→loyalty_community_goals, `bib_id`→branch_inventory_batches. Excluidas como
+  polimórficas/operacionales (no FK real): `operacion_id`, `tercero_id`, `target_id`,
+  `partner_id`, `transformation_group_id`, `transformation_id`, `reservation_id`,
+  `entidad_id`, `party_id`, `sender_id`.
+- ✅ **Relaciones legacy resueltas (dueño de dominio confirmó parents).** 0 FK
+  sin resolver en el spec generado. Mapa canónico:
+  | Columna (tabla) | → Padre |
+  |---|---|
+  | `turno_id` (ventas, cierres_caja, movimientos_caja) | `turnos_caja.id` |
+  | `tarjeta_id` (card_assignment_history) | `tarjetas_fidelidad.id` (NO card_batches) |
+  | `order_id` (delivery_cut_items) | `delivery_orders.id` |
+  | `cut_id` (delivery_cut_items) | `delivery_driver_cuts.id` (context — no cierres_caja) |
+  | `ticket_id` (growth_ledger) | `ventas.id` (= venta POS) |
+
+  Guardrail `tests/architecture/test_uuidv7_relationship_cutover.py` valida el mapa,
+  corre el corte end-to-end sobre un esquema sintético y exige `PRAGMA
+  foreign_key_check` vacío. Reporter de huérfanas: `UuidCutover.report_orphans()`.
+- 🔄 **FASE 4 runtime (por archivo, test-first) — en curso:**
+  | Archivo | Relación | Estado | Tests |
+  |---|---|---|---|
+  | `settle_delivery_driver_use_case.py` (+`modulos/delivery.py`) | `order_id`→`delivery_orders` | ✅ UUID-native: `driver_id`/`order_ids`/`sucursal_id` int→str, rechaza ints, `order_id` se guarda str | `tests/integration/test_delivery_cut_uuid_relationships.py` (4) |
+  | `modulos/growth_engine.py` | `ticket_id`→`ventas` (loyalty) | ✅ Ruta duplicada de crédito/canje retirada (deprecada → `LoyaltyService` canónico); `ticket_id`→`sale_id` (str, rechaza int); cron de expiración sigue vivo sin referencia de venta | `tests/integration/test_growth_ledger_sale_id_cutover.py` (4) |
+  | `finance_service.py` + `use_cases/finanzas.py` (+`modulos/caja.py`) | `turno_id`→`turnos_caja` | ✅ **UUID-native**: `abrir_turno` acuña `new_uuid()` en `turnos_caja.id` (sin `lastrowid`); `turno_id` str en cada frontera, sin `int()` cast | `tests/integration/test_caja_turno_str_identity.py` (4), `test_finanzas_uc_turno_str.py` (2) |
+  | `core/services/card_batch_engine.py` (+ migración 112) | `tarjeta_id`→`tarjetas_fidelidad`, `batch_id`→`card_batches` | ✅ **Desbloqueado**: la migración 112 agrega las columnas que el motor esperaba (`tarjetas_fidelidad.numero`/`batch_id`/`activa`, `card_batches.generado_por`/`fecha_cierre`) + índice UNIQUE en `numero`; el motor se corrigió (`card_batches.fecha_creacion`, no `fecha_generacion`) y las identidades viajan str (UUIDv7-ready) | `tests/migrations/test_112_card_schema_reconciliation.py` (4), `tests/integration/test_card_batch_engine_lifecycle.py` (3) |
+- ⏳ **Schema evolution restante (migración aparte):** `loyalty_ledger.sale_id`/
+  `reference_type`/`reference_id` no existen; el camino canónico vigente usa
+  `loyalty_ledger.referencia` (TEXT). `tarjetas_fidelidad.batch_id` ya se agregó
+  (migración 112). Las columnas de loyalty son una migración separada si el dueño
+  de dominio las requiere.
+- ✅ **`lastrowid` de identidad eliminado en `abrir_turno` y `crear_lote`**
+  (UUID-native, asumiendo esquema post-corte). Quedan ocurrencias de `lastrowid`
+  en otros flujos (ver inventario) que se cierran al avanzar sus módulos.
+- ✅ **Guard de arranque (REGLA CERO paso 13) implementado:**
+  `assert_uuid_identity(conn)` (en `backend/infrastructure/db/uuid_cutover.py`)
+  rechaza iniciar la app si queda cualquier PK entera, con el runbook del corte.
+  Cableado en `main.py` tras `verificar_tablas`; la migración 200 reusa la misma
+  `find_integer_pks` para su paso-13 interno. Vive solo en el entrypoint, así que
+  los fixtures de tests con esquema entero no se ven afectados.
+- ⏳ **Para ejecutar el corte real:** resolver las 6 anteriores → pre-auditar
+  huérfanas sobre datos reales → backup + app cerrada + `SPEC_IS_COMPLETE=True` +
+  `SPJ_UUID_CUTOVER_CONFIRMED=1` → bajar baselines del cutover test a 0 + alinear los 10 rojos.
 
 ## 9. Resumen ejecutivo
 El corte es grande (398 PK, 122 lastrowid, 58 casts, 191 tablas) pero **acotado y

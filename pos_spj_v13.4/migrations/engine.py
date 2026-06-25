@@ -109,6 +109,7 @@ MIGRATIONS = [
     _Migration("109",  "migrations.standalone.109_delivery_driver_cuts_schema"),
     _Migration("110",  "migrations.standalone.110_delivery_status_english"),
     _Migration("111",  "migrations.standalone.111_qr_containers_schema"),
+    _Migration("112",  "migrations.standalone.112_card_schema_reconciliation"),
 ]
 
 def _ensure_tracking_table(conn):

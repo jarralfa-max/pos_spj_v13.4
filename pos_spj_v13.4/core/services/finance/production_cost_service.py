@@ -168,7 +168,7 @@ class ProductionCostService:
             if r["is_waste"]:
                 continue
 
-            product_id  = int(r["product_id"])
+            product_id  = str(r["product_id"])
             cost_per_kg = round(float(r["cost_per_kg"]), 4)
 
             self._db.execute(
@@ -240,7 +240,7 @@ class ProductionCostService:
         factor_map = {str(c.get("product_id") or c.get("component_product_id") or ""): float(c.get("factor_costo") or 1.0) for c in componentes_db}
         basis = []
         for o in outputs:
-            pid = int(o["product_id"]); q = float(o["delta"]); factor = factor_map.get(pid, 1.0)
+            pid = str(o["product_id"]); q = float(o["delta"]); factor = factor_map.get(pid, 1.0)
             basis.append((pid, q, max(0.0001, q * factor)))
         basis_total = sum(b for _, _, b in basis) or 1.0
         finished_cost = 0.0

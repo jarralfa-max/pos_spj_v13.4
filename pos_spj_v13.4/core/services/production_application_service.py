@@ -79,13 +79,13 @@ class ProductionApplicationService:
 
     def ejecutar_produccion(
         self,
-        receta_id: int,
+        receta_id: str,
         cantidad_base: float,
         usuario: str,
-        sucursal_id: Optional[int] = None,
+        sucursal_id: Optional[str] = None,
         notas: str = "",
         operation_id: Optional[str] = None,
-        mediciones_reales: Optional[Dict[int, float]] = None,
+        mediciones_reales: Optional[Dict[str, float]] = None,
     ):
         """
         Unified production entry point — routes to the appropriate engine.
@@ -121,13 +121,13 @@ class ProductionApplicationService:
 
     def ejecutar_receta(
         self,
-        receta_id: int,
+        receta_id: str,
         cantidad_base: float,
         usuario: str,
-        sucursal_id: Optional[int] = None,
+        sucursal_id: Optional[str] = None,
         notas: str = "",
         operation_id: Optional[str] = None,
-        mediciones_reales: Optional[Dict[int, float]] = None,
+        mediciones_reales: Optional[Dict[str, float]] = None,
     ):
         """
         Execute a single-step recipe production.
@@ -151,7 +151,7 @@ class ProductionApplicationService:
             mediciones_reales= mediciones_reales,
         )
 
-    def preview_receta(self, receta_id: int, cantidad_base: float) -> List[Dict]:
+    def preview_receta(self, receta_id: str, cantidad_base: float) -> List[Dict]:
         """
         Return the inventory movements that would be applied for a recipe
         execution, without committing anything.
@@ -162,8 +162,8 @@ class ProductionApplicationService:
 
     def get_historial(
         self,
-        sucursal_id: Optional[int] = None,
-        receta_id: Optional[int] = None,
+        sucursal_id: Optional[str] = None,
+        receta_id: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict]:
         """Production history from the `producciones` table."""
@@ -173,7 +173,7 @@ class ProductionApplicationService:
             limit=limit,
         )
 
-    def get_detalle(self, produccion_id: int) -> List[Dict]:
+    def get_detalle(self, produccion_id: str) -> List[Dict]:
         """Line-level detail for one production record."""
         return self._recipe.get_detalle_produccion(produccion_id)
 
@@ -181,11 +181,11 @@ class ProductionApplicationService:
 
     def abrir_lote(
         self,
-        producto_origen_id: int,
+        producto_origen_id: str,
         peso_kg: float,
-        sucursal_id: int,
+        sucursal_id: str,
         usuario: str,
-        receta_id: Optional[int] = None,
+        receta_id: Optional[str] = None,
     ):
         """
         Open a new production batch.
@@ -209,7 +209,7 @@ class ProductionApplicationService:
     def agregar_subproducto(
         self,
         batch_id: str,
-        producto_id: int,
+        producto_id: str,
         peso_kg: float,
         expected_pct: float = 0.0,
         is_waste: bool = False,
@@ -233,7 +233,7 @@ class ProductionApplicationService:
             is_waste     = is_waste,
         )
 
-    def remover_subproducto(self, batch_id: str, producto_id: int) -> None:
+    def remover_subproducto(self, batch_id: str, producto_id: str) -> None:
         """Remove an output from an open batch."""
         if self._engine is None:
             raise RuntimeError("production_engine not available")
@@ -242,7 +242,7 @@ class ProductionApplicationService:
     def cerrar_lote(
         self,
         batch_id: str,
-        sucursal_id: int,
+        sucursal_id: str,
         usuario: str,
     ):
         """
@@ -283,7 +283,7 @@ class ProductionApplicationService:
 
     def get_batches(
         self,
-        branch_id: Optional[int] = None,
+        branch_id: Optional[str] = None,
         estado: Optional[str] = None,
         fecha_desde: str = "",
         fecha_hasta: str = "",

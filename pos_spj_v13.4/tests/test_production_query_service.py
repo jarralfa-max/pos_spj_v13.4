@@ -47,6 +47,7 @@ def _setup_modern_schema(conn: sqlite3.Connection):
     conn.executescript("""
         CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT, unidad TEXT, existencia REAL DEFAULT 0, costo REAL DEFAULT 0);
         CREATE TABLE inventario_actual (producto_id INTEGER, sucursal_id INTEGER, cantidad REAL DEFAULT 0, costo_promedio REAL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS inventory_stock (id TEXT PRIMARY KEY, product_id TEXT, branch_id TEXT, quantity REAL DEFAULT 0, costo_promedio REAL DEFAULT 0, UNIQUE(product_id, branch_id));
 
         CREATE TABLE production_batches (
             id TEXT PRIMARY KEY,
@@ -104,6 +105,7 @@ def _setup_legacy_schema(conn: sqlite3.Connection):
     conn.executescript("""
         CREATE TABLE productos (id INTEGER PRIMARY KEY, nombre TEXT, unidad TEXT, existencia REAL DEFAULT 0);
         CREATE TABLE inventario_actual (producto_id INTEGER, sucursal_id INTEGER, cantidad REAL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS inventory_stock (id TEXT PRIMARY KEY, product_id TEXT, branch_id TEXT, quantity REAL DEFAULT 0, costo_promedio REAL DEFAULT 0, UNIQUE(product_id, branch_id));
         CREATE TABLE lotes (id INTEGER PRIMARY KEY, estado TEXT DEFAULT 'activo');
 
         CREATE TABLE producciones (
@@ -358,8 +360,7 @@ class TestGetStock:
     def test_reads_inventario_actual(self, db):
         _setup_modern_schema(db)
         db.execute("""
-            INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-            VALUES (1, 1, 42.5)
+            INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('1','1',42.5)
         """)
         db.commit()
         assert abs(get_stock(db, 1, 1) - 42.5) < 0.001
@@ -374,14 +375,14 @@ class TestGetStock:
     def test_inventario_actual_takes_precedence(self, db):
         _setup_modern_schema(db)
         db.execute("INSERT INTO productos (id, existencia) VALUES (1, 15.0)")
-        db.execute("INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad) VALUES (1, 1, 30.0)")
+        db.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('1','1',30.0)")
         db.commit()
         assert abs(get_stock(db, 1, 1) - 30.0) < 0.001
 
     def test_get_stocks_for_products(self, db):
         _setup_modern_schema(db)
-        db.execute("INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad) VALUES (1, 1, 10.0)")
-        db.execute("INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad) VALUES (2, 1, 20.0)")
+        db.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('1','1',10.0)")
+        db.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('2','1',20.0)")
         db.commit()
         stocks = get_stocks_for_products(db, [1, 2, 3], 1)
         assert abs(stocks[1] - 10.0) < 0.001
