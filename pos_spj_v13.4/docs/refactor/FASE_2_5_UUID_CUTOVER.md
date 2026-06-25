@@ -269,11 +269,16 @@ La fase se declara terminada cuando:
   | `settle_delivery_driver_use_case.py` (+`modulos/delivery.py`) | `order_id`→`delivery_orders` | ✅ UUID-native: `driver_id`/`order_ids`/`sucursal_id` int→str, rechaza ints, `order_id` se guarda str | `tests/integration/test_delivery_cut_uuid_relationships.py` (4) |
   | `modulos/growth_engine.py` | `ticket_id`→`ventas` (loyalty) | ✅ Ruta duplicada de crédito/canje retirada (deprecada → `LoyaltyService` canónico); `ticket_id`→`sale_id` (str, rechaza int); cron de expiración sigue vivo sin referencia de venta | `tests/integration/test_growth_ledger_sale_id_cutover.py` (4) |
   | `finance_service.py` + `use_cases/finanzas.py` (+`modulos/caja.py`) | `turno_id`→`turnos_caja` | 🟡 Interim: `turno_id` str-typed en cada frontera (afinidad SQLite), sin `int()` cast. Falta: `abrir_turno` UUID-native (sin `lastrowid`) **gated en migración 200** porque `turnos_caja.id` es INTEGER PK | `tests/integration/test_caja_turno_str_identity.py` (4), `test_finanzas_uc_turno_str.py` (2) |
-  | `core/services/card_batch_engine.py` | `tarjeta_id`→`tarjetas_fidelidad` | ⛔ **Bloqueado**: el motor consulta columnas inexistentes (`numero`/`batch_id`/`activa`, esquema "v14" nunca creado) y falla antes de escribir → no funcional. Relación capturada a nivel spec+guardrail; el runtime requiere reconciliación de esquema (decisión de producto, no refactor) | spec + guardrail (relación ≠ card_batches) |
-- ⏳ **Schema evolution (migración aparte):** `loyalty_ledger.sale_id`/`reference_type`/
-  `reference_id` y `tarjetas_fidelidad.batch_id` no existen; el camino canónico
-  vigente usa `loyalty_ledger.referencia` (TEXT). Estas columnas nuevas son una
-  migración de schema separada si el dueño de dominio las requiere.
+  | `core/services/card_batch_engine.py` (+ migración 112) | `tarjeta_id`→`tarjetas_fidelidad`, `batch_id`→`card_batches` | ✅ **Desbloqueado**: la migración 112 agrega las columnas que el motor esperaba (`tarjetas_fidelidad.numero`/`batch_id`/`activa`, `card_batches.generado_por`/`fecha_cierre`) + índice UNIQUE en `numero`; el motor se corrigió (`card_batches.fecha_creacion`, no `fecha_generacion`) y las identidades viajan str (UUIDv7-ready) | `tests/migrations/test_112_card_schema_reconciliation.py` (4), `tests/integration/test_card_batch_engine_lifecycle.py` (3) |
+- ⏳ **Schema evolution restante (migración aparte):** `loyalty_ledger.sale_id`/
+  `reference_type`/`reference_id` no existen; el camino canónico vigente usa
+  `loyalty_ledger.referencia` (TEXT). `tarjetas_fidelidad.batch_id` ya se agregó
+  (migración 112). Las columnas de loyalty son una migración separada si el dueño
+  de dominio las requiere.
+- ⏳ **Gated en migración 200 (id INTEGER PK → TEXT):** `abrir_turno`
+  (`turnos_caja.id`) y `crear_lote` (`card_batches.id`) siguen usando `lastrowid`
+  porque SQLite no admite UUID en un INTEGER PK; la versión UUID-native (sin
+  `lastrowid`) se habilita al aplicar el corte 200.
 - ⏳ **Para ejecutar el corte real:** resolver las 6 anteriores → pre-auditar
   huérfanas sobre datos reales → backup + app cerrada + `SPEC_IS_COMPLETE=True` +
   `SPJ_UUID_CUTOVER_CONFIRMED=1` → bajar baselines del cutover test a 0 + alinear los 10 rojos.
