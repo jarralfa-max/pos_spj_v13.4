@@ -1003,7 +1003,10 @@ class FinanceService:
     # ── Módulo Caja ───────────────────────────────────────────────────────────
 
     def get_estado_turno(self, sucursal_id: int, usuario: str):
-        """Retorna el turno abierto actual o None si la caja está cerrada."""
+        """Retorna el turno abierto actual o None si la caja está cerrada.
+
+        El ``id`` se devuelve como str (identidad UUIDv7-ready): el corte 200
+        lo convertirá a TEXT y los callers no cambian (afinidad SQLite)."""
         try:
             row = self.db.execute(
                 """SELECT id, fondo_inicial, fecha_apertura
@@ -1012,12 +1015,25 @@ class FinanceService:
                    ORDER BY fecha_apertura DESC LIMIT 1""",
                 (sucursal_id, usuario)
             ).fetchone()
-            return dict(row) if row else None
+            if not row:
+                return None
+            d = dict(row)
+            if d.get("id") is not None:
+                d["id"] = str(d["id"])
+            return d
         except Exception:
             return None
 
-    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> int:
-        """Abre un nuevo turno de caja. Lanza si ya hay uno abierto."""
+    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> str:
+        """Abre un nuevo turno de caja. Lanza si ya hay uno abierto.
+
+        Devuelve el turno_id como str. NOTA (FASE 4 / REGLA CERO): turnos_caja.id
+        sigue siendo INTEGER PRIMARY KEY, por lo que aún no puede acuñarse un UUID
+        en él (SQLite rechaza texto en un INTEGER PK). La versión UUID-native
+        (new_uuid() sin lastrowid) queda condicionada a la migración 200, que
+        convierte turnos_caja.id -> TEXT. Hasta entonces la identidad se normaliza
+        a str en cada frontera para que el flujo de caja ya sea UUID-ready.
+        """
         existing = self.get_estado_turno(sucursal_id, usuario)
         if existing:
             raise ValueError("Ya hay un turno abierto para este cajero.")
@@ -1029,10 +1045,10 @@ class FinanceService:
         )
         try: self.db.commit()
         except Exception: pass
-        return cur.lastrowid
+        return str(cur.lastrowid)
 
     def registrar_movimiento_manual(
-        self, turno_id: int, sucursal_id: int,
+        self, turno_id: str, sucursal_id: int,
         usuario: str, tipo: str, monto: float, concepto: str
     ) -> None:
         """Registra entrada o retiro manual en caja."""
@@ -1040,16 +1056,17 @@ class FinanceService:
             """INSERT INTO movimientos_caja
                (turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
                VALUES (?,?,?,?,?,?, datetime('now'))""",
-            (turno_id, sucursal_id, tipo, monto, concepto, usuario)
+            (str(turno_id), sucursal_id, tipo, monto, concepto, usuario)
         )
         # FASE 9: no commit aquí — PurchaseService llama este método dentro
         # de un SAVEPOINT; el commit lo hace PurchaseService al hacer RELEASE.
 
     def generar_corte_z(
-        self, turno_id: int, sucursal_id: int,
+        self, turno_id: str, sucursal_id: int,
         usuario: str, efectivo_fisico: float
     ) -> dict:
         """Cierra el turno y calcula diferencias."""
+        turno_id = str(turno_id)
         # Sumar ventas del turno
         row_v = self.db.execute(
             """SELECT COALESCE(SUM(total),0) FROM ventas
@@ -1121,13 +1138,13 @@ class FinanceService:
             "ventas_por_pago": ventas_por_pago,
         }
 
-    def get_movimientos_turno(self, turno_id: int) -> list:
+    def get_movimientos_turno(self, turno_id: str) -> list:
         """Retorna los movimientos manuales del turno."""
         try:
             rows = self.db.execute(
                 """SELECT tipo, monto, concepto, usuario, fecha
                    FROM movimientos_caja WHERE turno_id=? ORDER BY fecha""",
-                (turno_id,)
+                (str(turno_id),)
             ).fetchall()
             return [dict(r) for r in rows]
         except Exception:
@@ -1143,7 +1160,7 @@ class FinanceService:
                 "SELECT id FROM turnos_caja WHERE sucursal_id=? AND cajero=? AND estado='abierto' LIMIT 1",
                 (branch_id, user)
             ).fetchone()
-            turno_id = row['id'] if row else None
+            turno_id = str(row['id']) if row else None
             self.db.execute(
                 """INSERT INTO movimientos_caja
                    (turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
