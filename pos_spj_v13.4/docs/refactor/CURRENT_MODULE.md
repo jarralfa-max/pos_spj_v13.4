@@ -41,5 +41,5 @@ Ninguno.
 
 ## Próxima acción
 
-Auditar `modulos/productos.py` + servicios/repos de productos (identidad,
+Cerrado el gap de identidad (legacy repo + compras_pro). Pendiente menor: unidad enum -> settings.
 lastrowid, int(_id), SQL en UI).

@@ -1,5 +1,27 @@
 # Módulo PRODUCTOS — auditoría F7
 
+## Estado: IMPLEMENTATION (REGLA CERO resuelta) — 2026-06-25
+
+> El baseline F0 de abajo quedó **OBSOLETO**: la UI ya fue refactorizada.
+> Reauditoría 2026-06-25 sobre el código actual:
+> - `modulos/productos.py`: **0** SQL crudo, **0** `commit`, **0** `int(_id)`,
+>   **0** default-`1`. Delega a use cases / `product_catalog_service` y lee por
+>   `product_query_service`. ✅
+> - `product_catalog_service` y backend `product_repository`: UUIDv7-native
+>   (`new_uuid()`, id explícito). ✅
+> - `product_query_service`: sin `int|str`, sin `lastrowid` (solo `index/limit:int`
+>   legítimos). ✅
+> - **Corregido en esta fase:** `repositories/productos.py.create()` (legacy de
+>   lectura en vivo) acuñaba con `lastrowid` → `new_uuid()`; `_write_audit` logs
+>   sin id → con id; hints `int`→`str`. `compras_pro.py` import roto
+>   `ProductosRepository` + `int(pid)` → `ProductoRepository`/`str(pid)`.
+> - Tests: `tests/integration/test_productos_repo_uuid_identity.py` (2).
+> - Pendiente menor: `unidad` hardcodeada en UI → `ModuleSettingsService`
+>   (regla 24); métodos de escritura muertos en el repo legacy (dup inofensiva).
+>
+> ---
+> _Baseline histórico (obsoleto), conservado para trazabilidad:_
+
 ## Estado: F0 (baseline congelado)
 
 A diferencia de MERMA, PRODUCTOS sigue siendo legacy pesado. La UI PyQt ejecuta
