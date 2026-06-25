@@ -2711,17 +2711,18 @@ if(drivers.length===0){{
                     SettleDeliveryDriverCommand, SettleDeliveryDriverUseCase,
                 )
                 from core.events.event_bus import get_bus
+                # Identidad UUIDv7 (REGLA CERO): los ids viajan como str.
                 cmd = SettleDeliveryDriverCommand(
-                    driver_id=driver_id,
+                    driver_id=str(driver_id),
                     driver_nombre=cmb_driver.currentText(),
-                    order_ids=list(_data["order_ids"]),
+                    order_ids=[str(o) for o in _data["order_ids"]],
                     efectivo_entregado=entregado,
                     efectivo_cobrado=_data["efectivo"],
                     tarjeta_cobrado=_data["tarjeta"],
                     transfer_cobrado=_data["transfer"],
                     notas=txt_notas_corte.text().strip(),
                     usuario=getattr(self, 'usuario', 'Sistema'),
-                    sucursal_id=getattr(self, 'sucursal_id', 0),
+                    sucursal_id=str(getattr(self, 'sucursal_id', '') or ''),
                     turno_inicio=_data["turno_inicio"],
                 )
                 result = SettleDeliveryDriverUseCase(
