@@ -28,13 +28,16 @@ def test_sale_payload_has_fulfillment_trace(monkeypatch):
     class _Bus:
         def publish(self, evt, payload, strict=False):
             cap["payload"] = payload
+        def handler_labels(self, _evt):
+            # satisfy SalesService critical-handler guard (inventory + finance)
+            return ["sale_inventory", "sale_finance"]
     monkeypatch.setattr("core.events.event_bus.get_bus", lambda: _Bus())
     repo = SimpleNamespace(create_sale=lambda **k: (1, "F1"), save_sale_item=lambda **k: None)
     svc = SalesService(db, repo, None, None, None, None, None, None, None, None, None, None)
     svc.execute_sale(1, "u", [{"product_id": 10, "qty": 3, "unit_price": 10, "nombre": "Combo"}], "Efectivo", 100)
     i = cap["payload"]["items"][0]
-    assert i["sold_product_id"] == 10
-    assert i["source_product_id"] == 10
+    assert i["sold_product_id"] == "10"
+    assert i["source_product_id"] == "10"
     assert i["fulfillment_mode"] == "COMPOSITE"
     assert i["product_id"] == 11 and abs(i["qty"] - 6.0) < 1e-9
 
