@@ -23,7 +23,7 @@ DONE
 |     3 | PRODUCTOS             | Productos                | PENDING |
 |     4 | INVENTARIO            | Inventario               | PENDING |
 |     5 | VENTAS                | Ventas                   | PENDING |
-|     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | IMPLEMENTATION |
+|     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
 |     7 | RECETAS               | Recetas                  | PENDING |
 |     8 | PRODUCCION            | Producción               | PENDING |
 |     9 | TRANSFERENCIAS        | Transferencias           | PENDING |

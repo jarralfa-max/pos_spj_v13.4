@@ -3,12 +3,12 @@
 ## Código
 
 ```text
-CONFIGURACION
+PRODUCTOS
 ```
 
 ## Nombre
 
-Configuración.
+Productos.
 
 ## Estado
 
@@ -19,27 +19,27 @@ AUDIT
 ## Iteración
 
 ```text
-2
+1
 ```
 
 ## Objetivo
 
-Auditar y refactorizar el módulo de Configuración contra todo el checklist de `SPJ_REFACTOR_SKILL.md`, no solo identidad UUIDv7.
+Auditar y refactorizar el módulo de Productos contra el checklist de
+`SPJ_REFACTOR_SKILL.md` (REGLA CERO UUIDv7 + capas + UI sin SQL).
 
 ## Hallazgos abiertos
 
-F1–F8 ejecutadas (ver `docs/refactor/modules/configuracion.md`, cierre PR #302).
-Restante: corte atómico de identidad UUID (migración 200) — `CONFIGURACION-02-IDENTITY` sigue `IN_PROGRESS`.
+(pendiente de auditoría FASE 7 PRODUCTOS)
 
 ## Tests requeridos
 
-Cubiertos: guardrails, single_source, dtos, transactions, uuid_identity,
-use_case_flows, event_idempotency, external_integrations (83 passed del módulo).
+(pendiente)
 
 ## Bloqueos
 
-Ninguno registrado (corte atómico UUID requiere ventana de migración global, no bloqueante para el resto del checklist).
+Ninguno.
 
 ## Próxima acción
 
-Cerrar `CONFIGURACION-02-IDENTITY` con el corte atómico UUID (migración 200), o avanzar a `MERMA`.
+Auditar `modulos/productos.py` + servicios/repos de productos (identidad,
+lastrowid, int(_id), SQL en UI).
