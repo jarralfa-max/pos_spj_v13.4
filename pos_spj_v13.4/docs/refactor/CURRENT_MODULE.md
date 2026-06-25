@@ -3,12 +3,12 @@
 ## Código
 
 ```text
-TRANSFERENCIAS
+DELIVERY
 ```
 
 ## Nombre
 
-Transferencias.
+Delivery.
 
 ## Estado
 

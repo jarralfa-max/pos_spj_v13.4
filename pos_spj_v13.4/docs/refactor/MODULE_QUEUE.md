@@ -26,8 +26,8 @@ DONE
 |     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
 |     7 | RECETAS               | Recetas                  | PENDING |
 |     8 | PRODUCCION            | Producción               | PENDING |
-|     9 | TRANSFERENCIAS        | Transferencias           | AUDIT |
-|    10 | DELIVERY              | Delivery                 | PENDING |
+|     9 | TRANSFERENCIAS        | Transferencias           | DONE |
+|    10 | DELIVERY              | Delivery                 | AUDIT |
 |    11 | CAJA                  | Caja                     | PENDING |
 |    12 | BI_DASHBOARD          | BI / Dashboard           | PENDING |
 |    13 | PLANEACION_COMPRAS    | Planeación de compras    | PENDING |
