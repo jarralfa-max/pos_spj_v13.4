@@ -3,12 +3,12 @@
 ## Código
 
 ```text
-PRODUCTOS
+MERMA
 ```
 
 ## Nombre
 
-Productos.
+Merma.
 
 ## Estado
 

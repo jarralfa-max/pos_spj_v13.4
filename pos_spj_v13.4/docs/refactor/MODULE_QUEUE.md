@@ -20,7 +20,7 @@ DONE
 | ----: | --------------------- | ------------------------ | ------- |
 |     1 | CONFIGURACION         | Configuración            | AUDIT   |
 |     2 | MERMA                 | Merma                    | PENDING |
-|     3 | PRODUCTOS             | Productos                | PENDING |
+|     3 | PRODUCTOS             | Productos                | DONE |
 |     4 | INVENTARIO            | Inventario               | PENDING |
 |     5 | VENTAS                | Ventas                   | PENDING |
 |     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |

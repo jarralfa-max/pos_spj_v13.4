@@ -1,6 +1,6 @@
 # Módulo PRODUCTOS — auditoría F7
 
-## Estado: IMPLEMENTATION (REGLA CERO resuelta) — 2026-06-25
+## Estado: DONE (REGLA CERO resuelta) — 2026-06-25
 
 > El baseline F0 de abajo quedó **OBSOLETO**: la UI ya fue refactorizada.
 > Reauditoría 2026-06-25 sobre el código actual:
