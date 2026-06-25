@@ -38,9 +38,12 @@ except ImportError:
 
 # ── DTOs ──────────────────────────────────────────────────────────────────────
 
+# NOTA (FASE 4 / REGLA CERO): las identidades (id de lote/tarjeta/cliente) viajan
+# como str (UUIDv7-ready). Las columnas id siguen siendo INTEGER PRIMARY KEY hasta
+# la migración 200; la afinidad SQLite hace que un str '5' empate con el entero 5.
 @dataclass
 class CardBatch:
-    id:               int
+    id:               str
     uuid:             str
     nombre:           str
     codigo_inicio:    str
@@ -55,11 +58,11 @@ class CardBatch:
 
 @dataclass
 class Tarjeta:
-    id:               int
+    id:               str
     numero:           str
-    batch_id:         Optional[int]
+    batch_id:         Optional[str]
     estado:           str
-    id_cliente:       Optional[int]
+    id_cliente:       Optional[str]
     puntos_actuales:  int
     nivel:            str
     codigo_qr:        Optional[str]
@@ -68,8 +71,8 @@ class Tarjeta:
 
 @dataclass
 class AsignacionResult:
-    tarjeta_id:   int
-    cliente_id:   int
+    tarjeta_id:   str
+    cliente_id:   Optional[str]
     accion:       str
     exito:        bool
     mensaje:      str
@@ -94,6 +97,24 @@ class CardBatchEngine:
     def __init__(self, conn: sqlite3.Connection, usuario: str = "sistema") -> None:
         self.conn    = conn
         self.usuario = usuario
+
+    # ── Identidad (REGLA CERO) ─────────────────────────────────────────────────
+    @staticmethod
+    def _sid(v):
+        """Normaliza una identidad a str (UUIDv7-ready) o None."""
+        return None if v is None else str(v)
+
+    def _batch_from_row(self, row) -> CardBatch:
+        vals = list(row)
+        vals[0] = self._sid(vals[0])  # id
+        return CardBatch(*vals)
+
+    def _tarjeta_from_row(self, row) -> Tarjeta:
+        vals = list(row)
+        vals[0] = self._sid(vals[0])  # id
+        vals[2] = self._sid(vals[2])  # batch_id
+        vals[4] = self._sid(vals[4])  # id_cliente
+        return Tarjeta(*vals)
 
     # ── Lotes ─────────────────────────────────────────────────────────────────
 
@@ -146,7 +167,11 @@ class CardBatchEngine:
             (batch_uuid, nombre, cod_inicio, cod_fin, cantidad,
              cantidad, "activo", notas, self.usuario)
         )
-        batch_id = cur.lastrowid
+        # NOTA (FASE 4 / REGLA CERO): card_batches.id sigue siendo INTEGER PK, así
+        # que aún se obtiene vía lastrowid y se normaliza a str. La versión
+        # UUID-native (new_uuid() sin lastrowid) queda gated en la migración 200,
+        # que convierte card_batches.id -> TEXT.
+        batch_id = str(cur.lastrowid)
 
         # Generar tarjetas individuales
         for i in range(cantidad):
@@ -176,76 +201,76 @@ class CardBatchEngine:
         """Genera código hash SHA-256 corto (16 hex) para QR."""
         return hashlib.sha256(numero.encode()).hexdigest()[:16].upper()
 
-    def _load_batch(self, batch_id: int) -> CardBatch:
+    def _load_batch(self, batch_id: str) -> CardBatch:
         row = self.conn.execute(
             """
             SELECT id, uuid, nombre, codigo_inicio, codigo_fin,
                    cantidad, cantidad_libres, cantidad_asignadas,
-                   estado, notas, fecha_generacion
+                   estado, notas, fecha_creacion
             FROM card_batches WHERE id = ?
             """,
-            (batch_id,)
+            (str(batch_id),)
         ).fetchone()
         if not row:
             raise ValueError(f"Batch {batch_id} no encontrado")
-        return CardBatch(*row)
+        return self._batch_from_row(row)
 
     def listar_lotes(self, estado: str = None) -> List[CardBatch]:
         q = "SELECT id, uuid, nombre, codigo_inicio, codigo_fin, " \
             "cantidad, cantidad_libres, cantidad_asignadas, " \
-            "estado, notas, fecha_generacion FROM card_batches"
+            "estado, notas, fecha_creacion FROM card_batches"
         params: list = []
         if estado:
             q += " WHERE estado = ?"
             params.append(estado)
         q += " ORDER BY id DESC"
-        return [CardBatch(*r) for r in self.conn.execute(q, params).fetchall()]
+        return [self._batch_from_row(r) for r in self.conn.execute(q, params).fetchall()]
 
     # ── Estados lote ──────────────────────────────────────────────────────────
 
-    def marcar_impreso(self, batch_id: int) -> int:
+    def marcar_impreso(self, batch_id: str) -> int:
         """Marca todas las tarjetas del lote como 'impresa'. Retorna n afectadas."""
         n = self.conn.execute(
             "UPDATE tarjetas_fidelidad SET estado='impresa' "
             "WHERE batch_id = ? AND estado = 'generada'",
-            (batch_id,)
+            (str(batch_id),)
         ).rowcount
         self.conn.commit()
-        logger.info("marcar_impreso batch=%d n=%d", batch_id, n)
+        logger.info("marcar_impreso batch=%s n=%d", batch_id, n)
         return n
 
-    def liberar_lote(self, batch_id: int) -> int:
+    def liberar_lote(self, batch_id: str) -> int:
         """Marca tarjetas impresas del lote como 'libre' (disponibles para asignar)."""
         n = self.conn.execute(
             "UPDATE tarjetas_fidelidad SET estado='libre' "
             "WHERE batch_id = ? AND estado IN ('generada','impresa')",
-            (batch_id,)
+            (str(batch_id),)
         ).rowcount
         self.conn.commit()
-        logger.info("liberar_lote batch=%d n=%d", batch_id, n)
+        logger.info("liberar_lote batch=%s n=%d", batch_id, n)
         return n
 
-    def cerrar_lote(self, batch_id: int) -> None:
+    def cerrar_lote(self, batch_id: str) -> None:
         self.conn.execute(
             "UPDATE card_batches SET estado='cerrado', fecha_cierre=datetime('now') "
-            "WHERE id = ?", (batch_id,)
+            "WHERE id = ?", (str(batch_id),)
         )
         self.conn.commit()
 
     # ── Tarjetas ──────────────────────────────────────────────────────────────
 
-    def _load_tarjeta(self, tarjeta_id: int) -> Tarjeta:
+    def _load_tarjeta(self, tarjeta_id: str) -> Tarjeta:
         row = self.conn.execute(
             """
             SELECT id, numero, batch_id, estado, id_cliente,
                    puntos_actuales, COALESCE(nivel,'Bronce'), codigo_qr, fecha_creacion
             FROM tarjetas_fidelidad WHERE id = ?
             """,
-            (tarjeta_id,)
+            (str(tarjeta_id),)
         ).fetchone()
         if not row:
             raise ValueError(f"Tarjeta {tarjeta_id} no encontrada")
-        return Tarjeta(*row)
+        return self._tarjeta_from_row(row)
 
     def buscar_tarjeta(self, numero_o_qr: str) -> Optional[Tarjeta]:
         """Busca por número exacto o código QR."""
@@ -259,9 +284,9 @@ class CardBatchEngine:
             """,
             (numero_o_qr, numero_o_qr)
         ).fetchone()
-        return Tarjeta(*row) if row else None
+        return self._tarjeta_from_row(row) if row else None
 
-    def tarjetas_libres(self, batch_id: int = None, limit: int = 50) -> List[Tarjeta]:
+    def tarjetas_libres(self, batch_id: str = None, limit: int = 50) -> List[Tarjeta]:
         q = """
         SELECT id, numero, batch_id, estado, id_cliente,
                    puntos_actuales, COALESCE(nivel,'Bronce'), codigo_qr, fecha_creacion
@@ -270,19 +295,21 @@ class CardBatchEngine:
         params: list = []
         if batch_id is not None:
             q += " AND batch_id = ?"
-            params.append(batch_id)
+            params.append(str(batch_id))
         q += f" ORDER BY id LIMIT {limit}"
-        return [Tarjeta(*r) for r in self.conn.execute(q, params).fetchall()]
+        return [self._tarjeta_from_row(r) for r in self.conn.execute(q, params).fetchall()]
 
     # ── Asignación ────────────────────────────────────────────────────────────
 
     def asignar_tarjeta(
         self,
-        tarjeta_id: int,
-        cliente_id: int,
+        tarjeta_id: str,
+        cliente_id: str,
         motivo:     str = "asignacion_normal",
     ) -> AsignacionResult:
         """Asigna tarjeta libre a cliente. Registra en historial."""
+        tarjeta_id = self._sid(tarjeta_id)
+        cliente_id = self._sid(cliente_id)
         try:
             tarjeta = self._load_tarjeta(tarjeta_id)
             if tarjeta.estado == "asignada":
@@ -314,15 +341,16 @@ class CardBatchEngine:
                 self._sync_contadores_lote(tarjeta.batch_id)
             self.conn.commit()
 
-            logger.info("asignar_tarjeta id=%d cliente=%d", tarjeta_id, cliente_id)
+            logger.info("asignar_tarjeta id=%s cliente=%s", tarjeta_id, cliente_id)
             return AsignacionResult(tarjeta_id, cliente_id, accion, True, "Tarjeta asignada correctamente")
 
         except Exception as exc:
             logger.error("asignar_tarjeta: %s", exc)
             return AsignacionResult(tarjeta_id, cliente_id, "asignacion", False, str(exc))
 
-    def liberar_tarjeta(self, tarjeta_id: int, motivo: str = "") -> AsignacionResult:
+    def liberar_tarjeta(self, tarjeta_id: str, motivo: str = "") -> AsignacionResult:
         """Desvincula tarjeta de cliente → estado libre."""
+        tarjeta_id = self._sid(tarjeta_id)
         try:
             tarjeta = self._load_tarjeta(tarjeta_id)
             cliente_prev = tarjeta.id_cliente
@@ -334,13 +362,14 @@ class CardBatchEngine:
             if tarjeta.batch_id:
                 self._sync_contadores_lote(tarjeta.batch_id)
             self.conn.commit()
-            return AsignacionResult(tarjeta_id, 0, "liberacion", True, "Tarjeta liberada")
+            return AsignacionResult(tarjeta_id, None, "liberacion", True, "Tarjeta liberada")
         except Exception as exc:
-            return AsignacionResult(tarjeta_id, 0, "liberacion", False, str(exc))
+            return AsignacionResult(tarjeta_id, None, "liberacion", False, str(exc))
 
     def bloquear_tarjeta(
-        self, tarjeta_id: int, motivo: str, bloqueado_por: str = None
+        self, tarjeta_id: str, motivo: str, bloqueado_por: str = None
     ) -> AsignacionResult:
+        tarjeta_id = self._sid(tarjeta_id)
         bp = bloqueado_por or self.usuario
         try:
             tarjeta = self._load_tarjeta(tarjeta_id)
@@ -352,11 +381,12 @@ class CardBatchEngine:
             self._log_asignacion(tarjeta_id, tarjeta.id_cliente, tarjeta.id_cliente,
                                   "bloqueo", motivo)
             self.conn.commit()
-            return AsignacionResult(tarjeta_id, 0, "bloqueo", True, "Tarjeta bloqueada")
+            return AsignacionResult(tarjeta_id, None, "bloqueo", True, "Tarjeta bloqueada")
         except Exception as exc:
-            return AsignacionResult(tarjeta_id, 0, "bloqueo", False, str(exc))
+            return AsignacionResult(tarjeta_id, None, "bloqueo", False, str(exc))
 
-    def desbloquear_tarjeta(self, tarjeta_id: int, motivo: str = "") -> AsignacionResult:
+    def desbloquear_tarjeta(self, tarjeta_id: str, motivo: str = "") -> AsignacionResult:
+        tarjeta_id = self._sid(tarjeta_id)
         try:
             tarjeta = self._load_tarjeta(tarjeta_id)
             nuevo_estado = "asignada" if tarjeta.id_cliente else "libre"
@@ -368,13 +398,13 @@ class CardBatchEngine:
             self._log_asignacion(tarjeta_id, tarjeta.id_cliente, tarjeta.id_cliente,
                                   "desbloqueo", motivo)
             self.conn.commit()
-            return AsignacionResult(tarjeta_id, 0, "desbloqueo", True, "Tarjeta desbloqueada")
+            return AsignacionResult(tarjeta_id, None, "desbloqueo", True, "Tarjeta desbloqueada")
         except Exception as exc:
-            return AsignacionResult(tarjeta_id, 0, "desbloqueo", False, str(exc))
+            return AsignacionResult(tarjeta_id, None, "desbloqueo", False, str(exc))
 
     # ── Historial ─────────────────────────────────────────────────────────────
 
-    def historial_tarjeta(self, tarjeta_id: int) -> List[dict]:
+    def historial_tarjeta(self, tarjeta_id: str) -> List[dict]:
         rows = self.conn.execute(
             """
             SELECT h.accion, h.motivo, h.usuario, h.fecha,
@@ -386,7 +416,7 @@ class CardBatchEngine:
             WHERE h.tarjeta_id = ?
             ORDER BY h.fecha DESC
             """,
-            (tarjeta_id,)
+            (str(tarjeta_id),)
         ).fetchall()
         return [
             {"accion": r[0], "motivo": r[1], "usuario": r[2], "fecha": r[3],
@@ -394,7 +424,7 @@ class CardBatchEngine:
             for r in rows
         ]
 
-    def historial_cliente(self, cliente_id: int) -> List[dict]:
+    def historial_cliente(self, cliente_id: str) -> List[dict]:
         rows = self.conn.execute(
             """
             SELECT h.accion, h.motivo, h.usuario, h.fecha,
@@ -404,7 +434,7 @@ class CardBatchEngine:
             WHERE h.cliente_id_nuevo = ? OR h.cliente_id_prev = ?
             ORDER BY h.fecha DESC
             """,
-            (cliente_id, cliente_id)
+            (str(cliente_id), str(cliente_id))
         ).fetchall()
         return [
             {"accion": r[0], "motivo": r[1], "usuario": r[2], "fecha": r[3],
@@ -435,7 +465,7 @@ class CardBatchEngine:
 
     def exportar_pdf_lote(
         self,
-        batch_id:  int,
+        batch_id:  str,
         ruta_pdf:  str,
         cols:      int = 6,
         rows_page: int = 4,
@@ -455,7 +485,7 @@ class CardBatchEngine:
             WHERE batch_id = ?
             ORDER BY id
             """,
-            (batch_id,)
+            (str(batch_id),)
         ).fetchall()
 
         if not tarjetas:
@@ -525,9 +555,9 @@ class CardBatchEngine:
 
     def _log_asignacion(
         self,
-        tarjeta_id:     int,
-        cliente_prev:   Optional[int],
-        cliente_nuevo:  Optional[int],
+        tarjeta_id:     str,
+        cliente_prev:   Optional[str],
+        cliente_nuevo:  Optional[str],
         accion:         str,
         motivo:         str,
     ) -> None:
@@ -538,11 +568,11 @@ class CardBatchEngine:
                  accion, motivo, usuario)
             VALUES (?,?,?,?,?,?)
             """,
-            (tarjeta_id, cliente_prev, cliente_nuevo,
+            (self._sid(tarjeta_id), self._sid(cliente_prev), self._sid(cliente_nuevo),
              accion, motivo, self.usuario)
         )
 
-    def _sync_contadores_lote(self, batch_id: int) -> None:
+    def _sync_contadores_lote(self, batch_id: str) -> None:
         row = self.conn.execute(
             """
         SELECT
@@ -550,10 +580,10 @@ class CardBatchEngine:
                 COUNT(*) FILTER (WHERE estado = 'asignada')
             FROM tarjetas_fidelidad WHERE batch_id = ?
             """,
-            (batch_id,)
+            (str(batch_id),)
         ).fetchone()
         if row:
             self.conn.execute(
                 "UPDATE card_batches SET cantidad_libres=?, cantidad_asignadas=? WHERE id=?",
-                (row[0], row[1], batch_id)
+                (row[0], row[1], str(batch_id))
             )

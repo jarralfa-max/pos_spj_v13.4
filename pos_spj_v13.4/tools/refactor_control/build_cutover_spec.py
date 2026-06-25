@@ -46,6 +46,9 @@ TABLE_FK_OVERRIDES: dict[str, dict[str, str]] = {
     "cierres_caja": {"turno_id": "turnos_caja"},
     "movimientos_caja": {"turno_id": "turnos_caja"},
     "card_assignment_history": {"tarjeta_id": "tarjetas_fidelidad"},
+    # batch_id en tarjetas_fidelidad apunta a card_batches (NO al map global
+    # `batch_id`->batches). Columna añadida por la migración 112.
+    "tarjetas_fidelidad": {"batch_id": "card_batches"},
     "delivery_cut_items": {"order_id": "delivery_orders", "cut_id": "delivery_driver_cuts"},
     # growth_ledger.ticket_id == ventas.id (POS). En el corte se vuelve FK UUID a
     # ventas; el move a loyalty_ledger.sale_id es trabajo de runtime (FASE 4).
