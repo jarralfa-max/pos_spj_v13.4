@@ -52,6 +52,13 @@ class TransferRepository:
     def _now(self) -> str:
         return datetime.utcnow().isoformat()
 
+    def list_active_branches(self) -> List[Dict]:
+        """Active branches for selectors (SQL lives in the repo, not the UI)."""
+        rows = self.db.fetchall(
+            "SELECT id, nombre FROM sucursales WHERE activa = 1 ORDER BY nombre"
+        )
+        return [dict(r) for r in rows]
+
     def _get_max_diff(self) -> float:
         row = self.db.fetchone("""
             SELECT value FROM system_constants WHERE key = 'TRANSFER_MAX_DIFFERENCE_KG'
@@ -63,7 +70,7 @@ class TransferRepository:
 
     # ── Read ─────────────────────────────────────────────────────────────────
 
-    def get_all(self, *, branch_id: Optional[int] = None,
+    def get_all(self, *, branch_id: Optional[str] = None,
                 status: Optional[str] = None) -> List[Dict]:
         conditions = []
         params: List = []
@@ -108,12 +115,12 @@ class TransferRepository:
         """, (transfer_id,))
         return [dict(r) for r in rows]
 
-    def get_pending_for_branch(self, dest_branch_id: int) -> List[Dict]:
+    def get_pending_for_branch(self, dest_branch_id: str) -> List[Dict]:
         return self.get_all(branch_id=dest_branch_id, status="DISPATCHED")
 
     # ── Phase 1: Dispatch ────────────────────────────────────────────────────
 
-    def dispatch(self, origin_branch_id: int, dest_branch_id: int,
+    def dispatch(self, origin_branch_id: str, dest_branch_id: str,
                  items: List[Dict], dispatched_by: str,
                  origin_type: str = "BRANCH",
                  destination_type: str = "BRANCH",
