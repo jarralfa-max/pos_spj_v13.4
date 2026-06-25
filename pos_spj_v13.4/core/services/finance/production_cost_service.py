@@ -168,7 +168,7 @@ class ProductionCostService:
             if r["is_waste"]:
                 continue
 
-            product_id  = int(r["product_id"])
+            product_id  = str(r["product_id"])
             cost_per_kg = round(float(r["cost_per_kg"]), 4)
 
             self._db.execute(

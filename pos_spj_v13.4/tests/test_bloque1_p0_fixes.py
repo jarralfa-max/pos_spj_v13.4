@@ -389,7 +389,7 @@ class TestP03BomCycleBlocksSale:
                 sale_id="S", operation_id="O", user="u", folio="f",
             )
 
-        inv_mock.deduct_stock.assert_called_once()
+        inv_mock.decrease_stock.assert_called_once()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

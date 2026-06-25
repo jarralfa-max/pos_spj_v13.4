@@ -16,10 +16,12 @@ def test_sale_payload_has_fulfillment_trace(monkeypatch):
         CREATE TABLE product_recipes (id INTEGER PRIMARY KEY, product_id INTEGER, tipo_receta TEXT, is_active INTEGER DEFAULT 1);
         CREATE TABLE product_recipe_components (id INTEGER PRIMARY KEY, recipe_id INTEGER, component_product_id INTEGER, cantidad REAL DEFAULT 0, rendimiento_pct REAL DEFAULT 0, orden INTEGER DEFAULT 0);
         CREATE TABLE branch_inventory (product_id INTEGER, branch_id INTEGER, quantity REAL DEFAULT 0);
+        CREATE TABLE inventory_stock (id TEXT PRIMARY KEY, product_id TEXT, branch_id TEXT, quantity REAL DEFAULT 0, costo_promedio REAL DEFAULT 0, UNIQUE(product_id, branch_id));
         INSERT INTO productos VALUES (10,'Combo','compuesto',1,0,0),(11,'CompA','simple',0,0,0);
         INSERT INTO product_recipes VALUES (1,10,'COMBINACION',1);
         INSERT INTO product_recipe_components(id,recipe_id,component_product_id,cantidad,orden) VALUES (1,1,11,2,0);
         INSERT INTO branch_inventory VALUES (11,1,100);
+        INSERT INTO inventory_stock(id,product_id,branch_id,quantity) VALUES ('s11','11','1',100);
         """
     )
     cap = {}

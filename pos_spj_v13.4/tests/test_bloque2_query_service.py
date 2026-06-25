@@ -32,6 +32,7 @@ def _make_db():
             cantidad     REAL DEFAULT 0,
             PRIMARY KEY (producto_id, sucursal_id)
         );
+        CREATE TABLE IF NOT EXISTS inventory_stock (id TEXT PRIMARY KEY, product_id TEXT, branch_id TEXT, quantity REAL DEFAULT 0, costo_promedio REAL DEFAULT 0, UNIQUE(product_id, branch_id));
         CREATE TABLE product_recipes (
             id                   INTEGER PRIMARY KEY,
             product_id           INTEGER,
@@ -189,7 +190,7 @@ class TestGetStock:
     def test_returns_inventario_actual(self):
         conn = _make_db()
         conn.execute("INSERT INTO productos (id, nombre) VALUES (1,'P')")
-        conn.execute("INSERT INTO inventario_actual VALUES (1, 1, 12.5)")
+        conn.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('1','1',12.5)")
         qty = _pqs.get_stock(conn, 1, 1)
         assert qty == pytest.approx(12.5)
 
@@ -207,8 +208,8 @@ class TestGetStock:
     def test_multi_branch_isolation(self):
         conn = _make_db()
         conn.execute("INSERT INTO productos (id, nombre) VALUES (1,'P')")
-        conn.execute("INSERT INTO inventario_actual VALUES (1, 1, 10.0)")
-        conn.execute("INSERT INTO inventario_actual VALUES (1, 2, 20.0)")
+        conn.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('1','1',10.0)")
+        conn.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('1','2',20.0)")
         assert _pqs.get_stock(conn, 1, 1) == pytest.approx(10.0)
         assert _pqs.get_stock(conn, 1, 2) == pytest.approx(20.0)
 
@@ -219,8 +220,8 @@ class TestGetStocksForProducts:
     def test_returns_dict_keyed_by_product_id(self):
         conn = _make_db()
         conn.executemany("INSERT INTO productos (id, nombre) VALUES (?,?)", [(1,"A"),(2,"B")])
-        conn.execute("INSERT INTO inventario_actual VALUES (1,1,5.0)")
-        conn.execute("INSERT INTO inventario_actual VALUES (2,1,3.0)")
+        conn.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('1','1',5.0)")
+        conn.execute("INSERT INTO inventory_stock(product_id,branch_id,quantity) VALUES ('2','1',3.0)")
         stocks = _pqs.get_stocks_for_products(conn, [1, 2], 1)
         assert stocks == {1: pytest.approx(5.0), 2: pytest.approx(3.0)}
 
