@@ -263,15 +263,17 @@ La fase se declara terminada cuando:
   Guardrail `tests/architecture/test_uuidv7_relationship_cutover.py` valida el mapa,
   corre el corte end-to-end sobre un esquema sintético y exige `PRAGMA
   foreign_key_check` vacío. Reporter de huérfanas: `UuidCutover.report_orphans()`.
-- ⏳ **Pendiente (FASE 4 runtime + schema evolution) — NO ejecutado:**
-  - `loyalty_ledger` necesita columnas `sale_id`/`reference_type`/`reference_id`
-    (no existen); `tarjetas_fidelidad` necesita `batch_id` (no existe). El corte
-    mapea las FK existentes; estas columnas nuevas son migración de schema aparte.
-  - Runtime: `card_batch_engine` (`lastrowid`→`new_uuid()`, DTOs int→str),
-    `growth_engine` (`ticket_id`→`sale_id`, no escribir `growth_ledger`),
-    `settle_delivery_driver_use_case` (`order_ids: list[int]`→`str`), rutas de caja
-    (`turno_id` UUID desde `turnos_caja`). Behavior-changing → requiere tests de
-    protección por archivo (regla 4) antes de tocar.
+- 🔄 **FASE 4 runtime (por archivo, test-first) — en curso:**
+  | Archivo | Relación | Estado | Tests |
+  |---|---|---|---|
+  | `settle_delivery_driver_use_case.py` (+`modulos/delivery.py`) | `order_id`→`delivery_orders` | ✅ UUID-native: `driver_id`/`order_ids`/`sucursal_id` int→str, rechaza ints, `order_id` se guarda str | `tests/integration/test_delivery_cut_uuid_relationships.py` (4) |
+  | `modulos/growth_engine.py` | `ticket_id`→`ventas` (loyalty) | ✅ Ruta duplicada de crédito/canje retirada (deprecada → `LoyaltyService` canónico); `ticket_id`→`sale_id` (str, rechaza int); cron de expiración sigue vivo sin referencia de venta | `tests/integration/test_growth_ledger_sale_id_cutover.py` (4) |
+  | `finance_service.py` + `use_cases/finanzas.py` (+`modulos/caja.py`) | `turno_id`→`turnos_caja` | 🟡 Interim: `turno_id` str-typed en cada frontera (afinidad SQLite), sin `int()` cast. Falta: `abrir_turno` UUID-native (sin `lastrowid`) **gated en migración 200** porque `turnos_caja.id` es INTEGER PK | `tests/integration/test_caja_turno_str_identity.py` (4), `test_finanzas_uc_turno_str.py` (2) |
+  | `core/services/card_batch_engine.py` | `tarjeta_id`→`tarjetas_fidelidad` | ⛔ **Bloqueado**: el motor consulta columnas inexistentes (`numero`/`batch_id`/`activa`, esquema "v14" nunca creado) y falla antes de escribir → no funcional. Relación capturada a nivel spec+guardrail; el runtime requiere reconciliación de esquema (decisión de producto, no refactor) | spec + guardrail (relación ≠ card_batches) |
+- ⏳ **Schema evolution (migración aparte):** `loyalty_ledger.sale_id`/`reference_type`/
+  `reference_id` y `tarjetas_fidelidad.batch_id` no existen; el camino canónico
+  vigente usa `loyalty_ledger.referencia` (TEXT). Estas columnas nuevas son una
+  migración de schema separada si el dueño de dominio las requiere.
 - ⏳ **Para ejecutar el corte real:** resolver las 6 anteriores → pre-auditar
   huérfanas sobre datos reales → backup + app cerrada + `SPEC_IS_COMPLETE=True` +
   `SPJ_UUID_CUTOVER_CONFIRMED=1` → bajar baselines del cutover test a 0 + alinear los 10 rojos.
