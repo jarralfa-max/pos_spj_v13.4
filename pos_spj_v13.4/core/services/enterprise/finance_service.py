@@ -36,6 +36,8 @@ from io import StringIO
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
+from backend.shared.ids import new_uuid
+
 logger = logging.getLogger("spj.finance_service")
 
 # ── Tipos de aging ────────────────────────────────────────────────────────────
@@ -1027,25 +1029,24 @@ class FinanceService:
     def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> str:
         """Abre un nuevo turno de caja. Lanza si ya hay uno abierto.
 
-        Devuelve el turno_id como str. NOTA (FASE 4 / REGLA CERO): turnos_caja.id
-        sigue siendo INTEGER PRIMARY KEY, por lo que aún no puede acuñarse un UUID
-        en él (SQLite rechaza texto en un INTEGER PK). La versión UUID-native
-        (new_uuid() sin lastrowid) queda condicionada a la migración 200, que
-        convierte turnos_caja.id -> TEXT. Hasta entonces la identidad se normaliza
-        a str en cada frontera para que el flujo de caja ya sea UUID-ready.
+        UUID-native (REGLA CERO): el turno_id es un UUIDv7 acuñado con
+        ``new_uuid()`` e insertado explícitamente en ``turnos_caja.id`` — sin
+        ``lastrowid``. Requiere el esquema post-corte (migración 200) donde
+        ``turnos_caja.id`` es TEXT.
         """
         existing = self.get_estado_turno(sucursal_id, usuario)
         if existing:
             raise ValueError("Ya hay un turno abierto para este cajero.")
-        cur = self.db.execute(
+        turno_id = new_uuid()
+        self.db.execute(
             """INSERT INTO turnos_caja
-               (sucursal_id, cajero, fondo_inicial, estado, fecha_apertura)
-               VALUES (?,?,?,'abierto', datetime('now'))""",
-            (sucursal_id, usuario, fondo_inicial)
+               (id, sucursal_id, cajero, fondo_inicial, estado, fecha_apertura)
+               VALUES (?,?,?,?,'abierto', datetime('now'))""",
+            (turno_id, sucursal_id, usuario, fondo_inicial)
         )
         try: self.db.commit()
         except Exception: pass
-        return str(cur.lastrowid)
+        return turno_id
 
     def registrar_movimiento_manual(
         self, turno_id: str, sucursal_id: int,

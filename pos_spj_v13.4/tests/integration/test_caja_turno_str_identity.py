@@ -24,7 +24,7 @@ def svc():
     conn.executescript(
         """
         CREATE TABLE turnos_caja (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, sucursal_id INTEGER, usuario TEXT,
+            id TEXT PRIMARY KEY, sucursal_id TEXT, usuario TEXT,
             cajero TEXT, fondo_inicial REAL DEFAULT 0, total_ventas REAL DEFAULT 0,
             efectivo_esperado REAL DEFAULT 0, efectivo_contado REAL DEFAULT 0,
             diferencia REAL DEFAULT 0, estado TEXT DEFAULT 'abierto',

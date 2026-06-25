@@ -156,36 +156,34 @@ class CardBatchEngine:
         cod_fin    = f"{pfx}{ts}{start_seq + cantidad - 1:05d}"
         batch_uuid = new_uuid()
 
-        # INSERT lote
-        cur = self.conn.execute(
+        # UUID-native (REGLA CERO): el id del lote es un UUIDv7 acuñado con
+        # new_uuid() e insertado explícitamente — sin lastrowid. Requiere el
+        # esquema post-corte (migración 200) donde card_batches.id es TEXT.
+        batch_id = new_uuid()
+        self.conn.execute(
             """
             INSERT INTO card_batches
-                (uuid, nombre, codigo_inicio, codigo_fin, cantidad,
+                (id, uuid, nombre, codigo_inicio, codigo_fin, cantidad,
                  cantidad_libres, estado, notas, generado_por)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
-            (batch_uuid, nombre, cod_inicio, cod_fin, cantidad,
+            (batch_id, batch_uuid, nombre, cod_inicio, cod_fin, cantidad,
              cantidad, "activo", notas, self.usuario)
         )
-        # NOTA (FASE 4 / REGLA CERO): card_batches.id sigue siendo INTEGER PK, así
-        # que aún se obtiene vía lastrowid y se normaliza a str. La versión
-        # UUID-native (new_uuid() sin lastrowid) queda gated en la migración 200,
-        # que convierte card_batches.id -> TEXT.
-        batch_id = str(cur.lastrowid)
 
-        # Generar tarjetas individuales
+        # Generar tarjetas individuales (cada id es un UUIDv7 propio, sin lastrowid)
         for i in range(cantidad):
             numero = f"{pfx}{ts}{start_seq + i:05d}"
             qr_str = self._generar_qr_string(numero)
             self.conn.execute(
                 """
                 INSERT INTO tarjetas_fidelidad
-                    (numero, codigo_qr, batch_id, estado, activa,
+                    (id, numero, codigo_qr, batch_id, estado, activa,
                      es_pregenerada, puntos_actuales, nivel)
-                VALUES (?,?,?,'generada',1,1,0,'Bronce')
+                VALUES (?,?,?,?,'generada',1,1,0,'Bronce')
                 ON CONFLICT(numero) DO NOTHING
                 """,
-                (numero, qr_str, batch_id)
+                (new_uuid(), numero, qr_str, batch_id)
             )
 
         self.conn.commit()

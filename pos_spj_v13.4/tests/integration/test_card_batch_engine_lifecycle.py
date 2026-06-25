@@ -25,14 +25,14 @@ def conn():
         CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, apellido TEXT);
         INSERT INTO clientes (id, nombre) VALUES (7, 'Ana');
         CREATE TABLE card_batches (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL,
+            id TEXT PRIMARY KEY, uuid TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL,
             codigo_inicio TEXT NOT NULL, codigo_fin TEXT NOT NULL, cantidad INTEGER DEFAULT 0,
             cantidad_libres INTEGER DEFAULT 0, cantidad_asignadas INTEGER DEFAULT 0,
             estado TEXT DEFAULT 'activo', notas TEXT, generado_por TEXT,
             fecha_creacion DATETIME DEFAULT (datetime('now')), fecha_cierre DATETIME
         );
         CREATE TABLE tarjetas_fidelidad (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, codigo_qr TEXT, numero TEXT, batch_id TEXT,
+            id TEXT PRIMARY KEY, codigo_qr TEXT, numero TEXT, batch_id TEXT,
             estado TEXT NOT NULL DEFAULT 'disponible', activa INTEGER DEFAULT 1,
             id_cliente INTEGER, puntos_actuales INTEGER DEFAULT 0, nivel TEXT DEFAULT 'Bronce',
             es_pregenerada INTEGER DEFAULT 0, fecha_creacion DATETIME DEFAULT (datetime('now')),
