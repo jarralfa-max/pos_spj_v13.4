@@ -74,7 +74,8 @@ class UuidCutover:
                     f'SELECT child."{spec.pk or "rowid"}", child."{col}" '
                     f'FROM "{spec.name}" child '
                     f'LEFT JOIN "{parent}" p ON p."id" = child."{col}" '
-                    f'WHERE child."{col}" IS NOT NULL AND p."id" IS NULL'
+                    f'WHERE child."{col}" IS NOT NULL AND p."id" IS NULL '
+                    f"AND child.\"{col}\" NOT IN (0, '0', '', '0.0')"
                 ).fetchall()
                 if rows:
                     report[f"{spec.name}.{col}->{parent}"] = [tuple(r) for r in rows]
@@ -88,6 +89,18 @@ class UuidCutover:
         try:
             self._conn.execute("PRAGMA foreign_keys = OFF")
             self._conn.execute("BEGIN")
+            # Capture explicit indexes / triggers / views before they are torn down
+            # with their tables; views are dropped up front because SQLite
+            # re-validates every view on each ALTER TABLE RENAME (a single stale
+            # view would otherwise abort the whole cut).
+            indexes, triggers, views = self._capture_schema_objects()
+            # SQLite re-validates every view AND trigger on each ALTER TABLE
+            # RENAME, so a single stale one (referencing a dropped/missing object)
+            # would abort the cut. Drop them all up front; recreate after.
+            for tname, _ in triggers:
+                self._conn.execute(f'DROP TRIGGER IF EXISTS "{tname}"')
+            for vname, _ in views:
+                self._conn.execute(f'DROP VIEW IF EXISTS "{vname}"')
             self._build_id_maps()
             for name in self._specs:
                 counts[name] = self._rewrite_table(name)
@@ -95,6 +108,7 @@ class UuidCutover:
             for name in self._specs:
                 self._conn.execute(f'DROP TABLE "{name}"')
                 self._conn.execute(f'ALTER TABLE "{name}__uuid_new" RENAME TO "{name}"')
+            self._restore_schema_objects(indexes, triggers, views)
             self._foreign_key_check()
             self._conn.execute("COMMIT")
         except Exception as exc:  # noqa: BLE001 — atomicity: roll back everything
@@ -110,23 +124,98 @@ class UuidCutover:
         return counts
 
     # ── internals ───────────────────────────────────────────────────────────────
+    @staticmethod
+    def _default_sql(dflt: Any) -> str:
+        """Re-emit a column default safely.
+
+        ``PRAGMA table_info`` returns expression defaults (e.g. a parenthesised
+        ``(datetime('now'))``) stripped of their wrapping parens, so a naive
+        re-emit produces ``DEFAULT datetime('now')`` which is a syntax error.
+        Function-call / expression defaults must be wrapped in parens again;
+        plain literals (numbers, 'strings', NULL, CURRENT_TIMESTAMP) are kept
+        verbatim."""
+        d = str(dflt)
+        if "(" in d and not d.lstrip().startswith("("):
+            return f"({d})"
+        return d
+
     def _columns(self, table: str) -> list[tuple]:
         return self._conn.execute(f'PRAGMA table_info("{table}")').fetchall()
 
+    def _capture_schema_objects(self):
+        """Snapshot explicit indexes/triggers (on cut tables) and all views.
+
+        Auto-indexes (UNIQUE/PK, ``sql IS NULL``) cannot be replayed as DDL and
+        are not captured — explicit ``CREATE [UNIQUE] INDEX`` are. Indexes and
+        triggers are dropped automatically when their table is dropped, so we
+        recreate them from the saved DDL after the rename."""
+        names = set(self._specs)
+        indexes = [
+            (r[0], r[1]) for r in self._conn.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type='index' "
+                "AND sql IS NOT NULL"
+            ).fetchall() if r[1] and self._obj_table(r[1]) in names
+        ]
+        # Triggers and views are captured wholesale (not filtered to cut tables):
+        # any stale one blocks the rename, so all are dropped and recreated.
+        triggers = [
+            (r[0], r[1]) for r in self._conn.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type='trigger' AND sql IS NOT NULL"
+            ).fetchall()
+        ]
+        views = [
+            (r[0], r[1]) for r in self._conn.execute(
+                "SELECT name, sql FROM sqlite_master WHERE type='view' AND sql IS NOT NULL"
+            ).fetchall()
+        ]
+        return indexes, triggers, views
+
+    def _obj_table(self, sql: str) -> str:
+        """Best-effort table name for an index DDL (the token after ON)."""
+        low = sql.lower()
+        i = low.rfind(" on ")
+        if i < 0:
+            return ""
+        rest = sql[i + 4:].strip()
+        tbl = rest.split("(")[0].strip().strip('"').strip("`").strip("[").strip("]")
+        return tbl
+
+    def _restore_schema_objects(self, indexes, triggers, views) -> None:
+        """Recreate captured indexes/triggers/views after the rename.
+
+        Indexes on the rewritten tables always recreate. A trigger or view that
+        was already broken (references a missing table/column) cannot be
+        recreated and is skipped — it was unusable before the cut too."""
+        for _name, sql in indexes:
+            self._conn.execute(sql)
+        for _name, sql in triggers + views:
+            try:
+                self._conn.execute(sql)
+            except Exception:  # noqa: BLE001 — a pre-broken object stays dropped
+                pass
+
     def _build_id_maps(self) -> None:
+        # Maps are keyed by str(old_pk) so that a FK stored as TEXT '1' resolves
+        # to an INTEGER parent PK 1 (forward-compatible str identity columns mean
+        # child FK and parent PK can differ in storage type pre-cut).
         for spec in self._specs.values():
             if spec.pk is None:
                 continue  # junction/config table — no own identity to remap
             rows = self._conn.execute(f'SELECT "{spec.pk}" FROM "{spec.name}"').fetchall()
-            self._maps[spec.name] = {r[0]: self._id() for r in rows}
+            self._maps[spec.name] = {str(r[0]): self._id() for r in rows}
 
     def _new_pk(self, table: str, old: Any) -> str:
-        return self._maps[table][old]
+        return self._maps[table][str(old)]
+
+    # Legacy "no reference" sentinels. An INTEGER PRIMARY KEY (AUTOINCREMENT)
+    # never produces 0 or an empty string, so a FK holding one of these can never
+    # resolve to a real parent — it means "none" and becomes NULL (not an orphan).
+    _NULL_SENTINELS = (0, "0", "", "0.0")
 
     def _new_fk(self, parent: str, old: Any, *, column: str, table: str) -> Any:
-        if old is None:
+        if old is None or old in self._NULL_SENTINELS:
             return None
-        mapped = self._maps.get(parent, {}).get(old)
+        mapped = self._maps.get(parent, {}).get(str(old))
         if mapped is not None:
             return mapped
         # orphan: value points to a non-existent parent row
@@ -158,7 +247,7 @@ class UuidCutover:
             if notnull:
                 piece += " NOT NULL"
             if dflt is not None:
-                piece += f" DEFAULT {dflt}"
+                piece += f" DEFAULT {self._default_sql(dflt)}"
             defs.append(piece)
         # Preserve composite/non-id PK for pk=None tables.
         if spec.pk is None and existing_pk:

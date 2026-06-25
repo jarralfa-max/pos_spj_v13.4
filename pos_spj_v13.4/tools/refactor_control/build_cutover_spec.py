@@ -53,6 +53,12 @@ TABLE_FK_OVERRIDES: dict[str, dict[str, str]] = {
     # growth_ledger.ticket_id == ventas.id (POS). En el corte se vuelve FK UUID a
     # ventas; el move a loyalty_ledger.sale_id es trabajo de runtime (FASE 4).
     "growth_ledger": {"ticket_id": "ventas"},
+    # tablas junction de roles/permisos: rol_id/permiso_id están en NON_FK_ID
+    # global, pero AQUÍ sí son FK reales y deben cortarse junto con roles/permisos
+    # (cuyo id se vuelve UUID), si no quedarían enteros colgando.
+    "roles_permisos": {"rol_id": "roles", "permiso_id": "permisos"},
+    "usuarios_roles": {"rol_id": "roles"},
+    "rol_permisos": {"rol_id": "roles", "permiso_id": "permisos"},
 }
 
 # FK column -> parent table (convention map; verified against the live schema).
@@ -156,11 +162,15 @@ def build(db_path: str):
         fks: dict[str, str] = {}
         for c in cols:
             name = c[1]
-            if not name.endswith("_id") or name in NON_FK_ID_COLUMNS:
+            override = TABLE_FK_OVERRIDES.get(t, {}).get(name)
+            # Un override por-tabla SIEMPRE gana sobre la exclusión global: una
+            # columna marcada NON_FK en general puede ser FK real en esta tabla
+            # (p.ej. rol_id/permiso_id en las tablas junction de roles/permisos).
+            if name == "id" or not name.endswith("_id"):
                 continue
-            if name == "id":
+            if not override and name in NON_FK_ID_COLUMNS:
                 continue
-            parent = TABLE_FK_OVERRIDES.get(t, {}).get(name) or FK_PARENT.get(name)
+            parent = override or FK_PARENT.get(name)
             if parent and parent in existing:
                 fks[name] = parent
             elif name in CONTEXT_DEPENDENT:

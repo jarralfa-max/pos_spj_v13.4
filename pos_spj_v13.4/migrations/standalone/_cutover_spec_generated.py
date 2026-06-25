@@ -2,7 +2,8 @@
 
 Mapa de relaciones legacy resuelto al 100% (turno_id->turnos_caja, tarjeta_id->
 tarjetas_fidelidad, order_id->delivery_orders, cut_id->delivery_driver_cuts,
-ticket_id->ventas). NO EDITAR A MANO: regenerar con el tool.
+ticket_id->ventas, batch_id->card_batches, rol_id->roles, permiso_id->permisos).
+NO EDITAR A MANO: regenerar con el tool.
 """
 from backend.infrastructure.db.uuid_cutover import TableSpec
 
@@ -214,9 +215,9 @@ CUTOVER_SPECS = [
     TableSpec("replenishment_recommendations", pk="id", fks={"product_id": "productos", "branch_id": "sucursales"}),
     TableSpec("report_export_log", pk="id", fks={"branch_id": "sucursales"}),
     TableSpec("reporte_exports", pk="id"),
-    TableSpec("rol_permisos", pk="id"),
+    TableSpec("rol_permisos", pk="id", fks={"rol_id": "roles"}),
     TableSpec("roles", pk="id"),
-    TableSpec("roles_permisos", pk=None),
+    TableSpec("roles_permisos", pk=None, fks={"rol_id": "roles", "permiso_id": "permisos"}),
     TableSpec("sale_refunds", pk="id", fks={"sale_id": "ventas", "sale_item_id": "detalles_venta", "product_id": "productos"}),
     TableSpec("scan_event_log", pk="id", fks={"cliente_id": "clientes", "producto_id": "productos", "sucursal_id": "sucursales"}),
     TableSpec("scheduled_demand_events", pk="id", fks={"sale_id": "ventas", "branch_id": "sucursales", "product_id": "productos", "customer_id": "clientes"}),
@@ -231,7 +232,7 @@ CUTOVER_SPECS = [
     TableSpec("system_constants", pk=None),
     TableSpec("system_integrity_reports", pk="id"),
     TableSpec("system_locks", pk="id", fks={"branch_id": "sucursales"}),
-    TableSpec("tarjetas_fidelidad", pk="id", fks={"lote_origen_id": "lotes"}),
+    TableSpec("tarjetas_fidelidad", pk="id", fks={"lote_origen_id": "lotes", "batch_id": "card_batches"}),
     TableSpec("temp_purchase_drafts", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("ticket_design_config", pk="id"),
     TableSpec("tipos_cambio", pk="id"),
@@ -256,7 +257,7 @@ CUTOVER_SPECS = [
     TableSpec("unidades_conversion", pk="id"),
     TableSpec("unidades_medida", pk="id"),
     TableSpec("usuarios", pk="id", fks={"sucursal_id": "sucursales", "empleado_id": "personal", "sucursal_principal_id": "sucursales", "personal_id": "personal"}),
-    TableSpec("usuarios_roles", pk=None, fks={"usuario_id": "usuarios", "sucursal_id": "sucursales"}),
+    TableSpec("usuarios_roles", pk=None, fks={"usuario_id": "usuarios", "rol_id": "roles", "sucursal_id": "sucursales"}),
     TableSpec("usuarios_sucursales", pk=None, fks={"usuario_id": "usuarios", "sucursal_id": "sucursales"}),
     TableSpec("vacaciones_personal", pk="id", fks={"personal_id": "personal"}),
     TableSpec("ventas", pk="id", fks={"sucursal_id": "sucursales", "cliente_id": "clientes", "turno_id": "turnos_caja"}),
@@ -266,5 +267,3 @@ CUTOVER_SPECS = [
     TableSpec("whatsapp_numeros", pk="id", fks={"sucursal_id": "sucursales"}),
     TableSpec("whatsapp_queue", pk="id"),
 ]
-
-# === 0 FK NO RESUELTAS (revisar) ===
