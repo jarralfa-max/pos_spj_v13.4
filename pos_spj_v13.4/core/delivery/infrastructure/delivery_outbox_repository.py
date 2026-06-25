@@ -19,7 +19,7 @@ class DeliveryOutboxRepository:
         self,
         *,
         event_type: str,
-        aggregate_id: int,
+        aggregate_id: str,
         payload: dict[str, Any],
         aggregate_type: str = "delivery_order",
         operation_id: str | None = None,
@@ -34,7 +34,7 @@ class DeliveryOutboxRepository:
                 WHERE event_type=? AND aggregate_id=? AND operation_id=?
                 LIMIT 1
                 """,
-                (event_type, int(aggregate_id), str(effective_operation_id)),
+                (event_type, str(aggregate_id), str(effective_operation_id)),
             ).fetchone()
             if existing:
                 return int(existing[0])
@@ -48,7 +48,7 @@ class DeliveryOutboxRepository:
             (
                 event_type,
                 aggregate_type,
-                int(aggregate_id),
+                str(aggregate_id),
                 json.dumps(clean_payload, ensure_ascii=False, sort_keys=True),
                 str(effective_operation_id) if effective_operation_id else None,
             ),

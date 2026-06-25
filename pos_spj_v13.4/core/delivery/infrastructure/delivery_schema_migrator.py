@@ -94,7 +94,7 @@ class DeliverySchemaMigrator:
     DELIVERY_OUTBOX_COLUMNS: tuple[str, ...] = (
         "event_type TEXT NOT NULL DEFAULT ''",
         "aggregate_type TEXT DEFAULT 'delivery_order'",
-        "aggregate_id INTEGER NOT NULL DEFAULT 0",
+        "aggregate_id TEXT NOT NULL DEFAULT '0'",
         "payload_json TEXT NOT NULL DEFAULT '{}'",
         "status TEXT DEFAULT 'pending'",
         "retries INTEGER DEFAULT 0",
@@ -123,7 +123,7 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 venta_id INTEGER,
                 folio TEXT,
                 whatsapp_order_id TEXT,
@@ -153,7 +153,7 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 delivery_id INTEGER NOT NULL,
                 producto_id INTEGER,
                 nombre TEXT NOT NULL,
@@ -174,7 +174,7 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_order_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 order_id INTEGER NOT NULL,
                 estado_anterior TEXT,
                 estado_nuevo TEXT,
@@ -191,7 +191,7 @@ class DeliverySchemaMigrator:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS drivers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 nombre TEXT NOT NULL,
                 telefono TEXT,
                 vehiculo TEXT,
@@ -209,7 +209,7 @@ class DeliverySchemaMigrator:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_type TEXT NOT NULL,
                 aggregate_type TEXT DEFAULT 'delivery_order',
-                aggregate_id INTEGER NOT NULL,
+                aggregate_id TEXT NOT NULL,
                 payload_json TEXT NOT NULL,
                 status TEXT DEFAULT 'pending',
                 retries INTEGER DEFAULT 0,

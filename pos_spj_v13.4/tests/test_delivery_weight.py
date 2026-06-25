@@ -358,7 +358,7 @@ class TestDeliveryRegressions:
         )
         with patch.object(svc, "_publish", return_value=None):
             oid = svc.create_order({"direccion": "Av. Insurgentes 100"}, usuario="test")
-        assert isinstance(oid, int)
+        assert isinstance(oid, str)
 
     def test_delivery_service_tests_still_pass(self):
         """Smoke-check that the 2 existing delivery service tests still work."""

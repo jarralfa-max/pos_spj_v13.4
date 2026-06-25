@@ -62,7 +62,7 @@ def test_pwa_get_pedidos_returns_backend_actions(monkeypatch):
     pedidos = handler._get_pedidos("7")
 
     assert len(pedidos) == 1
-    assert pedidos[0]["id"] == 1
+    assert pedidos[0]["id"] == "1"
     assert "actions" in pedidos[0]
     assert "en_ruta" in {action["key"] for action in pedidos[0]["actions"]}
 
