@@ -109,6 +109,30 @@ def test_bi_tables_are_born_clean_after_full_migration_chain():
     assert rep["id"] == "TEXT"
 
 
+def test_recipe_tables_are_born_clean_and_repo_mints_uuid():
+    """product_recipes / product_recipe_components carry TEXT UUIDv7 identity,
+    recipe_dependency_graph keys on TEXT, and the recetas repository mints the
+    recipe id with new_uuid() — never lastrowid / MAX(id)+1.
+    """
+    conn = _fresh_base_schema()
+    pr = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(product_recipes)").fetchall()}
+    assert pr["id"][0].upper() == "TEXT" and pr["id"][1] == 1
+    assert pr["product_id"][0].upper() == "TEXT"
+
+    prc = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(product_recipe_components)").fetchall()}
+    assert prc["id"] == "TEXT"
+    assert prc["recipe_id"] == "TEXT"
+    assert prc["component_product_id"] == "TEXT"
+
+    dep = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(recipe_dependency_graph)").fetchall()}
+    assert dep["parent_recipe_id"] == "TEXT"
+
+    src = (REPO / "repositories" / "recetas.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in src
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "receta_id = new_uuid()" in src
+
+
 def test_refresh_order_badges_does_not_int_cast_identity():
     src = (REPO / "interfaz" / "main_window.py").read_text(encoding="utf-8")
     start = src.index("def _refresh_order_badges")
@@ -122,7 +146,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 164
+INTEGER_PK_TABLE_CEILING = 161
 SERVICES_WITH_DDL_CEILING = 23
 LASTROWID_FILE_CEILING = 39
 

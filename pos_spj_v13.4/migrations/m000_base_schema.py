@@ -1899,10 +1899,10 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipes (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id        INTEGER NOT NULL,
-            piece_product_id  INTEGER NOT NULL,
-            base_product_id   INTEGER,
+            id                TEXT PRIMARY KEY,
+            product_id        TEXT NOT NULL,
+            piece_product_id  TEXT NOT NULL,
+            base_product_id   TEXT,
             nombre_receta     TEXT,
             total_rendimiento REAL DEFAULT 0,
             total_merma       REAL DEFAULT 0,
@@ -1914,11 +1914,16 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipe_components (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-            recipe_id            INTEGER NOT NULL,
-            component_product_id INTEGER NOT NULL,
+            id                   TEXT PRIMARY KEY,
+            recipe_id            TEXT NOT NULL,
+            component_product_id TEXT NOT NULL,
             rendimiento_pct      REAL    NOT NULL DEFAULT 0,
             merma_pct            REAL    NOT NULL DEFAULT 0,
+            cantidad             REAL    NOT NULL DEFAULT 0,
+            unidad               TEXT    DEFAULT 'kg',
+            component_role       TEXT    DEFAULT '',
+            factor_costo         REAL    DEFAULT 1.0,
+            tolerancia_pct       REAL    DEFAULT 2.0,
             orden                INTEGER NOT NULL DEFAULT 0,
             descripcion          TEXT    DEFAULT '',
             created_at           TEXT    DEFAULT (datetime('now'))
@@ -1940,8 +1945,8 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recipe_dependency_graph (
-            parent_recipe_id INTEGER NOT NULL,
-            child_product_id INTEGER NOT NULL,
+            parent_recipe_id TEXT NOT NULL,
+            child_product_id TEXT NOT NULL,
             depth            INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (parent_recipe_id, child_product_id)
         )

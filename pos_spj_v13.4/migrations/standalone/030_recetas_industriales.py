@@ -69,9 +69,9 @@ def _create_product_recipe_components(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipe_components (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-            recipe_id            INTEGER NOT NULL,
-            component_product_id INTEGER NOT NULL,
+            id                   TEXT PRIMARY KEY,
+            recipe_id            TEXT NOT NULL,
+            component_product_id TEXT NOT NULL,
             rendimiento_pct      REAL    NOT NULL DEFAULT 0 CHECK(rendimiento_pct >= 0),
             merma_pct            REAL    NOT NULL DEFAULT 0 CHECK(merma_pct >= 0),
             orden                INTEGER NOT NULL DEFAULT 0,

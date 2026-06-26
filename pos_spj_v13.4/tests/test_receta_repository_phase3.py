@@ -22,9 +22,9 @@ def repo_db():
             tipo_producto TEXT DEFAULT 'simple'
         );
         CREATE TABLE product_recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre_receta TEXT,
-            product_id INTEGER,
+            product_id TEXT,
             tipo_receta TEXT DEFAULT 'SUBPRODUCTO',
             total_rendimiento REAL DEFAULT 0,
             total_merma REAL DEFAULT 0,
@@ -32,12 +32,12 @@ def repo_db():
             activa INTEGER DEFAULT 1,
             created_at TEXT,
             validates_at TEXT,
-            piece_product_id INTEGER
+            piece_product_id TEXT
         );
         CREATE TABLE product_recipe_components (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            recipe_id INTEGER,
-            component_product_id INTEGER,
+            id TEXT PRIMARY KEY,
+            recipe_id TEXT,
+            component_product_id TEXT,
             cantidad REAL DEFAULT 0,
             rendimiento_pct REAL DEFAULT 0,
             merma_pct REAL DEFAULT 0,
@@ -46,10 +46,10 @@ def repo_db():
             descripcion TEXT DEFAULT ''
         );
         CREATE TABLE recipe_dependency_graph (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            parent_recipe_id INTEGER,
-            child_product_id INTEGER,
-            depth INTEGER DEFAULT 1
+            parent_recipe_id TEXT,
+            child_product_id TEXT,
+            depth INTEGER DEFAULT 1,
+            PRIMARY KEY (parent_recipe_id, child_product_id)
         );
         """
     )
@@ -83,7 +83,7 @@ def test_combinacion_no_exige_100_pero_si_cantidad_positiva(repo_db):
         ],
         "u", "COMBINACION"
     )
-    assert rid > 0
+    import uuid as _uuid; assert isinstance(rid, str) and _uuid.UUID(rid)
 
 
 def test_produccion_no_exige_100(repo_db):
@@ -93,7 +93,7 @@ def test_produccion_no_exige_100(repo_db):
         [{"component_product_id": 10, "cantidad": 2.0, "merma_pct": 5.0, "orden": 0}],
         "u", "PRODUCCION"
     )
-    assert rid > 0
+    import uuid as _uuid; assert isinstance(rid, str) and _uuid.UUID(rid)
 
 
 def test_update_valida_tipo_producto_vs_tipo_receta(repo_db):

@@ -98,8 +98,8 @@ def up(conn: sqlite3.Connection) -> None:
     # Cycle detection support
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recipe_dependency_graph (
-            parent_recipe_id INTEGER NOT NULL REFERENCES product_recipes(id),
-            child_product_id INTEGER NOT NULL REFERENCES productos(id),
+            parent_recipe_id TEXT NOT NULL REFERENCES product_recipes(id),
+            child_product_id TEXT NOT NULL REFERENCES productos(id),
             depth            INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (parent_recipe_id, child_product_id)
         )
