@@ -480,19 +480,15 @@ class DialogoCorteZCiego(QDialog):
         obs      = self.txt_observaciones.text().strip()
 
         try:
-            # Ruta canónica F7.7: GenerateZCutUseCase (CASH_Z_CUT_GENERATED + DIFFERENCE)
+            # Ruta canónica única F7.7: GenerateZCutUseCase (CASH_Z_CUT_GENERATED + DIFFERENCE)
             uc = getattr(self.container, 'generate_z_cut_uc', None)
-            if uc is not None:
-                res = uc.execute(_GenerateZCutCommand(
-                    operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
-                    user_name=self.cajero, payload={"efectivo_fisico": efectivo, "observaciones": obs},
-                ))
-                resultado = dict(res.data or {})
-            else:
-                svc = getattr(self.container, 'caja_service', None) or self.container.finance_service
-                resultado = svc.generar_corte_z(
-                    self.turno_id, self.sucursal_id, self.cajero, efectivo
-                )
+            if uc is None:
+                raise RuntimeError("GenerateZCutUseCase no disponible")
+            res = uc.execute(_GenerateZCutCommand(
+                operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
+                user_name=self.cajero, payload={"efectivo_fisico": efectivo, "observaciones": obs},
+            ))
+            resultado = dict(res.data or {})
             self.resultado = resultado
 
             dif      = resultado.get("diferencia", 0)
@@ -1313,15 +1309,14 @@ class ModuloCaja(QWidget, RefreshMixin):
             return
 
         try:
-            # Ruta canónica F7.7: OpenCashShiftUseCase (emite CASH_SHIFT_OPENED)
+            # Ruta canónica única F7.7: OpenCashShiftUseCase (emite CASH_SHIFT_OPENED)
             uc = getattr(self.container, 'open_cash_shift_uc', None)
-            if uc is not None:
-                uc.execute(_OpenCashShiftCommand(
-                    operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
-                    user_name=self.usuario_actual, opening_amount=fondo,
-                ))
-            elif self._caja_svc:
-                self._caja_svc.abrir_turno(self.sucursal_id, self.usuario_actual, fondo)
+            if uc is None:
+                raise RuntimeError("OpenCashShiftUseCase no disponible")
+            uc.execute(_OpenCashShiftCommand(
+                operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
+                user_name=self.usuario_actual, opening_amount=fondo,
+            ))
 
             Toast.success(self, "Turno abierto", f"Fondo inicial: ${fondo:.2f}")
 
@@ -1361,19 +1356,15 @@ class ModuloCaja(QWidget, RefreshMixin):
             return
 
         try:
-            # Ruta canónica F7.7: RegisterCashMovementUseCase (CASH_MOVEMENT_RECORDED)
+            # Ruta canónica única F7.7: RegisterCashMovementUseCase (CASH_MOVEMENT_RECORDED)
             uc = getattr(self.container, 'register_cash_movement_uc', None)
-            if uc is not None:
-                uc.execute(_RegisterCashMovementCommand(
-                    operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
-                    user_name=self.usuario_actual, movement_type=tipo,
-                    amount=monto, concept=concepto,
-                ))
-            elif self._caja_svc:
-                self._caja_svc.registrar_movimiento_manual(
-                    self.turno_actual, self.sucursal_id,
-                    self.usuario_actual, tipo, monto, concepto,
-                )
+            if uc is None:
+                raise RuntimeError("RegisterCashMovementUseCase no disponible")
+            uc.execute(_RegisterCashMovementCommand(
+                operation_id=_new_uuid(), branch_id=str(self.sucursal_id),
+                user_name=self.usuario_actual, movement_type=tipo,
+                amount=monto, concept=concepto,
+            ))
 
             Toast.success(self, "Movimiento registrado", f"{tipo} registrado correctamente.")
             try:

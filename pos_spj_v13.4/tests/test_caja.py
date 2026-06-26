@@ -23,7 +23,7 @@ def db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS turnos_caja (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             sucursal_id    INTEGER DEFAULT 1,
             usuario        TEXT,
             cajero         TEXT,
@@ -39,8 +39,8 @@ def db():
             diferencia        REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS movimientos_caja (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            turno_id    INTEGER,
+            id          TEXT PRIMARY KEY,
+            turno_id    TEXT,
             sucursal_id INTEGER DEFAULT 1,
             tipo        TEXT,
             monto       REAL DEFAULT 0,
@@ -50,13 +50,13 @@ def db():
             fecha       DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS cierres_caja (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT PRIMARY KEY,
             uuid                TEXT UNIQUE,
             tipo                TEXT DEFAULT 'Z',
             sucursal_id         INTEGER DEFAULT 1,
             usuario             TEXT,
             turno               TEXT,
-            turno_id            INTEGER,
+            turno_id            TEXT,
             fecha_apertura      DATETIME,
             fecha_cierre        DATETIME DEFAULT (datetime('now')),
             total_ventas        REAL DEFAULT 0,
@@ -124,12 +124,12 @@ def _insertar_venta(db, sucursal_id=1, cajero="test_cajero", total=100.0,
 
 def test_abrir_turno_exitoso(svc):
     turno_id = svc.abrir_turno(1, "cajero1", 500.0)
-    assert turno_id > 0
+    assert turno_id  # UUIDv7 str
 
 
 def test_abrir_turno_retorna_id(svc):
     tid = svc.abrir_turno(1, "cajero_x", 200.0)
-    assert isinstance(tid, int)
+    import uuid as _uuid; assert isinstance(tid, str) and _uuid.UUID(tid)
 
 
 def test_no_permitir_doble_turno_abierto(svc):
@@ -144,7 +144,7 @@ def test_dos_cajeros_diferentes_pueden_abrir(svc):
     svc.abrir_turno(1, "cajeroA", 100.0)
     # Cajero B en misma sucursal es independiente
     tid_b = svc.abrir_turno(1, "cajeroB", 200.0)
-    assert tid_b > 0
+    assert tid_b  # ambos cajeros abren turno
 
 
 def test_get_estado_turno_abierto(svc):
@@ -266,7 +266,7 @@ def test_corte_z_retorna_cierre_id(svc, db):
     tid = svc.abrir_turno(1, "cajero14", 100.0)
     resultado = svc.generar_corte_z(tid, 1, "cajero14", 100.0)
     assert 'cierre_id' in resultado
-    assert resultado['cierre_id'] > 0
+    import uuid as _uuid; assert _uuid.UUID(str(resultado['cierre_id']))
 
 
 def test_corte_z_considera_ingresos_manuales(svc, db):

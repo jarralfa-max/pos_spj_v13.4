@@ -43,7 +43,7 @@ def ctx():
             fecha_apertura DATETIME DEFAULT (datetime('now')), fecha_cierre DATETIME
         );
         CREATE TABLE movimientos_caja (
-            id INTEGER PRIMARY KEY, turno_id TEXT, sucursal_id TEXT, tipo TEXT,
+            id TEXT PRIMARY KEY, turno_id TEXT, sucursal_id TEXT, tipo TEXT,
             monto REAL, concepto TEXT, usuario TEXT, fecha DATETIME
         );
         CREATE TABLE ventas (
