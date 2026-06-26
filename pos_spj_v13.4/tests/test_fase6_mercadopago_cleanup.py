@@ -96,6 +96,7 @@ def test_mp_pending_cancel_releases_reservation():
 
 
 def test_mp_pending_confirm_uses_reserved_stock():
-    assert "reservation_id = int(data.get(\"reservation_id\") or 0)" in SALES_SRC
+    # UUIDv7 identity (REGLA CERO): reservation_id flows through as TEXT, never int()-cast.
+    assert "reservation_id = data.get(\"reservation_id\") or None" in SALES_SRC
     assert "payment_breakdown={\"mercado_pago\": total}" in SALES_SRC
     assert "reservation_id=reservation_id" in SALES_SRC

@@ -23,7 +23,7 @@ DONE
 |     2 | MERMA                 | Merma                    | DONE |
 |     3 | PRODUCTOS             | Productos                | DONE |
 |     4 | INVENTARIO            | Inventario               | PENDING |
-|     5 | VENTAS                | Ventas                   | PENDING |
+|     5 | VENTAS                | Ventas                   | DONE |
 |     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
 |     7 | RECETAS               | Recetas                  | PENDING |
 |     8 | PRODUCCION            | Producción               | PENDING |
