@@ -24,7 +24,7 @@ DONE
 |     3 | INVENTARIO            | Inventario               | DONE |
 |     4 | VENTAS                | Ventas                   | DONE |
 |     5 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
-|     6 | RECETAS               | Recetas                  | PENDING |
+|     6 | RECETAS               | Recetas                  | DONE |
 |     7 | PRODUCCION            | Producción               | PENDING |
 |     8 | TRANSFERENCIAS        | Transferencias           | DONE |
 |     9 | DELIVERY              | Delivery                 | DONE |
