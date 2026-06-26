@@ -95,7 +95,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 167
+INTEGER_PK_TABLE_CEILING = 166
 SERVICES_WITH_DDL_CEILING = 23
 LASTROWID_FILE_CEILING = 39
 

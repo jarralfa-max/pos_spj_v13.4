@@ -552,14 +552,14 @@ def _create_inventario(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mov_inv_producto ON movimientos_inventario(producto_id, fecha)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_movements (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             operation_id   TEXT    NOT NULL,
-            product_id     INTEGER NOT NULL,
-            branch_id      INTEGER NOT NULL,
-            batch_id       INTEGER,
+            product_id     TEXT    NOT NULL,
+            branch_id      TEXT    NOT NULL,
+            batch_id       TEXT,
             movement_type  TEXT    NOT NULL,
             quantity       REAL    NOT NULL,
-            reference_id   INTEGER,
+            reference_id   TEXT,
             reference_type TEXT,
             usuario        TEXT DEFAULT 'Sistema',
             created_at     TEXT DEFAULT (datetime('now'))
