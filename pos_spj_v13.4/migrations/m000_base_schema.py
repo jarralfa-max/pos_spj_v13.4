@@ -2520,27 +2520,31 @@ def _create_reportes(conn):
 def _create_alertas(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS alertas_config (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             tipo        TEXT,
             activa      INTEGER DEFAULT 1,
             umbral      REAL,
             canal       TEXT DEFAULT 'ui',
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             descripcion TEXT
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS alertas_log (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             tipo         TEXT,
             titulo       TEXT,
             mensaje      TEXT,
             datos        TEXT,
             leida        INTEGER DEFAULT 0,
             canal_enviado TEXT,
-            sucursal_id  INTEGER DEFAULT 1,
+            sucursal_id  TEXT,
             fecha        DATETIME DEFAULT (datetime('now'))
         )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_alertas_no_leidas
+            ON alertas_log(leida, fecha) WHERE leida=0
     """)
 
 
