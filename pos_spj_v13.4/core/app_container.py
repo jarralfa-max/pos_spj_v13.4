@@ -9,7 +9,7 @@ from repositories.security_repository import SecurityRepository
 from repositories.auth_repository import AuthRepository
 from repositories.recetas import RecetaRepository as RecipeRepository
 from repositories.finance_repository import FinanceRepository
-from repositories.sales_repository import SalesRepository
+from infrastructure.persistence.sqlite_sales_repository import SQLiteSalesRepository
 from repositories.purchase_repository import PurchaseRepository
 from repositories.caja import CajaRepository
 from repositories.productos import ProductoRepository
@@ -78,7 +78,7 @@ class AppContainer:
         self.inventory_query_service = InventoryQueryService(repository=self.inventory_repository)
         self.recipe_repo = RecipeRepository(self.db)
         self.finance_repo = FinanceRepository(self.db)
-        self.sales_repo = SalesRepository(self.db)
+        self.sales_repo = SQLiteSalesRepository(self.db)
         self.purchase_repo = PurchaseRepository(self.db)
         self.caja_repo = CajaRepository(self.db)
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
 
 from backend.application.commands.sales_commands import CreateSaleCommand
 from backend.application.dto.use_case_result import UseCaseResult
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class SaleProcessorProtocol(Protocol):
-    def ejecutar(self, items: list[ItemCarrito], datos_pago: DatosPago, sucursal_id: int, usuario: str) -> ResultadoVenta: ...
+    def ejecutar(self, items: list[ItemCarrito], datos_pago: DatosPago, sucursal_id: str, usuario: str) -> ResultadoVenta: ...
 
 
 class SalesApplicationService:
@@ -46,20 +46,20 @@ class SalesApplicationService:
                 total_pagado=float(payment.get("total_paid") or payment.get("total_pagado") or payment.get("amount_paid") or 0.0),
                 pago_mixto=dict(payment.get("payment_lines") or payment.get("pago_mixto") or {}),
                 payment_breakdown=dict(payment.get("payment_breakdown") or payment.get("breakdown") or payment.get("payment_lines") or {}),
-                cliente_id=self._optional_int(command.customer_id),
+                cliente_id=command.customer_id or None,
                 descuento_global=float(payment.get("discount") or payment.get("descuento") or 0.0),
                 puntos_canjeados=int(payment.get("loyalty_points_redeemed") or payment.get("puntos_canjeados") or 0),
                 descuento_puntos=float(payment.get("loyalty_discount") or payment.get("descuento_puntos") or 0.0),
                 notas=command.notes,
-                sucursal_id=self._optional_int(command.branch_id),
+                sucursal_id=command.branch_id,
                 usuario=command.user_name or command.user_id or "",
                 operation_id=command.operation_id,
-                reserva_id=self._optional_int(command.reservation_id),
+                reserva_id=command.reservation_id or None,
             )
             result = self._sale_processor.ejecutar(
                 items,
                 datos_pago,
-                int(command.branch_id),
+                str(command.branch_id),
                 command.user_name or command.user_id or "",
             )
         except Exception:
@@ -73,13 +73,13 @@ class SalesApplicationService:
         event = create_domain_event(
             event_name=EventName.SALE_COMPLETED,
             operation_id=operation_id,
-            entity_id=str(getattr(result, "venta_id", "") or "0"),
+            entity_id=str(getattr(result, "venta_id", "") or ""),
             branch_id=str(command.branch_id),
             user_id=command.user_id,
             user_name=command.user_name,
             source_module="sales",
             payload={
-                "sale_id": getattr(result, "venta_id", 0),
+                "sale_id": getattr(result, "venta_id", "") or "",
                 "folio": getattr(result, "folio", ""),
                 "total": getattr(result, "total", 0.0),
                 "change": getattr(result, "cambio", 0.0),
@@ -96,10 +96,10 @@ class SalesApplicationService:
         return UseCaseResult(
             True,
             operation_id,
-            entity_id=str(getattr(result, "venta_id", "") or "0"),
+            entity_id=str(getattr(result, "venta_id", "") or ""),
             message="SALE_COMPLETED",
             data={
-                "sale_id": getattr(result, "venta_id", 0),
+                "sale_id": getattr(result, "venta_id", "") or "",
                 "folio": getattr(result, "folio", ""),
                 "total": getattr(result, "total", 0.0),
                 "change": getattr(result, "cambio", 0.0),
@@ -118,9 +118,3 @@ class SalesApplicationService:
             es_compuesto=int(item.get("is_composite") or item.get("es_compuesto") or 0),
             descuento=float(item.get("discount") or item.get("descuento") or 0.0),
         )
-
-    @staticmethod
-    def _optional_int(value: int | str | None) -> int | None:
-        if value in (None, ""):
-            return None
-        return int(value)

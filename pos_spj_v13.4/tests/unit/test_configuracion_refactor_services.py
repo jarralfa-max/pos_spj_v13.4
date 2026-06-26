@@ -57,8 +57,7 @@ def test_module_settings_service_wraps_module_toggles() -> None:
     assert service.get_all()["loyalty_enabled"] is True
 
 
-<<<<<<< HEAD
-def test_company_profile_service_saves_branch_profile() -> None:
+def test_company_profile_service_saves_branch_profile_with_uuid_identity() -> None:
     from uuid import UUID
 
     conn = sqlite3.connect(":memory:")
@@ -68,12 +67,6 @@ def test_company_profile_service_saves_branch_profile() -> None:
         "CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, "
         "nombre TEXT, direccion TEXT, telefono TEXT, activa INTEGER)"
     )
-=======
-def test_company_profile_service_saves_branch_profile_with_uuid_identity() -> None:
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, nombre TEXT, direccion TEXT, telefono TEXT, activa INTEGER)")
->>>>>>> claude/intelligent-clarke-uq1ck7
     service = CompanyProfileService(ConfigRepository(conn))
 
     branch_id = service.save_branch(name="Principal", address="Centro", phone="+5215512345678", active=True)

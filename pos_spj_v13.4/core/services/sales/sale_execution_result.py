@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class SaleExecutionItem:
-    product_id: int
+    product_id: str  # UUIDv7 TEXT identity
     nombre: str
     cantidad: float
     precio_unitario: float
@@ -33,7 +33,7 @@ class SalePaymentResult:
 
 @dataclass
 class SaleLoyaltyResult:
-    cliente_id: Optional[int]
+    cliente_id: Optional[str]  # UUIDv7 TEXT identity
     puntos_canjeados: int
     descuento_puntos: float
     puntos_ganados: Optional[int]
@@ -47,7 +47,7 @@ class SaleLoyaltyResult:
 @dataclass
 class SaleExecutionResult:
     ok: bool
-    venta_id: int
+    venta_id: str  # UUIDv7 TEXT identity
     folio: str
     operation_id: str
     subtotal: float
