@@ -12,7 +12,11 @@ SQL_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/clientes.py': 16,
     'pos_spj_v13.4/modulos/compras/actions_bar.py': 1,
     'pos_spj_v13.4/modulos/compras_pro.py': 58,
+<<<<<<< HEAD
     # CONFIGURACION FASE 1: config_modules.py and configuracion.py have 0 SQL in UI.
+=======
+    'pos_spj_v13.4/modulos/configuracion.py': 60,
+>>>>>>> claude/intelligent-clarke-uq1ck7
     'pos_spj_v13.4/modulos/cotizaciones.py': 10,
     'pos_spj_v13.4/modulos/delivery.py': 37,
     'pos_spj_v13.4/modulos/etiquetas.py': 4,
@@ -41,8 +45,13 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
     'pos_spj_v13.4/modulos/base.py': 4,
     'pos_spj_v13.4/modulos/clientes.py': 5,
     'pos_spj_v13.4/modulos/compras_pro.py': 5,
+<<<<<<< HEAD
     # CONFIGURACION FASE 1: config_hardware.py, config_modules.py and
     # configuracion.py no longer call commit()/rollback() in the UI.
+=======
+    'pos_spj_v13.4/modulos/config_hardware.py': 3,
+    'pos_spj_v13.4/modulos/configuracion.py': 24,
+>>>>>>> claude/intelligent-clarke-uq1ck7
     'pos_spj_v13.4/modulos/cotizaciones.py': 2,
     'pos_spj_v13.4/modulos/delivery.py': 3,
     'pos_spj_v13.4/modulos/growth_engine.py': 12,

@@ -68,12 +68,21 @@ def test_configuracion_work_queue_closed_scope_and_selected_identity() -> None:
     batches = {batch["id"]: batch for batch in queue["batches"]}
 
     assert queue["phase"] == "CONFIGURACION"
-    assert queue["active_batch"] == "CONFIGURACION-02-IDENTITY"
+    assert queue["active_batch"] == "CONFIGURACION-05-MUTATIONS"
     assert batches["CONFIGURACION-01-SCOPE"]["status"] == "DONE"
     assert batches["CONFIGURACION-01-SCOPE"]["violations"] == 0
     assert batches["CONFIGURACION-01-SCOPE"]["completed_actions"]
     assert batches["CONFIGURACION-01-SCOPE"]["forbidden_reselection"]
-    assert batches["CONFIGURACION-02-IDENTITY"]["status"] == "IN_PROGRESS"
+    assert batches["CONFIGURACION-02-IDENTITY"]["status"] == "DONE"
+    assert batches["CONFIGURACION-02-IDENTITY"]["violations"] == 0
+    assert batches["CONFIGURACION-03-UI"]["status"] == "DONE"
+    assert batches["CONFIGURACION-03-UI"]["violations"] == 0
+    assert batches["CONFIGURACION-03-UI"]["completed_actions"]
+    assert batches["CONFIGURACION-03-UI"]["forbidden_reselection"]
+    assert batches["CONFIGURACION-04-QUERIES"]["status"] == "DONE"
+    assert batches["CONFIGURACION-04-QUERIES"]["violations"] == 0
+    assert batches["CONFIGURACION-04-QUERIES"]["completed_actions"]
+    assert batches["CONFIGURACION-04-QUERIES"]["forbidden_reselection"]
 
 
 def test_no_configuracion_control_or_module_copy_exists_in_external_repo_root() -> None:

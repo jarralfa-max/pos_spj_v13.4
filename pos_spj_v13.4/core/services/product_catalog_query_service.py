@@ -63,7 +63,13 @@ def get_catalog_filter_ids(db, filter_key: str) -> Set[str]:
     rows = db.execute(q).fetchall()
     out: Set[str] = set()
     for r in rows:
+<<<<<<< HEAD
         raw = (r["id"] if hasattr(r, "keys") else r[0])
         if raw is not None and str(raw) != "":
             out.add(str(raw))
+=======
+        val = r["id"] if hasattr(r, "keys") else r[0]
+        if val:
+            out.add(str(val))
+>>>>>>> claude/intelligent-clarke-uq1ck7
     return out

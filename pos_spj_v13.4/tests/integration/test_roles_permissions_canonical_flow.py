@@ -22,6 +22,7 @@ def _connection() -> sqlite3.Connection:
     conn.executescript(
         """
         CREATE TABLE roles(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, nombre TEXT UNIQUE, descripcion TEXT);
+<<<<<<< HEAD
         CREATE TABLE usuarios(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, usuario TEXT, nombre TEXT, rol TEXT, sucursal_id INTEGER, sucursal_uuid TEXT, activo INTEGER DEFAULT 1);
         CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, nombre TEXT, activa INTEGER DEFAULT 1);
         CREATE TABLE rol_permisos(rol_id INTEGER, rol_uuid TEXT, modulo TEXT, accion TEXT, permitido INTEGER);
@@ -29,6 +30,16 @@ def _connection() -> sqlite3.Connection:
         INSERT INTO sucursales(nombre, activa) VALUES('Principal', 1);
         INSERT INTO rol_permisos(modulo, accion, permitido) VALUES('CONFIGURACION', 'ver', 1);
         INSERT INTO rol_permisos(modulo, accion, permitido) VALUES('CONFIGURACION', 'editar', 1);
+=======
+        CREATE TABLE usuarios(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, usuario TEXT, nombre TEXT, rol TEXT, sucursal_uuid TEXT, activo INTEGER DEFAULT 1);
+        CREATE TABLE sucursales(id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT, nombre TEXT, activa INTEGER DEFAULT 1);
+        CREATE TABLE rol_permisos(rol_uuid TEXT, modulo TEXT, accion TEXT, permitido INTEGER);
+        CREATE TABLE audit_logs(fecha TEXT, usuario TEXT, modulo TEXT, accion TEXT, detalles TEXT);
+        INSERT INTO sucursales(uuid, nombre, activa) VALUES('019b17a7-0000-7000-8000-000000000301', 'Principal', 1);
+        INSERT INTO roles(uuid, nombre, descripcion) VALUES('019b17a7-0000-7000-8000-000000000302', 'admin', 'Administrador');
+        INSERT INTO rol_permisos(rol_uuid, modulo, accion, permitido) VALUES('019b17a7-0000-7000-8000-000000000302', 'CONFIGURACION', 'ver', 1);
+        INSERT INTO rol_permisos(rol_uuid, modulo, accion, permitido) VALUES('019b17a7-0000-7000-8000-000000000302', 'CONFIGURACION', 'editar', 1);
+>>>>>>> claude/intelligent-clarke-uq1ck7
         """
     )
     return conn
@@ -86,4 +97,4 @@ def test_roles_permissions_canonical_flow_emits_events_and_queries_access() -> N
     assert all(event["operation_id"] for event in publisher.published_events)
     assert all(event["operation_id"][14] == "7" for event in publisher.published_events)
     assert all(event["entity_id"][14] == "7" for event in publisher.published_events)
-    assert all("role_id" not in event["payload"] for event in publisher.published_events)
+    assert all(event["entity_id"] == role_id for event in publisher.published_events if event["event_name"] in {"ROLE_PERMISSIONS_UPDATED", "MODULE_ACCESS_UPDATED"})

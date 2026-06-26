@@ -614,6 +614,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.tabla_productos.setColumnCount(9)
         self.tabla_productos.setHorizontalHeaderLabels(
             ["ID", "Código", "Cód.Barras", "Nombre", "Categoría", "Precio", "Stock", "Estado", "Acciones"])
+        self.tabla_productos.setColumnHidden(0, True)
         self.tabla_productos.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
         self.tabla_productos.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla_productos.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -685,9 +686,13 @@ class ModuloProductos(QWidget, RefreshMixin):
         if row < 0:
             return None
         try:
+<<<<<<< HEAD
             pid = self.tabla_productos.item(row, 0).text().strip()
             if not pid:
                 return None
+=======
+            pid = self.tabla_productos.item(row, 0).text()
+>>>>>>> claude/intelligent-clarke-uq1ck7
             p = self.product_query_service.get_product(pid)
             if not p:
                 return None
@@ -1196,7 +1201,11 @@ class ModuloProductos(QWidget, RefreshMixin):
 
         item_id = tabla.item(tabla.currentRow(), 0)
         if not item_id: return
+<<<<<<< HEAD
         prod_id  = item_id.text().strip() or None
+=======
+        prod_id = item_id.text().strip()
+>>>>>>> claude/intelligent-clarke-uq1ck7
         if not prod_id: return
 
         try:

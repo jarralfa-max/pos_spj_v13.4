@@ -1,5 +1,5 @@
-from backend.shared.ids import new_uuid
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import json
 import logging
@@ -17,7 +17,7 @@ RESERVATION_TTL_MINUTES = 30
 class StockReservationService:
     """Reserva/libera stock lógico para ventas suspendidas."""
 
-    def __init__(self, db, branch_id: int = 1):
+    def __init__(self, db, branch_id: str = ""):
         self.db = db
         self.branch_id = branch_id
         self._ensure_table()

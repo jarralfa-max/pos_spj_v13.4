@@ -33,6 +33,7 @@ class ProductCatalogService:
         canonical_type = ProductTypePolicy.canonical_from_label(getattr(command, "product_type", "simple"))
         rules = ProductTypePolicy.rules_for(canonical_type)
 
+<<<<<<< HEAD
         conn = self._repository._connection if self._repository is not None else self._db
         try:
             with ConnectionUnitOfWork(conn):
@@ -86,6 +87,78 @@ class ProductCatalogService:
         except Exception:
             logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
             raise
+=======
+        if self._repository is not None:
+            product_data = {
+                "name": command.name,
+                "sku": getattr(command, "sku", None) or getattr(command, "code", None),
+                "barcode": getattr(command, "barcode", ""),
+                "category": command.category,
+                "sale_price": float(getattr(command, "sale_price", None) or getattr(command, "price", 0)),
+                "purchase_price": float(command.purchase_price or 0),
+                "minimum_sale_price": float(command.minimum_sale_price or 0),
+                "unit": command.unit,
+                "minimum_stock": float(getattr(command, "minimum_stock", None) or getattr(command, "stock_minimum", 0)),
+                "product_type": canonical_type,
+                "is_composite": 1 if rules.is_composite else 0,
+                "is_byproduct": 1 if rules.is_byproduct else 0,
+                "image_path": getattr(command, "image_path", None),
+                "active": 1 if getattr(command, "active", True) else 0,
+            }
+            try:
+                product_id_str = self._repository.create(product_data)
+                self._repository._connection.commit()
+            except Exception:
+                logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
+                try:
+                    self._repository._connection.rollback()
+                except Exception:
+                    pass
+                raise
+        else:
+            product_uuid = new_uuid()
+            # Auto-generate SKU from uuid suffix when not provided
+            sku = getattr(command, "sku", None) or getattr(command, "code", None)
+            if not sku:
+                sku = "SKU-" + product_uuid.replace("-", "")[:8].upper()
+            cursor = self._db.cursor()
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO productos (
+                        id, nombre, codigo, codigo_barras, categoria, precio, precio_compra, precio_minimo_venta,
+                        unidad, stock_minimo, tipo_producto, es_compuesto, es_subproducto,
+                        imagen_path, existencia, oculto, activo
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+                    """,
+                    (
+                        product_uuid,
+                        command.name,
+                        sku,
+                        getattr(command, "barcode", ""),
+                        command.category,
+                        float(getattr(command, "sale_price", None) or getattr(command, "price", 0)),
+                        float(command.purchase_price or 0),
+                        float(command.minimum_sale_price or 0),
+                        command.unit,
+                        float(getattr(command, "minimum_stock", None) or getattr(command, "stock_minimum", 0)),
+                        canonical_type,
+                        1 if rules.is_composite else 0,
+                        1 if rules.is_byproduct else 0,
+                        getattr(command, "image_path", None),
+                        1 if getattr(command, "active", True) else 0,
+                    ),
+                )
+                self._db.commit()
+                product_id_str = product_uuid
+            except Exception:
+                logger.exception("Product catalog create failed operation_id=%s", getattr(command, "operation_id", ""))
+                try:
+                    self._db.rollback()
+                except Exception:
+                    pass
+                raise
+>>>>>>> claude/intelligent-clarke-uq1ck7
 
         recipe_pending = rules.allows_recipe
         data = {

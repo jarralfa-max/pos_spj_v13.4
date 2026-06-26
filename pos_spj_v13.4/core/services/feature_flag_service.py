@@ -20,6 +20,7 @@ class FeatureFlagService:
         self._cache[branch_id] = flags
         logger.debug(f"Feature flags cargados para la sucursal {branch_id}: {flags}")
 
+<<<<<<< HEAD
     def get_branch_flags(self, branch_id) -> dict:
         """Carga (si hace falta) y devuelve una copia de los flags de la sucursal.
 
@@ -36,6 +37,13 @@ class FeatureFlagService:
         """
         self.repo.set_flag(feature_name, branch_id, bool(enabled))
         self._cache.pop(branch_id, None)
+=======
+    def set_flag(self, feature_name: str, branch_id: int, enabled: bool) -> None:
+        """Persiste el flag y refresca la caché de la sucursal afectada."""
+        self.repo.set_flag(feature_name, branch_id, enabled)
+        self._cache.pop(branch_id, None)
+        self.load_branch_flags(branch_id)
+>>>>>>> claude/intelligent-clarke-uq1ck7
 
     def is_enabled(self, feature_name: str, branch_id: int) -> bool:
         """

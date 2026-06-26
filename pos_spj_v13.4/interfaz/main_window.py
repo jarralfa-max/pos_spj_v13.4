@@ -244,8 +244,10 @@ class DialogoLogin(QDialog):
     def _leer_sucursal_instalacion(self) -> dict:
         """Lee la sucursal configurada para ESTA instalación.
 
-        Returns {'id': int|None, 'uuid': str|None, 'nombre': str}.
-        Never falls back to 'Principal' or id=1 — returns empty dict keys so
+        Returns {'id': str|None, 'nombre': str}.
+        sucursales.id is now TEXT PRIMARY KEY (UUID).  The stored value in
+        configuraciones.sucursal_instalacion_id is the UUID string directly.
+        Never falls back to a hard-coded id — returns empty dict keys so
         callers can detect an un-configured installation.
         """
         import logging as _log
@@ -254,65 +256,37 @@ class DialogoLogin(QDialog):
             db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if not db:
                 _logger.warning("_leer_sucursal_instalacion: no db connection available")
-                return {'id': None, 'uuid': None, 'nombre': ''}
+                return {'id': None, 'nombre': ''}
             row = db.execute(
                 "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
             ).fetchone()
             if not row or not row[0]:
                 _logger.info("_leer_sucursal_instalacion: key not configured")
-                return {'id': None, 'uuid': None, 'nombre': ''}
+                return {'id': None, 'nombre': ''}
             stored = str(row[0]).strip()
-
-            # Case A — stored value looks like a UUID (migration 101+ path)
-            if len(stored) > 8 and '-' in stored:
-                has_uuid_col = bool(db.execute(
-                    "SELECT 1 FROM pragma_table_info('sucursales') WHERE name='uuid'"
-                ).fetchone())
-                if has_uuid_col:
-                    suc_row = db.execute(
-                        "SELECT id, nombre FROM sucursales WHERE uuid=? AND COALESCE(activa,1)=1",
-                        (stored,)
-                    ).fetchone()
-                    if suc_row:
-                        _logger.info(
-                            "_leer_sucursal_instalacion: resolved UUID '%s' → '%s'",
-                            stored, suc_row[1],
-                        )
-                        return {'id': suc_row[0], 'uuid': stored, 'nombre': suc_row[1]}
-                _logger.warning(
-                    "_leer_sucursal_instalacion: UUID '%s' not found in sucursales (active)", stored
-                )
-                return {'id': None, 'uuid': stored, 'nombre': ''}
-
-            # Case B — stored value is an integer string (legacy path)
-            try:
-                suc_id = int(stored)
-            except ValueError:
-                _logger.warning(
-                    "_leer_sucursal_instalacion: unrecognised stored value '%s'", stored
-                )
-                return {'id': None, 'uuid': None, 'nombre': ''}
+            if not stored:
+                return {'id': None, 'nombre': ''}
 
             suc_row = db.execute(
                 "SELECT id, nombre FROM sucursales WHERE id=? AND COALESCE(activa,1)=1",
-                (suc_id,)
+                (stored,)
             ).fetchone()
             if suc_row:
                 _logger.info(
-                    "_leer_sucursal_instalacion: resolved integer id %s → '%s'",
-                    suc_id, suc_row[1],
+                    "_leer_sucursal_instalacion: resolved '%s' → '%s'",
+                    stored, suc_row[1],
                 )
-                return {'id': suc_row[0], 'uuid': None, 'nombre': suc_row[1]}
+                return {'id': suc_row[0], 'nombre': suc_row[1]}
 
             _logger.warning(
-                "_leer_sucursal_instalacion: integer id %s not found in sucursales (active)", suc_id
+                "_leer_sucursal_instalacion: id '%s' not found in sucursales (active)", stored
             )
-            return {'id': suc_id, 'uuid': None, 'nombre': ''}
+            return {'id': None, 'nombre': ''}
 
         except Exception as exc:
             import logging as _log2
             _log2.getLogger(__name__).error("_leer_sucursal_instalacion error: %s", exc)
-            return {'id': None, 'uuid': None, 'nombre': ''}
+            return {'id': None, 'nombre': ''}
 
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
@@ -536,9 +510,7 @@ class DialogoLogin(QDialog):
                 resultado['sucursal_id'] = inst['id']
             if inst.get('nombre'):
                 resultado['sucursal_nombre'] = inst['nombre']
-            if inst.get('uuid'):
-                resultado['active_branch_id'] = inst['uuid']
-            elif inst.get('id') is not None:
+            if inst.get('id') is not None:
                 resultado['active_branch_id'] = str(inst['id'])
             self.usuario_autenticado = resultado
             self.accept()
@@ -1031,10 +1003,15 @@ class MainWindow(QMainWindow):
     def _refresh_order_badges(self) -> None:
         if not self.usuario_actual:
             return
+<<<<<<< HEAD
         branch_id = self.usuario_actual.get("sucursal_id")
         if not branch_id:
             return
         counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=str(branch_id))
+=======
+        branch_id = str(self.usuario_actual.get("sucursal_id") or "")
+        counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=branch_id)
+>>>>>>> claude/intelligent-clarke-uq1ck7
 
         active = int(counts.get("orders_active", 0))
         scheduled = int(counts.get("orders_scheduled", 0))
