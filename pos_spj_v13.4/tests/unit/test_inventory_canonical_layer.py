@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import sqlite3
+import uuid
 
 import pytest
 
@@ -19,6 +20,13 @@ from backend.infrastructure.db.repositories.inventory_repository import Inventor
 from backend.shared.events.event_bus import InMemoryEventBus
 from backend.shared.events.event_names import EventName
 
+# Identidad UUIDv7 (REGLA CERO): la capa canónica de inventario rechaza ids
+# enteros, así que productos y sucursales son UUID strings.
+PROD_A = str(uuid.uuid4())
+PROD_B = str(uuid.uuid4())
+BR_1 = str(uuid.uuid4())
+BR_2 = str(uuid.uuid4())
+
 
 def _db() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
@@ -34,12 +42,12 @@ def test_query_service_reads_empty_stock_without_legacy_sources() -> None:
     conn = _db()
     query = InventoryQueryService(InventoryRepository(conn))
 
-    stock = query.get_stock(1, 1)
+    stock = query.get_stock(PROD_A, BR_1)
 
-    assert stock.product_id == 1
-    assert stock.branch_id == 1
+    assert stock.product_id == PROD_A
+    assert stock.branch_id == BR_1
     assert stock.quantity == 0.0
-    assert query.list_stock(1) == []
+    assert query.list_stock(BR_1) == []
 
 
 def test_increase_stock_updates_canonical_tables_and_emits_event() -> None:
@@ -51,8 +59,8 @@ def test_increase_stock_updates_canonical_tables_and_emits_event() -> None:
     bus.subscribe(EventName.INVENTORY_STOCK_UPDATED, stock_events.append)
 
     result = _service(conn, bus).increase_stock(
-        product_id=1,
-        branch_id=1,
+        product_id=PROD_A,
+        branch_id=BR_1,
         quantity=10,
         unit="kg",
         reason="initial count",
@@ -66,9 +74,15 @@ def test_increase_stock_updates_canonical_tables_and_emits_event() -> None:
     assert result.success is True
     assert result.stock_before == 0.0
     assert result.stock_after == 10.0
-    assert conn.execute("SELECT quantity, unit FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone() == (10.0, "kg")
-    movement = conn.execute("SELECT operation_id, movement_type, quantity, stock_before, stock_after FROM inventory_movements").fetchone()
-    assert movement == ("op-increase", "INCREASE", 10.0, 0.0, 10.0)
+    assert conn.execute(
+        "SELECT quantity, unit FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PROD_A, BR_1),
+    ).fetchone() == (10.0, "kg")
+    movement = conn.execute(
+        "SELECT id, operation_id, movement_type, quantity, stock_before, stock_after FROM inventory_movements"
+    ).fetchone()
+    assert uuid.UUID(movement[0])  # movement identity is UUIDv7, not autoincrement
+    assert movement[1:] == ("op-increase", "INCREASE", 10.0, 0.0, 10.0)
     assert [event.event_name for event in result.events] == [
         EventName.INVENTORY_MOVEMENT_RECORDED,
         EventName.INVENTORY_STOCK_UPDATED,
@@ -88,8 +102,8 @@ def test_inventory_mutation_events_use_required_payload_contract() -> None:
     bus.subscribe(EventName.INVENTORY_STOCK_UPDATED, published.append)
 
     result = _service(conn, bus).increase_stock(
-        product_id=3,
-        branch_id=2,
+        product_id=PROD_B,
+        branch_id=BR_2,
         quantity=4,
         unit="kg",
         reason="event contract",
@@ -123,10 +137,10 @@ def test_inventory_mutation_events_use_required_payload_contract() -> None:
     for event in published:
         assert required_payload_keys <= set(event.payload)
         assert event.operation_id == "op-event-contract"
-        assert event.branch_id == "2"
+        assert event.branch_id == BR_2
         assert event.source_module == "inventory-test"
-        assert event.payload["product_id"] == 3
-        assert event.payload["branch_id"] == 2
+        assert event.payload["product_id"] == PROD_B
+        assert event.payload["branch_id"] == BR_2
         assert event.payload["movement_type"] == "INCREASE"
         assert event.payload["quantity"] == 4.0
         assert event.payload["stock_before"] == 0.0
@@ -142,8 +156,8 @@ def test_decrease_stock_blocks_negative_stock() -> None:
     conn = _db()
 
     result = _service(conn).decrease_stock(
-        product_id=1,
-        branch_id=1,
+        product_id=PROD_A,
+        branch_id=BR_1,
         quantity=1,
         unit="kg",
         reason="sale",
@@ -164,16 +178,16 @@ def test_adjust_use_case_sets_stock_and_get_use_case_reads_it() -> None:
 
     adjust_result = AdjustInventoryUseCase(service).execute(AdjustInventoryCommand(
         operation_id="op-adjust",
-        branch_id="2",
+        branch_id=BR_2,
         user_name="ana",
-        product_id=1,
+        product_id=PROD_A,
         new_quantity=7,
         unit="kg",
         reason="physical count",
         source_module="inventory-test",
     ))
     stock_result = GetInventoryStockUseCase(InventoryQueryService(repository)).execute(
-        GetInventoryStockCommand(operation_id="op-read", product_id=1, branch_id=2)
+        GetInventoryStockCommand(operation_id="op-read", product_id=PROD_A, branch_id=BR_2)
     )
 
     assert adjust_result.success is True
@@ -186,9 +200,9 @@ def test_register_movement_use_case_is_idempotent_by_operation_product_branch_ty
     use_case = RegisterInventoryMovementUseCase(_service(conn))
     command = RegisterInventoryMovementCommand(
         operation_id="op-idempotent",
-        branch_id="1",
+        branch_id=BR_1,
         user_name="ana",
-        product_id=1,
+        product_id=PROD_A,
         quantity=5,
         unit="kg",
         movement_type="INCREASE",
@@ -200,19 +214,22 @@ def test_register_movement_use_case_is_idempotent_by_operation_product_branch_ty
 
     assert first.success is True
     assert second.success is True
-    assert conn.execute("SELECT quantity FROM inventory_stock WHERE product_id=1 AND branch_id=1").fetchone()[0] == 5.0
+    assert conn.execute(
+        "SELECT quantity FROM inventory_stock WHERE product_id=? AND branch_id=?",
+        (PROD_A, BR_1),
+    ).fetchone()[0] == 5.0
     assert conn.execute("SELECT COUNT(*) FROM inventory_movements").fetchone()[0] == 1
 
 
 def test_transfer_stock_moves_between_branches() -> None:
     conn = _db()
     service = _service(conn)
-    service.increase_stock(1, 1, 10, "kg", "seed", "op-seed", "inventory-test", user_name="ana")
+    service.increase_stock(PROD_A, BR_1, 10, "kg", "seed", "op-seed", "inventory-test", user_name="ana")
 
     result = service.transfer_stock(
-        product_id=1,
-        from_branch_id=1,
-        to_branch_id=2,
+        product_id=PROD_A,
+        from_branch_id=BR_1,
+        to_branch_id=BR_2,
         quantity=4,
         unit="kg",
         reason="branch transfer",
@@ -223,8 +240,8 @@ def test_transfer_stock_moves_between_branches() -> None:
 
     query = InventoryQueryService(InventoryRepository(conn))
     assert result.success is True
-    assert query.get_stock(1, 1).quantity == 6.0
-    assert query.get_stock(1, 2).quantity == 4.0
+    assert query.get_stock(PROD_A, BR_1).quantity == 6.0
+    assert query.get_stock(PROD_A, BR_2).quantity == 4.0
     assert conn.execute("SELECT COUNT(*) FROM inventory_movements WHERE operation_id='op-transfer'").fetchone()[0] == 2
 
 
@@ -232,9 +249,9 @@ def test_command_validation_requires_context() -> None:
     with pytest.raises(ValueError):
         RegisterInventoryMovementCommand(
             operation_id="",
-            branch_id="1",
+            branch_id=BR_1,
             user_name="ana",
-            product_id=1,
+            product_id=PROD_A,
             quantity=1,
             movement_type="INCREASE",
         ).validate_context()
@@ -243,9 +260,9 @@ def test_command_validation_requires_context() -> None:
 def test_register_inventory_entry_command_validates_canonical_entry_context() -> None:
     command = RegisterInventoryEntryCommand(
         operation_id="op-entry-command",
-        branch_id="1",
+        branch_id=BR_1,
         user_name="ana",
-        product_id=1,
+        product_id=PROD_A,
         quantity=2,
         unit="kg",
         unit_cost=3.5,
@@ -259,9 +276,9 @@ def test_register_inventory_entry_command_rejects_negative_unit_cost() -> None:
     with pytest.raises(ValueError):
         RegisterInventoryEntryCommand(
             operation_id="op-entry-command",
-            branch_id="1",
+            branch_id=BR_1,
             user_name="ana",
-            product_id=1,
+            product_id=PROD_A,
             quantity=2,
             unit_cost=-1,
             source_module="inventory-test",

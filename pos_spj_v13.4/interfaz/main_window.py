@@ -1003,7 +1003,14 @@ class MainWindow(QMainWindow):
     def _refresh_order_badges(self) -> None:
         if not self.usuario_actual:
             return
-        branch_id = self.usuario_actual.get("sucursal_id")
+        # Identidad UUIDv7 (REGLA CERO): la sucursal es un UUID string. Sin cast a
+        # int y sin default arbitrario; si la sesión no fijó sucursal, no refresca.
+        branch_id = (
+            self.usuario_actual.get("active_branch_id")
+            or self.usuario_actual.get("sucursal_id")
+            or self.usuario_actual.get("branch_id")
+            or self.usuario_actual.get("sucursal_uuid")
+        )
         if not branch_id:
             return
         counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=str(branch_id))

@@ -20,7 +20,7 @@ class RegisterInventoryMovementUseCase(BaseUseCase[RegisterInventoryMovementComm
         if movement_type in {"INCREASE", "ENTRY", "PURCHASE", "TRANSFER_IN"}:
             result = self._app_service.increase_stock(
                 command.product_id,
-                int(command.branch_id),
+                command.branch_id,
                 command.quantity,
                 command.unit,
                 command.reason,
@@ -33,7 +33,7 @@ class RegisterInventoryMovementUseCase(BaseUseCase[RegisterInventoryMovementComm
         else:
             result = self._app_service.decrease_stock(
                 command.product_id,
-                int(command.branch_id),
+                command.branch_id,
                 command.quantity,
                 command.unit,
                 command.reason,

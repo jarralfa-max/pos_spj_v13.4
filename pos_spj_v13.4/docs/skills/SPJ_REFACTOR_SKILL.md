@@ -111,6 +111,77 @@ Un módulo no puede declararse migrado al 100% mientras:
 
 ---
 
+# REGLA DE DESARROLLO — SIN CONSERVACIÓN DE DATOS LEGACY
+
+SPJ ERP/POS está en fase de desarrollo activo.
+
+Durante esta fase no se requiere ni se requerirá conservar datos legacy. Por lo
+tanto, queda prohibido invertir esfuerzo en migraciones de rescate,
+compatibilidad temporal o reparación tabla por tabla de bases contaminadas,
+híbridas o parcialmente migradas.
+
+La estrategia obligatoria durante desarrollo es:
+
+1. Eliminar código muerto, viejo, duplicado o contradictorio.
+2. Atacar la causa raíz directamente en código fuente.
+3. Corregir el schema fuente para que nazca UUIDv7 desde cero.
+4. Resetear o eliminar la base local de desarrollo cuando esté contaminada.
+5. Crear una base nueva limpia.
+6. Validar con tests y auditorías arquitectónicas.
+
+La migración 200 o cualquier migración de identidad legacy queda reservada
+únicamente para escenarios excepcionales donde explícitamente se necesite
+conservar datos. Ese no es el caso durante desarrollo, y **no debe ser el flujo
+normal de arranque**: una base nueva debe nacer ya UUIDv7 sin ejecutar la
+migración 200.
+
+En desarrollo está prohibido:
+
+- conservar compatibilidad con IDs enteros;
+- crear lectura dual `int | str`;
+- crear escritura dual;
+- crear fallback de UUID a entero;
+- conservar columnas `legacy_id`;
+- reparar datos viejos en lugar de corregir código;
+- crear migraciones para salvar bases locales descartables;
+- mantener `INTEGER PRIMARY KEY AUTOINCREMENT`;
+- usar `lastrowid` como identidad de dominio;
+- usar `DEFAULT 1` en claves foráneas funcionales;
+- convertir IDs de dominio con `int(...)`.
+
+Si una base local falla por estar en estado híbrido o contaminado, debe
+respaldarse si se desea y eliminarse. El sistema debe poder crear una base nueva
+limpia con UUIDv7 nativo sin ejecutar migraciones de rescate.
+
+**Criterio obligatorio:** el éxito del refactor no es "salvar la base vieja"; el
+éxito es que el código actual cree y use correctamente una base limpia,
+coherente y UUIDv7 desde el inicio.
+
+### Reset limpio de la base de desarrollo
+
+PowerShell (Windows):
+
+```powershell
+cd "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4"
+Copy-Item ".\data\spj_pos_database.db" ".\data\spj_pos_database_backup_dev_reset.db" -ErrorAction SilentlyContinue
+Remove-Item ".\data\spj_pos_database.db" -ErrorAction SilentlyContinue
+python main.py
+```
+
+Bash (Linux/macOS):
+
+```bash
+cd pos_spj_v13.4
+cp ./data/spj_pos_database.db ./data/spj_pos_database_backup_dev_reset.db 2>/dev/null || true
+rm -f ./data/spj_pos_database.db
+python main.py
+```
+
+El sistema debe arrancar creando una DB limpia, born-UUIDv7, sin migrar datos
+viejos y sin requerir la migración 200.
+
+---
+
 ## 0. Propósito
 
 Este archivo debe usarse como instrucción permanente para Codex durante la migración/refactor del repositorio.

@@ -18,7 +18,7 @@ class AdjustInventoryUseCase(BaseUseCase[AdjustInventoryCommand]):
         command.validate_context()
         result = self._app_service.adjust_stock(
             command.product_id,
-            int(command.branch_id),
+            command.branch_id,
             command.new_quantity,
             command.unit,
             command.reason,

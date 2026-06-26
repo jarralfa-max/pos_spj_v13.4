@@ -708,6 +708,13 @@ class AppContainer:
         from modulos.sistema.backup_engine import crear_backup
         import logging as _log
 
+        # AlertasService exige una sucursal UUIDv7 (sin default arbitrario). Si la
+        # sesión aún no fijó sucursal activa, el scheduler de alertas se omite.
+        if not self.sucursal_id:
+            _log.getLogger("spj.scheduler").info(
+                "Scheduler de alertas omitido: sin sucursal activa (UUIDv7)."
+            )
+            return
         alertas_svc = AlertasService(self.db, sucursal_id=self.sucursal_id)
         alertas_svc.notification_service = self.notification_service
 

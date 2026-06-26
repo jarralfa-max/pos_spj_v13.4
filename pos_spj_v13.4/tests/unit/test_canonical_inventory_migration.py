@@ -22,16 +22,19 @@ def test_canonical_inventory_migration_creates_required_tables_indexes_and_is_id
     stock_columns = _columns(conn, "inventory_stock")
     movement_columns = _columns(conn, "inventory_movements")
 
-    assert stock_columns["id"] == "INTEGER"
-    assert stock_columns["product_id"] == "INTEGER"
-    assert stock_columns["branch_id"] == "INTEGER"
+    # Born-clean UUIDv7 (REGLA CERO): inventory_stock has no integer surrogate id
+    # (composite PK product_id+branch_id), and all functional ids are TEXT.
+    assert "id" not in stock_columns
+    assert stock_columns["product_id"] == "TEXT"
+    assert stock_columns["branch_id"] == "TEXT"
     assert stock_columns["quantity"] == "REAL"
     assert stock_columns["unit"] == "TEXT"
     assert stock_columns["updated_at"] == "TEXT"
 
+    assert movement_columns["id"] == "TEXT"
     assert movement_columns["operation_id"] == "TEXT"
-    assert movement_columns["product_id"] == "INTEGER"
-    assert movement_columns["branch_id"] == "INTEGER"
+    assert movement_columns["product_id"] == "TEXT"
+    assert movement_columns["branch_id"] == "TEXT"
     assert movement_columns["movement_type"] == "TEXT"
     assert movement_columns["stock_before"] == "REAL"
     assert movement_columns["stock_after"] == "REAL"

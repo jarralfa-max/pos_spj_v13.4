@@ -552,14 +552,14 @@ def _create_inventario(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_mov_inv_producto ON movimientos_inventario(producto_id, fecha)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_movements (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             operation_id   TEXT    NOT NULL,
-            product_id     INTEGER NOT NULL,
-            branch_id      INTEGER NOT NULL,
-            batch_id       INTEGER,
+            product_id     TEXT    NOT NULL,
+            branch_id      TEXT    NOT NULL,
+            batch_id       TEXT,
             movement_type  TEXT    NOT NULL,
             quantity       REAL    NOT NULL,
-            reference_id   INTEGER,
+            reference_id   TEXT,
             reference_type TEXT,
             usuario        TEXT DEFAULT 'Sistema',
             created_at     TEXT DEFAULT (datetime('now'))
@@ -2520,27 +2520,31 @@ def _create_reportes(conn):
 def _create_alertas(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS alertas_config (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             tipo        TEXT,
             activa      INTEGER DEFAULT 1,
             umbral      REAL,
             canal       TEXT DEFAULT 'ui',
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             descripcion TEXT
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS alertas_log (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             tipo         TEXT,
             titulo       TEXT,
             mensaje      TEXT,
             datos        TEXT,
             leida        INTEGER DEFAULT 0,
             canal_enviado TEXT,
-            sucursal_id  INTEGER DEFAULT 1,
+            sucursal_id  TEXT,
             fecha        DATETIME DEFAULT (datetime('now'))
         )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_alertas_no_leidas
+            ON alertas_log(leida, fecha) WHERE leida=0
     """)
 
 
