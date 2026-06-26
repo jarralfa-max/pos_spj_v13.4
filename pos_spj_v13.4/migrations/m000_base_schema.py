@@ -2478,7 +2478,7 @@ def _create_reportes(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS reporte_exports (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         TEXT PRIMARY KEY,
             tipo       TEXT NOT NULL,
             formato    TEXT NOT NULL,
             ruta       TEXT,
@@ -2489,8 +2489,7 @@ def _create_reportes(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kpi_snapshots (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id        INTEGER NOT NULL,
+            branch_id        TEXT    NOT NULL,
             snapshot_date    DATE    NOT NULL,
             total_revenue    REAL    NOT NULL DEFAULT 0,
             total_cost       REAL    NOT NULL DEFAULT 0,
@@ -2503,7 +2502,7 @@ def _create_reportes(conn):
             points_issued    INTEGER NOT NULL DEFAULT 0,
             inventory_value  REAL    NOT NULL DEFAULT 0,
             computed_at      DATETIME NOT NULL DEFAULT (datetime('now')),
-            UNIQUE (branch_id, snapshot_date)
+            PRIMARY KEY (branch_id, snapshot_date)
         )
     """)
     conn.execute("""

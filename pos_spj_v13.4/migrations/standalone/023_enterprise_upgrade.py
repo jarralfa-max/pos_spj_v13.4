@@ -393,8 +393,7 @@ def up(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE IF EXISTS kpi_snapshots")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kpi_snapshots (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id       INTEGER NOT NULL,
+            branch_id       TEXT NOT NULL,
             snapshot_date   DATE NOT NULL,
             total_revenue   REAL NOT NULL DEFAULT 0,
             total_cost      REAL NOT NULL DEFAULT 0,
@@ -407,7 +406,7 @@ def up(conn: sqlite3.Connection) -> None:
             new_clients     INTEGER NOT NULL DEFAULT 0,
             points_issued   INTEGER NOT NULL DEFAULT 0,
             computed_at     DATETIME NOT NULL DEFAULT (datetime('now')),
-            UNIQUE(branch_id, snapshot_date)
+            PRIMARY KEY(branch_id, snapshot_date)
         )
     """)
 

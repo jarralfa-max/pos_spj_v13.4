@@ -82,6 +82,33 @@ def test_alertas_service_requires_uuid_branch_and_mints_uuid():
     assert row["sucursal_id"] == branch      # branch FK is the UUID string
 
 
+def test_bi_tables_are_born_clean_after_full_migration_chain():
+    """kpi_snapshots / reporte_exports carry no integer surrogate identity.
+
+    kpi_snapshots is keyed by its natural (branch_id, snapshot_date) — the same
+    columns report_engine upserts on — with branch_id as a UUIDv7 TEXT string.
+    Validated against the FULL chain because migrations 023/024/032/051 each
+    (re)create kpi_snapshots.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    kpi = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(kpi_snapshots)").fetchall()}
+    assert "id" not in kpi                       # no integer surrogate
+    assert kpi["branch_id"][0].upper() == "TEXT"
+    assert kpi["branch_id"][1] >= 1              # part of the composite primary key
+    assert kpi["snapshot_date"][1] >= 1
+
+    rep = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(reporte_exports)").fetchall()}
+    assert rep["id"] == "TEXT"
+
+
 def test_refresh_order_badges_does_not_int_cast_identity():
     src = (REPO / "interfaz" / "main_window.py").read_text(encoding="utf-8")
     start = src.index("def _refresh_order_badges")
@@ -95,7 +122,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 166
+INTEGER_PK_TABLE_CEILING = 164
 SERVICES_WITH_DDL_CEILING = 23
 LASTROWID_FILE_CEILING = 39
 
