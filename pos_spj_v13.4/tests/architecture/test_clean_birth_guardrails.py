@@ -109,6 +109,30 @@ def test_bi_tables_are_born_clean_after_full_migration_chain():
     assert rep["id"] == "TEXT"
 
 
+def test_production_tables_are_born_clean_and_dead_legacy_removed():
+    """producciones / produccion_detalle carry TEXT UUIDv7 identity with no
+    arbitrary DEFAULT 1 branch, recipe_engine mints their ids, and the dead
+    legacy recetas_consumo* tables are gone from the schema.
+    """
+    conn = _fresh_base_schema()
+    prod = {r[1]: (r[2], r[5], r[4]) for r in conn.execute("PRAGMA table_info(producciones)").fetchall()}
+    assert prod["id"][0].upper() == "TEXT" and prod["id"][1] == 1
+    assert prod["receta_id"][0].upper() == "TEXT"
+    assert prod["sucursal_id"][0].upper() == "TEXT"
+    assert prod["sucursal_id"][2] is None       # no arbitrary DEFAULT 1
+
+    det = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(produccion_detalle)").fetchall()}
+    assert det["id"] == "TEXT"
+    assert det["produccion_id"] == "TEXT"
+
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "recetas_consumo" not in tables           # dead legacy removed
+    assert "recetas_consumo_detalle" not in tables
+
+    src = (REPO / "core" / "services" / "recipe_engine.py").read_text(encoding="utf-8")
+    assert "produccion_id = new_uuid()" in src
+
+
 def test_recipe_tables_are_born_clean_and_repo_mints_uuid():
     """product_recipes / product_recipe_components carry TEXT UUIDv7 identity,
     recipe_dependency_graph keys on TEXT, and the recetas repository mints the
@@ -146,7 +170,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 161
+INTEGER_PK_TABLE_CEILING = 157
 SERVICES_WITH_DDL_CEILING = 23
 LASTROWID_FILE_CEILING = 39
 

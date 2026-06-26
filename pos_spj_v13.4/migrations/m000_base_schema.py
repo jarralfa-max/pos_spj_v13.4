@@ -1873,30 +1873,9 @@ def _create_recetas_produccion(conn):
             tipo_componente         TEXT DEFAULT 'subproducto'
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS recetas_consumo (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_venta_id INTEGER NOT NULL,
-            nombre            TEXT    NOT NULL DEFAULT '',
-            activo            INTEGER NOT NULL DEFAULT 1,
-            creado_por        TEXT    DEFAULT 'Sistema',
-            creado_en         DATETIME DEFAULT (datetime('now')),
-            actualizado_en    DATETIME DEFAULT (datetime('now')),
-            notas             TEXT,
-            UNIQUE(producto_venta_id)
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS recetas_consumo_detalle (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            receta_id        INTEGER NOT NULL,
-            materia_prima_id INTEGER NOT NULL,
-            porcentaje       REAL    NOT NULL CHECK(porcentaje > 0 AND porcentaje <= 100),
-            nombre_mp        TEXT    DEFAULT '',
-            orden            INTEGER DEFAULT 0,
-            UNIQUE(receta_id, materia_prima_id)
-        )
-    """)
+    # Legacy eliminado (REGLA 3): recetas_consumo / recetas_consumo_detalle eran
+    # tablas muertas (0 lectores/escritores). La ruta canónica de recetas es
+    # product_recipes / product_recipe_components (UUIDv7).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipes (
             id                TEXT PRIMARY KEY,
@@ -1975,23 +1954,24 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS producciones (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            receta_id        INTEGER NOT NULL,
-            producto_base_id INTEGER NOT NULL,
+            id               TEXT    PRIMARY KEY,
+            receta_id        TEXT    NOT NULL,
+            producto_base_id TEXT    NOT NULL,
             cantidad_base    REAL    NOT NULL CHECK(cantidad_base > 0),
             unidad_base      TEXT    DEFAULT 'kg',
             usuario          TEXT    NOT NULL,
-            sucursal_id      INTEGER NOT NULL DEFAULT 1,
+            sucursal_id      TEXT    NOT NULL,
             notas            TEXT,
             estado           TEXT    DEFAULT 'completada',
+            operation_id     TEXT,
             fecha            TEXT    DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS produccion_detalle (
-            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-            produccion_id          INTEGER NOT NULL,
-            producto_resultante_id INTEGER NOT NULL,
+            id                     TEXT    PRIMARY KEY,
+            produccion_id          TEXT    NOT NULL,
+            producto_resultante_id TEXT    NOT NULL,
             cantidad_generada      REAL    NOT NULL,
             unidad                 TEXT    DEFAULT 'kg',
             rendimiento_aplicado   REAL    DEFAULT 0.0,
