@@ -43,8 +43,8 @@ def _db():
     )
     db.execute(
         """
-        INSERT INTO delivery_items(delivery_id, nombre, cantidad, precio_unitario, subtotal)
-        VALUES (1, 'Pollo', 2, 60, 120)
+        INSERT INTO delivery_items(id, delivery_id, nombre, cantidad, precio_unitario, subtotal)
+        VALUES ('di-1', 1, 'Pollo', 2, 60, 120)
         """
     )
     db.commit()
