@@ -319,7 +319,7 @@ class RecetaRepository:
                 placeholders.append('?')
                 parameters.append(val)
 
-        # Identidad UUIDv7 (REGLA CERO): mintar el id explícito, nunca lastrowid.
+        # Identidad UUIDv7 (REGLA CERO): mintar el id explícito (no autoincrement).
         receta_id = new_uuid()
         _add('id',               receta_id)
         _add('nombre_receta',    nombre.strip())
