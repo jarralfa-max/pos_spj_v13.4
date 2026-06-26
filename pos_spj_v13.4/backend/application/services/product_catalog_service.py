@@ -56,6 +56,10 @@ class ProductCatalogService:
                     product_id_str = self._repository.create(product_data)
                 else:
                     product_uuid = new_uuid()
+                    # Auto-generate SKU from uuid suffix when not provided
+                    sku = getattr(command, "sku", None) or getattr(command, "code", None)
+                    if not sku:
+                        sku = "SKU-" + product_uuid.replace("-", "")[:8].upper()
                     self._db.cursor().execute(
                         """
                         INSERT INTO productos (
@@ -67,7 +71,7 @@ class ProductCatalogService:
                         (
                             product_uuid,
                             command.name,
-                            getattr(command, "sku", None) or getattr(command, "code", None),
+                            sku,
                             getattr(command, "barcode", ""),
                             command.category,
                             float(getattr(command, "sale_price", None) or getattr(command, "price", 0)),

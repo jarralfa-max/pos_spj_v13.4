@@ -1,7 +1,7 @@
 {
   "phase": "CONFIGURACION",
   "status": "IN_PROGRESS",
-  "active_batch": "CONFIGURACION-02-IDENTITY",
+  "active_batch": "CONFIGURACION-06-DOMAIN_RULES",
   "batches": [
     {
       "id": "CONFIGURACION-01-SCOPE",
@@ -31,12 +31,12 @@
       "scope": [
         "CONFIGURACION"
       ],
-      "status": "IN_PROGRESS",
-      "violations": null,
+      "status": "DONE",
+      "violations": 0,
       "dependencies": [
         "CONFIGURACION-01-SCOPE"
       ],
-      "iteration": 9,
+      "iteration": 10,
       "completed_actions": [
         "replaced Configuracion UI uuid4 operation id generator with backend.shared.ids.new_uuid",
         "removed unused legacy branch repository helpers that returned lastrowid without the canonical CompanyProfileService path",
@@ -56,7 +56,12 @@
         "removed integer branch_id from UserManagementService permission event payloads so branch-agnostic events receive canonical UUIDv7 branch_id values",
         "enforced canonical lowercase UUIDv7 entity_id values in PermissionEventPublisher",
         "removed integer user_id and role_id values from Configuracion permission event payloads",
-        "resolved user and role labels through ConfigRepository helpers before event publication without exposing integer identities"
+        "resolved user and role labels through ConfigRepository helpers before event publication without exposing integer identities",
+        "audited canonical Configuracion repository identity paths and identified runtime dual-id support as the remaining root cause",
+        "removed numeric legacy id acceptance from ConfigRepository contracts for branches, users, roles, happy-hour rules and monthly close operations",
+        "made migrated UUID columns mandatory for canonical Configuracion runtime instead of falling back to id, rol_id and sucursal_id branches",
+        "added unit protection that ConfigRepository rejects numeric legacy ids and refuses non-migrated configuration schema at runtime",
+        "updated integration fixture to execute 096_configuration_services_schema before Configuracion module load checks"
       ],
       "forbidden_reselection": [
         "reintroducing uuid4 for Configuracion operation_id generation",
@@ -69,6 +74,7 @@
         "publishing Configuracion permission events with legacy op-* operation_id strings",
         "publishing Configuracion permission events with integer branch_id payload values",
         "publishing Configuracion permission events with legacy non-UUID entity_id strings",
+<<<<<<< HEAD
         "publishing Configuracion permission event payloads with integer user_id or role_id values"
       ],
       "module_audit_progress": {
@@ -88,6 +94,12 @@
         "module_tests_passed": 83,
         "regressions": 0
       }
+=======
+        "publishing Configuracion permission event payloads with integer user_id or role_id values",
+        "reintroducing numeric legacy id acceptance in ConfigRepository canonical UUID routes",
+        "reintroducing Configuracion runtime fallbacks to id, rol_id or sucursal_id once UUID columns are present"
+      ]
+>>>>>>> claude/intelligent-clarke-uq1ck7
     },
     {
       "id": "CONFIGURACION-03-UI",
@@ -95,14 +107,24 @@
       "scope": [
         "CONFIGURACION"
       ],
-      "status": "PENDING",
-      "violations": null,
+      "status": "DONE",
+      "violations": 0,
       "dependencies": [
         "CONFIGURACION-02-IDENTITY"
       ],
-      "iteration": 0,
-      "completed_actions": [],
-      "forbidden_reselection": []
+      "iteration": 2,
+      "completed_actions": [
+        "audited canonical Configuracion UI dialogs and identified editable QComboBox mass-loading as the root cause of remaining entity-selector debt",
+        "replaced terminal branch, Happy Hour branch and user branch/employee selectors with BranchSearchBox and EmployeeSearchBox canonical components",
+        "removed the legacy _enable_combo_search helper and manual combo currentData wiring from Configuracion UI",
+        "added protection tests that forbid reintroducing branch and employee QComboBox mass-loading selectors in modulos/configuracion.py",
+        "confirmed no remaining CONFIGURACION-03-UI violations in the canonical Configuracion surface"
+      ],
+      "forbidden_reselection": [
+        "reintroducing editable QComboBox mass-loading for branch selectors in Configuracion dialogs",
+        "reintroducing employee selector combos instead of EmployeeSearchBox in Configuracion user management",
+        "reintroducing the _enable_combo_search helper for canonical Configuracion entity selectors without a reproducible UI regression"
+      ]
     },
     {
       "id": "CONFIGURACION-04-QUERIES",
@@ -110,14 +132,24 @@
       "scope": [
         "CONFIGURACION"
       ],
-      "status": "PENDING",
-      "violations": null,
+      "status": "DONE",
+      "violations": 0,
       "dependencies": [
         "CONFIGURACION-03-UI"
       ],
-      "iteration": 0,
-      "completed_actions": [],
-      "forbidden_reselection": []
+      "iteration": 1,
+      "completed_actions": [
+        "audited config_modules.py and confirmed PyQt still queried sucursales and feature_flags directly",
+        "identified missing module-level QueryService as the root cause of remaining read-side SQL in Configuracion",
+        "added unit and architecture protection for config_modules read routing",
+        "implemented backend.application.queries.module_settings_query_service as the canonical read model for active branches and feature-flag snapshots",
+        "removed direct SELECT reads from modulos/config_modules.py and routed branch/flag loading through ModuleSettingsQueryService",
+        "reduced the SQL-in-UI allowlist for modulos/config_modules.py to the two remaining mutation statements scheduled for CONFIGURACION-05-MUTATIONS"
+      ],
+      "forbidden_reselection": [
+        "reintroducing self.db.execute SELECT reads for sucursales or feature_flags inside modulos/config_modules.py",
+        "bypassing ModuleSettingsQueryService for Configuracion module-toggle reads without a reproducible regression"
+      ]
     },
     {
       "id": "CONFIGURACION-05-MUTATIONS",
@@ -125,14 +157,24 @@
       "scope": [
         "CONFIGURACION"
       ],
-      "status": "PENDING",
-      "violations": null,
+      "status": "DONE",
+      "violations": 0,
       "dependencies": [
         "CONFIGURACION-04-QUERIES"
       ],
-      "iteration": 0,
-      "completed_actions": [],
-      "forbidden_reselection": []
+      "iteration": 1,
+      "completed_actions": [
+        "audited the remaining config_modules mutation path and confirmed direct repo access plus UI SQL fallback were the root cause",
+        "added unit protection for FeatureFlagService mutation routing and cache refresh across canonical and legacy feature_flag schemas",
+        "added architecture protection forbidding ffs.repo.set_flag cache pokes direct feature_flags SQL and UI commits in modulos/config_modules.py",
+        "moved branch feature-flag mutations in modulos/config_modules.py to FeatureFlagService.set_flag with a repository-backed fallback service instance",
+        "removed the direct INSERT ON CONFLICT fallback and commit call from the Configuracion module-toggles UI"
+      ],
+      "forbidden_reselection": [
+        "reintroducing feature_flag_service.repo.set_flag or cache mutation from modulos/config_modules.py",
+        "reintroducing direct feature_flags SQL writes in modulos/config_modules.py",
+        "reintroducing commit or rollback calls in the module-toggle UI without a reproducible regression"
+      ]
     },
     {
       "id": "CONFIGURACION-06-DOMAIN_RULES",
@@ -140,12 +182,12 @@
       "scope": [
         "CONFIGURACION"
       ],
-      "status": "PENDING",
+      "status": "IN_PROGRESS",
       "violations": null,
       "dependencies": [
         "CONFIGURACION-05-MUTATIONS"
       ],
-      "iteration": 0,
+      "iteration": 1,
       "completed_actions": [],
       "forbidden_reselection": []
     },

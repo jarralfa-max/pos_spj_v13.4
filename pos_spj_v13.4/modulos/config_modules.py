@@ -4,7 +4,10 @@ Gestión de Feature Flags — habilitar/deshabilitar módulos por sucursal.
 Al desactivar un módulo desaparece del menú lateral inmediatamente.
 """
 from __future__ import annotations
+from backend.application.queries.module_settings_query_service import ModuleSettingsQueryService
+from core.services.feature_flag_service import FeatureFlagService
 from modulos.spj_styles import spj_btn, apply_btn_styles
+from repositories.feature_flag_repository import FeatureFlagRepository
 import logging
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
@@ -48,10 +51,12 @@ class ModuloConfigModulos(QWidget):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         self.container   = container
-        self.sucursal_id = getattr(container, 'sucursal_id', None)
+        self.db          = container.db
+        self.sucursal_id = getattr(container, 'sucursal_id', 1)
+        self.module_settings_query_service = ModuleSettingsQueryService(self.db)
         self.feature_flag_service = getattr(container, 'feature_flag_service', None)
-        # Ruta canónica de sólo lectura para listar sucursales (sin SQL en la UI).
-        self.company_profile_service = CompanyProfileService(ConfigRepository(container.db))
+        if self.feature_flag_service is None:
+            self.feature_flag_service = FeatureFlagService(FeatureFlagRepository(self.db))
         self._build_ui()
         self._cargar()
 
@@ -111,23 +116,18 @@ class ModuloConfigModulos(QWidget):
         self.cmb_sucursal.blockSignals(True)
         self.cmb_sucursal.clear()
         try:
-            branches = self.company_profile_service.branches_for_company_settings()
-        except Exception as exc:
-            branches = []
-            logger.warning("No se pudieron cargar sucursales: %s", exc)
-        for branch_id, nombre in branches:
-            self.cmb_sucursal.addItem(nombre, branch_id)
-        self.cmb_sucursal.blockSignals(False)
+            rows = self.module_settings_query_service.list_active_branch_options()
+            self.cmb_sucursal.blockSignals(True)
+            self.cmb_sucursal.clear()
+            for r in rows:
+                self.cmb_sucursal.addItem(r[1], r[0])
+            self.cmb_sucursal.blockSignals(False)
+        except Exception:
+            self.cmb_sucursal.addItem("Principal", 1)
 
     def _cargar(self):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
-        # Lectura de flags vía servicio canónico (sin SQL en la UI).
-        flags = {}
-        if self.feature_flag_service is not None and suc_id is not None:
-            try:
-                flags = self.feature_flag_service.get_branch_flags(suc_id)
-            except Exception as exc:
-                logger.warning("No se pudieron cargar feature flags: %s", exc)
+        flags = self.module_settings_query_service.get_branch_feature_flags(suc_id)
 
         self.tbl.setRowCount(len(MODULOS_SISTEMA))
         for ri, (codigo, nombre, default) in enumerate(MODULOS_SISTEMA):
@@ -164,7 +164,7 @@ class ModuloConfigModulos(QWidget):
             logger.warning("_toggle %s: feature_flag_service/sucursal no disponible", codigo)
             return
         try:
-            self.feature_flag_service.set_enabled(codigo, suc_id, activo)
+            self.feature_flag_service.set_flag(codigo, suc_id, activo)
         except Exception as e:
             logger.warning("_toggle %s: %s", codigo, e)
 

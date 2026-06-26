@@ -3,43 +3,41 @@
 ## Código
 
 ```text
-DELIVERY
+CONFIGURACION
 ```
 
 ## Nombre
 
-Delivery.
+Configuración.
 
 ## Estado
 
 ```text
-AUDIT
+PENDING
 ```
 
 ## Iteración
 
 ```text
-1
+6
 ```
 
 ## Objetivo
 
-Auditar y refactorizar el módulo de Productos contra el checklist de
-`SPJ_REFACTOR_SKILL.md` (REGLA CERO UUIDv7 + capas + UI sin SQL).
+Pendiente de definición detallada en el reporte acumulativo del módulo.
 
 ## Hallazgos abiertos
 
-(pendiente de auditoría FASE 7 PRODUCTOS)
+Pendientes de auditoría del módulo.
 
 ## Tests requeridos
 
-(pendiente)
+Pendientes de auditoría del módulo.
 
 ## Bloqueos
 
-Ninguno.
+Ninguno registrado.
 
 ## Próxima acción
 
-Cerrado el gap de identidad (legacy repo + compras_pro). Pendiente menor: unidad enum -> settings.
-lastrowid, int(_id), SQL en UI).
+Ejecutar auditoría del módulo actual según el flujo maestro.

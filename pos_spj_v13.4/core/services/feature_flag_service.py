@@ -37,6 +37,12 @@ class FeatureFlagService:
         self.repo.set_flag(feature_name, branch_id, bool(enabled))
         self._cache.pop(branch_id, None)
 
+    def set_flag(self, feature_name: str, branch_id: int, enabled: bool) -> None:
+        """Persiste el flag y refresca la caché de la sucursal afectada."""
+        self.repo.set_flag(feature_name, branch_id, enabled)
+        self._cache.pop(branch_id, None)
+        self.load_branch_flags(branch_id)
+
     def is_enabled(self, feature_name: str, branch_id: int) -> bool:
         """
         Verifica si una característica está encendida.

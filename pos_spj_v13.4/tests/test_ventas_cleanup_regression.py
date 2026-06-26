@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -65,10 +66,13 @@ def test_ticket_requires_backend_payload():
 
 
 def test_ticket_payload_has_real_sale_id_and_total_matches_sale_result():
-    payload = {"venta_id": 123, "folio": "F-123", "totales": {"total_final": 100.0}}
-    uc, _sales = _uc_with_sales(_result(ticket_payload=payload, ticket_html="<html></html>"))
+    # Post-cut: venta_id is a UUIDv7 TEXT string; SalesService sets
+    # ticket_payload["venta_id"] = sale_id so both carry the same UUID.
+    sale_id = str(uuid.uuid4())
+    payload = {"venta_id": sale_id, "folio": "F-123", "totales": {"total_final": 100.0}}
+    uc, _sales = _uc_with_sales(_result(venta_id=sale_id, ticket_payload=payload, ticket_html="<html></html>"))
     res = uc.ejecutar([ItemCarrito(1, 1, 100, "A")], DatosPago(monto_pagado=100), 1, "u")
-    assert res.ticket_payload["venta_id"] == res.venta_id == 123
+    assert res.ticket_payload["venta_id"] == res.venta_id == sale_id
     assert res.ticket_payload["totales"]["total_final"] == res.total
 
 

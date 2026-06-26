@@ -36,16 +36,10 @@ class AuthRepository:
 
             # v13.30: JOIN con sucursales para obtener nombre
             has_suc = "sucursal_id" in columnas
-            has_suc_uuid = has_suc and "sucursal_uuid" in columnas
-            has_suc_table_uuid = bool(self.db.execute(
-                "SELECT 1 FROM pragma_table_info('sucursales') WHERE name='uuid'"
-            ).fetchone())
-
             if has_suc:
-                suc_uuid_expr = "s.uuid AS sucursal_uuid" if has_suc_table_uuid else "NULL AS sucursal_uuid"
                 query = (
                     f"SELECT u.id, u.usuario, u.{col_pass}, u.rol, u.nombre, "
-                    f"u.sucursal_id, s.nombre AS sucursal_nombre, {suc_uuid_expr} "
+                    f"u.sucursal_id, COALESCE(s.nombre, 'Principal') as sucursal_nombre "
                     f"FROM usuarios u "
                     f"LEFT JOIN sucursales s ON s.id = u.sucursal_id "
                     f"WHERE u.usuario = ? AND u.activo = 1"
@@ -61,20 +55,14 @@ class AuthRepository:
             if not row:
                 return None
 
-            suc_id = (row['sucursal_id'] if has_suc else 0) or 0
-            suc_nombre = (row['sucursal_nombre'] if has_suc else "") or ""
-            suc_uuid = (row['sucursal_uuid'] if has_suc else None) or None
-
             user_data = {
                 'id': row['id'],
                 'username': row['usuario'],
                 'password_hash': row[col_pass],
                 'rol': row['rol'].lower() if row['rol'] else 'vendedor',
                 'nombre': row['nombre'],
-                'sucursal_id': suc_id,
-                'sucursal_nombre': suc_nombre,
-                'sucursal_uuid': suc_uuid,
-                'active_branch_id': suc_uuid or (str(suc_id) if suc_id else ""),
+                'sucursal_id': row['sucursal_id'] if has_suc else 1,
+                'sucursal_nombre': row['sucursal_nombre'] if has_suc else 'Principal',
                 'password_column': col_pass,
             }
 
@@ -126,8 +114,7 @@ class AuthRepository:
             ).fetchone()
             if row:
                 return [{'id': row['id'], 'nombre': row['nombre']}]
-            logger.warning("_get_sucursales_usuario: own branch %s not found in sucursales", default_suc)
-            return []
+            return [{'id': default_suc, 'nombre': 'Principal'}]
         except Exception as e:
             logger.debug("_get_sucursales_usuario: %s", e)
-            return []
+            return [{'id': default_suc, 'nombre': 'Principal'}]

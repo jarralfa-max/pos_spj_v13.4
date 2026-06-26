@@ -18,46 +18,42 @@ DONE
 
 | Orden | Código                | Módulo                   | Estado  |
 | ----: | --------------------- | ------------------------ | ------- |
-|     1 | CONFIGURACION         | Configuración            | AUDIT   |
-|     2 | MERMA                 | Merma                    | DONE |
-|     3 | PRODUCTOS             | Productos                | DONE |
-|     4 | INVENTARIO            | Inventario               | PENDING |
-|     5 | VENTAS                | Ventas                   | PENDING |
-|     6 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
-|     7 | RECETAS               | Recetas                  | PENDING |
-|     8 | PRODUCCION            | Producción               | PENDING |
-|     9 | TRANSFERENCIAS        | Transferencias           | DONE |
-|    10 | DELIVERY              | Delivery                 | DONE |
-|    11 | CAJA                  | Caja                     | DONE |
-|    12 | BI_DASHBOARD          | BI / Dashboard           | PENDING |
-|    13 | PLANEACION_COMPRAS    | Planeación de compras    | PENDING |
-|    14 | COTIZACIONES          | Cotizaciones             | PENDING |
-|    15 | FIDELIDAD             | Fidelidad                | PENDING |
-|    16 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | PENDING |
-|    17 | ACTIVOS               | Activos                  | PENDING |
-|    18 | CLIENTES              | Clientes                 | PENDING |
-|    19 | PROVEEDORES           | Proveedores              | PENDING |
-|    20 | COMPRAS               | Compras                  | PENDING |
-|    21 | RECEPCION             | Recepción                | PENDING |
-|    22 | PEDIDOS               | Pedidos                  | PENDING |
-|    23 | TICKETS               | Tickets                  | PENDING |
-|    24 | ETIQUETAS             | Etiquetas                | PENDING |
-|    25 | HARDWARE              | Hardware                 | PENDING |
-|    26 | NOTIFICACIONES        | Notificaciones           | PENDING |
-|    27 | WHATSAPP              | WhatsApp                 | PENDING |
-|    28 | FINANZAS              | Finanzas                 | PENDING |
-|    29 | RRHH                  | Recursos humanos         | PENDING |
-|    30 | REPORTES              | Reportes                 | PENDING |
-|    31 | API                   | API FastAPI              | PENDING |
-|    32 | SINCRONIZACION        | Sincronización           | PENDING |
-|    33 | INSTALADOR            | Instalador               | PENDING |
-|    34 | ACTUALIZADOR          | Actualizador             | PENDING |
-|    35 | CIERRE_GLOBAL         | Cierre global            | PENDING |
+|     0 | CONFIGURACION         | Configuración            | PENDING |
+|     1 | MERMA                 | Merma                    | DONE |
+|     2 | PRODUCTOS             | Productos                | DONE |
+|     3 | INVENTARIO            | Inventario               | PENDING |
+|     4 | VENTAS                | Ventas                   | DONE |
+|     5 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
+|     6 | RECETAS               | Recetas                  | PENDING |
+|     7 | PRODUCCION            | Producción               | PENDING |
+|     8 | TRANSFERENCIAS        | Transferencias           | DONE |
+|     9 | DELIVERY              | Delivery                 | DONE |
+|    10 | CAJA                  | Caja                     | DONE |
+|    11 | BI_DASHBOARD          | BI / Dashboard           | PENDING |
+|    12 | PLANEACION_COMPRAS    | Planeación de compras    | PENDING |
+|    13 | COTIZACIONES          | Cotizaciones             | PENDING |
+|    14 | FIDELIDAD             | Fidelidad                | PENDING |
+|    15 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | PENDING |
+|    16 | ACTIVOS               | Activos                  | PENDING |
+|    17 | CLIENTES              | Clientes                 | PENDING |
+|    18 | PROVEEDORES           | Proveedores              | PENDING |
+|    19 | COMPRAS               | Compras                  | PENDING |
+|    20 | RECEPCION             | Recepción                | PENDING |
+|    21 | PEDIDOS               | Pedidos                  | PENDING |
+|    22 | TICKETS               | Tickets                  | PENDING |
+|    23 | ETIQUETAS             | Etiquetas                | PENDING |
+|    24 | HARDWARE              | Hardware                 | PENDING |
+|    25 | NOTIFICACIONES        | Notificaciones           | PENDING |
+|    26 | WHATSAPP              | WhatsApp                 | PENDING |
+|    27 | FINANZAS              | Finanzas                 | PENDING |
+|    28 | RRHH                  | Recursos humanos         | PENDING |
+|    29 | REPORTES              | Reportes                 | PENDING |
+|    30 | API                   | API FastAPI              | PENDING |
+|    31 | SINCRONIZACION        | Sincronización           | PENDING |
+|    32 | INSTALADOR            | Instalador               | PENDING |
+|    33 | ACTUALIZADOR          | Actualizador             | PENDING |
+|    34 | CIERRE_GLOBAL         | Cierre global            | PENDING |
 
 ## Regla
 
 Codex selecciona siempre el primer módulo que no esté en `DONE`, salvo que una dependencia documentada obligue a reordenar temporalmente la cola.
-
-## Fuente de autoridad
-
-La cola sigue `SPJ_REFACTOR_SKILL.md`; UUIDv7 se trata como lote obligatorio dentro de cada módulo, no como sustituto del refactor completo.

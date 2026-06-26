@@ -25,6 +25,7 @@ from backend.application.queries.loyalty_query_service import LoyaltyQueryServic
 from backend.application.queries.cash_register_query_service import CashRegisterQueryService
 from backend.application.queries.purchase_planning_query_service import PurchasePlanningQueryService
 from backend.application.queries.business_intelligence_query_service import BusinessIntelligenceQueryService
+from backend.application.queries.module_settings_query_service import ModuleSettingsQueryService
 
 __all__ = [
     "BaseQueryService",
@@ -50,6 +51,7 @@ __all__ = [
     "CashRegisterQueryService",
     "PurchasePlanningQueryService",
     "BusinessIntelligenceQueryService",
+    "ModuleSettingsQueryService",
 ]
 from backend.application.queries.hardware_settings_query_service import HardwareSettingsQueryService
 from backend.application.queries.ticket_settings_query_service import TicketSettingsQueryService

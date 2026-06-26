@@ -1,5 +1,5 @@
-from backend.shared.ids import new_uuid
 from __future__ import annotations
+from backend.shared.ids import new_uuid
 
 import json
 import logging
@@ -17,7 +17,7 @@ RESERVATION_TTL_MINUTES = 30
 class StockReservationService:
     """Reserva/libera stock lógico para ventas suspendidas."""
 
-    def __init__(self, db, branch_id: int = 1):
+    def __init__(self, db, branch_id: str = ""):
         self.db = db
         self.branch_id = branch_id
         self._ensure_table()
@@ -103,7 +103,7 @@ class StockReservationService:
         reservado = float(row2[0]) if row2 and row2[0] is not None else 0.0
         return max(0.0, fisico - reservado)
 
-    def reservar(self, folio: str, items: List[Dict]) -> int:
+    def reservar(self, folio: str, items: List[Dict]) -> str:
         """
         Reserva stock para un folio de manera ATÓMICA dentro de un SAVEPOINT.
         Expira reservas huérfanas antes de validar disponibilidad.
@@ -164,7 +164,7 @@ class StockReservationService:
         })
         return reserva_id
 
-    def liberar(self, reserva_id: int, motivo: str = "cancelada") -> None:
+    def liberar(self, reserva_id: str, motivo: str = "cancelada") -> None:
         estado = "expirada" if str(motivo).strip().lower() == "expirada" else "cancelada"
         self.db.execute(
             "UPDATE stock_reservas SET estado=?, updated_at=datetime('now') "
@@ -177,7 +177,7 @@ class StockReservationService:
             "branch_id": self.branch_id,
         })
 
-    def confirmar(self, reserva_id: int, venta_id: int, folio: str) -> None:
+    def confirmar(self, reserva_id: str, venta_id: str, folio: str) -> None:
         cur = self.db.execute(
             "UPDATE stock_reservas SET estado='confirmada', updated_at=datetime('now') "
             "WHERE id=? AND estado='activa'",

@@ -4281,11 +4281,8 @@ class ModuloVentas(ModuloBase):
                 self._reserva_activa_id = None
                 Toast.warning(self, "Reserva", "Venta completada, pero la reserva quedó pendiente de revisión.")
 
-        try:
-            payload_venta_id = int(datos_ticket.get("venta_id") or datos_ticket.get("sale_id") or 0)
-        except (TypeError, ValueError):
-            payload_venta_id = 0
-        result_venta_id = int(getattr(result, "venta_id", 0) or 0)
+        payload_venta_id = str(datos_ticket.get("venta_id") or datos_ticket.get("sale_id") or "")
+        result_venta_id = str(getattr(result, "venta_id", "") or "")
         payload_total = None
         if datos_ticket:
             payload_total = (datos_ticket.get("totales") or {}).get(

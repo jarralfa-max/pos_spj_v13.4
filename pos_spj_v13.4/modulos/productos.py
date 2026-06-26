@@ -614,6 +614,7 @@ class ModuloProductos(QWidget, RefreshMixin):
         self.tabla_productos.setColumnCount(9)
         self.tabla_productos.setHorizontalHeaderLabels(
             ["ID", "Código", "Cód.Barras", "Nombre", "Categoría", "Precio", "Stock", "Estado", "Acciones"])
+        self.tabla_productos.setColumnHidden(0, True)
         self.tabla_productos.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
         self.tabla_productos.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabla_productos.setEditTriggers(QAbstractItemView.NoEditTriggers)
