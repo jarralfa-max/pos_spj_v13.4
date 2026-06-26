@@ -28,7 +28,7 @@ DONE
 |     8 | PRODUCCION            | Producción               | PENDING |
 |     9 | TRANSFERENCIAS        | Transferencias           | DONE |
 |    10 | DELIVERY              | Delivery                 | DONE |
-|    11 | CAJA                  | Caja                     | PENDING |
+|    11 | CAJA                  | Caja                     | IMPLEMENTATION |
 |    12 | BI_DASHBOARD          | BI / Dashboard           | PENDING |
 |    13 | PLANEACION_COMPRAS    | Planeación de compras    | PENDING |
 |    14 | COTIZACIONES          | Cotizaciones             | PENDING |
