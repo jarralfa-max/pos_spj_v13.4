@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from backend.shared.ids import new_uuid
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -53,18 +54,20 @@ class DeliveryRepository:
             result.append(item)
         return result
 
-    def create_order(self, data: Dict[str, Any], *, commit: bool = True) -> int:
+    def create_order(self, data: Dict[str, Any], *, commit: bool = True) -> str:
         usuario = data.get("usuario", "sistema")
         hist = [self._legacy_history_entry("pendiente", usuario, reason="creación")]
-        cur = self.db.execute(
+        oid = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin lastrowid
+        self.db.execute(
             """
             INSERT INTO delivery_orders(
-                venta_id, folio, whatsapp_order_id, cliente_id, cliente_nombre, cliente_tel,
+                id, venta_id, folio, whatsapp_order_id, cliente_id, cliente_nombre, cliente_tel,
                 direccion, lat, lng, estado, notas, total, usuario, historial_cambios,
                 sucursal_id, workflow_type, delivery_type, scheduled_at, source_channel
-            ) VALUES(?,?,?,?,?,?,?,?,?,'pendiente',?,?,?,?,?,?,?,?,?)
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,'pendiente',?,?,?,?,?,?,?,?,?)
             """,
             (
+                oid,
                 data.get("venta_id"),
                 data.get("folio"),
                 data.get("whatsapp_order_id"),
@@ -78,14 +81,13 @@ class DeliveryRepository:
                 float(data.get("total", 0) or 0),
                 usuario,
                 json.dumps(hist, ensure_ascii=False),
-                int(data.get("sucursal_id", 1)),
+                data.get("sucursal_id") or None,
                 data.get("workflow_type"),
                 data.get("delivery_type"),
                 data.get("scheduled_at"),
                 data.get("source_channel", "whatsapp"),
             ),
         )
-        oid = int(cur.lastrowid)
         self._replace_items(oid, data.get("items") or [])
         self._insert_history(
             oid,
@@ -110,11 +112,11 @@ class DeliveryRepository:
             ).fetchone()
         if not row and venta_id:
             row = self.db.execute(
-                "SELECT id FROM delivery_orders WHERE venta_id=?", (int(venta_id),)
+                "SELECT id FROM delivery_orders WHERE venta_id=?", (str(venta_id),)
             ).fetchone()
 
         data = {
-            "venta_id": int(venta_id) if venta_id else None,
+            "venta_id": str(venta_id) if venta_id else None,
             "folio": payload.get("folio") or payload.get("codigo"),
             "whatsapp_order_id": str(wa_id or f"venta:{venta_id}"),
             "cliente_id": payload.get("cliente_id"),
@@ -134,7 +136,7 @@ class DeliveryRepository:
             "items": payload.get("items") or [],
         }
         if row:
-            oid = int(row[0])
+            oid = str(row[0])
             self.db.execute(
                 """
                 UPDATE delivery_orders
@@ -173,11 +175,12 @@ class DeliveryRepository:
                 self.db.execute(
                     """
                     INSERT INTO delivery_items(
-                        delivery_id, producto_id, nombre, cantidad,
+                        id, delivery_id, producto_id, nombre, cantidad,
                         precio_unitario, subtotal, unidad, requested_qty
-                    ) VALUES(?,?,?,?,?,?,?,?)
+                    ) VALUES(?,?,?,?,?,?,?,?,?)
                     """,
                     (
+                        new_uuid(),
                         order_id,
                         it.get("producto_id"),
                         it.get("nombre") or it.get("name") or "Producto",
@@ -271,6 +274,7 @@ class DeliveryRepository:
     ) -> None:
         columns = self._columns("delivery_order_history")
         values: Dict[str, Any] = {
+            "id": new_uuid(),
             "order_id": order_id,
             "estado_anterior": old,
             "estado_nuevo": new,

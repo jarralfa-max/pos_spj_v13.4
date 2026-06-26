@@ -31,7 +31,7 @@ def svc():
             fecha_apertura DATETIME DEFAULT (datetime('now')), fecha_cierre DATETIME
         );
         CREATE TABLE movimientos_caja (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, turno_id TEXT, sucursal_id INTEGER,
+            id TEXT PRIMARY KEY, turno_id TEXT, sucursal_id INTEGER,
             tipo TEXT, monto REAL, concepto TEXT, usuario TEXT,
             fecha DATETIME DEFAULT (datetime('now'))
         );

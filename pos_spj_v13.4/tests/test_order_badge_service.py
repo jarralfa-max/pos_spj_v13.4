@@ -86,6 +86,40 @@ def test_badge_counts_handle_legacy_ventas_without_workflow_type():
     assert c["notifications_unread"] == 1
 
 
+def test_badge_counts_scoped_by_uuid_branch_post_cut():
+    """Post-cut: sucursal_id is TEXT UUIDv7; the branch filter must scope by the
+    UUID string (no int() cast). Regression for main_window._refresh_order_badges
+    crashing with int('019f0198-...') on the cut DB.
+    """
+    import uuid
+
+    db = sqlite3.connect(":memory:")
+    db.row_factory = sqlite3.Row
+    db.executescript(
+        """
+        CREATE TABLE delivery_orders (id TEXT PRIMARY KEY, sucursal_id TEXT, estado TEXT, adjustment_pending INTEGER DEFAULT 0);
+        CREATE TABLE ventas (id TEXT PRIMARY KEY, sucursal_id TEXT, estado TEXT, workflow_type TEXT);
+        CREATE TABLE notification_inbox (id TEXT PRIMARY KEY, sucursal_id TEXT, leido INTEGER DEFAULT 0);
+        """
+    )
+    branch_a = str(uuid.uuid4())
+    branch_b = str(uuid.uuid4())
+    db.execute("INSERT INTO delivery_orders VALUES (?,?,?,?)", (str(uuid.uuid4()), branch_a, "pendiente", 1))
+    db.execute("INSERT INTO delivery_orders VALUES (?,?,?,?)", (str(uuid.uuid4()), branch_a, "en_ruta", 0))
+    db.execute("INSERT INTO ventas VALUES (?,?,?,?)", (str(uuid.uuid4()), branch_a, "programado", "scheduled"))
+    db.execute("INSERT INTO notification_inbox VALUES (?,?,?)", (str(uuid.uuid4()), branch_a, 0))
+    # other-branch noise must not leak in
+    db.execute("INSERT INTO delivery_orders VALUES (?,?,?,?)", (str(uuid.uuid4()), branch_b, "pendiente", 1))
+    db.commit()
+
+    svc = OrderBadgeService(db)
+    c = svc.get_badge_counts(branch_id=branch_a)  # str UUID, never int()
+    assert c["orders_active"] == 2
+    assert c["orders_scheduled"] == 1
+    assert c["adjustments_pending"] == 1
+    assert c["notifications_unread"] == 1
+
+
 def test_badge_counts_without_notification_inbox_table_do_not_fail():
     db = sqlite3.connect(":memory:")
     db.row_factory = sqlite3.Row

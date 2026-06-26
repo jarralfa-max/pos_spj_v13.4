@@ -1,6 +1,6 @@
 # Módulo: Procesamiento cárnico (FASE 7)
 
-Estado: **IMPLEMENTATION**
+Estado: **DONE**
 
 ## Alcance
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from backend.shared.ids import new_uuid
+
 logger = logging.getLogger("spj.repositories.driver")
 
 
@@ -21,7 +23,7 @@ class DriverRepository:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS drivers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 nombre TEXT NOT NULL,
                 telefono TEXT,
                 vehiculo TEXT,
@@ -47,7 +49,7 @@ class DriverRepository:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS delivery_driver_cuts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 driver_id INTEGER NOT NULL,
                 driver_nombre TEXT,
                 turno_inicio DATETIME,
@@ -114,15 +116,16 @@ class DriverRepository:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def create_driver(self, data: Dict[str, Any]) -> int:
-        cur = self.db.execute(
+    def create_driver(self, data: Dict[str, Any]) -> str:
+        driver_id = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin lastrowid
+        self.db.execute(
             """
-            INSERT INTO drivers(nombre, telefono, vehiculo, activo, sucursal_id, usuario_id)
-            VALUES(?,?,?,?,?,?)
+            INSERT INTO drivers(id, nombre, telefono, vehiculo, activo, sucursal_id, usuario_id)
+            VALUES(?,?,?,?,?,?,?)
             """,
             (
-                data.get("nombre"), data.get("telefono", ""), data.get("vehiculo", ""),
-                int(data.get("activo", 1)), int(data.get("sucursal_id", 1) or 1),
+                driver_id, data.get("nombre"), data.get("telefono", ""), data.get("vehiculo", ""),
+                int(data.get("activo", 1)), data.get("sucursal_id") or None,
                 data.get("usuario_id"),
             ),
         )
@@ -130,9 +133,9 @@ class DriverRepository:
             self.db.commit()
         except Exception:
             pass
-        return int(cur.lastrowid or 0)
+        return driver_id
 
-    def update_driver(self, driver_id: int, data: Dict[str, Any]) -> None:
+    def update_driver(self, driver_id: str, data: Dict[str, Any]) -> None:
         self.db.execute(
             """
             UPDATE drivers
@@ -141,7 +144,7 @@ class DriverRepository:
             """,
             (
                 data.get("nombre"), data.get("telefono", ""), data.get("vehiculo", ""),
-                int(data.get("activo", 1)), int(data.get("sucursal_id", 1) or 1),
+                int(data.get("activo", 1)), data.get("sucursal_id") or None,
                 data.get("usuario_id"), driver_id,
             ),
         )
@@ -150,14 +153,14 @@ class DriverRepository:
         except Exception:
             pass
 
-    def deactivate_driver(self, driver_id: int) -> None:
+    def deactivate_driver(self, driver_id: str) -> None:
         self.db.execute("UPDATE drivers SET activo=0 WHERE id=?", (driver_id,))
         try:
             self.db.commit()
         except Exception:
             pass
 
-    def list_active_drivers(self, branch_id: int) -> List[Dict[str, Any]]:
+    def list_active_drivers(self, branch_id: str) -> List[Dict[str, Any]]:
         rows = self.db.execute(
             """
             SELECT id, nombre, COALESCE(telefono,'') AS telefono,
@@ -175,11 +178,11 @@ class DriverRepository:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_driver(self, driver_id: int) -> Optional[Dict[str, Any]]:
+    def get_driver(self, driver_id: str) -> Optional[Dict[str, Any]]:
         row = self.db.execute("SELECT * FROM drivers WHERE id=?", (driver_id,)).fetchone()
         return dict(row) if row else None
 
-    def assign_driver(self, order_id: int, driver_id: int, usuario: str = "sistema", notes: str = "") -> None:
+    def assign_driver(self, order_id: str, driver_id: str, usuario: str = "sistema", notes: str = "") -> None:
         driver = self.get_driver(driver_id)
         if not driver:
             raise ValueError("Repartidor no encontrado")
@@ -204,11 +207,11 @@ class DriverRepository:
             pass
         self.db.commit()
 
-    def mark_driver_on_route(self, driver_id: int, value: bool) -> None:
+    def mark_driver_on_route(self, driver_id: str, value: bool) -> None:
         self.db.execute("UPDATE drivers SET en_ruta=? WHERE id=?", (1 if value else 0, driver_id))
         self.db.commit()
 
-    def get_driver_location(self, driver_id: int) -> Optional[Dict[str, Any]]:
+    def get_driver_location(self, driver_id: str) -> Optional[Dict[str, Any]]:
         row = self.db.execute(
             """
             SELECT COALESCE(driver_id, chofer_id) AS driver_id, lat, lng,
@@ -222,7 +225,7 @@ class DriverRepository:
         ).fetchone()
         return dict(row) if row else None
 
-    def save_driver_location(self, driver_id: int, lat: float, lng: float) -> None:
+    def save_driver_location(self, driver_id: str, lat: float, lng: float) -> None:
         self.db.execute(
             """
             INSERT INTO driver_locations(driver_id, chofer_id, lat, lng, timestamp, actualizado)
@@ -232,7 +235,7 @@ class DriverRepository:
         )
         self.db.commit()
 
-    def get_driver_cut_summary(self, driver_id: int, branch_id: int, date_from: str = "", date_to: str = "") -> Dict[str, Any]:
+    def get_driver_cut_summary(self, driver_id: str, branch_id: str, date_from: str = "", date_to: str = "") -> Dict[str, Any]:
         where = ["driver_id=?", "COALESCE(sucursal_id,1)=?", "estado='entregado'"]
         params: List[Any] = [driver_id, branch_id]
         if date_from:
@@ -275,23 +278,24 @@ class DriverRepository:
             summary["total_collected"] += amount
         return summary
 
-    def create_driver_cut(self, data: Dict[str, Any]) -> int:
-        cur = self.db.execute(
+    def create_driver_cut(self, data: Dict[str, Any]) -> str:
+        cut_id = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin lastrowid
+        self.db.execute(
             """
             INSERT INTO delivery_driver_cuts(
-                driver_id, driver_nombre, turno_inicio, turno_fin, entregas_total,
+                id, driver_id, driver_nombre, turno_inicio, turno_fin, entregas_total,
                 efectivo_cobrado, tarjeta_cobrado, transfer_cobrado, total_cobrado,
                 efectivo_entregado, diferencia, usuario_corte, sucursal_id, notas, fecha
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
             """,
             (
-                data.get("driver_id"), data.get("driver_nombre"), data.get("turno_inicio"),
+                cut_id, data.get("driver_id"), data.get("driver_nombre"), data.get("turno_inicio"),
                 data.get("turno_fin"), data.get("entregas_total", 0),
                 data.get("efectivo_cobrado", 0), data.get("tarjeta_cobrado", 0),
                 data.get("transfer_cobrado", 0), data.get("total_cobrado", 0),
                 data.get("efectivo_entregado", 0), data.get("diferencia", 0),
-                data.get("usuario_corte"), data.get("sucursal_id", 1), data.get("notas", ""),
+                data.get("usuario_corte"), data.get("sucursal_id") or None, data.get("notas", ""),
             ),
         )
         self.db.commit()
-        return int(cur.lastrowid)
+        return cut_id

@@ -157,6 +157,34 @@ class AppContainer:
             self.caja_service = None
             logger.warning("CajaApplicationService no cargado: %s", _caja_svc_err)
 
+        # FASE 7.7 — capa canónica de caja (use cases + eventos CASH_*)
+        try:
+            from backend.application.services.cash_register_application_service import (
+                CashRegisterApplicationService,
+            )
+            from backend.application.use_cases.open_cash_shift_use_case import OpenCashShiftUseCase
+            from backend.application.use_cases.register_cash_movement_use_case import (
+                RegisterCashMovementUseCase,
+            )
+            from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
+            from core.events.event_bus import get_bus as _cash_get_bus
+
+            self.cash_register_service = CashRegisterApplicationService(
+                self.finance_service,
+                publisher=lambda evt, payload: _cash_get_bus().publish(evt, payload),
+            )
+            self.open_cash_shift_uc = OpenCashShiftUseCase(handler=self.cash_register_service.open_shift)
+            self.register_cash_movement_uc = RegisterCashMovementUseCase(
+                handler=self.cash_register_service.register_movement
+            )
+            self.generate_z_cut_uc = GenerateZCutUseCase(handler=self.cash_register_service.generate_z_cut)
+        except Exception as _cash_err:
+            self.cash_register_service = None
+            self.open_cash_shift_uc = None
+            self.register_cash_movement_uc = None
+            self.generate_z_cut_uc = None
+            logger.warning("CashRegister use cases no cargados: %s", _cash_err)
+
         # CajaTicketService — impresión y PDF de cortes Z
         try:
             from core.services.caja_ticket_service import CajaTicketService

@@ -75,24 +75,27 @@ class CajaApplicationService:
 
     # ── Abrir turno ───────────────────────────────────────────────────────────
 
-    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> int:
-        """Abre un nuevo turno. Lanza TurnoYaAbiertoError si ya hay uno abierto."""
+    def abrir_turno(self, sucursal_id: int, usuario: str, fondo_inicial: float) -> str:
+        """Abre un nuevo turno. Lanza TurnoYaAbiertoError si ya hay uno abierto.
+
+        REGLA CERO: identidad UUIDv7 acuñada con new_uuid() e insertada
+        explícitamente en turnos_caja.id — sin lastrowid."""
         existing = self.get_estado_turno(sucursal_id, usuario)
         if existing:
             raise TurnoYaAbiertoError("Ya hay un turno abierto para este cajero.")
 
-        cur = self.db.execute(
+        turno_id = new_uuid()
+        self.db.execute(
             """INSERT INTO turnos_caja
-               (sucursal_id, cajero, usuario, fondo_inicial, estado, fecha_apertura)
-               VALUES (?,?,?,?,'abierto', datetime('now'))""",
-            (sucursal_id, usuario, usuario, fondo_inicial),
+               (id, sucursal_id, cajero, usuario, fondo_inicial, estado, fecha_apertura)
+               VALUES (?,?,?,?,?,'abierto', datetime('now'))""",
+            (turno_id, sucursal_id, usuario, usuario, fondo_inicial),
         )
         try:
             self.db.commit()
         except Exception:
             pass
-        turno_id = cur.lastrowid
-        logger.info("Turno abierto id=%d cajero=%s fondo=%.2f", turno_id, usuario, fondo_inicial)
+        logger.info("Turno abierto id=%s cajero=%s fondo=%.2f", turno_id, usuario, fondo_inicial)
 
         self._publish("CAJA_TURNO_ABIERTO", {
             "turno_id": turno_id,
@@ -121,9 +124,9 @@ class CajaApplicationService:
 
         self.db.execute(
             """INSERT INTO movimientos_caja
-               (turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-               VALUES (?,?,?,?,?,?, datetime('now'))""",
-            (turno_id, sucursal_id, tipo, monto, concepto, usuario),
+               (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
+               VALUES (?,?,?,?,?,?,?, datetime('now'))""",
+            (new_uuid(), turno_id, sucursal_id, tipo, monto, concepto, usuario),
         )
         try:
             self.db.commit()
@@ -230,7 +233,7 @@ class CajaApplicationService:
             logger.warning("get_historial_cortes: %s", e)
             return []
 
-    def get_cierre_por_id(self, cierre_id: int) -> Optional[Dict]:
+    def get_cierre_por_id(self, cierre_id: str) -> Optional[Dict]:
         """Retorna un cierre por su ID para reimpresión."""
         try:
             row = self.db.execute(
@@ -411,16 +414,16 @@ class CajaApplicationService:
             self.db.execute(f"SAVEPOINT {sp}")
 
             # 7a. Insertar en cierres_caja (turno_id added by migration 080)
-            cur = self.db.execute(
+            self.db.execute(
                 """INSERT INTO cierres_caja
-                   (uuid, tipo, sucursal_id, usuario, turno, turno_id,
+                   (id, uuid, tipo, sucursal_id, usuario, turno, turno_id,
                     fecha_apertura, fecha_cierre,
                     total_ventas, num_ventas,
                     total_efectivo, total_tarjeta, total_transferencia, total_otros,
                     efectivo_contado, fondo_inicial, diferencia, comentarios, estado)
-                   VALUES (?,?,?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?,'cerrado')""",
+                   VALUES (?,?,?,?,?,?,?,?,datetime('now'),?,?,?,?,?,?,?,?,?,?,'cerrado')""",
                 (
-                    cierre_uuid, "Z", sucursal_id, usuario, cajero, turno_id,
+                    cierre_uuid, cierre_uuid, "Z", sucursal_id, usuario, cajero, turno_id,
                     fecha_apertura,
                     round(total_ventas, 2), num_ventas,
                     round(total_efectivo, 2), round(total_tarjeta, 2),
@@ -429,7 +432,7 @@ class CajaApplicationService:
                     diferencia, observaciones or "",
                 ),
             )
-            cierre_id = cur.lastrowid
+            cierre_id = cierre_uuid  # REGLA CERO: identidad UUIDv7, sin lastrowid
 
             # 7b. Actualizar turnos_caja
             self.db.execute(

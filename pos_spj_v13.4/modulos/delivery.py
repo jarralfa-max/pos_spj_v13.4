@@ -466,12 +466,12 @@ class NuevoPedidoDialog(QDialog):
         self.txt_notas = QLineEdit()
         self.txt_notas.setPlaceholderText("Notas para el repartidor: referencias, instrucciones especiales…")
         self.combo_sucursal = QComboBox()
+        # SQL vive en el QueryService (regla 8); sin default arbitrario id=1 (regla 23).
         try:
-            rows = conexion.execute("SELECT id, nombre FROM sucursales ORDER BY nombre").fetchall()
-            for _sid, _snombre in rows:
+            for _sid, _snombre in _DeliveryQueryService(conexion).list_active_branches():
                 self.combo_sucursal.addItem(_snombre, _sid)
         except Exception:
-            self.combo_sucursal.addItem("Sucursal Principal", 1)
+            pass
         extra.addWidget(QLabel("Notas:"))
         extra.addWidget(self.txt_notas, 3)
         extra.addWidget(QLabel("Sucursal:"))

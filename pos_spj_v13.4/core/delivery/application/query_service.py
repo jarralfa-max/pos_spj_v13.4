@@ -75,6 +75,13 @@ class DeliveryQueryService:
     def __init__(self, db: Any) -> None:
         self._db = db
 
+    def list_active_branches(self) -> list[tuple]:
+        """(id, nombre) of branches for selectors — SQL stays out of the UI."""
+        rows = self._db.execute(
+            "SELECT id, nombre FROM sucursales ORDER BY nombre"
+        ).fetchall()
+        return [(r[0], r[1]) for r in rows]
+
     def list_orders(
         self,
         branch_id: str | None = None,

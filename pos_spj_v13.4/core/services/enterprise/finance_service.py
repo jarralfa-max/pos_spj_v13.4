@@ -1055,9 +1055,9 @@ class FinanceService:
         """Registra entrada o retiro manual en caja."""
         self.db.execute(
             """INSERT INTO movimientos_caja
-               (turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-               VALUES (?,?,?,?,?,?, datetime('now'))""",
-            (str(turno_id), sucursal_id, tipo, monto, concepto, usuario)
+               (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
+               VALUES (?,?,?,?,?,?,?, datetime('now'))""",
+            (new_uuid(), str(turno_id), sucursal_id, tipo, monto, concepto, usuario)
         )
         # FASE 9: no commit aquí — PurchaseService llama este método dentro
         # de un SAVEPOINT; el commit lo hace PurchaseService al hacer RELEASE.
@@ -1164,9 +1164,9 @@ class FinanceService:
             turno_id = str(row['id']) if row else None
             self.db.execute(
                 """INSERT INTO movimientos_caja
-                   (turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
-                   VALUES (?,?,?,?,?,?,datetime('now'))""",
-                (turno_id, branch_id, 'VENTA', amount,
+                   (id, turno_id, sucursal_id, tipo, monto, concepto, usuario, fecha)
+                   VALUES (?,?,?,?,?,?,?,datetime('now'))""",
+                (new_uuid(), turno_id, branch_id, 'VENTA', amount,
                  f"{category}: {description}", user)
             )
             # No commit here — caller (SalesService SAVEPOINT) owns the transaction

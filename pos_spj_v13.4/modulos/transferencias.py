@@ -659,13 +659,11 @@ class ModuloTransferencias(ModuloBase):
         lay.addWidget(widget)
 
     def _get_sucursales(self) -> List[Dict]:
+        # SQL vive en el repo (regla 8); sin default arbitrario id=1 (regla 23).
         try:
-            rows = self._repo.db.fetchall(
-                "SELECT id, nombre FROM sucursales WHERE activa = 1 ORDER BY nombre"
-            )
-            return [dict(r) for r in rows]
+            return self._repo.list_active_branches()
         except Exception:
-            return [{"id": 1, "nombre": "Principal"}]
+            return []
 
 
 # ── Dialogo Nueva Transferencia ───────────────────────────────────────────────
