@@ -27,7 +27,7 @@ DONE
 |     7 | RECETAS               | Recetas                  | PENDING |
 |     8 | PRODUCCION            | Producción               | PENDING |
 |     9 | TRANSFERENCIAS        | Transferencias           | DONE |
-|    10 | DELIVERY              | Delivery                 | AUDIT |
+|    10 | DELIVERY              | Delivery                 | DONE |
 |    11 | CAJA                  | Caja                     | PENDING |
 |    12 | BI_DASHBOARD          | BI / Dashboard           | PENDING |
 |    13 | PLANEACION_COMPRAS    | Planeación de compras    | PENDING |

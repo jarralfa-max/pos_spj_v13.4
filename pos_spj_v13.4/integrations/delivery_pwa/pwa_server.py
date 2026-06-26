@@ -71,16 +71,22 @@ class DeliveryAPIHandler(BaseHTTPRequestHandler):
                 sql += " AND d.driver_id=?"; params.append(chofer_id)
             sql += " ORDER BY d.fecha ASC LIMIT 50"
             rows = conn.execute(sql, params).fetchall()
+            # UI boundary: backend usa claves de acción en inglés; la PWA (estados
+            # y botones) habla español. Traducir aquí (regla 2: frontend en español).
+            _ACTION_KEY_ES = {"in_transit": "en_ruta", "delivered": "entregado", "cancelled": "cancelado"}
             pedidos = []
             for row in rows:
                 pedido = dict(row)
-                pedido["actions"] = service.get_valid_actions(
+                actions = service.get_valid_actions(
                     status=pedido.get("estado", ""),
                     workflow_type=pedido.get("workflow_type", ""),
                     adjustment_pending=bool(int(pedido.get("adjustment_pending") or 0)),
                     scheduled_at=pedido.get("scheduled_at"),
                     delivery_type=pedido.get("delivery_type", ""),
                 )
+                for a in actions:
+                    a["key"] = _ACTION_KEY_ES.get(a.get("key"), a.get("key"))
+                pedido["actions"] = actions
                 pedidos.append(pedido)
             return pedidos
         except Exception as e:
