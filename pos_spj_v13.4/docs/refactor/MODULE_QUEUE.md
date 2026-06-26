@@ -21,7 +21,7 @@ DONE
 |     0 | CONFIGURACION         | Configuración            | PENDING |
 |     1 | MERMA                 | Merma                    | DONE |
 |     2 | PRODUCTOS             | Productos                | DONE |
-|     3 | INVENTARIO            | Inventario               | PENDING |
+|     3 | INVENTARIO            | Inventario               | DONE |
 |     4 | VENTAS                | Ventas                   | DONE |
 |     5 | PROCESAMIENTO_CARNICO | Procesamiento cárnico    | DONE |
 |     6 | RECETAS               | Recetas                  | PENDING |
@@ -29,7 +29,7 @@ DONE
 |     8 | TRANSFERENCIAS        | Transferencias           | DONE |
 |     9 | DELIVERY              | Delivery                 | DONE |
 |    10 | CAJA                  | Caja                     | DONE |
-|    11 | BI_DASHBOARD          | BI / Dashboard           | PENDING |
+|    11 | BI_DASHBOARD          | BI / Dashboard           | DONE |
 |    12 | PLANEACION_COMPRAS    | Planeación de compras    | PENDING |
 |    13 | COTIZACIONES          | Cotizaciones             | PENDING |
 |    14 | FIDELIDAD             | Fidelidad                | PENDING |

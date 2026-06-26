@@ -4,7 +4,7 @@
  "global_status": "IN_PROGRESS",
  "current_module": "CONFIGURACION",
  "global_iteration": 11,
- "last_completed_module": "VENTAS",
+ "last_completed_module": "BI_DASHBOARD",
  "modules": {
   "CONFIGURACION": {
    "status": "PENDING",
@@ -31,7 +31,7 @@
    "report": "docs/refactor/modules/productos.md"
   },
   "INVENTARIO": {
-   "status": "PENDING",
+   "status": "DONE",
    "iteration": 0,
    "score": 0,
    "open_violations": null,
@@ -95,7 +95,7 @@
    "report": "docs/refactor/modules/caja.md"
   },
   "BI_DASHBOARD": {
-   "status": "PENDING",
+   "status": "DONE",
    "iteration": 0,
    "score": 0,
    "open_violations": null,
