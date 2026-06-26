@@ -1029,31 +1029,12 @@ class MainWindow(QMainWindow):
         self._refresh_order_badges()
 
     def _refresh_order_badges(self) -> None:
-<<<<<<< HEAD
-    if not self.usuario_actual:
-        return
-
-    branch_id = (
-        self.usuario_actual.get("active_branch_id")
-        or self.usuario_actual.get("sucursal_id")
-        or self.usuario_actual.get("branch_id")
-        or self.usuario_actual.get("sucursal_uuid")
-    )
-
-    if not branch_id:
-        return
-
-    counts = OrderBadgeService(self.container.db).get_badge_counts(
-        branch_id=str(branch_id)
-    )
-=======
         if not self.usuario_actual:
             return
         branch_id = self.usuario_actual.get("sucursal_id")
         if not branch_id:
             return
         counts = OrderBadgeService(self.container.db).get_badge_counts(branch_id=str(branch_id))
->>>>>>> 4b2e106869272edc67411f374f926ed6faef491a
 
         active = int(counts.get("orders_active", 0))
         scheduled = int(counts.get("orders_scheduled", 0))
