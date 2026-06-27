@@ -159,7 +159,7 @@
       "report": "docs/refactor/modules/proveedores.md"
     },
     "COMPRAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,

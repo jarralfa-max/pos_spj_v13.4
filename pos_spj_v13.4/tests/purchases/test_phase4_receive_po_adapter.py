@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra_items (
     precio_unitario REAL, subtotal REAL
 );
 CREATE TABLE IF NOT EXISTS compras (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     folio TEXT UNIQUE, proveedor_id INTEGER, usuario TEXT,
     subtotal REAL DEFAULT 0, iva REAL DEFAULT 0,
     total REAL DEFAULT 0, estado TEXT DEFAULT 'completada',

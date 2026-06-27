@@ -30,7 +30,7 @@ from core.services.purchase_service import PurchaseService
 
 SCHEMA = """
 CREATE TABLE compras (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id            TEXT PRIMARY KEY,
     folio         TEXT UNIQUE,
     fecha         DATETIME DEFAULT (datetime('now')),
     proveedor_id  INTEGER,
@@ -47,7 +47,7 @@ CREATE TABLE compras (
     moneda        TEXT DEFAULT 'MXN'
 );
 CREATE TABLE detalles_compra (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              TEXT PRIMARY KEY,
     compra_id       INTEGER NOT NULL,
     producto_id     INTEGER NOT NULL,
     cantidad        REAL NOT NULL,

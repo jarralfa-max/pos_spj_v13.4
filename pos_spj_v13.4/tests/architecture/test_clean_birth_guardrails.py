@@ -221,6 +221,26 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_compras_tables_are_born_clean_uuid_identity():
+    """The purchase transaction is born-clean: compras.id and detalles_compra.id are
+    TEXT UUIDv7 primary keys (no autoincrement), the detalle FK compra_id is TEXT,
+    and PurchaseRepository mints both ids with new_uuid() (no lastrowid).
+    """
+    conn = _fresh_base_schema()
+    com = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(compras)").fetchall()}
+    assert com["id"] == ("TEXT", 1)
+    assert com["proveedor_id"][0] == "TEXT"
+
+    det = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(detalles_compra)").fetchall()}
+    assert det["id"] == ("TEXT", 1)
+    assert det["compra_id"][0] == "TEXT"
+
+    src = (REPO / "repositories" / "purchase_repository.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in src
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "INSERT INTO compras" in src and "INSERT INTO detalles_compra (id," in src
+
+
 def test_proveedores_table_is_born_clean_uuid_identity():
     """The proveedor entity is born-clean: proveedores.id is a TEXT UUIDv7 primary
     key (no autoincrement), categoria/notas live in the base schema (no DDL emitted
@@ -410,9 +430,9 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 143
+INTEGER_PK_TABLE_CEILING = 141
 SERVICES_WITH_DDL_CEILING = 20
-LASTROWID_FILE_CEILING = 37
+LASTROWID_FILE_CEILING = 33
 
 
 def test_integer_pk_tables_in_base_schema_do_not_grow():

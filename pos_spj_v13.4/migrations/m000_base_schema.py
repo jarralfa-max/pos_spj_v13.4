@@ -948,10 +948,10 @@ def _create_caja(conn):
 def _create_compras(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS compras (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            id            TEXT PRIMARY KEY,
             folio         TEXT UNIQUE,
             fecha         DATETIME DEFAULT (datetime('now')),
-            proveedor_id  INTEGER,
+            proveedor_id  TEXT,
             usuario       TEXT NOT NULL,
             subtotal      REAL NOT NULL DEFAULT 0,
             iva           REAL NOT NULL DEFAULT 0,
@@ -965,9 +965,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS detalles_compra (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            compra_id       INTEGER NOT NULL,
-            producto_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            compra_id       TEXT NOT NULL,
+            producto_id     TEXT NOT NULL,
             cantidad        REAL NOT NULL,
             precio_unitario REAL NOT NULL,
             subtotal        REAL NOT NULL,
