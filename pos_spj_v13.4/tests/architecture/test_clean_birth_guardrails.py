@@ -221,6 +221,43 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_activos_tables_are_born_clean_uuid_identity():
+    """The canonical Activos path is born-clean: activos / mantenimientos (base)
+    and depreciacion_acumulada (migración 060) carry a TEXT UUIDv7 id with TEXT
+    functional FKs, and AssetService mints every id with new_uuid() (no
+    autoincrement, no lastrowid). El default arbitrario vida_util_anios=5 se quitó.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    act = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(activos)").fetchall()}
+    assert act["id"] == ("TEXT", 1)
+    assert act["responsable_id"][0] == "TEXT"
+
+    man = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(mantenimientos)").fetchall()}
+    assert man["id"] == ("TEXT", 1)
+    assert man["activo_id"][0] == "TEXT"
+
+    dep = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(depreciacion_acumulada)").fetchall()}
+    assert dep["id"] == ("TEXT", 1)
+    assert dep["activo_id"][0] == "TEXT"
+
+    src = (REPO / "core" / "services" / "asset_service.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in src
+    assert "INSERT INTO activos (id, nombre" in src
+    assert "INSERT INTO mantenimientos (id, activo_id" in src
+    assert "INSERT INTO depreciacion_acumulada\n                           (id, activo_id" in src
+
+    base_src = (REPO / "migrations" / "m000_base_schema.py").read_text(encoding="utf-8")
+    assert "vida_util_anios     INTEGER DEFAULT 5" not in base_src   # default arbitrario eliminado
+
+
 def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
     """cotizaciones / cotizaciones_detalle carry a single TEXT UUIDv7 id (no
     integer surrogate, no separate legacy uuid column), FK columns are TEXT, and
@@ -325,7 +362,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 147
+INTEGER_PK_TABLE_CEILING = 145
 SERVICES_WITH_DDL_CEILING = 21
 LASTROWID_FILE_CEILING = 37
 

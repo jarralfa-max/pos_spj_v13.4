@@ -21,18 +21,18 @@ def _db_with_asset_tables():
     conn = _mem_db()
     conn.executescript("""
         CREATE TABLE activos (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                   TEXT    PRIMARY KEY,
             nombre               TEXT    NOT NULL,
             categoria            TEXT    DEFAULT '',
             numero_serie         TEXT    DEFAULT '',
             valor_adquisicion    REAL    NOT NULL DEFAULT 0,
-            vida_util_anios      INTEGER DEFAULT 0,
+            vida_util_anios      INTEGER,
             estado               TEXT    DEFAULT 'activo',
             fecha_adquisicion    TEXT    DEFAULT (date('now'))
         );
         CREATE TABLE mantenimientos (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            activo_id   INTEGER NOT NULL,
+            id          TEXT    PRIMARY KEY,
+            activo_id   TEXT    NOT NULL,
             tipo        TEXT    DEFAULT 'preventivo',
             descripcion TEXT    DEFAULT '',
             fecha_prog  TEXT    DEFAULT (date('now')),
@@ -42,12 +42,12 @@ def _db_with_asset_tables():
             realizado_por TEXT  DEFAULT ''
         );
         CREATE TABLE depreciacion_acumulada (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            activo_id   INTEGER NOT NULL,
+            id          TEXT    PRIMARY KEY,
+            activo_id   TEXT    NOT NULL,
             periodo     TEXT    NOT NULL,
             monto_mes   REAL    NOT NULL DEFAULT 0,
             acumulado   REAL    NOT NULL DEFAULT 0,
-            cuenta_id   INTEGER,
+            cuenta_id   TEXT,
             created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
             UNIQUE(activo_id, periodo)
         );
@@ -66,22 +66,26 @@ def _make_asset_svc(conn, finance_service=None):
 
 
 def _insert_activo(conn, nombre="Freidora", valor=12000.0, vida=5, estado="activo"):
-    cur = conn.execute(
-        "INSERT INTO activos(nombre, valor_adquisicion, vida_util_anios, estado) "
-        "VALUES(?,?,?,?)", (nombre, valor, vida, estado)
+    from backend.shared.ids import new_uuid
+    aid = new_uuid()
+    conn.execute(
+        "INSERT INTO activos(id, nombre, valor_adquisicion, vida_util_anios, estado) "
+        "VALUES(?,?,?,?,?)", (aid, nombre, valor, vida, estado)
     )
     conn.commit()
-    return cur.lastrowid
+    return aid
 
 
 def _insert_mant(conn, activo_id, costo=500.0, estado="completado"):
-    cur = conn.execute(
-        "INSERT INTO mantenimientos(activo_id, tipo, descripcion, costo, estado) "
-        "VALUES(?,?,?,?,?)",
-        (activo_id, "correctivo", "Reparación mayor", costo, estado)
+    from backend.shared.ids import new_uuid
+    mid = new_uuid()
+    conn.execute(
+        "INSERT INTO mantenimientos(id, activo_id, tipo, descripcion, costo, estado) "
+        "VALUES(?,?,?,?,?,?)",
+        (mid, activo_id, "correctivo", "Reparación mayor", costo, estado)
     )
     conn.commit()
-    return cur.lastrowid
+    return mid
 
 
 # ══════════════════════════════════════════════════════════════════════════════

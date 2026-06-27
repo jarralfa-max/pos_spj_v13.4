@@ -1508,28 +1508,30 @@ def _create_personal_rrhh(conn):
 
 
 def _create_activos(conn):
+    # Identidad UUIDv7 (REGLA CERO): id TEXT acuñado por AssetService/UI, FKs TEXT.
+    # vida_util_anios sin default arbitrario (lo provee siempre quien registra).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS activos (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT PRIMARY KEY,
             nombre              TEXT NOT NULL,
             categoria           TEXT,
             numero_serie        TEXT,
             valor_adquisicion   REAL DEFAULT 0,
             valor_actual        REAL DEFAULT 0,
             fecha_adquisicion   DATE,
-            vida_util_anios     INTEGER DEFAULT 5,
+            vida_util_anios     INTEGER,
             depreciacion_anual  REAL DEFAULT 0,
             ubicacion           TEXT,
             estado              TEXT DEFAULT 'activo',
-            responsable_id      INTEGER,
+            responsable_id      TEXT,
             notas               TEXT,
             fecha_registro      DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mantenimientos (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            activo_id     INTEGER,
+            id            TEXT PRIMARY KEY,
+            activo_id     TEXT,
             tipo          TEXT,
             descripcion   TEXT,
             costo         REAL DEFAULT 0,
