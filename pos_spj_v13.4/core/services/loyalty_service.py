@@ -672,7 +672,7 @@ class LoyaltyService:
             repo = LoyaltyRepository(self.db)
             card = repo.get_card_by_code(code)
             if card and card.get("cliente_id"):
-                cid = int(card["cliente_id"])
+                cid = card["cliente_id"]
                 row = self.db.execute(
                     "SELECT id, nombre, COALESCE(telefono,'') AS telefono FROM clientes WHERE id=? LIMIT 1",
                     (cid,),
@@ -792,10 +792,10 @@ class LoyaltyService:
                 },
                 async_=True,
             )
-        return int(raffle_id)
-    def create_raffle_with_rules(self, data: Dict[str, Any], rules: Dict[str, Any], prizes: list[dict], eligibility: Dict[str, Any]) -> int:
+        return raffle_id
+    def create_raffle_with_rules(self, data: Dict[str, Any], rules: Dict[str, Any], prizes: list[dict], eligibility: Dict[str, Any]) -> str:
         self.validate_raffle_budget(data)
-        return int(self._app.repo.create_raffle_with_rules(data, rules, prizes, eligibility))
+        return self._app.repo.create_raffle_with_rules(data, rules, prizes, eligibility)
 
     def reserve_raffle_budget(self, raffle_id: int, monto: float, usuario: str, referencia: str) -> bool:
         ok = self._app.repo.reserve_raffle_budget(raffle_id, monto, usuario, referencia)
@@ -803,7 +803,7 @@ class LoyaltyService:
             self._bus.publish(
                 "RAFFLE_BUDGET_RESERVED",
                 {
-                    "raffle_id": int(raffle_id),
+                    "raffle_id": raffle_id,
                     "monto": float(monto),
                     "usuario": str(usuario or ""),
                     "referencia": str(referencia or ""),
@@ -817,7 +817,7 @@ class LoyaltyService:
         self.validate_raffle_ready_to_activate(raffle_id)
         ok = bool(self._app.repo.activate_raffle(raffle_id, usuario))
         if ok and self._bus:
-            self._bus.publish("RAFFLE_ACTIVATED", {"raffle_id": int(raffle_id), "usuario": str(usuario or ""), "sucursal_id": self.sucursal_id}, async_=True)
+            self._bus.publish("RAFFLE_ACTIVATED", {"raffle_id": raffle_id, "usuario": str(usuario or ""), "sucursal_id": self.sucursal_id}, async_=True)
         return ok
 
 
@@ -826,7 +826,7 @@ class LoyaltyService:
         if ok and self._bus:
             self._bus.publish(
                 "RAFFLE_CLOSED",
-                {"raffle_id": int(raffle_id), "usuario": str(usuario or ""), "sucursal_id": self.sucursal_id},
+                {"raffle_id": raffle_id, "usuario": str(usuario or ""), "sucursal_id": self.sucursal_id},
                 async_=True,
             )
         return ok
@@ -857,7 +857,7 @@ class LoyaltyService:
                 self._bus.publish(
                     "RAFFLE_TICKET_GRANTED",
                     {
-                        "raffle_id": int(raffle_id),
+                        "raffle_id": raffle_id,
                         "venta_id": str(venta_id),
                         "cliente_id": str(cliente_id or ""),
                         "numero_boleto": ticket,
@@ -880,12 +880,12 @@ class LoyaltyService:
         except Exception:
             return set()
 
-    def _eligible_ids(self, table: str, column: str, raffle_id: int) -> set[int]:
+    def _eligible_ids(self, table: str, column: str, raffle_id: str) -> set[str]:
         if column not in self._table_columns(table):
             return set()
         try:
-            rows = self.db.execute(f"SELECT {column} FROM {table} WHERE raffle_id=?", (int(raffle_id),)).fetchall()
-            return {int((r[0] if isinstance(r, tuple) else r[column]) or 0) for r in rows}
+            rows = self.db.execute(f"SELECT {column} FROM {table} WHERE raffle_id=?", (raffle_id,)).fetchall()
+            return {str(r[0] if isinstance(r, tuple) else r[column]) for r in rows if (r[0] if isinstance(r, tuple) else r[column]) is not None}
         except Exception as exc:
             logger.debug("No se pudieron leer elegibles de rifa tabla=%s columna=%s: %s", table, column, exc)
             return set()
@@ -925,9 +925,10 @@ class LoyaltyService:
         if int(rules.get("include_discounted_sales") if rules.get("include_discounted_sales") is not None else 1) == 0 and self._sale_has_discount(sale_context):
             return {"eligible": False, "reason": "discounted_sale_not_allowed"}
 
-        sale_branch_id = int(sale_context.get("sucursal_id") or 0)
+        # Identidad como str (UUIDv7): comparar contra los sets de elegibles (TEXT).
+        sale_branch_id = str(sale_context.get("sucursal_id") or "")
         eligible_branches = self._eligible_ids("raffle_eligible_branches", "sucursal_id", raffle_id)
-        raffle_branch_id = int(raffle.get("sucursal_id") or 0)
+        raffle_branch_id = str(raffle.get("sucursal_id") or "")
         if eligible_branches:
             if sale_branch_id not in eligible_branches:
                 return {"eligible": False, "reason": "branch_not_allowed"}
@@ -954,8 +955,8 @@ class LoyaltyService:
             if allowed_products or allowed_categories:
                 ok_item = False
                 for it in items:
-                    pid = int((it.get("product_id") or it.get("id") or 0) or 0)
-                    cid = int((it.get("category_id") or it.get("categoria_id") or 0) or 0)
+                    pid = str(it.get("product_id") or it.get("id") or "")
+                    cid = str(it.get("category_id") or it.get("categoria_id") or "")
                     if (allowed_products and pid in allowed_products) or (allowed_categories and cid in allowed_categories):
                         ok_item = True
                         break
@@ -995,6 +996,7 @@ class LoyaltyService:
             payment_method=str(payment_method or ""),
             items=items or [],
             discount=discount,
+            reprint_existing=False,
         )
         return [
             {
@@ -1008,7 +1010,7 @@ class LoyaltyService:
     def _raffle_print_payload(self, raffle: Dict[str, Any], ticket: Dict[str, Any], *, cliente_nombre: str = "", folio_venta: str = "", venta_id: int = 0, sucursal_id: int = 0) -> Dict[str, Any]:
         prizes = []
         try:
-            prizes = self._app.repo.list_raffle_prizes(int(raffle.get("id") or ticket.get("raffle_id") or 0))
+            prizes = self._app.repo.list_raffle_prizes((raffle.get("id") or ticket.get("raffle_id")))
         except Exception:
             prizes = []
         premio = str(raffle.get("premio") or "")
@@ -1018,14 +1020,14 @@ class LoyaltyService:
         qr_content = f"RAFFLE:{ticket.get('raffle_id')}|SALE:{ticket.get('venta_id') or venta_id}|TICKET:{numero}"
         return {
             "ticket_type": "raffle_ticket",
-            "raffle_id": int(ticket.get("raffle_id") or raffle.get("id") or 0),
+            "raffle_id": (ticket.get("raffle_id") or raffle.get("id")),
             "raffle_name": str(raffle.get("nombre") or f"Rifa {ticket.get('raffle_id') or ''}"),
             "premio": premio,
             "numero_boleto": numero,
-            "cliente_id": int(ticket.get("cliente_id") or 0),
+            "cliente_id": ticket.get("cliente_id"),
             "cliente": str(cliente_nombre or ticket.get("cliente") or ""),
             "folio_venta": str(ticket.get("folio_venta") or folio_venta or ""),
-            "venta_id": int(ticket.get("venta_id") or venta_id or 0),
+            "venta_id": (ticket.get("venta_id") or venta_id),
             "fecha_sorteo": str(raffle.get("fecha_sorteo") or raffle.get("fecha_fin") or ""),
             "fecha_fin": str(raffle.get("fecha_fin") or ""),
             "sucursal_id": str(sucursal_id or raffle.get("sucursal_id") or self.sucursal_id),
@@ -1047,6 +1049,7 @@ class LoyaltyService:
         payment_method="",
         items=None,
         discount=0,
+        reprint_existing=True,
     ) -> list[dict]:
         dt = str(sale_datetime or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         printable: list[dict] = []
@@ -1056,8 +1059,8 @@ class LoyaltyService:
             logger.warning("No se pudieron consultar rifas activas venta=%s: %s", venta_id, exc)
             return []
         for raffle in active:
-            rid = int(raffle.get("id") or 0)
-            if rid <= 0:
+            rid = raffle.get("id")
+            if not rid:
                 continue
             try:
                 sale_context = {
@@ -1076,7 +1079,10 @@ class LoyaltyService:
                 rules = eval_result.get("rules") or {}
                 existing = self._app.repo.get_tickets_for_sale(rid, str(venta_id))
                 if existing:
-                    printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=str(venta_id), sucursal_id=str(sucursal_id or self.sucursal_id)) for t in existing])
+                    # reprint_existing=False (sale-completed handler): idempotente,
+                    # no re-emite ni re-imprime boletos en eventos duplicados.
+                    if reprint_existing:
+                        printable.extend([self._raffle_print_payload(raffle, t, cliente_nombre=cliente_nombre, folio_venta=folio_venta, venta_id=str(venta_id), sucursal_id=str(sucursal_id or self.sucursal_id)) for t in existing])
                     continue
                 count = self.calculate_raffle_tickets_count(raffle, rules, sale_context)
                 max_customer = int(rules.get("max_tickets_per_customer") or 0)
@@ -1128,9 +1134,9 @@ class LoyaltyService:
         winner = self._app.repo.get_winner_by_id(winner_id)
         if not winner:
             return False
-        raffle = self._app.repo.get_raffle_by_id(int(winner.get("raffle_id") or 0))
+        raffle = self._app.repo.get_raffle_by_id(winner.get("raffle_id"))
         self.validate_prize_delivery(raffle, winner)
-        if not self._app.repo.has_raffle_budget_reserve(int(winner.get("raffle_id") or 0)):
+        if not self._app.repo.has_raffle_budget_reserve(winner.get("raffle_id")):
             raise ValueError("no entregar premio sin reserva financiera")
         ok = bool(self._app.repo.mark_prize_delivered(winner_id, usuario, costo_real, referencia=referencia))
         if ok and self._bus:
@@ -1138,8 +1144,8 @@ class LoyaltyService:
             self._bus.publish(
                 "RAFFLE_PRIZE_DELIVERED",
                 {
-                    "raffle_id": int(winner.get("raffle_id") or 0),
-                    "winner_id": int(winner_id),
+                    "raffle_id": winner.get("raffle_id"),
+                    "winner_id": winner_id,
                     "usuario": str(usuario or ""),
                     "monto": float(costo_real or 0),
                     "referencia": ref,
@@ -1157,7 +1163,7 @@ class LoyaltyService:
             self._bus.publish(
                 "RAFFLE_BUDGET_RELEASED",
                 {
-                    "raffle_id": int(raffle_id),
+                    "raffle_id": raffle_id,
                     "monto": abs(float(monto or 0)),
                     "usuario": str(usuario or ""),
                     "referencia": str(referencia),

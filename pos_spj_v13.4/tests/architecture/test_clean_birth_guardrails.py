@@ -132,12 +132,56 @@ def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
     assert "puntos" not in tables
     assert "loyalty_points_log" not in tables
 
-    # The loyalty_ledger insert mints a UUIDv7 id and inserts it explicitly (the
-    # raffle subsystem in this repo is a separate, still-pending follow-up).
+    # The loyalty_ledger insert mints a UUIDv7 id and inserts it explicitly.
     src = (REPO / "repositories" / "loyalty_repository.py").read_text(encoding="utf-8")
     assert "from backend.shared.ids import new_uuid" in src
     assert "INSERT INTO loyalty_ledger\n            (id, cliente_id" in src
     assert "new_uuid()," in src
+
+
+def test_raffle_subsystem_born_clean_and_ddl_lives_in_migration():
+    """The raffle subsystem (migration 113) is born-clean: every table carries a
+    TEXT UUIDv7 primary key and TEXT functional FKs, the schema lives in
+    migrations/ (REGLA 11) — LoyaltyRepository.ensure_raffle_tables delegates to
+    the migration instead of emitting inline DDL — and identities are minted as
+    UUIDv7, never captured from autoincrement.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    text_pk = {
+        "raffles": (),
+        "raffle_tickets": ("raffle_id", "cliente_id", "venta_id"),
+        "raffle_financial_ledger": ("raffle_id",),
+        "raffle_winners": ("raffle_id", "ticket_id", "prize_id", "cliente_id"),
+        "raffle_rules": ("raffle_id",),
+        "raffle_prizes": ("raffle_id",),
+        "raffle_eligible_products": ("raffle_id", "product_id"),
+        "raffle_eligible_categories": ("raffle_id", "category_id"),
+        "raffle_eligible_branches": ("raffle_id", "sucursal_id"),
+    }
+    for table, fks in text_pk.items():
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols, f"{table} missing after migration 113"
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+        for fk in fks:
+            assert cols[fk][0] == "TEXT", f"{table}.{fk} must be TEXT (no integer surrogate)"
+
+    # Migration 113 is registered in the engine chain.
+    versions = {m.version for m in migrator.MIGRATIONS}
+    assert "113" in versions
+
+    # The repo holds no inline raffle DDL; it delegates to the migration and mints UUIDs.
+    src = (REPO / "repositories" / "loyalty_repository.py").read_text(encoding="utf-8")
+    assert "CREATE TABLE IF NOT EXISTS raffles" not in src
+    assert "migrations.standalone.113_raffle_subsystem" in src
+    assert "INSERT OR IGNORE INTO raffle_winners\n            (id, raffle_id" in src
 
 
 def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
@@ -246,7 +290,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 # Target for all three is 0; raising any of them is a regression and must fail.
 INTEGER_PK_TABLE_CEILING = 151
 SERVICES_WITH_DDL_CEILING = 21
-LASTROWID_FILE_CEILING = 39
+LASTROWID_FILE_CEILING = 37
 
 
 def test_integer_pk_tables_in_base_schema_do_not_grow():
