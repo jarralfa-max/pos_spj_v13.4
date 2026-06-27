@@ -110,7 +110,7 @@ def test_select_winner_assigns_prize():
     svc.generate_tickets_for_sale(rid, 1, 1, 'F', 100, 1)
     svc.close_raffle(rid, 'u')
     w = svc.select_winner(rid, 'u')
-    assert w.get('id', 0) > 0
+    assert w.get('id')
 
 
 def test_cannot_select_more_winners_than_prize_quantity():
@@ -126,7 +126,7 @@ def test_cannot_select_more_winners_than_prize_quantity():
     svc.close_raffle(rid, 'u')
     w1 = svc.select_winner(rid, 'u', random_seed='a')
     w2 = svc.select_winner(rid, 'u', random_seed='b')
-    assert w1.get('id', 0) > 0
+    assert w1.get('id')
     assert w2 == {}
 
 

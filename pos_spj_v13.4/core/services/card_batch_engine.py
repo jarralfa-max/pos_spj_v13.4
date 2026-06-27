@@ -13,7 +13,6 @@ import io
 import json
 import logging
 import sqlite3
-import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional, Tuple
@@ -38,13 +37,12 @@ except ImportError:
 
 # ── DTOs ──────────────────────────────────────────────────────────────────────
 
-# NOTA (FASE 4 / REGLA CERO): las identidades (id de lote/tarjeta/cliente) viajan
-# como str (UUIDv7-ready). Las columnas id siguen siendo INTEGER PRIMARY KEY hasta
-# la migración 200; la afinidad SQLite hace que un str '5' empate con el entero 5.
+# NOTA (REGLA CERO): las identidades (id de lote/tarjeta/cliente) son UUIDv7 TEXT
+# acuñadas con new_uuid(). El lote tiene identidad única (sin columna `uuid`
+# paralela): la doble identidad fue eliminada en el corte born-clean.
 @dataclass
 class CardBatch:
     id:               str
-    uuid:             str
     nombre:           str
     codigo_inicio:    str
     codigo_fin:       str
@@ -154,24 +152,22 @@ class CardBatchEngine:
 
         cod_inicio = f"{pfx}{ts}{start_seq:05d}"
         cod_fin    = f"{pfx}{ts}{start_seq + cantidad - 1:05d}"
-        batch_uuid = new_uuid()
 
         # UUID-native (REGLA CERO): el id del lote es un UUIDv7 acuñado con
-        # new_uuid() e insertado explícitamente — sin lastrowid. Requiere el
-        # esquema post-corte (migración 200) donde card_batches.id es TEXT.
+        # new_uuid() e insertado explícitamente — sin autoincrement, identidad única.
         batch_id = new_uuid()
         self.conn.execute(
             """
             INSERT INTO card_batches
-                (id, uuid, nombre, codigo_inicio, codigo_fin, cantidad,
+                (id, nombre, codigo_inicio, codigo_fin, cantidad,
                  cantidad_libres, estado, notas, generado_por)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?)
             """,
-            (batch_id, batch_uuid, nombre, cod_inicio, cod_fin, cantidad,
+            (batch_id, nombre, cod_inicio, cod_fin, cantidad,
              cantidad, "activo", notas, self.usuario)
         )
 
-        # Generar tarjetas individuales (cada id es un UUIDv7 propio, sin lastrowid)
+        # Generar tarjetas individuales (cada id es un UUIDv7 propio, sin autoincrement)
         for i in range(cantidad):
             numero = f"{pfx}{ts}{start_seq + i:05d}"
             qr_str = self._generar_qr_string(numero)
@@ -189,7 +185,7 @@ class CardBatchEngine:
         self.conn.commit()
 
         logger.info(
-            "crear_lote batch=%d nombre='%s' cantidad=%d inicio=%s fin=%s",
+            "crear_lote batch=%s nombre='%s' cantidad=%d inicio=%s fin=%s",
             batch_id, nombre, cantidad, cod_inicio, cod_fin
         )
 
@@ -202,7 +198,7 @@ class CardBatchEngine:
     def _load_batch(self, batch_id: str) -> CardBatch:
         row = self.conn.execute(
             """
-            SELECT id, uuid, nombre, codigo_inicio, codigo_fin,
+            SELECT id, nombre, codigo_inicio, codigo_fin,
                    cantidad, cantidad_libres, cantidad_asignadas,
                    estado, notas, fecha_creacion
             FROM card_batches WHERE id = ?
@@ -214,7 +210,7 @@ class CardBatchEngine:
         return self._batch_from_row(row)
 
     def listar_lotes(self, estado: str = None) -> List[CardBatch]:
-        q = "SELECT id, uuid, nombre, codigo_inicio, codigo_fin, " \
+        q = "SELECT id, nombre, codigo_inicio, codigo_fin, " \
             "cantidad, cantidad_libres, cantidad_asignadas, " \
             "estado, notas, fecha_creacion FROM card_batches"
         params: list = []
@@ -546,7 +542,7 @@ class CardBatchEngine:
         if idx > 0:
             c.save()
 
-        logger.info("exportar_pdf_lote batch=%d n=%d ruta=%s", batch_id, idx, ruta_pdf)
+        logger.info("exportar_pdf_lote batch=%s n=%d ruta=%s", batch_id, idx, ruta_pdf)
         return idx
 
     # ── Internos ──────────────────────────────────────────────────────────────
@@ -562,11 +558,11 @@ class CardBatchEngine:
         self.conn.execute(
             """
             INSERT INTO card_assignment_history
-                (tarjeta_id, cliente_id_prev, cliente_id_nuevo,
+                (id, tarjeta_id, cliente_id_prev, cliente_id_nuevo,
                  accion, motivo, usuario)
-            VALUES (?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?)
             """,
-            (self._sid(tarjeta_id), self._sid(cliente_prev), self._sid(cliente_nuevo),
+            (new_uuid(), self._sid(tarjeta_id), self._sid(cliente_prev), self._sid(cliente_nuevo),
              accion, motivo, self.usuario)
         )
 

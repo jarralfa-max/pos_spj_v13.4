@@ -1,6 +1,7 @@
 import sqlite3
 
 from core.services.loyalty_service import LoyaltyService
+from backend.shared.ids import new_uuid
 
 
 def _service():
@@ -12,21 +13,22 @@ def _service():
 
 
 def _active_raffle(db, *, min_sale=0, required_customer=0, max_sale=0, max_customer=0, allowed_payment="", include_discounted=1, ticket_strategy="per_amount", tickets_per_sale=1, amount_per_ticket=100):
+    rid = new_uuid()
     db.execute(
         """
-        INSERT INTO raffles(nombre,premio,monto_por_boleto,max_boletos_por_cliente,estado,financial_status,fecha_inicio,fecha_fin,sucursal_id)
-        VALUES('Navidad','Canasta',100,99,'activa','reservada','2026-01-01 00:00:00','2026-12-31 23:59:59',1)
-        """
-    )
-    rid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-    db.execute(
-        """
-        INSERT INTO raffle_rules(raffle_id,requires_registered_customer,min_sale_amount,ticket_strategy,amount_per_ticket,tickets_per_sale,max_tickets_per_sale,max_tickets_per_customer,include_discounted_sales,allowed_payment_methods)
-        VALUES(?,?,?,?,?,?,?,?,?,?)
+        INSERT INTO raffles(id,nombre,premio,monto_por_boleto,max_boletos_por_cliente,estado,financial_status,fecha_inicio,fecha_fin,sucursal_id)
+        VALUES(?,'Navidad','Canasta',100,99,'activa','reservada','2026-01-01 00:00:00','2026-12-31 23:59:59','1')
         """,
-        (rid, required_customer, min_sale, ticket_strategy, amount_per_ticket, tickets_per_sale, max_sale, max_customer, include_discounted, allowed_payment),
+        (rid,),
     )
-    db.execute("INSERT INTO raffle_prizes(raffle_id,nombre) VALUES(?, 'Canasta')", (rid,))
+    db.execute(
+        """
+        INSERT INTO raffle_rules(id,raffle_id,requires_registered_customer,min_sale_amount,ticket_strategy,amount_per_ticket,tickets_per_sale,max_tickets_per_sale,max_tickets_per_customer,include_discounted_sales,allowed_payment_methods)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (new_uuid(), rid, required_customer, min_sale, ticket_strategy, amount_per_ticket, tickets_per_sale, max_sale, max_customer, include_discounted, allowed_payment),
+    )
+    db.execute("INSERT INTO raffle_prizes(id,raffle_id,nombre) VALUES(?,?, 'Canasta')", (new_uuid(), rid))
     return rid
 
 

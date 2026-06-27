@@ -32,9 +32,9 @@ DONE
 |    11 | BI_DASHBOARD          | BI / Dashboard           | DONE |
 |    12 | PLANEACION_COMPRAS    | Planeación de compras    | DONE |
 |    13 | COTIZACIONES          | Cotizaciones             | DONE |
-|    14 | FIDELIDAD             | Fidelidad                | PENDING |
-|    15 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | PENDING |
-|    16 | ACTIVOS               | Activos                  | PENDING |
+|    14 | FIDELIDAD             | Fidelidad                | DONE |
+|    15 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | DONE |
+|    16 | ACTIVOS               | Activos                  | DONE |
 |    17 | CLIENTES              | Clientes                 | PENDING |
 |    18 | PROVEEDORES           | Proveedores              | PENDING |
 |    19 | COMPRAS               | Compras                  | PENDING |

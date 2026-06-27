@@ -1508,28 +1508,30 @@ def _create_personal_rrhh(conn):
 
 
 def _create_activos(conn):
+    # Identidad UUIDv7 (REGLA CERO): id TEXT acuñado por AssetService/UI, FKs TEXT.
+    # vida_util_anios sin default arbitrario (lo provee siempre quien registra).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS activos (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT PRIMARY KEY,
             nombre              TEXT NOT NULL,
             categoria           TEXT,
             numero_serie        TEXT,
             valor_adquisicion   REAL DEFAULT 0,
             valor_actual        REAL DEFAULT 0,
             fecha_adquisicion   DATE,
-            vida_util_anios     INTEGER DEFAULT 5,
+            vida_util_anios     INTEGER,
             depreciacion_anual  REAL DEFAULT 0,
             ubicacion           TEXT,
             estado              TEXT DEFAULT 'activo',
-            responsable_id      INTEGER,
+            responsable_id      TEXT,
             notas               TEXT,
             fecha_registro      DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mantenimientos (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            activo_id     INTEGER,
+            id            TEXT PRIMARY KEY,
+            activo_id     TEXT,
             tipo          TEXT,
             descripcion   TEXT,
             costo         REAL DEFAULT 0,
@@ -1761,15 +1763,20 @@ def _create_loyalty(conn):
 
 
 def _create_tarjetas(conn):
+    # Identidad UUIDv7 (REGLA CERO): id TEXT acuñado por el motor/repo, FKs TEXT.
+    # numero/batch_id/activa nacen en base (antes los añadía la migración 112).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS tarjetas_fidelidad (
-            id               INTEGER PRIMARY KEY,
+            id               TEXT PRIMARY KEY,
             codigo_qr        TEXT NOT NULL,
-            id_cliente       INTEGER,
+            numero           TEXT,
+            batch_id         TEXT,
+            id_cliente       TEXT,
             estado           TEXT NOT NULL DEFAULT 'disponible',
             puntos_iniciales INTEGER NOT NULL DEFAULT 0,
             puntos_actuales  INTEGER NOT NULL DEFAULT 0,
             es_pregenerada   INTEGER NOT NULL DEFAULT 0,
+            activa           INTEGER NOT NULL DEFAULT 1,
             nivel            TEXT DEFAULT 'Bronce',
             observaciones    TEXT,
             updated_at       TEXT,
@@ -1780,10 +1787,11 @@ def _create_tarjetas(conn):
             motivo_bloqueo   TEXT
         )
     """)
+    # Identidad única UUIDv7: sin columna `uuid` paralela (se elimina la doble
+    # identidad). generado_por/fecha_cierre nacen en base (antes en migración 112).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS card_batches (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid                TEXT UNIQUE NOT NULL,
+            id                  TEXT PRIMARY KEY,
             nombre              TEXT NOT NULL,
             codigo_inicio       TEXT NOT NULL,
             codigo_fin          TEXT NOT NULL,
@@ -1792,15 +1800,17 @@ def _create_tarjetas(conn):
             cantidad_asignadas  INTEGER NOT NULL DEFAULT 0,
             estado              TEXT NOT NULL DEFAULT 'activo',
             notas               TEXT,
+            generado_por        TEXT,
+            fecha_cierre        DATETIME,
             fecha_creacion      DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS card_assignment_history (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            tarjeta_id       INTEGER NOT NULL,
-            cliente_id_prev  INTEGER,
-            cliente_id_nuevo INTEGER,
+            id               TEXT PRIMARY KEY,
+            tarjeta_id       TEXT NOT NULL,
+            cliente_id_prev  TEXT,
+            cliente_id_nuevo TEXT,
             accion           TEXT NOT NULL,
             motivo           TEXT,
             usuario          TEXT,
@@ -1809,8 +1819,8 @@ def _create_tarjetas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_tarjetas (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_tarjeta     INTEGER NOT NULL,
+            id             TEXT PRIMARY KEY,
+            id_tarjeta     TEXT NOT NULL,
             tipo_cambio    TEXT NOT NULL,
             valor_anterior TEXT,
             nuevo_valor    TEXT,

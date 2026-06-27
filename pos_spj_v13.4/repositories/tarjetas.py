@@ -9,9 +9,10 @@ from __future__ import annotations
 import json
 import logging
 import random
-import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
+
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.repositories.tarjetas")
 
@@ -39,15 +40,10 @@ class TarjetaRepository:
 
     # ── ID and QR generation ─────────────────────────────────────────────────
 
-    def _generate_unique_id(self) -> int:
-        for _ in range(100):
-            candidate = random.randint(1000, 9999)
-            existing = self.db.fetchone(
-                "SELECT id FROM tarjetas_fidelidad WHERE id = ?", (candidate,)
-            )
-            if not existing:
-                return candidate
-        raise TarjetaError("NO_UNIQUE_ID_AVAILABLE")
+    def _generate_unique_id(self) -> str:
+        # Identidad UUIDv7 (REGLA CERO): única por construcción, sin sondear la DB
+        # ni depender de autoincrement.
+        return new_uuid()
 
     def _generate_unique_qr(self) -> str:
         for _ in range(100):
@@ -60,7 +56,7 @@ class TarjetaRepository:
                 return code
         raise TarjetaError("NO_UNIQUE_QR_AVAILABLE")
 
-    def _build_qr_payload(self, qr_code: str, card_id: int) -> str:
+    def _build_qr_payload(self, qr_code: str, card_id: str) -> str:
         payload = {
             "codigo_qr": qr_code,
             "card_id": card_id,
@@ -325,10 +321,10 @@ class TarjetaRepository:
         try:
             self.db.execute("""
                 INSERT INTO historico_tarjetas (
-                    id_tarjeta, tipo_cambio, valor_anterior, nuevo_valor,
+                    id, id_tarjeta, tipo_cambio, valor_anterior, nuevo_valor,
                     usuario, fecha
-                ) VALUES (?,?,?,?,?,?)
-            """, (tarjeta_id, tipo, valor_anterior, nuevo_valor,
+                ) VALUES (?,?,?,?,?,?,?)
+            """, (new_uuid(), tarjeta_id, tipo, valor_anterior, nuevo_valor,
                   usuario, self._now()))
         except Exception as exc:
             logger.warning("historico_tarjetas write failed: %s", exc)
@@ -367,8 +363,8 @@ class TarjetaRepository:
         """, params)
         return [dict(r) for r in rows]
 
-    def create(self, data: Dict) -> int:
-        """Create a new card. Returns new card id."""
+    def create(self, data: Dict) -> str:
+        """Create a new card. Returns new card id (UUIDv7)."""
         estado = data.get("estado", "sin_asignar")
         puntos = int(data.get("puntos", 0))
         nivel  = data.get("nivel", "Bronce")
@@ -390,7 +386,7 @@ class TarjetaRepository:
                   nivel, obs, self._now()))
             self._write_history(card_id, "CREACION", None, estado, created_by)
 
-        logger.info("Card %d created by %s", card_id, created_by)
+        logger.info("Card %s created by %s", card_id, created_by)
         return card_id
 
     def update(self, tarjeta_id: int, data: Dict, usuario: str) -> None:
