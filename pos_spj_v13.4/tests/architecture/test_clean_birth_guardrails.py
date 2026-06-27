@@ -221,6 +221,34 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_clientes_table_is_born_clean_uuid_identity():
+    """The core customer entity is born-clean: clientes.id is a TEXT UUIDv7 primary
+    key (no autoincrement), sucursal_id is TEXT without the arbitrary DEFAULT 1, and
+    every writer mints the id with new_uuid() (repo, api, pos_adapter, finance
+    dashboard) instead of lastrowid / random integers.
+    """
+    conn = _fresh_base_schema()
+    cli = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(clientes)").fetchall()}
+    assert cli["id"] == ("TEXT", 1)
+    assert cli["sucursal_id"][0] == "TEXT"        # TEXT sin DEFAULT 1 arbitrario
+
+    repo_src = (REPO / "repositories" / "cliente_repository.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in repo_src
+    assert "(id, nombre, telefono, email, direccion, notas," in repo_src   # insert con id explícito
+    assert "new_uuid()" in repo_src
+
+    # Ningún writer del id de cliente inserta sin id explícito.
+    for w in (REPO / "api" / "routers" / "clientes.py",
+              REPO / "integrations" / "pos_adapter.py",
+              REPO / "core" / "services" / "finance" / "financial_dashboard_service.py"):
+        src = w.read_text(encoding="utf-8")
+        assert ("INSERT INTO clientes (id," in src) or ("INSERT INTO clientes(id," in src), w.name
+
+    ui_src = (REPO / "modulos" / "clientes.py").read_text(encoding="utf-8")
+    assert "QRandomGenerator.global_().bounded(1000, 10000)" not in ui_src   # id aleatorio eliminado
+    assert "int(self.tabla_clientes.item(" not in ui_src                     # casts de identidad eliminados
+
+
 def test_activos_tables_are_born_clean_uuid_identity():
     """The canonical Activos path is born-clean: activos / mantenimientos (base)
     and depreciacion_acumulada (migración 060) carry a TEXT UUIDv7 id with TEXT
@@ -362,7 +390,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 145
+INTEGER_PK_TABLE_CEILING = 144
 SERVICES_WITH_DDL_CEILING = 21
 LASTROWID_FILE_CEILING = 37
 

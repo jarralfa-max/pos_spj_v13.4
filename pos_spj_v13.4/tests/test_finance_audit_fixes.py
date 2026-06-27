@@ -52,18 +52,18 @@ def _make_db():
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT,
             telefono TEXT,
             email TEXT,
             activo INTEGER DEFAULT 1,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             fecha_registro TEXT,
             saldo REAL DEFAULT 0,
             limite_credito REAL DEFAULT 1000,
             credit_balance REAL DEFAULT 0
         );
-        INSERT INTO clientes(nombre, limite_credito) VALUES ('Cliente A', 500.0);
+        INSERT INTO clientes(id, nombre, limite_credito) VALUES ('cli-a', 'Cliente A', 500.0);
         CREATE TABLE accounts_payable (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             folio TEXT, supplier_id INTEGER, concepto TEXT,
@@ -265,7 +265,7 @@ class TestFinancialDashboardService:
         """F-03: get_credit_info devuelve saldo, límite y nombre."""
         conn = _make_db()
         svc  = _make_dash_svc(conn)
-        info = svc.get_credit_info(1)
+        info = svc.get_credit_info("cli-a")
         assert info["limite_credito"] == 500.0
         assert info["nombre"] == "Cliente A"
         assert info["saldo_actual"] == 0.0
@@ -299,7 +299,7 @@ class TestFinancialDashboardService:
         conn = _make_db()
         svc  = _make_dash_svc(conn)
         nuevo_id = svc.crear_cliente("Nuevo Cliente Test", telefono="5512345678")
-        assert nuevo_id > 0
+        assert nuevo_id          # identidad UUIDv7 (str no vacío)
         row = conn.execute("SELECT nombre FROM clientes WHERE id=?", (nuevo_id,)).fetchone()
         assert row is not None
         assert row["nombre"] == "Nuevo Cliente Test"

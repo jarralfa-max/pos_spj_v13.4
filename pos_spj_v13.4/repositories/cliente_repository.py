@@ -194,19 +194,21 @@ class ClienteRepository:
 
     def crear(self, nombre: str, telefono: str = "", email: str = "",
               direccion: str = "", notas: str = "",
-              codigo_fidelidad: str = None) -> int:
+              codigo_fidelidad: str = None) -> str:
         if not nombre.strip():
             raise ValueError("nombre es obligatorio")
-        cur = self.db.execute("""
+        from backend.shared.ids import new_uuid
+        cliente_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute("""
             INSERT INTO clientes
-                (nombre, telefono, email, direccion, notas,
+                (id, nombre, telefono, email, direccion, notas,
                  codigo_qr, activo, fecha_alta)
-            VALUES (?,?,?,?,?,?,1,datetime('now'))
-        """, (nombre.strip(), telefono, email, direccion, notas, codigo_fidelidad))
+            VALUES (?,?,?,?,?,?,?,1,datetime('now'))
+        """, (cliente_id, nombre.strip(), telefono, email, direccion, notas, codigo_fidelidad))
         try: self.db.commit()
         except Exception: pass
-        logger.info("Cliente creado id=%d nombre=%s", cur.lastrowid, nombre)
-        return cur.lastrowid
+        logger.info("Cliente creado id=%s nombre=%s", cliente_id, nombre)
+        return cliente_id
 
     def actualizar(self, cliente_id: int, **campos) -> bool:
         if not campos:
