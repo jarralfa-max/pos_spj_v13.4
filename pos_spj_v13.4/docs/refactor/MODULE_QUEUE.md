@@ -31,7 +31,7 @@ DONE
 |    10 | CAJA                  | Caja                     | DONE |
 |    11 | BI_DASHBOARD          | BI / Dashboard           | DONE |
 |    12 | PLANEACION_COMPRAS    | Planeación de compras    | DONE |
-|    13 | COTIZACIONES          | Cotizaciones             | PENDING |
+|    13 | COTIZACIONES          | Cotizaciones             | DONE |
 |    14 | FIDELIDAD             | Fidelidad                | PENDING |
 |    15 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | PENDING |
 |    16 | ACTIVOS               | Activos                  | PENDING |
