@@ -109,6 +109,29 @@ def test_bi_tables_are_born_clean_after_full_migration_chain():
     assert rep["id"] == "TEXT"
 
 
+def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
+    """cotizaciones / cotizaciones_detalle carry a single TEXT UUIDv7 id (no
+    integer surrogate, no separate legacy uuid column), FK columns are TEXT, and
+    CotizacionService no longer emits DDL nor captures lastrowid.
+    """
+    conn = _fresh_base_schema()
+    cot = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(cotizaciones)").fetchall()}
+    assert cot["id"][0].upper() == "TEXT" and cot["id"][1] == 1
+    assert "uuid" not in cot                          # dual identity removed
+    assert cot["cliente_id"][0].upper() == "TEXT"
+    assert cot["sucursal_id"][0].upper() == "TEXT"
+
+    det = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(cotizaciones_detalle)").fetchall()}
+    assert det["id"] == "TEXT"
+    assert det["cotizacion_id"] == "TEXT"
+
+    src = (REPO / "core" / "services" / "cotizacion_service.py").read_text(encoding="utf-8")
+    for ddl in ("CREATE TABLE", "ALTER TABLE", "executescript"):
+        assert ddl not in src
+    assert "lastrowid" not in src
+    assert "cid = new_uuid()" in src
+
+
 def test_planning_tables_are_born_clean_and_dead_legacy_removed():
     """product_forecast_config is keyed by its natural (product_id, branch_id) as
     TEXT, the dead forecast_cache table is gone, and ScheduledDemandService no
@@ -190,8 +213,8 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 155
-SERVICES_WITH_DDL_CEILING = 22
+INTEGER_PK_TABLE_CEILING = 153
+SERVICES_WITH_DDL_CEILING = 21
 LASTROWID_FILE_CEILING = 39
 
 

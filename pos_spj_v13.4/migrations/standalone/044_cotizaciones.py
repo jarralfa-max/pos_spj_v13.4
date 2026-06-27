@@ -17,10 +17,9 @@ def up(conn):
     conn.executescript("""
         -- Cotizaciones / presupuestos
         CREATE TABLE IF NOT EXISTS cotizaciones (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid             TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+            id               TEXT    PRIMARY KEY,
             folio            TEXT UNIQUE,
-            cliente_id       INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+            cliente_id       TEXT REFERENCES clientes(id) ON DELETE SET NULL,
             cliente_nombre   TEXT,
             subtotal         REAL DEFAULT 0,
             descuento        REAL DEFAULT 0,
@@ -31,9 +30,9 @@ def up(conn):
             notas            TEXT,
             vigencia_dias    INTEGER DEFAULT 7,
             fecha_vencimiento DATE,
-            venta_id         INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
+            venta_id         TEXT REFERENCES ventas(id) ON DELETE SET NULL,
             usuario          TEXT,
-            sucursal_id      INTEGER DEFAULT 1,
+            sucursal_id      TEXT,
             fecha            DATETIME DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_cot_estado
@@ -45,10 +44,10 @@ def up(conn):
 
         -- Items de cada cotización
         CREATE TABLE IF NOT EXISTS cotizaciones_detalle (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            cotizacion_id    INTEGER NOT NULL
+            id               TEXT    PRIMARY KEY,
+            cotizacion_id    TEXT NOT NULL
                              REFERENCES cotizaciones(id) ON DELETE CASCADE,
-            producto_id      INTEGER REFERENCES productos(id) ON DELETE SET NULL,
+            producto_id      TEXT REFERENCES productos(id) ON DELETE SET NULL,
             nombre           TEXT NOT NULL,
             cantidad         REAL NOT NULL CHECK(cantidad > 0),
             unidad           TEXT DEFAULT 'kg',

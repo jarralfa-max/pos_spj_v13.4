@@ -68,18 +68,17 @@ def db():
         CREATE TABLE configuraciones(clave TEXT PRIMARY KEY, valor TEXT);
         INSERT INTO configuraciones VALUES('nombre_empresa','SPJ TEST');
         CREATE TABLE cotizaciones(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-            folio TEXT UNIQUE, cliente_id INTEGER, cliente_nombre TEXT,
+            id TEXT PRIMARY KEY,
+            folio TEXT UNIQUE, cliente_id TEXT, cliente_nombre TEXT,
             subtotal REAL DEFAULT 0, descuento REAL DEFAULT 0, total REAL DEFAULT 0,
             estado TEXT DEFAULT 'pendiente', notas TEXT,
             vigencia_dias INTEGER DEFAULT 7, fecha_vencimiento DATE,
-            venta_id INTEGER, usuario TEXT, sucursal_id INTEGER DEFAULT 1,
+            venta_id TEXT, usuario TEXT, sucursal_id TEXT,
             fecha DATETIME DEFAULT (datetime('now')));
         CREATE TABLE cotizaciones_detalle(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cotizacion_id INTEGER REFERENCES cotizaciones(id) ON DELETE CASCADE,
-            producto_id INTEGER, nombre TEXT, cantidad REAL,
+            id TEXT PRIMARY KEY,
+            cotizacion_id TEXT REFERENCES cotizaciones(id) ON DELETE CASCADE,
+            producto_id TEXT, nombre TEXT, cantidad REAL,
             unidad TEXT DEFAULT 'kg', precio_unitario REAL,
             descuento_pct REAL DEFAULT 0, subtotal REAL);
         CREATE TABLE whatsapp_queue(

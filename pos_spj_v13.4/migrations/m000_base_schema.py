@@ -762,10 +762,9 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid              TEXT UNIQUE,
+            id                TEXT    PRIMARY KEY,
             folio             TEXT UNIQUE,
-            cliente_id        INTEGER,
+            cliente_id        TEXT,
             cliente_nombre    TEXT,
             subtotal          REAL,
             descuento         REAL DEFAULT 0,
@@ -774,17 +773,17 @@ def _create_ventas(conn):
             notas             TEXT,
             vigencia_dias     INTEGER DEFAULT 7,
             fecha_vencimiento DATE,
-            venta_id          INTEGER,
+            venta_id          TEXT,
             usuario           TEXT,
-            sucursal_id       INTEGER DEFAULT 1,
+            sucursal_id       TEXT,
             fecha             DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones_detalle (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            cotizacion_id   INTEGER,
-            producto_id     INTEGER,
+            id              TEXT    PRIMARY KEY,
+            cotizacion_id   TEXT,
+            producto_id     TEXT,
             nombre          TEXT,
             cantidad        REAL,
             unidad          TEXT DEFAULT 'kg',
