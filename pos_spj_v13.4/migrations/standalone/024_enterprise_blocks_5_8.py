@@ -161,24 +161,8 @@ def up(conn: sqlite3.Connection) -> None:
         )
     """)
 
-    # Points transaction log
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS loyalty_points_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id      INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-            venta_id        INTEGER,
-            points_delta    INTEGER NOT NULL DEFAULT 0,
-            operation_type  TEXT    NOT NULL DEFAULT 'EARN',
-            multiplier      REAL    NOT NULL DEFAULT 1.0,
-            balance_after   INTEGER NOT NULL DEFAULT 0,
-            branch_id       INTEGER,
-            usuario         TEXT,
-            notes           TEXT,
-            created_at      DATETIME DEFAULT (datetime('now'))
-        )
-    """)
-    _add_idx(conn, "loyalty_points_log", "idx_lpl_client", "cliente_id, created_at DESC")
-    _add_idx(conn, "loyalty_points_log", "idx_lpl_venta", "venta_id")
+    # Legacy eliminado (REGLA 3): loyalty_points_log era tabla muerta (0
+    # referencias). El log canónico de puntos es loyalty_ledger.
 
     # loyalty_scores UPSERT target
     conn.execute("""

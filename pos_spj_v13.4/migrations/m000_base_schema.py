@@ -277,20 +277,11 @@ def _create_clientes(conn):
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS puntos (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id      INTEGER NOT NULL,
-            fecha           DATETIME DEFAULT (datetime('now')),
-            puntos          INTEGER NOT NULL,
-            tipo            TEXT NOT NULL,
-            venta_id        INTEGER,
-            concepto        TEXT,
-            saldo_anterior  INTEGER,
-            saldo_actual    INTEGER,
-            expiracion      DATE
-        )
-    """)
+    # Legacy eliminado (REGLA 3): 'puntos' era una tabla muerta (0 referencias).
+    # El historial de puntos canónico es historico_puntos / loyalty_ledger.
+    # NOTA: historico_puntos sigue INTEGER-PK; sus escritores (sale_loyalty_policy,
+    # sales_reversal) están pre-rotos (insertan saldo_actual/usuario inexistentes)
+    # — su saneo va en un follow-up dedicado, no en este corte.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_puntos (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1730,21 +1721,8 @@ def _create_loyalty(conn):
             UNIQUE(branch_id, year_month)
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS loyalty_points_log (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id     INTEGER NOT NULL,
-            venta_id       INTEGER,
-            points_delta   INTEGER NOT NULL DEFAULT 0,
-            operation_type TEXT    NOT NULL DEFAULT 'EARN',
-            multiplier     REAL    NOT NULL DEFAULT 1.0,
-            balance_after  INTEGER NOT NULL DEFAULT 0,
-            branch_id      INTEGER,
-            usuario        TEXT,
-            notes          TEXT,
-            created_at     DATETIME DEFAULT (datetime('now'))
-        )
-    """)
+    # Legacy eliminado (REGLA 3): loyalty_points_log era una tabla muerta
+    # (0 referencias). El log canónico de puntos es loyalty_ledger.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_snapshots (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,

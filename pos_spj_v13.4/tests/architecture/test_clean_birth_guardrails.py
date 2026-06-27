@@ -109,6 +109,37 @@ def test_bi_tables_are_born_clean_after_full_migration_chain():
     assert rep["id"] == "TEXT"
 
 
+def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
+    """The canonical loyalty_ledger carries a TEXT UUIDv7 id (minted by the repo,
+    not autoincrement) with TEXT cliente_id/sucursal_id, and the dead points
+    tables (puntos, loyalty_points_log) are gone from the schema.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    led = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(loyalty_ledger)").fetchall()}
+    assert led["id"] == "TEXT"
+    assert led["cliente_id"] == "TEXT"
+    assert led["sucursal_id"] == "TEXT"
+
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "puntos" not in tables
+    assert "loyalty_points_log" not in tables
+
+    # The loyalty_ledger insert mints a UUIDv7 id and inserts it explicitly (the
+    # raffle subsystem in this repo is a separate, still-pending follow-up).
+    src = (REPO / "repositories" / "loyalty_repository.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "INSERT INTO loyalty_ledger\n            (id, cliente_id" in src
+    assert "new_uuid()," in src
+
+
 def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
     """cotizaciones / cotizaciones_detalle carry a single TEXT UUIDv7 id (no
     integer surrogate, no separate legacy uuid column), FK columns are TEXT, and
@@ -213,7 +244,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 153
+INTEGER_PK_TABLE_CEILING = 151
 SERVICES_WITH_DDL_CEILING = 21
 LASTROWID_FILE_CEILING = 39
 

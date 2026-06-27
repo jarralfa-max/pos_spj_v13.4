@@ -5,7 +5,7 @@ from repositories.loyalty_repository import LoyaltyRepository
 
 def _db():
     db = sqlite3.connect(':memory:')
-    db.execute("CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0, referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id INTEGER DEFAULT 1, usuario TEXT DEFAULT '', created_at TEXT DEFAULT (datetime('now')), UNIQUE(cliente_id,tipo,referencia))")
+    db.execute("CREATE TABLE loyalty_ledger (id TEXT PRIMARY KEY, cliente_id TEXT, tipo TEXT, puntos INTEGER, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0, referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id TEXT, usuario TEXT DEFAULT '', created_at TEXT DEFAULT (datetime('now')), UNIQUE(cliente_id,tipo,referencia))")
     db.execute("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, telefono TEXT, puntos INTEGER DEFAULT 0, fecha_nacimiento TEXT, activo INTEGER DEFAULT 1)")
     db.execute("CREATE TABLE ventas (id INTEGER PRIMARY KEY, cliente_id INTEGER, fecha TEXT, total REAL)")
     db.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT)")
