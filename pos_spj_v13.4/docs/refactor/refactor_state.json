@@ -127,7 +127,7 @@
       "report": "docs/refactor/modules/fidelidad.md"
     },
     "TARJETAS_FIDELIDAD": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,

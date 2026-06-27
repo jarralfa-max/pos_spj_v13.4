@@ -184,6 +184,43 @@ def test_raffle_subsystem_born_clean_and_ddl_lives_in_migration():
     assert "INSERT OR IGNORE INTO raffle_winners\n            (id, raffle_id" in src
 
 
+def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
+    """The loyalty-card subsystem is born-clean: tarjetas_fidelidad / card_batches
+    / card_assignment_history / historico_tarjetas carry a single TEXT UUIDv7 id
+    (no integer surrogate, no separate `uuid` column on card_batches), functional
+    FKs are TEXT, and neither CardBatchEngine nor TarjetaRepository derive identity
+    from autoincrement (no lastrowid, no random integer ids).
+    """
+    conn = _fresh_base_schema()
+
+    tf = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(tarjetas_fidelidad)").fetchall()}
+    assert tf["id"] == ("TEXT", 1)
+    assert tf["id_cliente"][0] == "TEXT"
+    assert tf["batch_id"][0] == "TEXT"
+
+    cb = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(card_batches)").fetchall()}
+    assert cb["id"] == ("TEXT", 1)
+    assert "uuid" not in cb                           # doble identidad eliminada
+
+    for table, fk in (("card_assignment_history", "tarjeta_id"), ("historico_tarjetas", "id_tarjeta")):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1)
+        assert cols[fk][0] == "TEXT"
+
+    eng_src = (REPO / "core" / "services" / "card_batch_engine.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in eng_src
+    assert "lastrowid" not in eng_src
+    assert "(id, nombre, codigo_inicio, codigo_fin, cantidad," in eng_src  # insert sin columna uuid
+    assert "batch_uuid" not in eng_src                                     # doble identidad eliminada
+
+    repo_src = (REPO / "repositories" / "tarjetas.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in repo_src
+    assert "return new_uuid()" in repo_src
+    # La identidad ya no se sortea con un entero aleatorio (el viejo bucle de
+    # colisión que sondeaba la DB por un candidate int desapareció).
+    assert "candidate = random.randint" not in repo_src
+
+
 def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
     """cotizaciones / cotizaciones_detalle carry a single TEXT UUIDv7 id (no
     integer surrogate, no separate legacy uuid column), FK columns are TEXT, and
@@ -288,7 +325,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 151
+INTEGER_PK_TABLE_CEILING = 147
 SERVICES_WITH_DDL_CEILING = 21
 LASTROWID_FILE_CEILING = 37
 
