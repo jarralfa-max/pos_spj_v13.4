@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Iterable
 
+from backend.shared.ids import new_uuid
+
 
 class ScheduledDemandService:
     """Persist scheduled WhatsApp demand and emit FORECAST_DEMAND_UPDATED traces."""
@@ -24,10 +26,10 @@ class ScheduledDemandService:
         if not scheduled_at:
             return 0
 
-        self._ensure_tables()
+        # Schema lo crean las migraciones 091/050 (REGLA 11): el servicio no crea schema.
         affected = 0
         for item in items:
-            product_id = str(item.get("product_id") or "")
+            product_id = str(item.get("product_id") or item.get("producto_id") or "")
             if not product_id:
                 continue
             quantity = float(item.get("cantidad") or item.get("quantity") or 0)
@@ -50,10 +52,11 @@ class ScheduledDemandService:
             )
             self.db.execute(
                 """
-                INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
-                VALUES (?, ?, ?, 50, datetime('now'))
+                INSERT INTO wa_event_log(id, event_type, data_json, sucursal_id, prioridad, timestamp)
+                VALUES (?, ?, ?, ?, 50, datetime('now'))
                 """,
                 (
+                    new_uuid(),
                     "FORECAST_DEMAND_UPDATED",
                     json.dumps({
                         "branch_id": branch_id,
@@ -72,35 +75,3 @@ class ScheduledDemandService:
             affected += 1
         self.db.commit()
         return affected
-
-    def _ensure_tables(self) -> None:
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS wa_event_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                event_type TEXT NOT NULL,
-                data_json TEXT,
-                sucursal_id INTEGER DEFAULT 1,
-                prioridad INTEGER DEFAULT 5,
-                timestamp TEXT DEFAULT (datetime('now'))
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS scheduled_demand_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sale_id INTEGER NOT NULL,
-                branch_id INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
-                quantity REAL NOT NULL DEFAULT 0,
-                unit TEXT DEFAULT 'kg',
-                scheduled_at DATETIME NOT NULL,
-                source_channel TEXT DEFAULT 'whatsapp',
-                customer_id INTEGER,
-                folio TEXT,
-                created_at DATETIME DEFAULT (datetime('now')),
-                UNIQUE(sale_id, product_id, scheduled_at)
-            )
-            """
-        )

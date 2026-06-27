@@ -41,10 +41,10 @@ def run(conn) -> None:
     # ── wa_event_log ──────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS wa_event_log (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT    PRIMARY KEY,
             event_type  TEXT    NOT NULL,
             data_json   TEXT,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             prioridad   INTEGER DEFAULT 5,
             timestamp   TEXT    DEFAULT (datetime('now'))
         )

@@ -109,6 +109,26 @@ def test_bi_tables_are_born_clean_after_full_migration_chain():
     assert rep["id"] == "TEXT"
 
 
+def test_planning_tables_are_born_clean_and_dead_legacy_removed():
+    """product_forecast_config is keyed by its natural (product_id, branch_id) as
+    TEXT, the dead forecast_cache table is gone, and ScheduledDemandService no
+    longer emits DDL (schema belongs to migrations 091/050).
+    """
+    conn = _fresh_base_schema()
+    cfg = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(product_forecast_config)").fetchall()}
+    assert "id" not in cfg                            # no integer surrogate
+    assert cfg["product_id"][0].upper() == "TEXT" and cfg["product_id"][1] >= 1
+    assert cfg["branch_id"][0].upper() == "TEXT"
+
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "forecast_cache" not in tables             # dead legacy removed
+
+    src = (REPO / "core" / "services" / "scheduled_demand_service.py").read_text(encoding="utf-8")
+    for ddl in ("CREATE TABLE", "ALTER TABLE", "executescript"):
+        assert ddl not in src
+    assert "new_uuid()" in src                        # wa_event_log id is UUIDv7
+
+
 def test_production_tables_are_born_clean_and_dead_legacy_removed():
     """producciones / produccion_detalle carry TEXT UUIDv7 identity with no
     arbitrary DEFAULT 1 branch, recipe_engine mints their ids, and the dead
@@ -170,8 +190,8 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 157
-SERVICES_WITH_DDL_CEILING = 23
+INTEGER_PK_TABLE_CEILING = 155
+SERVICES_WITH_DDL_CEILING = 22
 LASTROWID_FILE_CEILING = 39
 
 

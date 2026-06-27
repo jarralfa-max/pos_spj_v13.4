@@ -2374,20 +2374,9 @@ def _create_forecast(conn):
             created_at       DATETIME DEFAULT (datetime('now'))
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS forecast_cache (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id       INTEGER NOT NULL,
-            sucursal_id       INTEGER DEFAULT 1,
-            fecha_prediccion  DATE NOT NULL,
-            cantidad_predicha REAL NOT NULL DEFAULT 0,
-            intervalo_bajo    REAL DEFAULT 0,
-            intervalo_alto    REAL DEFAULT 0,
-            metodo            TEXT DEFAULT 'media_movil',
-            mape              REAL DEFAULT 0,
-            generado_en       DATETIME DEFAULT (datetime('now'))
-        )
-    """)
+    # Legacy eliminado (REGLA 3): forecast_cache era una tabla muerta (0
+    # referencias). La caché de pronóstico canónica vive en demand_forecast /
+    # forecast_metrics (UUIDv7 TEXT).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS forecast_metrics (
             id             TEXT PRIMARY KEY,
@@ -2433,15 +2422,15 @@ def _create_forecast(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_forecast_config (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id        INTEGER NOT NULL,
-            branch_id         INTEGER NOT NULL,
+            product_id        TEXT    NOT NULL,
+            branch_id         TEXT    NOT NULL,
             lead_time_days    INTEGER NOT NULL DEFAULT 2,
             service_level_pct REAL    NOT NULL DEFAULT 95.0,
             min_history_days  INTEGER NOT NULL DEFAULT 14,
             alpha             REAL    NOT NULL DEFAULT 0.3,
             method_preferred  TEXT    NOT NULL DEFAULT 'weighted_avg',
-            activo            INTEGER NOT NULL DEFAULT 1
+            activo            INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (product_id, branch_id)
         )
     """)
 

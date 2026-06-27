@@ -8,8 +8,25 @@ from core.services.scheduled_demand_service import ScheduledDemandService
 
 
 def _db():
+    # Schema lo crean las migraciones (091/050); el servicio ya no crea tablas.
+    # Born-clean UUIDv7: ids TEXT, sin surrogate entero en scheduled_demand_events.
     db = sqlite3.connect(":memory:")
     db.row_factory = sqlite3.Row
+    db.executescript(
+        """
+        CREATE TABLE scheduled_demand_events (
+            sale_id TEXT NOT NULL, branch_id TEXT NOT NULL, product_id TEXT NOT NULL,
+            quantity REAL NOT NULL DEFAULT 0, unit TEXT DEFAULT 'kg', scheduled_at DATETIME NOT NULL,
+            source_channel TEXT DEFAULT 'whatsapp', customer_id TEXT, folio TEXT,
+            created_at DATETIME DEFAULT (datetime('now')),
+            PRIMARY KEY (sale_id, product_id, scheduled_at)
+        );
+        CREATE TABLE wa_event_log (
+            id TEXT PRIMARY KEY, event_type TEXT NOT NULL, data_json TEXT,
+            sucursal_id TEXT, prioridad INTEGER DEFAULT 5, timestamp TEXT DEFAULT (datetime('now'))
+        );
+        """
+    )
     return db
 
 
@@ -27,12 +44,12 @@ def test_register_scheduled_sale_persists_and_emits_event():
     )
     assert affected == 1
 
-    row = db.execute("SELECT * FROM scheduled_demand_events WHERE sale_id=11").fetchone()
-    assert row["branch_id"] == 2
-    assert row["product_id"] == 7
+    row = db.execute("SELECT * FROM scheduled_demand_events WHERE sale_id='11'").fetchone()
+    assert str(row["branch_id"]) == "2"
+    assert str(row["product_id"]) == "7"
     assert float(row["quantity"]) == 2.0
 
-    evt = db.execute("SELECT event_type, data_json FROM wa_event_log ORDER BY id DESC LIMIT 1").fetchone()
+    evt = db.execute("SELECT event_type, data_json FROM wa_event_log ORDER BY timestamp DESC LIMIT 1").fetchone()
     assert evt["event_type"] == "FORECAST_DEMAND_UPDATED"
     assert "\"sale_id\": 11" in evt["data_json"]
 
