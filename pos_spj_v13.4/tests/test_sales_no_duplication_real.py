@@ -16,7 +16,7 @@ def _db():
         CREATE TABLE inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER, branch_id INTEGER, stock REAL);
         CREATE TABLE cuentas_por_cobrar (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, venta_id INTEGER, folio TEXT, monto_original REAL, saldo_pendiente REAL, sucursal_id INTEGER, estado TEXT);
         CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, allows_credit INTEGER DEFAULT 1, credit_limit REAL DEFAULT 0, credit_balance REAL DEFAULT 0, saldo REAL DEFAULT 0, puntos INTEGER DEFAULT 0);
-        CREATE TABLE loyalty_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, referencia TEXT, descripcion TEXT, sucursal_id INTEGER, usuario TEXT);
+        CREATE TABLE loyalty_ledger (id TEXT PRIMARY KEY, cliente_id TEXT, tipo TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, referencia TEXT, descripcion TEXT, sucursal_id TEXT, usuario TEXT);
         CREATE TABLE loyalty_pasivo_log (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, tipo TEXT, estrellas INTEGER, valor_unitario REAL, monto_total REAL, referencia TEXT, sucursal_id INTEGER);
         CREATE TABLE outbox_events (id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT, payload TEXT, aggregate_type TEXT, aggregate_id INTEGER, status TEXT DEFAULT 'pending', created_at TEXT DEFAULT (datetime('now')));
         CREATE TABLE configuraciones (id INTEGER PRIMARY KEY AUTOINCREMENT, clave TEXT, valor TEXT);

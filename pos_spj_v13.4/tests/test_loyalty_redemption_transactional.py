@@ -9,7 +9,7 @@ def test_preview_redemption_does_not_write_ledger(tmp_path):
     db = sqlite3.connect(":memory:")
     db.execute("CREATE TABLE clientes(id INTEGER PRIMARY KEY, puntos INTEGER DEFAULT 0)")
     db.execute("INSERT INTO clientes(id,puntos) VALUES(1,100)")
-    db.execute("CREATE TABLE loyalty_ledger(id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER, tipo TEXT, referencia TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, descripcion TEXT, sucursal_id INTEGER, usuario TEXT)")
+    db.execute("CREATE TABLE loyalty_ledger(id TEXT PRIMARY KEY, cliente_id TEXT, tipo TEXT, referencia TEXT, puntos INTEGER, monto_equiv REAL, saldo_post INTEGER, descripcion TEXT, sucursal_id TEXT, usuario TEXT)")
     svc = LoyaltyService(db_conn=db)
     svc.preview_redemption(cliente_id=1, subtotal=200.0)
     c = db.execute("SELECT COUNT(*) FROM loyalty_ledger").fetchone()[0]

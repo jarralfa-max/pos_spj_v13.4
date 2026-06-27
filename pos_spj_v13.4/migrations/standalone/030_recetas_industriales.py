@@ -37,12 +37,12 @@ def _create_recetas(conn: sqlite3.Connection) -> None:
 def _create_producciones(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS producciones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            receta_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            receta_id TEXT NOT NULL,
             cantidad REAL NOT NULL,
             costo_total REAL DEFAULT 0,
             fecha DATETIME DEFAULT (datetime('now')),
-            usuario_id INTEGER
+            usuario_id TEXT
         )
     """)
 
@@ -69,9 +69,9 @@ def _create_product_recipe_components(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipe_components (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-            recipe_id            INTEGER NOT NULL,
-            component_product_id INTEGER NOT NULL,
+            id                   TEXT PRIMARY KEY,
+            recipe_id            TEXT NOT NULL,
+            component_product_id TEXT NOT NULL,
             rendimiento_pct      REAL    NOT NULL DEFAULT 0 CHECK(rendimiento_pct >= 0),
             merma_pct            REAL    NOT NULL DEFAULT 0 CHECK(merma_pct >= 0),
             orden                INTEGER NOT NULL DEFAULT 0,

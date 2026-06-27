@@ -277,20 +277,11 @@ def _create_clientes(conn):
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_clientes_telefono ON clientes(telefono)")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS puntos (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id      INTEGER NOT NULL,
-            fecha           DATETIME DEFAULT (datetime('now')),
-            puntos          INTEGER NOT NULL,
-            tipo            TEXT NOT NULL,
-            venta_id        INTEGER,
-            concepto        TEXT,
-            saldo_anterior  INTEGER,
-            saldo_actual    INTEGER,
-            expiracion      DATE
-        )
-    """)
+    # Legacy eliminado (REGLA 3): 'puntos' era una tabla muerta (0 referencias).
+    # El historial de puntos canónico es historico_puntos / loyalty_ledger.
+    # NOTA: historico_puntos sigue INTEGER-PK; sus escritores (sale_loyalty_policy,
+    # sales_reversal) están pre-rotos (insertan saldo_actual/usuario inexistentes)
+    # — su saneo va en un follow-up dedicado, no en este corte.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historico_puntos (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -762,10 +753,9 @@ def _create_ventas(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid              TEXT UNIQUE,
+            id                TEXT    PRIMARY KEY,
             folio             TEXT UNIQUE,
-            cliente_id        INTEGER,
+            cliente_id        TEXT,
             cliente_nombre    TEXT,
             subtotal          REAL,
             descuento         REAL DEFAULT 0,
@@ -774,17 +764,17 @@ def _create_ventas(conn):
             notas             TEXT,
             vigencia_dias     INTEGER DEFAULT 7,
             fecha_vencimiento DATE,
-            venta_id          INTEGER,
+            venta_id          TEXT,
             usuario           TEXT,
-            sucursal_id       INTEGER DEFAULT 1,
+            sucursal_id       TEXT,
             fecha             DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones_detalle (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            cotizacion_id   INTEGER,
-            producto_id     INTEGER,
+            id              TEXT    PRIMARY KEY,
+            cotizacion_id   TEXT,
+            producto_id     TEXT,
             nombre          TEXT,
             cantidad        REAL,
             unidad          TEXT DEFAULT 'kg',
@@ -1731,21 +1721,8 @@ def _create_loyalty(conn):
             UNIQUE(branch_id, year_month)
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS loyalty_points_log (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id     INTEGER NOT NULL,
-            venta_id       INTEGER,
-            points_delta   INTEGER NOT NULL DEFAULT 0,
-            operation_type TEXT    NOT NULL DEFAULT 'EARN',
-            multiplier     REAL    NOT NULL DEFAULT 1.0,
-            balance_after  INTEGER NOT NULL DEFAULT 0,
-            branch_id      INTEGER,
-            usuario        TEXT,
-            notes          TEXT,
-            created_at     DATETIME DEFAULT (datetime('now'))
-        )
-    """)
+    # Legacy eliminado (REGLA 3): loyalty_points_log era una tabla muerta
+    # (0 referencias). El log canónico de puntos es loyalty_ledger.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_snapshots (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1873,36 +1850,15 @@ def _create_recetas_produccion(conn):
             tipo_componente         TEXT DEFAULT 'subproducto'
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS recetas_consumo (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_venta_id INTEGER NOT NULL,
-            nombre            TEXT    NOT NULL DEFAULT '',
-            activo            INTEGER NOT NULL DEFAULT 1,
-            creado_por        TEXT    DEFAULT 'Sistema',
-            creado_en         DATETIME DEFAULT (datetime('now')),
-            actualizado_en    DATETIME DEFAULT (datetime('now')),
-            notas             TEXT,
-            UNIQUE(producto_venta_id)
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS recetas_consumo_detalle (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            receta_id        INTEGER NOT NULL,
-            materia_prima_id INTEGER NOT NULL,
-            porcentaje       REAL    NOT NULL CHECK(porcentaje > 0 AND porcentaje <= 100),
-            nombre_mp        TEXT    DEFAULT '',
-            orden            INTEGER DEFAULT 0,
-            UNIQUE(receta_id, materia_prima_id)
-        )
-    """)
+    # Legacy eliminado (REGLA 3): recetas_consumo / recetas_consumo_detalle eran
+    # tablas muertas (0 lectores/escritores). La ruta canónica de recetas es
+    # product_recipes / product_recipe_components (UUIDv7).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipes (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id        INTEGER NOT NULL,
-            piece_product_id  INTEGER NOT NULL,
-            base_product_id   INTEGER,
+            id                TEXT PRIMARY KEY,
+            product_id        TEXT NOT NULL,
+            piece_product_id  TEXT NOT NULL,
+            base_product_id   TEXT,
             nombre_receta     TEXT,
             total_rendimiento REAL DEFAULT 0,
             total_merma       REAL DEFAULT 0,
@@ -1914,11 +1870,16 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_recipe_components (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-            recipe_id            INTEGER NOT NULL,
-            component_product_id INTEGER NOT NULL,
+            id                   TEXT PRIMARY KEY,
+            recipe_id            TEXT NOT NULL,
+            component_product_id TEXT NOT NULL,
             rendimiento_pct      REAL    NOT NULL DEFAULT 0,
             merma_pct            REAL    NOT NULL DEFAULT 0,
+            cantidad             REAL    NOT NULL DEFAULT 0,
+            unidad               TEXT    DEFAULT 'kg',
+            component_role       TEXT    DEFAULT '',
+            factor_costo         REAL    DEFAULT 1.0,
+            tolerancia_pct       REAL    DEFAULT 2.0,
             orden                INTEGER NOT NULL DEFAULT 0,
             descripcion          TEXT    DEFAULT '',
             created_at           TEXT    DEFAULT (datetime('now'))
@@ -1940,8 +1901,8 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recipe_dependency_graph (
-            parent_recipe_id INTEGER NOT NULL,
-            child_product_id INTEGER NOT NULL,
+            parent_recipe_id TEXT NOT NULL,
+            child_product_id TEXT NOT NULL,
             depth            INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (parent_recipe_id, child_product_id)
         )
@@ -1970,23 +1931,24 @@ def _create_recetas_produccion(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS producciones (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            receta_id        INTEGER NOT NULL,
-            producto_base_id INTEGER NOT NULL,
+            id               TEXT    PRIMARY KEY,
+            receta_id        TEXT    NOT NULL,
+            producto_base_id TEXT    NOT NULL,
             cantidad_base    REAL    NOT NULL CHECK(cantidad_base > 0),
             unidad_base      TEXT    DEFAULT 'kg',
             usuario          TEXT    NOT NULL,
-            sucursal_id      INTEGER NOT NULL DEFAULT 1,
+            sucursal_id      TEXT    NOT NULL,
             notas            TEXT,
             estado           TEXT    DEFAULT 'completada',
+            operation_id     TEXT,
             fecha            TEXT    DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS produccion_detalle (
-            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-            produccion_id          INTEGER NOT NULL,
-            producto_resultante_id INTEGER NOT NULL,
+            id                     TEXT    PRIMARY KEY,
+            produccion_id          TEXT    NOT NULL,
+            producto_resultante_id TEXT    NOT NULL,
             cantidad_generada      REAL    NOT NULL,
             unidad                 TEXT    DEFAULT 'kg',
             rendimiento_aplicado   REAL    DEFAULT 0.0,
@@ -2389,20 +2351,9 @@ def _create_forecast(conn):
             created_at       DATETIME DEFAULT (datetime('now'))
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS forecast_cache (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id       INTEGER NOT NULL,
-            sucursal_id       INTEGER DEFAULT 1,
-            fecha_prediccion  DATE NOT NULL,
-            cantidad_predicha REAL NOT NULL DEFAULT 0,
-            intervalo_bajo    REAL DEFAULT 0,
-            intervalo_alto    REAL DEFAULT 0,
-            metodo            TEXT DEFAULT 'media_movil',
-            mape              REAL DEFAULT 0,
-            generado_en       DATETIME DEFAULT (datetime('now'))
-        )
-    """)
+    # Legacy eliminado (REGLA 3): forecast_cache era una tabla muerta (0
+    # referencias). La caché de pronóstico canónica vive en demand_forecast /
+    # forecast_metrics (UUIDv7 TEXT).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS forecast_metrics (
             id             TEXT PRIMARY KEY,
@@ -2448,15 +2399,15 @@ def _create_forecast(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS product_forecast_config (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id        INTEGER NOT NULL,
-            branch_id         INTEGER NOT NULL,
+            product_id        TEXT    NOT NULL,
+            branch_id         TEXT    NOT NULL,
             lead_time_days    INTEGER NOT NULL DEFAULT 2,
             service_level_pct REAL    NOT NULL DEFAULT 95.0,
             min_history_days  INTEGER NOT NULL DEFAULT 14,
             alpha             REAL    NOT NULL DEFAULT 0.3,
             method_preferred  TEXT    NOT NULL DEFAULT 'weighted_avg',
-            activo            INTEGER NOT NULL DEFAULT 1
+            activo            INTEGER NOT NULL DEFAULT 1,
+            PRIMARY KEY (product_id, branch_id)
         )
     """)
 
@@ -2478,7 +2429,7 @@ def _create_reportes(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS reporte_exports (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         TEXT PRIMARY KEY,
             tipo       TEXT NOT NULL,
             formato    TEXT NOT NULL,
             ruta       TEXT,
@@ -2489,8 +2440,7 @@ def _create_reportes(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS kpi_snapshots (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id        INTEGER NOT NULL,
+            branch_id        TEXT    NOT NULL,
             snapshot_date    DATE    NOT NULL,
             total_revenue    REAL    NOT NULL DEFAULT 0,
             total_cost       REAL    NOT NULL DEFAULT 0,
@@ -2503,7 +2453,7 @@ def _create_reportes(conn):
             points_issued    INTEGER NOT NULL DEFAULT 0,
             inventory_value  REAL    NOT NULL DEFAULT 0,
             computed_at      DATETIME NOT NULL DEFAULT (datetime('now')),
-            UNIQUE (branch_id, snapshot_date)
+            PRIMARY KEY (branch_id, snapshot_date)
         )
     """)
     conn.execute("""

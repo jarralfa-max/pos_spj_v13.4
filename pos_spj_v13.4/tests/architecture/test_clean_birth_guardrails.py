@@ -82,6 +82,155 @@ def test_alertas_service_requires_uuid_branch_and_mints_uuid():
     assert row["sucursal_id"] == branch      # branch FK is the UUID string
 
 
+def test_bi_tables_are_born_clean_after_full_migration_chain():
+    """kpi_snapshots / reporte_exports carry no integer surrogate identity.
+
+    kpi_snapshots is keyed by its natural (branch_id, snapshot_date) — the same
+    columns report_engine upserts on — with branch_id as a UUIDv7 TEXT string.
+    Validated against the FULL chain because migrations 023/024/032/051 each
+    (re)create kpi_snapshots.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    kpi = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(kpi_snapshots)").fetchall()}
+    assert "id" not in kpi                       # no integer surrogate
+    assert kpi["branch_id"][0].upper() == "TEXT"
+    assert kpi["branch_id"][1] >= 1              # part of the composite primary key
+    assert kpi["snapshot_date"][1] >= 1
+
+    rep = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(reporte_exports)").fetchall()}
+    assert rep["id"] == "TEXT"
+
+
+def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
+    """The canonical loyalty_ledger carries a TEXT UUIDv7 id (minted by the repo,
+    not autoincrement) with TEXT cliente_id/sucursal_id, and the dead points
+    tables (puntos, loyalty_points_log) are gone from the schema.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    led = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(loyalty_ledger)").fetchall()}
+    assert led["id"] == "TEXT"
+    assert led["cliente_id"] == "TEXT"
+    assert led["sucursal_id"] == "TEXT"
+
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "puntos" not in tables
+    assert "loyalty_points_log" not in tables
+
+    # The loyalty_ledger insert mints a UUIDv7 id and inserts it explicitly (the
+    # raffle subsystem in this repo is a separate, still-pending follow-up).
+    src = (REPO / "repositories" / "loyalty_repository.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "INSERT INTO loyalty_ledger\n            (id, cliente_id" in src
+    assert "new_uuid()," in src
+
+
+def test_cotizaciones_tables_are_born_clean_single_uuid_identity():
+    """cotizaciones / cotizaciones_detalle carry a single TEXT UUIDv7 id (no
+    integer surrogate, no separate legacy uuid column), FK columns are TEXT, and
+    CotizacionService no longer emits DDL nor captures lastrowid.
+    """
+    conn = _fresh_base_schema()
+    cot = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(cotizaciones)").fetchall()}
+    assert cot["id"][0].upper() == "TEXT" and cot["id"][1] == 1
+    assert "uuid" not in cot                          # dual identity removed
+    assert cot["cliente_id"][0].upper() == "TEXT"
+    assert cot["sucursal_id"][0].upper() == "TEXT"
+
+    det = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(cotizaciones_detalle)").fetchall()}
+    assert det["id"] == "TEXT"
+    assert det["cotizacion_id"] == "TEXT"
+
+    src = (REPO / "core" / "services" / "cotizacion_service.py").read_text(encoding="utf-8")
+    for ddl in ("CREATE TABLE", "ALTER TABLE", "executescript"):
+        assert ddl not in src
+    assert "lastrowid" not in src
+    assert "cid = new_uuid()" in src
+
+
+def test_planning_tables_are_born_clean_and_dead_legacy_removed():
+    """product_forecast_config is keyed by its natural (product_id, branch_id) as
+    TEXT, the dead forecast_cache table is gone, and ScheduledDemandService no
+    longer emits DDL (schema belongs to migrations 091/050).
+    """
+    conn = _fresh_base_schema()
+    cfg = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(product_forecast_config)").fetchall()}
+    assert "id" not in cfg                            # no integer surrogate
+    assert cfg["product_id"][0].upper() == "TEXT" and cfg["product_id"][1] >= 1
+    assert cfg["branch_id"][0].upper() == "TEXT"
+
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "forecast_cache" not in tables             # dead legacy removed
+
+    src = (REPO / "core" / "services" / "scheduled_demand_service.py").read_text(encoding="utf-8")
+    for ddl in ("CREATE TABLE", "ALTER TABLE", "executescript"):
+        assert ddl not in src
+    assert "new_uuid()" in src                        # wa_event_log id is UUIDv7
+
+
+def test_production_tables_are_born_clean_and_dead_legacy_removed():
+    """producciones / produccion_detalle carry TEXT UUIDv7 identity with no
+    arbitrary DEFAULT 1 branch, recipe_engine mints their ids, and the dead
+    legacy recetas_consumo* tables are gone from the schema.
+    """
+    conn = _fresh_base_schema()
+    prod = {r[1]: (r[2], r[5], r[4]) for r in conn.execute("PRAGMA table_info(producciones)").fetchall()}
+    assert prod["id"][0].upper() == "TEXT" and prod["id"][1] == 1
+    assert prod["receta_id"][0].upper() == "TEXT"
+    assert prod["sucursal_id"][0].upper() == "TEXT"
+    assert prod["sucursal_id"][2] is None       # no arbitrary DEFAULT 1
+
+    det = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(produccion_detalle)").fetchall()}
+    assert det["id"] == "TEXT"
+    assert det["produccion_id"] == "TEXT"
+
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "recetas_consumo" not in tables           # dead legacy removed
+    assert "recetas_consumo_detalle" not in tables
+
+    src = (REPO / "core" / "services" / "recipe_engine.py").read_text(encoding="utf-8")
+    assert "produccion_id = new_uuid()" in src
+
+
+def test_recipe_tables_are_born_clean_and_repo_mints_uuid():
+    """product_recipes / product_recipe_components carry TEXT UUIDv7 identity,
+    recipe_dependency_graph keys on TEXT, and the recetas repository mints the
+    recipe id with new_uuid() — never lastrowid / MAX(id)+1.
+    """
+    conn = _fresh_base_schema()
+    pr = {r[1]: (r[2], r[5]) for r in conn.execute("PRAGMA table_info(product_recipes)").fetchall()}
+    assert pr["id"][0].upper() == "TEXT" and pr["id"][1] == 1
+    assert pr["product_id"][0].upper() == "TEXT"
+
+    prc = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(product_recipe_components)").fetchall()}
+    assert prc["id"] == "TEXT"
+    assert prc["recipe_id"] == "TEXT"
+    assert prc["component_product_id"] == "TEXT"
+
+    dep = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(recipe_dependency_graph)").fetchall()}
+    assert dep["parent_recipe_id"] == "TEXT"
+
+    src = (REPO / "repositories" / "recetas.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in src
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "receta_id = new_uuid()" in src
+
+
 def test_refresh_order_badges_does_not_int_cast_identity():
     src = (REPO / "interfaz" / "main_window.py").read_text(encoding="utf-8")
     start = src.index("def _refresh_order_badges")
@@ -95,8 +244,8 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 166
-SERVICES_WITH_DDL_CEILING = 23
+INTEGER_PK_TABLE_CEILING = 151
+SERVICES_WITH_DDL_CEILING = 21
 LASTROWID_FILE_CEILING = 39
 
 

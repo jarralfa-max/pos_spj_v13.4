@@ -61,7 +61,7 @@ class DemandForecastEngine:
         except Exception:
             return default
 
-    def _get_product_config(self, product_id: int, branch_id: int) -> dict:
+    def _get_product_config(self, product_id: str, branch_id: str) -> dict:
         try:
             row = self.db.fetchone("""
                 SELECT lead_time_days, service_level_pct, alpha, method_preferred, min_history_days

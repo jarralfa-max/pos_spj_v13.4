@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 import hashlib
 import random
 
+from backend.shared.ids import new_uuid
+
 
 class LoyaltyRepository:
     """Repositorio SQL de fidelización (FASE 2)."""
@@ -47,10 +49,11 @@ class LoyaltyRepository:
         self.db.execute(
             """
             INSERT INTO loyalty_ledger
-            (cliente_id, tipo, puntos, monto_equiv, saldo_post, referencia, descripcion, sucursal_id, usuario)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            (id, cliente_id, tipo, puntos, monto_equiv, saldo_post, referencia, descripcion, sucursal_id, usuario)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
             (
+                new_uuid(),
                 cliente_id,
                 tipo,
                 int(puntos),
@@ -58,7 +61,7 @@ class LoyaltyRepository:
                 saldo_post,
                 str(referencia or ""),
                 str(descripcion or ""),
-                int(sucursal_id),
+                str(sucursal_id) if sucursal_id is not None else None,
                 str(usuario or ""),
             ),
         )

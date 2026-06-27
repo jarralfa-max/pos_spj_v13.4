@@ -6,8 +6,8 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_ledger (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id     INTEGER NOT NULL,
+            id             TEXT    PRIMARY KEY,
+            cliente_id     TEXT    NOT NULL,
             tipo           TEXT    NOT NULL CHECK(tipo IN
                                ('acumulacion','canje','reversa','ajuste')),
             puntos         INTEGER NOT NULL,          -- + acumulación, - canje/reversa
@@ -15,7 +15,7 @@ def run(conn):
             saldo_post     INTEGER DEFAULT 0,         -- saldo después del movimiento
             referencia     TEXT    DEFAULT '',        -- venta_id, folio, etc.
             descripcion    TEXT    DEFAULT '',
-            sucursal_id    INTEGER DEFAULT 1,
+            sucursal_id    TEXT,
             usuario        TEXT    DEFAULT '',
             created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
         )
