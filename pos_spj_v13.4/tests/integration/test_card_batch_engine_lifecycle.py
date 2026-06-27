@@ -1,10 +1,9 @@
-"""FASE 4 (cards) — CardBatchEngine is functional against the reconciled schema.
+"""FASE 7 (cards) — CardBatchEngine is functional against the born-clean schema.
 
-After migration 112 the engine's full lifecycle works (crear_lote → marcar_impreso
-→ liberar_lote → asignar_tarjeta → bloquear → desbloquear → historial) and card /
-tarjeta / cliente identities flow as str (UUIDv7-ready). The id columns are still
-INTEGER PK pre-cut, so the lastrowid-free version is gated on migración 200; here
-the str boundary works against integer ids via SQLite type affinity.
+The engine's full lifecycle works (crear_lote → marcar_impreso → liberar_lote →
+asignar_tarjeta → bloquear → desbloquear → historial) with UUIDv7 TEXT identities.
+The card tables carry a single TEXT primary key (no parallel `uuid` column), so
+every id is minted with new_uuid() — no autoincrement, no dual identity.
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ def conn():
         CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT, apellido TEXT);
         INSERT INTO clientes (id, nombre) VALUES (7, 'Ana');
         CREATE TABLE card_batches (
-            id TEXT PRIMARY KEY, uuid TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL,
+            id TEXT PRIMARY KEY, nombre TEXT NOT NULL,
             codigo_inicio TEXT NOT NULL, codigo_fin TEXT NOT NULL, cantidad INTEGER DEFAULT 0,
             cantidad_libres INTEGER DEFAULT 0, cantidad_asignadas INTEGER DEFAULT 0,
             estado TEXT DEFAULT 'activo', notas TEXT, generado_por TEXT,
@@ -40,7 +39,7 @@ def conn():
         );
         CREATE UNIQUE INDEX ux_tarjetas_fidelidad_numero ON tarjetas_fidelidad(numero);
         CREATE TABLE card_assignment_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, tarjeta_id TEXT NOT NULL, cliente_id_prev TEXT,
+            id TEXT PRIMARY KEY, tarjeta_id TEXT NOT NULL, cliente_id_prev TEXT,
             cliente_id_nuevo TEXT, accion TEXT NOT NULL, motivo TEXT, usuario TEXT,
             fecha DATETIME DEFAULT (datetime('now'))
         );

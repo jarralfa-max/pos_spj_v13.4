@@ -39,24 +39,24 @@ def db():
         );
 
         CREATE TABLE product_recipes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre_receta TEXT NOT NULL,
-            product_id INTEGER,
-            base_product_id INTEGER,
+            product_id TEXT,
+            base_product_id TEXT,
             tipo_receta TEXT DEFAULT 'SUBPRODUCTO',
             total_rendimiento REAL DEFAULT 0,
             total_merma REAL DEFAULT 0,
             is_active INTEGER NOT NULL DEFAULT 1,
             activa INTEGER DEFAULT 1,
-            piece_product_id INTEGER,
+            piece_product_id TEXT,
             validates_at TEXT,
             created_at TEXT
         );
 
         CREATE TABLE product_recipe_components (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            recipe_id INTEGER NOT NULL,
-            component_product_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            recipe_id TEXT NOT NULL,
+            component_product_id TEXT NOT NULL,
             rendimiento_pct REAL DEFAULT 0,
             merma_pct REAL DEFAULT 0,
             tolerancia_pct REAL DEFAULT 2.0,
@@ -65,10 +65,10 @@ def db():
         );
 
         CREATE TABLE recipe_dependency_graph (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            parent_recipe_id INTEGER,
-            child_product_id INTEGER,
-            depth INTEGER DEFAULT 1
+            parent_recipe_id TEXT,
+            child_product_id TEXT,
+            depth INTEGER DEFAULT 1,
+            PRIMARY KEY (parent_recipe_id, child_product_id)
         );
     """)
 
@@ -149,8 +149,8 @@ class TestCreateRecipe:
             usuario="test",
             tipo_receta="SUBPRODUCTO",
         )
-        assert isinstance(rid, int)
-        assert rid > 0
+        import uuid
+        assert isinstance(rid, str) and uuid.UUID(rid)  # recipe identity is UUIDv7
 
     def test_receta_aparece_en_get_all(self, svc):
         svc.create_recipe("Despiece", 1, _componentes_validos(), "u", "SUBPRODUCTO")
@@ -206,8 +206,8 @@ class TestGetRecipeComponents:
         rid = svc.create_recipe("R", 1, _componentes_validos(), "u", "SUBPRODUCTO")
         comps = svc.get_recipe_components(rid)
         assert len(comps) == 2
-        ids = {c["component_product_id"] for c in comps}
-        assert ids == {2, 3}
+        ids = {str(c["component_product_id"]) for c in comps}
+        assert ids == {"2", "3"}
 
     def test_lista_vacia_para_receta_inexistente(self, svc):
         comps = svc.get_recipe_components(9999)

@@ -10,6 +10,7 @@ import sqlite3
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional, Set
 
+from backend.shared.ids import new_uuid
 from core.events.event_bus import EventBus
 
 logger = logging.getLogger("spj.repositories.recetas")
@@ -318,6 +319,9 @@ class RecetaRepository:
                 placeholders.append('?')
                 parameters.append(val)
 
+        # Identidad UUIDv7 (REGLA CERO): mintar el id explícito (no autoincrement).
+        receta_id = new_uuid()
+        _add('id',               receta_id)
         _add('nombre_receta',    nombre.strip())
         _add('tipo_receta',      tipo_receta.upper())
         _add('total_rendimiento', float(total_rend))
@@ -339,32 +343,20 @@ class RecetaRepository:
             raise RecetaError("No se encontraron columnas válidas en product_recipes")
 
         with self.db.transaction("RECETA_CREATE"):
-            # Insert the recipe
+            # Insert the recipe (id UUIDv7 explícito, ya incluido en columns)
             sql = f"INSERT INTO product_recipes ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
-            cur = self.db.execute(sql, parameters)
+            self.db.execute(sql, parameters)
 
-            # Usar lastrowid — no depende de row_factory
-            receta_id = cur.lastrowid
-            if not receta_id:
-                # Fallback: buscar por producto base (index[0] — no depende de row_factory)
-                row = self.db.execute(f"""
-                    SELECT id FROM product_recipes
-                    WHERE {self._product_col} = ?
-                    ORDER BY id DESC LIMIT 1
-                """, (base_product_id,)).fetchone()
-                if not row:
-                    raise RecetaError("No se pudo obtener el ID de la receta creada")
-                receta_id = row[0]
-
-            # Insert components
+            # Insert components (cada línea con su propio id UUIDv7)
             for i, comp in enumerate(components):
                 self.db.execute("""
                     INSERT INTO product_recipe_components (
-                        recipe_id, component_product_id,
+                        id, recipe_id, component_product_id,
                         rendimiento_pct, merma_pct, cantidad, unidad, component_role, factor_costo,
                         tolerancia_pct, orden, descripcion
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                 """, (
+                    new_uuid(),
                     receta_id,
                     comp["component_product_id"],
                     float(Decimal(str(comp.get("rendimiento_pct", 0)))),

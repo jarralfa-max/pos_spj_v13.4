@@ -210,8 +210,8 @@ def test_customer_response_records_total_updated_before_adjustment_event():
     db = _db(); svc = _svc(db); _seed_order(db, "preparacion")
     db.execute("""
         CREATE TABLE wa_event_log(
-            id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT, data_json TEXT,
-            sucursal_id INTEGER, prioridad INTEGER, timestamp TEXT
+            id TEXT PRIMARY KEY, event_type TEXT, data_json TEXT,
+            sucursal_id TEXT, prioridad INTEGER, timestamp TEXT
         )
     """)
     db.commit()

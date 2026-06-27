@@ -16,23 +16,22 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS inventory_stock (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            branch_id INTEGER NOT NULL,
+            product_id TEXT NOT NULL,
+            branch_id TEXT NOT NULL,
             quantity REAL NOT NULL DEFAULT 0,
             unit TEXT NOT NULL DEFAULT 'unit',
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(product_id, branch_id)
+            PRIMARY KEY(product_id, branch_id)
         )
         """
     )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS inventory_movements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT NOT NULL,
-            product_id INTEGER NOT NULL,
-            branch_id INTEGER NOT NULL,
+            product_id TEXT NOT NULL,
+            branch_id TEXT NOT NULL,
             movement_type TEXT NOT NULL,
             quantity REAL NOT NULL,
             stock_before REAL NOT NULL,

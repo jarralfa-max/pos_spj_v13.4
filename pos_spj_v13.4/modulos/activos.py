@@ -112,11 +112,12 @@ class DialogoActivo(QDialog):
                 WHERE id=?
             """, datos + (self.activo_id,))
         else:
+            from backend.shared.ids import new_uuid
             cursor.execute("""
-                INSERT INTO activos (nombre, categoria, numero_serie, valor_adquisicion,
+                INSERT INTO activos (id, nombre, categoria, numero_serie, valor_adquisicion,
                 vida_util_anios, depreciacion_anual, ubicacion, estado, notas, fecha_adquisicion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'))
-            """, datos)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, date('now'))
+            """, (new_uuid(),) + datos)
             
         self.conexion.commit()
         self.accept()
@@ -230,11 +231,12 @@ class DialogoMantenimiento(QDialog):
                 "fecha_prog=?, realizado_por=? WHERE id=?",
                 datos + (self.mant_id,))
         else:
+            from backend.shared.ids import new_uuid
             cursor.execute(
                 "INSERT INTO mantenimientos "
-                "(activo_id, tipo, descripcion, fecha_prog, realizado_por, estado)"
-                " VALUES (?, ?, ?, ?, ?, 'pendiente')",
-                datos)
+                "(id, activo_id, tipo, descripcion, fecha_prog, realizado_por, estado)"
+                " VALUES (?, ?, ?, ?, ?, ?, 'pendiente')",
+                (new_uuid(),) + datos)
         self.conexion.commit()
         self.accept()
 

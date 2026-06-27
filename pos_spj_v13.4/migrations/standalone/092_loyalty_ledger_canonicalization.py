@@ -14,20 +14,21 @@ def _column_exists(conn, table: str, col: str) -> bool:
 
 
 def run(conn):
+    # Born-clean UUIDv7 (REGLA CERO): id TEXT, cliente_id/sucursal_id TEXT, sin DEFAULT 1.
     conn.execute("""CREATE TABLE IF NOT EXISTS loyalty_ledger (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER NOT NULL,
+        id TEXT PRIMARY KEY, cliente_id TEXT NOT NULL,
         tipo TEXT NOT NULL CHECK(tipo IN ('acumulacion','canje','reversa','ajuste')),
         puntos INTEGER NOT NULL, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0,
-        referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id INTEGER DEFAULT 1,
+        referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id TEXT,
         usuario TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )""")
 
     conn.execute("DROP TABLE IF EXISTS loyalty_ledger_new")
     conn.execute("""CREATE TABLE loyalty_ledger_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER NOT NULL,
+        id TEXT PRIMARY KEY, cliente_id TEXT NOT NULL,
         tipo TEXT NOT NULL CHECK(tipo IN ('acumulacion','canje','reversa','ajuste')),
         puntos INTEGER NOT NULL, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0,
-        referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id INTEGER DEFAULT 1,
+        referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id TEXT,
         usuario TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(cliente_id, tipo, referencia)
     )""")
