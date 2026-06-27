@@ -336,7 +336,7 @@ class ModuloClientes(ModuloBase):
             return
 
         try:
-            id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
+            id_cliente = self.tabla_clientes.item(fila_seleccionada, 0).text()
             cliente_dict = self._svc.get_by_id(id_cliente) if self._svc else None
 
             if cliente_dict:
@@ -365,7 +365,7 @@ class ModuloClientes(ModuloBase):
             return
 
         try:
-            id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
+            id_cliente = self.tabla_clientes.item(fila_seleccionada, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila_seleccionada, 1).text()
 
             if confirm_action(
@@ -408,7 +408,7 @@ class ModuloClientes(ModuloBase):
             return
 
         try:
-            id_cliente = int(self.tabla_clientes.item(fila_seleccionada, 0).text())
+            id_cliente = self.tabla_clientes.item(fila_seleccionada, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila_seleccionada, 1).text()
             apellido_cliente = self.tabla_clientes.item(fila_seleccionada, 2).text() if self.tabla_clientes.item(fila_seleccionada, 2) else ""
             nombre_completo = f"{nombre_cliente} {apellido_cliente}".strip()
@@ -428,7 +428,7 @@ class ModuloClientes(ModuloBase):
             self.mostrar_mensaje("Advertencia", "Seleccione un cliente para asignar una tarjeta.")
             return
         try:
-            id_cliente     = int(self.tabla_clientes.item(fila, 0).text())
+            id_cliente     = self.tabla_clientes.item(fila, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila, 1).text()
 
             from core.services.card_batch_engine import CardBatchEngine
@@ -459,7 +459,7 @@ class ModuloClientes(ModuloBase):
             self.mostrar_mensaje("Advertencia", "Seleccione un cliente.")
             return
         try:
-            id_cliente     = int(self.tabla_clientes.item(fila, 0).text())
+            id_cliente     = self.tabla_clientes.item(fila, 0).text()
             nombre_cliente = self.tabla_clientes.item(fila, 1).text()
             dlg = _DialogoTarjetasCliente(id_cliente, nombre_cliente, self.conexion, self)
             dlg.exec_()
@@ -638,13 +638,9 @@ class DialogoCliente(QDialog):
         return True
 
     def generar_id_cliente(self):
-        """Genera un ID de cliente único de 4 dígitos."""
-        cursor = self.conexion.cursor()
-        while True:
-            nuevo_id = f"{QRandomGenerator.global_().bounded(1000, 10000)}"
-            cursor.execute("SELECT COUNT(*) FROM clientes WHERE id = ?", (nuevo_id,))
-            if cursor.fetchone()[0] == 0:
-                return nuevo_id
+        """Genera la identidad UUIDv7 de un cliente (REGLA CERO)."""
+        from backend.shared.ids import new_uuid
+        return new_uuid()
 
     def guardar(self):
         """Guarda el cliente en la base de datos."""

@@ -255,9 +255,11 @@ def _create_auth(conn):
 
 
 def _create_clientes(conn):
+    # Identidad UUIDv7 (REGLA CERO): id TEXT acuñado por ClienteRepository/UseCase.
+    # sucursal_id TEXT sin default arbitrario (lo provee el contexto de sucursal).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            id               TEXT PRIMARY KEY,
             nombre           TEXT    NOT NULL,
             telefono         TEXT,
             email            TEXT,
@@ -269,7 +271,7 @@ def _create_clientes(conn):
             allows_credit    INTEGER DEFAULT 0,
             credit_limit     REAL    DEFAULT 0,
             credit_balance   REAL    DEFAULT 0,
-            sucursal_id      INTEGER DEFAULT 1,
+            sucursal_id      TEXT,
             activo           INTEGER DEFAULT 1,
             fecha_alta       DATETIME DEFAULT (datetime('now')),
             fecha_registro   DATETIME DEFAULT (datetime('now')),

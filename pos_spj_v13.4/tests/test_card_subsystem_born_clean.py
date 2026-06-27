@@ -13,6 +13,7 @@ import migrations.m000_base_schema as base
 from migrations import engine as migrator
 from core.services.card_batch_engine import CardBatchEngine
 from repositories.tarjetas import TarjetaRepository
+from backend.shared.ids import new_uuid
 
 
 def _db():
@@ -87,9 +88,9 @@ def test_repository_create_and_pregeneradas_mint_uuid_ids():
 
 def test_repository_history_rows_have_uuid_id():
     conn = _db()
-    conn.execute("INSERT INTO clientes (nombre, activo, puntos) VALUES ('Ana',1,5)")
+    cli_id = new_uuid()
+    conn.execute("INSERT INTO clientes (id, nombre, activo, puntos) VALUES (?,'Ana',1,5)", (cli_id,))
     conn.commit()
-    cli_id = conn.execute("SELECT id FROM clientes LIMIT 1").fetchone()[0]
 
     repo = TarjetaRepository(conn)
     cid = repo.create({"estado": "disponible", "puntos": 0})

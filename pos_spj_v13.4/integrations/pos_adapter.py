@@ -223,11 +223,13 @@ class POSAdapter:
         if resultado:
             return resultado[0]
         else:
+            from backend.shared.ids import new_uuid
+            cliente_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
             cursor.execute('''
-                INSERT INTO clientes (nombre, telefono, fecha_creacion)
-                VALUES (?, ?, datetime('now'))
-            ''', (nombre_cliente, phone))
-            return cursor.lastrowid
+                INSERT INTO clientes (id, nombre, telefono, fecha_creacion)
+                VALUES (?, ?, ?, datetime('now'))
+            ''', (cliente_id, nombre_cliente, phone))
+            return cliente_id
     
     def obtener_puntos_usuario(self, user_phone: str) -> int:
         """Obtener puntos de fidelidad de un usuario"""

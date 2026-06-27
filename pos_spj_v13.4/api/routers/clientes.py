@@ -93,14 +93,16 @@ async def crear_cliente(
         raise HTTPException(409, f"Ya existe cliente con teléfono {body.telefono}")
     try:
         import uuid as _uuid
-        cur = db.execute(
-            "INSERT INTO clientes (nombre, telefono, email, direccion, rfc, "
+        from backend.shared.ids import new_uuid
+        cliente_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        db.execute(
+            "INSERT INTO clientes (id, nombre, telefono, email, direccion, rfc, "
             "codigo_qr, activo, puntos, nivel, fecha_registro) "
-            "VALUES (?,?,?,?,?,?,1,0,'Bronce',datetime('now'))",
-            (body.nombre, body.telefono, body.email,
+            "VALUES (?,?,?,?,?,?,?,1,0,'Bronce',datetime('now'))",
+            (cliente_id, body.nombre, body.telefono, body.email,
              body.direccion, body.rfc, str(_uuid.uuid4())[:12])
         )
-        return {"ok": True, "cliente_id": cur.lastrowid, "nombre": body.nombre}
+        return {"ok": True, "cliente_id": cliente_id, "nombre": body.nombre}
     except Exception as e:
         raise HTTPException(422, str(e))
 
