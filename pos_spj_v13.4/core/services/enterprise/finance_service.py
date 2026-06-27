@@ -1659,15 +1659,19 @@ class FinanceService:
         row = self.db.fetchone("SELECT id, nombre FROM proveedores WHERE nombre=?", (name,))
         return dict(row) if row else None
 
-    def create_supplier_if_not_exists(self, name: str) -> int:
-        """Crea un proveedor si no existe, retorna su ID."""
+    def create_supplier_if_not_exists(self, name: str) -> str:
+        """Crea un proveedor si no existe, retorna su ID UUIDv7."""
         existing = self.get_supplier_by_name(name)
         if existing:
             return existing['id']
-        
-        cur = self.db.execute("INSERT INTO proveedores (nombre) VALUES (?)", (name,))
+
+        from backend.shared.ids import new_uuid
+        proveedor_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO proveedores (id, nombre) VALUES (?, ?)", (proveedor_id, name)
+        )
         self.db.commit()
-        return cur.lastrowid
+        return proveedor_id
 
     def create_compra_inventariable(
         self,

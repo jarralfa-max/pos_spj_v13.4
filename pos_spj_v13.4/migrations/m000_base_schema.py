@@ -349,13 +349,15 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS proveedores (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             nombre      TEXT NOT NULL,
             rfc         TEXT,
             telefono    TEXT,
             email       TEXT,
             direccion   TEXT,
             contacto    TEXT,
+            categoria   TEXT DEFAULT 'Productos',
+            notas       TEXT,
             activo      INTEGER DEFAULT 1,
             fecha_alta  DATETIME DEFAULT (datetime('now'))
         )

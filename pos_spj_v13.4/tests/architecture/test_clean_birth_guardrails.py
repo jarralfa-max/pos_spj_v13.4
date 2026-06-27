@@ -221,6 +221,26 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_proveedores_table_is_born_clean_uuid_identity():
+    """The proveedor entity is born-clean: proveedores.id is a TEXT UUIDv7 primary
+    key (no autoincrement), categoria/notas live in the base schema (no DDL emitted
+    from UnifiedThirdPartyService — REGLA 11), and both writers (third-party service
+    and finance create_supplier_if_not_exists) mint the id with new_uuid().
+    """
+    conn = _fresh_base_schema()
+    prov = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(proveedores)").fetchall()}
+    assert prov["id"] == ("TEXT", 1)
+    assert "categoria" in prov and "notas" in prov     # plegadas al base (sin DDL en servicio)
+
+    tp_src = (REPO / "core" / "services" / "finance" / "third_party_service.py").read_text(encoding="utf-8")
+    assert "ALTER TABLE proveedores" not in tp_src      # DDL fuera del servicio
+    assert "_ensure_proveedor_columns" not in tp_src
+    assert "INSERT INTO proveedores" in tp_src and "new_uuid" in tp_src
+
+    fin_src = (REPO / "core" / "services" / "enterprise" / "finance_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO proveedores (id, nombre)" in fin_src   # create_supplier acuña id
+
+
 def test_clientes_table_is_born_clean_uuid_identity():
     """The core customer entity is born-clean: clientes.id is a TEXT UUIDv7 primary
     key (no autoincrement), sucursal_id is TEXT without the arbitrary DEFAULT 1, and
@@ -390,8 +410,8 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 144
-SERVICES_WITH_DDL_CEILING = 21
+INTEGER_PK_TABLE_CEILING = 143
+SERVICES_WITH_DDL_CEILING = 20
 LASTROWID_FILE_CEILING = 37
 
 

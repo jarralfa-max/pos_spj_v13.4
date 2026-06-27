@@ -36,7 +36,7 @@ DONE
 |    15 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | DONE |
 |    16 | ACTIVOS               | Activos                  | DONE |
 |    17 | CLIENTES              | Clientes                 | DONE |
-|    18 | PROVEEDORES           | Proveedores              | PENDING |
+|    18 | PROVEEDORES           | Proveedores              | DONE |
 |    19 | COMPRAS               | Compras                  | PENDING |
 |    20 | RECEPCION             | Recepción                | PENDING |
 |    21 | PEDIDOS               | Pedidos                  | PENDING |
