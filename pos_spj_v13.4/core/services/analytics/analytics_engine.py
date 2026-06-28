@@ -42,7 +42,7 @@ class AnalyticsEngine:
         """SALE_CREATED → UPSERT en bi_sales_daily."""
         try:
             fecha = (data.get("fecha") or datetime.now().strftime("%Y-%m-%d"))[:10]
-            sucursal_id = int(data.get("sucursal_id", 1))
+            sucursal_id = str(data.get("sucursal_id") or "")  # branch UUIDv7 (sin int cast)
             total = float(data.get("total", 0))
             if total <= 0:
                 return
@@ -68,7 +68,7 @@ class AnalyticsEngine:
         """PRODUCTION_EXECUTED → INSERT en bi_transformations."""
         try:
             fecha = (data.get("fecha") or datetime.now().strftime("%Y-%m-%d"))[:10]
-            sucursal_id = int(data.get("sucursal_id", 1))
+            sucursal_id = str(data.get("sucursal_id") or "")  # branch UUIDv7 (sin int cast)
             # Soporta payload plano y anidado via DomainEvent.to_dict()
             nested = (data.get("data") or {})
             rendimiento = float(
@@ -91,12 +91,13 @@ class AnalyticsEngine:
                 ensure_ascii=False,
             )
 
+            from backend.shared.ids import new_uuid
             self._db.execute("""
                 INSERT INTO bi_transformations
-                    (fecha, sucursal_id, categoria, inputs_json,
+                    (id, fecha, sucursal_id, categoria, inputs_json,
                      outputs_json, rendimiento_pct)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (fecha, sucursal_id, categoria, inputs_json,
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (new_uuid(), fecha, sucursal_id, categoria, inputs_json,
                   outputs_json, rendimiento))
             try:
                 self._db.commit()

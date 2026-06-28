@@ -469,12 +469,13 @@ class ReportEngine:
     def _log_export(self, report_type: str, fmt: str, file_path: str,
                      exported_by: str, row_count: int) -> None:
         try:
+            from backend.shared.ids import new_uuid
             self.db.execute("""
                 INSERT INTO report_export_log (
-                    report_type, format, exported_by,
+                    id, report_type, format, exported_by,
                     file_path, row_count, exported_at
-                ) VALUES (?,?,?,?,?,?)
-            """, (report_type, fmt, exported_by, file_path,
+                ) VALUES (?,?,?,?,?,?,?)
+            """, (new_uuid(), report_type, fmt, exported_by, file_path,
                   row_count, self._now()))
         except Exception as exc:
             logger.warning("export_log write failed: %s", exc)

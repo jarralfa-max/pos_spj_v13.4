@@ -2,6 +2,13 @@ import sqlite3
 
 from backend.application.queries.module_settings_query_service import ModuleSettingsQueryService
 
+# Identidad de sucursal: UUIDv7 TEXT (sucursales.id). No hay surrogate entero ni
+# columna 'uuid' puente — el branch_id se propaga como el UUID directamente.
+_PRINCIPAL = "019b17a7-0000-7000-8000-000000000301"
+_BODEGA = "019b17a7-0000-7000-8000-000000000302"
+_CENTRO = "019b17a7-0000-7000-8000-000000000303"
+_NORTE = "019b17a7-0000-7000-8000-000000000322"
+
 
 def _connection() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
@@ -12,76 +19,78 @@ def _connection() -> sqlite3.Connection:
 def test_module_settings_query_service_lists_active_branches() -> None:
     conn = _connection()
     conn.executescript(
-        """
+        f"""
         CREATE TABLE sucursales(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid TEXT,
+            id TEXT PRIMARY KEY,
             nombre TEXT,
             activa INTEGER DEFAULT 1
         );
-        INSERT INTO sucursales(uuid, nombre, activa) VALUES
-            ('019b17a7-0000-7000-8000-000000000301', 'Principal', 1),
-            ('019b17a7-0000-7000-8000-000000000302', 'Bodega', 0),
-            ('019b17a7-0000-7000-8000-000000000303', 'Centro', 1);
+        INSERT INTO sucursales(id, nombre, activa) VALUES
+            ('{_PRINCIPAL}', 'Principal', 1),
+            ('{_BODEGA}', 'Bodega', 0),
+            ('{_CENTRO}', 'Centro', 1);
         """
     )
 
     service = ModuleSettingsQueryService(conn)
 
-    assert service.list_active_branch_options() == [(3, "Centro"), (1, "Principal")]
+    # Activas, ordenadas por nombre; el id es el UUIDv7 (sin cast a entero).
+    assert service.list_active_branch_options() == [
+        (_CENTRO, "Centro"),
+        (_PRINCIPAL, "Principal"),
+    ]
 
 
-def test_module_settings_query_service_reads_legacy_feature_flags_by_branch_row_id() -> None:
+def test_module_settings_query_service_reads_legacy_global_feature_flags() -> None:
     conn = _connection()
     conn.executescript(
-        """
+        f"""
         CREATE TABLE sucursales(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid TEXT,
+            id TEXT PRIMARY KEY,
             nombre TEXT,
             activa INTEGER DEFAULT 1
         );
         CREATE TABLE feature_flags(clave TEXT PRIMARY KEY, activo INTEGER DEFAULT 0);
-        INSERT INTO sucursales(uuid, nombre, activa) VALUES
-            ('019b17a7-0000-7000-8000-000000000311', 'Principal', 1);
+        INSERT INTO sucursales(id, nombre, activa) VALUES ('{_PRINCIPAL}', 'Principal', 1);
         INSERT INTO feature_flags(clave, activo) VALUES ('POS', 1), ('RRHH', 0);
         """
     )
 
     service = ModuleSettingsQueryService(conn)
 
-    assert service.get_branch_feature_flags(1) == {"POS": True, "RRHH": False}
+    # Schema legacy global (sin branch): el branch UUID se ignora.
+    assert service.get_branch_feature_flags(_PRINCIPAL) == {"POS": True, "RRHH": False}
 
 
-def test_module_settings_query_service_accepts_branch_uuid_for_read_side_lookup() -> None:
+def test_module_settings_query_service_reads_branch_specific_flags_by_uuid() -> None:
     conn = _connection()
     conn.executescript(
-        """
+        f"""
         CREATE TABLE sucursales(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid TEXT,
+            id TEXT PRIMARY KEY,
             nombre TEXT,
             activa INTEGER DEFAULT 1
         );
         CREATE TABLE feature_flags(
             feature_name TEXT,
             enabled INTEGER DEFAULT 0,
-            branch_id INTEGER,
+            branch_id TEXT,
             PRIMARY KEY(feature_name, branch_id)
         );
-        INSERT INTO sucursales(uuid, nombre, activa) VALUES
-            ('019b17a7-0000-7000-8000-000000000321', 'Principal', 1),
-            ('019b17a7-0000-7000-8000-000000000322', 'Norte', 1);
+        INSERT INTO sucursales(id, nombre, activa) VALUES
+            ('{_PRINCIPAL}', 'Principal', 1),
+            ('{_NORTE}', 'Norte', 1);
+        -- branch_id '0' = default global; el UUID de Norte tiene prioridad.
         INSERT INTO feature_flags(feature_name, enabled, branch_id) VALUES
-            ('POS', 0, 0),
-            ('POS', 1, 2),
-            ('DELIVERY', 1, 0);
+            ('POS', 0, '0'),
+            ('POS', 1, '{_NORTE}'),
+            ('DELIVERY', 1, '0');
         """
     )
 
     service = ModuleSettingsQueryService(conn)
 
-    assert service.get_branch_feature_flags("019b17a7-0000-7000-8000-000000000322") == {
+    assert service.get_branch_feature_flags(_NORTE) == {
         "POS": True,
         "DELIVERY": True,
     }

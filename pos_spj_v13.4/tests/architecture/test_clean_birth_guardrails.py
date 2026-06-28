@@ -109,6 +109,65 @@ def test_bi_tables_are_born_clean_after_full_migration_chain():
     assert rep["id"] == "TEXT"
 
 
+def test_reportes_analytics_tables_are_born_clean():
+    """REPORTES/BI born-clean: report_export_log (base) lleva id TEXT UUIDv7 con
+    branch_id TEXT; las tablas analíticas bi_sales_daily / bi_product_profit /
+    bi_branch_ranking (062) usan identidad natural compuesta (sin surrogate,
+    patrón kpi_snapshots) y bi_transformations (bitácora append) lleva id TEXT
+    UUIDv7. AnalyticsEngine y ReportEngine acuñan UUID / no castean sucursal_id.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    rel = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(report_export_log)").fetchall()}
+    assert rel["id"] == "TEXT" and rel["branch_id"] == "TEXT"
+
+    # bi_transformations: bitácora append con id TEXT UUIDv7.
+    bt = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(bi_transformations)").fetchall()}
+    assert bt["id"] == ("TEXT", 1) and bt["sucursal_id"][0] == "TEXT"
+
+    # bi_sales_daily / bi_product_profit / bi_branch_ranking: clave natural
+    # compuesta, sin surrogate id entero.
+    for table, key_cols in (("bi_sales_daily", ("fecha", "sucursal_id")),
+                            ("bi_product_profit", ("fecha", "producto_id")),
+                            ("bi_branch_ranking", ("fecha", "sucursal_id"))):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert "id" not in cols, f"{table} no debe tener surrogate id entero"
+        for kc in key_cols:
+            assert cols[kc][1] >= 1, f"{table}.{kc} debe ser parte de la PK natural"
+            assert cols[kc][0] == "TEXT", f"{table}.{kc} debe ser TEXT"
+
+    ae_src = (REPO / "core/services/analytics/analytics_engine.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in ae_src
+    assert "INSERT INTO bi_transformations\n                    (id," in ae_src
+    assert "int(data.get(\"sucursal_id\"" not in ae_src
+    re_src = (REPO / "core/services/enterprise/report_engine.py").read_text(encoding="utf-8")
+    assert "INSERT INTO report_export_log (\n                    id," in re_src
+
+
+def test_api_webapp_treats_identity_as_uuid_no_int_casts():
+    """La API REST (webapp) trata las identidades como UUIDv7 TEXT: api_pedidos
+    no castea producto_id/sucursal_id a entero ni asume DEFAULT 1; ItemPedido
+    declara producto_id como str. api_dashboard solo castea agregados (counts),
+    no identidades.
+    """
+    pat = re.compile(r"int\s*\(\s*(?:producto|sucursal|cliente|venta|pedido|order|branch)_id")
+    for path in ("webapp/api_pedidos.py", "webapp/api_dashboard.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert not pat.search(src), f"{path} no debe castear identidades a int"
+    api_src = (REPO / "webapp/api_pedidos.py").read_text(encoding="utf-8")
+    assert 'int(body.get("sucursal_id"' not in api_src
+    assert 'int(i.get("id"' not in api_src
+    uc_src = (REPO / "core/use_cases/pedido_wa.py").read_text(encoding="utf-8")
+    assert "producto_id: str" in uc_src
+
+
 def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
     """The canonical loyalty_ledger carries a TEXT UUIDv7 id (minted by the repo,
     not autoincrement) with TEXT cliente_id/sucursal_id, and the dead points
