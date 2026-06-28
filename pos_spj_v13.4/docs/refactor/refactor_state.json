@@ -191,7 +191,7 @@
       "report": "docs/refactor/modules/tickets.md"
     },
     "ETIQUETAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,

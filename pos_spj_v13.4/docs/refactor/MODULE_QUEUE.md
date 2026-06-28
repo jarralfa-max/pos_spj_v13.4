@@ -41,7 +41,7 @@ DONE
 |    20 | RECEPCION             | Recepción                | DONE |
 |    21 | PEDIDOS               | Pedidos                  | DONE |
 |    22 | TICKETS               | Tickets                  | DONE |
-|    23 | ETIQUETAS             | Etiquetas                | PENDING |
+|    23 | ETIQUETAS             | Etiquetas                | DONE |
 |    24 | HARDWARE              | Hardware                 | PENDING |
 |    25 | NOTIFICACIONES        | Notificaciones           | PENDING |
 |    26 | WHATSAPP              | WhatsApp                 | PENDING |

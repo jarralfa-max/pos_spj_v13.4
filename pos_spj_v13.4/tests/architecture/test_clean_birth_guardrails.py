@@ -221,6 +221,20 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_etiquetas_module_is_read_only_presentation():
+    """El módulo de etiquetas es presentación pura (genera etiquetas imprimibles a
+    partir de productos ya migrados): sin tablas propias, sin escrituras ni DDL en
+    la UI, y sin casts de identidad. No hay entidad que voltear — se fija así.
+    """
+    src = (REPO / "modulos" / "etiquetas.py").read_text(encoding="utf-8")
+    for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "CREATE TABLE",
+                      "ALTER TABLE", ".commit()"):
+        assert forbidden not in src, f"etiquetas.py debe ser solo-lectura: {forbidden!r}"
+    # No castea identidades de producto a int (productos.id es UUIDv7 TEXT).
+    assert "int(r[0])" not in src
+    assert "int(producto" not in src
+
+
 def test_tickets_print_log_born_clean_and_dead_design_table_removed():
     """The ticket/print surface is born-clean: print_job_log (migración 056) carries
     a TEXT UUIDv7 id minted by printer_service (no autoincrement), and the dead
