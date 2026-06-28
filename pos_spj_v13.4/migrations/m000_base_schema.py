@@ -2412,10 +2412,10 @@ def _create_forecast(conn):
 def _create_reportes(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS report_export_log (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             report_type TEXT NOT NULL,
             format      TEXT NOT NULL,
-            branch_id   INTEGER,
+            branch_id   TEXT,
             date_from   DATE,
             date_to     DATE,
             exported_by TEXT NOT NULL,

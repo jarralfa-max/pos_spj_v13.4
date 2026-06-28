@@ -239,8 +239,8 @@
       "report": "docs/refactor/modules/rrhh.md"
     },
     "REPORTES": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,
