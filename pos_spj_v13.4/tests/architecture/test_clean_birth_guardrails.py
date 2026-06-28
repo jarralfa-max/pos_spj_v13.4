@@ -470,6 +470,45 @@ def test_deferred_debt_tables_are_born_clean_uuid_identity():
     assert "INSERT INTO assets" not in fs_src
 
 
+def test_rrhh_tables_are_born_clean_uuid_identity():
+    """RRHH born-clean: personal / asistencias / nomina_records / nomina_pagos /
+    evaluaciones_personal / turno_roles / turno_asignaciones (base) y
+    vacaciones_personal / puestos (094) llevan id TEXT UUIDv7. Las FKs
+    personal_id / empleado_id / turno_rol_id van en TEXT. Los repositorios
+    canónicos (core/rrhh) acuñan new_uuid() (sin lastrowid) y la validación de
+    eventos exige identidad TEXT (no entero positivo).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("personal", "asistencias", "nomina_records", "nomina_pagos",
+                  "evaluaciones_personal", "turno_roles", "turno_asignaciones",
+                  "vacaciones_personal", "puestos"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    asis = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(asistencias)").fetchall()}
+    assert asis["personal_id"] == "TEXT"
+    nom = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(nomina_pagos)").fetchall()}
+    assert nom["empleado_id"] == "TEXT"
+    asg = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(turno_asignaciones)").fetchall()}
+    assert asg["personal_id"] == "TEXT" and asg["turno_rol_id"] == "TEXT"
+
+    repo_src = (REPO / "core/rrhh/infrastructure/sqlite_repositories.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in repo_src
+    assert "new_uuid()" in repo_src and "int(cur.lastrowid)" not in repo_src
+
+    # La validación de eventos RRHH exige identidad TEXT (no entero positivo).
+    events_src = (REPO / "core/rrhh/events.py").read_text(encoding="utf-8")
+    assert "_ensure_positive_int" not in events_src
+
+
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
     """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
     whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT

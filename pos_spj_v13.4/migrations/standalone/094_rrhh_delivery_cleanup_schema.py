@@ -32,7 +32,7 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS puestos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL UNIQUE,
             descripcion TEXT,
             activo INTEGER DEFAULT 1
@@ -42,8 +42,8 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS vacaciones_personal (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            personal_id TEXT NOT NULL,
             tipo TEXT DEFAULT 'vacaciones',
             fecha_inicio DATE NOT NULL,
             fecha_fin DATE NOT NULL,
@@ -60,7 +60,7 @@ def run(conn: sqlite3.Connection) -> None:
     )
 
     if _table_exists(conn, "drivers"):
-        _ensure_column(conn, "drivers", "personal_id INTEGER")
+        _ensure_column(conn, "drivers", "personal_id TEXT")
         _ensure_column(conn, "drivers", "source_module TEXT DEFAULT 'delivery'")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_drivers_personal_id ON drivers(personal_id)"

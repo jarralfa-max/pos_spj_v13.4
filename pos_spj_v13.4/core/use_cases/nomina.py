@@ -122,7 +122,7 @@ class GestionarNominaUC:
             logger.error("GestionarNominaUC.procesar_pago_nomina: %s", exc)
             return ResultadoNomina(ok=False, error=str(exc), operation_id=op_id)
 
-        payroll_payment_id = int(datos.get("payroll_payment_id") or 0)
+        payroll_payment_id = datos.get("payroll_payment_id") or ""  # UUIDv7 (sin cast)
 
         if payroll_payment_id:
             self._publish(

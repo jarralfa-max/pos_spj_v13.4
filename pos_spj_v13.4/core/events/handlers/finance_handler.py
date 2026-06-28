@@ -269,11 +269,8 @@ class PayrollFinanceHandler:
             return 0
 
         payroll_payment_id = payload.get("payroll_payment_id")
+        # source_id es identidad UUIDv7 (sin cast a entero).
         source_id = payload.get("source_id") or payroll_payment_id or payload.get("employee_id")
-        try:
-            source_id = int(source_id) if source_id is not None else None
-        except Exception:
-            source_id = None
 
         entry_operation_id = f"{operation_id}-{op_suffix}"
         metadata = {

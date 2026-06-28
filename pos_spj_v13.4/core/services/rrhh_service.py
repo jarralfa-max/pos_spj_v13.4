@@ -128,18 +128,21 @@ class RRHHService:
                     (op_id,),
                 ).fetchone()
                 if existing:
-                    payroll_payment_id = int(existing["id"] if hasattr(existing, "keys") else existing[0])
+                    payroll_payment_id = existing["id"] if hasattr(existing, "keys") else existing[0]  # UUIDv7 (sin cast)
                     datos_nomina["payroll_payment_id"] = payroll_payment_id
                     datos_nomina["operation_id"] = op_id
                     _tx_cm.__exit__(None, None, None)
                     return "Nómina ya procesada previamente."
 
             # 1. Guardar en historial de nóminas. El impacto financiero lo consume Finanzas vía eventos.
+            from backend.shared.ids import new_uuid
+            payroll_payment_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
             columns = [
-                "empleado_id", "periodo_inicio", "periodo_fin", "salario_base",
+                "id", "empleado_id", "periodo_inicio", "periodo_fin", "salario_base",
                 "total", "metodo_pago", "estado", "usuario",
             ]
             values = [
+                payroll_payment_id,
                 datos_nomina['empleado_id'], datos_nomina.get("periodo_inicio"),
                 datos_nomina.get("periodo_fin"), datos_nomina['salario_base'],
                 datos_nomina['neto_a_pagar'], metodo_pago, "pagado", admin_user,
@@ -155,11 +158,10 @@ class RRHHService:
                 values.append(datos_nomina['empleado_id'])
 
             placeholders = ",".join("?" for _ in columns)
-            inserted = cursor.execute(
+            cursor.execute(
                 f"INSERT INTO nomina_pagos ({','.join(columns)}) VALUES ({placeholders})",
                 values,
             )
-            payroll_payment_id = int(inserted.lastrowid or 0)
             datos_nomina["payroll_payment_id"] = payroll_payment_id
             datos_nomina["operation_id"] = op_id
 

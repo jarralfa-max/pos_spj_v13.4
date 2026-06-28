@@ -231,11 +231,11 @@
       "report": "docs/refactor/modules/finanzas.md"
     },
     "RRHH": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
+      "status": "DONE",
+      "iteration": 1,
+      "score": 100,
+      "open_violations": 0,
+      "tests_failed": 0,
       "report": "docs/refactor/modules/rrhh.md"
     },
     "REPORTES": {

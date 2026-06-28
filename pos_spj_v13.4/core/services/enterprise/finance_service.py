@@ -714,13 +714,15 @@ class FinanceService:
         usuario: str = "Sistema",
         notas: Optional[str] = None,
     ) -> int:
+        from backend.shared.ids import new_uuid
         total = round(salario_base + bonos - deducciones, 2)
-        cur = self.db.execute("""
+        np_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute("""
             INSERT INTO nomina_pagos
-                (empleado_id, periodo_inicio, periodo_fin, salario_base,
+                (id, empleado_id, periodo_inicio, periodo_fin, salario_base,
                  bonos, deducciones, total, metodo_pago, estado, usuario, notas)
-            VALUES (?,?,?,?,?,?,?,?,'pagado',?,?)
-        """, (empleado_id, periodo_inicio, periodo_fin, salario_base,
+            VALUES (?,?,?,?,?,?,?,?,?,'pagado',?,?)
+        """, (np_id, empleado_id, periodo_inicio, periodo_fin, salario_base,
               bonos, deducciones, total, metodo_pago, usuario, notas))
         self.registrar_asiento(
             debe="gasto_nomina",
@@ -728,7 +730,7 @@ class FinanceService:
             concepto=f"Pago nómina empleado #{empleado_id}",
             monto=float(total or 0),
             modulo="rrhh",
-            referencia_id=cur.lastrowid,
+            referencia_id=np_id,
             evento="NOMINA_PAGADA",
             metadata={
                 "empleado_id": empleado_id,
@@ -742,7 +744,7 @@ class FinanceService:
             self.db.commit()
         except Exception:
             pass
-        return cur.lastrowid
+        return np_id
 
     def costo_nomina_mes(self, date_from: str, date_to: str) -> float:
         nomina_date_col = self._resolve_column("nomina_pagos", "created_at", "fecha", "fecha_registro")
@@ -1373,15 +1375,18 @@ class FinanceService:
             return employee_id
         else:
             # Crear
-            cur = self.db.execute("""
-                INSERT INTO personal (nombre, apellidos, puesto, salario, fecha_ingreso, activo)
-                VALUES (?, ?, ?, ?, ?, 1)
+            from backend.shared.ids import new_uuid
+            employee_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self.db.execute("""
+                INSERT INTO personal (id, nombre, apellidos, puesto, salario, fecha_ingreso, activo)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
             """, (
+                employee_id,
                 data['nombre'], data.get('apellidos'), data.get('puesto'),
                 data['salario'], data.get('fecha_ingreso')
             ))
             self.db.commit()
-            return cur.lastrowid
+            return employee_id
 
     def deactivate_employee(self, employee_id: int) -> bool:
         """Marca un empleado como inactivo."""
