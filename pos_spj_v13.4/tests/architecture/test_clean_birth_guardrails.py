@@ -221,6 +221,32 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
+    """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
+    whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT
+    UUIDv7. MessageQueue.enqueue y WhatsAppConfigRepository.save_numero acuñan id
+    con new_uuid() (sin lastrowid).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("whatsapp_queue", "whatsapp_numeros", "wa_reminder_queue"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    wa_src = (REPO / "core" / "services" / "whatsapp_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO whatsapp_queue" in wa_src and "new_uuid()" in wa_src
+    assert "return cur.lastrowid" not in wa_src
+    repo_src = (REPO / "core" / "repositories" / "whatsapp_config_repository.py").read_text(encoding="utf-8")
+    assert "new_uuid()" in repo_src
+
+
 def test_notification_tables_are_born_clean_uuid_identity():
     """El subsistema de notificaciones es born-clean: notification_inbox y
     turno_notificaciones_log llevan id TEXT UUIDv7, empleado_id/personal_id TEXT y
@@ -579,7 +605,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 131
+INTEGER_PK_TABLE_CEILING = 129
 SERVICES_WITH_DDL_CEILING = 20
 LASTROWID_FILE_CEILING = 31
 

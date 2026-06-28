@@ -1162,7 +1162,7 @@ def _create_pedidos_whatsapp(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_queue (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         TEXT PRIMARY KEY,
             to_number  TEXT NOT NULL,
             message    TEXT NOT NULL,
             template   TEXT,
@@ -2810,8 +2810,8 @@ def _ensure_extra_columns(conn):
     # ── WhatsApp numbers per branch ───────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_numeros (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            sucursal_id     INTEGER,
+            id              TEXT PRIMARY KEY,
+            sucursal_id     TEXT,
             canal           TEXT    DEFAULT 'todos',
             proveedor       TEXT    DEFAULT 'meta',
             numero_negocio  TEXT,
