@@ -29,7 +29,7 @@ def fin_db():
     )
     conn.execute(
         """CREATE TABLE treasury_ledger (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             tipo TEXT, categoria TEXT, concepto TEXT,
             ingreso REAL DEFAULT 0, egreso REAL DEFAULT 0,
             sucursal_id INTEGER, referencia TEXT, usuario TEXT

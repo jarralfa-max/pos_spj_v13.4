@@ -56,10 +56,11 @@ class TreasuryService:
 
     def inyectar_capital(self, monto: float, descripcion: str = "",
                          usuario: str = "") -> int:
-        cur = self.db.execute(
-            "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
-            "VALUES('inyeccion',?,?,?)", (monto, descripcion, usuario))
-        row_id = cur.lastrowid
+        from backend.shared.ids import new_uuid
+        row_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO treasury_capital(id,tipo,monto,descripcion,usuario) "
+            "VALUES(?,'inyeccion',?,?,?)", (row_id, monto, descripcion, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -72,10 +73,11 @@ class TreasuryService:
 
     def retirar_capital(self, monto: float, descripcion: str = "",
                          usuario: str = "") -> int:
-        cur = self.db.execute(
-            "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
-            "VALUES('retiro',?,?,?)", (-abs(monto), descripcion, usuario))
-        row_id = cur.lastrowid
+        from backend.shared.ids import new_uuid
+        row_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO treasury_capital(id,tipo,monto,descripcion,usuario) "
+            "VALUES(?,'retiro',?,?,?)", (row_id, -abs(monto), descripcion, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -95,10 +97,11 @@ class TreasuryService:
     def registrar_ingreso(self, categoria: str, concepto: str, monto: float,
                           sucursal_id: int = 1, referencia: str = "",
                           usuario: str = ""):
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,ingreso,"
-            "sucursal_id,referencia,usuario) VALUES('ingreso',?,?,?,?,?,?)",
-            (categoria, concepto, monto, sucursal_id, referencia, usuario))
+            "INSERT INTO treasury_ledger(id,tipo,categoria,concepto,ingreso,"
+            "sucursal_id,referencia,usuario) VALUES(?,'ingreso',?,?,?,?,?,?)",
+            (new_uuid(), categoria, concepto, monto, sucursal_id, referencia, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -109,10 +112,11 @@ class TreasuryService:
     def registrar_egreso(self, categoria: str, concepto: str, monto: float,
                          sucursal_id: int = 1, referencia: str = "",
                          usuario: str = ""):
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,egreso,"
-            "sucursal_id,referencia,usuario) VALUES('egreso',?,?,?,?,?,?)",
-            (categoria, concepto, abs(monto), sucursal_id, referencia, usuario))
+            "INSERT INTO treasury_ledger(id,tipo,categoria,concepto,egreso,"
+            "sucursal_id,referencia,usuario) VALUES(?,'egreso',?,?,?,?,?,?)",
+            (new_uuid(), categoria, concepto, abs(monto), sucursal_id, referencia, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -343,12 +347,14 @@ class TreasuryService:
     def registrar_gasto_fijo(self, categoria: str, nombre: str,
                               monto: float, dia_pago: int = 1,
                               sucursal_id: int = 0) -> int:
-        cur = self.db.execute(
-            "INSERT INTO treasury_gastos_fijos(categoria,nombre,monto_mensual,"
-            "dia_pago,sucursal_id) VALUES(?,?,?,?,?)",
-            (categoria, nombre, monto, dia_pago, sucursal_id))
+        from backend.shared.ids import new_uuid
+        gf_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO treasury_gastos_fijos(id,categoria,nombre,monto_mensual,"
+            "dia_pago,sucursal_id) VALUES(?,?,?,?,?,?)",
+            (gf_id, categoria, nombre, monto, dia_pago, sucursal_id))
         self.db.commit()
-        return cur.lastrowid
+        return gf_id
 
     def get_gastos_fijos(self) -> List[Dict]:
         try:

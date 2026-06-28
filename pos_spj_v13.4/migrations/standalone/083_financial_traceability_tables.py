@@ -60,7 +60,7 @@ def run(conn):
         -- ── MOVIMIENTOS DE TESORERÍA ──────────────────────────────────────────
         -- Dinero real confirmado. Coexiste con treasury_ledger (legacy).
         CREATE TABLE IF NOT EXISTS treasury_movements (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                      TEXT    PRIMARY KEY,
             movement_type           TEXT    NOT NULL,   -- inflow|outflow
             direction               TEXT    NOT NULL,   -- in|out
             amount                  REAL    NOT NULL,
@@ -68,10 +68,10 @@ def run(conn):
             account                 TEXT    DEFAULT 'caja',
             status                  TEXT    DEFAULT 'confirmed',
             source_module           TEXT    NOT NULL,
-            source_id               INTEGER,
+            source_id               TEXT,
             source_folio            TEXT    DEFAULT '',
-            financial_document_id   INTEGER,
-            branch_id               INTEGER DEFAULT 1,
+            financial_document_id   TEXT,
+            branch_id               TEXT,
             user                    TEXT    DEFAULT 'sistema',
             operation_id            TEXT    UNIQUE NOT NULL,
             metadata_json           TEXT    DEFAULT '{}',

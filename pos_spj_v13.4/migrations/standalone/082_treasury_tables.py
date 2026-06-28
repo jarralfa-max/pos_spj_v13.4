@@ -19,24 +19,24 @@ Tablas:
 def run(conn):
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS treasury_capital (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT    PRIMARY KEY,
             fecha       TEXT    DEFAULT (datetime('now')),
             tipo        TEXT    NOT NULL,
             monto       REAL    NOT NULL,
             descripcion TEXT    DEFAULT '',
             usuario     TEXT    DEFAULT '',
-            sucursal_id INTEGER DEFAULT 0
+            sucursal_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS treasury_ledger (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT    PRIMARY KEY,
             fecha       TEXT    DEFAULT (datetime('now')),
             tipo        TEXT    NOT NULL,
             categoria   TEXT    NOT NULL,
             concepto    TEXT    DEFAULT '',
             ingreso     REAL    DEFAULT 0,
             egreso      REAL    DEFAULT 0,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             referencia  TEXT    DEFAULT '',
             usuario     TEXT    DEFAULT ''
         );
@@ -44,12 +44,12 @@ def run(conn):
         CREATE INDEX IF NOT EXISTS idx_tl_cat   ON treasury_ledger(categoria);
 
         CREATE TABLE IF NOT EXISTS treasury_gastos_fijos (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT    PRIMARY KEY,
             categoria      TEXT    NOT NULL,
             nombre         TEXT    NOT NULL,
             monto_mensual  REAL    NOT NULL,
             dia_pago       INTEGER DEFAULT 1,
-            sucursal_id    INTEGER DEFAULT 0,
+            sucursal_id    TEXT,
             activo         INTEGER DEFAULT 1
         );
 

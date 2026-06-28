@@ -21,7 +21,7 @@ def _make_db():
             metadata_json TEXT, created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS treasury_movements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, movement_type TEXT NOT NULL,
             direction TEXT NOT NULL, amount REAL NOT NULL,
             payment_method TEXT, account TEXT DEFAULT 'caja',
@@ -101,7 +101,7 @@ class TestMaintenanceFinanceService(unittest.TestCase):
             payment_method="efectivo",
         )
         self.assertGreater(result["maintenance_id"], 0)
-        self.assertGreater(result["movement_id"], 0)
+        self.assertTrue(result["movement_id"])  # UUIDv7
         self.assertTrue(result["journal_id"])  # UUIDv7
         tm_row = self.conn.execute(
             "SELECT movement_type FROM treasury_movements WHERE operation_id='mnt-001-TM'"

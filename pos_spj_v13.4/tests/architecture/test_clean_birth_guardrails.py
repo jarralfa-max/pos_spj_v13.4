@@ -253,6 +253,53 @@ def test_accounting_core_tables_are_born_clean_uuid_identity():
         assert "new_uuid()" in src and "cur.lastrowid" not in src, path
 
 
+def test_treasury_tables_are_born_clean_uuid_identity():
+    """Tesorería born-clean: treasury_capital / treasury_ledger /
+    treasury_gastos_fijos (082), treasury_movements (083) y capital_movements
+    (084) llevan id TEXT UUIDv7 con sucursal_id/branch_id y FKs cruzadas
+    (source_id, financial_document_id, partner_id, journal_entry_id,
+    treasury_movement_id) en TEXT, sin DEFAULT 1. Los 3 servicios de tesorería
+    acuñan id con new_uuid() en vez de capturar lastrowid.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("treasury_capital", "treasury_ledger", "treasury_gastos_fijos",
+                  "treasury_movements", "capital_movements"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    tl = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(treasury_ledger)").fetchall()}
+    assert tl["sucursal_id"] == "TEXT"
+    tm = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(treasury_movements)").fetchall()}
+    assert tm["branch_id"] == "TEXT" and tm["source_id"] == "TEXT"
+    assert tm["financial_document_id"] == "TEXT"
+    cm = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(capital_movements)").fetchall()}
+    assert cm["branch_id"] == "TEXT" and cm["partner_id"] == "TEXT"
+    assert cm["journal_entry_id"] == "TEXT" and cm["treasury_movement_id"] == "TEXT"
+
+    # treasury_service.py es multi-tabla: las escrituras de tesorería (capital,
+    # ledger, gastos_fijos) acuñan new_uuid(); conserva lastrowid solo en las
+    # tablas diferidas (pagos_cobros/gastos) de sub-pases posteriores.
+    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in ts_src
+    assert "INSERT INTO treasury_capital" in ts_src and "INSERT INTO treasury_ledger" in ts_src
+    # Los dos servicios mono-tabla quedan totalmente born-clean (sin lastrowid).
+    for path in ("core/services/finance/treasury_movement_service.py",
+                 "core/services/finance/capital_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "new_uuid()" in src, path
+        assert "cur.lastrowid" not in src, path
+        assert 'int(existing["id"])' not in src, path
+
+
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
     """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
     whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT

@@ -28,7 +28,7 @@ def _make_db():
             metadata_json TEXT, created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS treasury_movements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, movement_type TEXT NOT NULL,
             direction TEXT NOT NULL, amount REAL NOT NULL,
             payment_method TEXT, account TEXT DEFAULT 'caja',
