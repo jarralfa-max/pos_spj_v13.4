@@ -221,6 +221,31 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_pedidos_whatsapp_tables_are_born_clean_uuid_identity():
+    """The WhatsApp order entity is born-clean: pedidos_whatsapp / pedidos_whatsapp_items
+    carry a single TEXT UUIDv7 id (the parallel `uuid` column was dropped), FKs are
+    TEXT, and all three writers (pedido_wa UC, bot_pedidos, rasa) mint ids with
+    new_uuid() instead of capturing lastrowid.
+    """
+    conn = _fresh_base_schema()
+    ped = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(pedidos_whatsapp)").fetchall()}
+    assert ped["id"] == ("TEXT", 1)
+    assert "uuid" not in ped                          # doble identidad eliminada
+    assert ped["cliente_id"][0] == "TEXT"
+
+    it = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(pedidos_whatsapp_items)").fetchall()}
+    assert it["id"] == ("TEXT", 1)
+    assert it["pedido_id"][0] == "TEXT"
+
+    uc_src = (REPO / "core" / "use_cases" / "pedido_wa.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in uc_src
+    assert "pedido_id = new_uuid()" in uc_src
+    for w in (REPO / "services" / "bot_pedidos.py", REPO / "rasa" / "actions" / "actions.py"):
+        src = w.read_text(encoding="utf-8")
+        assert "lower(hex(randomblob(16)))" not in src   # ya no se autogenera uuid paralelo
+        assert "new_uuid()" in src
+
+
 def test_reception_tables_are_born_clean_uuid_identity():
     """The reception subsystem is born-clean: recepciones / recepcion_items /
     ordenes_compra / ordenes_compra_items / scan_event_log carry a single TEXT
@@ -467,9 +492,9 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 137
+INTEGER_PK_TABLE_CEILING = 135
 SERVICES_WITH_DDL_CEILING = 20
-LASTROWID_FILE_CEILING = 32
+LASTROWID_FILE_CEILING = 31
 
 
 def test_integer_pk_tables_in_base_schema_do_not_grow():

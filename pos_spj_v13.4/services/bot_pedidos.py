@@ -779,22 +779,23 @@ class BotPedidos:
         hora      = self._state.get("hora_deseada", "")
         prioridad = self._state.get("prioridad", "normal")
         try:
+            from backend.shared.ids import new_uuid
             with transaction(self.conn) as c:
-                pid = c.execute("""
+                pid = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+                c.execute("""
                     INSERT INTO pedidos_whatsapp
-                        (uuid,numero_whatsapp,cliente_id,cliente_nombre,
+                        (id,numero_whatsapp,cliente_id,cliente_nombre,
                          estado,subtotal,total,leido,hora_deseada,prioridad,sucursal_id,fecha)
-                    VALUES(lower(hex(randomblob(16))),?,?,?,'nuevo',?,?,0,?,?,?,datetime('now'))
-                """, (self.numero, cliente["id"] if cliente else None,
-                      nombre_c, total, total, hora, prioridad, suc_id)
-                ).lastrowid
+                    VALUES(?,?,?,?,'nuevo',?,?,0,?,?,?,datetime('now'))
+                """, (pid, self.numero, cliente["id"] if cliente else None,
+                      nombre_c, total, total, hora, prioridad, suc_id))
                 for item in items:
                     c.execute("""
                         INSERT INTO pedidos_whatsapp_items
-                            (pedido_id,producto_id,nombre_producto,
+                            (id,pedido_id,producto_id,nombre_producto,
                              cantidad_pedida,precio_unitario,subtotal,unidad)
-                        VALUES(?,?,?,?,?,?,'kg')
-                    """, (pid, item.get("producto_id"), item["nombre_producto"],
+                        VALUES(?,?,?,?,?,?,?,'kg')
+                    """, (new_uuid(), pid, item.get("producto_id"), item["nombre_producto"],
                           item["cantidad_pedida"], item["precio_unitario"], item["subtotal"]))
             # v13.1: Publish PEDIDO_NUEVO via EventBus (non-blocking)
             try:

@@ -39,7 +39,7 @@ DONE
 |    18 | PROVEEDORES           | Proveedores              | DONE |
 |    19 | COMPRAS               | Compras                  | DONE |
 |    20 | RECEPCION             | Recepción                | DONE |
-|    21 | PEDIDOS               | Pedidos                  | PENDING |
+|    21 | PEDIDOS               | Pedidos                  | DONE |
 |    22 | TICKETS               | Tickets                  | PENDING |
 |    23 | ETIQUETAS             | Etiquetas                | PENDING |
 |    24 | HARDWARE              | Hardware                 | PENDING |

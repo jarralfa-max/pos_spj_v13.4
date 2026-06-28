@@ -117,24 +117,24 @@ class ProcesarPedidoWAUC:
         # ── 2. Registrar pedido en BD ─────────────────────────────────────────
         numero_pedido = _generar_numero_pedido(self._db)
         try:
-            cur = self._db.execute(
+            pedido_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """
                 INSERT INTO pedidos_whatsapp
-                    (numero, telefono_cliente, numero_whatsapp, sucursal_id, total, anticipo,
+                    (id, numero, telefono_cliente, numero_whatsapp, sucursal_id, total, anticipo,
                      estado, programado, hora_deseada, notas, usuario_registro,
                      fecha)
-                VALUES (?,?,?,?,?,?,'pendiente',?,?,?,?,datetime('now'))
+                VALUES (?,?,?,?,?,?,?,'pendiente',?,?,?,?,datetime('now'))
                 """,
-                (numero_pedido, cliente_tel, cliente_tel, sucursal_id, total, anticipo,
+                (pedido_id, numero_pedido, cliente_tel, cliente_tel, sucursal_id, total, anticipo,
                  int(programado), hora_deseada, notas, usuario)
             )
-            pedido_id = str(cur.lastrowid)  # legacy int table — UUID migration pending
             # Guardar items
             for it in items:
                 self._db.execute(
                     "INSERT INTO pedidos_whatsapp_items"
-                    "(pedido_id,producto_id,nombre,cantidad,precio) VALUES(?,?,?,?,?)",
-                    (pedido_id, it.producto_id, it.nombre, it.cantidad, it.precio)
+                    "(id,pedido_id,producto_id,nombre,cantidad,precio) VALUES(?,?,?,?,?,?)",
+                    (new_uuid(), pedido_id, it.producto_id, it.nombre, it.cantidad, it.precio)
                 )
             try:
                 self._db.commit()

@@ -175,7 +175,7 @@
       "report": "docs/refactor/modules/recepcion.md"
     },
     "PEDIDOS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,

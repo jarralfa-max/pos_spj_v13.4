@@ -1117,10 +1117,9 @@ def _create_compras(conn):
 def _create_pedidos_whatsapp(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS pedidos_whatsapp (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid              TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+            id                TEXT PRIMARY KEY,
             numero_whatsapp   TEXT NOT NULL,
-            cliente_id        INTEGER,
+            cliente_id        TEXT,
             cliente_nombre    TEXT,
             estado            TEXT DEFAULT 'nuevo',
             tipo_entrega      TEXT DEFAULT 'mostrador',
@@ -1130,8 +1129,8 @@ def _create_pedidos_whatsapp(conn):
             notas             TEXT,
             link_pago         TEXT,
             pago_confirmado   INTEGER DEFAULT 0,
-            venta_id          INTEGER,
-            repartidor_id     INTEGER,
+            venta_id          TEXT,
+            repartidor_id     TEXT,
             direccion_entrega TEXT,
             leido             INTEGER DEFAULT 0,
             fecha             DATETIME DEFAULT (datetime('now')),
@@ -1143,9 +1142,9 @@ def _create_pedidos_whatsapp(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_wa_numero ON pedidos_whatsapp(numero_whatsapp)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS pedidos_whatsapp_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            pedido_id       INTEGER,
-            producto_id     INTEGER,
+            id              TEXT PRIMARY KEY,
+            pedido_id       TEXT,
+            producto_id     TEXT,
             nombre_producto TEXT,
             cantidad_pedida REAL,
             cantidad_pesada REAL,
