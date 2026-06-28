@@ -81,6 +81,6 @@ class CreateCustomerUseCase:
         if not row:
             return None
         return {
-            "id": int(row["id"] if hasattr(row, "keys") else row[0]),
+            "id": str(row["id"] if hasattr(row, "keys") else row[0]),
             "name": str(row["nombre"] if hasattr(row, "keys") else row[1]),
         }

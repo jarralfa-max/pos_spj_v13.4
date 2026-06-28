@@ -166,7 +166,7 @@ def _make_finance_service():
     conn.row_factory = sqlite3.Row
     conn.execute("""
         CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             evento TEXT,
             modulo TEXT,
             referencia_id INTEGER,
@@ -208,7 +208,7 @@ def test_finance_registrar_perdida_exists():
 def test_finance_registrar_ingreso_inserts_row():
     svc, conn = _make_finance_service()
     row_id = svc.registrar_ingreso("Test ingreso", 100.0)
-    assert row_id > 0
+    assert row_id  # identidad UUIDv7
     row = conn.execute(
         "SELECT * FROM financial_event_log WHERE id=?", (row_id,)
     ).fetchone()
@@ -222,7 +222,7 @@ def test_finance_registrar_ingreso_inserts_row():
 def test_finance_registrar_egreso_inserts_row():
     svc, conn = _make_finance_service()
     row_id = svc.registrar_egreso("Test egreso", 200.0)
-    assert row_id > 0
+    assert row_id  # identidad UUIDv7
     row = conn.execute(
         "SELECT * FROM financial_event_log WHERE id=?", (row_id,)
     ).fetchone()
@@ -234,7 +234,7 @@ def test_finance_registrar_egreso_inserts_row():
 def test_finance_registrar_perdida_inserts_row():
     svc, conn = _make_finance_service()
     row_id = svc.registrar_perdida("Merma pollo", 50.0)
-    assert row_id > 0
+    assert row_id  # identidad UUIDv7
     row = conn.execute(
         "SELECT * FROM financial_event_log WHERE id=?", (row_id,)
     ).fetchone()

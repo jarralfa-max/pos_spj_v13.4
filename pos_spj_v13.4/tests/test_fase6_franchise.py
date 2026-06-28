@@ -27,7 +27,7 @@ def _make_db(with_data: bool = False) -> sqlite3.Connection:
             total REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS gastos (
-            id INTEGER PRIMARY KEY, fecha TEXT,
+            id TEXT PRIMARY KEY, fecha TEXT,
             monto REAL DEFAULT 0, concepto TEXT, sucursal_id INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS empleados (

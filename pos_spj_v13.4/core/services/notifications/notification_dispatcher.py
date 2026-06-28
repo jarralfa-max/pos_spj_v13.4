@@ -136,13 +136,14 @@ class NotificationDispatcher:
         datos:       Optional[Dict] = None,
         usuario:     Optional[str] = None,
     ) -> None:
+        from backend.shared.ids import new_uuid
         try:
             self.db.execute(
                 """INSERT INTO notification_inbox
-                   (empleado_id, tipo, titulo, cuerpo, datos, sucursal_id)
-                   VALUES(?,?,?,?,?,?)""",
+                   (id, empleado_id, tipo, titulo, cuerpo, datos, sucursal_id)
+                   VALUES(?,?,?,?,?,?,?)""",
                 (
-                    empleado_id, tipo, titulo, cuerpo,
+                    new_uuid(), empleado_id, tipo, titulo, cuerpo,
                     json.dumps(datos or {}, ensure_ascii=False),
                     self.sucursal_id,
                 )
@@ -154,9 +155,9 @@ class NotificationDispatcher:
                 try:
                     self.db.execute(
                         """INSERT INTO notification_inbox
-                           (usuario, tipo, titulo, cuerpo, sucursal_id)
-                           VALUES(?,?,?,?,?)""",
-                        (usuario, tipo, titulo, cuerpo, self.sucursal_id)
+                           (id, usuario, tipo, titulo, cuerpo, sucursal_id)
+                           VALUES(?,?,?,?,?,?)""",
+                        (new_uuid(), usuario, tipo, titulo, cuerpo, self.sucursal_id)
                     )
                     self.db.commit()
                 except Exception as exc2:

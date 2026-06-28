@@ -35,16 +35,16 @@ DONE
 |    14 | FIDELIDAD             | Fidelidad                | DONE |
 |    15 | TARJETAS_FIDELIDAD    | Tarjetas de fidelidad    | DONE |
 |    16 | ACTIVOS               | Activos                  | DONE |
-|    17 | CLIENTES              | Clientes                 | PENDING |
-|    18 | PROVEEDORES           | Proveedores              | PENDING |
-|    19 | COMPRAS               | Compras                  | PENDING |
-|    20 | RECEPCION             | Recepción                | PENDING |
-|    21 | PEDIDOS               | Pedidos                  | PENDING |
-|    22 | TICKETS               | Tickets                  | PENDING |
-|    23 | ETIQUETAS             | Etiquetas                | PENDING |
-|    24 | HARDWARE              | Hardware                 | PENDING |
-|    25 | NOTIFICACIONES        | Notificaciones           | PENDING |
-|    26 | WHATSAPP              | WhatsApp                 | PENDING |
+|    17 | CLIENTES              | Clientes                 | DONE |
+|    18 | PROVEEDORES           | Proveedores              | DONE |
+|    19 | COMPRAS               | Compras                  | DONE |
+|    20 | RECEPCION             | Recepción                | DONE |
+|    21 | PEDIDOS               | Pedidos                  | DONE |
+|    22 | TICKETS               | Tickets                  | DONE |
+|    23 | ETIQUETAS             | Etiquetas                | DONE |
+|    24 | HARDWARE              | Hardware                 | DONE |
+|    25 | NOTIFICACIONES        | Notificaciones           | DONE |
+|    26 | WHATSAPP              | WhatsApp                 | DONE |
 |    27 | FINANZAS              | Finanzas                 | PENDING |
 |    28 | RRHH                  | Recursos humanos         | PENDING |
 |    29 | REPORTES              | Reportes                 | PENDING |

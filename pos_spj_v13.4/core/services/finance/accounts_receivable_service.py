@@ -124,15 +124,16 @@ class AccountsReceivableService:
         Retorna ar_id del registro creado.
         """
         from datetime import datetime
+        from backend.shared.ids import new_uuid
         folio = f"CXC-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        cur = self._db.execute(
+        ar_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self._db.execute(
             """INSERT INTO accounts_receivable
-                   (folio, cliente_id, venta_id, concepto, amount, balance,
+                   (id, folio, cliente_id, venta_id, concepto, amount, balance,
                     due_date, status, tipo, usuario)
-               VALUES (?,?,?,?,?,?,?,'pendiente','manual',?)""",
-            (folio, cliente_id, venta_id, concepto, amount, amount, due_date, usuario),
+               VALUES (?,?,?,?,?,?,?,?,'pendiente','manual',?)""",
+            (ar_id, folio, cliente_id, venta_id, concepto, amount, amount, due_date, usuario),
         )
-        ar_id = cur.lastrowid
         self._registrar_asiento(
             debe="cuentas_por_cobrar",
             haber="ventas_credito",
@@ -180,9 +181,10 @@ class AccountsReceivableService:
                WHERE id=?""",
             (nuevo_balance, nuevo_status, ar_id),
         )
+        from backend.shared.ids import new_uuid
         self._db.execute(
-            "INSERT INTO ar_payments (ar_id, monto, metodo_pago, usuario, notas) VALUES (?,?,?,?,?)",
-            (ar_id, monto, metodo_pago, usuario, notas),
+            "INSERT INTO ar_payments (id, ar_id, monto, metodo_pago, usuario, notas) VALUES (?,?,?,?,?,?)",
+            (new_uuid(), ar_id, monto, metodo_pago, usuario, notas),
         )
         self._registrar_asiento(
             debe="caja_bancos",

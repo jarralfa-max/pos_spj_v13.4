@@ -20,7 +20,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento TEXT NOT NULL,
             modulo TEXT NOT NULL,
@@ -33,7 +33,7 @@ def _make_db():
             metadata JSON
         );
         CREATE TABLE accounts_payable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT, supplier_id INTEGER, concepto TEXT,
             amount REAL, balance REAL, due_date TEXT,
             status TEXT DEFAULT 'pendiente',
@@ -43,14 +43,14 @@ def _make_db():
             updated_at TEXT
         );
         CREATE TABLE ap_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ap_id INTEGER, monto REAL, metodo_pago TEXT,
+            id TEXT PRIMARY KEY,
+            ap_id TEXT, monto REAL, metodo_pago TEXT,
             usuario TEXT, notas TEXT,
             fecha TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE accounts_receivable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            folio TEXT, cliente_id INTEGER, venta_id INTEGER,
+            id TEXT PRIMARY KEY,
+            folio TEXT, cliente_id TEXT, venta_id INTEGER,
             concepto TEXT, amount REAL, balance REAL, due_date TEXT,
             status TEXT DEFAULT 'pendiente',
             tipo TEXT, usuario TEXT,
@@ -58,8 +58,8 @@ def _make_db():
             updated_at TEXT
         );
         CREATE TABLE ar_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ar_id INTEGER, monto REAL, metodo_pago TEXT,
+            id TEXT PRIMARY KEY,
+            ar_id TEXT, monto REAL, metodo_pago TEXT,
             usuario TEXT, notas TEXT,
             fecha TEXT DEFAULT (datetime('now'))
         );
@@ -120,7 +120,7 @@ class TestGeneralLedgerService:
         conn = _make_db()
         gl = _make_gl(conn)
         rid = gl.registrar_asiento("caja", "ventas", "Venta prueba", 200.0)
-        assert rid > 0
+        assert rid  # identidad UUIDv7
         row = conn.execute("SELECT cuenta_debe, cuenta_haber, monto FROM financial_event_log WHERE id=?", (rid,)).fetchone()
         assert row["cuenta_debe"] == "caja"
         assert row["cuenta_haber"] == "ventas"
@@ -205,7 +205,7 @@ class TestAccountsPayableService:
         gl = _make_gl(conn)
         aps = _make_aps(conn, gl)
         ap_id = aps.crear_cxp(supplier_id=1, concepto="Compra material", amount=800.0)
-        assert ap_id > 0
+        assert ap_id  # UUIDv7
 
     def test_crear_cxp_registra_asiento(self):
         conn = _make_db()
@@ -297,7 +297,7 @@ class TestAccountsReceivableService:
         gl = _make_gl(conn)
         ars = _make_ars(conn, gl)
         ar_id = ars.crear_cxc(cliente_id=1, concepto="Servicio consultoría", amount=600.0)
-        assert ar_id > 0
+        assert ar_id  # UUIDv7
 
     def test_crear_cxc_registra_asiento(self):
         conn = _make_db()
@@ -369,7 +369,7 @@ class TestFinanceServiceDelegacion:
         conn = _make_db()
         fs = _make_fs(conn)
         ap_id = fs.crear_cxp(supplier_id=None, concepto="Via fachada", amount=400.0, due_date=None)
-        assert ap_id > 0
+        assert ap_id  # UUIDv7
         row = conn.execute("SELECT concepto FROM accounts_payable WHERE id=?", (ap_id,)).fetchone()
         assert "Via fachada" in row["concepto"]
 
@@ -378,14 +378,14 @@ class TestFinanceServiceDelegacion:
         conn = _make_db()
         fs = _make_fs(conn)
         ar_id = fs.crear_cxc(cliente_id=1, concepto="CxC fachada", amount=250.0)
-        assert ar_id > 0
+        assert ar_id  # UUIDv7
 
     def test_registrar_asiento_delega_a_gl(self):
         """FinanceService.registrar_asiento() debe delegar a GeneralLedgerService."""
         conn = _make_db()
         fs = _make_fs(conn)
         rid = fs.registrar_asiento("caja", "ventas", "Delegado", 100.0)
-        assert rid > 0
+        assert rid  # identidad UUIDv7
 
     def test_generar_poliza_delega_a_gl(self):
         """FinanceService.generar_poliza_periodo() debe delegar a GeneralLedgerService."""

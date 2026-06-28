@@ -19,14 +19,14 @@ class DesktopNotificationService:
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS notification_inbox (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                empleado_id INTEGER,
+                id TEXT PRIMARY KEY,
+                empleado_id TEXT,
                 tipo TEXT NOT NULL,
                 titulo TEXT NOT NULL,
                 cuerpo TEXT DEFAULT '',
                 datos TEXT DEFAULT '{}',
                 leido INTEGER DEFAULT 0,
-                sucursal_id INTEGER DEFAULT 1,
+                sucursal_id TEXT,
                 created_at TEXT DEFAULT (datetime('now')),
                 leido_at TEXT,
                 dedupe_key TEXT,
@@ -54,13 +54,15 @@ class DesktopNotificationService:
             if row:
                 return False
 
+        from backend.shared.ids import new_uuid
         self.db.execute(
             """
             INSERT INTO notification_inbox
-            (empleado_id, tipo, titulo, cuerpo, datos, sucursal_id, dedupe_key, severity, leido, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+            (id, empleado_id, tipo, titulo, cuerpo, datos, sucursal_id, dedupe_key, severity, leido, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
             """,
             (
+                new_uuid(),
                 empleado_id,
                 tipo,
                 title,
@@ -110,10 +112,10 @@ class DesktopNotificationService:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def mark_as_read(self, *, notification_id: int) -> None:
+    def mark_as_read(self, *, notification_id: str) -> None:
         self.db.execute(
             "UPDATE notification_inbox SET leido=1, leido_at=datetime('now') WHERE id=?",
-            (int(notification_id),),
+            (str(notification_id),),
         )
         self.db.commit()
 

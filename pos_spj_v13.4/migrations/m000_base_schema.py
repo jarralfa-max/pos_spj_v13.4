@@ -164,14 +164,13 @@ def _create_core_config(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS hardware_config (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo                TEXT UNIQUE NOT NULL,
+            tipo                TEXT PRIMARY KEY,
             nombre              TEXT NOT NULL,
             driver              TEXT,
             puerto              TEXT,
             configuraciones       TEXT,
             activo              INTEGER DEFAULT 1,
-            sucursal_id         INTEGER DEFAULT 1,
+            sucursal_id         TEXT,
             fecha_actualizacion DATETIME DEFAULT (datetime('now'))
         )
     """)
@@ -255,9 +254,11 @@ def _create_auth(conn):
 
 
 def _create_clientes(conn):
+    # Identidad UUIDv7 (REGLA CERO): id TEXT acuñado por ClienteRepository/UseCase.
+    # sucursal_id TEXT sin default arbitrario (lo provee el contexto de sucursal).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS clientes (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            id               TEXT PRIMARY KEY,
             nombre           TEXT    NOT NULL,
             telefono         TEXT,
             email            TEXT,
@@ -269,7 +270,7 @@ def _create_clientes(conn):
             allows_credit    INTEGER DEFAULT 0,
             credit_limit     REAL    DEFAULT 0,
             credit_balance   REAL    DEFAULT 0,
-            sucursal_id      INTEGER DEFAULT 1,
+            sucursal_id      TEXT,
             activo           INTEGER DEFAULT 1,
             fecha_alta       DATETIME DEFAULT (datetime('now')),
             fecha_registro   DATETIME DEFAULT (datetime('now')),
@@ -347,13 +348,15 @@ def _create_productos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS proveedores (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             nombre      TEXT NOT NULL,
             rfc         TEXT,
             telefono    TEXT,
             email       TEXT,
             direccion   TEXT,
             contacto    TEXT,
+            categoria   TEXT DEFAULT 'Productos',
+            notas       TEXT,
             activo      INTEGER DEFAULT 1,
             fecha_alta  DATETIME DEFAULT (datetime('now'))
         )
@@ -944,10 +947,10 @@ def _create_caja(conn):
 def _create_compras(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS compras (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            id            TEXT PRIMARY KEY,
             folio         TEXT UNIQUE,
             fecha         DATETIME DEFAULT (datetime('now')),
-            proveedor_id  INTEGER,
+            proveedor_id  TEXT,
             usuario       TEXT NOT NULL,
             subtotal      REAL NOT NULL DEFAULT 0,
             iva           REAL NOT NULL DEFAULT 0,
@@ -961,9 +964,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS detalles_compra (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            compra_id       INTEGER NOT NULL,
-            producto_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            compra_id       TEXT NOT NULL,
+            producto_id     TEXT NOT NULL,
             cantidad        REAL NOT NULL,
             precio_unitario REAL NOT NULL,
             subtotal        REAL NOT NULL,
@@ -973,10 +976,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra (
-            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid                   TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+            id                     TEXT PRIMARY KEY,
             folio                  TEXT UNIQUE,
-            proveedor_id           INTEGER,
+            proveedor_id           TEXT,
             estado                 TEXT DEFAULT 'borrador',
             total                  REAL DEFAULT 0,
             notas                  TEXT,
@@ -988,9 +990,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            orden_id        INTEGER,
-            producto_id     INTEGER,
+            id              TEXT PRIMARY KEY,
+            orden_id        TEXT,
+            producto_id     TEXT,
             nombre          TEXT,
             cantidad        REAL,
             recibido        REAL DEFAULT 0,
@@ -1000,7 +1002,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gastos (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             fecha          DATE NOT NULL,
             categoria      TEXT NOT NULL,
             concepto       TEXT NOT NULL,
@@ -1065,11 +1067,11 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepciones (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             folio        TEXT    NOT NULL,
             tipo         TEXT    NOT NULL DEFAULT 'COMPRA',
-            proveedor_id INTEGER,
-            sucursal_id  INTEGER NOT NULL,
+            proveedor_id TEXT,
+            sucursal_id  TEXT NOT NULL,
             usuario      TEXT    NOT NULL,
             quien_entrega TEXT,
             notas        TEXT,
@@ -1080,9 +1082,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepcion_items (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            recepcion_id   INTEGER NOT NULL,
-            producto_id    INTEGER NOT NULL,
+            id             TEXT PRIMARY KEY,
+            recepcion_id   TEXT NOT NULL,
+            producto_id    TEXT NOT NULL,
             cantidad       REAL    NOT NULL CHECK(cantidad > 0),
             unidad         TEXT    NOT NULL DEFAULT 'kg',
             costo_unitario REAL    NOT NULL DEFAULT 0,
@@ -1114,10 +1116,9 @@ def _create_compras(conn):
 def _create_pedidos_whatsapp(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS pedidos_whatsapp (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid              TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+            id                TEXT PRIMARY KEY,
             numero_whatsapp   TEXT NOT NULL,
-            cliente_id        INTEGER,
+            cliente_id        TEXT,
             cliente_nombre    TEXT,
             estado            TEXT DEFAULT 'nuevo',
             tipo_entrega      TEXT DEFAULT 'mostrador',
@@ -1127,8 +1128,8 @@ def _create_pedidos_whatsapp(conn):
             notas             TEXT,
             link_pago         TEXT,
             pago_confirmado   INTEGER DEFAULT 0,
-            venta_id          INTEGER,
-            repartidor_id     INTEGER,
+            venta_id          TEXT,
+            repartidor_id     TEXT,
             direccion_entrega TEXT,
             leido             INTEGER DEFAULT 0,
             fecha             DATETIME DEFAULT (datetime('now')),
@@ -1140,9 +1141,9 @@ def _create_pedidos_whatsapp(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_pedidos_wa_numero ON pedidos_whatsapp(numero_whatsapp)")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS pedidos_whatsapp_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            pedido_id       INTEGER,
-            producto_id     INTEGER,
+            id              TEXT PRIMARY KEY,
+            pedido_id       TEXT,
+            producto_id     TEXT,
             nombre_producto TEXT,
             cantidad_pedida REAL,
             cantidad_pesada REAL,
@@ -1161,7 +1162,7 @@ def _create_pedidos_whatsapp(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_queue (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         TEXT PRIMARY KEY,
             to_number  TEXT NOT NULL,
             message    TEXT NOT NULL,
             template   TEXT,
@@ -1406,21 +1407,9 @@ def _create_documentos(conn):
             ultimo_envio DATE
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS ticket_design_config (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo        TEXT NOT NULL DEFAULT 'ticket',
-            nombre      TEXT NOT NULL,
-            elementos   TEXT NOT NULL DEFAULT '[]',
-            activo      INTEGER NOT NULL DEFAULT 0,
-            ancho_mm    INTEGER DEFAULT 80,
-            alto_mm     INTEGER DEFAULT 0,
-            version     INTEGER DEFAULT 1,
-            modificado_en DATETIME,
-            creado_en   DATETIME DEFAULT (datetime('now')),
-            UNIQUE(tipo, nombre)
-        )
-    """)
+    # ticket_design_config eliminada (REGLA 3): tabla muerta — 0 referencias en
+    # código de aplicación. El diseñador de tickets persiste su layout en la tabla
+    # key-value `configuraciones` (ticket_logo_b64, etc.), no aquí.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS config_diseno_tarjetas (
             id    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2573,7 +2562,7 @@ def _create_logs_auditoria(conn):
 def _create_cuentas_cp_cr(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_payable (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             folio       TEXT,
             supplier_id INTEGER,
             concepto    TEXT NOT NULL DEFAULT 'Sin concepto',
@@ -2586,15 +2575,17 @@ def _create_cuentas_cp_cr(conn):
             ref_type    TEXT DEFAULT 'manual',
             usuario     TEXT,
             notas       TEXT,
-            sucursal_id INTEGER DEFAULT 1,
-            fecha       DATETIME DEFAULT (datetime('now'))
+            sucursal_id TEXT,
+            fecha       DATETIME DEFAULT (datetime('now')),
+            created_at  DATETIME DEFAULT (datetime('now')),
+            updated_at  DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_receivable (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             folio       TEXT,
-            cliente_id  INTEGER,
+            cliente_id  TEXT,
             venta_id    INTEGER,
             concepto    TEXT NOT NULL DEFAULT 'Sin concepto',
             amount      REAL NOT NULL DEFAULT 0,
@@ -2604,14 +2595,16 @@ def _create_cuentas_cp_cr(conn):
             tipo        TEXT DEFAULT 'venta',
             usuario     TEXT,
             notas       TEXT,
-            sucursal_id INTEGER DEFAULT 1,
-            fecha       DATETIME DEFAULT (datetime('now'))
+            sucursal_id TEXT,
+            fecha       DATETIME DEFAULT (datetime('now')),
+            created_at  DATETIME DEFAULT (datetime('now')),
+            updated_at  DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ap_payments (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            ap_id       INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            ap_id       TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo_pago TEXT DEFAULT 'efectivo',
             referencia  TEXT,
@@ -2622,8 +2615,8 @@ def _create_cuentas_cp_cr(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ar_payments (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            ar_id       INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            ar_id       TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo_pago TEXT DEFAULT 'efectivo',
             referencia  TEXT,
@@ -2821,8 +2814,8 @@ def _ensure_extra_columns(conn):
     # ── WhatsApp numbers per branch ───────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_numeros (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            sucursal_id     INTEGER,
+            id              TEXT PRIMARY KEY,
+            sucursal_id     TEXT,
             canal           TEXT    DEFAULT 'todos',
             proveedor       TEXT    DEFAULT 'meta',
             numero_negocio  TEXT,
@@ -2864,8 +2857,8 @@ def _ensure_extra_columns(conn):
             notas          TEXT
         );
         CREATE TABLE IF NOT EXISTS turno_notificaciones_log(
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id  INTEGER,
+            id           TEXT PRIMARY KEY,
+            personal_id  TEXT,
             tipo         TEXT,
             fecha_envio  DATETIME DEFAULT (datetime('now')),
             mensaje      TEXT,
@@ -2876,13 +2869,13 @@ def _ensure_extra_columns(conn):
     # ── Notification inbox (mensajes POS para empleados) ──────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS notification_inbox (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            empleado_id TEXT NOT NULL,
             tipo        TEXT    NOT NULL,
             titulo      TEXT    NOT NULL,
             cuerpo      TEXT    DEFAULT '',
             datos       TEXT    DEFAULT '{}',
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             leido       INTEGER DEFAULT 0,
             leido_at    DATETIME,
             created_at  DATETIME DEFAULT (datetime('now'))
@@ -2958,8 +2951,8 @@ def _ensure_extra_columns(conn):
     # ── Gastos futuros y fijos (Tesorería) ────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS gastos_futuros (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            sucursal_id INTEGER DEFAULT 1,
+            id          TEXT PRIMARY KEY,
+            sucursal_id TEXT,
             concepto    TEXT NOT NULL,
             categoria   TEXT,
             monto       REAL NOT NULL,
@@ -2968,9 +2961,11 @@ def _ensure_extra_columns(conn):
             notas       TEXT,
             created_at  DATETIME DEFAULT (datetime('now'))
         );
+        CREATE INDEX IF NOT EXISTS idx_gf_estado ON gastos_futuros(estado);
+        CREATE INDEX IF NOT EXISTS idx_gf_fecha  ON gastos_futuros(fecha_prog);
         CREATE TABLE IF NOT EXISTS gastos_fijos (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            sucursal_id INTEGER DEFAULT 1,
+            id          TEXT PRIMARY KEY,
+            sucursal_id TEXT,
             concepto    TEXT NOT NULL,
             categoria   TEXT,
             monto       REAL NOT NULL,

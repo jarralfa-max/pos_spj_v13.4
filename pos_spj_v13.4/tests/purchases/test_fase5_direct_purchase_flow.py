@@ -68,7 +68,7 @@ def _make_db() -> sqlite3.Connection:
             activo INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS compras (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT,
             proveedor_id INTEGER,
             usuario TEXT,
@@ -86,7 +86,7 @@ def _make_db() -> sqlite3.Connection:
             moneda TEXT DEFAULT 'MXN'
         );
         CREATE TABLE IF NOT EXISTS detalles_compra (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             compra_id INTEGER,
             producto_id INTEGER,
             cantidad REAL,
@@ -446,7 +446,7 @@ class TestPurchaseRepositoryRoundTrip:
             provider_id=1, branch_id=1, user="tester", total=500,
             status="completada", operation_id="op-1",
         )
-        assert isinstance(pid, int) and pid > 0
+        assert isinstance(pid, str) and pid          # identidad UUIDv7
         assert folio.startswith("CMP-")
 
     def test_save_and_read_items(self):

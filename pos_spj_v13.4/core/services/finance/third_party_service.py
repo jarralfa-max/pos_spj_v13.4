@@ -44,19 +44,10 @@ class UnifiedThirdPartyService:
     #  PROVEEDORES — CRUD
     # ══════════════════════════════════════════════════════════════════════════
 
-    def _ensure_proveedor_columns(self) -> None:
-        """Asegura que las columnas modernas existan en proveedores."""
-        for col_def in ["categoria TEXT DEFAULT 'Productos'", "notas TEXT", "activo INTEGER DEFAULT 1"]:
-            try:
-                self._db.execute(f"ALTER TABLE proveedores ADD COLUMN {col_def}")
-            except Exception:
-                pass  # Ya existe
-        try:
-            self._db.commit()
-        except Exception:
-            pass
+    # categoria/notas/activo viven en el esquema base de proveedores (REGLA 11):
+    # el servicio ya no emite DDL para garantizarlas.
 
-    def get_proveedor(self, proveedor_id: int) -> Optional[Dict[str, Any]]:
+    def get_proveedor(self, proveedor_id: str) -> Optional[Dict[str, Any]]:
         """Obtiene un proveedor por ID."""
         try:
             cur = self._db.execute("""
@@ -93,14 +84,13 @@ class UnifiedThirdPartyService:
             logger.warning("get_all_proveedores failed: %s", e)
             return []
 
-    def create_proveedor(self, datos: Dict[str, Any]) -> int:
+    def create_proveedor(self, datos: Dict[str, Any]) -> str:
         """
         Crea un nuevo proveedor.
         datos: {nombre, rfc, telefono, email, contacto, categoria, direccion,
                 condiciones_pago, limite_credito, banco, notas}
-        Retorna: ID del nuevo proveedor
+        Retorna: ID UUIDv7 del nuevo proveedor
         """
-        self._ensure_proveedor_columns()
         try:
             from backend.shared.ids import new_uuid as _new_uuid
             proveedor_id = _new_uuid()
@@ -137,9 +127,8 @@ class UnifiedThirdPartyService:
             logger.error("create_proveedor failed: %s", e)
             raise
 
-    def update_proveedor(self, proveedor_id: int, datos: Dict[str, Any]) -> bool:
+    def update_proveedor(self, proveedor_id: str, datos: Dict[str, Any]) -> bool:
         """Actualiza un proveedor existente."""
-        self._ensure_proveedor_columns()
         try:
             self._db.execute("""
                 UPDATE proveedores SET

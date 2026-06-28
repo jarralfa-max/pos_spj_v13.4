@@ -56,10 +56,11 @@ class TreasuryService:
 
     def inyectar_capital(self, monto: float, descripcion: str = "",
                          usuario: str = "") -> int:
-        cur = self.db.execute(
-            "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
-            "VALUES('inyeccion',?,?,?)", (monto, descripcion, usuario))
-        row_id = cur.lastrowid
+        from backend.shared.ids import new_uuid
+        row_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO treasury_capital(id,tipo,monto,descripcion,usuario) "
+            "VALUES(?,'inyeccion',?,?,?)", (row_id, monto, descripcion, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -72,10 +73,11 @@ class TreasuryService:
 
     def retirar_capital(self, monto: float, descripcion: str = "",
                          usuario: str = "") -> int:
-        cur = self.db.execute(
-            "INSERT INTO treasury_capital(tipo,monto,descripcion,usuario) "
-            "VALUES('retiro',?,?,?)", (-abs(monto), descripcion, usuario))
-        row_id = cur.lastrowid
+        from backend.shared.ids import new_uuid
+        row_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO treasury_capital(id,tipo,monto,descripcion,usuario) "
+            "VALUES(?,'retiro',?,?,?)", (row_id, -abs(monto), descripcion, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -95,10 +97,11 @@ class TreasuryService:
     def registrar_ingreso(self, categoria: str, concepto: str, monto: float,
                           sucursal_id: int = 1, referencia: str = "",
                           usuario: str = ""):
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,ingreso,"
-            "sucursal_id,referencia,usuario) VALUES('ingreso',?,?,?,?,?,?)",
-            (categoria, concepto, monto, sucursal_id, referencia, usuario))
+            "INSERT INTO treasury_ledger(id,tipo,categoria,concepto,ingreso,"
+            "sucursal_id,referencia,usuario) VALUES(?,'ingreso',?,?,?,?,?,?)",
+            (new_uuid(), categoria, concepto, monto, sucursal_id, referencia, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -109,10 +112,11 @@ class TreasuryService:
     def registrar_egreso(self, categoria: str, concepto: str, monto: float,
                          sucursal_id: int = 1, referencia: str = "",
                          usuario: str = ""):
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO treasury_ledger(tipo,categoria,concepto,egreso,"
-            "sucursal_id,referencia,usuario) VALUES('egreso',?,?,?,?,?,?)",
-            (categoria, concepto, abs(monto), sucursal_id, referencia, usuario))
+            "INSERT INTO treasury_ledger(id,tipo,categoria,concepto,egreso,"
+            "sucursal_id,referencia,usuario) VALUES(?,'egreso',?,?,?,?,?,?)",
+            (new_uuid(), categoria, concepto, abs(monto), sucursal_id, referencia, usuario))
         try:
             self.db.commit()
         except Exception:
@@ -343,12 +347,14 @@ class TreasuryService:
     def registrar_gasto_fijo(self, categoria: str, nombre: str,
                               monto: float, dia_pago: int = 1,
                               sucursal_id: int = 0) -> int:
-        cur = self.db.execute(
-            "INSERT INTO treasury_gastos_fijos(categoria,nombre,monto_mensual,"
-            "dia_pago,sucursal_id) VALUES(?,?,?,?,?)",
-            (categoria, nombre, monto, dia_pago, sucursal_id))
+        from backend.shared.ids import new_uuid
+        gf_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO treasury_gastos_fijos(id,categoria,nombre,monto_mensual,"
+            "dia_pago,sucursal_id) VALUES(?,?,?,?,?,?)",
+            (gf_id, categoria, nombre, monto, dia_pago, sucursal_id))
         self.db.commit()
-        return cur.lastrowid
+        return gf_id
 
     def get_gastos_fijos(self) -> List[Dict]:
         try:
@@ -386,12 +392,14 @@ class TreasuryService:
                                 monto: float, fecha_prog: str,
                                 notas: str = "", sucursal_id: int = 1) -> int:
         """Programa un gasto futuro."""
-        cur = self.db.execute(
-            "INSERT INTO gastos_futuros(sucursal_id, concepto, categoria, monto, fecha_prog, notas) "
-            "VALUES(?,?,?,?,?,?)",
-            (sucursal_id, concepto, categoria, monto, fecha_prog, notas))
+        from backend.shared.ids import new_uuid
+        row_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO gastos_futuros(id, sucursal_id, concepto, categoria, monto, fecha_prog, notas) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (row_id, sucursal_id, concepto, categoria, monto, fecha_prog, notas))
         self.db.commit()
-        return cur.lastrowid
+        return row_id
 
     def marcar_gasto_pagado(self, gasto_id: int) -> bool:
         """Marca un gasto futuro como pagado."""
@@ -445,11 +453,12 @@ class TreasuryService:
             ).fetchone()
             
             if not exists:
+                from backend.shared.ids import new_uuid
                 self.db.execute("""
                     INSERT INTO gastos_futuros
-                    (sucursal_id, concepto, categoria, monto, fecha_prog)
-                    VALUES(?,?,?,?,?)""",
-                    (sucursal_id, concepto, cat, monto, prox.isoformat()))
+                    (id, sucursal_id, concepto, categoria, monto, fecha_prog)
+                    VALUES(?,?,?,?,?,?)""",
+                    (new_uuid(), sucursal_id, concepto, cat, monto, prox.isoformat()))
                 creados += 1
         
         self.db.commit()
@@ -472,13 +481,15 @@ class TreasuryService:
                          frecuencia: str, dia_del_mes: int,
                          proveedor: str = "", sucursal_id: int = 1) -> int:
         """Crea un nuevo gasto fijo recurrente."""
-        cur = self.db.execute("""
+        from backend.shared.ids import new_uuid
+        gf_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute("""
             INSERT INTO gastos_fijos
-            (sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor, activo)
-            VALUES(?,?,?,?,?,?,?,1)""",
-            (sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor))
+            (id, sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor, activo)
+            VALUES(?,?,?,?,?,?,?,?,1)""",
+            (gf_id, sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor))
         self.db.commit()
-        return cur.lastrowid
+        return gf_id
 
     def toggle_gasto_fijo(self, gasto_fijo_id: int) -> bool:
         """Activa o pausa un gasto fijo."""
@@ -518,10 +529,11 @@ class TreasuryService:
                               monto: float = 0, metodo_pago: str = "efectivo",
                               usuario: str = "", sucursal_id: int = 1):
         """Registra un gasto operativo en la tabla gastos."""
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO gastos (fecha, categoria, concepto, monto, metodo_pago, "
-            "usuario, fecha_registro) VALUES (datetime('now'),?,?,?,?,?,datetime('now'))",
-            (categoria, concepto, monto, metodo_pago, usuario))
+            "INSERT INTO gastos (id, fecha, categoria, concepto, monto, metodo_pago, "
+            "usuario, fecha_registro) VALUES (?,datetime('now'),?,?,?,?,?,datetime('now'))",
+            (new_uuid(), categoria, concepto, monto, metodo_pago, usuario))
         # registrar_egreso ya hace commit y publica MOVIMIENTO_FINANCIERO al EventBus
         self.registrar_egreso("gasto_operativo:" + categoria, concepto, monto,
                               sucursal_id, usuario=usuario)
@@ -584,10 +596,11 @@ class TreasuryService:
         self.db.execute(
             "UPDATE accounts_payable SET balance=?, status=? WHERE id=?",
             (nuevo, status, ap_id))
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO cxp_payments (ap_id, monto, metodo_pago, usuario, fecha) "
-            "VALUES (?,?,?,?,datetime('now'))",
-            (ap_id, monto, metodo, usuario))
+            "INSERT INTO ap_payments (id, ap_id, monto, metodo_pago, usuario, fecha) "
+            "VALUES (?,?,?,?,?,datetime('now'))",
+            (new_uuid(), ap_id, monto, metodo, usuario))
         self.registrar_egreso("cxp:abono", f"Abono CXP #{ap_id}", monto,
                               usuario=usuario)
         try:
@@ -635,10 +648,11 @@ class TreasuryService:
         self.db.execute(
             "UPDATE accounts_receivable SET balance=?, status=? WHERE id=?",
             (nuevo, status, ar_id))
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO cxc_payments (ar_id, monto, metodo_pago, usuario, fecha) "
-            "VALUES (?,?,?,?,datetime('now'))",
-            (ar_id, monto, metodo, usuario))
+            "INSERT INTO ar_payments (id, ar_id, monto, metodo_pago, usuario, fecha) "
+            "VALUES (?,?,?,?,?,datetime('now'))",
+            (new_uuid(), ar_id, monto, metodo, usuario))
         self.registrar_ingreso("cxc:cobro", f"Cobro CXC #{ar_id}", monto,
                                usuario=usuario)
         try:
@@ -662,17 +676,20 @@ class TreasuryService:
         docs = self.get_cuentas_por_pagar(0) if is_cxp else self.get_cuentas_por_cobrar(0)
         if tercero_id:
             key = "proveedor_id" if is_cxp else "cliente_id"
-            docs = [d for d in docs if int(d.get(key) or 0) == int(tercero_id)]
+            docs = [d for d in docs if str(d.get(key) or "") == str(tercero_id)]
         if not docs:
             return {"aplicado": 0.0, "pendiente": float(monto_total), "aplicaciones": 0}
 
         restante = float(monto_total)
         aplicaciones: List[Dict[str, Any]] = []
+        from backend.shared.ids import new_uuid
         folio = f"{'PG' if is_cxp else 'CG'}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        cur = self.db.execute(
-            "INSERT INTO pagos_cobros(folio,tipo_operacion,tercero_id,tercero_tipo,monto_total,forma_pago,usuario_id,estado) "
-            "VALUES(?,?,?,?,?,?,?,?)",
+        pago_cobro_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO pagos_cobros(id,folio,tipo_operacion,tercero_id,tercero_tipo,monto_total,forma_pago,usuario_id,estado) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
             (
+                pago_cobro_id,
                 folio,
                 "pago_proveedor" if is_cxp else "cobro_cliente",
                 tercero_id,
@@ -683,7 +700,6 @@ class TreasuryService:
                 "aplicado",
             ),
         )
-        pago_cobro_id = cur.lastrowid
 
         for d in docs:
             if restante <= 0.0001:
@@ -693,23 +709,24 @@ class TreasuryService:
                 continue
             aplicado = min(restante, saldo)
             if is_cxp:
-                self.abonar_cuenta_por_pagar(int(d["id"]), aplicado, metodo=metodo, usuario=usuario)
+                self.abonar_cuenta_por_pagar(d["id"], aplicado, metodo=metodo, usuario=usuario)
             else:
-                self.abonar_cuenta_por_cobrar(int(d["id"]), aplicado, metodo=metodo, usuario=usuario)
+                self.abonar_cuenta_por_cobrar(d["id"], aplicado, metodo=metodo, usuario=usuario)
             restante -= aplicado
             self.db.execute(
-                "INSERT INTO pagos_cobros_aplicaciones(pago_cobro_id,documento_id,tipo_documento,monto_aplicado,saldo_anterior_documento,saldo_posterior_documento) "
-                "VALUES(?,?,?,?,?,?)",
+                "INSERT INTO pagos_cobros_aplicaciones(id,pago_cobro_id,documento_id,tipo_documento,monto_aplicado,saldo_anterior_documento,saldo_posterior_documento) "
+                "VALUES(?,?,?,?,?,?,?)",
                 (
+                    new_uuid(),
                     pago_cobro_id,
-                    int(d["id"]),
+                    d["id"],
                     "accounts_payable" if is_cxp else "accounts_receivable",
                     aplicado,
                     saldo,
                     max(0.0, saldo - aplicado),
                 ),
             )
-            aplicaciones.append({"documento_id": int(d["id"]), "monto_aplicado": aplicado})
+            aplicaciones.append({"documento_id": d["id"], "monto_aplicado": aplicado})
 
         if restante > 0.0001:
             # Anticipo / saldo a favor auditable
@@ -748,7 +765,7 @@ class TreasuryService:
             (pago_cobro_id,),
         ).fetchall()
         for a in apps:
-            documento_id = int(a[0])
+            documento_id = a[0]  # UUIDv7 (sin cast)
             monto = float(a[2] or 0)
             if monto <= 0:
                 continue

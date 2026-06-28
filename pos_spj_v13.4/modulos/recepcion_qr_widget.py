@@ -1928,20 +1928,21 @@ class RecepcionQRWidget(QWidget):
 
         from core.db.connection import transaction as _tx_qr
         with _tx_qr(self.conexion):
-            # 1. Recepción cabecera
-            cur = self.conexion.execute("""
+            # 1. Recepción cabecera — identidad UUIDv7 explícita (REGLA CERO)
+            from backend.shared.ids import new_uuid
+            recepcion_id = new_uuid()
+            self.conexion.execute("""
                 INSERT INTO recepciones
-                    (folio, tipo, proveedor_id, sucursal_id, usuario,
+                    (id, folio, tipo, proveedor_id, sucursal_id, usuario,
                      notas, operation_id, estado,
                      uuid_qr, condicion_pago, metodo_pago,
                      monto_pagado, monto_total,
                      saldo_pendiente)
-                VALUES(?,?,?,?,?,?,?,'completada',?,?,?,?,?,?)
-            """, (folio, "COMPRA", proveedor_id, self.sucursal_id, self.usuario,
+                VALUES(?,?,?,?,?,?,?,?,'completada',?,?,?,?,?,?)
+            """, (recepcion_id, folio, "COMPRA", proveedor_id, self.sucursal_id, self.usuario,
                   notas, op_id, uuid_qr, condicion, metodo,
                   monto_pagado, monto_total,
                   max(0, monto_total - monto_pagado)))
-            recepcion_id = cur.lastrowid
 
             for item in items:
                 prod_id  = item["product_id"]
@@ -1952,10 +1953,10 @@ class RecepcionQRWidget(QWidget):
                 # 2. Detalle de recepción
                 self.conexion.execute("""
                     INSERT INTO recepcion_items
-                        (recepcion_id, producto_id, cantidad, costo_unitario,
+                        (id, recepcion_id, producto_id, cantidad, costo_unitario,
                          uuid_qr_contenedor, fecha_caducidad)
-                    VALUES(?,?,?,?,?,?)
-                """, (recepcion_id, prod_id, qty, costo, uuid_qr, caducidad))
+                    VALUES(?,?,?,?,?,?,?)
+                """, (new_uuid(), recepcion_id, prod_id, qty, costo, uuid_qr, caducidad))
 
                 # 3. Actualizar inventario_actual (UPSERT con costo promedio ponderado)
                 # CASE guard prevents division-by-zero if existing quantity is somehow 0.

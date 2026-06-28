@@ -7,7 +7,7 @@ def _db():
     conn = sqlite3.connect(":memory:")
     conn.execute("""
         CREATE TABLE proveedores (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT,
             rfc TEXT,
             telefono TEXT,
@@ -37,10 +37,10 @@ def _db():
 def test_get_all_proveedores_devuelve_dicts():
     db = _db()
     db.execute(
-        "INSERT INTO proveedores(nombre, contacto, activo) VALUES ('Proveedor A','Juan',1)"
+        "INSERT INTO proveedores(id, nombre, contacto, activo) VALUES ('prov-a','Proveedor A','Juan',1)"
     )
     db.execute(
-        "INSERT INTO accounts_payable(supplier_id, status, balance) VALUES (1, 'pendiente', 250.0)"
+        "INSERT INTO accounts_payable(supplier_id, status, balance) VALUES ('prov-a', 'pendiente', 250.0)"
     )
     db.commit()
 

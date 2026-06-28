@@ -178,7 +178,7 @@ class ReceivePOAdapter:
                     if not getattr(inventory_result, "success", False):
                         raise RuntimeError(getattr(inventory_result, "message", "PURCHASE_RECEPTION_INVENTORY_FAILED"))
                 except Exception as e:
-                    logger.error("increase_stock prod=%d: %s", item.product_id, e)
+                    logger.error("increase_stock prod=%s: %s", item.product_id, e)
                     warnings.append(f"Inventario prod {item.product_id}: {e}")
 
             # registrar_lote — opcional, solo si viene lote en el item
@@ -193,7 +193,7 @@ class ReceivePOAdapter:
                         costo_kg=item.unit_cost,
                     )
                 except Exception as e:
-                    logger.warning("registrar_lote prod=%d lote=%s: %s",
+                    logger.warning("registrar_lote prod=%s lote=%s: %s",
                                    item.product_id, item.lote, e)
                     warnings.append(f"Lote {item.lote}: {e}")
 
@@ -299,11 +299,11 @@ class ReceivePOAdapter:
             try:
                 repo.save_purchase_items(_compra_id, items_repo)
             except Exception as e:
-                logger.warning("save_purchase_items recepción PO %d: %s", po_id, e)
+                logger.warning("save_purchase_items recepción PO %s: %s", po_id, e)
                 warnings.append(f"Partidas compra PO: {e}")
             return folio
         except Exception as e:
-            logger.error("create_purchase recepción PO %d: %s", po_id, e)
+            logger.error("create_purchase recepción PO %s: %s", po_id, e)
             warnings.append(f"Compra trazabilidad: {e}")
             return ""
 

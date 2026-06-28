@@ -14,22 +14,22 @@ Tabla creada:
 def run(conn):
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS capital_movements (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT    PRIMARY KEY,
             movement_type       TEXT    NOT NULL DEFAULT 'injection',
                                         -- injection | withdrawal | adjustment | opening_balance
             amount              REAL    NOT NULL CHECK(amount > 0),
             concept             TEXT    NOT NULL DEFAULT '',
             partner_name        TEXT    DEFAULT '',   -- nombre del socio/origen
-            partner_id          INTEGER,              -- FK opcional a socios si existe
+            partner_id          TEXT,                 -- FK opcional a socios si existe
             payment_method      TEXT    DEFAULT 'efectivo',
             reference           TEXT    DEFAULT '',   -- número de transferencia, cheque, etc.
-            branch_id           INTEGER DEFAULT 1,
+            branch_id           TEXT,
             user                TEXT    DEFAULT 'sistema',
             status              TEXT    NOT NULL DEFAULT 'registered',
                                         -- registered | pending | cancelled
             operation_id        TEXT    UNIQUE NOT NULL,
-            journal_entry_id    INTEGER,              -- FK a journal_entries si aplica
-            treasury_movement_id INTEGER,             -- FK a treasury_movements si aplica
+            journal_entry_id    TEXT,                 -- FK a journal_entries si aplica
+            treasury_movement_id TEXT,                -- FK a treasury_movements si aplica
             metadata_json       TEXT    DEFAULT '{}',
             created_at          TEXT    DEFAULT (datetime('now')),
             updated_at          TEXT    DEFAULT (datetime('now'))

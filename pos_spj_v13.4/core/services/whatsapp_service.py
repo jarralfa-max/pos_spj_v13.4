@@ -160,16 +160,18 @@ class MessageQueue:
     # ── Escritura ─────────────────────────────────────────────────────────────
 
     def enqueue(self, to_number: str, message: str,
-                template: str = None, payload: dict = None) -> int:
-        cur = self.conn.execute(
+                template: str = None, payload: dict = None) -> str:
+        from backend.shared.ids import new_uuid
+        msg_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.conn.execute(
             "INSERT INTO whatsapp_queue"
-            "(to_number, message, template, payload, proxima_revision) "
-            "VALUES(?, ?, ?, ?, datetime('now'))",
-            (to_number, message, template,
+            "(id, to_number, message, template, payload, proxima_revision) "
+            "VALUES(?, ?, ?, ?, ?, datetime('now'))",
+            (msg_id, to_number, message, template,
              json.dumps(payload) if payload else None))
         try: self.conn.commit()
         except Exception: pass
-        return cur.lastrowid
+        return msg_id
 
     def mark_sent(self, msg_id: int) -> None:
         self.conn.execute(

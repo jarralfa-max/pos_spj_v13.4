@@ -14,16 +14,16 @@ def run(conn):
 
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS financial_event_log (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            id            TEXT PRIMARY KEY,
             timestamp     DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento        TEXT NOT NULL,
             modulo        TEXT NOT NULL,
-            referencia_id INTEGER,
+            referencia_id TEXT,
             monto         DECIMAL(15,4),
             cuenta_debe   TEXT,
             cuenta_haber  TEXT,
-            usuario_id    INTEGER,
-            sucursal_id   INTEGER DEFAULT 1,
+            usuario_id    TEXT,
+            sucursal_id   TEXT,
             metadata      JSON
         );
 

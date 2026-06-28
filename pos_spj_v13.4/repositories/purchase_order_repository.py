@@ -38,15 +38,17 @@ class PurchaseOrderRepository:
         Retorna (po_id, folio).
         NO afecta inventario, finanzas ni eventos.
         """
+        from backend.shared.ids import new_uuid
         folio = f"PO-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
-        cur = self.conn.execute(
+        po_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.conn.execute(
             """INSERT INTO ordenes_compra
-               (folio, proveedor_id, pr_id, sucursal_id, usuario,
+               (id, folio, proveedor_id, pr_id, sucursal_id, usuario,
                 subtotal, iva_monto, total, metodo_pago,
                 condicion_pago, plazo_dias, moneda, notas, doc_ref,
                 estado, fecha_entrega_esperada)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (folio,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (po_id, folio,
              pr_data.get("proveedor_id"),
              pr_id,
              pr_data.get("sucursal_id", 1),
@@ -63,13 +65,12 @@ class PurchaseOrderRepository:
              "ABIERTA",
              None),
         )
-        po_id = cur.lastrowid
 
         # Copiar items de la PR
         items = pr_data.get("items", [])
         self._save_items(po_id, items, source="pr_item")
 
-        logger.info("PO creada: %s id=%d desde PR id=%d total=%.2f",
+        logger.info("PO creada: %s id=%s desde PR id=%s total=%.2f",
                     folio, po_id, pr_id, pr_data.get("total", 0))
         return po_id, folio
 
@@ -90,33 +91,35 @@ class PurchaseOrderRepository:
         doc_ref: str = "",
     ) -> tuple[int, str]:
         """Crea una PO directa (sin PR previa). Para flujos de emergencia."""
+        from backend.shared.ids import new_uuid
         folio = f"PO-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
-        cur = self.conn.execute(
+        po_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.conn.execute(
             """INSERT INTO ordenes_compra
-               (folio, proveedor_id, sucursal_id, usuario,
+               (id, folio, proveedor_id, sucursal_id, usuario,
                 subtotal, iva_monto, total, metodo_pago,
                 condicion_pago, plazo_dias, moneda, notas, doc_ref, estado)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (folio, proveedor_id, sucursal_id, usuario,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (po_id, folio, proveedor_id, sucursal_id, usuario,
              subtotal, iva_monto, total, metodo_pago,
              condicion_pago, plazo_dias, moneda, notas, doc_ref, "ABIERTA"),
         )
-        po_id = cur.lastrowid
         self._save_items(po_id, items)
         return po_id, folio
 
-    def _save_items(self, po_id: int, items: list[dict],
+    def _save_items(self, po_id: str, items: list[dict],
                     source: str = "direct") -> None:
+        from backend.shared.ids import new_uuid
         for item in items:
             prod_id = item.get("product_id") or item.get("producto_id")
             qty     = item.get("qty") or item.get("cantidad", 0)
             cost    = item.get("unit_cost") or item.get("precio_unitario", 0)
             self.conn.execute(
                 """INSERT INTO ordenes_compra_items
-                   (orden_id, producto_id, nombre, cantidad, recibido,
+                   (id, orden_id, producto_id, nombre, cantidad, recibido,
                     precio_unitario, subtotal, unidad, lote, fecha_caducidad, notas)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (po_id, prod_id,
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (new_uuid(), po_id, prod_id,
                  item.get("nombre", ""),
                  qty, 0,
                  cost,

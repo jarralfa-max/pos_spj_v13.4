@@ -234,14 +234,16 @@ class FinancialDocumentService:
             return 0
 
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            doc_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO financial_documents
-                       (document_type, status, source_module, source_id, source_folio,
+                       (id, document_type, status, source_module, source_id, source_folio,
                         party_type, party_id, original_amount, balance,
                         due_date, branch_id, user, operation_id, metadata_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    document_type, _STATUS_PENDING,
+                    doc_id, document_type, _STATUS_PENDING,
                     source_module, source_id, source_folio,
                     party_type, party_id,
                     float(amount), float(amount),
@@ -249,7 +251,7 @@ class FinancialDocumentService:
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
-            return cur.lastrowid or 0
+            return doc_id
         except Exception as exc:
             logger.warning("_create_document INSERT op=%s: %s", operation_id, exc)
             return 0

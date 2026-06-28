@@ -143,7 +143,7 @@
       "report": "docs/refactor/modules/activos.md"
     },
     "CLIENTES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -151,7 +151,7 @@
       "report": "docs/refactor/modules/clientes.md"
     },
     "PROVEEDORES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -159,7 +159,7 @@
       "report": "docs/refactor/modules/proveedores.md"
     },
     "COMPRAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -167,7 +167,7 @@
       "report": "docs/refactor/modules/compras.md"
     },
     "RECEPCION": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -175,7 +175,7 @@
       "report": "docs/refactor/modules/recepcion.md"
     },
     "PEDIDOS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -183,7 +183,7 @@
       "report": "docs/refactor/modules/pedidos.md"
     },
     "TICKETS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -191,7 +191,7 @@
       "report": "docs/refactor/modules/tickets.md"
     },
     "ETIQUETAS": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -199,7 +199,7 @@
       "report": "docs/refactor/modules/etiquetas.md"
     },
     "HARDWARE": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -207,7 +207,7 @@
       "report": "docs/refactor/modules/hardware.md"
     },
     "NOTIFICACIONES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
@@ -215,7 +215,7 @@
       "report": "docs/refactor/modules/notificaciones.md"
     },
     "WHATSAPP": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,

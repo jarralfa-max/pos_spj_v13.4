@@ -60,7 +60,7 @@ def db():
             fecha_apertura DATETIME DEFAULT (datetime('now')));
         INSERT INTO turno_actual(sucursal_id,abierto,turno,fondo_inicial) VALUES(1,1,'M',500);
         CREATE TABLE notification_inbox(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             usuario TEXT, tipo TEXT, titulo TEXT, cuerpo TEXT,
             leido INTEGER DEFAULT 0, prioridad INTEGER DEFAULT 0,
             sucursal_id INTEGER, accion_url TEXT,

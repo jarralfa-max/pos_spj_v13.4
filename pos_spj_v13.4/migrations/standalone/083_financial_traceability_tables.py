@@ -31,19 +31,19 @@ def run(conn):
         -- Capa unificada: CxC, CxP, nómina por pagar, activo pendiente, etc.
         -- Coexiste con accounts_payable / accounts_receivable (legacy).
         CREATE TABLE IF NOT EXISTS financial_documents (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT    PRIMARY KEY,
             document_type       TEXT    NOT NULL,       -- receivable|payable|payroll|maintenance|asset
             status              TEXT    NOT NULL DEFAULT 'pending',
             source_module       TEXT    NOT NULL,       -- ventas|compras|nomina|mantenimiento|activos
-            source_id           INTEGER,
+            source_id           TEXT,
             source_folio        TEXT    DEFAULT '',
             party_type          TEXT    DEFAULT '',     -- customer|supplier|employee
-            party_id            INTEGER,
+            party_id            TEXT,
             original_amount     REAL    NOT NULL,
             balance             REAL    NOT NULL,
             currency            TEXT    DEFAULT 'MXN',
             due_date            TEXT,
-            branch_id           INTEGER DEFAULT 1,
+            branch_id           TEXT,
             user                TEXT    DEFAULT 'sistema',
             operation_id        TEXT    UNIQUE NOT NULL,
             metadata_json       TEXT    DEFAULT '{}',
@@ -60,7 +60,7 @@ def run(conn):
         -- ── MOVIMIENTOS DE TESORERÍA ──────────────────────────────────────────
         -- Dinero real confirmado. Coexiste con treasury_ledger (legacy).
         CREATE TABLE IF NOT EXISTS treasury_movements (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                      TEXT    PRIMARY KEY,
             movement_type           TEXT    NOT NULL,   -- inflow|outflow
             direction               TEXT    NOT NULL,   -- in|out
             amount                  REAL    NOT NULL,
@@ -68,10 +68,10 @@ def run(conn):
             account                 TEXT    DEFAULT 'caja',
             status                  TEXT    DEFAULT 'confirmed',
             source_module           TEXT    NOT NULL,
-            source_id               INTEGER,
+            source_id               TEXT,
             source_folio            TEXT    DEFAULT '',
-            financial_document_id   INTEGER,
-            branch_id               INTEGER DEFAULT 1,
+            financial_document_id   TEXT,
+            branch_id               TEXT,
             user                    TEXT    DEFAULT 'sistema',
             operation_id            TEXT    UNIQUE NOT NULL,
             metadata_json           TEXT    DEFAULT '{}',
@@ -87,15 +87,15 @@ def run(conn):
         -- ── ASIENTOS CONTABLES ────────────────────────────────────────────────
         -- Idempotentes por operation_id. Coexiste con financial_event_log (legacy).
         CREATE TABLE IF NOT EXISTS journal_entries (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT    PRIMARY KEY,
             event_type      TEXT    NOT NULL,
             source_module   TEXT    NOT NULL,
-            source_id       INTEGER,
+            source_id       TEXT,
             source_folio    TEXT    DEFAULT '',
             debit_account   TEXT    NOT NULL,
             credit_account  TEXT    NOT NULL,
             amount          REAL    NOT NULL,
-            branch_id       INTEGER DEFAULT 1,
+            branch_id       TEXT,
             user            TEXT    DEFAULT 'sistema',
             operation_id    TEXT    UNIQUE NOT NULL,
             metadata_json   TEXT    DEFAULT '{}',
@@ -203,10 +203,10 @@ def run(conn):
 
         -- ── BITÁCORA DE TRAZABILIDAD ──────────────────────────────────────────
         CREATE TABLE IF NOT EXISTS financial_trace_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT    PRIMARY KEY,
             event_type      TEXT    NOT NULL,
             source_module   TEXT    NOT NULL,
-            source_id       INTEGER,
+            source_id       TEXT,
             source_folio    TEXT    DEFAULT '',
             operation_id    TEXT    NOT NULL,
             trace_status    TEXT    NOT NULL DEFAULT 'started',  -- started|completed|failed|skipped
