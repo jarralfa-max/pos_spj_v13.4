@@ -977,10 +977,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra (
-            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid                   TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+            id                     TEXT PRIMARY KEY,
             folio                  TEXT UNIQUE,
-            proveedor_id           INTEGER,
+            proveedor_id           TEXT,
             estado                 TEXT DEFAULT 'borrador',
             total                  REAL DEFAULT 0,
             notas                  TEXT,
@@ -992,9 +991,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ordenes_compra_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            orden_id        INTEGER,
-            producto_id     INTEGER,
+            id              TEXT PRIMARY KEY,
+            orden_id        TEXT,
+            producto_id     TEXT,
             nombre          TEXT,
             cantidad        REAL,
             recibido        REAL DEFAULT 0,
@@ -1069,11 +1068,11 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepciones (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             folio        TEXT    NOT NULL,
             tipo         TEXT    NOT NULL DEFAULT 'COMPRA',
-            proveedor_id INTEGER,
-            sucursal_id  INTEGER NOT NULL,
+            proveedor_id TEXT,
+            sucursal_id  TEXT NOT NULL,
             usuario      TEXT    NOT NULL,
             quien_entrega TEXT,
             notas        TEXT,
@@ -1084,9 +1083,9 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepcion_items (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            recepcion_id   INTEGER NOT NULL,
-            producto_id    INTEGER NOT NULL,
+            id             TEXT PRIMARY KEY,
+            recepcion_id   TEXT NOT NULL,
+            producto_id    TEXT NOT NULL,
             cantidad       REAL    NOT NULL CHECK(cantidad > 0),
             unidad         TEXT    NOT NULL DEFAULT 'kg',
             costo_unitario REAL    NOT NULL DEFAULT 0,

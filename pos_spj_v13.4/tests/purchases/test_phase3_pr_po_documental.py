@@ -28,7 +28,7 @@ from unittest.mock import MagicMock
 
 BASE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS ordenes_compra (
-    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    id                     TEXT PRIMARY KEY,
     uuid                   TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
     folio                  TEXT UNIQUE,
     proveedor_id           INTEGER,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     usuario                TEXT
 );
 CREATE TABLE IF NOT EXISTS ordenes_compra_items (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              TEXT PRIMARY KEY,
     orden_id        INTEGER,
     producto_id     INTEGER,
     nombre          TEXT,
@@ -248,7 +248,7 @@ class TestPurchaseOrderRepository:
         po_id, folio = po_repo.create_from_pr(
             pr_id=1, pr_data=self._make_pr_data(), usuario="comprador"
         )
-        assert po_id > 0
+        assert po_id          # identidad UUIDv7 (str)
         assert folio.startswith("PO-")
 
     def test_po_estado_inicial_abierta(self, db, po_repo):
@@ -365,7 +365,7 @@ class TestPurchaseRequestUC:
         uc.aprobar(r.pr_id, "gerente")
         r_po = uc.convertir_a_po(r.pr_id, "comprador")
         assert r_po.ok, f"error: {r_po.error}"
-        assert r_po.po_id > 0
+        assert r_po.po_id     # identidad UUIDv7 (str)
         assert r_po.po_folio.startswith("PO-")
         assert r_po.estado == "CONVERTIDA_A_PO"
 

@@ -221,6 +221,43 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_reception_tables_are_born_clean_uuid_identity():
+    """The reception subsystem is born-clean: recepciones / recepcion_items /
+    ordenes_compra / ordenes_compra_items / scan_event_log carry a single TEXT
+    UUIDv7 id (ordenes_compra dropped its parallel `uuid` column), and the writers
+    (purchase_order_repository, qr_parser_service) mint ids with new_uuid().
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table, fks in (
+        ("recepciones", ("proveedor_id", "sucursal_id")),
+        ("recepcion_items", ("recepcion_id", "producto_id")),
+        ("ordenes_compra", ("proveedor_id",)),
+        ("ordenes_compra_items", ("orden_id", "producto_id")),
+        ("scan_event_log", ()),
+    ):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+        for fk in fks:
+            assert cols[fk][0] == "TEXT", f"{table}.{fk} must be TEXT"
+    oc = {r[1] for r in conn.execute("PRAGMA table_info(ordenes_compra)").fetchall()}
+    assert "uuid" not in oc                           # doble identidad eliminada
+
+    po_src = (REPO / "repositories" / "purchase_order_repository.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in po_src
+    assert "from backend.shared.ids import new_uuid" in po_src
+
+    qr_src = (REPO / "core" / "services" / "qr_parser_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO scan_event_log\n                       (id," in qr_src
+
+
 def test_compras_tables_are_born_clean_uuid_identity():
     """The purchase transaction is born-clean: compras.id and detalles_compra.id are
     TEXT UUIDv7 primary keys (no autoincrement), the detalle FK compra_id is TEXT,
@@ -430,9 +467,9 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 141
+INTEGER_PK_TABLE_CEILING = 137
 SERVICES_WITH_DDL_CEILING = 20
-LASTROWID_FILE_CEILING = 33
+LASTROWID_FILE_CEILING = 32
 
 
 def test_integer_pk_tables_in_base_schema_do_not_grow():

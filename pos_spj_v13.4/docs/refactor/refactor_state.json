@@ -167,7 +167,7 @@
       "report": "docs/refactor/modules/compras.md"
     },
     "RECEPCION": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
