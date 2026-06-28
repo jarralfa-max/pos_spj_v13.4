@@ -391,6 +391,33 @@ def test_cxp_cxc_tables_are_born_clean_uuid_identity():
     assert "INSERT INTO pagos_cobros(id," in ts_src
 
 
+def test_plan_cuentas_natural_key_born_clean():
+    """El plan de cuentas (migración 059) es born-clean por clave natural: la
+    identidad es codigo_sat (clave SAT) como TEXT PRIMARY KEY, sin surrogate
+    entero ni AUTOINCREMENT. El self-ref jerárquico usa padre_codigo (TEXT) hacia
+    codigo_sat. El catálogo se siembra por código (sin lastrowid/MAX(id)+1).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(plan_cuentas)").fetchall()}
+    assert cols, "plan_cuentas missing after migration 059"
+    assert "id" not in cols, "no integer surrogate — codigo_sat es la identidad"
+    assert cols["codigo_sat"] == ("TEXT", 1), "codigo_sat must be TEXT PRIMARY KEY"
+    assert cols["padre_codigo"][0] == "TEXT", "padre_codigo must be TEXT (ref codigo_sat)"
+
+    src = (REPO / "migrations/standalone/059_plan_cuentas.py").read_text(encoding="utf-8")
+    assert "AUTOINCREMENT" not in src
+    assert "codigo_sat   TEXT    PRIMARY KEY" in src
+    assert "lastrowid" not in src
+
+
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
     """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
     whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT

@@ -7,22 +7,19 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS plan_cuentas (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo_sat  TEXT    NOT NULL UNIQUE,
-            nombre      TEXT    NOT NULL,
-            tipo        TEXT    NOT NULL CHECK(tipo IN
+            codigo_sat   TEXT    PRIMARY KEY,
+            nombre       TEXT    NOT NULL,
+            tipo         TEXT    NOT NULL CHECK(tipo IN
                             ('activo','pasivo','capital','ingreso','costo','gasto')),
-            nivel       INTEGER DEFAULT 1,
-            padre_id    INTEGER REFERENCES plan_cuentas(id),
-            activo      INTEGER DEFAULT 1,
-            descripcion TEXT    DEFAULT '',
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            nivel        INTEGER DEFAULT 1,
+            padre_codigo TEXT    REFERENCES plan_cuentas(codigo_sat),
+            activo       INTEGER DEFAULT 1,
+            descripcion  TEXT    DEFAULT '',
+            created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
         )
     """)
-    conn.execute("""
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_pc_codigo
-            ON plan_cuentas(codigo_sat)
-    """)
+    # codigo_sat es la identidad natural (clave SAT); el PRIMARY KEY ya provee
+    # el índice único, por lo que no se requiere un índice separado por código.
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_pc_tipo
             ON plan_cuentas(tipo)
