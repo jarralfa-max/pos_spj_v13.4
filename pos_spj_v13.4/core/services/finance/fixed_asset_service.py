@@ -73,23 +73,26 @@ class FixedAssetService:
             )
             if existing:
                 logger.debug("fixed_assets: op_id=%s ya existe", operation_id)
-                return int(existing["id"])
+                return existing["id"]  # UUIDv7 (sin cast)
         except Exception as exc:
             logger.debug("fixed_assets no disponible: %s", exc)
             return 0
 
         acq_date = acquisition_date or date.today().isoformat()
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            asset_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO fixed_assets
-                       (asset_name, asset_type, acquisition_date, acquisition_cost,
+                       (id, asset_name, asset_type, acquisition_date, acquisition_cost,
                         current_value, accumulated_depreciation, depreciation_method,
                         useful_life_months, status, supplier_id, branch_id,
                         source_module, source_id, source_folio,
                         financial_document_id, treasury_movement_id,
                         operation_id, metadata_json)
-                   VALUES (?,?,?,?,?,0.0,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,0.0,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
+                    asset_id,
                     asset_name, asset_type, acq_date,
                     float(acquisition_cost), float(acquisition_cost),
                     depreciation_method, useful_life_months,
@@ -100,7 +103,6 @@ class FixedAssetService:
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
-            asset_id = cur.lastrowid or 0
         except Exception as exc:
             logger.warning("fixed_assets INSERT op=%s: %s", operation_id, exc)
             return 0
@@ -151,7 +153,7 @@ class FixedAssetService:
             )
             if existing:
                 logger.debug("depreciation: asset=%s period=%s ya existe", asset_id, period)
-                return int(existing["id"])
+                return existing["id"]  # UUIDv7 (sin cast)
         except Exception as exc:
             logger.debug("asset_depreciation_entries no disponible: %s", exc)
             return 0
@@ -181,13 +183,14 @@ class FixedAssetService:
             )
 
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            entry_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO asset_depreciation_entries
-                       (asset_id, period, amount, journal_entry_id, operation_id)
-                   VALUES (?,?,?,?,?)""",
-                (asset_id, period, float(dep_amount), je_id, op_id),
+                       (id, asset_id, period, amount, journal_entry_id, operation_id)
+                   VALUES (?,?,?,?,?,?)""",
+                (entry_id, asset_id, period, float(dep_amount), je_id, op_id),
             )
-            entry_id = cur.lastrowid or 0
         except Exception as exc:
             logger.warning("depreciation INSERT asset=%s period=%s: %s", asset_id, period, exc)
             return 0

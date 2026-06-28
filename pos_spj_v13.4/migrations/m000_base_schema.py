@@ -1176,9 +1176,7 @@ def _create_pedidos_whatsapp(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS links_pago (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid           TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-            pedido_id      INTEGER,
+            pedido_id      TEXT PRIMARY KEY,
             monto          REAL,
             estado         TEXT DEFAULT 'pendiente',
             preference_id  TEXT,
@@ -1532,7 +1530,7 @@ def _create_activos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS assets (
-            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                 TEXT PRIMARY KEY,
             codigo             TEXT UNIQUE,
             nombre             TEXT NOT NULL,
             tipo               TEXT NOT NULL DEFAULT 'equipo',
@@ -1544,14 +1542,14 @@ def _create_activos(conn):
             valor_actual       REAL DEFAULT 0,
             depreciacion_anual REAL DEFAULT 0,
             estado             TEXT DEFAULT 'activo',
-            sucursal_id        INTEGER DEFAULT 1,
+            sucursal_id        TEXT,
             fecha_registro     DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS asset_maintenance (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            asset_id    INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            asset_id    TEXT NOT NULL,
             tipo        TEXT DEFAULT 'preventivo',
             fecha       DATE NOT NULL,
             descripcion TEXT,

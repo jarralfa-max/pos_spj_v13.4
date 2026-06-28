@@ -223,11 +223,11 @@
       "report": "docs/refactor/modules/whatsapp.md"
     },
     "FINANZAS": {
-      "status": "PENDING",
-      "iteration": 0,
-      "score": 0,
-      "open_violations": null,
-      "tests_failed": null,
+      "status": "DONE",
+      "iteration": 6,
+      "score": 100,
+      "open_violations": 0,
+      "tests_failed": 0,
       "report": "docs/refactor/modules/finanzas.md"
     },
     "RRHH": {

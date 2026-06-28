@@ -21,7 +21,7 @@ def _make_db():
             metadata_json TEXT, created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS fixed_assets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
             asset_name TEXT, asset_type TEXT,
             acquisition_date TEXT, acquisition_cost REAL,
@@ -35,9 +35,9 @@ def _make_db():
             metadata_json TEXT, updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS asset_depreciation_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
-            asset_id INTEGER NOT NULL, period TEXT NOT NULL,
+            asset_id TEXT NOT NULL, period TEXT NOT NULL,
             amount REAL NOT NULL, journal_entry_id INTEGER,
             created_at TEXT DEFAULT (datetime('now'))
         );
@@ -68,7 +68,7 @@ class TestFixedAssetService(unittest.TestCase):
             acquisition_cost=25000.0,
             useful_life_months=60,
         )
-        self.assertGreater(asset_id, 0)
+        self.assertTrue(asset_id)
         row = self.conn.execute(
             "SELECT asset_name, acquisition_cost, status FROM fixed_assets WHERE id=?",
             (asset_id,)
@@ -121,7 +121,7 @@ class TestFixedAssetService(unittest.TestCase):
             useful_life_months=60,
         )
         dep_id = self.fa.depreciate_asset(asset_id=asset_id, period="2026-01")
-        self.assertGreater(dep_id, 0)
+        self.assertTrue(dep_id)
         dep_row = self.conn.execute(
             "SELECT amount, period FROM asset_depreciation_entries WHERE id=?",
             (dep_id,)

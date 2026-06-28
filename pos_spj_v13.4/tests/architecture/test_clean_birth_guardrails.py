@@ -418,6 +418,58 @@ def test_plan_cuentas_natural_key_born_clean():
     assert "lastrowid" not in src
 
 
+def test_deferred_debt_tables_are_born_clean_uuid_identity():
+    """Deuda diferida born-clean (cierre de FINANZAS): activos/depreciación e
+    insumos llevan identidad UUIDv7 TEXT. assets/asset_maintenance (base) y
+    fixed_assets/asset_depreciation_entries/maintenance_records/
+    operating_supplies/reconciliation_records (083) → id TEXT PK; branch_id y
+    FKs cruzadas en TEXT (supplier_id se conserva INTEGER, suppliers diferida).
+    links_pago abandona la identidad dual (id entero + uuid) por clave natural
+    pedido_id TEXT. depreciacion_acumulada (060) ya es UUIDv7. Los 3 servicios
+    de trazabilidad acuñan new_uuid() y el CRUD muerto de activos en
+    finance_service fue eliminado (REGLA 3).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("assets", "asset_maintenance", "fixed_assets",
+                  "asset_depreciation_entries", "maintenance_records",
+                  "operating_supplies", "reconciliation_records",
+                  "depreciacion_acumulada"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    fa = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(fixed_assets)").fetchall()}
+    assert fa["branch_id"] == "TEXT" and fa["financial_document_id"] == "TEXT"
+    assert fa["supplier_id"] == "INTEGER"  # suppliers diferida
+    ade = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(asset_depreciation_entries)").fetchall()}
+    assert ade["asset_id"] == "TEXT"
+
+    # links_pago: clave natural pedido_id (sin identidad dual id+uuid).
+    lp = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(links_pago)").fetchall()}
+    assert "id" not in lp and "uuid" not in lp, "links_pago no debe tener identidad dual"
+    assert lp["pedido_id"] == ("TEXT", 1), "links_pago.pedido_id debe ser TEXT PRIMARY KEY"
+
+    for path in ("core/services/finance/fixed_asset_service.py",
+                 "core/services/finance/maintenance_finance_service.py",
+                 "core/services/finance/operating_supplies_service.py"):
+        s = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in s, path
+        assert "new_uuid()" in s and "cur.lastrowid" not in s, path
+        assert 'int(existing["id"])' not in s, path
+
+    # El CRUD muerto de activos (phantom cols) fue removido de finance_service.
+    fs_src = (REPO / "core/services/enterprise/finance_service.py").read_text(encoding="utf-8")
+    assert "def upsert_asset" not in fs_src
+    assert "INSERT INTO assets" not in fs_src
+
+
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
     """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
     whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT

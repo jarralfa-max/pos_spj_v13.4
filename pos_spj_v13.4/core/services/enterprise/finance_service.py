@@ -12,16 +12,12 @@
 #   cuentas_por_cobrar()      — CXC con días vencidos
 #   dashboard_kpis()          — KPIs financieros ejecutivos
 #   get_suppliers()           — Catálogo de proveedores
-#   get_assets()              — Activos fijos con depreciación
-#   get_maintenance()         — Historial de mantenimientos
 #   get_personal()            — Plantilla laboral
 #   get_nomina_pagos()        — Historial de nómina
 #   crear_cxp()               — Crear cuenta por pagar manual
 #   abonar_cxp()              — Registrar pago parcial o total CXP
 #   crear_cxc()               — Crear cuenta por cobrar manual
 #   cobrar_cxc()              — Registrar cobro CXC
-#   registrar_asset()         — Alta de activo fijo
-#   registrar_mantenimiento() — Alta de mantenimiento
 #   pagar_nomina()            — Registrar pago de nómina
 #   sync_cxp_from_compras()   — Sincronizar CXP desde compras_inventariables
 #   sync_cxc_from_ventas()    — Sincronizar CXC desde ventas a crédito
@@ -654,101 +650,6 @@ class FinanceService:
             sid = cur.lastrowid
         self.db.commit()
         return sid
-
-    # ═════════════════════════════════════════════════════════════════════════
-    # ACTIVOS FIJOS
-    # ═════════════════════════════════════════════════════════════════════════
-
-    def get_assets(
-        self, estado: Optional[str] = None, tipo: Optional[str] = None
-    ) -> List[Dict]:
-        conds = ["1=1"]
-        params = []
-        if self._has_column("assets", "activo"):
-            conds.append("activo=1")
-        if estado:
-            conds.append("estado=?"); params.append(estado)
-        if tipo:
-            conds.append("tipo=?"); params.append(tipo)
-        rows = self.db.fetchall(f"""
-            SELECT a.*,
-                   (SELECT COUNT(*) FROM asset_maintenance m WHERE m.asset_id=a.id) AS num_mant,
-                   (SELECT COALESCE(SUM(costo),0) FROM asset_maintenance m WHERE m.asset_id=a.id) AS costo_mant
-            FROM assets a
-            WHERE {' AND '.join(conds)}
-            ORDER BY a.tipo, a.nombre
-        """, params)
-        return [dict(r) for r in rows]
-
-    def upsert_asset(self, data: Dict) -> int:
-        aid = data.get("id")
-        if aid:
-            self.db.execute("""
-                UPDATE assets SET nombre=?, tipo=?, marca=?, modelo=?,
-                    numero_serie=?, fecha_compra=?, valor_compra=?,
-                    valor_actual=?, depreciacion_anual=?, estado=?,
-                    ubicacion=?, sucursal_id=?, responsable=?,
-                    proveedor=?, notas=?
-                WHERE id=?
-            """, (data["nombre"], data.get("tipo","equipo"), data.get("marca"),
-                  data.get("modelo"), data.get("numero_serie"), data.get("fecha_compra"),
-                  data.get("valor_compra",0), data.get("valor_actual",0),
-                  data.get("depreciacion_anual",0), data.get("estado","activo"),
-                  data.get("ubicacion"), data.get("sucursal_id",1),
-                  data.get("responsable"), data.get("proveedor"), data.get("notas"),
-                  aid))
-        else:
-            codigo = f"ACT-{datetime.now().strftime('%y%m%d%H%M%S')}"
-            cur = self.db.execute("""
-                INSERT INTO assets (codigo, nombre, tipo, marca, modelo,
-                    numero_serie, fecha_compra, valor_compra, valor_actual,
-                    depreciacion_anual, estado, ubicacion, sucursal_id,
-                    responsable, proveedor, notas)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (codigo, data["nombre"], data.get("tipo","equipo"), data.get("marca"),
-                  data.get("modelo"), data.get("numero_serie"), data.get("fecha_compra"),
-                  data.get("valor_compra",0), data.get("valor_actual", data.get("valor_compra",0)),
-                  data.get("depreciacion_anual",0), data.get("estado","activo"),
-                  data.get("ubicacion"), data.get("sucursal_id",1),
-                  data.get("responsable"), data.get("proveedor"), data.get("notas")))
-            aid = cur.lastrowid
-        self.db.commit()
-        return aid
-
-    def get_maintenance(
-        self, asset_id: Optional[int] = None, limit: int = 100
-    ) -> List[Dict]:
-        if asset_id:
-            rows = self.db.fetchall("""
-                SELECT m.*, a.nombre AS activo_nombre, a.tipo AS activo_tipo
-                FROM asset_maintenance m
-                JOIN assets a ON a.id = m.asset_id
-                WHERE m.asset_id=?
-                ORDER BY m.fecha DESC LIMIT ?
-            """, (asset_id, limit))
-        else:
-            rows = self.db.fetchall("""
-        SELECT m.*, a.nombre AS activo_nombre, a.tipo AS activo_tipo
-                FROM asset_maintenance m
-                JOIN assets a ON a.id = m.asset_id
-                ORDER BY m.fecha DESC LIMIT ?
-            """, (limit,))
-        return [dict(r) for r in rows]
-
-    def registrar_mantenimiento(self, data: Dict) -> int:
-        cur = self.db.execute("""
-        INSERT INTO asset_maintenance
-                (asset_id, tipo, fecha, descripcion, costo,
-                 responsable, proveedor, estado, proxima_revision, notas)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        """, (data["asset_id"], data.get("tipo","preventivo"),
-              data.get("fecha", date.today().isoformat()),
-              data.get("descripcion"), data.get("costo",0),
-              data.get("responsable"), data.get("proveedor"),
-              data.get("estado","completado"),
-              data.get("proxima_revision"), data.get("notas")))
-        self.db.commit()
-        return cur.lastrowid
 
     # ═════════════════════════════════════════════════════════════════════════
     # RECURSOS HUMANOS
