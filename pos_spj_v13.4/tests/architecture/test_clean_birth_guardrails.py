@@ -151,6 +151,23 @@ def test_reportes_analytics_tables_are_born_clean():
     assert "INSERT INTO report_export_log (\n                    id," in re_src
 
 
+def test_api_webapp_treats_identity_as_uuid_no_int_casts():
+    """La API REST (webapp) trata las identidades como UUIDv7 TEXT: api_pedidos
+    no castea producto_id/sucursal_id a entero ni asume DEFAULT 1; ItemPedido
+    declara producto_id como str. api_dashboard solo castea agregados (counts),
+    no identidades.
+    """
+    pat = re.compile(r"int\s*\(\s*(?:producto|sucursal|cliente|venta|pedido|order|branch)_id")
+    for path in ("webapp/api_pedidos.py", "webapp/api_dashboard.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert not pat.search(src), f"{path} no debe castear identidades a int"
+    api_src = (REPO / "webapp/api_pedidos.py").read_text(encoding="utf-8")
+    assert 'int(body.get("sucursal_id"' not in api_src
+    assert 'int(i.get("id"' not in api_src
+    uc_src = (REPO / "core/use_cases/pedido_wa.py").read_text(encoding="utf-8")
+    assert "producto_id: str" in uc_src
+
+
 def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
     """The canonical loyalty_ledger carries a TEXT UUIDv7 id (minted by the repo,
     not autoincrement) with TEXT cliente_id/sucursal_id, and the dead points

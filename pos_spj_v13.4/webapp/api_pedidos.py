@@ -267,7 +267,8 @@ class WebAppHandler(BaseHTTPRequestHandler):
             conn = get_connection()
             items = [
                 ItemPedido(
-                    producto_id = int(i.get("id", i.get("producto_id", 0))),
+                    # producto_id es identidad UUIDv7 TEXT (REGLA CERO): sin int cast.
+                    producto_id = str(i.get("id") or i.get("producto_id") or ""),
                     nombre      = str(i.get("nombre", "")),
                     cantidad    = float(i.get("cantidad", 1)),
                     precio      = float(i.get("precio", 0)),
@@ -282,7 +283,8 @@ class WebAppHandler(BaseHTTPRequestHandler):
             r  = uc.ejecutar(
                 items        = items,
                 cliente_tel  = str(body.get("numero_whatsapp", "")),
-                sucursal_id  = int(body.get("sucursal_id", 1)),
+                # sucursal_id es identidad UUIDv7 TEXT (REGLA CERO): sin int cast ni DEFAULT 1.
+                sucursal_id  = str(body.get("sucursal_id") or ""),
                 usuario      = "webapp",
                 notas        = body.get("notas", ""),
             )

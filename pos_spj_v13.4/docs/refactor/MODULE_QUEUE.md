@@ -48,7 +48,7 @@ DONE
 |    27 | FINANZAS              | Finanzas                 | DONE |
 |    28 | RRHH                  | Recursos humanos         | DONE |
 |    29 | REPORTES              | Reportes                 | DONE |
-|    30 | API                   | API FastAPI              | PENDING |
+|    30 | API                   | API FastAPI              | DONE |
 |    31 | SINCRONIZACION        | Sincronización           | PENDING |
 |    32 | INSTALADOR            | Instalador               | PENDING |
 |    33 | ACTUALIZADOR          | Actualizador             | PENDING |
