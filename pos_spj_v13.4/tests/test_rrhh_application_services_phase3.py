@@ -29,7 +29,7 @@ def _db():
     conn.executescript(
         """
         CREATE TABLE personal (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             apellidos TEXT,
             puesto TEXT,
@@ -41,8 +41,8 @@ def _db():
             sucursal_id INTEGER DEFAULT 1
         );
         CREATE TABLE asistencias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            personal_id TEXT NOT NULL,
             fecha DATE NOT NULL,
             hora_entrada TEXT,
             hora_salida TEXT,
@@ -51,8 +51,8 @@ def _db():
             observaciones TEXT
         );
         CREATE TABLE vacaciones_personal (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            personal_id TEXT NOT NULL,
             tipo TEXT DEFAULT 'vacaciones',
             fecha_inicio DATE NOT NULL,
             fecha_fin DATE NOT NULL,
@@ -62,7 +62,7 @@ def _db():
             fecha_registro DATETIME DEFAULT (datetime('now'))
         );
         CREATE TABLE turno_roles(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL UNIQUE,
             hora_inicio TEXT DEFAULT '08:00',
             hora_fin TEXT DEFAULT '16:00',
@@ -71,9 +71,9 @@ def _db():
             activo INTEGER DEFAULT 1
         );
         CREATE TABLE turno_asignaciones(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id INTEGER NOT NULL,
-            turno_rol_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            personal_id TEXT NOT NULL,
+            turno_rol_id TEXT NOT NULL,
             fecha_inicio DATE NOT NULL,
             fecha_fin DATE,
             dia_descanso TEXT DEFAULT 'Domingo',

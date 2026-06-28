@@ -27,7 +27,7 @@ logger = logging.getLogger("spj.use_cases.pedido_wa")
 
 @dataclass
 class ItemPedido:
-    producto_id: int
+    producto_id: str  # identidad UUIDv7 TEXT (REGLA CERO)
     nombre:      str
     cantidad:    float
     precio:      float

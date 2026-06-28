@@ -19,7 +19,7 @@ def _db():
     conn.executescript(
         """
         CREATE TABLE personal (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             apellidos TEXT,
             puesto TEXT,
@@ -31,8 +31,8 @@ def _db():
             sucursal_id INTEGER DEFAULT 1
         );
         CREATE TABLE nomina_pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id INTEGER,
+            id TEXT PRIMARY KEY,
+            empleado_id TEXT,
             periodo_inicio TEXT,
             periodo_fin TEXT,
             salario_base REAL DEFAULT 0,
@@ -51,17 +51,17 @@ def _db():
     )
     conn.execute(
         """
-        INSERT INTO personal(nombre, apellidos, puesto, salario, activo, sucursal_id)
-        VALUES(?,?,?,?,?,?)
+        INSERT INTO personal(id, nombre, apellidos, puesto, salario, activo, sucursal_id)
+        VALUES(?,?,?,?,?,?,?)
         """,
-        ("Ana", "Nomina", "Cajero", 1200, 1, 1),
+        ("1", "Ana", "Nomina", "Cajero", 1200, 1, 1),
     )
     conn.execute(
         """
-        INSERT INTO personal(nombre, apellidos, puesto, salario, activo, sucursal_id)
-        VALUES(?,?,?,?,?,?)
+        INSERT INTO personal(id, nombre, apellidos, puesto, salario, activo, sucursal_id)
+        VALUES(?,?,?,?,?,?,?)
         """,
-        ("Luis", "Inactivo", "Auxiliar", 1000, 0, 1),
+        ("2", "Luis", "Inactivo", "Auxiliar", 1000, 0, 1),
     )
     conn.commit()
     return conn
@@ -100,7 +100,7 @@ def test_payroll_application_service_creates_traceable_payment_and_events():
 
     assert result.ok is True
     assert result.created is True
-    assert result.payroll_payment_id == 1
+    assert result.payroll_payment_id  # UUIDv7
     row = conn.execute(
         """
         SELECT empleado_id, total, operation_id, source_module, source_id
@@ -109,7 +109,7 @@ def test_payroll_application_service_creates_traceable_payment_and_events():
         (result.payroll_payment_id,),
     ).fetchone()
     assert dict(row) == {
-        "empleado_id": 1,
+        "empleado_id": "1",
         "total": 1250.0,
         "operation_id": "op-payroll-10",
         "source_module": "rrhh",

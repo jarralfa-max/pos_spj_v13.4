@@ -1176,9 +1176,7 @@ def _create_pedidos_whatsapp(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS links_pago (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid           TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-            pedido_id      INTEGER,
+            pedido_id      TEXT PRIMARY KEY,
             monto          REAL,
             estado         TEXT DEFAULT 'pendiente',
             preference_id  TEXT,
@@ -1422,7 +1420,7 @@ def _create_documentos(conn):
 def _create_personal_rrhh(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS personal (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                   TEXT PRIMARY KEY,
             nombre               TEXT NOT NULL,
             apellidos            TEXT,
             puesto               TEXT,
@@ -1442,8 +1440,8 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS asistencias (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id      INTEGER NOT NULL,
+            id               TEXT PRIMARY KEY,
+            personal_id      TEXT NOT NULL,
             fecha            DATE NOT NULL,
             hora_entrada     TEXT,
             hora_salida      TEXT,
@@ -1454,8 +1452,8 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS nomina_records (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id    INTEGER,
+            id             TEXT PRIMARY KEY,
+            personal_id    TEXT,
             periodo_inicio DATE NOT NULL,
             periodo_fin    DATE NOT NULL,
             salario_base   REAL DEFAULT 0,
@@ -1469,8 +1467,8 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS nomina_pagos (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id    INTEGER NOT NULL,
+            id             TEXT PRIMARY KEY,
+            empleado_id    TEXT NOT NULL,
             periodo_inicio DATE NOT NULL,
             periodo_fin    DATE NOT NULL,
             salario_base   REAL NOT NULL DEFAULT 0,
@@ -1485,8 +1483,8 @@ def _create_personal_rrhh(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS evaluaciones_personal (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id INTEGER,
+            id          TEXT PRIMARY KEY,
+            personal_id TEXT,
             periodo     TEXT,
             calificacion INTEGER,
             comentarios TEXT,
@@ -1532,7 +1530,7 @@ def _create_activos(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS assets (
-            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                 TEXT PRIMARY KEY,
             codigo             TEXT UNIQUE,
             nombre             TEXT NOT NULL,
             tipo               TEXT NOT NULL DEFAULT 'equipo',
@@ -1544,14 +1542,14 @@ def _create_activos(conn):
             valor_actual       REAL DEFAULT 0,
             depreciacion_anual REAL DEFAULT 0,
             estado             TEXT DEFAULT 'activo',
-            sucursal_id        INTEGER DEFAULT 1,
+            sucursal_id        TEXT,
             fecha_registro     DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS asset_maintenance (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            asset_id    INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            asset_id    TEXT NOT NULL,
             tipo        TEXT DEFAULT 'preventivo',
             fecha       DATE NOT NULL,
             descripcion TEXT,
@@ -2414,10 +2412,10 @@ def _create_forecast(conn):
 def _create_reportes(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS report_export_log (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             report_type TEXT NOT NULL,
             format      TEXT NOT NULL,
-            branch_id   INTEGER,
+            branch_id   TEXT,
             date_from   DATE,
             date_to     DATE,
             exported_by TEXT NOT NULL,
@@ -2835,7 +2833,7 @@ def _ensure_extra_columns(conn):
     # ── RRHH: Turnos de trabajo ────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS turno_roles(
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             nombre       TEXT NOT NULL UNIQUE,
             hora_inicio  TEXT DEFAULT '08:00',
             hora_fin     TEXT DEFAULT '16:00',
@@ -2844,9 +2842,9 @@ def _ensure_extra_columns(conn):
             activo       INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS turno_asignaciones(
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id    INTEGER NOT NULL,
-            turno_rol_id   INTEGER NOT NULL,
+            id             TEXT PRIMARY KEY,
+            personal_id    TEXT NOT NULL,
+            turno_rol_id   TEXT NOT NULL,
             fecha_inicio   DATE NOT NULL,
             fecha_fin      DATE,
             dia_descanso   TEXT DEFAULT 'Domingo',

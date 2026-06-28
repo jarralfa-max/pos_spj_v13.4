@@ -45,10 +45,10 @@ DONE
 |    24 | HARDWARE              | Hardware                 | DONE |
 |    25 | NOTIFICACIONES        | Notificaciones           | DONE |
 |    26 | WHATSAPP              | WhatsApp                 | DONE |
-|    27 | FINANZAS              | Finanzas                 | PENDING |
-|    28 | RRHH                  | Recursos humanos         | PENDING |
-|    29 | REPORTES              | Reportes                 | PENDING |
-|    30 | API                   | API FastAPI              | PENDING |
+|    27 | FINANZAS              | Finanzas                 | DONE |
+|    28 | RRHH                  | Recursos humanos         | DONE |
+|    29 | REPORTES              | Reportes                 | DONE |
+|    30 | API                   | API FastAPI              | DONE |
 |    31 | SINCRONIZACION        | Sincronización           | PENDING |
 |    32 | INSTALADOR            | Instalador               | PENDING |
 |    33 | ACTUALIZADOR          | Actualizador             | PENDING |

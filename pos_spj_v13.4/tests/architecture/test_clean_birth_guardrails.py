@@ -109,6 +109,65 @@ def test_bi_tables_are_born_clean_after_full_migration_chain():
     assert rep["id"] == "TEXT"
 
 
+def test_reportes_analytics_tables_are_born_clean():
+    """REPORTES/BI born-clean: report_export_log (base) lleva id TEXT UUIDv7 con
+    branch_id TEXT; las tablas analíticas bi_sales_daily / bi_product_profit /
+    bi_branch_ranking (062) usan identidad natural compuesta (sin surrogate,
+    patrón kpi_snapshots) y bi_transformations (bitácora append) lleva id TEXT
+    UUIDv7. AnalyticsEngine y ReportEngine acuñan UUID / no castean sucursal_id.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    rel = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(report_export_log)").fetchall()}
+    assert rel["id"] == "TEXT" and rel["branch_id"] == "TEXT"
+
+    # bi_transformations: bitácora append con id TEXT UUIDv7.
+    bt = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(bi_transformations)").fetchall()}
+    assert bt["id"] == ("TEXT", 1) and bt["sucursal_id"][0] == "TEXT"
+
+    # bi_sales_daily / bi_product_profit / bi_branch_ranking: clave natural
+    # compuesta, sin surrogate id entero.
+    for table, key_cols in (("bi_sales_daily", ("fecha", "sucursal_id")),
+                            ("bi_product_profit", ("fecha", "producto_id")),
+                            ("bi_branch_ranking", ("fecha", "sucursal_id"))):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert "id" not in cols, f"{table} no debe tener surrogate id entero"
+        for kc in key_cols:
+            assert cols[kc][1] >= 1, f"{table}.{kc} debe ser parte de la PK natural"
+            assert cols[kc][0] == "TEXT", f"{table}.{kc} debe ser TEXT"
+
+    ae_src = (REPO / "core/services/analytics/analytics_engine.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in ae_src
+    assert "INSERT INTO bi_transformations\n                    (id," in ae_src
+    assert "int(data.get(\"sucursal_id\"" not in ae_src
+    re_src = (REPO / "core/services/enterprise/report_engine.py").read_text(encoding="utf-8")
+    assert "INSERT INTO report_export_log (\n                    id," in re_src
+
+
+def test_api_webapp_treats_identity_as_uuid_no_int_casts():
+    """La API REST (webapp) trata las identidades como UUIDv7 TEXT: api_pedidos
+    no castea producto_id/sucursal_id a entero ni asume DEFAULT 1; ItemPedido
+    declara producto_id como str. api_dashboard solo castea agregados (counts),
+    no identidades.
+    """
+    pat = re.compile(r"int\s*\(\s*(?:producto|sucursal|cliente|venta|pedido|order|branch)_id")
+    for path in ("webapp/api_pedidos.py", "webapp/api_dashboard.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert not pat.search(src), f"{path} no debe castear identidades a int"
+    api_src = (REPO / "webapp/api_pedidos.py").read_text(encoding="utf-8")
+    assert 'int(body.get("sucursal_id"' not in api_src
+    assert 'int(i.get("id"' not in api_src
+    uc_src = (REPO / "core/use_cases/pedido_wa.py").read_text(encoding="utf-8")
+    assert "producto_id: str" in uc_src
+
+
 def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
     """The canonical loyalty_ledger carries a TEXT UUIDv7 id (minted by the repo,
     not autoincrement) with TEXT cliente_id/sucursal_id, and the dead points
@@ -389,6 +448,124 @@ def test_cxp_cxc_tables_are_born_clean_uuid_identity():
     assert "INSERT INTO ap_payments" in ts_src and "INSERT INTO ar_payments" in ts_src
     assert "cxp_payments" not in ts_src and "cxc_payments" not in ts_src
     assert "INSERT INTO pagos_cobros(id," in ts_src
+
+
+def test_plan_cuentas_natural_key_born_clean():
+    """El plan de cuentas (migración 059) es born-clean por clave natural: la
+    identidad es codigo_sat (clave SAT) como TEXT PRIMARY KEY, sin surrogate
+    entero ni AUTOINCREMENT. El self-ref jerárquico usa padre_codigo (TEXT) hacia
+    codigo_sat. El catálogo se siembra por código (sin lastrowid/MAX(id)+1).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(plan_cuentas)").fetchall()}
+    assert cols, "plan_cuentas missing after migration 059"
+    assert "id" not in cols, "no integer surrogate — codigo_sat es la identidad"
+    assert cols["codigo_sat"] == ("TEXT", 1), "codigo_sat must be TEXT PRIMARY KEY"
+    assert cols["padre_codigo"][0] == "TEXT", "padre_codigo must be TEXT (ref codigo_sat)"
+
+    src = (REPO / "migrations/standalone/059_plan_cuentas.py").read_text(encoding="utf-8")
+    assert "AUTOINCREMENT" not in src
+    assert "codigo_sat   TEXT    PRIMARY KEY" in src
+    assert "lastrowid" not in src
+
+
+def test_deferred_debt_tables_are_born_clean_uuid_identity():
+    """Deuda diferida born-clean (cierre de FINANZAS): activos/depreciación e
+    insumos llevan identidad UUIDv7 TEXT. assets/asset_maintenance (base) y
+    fixed_assets/asset_depreciation_entries/maintenance_records/
+    operating_supplies/reconciliation_records (083) → id TEXT PK; branch_id y
+    FKs cruzadas en TEXT (supplier_id se conserva INTEGER, suppliers diferida).
+    links_pago abandona la identidad dual (id entero + uuid) por clave natural
+    pedido_id TEXT. depreciacion_acumulada (060) ya es UUIDv7. Los 3 servicios
+    de trazabilidad acuñan new_uuid() y el CRUD muerto de activos en
+    finance_service fue eliminado (REGLA 3).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("assets", "asset_maintenance", "fixed_assets",
+                  "asset_depreciation_entries", "maintenance_records",
+                  "operating_supplies", "reconciliation_records",
+                  "depreciacion_acumulada"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    fa = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(fixed_assets)").fetchall()}
+    assert fa["branch_id"] == "TEXT" and fa["financial_document_id"] == "TEXT"
+    assert fa["supplier_id"] == "INTEGER"  # suppliers diferida
+    ade = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(asset_depreciation_entries)").fetchall()}
+    assert ade["asset_id"] == "TEXT"
+
+    # links_pago: clave natural pedido_id (sin identidad dual id+uuid).
+    lp = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(links_pago)").fetchall()}
+    assert "id" not in lp and "uuid" not in lp, "links_pago no debe tener identidad dual"
+    assert lp["pedido_id"] == ("TEXT", 1), "links_pago.pedido_id debe ser TEXT PRIMARY KEY"
+
+    for path in ("core/services/finance/fixed_asset_service.py",
+                 "core/services/finance/maintenance_finance_service.py",
+                 "core/services/finance/operating_supplies_service.py"):
+        s = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in s, path
+        assert "new_uuid()" in s and "cur.lastrowid" not in s, path
+        assert 'int(existing["id"])' not in s, path
+
+    # El CRUD muerto de activos (phantom cols) fue removido de finance_service.
+    fs_src = (REPO / "core/services/enterprise/finance_service.py").read_text(encoding="utf-8")
+    assert "def upsert_asset" not in fs_src
+    assert "INSERT INTO assets" not in fs_src
+
+
+def test_rrhh_tables_are_born_clean_uuid_identity():
+    """RRHH born-clean: personal / asistencias / nomina_records / nomina_pagos /
+    evaluaciones_personal / turno_roles / turno_asignaciones (base) y
+    vacaciones_personal / puestos (094) llevan id TEXT UUIDv7. Las FKs
+    personal_id / empleado_id / turno_rol_id van en TEXT. Los repositorios
+    canónicos (core/rrhh) acuñan new_uuid() (sin lastrowid) y la validación de
+    eventos exige identidad TEXT (no entero positivo).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("personal", "asistencias", "nomina_records", "nomina_pagos",
+                  "evaluaciones_personal", "turno_roles", "turno_asignaciones",
+                  "vacaciones_personal", "puestos"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    asis = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(asistencias)").fetchall()}
+    assert asis["personal_id"] == "TEXT"
+    nom = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(nomina_pagos)").fetchall()}
+    assert nom["empleado_id"] == "TEXT"
+    asg = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(turno_asignaciones)").fetchall()}
+    assert asg["personal_id"] == "TEXT" and asg["turno_rol_id"] == "TEXT"
+
+    repo_src = (REPO / "core/rrhh/infrastructure/sqlite_repositories.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in repo_src
+    assert "new_uuid()" in repo_src and "int(cur.lastrowid)" not in repo_src
+
+    # La validación de eventos RRHH exige identidad TEXT (no entero positivo).
+    events_src = (REPO / "core/rrhh/events.py").read_text(encoding="utf-8")
+    assert "_ensure_positive_int" not in events_src
 
 
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():

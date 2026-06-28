@@ -145,8 +145,8 @@ def _make_db():
         );
 
         CREATE TABLE nomina_pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id INTEGER,
+            id TEXT PRIMARY KEY,
+            empleado_id TEXT,
             periodo_inicio TEXT,
             periodo_fin TEXT,
             salario_base REAL,
@@ -357,13 +357,13 @@ class TestAsientosAutomaticosFinanzas:
             deducciones=25.0,
             usuario="rh",
         )
-        assert np_id > 0
+        assert np_id  # UUIDv7
         row = conn.execute(
             "SELECT evento, cuenta_debe, cuenta_haber, referencia_id FROM financial_event_log WHERE evento='NOMINA_PAGADA' ORDER BY id DESC LIMIT 1"
         ).fetchone()
         assert row["cuenta_debe"] == "gasto_nomina"
         assert row["cuenta_haber"] == "caja_bancos"
-        assert int(row["referencia_id"]) == int(np_id)
+        assert row["referencia_id"] == np_id  # UUIDv7
 
 
 class TestGenerarPolizaPeriodo:

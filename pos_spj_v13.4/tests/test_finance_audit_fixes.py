@@ -37,8 +37,8 @@ def _make_db():
             metadata JSON
         );
         CREATE TABLE nomina_pagos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id INTEGER,
+            id TEXT PRIMARY KEY,
+            empleado_id TEXT,
             periodo_inicio TEXT,
             periodo_fin TEXT,
             salario_base REAL,
