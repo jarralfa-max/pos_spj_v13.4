@@ -2562,7 +2562,7 @@ def _create_logs_auditoria(conn):
 def _create_cuentas_cp_cr(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_payable (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             folio       TEXT,
             supplier_id INTEGER,
             concepto    TEXT NOT NULL DEFAULT 'Sin concepto',
@@ -2575,15 +2575,17 @@ def _create_cuentas_cp_cr(conn):
             ref_type    TEXT DEFAULT 'manual',
             usuario     TEXT,
             notas       TEXT,
-            sucursal_id INTEGER DEFAULT 1,
-            fecha       DATETIME DEFAULT (datetime('now'))
+            sucursal_id TEXT,
+            fecha       DATETIME DEFAULT (datetime('now')),
+            created_at  DATETIME DEFAULT (datetime('now')),
+            updated_at  DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS accounts_receivable (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             folio       TEXT,
-            cliente_id  INTEGER,
+            cliente_id  TEXT,
             venta_id    INTEGER,
             concepto    TEXT NOT NULL DEFAULT 'Sin concepto',
             amount      REAL NOT NULL DEFAULT 0,
@@ -2593,14 +2595,16 @@ def _create_cuentas_cp_cr(conn):
             tipo        TEXT DEFAULT 'venta',
             usuario     TEXT,
             notas       TEXT,
-            sucursal_id INTEGER DEFAULT 1,
-            fecha       DATETIME DEFAULT (datetime('now'))
+            sucursal_id TEXT,
+            fecha       DATETIME DEFAULT (datetime('now')),
+            created_at  DATETIME DEFAULT (datetime('now')),
+            updated_at  DATETIME DEFAULT (datetime('now'))
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ap_payments (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            ap_id       INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            ap_id       TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo_pago TEXT DEFAULT 'efectivo',
             referencia  TEXT,
@@ -2611,8 +2615,8 @@ def _create_cuentas_cp_cr(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ar_payments (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            ar_id       INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            ar_id       TEXT NOT NULL,
             monto       REAL NOT NULL,
             metodo_pago TEXT DEFAULT 'efectivo',
             referencia  TEXT,

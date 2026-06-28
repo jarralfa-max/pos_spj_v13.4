@@ -596,10 +596,11 @@ class TreasuryService:
         self.db.execute(
             "UPDATE accounts_payable SET balance=?, status=? WHERE id=?",
             (nuevo, status, ap_id))
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO cxp_payments (ap_id, monto, metodo_pago, usuario, fecha) "
-            "VALUES (?,?,?,?,datetime('now'))",
-            (ap_id, monto, metodo, usuario))
+            "INSERT INTO ap_payments (id, ap_id, monto, metodo_pago, usuario, fecha) "
+            "VALUES (?,?,?,?,?,datetime('now'))",
+            (new_uuid(), ap_id, monto, metodo, usuario))
         self.registrar_egreso("cxp:abono", f"Abono CXP #{ap_id}", monto,
                               usuario=usuario)
         try:
@@ -647,10 +648,11 @@ class TreasuryService:
         self.db.execute(
             "UPDATE accounts_receivable SET balance=?, status=? WHERE id=?",
             (nuevo, status, ar_id))
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO cxc_payments (ar_id, monto, metodo_pago, usuario, fecha) "
-            "VALUES (?,?,?,?,datetime('now'))",
-            (ar_id, monto, metodo, usuario))
+            "INSERT INTO ar_payments (id, ar_id, monto, metodo_pago, usuario, fecha) "
+            "VALUES (?,?,?,?,?,datetime('now'))",
+            (new_uuid(), ar_id, monto, metodo, usuario))
         self.registrar_ingreso("cxc:cobro", f"Cobro CXC #{ar_id}", monto,
                                usuario=usuario)
         try:
@@ -674,17 +676,20 @@ class TreasuryService:
         docs = self.get_cuentas_por_pagar(0) if is_cxp else self.get_cuentas_por_cobrar(0)
         if tercero_id:
             key = "proveedor_id" if is_cxp else "cliente_id"
-            docs = [d for d in docs if int(d.get(key) or 0) == int(tercero_id)]
+            docs = [d for d in docs if str(d.get(key) or "") == str(tercero_id)]
         if not docs:
             return {"aplicado": 0.0, "pendiente": float(monto_total), "aplicaciones": 0}
 
         restante = float(monto_total)
         aplicaciones: List[Dict[str, Any]] = []
+        from backend.shared.ids import new_uuid
         folio = f"{'PG' if is_cxp else 'CG'}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        cur = self.db.execute(
-            "INSERT INTO pagos_cobros(folio,tipo_operacion,tercero_id,tercero_tipo,monto_total,forma_pago,usuario_id,estado) "
-            "VALUES(?,?,?,?,?,?,?,?)",
+        pago_cobro_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO pagos_cobros(id,folio,tipo_operacion,tercero_id,tercero_tipo,monto_total,forma_pago,usuario_id,estado) "
+            "VALUES(?,?,?,?,?,?,?,?,?)",
             (
+                pago_cobro_id,
                 folio,
                 "pago_proveedor" if is_cxp else "cobro_cliente",
                 tercero_id,
@@ -695,7 +700,6 @@ class TreasuryService:
                 "aplicado",
             ),
         )
-        pago_cobro_id = cur.lastrowid
 
         for d in docs:
             if restante <= 0.0001:
@@ -705,23 +709,24 @@ class TreasuryService:
                 continue
             aplicado = min(restante, saldo)
             if is_cxp:
-                self.abonar_cuenta_por_pagar(int(d["id"]), aplicado, metodo=metodo, usuario=usuario)
+                self.abonar_cuenta_por_pagar(d["id"], aplicado, metodo=metodo, usuario=usuario)
             else:
-                self.abonar_cuenta_por_cobrar(int(d["id"]), aplicado, metodo=metodo, usuario=usuario)
+                self.abonar_cuenta_por_cobrar(d["id"], aplicado, metodo=metodo, usuario=usuario)
             restante -= aplicado
             self.db.execute(
-                "INSERT INTO pagos_cobros_aplicaciones(pago_cobro_id,documento_id,tipo_documento,monto_aplicado,saldo_anterior_documento,saldo_posterior_documento) "
-                "VALUES(?,?,?,?,?,?)",
+                "INSERT INTO pagos_cobros_aplicaciones(id,pago_cobro_id,documento_id,tipo_documento,monto_aplicado,saldo_anterior_documento,saldo_posterior_documento) "
+                "VALUES(?,?,?,?,?,?,?)",
                 (
+                    new_uuid(),
                     pago_cobro_id,
-                    int(d["id"]),
+                    d["id"],
                     "accounts_payable" if is_cxp else "accounts_receivable",
                     aplicado,
                     saldo,
                     max(0.0, saldo - aplicado),
                 ),
             )
-            aplicaciones.append({"documento_id": int(d["id"]), "monto_aplicado": aplicado})
+            aplicaciones.append({"documento_id": d["id"], "monto_aplicado": aplicado})
 
         if restante > 0.0001:
             # Anticipo / saldo a favor auditable
@@ -760,7 +765,7 @@ class TreasuryService:
             (pago_cobro_id,),
         ).fetchall()
         for a in apps:
-            documento_id = int(a[0])
+            documento_id = a[0]  # UUIDv7 (sin cast)
             monto = float(a[2] or 0)
             if monto <= 0:
                 continue

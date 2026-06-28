@@ -91,7 +91,7 @@ def _make_db():
         );
 
         CREATE TABLE accounts_payable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT,
             supplier_id INTEGER,
             concepto TEXT,
@@ -109,7 +109,7 @@ def _make_db():
         );
 
         CREATE TABLE ap_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             ap_id INTEGER,
             monto REAL,
             metodo_pago TEXT,
@@ -119,7 +119,7 @@ def _make_db():
         );
 
         CREATE TABLE accounts_receivable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT,
             cliente_id INTEGER,
             venta_id INTEGER,
@@ -135,7 +135,7 @@ def _make_db():
         );
 
         CREATE TABLE ar_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             ar_id INTEGER,
             monto REAL,
             metodo_pago TEXT,
@@ -324,7 +324,7 @@ class TestAsientosAutomaticosFinanzas:
             amount=500.0,
             due_date="2026-04-30",
         )
-        assert ap_id > 0
+        assert ap_id  # UUIDv7
         row = conn.execute(
             "SELECT evento, cuenta_debe, cuenta_haber FROM financial_event_log WHERE referencia_id=? ORDER BY id DESC LIMIT 1",
             (ap_id,),

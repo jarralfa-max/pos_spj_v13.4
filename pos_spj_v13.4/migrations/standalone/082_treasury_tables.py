@@ -56,10 +56,10 @@ def run(conn):
         -- con identidad TEXT UUIDv7; ya no se crea aquí.
 
         CREATE TABLE IF NOT EXISTS pagos_cobros (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT    PRIMARY KEY,
             folio           TEXT    UNIQUE,
             tipo_operacion  TEXT    NOT NULL,
-            tercero_id      INTEGER,
+            tercero_id      TEXT,
             tercero_tipo    TEXT    NOT NULL,
             monto_total     REAL    NOT NULL,
             forma_pago      TEXT    DEFAULT 'efectivo',
@@ -73,9 +73,9 @@ def run(conn):
         );
 
         CREATE TABLE IF NOT EXISTS pagos_cobros_aplicaciones (
-            id                          INTEGER PRIMARY KEY AUTOINCREMENT,
-            pago_cobro_id               INTEGER NOT NULL,
-            documento_id                INTEGER NOT NULL,
+            id                          TEXT    PRIMARY KEY,
+            pago_cobro_id               TEXT    NOT NULL,
+            documento_id                TEXT    NOT NULL,
             tipo_documento              TEXT    NOT NULL,
             monto_aplicado              REAL    NOT NULL,
             saldo_anterior_documento    REAL    NOT NULL,

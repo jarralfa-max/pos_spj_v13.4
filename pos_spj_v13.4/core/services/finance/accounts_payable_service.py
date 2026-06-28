@@ -134,16 +134,17 @@ class AccountsPayableService:
         Retorna ap_id del registro creado.
         """
         from datetime import datetime
+        from backend.shared.ids import new_uuid
         folio = f"CXP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        cur = self._db.execute(
+        ap_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self._db.execute(
             """INSERT INTO accounts_payable
-                   (folio, supplier_id, concepto, amount, balance,
+                   (id, folio, supplier_id, concepto, amount, balance,
                     due_date, status, tipo, referencia, ref_type, usuario, notas)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (folio, supplier_id, concepto, amount, amount,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (ap_id, folio, supplier_id, concepto, amount, amount,
              due_date, "pendiente", tipo, referencia, ref_type, usuario, notas),
         )
-        ap_id = cur.lastrowid
         self._registrar_asiento(
             debe="gastos_operativos",
             haber="cuentas_por_pagar",
@@ -191,9 +192,10 @@ class AccountsPayableService:
                WHERE id=?""",
             (nuevo_balance, nuevo_status, ap_id),
         )
+        from backend.shared.ids import new_uuid
         self._db.execute(
-            "INSERT INTO ap_payments (ap_id, monto, metodo_pago, usuario, notas) VALUES (?,?,?,?,?)",
-            (ap_id, monto, metodo_pago, usuario, notas),
+            "INSERT INTO ap_payments (id, ap_id, monto, metodo_pago, usuario, notas) VALUES (?,?,?,?,?,?)",
+            (new_uuid(), ap_id, monto, metodo_pago, usuario, notas),
         )
         self._registrar_asiento(
             debe="cuentas_por_pagar",

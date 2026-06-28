@@ -342,6 +342,55 @@ def test_gastos_tables_are_born_clean_uuid_identity():
     assert "g.proveedor_id" not in fs_src
 
 
+def test_cxp_cxc_tables_are_born_clean_uuid_identity():
+    """CxP/CxC born-clean: accounts_payable / accounts_receivable / ap_payments /
+    ar_payments (m000 base) y pagos_cobros / pagos_cobros_aplicaciones (082)
+    llevan id TEXT UUIDv7. Las FKs a tablas ya flipeadas (cliente_id, sucursal_id,
+    ap_id, ar_id, pago_cobro_id, documento_id) y el tercero_id polimórfico van en
+    TEXT; supplier_id/venta_id se conservan INTEGER (suppliers/ventas diferidas).
+    Los servicios de CxP/CxC acuñan new_uuid() (sin lastrowid) y TreasuryService
+    escribe en las tablas canónicas ap_payments/ar_payments (no en las fantasma
+    cxp_payments/cxc_payments).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("accounts_payable", "accounts_receivable", "ap_payments",
+                  "ar_payments", "pagos_cobros", "pagos_cobros_aplicaciones"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    ar = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(accounts_receivable)").fetchall()}
+    assert ar["cliente_id"] == "TEXT" and ar["sucursal_id"] == "TEXT"
+    assert ar["venta_id"] == "INTEGER"  # ventas diferida
+    ap = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(accounts_payable)").fetchall()}
+    assert ap["sucursal_id"] == "TEXT" and ap["supplier_id"] == "INTEGER"  # suppliers diferida
+    app = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(ap_payments)").fetchall()}
+    assert app["ap_id"] == "TEXT"
+    pca = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(pagos_cobros_aplicaciones)").fetchall()}
+    assert pca["pago_cobro_id"] == "TEXT" and pca["documento_id"] == "TEXT"
+    pc = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(pagos_cobros)").fetchall()}
+    assert pc["tercero_id"] == "TEXT"
+
+    for path in ("core/services/finance/accounts_payable_service.py",
+                 "core/services/finance/accounts_receivable_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "new_uuid()" in src and "cur.lastrowid" not in src, path
+
+    # TreasuryService consolida en las tablas de pago canónicas (no fantasma).
+    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO ap_payments" in ts_src and "INSERT INTO ar_payments" in ts_src
+    assert "cxp_payments" not in ts_src and "cxc_payments" not in ts_src
+    assert "INSERT INTO pagos_cobros(id," in ts_src
+
+
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
     """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
     whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT
