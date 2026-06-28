@@ -299,14 +299,16 @@ class PrintQueue:
             return
         try:
             rd = job.raw_data or {}
+            from backend.shared.ids import new_uuid
             self._db.execute(
                 """
                 INSERT INTO print_job_log
-                    (job_id, job_type, plantilla, impresora, folio, estado,
+                    (id, job_id, job_type, plantilla, impresora, folio, estado,
                      reintentos, total, error_msg, finished_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
+                    new_uuid(),
                     job.id,
                     job.job_type.value,
                     rd.get("plantilla", rd.get("ticket_type", "")),

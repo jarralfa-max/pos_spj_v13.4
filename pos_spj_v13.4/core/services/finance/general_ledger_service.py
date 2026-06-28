@@ -60,12 +60,15 @@ class GeneralLedgerService:
         Returns: id del registro (0 si tabla no existe — graceful degradation).
         """
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            event_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO financial_event_log
-                   (evento, modulo, referencia_id, monto, cuenta_debe, cuenta_haber,
+                   (id, evento, modulo, referencia_id, monto, cuenta_debe, cuenta_haber,
                     usuario_id, sucursal_id, metadata)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (
+                    event_id,
                     evento,
                     modulo or concepto,
                     referencia_id,
@@ -77,7 +80,7 @@ class GeneralLedgerService:
                     json.dumps({"concepto": concepto, **(metadata or {})}, ensure_ascii=False),
                 ),
             )
-            return cur.lastrowid or 0
+            return event_id
         except Exception as exc:
             logger.warning("registrar_asiento non-fatal: %s", exc)
             return 0

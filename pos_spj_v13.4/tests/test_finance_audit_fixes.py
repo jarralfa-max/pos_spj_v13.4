@@ -24,7 +24,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento TEXT NOT NULL,
             modulo TEXT NOT NULL,
@@ -65,7 +65,7 @@ def _make_db():
         );
         INSERT INTO clientes(id, nombre, limite_credito) VALUES ('cli-a', 'Cliente A', 500.0);
         CREATE TABLE accounts_payable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT, supplier_id INTEGER, concepto TEXT,
             amount REAL, balance REAL, due_date TEXT,
             status TEXT DEFAULT 'pendiente',
@@ -75,13 +75,13 @@ def _make_db():
             updated_at TEXT
         );
         CREATE TABLE ap_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             ap_id INTEGER, monto REAL, metodo_pago TEXT,
             usuario TEXT, notas TEXT,
             fecha TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE accounts_receivable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             folio TEXT, cliente_id INTEGER, venta_id INTEGER,
             concepto TEXT, amount REAL, balance REAL, due_date TEXT,
             status TEXT DEFAULT 'pendiente',
@@ -90,7 +90,7 @@ def _make_db():
             updated_at TEXT
         );
         CREATE TABLE ar_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             ar_id INTEGER, monto REAL, metodo_pago TEXT,
             usuario TEXT, notas TEXT,
             fecha TEXT DEFAULT (datetime('now'))
@@ -467,7 +467,7 @@ class TestRegistrarAsientoCompatibilidadLegacy:
             concepto="Venta legacy",
             monto=100.0,
         )
-        assert row_id > 0
+        assert row_id  # identidad UUIDv7
 
     def test_retorna_cero_si_tabla_no_existe(self):
         """A-09: sin tabla financial_event_log retorna 0, no lanza excepción."""
@@ -492,7 +492,7 @@ class TestRegistrarAsientoCompatibilidadLegacy:
             evento="CXP_CREADA",
             metadata={"proveedor": "Test"},
         )
-        assert row_id > 0
+        assert row_id  # identidad UUIDv7
         row = conn.execute(
             "SELECT sucursal_id, evento FROM financial_event_log WHERE id=?", (row_id,)
         ).fetchone()

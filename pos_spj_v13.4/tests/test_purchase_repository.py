@@ -20,7 +20,7 @@ def mem_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE compras (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             folio       TEXT,
             proveedor_id INTEGER,
             usuario     TEXT,
@@ -33,7 +33,7 @@ def mem_db():
             sucursal_id INTEGER DEFAULT 1
         );
         CREATE TABLE detalles_compra (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             compra_id       INTEGER,
             producto_id     INTEGER,
             cantidad        REAL,
@@ -61,7 +61,7 @@ class TestCreatePurchase:
     def test_retorna_id_y_folio(self, repo):
         pid, folio = repo.create_purchase(branch_id=1, user="admin",
                                           provider_id=5, total=800.0)
-        assert isinstance(pid, int) and pid > 0
+        assert isinstance(pid, str) and pid          # identidad UUIDv7
         assert folio.startswith("CMP-")
 
     def test_compra_persiste_en_db(self, repo, mem_db):

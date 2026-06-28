@@ -164,21 +164,23 @@ class ActionCrearPedidoBD(Action):
         nombre_c = cliente["nombre"] if cliente else numero
         try:
             conn = _get_conn()
-            pid  = conn.execute("""
+            from backend.shared.ids import new_uuid
+            pid = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            conn.execute("""
                 INSERT INTO pedidos_whatsapp
-                (uuid, numero_whatsapp, cliente_id, cliente_nombre,
+                (id, numero_whatsapp, cliente_id, cliente_nombre,
                  estado, subtotal, total, leido, fecha)
-                VALUES(lower(hex(randomblob(16))),?,?,?,'nuevo',?,?,0,datetime('now'))""",
-                (numero,
+                VALUES(?,?,?,?,'nuevo',?,?,0,datetime('now'))""",
+                (pid, numero,
                  cliente["id"] if cliente else None,
-                 nombre_c, total, total)).lastrowid
+                 nombre_c, total, total))
             for item in items:
                 conn.execute("""
                     INSERT INTO pedidos_whatsapp_items
-                    (pedido_id,producto_id,nombre_producto,
+                    (id,pedido_id,producto_id,nombre_producto,
                      cantidad_pedida,precio_unitario,subtotal,unidad)
-                    VALUES(?,?,?,?,?,?,'kg')""",
-                    (pid, item["producto_id"], item["nombre_producto"],
+                    VALUES(?,?,?,?,?,?,?,'kg')""",
+                    (new_uuid(), pid, item["producto_id"], item["nombre_producto"],
                      item["cantidad"], item["precio_unitario"], item["subtotal"]))
             conn.commit()
             conn.close()

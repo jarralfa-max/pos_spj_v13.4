@@ -129,7 +129,7 @@ class TestTreasuryGastoOpexGL(unittest.TestCase):
         # Create the minimal tables treasury needs
         self.db.executescript("""
             CREATE TABLE IF NOT EXISTS treasury_ledger (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 fecha TEXT DEFAULT (datetime('now')),
                 tipo TEXT NOT NULL,
                 categoria TEXT NOT NULL,
@@ -141,7 +141,7 @@ class TestTreasuryGastoOpexGL(unittest.TestCase):
                 usuario TEXT DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS gastos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 fecha TEXT,
                 categoria TEXT,
                 concepto TEXT,

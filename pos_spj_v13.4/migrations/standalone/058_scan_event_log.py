@@ -6,15 +6,15 @@
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS scan_event_log (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT    PRIMARY KEY,      -- UUIDv7 acuñado por qr_parser_service
             raw_code     TEXT    NOT NULL,
             tipo         TEXT    NOT NULL DEFAULT 'desconocido',
             contexto     TEXT    DEFAULT 'auto',   -- producto/cliente/auto
             accion       TEXT    DEFAULT '',       -- producto_agregado/cliente_cargado/etc.
             payload      TEXT    DEFAULT '',       -- JSON filtrado del resultado
-            cliente_id   INTEGER,
-            producto_id  INTEGER,
-            sucursal_id  INTEGER DEFAULT 1,
+            cliente_id   TEXT,
+            producto_id  TEXT,
+            sucursal_id  TEXT,
             usuario      TEXT    DEFAULT '',
             created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
         )

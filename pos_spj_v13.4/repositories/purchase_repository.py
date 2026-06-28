@@ -27,14 +27,17 @@ class PurchaseRepository:
         Usa los campos reales de la tabla compras:
           folio, proveedor_id, usuario, subtotal, iva, total, estado, forma_pago, observaciones, factura
         """
+        from backend.shared.ids import new_uuid
         cursor = self.db.cursor()
         # Timestamp + 4-char UUID fragment prevents same-second collisions
         folio = f"CMP-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
         condicion_pago = kwargs.get('condicion_pago', 'liquidado')
         plazo_dias     = int(kwargs.get('plazo_dias', 0))
         moneda         = kwargs.get('moneda', 'MXN') or 'MXN'
+        # Identidad UUIDv7 explícita (REGLA CERO) — sin autoincrement.
+        purchase_id = new_uuid()
         base_params = (
-            folio, provider_id, user, subtotal,
+            purchase_id, folio, provider_id, user, subtotal,
             tax, total, status,
             kwargs.get('payment_method', 'CONTADO'),
             notes or operation_id,
@@ -44,23 +47,22 @@ class PurchaseRepository:
             # Full INSERT including payment-condition columns (migration 071+)
             cursor.execute("""
                 INSERT INTO compras
-                    (folio, proveedor_id, usuario, subtotal, iva, total,
+                    (id, folio, proveedor_id, usuario, subtotal, iva, total,
                      estado, forma_pago, observaciones, sucursal_id,
                      condicion_pago, plazo_dias, moneda)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, base_params + (condicion_pago, plazo_dias, moneda))
         except Exception:
             # Fallback for DBs without migration 071 columns (test fixtures, older DBs)
             cursor.execute("""
                 INSERT INTO compras
-                    (folio, proveedor_id, usuario, subtotal, iva, total,
+                    (id, folio, proveedor_id, usuario, subtotal, iva, total,
                      estado, forma_pago, observaciones, sucursal_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, base_params)
-        
-        purchase_id = cursor.lastrowid
+
         logger.debug(f"Cabecera de compra {folio} insertada con ID {purchase_id}.")
-        
+
         return purchase_id, folio
 
     def save_purchase_items(self, purchase_id: int, items: list) -> None:
@@ -77,14 +79,15 @@ class PurchaseRepository:
         """
         Guarda el detalle de los productos comprados (Ej. 50kg de Pollo Entero a $35/kg).
         """
+        from backend.shared.ids import new_uuid
         cursor = self.db.cursor()
-        
+
         query = """
-            INSERT INTO detalles_compra (compra_id, producto_id, cantidad, precio_unitario, subtotal)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO detalles_compra (id, compra_id, producto_id, cantidad, precio_unitario, subtotal)
+            VALUES (?, ?, ?, ?, ?, ?)
         """
-        
-        cursor.execute(query, (purchase_id, product_id, qty, unit_cost, subtotal))
+
+        cursor.execute(query, (new_uuid(), purchase_id, product_id, qty, unit_cost, subtotal))
         logger.debug(f"Detalle de compra insertado: Compra {purchase_id} | Prod {product_id} | Cant {qty}")
 
     # ── Read helpers ─────────────────────────────────────────────────────────

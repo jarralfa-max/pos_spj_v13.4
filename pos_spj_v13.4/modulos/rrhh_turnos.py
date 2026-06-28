@@ -403,9 +403,10 @@ class ModuloRRHHTurnos(QWidget):
                     wa = getattr(self.container, "whatsapp_service", None)
                     if wa:
                         wa.send_message(telefono, msg)
+                    from backend.shared.ids import new_uuid
                     self.db.execute(
-                        "INSERT INTO turno_notificaciones_log(personal_id,tipo,mensaje) VALUES(?,?,?)",
-                        (asig_id, tipo, msg))
+                        "INSERT INTO turno_notificaciones_log(id,personal_id,tipo,mensaje) VALUES(?,?,?,?)",
+                        (new_uuid(), asig_id, tipo, msg))
                     enviados += 1
                 except Exception as e:
                     logger.warning("Notif WA turno: %s", e)

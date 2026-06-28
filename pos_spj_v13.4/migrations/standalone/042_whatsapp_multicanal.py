@@ -26,11 +26,11 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_whatsapp_numeros(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_numeros (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             nombre          TEXT    NOT NULL,
             canal           TEXT    NOT NULL DEFAULT 'clientes'
                             CHECK(canal IN ('clientes','rrhh','alertas','todos')),
-            sucursal_id     INTEGER,          -- NULL = global
+            sucursal_id     TEXT,             -- NULL = global
             proveedor       TEXT    NOT NULL DEFAULT 'meta'
                             CHECK(proveedor IN ('meta','twilio','mock')),
             numero_negocio  TEXT,             -- +521234567890
@@ -98,11 +98,12 @@ def _seed_from_legacy(conn):
         ).fetchone()
         if not existing:
             proveedor = "twilio" if twi_sid else "meta" if meta_tok else "mock"
+            from backend.shared.ids import new_uuid
             conn.execute("""
                 INSERT INTO whatsapp_numeros
-                    (nombre, canal, proveedor, numero_negocio,
+                    (id, nombre, canal, proveedor, numero_negocio,
                      meta_token, meta_phone_id, twilio_sid, twilio_token)
-                VALUES(?,?,?,?,?,?,?,?)
-            """, ("Principal", "todos", proveedor, numero,
+                VALUES(?,?,?,?,?,?,?,?,?)
+            """, (new_uuid(), "Principal", "todos", proveedor, numero,
                   meta_tok, meta_pid, twi_sid, twi_tok))
             logger.info("Configuración legacy migrada a whatsapp_numeros.")

@@ -221,6 +221,391 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_accounting_core_tables_are_born_clean_uuid_identity():
+    """El núcleo contable es born-clean: journal_entries / financial_documents /
+    financial_trace_log (migración 083) y financial_event_log (052) llevan id TEXT
+    UUIDv7 con branch_id/sucursal_id TEXT (sin DEFAULT 1). Los 5 servicios
+    canónicos acuñan id con new_uuid() en vez de capturar lastrowid.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("journal_entries", "financial_documents", "financial_trace_log", "financial_event_log"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+    je = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(journal_entries)").fetchall()}
+    assert je["branch_id"] == "TEXT" and je["source_id"] == "TEXT"
+    fel = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(financial_event_log)").fetchall()}
+    assert fel["sucursal_id"] == "TEXT" and fel["referencia_id"] == "TEXT"
+
+    for path in ("core/services/finance/journal_entry_service.py",
+                 "core/services/finance/general_ledger_service.py",
+                 "core/services/finance/financial_trace_service.py",
+                 "core/services/finance/financial_document_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "new_uuid()" in src and "cur.lastrowid" not in src, path
+
+
+def test_treasury_tables_are_born_clean_uuid_identity():
+    """Tesorería born-clean: treasury_capital / treasury_ledger /
+    treasury_gastos_fijos (082), treasury_movements (083) y capital_movements
+    (084) llevan id TEXT UUIDv7 con sucursal_id/branch_id y FKs cruzadas
+    (source_id, financial_document_id, partner_id, journal_entry_id,
+    treasury_movement_id) en TEXT, sin DEFAULT 1. Los 3 servicios de tesorería
+    acuñan id con new_uuid() en vez de capturar lastrowid.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("treasury_capital", "treasury_ledger", "treasury_gastos_fijos",
+                  "treasury_movements", "capital_movements"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    tl = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(treasury_ledger)").fetchall()}
+    assert tl["sucursal_id"] == "TEXT"
+    tm = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(treasury_movements)").fetchall()}
+    assert tm["branch_id"] == "TEXT" and tm["source_id"] == "TEXT"
+    assert tm["financial_document_id"] == "TEXT"
+    cm = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(capital_movements)").fetchall()}
+    assert cm["branch_id"] == "TEXT" and cm["partner_id"] == "TEXT"
+    assert cm["journal_entry_id"] == "TEXT" and cm["treasury_movement_id"] == "TEXT"
+
+    # treasury_service.py es multi-tabla: las escrituras de tesorería (capital,
+    # ledger, gastos_fijos) acuñan new_uuid(); conserva lastrowid solo en las
+    # tablas diferidas (pagos_cobros) de sub-pases posteriores.
+    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in ts_src
+    assert "INSERT INTO treasury_capital" in ts_src and "INSERT INTO treasury_ledger" in ts_src
+    # Los dos servicios mono-tabla quedan totalmente born-clean (sin lastrowid).
+    for path in ("core/services/finance/treasury_movement_service.py",
+                 "core/services/finance/capital_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "new_uuid()" in src, path
+        assert "cur.lastrowid" not in src, path
+        assert 'int(existing["id"])' not in src, path
+
+
+def test_gastos_tables_are_born_clean_uuid_identity():
+    """Gastos born-clean: gastos / gastos_futuros / gastos_fijos (m000 base)
+    llevan id TEXT UUIDv7 con sucursal_id TEXT (sin DEFAULT 1). dia_del_mes
+    permanece INTEGER (día-del-mes semántico, no identidad). Los escritores de
+    gastos en TreasuryService acuñan new_uuid() y gastos_futuros se define una
+    sola vez (la migración 082 ya no la duplica). El CRUD muerto de gastos en
+    finance_service (proveedor_id/activo fantasma) fue eliminado (REGLA 3).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("gastos", "gastos_futuros", "gastos_fijos"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    gfu = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(gastos_futuros)").fetchall()}
+    assert gfu["sucursal_id"] == "TEXT"
+    gfi = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(gastos_fijos)").fetchall()}
+    assert gfi["sucursal_id"] == "TEXT"
+    assert gfi["dia_del_mes"] == "INTEGER"  # día-del-mes semántico, no identidad
+
+    # La migración 082 ya no crea/duplica gastos_futuros.
+    mig082 = (REPO / "migrations/standalone/082_treasury_tables.py").read_text(encoding="utf-8")
+    assert "CREATE TABLE IF NOT EXISTS gastos_futuros" not in mig082
+
+    # Escritores de gastos en TreasuryService acuñan UUID y no usan lastrowid.
+    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO gastos_futuros(id," in ts_src
+    assert "INSERT INTO gastos_fijos" in ts_src and "INSERT INTO gastos (id," in ts_src
+
+    # El CRUD muerto de gastos fue removido de finance_service.
+    fs_src = (REPO / "core/services/enterprise/finance_service.py").read_text(encoding="utf-8")
+    assert "def upsert_expense" not in fs_src
+    assert "g.proveedor_id" not in fs_src
+
+
+def test_cxp_cxc_tables_are_born_clean_uuid_identity():
+    """CxP/CxC born-clean: accounts_payable / accounts_receivable / ap_payments /
+    ar_payments (m000 base) y pagos_cobros / pagos_cobros_aplicaciones (082)
+    llevan id TEXT UUIDv7. Las FKs a tablas ya flipeadas (cliente_id, sucursal_id,
+    ap_id, ar_id, pago_cobro_id, documento_id) y el tercero_id polimórfico van en
+    TEXT; supplier_id/venta_id se conservan INTEGER (suppliers/ventas diferidas).
+    Los servicios de CxP/CxC acuñan new_uuid() (sin lastrowid) y TreasuryService
+    escribe en las tablas canónicas ap_payments/ar_payments (no en las fantasma
+    cxp_payments/cxc_payments).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("accounts_payable", "accounts_receivable", "ap_payments",
+                  "ar_payments", "pagos_cobros", "pagos_cobros_aplicaciones"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    ar = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(accounts_receivable)").fetchall()}
+    assert ar["cliente_id"] == "TEXT" and ar["sucursal_id"] == "TEXT"
+    assert ar["venta_id"] == "INTEGER"  # ventas diferida
+    ap = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(accounts_payable)").fetchall()}
+    assert ap["sucursal_id"] == "TEXT" and ap["supplier_id"] == "INTEGER"  # suppliers diferida
+    app = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(ap_payments)").fetchall()}
+    assert app["ap_id"] == "TEXT"
+    pca = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(pagos_cobros_aplicaciones)").fetchall()}
+    assert pca["pago_cobro_id"] == "TEXT" and pca["documento_id"] == "TEXT"
+    pc = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(pagos_cobros)").fetchall()}
+    assert pc["tercero_id"] == "TEXT"
+
+    for path in ("core/services/finance/accounts_payable_service.py",
+                 "core/services/finance/accounts_receivable_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "new_uuid()" in src and "cur.lastrowid" not in src, path
+
+    # TreasuryService consolida en las tablas de pago canónicas (no fantasma).
+    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO ap_payments" in ts_src and "INSERT INTO ar_payments" in ts_src
+    assert "cxp_payments" not in ts_src and "cxc_payments" not in ts_src
+    assert "INSERT INTO pagos_cobros(id," in ts_src
+
+
+def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
+    """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
+    whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT
+    UUIDv7. MessageQueue.enqueue y WhatsAppConfigRepository.save_numero acuñan id
+    con new_uuid() (sin lastrowid).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("whatsapp_queue", "whatsapp_numeros", "wa_reminder_queue"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    wa_src = (REPO / "core" / "services" / "whatsapp_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO whatsapp_queue" in wa_src and "new_uuid()" in wa_src
+    assert "return cur.lastrowid" not in wa_src
+    repo_src = (REPO / "core" / "repositories" / "whatsapp_config_repository.py").read_text(encoding="utf-8")
+    assert "new_uuid()" in repo_src
+
+
+def test_notification_tables_are_born_clean_uuid_identity():
+    """El subsistema de notificaciones es born-clean: notification_inbox y
+    turno_notificaciones_log llevan id TEXT UUIDv7, empleado_id/personal_id TEXT y
+    sucursal_id TEXT sin DEFAULT 1. Los escritores acuñan id con new_uuid() y el
+    CREATE de desktop_notification_service usa el mismo esquema TEXT.
+    """
+    conn = _fresh_base_schema()
+    inbox = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(notification_inbox)").fetchall()}
+    assert inbox["id"] == ("TEXT", 1)
+    assert inbox["empleado_id"][0] == "TEXT"
+    assert inbox["sucursal_id"][0] == "TEXT"
+
+    turno = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(turno_notificaciones_log)").fetchall()}
+    assert turno["id"] == ("TEXT", 1)
+    assert turno["personal_id"][0] == "TEXT"
+
+    for path in ("core/services/notification_service.py",
+                 "core/services/notifications/notification_dispatcher.py",
+                 "core/services/desktop_notification_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "INSERT INTO notification_inbox\n            (id," in src or \
+               "INSERT INTO notification_inbox\n                   (id," in src, path
+    # El CREATE self-heal de desktop usa id TEXT, no autoincrement.
+    dsrc = (REPO / "core" / "services" / "desktop_notification_service.py").read_text(encoding="utf-8")
+    assert "id TEXT PRIMARY KEY" in dsrc
+    assert "id INTEGER PRIMARY KEY AUTOINCREMENT" not in dsrc
+
+
+def test_hardware_config_keyed_by_natural_tipo():
+    """hardware_config es born-clean por clave natural: `tipo` TEXT es la PRIMARY KEY
+    (sin surrogate entero), sucursal_id es TEXT sin DEFAULT 1, y las tres
+    definiciones del esquema (base, m050, repo.ensure_schema) coinciden.
+    """
+    conn = _fresh_base_schema()
+    hw = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(hardware_config)").fetchall()}
+    assert "id" not in hw                             # surrogate entero eliminado
+    assert hw["tipo"] == ("TEXT", 1)                  # clave natural es la PK
+    assert hw["sucursal_id"][0] == "TEXT"             # sin DEFAULT 1 arbitrario
+
+    repo_src = (REPO / "core" / "repositories" / "hardware_config_repository.py").read_text(encoding="utf-8")
+    assert "tipo TEXT PRIMARY KEY" in repo_src
+    assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in repo_src
+    m050_src = (REPO / "migrations" / "m050_hardware_config_canonical.py").read_text(encoding="utf-8")
+    assert "tipo TEXT PRIMARY KEY" in m050_src
+    assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in m050_src
+
+
+def test_etiquetas_module_is_read_only_presentation():
+    """El módulo de etiquetas es presentación pura (genera etiquetas imprimibles a
+    partir de productos ya migrados): sin tablas propias, sin escrituras ni DDL en
+    la UI, y sin casts de identidad. No hay entidad que voltear — se fija así.
+    """
+    src = (REPO / "modulos" / "etiquetas.py").read_text(encoding="utf-8")
+    for forbidden in ("INSERT INTO", "UPDATE ", "DELETE FROM", "CREATE TABLE",
+                      "ALTER TABLE", ".commit()"):
+        assert forbidden not in src, f"etiquetas.py debe ser solo-lectura: {forbidden!r}"
+    # No castea identidades de producto a int (productos.id es UUIDv7 TEXT).
+    assert "int(r[0])" not in src
+    assert "int(producto" not in src
+
+
+def test_tickets_print_log_born_clean_and_dead_design_table_removed():
+    """The ticket/print surface is born-clean: print_job_log (migración 056) carries
+    a TEXT UUIDv7 id minted by printer_service (no autoincrement), and the dead
+    ticket_design_config table (0 referencias en código) fue eliminada del base.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "ticket_design_config" not in tables          # tabla muerta eliminada (REGLA 3)
+
+    migrator.up(conn)
+    conn.commit()
+    pj = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(print_job_log)").fetchall()}
+    assert pj["id"] == ("TEXT", 1)
+    assert pj["sucursal_id"][0] == "TEXT"                 # sin DEFAULT 1 arbitrario
+
+    src = (REPO / "core" / "services" / "printer_service.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "INSERT INTO print_job_log\n                    (id, job_id" in src
+
+
+def test_pedidos_whatsapp_tables_are_born_clean_uuid_identity():
+    """The WhatsApp order entity is born-clean: pedidos_whatsapp / pedidos_whatsapp_items
+    carry a single TEXT UUIDv7 id (the parallel `uuid` column was dropped), FKs are
+    TEXT, and all three writers (pedido_wa UC, bot_pedidos, rasa) mint ids with
+    new_uuid() instead of capturing lastrowid.
+    """
+    conn = _fresh_base_schema()
+    ped = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(pedidos_whatsapp)").fetchall()}
+    assert ped["id"] == ("TEXT", 1)
+    assert "uuid" not in ped                          # doble identidad eliminada
+    assert ped["cliente_id"][0] == "TEXT"
+
+    it = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(pedidos_whatsapp_items)").fetchall()}
+    assert it["id"] == ("TEXT", 1)
+    assert it["pedido_id"][0] == "TEXT"
+
+    uc_src = (REPO / "core" / "use_cases" / "pedido_wa.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in uc_src
+    assert "pedido_id = new_uuid()" in uc_src
+    for w in (REPO / "services" / "bot_pedidos.py", REPO / "rasa" / "actions" / "actions.py"):
+        src = w.read_text(encoding="utf-8")
+        assert "lower(hex(randomblob(16)))" not in src   # ya no se autogenera uuid paralelo
+        assert "new_uuid()" in src
+
+
+def test_reception_tables_are_born_clean_uuid_identity():
+    """The reception subsystem is born-clean: recepciones / recepcion_items /
+    ordenes_compra / ordenes_compra_items / scan_event_log carry a single TEXT
+    UUIDv7 id (ordenes_compra dropped its parallel `uuid` column), and the writers
+    (purchase_order_repository, qr_parser_service) mint ids with new_uuid().
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table, fks in (
+        ("recepciones", ("proveedor_id", "sucursal_id")),
+        ("recepcion_items", ("recepcion_id", "producto_id")),
+        ("ordenes_compra", ("proveedor_id",)),
+        ("ordenes_compra_items", ("orden_id", "producto_id")),
+        ("scan_event_log", ()),
+    ):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+        for fk in fks:
+            assert cols[fk][0] == "TEXT", f"{table}.{fk} must be TEXT"
+    oc = {r[1] for r in conn.execute("PRAGMA table_info(ordenes_compra)").fetchall()}
+    assert "uuid" not in oc                           # doble identidad eliminada
+
+    po_src = (REPO / "repositories" / "purchase_order_repository.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in po_src
+    assert "from backend.shared.ids import new_uuid" in po_src
+
+    qr_src = (REPO / "core" / "services" / "qr_parser_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO scan_event_log\n                       (id," in qr_src
+
+
+def test_compras_tables_are_born_clean_uuid_identity():
+    """The purchase transaction is born-clean: compras.id and detalles_compra.id are
+    TEXT UUIDv7 primary keys (no autoincrement), the detalle FK compra_id is TEXT,
+    and PurchaseRepository mints both ids with new_uuid() (no lastrowid).
+    """
+    conn = _fresh_base_schema()
+    com = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(compras)").fetchall()}
+    assert com["id"] == ("TEXT", 1)
+    assert com["proveedor_id"][0] == "TEXT"
+
+    det = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(detalles_compra)").fetchall()}
+    assert det["id"] == ("TEXT", 1)
+    assert det["compra_id"][0] == "TEXT"
+
+    src = (REPO / "repositories" / "purchase_repository.py").read_text(encoding="utf-8")
+    assert "lastrowid" not in src
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "INSERT INTO compras" in src and "INSERT INTO detalles_compra (id," in src
+
+
+def test_proveedores_table_is_born_clean_uuid_identity():
+    """The proveedor entity is born-clean: proveedores.id is a TEXT UUIDv7 primary
+    key (no autoincrement), categoria/notas live in the base schema (no DDL emitted
+    from UnifiedThirdPartyService — REGLA 11), and both writers (third-party service
+    and finance create_supplier_if_not_exists) mint the id with new_uuid().
+    """
+    conn = _fresh_base_schema()
+    prov = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(proveedores)").fetchall()}
+    assert prov["id"] == ("TEXT", 1)
+    assert "categoria" in prov and "notas" in prov     # plegadas al base (sin DDL en servicio)
+
+    tp_src = (REPO / "core" / "services" / "finance" / "third_party_service.py").read_text(encoding="utf-8")
+    assert "ALTER TABLE proveedores" not in tp_src      # DDL fuera del servicio
+    assert "_ensure_proveedor_columns" not in tp_src
+    assert "INSERT INTO proveedores" in tp_src and "new_uuid" in tp_src
+
+    fin_src = (REPO / "core" / "services" / "enterprise" / "finance_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO proveedores (id, nombre)" in fin_src   # create_supplier acuña id
+
+
 def test_clientes_table_is_born_clean_uuid_identity():
     """The core customer entity is born-clean: clientes.id is a TEXT UUIDv7 primary
     key (no autoincrement), sucursal_id is TEXT without the arbitrary DEFAULT 1, and
@@ -390,9 +775,9 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 144
-SERVICES_WITH_DDL_CEILING = 21
-LASTROWID_FILE_CEILING = 37
+INTEGER_PK_TABLE_CEILING = 129
+SERVICES_WITH_DDL_CEILING = 20
+LASTROWID_FILE_CEILING = 31
 
 
 def test_integer_pk_tables_in_base_schema_do_not_grow():

@@ -43,15 +43,16 @@ async def crear_orden_compra(
     proveedor_id = body.proveedor_id or (prod[1] if prod[1] else None)
 
     try:
+        from backend.shared.ids import new_uuid
+        oc_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
         # Intentar insertar con esquema extendido (tiene sucursal_id)
-        cur = db.execute("""
+        db.execute("""
             INSERT INTO ordenes_compra (
-                producto_id, proveedor_id, cantidad,
+                id, producto_id, proveedor_id, cantidad,
                 estado, sucursal_id, notas, fecha_creacion
-            ) VALUES (?, ?, ?, 'pendiente', ?, ?, datetime('now'))
-        """, (body.producto_id, proveedor_id, body.cantidad,
+            ) VALUES (?, ?, ?, ?, 'pendiente', ?, ?, datetime('now'))
+        """, (oc_id, body.producto_id, proveedor_id, body.cantidad,
               body.sucursal_id, body.notas))
-        oc_id = cur.lastrowid
         db.commit()
         return {
             "ok": True,

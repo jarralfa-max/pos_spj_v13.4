@@ -57,14 +57,14 @@ def run(conn) -> None:
     # ── wa_reminder_queue ─────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS wa_reminder_queue (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             tipo        TEXT    NOT NULL,
             event_type  TEXT    NOT NULL,
             data_json   TEXT    DEFAULT '{}',
             phone       TEXT    NOT NULL DEFAULT '',
             execute_at  TEXT    NOT NULL,
             prioridad   INTEGER DEFAULT 5,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             estado      TEXT    DEFAULT 'pendiente',
             created_at  TEXT    DEFAULT (datetime('now'))
         )

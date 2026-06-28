@@ -13,7 +13,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE capital_movements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             movement_type TEXT NOT NULL DEFAULT 'injection',
             amount REAL NOT NULL,
             concept TEXT DEFAULT '',
@@ -32,7 +32,7 @@ def _make_db():
             updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE journal_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
             event_type TEXT, source_module TEXT, source_id INTEGER,
             source_folio TEXT, debit_account TEXT, credit_account TEXT,
@@ -41,7 +41,7 @@ def _make_db():
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE treasury_movements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
             movement_type TEXT NOT NULL,
             direction TEXT DEFAULT 'in',
@@ -90,7 +90,7 @@ class TestInjectCapital(unittest.TestCase):
             partner_name="Juan Pérez",
             payment_method="transferencia",
         )
-        self.assertGreater(r["capital_id"], 0)
+        self.assertTrue(r["capital_id"])  # UUIDv7
         row = self.conn.execute(
             "SELECT * FROM capital_movements WHERE operation_id='CAP-INJ-001'"
         ).fetchone()
@@ -147,7 +147,7 @@ class TestWithdrawCapital(unittest.TestCase):
             concept="Retiro mensual socio",
             partner_name="Ana López",
         )
-        self.assertGreater(r["capital_id"], 0)
+        self.assertTrue(r["capital_id"])  # UUIDv7
         row = self.conn.execute(
             "SELECT movement_type FROM capital_movements WHERE operation_id='CAP-WIT-001'"
         ).fetchone()

@@ -3157,7 +3157,7 @@ class ModuloFinanzasUnificadas(QWidget):
         if not items:
             return txt, selected_ref
         options   = [f"{it.get('id')} - {it.get('label','')}" for it in items]
-        index_map = {opt: int(it.get("id")) for opt, it in zip(options, items)}
+        index_map = {opt: it.get("id") for opt, it in zip(options, items)}
         completer = QCompleter(options)
         completer.setCaseSensitivity(Qt.CaseInsensitive)
         completer.setFilterMode(Qt.MatchContains)

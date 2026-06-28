@@ -94,10 +94,12 @@ class WhatsAppConfigRepository:
                     f"UPDATE whatsapp_numeros SET {sets} WHERE id=?",
                     vals + (row_id,))
             else:
-                placeholders = ", ".join("?" * len(fields))
+                from backend.shared.ids import new_uuid
+                cols = ("id",) + fields
+                placeholders = ", ".join("?" * len(cols))
                 self.conn.execute(
-                    f"INSERT INTO whatsapp_numeros ({', '.join(fields)}) "
-                    f"VALUES ({placeholders})", vals)
+                    f"INSERT INTO whatsapp_numeros ({', '.join(cols)}) "
+                    f"VALUES ({placeholders})", (new_uuid(),) + vals)
             try:
                 self.conn.commit()
             except Exception:

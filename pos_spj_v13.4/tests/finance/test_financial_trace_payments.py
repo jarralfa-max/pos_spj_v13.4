@@ -13,14 +13,14 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS financial_trace_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             event_type TEXT, source_module TEXT, source_id INTEGER,
             source_folio TEXT, operation_id TEXT, trace_status TEXT DEFAULT 'started',
             payload_json TEXT, error_message TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS journal_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, event_type TEXT,
             source_module TEXT, source_id INTEGER, source_folio TEXT,
             debit_account TEXT, credit_account TEXT, amount REAL,
@@ -28,7 +28,7 @@ def _make_db():
             metadata_json TEXT, created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS treasury_movements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, movement_type TEXT NOT NULL,
             direction TEXT NOT NULL, amount REAL NOT NULL,
             payment_method TEXT, account TEXT DEFAULT 'caja',

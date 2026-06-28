@@ -13,7 +13,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS journal_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, event_type TEXT,
             source_module TEXT, source_id INTEGER, source_folio TEXT,
             debit_account TEXT, credit_account TEXT, amount REAL,

@@ -187,7 +187,7 @@ class TreasuryMovementService:
             )
             if existing:
                 logger.debug("treasury_movements: op_id=%s ya existe", operation_id)
-                return int(existing["id"])
+                return existing["id"]  # UUIDv7 (sin cast)
         except Exception as exc:
             logger.debug("treasury_movements no disponible: %s", exc)
             return self._fallback_ts(movement_type, amount, payment_method,
@@ -195,13 +195,16 @@ class TreasuryMovementService:
 
         account = _account_for_payment(payment_method)
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            movement_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO treasury_movements
-                       (movement_type, direction, amount, payment_method, account,
+                       (id, movement_type, direction, amount, payment_method, account,
                         status, source_module, source_id, source_folio,
                         financial_document_id, branch_id, user, operation_id, metadata_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
+                    movement_id,
                     movement_type, direction, float(amount), payment_method, account,
                     "confirmed",
                     source_module, source_id, source_folio,
@@ -210,7 +213,6 @@ class TreasuryMovementService:
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
-            movement_id = cur.lastrowid or 0
         except Exception as exc:
             logger.warning("treasury_movements INSERT op=%s: %s", operation_id, exc)
             movement_id = 0

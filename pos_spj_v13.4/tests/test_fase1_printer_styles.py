@@ -15,7 +15,7 @@ def print_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE print_job_log (
-            id          INTEGER  PRIMARY KEY AUTOINCREMENT,
+            id          TEXT     PRIMARY KEY,
             job_id      TEXT     NOT NULL,
             job_type    TEXT     NOT NULL DEFAULT 'ticket',
             plantilla   TEXT     DEFAULT '',
@@ -24,7 +24,7 @@ def print_db():
             estado      TEXT     NOT NULL DEFAULT 'queued',
             reintentos  INTEGER  DEFAULT 0,
             total       REAL     DEFAULT 0,
-            sucursal_id INTEGER  DEFAULT 1,
+            sucursal_id TEXT,
             usuario     TEXT     DEFAULT '',
             error_msg   TEXT     DEFAULT '',
             created_at  TEXT     NOT NULL DEFAULT (datetime('now')),
