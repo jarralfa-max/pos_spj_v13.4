@@ -42,7 +42,7 @@ def _make_db():
             updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS operating_supplies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, supply_type TEXT,
             description TEXT, quantity REAL DEFAULT 1.0,
             unit_cost REAL, total_amount REAL,
@@ -85,7 +85,7 @@ class TestOperatingSuppliesService(unittest.TestCase):
             quantity=5.0,
             payment_method="efectivo",
         )
-        self.assertGreater(result["supply_id"], 0)
+        self.assertTrue(result["supply_id"])
         self.assertTrue(result["movement_id"])  # UUIDv7
         self.assertTrue(result["journal_id"])  # UUIDv7
         tm_row = self.conn.execute(
@@ -112,7 +112,7 @@ class TestOperatingSuppliesService(unittest.TestCase):
             payment_method=None,
             supplier_id=55,
         )
-        self.assertGreater(result["supply_id"], 0)
+        self.assertTrue(result["supply_id"])
         self.assertTrue(result["document_id"])  # UUIDv7
         self.assertEqual(result["movement_id"], 0)
         fd_row = self.conn.execute(

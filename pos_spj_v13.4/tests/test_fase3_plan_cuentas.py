@@ -44,7 +44,7 @@ class TestMigracion059PlanCuentas:
         conn = _mem_db()
         _load_migration("059_plan_cuentas.py").run(conn)
         cols = {r[1] for r in conn.execute("PRAGMA table_info(plan_cuentas)").fetchall()}
-        required = {"codigo_sat", "nombre", "tipo", "nivel", "padre_id",
+        required = {"codigo_sat", "nombre", "tipo", "nivel", "padre_codigo",
                     "activo", "descripcion", "created_at"}
         assert required.issubset(cols), f"Columnas faltantes: {required - cols}"
 
@@ -115,13 +115,14 @@ class TestMigracion059PlanCuentas:
         mod.run(conn)   # segunda vez no debe lanzar
         conn.commit()
 
-    def test_indice_codigo_existe(self):
+    def test_codigo_sat_es_primary_key(self):
+        """codigo_sat es la identidad natural (PRIMARY KEY); no hay surrogate id."""
         conn = _mem_db()
         _load_migration("059_plan_cuentas.py").run(conn)
-        idx = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_pc_codigo'"
-        ).fetchone()
-        assert idx is not None
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(
+            "PRAGMA table_info(plan_cuentas)").fetchall()}
+        assert cols["codigo_sat"] == ("TEXT", 1), "codigo_sat debe ser TEXT PRIMARY KEY"
+        assert "id" not in cols, "no debe existir un surrogate id entero"
 
 
 # ══════════════════════════════════════════════════════════════════════════════

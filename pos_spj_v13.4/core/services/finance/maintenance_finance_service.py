@@ -79,7 +79,7 @@ class MaintenanceFinanceService:
                 "SELECT id FROM maintenance_records WHERE operation_id=?", (operation_id,)
             )
             if existing:
-                result["maintenance_id"] = int(existing["id"])
+                result["maintenance_id"] = existing["id"]  # UUIDv7 (sin cast)
                 return result
         except Exception as exc:
             logger.debug("maintenance_records no disponible: %s", exc)
@@ -147,14 +147,17 @@ class MaintenanceFinanceService:
 
         # Insertar maintenance_record
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            maintenance_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO maintenance_records
-                       (asset_id, maintenance_type, description, amount,
+                       (id, asset_id, maintenance_type, description, amount,
                         status, supplier_id, branch_id, source_module, source_id,
                         source_folio, financial_document_id, treasury_movement_id,
                         journal_entry_id, capitalizable, operation_id, metadata_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
+                    maintenance_id,
                     asset_id, maintenance_type, description, float(amount),
                     "paid" if paid_now else "pending",
                     supplier_id, branch_id, source_module, source_id, source_folio,
@@ -164,7 +167,7 @@ class MaintenanceFinanceService:
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
-            result["maintenance_id"] = cur.lastrowid or 0
+            result["maintenance_id"] = maintenance_id
         except Exception as exc:
             logger.warning("maintenance_records INSERT op=%s: %s", operation_id, exc)
 

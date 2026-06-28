@@ -56,7 +56,7 @@ def _has_column(db: Any, table: str, column: str) -> bool:
 
 def _employee_from_row(row: Any) -> Employee:
     return Employee(
-        id=int(_get(row, "id", 0) or 0),
+        id=_get(row, "id", ""),
         nombre=str(_get(row, "nombre", "") or ""),
         apellidos=str(_get(row, "apellidos", "") or ""),
         puesto=str(_get(row, "puesto", "") or ""),
@@ -71,8 +71,8 @@ def _employee_from_row(row: Any) -> Employee:
 
 def _attendance_from_row(row: Any) -> AttendanceRecord:
     return AttendanceRecord(
-        id=int(_get(row, "id", 0) or 0),
-        personal_id=int(_get(row, "personal_id", 0) or 0),
+        id=_get(row, "id", ""),
+        personal_id=_get(row, "personal_id", ""),
         fecha=str(_get(row, "fecha", "") or ""),
         hora_entrada=str(_get(row, "hora_entrada", "") or ""),
         hora_salida=str(_get(row, "hora_salida", "") or ""),
@@ -84,8 +84,8 @@ def _attendance_from_row(row: Any) -> AttendanceRecord:
 
 def _leave_from_row(row: Any) -> LeaveRequest:
     return LeaveRequest(
-        id=int(_get(row, "id", 0) or 0),
-        personal_id=int(_get(row, "personal_id", 0) or 0),
+        id=_get(row, "id", ""),
+        personal_id=_get(row, "personal_id", ""),
         tipo=str(_get(row, "tipo", "vacaciones") or "vacaciones"),
         fecha_inicio=str(_get(row, "fecha_inicio", "") or ""),
         fecha_fin=str(_get(row, "fecha_fin", "") or ""),
@@ -97,8 +97,8 @@ def _leave_from_row(row: Any) -> LeaveRequest:
 
 def _payment_from_row(row: Any) -> PayrollPayment:
     return PayrollPayment(
-        id=int(_get(row, "id", 0) or 0),
-        empleado_id=int(_get(row, "empleado_id", 0) or 0),
+        id=_get(row, "id", ""),
+        empleado_id=_get(row, "empleado_id", ""),
         periodo_inicio=str(_get(row, "periodo_inicio", "") or ""),
         periodo_fin=str(_get(row, "periodo_fin", "") or ""),
         salario_base=float(_get(row, "salario_base", 0) or 0),
@@ -114,7 +114,7 @@ def _payment_from_row(row: Any) -> PayrollPayment:
 
 def _role_from_row(row: Any) -> ShiftRole:
     return ShiftRole(
-        id=int(_get(row, "id", 0) or 0),
+        id=_get(row, "id", ""),
         nombre=str(_get(row, "nombre", "") or ""),
         hora_inicio=str(_get(row, "hora_inicio", "08:00") or "08:00"),
         hora_fin=str(_get(row, "hora_fin", "16:00") or "16:00"),
@@ -126,9 +126,9 @@ def _role_from_row(row: Any) -> ShiftRole:
 
 def _assignment_from_row(row: Any) -> ShiftAssignment:
     return ShiftAssignment(
-        id=int(_get(row, "id", 0) or 0),
-        personal_id=int(_get(row, "personal_id", 0) or 0),
-        turno_rol_id=int(_get(row, "turno_rol_id", 0) or 0),
+        id=_get(row, "id", ""),
+        personal_id=_get(row, "personal_id", ""),
+        turno_rol_id=_get(row, "turno_rol_id", ""),
         fecha_inicio=str(_get(row, "fecha_inicio", "") or ""),
         fecha_fin=str(_get(row, "fecha_fin", "") or ""),
         dia_descanso=str(_get(row, "dia_descanso", "Domingo") or "Domingo"),
@@ -169,13 +169,16 @@ class SQLiteEmployeeRepository:
         return [_employee_from_row(r) for r in rows]
 
 
-    def create(self, data: Dict[str, Any]) -> int:
-        cur = self.db.execute(
+    def create(self, data: Dict[str, Any]) -> str:
+        from backend.shared.ids import new_uuid
+        employee_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
             """
-            INSERT INTO personal (nombre, apellidos, puesto, salario, fecha_ingreso, telefono, activo)
-            VALUES (?, ?, ?, ?, ?, ?, 1)
+            INSERT INTO personal (id, nombre, apellidos, puesto, salario, fecha_ingreso, telefono, activo)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
             """,
             (
+                employee_id,
                 data.get("nombre", ""),
                 data.get("apellidos", ""),
                 data.get("puesto", ""),
@@ -185,7 +188,7 @@ class SQLiteEmployeeRepository:
             ),
         )
         _commit(self.db)
-        return int(cur.lastrowid)
+        return employee_id
 
     def update(self, employee_id: int, data: Dict[str, Any]) -> None:
         self.db.execute(
@@ -316,13 +319,15 @@ class SQLiteAttendanceRepository:
         )
         return _attendance_from_row(row) if row else None
 
-    def register_check_in(self, employee_id: int, fecha: str, hora: str, estado: str = "PRESENTE") -> int:
-        cur = self.db.execute(
-            "INSERT INTO asistencias(personal_id,fecha,hora_entrada,estado) VALUES(?,?,?,?)",
-            (employee_id, fecha, hora, estado),
+    def register_check_in(self, employee_id: int, fecha: str, hora: str, estado: str = "PRESENTE") -> str:
+        from backend.shared.ids import new_uuid
+        attendance_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO asistencias(id,personal_id,fecha,hora_entrada,estado) VALUES(?,?,?,?,?)",
+            (attendance_id, employee_id, fecha, hora, estado),
         )
         _commit(self.db)
-        return int(cur.lastrowid)
+        return attendance_id
 
     def register_check_out(self, attendance_id: int, hora: str, horas_trabajadas: float) -> None:
         self.db.execute(
@@ -379,14 +384,17 @@ class SQLiteLeaveRepository:
         ).fetchall()
         return [tuple(r) for r in rows]
 
-    def create(self, data: Dict[str, Any]) -> int:
-        cur = self.db.execute(
+    def create(self, data: Dict[str, Any]) -> str:
+        from backend.shared.ids import new_uuid
+        leave_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
             """
             INSERT INTO vacaciones_personal
-                (personal_id,tipo,fecha_inicio,fecha_fin,dias,estado)
-            VALUES(?,?,?,?,?,?)
+                (id,personal_id,tipo,fecha_inicio,fecha_fin,dias,estado)
+            VALUES(?,?,?,?,?,?,?)
             """,
             (
+                leave_id,
                 data.get("personal_id"),
                 data.get("tipo", "vacaciones"),
                 data.get("fecha_inicio"),
@@ -396,7 +404,7 @@ class SQLiteLeaveRepository:
             ),
         )
         _commit(self.db)
-        return int(cur.lastrowid)
+        return leave_id
 
     def update_status(self, leave_id: int, status: str) -> None:
         self.db.execute("UPDATE vacaciones_personal SET estado=? WHERE id=?", (status, leave_id))
@@ -423,12 +431,15 @@ class SQLitePayrollRepository:
     def __init__(self, db: Any):
         self.db = db
 
-    def create_payment(self, data: Dict[str, Any]) -> int:
+    def create_payment(self, data: Dict[str, Any]) -> str:
+        from backend.shared.ids import new_uuid
+        payment_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
         columns = [
-            "empleado_id", "periodo_inicio", "periodo_fin", "salario_base", "bonos",
+            "id", "empleado_id", "periodo_inicio", "periodo_fin", "salario_base", "bonos",
             "deducciones", "total", "metodo_pago", "estado", "usuario",
         ]
         values: List[Any] = [
+            payment_id,
             data.get("empleado_id"),
             data.get("periodo_inicio"),
             data.get("periodo_fin"),
@@ -446,12 +457,12 @@ class SQLitePayrollRepository:
                 values.append(data.get(optional_column))
 
         placeholders = ",".join("?" for _ in columns)
-        cur = self.db.execute(
+        self.db.execute(
             f"INSERT INTO nomina_pagos ({','.join(columns)}) VALUES ({placeholders})",
             tuple(values),
         )
         _commit(self.db)
-        return int(cur.lastrowid)
+        return payment_id
 
     def get_payment(self, payment_id: int) -> Optional[PayrollPayment]:
         row = _fetchone(self.db.execute("SELECT * FROM nomina_pagos WHERE id=?", (payment_id,)))
@@ -498,10 +509,13 @@ class SQLiteShiftRepository:
         rows = self.db.execute(f"SELECT * FROM turno_roles {where} ORDER BY nombre").fetchall()
         return [_role_from_row(r) for r in rows]
 
-    def create_role(self, data: Dict[str, Any]) -> int:
-        cur = self.db.execute(
-            "INSERT INTO turno_roles(nombre,hora_inicio,hora_fin,descripcion,color) VALUES(?,?,?,?,?)",
+    def create_role(self, data: Dict[str, Any]) -> str:
+        from backend.shared.ids import new_uuid
+        role_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO turno_roles(id,nombre,hora_inicio,hora_fin,descripcion,color) VALUES(?,?,?,?,?,?)",
             (
+                role_id,
                 data.get("nombre", ""),
                 data.get("hora_inicio", "08:00"),
                 data.get("hora_fin", "16:00"),
@@ -510,7 +524,7 @@ class SQLiteShiftRepository:
             ),
         )
         _commit(self.db)
-        return int(cur.lastrowid)
+        return role_id
 
     def update_role(self, role_id: int, data: Dict[str, Any]) -> None:
         self.db.execute(
@@ -535,15 +549,18 @@ class SQLiteShiftRepository:
         rows = self.db.execute(f"SELECT * FROM turno_asignaciones {where} ORDER BY personal_id").fetchall()
         return [_assignment_from_row(r) for r in rows]
 
-    def create_assignment(self, data: Dict[str, Any]) -> int:
-        cur = self.db.execute(
+    def create_assignment(self, data: Dict[str, Any]) -> str:
+        from backend.shared.ids import new_uuid
+        assignment_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
             """
             INSERT INTO turno_asignaciones
-                (personal_id,turno_rol_id,fecha_inicio,fecha_fin,dia_descanso,
+                (id,personal_id,turno_rol_id,fecha_inicio,fecha_fin,dia_descanso,
                  rotacion_dias,notif_semana,notif_dia)
-            VALUES(?,?,?,?,?,?,?,?)
+            VALUES(?,?,?,?,?,?,?,?,?)
             """,
             (
+                assignment_id,
                 data.get("personal_id"),
                 data.get("turno_rol_id"),
                 data.get("fecha_inicio"),
@@ -555,7 +572,7 @@ class SQLiteShiftRepository:
             ),
         )
         _commit(self.db)
-        return int(cur.lastrowid)
+        return assignment_id
 
     def update_assignment(self, assignment_id: int, data: Dict[str, Any]) -> None:
         self.db.execute(

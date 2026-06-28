@@ -95,7 +95,7 @@ class EmployeeApplicationService:
         op_id = operation_id or new_operation_id("empleado")
         if employee_id:
             self.repository.update(employee_id, data)
-            saved_id = int(employee_id)
+            saved_id = employee_id  # UUIDv7 (sin cast)
             self.event_publisher.publish(
                 EmployeeEventPayload(
                     operation_id=op_id,

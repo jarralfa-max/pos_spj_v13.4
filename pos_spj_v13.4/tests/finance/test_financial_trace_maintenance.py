@@ -42,9 +42,9 @@ def _make_db():
             updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS maintenance_records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
-            asset_id INTEGER, maintenance_type TEXT, description TEXT,
+            asset_id TEXT, maintenance_type TEXT, description TEXT,
             amount REAL, status TEXT DEFAULT 'pending',
             supplier_id INTEGER, branch_id INTEGER DEFAULT 1,
             source_module TEXT, source_id INTEGER, source_folio TEXT,
@@ -55,7 +55,7 @@ def _make_db():
             updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS fixed_assets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
             asset_name TEXT, asset_type TEXT,
             acquisition_date TEXT, acquisition_cost REAL,
@@ -100,7 +100,7 @@ class TestMaintenanceFinanceService(unittest.TestCase):
             description="Reparacion bomba de agua",
             payment_method="efectivo",
         )
-        self.assertGreater(result["maintenance_id"], 0)
+        self.assertTrue(result["maintenance_id"])
         self.assertTrue(result["movement_id"])  # UUIDv7
         self.assertTrue(result["journal_id"])  # UUIDv7
         tm_row = self.conn.execute(
@@ -124,7 +124,7 @@ class TestMaintenanceFinanceService(unittest.TestCase):
             payment_method=None,
             supplier_id=99,
         )
-        self.assertGreater(result["maintenance_id"], 0)
+        self.assertTrue(result["maintenance_id"])
         self.assertTrue(result["document_id"])  # UUIDv7
         self.assertEqual(result["movement_id"], 0)
         fd_row = self.conn.execute(
@@ -147,7 +147,7 @@ class TestMaintenanceFinanceService(unittest.TestCase):
             payment_method="transferencia",
             is_capitalizable=True,
         )
-        self.assertGreater(result["maintenance_id"], 0)
+        self.assertTrue(result["maintenance_id"])
         je_row = self.conn.execute(
             "SELECT debit_account, event_type FROM journal_entries WHERE operation_id='mnt-003-JE'"
         ).fetchone()

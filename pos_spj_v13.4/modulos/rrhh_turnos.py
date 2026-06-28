@@ -209,7 +209,7 @@ class ModuloRRHHTurnos(QWidget):
     def _editar_rol(self):
         row = self.tbl_roles.currentRow()
         if row < 0: return
-        rid = int(self.tbl_roles.item(row,0).text())
+        rid = self.tbl_roles.item(row,0).text()
         self._dialogo_rol(rid)
 
     def _dialogo_rol(self, rol_id=None):
@@ -247,7 +247,7 @@ class ModuloRRHHTurnos(QWidget):
     def _eliminar_rol(self):
         row = self.tbl_roles.currentRow()
         if row < 0: return
-        rid = int(self.tbl_roles.item(row,0).text())
+        rid = self.tbl_roles.item(row,0).text()
         if QMessageBox.question(self,"Confirmar","¿Eliminar este rol de turno?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
         self.db.execute("UPDATE turno_roles SET activo=0 WHERE id=?", (rid,))
@@ -261,7 +261,7 @@ class ModuloRRHHTurnos(QWidget):
     def _editar_asignacion(self):
         row = self.tbl_asig.currentRow()
         if row < 0: return
-        aid = int(self.tbl_asig.item(row,0).text())
+        aid = self.tbl_asig.item(row,0).text()
         self._dialogo_asignacion(aid)
 
     def _dialogo_asignacion(self, asig_id=None):
@@ -315,7 +315,7 @@ class ModuloRRHHTurnos(QWidget):
     def _quitar_asignacion(self):
         row = self.tbl_asig.currentRow()
         if row < 0: return
-        aid = int(self.tbl_asig.item(row,0).text())
+        aid = self.tbl_asig.item(row,0).text()
         if QMessageBox.question(self,"Confirmar","¿Quitar esta asignación de turno?",
            QMessageBox.Yes|QMessageBox.No) != QMessageBox.Yes: return
         self.db.execute("UPDATE turno_asignaciones SET activo=0 WHERE id=?", (aid,))
