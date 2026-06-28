@@ -25,7 +25,7 @@ def mem_db():
     conn.executescript("""
         CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT);
         CREATE TABLE notification_inbox (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             empleado_id INTEGER, usuario TEXT,
             tipo TEXT, titulo TEXT, cuerpo TEXT DEFAULT '',
             datos TEXT DEFAULT '{}', leido INTEGER DEFAULT 0,

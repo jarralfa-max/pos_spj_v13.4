@@ -221,6 +221,35 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_notification_tables_are_born_clean_uuid_identity():
+    """El subsistema de notificaciones es born-clean: notification_inbox y
+    turno_notificaciones_log llevan id TEXT UUIDv7, empleado_id/personal_id TEXT y
+    sucursal_id TEXT sin DEFAULT 1. Los escritores acuñan id con new_uuid() y el
+    CREATE de desktop_notification_service usa el mismo esquema TEXT.
+    """
+    conn = _fresh_base_schema()
+    inbox = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(notification_inbox)").fetchall()}
+    assert inbox["id"] == ("TEXT", 1)
+    assert inbox["empleado_id"][0] == "TEXT"
+    assert inbox["sucursal_id"][0] == "TEXT"
+
+    turno = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(turno_notificaciones_log)").fetchall()}
+    assert turno["id"] == ("TEXT", 1)
+    assert turno["personal_id"][0] == "TEXT"
+
+    for path in ("core/services/notification_service.py",
+                 "core/services/notifications/notification_dispatcher.py",
+                 "core/services/desktop_notification_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "INSERT INTO notification_inbox\n            (id," in src or \
+               "INSERT INTO notification_inbox\n                   (id," in src, path
+    # El CREATE self-heal de desktop usa id TEXT, no autoincrement.
+    dsrc = (REPO / "core" / "services" / "desktop_notification_service.py").read_text(encoding="utf-8")
+    assert "id TEXT PRIMARY KEY" in dsrc
+    assert "id INTEGER PRIMARY KEY AUTOINCREMENT" not in dsrc
+
+
 def test_hardware_config_keyed_by_natural_tipo():
     """hardware_config es born-clean por clave natural: `tipo` TEXT es la PRIMARY KEY
     (sin surrogate entero), sucursal_id es TEXT sin DEFAULT 1, y las tres
@@ -550,7 +579,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 133
+INTEGER_PK_TABLE_CEILING = 131
 SERVICES_WITH_DDL_CEILING = 20
 LASTROWID_FILE_CEILING = 31
 

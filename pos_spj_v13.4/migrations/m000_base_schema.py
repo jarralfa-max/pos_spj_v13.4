@@ -2853,8 +2853,8 @@ def _ensure_extra_columns(conn):
             notas          TEXT
         );
         CREATE TABLE IF NOT EXISTS turno_notificaciones_log(
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            personal_id  INTEGER,
+            id           TEXT PRIMARY KEY,
+            personal_id  TEXT,
             tipo         TEXT,
             fecha_envio  DATETIME DEFAULT (datetime('now')),
             mensaje      TEXT,
@@ -2865,13 +2865,13 @@ def _ensure_extra_columns(conn):
     # ── Notification inbox (mensajes POS para empleados) ──────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS notification_inbox (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id INTEGER NOT NULL,
+            id          TEXT PRIMARY KEY,
+            empleado_id TEXT NOT NULL,
             tipo        TEXT    NOT NULL,
             titulo      TEXT    NOT NULL,
             cuerpo      TEXT    DEFAULT '',
             datos       TEXT    DEFAULT '{}',
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             leido       INTEGER DEFAULT 0,
             leido_at    DATETIME,
             created_at  DATETIME DEFAULT (datetime('now'))

@@ -207,7 +207,7 @@
       "report": "docs/refactor/modules/hardware.md"
     },
     "NOTIFICACIONES": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,
