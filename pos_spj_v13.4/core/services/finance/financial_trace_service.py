@@ -719,12 +719,15 @@ class FinancialTraceService:
 
     def _trace_start(self, op_id: str, event_type: str, payload: Dict) -> int:
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            trace_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO financial_trace_log
-                       (event_type, source_module, source_id, source_folio,
+                       (id, event_type, source_module, source_id, source_folio,
                         operation_id, trace_status, payload_json)
-                   VALUES (?,?,?,?,?,'started',?)""",
+                   VALUES (?,?,?,?,?,?,'started',?)""",
                 (
+                    trace_id,
                     event_type,
                     payload.get("source_module", ""),
                     payload.get("source_id") or payload.get("sale_id") or payload.get("venta_id"),
@@ -733,9 +736,9 @@ class FinancialTraceService:
                     json.dumps(payload, ensure_ascii=False, default=str)[:4000],
                 ),
             )
-            return cur.lastrowid or 0
+            return trace_id
         except Exception:
-            return 0
+            return ""
 
     def _trace_complete(self, trace_id: int):
         if trace_id:

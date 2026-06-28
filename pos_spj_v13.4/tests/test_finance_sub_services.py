@@ -20,7 +20,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento TEXT NOT NULL,
             modulo TEXT NOT NULL,
@@ -120,7 +120,7 @@ class TestGeneralLedgerService:
         conn = _make_db()
         gl = _make_gl(conn)
         rid = gl.registrar_asiento("caja", "ventas", "Venta prueba", 200.0)
-        assert rid > 0
+        assert rid  # identidad UUIDv7
         row = conn.execute("SELECT cuenta_debe, cuenta_haber, monto FROM financial_event_log WHERE id=?", (rid,)).fetchone()
         assert row["cuenta_debe"] == "caja"
         assert row["cuenta_haber"] == "ventas"
@@ -385,7 +385,7 @@ class TestFinanceServiceDelegacion:
         conn = _make_db()
         fs = _make_fs(conn)
         rid = fs.registrar_asiento("caja", "ventas", "Delegado", 100.0)
-        assert rid > 0
+        assert rid  # identidad UUIDv7
 
     def test_generar_poliza_delega_a_gl(self):
         """FinanceService.generar_poliza_periodo() debe delegar a GeneralLedgerService."""

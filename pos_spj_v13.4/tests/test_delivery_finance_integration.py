@@ -21,7 +21,7 @@ def fin_db():
     conn = sqlite3.connect(":memory:")
     conn.execute(
         """CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             evento TEXT, modulo TEXT, referencia_id INTEGER, monto REAL,
             cuenta_debe TEXT, cuenta_haber TEXT, usuario_id TEXT,
             sucursal_id INTEGER, metadata TEXT

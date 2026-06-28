@@ -221,6 +221,38 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_accounting_core_tables_are_born_clean_uuid_identity():
+    """El núcleo contable es born-clean: journal_entries / financial_documents /
+    financial_trace_log (migración 083) y financial_event_log (052) llevan id TEXT
+    UUIDv7 con branch_id/sucursal_id TEXT (sin DEFAULT 1). Los 5 servicios
+    canónicos acuñan id con new_uuid() en vez de capturar lastrowid.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("journal_entries", "financial_documents", "financial_trace_log", "financial_event_log"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+    je = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(journal_entries)").fetchall()}
+    assert je["branch_id"] == "TEXT" and je["source_id"] == "TEXT"
+    fel = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(financial_event_log)").fetchall()}
+    assert fel["sucursal_id"] == "TEXT" and fel["referencia_id"] == "TEXT"
+
+    for path in ("core/services/finance/journal_entry_service.py",
+                 "core/services/finance/general_ledger_service.py",
+                 "core/services/finance/financial_trace_service.py",
+                 "core/services/finance/financial_document_service.py"):
+        src = (REPO / path).read_text(encoding="utf-8")
+        assert "from backend.shared.ids import new_uuid" in src, path
+        assert "new_uuid()" in src and "cur.lastrowid" not in src, path
+
+
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
     """Las tablas de mensajería WhatsApp son born-clean: whatsapp_queue /
     whatsapp_numeros (base) y wa_reminder_queue (migración 050) llevan id TEXT

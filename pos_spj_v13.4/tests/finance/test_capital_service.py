@@ -32,7 +32,7 @@ def _make_db():
             updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE journal_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
             event_type TEXT, source_module TEXT, source_id INTEGER,
             source_folio TEXT, debit_account TEXT, credit_account TEXT,

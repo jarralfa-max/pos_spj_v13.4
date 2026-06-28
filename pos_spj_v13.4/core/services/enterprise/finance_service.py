@@ -1199,20 +1199,21 @@ class FinanceService:
         # Fallback si GeneralLedgerService no está disponible (o __init__ bypass)
         import json as _json
         try:
-            cur = self.db.execute(
+            event_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self.db.execute(
                 """INSERT INTO financial_event_log
-                   (evento, modulo, referencia_id, monto, cuenta_debe, cuenta_haber,
+                   (id, evento, modulo, referencia_id, monto, cuenta_debe, cuenta_haber,
                     usuario_id, sucursal_id, metadata)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    evento, modulo or concepto, referencia_id,
+                    event_id, evento, modulo or concepto, referencia_id,
                     monto, debe, haber,
                     usuario_id, sucursal_id,
                     _json.dumps({"concepto": concepto, **(metadata or {})},
                                 ensure_ascii=False),
                 )
             )
-            return cur.lastrowid or 0
+            return event_id
         except Exception as _e:
             import logging as _lg
             _lg.getLogger(__name__).warning("registrar_asiento non-fatal: %s", _e)

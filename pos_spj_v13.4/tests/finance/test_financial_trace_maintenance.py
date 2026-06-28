@@ -13,7 +13,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS journal_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, event_type TEXT,
             source_module TEXT, source_id INTEGER, source_folio TEXT,
             debit_account TEXT, credit_account TEXT, amount REAL,
@@ -31,7 +31,7 @@ def _make_db():
             metadata_json TEXT, created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS financial_documents (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL, document_type TEXT NOT NULL,
             source_module TEXT, source_id INTEGER, source_folio TEXT,
             party_type TEXT, party_id INTEGER,
@@ -102,7 +102,7 @@ class TestMaintenanceFinanceService(unittest.TestCase):
         )
         self.assertGreater(result["maintenance_id"], 0)
         self.assertGreater(result["movement_id"], 0)
-        self.assertGreater(result["journal_id"], 0)
+        self.assertTrue(result["journal_id"])  # UUIDv7
         tm_row = self.conn.execute(
             "SELECT movement_type FROM treasury_movements WHERE operation_id='mnt-001-TM'"
         ).fetchone()
@@ -125,7 +125,7 @@ class TestMaintenanceFinanceService(unittest.TestCase):
             supplier_id=99,
         )
         self.assertGreater(result["maintenance_id"], 0)
-        self.assertGreater(result["document_id"], 0)
+        self.assertTrue(result["document_id"])  # UUIDv7
         self.assertEqual(result["movement_id"], 0)
         fd_row = self.conn.execute(
             "SELECT document_type FROM financial_documents WHERE operation_id='mnt-002-FD'"

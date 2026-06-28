@@ -14,7 +14,7 @@ def _make_db():
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE financial_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             evento TEXT NOT NULL,
             modulo TEXT NOT NULL,
@@ -176,7 +176,7 @@ class TestRegistrarAsiento:
             debe="caja", haber="ventas",
             concepto="Venta de prueba", monto=100.0,
         )
-        assert row_id > 0
+        assert row_id  # identidad UUIDv7
         row = conn.execute(
             "SELECT * FROM financial_event_log WHERE id=?", (row_id,)
         ).fetchone()

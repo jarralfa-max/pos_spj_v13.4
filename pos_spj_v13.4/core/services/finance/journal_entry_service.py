@@ -77,20 +77,21 @@ class JournalEntryService:
             )
 
         try:
-            cur = self._db.execute(
+            from backend.shared.ids import new_uuid
+            entry_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+            self._db.execute(
                 """INSERT INTO journal_entries
-                       (event_type, source_module, source_id, source_folio,
+                       (id, event_type, source_module, source_id, source_folio,
                         debit_account, credit_account, amount,
                         branch_id, user, operation_id, metadata_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    event_type, source_module, source_id, source_folio,
+                    entry_id, event_type, source_module, source_id, source_folio,
                     debit_account, credit_account, float(amount),
                     branch_id, user, operation_id,
                     json.dumps(metadata or {}, ensure_ascii=False, default=str),
                 ),
             )
-            entry_id = cur.lastrowid or 0
         except Exception as exc:
             logger.warning("post_entry INSERT failed op=%s: %s", operation_id, exc)
             entry_id = 0

@@ -55,7 +55,7 @@ def _db():
             usuario TEXT
         );
         CREATE TABLE journal_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             operation_id TEXT UNIQUE NOT NULL,
             event_type TEXT,
             source_module TEXT,
@@ -134,7 +134,7 @@ def test_phase7_payroll_payment_flows_to_financial_trace_sqlite():
 
     entries = conn.execute(
         "SELECT operation_id, event_type, debit_account, credit_account, amount, source_id "
-        "FROM journal_entries ORDER BY id"
+        "FROM journal_entries ORDER BY rowid"  # orden de inserción (id es UUIDv7)
     ).fetchall()
     assert [row["operation_id"] for row in entries] == [
         "op-payroll-sqlite-001-GEN",
