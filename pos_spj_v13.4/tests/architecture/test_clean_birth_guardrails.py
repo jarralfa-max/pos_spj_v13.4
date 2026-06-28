@@ -221,6 +221,31 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_tickets_print_log_born_clean_and_dead_design_table_removed():
+    """The ticket/print surface is born-clean: print_job_log (migración 056) carries
+    a TEXT UUIDv7 id minted by printer_service (no autoincrement), and the dead
+    ticket_design_config table (0 referencias en código) fue eliminada del base.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "ticket_design_config" not in tables          # tabla muerta eliminada (REGLA 3)
+
+    migrator.up(conn)
+    conn.commit()
+    pj = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(print_job_log)").fetchall()}
+    assert pj["id"] == ("TEXT", 1)
+    assert pj["sucursal_id"][0] == "TEXT"                 # sin DEFAULT 1 arbitrario
+
+    src = (REPO / "core" / "services" / "printer_service.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in src
+    assert "INSERT INTO print_job_log\n                    (id, job_id" in src
+
+
 def test_pedidos_whatsapp_tables_are_born_clean_uuid_identity():
     """The WhatsApp order entity is born-clean: pedidos_whatsapp / pedidos_whatsapp_items
     carry a single TEXT UUIDv7 id (the parallel `uuid` column was dropped), FKs are
@@ -492,7 +517,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 135
+INTEGER_PK_TABLE_CEILING = 134
 SERVICES_WITH_DDL_CEILING = 20
 LASTROWID_FILE_CEILING = 31
 

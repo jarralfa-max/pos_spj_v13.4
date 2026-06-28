@@ -40,7 +40,7 @@ DONE
 |    19 | COMPRAS               | Compras                  | DONE |
 |    20 | RECEPCION             | Recepción                | DONE |
 |    21 | PEDIDOS               | Pedidos                  | DONE |
-|    22 | TICKETS               | Tickets                  | PENDING |
+|    22 | TICKETS               | Tickets                  | DONE |
 |    23 | ETIQUETAS             | Etiquetas                | PENDING |
 |    24 | HARDWARE              | Hardware                 | PENDING |
 |    25 | NOTIFICACIONES        | Notificaciones           | PENDING |

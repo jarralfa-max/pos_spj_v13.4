@@ -1408,21 +1408,9 @@ def _create_documentos(conn):
             ultimo_envio DATE
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS ticket_design_config (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo        TEXT NOT NULL DEFAULT 'ticket',
-            nombre      TEXT NOT NULL,
-            elementos   TEXT NOT NULL DEFAULT '[]',
-            activo      INTEGER NOT NULL DEFAULT 0,
-            ancho_mm    INTEGER DEFAULT 80,
-            alto_mm     INTEGER DEFAULT 0,
-            version     INTEGER DEFAULT 1,
-            modificado_en DATETIME,
-            creado_en   DATETIME DEFAULT (datetime('now')),
-            UNIQUE(tipo, nombre)
-        )
-    """)
+    # ticket_design_config eliminada (REGLA 3): tabla muerta — 0 referencias en
+    # código de aplicación. El diseñador de tickets persiste su layout en la tabla
+    # key-value `configuraciones` (ticket_logo_b64, etc.), no aquí.
     conn.execute("""
         CREATE TABLE IF NOT EXISTS config_diseno_tarjetas (
             id    INTEGER PRIMARY KEY AUTOINCREMENT,
