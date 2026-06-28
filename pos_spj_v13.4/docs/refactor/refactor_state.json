@@ -199,7 +199,7 @@
       "report": "docs/refactor/modules/etiquetas.md"
     },
     "HARDWARE": {
-      "status": "PENDING",
+      "status": "DONE",
       "iteration": 0,
       "score": 0,
       "open_violations": null,

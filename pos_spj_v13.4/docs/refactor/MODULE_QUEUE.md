@@ -42,7 +42,7 @@ DONE
 |    21 | PEDIDOS               | Pedidos                  | DONE |
 |    22 | TICKETS               | Tickets                  | DONE |
 |    23 | ETIQUETAS             | Etiquetas                | DONE |
-|    24 | HARDWARE              | Hardware                 | PENDING |
+|    24 | HARDWARE              | Hardware                 | DONE |
 |    25 | NOTIFICACIONES        | Notificaciones           | PENDING |
 |    26 | WHATSAPP              | WhatsApp                 | PENDING |
 |    27 | FINANZAS              | Finanzas                 | PENDING |

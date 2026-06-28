@@ -164,14 +164,13 @@ def _create_core_config(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS hardware_config (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo                TEXT UNIQUE NOT NULL,
+            tipo                TEXT PRIMARY KEY,
             nombre              TEXT NOT NULL,
             driver              TEXT,
             puerto              TEXT,
             configuraciones       TEXT,
             activo              INTEGER DEFAULT 1,
-            sucursal_id         INTEGER DEFAULT 1,
+            sucursal_id         TEXT,
             fecha_actualizacion DATETIME DEFAULT (datetime('now'))
         )
     """)

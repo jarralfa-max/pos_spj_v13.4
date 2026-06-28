@@ -221,6 +221,25 @@ def test_card_subsystem_tables_are_born_clean_single_uuid_identity():
     assert "candidate = random.randint" not in repo_src
 
 
+def test_hardware_config_keyed_by_natural_tipo():
+    """hardware_config es born-clean por clave natural: `tipo` TEXT es la PRIMARY KEY
+    (sin surrogate entero), sucursal_id es TEXT sin DEFAULT 1, y las tres
+    definiciones del esquema (base, m050, repo.ensure_schema) coinciden.
+    """
+    conn = _fresh_base_schema()
+    hw = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(hardware_config)").fetchall()}
+    assert "id" not in hw                             # surrogate entero eliminado
+    assert hw["tipo"] == ("TEXT", 1)                  # clave natural es la PK
+    assert hw["sucursal_id"][0] == "TEXT"             # sin DEFAULT 1 arbitrario
+
+    repo_src = (REPO / "core" / "repositories" / "hardware_config_repository.py").read_text(encoding="utf-8")
+    assert "tipo TEXT PRIMARY KEY" in repo_src
+    assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in repo_src
+    m050_src = (REPO / "migrations" / "m050_hardware_config_canonical.py").read_text(encoding="utf-8")
+    assert "tipo TEXT PRIMARY KEY" in m050_src
+    assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in m050_src
+
+
 def test_etiquetas_module_is_read_only_presentation():
     """El módulo de etiquetas es presentación pura (genera etiquetas imprimibles a
     partir de productos ya migrados): sin tablas propias, sin escrituras ni DDL en
@@ -531,7 +550,7 @@ def test_refresh_order_badges_does_not_int_cast_identity():
 
 # Current measured legacy surface. Lower these as the born-clean rewrite advances.
 # Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 134
+INTEGER_PK_TABLE_CEILING = 133
 SERVICES_WITH_DDL_CEILING = 20
 LASTROWID_FILE_CEILING = 31
 
