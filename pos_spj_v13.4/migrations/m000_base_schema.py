@@ -1002,7 +1002,7 @@ def _create_compras(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS gastos (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             fecha          DATE NOT NULL,
             categoria      TEXT NOT NULL,
             concepto       TEXT NOT NULL,
@@ -2947,8 +2947,8 @@ def _ensure_extra_columns(conn):
     # ── Gastos futuros y fijos (Tesorería) ────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS gastos_futuros (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            sucursal_id INTEGER DEFAULT 1,
+            id          TEXT PRIMARY KEY,
+            sucursal_id TEXT,
             concepto    TEXT NOT NULL,
             categoria   TEXT,
             monto       REAL NOT NULL,
@@ -2957,9 +2957,11 @@ def _ensure_extra_columns(conn):
             notas       TEXT,
             created_at  DATETIME DEFAULT (datetime('now'))
         );
+        CREATE INDEX IF NOT EXISTS idx_gf_estado ON gastos_futuros(estado);
+        CREATE INDEX IF NOT EXISTS idx_gf_fecha  ON gastos_futuros(fecha_prog);
         CREATE TABLE IF NOT EXISTS gastos_fijos (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            sucursal_id INTEGER DEFAULT 1,
+            id          TEXT PRIMARY KEY,
+            sucursal_id TEXT,
             concepto    TEXT NOT NULL,
             categoria   TEXT,
             monto       REAL NOT NULL,

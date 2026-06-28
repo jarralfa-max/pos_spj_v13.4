@@ -10,7 +10,6 @@ Tablas:
   treasury_capital             — inyecciones y retiros de capital
   treasury_ledger              — movimientos de caja (ingresos/egresos)
   treasury_gastos_fijos        — gastos fijos recurrentes configurados
-  gastos_futuros               — gastos programados a futuro
   pagos_cobros                 — documentos de pago/cobro unificados
   pagos_cobros_aplicaciones    — aplicación de pagos_cobros a documentos (CxP/CxC)
 """
@@ -53,19 +52,8 @@ def run(conn):
             activo         INTEGER DEFAULT 1
         );
 
-        CREATE TABLE IF NOT EXISTS gastos_futuros (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            sucursal_id INTEGER DEFAULT 1,
-            concepto    TEXT    NOT NULL,
-            categoria   TEXT,
-            monto       REAL    NOT NULL,
-            fecha_prog  DATE    NOT NULL,
-            estado      TEXT    DEFAULT 'pendiente',
-            notas       TEXT,
-            created_at  DATETIME DEFAULT (datetime('now'))
-        );
-        CREATE INDEX IF NOT EXISTS idx_gf_estado ON gastos_futuros(estado);
-        CREATE INDEX IF NOT EXISTS idx_gf_fecha  ON gastos_futuros(fecha_prog);
+        -- gastos_futuros (tabla + índices) se define en m000_base_schema
+        -- con identidad TEXT UUIDv7; ya no se crea aquí.
 
         CREATE TABLE IF NOT EXISTS pagos_cobros (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

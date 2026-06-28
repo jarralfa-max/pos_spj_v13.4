@@ -141,7 +141,7 @@ class TestTreasuryGastoOpexGL(unittest.TestCase):
                 usuario TEXT DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS gastos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT PRIMARY KEY,
                 fecha TEXT,
                 categoria TEXT,
                 concepto TEXT,

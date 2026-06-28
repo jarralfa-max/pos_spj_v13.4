@@ -8,7 +8,6 @@
 # Métodos públicos:
 #   balance_general()         — Activos / Pasivos / Patrimonio
 #   flujo_caja()              — Entradas y salidas por período
-#   gastos_mes()              — Gastos agrupados por categoría
 #   cuentas_por_pagar()       — CXP con vencimiento y aging
 #   cuentas_por_cobrar()      — CXC con días vencidos
 #   dashboard_kpis()          — KPIs financieros ejecutivos
@@ -478,50 +477,6 @@ class FinanceService:
             "flujo_neto": neto,
             "daily_ingresos": [dict(r) for r in daily_rows],
             "daily_egresos":  [dict(r) for r in daily_gastos],
-        }
-
-    # ═════════════════════════════════════════════════════════════════════════
-    # GASTOS POR MES
-    # ═════════════════════════════════════════════════════════════════════════
-
-    def gastos_mes(
-        self, date_from: str, date_to: str
-    ) -> Dict:
-        """Gastos agrupados por categoría y estado para el período."""
-        gastos_pagado_expr = "COALESCE(monto_pagado,0)" if self._has_column("gastos", "monto_pagado") else "0"
-        gasto_activo = "AND activo=1" if self._has_column("gastos", "activo") else ""
-        by_cat = self.db.fetchall(f"""
-            SELECT categoria,
-                   COUNT(*)            AS num_registros,
-                   SUM(monto)          AS total,
-                   SUM({gastos_pagado_expr}) AS pagado,
-                   SUM(monto - {gastos_pagado_expr}) AS pendiente
-            FROM gastos
-            WHERE DATE(fecha) BETWEEN DATE(?) AND DATE(?)
-              {gasto_activo}
-            GROUP BY categoria
-            ORDER BY total DESC
-        """, (date_from, date_to))
-
-        detalle = self.db.fetchall(f"""
-        SELECT g.id, g.fecha, g.categoria, g.concepto, g.descripcion,
-                   g.monto, {gastos_pagado_expr} AS monto_pagado, g.estado, g.metodo_pago,
-                   g.recurrente, g.usuario,
-                   COALESCE(p.nombre, g.referencia, '') AS proveedor
-            FROM gastos g
-            LEFT JOIN proveedores p ON p.id = g.proveedor_id
-            WHERE DATE(g.fecha) BETWEEN DATE(?) AND DATE(?)
-              {gasto_activo}
-            ORDER BY g.fecha DESC
-        """, (date_from, date_to))
-
-        total_general = sum(float(r["total"] or 0) for r in by_cat)
-        return {
-            "date_from":    date_from,
-            "date_to":      date_to,
-            "total":        round(total_general, 2),
-            "by_categoria": [dict(r) for r in by_cat],
-            "detalle":      [dict(r) for r in detalle],
         }
 
     # ═════════════════════════════════════════════════════════════════════════
@@ -1485,120 +1440,6 @@ class FinanceService:
         )
 
     # ═════════════════════════════════════════════════════════════════════════
-    # GESTIÓN DE GASTOS - CRUD COMPLETO
-    # ═════════════════════════════════════════════════════════════════════════
-
-    def get_expense(self, expense_id: int) -> Optional[Dict]:
-        """Obtiene un gasto por ID."""
-        row = self.db.fetchone("SELECT * FROM gastos WHERE id=?", (expense_id,))
-        return dict(row) if row else None
-
-    def get_all_expenses(
-        self,
-        date_from: Optional[str] = None,
-        date_to: Optional[str] = None,
-        categoria: Optional[str] = None,
-        estado: Optional[str] = None,
-        activo: bool = True
-    ) -> List[Dict]:
-        """Obtiene lista de gastos con filtros."""
-        conds = ["1=1"]
-        params = []
-        
-        if activo:
-            conds.append("activo=1")
-        
-        if date_from:
-            conds.append("DATE(fecha) >= DATE(?)"); params.append(date_from)
-        if date_to:
-            conds.append("DATE(fecha) <= DATE(?)"); params.append(date_to)
-        if categoria:
-            conds.append("categoria=?"); params.append(categoria)
-        if estado:
-            conds.append("estado=?"); params.append(estado)
-        
-        rows = self.db.fetchall(f"""
-            SELECT g.*, COALESCE(p.nombre, '') AS proveedor_nombre
-            FROM gastos g
-            LEFT JOIN proveedores p ON p.id = g.proveedor_id
-            WHERE {' AND '.join(conds)}
-            ORDER BY g.fecha DESC
-        """, params)
-        return [dict(r) for r in rows]
-
-    def upsert_expense(self, data: Dict) -> int:
-        """Crea o actualiza un gasto."""
-        required = ['fecha', 'categoria', 'monto', 'estado']
-        for field in required:
-            if field not in data:
-                raise ValueError(f"Campo requerido: {field}")
-        
-        expense_id = data.get('id')
-        if expense_id:
-            # Actualizar
-            cur = self.db.execute("""
-                UPDATE gastos SET
-                    fecha=?, categoria=?, proveedor_id=?, monto=?, monto_pagado=?,
-                    estado=?, descripcion=?, metodo_pago=?, usuario=?
-                WHERE id=?
-            """, (
-                data['fecha'], data['categoria'], data.get('proveedor_id'),
-                data['monto'], data.get('monto_pagado', 0), data['estado'],
-                data.get('descripcion'), data.get('metodo_pago', 'Efectivo'),
-                data.get('usuario', 'Sistema'), expense_id
-            ))
-            self.db.commit()
-            return expense_id
-        else:
-            # Crear
-            cur = self.db.execute("""
-                INSERT INTO gastos (fecha, categoria, proveedor_id, monto, 
-                                    monto_pagado, estado, descripcion, metodo_pago, usuario, activo)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            """, (
-                data['fecha'], data['categoria'], data.get('proveedor_id'),
-                data['monto'], data.get('monto_pagado', 0), data['estado'],
-                data.get('descripcion'), data.get('metodo_pago', 'Efectivo'),
-                data.get('usuario', 'Sistema')
-            ))
-            self.db.commit()
-            return cur.lastrowid
-
-    def delete_expense(self, expense_id: int) -> bool:
-        """Marca un gasto como inactivo (soft delete)."""
-        self.db.execute("UPDATE gastos SET activo=0 WHERE id=?", (expense_id,))
-        self.db.commit()
-        return True
-
-    def apply_expense_payment(self, expense_id: int, amount: float) -> Dict:
-        """Aplica un pago parcial o total a un gasto."""
-        expense = self.get_expense(expense_id)
-        if not expense:
-            raise ValueError(f"Gasto #{expense_id} no encontrado")
-        
-        monto = float(expense['monto'])
-        monto_pagado = float(expense.get('monto_pagado', 0) or 0)
-        nuevo_pagado = round(monto_pagado + amount, 2)
-        
-        if nuevo_pagado > monto:
-            raise ValueError(f"El pago excede el monto pendiente. Pendiente: ${monto - monto_pagado:.2f}")
-        
-        nuevo_estado = "pagado" if nuevo_pagado >= monto else "parcial"
-        
-        self.db.execute("""
-            UPDATE gastos SET monto_pagado=?, estado=? WHERE id=?
-        """, (nuevo_pagado, nuevo_estado, expense_id))
-        self.db.commit()
-        
-        return {
-            'expense_id': expense_id,
-            'amount_applied': amount,
-            'new_paid': nuevo_pagado,
-            'new_balance': round(monto - nuevo_pagado, 2),
-            'new_status': nuevo_estado
-        }
-
-    # ═════════════════════════════════════════════════════════════════════════
     # GESTIÓN DE EMPLEADOS - CRUD COMPLETO
     # ═════════════════════════════════════════════════════════════════════════
 
@@ -1673,85 +1514,6 @@ class FinanceService:
         )
         self.db.commit()
         return proveedor_id
-
-    def create_compra_inventariable(
-        self,
-        producto_id: int,
-        proveedor: str,
-        volumen: float,
-        unidad: str,
-        costo_unitario: float,
-        costo_total: float,
-        forma_pago: str,
-        es_credito: int,
-        monto_pagado: float,
-        saldo_pendiente: float,
-        fecha_vencimiento: Optional[str],
-        estado: str,
-        notas: str,
-        usuario: str,
-        categoria: str = "Compra Inventario",
-        concepto: str = "",
-        sucursal_id: int = 1
-    ) -> int:
-        """
-        Registra una compra inventariable creando el gasto y el registro en compras_inventariables.
-        Retorna el ID del registro en compras_inventariables.
-        """
-        import uuid as _uuid
-        from datetime import datetime as _dt
-        
-        hoy = _dt.now().strftime("%Y-%m-%d")
-        
-        # Obtener nombre del producto
-        prod_nombre = "Producto"
-        try:
-            prods = self.get_products_list()
-            for p in prods:
-                if p['id'] == producto_id:
-                    prod_nombre = p['nombre']
-                    break
-        except Exception:
-            pass
-        
-        # Crear registro en gastos
-        if not concepto:
-            concepto = f"Compra {prod_nombre} — {volumen}{unidad} @ ${costo_unitario}/{unidad}"
-        
-        cur_g = self.db.execute("""
-            INSERT INTO gastos
-                (fecha, categoria, concepto, monto, monto_pagado,
-                 metodo_pago, estado, proveedor_id, usuario, activo)
-            VALUES (?,?,?,?,?,?,?,?,?,1)
-        """, (
-            hoy, categoria, concepto,
-            costo_total, monto_pagado,
-            forma_pago, estado,
-            None,  # proveedor_id se maneja aparte si es necesario
-            usuario,
-        ))
-        gasto_id = cur_g.lastrowid
-        
-        # Registrar en compras_inventariables
-        ci_uuid = _uuid.uuid4().hex
-        cur_ci = self.db.execute("""
-            INSERT INTO compras_inventariables
-                (uuid, gasto_id, producto_id, proveedor,
-                 volumen, unidad, costo_unitario, costo_total,
-                 forma_pago, es_credito, monto_pagado, saldo_pendiente,
-                 fecha_vencimiento, estado, notas,
-                 sucursal_id, usuario, fecha)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
-        """, (
-            ci_uuid, gasto_id, producto_id, proveedor,
-            volumen, unidad, costo_unitario, costo_total,
-            forma_pago, es_credito, monto_pagado, saldo_pendiente,
-            fecha_vencimiento, estado, notas,
-            sucursal_id, usuario,
-        ))
-        
-        self.db.commit()
-        return cur_ci.lastrowid
 
     def get_expense_categories(self) -> List[str]:
         """Obtiene lista de categorías únicas de gastos."""

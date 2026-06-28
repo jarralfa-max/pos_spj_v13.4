@@ -392,12 +392,14 @@ class TreasuryService:
                                 monto: float, fecha_prog: str,
                                 notas: str = "", sucursal_id: int = 1) -> int:
         """Programa un gasto futuro."""
-        cur = self.db.execute(
-            "INSERT INTO gastos_futuros(sucursal_id, concepto, categoria, monto, fecha_prog, notas) "
-            "VALUES(?,?,?,?,?,?)",
-            (sucursal_id, concepto, categoria, monto, fecha_prog, notas))
+        from backend.shared.ids import new_uuid
+        row_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute(
+            "INSERT INTO gastos_futuros(id, sucursal_id, concepto, categoria, monto, fecha_prog, notas) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (row_id, sucursal_id, concepto, categoria, monto, fecha_prog, notas))
         self.db.commit()
-        return cur.lastrowid
+        return row_id
 
     def marcar_gasto_pagado(self, gasto_id: int) -> bool:
         """Marca un gasto futuro como pagado."""
@@ -451,11 +453,12 @@ class TreasuryService:
             ).fetchone()
             
             if not exists:
+                from backend.shared.ids import new_uuid
                 self.db.execute("""
                     INSERT INTO gastos_futuros
-                    (sucursal_id, concepto, categoria, monto, fecha_prog)
-                    VALUES(?,?,?,?,?)""",
-                    (sucursal_id, concepto, cat, monto, prox.isoformat()))
+                    (id, sucursal_id, concepto, categoria, monto, fecha_prog)
+                    VALUES(?,?,?,?,?,?)""",
+                    (new_uuid(), sucursal_id, concepto, cat, monto, prox.isoformat()))
                 creados += 1
         
         self.db.commit()
@@ -478,13 +481,15 @@ class TreasuryService:
                          frecuencia: str, dia_del_mes: int,
                          proveedor: str = "", sucursal_id: int = 1) -> int:
         """Crea un nuevo gasto fijo recurrente."""
-        cur = self.db.execute("""
+        from backend.shared.ids import new_uuid
+        gf_id = new_uuid()  # identidad UUIDv7 explícita (REGLA CERO)
+        self.db.execute("""
             INSERT INTO gastos_fijos
-            (sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor, activo)
-            VALUES(?,?,?,?,?,?,?,1)""",
-            (sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor))
+            (id, sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor, activo)
+            VALUES(?,?,?,?,?,?,?,?,1)""",
+            (gf_id, sucursal_id, concepto, categoria, monto, frecuencia, dia_del_mes, proveedor))
         self.db.commit()
-        return cur.lastrowid
+        return gf_id
 
     def toggle_gasto_fijo(self, gasto_fijo_id: int) -> bool:
         """Activa o pausa un gasto fijo."""
@@ -524,10 +529,11 @@ class TreasuryService:
                               monto: float = 0, metodo_pago: str = "efectivo",
                               usuario: str = "", sucursal_id: int = 1):
         """Registra un gasto operativo en la tabla gastos."""
+        from backend.shared.ids import new_uuid
         self.db.execute(
-            "INSERT INTO gastos (fecha, categoria, concepto, monto, metodo_pago, "
-            "usuario, fecha_registro) VALUES (datetime('now'),?,?,?,?,?,datetime('now'))",
-            (categoria, concepto, monto, metodo_pago, usuario))
+            "INSERT INTO gastos (id, fecha, categoria, concepto, monto, metodo_pago, "
+            "usuario, fecha_registro) VALUES (?,datetime('now'),?,?,?,?,?,datetime('now'))",
+            (new_uuid(), categoria, concepto, monto, metodo_pago, usuario))
         # registrar_egreso ya hace commit y publica MOVIMIENTO_FINANCIERO al EventBus
         self.registrar_egreso("gasto_operativo:" + categoria, concepto, monto,
                               sucursal_id, usuario=usuario)

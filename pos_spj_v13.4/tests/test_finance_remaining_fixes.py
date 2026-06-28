@@ -368,13 +368,6 @@ class TestMigracion082TreasuryTables:
         ).fetchall()}
         assert "treasury_ledger" in tables
 
-    def test_crea_gastos_futuros(self):
-        conn = self._run_migration()
-        tables = {r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()}
-        assert "gastos_futuros" in tables
-
     def test_crea_pagos_cobros(self):
         conn = self._run_migration()
         tables = {r[0] for r in conn.execute(

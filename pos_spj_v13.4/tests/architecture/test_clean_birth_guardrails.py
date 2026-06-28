@@ -286,7 +286,7 @@ def test_treasury_tables_are_born_clean_uuid_identity():
 
     # treasury_service.py es multi-tabla: las escrituras de tesorería (capital,
     # ledger, gastos_fijos) acuñan new_uuid(); conserva lastrowid solo en las
-    # tablas diferidas (pagos_cobros/gastos) de sub-pases posteriores.
+    # tablas diferidas (pagos_cobros) de sub-pases posteriores.
     ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
     assert "from backend.shared.ids import new_uuid" in ts_src
     assert "INSERT INTO treasury_capital" in ts_src and "INSERT INTO treasury_ledger" in ts_src
@@ -298,6 +298,48 @@ def test_treasury_tables_are_born_clean_uuid_identity():
         assert "new_uuid()" in src, path
         assert "cur.lastrowid" not in src, path
         assert 'int(existing["id"])' not in src, path
+
+
+def test_gastos_tables_are_born_clean_uuid_identity():
+    """Gastos born-clean: gastos / gastos_futuros / gastos_fijos (m000 base)
+    llevan id TEXT UUIDv7 con sucursal_id TEXT (sin DEFAULT 1). dia_del_mes
+    permanece INTEGER (día-del-mes semántico, no identidad). Los escritores de
+    gastos en TreasuryService acuñan new_uuid() y gastos_futuros se define una
+    sola vez (la migración 082 ya no la duplica). El CRUD muerto de gastos en
+    finance_service (proveedor_id/activo fantasma) fue eliminado (REGLA 3).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    for table in ("gastos", "gastos_futuros", "gastos_fijos"):
+        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
+
+    gfu = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(gastos_futuros)").fetchall()}
+    assert gfu["sucursal_id"] == "TEXT"
+    gfi = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(gastos_fijos)").fetchall()}
+    assert gfi["sucursal_id"] == "TEXT"
+    assert gfi["dia_del_mes"] == "INTEGER"  # día-del-mes semántico, no identidad
+
+    # La migración 082 ya no crea/duplica gastos_futuros.
+    mig082 = (REPO / "migrations/standalone/082_treasury_tables.py").read_text(encoding="utf-8")
+    assert "CREATE TABLE IF NOT EXISTS gastos_futuros" not in mig082
+
+    # Escritores de gastos en TreasuryService acuñan UUID y no usan lastrowid.
+    ts_src = (REPO / "core/services/finance/treasury_service.py").read_text(encoding="utf-8")
+    assert "INSERT INTO gastos_futuros(id," in ts_src
+    assert "INSERT INTO gastos_fijos" in ts_src and "INSERT INTO gastos (id," in ts_src
+
+    # El CRUD muerto de gastos fue removido de finance_service.
+    fs_src = (REPO / "core/services/enterprise/finance_service.py").read_text(encoding="utf-8")
+    assert "def upsert_expense" not in fs_src
+    assert "g.proveedor_id" not in fs_src
 
 
 def test_whatsapp_messaging_tables_are_born_clean_uuid_identity():
