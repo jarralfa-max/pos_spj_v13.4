@@ -68,16 +68,18 @@ class EventLogger:
         self._ensure_table()
 
     def _ensure_table(self) -> None:
+        # Identidad UUIDv7 TEXT (REGLA CERO): id es la identidad del evento (sin
+        # columna uuid dual). Esquema canónico en m000_base_schema; creación
+        # defensiva born-clean para conexiones aisladas.
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS event_log (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid             TEXT    NOT NULL UNIQUE,
+                id               TEXT    PRIMARY KEY,
                 tipo             TEXT    NOT NULL,
                 entidad          TEXT    NOT NULL,
-                entidad_id       INTEGER,
+                entidad_id       TEXT,
                 payload          TEXT    NOT NULL,
                 payload_hash     TEXT,
-                sucursal_id      INTEGER NOT NULL DEFAULT 1,
+                sucursal_id      TEXT    NOT NULL,
                 usuario          TEXT    NOT NULL,
                 origin_device_id TEXT    DEFAULT '',
                 device_version   INTEGER DEFAULT 0,
@@ -122,7 +124,8 @@ class EventLogger:
         operation_id:  str   = None,
     ) -> int:
         try:
-            event_uuid   = str(uuid.uuid4())
+            from backend.shared.ids import new_uuid
+            event_uuid   = new_uuid()  # identidad UUIDv7 (REGLA CERO)
             payload_str  = json.dumps(payload or {}, ensure_ascii=False)
             payload_hash = _sha256_payload(payload_str)
 
@@ -141,10 +144,11 @@ class EventLogger:
             device_ver   = self._next_device_version(tipo)
             from utils.operation_context import get_operation_id
             op_id = operation_id or get_operation_id() or ""
-            cur = self.conn.execute(
+            # id es la identidad UUIDv7 del evento (antes columna uuid dual).
+            self.conn.execute(
                 """
                 INSERT INTO event_log
-                    (uuid, tipo, entidad, entidad_id, payload, payload_hash,
+                    (id, tipo, entidad, entidad_id, payload, payload_hash,
                      sucursal_id, usuario, origin_device_id, device_version,
                      event_version, operation_id)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
@@ -170,22 +174,24 @@ class EventLogger:
                 lamport_ts = int(lp_row[0]) + 1 if lp_row else 1
                 self.conn.execute(
                     "INSERT OR IGNORE INTO sync_outbox"
-                    "(uuid,tabla,operacion,registro_id,payload,sucursal_id,lamport_ts)"
+                    "(id,tabla,operacion,registro_id,payload,sucursal_id,lamport_ts)"
                     " VALUES(?,?,?,?,?,?,?)",
                     (event_uuid, f"event:{entidad}", "EVENT",
                      entidad_id, payload_str, sucursal_id, lamport_ts)
                 )
             except Exception as _be:
                 logger.debug("EventLogger→outbox bridge: %s", _be)
-            return cur.lastrowid
+            return event_uuid
         except Exception as exc:
             logger.warning("EventLogger.registrar falló silenciosamente: %s", exc)
             return -1
 
     def pendientes(self, limit: int = 100) -> list:
+        # id es la identidad UUIDv7; se expone también como uuid para los
+        # consumidores del protocolo de sincronización.
         return self.conn.execute(
             """
-            SELECT id, uuid, tipo, entidad, entidad_id, payload,
+            SELECT id, id AS uuid, tipo, entidad, entidad_id, payload,
                    payload_hash, sucursal_id, usuario,
                    origin_device_id, device_version, event_version, fecha
             FROM event_log

@@ -68,14 +68,15 @@ class SyncService:
         """
         _sucursal = sucursal_id or getattr(self, 'sucursal_id', 1)
         try:
+            from backend.shared.ids import new_uuid
             payload_json = json.dumps(payload, ensure_ascii=False, default=str)
             _cur = cursor if cursor is not None else self._cursor()
             _cur.execute("""
                 INSERT INTO sync_outbox
-                    (tabla, operacion, registro_id, payload, sucursal_id,
+                    (id, tabla, operacion, registro_id, payload, sucursal_id,
                      enviado, intentos, fecha)
-                VALUES (?, ?, ?, ?, ?, 0, 0, datetime('now'))
-            """, (tabla, operacion, registro_id, payload_json, _sucursal))
+                VALUES (?, ?, ?, ?, ?, ?, 0, 0, datetime('now'))
+            """, (new_uuid(), tabla, operacion, registro_id, payload_json, _sucursal))
 
             # Increment Lamport clock (best-effort, never blocks the sale)
             try:
@@ -107,9 +108,10 @@ class SyncService:
         cursor = self._cursor()
         
         # Tomamos hasta 50 eventos pendientes por lote
+        # id es la identidad UUIDv7 (time-ordered); se expone como uuid del evento.
         pendientes = cursor.execute("""
-            SELECT id, uuid, tabla, operacion, registro_id, payload 
-            FROM sync_outbox 
+            SELECT id, id AS uuid, tabla, operacion, registro_id, payload
+            FROM sync_outbox
             WHERE enviado = 0 AND intentos < 10
             ORDER BY id ASC LIMIT 50
         """).fetchall()

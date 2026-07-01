@@ -168,6 +168,67 @@ def test_api_webapp_treats_identity_as_uuid_no_int_casts():
     assert "producto_id: str" in uc_src
 
 
+def test_sincronizacion_tables_are_born_clean_single_uuid_identity():
+    """SINCRONIZACION born-clean (REGLA CERO): las tablas del motor offline-first
+    llevan identidad UUIDv7 TEXT única — sin columna uuid dual, sin surrogate
+    entero, sin DEFAULT 1:
+      - sync_outbox / sync_inbox / event_log: id TEXT PRIMARY KEY (sin uuid dual),
+        registro_id/entidad_id/sucursal_id/sucursal_origen TEXT.
+      - sync_batch_log: identidad natural batch_id TEXT (sin surrogate id).
+      - sync_version_history: PK compuesta (event_id, version) (sin surrogate id).
+    Los writers acuñan new_uuid() y NO usan lastrowid como identidad; el protocolo
+    de sync expone id AS uuid (compatibilidad de wire sin columna dual).
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    # Tablas con id TEXT PK único (sin columna uuid dual).
+    for table, fk_cols in (
+        ("sync_outbox", ("registro_id", "sucursal_id")),
+        ("sync_inbox", ("registro_id", "sucursal_origen")),
+        ("event_log", ("entidad_id", "sucursal_id")),
+    ):
+        cols = {r[1]: (r[2].upper(), r[4], r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        assert cols["id"][0] == "TEXT", f"{table}.id debe ser TEXT"
+        assert cols["id"][2] == 1, f"{table}.id debe ser PRIMARY KEY"
+        assert "uuid" not in cols, f"{table} no debe tener columna uuid dual"
+        for fk in fk_cols:
+            assert cols[fk][0] == "TEXT", f"{table}.{fk} debe ser TEXT"
+        # sucursal_id no debe traer DEFAULT 1.
+        if "sucursal_id" in cols:
+            assert cols["sucursal_id"][1] not in (1, "1"), f"{table}.sucursal_id no debe tener DEFAULT 1"
+
+    # sync_batch_log: identidad natural batch_id TEXT, sin surrogate id.
+    sbl = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(sync_batch_log)").fetchall()}
+    assert "id" not in sbl, "sync_batch_log no debe tener surrogate id entero"
+    assert sbl["batch_id"] == ("TEXT", 1), "sync_batch_log.batch_id debe ser TEXT PRIMARY KEY"
+
+    # sync_version_history: PK natural compuesta (event_id, version), sin surrogate.
+    svh = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(sync_version_history)").fetchall()}
+    assert "id" not in svh, "sync_version_history no debe tener surrogate id entero"
+    assert svh["event_id"][1] >= 1 and svh["version"][1] >= 1, "PK compuesta (event_id, version)"
+
+    # Writers acuñan UUIDv7 y no usan lastrowid como identidad.
+    se_src = (REPO / "sync/sync_engine.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in se_src
+    assert "AUTOINCREMENT" not in se_src
+    el_src = (REPO / "sync/event_logger.py").read_text(encoding="utf-8")
+    assert "event_uuid   = new_uuid()" in el_src
+    assert "cur.lastrowid" not in el_src
+    ss_src = (REPO / "core/services/sync_service.py").read_text(encoding="utf-8")
+    assert "new_uuid()" in ss_src
+    # El protocolo de sync preserva el wire alias id AS uuid (sin columna dual).
+    assert "id AS uuid" in se_src
+    sw_src = (REPO / "sync/sync_worker.py").read_text(encoding="utf-8")
+    assert "id AS uuid" in sw_src
+
+
 def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
     """The canonical loyalty_ledger carries a TEXT UUIDv7 id (minted by the repo,
     not autoincrement) with TEXT cliente_id/sucursal_id, and the dead points
