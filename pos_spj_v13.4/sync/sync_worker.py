@@ -400,7 +400,7 @@ class SyncWorker(_SyncWorkerBase):
         Previously only read event_log → sales events (in sync_outbox) were never sent.
         """
         rows_el = conn.execute("""
-            SELECT id, uuid, tipo, entidad, entidad_id, payload,
+            SELECT id, id AS uuid, tipo, entidad, entidad_id, payload,
                    usuario, fecha,
                    COALESCE(payload_hash,   '')  AS payload_hash,
                    COALESCE(event_version,  1)   AS event_version,
@@ -415,7 +415,7 @@ class SyncWorker(_SyncWorkerBase):
 
         rows_ob = conn.execute("""
             SELECT id,
-                   COALESCE(uuid, lower(hex(randomblob(16)))) AS uuid,
+                   id             AS uuid,
                    tabla          AS tipo,
                    tabla          AS entidad,
                    registro_id    AS entidad_id,
@@ -460,7 +460,7 @@ class SyncWorker(_SyncWorkerBase):
         try:
             conn.execute(
                 f"UPDATE event_log SET synced=1, fecha_sync=datetime('now') "
-                f"WHERE uuid IN ({placeholders})",
+                f"WHERE id IN ({placeholders})",
                 uuids,
             )
         except Exception:
@@ -469,7 +469,7 @@ class SyncWorker(_SyncWorkerBase):
         try:
             conn.execute(
                 f"UPDATE sync_outbox SET enviado=1 "
-                f"WHERE uuid IN ({placeholders})",
+                f"WHERE id IN ({placeholders})",
                 uuids,
             )
         except Exception:
@@ -497,7 +497,7 @@ class SyncWorker(_SyncWorkerBase):
             razon   = c.get("razon", "conflicto")
             conn.execute(
                 "UPDATE event_log SET sync_error=?, sync_intentos=sync_intentos+1 "
-                "WHERE uuid=?",
+                "WHERE id=?",
                 (f"CONFLICTO: {razon}", uuid_ev),
             )
             logger.warning("Conflicto evento %s: %s", uuid_ev, razon)
@@ -527,7 +527,7 @@ class SyncWorker(_SyncWorkerBase):
 
             if policy == "LAST_WRITE_WINS":
                 row = conn.execute(
-                    "SELECT device_version FROM event_log WHERE uuid=?",
+                    "SELECT device_version FROM event_log WHERE id=?",
                     (uuid_ev,),
                 ).fetchone()
                 local_ver = int(row[0]) if row else 0
@@ -538,7 +538,7 @@ class SyncWorker(_SyncWorkerBase):
                         "UPDATE event_log SET synced=0, sync_error=NULL, "
                         "event_version=event_version+1, "
                         "sync_intentos=CASE WHEN sync_intentos>0 THEN sync_intentos-1 ELSE 0 END "
-                        "WHERE uuid=?",
+                        "WHERE id=?",
                         (uuid_ev,),
                     )
                     logger.info(
@@ -550,7 +550,7 @@ class SyncWorker(_SyncWorkerBase):
             # SERVER_AUTHORITATIVE o LWW donde servidor gana
             conn.execute(
                 "UPDATE event_log SET sync_error=?, sync_intentos=sync_intentos+1 "
-                "WHERE uuid=?",
+                "WHERE id=?",
                 (f"CONFLICTO[{policy}]: {razon}", uuid_ev),
             )
             logger.warning(
