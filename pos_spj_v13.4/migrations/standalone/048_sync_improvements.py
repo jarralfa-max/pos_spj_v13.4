@@ -32,14 +32,8 @@ def up(conn):
     add_col("event_log",   "operation_id TEXT")
     add_col("sync_outbox", "operation_id TEXT")
 
-    # Asegurar uuid en sync_outbox para idempotencia
-    add_col("sync_outbox", "uuid TEXT")
-    try:
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_uuid "
-            "ON sync_outbox(uuid) WHERE uuid IS NOT NULL"
-        )
-    except Exception: pass
+    # Identidad UUIDv7 TEXT (REGLA CERO): sync_outbox.id ES la identidad
+    # (born-clean, sin columna uuid dual). Ya no se añade uuid.
 
     # Índices de performance para sync
     for idx in [

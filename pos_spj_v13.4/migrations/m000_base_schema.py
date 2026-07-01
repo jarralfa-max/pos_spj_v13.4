@@ -2236,13 +2236,12 @@ def _create_mermas_ajustes(conn):
 def _create_sync(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_outbox (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid        TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
+            id          TEXT PRIMARY KEY,
             tabla       TEXT NOT NULL,
             operacion   TEXT NOT NULL,
-            registro_id INTEGER,
+            registro_id TEXT,
             payload     TEXT,
-            sucursal_id INTEGER,
+            sucursal_id TEXT,
             lamport_ts  INTEGER DEFAULT 0,
             enviado     INTEGER DEFAULT 0,
             intentos    INTEGER DEFAULT 0,
@@ -2252,13 +2251,12 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_inbox (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid            TEXT UNIQUE,
+            id              TEXT PRIMARY KEY,
             tabla           TEXT NOT NULL,
             operacion       TEXT NOT NULL,
-            registro_id     INTEGER,
+            registro_id     TEXT,
             payload         TEXT,
-            sucursal_origen INTEGER,
+            sucursal_origen TEXT,
             lamport_ts      INTEGER DEFAULT 0,
             integrado       INTEGER DEFAULT 0,
             fecha_recibido  REAL DEFAULT (unixepoch())
@@ -2272,8 +2270,7 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_batch_log (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            batch_id      TEXT NOT NULL UNIQUE,
+            batch_id      TEXT PRIMARY KEY,
             device_id     TEXT NOT NULL,
             event_count   INTEGER NOT NULL,
             compressed_size INTEGER,
@@ -2299,24 +2296,22 @@ def _create_sync(conn):
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_version_history (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
             event_id    TEXT NOT NULL,
             version     INTEGER NOT NULL,
             hash        TEXT NOT NULL,
             device_id   TEXT NOT NULL,
             recorded_at DATETIME NOT NULL DEFAULT (datetime('now')),
-            UNIQUE(event_id, version)
+            PRIMARY KEY(event_id, version)
         )
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS event_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            uuid            TEXT    NOT NULL UNIQUE,
+            id              TEXT    PRIMARY KEY,
             tipo            TEXT    NOT NULL,
             entidad         TEXT    NOT NULL,
-            entidad_id      INTEGER,
+            entidad_id      TEXT,
             payload         TEXT    NOT NULL,
-            sucursal_id     INTEGER NOT NULL DEFAULT 1,
+            sucursal_id     TEXT    NOT NULL,
             usuario         TEXT    NOT NULL DEFAULT 'Sistema',
             synced          INTEGER DEFAULT 0,
             sync_intentos   INTEGER DEFAULT 0,
