@@ -1018,6 +1018,24 @@ SERVICES_WITH_DDL_CEILING = 20
 LASTROWID_FILE_CEILING = 31
 
 
+def test_cierre_global_final_report_exists_and_debt_ceilings_declared():
+    """CIERRE_GLOBAL (cierre de pipeline): el reporte final del pipeline existe y
+    documenta el estado honesto de identidad, y los tres techos de deuda born-clean
+    siguen declarados (sólo pueden bajar hacia 0). Este capstone impide que el
+    reporte o los techos desaparezcan silenciosamente.
+    """
+    report = REPO / "docs/refactor/modules/cierre_global.md"
+    assert report.exists(), "Falta el reporte final del pipeline (cierre_global.md)"
+    body = report.read_text(encoding="utf-8")
+    for anchor in ("Reporte final del pipeline", "uuid_cutover", "CONFIGURACION",
+                   "INTEGER_PK_TABLE_CEILING"):
+        assert anchor in body, f"El reporte final debe documentar: {anchor}"
+
+    # Los techos de deuda siguen siendo enteros no-negativos (target 0).
+    for ceiling in (INTEGER_PK_TABLE_CEILING, SERVICES_WITH_DDL_CEILING, LASTROWID_FILE_CEILING):
+        assert isinstance(ceiling, int) and ceiling >= 0
+
+
 def test_integer_pk_tables_in_base_schema_do_not_grow():
     from backend.infrastructure.db.uuid_cutover import find_integer_pks
 

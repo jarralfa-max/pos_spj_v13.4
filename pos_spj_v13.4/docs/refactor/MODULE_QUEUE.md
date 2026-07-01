@@ -52,7 +52,7 @@ DONE
 |    31 | SINCRONIZACION        | Sincronización           | DONE |
 |    32 | INSTALADOR            | Instalador               | DONE |
 |    33 | ACTUALIZADOR          | Actualizador             | DONE |
-|    34 | CIERRE_GLOBAL         | Cierre global            | PENDING |
+|    34 | CIERRE_GLOBAL         | Cierre global            | DONE |
 
 ## Regla
 
