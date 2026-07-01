@@ -50,7 +50,7 @@ DONE
 |    29 | REPORTES              | Reportes                 | DONE |
 |    30 | API                   | API FastAPI              | DONE |
 |    31 | SINCRONIZACION        | Sincronización           | DONE |
-|    32 | INSTALADOR            | Instalador               | PENDING |
+|    32 | INSTALADOR            | Instalador               | DONE |
 |    33 | ACTUALIZADOR          | Actualizador             | PENDING |
 |    34 | CIERRE_GLOBAL         | Cierre global            | PENDING |
 

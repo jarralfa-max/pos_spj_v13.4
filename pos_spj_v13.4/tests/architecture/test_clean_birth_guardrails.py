@@ -1029,6 +1029,41 @@ def test_integer_pk_tables_in_base_schema_do_not_grow():
     )
 
 
+def test_instalador_provisioning_is_uuid_native_and_ddl_free():
+    """INSTALADOR born-clean (REGLA CERO + REGLA 11): la ruta de aprovisionamiento
+    (bootstrap_db + seed_demo + _seed_initial_data) es UUIDv7-native y no define
+    esquema fuera de migrations/.
+
+    - scripts/bootstrap_db.py: solo corre migraciones y verifica; sin DDL, sin
+      INSERT de entidades funcionales, sin AUTOINCREMENT.
+    - scripts/seed_demo.py: acuña new_uuid() para las entidades demo, no emite DDL
+      (bot_sessions es propiedad de m000) y no usa lastrowid como identidad.
+    - _seed_initial_data (m000): siembra el centinela matriz de forma idempotente
+      (INSERT OR IGNORE) sin lastrowid; el re-clavado a UUIDv7 queda reservado a
+      CONFIGURACION-02-IDENTITY (documentado en el docstring del seed).
+    """
+    boot_src = (REPO / "scripts/bootstrap_db.py").read_text(encoding="utf-8")
+    for ddl in ("CREATE TABLE", "ALTER TABLE", "DROP TABLE", "AUTOINCREMENT"):
+        assert ddl not in boot_src, f"bootstrap_db.py no debe contener {ddl!r}"
+    assert "INSERT INTO" not in boot_src, "bootstrap_db.py no siembra entidades; solo migra/verifica"
+
+    seed_src = (REPO / "scripts/seed_demo.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in seed_src
+    assert "CREATE TABLE" not in seed_src, "seed_demo.py no debe emitir DDL (REGLA 11)"
+    assert "ALTER TABLE" not in seed_src
+    assert ".lastrowid" not in seed_src, "seed_demo.py no usa lastrowid como identidad"
+    # Las entidades demo se acuñan con UUIDv7 explícito en el INSERT.
+    for table in ("productos", "clientes", "usuarios", "ventas", "detalles_venta", "lotes"):
+        assert f"INSERT OR IGNORE INTO {table}" in seed_src or f"INSERT INTO {table}" in seed_src, table
+
+    m000_src = (REPO / "migrations/m000_base_schema.py").read_text(encoding="utf-8")
+    # El seed matriz es idempotente y no depende de lastrowid.
+    seed_body = m000_src.split("def _seed_initial_data")[1].split("\ndef ")[0]
+    assert "INSERT OR IGNORE INTO sucursales" in seed_body
+    assert ".lastrowid" not in seed_body
+    assert "CONFIGURACION-02-IDENTITY" in seed_body, "deferral del centinela debe estar documentado"
+
+
 def _service_files_with_ddl() -> list[str]:
     ddl = re.compile(r"CREATE TABLE|ALTER TABLE|DROP TABLE|executescript")
     roots = [REPO / "core" / "services", REPO / "application" / "services"]
