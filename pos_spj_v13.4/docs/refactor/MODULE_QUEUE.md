@@ -51,7 +51,7 @@ DONE
 |    30 | API                   | API FastAPI              | DONE |
 |    31 | SINCRONIZACION        | Sincronización           | DONE |
 |    32 | INSTALADOR            | Instalador               | DONE |
-|    33 | ACTUALIZADOR          | Actualizador             | PENDING |
+|    33 | ACTUALIZADOR          | Actualizador             | DONE |
 |    34 | CIERRE_GLOBAL         | Cierre global            | PENDING |
 
 ## Regla

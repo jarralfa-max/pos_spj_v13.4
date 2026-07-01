@@ -271,8 +271,8 @@
       "report": "docs/refactor/modules/instalador.md"
     },
     "ACTUALIZADOR": {
-      "status": "PENDING",
-      "iteration": 0,
+      "status": "DONE",
+      "iteration": 1,
       "score": 0,
       "open_violations": null,
       "tests_failed": null,

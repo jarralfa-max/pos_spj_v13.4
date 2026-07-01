@@ -1029,6 +1029,46 @@ def test_integer_pk_tables_in_base_schema_do_not_grow():
     )
 
 
+def test_actualizador_migration_ledger_born_clean_natural_key():
+    """ACTUALIZADOR born-clean (REGLA CERO/REGLA 3): el ledger de migraciones
+    schema_migrations usa la clave natural `version` (única, inmutable) sin
+    surrogate entero AUTOINCREMENT — el motor de migraciones (que crea la tabla
+    primero) queda alineado con la definición born-clean de la migración 026.
+    El paquete updater (backend/infrastructure/updater/*) y actualizar.py no tocan
+    la BD ni emiten DDL/AUTOINCREMENT/lastrowid.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(schema_migrations)").fetchall()}
+    assert "id" not in cols, "schema_migrations no debe tener surrogate entero"
+    assert cols["version"] == ("TEXT", 1), "version debe ser la PK natural TEXT"
+    # El ledger efectivamente registró migraciones (no quedó vacío tras el flip).
+    assert conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] > 0
+
+    eng_src = (REPO / "migrations/engine.py").read_text(encoding="utf-8")
+    assert "PRIMARY KEY AUTOINCREMENT" not in eng_src, "engine.py no debe crear tablas AUTOINCREMENT"
+    assert ".lastrowid" not in eng_src
+
+    # Paquete updater: skeletons de descarga/instalación/manifiesto, sin BD ni DDL.
+    updater_dir = REPO / "backend/infrastructure/updater"
+    for p in updater_dir.rglob("*.py"):
+        src = p.read_text(encoding="utf-8")
+        for bad in ("CREATE TABLE", "ALTER TABLE", "AUTOINCREMENT", ".lastrowid"):
+            assert bad not in src, f"{p.name} no debe contener {bad!r}"
+
+    # actualizar.py: verificador de instalación de solo lectura (sin escrituras DB).
+    act_src = (REPO / "actualizar.py").read_text(encoding="utf-8")
+    for bad in ("CREATE TABLE", "ALTER TABLE", "INSERT INTO", "AUTOINCREMENT", ".lastrowid"):
+        assert bad not in act_src, f"actualizar.py no debe contener {bad!r}"
+
+
 def test_instalador_provisioning_is_uuid_native_and_ddl_free():
     """INSTALADOR born-clean (REGLA CERO + REGLA 11): la ruta de aprovisionamiento
     (bootstrap_db + seed_demo + _seed_initial_data) es UUIDv7-native y no define
