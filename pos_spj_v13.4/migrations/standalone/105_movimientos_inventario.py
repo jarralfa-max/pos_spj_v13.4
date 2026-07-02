@@ -81,7 +81,7 @@ def run(conn: sqlite3.Connection) -> None:
         # Table exists — ensure optional columns added by later migrations are present
         _add_col(conn, "movimientos_inventario", "lote_id",      "TEXT")
         _add_col(conn, "movimientos_inventario", "merma_motivo",  "TEXT")
-        _add_col(conn, "movimientos_inventario", "uuid",          "TEXT")
+        # (Plan B) movimientos_inventario.id ES el UUID; sin columna uuid dual.
         _add_col(conn, "movimientos_inventario", "referencia_id", "INTEGER")
         _add_col(conn, "movimientos_inventario", "operation_id",  "TEXT")
         logger.info("105: movimientos_inventario already exists — columns verified")
