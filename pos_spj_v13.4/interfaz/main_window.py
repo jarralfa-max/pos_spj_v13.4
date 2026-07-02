@@ -765,9 +765,33 @@ class MainWindow(QMainWindow):
         usuario          = self.usuario_actual.get("username", "")
         nombre           = self.usuario_actual.get("nombre", usuario)
         rol              = self.usuario_actual.get("rol", "cajero")
-        sucursal_id      = self.usuario_actual.get("sucursal_id") or 0
+        # Identidad UUIDv7: la sucursal circula como UUID string. Si el usuario
+        # no trae sucursal asignada, se resuelve la primera activa de la BD
+        # (nunca el centinela entero 0/1).
+        sucursal_id      = str(self.usuario_actual.get("sucursal_id") or "")
         nombre_suc       = self.usuario_actual.get("sucursal_nombre") or ""
-        active_branch_id = self.usuario_actual.get("active_branch_id") or (str(sucursal_id) if sucursal_id else "")
+        if not sucursal_id or not nombre_suc:
+            try:
+                if not sucursal_id:
+                    _row = self.container.db.execute(
+                        "SELECT id, nombre FROM sucursales WHERE activa=1 "
+                        "ORDER BY fecha_alta LIMIT 1"
+                    ).fetchone()
+                    if _row:
+                        sucursal_id = str(_row[0])
+                        nombre_suc = nombre_suc or str(_row[1] or "")
+                if sucursal_id and not nombre_suc:
+                    _row_n = self.container.db.execute(
+                        "SELECT nombre FROM sucursales WHERE id=?", (sucursal_id,)
+                    ).fetchone()
+                    if _row_n:
+                        nombre_suc = str(_row_n[0] or "")
+            except Exception:
+                pass
+        self.usuario_actual["sucursal_id"] = sucursal_id
+        self.usuario_actual["sucursal_nombre"] = nombre_suc
+        active_branch_id = self.usuario_actual.get("active_branch_id") or sucursal_id
+        self.usuario_actual["active_branch_id"] = active_branch_id
 
         # v13.4: Actualizar barra de sesión
         if hasattr(self, '_session_bar'):

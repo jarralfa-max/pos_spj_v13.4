@@ -1101,7 +1101,8 @@ class LoyaltyService:
         return printable
 
     def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
-        cancelled = str(self._app.repo.cancel_tickets_for_sale(venta_id, reason) or "")
+        n_cancelled = self._app.repo.cancel_tickets_for_sale(venta_id, reason)
+        cancelled = int(n_cancelled or 0)  # conteo de boletos, no identidad
         if cancelled > 0 and self._bus:
             self._bus.publish(
                 "RAFFLE_TICKET_CANCELLED",

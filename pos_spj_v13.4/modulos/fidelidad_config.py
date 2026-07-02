@@ -506,7 +506,7 @@ class ModuloFidelidadConfig(QWidget):
         txt_nombre = QLineEdit(); txt_descripcion = QTextEdit()
         dt_inicio = QDateEdit(); dt_inicio.setCalendarPopup(True); dt_inicio.setDate(QDate.currentDate())
         dt_fin = QDateEdit(); dt_fin.setCalendarPopup(True); dt_fin.setDate(QDate.currentDate().addDays(30))
-        cmb_sucursal = QSpinBox(); cmb_sucursal.setRange(1, 99999); cmb_sucursal.setValue(str(self.sucursal_id) if str(self.sucursal_id or "").isdigit() else 0)
+        cmb_sucursal = QLineEdit(str(self.sucursal_id or "")); cmb_sucursal.setReadOnly(True)  # sucursal activa (UUID)
         f1.addRow("Nombre:", txt_nombre); f1.addRow("Descripción:", txt_descripcion)
         f1.addRow("Fecha inicio:", dt_inicio); f1.addRow("Fecha fin:", dt_fin); f1.addRow("Sucursal:", cmb_sucursal)
         tabs.addTab(t1, "Datos generales")
@@ -590,7 +590,7 @@ class ModuloFidelidadConfig(QWidget):
                     "monto_por_boleto": amount_per_ticket.value(),
                     "fecha_inicio": f"{dt_inicio.date().toString('yyyy-MM-dd')} 00:00:00",
                     "fecha_fin": f"{dt_fin.date().toString('yyyy-MM-dd')} 23:59:59",
-                    "sucursal_id": cmb_sucursal.value(),
+                    "sucursal_id": cmb_sucursal.text().strip(),
                 },
                 {
                     "requires_registered_customer": 1 if req_reg.isChecked() else 0,
@@ -603,7 +603,7 @@ class ModuloFidelidadConfig(QWidget):
                     "allowed_payment_methods": allowed_pm.text().strip(),
                 },
                 prizes,
-                {"branches": [cmb_sucursal.value()]},
+                {"branches": [cmb_sucursal.text().strip()]},
             )
             Toast.success(self, "Rifas", "Rifa creada.")
             self._cargar_raffles()

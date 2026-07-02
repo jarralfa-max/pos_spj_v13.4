@@ -4245,7 +4245,8 @@ class ModuloVentas(ModuloBase):
             ls = getattr(self.container, 'loyalty_service', None) if hasattr(self, 'container') else None
             if ls:
                 try:
-                    puntos_totales = str(ls.saldo(cliente_id))
+                    saldo_pts = ls.saldo(cliente_id)
+                    puntos_totales = int(saldo_pts or 0)  # conteo de puntos
                     saldo_confiable = True
                 except Exception as exc:
                     logger.warning("Loyalty saldo post-venta no disponible: %s", exc)
