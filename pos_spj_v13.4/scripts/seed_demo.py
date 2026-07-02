@@ -330,15 +330,8 @@ def seed(db_path: str, clear: bool = False):
         print(f"    {usuario:15s} / {password:15s}  [{rol}]")
     print(f"{'='*55}\n")
 
-    try:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS bot_sessions "
-            "(numero TEXT PRIMARY KEY, datos TEXT, "
-            "ultima_actividad DATETIME DEFAULT (datetime('now')))"
-        )
-        conn.commit()
-    except Exception:
-        pass
+    # bot_sessions es propiedad del esquema canónico (m000_base_schema) y ya
+    # existe tras aplicar_migraciones; el seeder NO define DDL (REGLA 11).
     conn.close()
 
 

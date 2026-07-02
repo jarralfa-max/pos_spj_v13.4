@@ -1018,6 +1018,24 @@ SERVICES_WITH_DDL_CEILING = 20
 LASTROWID_FILE_CEILING = 31
 
 
+def test_cierre_global_final_report_exists_and_debt_ceilings_declared():
+    """CIERRE_GLOBAL (cierre de pipeline): el reporte final del pipeline existe y
+    documenta el estado honesto de identidad, y los tres techos de deuda born-clean
+    siguen declarados (sólo pueden bajar hacia 0). Este capstone impide que el
+    reporte o los techos desaparezcan silenciosamente.
+    """
+    report = REPO / "docs/refactor/modules/cierre_global.md"
+    assert report.exists(), "Falta el reporte final del pipeline (cierre_global.md)"
+    body = report.read_text(encoding="utf-8")
+    for anchor in ("Reporte final del pipeline", "uuid_cutover", "CONFIGURACION",
+                   "INTEGER_PK_TABLE_CEILING"):
+        assert anchor in body, f"El reporte final debe documentar: {anchor}"
+
+    # Los techos de deuda siguen siendo enteros no-negativos (target 0).
+    for ceiling in (INTEGER_PK_TABLE_CEILING, SERVICES_WITH_DDL_CEILING, LASTROWID_FILE_CEILING):
+        assert isinstance(ceiling, int) and ceiling >= 0
+
+
 def test_integer_pk_tables_in_base_schema_do_not_grow():
     from backend.infrastructure.db.uuid_cutover import find_integer_pks
 
@@ -1027,6 +1045,81 @@ def test_integer_pk_tables_in_base_schema_do_not_grow():
         f"INTEGER PK tables grew to {count} (ceiling {INTEGER_PK_TABLE_CEILING}). "
         "Born-clean target is 0; new tables must be TEXT PRIMARY KEY."
     )
+
+
+def test_actualizador_migration_ledger_born_clean_natural_key():
+    """ACTUALIZADOR born-clean (REGLA CERO/REGLA 3): el ledger de migraciones
+    schema_migrations usa la clave natural `version` (única, inmutable) sin
+    surrogate entero AUTOINCREMENT — el motor de migraciones (que crea la tabla
+    primero) queda alineado con la definición born-clean de la migración 026.
+    El paquete updater (backend/infrastructure/updater/*) y actualizar.py no tocan
+    la BD ni emiten DDL/AUTOINCREMENT/lastrowid.
+    """
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+
+    cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(schema_migrations)").fetchall()}
+    assert "id" not in cols, "schema_migrations no debe tener surrogate entero"
+    assert cols["version"] == ("TEXT", 1), "version debe ser la PK natural TEXT"
+    # El ledger efectivamente registró migraciones (no quedó vacío tras el flip).
+    assert conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] > 0
+
+    eng_src = (REPO / "migrations/engine.py").read_text(encoding="utf-8")
+    assert "PRIMARY KEY AUTOINCREMENT" not in eng_src, "engine.py no debe crear tablas AUTOINCREMENT"
+    assert ".lastrowid" not in eng_src
+
+    # Paquete updater: skeletons de descarga/instalación/manifiesto, sin BD ni DDL.
+    updater_dir = REPO / "backend/infrastructure/updater"
+    for p in updater_dir.rglob("*.py"):
+        src = p.read_text(encoding="utf-8")
+        for bad in ("CREATE TABLE", "ALTER TABLE", "AUTOINCREMENT", ".lastrowid"):
+            assert bad not in src, f"{p.name} no debe contener {bad!r}"
+
+    # actualizar.py: verificador de instalación de solo lectura (sin escrituras DB).
+    act_src = (REPO / "actualizar.py").read_text(encoding="utf-8")
+    for bad in ("CREATE TABLE", "ALTER TABLE", "INSERT INTO", "AUTOINCREMENT", ".lastrowid"):
+        assert bad not in act_src, f"actualizar.py no debe contener {bad!r}"
+
+
+def test_instalador_provisioning_is_uuid_native_and_ddl_free():
+    """INSTALADOR born-clean (REGLA CERO + REGLA 11): la ruta de aprovisionamiento
+    (bootstrap_db + seed_demo + _seed_initial_data) es UUIDv7-native y no define
+    esquema fuera de migrations/.
+
+    - scripts/bootstrap_db.py: solo corre migraciones y verifica; sin DDL, sin
+      INSERT de entidades funcionales, sin AUTOINCREMENT.
+    - scripts/seed_demo.py: acuña new_uuid() para las entidades demo, no emite DDL
+      (bot_sessions es propiedad de m000) y no usa lastrowid como identidad.
+    - _seed_initial_data (m000): siembra el centinela matriz de forma idempotente
+      (INSERT OR IGNORE) sin lastrowid; el re-clavado a UUIDv7 queda reservado a
+      CONFIGURACION-02-IDENTITY (documentado en el docstring del seed).
+    """
+    boot_src = (REPO / "scripts/bootstrap_db.py").read_text(encoding="utf-8")
+    for ddl in ("CREATE TABLE", "ALTER TABLE", "DROP TABLE", "AUTOINCREMENT"):
+        assert ddl not in boot_src, f"bootstrap_db.py no debe contener {ddl!r}"
+    assert "INSERT INTO" not in boot_src, "bootstrap_db.py no siembra entidades; solo migra/verifica"
+
+    seed_src = (REPO / "scripts/seed_demo.py").read_text(encoding="utf-8")
+    assert "from backend.shared.ids import new_uuid" in seed_src
+    assert "CREATE TABLE" not in seed_src, "seed_demo.py no debe emitir DDL (REGLA 11)"
+    assert "ALTER TABLE" not in seed_src
+    assert ".lastrowid" not in seed_src, "seed_demo.py no usa lastrowid como identidad"
+    # Las entidades demo se acuñan con UUIDv7 explícito en el INSERT.
+    for table in ("productos", "clientes", "usuarios", "ventas", "detalles_venta", "lotes"):
+        assert f"INSERT OR IGNORE INTO {table}" in seed_src or f"INSERT INTO {table}" in seed_src, table
+
+    m000_src = (REPO / "migrations/m000_base_schema.py").read_text(encoding="utf-8")
+    # El seed matriz es idempotente y no depende de lastrowid.
+    seed_body = m000_src.split("def _seed_initial_data")[1].split("\ndef ")[0]
+    assert "INSERT OR IGNORE INTO sucursales" in seed_body
+    assert ".lastrowid" not in seed_body
+    assert "CONFIGURACION-02-IDENTITY" in seed_body, "deferral del centinela debe estar documentado"
 
 
 def _service_files_with_ddl() -> list[str]:

@@ -3065,6 +3065,13 @@ def _seed_initial_data(conn: sqlite3.Connection):
     """
     Inyecta los datos semilla mínimos, vitales e indestructibles
     para que el sistema pueda operar desde cero.
+
+    REGLA CERO / INSTALADOR: la identidad de la sucursal matriz, la caja
+    principal y el usuario admin (centinela '1') está reservada al batch
+    CONFIGURACION-02-IDENTITY (ver docs/refactor/modules/configuracion_scope.json,
+    CFG-SCOPE-002), que re-clavará estos centinelas a UUIDv7 de forma coordinada
+    con las columnas branch/usuario acopladas. El instalador conserva el centinela
+    idempotente (INSERT OR IGNORE) hasta ese flip; no usa lastrowid como identidad.
     """
     # 1. Crear Sucursal Matriz
     conn.execute("""

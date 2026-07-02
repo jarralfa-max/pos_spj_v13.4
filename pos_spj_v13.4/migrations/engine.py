@@ -114,11 +114,13 @@ MIGRATIONS = [
 ]
 
 def _ensure_tracking_table(conn):
+    # Ledger de migraciones: la identidad natural es `version` (única, inmutable).
+    # Sin surrogate entero AUTOINCREMENT (REGLA CERO/REGLA 3: el id nunca se lee;
+    # alineado con la definición born-clean de la migración 026).
     conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            version     TEXT    NOT NULL UNIQUE,
-            executed_at TEXT    DEFAULT (datetime('now'))
+            version     TEXT PRIMARY KEY,
+            executed_at TEXT DEFAULT (datetime('now'))
         )""")
     try: conn.commit()
     except Exception: pass
