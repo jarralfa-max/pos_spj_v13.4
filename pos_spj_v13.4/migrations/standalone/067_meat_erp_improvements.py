@@ -90,7 +90,6 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS merma_log (
             id              TEXT PRIMARY KEY,
-            uuid            TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
             producto_id     TEXT NOT NULL REFERENCES productos(id),
             lote_id         TEXT REFERENCES lotes(id),
             produccion_id   TEXT REFERENCES producciones(id),
