@@ -68,6 +68,32 @@ class AppContainer:
         set_db_path(db_path)          # registra la ruta en el módulo canónico
         self.db = get_connection()    # WAL + NORMAL sync + FK + busy_timeout
 
+        # Sucursal activa inicial (Plan B born-clean): resolver SIEMPRE un UUID
+        # real — instalación configurada o primera sucursal activa — para que
+        # los módulos que leen container.sucursal_id en su __init__ nunca vean
+        # cadena vacía. El login puede sobreescribirla vía set_sucursal_activa.
+        try:
+            _row = self.db.execute(
+                "SELECT s.id, s.nombre FROM sucursales s "
+                "JOIN configuraciones c ON c.clave='sucursal_instalacion_id' "
+                "AND s.id = c.valor WHERE COALESCE(s.activa,1)=1 LIMIT 1"
+            ).fetchone()
+            if not _row:
+                _row = self.db.execute(
+                    "SELECT id, nombre FROM sucursales WHERE COALESCE(activa,1)=1 "
+                    "ORDER BY fecha_alta LIMIT 1"
+                ).fetchone()
+            if _row:
+                self.sucursal_id = str(_row[0])
+                self.sucursal_nombre = str(_row[1] or "")
+                if hasattr(self, "session"):
+                    try:
+                        self.session.set_sucursal(self.sucursal_id, self.sucursal_nombre)
+                    except Exception:
+                        pass
+        except Exception as _e:
+            logger.warning("No se pudo resolver la sucursal inicial: %s", _e)
+
         # =========================================================
         # CAPA 1: REPOSITORIOS (Acceso crudo a las tablas)
         # =========================================================
