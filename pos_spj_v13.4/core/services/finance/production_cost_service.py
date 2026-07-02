@@ -118,7 +118,7 @@ class ProductionCostService:
         for r in rows:
             r = dict(r)
             output_costs.append(OutputCostLine(
-                product_id  = int(r["product_id"]),
+                product_id  = str(r["product_id"]),
                 cost_total  = float(r["cost_total"]),
                 cost_per_kg = float(r["cost_per_kg"]),
                 weight      = float(r["weight"]),

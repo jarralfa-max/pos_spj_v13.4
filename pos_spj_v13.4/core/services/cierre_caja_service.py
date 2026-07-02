@@ -181,20 +181,21 @@ class CierreCajaService:
             sp_263cda = f"sp_{_u_sp_263cda.uuid4().hex[:6]}"
             self.conn.execute(f"SAVEPOINT {sp_263cda}")
             try:
-                cid = self.conn.execute("""INSERT INTO cierres_caja
-                    (uuid,tipo,sucursal_id,usuario,turno,fecha_apertura,
+                cid = new_uuid()  # identidad UUIDv7 del cierre (id canónico)
+                self.conn.execute("""INSERT INTO cierres_caja
+                    (id,tipo,sucursal_id,usuario,turno,fecha_apertura,
                      total_ventas,num_ventas,total_efectivo,total_tarjeta,
                      total_transferencia,total_otros,total_anulaciones,
                      num_anulaciones,efectivo_contado,fondo_inicial,
                      diferencia,comentarios)
                     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (new_uuid(), tipo, self.sucursal_id, self.usuario,
+                    (cid, tipo, self.sucursal_id, self.usuario,
                      turno["turno"] if turno else "N/A", fecha_desde,
                      resumen["total_ventas"], resumen["num_ventas"],
                      resumen["total_efectivo"], resumen["total_tarjeta"],
                      resumen["total_transferencia"], resumen["total_otros"],
                      resumen["total_anulaciones"], resumen["num_anulaciones"],
-                     efectivo_contado, fondo, diferencia, comentarios)).lastrowid
+                     efectivo_contado, fondo, diferencia, comentarios))
                 self.conn.execute("UPDATE turno_actual SET abierto=0 WHERE sucursal_id=?",
                           (self.sucursal_id,))
                 self.conn.commit()

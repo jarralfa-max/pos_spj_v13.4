@@ -499,15 +499,16 @@ class BotPedidos:
             folio = f"COT-{uuid.uuid4().hex[:6].upper()}"
             cliente_id = cliente["id"] if cliente else None
             with transaction(self.conn) as c:
-                cot_id = c.execute("""
+                cot_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+                c.execute("""
                     INSERT INTO cotizaciones
-                        (folio, cliente_id, cliente_nombre, subtotal, total,
+                        (id, folio, cliente_id, cliente_nombre, subtotal, total,
                          estado, vigencia_dias, fecha_vencimiento, sucursal_id)
-                    VALUES (?,?,?,?,?,'pendiente',2,date('now','+2 days'),?)
-                """, (folio, cliente_id,
+                    VALUES (?,?,?,?,?,?,'pendiente',2,date('now','+2 days'),?)
+                """, (cot_id, folio, cliente_id,
                       cliente["nombre"] if cliente else self.numero,
                       total, total, suc_id)
-                ).lastrowid
+                )
                 for item in items:
                     c.execute("""
                         INSERT INTO cotizaciones_detalle

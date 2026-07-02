@@ -133,7 +133,7 @@ class DeliveryOrder:
             driver_id=data.get("driver_id"),
             responsable_entrega=data.get("responsable_entrega") or data.get("responsable") or "",
             total=float(data.get("total") or 0),
-            sucursal_id=int(data.get("sucursal_id") or 1),
+            sucursal_id=str(data.get("sucursal_id") or ""),
             adjustment_pending=bool(data.get("adjustment_pending")),
             activated=bool(data.get("activated") or data.get("activated_at")),
             items=parsed_items,

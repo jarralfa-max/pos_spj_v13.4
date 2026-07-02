@@ -8,6 +8,7 @@
 from __future__ import annotations
 import sqlite3
 import logging
+from backend.shared.ids import new_uuid
 import time
 import threading
 from dataclasses import dataclass, field
@@ -190,11 +191,11 @@ def crear_usuario(
     password_hash = hash_password(password)
 
     try:
-        cur = conn.execute(
-            "INSERT INTO usuarios (usuario, contrasena, nombre, rol) VALUES (?,?,?,?)",
-            (usuario, password_hash, nombre, rol)
+        uid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        conn.execute(
+            "INSERT INTO usuarios (id, usuario, contrasena, nombre, rol) VALUES (?,?,?,?,?)",
+            (uid, usuario, password_hash, nombre, rol)
         )
-        uid = cur.lastrowid
         for mod in modulos:
             conn.execute(
                 "INSERT OR IGNORE INTO usuario_modulos (usuario_id, modulo) VALUES (?,?)",

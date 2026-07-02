@@ -636,18 +636,18 @@ class FinanceService:
                   data.get("banco"), data.get("cuenta_bancaria"), data.get("contacto"),
                   data.get("notas"), int(data.get("activo",1)), sid))
         else:
-            cur = self.db.execute("""
+            sid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+            self.db.execute("""
                 INSERT INTO suppliers
-                    (nombre, rfc, telefono, email, direccion, tipo,
+                    (id, nombre, rfc, telefono, email, direccion, tipo,
                      condiciones_pago, limite_credito, banco, cuenta_bancaria,
                      contacto, notas, activo)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (data.get("nombre",""), data.get("rfc"), data.get("telefono"),
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, (sid, data.get("nombre",""), data.get("rfc"), data.get("telefono"),
                   data.get("email"), data.get("direccion"), data.get("tipo","general"),
                   data.get("condiciones_pago",30), data.get("limite_credito",0),
                   data.get("banco"), data.get("cuenta_bancaria"), data.get("contacto"),
                   data.get("notas"), 1))
-            sid = cur.lastrowid
         self.db.commit()
         return sid
 
@@ -888,9 +888,9 @@ class FinanceService:
         """Abre un nuevo turno de caja. Lanza si ya hay uno abierto.
 
         UUID-native (REGLA CERO): el turno_id es un UUIDv7 acuñado con
-        ``new_uuid()`` e insertado explícitamente en ``turnos_caja.id`` — sin
-        ``lastrowid``. Requiere el esquema post-corte (migración 200) donde
-        ``turnos_caja.id`` es TEXT.
+        ``new_uuid()`` e insertado explícitamente en ``turnos_caja.id`` (identidad
+        acuñada, nunca el rowid implícito). El esquema born-clean define
+        ``turnos_caja.id`` como TEXT.
         """
         existing = self.get_estado_turno(sucursal_id, usuario)
         if existing:
@@ -1219,12 +1219,12 @@ class FinanceService:
         Returns: {"registrado": bool, "anticipo_id": int}
         """
         try:
-            cur = self.db.execute(
-                """INSERT INTO anticipos (venta_id, monto, estado, usuario_id, sucursal_id)
-                   VALUES (?, ?, 'aplicado', ?, ?)""",
-                (venta_id, monto_anticipo, usuario_id, sucursal_id)
+            anticipo_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+            self.db.execute(
+                """INSERT INTO anticipos (id, venta_id, monto, estado, usuario_id, sucursal_id)
+                   VALUES (?, ?, ?, 'aplicado', ?, ?)""",
+                (anticipo_id, venta_id, monto_anticipo, usuario_id, sucursal_id)
             )
-            anticipo_id = cur.lastrowid
 
             self.registrar_asiento(
                 debe="caja",

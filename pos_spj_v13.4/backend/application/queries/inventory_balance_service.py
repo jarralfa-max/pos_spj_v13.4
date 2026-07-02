@@ -86,7 +86,7 @@ class InventoryBalanceQueryService:
             stock_disponible Decimal  — stock_fisico - stock_reservado
             fuente           str      — "inventory_stock" | "productos.existencia"
         """
-        producto_id = int(producto_id)
+        producto_id = str(producto_id)
         sucursal_id = str(sucursal_id)
 
         stock_fisico = _ZERO

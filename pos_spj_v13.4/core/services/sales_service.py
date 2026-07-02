@@ -1198,7 +1198,7 @@ class SalesService:
         for it in items:
             qty = float(getattr(it, "cantidad", 0.0) or 0.0)
             pu = float(getattr(it, "precio_unitario", getattr(it, "precio_unit", 0.0)) or 0.0)
-            pid = int(getattr(it, "producto_id", 0) or 0)
+            pid = str(getattr(it, "producto_id", 0) or "")
             nm = getattr(it, "nombre", "")
             total_estimado += qty * pu
             items_payload.append({
@@ -1302,7 +1302,7 @@ class SalesService:
 
             with _txn(self.db):
                 for d in detalles:
-                    pid = int(d["producto_id"])
+                    pid = str(d["producto_id"])
                     qty = float(d["cantidad"] or 0)
                     if qty <= 0:
                         continue

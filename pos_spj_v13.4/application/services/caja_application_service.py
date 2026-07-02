@@ -79,7 +79,7 @@ class CajaApplicationService:
         """Abre un nuevo turno. Lanza TurnoYaAbiertoError si ya hay uno abierto.
 
         REGLA CERO: identidad UUIDv7 acuñada con new_uuid() e insertada
-        explícitamente en turnos_caja.id — sin lastrowid."""
+        explícitamente en turnos_caja.id — sin rowid implícito."""
         existing = self.get_estado_turno(sucursal_id, usuario)
         if existing:
             raise TurnoYaAbiertoError("Ya hay un turno abierto para este cajero.")
@@ -432,7 +432,7 @@ class CajaApplicationService:
                     diferencia, observaciones or "",
                 ),
             )
-            cierre_id = cierre_uuid  # REGLA CERO: identidad UUIDv7, sin lastrowid
+            cierre_id = cierre_uuid  # REGLA CERO: identidad UUIDv7, sin rowid implícito
 
             # 7b. Actualizar turnos_caja
             self.db.execute(

@@ -611,7 +611,7 @@ class FinancialTraceService:
         try:
             if self._fa:
                 result["depreciation_id"] = self._fa.depreciate_asset(
-                    asset_id=int(payload.get("asset_id", 0)),
+                    asset_id=str(payload.get("asset_id", "")),
                     period=str(payload.get("period", "")),
                     amount=payload.get("amount"),
                     user=str(payload.get("user", "sistema")),

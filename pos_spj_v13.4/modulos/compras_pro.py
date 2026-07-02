@@ -695,7 +695,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         added = 0
         for it in items:
-            prod_id    = int(it.get("product_id", it.get("producto_id", 0)) or 0)
+            prod_id    = str(it.get("product_id") or it.get("producto_id") or "")
             nombre     = str(it.get("nombre", f"Producto {prod_id}"))
             qty        = float(it.get("qty", it.get("cantidad", 0)) or 0)
             unit_cost  = float(it.get("unit_cost", it.get("costo_unitario", 0)) or 0)
@@ -6770,7 +6770,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         po_folio  = po.get("folio") or f"PO-{po_id}"
         po_estado = str(po.get("estado") or "ABIERTA").upper()
-        pr_id     = int(po.get("pr_id") or 0)
+        pr_id     = str(po.get("pr_id") or "")
 
         po_recibida = po_estado in ("RECIBIDA", "CERRADA")
         po_parcial  = po_estado == "PARCIAL"

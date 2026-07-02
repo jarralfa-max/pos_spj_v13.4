@@ -98,7 +98,7 @@ def _wire_raffle_finance_handlers(bus, container) -> None:
 
     def _post_if_new(data: dict, tipo: str, debe: str, haber: str, concepto: str) -> None:
         try:
-            raffle_id = int(data.get("raffle_id") or 0)
+            raffle_id = str(data.get("raffle_id") or "")
             if raffle_id <= 0:
                 return
             referencia = str(data.get("referencia") or "").strip()
@@ -108,7 +108,7 @@ def _wire_raffle_finance_handlers(bus, container) -> None:
             if monto <= 0:
                 return
             usuario = str(data.get("usuario") or "sistema")
-            sucursal_id = int(data.get("sucursal_id") or 1)
+            sucursal_id = str(data.get("sucursal_id") or "")
 
             # Guardia idempotente: UNIQUE(raffle_id, tipo, referencia)
             try:
@@ -201,7 +201,7 @@ def _wire_loyalty_domain_handlers(bus, container) -> None:
                     "loyalty_event",
                     str(data.get("referencia") or data.get("card_code") or data.get("cliente_id") or ""),
                     str(data.get("usuario", "sistema")),
-                    int(data.get("sucursal_id", 1) or 1),
+                    str(data.get("sucursal_id", "") or ""),
                     str(data),
                 ),
             )
@@ -352,11 +352,11 @@ def _wire_venta(bus, container) -> None:
             return
         try:
             snapshot = ls.process_raffles_for_sale(
-                venta_id=int(data.get("venta_id") or 0),
-                cliente_id=int(data.get("cliente_id") or 0),
+                venta_id=str(data.get("venta_id") or ""),
+                cliente_id=str(data.get("cliente_id") or ""),
                 folio=str(data.get("folio") or ""),
                 total=float(data.get("total") or 0),
-                sucursal_id=int(data.get("sucursal_id") or 1),
+                sucursal_id=str(data.get("sucursal_id") or ""),
                 payment_method=str(data.get("payment_method") or ""),
                 items=list(data.get("items") or []),
                 sale_datetime=str(data.get("sale_datetime") or ""),
@@ -410,7 +410,7 @@ def _wire_venta(bus, container) -> None:
                     categoria  = "venta",
                     concepto   = f"Venta {data.get('folio', data.get('venta_id', ''))}",
                     monto      = total,
-                    sucursal_id= int(data.get("sucursal_id", 1)),
+                    sucursal_id= str(data.get("sucursal_id", "")),
                     referencia = str(data.get("folio", "")),
                     usuario    = str(data.get("usuario", "sistema")),
                 )
@@ -435,7 +435,7 @@ def _wire_venta(bus, container) -> None:
         if not ls:
             return
         try:
-            ls.cancel_tickets_for_sale(int(data.get("venta_id") or 0), str(data.get("motivo") or "cancelación de venta"))
+            ls.cancel_tickets_for_sale(str(data.get("venta_id") or ""), str(data.get("motivo") or "cancelación de venta"))
         except Exception as e:
             logger.warning("raffles_cancel handler: %s", e)
 

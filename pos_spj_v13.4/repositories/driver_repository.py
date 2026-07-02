@@ -72,7 +72,7 @@ class DriverRepository:
         return [dict(r) for r in rows]
 
     def create_driver(self, data: Dict[str, Any]) -> str:
-        driver_id = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin lastrowid
+        driver_id = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin rowid implícito
         self.db.execute(
             """
             INSERT INTO drivers(id, nombre, telefono, vehiculo, activo, sucursal_id, usuario_id)
@@ -234,7 +234,7 @@ class DriverRepository:
         return summary
 
     def create_driver_cut(self, data: Dict[str, Any]) -> str:
-        cut_id = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin lastrowid
+        cut_id = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin rowid implícito
         self.db.execute(
             """
             INSERT INTO delivery_driver_cuts(

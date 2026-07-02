@@ -982,10 +982,10 @@ class RecepcionQRWidget(QWidget):
             if not adapter:
                 self._lbl_po_info.setText("⚠ receive_po_adapter no disponible — inicia sesión desde AppContainer.")
                 return
-            lines  = adapter.get_po_lines(int(po_id))
-            estado = adapter.get_po_status(int(po_id))
+            lines  = adapter.get_po_lines(str(po_id))
+            estado = adapter.get_po_status(str(po_id))
             self._tbl_po_lines.setRowCount(0)
-            self._po_id_activo   = int(po_id)
+            self._po_id_activo   = str(po_id)
             self._po_lines_cache = lines
             self._po_estado_activo = estado
 

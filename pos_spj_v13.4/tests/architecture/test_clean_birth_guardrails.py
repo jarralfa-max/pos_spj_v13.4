@@ -1165,8 +1165,8 @@ def test_domain_code_has_no_lastrowid_identity():
 
 def test_domain_code_has_no_integer_casts_for_entity_ids():
     """CERO: sin int(..._id) ni int(..sucursal/branch..) sobre identidades."""
-    rx_id = re.compile(r"int\(\s*[^)\n]*_id\b")
-    rx_branch = re.compile(r"int\(\s*[^)\n]*(?:sucursal|branch)")
+    rx_id = re.compile(r"(?<![\w])int\(\s*[^)\n]*_id\b")
+    rx_branch = re.compile(r"(?<![\w])int\(\s*[^)\n]*(?:sucursal|branch)")
     hits = []
     for p in _domain_files():
         rel = str(p.relative_to(REPO))

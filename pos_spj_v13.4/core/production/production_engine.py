@@ -533,8 +533,8 @@ class ProductionEngine:
 
             src_weight = float(batch["source_weight"])
             src_cost   = float(batch["source_cost_total"])
-            bid        = int(batch["branch_id"])
-            src_prod_id= int(batch["product_source_id"])
+            bid        = str(batch["branch_id"])
+            src_prod_id= str(batch["product_source_id"])
 
             # ── Rendimiento esperado desde receta ─────────────────────────
             exp_usable_pct = 0.0

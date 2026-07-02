@@ -16,6 +16,7 @@ Protecciones:
 """
 from __future__ import annotations
 import logging
+from backend.shared.ids import new_uuid
 import hashlib
 import random
 import string
@@ -158,15 +159,16 @@ class GrowthEngine:
         descripcion: str = "",
         fecha_fin: str = "",
     ) -> int:
-        cur = self.db.execute("""
+        meta_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.db.execute("""
             INSERT INTO growth_metas
-            (sucursal_id,nombre,descripcion,umbral,premio,costo_premio,fecha_fin)
-            VALUES(?,?,?,?,?,?,?)""",
-            (self.sucursal_id, nombre, descripcion, umbral, premio,
+            (id,sucursal_id,nombre,descripcion,umbral,premio,costo_premio,fecha_fin)
+            VALUES(?,?,?,?,?,?,?,?)""",
+            (meta_id, self.sucursal_id, nombre, descripcion, umbral, premio,
              costo_premio, fecha_fin or None))
         try: self.db.commit()
         except Exception: pass
-        return cur.lastrowid
+        return meta_id
 
     # ══════════════════════════════════════════════════════════════════════
     # MISIONES
@@ -192,15 +194,16 @@ class GrowthEngine:
         premio_estrellas: int,
         descripcion: str = "",
     ) -> int:
-        cur = self.db.execute("""
+        mision_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.db.execute("""
             INSERT INTO growth_misiones
-            (nombre,descripcion,condicion_tipo,condicion_n,ventana_dias,premio_estrellas)
-            VALUES(?,?,?,?,?,?)""",
-            (nombre, descripcion, condicion_tipo, condicion_n,
+            (id,nombre,descripcion,condicion_tipo,condicion_n,ventana_dias,premio_estrellas)
+            VALUES(?,?,?,?,?,?,?)""",
+            (mision_id, nombre, descripcion, condicion_tipo, condicion_n,
              ventana_dias, premio_estrellas))
         try: self.db.commit()
         except Exception: pass
-        return cur.lastrowid
+        return mision_id
 
     def progreso_misiones_cliente(self, cliente_id: int) -> List[Dict]:
         try:
@@ -298,12 +301,12 @@ class GrowthEngine:
 
     # ── UI helpers (FASE 6: UI sin SQL directo) ─────────────────────────
     def desactivar_meta(self, meta_id: int) -> None:
-        self.db.execute("UPDATE growth_metas SET activa=0 WHERE id=?", (int(meta_id),))
+        self.db.execute("UPDATE growth_metas SET activa=0 WHERE id=?", (str(meta_id),))
         try: self.db.commit()
         except Exception: pass
 
     def desactivar_mision(self, mision_id: int) -> None:
-        self.db.execute("UPDATE growth_misiones SET activa=0 WHERE id=?", (int(mision_id),))
+        self.db.execute("UPDATE growth_misiones SET activa=0 WHERE id=?", (str(mision_id),))
         try: self.db.commit()
         except Exception: pass
 

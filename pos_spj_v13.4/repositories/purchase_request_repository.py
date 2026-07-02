@@ -9,6 +9,7 @@ Sin lógica de negocio — solo CRUD + queries.
 from __future__ import annotations
 
 import logging
+from backend.shared.ids import new_uuid
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -59,29 +60,29 @@ class PurchaseRequestRepository:
         NO afecta inventario, finanzas ni eventos.
         """
         folio = f"PR-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
-        cur = self.conn.execute(
+        pr_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self.conn.execute(
             """INSERT INTO purchase_requests
-               (folio, proveedor_id, proveedor_nombre, sucursal_id, usuario,
+               (id, folio, proveedor_id, proveedor_nombre, sucursal_id, usuario,
                 subtotal, iva_monto, total, metodo_pago, condicion_pago,
                 plazo_dias, moneda, notas, doc_ref, estado)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (folio, proveedor_id, proveedor_nombre, sucursal_id, usuario,
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (pr_id, folio, proveedor_id, proveedor_nombre, sucursal_id, usuario,
              subtotal, iva_monto, total, metodo_pago, condicion_pago,
              plazo_dias, moneda, notas, doc_ref, estado),
         )
-        pr_id = cur.lastrowid
         self._save_items(pr_id, items)
-        logger.info("PR creada: %s id=%d proveedor=%s total=%.2f", folio, pr_id, proveedor_nombre, total)
+        logger.info("PR creada: %s id=%s proveedor=%s total=%.2f", folio, pr_id, proveedor_nombre, total)
         return pr_id, folio
 
     def _save_items(self, pr_id: int, items: list[dict]) -> None:
         for item in items:
             self.conn.execute(
                 """INSERT INTO purchase_request_items
-                   (pr_id, producto_id, nombre, cantidad, unidad,
+                   (id, pr_id, producto_id, nombre, cantidad, unidad,
                     precio_unitario, subtotal, lote, fecha_caducidad, notas)
-                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (pr_id,
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (new_uuid(), pr_id,
                  item["product_id"],
                  item.get("nombre", ""),
                  item["qty"],

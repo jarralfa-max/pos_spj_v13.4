@@ -57,7 +57,7 @@ class DeliveryRepository:
     def create_order(self, data: Dict[str, Any], *, commit: bool = True) -> str:
         usuario = data.get("usuario", "sistema")
         hist = [self._legacy_history_entry("pendiente", usuario, reason="creación")]
-        oid = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin lastrowid
+        oid = data.get("id") or new_uuid()  # REGLA CERO: UUIDv7, sin rowid implícito
         self.db.execute(
             """
             INSERT INTO delivery_orders(
