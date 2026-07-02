@@ -39,12 +39,12 @@ def _patch_recepciones(conn):
 
 def _patch_recepcion_items(conn):
     _add(conn, "recepcion_items", "uuid_qr_contenedor", "TEXT")
-    _add(conn, "recepcion_items", "lote_id",             "INTEGER")
+    _add(conn, "recepcion_items", "lote_id",             "TEXT")
     _add(conn, "recepcion_items", "fecha_caducidad",     "TEXT")
     logger.info("recepcion_items extendida con trazabilidad.")
 
 def _patch_trazabilidad_qr(conn):
-    _add(conn, "trazabilidad_qr", "recepcion_id",    "INTEGER")
+    _add(conn, "trazabilidad_qr", "recepcion_id",    "TEXT")
     _add(conn, "trazabilidad_qr", "sucursal_destino","INTEGER")
     logger.info("trazabilidad_qr extendida con recepcion_id.")
 
@@ -56,7 +56,7 @@ def _create_contenedores_qr(conn):
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS contenedores_qr (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             uuid_qr         TEXT    NOT NULL UNIQUE,
             codigo_interno  TEXT,
             descripcion     TEXT,

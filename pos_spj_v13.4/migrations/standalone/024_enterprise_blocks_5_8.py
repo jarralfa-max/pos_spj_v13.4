@@ -27,8 +27,8 @@ def up(conn: sqlite3.Connection) -> None:
     # Layer 2: Levels / Status history
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_level_history (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id    INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+            id            TEXT PRIMARY KEY,
+            cliente_id    TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
             level_before  TEXT    NOT NULL,
             level_after   TEXT    NOT NULL,
             reason        TEXT,
@@ -40,7 +40,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Layer 3: Challenges (Gamification)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenges (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             name            TEXT    NOT NULL,
             description     TEXT,
             challenge_type  TEXT    NOT NULL DEFAULT 'PURCHASES',
@@ -49,7 +49,7 @@ def up(conn: sqlite3.Connection) -> None:
             start_date      DATE    NOT NULL,
             end_date        DATE    NOT NULL,
             is_active       INTEGER NOT NULL DEFAULT 1,
-            branch_id       INTEGER,
+            branch_id       TEXT,
             min_level       TEXT,
             created_at      DATETIME DEFAULT (datetime('now'))
         )
@@ -58,9 +58,9 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_challenge_progress (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            challenge_id    INTEGER NOT NULL REFERENCES loyalty_challenges(id) ON DELETE CASCADE,
-            cliente_id      INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+            id              TEXT PRIMARY KEY,
+            challenge_id    TEXT NOT NULL REFERENCES loyalty_challenges(id) ON DELETE CASCADE,
+            cliente_id      TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
             current_value   REAL    NOT NULL DEFAULT 0,
             completed       INTEGER NOT NULL DEFAULT 0,
             completed_at    DATETIME,
@@ -75,7 +75,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Layer 4: Community Goals
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_community_goals (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             name            TEXT    NOT NULL,
             description     TEXT,
             target_value    REAL    NOT NULL DEFAULT 0,
@@ -86,7 +86,7 @@ def up(conn: sqlite3.Connection) -> None:
             start_date      DATE    NOT NULL,
             end_date        DATE    NOT NULL,
             is_active       INTEGER NOT NULL DEFAULT 1,
-            branch_id       INTEGER,
+            branch_id       TEXT,
             achieved        INTEGER NOT NULL DEFAULT 0,
             achieved_at     DATETIME,
             created_at      DATETIME DEFAULT (datetime('now'))
@@ -96,10 +96,10 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_community_contributions (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            goal_id         INTEGER NOT NULL REFERENCES loyalty_community_goals(id) ON DELETE CASCADE,
-            cliente_id      INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-            venta_id        INTEGER,
+            id              TEXT PRIMARY KEY,
+            goal_id         TEXT NOT NULL REFERENCES loyalty_community_goals(id) ON DELETE CASCADE,
+            cliente_id      TEXT NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+            venta_id        TEXT,
             contribution    REAL    NOT NULL DEFAULT 0,
             created_at      DATETIME DEFAULT (datetime('now'))
         )
@@ -110,8 +110,8 @@ def up(conn: sqlite3.Connection) -> None:
     # Financial guards: budget caps per month per branch
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_budget_caps (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id       INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            branch_id       TEXT NOT NULL,
             year_month      TEXT    NOT NULL,
             budget_limit    REAL    NOT NULL DEFAULT 0,
             points_issued   INTEGER NOT NULL DEFAULT 0,
@@ -125,7 +125,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Multiplier rules
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_multiplier_rules (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             rule_type       TEXT    NOT NULL,
             condition_value TEXT    NOT NULL,
             multiplier      REAL    NOT NULL DEFAULT 1.0,
@@ -138,7 +138,7 @@ def up(conn: sqlite3.Connection) -> None:
     # Redemption limits per branch
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_redemption_limits (
-            branch_id           INTEGER PRIMARY KEY,
+            branch_id           TEXT PRIMARY KEY,
             max_pct_per_sale    REAL    NOT NULL DEFAULT 30.0,
             max_pts_per_sale    INTEGER NOT NULL DEFAULT 500,
             max_monthly_pts     INTEGER NOT NULL DEFAULT 5000,
@@ -150,8 +150,8 @@ def up(conn: sqlite3.Connection) -> None:
     # ROI tracking
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_roi_tracking (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id       INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            branch_id       TEXT NOT NULL,
             year_month      TEXT    NOT NULL,
             revenue_from_loyal_customers REAL NOT NULL DEFAULT 0,
             cost_of_rewards REAL    NOT NULL DEFAULT 0,
@@ -167,7 +167,7 @@ def up(conn: sqlite3.Connection) -> None:
     # loyalty_scores UPSERT target
     conn.execute("""
         CREATE TABLE IF NOT EXISTS loyalty_scores (
-            cliente_id      INTEGER PRIMARY KEY REFERENCES clientes(id) ON DELETE CASCADE,
+            cliente_id      TEXT PRIMARY KEY REFERENCES clientes(id) ON DELETE CASCADE,
             score_total     REAL    NOT NULL DEFAULT 0,
             nivel           TEXT    NOT NULL DEFAULT 'Bronce',
             score_frecuencia REAL   NOT NULL DEFAULT 0,
@@ -228,15 +228,15 @@ def up(conn: sqlite3.Connection) -> None:
     # caja_operations — enterprise atomic caja table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS caja_operations (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id       INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            branch_id       TEXT NOT NULL,
             operation_id    TEXT    NOT NULL UNIQUE,
             operation_type  TEXT    NOT NULL CHECK(operation_type IN ('INGRESO','EGRESO','APERTURA','CIERRE','AJUSTE')),
             amount          REAL    NOT NULL DEFAULT 0 CHECK(amount >= 0),
             usuario         TEXT    NOT NULL,
             reference       TEXT,
             forma_pago      TEXT,
-            venta_id        INTEGER,
+            venta_id        TEXT,
             notes           TEXT,
             created_at      DATETIME DEFAULT (datetime('now'))
         )
@@ -248,17 +248,17 @@ def up(conn: sqlite3.Connection) -> None:
     # movimientos_caja (legacy table — add missing columns)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS movimientos_caja (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             tipo        TEXT    NOT NULL,
             monto       REAL    NOT NULL DEFAULT 0,
             descripcion TEXT,
             forma_pago  TEXT,
             usuario     TEXT,
-            sucursal_id INTEGER,
+            sucursal_id TEXT,
             fecha       DATETIME DEFAULT (datetime('now'))
         )
     """)
-    _add_col(conn, "movimientos_caja", "sucursal_id", "INTEGER")
+    _add_col(conn, "movimientos_caja", "sucursal_id", "TEXT")
     _add_col(conn, "movimientos_caja", "operation_id", "TEXT")
     _add_idx(conn, "movimientos_caja", "idx_mc_fecha",    "fecha DESC")
     _add_idx(conn, "movimientos_caja", "idx_mc_sucursal", "sucursal_id, fecha DESC")
@@ -268,12 +268,12 @@ def up(conn: sqlite3.Connection) -> None:
     # JSON structured log events
     conn.execute("""
         CREATE TABLE IF NOT EXISTS json_log_events (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             level       TEXT    NOT NULL DEFAULT 'INFO',
             logger      TEXT    NOT NULL,
             message     TEXT    NOT NULL,
             payload     TEXT,
-            branch_id   INTEGER,
+            branch_id   TEXT,
             usuario     TEXT,
             created_at  DATETIME DEFAULT (datetime('now'))
         )

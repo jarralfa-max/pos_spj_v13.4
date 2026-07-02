@@ -31,12 +31,12 @@ def _safe_index(conn, sql: str) -> None:
 
 def up(conn) -> None:
     # ── 1. ventas.sucursal_id (double-ensure from 047) ────────────────────────
-    _add_col(conn, "ventas",              "sucursal_id INTEGER NOT NULL DEFAULT 1")
-    _add_col(conn, "compras",             "sucursal_id INTEGER NOT NULL DEFAULT 1")
-    _add_col(conn, "lotes",               "sucursal_id INTEGER NOT NULL DEFAULT 1")
-    _add_col(conn, "caja_operations",     "sucursal_id INTEGER NOT NULL DEFAULT 1")
-    _add_col(conn, "pedidos_whatsapp",    "sucursal_id INTEGER NOT NULL DEFAULT 1")
-    _add_col(conn, "delivery_orders",     "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    _add_col(conn, "ventas",              "sucursal_id TEXT NOT NULL")
+    _add_col(conn, "compras",             "sucursal_id TEXT NOT NULL")
+    _add_col(conn, "lotes",               "sucursal_id TEXT NOT NULL")
+    _add_col(conn, "caja_operations",     "sucursal_id TEXT NOT NULL")
+    _add_col(conn, "pedidos_whatsapp",    "sucursal_id TEXT NOT NULL")
+    _add_col(conn, "delivery_orders",     "sucursal_id TEXT NOT NULL")
 
     # ── 2. sync_inbox Lamport ordering ────────────────────────────────────────
     _add_col(conn, "sync_inbox",  "lamport_ts INTEGER DEFAULT 0")

@@ -23,10 +23,10 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_transfer_suggestions(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfer_suggestions (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id       INTEGER NOT NULL,
-            origin_branch_id INTEGER NOT NULL,
-            dest_branch_id   INTEGER NOT NULL,
+            id               TEXT PRIMARY KEY,
+            product_id       TEXT NOT NULL,
+            origin_branch_id TEXT NOT NULL,
+            dest_branch_id   TEXT NOT NULL,
             qty_suggested    REAL    NOT NULL,
             origin_dos       REAL    DEFAULT 0,
             dest_dos         REAL    DEFAULT 0,

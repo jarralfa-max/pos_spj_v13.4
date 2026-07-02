@@ -42,10 +42,10 @@ def _create_sale_refunds(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sale_refunds (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            sale_id      INTEGER NOT NULL,
-            sale_item_id INTEGER NOT NULL,
-            product_id   INTEGER NOT NULL,
+            id           TEXT PRIMARY KEY,
+            sale_id      TEXT NOT NULL,
+            sale_item_id TEXT NOT NULL,
+            product_id   TEXT NOT NULL,
             quantity     REAL    NOT NULL CHECK(quantity > 0),
             amount       REAL    NOT NULL CHECK(amount > 0),
             method       TEXT    NOT NULL DEFAULT 'Efectivo',
@@ -88,8 +88,8 @@ def _create_credit_notes(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS credit_notes (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            sale_id      INTEGER NOT NULL,
+            id           TEXT PRIMARY KEY,
+            sale_id      TEXT NOT NULL,
             amount       REAL    NOT NULL CHECK(amount > 0),
             reason       TEXT    NOT NULL,
             operation_id TEXT    NOT NULL,

@@ -35,3 +35,12 @@ def _uuid7() -> uuid.UUID:
 def new_uuid() -> str:
     """Return a canonical lowercase UUIDv7 string."""
     return str(_uuid7())
+
+
+# ── Centinelas de instalación (Plan B born-clean) ────────────────────────────
+# Identidad ESTABLE de los registros semilla que toda instalación nueva crea
+# (sucursal matriz y caja principal). Son UUIDs constantes con layout v7 y
+# timestamp fijo documentado, NO enteros '1'. Cualquier código que asuma
+# `sucursal_id == 1` está prohibido; debe resolver la sucursal real de la BD.
+INSTALL_BRANCH_UUID = "01900000-0000-7000-8000-000000000001"
+INSTALL_CASHBOX_UUID = "01900000-0000-7000-8000-000000000002"

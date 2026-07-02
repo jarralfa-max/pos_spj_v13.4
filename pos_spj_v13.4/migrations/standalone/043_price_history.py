@@ -16,8 +16,8 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_price_history(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS historial_precios (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            producto_id     TEXT NOT NULL,
             campo           TEXT    NOT NULL DEFAULT 'precio'
                             CHECK(campo IN ('precio','precio_compra','precio_venta',
                                             'precio_kilo','precio_mayoreo')),
@@ -29,7 +29,7 @@ def _create_price_history(conn):
                      ELSE 0 END
             ) STORED,
             usuario         TEXT    DEFAULT 'Sistema',
-            sucursal_id     INTEGER DEFAULT 1,
+            sucursal_id     TEXT,
             motivo          TEXT,
             changed_at      TEXT    DEFAULT (datetime('now')),
             FOREIGN KEY (producto_id) REFERENCES productos(id)

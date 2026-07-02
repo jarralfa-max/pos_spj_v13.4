@@ -38,9 +38,9 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "inventario_actual"):
         conn.execute("""
             CREATE TABLE inventario_actual (
-                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-                producto_id          INTEGER NOT NULL,
-                sucursal_id          INTEGER NOT NULL,
+                id                   TEXT PRIMARY KEY,
+                producto_id          TEXT NOT NULL,
+                sucursal_id          TEXT NOT NULL,
                 cantidad             REAL    NOT NULL DEFAULT 0,
                 costo_promedio       REAL    DEFAULT 0,
                 ultima_actualizacion TEXT    DEFAULT (datetime('now')),
@@ -62,10 +62,10 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "inventario_diario"):
         conn.execute("""
             CREATE TABLE inventario_diario (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          TEXT PRIMARY KEY,
                 fecha       DATE    NOT NULL,
-                producto_id INTEGER NOT NULL,
-                sucursal_id INTEGER NOT NULL,
+                producto_id TEXT NOT NULL,
+                sucursal_id TEXT NOT NULL,
                 cantidad    REAL    NOT NULL DEFAULT 0,
                 valor       REAL    NOT NULL DEFAULT 0,
                 updated_at  TEXT    DEFAULT (datetime('now')),
@@ -78,10 +78,10 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "branch_inventory"):
         conn.execute("""
             CREATE TABLE branch_inventory (
-                id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                branch_id  INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
-                batch_id   INTEGER,
+                id         TEXT PRIMARY KEY,
+                branch_id  TEXT NOT NULL,
+                product_id TEXT NOT NULL,
+                batch_id   TEXT,
                 quantity   REAL    NOT NULL DEFAULT 0,
                 updated_at TEXT    DEFAULT (datetime('now')),
                 UNIQUE(branch_id, product_id, batch_id)

@@ -53,7 +53,7 @@ def up(conn):
     add_col("sucursales", "logo_path TEXT")
 
     # ── 2. Pedidos WhatsApp — ampliación v13 ──────────────────────────────────
-    add_col("pedidos_whatsapp", "sucursal_id INTEGER DEFAULT 1")
+    add_col("pedidos_whatsapp", "sucursal_id TEXT")
     add_col("pedidos_whatsapp", "hora_deseada TEXT")
     add_col("pedidos_whatsapp", "prioridad TEXT DEFAULT 'normal'")
     add_col("pedidos_whatsapp", "notificado_gerente INTEGER DEFAULT 0")
@@ -63,11 +63,11 @@ def up(conn):
     # ── 3. Órdenes de cotización ──────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS ordenes_cotizacion (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                      TEXT PRIMARY KEY,
             numero_orden            TEXT UNIQUE NOT NULL,
-            cotizacion_id           INTEGER REFERENCES cotizaciones(id),
-            cliente_id              INTEGER REFERENCES clientes(id),
-            sucursal_id             INTEGER DEFAULT 1,
+            cotizacion_id           TEXT REFERENCES cotizaciones(id),
+            cliente_id              TEXT REFERENCES clientes(id),
+            sucursal_id             TEXT,
             estado                  TEXT DEFAULT 'pendiente',
             -- pendiente | anticipo_pendiente | anticipo_pagado |
             -- en_preparacion | listo | entregado | cancelado
@@ -103,7 +103,7 @@ def up(conn):
     # ── 4. Reglas de anticipo ─────────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS anticipo_reglas (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             tipo         TEXT NOT NULL CHECK(tipo IN ('categoria','monto')),
             categoria    TEXT,
             monto_desde  REAL DEFAULT 0,
@@ -111,7 +111,7 @@ def up(conn):
             pct_anticipo REAL NOT NULL DEFAULT 30.0
                          CHECK(pct_anticipo >= 0 AND pct_anticipo <= 100),
             activo       INTEGER DEFAULT 1,
-            sucursal_id  INTEGER DEFAULT 0,
+            sucursal_id  TEXT DEFAULT 0,
             notas        TEXT,
             created_at   DATETIME DEFAULT (datetime('now'))
         );
@@ -151,7 +151,7 @@ def up(conn):
     # ── 5. Lotes PDF de tarjetas ──────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS lotes_tarjetas_pdf (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             uuid         TEXT UNIQUE DEFAULT (lower(hex(randomblob(8)))),
             nombre       TEXT,
             cantidad     INTEGER NOT NULL DEFAULT 0,
@@ -160,7 +160,7 @@ def up(conn):
             ruta_pdf     TEXT,
             plantilla    TEXT,
             usuario      TEXT,
-            sucursal_id  INTEGER DEFAULT 1,
+            sucursal_id  TEXT,
             created_at   DATETIME DEFAULT (datetime('now'))
         );
     """)
@@ -168,8 +168,8 @@ def up(conn):
     # ── 6. Permisos granulares ────────────────────────────────────────────────
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS rol_permisos (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            rol_id   INTEGER NOT NULL,
+            id       TEXT PRIMARY KEY,
+            rol_id   TEXT NOT NULL,
             modulo   TEXT NOT NULL,
             accion   TEXT NOT NULL,
             -- ver | crear | editar | eliminar | exportar | aprobar
@@ -180,8 +180,8 @@ def up(conn):
             ON rol_permisos(rol_id, modulo);
 
         CREATE TABLE IF NOT EXISTS usuarios_sucursales (
-            usuario_id   INTEGER NOT NULL,
-            sucursal_id  INTEGER NOT NULL,
+            usuario_id   TEXT NOT NULL,
+            sucursal_id  TEXT NOT NULL,
             es_principal INTEGER DEFAULT 0,
             fecha_asign  DATETIME DEFAULT (datetime('now')),
             PRIMARY KEY(usuario_id, sucursal_id)
@@ -190,9 +190,9 @@ def up(conn):
 
     # ── 7. Columnas en usuarios ───────────────────────────────────────────────
     for col in [
-        "empleado_id INTEGER",
+        "empleado_id TEXT",
         "foto_path TEXT",
-        "sucursal_principal_id INTEGER DEFAULT 1",
+        "sucursal_principal_id TEXT",
         "intentos_fallidos INTEGER DEFAULT 0",
         "bloqueado_hasta DATETIME",
         "ultimo_acceso DATETIME",
@@ -201,11 +201,11 @@ def up(conn):
         add_col("usuarios", col)
 
     # ── 8. Columna usuario_id en personal (RRHH) ──────────────────────────────
-    add_col("personal", "usuario_id INTEGER")
+    add_col("personal", "usuario_id TEXT")
     add_col("personal", "foto_path TEXT")
 
     # ── 9. Bot sessions — sucursal elegida ────────────────────────────────────
-    add_col("bot_sessions", "sucursal_id INTEGER DEFAULT 1")
+    add_col("bot_sessions", "sucursal_id TEXT")
     add_col("bot_sessions", "contexto TEXT")  # JSON extra state
 
     # ── 10. Configuración WhatsApp — escalación pedidos ──────────────────────
@@ -311,23 +311,23 @@ def up(conn):
             (mod, 'ver'))
 
     # Ensure ventas has sucursal_id (critical for multi-branch)
-    add_col("ventas", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("ventas", "sucursal_id TEXT NOT NULL")
     add_col("ventas", "uuid TEXT")
 
     # Ensure compras has sucursal_id
-    add_col("compras", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("compras", "sucursal_id TEXT NOT NULL")
 
     # Ensure lotes has sucursal_id
-    add_col("lotes", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("lotes", "sucursal_id TEXT NOT NULL")
 
     # Ensure caja_operations has sucursal_id
-    add_col("caja_operations", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("caja_operations", "sucursal_id TEXT NOT NULL")
 
     # Ensure pedidos_whatsapp has sucursal_id
-    add_col("pedidos_whatsapp", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("pedidos_whatsapp", "sucursal_id TEXT NOT NULL")
 
     # Ensure delivery_orders has sucursal_id
-    add_col("delivery_orders", "sucursal_id INTEGER NOT NULL DEFAULT 1")
+    add_col("delivery_orders", "sucursal_id TEXT NOT NULL")
 
     # Ensure proveedores has all expected columns
     for col in [
@@ -346,7 +346,7 @@ def up(conn):
             pass
 
     # Ensure personal has usuario_id
-    add_col("personal", "usuario_id INTEGER")
+    add_col("personal", "usuario_id TEXT")
     add_col("personal", "foto_path TEXT")
 
     # Crear usuario demo si no existe

@@ -37,9 +37,9 @@ def run(conn: sqlite3.Connection) -> None:
     if not _tbl(conn, "movimientos_inventario"):
         conn.execute("""
             CREATE TABLE movimientos_inventario (
-                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                id                  TEXT PRIMARY KEY,
                 uuid                TEXT,
-                producto_id         INTEGER,
+                producto_id         TEXT,
                 tipo                TEXT,
                 tipo_movimiento     TEXT,
                 tipo_movimiento_v2  TEXT,
@@ -50,16 +50,16 @@ def run(conn: sqlite3.Connection) -> None:
                 costo_total         REAL DEFAULT 0,
                 descripcion         TEXT,
                 referencia          TEXT,
-                referencia_id       INTEGER,
+                referencia_id       TEXT,
                 referencia_tipo     TEXT,
                 nota                TEXT,
-                proveedor_id        INTEGER,
+                proveedor_id        TEXT,
                 operation_id        TEXT,
-                batch_id            INTEGER,
-                bib_id              INTEGER,
+                batch_id            TEXT,
+                bib_id              TEXT,
                 usuario             TEXT,
-                sucursal_id         INTEGER DEFAULT 1,
-                lote_id             INTEGER,
+                sucursal_id         TEXT,
+                lote_id             TEXT,
                 merma_motivo        TEXT,
                 fecha               DATETIME DEFAULT (datetime('now'))
             )
@@ -79,7 +79,7 @@ def run(conn: sqlite3.Connection) -> None:
         logger.info("105: movimientos_inventario created with indexes")
     else:
         # Table exists — ensure optional columns added by later migrations are present
-        _add_col(conn, "movimientos_inventario", "lote_id",      "INTEGER")
+        _add_col(conn, "movimientos_inventario", "lote_id",      "TEXT")
         _add_col(conn, "movimientos_inventario", "merma_motivo",  "TEXT")
         _add_col(conn, "movimientos_inventario", "uuid",          "TEXT")
         _add_col(conn, "movimientos_inventario", "referencia_id", "INTEGER")

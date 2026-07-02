@@ -9,7 +9,7 @@ full UUID cutover (migration 200). The column is nullable TEXT so that:
   * UUID-checking guards in repository code will find the column present and
     no longer raise RuntimeError on startup.
 
-This is NOT the atomic cutover. The INTEGER PRIMARY KEY columns are left
+This is NOT the atomic cutover. The TEXT PRIMARY KEY columns are left
 intact so that legacy code that still uses lastrowid continues to work.
 Migration 200 will perform the full replacement once all callers are updated.
 """

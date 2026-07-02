@@ -121,7 +121,7 @@ def run(conn):
             depreciation_method     TEXT    DEFAULT 'straight_line',
             useful_life_months      INTEGER DEFAULT 60,
             status                  TEXT    DEFAULT 'active',  -- active|disposed|sold
-            supplier_id             INTEGER,
+            supplier_id             TEXT,
             branch_id               TEXT,
             source_module           TEXT    DEFAULT 'activos',
             source_id               TEXT,
@@ -159,7 +159,7 @@ def run(conn):
             description             TEXT    DEFAULT '',
             amount                  REAL    NOT NULL,
             status                  TEXT    DEFAULT 'pending',  -- pending|paid|cancelled|capitalized
-            supplier_id             INTEGER,
+            supplier_id             TEXT,
             branch_id               TEXT,
             source_module           TEXT    DEFAULT 'mantenimiento',
             source_id               TEXT,
@@ -186,7 +186,7 @@ def run(conn):
             unit_cost               REAL    NOT NULL,
             total_amount            REAL    NOT NULL,
             status                  TEXT    DEFAULT 'pending',  -- pending|paid|cancelled
-            supplier_id             INTEGER,
+            supplier_id             TEXT,
             branch_id               TEXT,
             source_module           TEXT    DEFAULT 'compras',
             source_id               TEXT,
