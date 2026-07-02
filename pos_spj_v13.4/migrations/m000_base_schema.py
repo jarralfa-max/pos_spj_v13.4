@@ -3263,6 +3263,13 @@ def _seed_initial_data(conn: sqlite3.Connection):
         VALUES (?, 'Caja Principal', 'Mostrador', 'CERRADA', 0, 0)
     """, (INSTALL_CASHBOX_UUID,))
 
+    # 2.1 Vincular la instalación a la sucursal matriz (el login lee esta clave
+    # para inyectar la sucursal activa; sin ella la sesión queda sin branch).
+    conn.execute("""
+        INSERT OR IGNORE INTO configuraciones (clave, valor)
+        VALUES ('sucursal_instalacion_id', ?)
+    """, (INSTALL_BRANCH_UUID,))
+
     # 3. Crear Usuario Admin (solo si no existe; identidad UUIDv7 acuñada)
     existe_admin = conn.execute("SELECT id FROM usuarios WHERE usuario='admin'").fetchone()
     if not existe_admin:
