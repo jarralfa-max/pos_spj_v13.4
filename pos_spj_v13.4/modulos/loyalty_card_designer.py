@@ -390,20 +390,7 @@ class ModuloLoyaltyCardDesigner(QWidget):
         """Ensure tarjetas_fidelidad has all needed columns regardless of original schema."""
         try:
             # Create table only if doesn't exist at all
-            self.conexion.execute("""
-                CREATE TABLE IF NOT EXISTS tarjetas_fidelidad(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    id_cliente INTEGER REFERENCES clientes(id),
-                    codigo_qr TEXT UNIQUE,
-                    nivel TEXT DEFAULT 'Bronce',
-                    estado TEXT DEFAULT 'disponible',
-                    puntos_actuales INTEGER DEFAULT 0,
-                    es_pregenerada INTEGER DEFAULT 0,
-                    fecha_creacion DATETIME DEFAULT (datetime('now')),
-                    fecha_asignacion DATETIME,
-                    observaciones TEXT
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             # Add columns that might be missing from either schema variant
             for col in [
                 "codigo_qr TEXT", "codigo TEXT", "estado TEXT DEFAULT 'disponible'",
@@ -415,22 +402,13 @@ class ModuloLoyaltyCardDesigner(QWidget):
                 "numero TEXT",
             ]:
                 try:
-                    self.conexion.execute(f"ALTER TABLE tarjetas_fidelidad ADD COLUMN {col}")
+                    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
                 except Exception:
                     pass  # Column already exists
             # Ensure lotes PDF table exists
-            self.conexion.execute("""
-                CREATE TABLE IF NOT EXISTS lotes_tarjetas_pdf(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cantidad INTEGER, nivel TEXT, ruta_pdf TEXT,
-                    plantilla TEXT, usuario TEXT,
-                    fecha DATETIME DEFAULT (datetime('now'))
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
-                self.conexion.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_tarjetas_cliente "
-                    "ON tarjetas_fidelidad(id_cliente)")
+                pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             except Exception:
                 pass
             try:

@@ -106,6 +106,7 @@ def up(conn: sqlite3.Connection) -> None:
     _safe(conn, _create_alertas,           "alertas")
     _safe(conn, _create_logs_auditoria,    "logs_auditoria")
     _safe(conn, _create_cuentas_cp_cr,     "cuentas_cp_cr")
+    _safe(conn, _create_runtime_service_tables, "runtime_service_tables")
     _safe(conn, _ensure_extra_columns,     "extra_columns")
     _safe(conn, _seed_initial_data,        "seed_data")
 
@@ -3046,6 +3047,196 @@ def _ensure_extra_columns(conn):
     ensure_column(conn, "compras", "sucursal_id TEXT")
     ensure_column(conn, "compras", "operacion_id TEXT")
     ensure_column(conn, "detalles_compra", "costo_unitario REAL DEFAULT 0")
+
+
+def _create_runtime_service_tables(conn: sqlite3.Connection):
+    """Tablas que los servicios creaban en runtime (Plan B born-clean, FASE 6).
+
+    El DDL se movió aquí desde los servicios/repositorios/UI que lo emitían
+    (prohibido: el schema vive en migrations/). Todas nacen UUIDv7: id TEXT
+    PRIMARY KEY o clave natural, FKs funcionales TEXT, sin DEFAULT 1.
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS event_outbox (
+            id             TEXT PRIMARY KEY,
+            event_type     TEXT NOT NULL,
+            payload        TEXT NOT NULL,
+            aggregate_type TEXT DEFAULT '',
+            aggregate_id   TEXT DEFAULT '',
+            status         TEXT NOT NULL DEFAULT 'PENDING',
+            error          TEXT DEFAULT '',
+            created_at     TEXT NOT NULL,
+            dispatched_at  TEXT
+        );
+        CREATE TABLE IF NOT EXISTS delivery_outbox_events (
+            id             TEXT PRIMARY KEY,
+            event_type     TEXT NOT NULL,
+            aggregate_type TEXT DEFAULT 'delivery_order',
+            aggregate_id   TEXT NOT NULL,
+            payload_json   TEXT NOT NULL,
+            status         TEXT DEFAULT 'pending',
+            retries        INTEGER DEFAULT 0,
+            last_error     TEXT,
+            created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            processed_at   DATETIME,
+            operation_id   TEXT
+        );
+        CREATE TABLE IF NOT EXISTS delivery_items (
+            id                 TEXT PRIMARY KEY,
+            delivery_id        TEXT NOT NULL,
+            producto_id        TEXT,
+            nombre             TEXT NOT NULL,
+            cantidad           REAL NOT NULL DEFAULT 0,
+            precio_unitario    REAL NOT NULL DEFAULT 0,
+            subtotal           REAL NOT NULL DEFAULT 0,
+            unidad             TEXT DEFAULT 'kg',
+            requested_qty      REAL,
+            prepared_qty       REAL,
+            final_qty          REAL,
+            prepared_by        TEXT,
+            prepared_at        DATETIME,
+            adjustment_reason  TEXT,
+            tolerance_exceeded INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS delivery_order_history (
+            id              TEXT PRIMARY KEY,
+            order_id        TEXT NOT NULL,
+            estado_anterior TEXT,
+            estado_nuevo    TEXT,
+            usuario         TEXT,
+            fecha           DATETIME DEFAULT (datetime('now')),
+            observacion     TEXT,
+            reason          TEXT,
+            metadata_json   TEXT,
+            event_id        TEXT,
+            created_at      DATETIME DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS delivery_print_log (
+            id            TEXT PRIMARY KEY,
+            delivery_id   TEXT NOT NULL,
+            document_type TEXT NOT NULL,
+            operation_id  TEXT,
+            printer_id    TEXT,
+            status        TEXT DEFAULT 'printed',
+            printed_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS pending_sales_intents (
+            id             TEXT PRIMARY KEY,
+            folio          TEXT UNIQUE NOT NULL,
+            payload_json   TEXT NOT NULL,
+            estado         TEXT NOT NULL DEFAULT 'pendiente_pago',
+            reservation_id TEXT,
+            payment_id     TEXT DEFAULT '',
+            payment_url    TEXT DEFAULT '',
+            created_at     TEXT DEFAULT (datetime('now')),
+            expires_at     TEXT DEFAULT (datetime('now', '+30 minutes')),
+            confirmed_at   TEXT
+        );
+        CREATE TABLE IF NOT EXISTS stock_reservas (
+            id           TEXT PRIMARY KEY,
+            folio        TEXT UNIQUE,
+            branch_id    TEXT NOT NULL,
+            estado       TEXT NOT NULL DEFAULT 'activa',
+            payload_json TEXT NOT NULL DEFAULT '[]',
+            created_at   TEXT DEFAULT (datetime('now')),
+            updated_at   TEXT DEFAULT (datetime('now')),
+            expires_at   TEXT DEFAULT (datetime('now', '+30 minutes'))
+        );
+        CREATE TABLE IF NOT EXISTS stock_reserva_detalles (
+            id          TEXT PRIMARY KEY,
+            reserva_id  TEXT NOT NULL REFERENCES stock_reservas(id),
+            producto_id TEXT NOT NULL,
+            cantidad    REAL NOT NULL,
+            created_at  TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS loyalty_operations (
+            operation_id TEXT PRIMARY KEY,
+            kind         TEXT NOT NULL,
+            cliente_id   TEXT,
+            venta_id     TEXT,
+            payload      TEXT,
+            created_at   TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS loyalty_pasivo_log (
+            id             TEXT PRIMARY KEY,
+            fecha          TEXT DEFAULT (datetime('now')),
+            tipo           TEXT NOT NULL,
+            estrellas      INTEGER DEFAULT 0,
+            valor_unitario REAL DEFAULT 0.10,
+            monto_total    REAL DEFAULT 0.0,
+            referencia     TEXT DEFAULT '',
+            sucursal_id    TEXT
+        );
+        CREATE TABLE IF NOT EXISTS cuentas_por_cobrar (
+            id              TEXT PRIMARY KEY,
+            cliente_id      TEXT NOT NULL,
+            venta_id        TEXT,
+            folio           TEXT,
+            monto_original  REAL NOT NULL,
+            saldo_pendiente REAL NOT NULL,
+            estado          TEXT DEFAULT 'pendiente',
+            sucursal_id     TEXT,
+            fecha           DATETIME DEFAULT (datetime('now')),
+            fecha_pago      DATETIME
+        );
+        CREATE TABLE IF NOT EXISTS activos_depreciacion (
+            id            TEXT PRIMARY KEY,
+            activo_id     TEXT,
+            monto         REAL,
+            valor_antes   REAL,
+            valor_despues REAL,
+            fecha         DATETIME DEFAULT (datetime('now')),
+            sucursal_id   TEXT
+        );
+        CREATE TABLE IF NOT EXISTS ai_consulta_log (
+            id             TEXT PRIMARY KEY,
+            tipo           TEXT NOT NULL,
+            pregunta       TEXT DEFAULT '',
+            respuesta      TEXT DEFAULT '',
+            datos_contexto TEXT DEFAULT '{}',
+            disponible     INTEGER DEFAULT 0,
+            fecha          TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS alert_engine_log (
+            id          TEXT PRIMARY KEY,
+            category    TEXT NOT NULL,
+            severity    TEXT NOT NULL,
+            title       TEXT NOT NULL,
+            message     TEXT,
+            data_json   TEXT DEFAULT '{}',
+            leida       INTEGER DEFAULT 0,
+            sucursal_id TEXT,
+            fecha       TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS simulation_log (
+            id              TEXT PRIMARY KEY,
+            escenario       TEXT NOT NULL,
+            parametros_json TEXT DEFAULT '{}',
+            resultado_json  TEXT DEFAULT '{}',
+            recomendacion   TEXT DEFAULT '',
+            viable          INTEGER DEFAULT 0,
+            fecha           TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS ticket_layouts (
+            id          TEXT PRIMARY KEY,
+            layout_type TEXT NOT NULL DEFAULT 'sale_ticket',
+            nombre      TEXT NOT NULL DEFAULT 'Default',
+            config_json TEXT NOT NULL,
+            activo      INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_el_synced      ON event_log(synced);
+        CREATE INDEX IF NOT EXISTS idx_el_tipo        ON event_log(tipo);
+        CREATE INDEX IF NOT EXISTS idx_el_synced_tipo ON event_log(synced, tipo);
+        CREATE INDEX IF NOT EXISTS idx_el_hash        ON event_log(payload_hash);
+        CREATE INDEX IF NOT EXISTS idx_el_device_ver  ON event_log(origin_device_id, device_version);
+        CREATE INDEX IF NOT EXISTS idx_event_outbox_status ON event_outbox(status);
+        CREATE INDEX IF NOT EXISTS idx_delivery_outbox_pending ON delivery_outbox_events(status);
+        CREATE INDEX IF NOT EXISTS idx_delivery_items_order ON delivery_items(delivery_id);
+        CREATE INDEX IF NOT EXISTS idx_delivery_history_order ON delivery_order_history(order_id);
+        CREATE INDEX IF NOT EXISTS idx_stock_reservas_estado ON stock_reservas(estado);
+    """)
 
 
 def _seed_initial_data(conn: sqlite3.Connection):

@@ -20,54 +20,9 @@ class DriverRepository:
         self.ensure_schema()
 
     def ensure_schema(self) -> None:
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS drivers (
-                id TEXT PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                telefono TEXT,
-                vehiculo TEXT,
-                activo INTEGER DEFAULT 1,
-                en_ruta INTEGER DEFAULT 0,
-                sucursal_id INTEGER DEFAULT 1,
-                usuario_id INTEGER
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS driver_locations (
-                driver_id INTEGER,
-                chofer_id INTEGER,
-                lat REAL,
-                lng REAL,
-                timestamp DATETIME DEFAULT (datetime('now')),
-                actualizado DATETIME
-            )
-            """
-        )
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS delivery_driver_cuts (
-                id TEXT PRIMARY KEY,
-                driver_id INTEGER NOT NULL,
-                driver_nombre TEXT,
-                turno_inicio DATETIME,
-                turno_fin DATETIME DEFAULT (datetime('now')),
-                entregas_total INTEGER DEFAULT 0,
-                efectivo_cobrado REAL DEFAULT 0,
-                tarjeta_cobrado REAL DEFAULT 0,
-                transfer_cobrado REAL DEFAULT 0,
-                total_cobrado REAL DEFAULT 0,
-                efectivo_entregado REAL DEFAULT 0,
-                diferencia REAL DEFAULT 0,
-                usuario_corte TEXT,
-                sucursal_id INTEGER DEFAULT 1,
-                notas TEXT,
-                fecha DATETIME DEFAULT (datetime('now'))
-            )
-            """
-        )
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         for table, cols in {
             "drivers": (
                 "telefono TEXT", "vehiculo TEXT", "activo INTEGER DEFAULT 1",
@@ -89,12 +44,12 @@ class DriverRepository:
         }.items():
             for col in cols:
                 try:
-                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {col}")
+                    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
                 except Exception:
                     pass
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_drivers_branch_active ON drivers(sucursal_id, activo)")
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_driver_locations_driver ON driver_locations(driver_id, chofer_id)")
-        self.db.execute("CREATE INDEX IF NOT EXISTS idx_driver_cuts_driver_fecha ON delivery_driver_cuts(driver_id, fecha)")
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try:
             self.db.commit()
         except Exception:

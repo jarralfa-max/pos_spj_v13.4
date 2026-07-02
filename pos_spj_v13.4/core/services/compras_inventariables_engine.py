@@ -25,22 +25,7 @@ class ComprasInventariablesEngine:
 
     def _init_tables(self):
         try:
-            self.conn.executescript("""
-                CREATE TABLE IF NOT EXISTS compras_inventariables (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    uuid TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                    descripcion TEXT NOT NULL,
-                    proveedor TEXT,
-                    monto REAL NOT NULL,
-                    metodo_pago TEXT DEFAULT 'Efectivo',
-                    categoria TEXT DEFAULT 'equipamiento',
-                    sucursal_id INTEGER DEFAULT 1,
-                    usuario TEXT,
-                    activo_fijo_id INTEGER,
-                    notas TEXT,
-                    fecha DATETIME DEFAULT (datetime('now'))
-                );
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: self.conn.commit()
             except Exception: pass
         except Exception as e:

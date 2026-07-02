@@ -24,25 +24,8 @@ class ReservationServiceInventoryAdapter:
 
 
     def _ensure_reservation_schema(self) -> None:
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS inventory_reservations (
-                id TEXT PRIMARY KEY,
-                branch_id TEXT NOT NULL,
-                product_id TEXT NOT NULL,
-                reserved_qty REAL NOT NULL CHECK(reserved_qty > 0),
-                operation_id TEXT NOT NULL,
-                operation_type TEXT NOT NULL,
-                expires_at DATETIME NOT NULL,
-                released INTEGER NOT NULL DEFAULT 0,
-                created_at DATETIME NOT NULL DEFAULT (datetime('now'))
-            )
-            """
-        )
-        self.db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_inventory_reservations_operation "
-            "ON inventory_reservations(operation_id, product_id, branch_id, released)"
-        )
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         self.db.commit()
 
     def reserve_for_order(

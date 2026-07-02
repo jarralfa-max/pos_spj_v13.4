@@ -203,13 +203,7 @@ class ProductionCostService:
         Creates/uses production_cost_ledger rows and updates product/inventory costs once.
         """
         try:
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS production_cost_ledger ("
-                "id INTEGER PRIMARY KEY AUTOINCREMENT, batch_id TEXT, output_id TEXT, "
-                "product_id INTEGER, weight REAL, pct_utilizable REAL DEFAULT 0, "
-                "cost_total REAL, cost_per_kg REAL, operation_id TEXT, "
-                "sucursal_id INTEGER, usuario TEXT, base_product_id INTEGER, is_waste INTEGER DEFAULT 0)"
-            )
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         except Exception:
             pass
 

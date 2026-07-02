@@ -526,67 +526,7 @@ class GrowthEngine:
     def _ensure_tables(self):
         """Crea tablas si no existen (no depender solo de migración)."""
         try:
-            self.db.executescript("""
-                CREATE TABLE IF NOT EXISTS growth_ledger (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id INTEGER NOT NULL,
-                    sucursal_id INTEGER NOT NULL,
-                    tipo TEXT NOT NULL,
-                    monto REAL NOT NULL,
-                    moneda TEXT DEFAULT 'estrellas',
-                    ticket_id INTEGER,
-                    cajero_id INTEGER,
-                    operacion TEXT,
-                    expira_en DATETIME,
-                    revertido INTEGER DEFAULT 0,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS growth_metas (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id INTEGER DEFAULT 1,
-                    nombre TEXT NOT NULL,
-                    descripcion TEXT,
-                    tipo TEXT DEFAULT 'comunitaria',
-                    umbral REAL NOT NULL,
-                    progreso REAL DEFAULT 0,
-                    premio TEXT,
-                    costo_premio REAL DEFAULT 0,
-                    fecha_inicio DATE,
-                    fecha_fin DATE,
-                    activa INTEGER DEFAULT 1,
-                    completada INTEGER DEFAULT 0,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-                CREATE TABLE IF NOT EXISTS growth_misiones (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT NOT NULL,
-                    descripcion TEXT,
-                    condicion_tipo TEXT DEFAULT 'compras_consecutivas',
-                    condicion_n INTEGER DEFAULT 3,
-                    ventana_dias INTEGER DEFAULT 7,
-                    premio_estrellas INTEGER DEFAULT 100,
-                    activa INTEGER DEFAULT 1
-                );
-                CREATE TABLE IF NOT EXISTS growth_misiones_progreso (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id INTEGER NOT NULL,
-                    mision_id INTEGER NOT NULL,
-                    progreso INTEGER DEFAULT 0,
-                    iniciada_en DATETIME DEFAULT (datetime('now')),
-                    expira_en DATETIME,
-                    completada INTEGER DEFAULT 0,
-                    UNIQUE(cliente_id, mision_id)
-                );
-                CREATE TABLE IF NOT EXISTS growth_otp (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id INTEGER NOT NULL,
-                    codigo TEXT NOT NULL,
-                    monto_canje REAL NOT NULL,
-                    usado INTEGER DEFAULT 0,
-                    expira_en DATETIME NOT NULL,
-                    created_at DATETIME DEFAULT (datetime('now'))
-                );
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: self.db.commit()
             except Exception: pass
         except Exception: pass

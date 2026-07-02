@@ -12,21 +12,7 @@ def _utc_now_iso() -> str:
 
 
 def ensure_outbox_table(db) -> None:
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS event_outbox (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_type TEXT NOT NULL,
-            payload TEXT NOT NULL,
-            aggregate_type TEXT DEFAULT '',
-            aggregate_id TEXT DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'PENDING',
-            error TEXT DEFAULT '',
-            created_at TEXT NOT NULL,
-            dispatched_at TEXT
-        )
-        """
-    )
+    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
     try:
         db.commit()
     except Exception:

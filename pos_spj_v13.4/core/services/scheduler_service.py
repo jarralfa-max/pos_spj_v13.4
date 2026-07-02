@@ -260,21 +260,11 @@ class SchedulerService:
         try:
             cols = {r[1] for r in conn.execute('PRAGMA table_info(loyalty_snapshots)').fetchall()}
             if 'ultimo_evento_id' not in cols:
-                conn.execute('ALTER TABLE loyalty_snapshots ADD COLUMN ultimo_evento_id INTEGER')
+                pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
                 try: conn.commit()
                 except Exception: pass
         except Exception: pass
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS loyalty_snapshots (
-                cliente_id        INTEGER PRIMARY KEY REFERENCES clientes(id),
-                puntos_actuales   INTEGER NOT NULL DEFAULT 0,
-                nivel             TEXT    NOT NULL DEFAULT 'Bronce',
-                visitas           INTEGER NOT NULL DEFAULT 0,
-                importe_total     REAL    NOT NULL DEFAULT 0,
-                ultimo_evento_id  INTEGER,
-                fecha_snapshot    DATETIME DEFAULT (datetime('now'))
-            )
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         conn.commit()
 
         # Clientes con eventos nuevos desde su último snapshot

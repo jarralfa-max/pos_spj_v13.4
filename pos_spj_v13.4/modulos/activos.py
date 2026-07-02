@@ -311,7 +311,7 @@ def calcular_depreciacion_mensual(db, sucursal_id: int = 1) -> list:
     try:
         # Asegurar que la columna valor_residual existe (puede faltar en DBs antiguas)
         try:
-            db.execute("ALTER TABLE activos ADD COLUMN valor_residual REAL DEFAULT 0")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: db.commit()
             except Exception: pass
         except Exception:
@@ -375,11 +375,7 @@ class ModuloActivos(ModuloBase):
     def __init__(self, container, parent=None):
         # Ensure depreciation table exists
         try:
-            container.db.execute("""CREATE TABLE IF NOT EXISTS activos_depreciacion (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                activo_id INTEGER, monto REAL, valor_antes REAL, valor_despues REAL,
-                fecha DATETIME DEFAULT (datetime('now')), sucursal_id INTEGER DEFAULT 1
-            )""")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: container.db.commit()
             except Exception: pass
         except Exception: pass

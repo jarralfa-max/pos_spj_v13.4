@@ -681,8 +681,10 @@ def test_notification_tables_are_born_clean_uuid_identity():
         assert "INSERT INTO notification_inbox\n            (id," in src or \
                "INSERT INTO notification_inbox\n                   (id," in src, path
     # El CREATE self-heal de desktop usa id TEXT, no autoincrement.
+    # Plan B born-clean: el servicio ya no emite DDL espejo; el esquema TEXT
+    # vive únicamente en migrations/ (verificado arriba sobre la BD real).
     dsrc = (REPO / "core" / "services" / "desktop_notification_service.py").read_text(encoding="utf-8")
-    assert "id TEXT PRIMARY KEY" in dsrc
+    assert "CREATE TABLE" not in dsrc
     assert "id INTEGER PRIMARY KEY AUTOINCREMENT" not in dsrc
 
 
@@ -698,7 +700,7 @@ def test_hardware_config_keyed_by_natural_tipo():
     assert hw["sucursal_id"][0] == "TEXT"             # sin DEFAULT 1 arbitrario
 
     repo_src = (REPO / "core" / "repositories" / "hardware_config_repository.py").read_text(encoding="utf-8")
-    assert "tipo TEXT PRIMARY KEY" in repo_src
+    assert "CREATE TABLE" not in repo_src  # Plan B: repo sin DDL espejo
     assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in repo_src
     m050_src = (REPO / "migrations" / "m050_hardware_config_canonical.py").read_text(encoding="utf-8")
     assert "tipo TEXT PRIMARY KEY" in m050_src

@@ -125,30 +125,12 @@ class MessageQueue:
         self._init_table()
 
     def _init_table(self):
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS whatsapp_queue (
-                id                INTEGER PRIMARY KEY AUTOINCREMENT,
-                to_number         TEXT NOT NULL,
-                message           TEXT NOT NULL,
-                template          TEXT,
-                payload           TEXT,
-                estado            TEXT DEFAULT 'pendiente',
-                intentos          INTEGER DEFAULT 0,
-                error             TEXT,
-                fecha             TEXT DEFAULT (datetime('now')),
-                enviado_en        TEXT,
-                proxima_revision  TEXT DEFAULT (datetime('now'))
-            )""")
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wa_queue_estado "
-            "ON whatsapp_queue(estado, fecha)")
-        self.conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_wa_queue_revision "
-            "ON whatsapp_queue(estado, proxima_revision)")
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         # Columna de backoff para tablas creadas antes de migración 081
         try:
-            self.conn.execute(
-                "ALTER TABLE whatsapp_queue ADD COLUMN proxima_revision TEXT")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             self.conn.execute(
                 "UPDATE whatsapp_queue SET proxima_revision=fecha "
                 "WHERE proxima_revision IS NULL")

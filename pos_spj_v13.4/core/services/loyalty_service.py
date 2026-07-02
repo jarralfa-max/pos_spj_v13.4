@@ -459,18 +459,7 @@ class LoyaltyService:
 
     def _ensure_tables(self):
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS loyalty_pasivo_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    fecha TEXT DEFAULT (datetime('now')),
-                    tipo TEXT NOT NULL,
-                    estrellas INTEGER DEFAULT 0,
-                    valor_unitario REAL DEFAULT 0.10,
-                    monto_total REAL DEFAULT 0.0,
-                    referencia TEXT DEFAULT '',
-                    sucursal_id INTEGER DEFAULT 1
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:

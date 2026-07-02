@@ -28,44 +28,7 @@ class CierreCajaService:
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS cierres_caja (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                uuid             TEXT UNIQUE DEFAULT (lower(hex(randomblob(16)))),
-                tipo             TEXT DEFAULT 'Z',        -- Z o X
-                sucursal_id      INTEGER DEFAULT 1,
-                usuario          TEXT,
-                turno            TEXT,
-                fecha_apertura   DATETIME,
-                fecha_cierre     DATETIME DEFAULT (datetime('now')),
-                -- Calculado por sistema
-                total_ventas     DECIMAL(12,2) DEFAULT 0,
-                num_ventas       INTEGER DEFAULT 0,
-                total_efectivo   DECIMAL(12,2) DEFAULT 0,
-                total_tarjeta    DECIMAL(12,2) DEFAULT 0,
-                total_transferencia DECIMAL(12,2) DEFAULT 0,
-                total_otros      DECIMAL(12,2) DEFAULT 0,
-                total_anulaciones DECIMAL(12,2) DEFAULT 0,
-                num_anulaciones  INTEGER DEFAULT 0,
-                -- Conteo físico
-                efectivo_contado DECIMAL(12,2) DEFAULT 0,
-                fondo_inicial    DECIMAL(12,2) DEFAULT 0,
-                -- Discrepancia
-                diferencia       DECIMAL(12,2) DEFAULT 0,
-                comentarios      TEXT,
-                estado           TEXT DEFAULT 'cerrado'
-            );
-            CREATE TABLE IF NOT EXISTS turno_actual (
-                sucursal_id    INTEGER PRIMARY KEY,
-                usuario        TEXT,
-                turno          TEXT,
-                fondo_inicial  DECIMAL(12,2) DEFAULT 0,
-                fecha_apertura DATETIME,
-                abierto        INTEGER DEFAULT 0
-            );
-            CREATE INDEX IF NOT EXISTS idx_cierres_fecha
-                ON cierres_caja(fecha_cierre, sucursal_id);
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 

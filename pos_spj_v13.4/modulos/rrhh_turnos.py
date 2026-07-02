@@ -39,38 +39,7 @@ class ModuloRRHHTurnos(QWidget):
 
     def _ensure_tables(self):
         try:
-            self.db.executescript("""
-                CREATE TABLE IF NOT EXISTS turno_roles(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nombre TEXT NOT NULL UNIQUE,
-                    hora_inicio TEXT DEFAULT '08:00',
-                    hora_fin    TEXT DEFAULT '16:00',
-                    descripcion TEXT,
-                    color       TEXT DEFAULT '#3498db',
-                    activo      INTEGER DEFAULT 1
-                );
-                CREATE TABLE IF NOT EXISTS turno_asignaciones(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    personal_id INTEGER NOT NULL,
-                    turno_rol_id INTEGER NOT NULL,
-                    fecha_inicio DATE NOT NULL,
-                    fecha_fin    DATE,
-                    dia_descanso TEXT DEFAULT 'Domingo',
-                    rotacion_dias INTEGER DEFAULT 7,
-                    notif_semana INTEGER DEFAULT 1,
-                    notif_dia    INTEGER DEFAULT 1,
-                    activo       INTEGER DEFAULT 1,
-                    notas        TEXT
-                );
-                CREATE TABLE IF NOT EXISTS turno_notificaciones_log(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    personal_id INTEGER,
-                    tipo TEXT,
-                    fecha_envio DATETIME DEFAULT (datetime('now')),
-                    mensaje TEXT,
-                    estado TEXT DEFAULT 'enviado'
-                );
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try: self.db.commit()
             except Exception: pass
         except Exception as e:

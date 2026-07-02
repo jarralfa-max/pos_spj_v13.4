@@ -18,24 +18,7 @@ class WhatsAppConfigRepository:
 
     def _ensure_table(self):
         try:
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS whatsapp_numeros (
-                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id     INTEGER,
-                    canal           TEXT DEFAULT 'todos',
-                    proveedor       TEXT DEFAULT 'meta',
-                    numero_negocio  TEXT,
-                    meta_token      TEXT,
-                    meta_phone_id   TEXT,
-                    twilio_sid      TEXT,
-                    twilio_token    TEXT,
-                    verify_token    TEXT DEFAULT 'spj_verify',
-                    rasa_url        TEXT DEFAULT 'http://localhost:5005',
-                    rasa_activo     INTEGER DEFAULT 0,
-                    activo          INTEGER DEFAULT 1,
-                    nombre_sucursal TEXT,
-                    UNIQUE(sucursal_id, canal)
-                )""")
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.conn.commit()
             except Exception:
