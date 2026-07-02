@@ -1065,16 +1065,19 @@ class AppContainer:
         if hasattr(self, 'session'):
             self.session.set_sucursal(sucursal_id, nombre)
 
-        # Actualizar servicios que usan sucursal_id
-        for svc_name in ['inventory_service', 'sales_service', 'treasury_service',
-                          'happy_hour_service', 'comisiones_service',
-                          'loyalty_service', 'anticipo_service']:
-            svc = getattr(self, svc_name, None)
-            if svc and hasattr(svc, 'sucursal_id'):
-                svc.sucursal_id = sucursal_id
-            if svc and hasattr(svc, 'set_sucursal'):
-                try: svc.set_sucursal(sucursal_id)
-                except Exception: pass
+        # Actualizar TODOS los servicios del container que llevan sucursal_id
+        # copiada en su construcción (genérico: antes era una lista fija de 7 y
+        # el resto conservaba la sucursal vieja hasta reiniciar).
+        for attr_name, svc in list(self.__dict__.items()):
+            if svc is None or svc is self or isinstance(svc, (str, int, float, bool, list, dict, set, tuple)):
+                continue
+            try:
+                if hasattr(svc, 'sucursal_id'):
+                    svc.sucursal_id = sucursal_id
+                if hasattr(svc, 'set_sucursal'):
+                    svc.set_sucursal(sucursal_id)
+            except Exception as _svc_exc:
+                logger.debug("set_sucursal_activa → %s: %s", attr_name, _svc_exc)
 
         logger.info("Sucursal activa: %s (%s)", sucursal_id, nombre)
 
