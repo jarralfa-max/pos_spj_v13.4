@@ -21,7 +21,7 @@ def run(conn: sqlite3.Connection) -> None:
 def _create_whatsapp_queue(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS whatsapp_queue (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         TEXT PRIMARY KEY,
             to_number  TEXT    NOT NULL,
             message    TEXT    NOT NULL,
             template   TEXT,
@@ -38,11 +38,11 @@ def _create_whatsapp_queue(conn):
 def _create_rasa_sessions(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS rasa_sessions (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             sender_id       TEXT    NOT NULL UNIQUE,
             slots           TEXT    DEFAULT '{}',
             last_message_at TEXT    DEFAULT (datetime('now')),
-            pedido_activo_id INTEGER,
+            pedido_activo_id TEXT,
             FOREIGN KEY (pedido_activo_id) REFERENCES pedidos(id) ON DELETE SET NULL
         )""")
     logger.info("rasa_sessions creada/verificada.")
@@ -51,7 +51,7 @@ def _create_marketing_messages(conn):
     """Tabla de templates personalizables para WhatsApp / tickets."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS marketing_messages (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            id        TEXT PRIMARY KEY,
             nombre    TEXT    NOT NULL UNIQUE,
             mensaje   TEXT    NOT NULL,
             contexto  TEXT    DEFAULT 'whatsapp',

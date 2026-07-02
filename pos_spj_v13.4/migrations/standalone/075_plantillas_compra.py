@@ -10,11 +10,11 @@ by any prior migration. Absence of these tables caused a startup crash
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS plantillas_compra (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             nombre      TEXT    NOT NULL,
             descripcion TEXT,
-            proveedor_id INTEGER,
-            sucursal_id INTEGER DEFAULT 1,
+            proveedor_id TEXT,
+            sucursal_id TEXT,
             activo      INTEGER DEFAULT 1,
             creado_por  TEXT,
             fecha       TEXT    DEFAULT (datetime('now'))
@@ -23,10 +23,10 @@ def run(conn):
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS plantillas_compra_items (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            plantilla_id INTEGER NOT NULL
+            id           TEXT PRIMARY KEY,
+            plantilla_id TEXT NOT NULL
                              REFERENCES plantillas_compra(id) ON DELETE CASCADE,
-            producto_id  INTEGER NOT NULL,
+            producto_id  TEXT NOT NULL,
             cantidad     REAL    NOT NULL DEFAULT 1,
             costo_unitario REAL  DEFAULT 0
         )

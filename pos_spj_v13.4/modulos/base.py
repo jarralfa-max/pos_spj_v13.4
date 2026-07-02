@@ -113,16 +113,20 @@ class ModuloBase(QWidget):
     def insertar_registro(self, tabla: str, datos: Dict[str, Any]) -> Optional[int]:
         """Inserta un registro en una tabla."""
         try:
+            # Plan B born-clean: identidad UUIDv7 explícita, nunca rowid implícito.
+            if "id" not in datos:
+                from backend.shared.ids import new_uuid
+                datos = {"id": new_uuid(), **datos}
             columnas = ', '.join(datos.keys())
             placeholders = ', '.join(['?' for _ in datos])
             valores = list(datos.values())
-            
+
             consulta = f"INSERT INTO {tabla} ({columnas}) VALUES ({placeholders})"
             cursor = self.ejecutar_consulta(consulta, valores)
-            
+
             if cursor:
                 self.conexion.commit()
-                return cursor.lastrowid
+                return datos["id"]
             return None
         except sqlite3.Error as e:
             self.conexion.rollback()

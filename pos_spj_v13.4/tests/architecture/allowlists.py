@@ -60,7 +60,12 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/api/routers/anticipos.py': 1,
     'pos_spj_v13.4/application/services/customer_credit_service.py': 1,
     'pos_spj_v13.4/core/auth/login_guard.py': 2,
-    'pos_spj_v13.4/core/delivery/infrastructure/delivery_schema_migrator.py': 6,
+    # Plan B: uuid_cutover es la herramienta excepcional de conservación de
+    # datos (reescribe tablas por diseño); el migrador delivery añadió
+    # delivery_outbox_events; born_clean_audit menciona CREATE TABLE en docstring.
+    'pos_spj_v13.4/backend/infrastructure/db/uuid_cutover.py': 2,
+    'pos_spj_v13.4/core/delivery/infrastructure/delivery_schema_migrator.py': 7,
+    'pos_spj_v13.4/tools/born_clean_audit.py': 1,
     'pos_spj_v13.4/core/delivery/infrastructure/inventory_reservation_adapter.py': 1,
     'pos_spj_v13.4/core/events/outbox.py': 1,
     'pos_spj_v13.4/core/module_config.py': 1,

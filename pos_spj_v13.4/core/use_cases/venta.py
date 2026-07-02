@@ -315,7 +315,7 @@ class ProcesarVentaUC:
             if datos_pago.cliente_id and self._loyalty and getattr(self._loyalty, "enabled", True):
                 if puntos_totales in (None, "") or not (loyalty_result or {}).get("available", False):
                     try:
-                        puntos_totales = int(self._loyalty.saldo(datos_pago.cliente_id))
+                        puntos_totales = str(self._loyalty.saldo(datos_pago.cliente_id))
                         loyalty_result = dict(loyalty_result or {})
                         loyalty_result["puntos_totales"] = puntos_totales
                         loyalty_result["available"] = True

@@ -12,7 +12,7 @@ def _add_idx(conn, table, idx_name, columns):
 def up(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_batch_log (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             batch_id     TEXT    NOT NULL UNIQUE,
             event_count  INTEGER NOT NULL DEFAULT 0,
             status       TEXT    NOT NULL DEFAULT 'SENT',
@@ -24,7 +24,7 @@ def up(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sync_version_history (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             event_id     TEXT    NOT NULL,
             version      INTEGER NOT NULL,
             hash         TEXT    NOT NULL,

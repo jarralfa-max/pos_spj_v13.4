@@ -35,9 +35,9 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # Documented Fase 0 baseline (measured 2026-06). Drive every number DOWN.
 BASELINE: dict[str, dict[str, int]] = {
     "modulos/delivery.py": {
-        # Identity casts + branch defaults removed (Fase A). Residual sql_select/
-        # sql_update matches are comments/prose, not executable SQL.
-        "sql_select": 1,
+        # Identity casts + branch defaults removed (Fase A). The residual
+        # sql_select prose match was removed (1->0); the sql_update matches are
+        # comments/prose, not executable SQL.
         "sql_update": 2,
     },
 }

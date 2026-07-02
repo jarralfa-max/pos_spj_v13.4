@@ -10,7 +10,7 @@ engine becomes functional:
   ``batch_id`` (lote FK, declared TEXT → UUIDv7-ready), ``activa`` (active flag).
 * ``card_batches``       : ``generado_por`` (issuer), ``fecha_cierre`` (close ts).
 
-Identity stays INTEGER PRIMARY KEY here; the UUIDv7 cut of the id columns to TEXT
+Identity stays TEXT PRIMARY KEY here; the UUIDv7 cut of the id columns to TEXT
 is migración 200. ``batch_id`` is TEXT so it already accepts a UUID once
 ``card_batches.id`` becomes TEXT (SQLite type affinity matches str↔int meanwhile).
 """

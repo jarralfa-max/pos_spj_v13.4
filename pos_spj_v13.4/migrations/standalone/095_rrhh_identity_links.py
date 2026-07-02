@@ -32,13 +32,13 @@ def _ensure_column(conn: sqlite3.Connection, table: str, definition: str) -> Non
 
 def run(conn: sqlite3.Connection) -> None:
     if _table_exists(conn, "usuarios"):
-        _ensure_column(conn, "usuarios", "personal_id INTEGER")
+        _ensure_column(conn, "usuarios", "personal_id TEXT")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_usuarios_personal_id ON usuarios(personal_id)"
         )
 
     if _table_exists(conn, "drivers"):
-        _ensure_column(conn, "drivers", "personal_id INTEGER")
+        _ensure_column(conn, "drivers", "personal_id TEXT")
         _ensure_column(conn, "drivers", "source_module TEXT DEFAULT 'delivery'")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_drivers_personal_id ON drivers(personal_id)"

@@ -288,7 +288,7 @@ class NotificationService:
         # Normalizar: puede recibir lista de dicts o args individuales de un producto
         if isinstance(productos_o_nombre, list):
             productos = productos_o_nombre
-            sucursal_id = int(existencia_o_sucursal)
+            sucursal_id = str(existencia_o_sucursal)
         else:
             productos = [{
                 "nombre": productos_o_nombre,

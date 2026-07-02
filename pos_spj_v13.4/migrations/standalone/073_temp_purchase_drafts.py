@@ -10,9 +10,9 @@ isolated per operator and location.
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS temp_purchase_drafts (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             usuario     TEXT NOT NULL,
-            sucursal_id INTEGER NOT NULL DEFAULT 1,
+            sucursal_id TEXT NOT NULL,
             draft_data  TEXT NOT NULL,
             updated_at  TEXT DEFAULT (datetime('now')),
             created_at  TEXT DEFAULT (datetime('now'))

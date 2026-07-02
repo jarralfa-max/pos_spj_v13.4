@@ -1,6 +1,7 @@
 
 # repositories/sales_repository.py
 import logging
+from backend.shared.ids import new_uuid
 import uuid
 from datetime import datetime
 
@@ -41,21 +42,20 @@ class SalesRepository:
                 break  # If DB check fails, use current folio (non-critical)
         fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        sale_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
         query = """
             INSERT INTO ventas (
-                folio, sucursal_id, usuario, cliente_id, subtotal,
+                id, folio, sucursal_id, usuario, cliente_id, subtotal,
                 descuento, total, forma_pago, efectivo_recibido,
                 operation_id, observations, estado, fecha
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completada', ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completada', ?)
         """
 
         cursor.execute(query, (
-            folio, branch_id, user, client_id, subtotal,
+            sale_id, folio, branch_id, user, client_id, subtotal,
             discount, total, payment_method, amount_paid,
             operation_id, notes, fecha_actual
         ))
-        
-        sale_id = cursor.lastrowid
         logger.debug(f"Cabecera de venta {folio} insertada con ID {sale_id}.")
         
         return sale_id, folio

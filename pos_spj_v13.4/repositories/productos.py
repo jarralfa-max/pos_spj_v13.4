@@ -169,7 +169,7 @@ class ProductoRepository:
         nombre = data.get("nombre", "").strip()
         normalised = nombre.lower()
 
-        # REGLA CERO: identidad UUIDv7 acuñada con new_uuid(), nunca lastrowid.
+        # REGLA CERO: identidad UUIDv7 acuñada con new_uuid(), nunca rowid implícito.
         producto_id = data.get("id") or new_uuid()
         cursor = self.db.cursor()
         cursor.execute("INSERT INTO productos (id, nombre, nombre_normalizado, precio, existencia, stock_minimo, unidad, categoria, oculto, es_compuesto, es_subproducto, producto_padre_id, imagen_path, is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)",

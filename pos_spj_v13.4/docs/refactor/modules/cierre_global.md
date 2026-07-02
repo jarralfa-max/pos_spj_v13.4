@@ -1,140 +1,77 @@
 # CIERRE_GLOBAL — Reporte final del pipeline de refactor UUIDv7
 
-**Módulo #34 · Estado: DONE · Iteración 1**
-**Alcance elegido:** cierre de pipeline (barrido global de cumplimiento REGLA CERO,
-confirmación de guardrails y reporte final). No es un flip de tablas; la deuda de
-`cierre_mensual` / `cierres_caja` se deja a sus módulos dueños (CONFIGURACION / CAJA).
+**Módulo #34 · Estado: DONE · Actualizado tras el corte born-clean total (Plan B)**
 
-Este documento es el **estado honesto** del pipeline al cerrar la cola operativa
-(#1–#34). Refleja el esquema real (`m000_base_schema` + cadena de 113 migraciones),
-no una aspiración.
-
----
-
-## 1. Resumen ejecutivo
-
-El refactor "born-clean UUIDv7" avanzó **por dos estrategias coexistentes**:
-
-1. **Born-clean de esquema (esta tanda, módulos ~#15–#33):** la definición en
-   `m000_base_schema` se reescribió a `id TEXT PRIMARY KEY` (UUIDv7) con identidad
-   única — sin columna `uuid` dual, sin surrogate entero, sin `DEFAULT 1`. Cada
-   módulo dejó un guardrail en `tests/architecture/test_clean_birth_guardrails.py`.
-
-2. **Cutover en runtime (módulos tempranos: ventas, mermas, inventario, etc.):** el
-   esquema base conserva `id INTEGER PRIMARY KEY` y se añade columna `uuid` (dual)
-   vía migraciones 101/102; la transformación entero→UUIDv7 la ejecuta el mecanismo
-   `backend/infrastructure/db/uuid_cutover.py` en runtime, con el gate de arranque
-   `assert_uuid_identity` (bloquea el arranque si la BD no fue "cortada", con runbook
-   accionable y `SPJ_UUID_CUTOVER_CONFIRMED=1`).
-
-**Conclusión:** el pipeline **no está al 100 %** a nivel de esquema. Una parte del
-dominio ya nace limpia; otra parte sigue en entero y depende del cutover en runtime
-o queda como deuda documentada asignada a un módulo dueño.
+Este documento refleja el estado REAL del schema activo después de completar el
+Plan B: **cero PK enteras funcionales**. La versión anterior de este reporte
+describía "dos estrategias coexistentes" (born-clean de esquema + cutover en
+runtime); ese estado híbrido fue eliminado — la única estrategia vigente es
+**schema UUIDv7 nativo → DB limpia → runtime UUID**.
 
 ---
 
-## 2. Censo de identidad (medido, no estimado)
+## 1. Estado final (medido por `tools/born_clean_audit.py`)
 
-### Esquema base (`m000_base_schema.up`)
-| Métrica | Valor |
-|---|---|
-| Tablas totales | 185 |
-| PK TEXT identidad única (born-clean) | 73 |
-| PK INTEGER funcional (filtro `find_integer_pks`) | **107** (techo 129, holgura 22) |
-
-### Cadena completa (base + 113 migraciones standalone)
-| Métrica | Valor |
-|---|---|
-| Tablas totales | 261 |
-| PK TEXT identidad única (born-clean) | 112 |
-| PK INTEGER funcional (filtro guard) | **139** |
-| — de ellas DUAL (`id` INTEGER + col `uuid`, cutover-ready) | 23 |
-| — de ellas INTEGER puro (sin `uuid`) | 116 |
-
-> El filtro `find_integer_pks` es amplio: incluye tablas `legacy_*` (archivo),
-> auditoría/log (`audit_log`, `json_audit_log`, `logs`, `login_attempts`,
-> `concurrency_events`) y claves naturales compuestas (`sync_version_history` con
-> PK `(event_id, version)`), que inflan el conteo de "deuda" real de dominio.
-
----
-
-## 3. Guardrails de nacimiento limpio — VERDE
-
-`tests/architecture/test_clean_birth_guardrails.py`: **38/38 passing.**
-
-Techos de deuda (sólo pueden bajar hacia 0; subir = regresión que falla el build):
-
-| Techo | Valor actual | Estado |
+| Métrica | Antes (FASE 0) | Ahora |
 |---|---|---|
-| `INTEGER_PK_TABLE_CEILING` | 129 (medido 107 en base) | ✅ |
-| `SERVICES_WITH_DDL_CEILING` | 20 | ✅ |
-| `LASTROWID_FILE_CEILING` | 31 | ✅ |
+| Tablas totales (cadena completa) | 260 | 272 |
+| PK entera funcional (`find_integer_pks`) | **139** | **0** |
+| `id TEXT PRIMARY KEY` born-clean | 99 | 238 |
+| PK natural/compuesta | 22 | 34 |
+| AUTOINCREMENT | 126 | 0 |
+| Tablas con FK funcional INTEGER | 142 | 0 |
+| Tablas con `DEFAULT 1` en FK funcional | 40 | 0 |
 
-Guardrails por subsistema nacidos en esta tanda (no exhaustivo): alertas, tarjetas
-de fidelidad, clientes, proveedores, compras, recepción, pedidos, tickets/print_job,
-hardware, notificaciones, WhatsApp, contabilidad core, tesorería, gastos, CxP/CxC,
-plan de cuentas, deuda diferida, RRHH, reportes/BI, API REST, **sincronización**,
-**instalador**, **actualizador**.
+`find_integer_pks(conn) == {}` con el bootstrap normal (`m000_base_schema.up` +
+`migrations.engine.up`), tanto en base sola como en la cadena completa.
+`PRAGMA foreign_key_check` vacío. Detalle inicial y atribución por archivo:
+`docs/refactor/born_clean_uuidv7_schema_audit.md`.
 
----
+## 2. Guardrails — CERO tolerancia (sin techos)
 
-## 4. Mecanismo puente: `uuid_cutover` (runtime)
+Los techos de deuda (`INTEGER_PK_TABLE_CEILING` / `SERVICES_WITH_DDL_CEILING` /
+`LASTROWID_FILE_CEILING`) fueron **reemplazados por criterio cero** en
+`tests/architecture/test_clean_birth_guardrails.py` (41/41 verdes):
 
-- `find_integer_pks(conn)` — detecta tablas de dominio con PK entero (excluye infra
-  de migración como `schema_migrations`).
-- `assert_uuid_identity(conn)` — gate de arranque: si hay PKs enteros funcionales y
-  no está `SPJ_UUID_CUTOVER_CONFIRMED=1`, levanta `IntegerIdentityError` con runbook.
-- `UuidCutover(conn, [TableSpec(...)]).run()` — transforma entero→UUIDv7 respetando
-  FKs, de forma directa/atómica (sin escritura dual persistente).
+- `test_fresh_base_schema_has_no_integer_primary_keys`
+- `test_full_migration_chain_has_no_integer_primary_keys`
+- `test_active_schema_has_no_autoincrement`
+- `test_active_schema_has_no_functional_integer_fks`
+- `test_active_schema_has_no_default_one_on_functional_fks`
+- `test_domain_code_has_no_lastrowid_identity`
+- `test_domain_code_has_no_integer_casts_for_entity_ids`
+- `test_services_repositories_ui_do_not_create_schema`
 
-Este es el camino previsto para las 139 tablas enteras/duales que aún no nacen
-limpias en el esquema base.
+## 3. `uuid_cutover` — herramienta excepcional, NO flujo de desarrollo
 
----
+`backend/infrastructure/db/uuid_cutover.py` y la migración 200 quedan como
+herramienta de **rescate para conservación de datos en producción** únicamente.
+En desarrollo, una BD contaminada no se repara: se elimina y se recrea
+(`docs/runbooks/dev_db_reset.md`). `assert_uuid_identity` sigue bloqueando el
+arranque contra BDs no born-clean, con mensaje que dirige al reset (no a la 200);
+`SPEC_IS_COMPLETE=False` mantiene la 200 gated.
 
-## 5. Deuda diferida con dueño asignado (fuera de CIERRE_GLOBAL)
+## 4. Identidad de instalación
 
-| Deuda | Dueño | Referencia |
-|---|---|---|
-| Centinela matriz `sucursales`/`cajas`/`usuarios` `id='1'`; `sucursal_id INTEGER DEFAULT 1`; int branch ids | **CONFIGURACION-02-IDENTITY** | `configuracion_scope.json` CFG-SCOPE-002; docstring `_seed_initial_data` |
-| `cierre_mensual` (dual `id`+`uuid`+`sucursal_uuid`, `DEFAULT 1`) — writer `config_repository.py`, mig 096, `ClosingPeriodService` | **CONFIGURACION** | census §2; scope doc |
-| `cierres_caja` (dual `id`+`uuid`, `DEFAULT 1`) — writers `caja_application_service`, `cierre_caja_service` | **CAJA / CONFIGURACION** | census §2 |
-| SQL directo en PyQt de configuración, defaults hardcodeados, matriz de permisos | **CONFIGURACION** (batches 04/02/08) | `test_settings_*`, `test_configuracion_*` |
+Seeds sin `id=1`: la sucursal matriz y la caja principal usan centinelas UUID
+constantes documentados (`backend.shared.ids.INSTALL_BRANCH_UUID` /
+`INSTALL_CASHBOX_UUID`); el admin acuña `new_uuid()`.
 
----
+## 5. Trabajo de código completado en el corte
 
-## 6. Estado de la suite (honesto)
+- 16 tablas creadas por servicios en runtime movidas born-clean a `m000`
+  (`_create_runtime_service_tables`); 41 archivos de dominio quedaron sin DDL.
+- 19 sitios `lastrowid` convertidos a `new_uuid()` explícito (15 archivos).
+- 60 casts `int()` sobre identidades eliminados (33 archivos).
+- Migración 099 (archivo legacy_*) → no-op documentado; tabla typo
+  `configuracioneses` eliminada (defaults redirigidos a `configuraciones`).
 
-- **Born-clean guardrails:** 38/38 verde.
-- **`tests/architecture/` completo:** 40 fallos **pre-existentes** (BASE=NOW en
-  stash-diff), todos del módulo **CONFIGURACION #0 (PENDING)**: `test_settings_*`,
-  `test_configuracion_*`, `test_refactor_orchestrator`, `test_refactor_work_queue`,
-  `test_uuid_cutover_migration_gated`, selector de sucursal, widgets estándar.
-- **Full suite:** ~628 fallos de baseline, dominados por issues de entorno
-  (`ModuleNotFoundError: PIL`, colecciones rotas por `FileNotFoundError`) y ruido de
-  logs de `sales_service` (handlers de venta no registrados en entornos aislados).
-  Cada módulo de esta tanda se validó con stash-diff full-suite → **cero fallos
-  nuevos** vs su baseline.
+## 6. Riesgo residual conocido
 
----
+INSERTs antiguos que omiten `id` en tablas `TEXT PRIMARY KEY` insertan NULL
+silencioso (SQLite no impone NOT NULL en PK TEXT declarada sin NOT NULL).
+Mitigación en curso: writers canónicos ya acuñan `new_uuid()`; siguiente paso
+sugerido: endurecer `id TEXT PRIMARY KEY NOT NULL` por tabla al tocar cada
+módulo, o test de humo que inserte por cada writer y verifique id no-NULL.
 
-## 7. Cola operativa
-
-Todos los módulos #1–#34 en **DONE**. Único pendiente: **CONFIGURACION #0**, que
-absorbe la deuda diferida de §5 (centinela matriz, dual-identity de
-`sucursales`/`usuarios`/`cajas`, cierre mensual/caja, y el hardening del módulo de
-configuración). Cerrar CONFIGURACION #0 es la condición para intentar bajar
-`INTEGER_PK_TABLE_CEILING` hacia 0 y, eventualmente, ejecutar el cutover global.
-
----
-
-## 8. Definición de "terminado" para el pipeline (pendiente tras CONFIGURACION)
-
-1. `INTEGER_PK_TABLE_CEILING == 0` (todo dominio nace TEXT UUIDv7 en base) **o**
-   cutover global confirmado y verificado.
-2. `SERVICES_WITH_DDL_CEILING == 0` y `LASTROWID_FILE_CEILING == 0`.
-3. Cero `int(..._id)` sobre identidades en código no-test.
-4. Suite de arquitectura completa en verde (incluida CONFIGURACION).
-
-*Reporte generado en el cierre de la cola operativa; refleja el esquema real a la
-fecha del commit de CIERRE_GLOBAL.*
+*Actualizado como parte del cierre Plan B born-clean.*

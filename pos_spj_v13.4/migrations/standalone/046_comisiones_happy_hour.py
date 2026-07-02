@@ -9,25 +9,25 @@ def up(conn):
     conn.executescript("""
         -- Config de comisiones por usuario (habilitable/deshabilitable)
         CREATE TABLE IF NOT EXISTS comisiones_config (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             usuario      TEXT NOT NULL UNIQUE,
             pct_comision REAL NOT NULL DEFAULT 0.5
                         CHECK(pct_comision >= 0 AND pct_comision <= 50),
             activo       INTEGER NOT NULL DEFAULT 1,
-            sucursal_id  INTEGER DEFAULT 1,
+            sucursal_id  TEXT,
             created_at   DATETIME DEFAULT (datetime('now'))
         );
 
         -- Comisiones acumuladas por turno
         CREATE TABLE IF NOT EXISTS comisiones_acumuladas (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             usuario      TEXT NOT NULL,
-            venta_id     INTEGER REFERENCES ventas(id) ON DELETE CASCADE,
+            venta_id     TEXT REFERENCES ventas(id) ON DELETE CASCADE,
             total_venta  REAL NOT NULL,
             pct          REAL NOT NULL,
             monto        REAL NOT NULL,
             turno_fecha  DATE DEFAULT (date('now')),
-            sucursal_id  INTEGER DEFAULT 1,
+            sucursal_id  TEXT,
             pagado       INTEGER DEFAULT 0,
             created_at   DATETIME DEFAULT (datetime('now'))
         );
@@ -36,7 +36,7 @@ def up(conn):
 
         -- Reglas de Happy Hour (descuentos por horario)
         CREATE TABLE IF NOT EXISTS happy_hour_rules (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             nombre       TEXT NOT NULL,
             hora_inicio  TEXT NOT NULL,   -- 'HH:MM'
             hora_fin     TEXT NOT NULL,   -- 'HH:MM'
@@ -47,7 +47,7 @@ def up(conn):
             aplica_valor TEXT,                           -- nombre de categoria o id de producto
             mensaje_wa   TEXT,           -- Mensaje WhatsApp a enviar al activarse
             activo       INTEGER DEFAULT 1,
-            sucursal_id  INTEGER DEFAULT 1,
+            sucursal_id  TEXT,
             created_at   DATETIME DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_hh_activo

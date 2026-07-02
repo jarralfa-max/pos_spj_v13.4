@@ -14,11 +14,7 @@ class SaleLoyaltyPolicy:
 
     def _ensure_table(self) -> None:
         try:
-            self.db.execute(
-                "CREATE TABLE IF NOT EXISTS loyalty_operations ("
-                "operation_id TEXT PRIMARY KEY, kind TEXT NOT NULL, cliente_id INTEGER, "
-                "venta_id INTEGER, payload TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)"
-            )
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         except Exception:
             pass
 

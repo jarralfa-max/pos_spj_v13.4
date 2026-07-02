@@ -25,11 +25,11 @@ def run(conn):
     _col(conn, "product_recipes", "rendimiento_esperado_pct REAL DEFAULT 0")
     _col(conn, "product_recipes", "merma_esperada_pct REAL DEFAULT 0")
     _col(conn, "product_recipes", "peso_promedio_kg REAL DEFAULT 1.0")
-    _col(conn, "product_recipes", "legacy_receta_id INTEGER")
-    _col(conn, "product_recipes", "output_product_id INTEGER")
+    _col(conn, "product_recipes", "legacy_receta_id TEXT")
+    _col(conn, "product_recipes", "output_product_id TEXT")
 
     # ── 2. Columna de puente en product_recipe_components ──────────────────
-    _col(conn, "product_recipe_components", "legacy_receta_componente_id INTEGER")
+    _col(conn, "product_recipe_components", "legacy_receta_componente_id TEXT")
     _col(conn, "product_recipe_components", "cantidad REAL DEFAULT 0")
     _col(conn, "product_recipe_components", "rendimiento_porcentaje REAL DEFAULT 0")
     _col(conn, "product_recipe_components", "merma_porcentaje REAL DEFAULT 0")

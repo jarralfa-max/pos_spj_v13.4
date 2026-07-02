@@ -661,7 +661,7 @@ class PrinterService:
             data.setdefault("cliente_nombre", data["cliente"])
             return
         try:
-            row = self.db.execute("SELECT * FROM clientes WHERE id=? LIMIT 1", (int(client_id),)).fetchone()
+            row = self.db.execute("SELECT * FROM clientes WHERE id=? LIMIT 1", (str(client_id),)).fetchone()
             nombre = self._row_value(row, "nombre", "name", "razon_social", "cliente", default="")
             if not nombre:
                 nombre = f"Cliente {client_id}"

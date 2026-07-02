@@ -37,20 +37,7 @@ class HardwareConfigRepository:
         # Identidad natural: tipo es la clave única real (REGLA CERO — sin surrogate
         # entero). CREATE IF NOT EXISTS idempotente que refleja el esquema de
         # migrations (m000/m050) para DBs locales antiguas.
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS hardware_config (
-                tipo TEXT PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                driver TEXT,
-                puerto TEXT,
-                configuraciones TEXT,
-                activo INTEGER DEFAULT 1,
-                sucursal_id TEXT,
-                fecha_actualizacion DATETIME DEFAULT (datetime('now'))
-            )
-            """
-        )
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
 
     def seed_defaults(self) -> None:
         """Ensure stable rows exist for every supported hardware domain."""

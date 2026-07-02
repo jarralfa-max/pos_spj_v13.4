@@ -211,8 +211,10 @@ def test_sincronizacion_tables_are_born_clean_single_uuid_identity():
 
     # sync_version_history: PK natural compuesta (event_id, version), sin surrogate.
     svh = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(sync_version_history)").fetchall()}
-    assert "id" not in svh, "sync_version_history no debe tener surrogate id entero"
-    assert svh["event_id"][1] >= 1 and svh["version"][1] >= 1, "PK compuesta (event_id, version)"
+    # Plan B: id TEXT UUIDv7 + unicidad natural (event_id, version); `version`
+    # es un ordinal legítimo, no identidad, y ya no forma parte de la PK.
+    assert svh["id"] == ("TEXT", 1), "sync_version_history.id debe ser TEXT PK UUIDv7"
+    assert svh["event_id"][0] == "TEXT" and svh["version"][0] == "INTEGER"
 
     # Writers acuñan UUIDv7 y no usan lastrowid como identidad.
     se_src = (REPO / "sync/sync_engine.py").read_text(encoding="utf-8")
@@ -467,7 +469,7 @@ def test_cxp_cxc_tables_are_born_clean_uuid_identity():
     ar_payments (m000 base) y pagos_cobros / pagos_cobros_aplicaciones (082)
     llevan id TEXT UUIDv7. Las FKs a tablas ya flipeadas (cliente_id, sucursal_id,
     ap_id, ar_id, pago_cobro_id, documento_id) y el tercero_id polimórfico van en
-    TEXT; supplier_id/venta_id se conservan INTEGER (suppliers/ventas diferidas).
+    TEXT; supplier_id/venta_id son TEXT (flip global born-clean Plan B).
     Los servicios de CxP/CxC acuñan new_uuid() (sin lastrowid) y TreasuryService
     escribe en las tablas canónicas ap_payments/ar_payments (no en las fantasma
     cxp_payments/cxc_payments).
@@ -488,9 +490,9 @@ def test_cxp_cxc_tables_are_born_clean_uuid_identity():
 
     ar = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(accounts_receivable)").fetchall()}
     assert ar["cliente_id"] == "TEXT" and ar["sucursal_id"] == "TEXT"
-    assert ar["venta_id"] == "INTEGER"  # ventas diferida
+    assert ar["venta_id"] == "TEXT"  # born-clean: ventas ya es TEXT UUIDv7
     ap = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(accounts_payable)").fetchall()}
-    assert ap["sucursal_id"] == "TEXT" and ap["supplier_id"] == "INTEGER"  # suppliers diferida
+    assert ap["sucursal_id"] == "TEXT" and ap["supplier_id"] == "TEXT"  # born-clean
     app = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(ap_payments)").fetchall()}
     assert app["ap_id"] == "TEXT"
     pca = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(pagos_cobros_aplicaciones)").fetchall()}
@@ -543,7 +545,7 @@ def test_deferred_debt_tables_are_born_clean_uuid_identity():
     insumos llevan identidad UUIDv7 TEXT. assets/asset_maintenance (base) y
     fixed_assets/asset_depreciation_entries/maintenance_records/
     operating_supplies/reconciliation_records (083) → id TEXT PK; branch_id y
-    FKs cruzadas en TEXT (supplier_id se conserva INTEGER, suppliers diferida).
+    FKs cruzadas en TEXT (supplier_id incluido: flip global born-clean Plan B).
     links_pago abandona la identidad dual (id entero + uuid) por clave natural
     pedido_id TEXT. depreciacion_acumulada (060) ya es UUIDv7. Los 3 servicios
     de trazabilidad acuñan new_uuid() y el CRUD muerto de activos en
@@ -567,7 +569,7 @@ def test_deferred_debt_tables_are_born_clean_uuid_identity():
 
     fa = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(fixed_assets)").fetchall()}
     assert fa["branch_id"] == "TEXT" and fa["financial_document_id"] == "TEXT"
-    assert fa["supplier_id"] == "INTEGER"  # suppliers diferida
+    assert fa["supplier_id"] == "TEXT"  # born-clean: suppliers ya es TEXT UUIDv7
     ade = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(asset_depreciation_entries)").fetchall()}
     assert ade["asset_id"] == "TEXT"
 
@@ -679,8 +681,10 @@ def test_notification_tables_are_born_clean_uuid_identity():
         assert "INSERT INTO notification_inbox\n            (id," in src or \
                "INSERT INTO notification_inbox\n                   (id," in src, path
     # El CREATE self-heal de desktop usa id TEXT, no autoincrement.
+    # Plan B born-clean: el servicio ya no emite DDL espejo; el esquema TEXT
+    # vive únicamente en migrations/ (verificado arriba sobre la BD real).
     dsrc = (REPO / "core" / "services" / "desktop_notification_service.py").read_text(encoding="utf-8")
-    assert "id TEXT PRIMARY KEY" in dsrc
+    assert "CREATE TABLE" not in dsrc
     assert "id INTEGER PRIMARY KEY AUTOINCREMENT" not in dsrc
 
 
@@ -696,7 +700,7 @@ def test_hardware_config_keyed_by_natural_tipo():
     assert hw["sucursal_id"][0] == "TEXT"             # sin DEFAULT 1 arbitrario
 
     repo_src = (REPO / "core" / "repositories" / "hardware_config_repository.py").read_text(encoding="utf-8")
-    assert "tipo TEXT PRIMARY KEY" in repo_src
+    assert "CREATE TABLE" not in repo_src  # Plan B: repo sin DDL espejo
     assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in repo_src
     m050_src = (REPO / "migrations" / "m050_hardware_config_canonical.py").read_text(encoding="utf-8")
     assert "tipo TEXT PRIMARY KEY" in m050_src
@@ -1009,52 +1013,46 @@ def test_refresh_order_badges_does_not_int_cast_identity():
     assert "branch_id=str(branch_id)" in body
 
 
-# ── DEBT CEILINGS — must only shrink toward 0 (born-clean) ───────────────────────
+# ── CERO TOLERANCIA — Plan B born-clean UUIDv7 (sin techos de deuda) ─────────────
+#
+# Los antiguos techos (INTEGER_PK_TABLE_CEILING / SERVICES_WITH_DDL_CEILING /
+# LASTROWID_FILE_CEILING) fueron reemplazados por criterio CERO: una DB nueva
+# debe nacer UUIDv7 limpia y find_integer_pks(conn) debe devolver {} tras el
+# bootstrap normal. No hay deuda tolerada; toda excepción vive en una allowlist
+# mínima, explícita y justificada.
 
-# Current measured legacy surface. Lower these as the born-clean rewrite advances.
-# Target for all three is 0; raising any of them is a regression and must fail.
-INTEGER_PK_TABLE_CEILING = 129
-SERVICES_WITH_DDL_CEILING = 20
-LASTROWID_FILE_CEILING = 31
+# Columnas *_id que NO son identidad de dominio (ordinales/técnicas), por tabla.
+_NON_IDENTITY_ID_COLS = {
+    "device_version", "event_version",
+}
+
+# DDL fuera de migrations/ permitido SOLO aquí (bootstrap centralizado aprobado
+# o herramienta excepcional), con justificación:
+DDL_ALLOWLIST = {
+    # Herramienta excepcional de conservación de datos (producción); NO es el
+    # flujo normal de desarrollo. Reescribe tablas por diseño.
+    "backend/infrastructure/db/uuid_cutover.py",
+    # Bootstrap centralizado aprobado: espejo del esquema canónico para
+    # conexiones nuevas (invoca migraciones, no define entidades propias).
+    "core/db/connection.py",
+    # Migrador de esquema delivery: infra de schema (pendiente de fusión a
+    # migrations/), no lógica de negocio.
+    "core/delivery/infrastructure/delivery_schema_migrator.py",
+}
+
+# lastrowid permitido SOLO aquí (nunca como identidad de dominio):
+LASTROWID_ALLOWLIST: set[str] = set()
+
+# int(..._id)/int(..sucursal/branch..) permitido SOLO aquí:
+INT_CAST_ALLOWLIST: set[str] = set()
+
+_DOMAIN_ROOTS = (
+    "core", "repositories", "backend", "application",
+    "modulos", "interfaz", "sync", "webapp", "delivery", "services", "security",
+)
 
 
-def test_cierre_global_final_report_exists_and_debt_ceilings_declared():
-    """CIERRE_GLOBAL (cierre de pipeline): el reporte final del pipeline existe y
-    documenta el estado honesto de identidad, y los tres techos de deuda born-clean
-    siguen declarados (sólo pueden bajar hacia 0). Este capstone impide que el
-    reporte o los techos desaparezcan silenciosamente.
-    """
-    report = REPO / "docs/refactor/modules/cierre_global.md"
-    assert report.exists(), "Falta el reporte final del pipeline (cierre_global.md)"
-    body = report.read_text(encoding="utf-8")
-    for anchor in ("Reporte final del pipeline", "uuid_cutover", "CONFIGURACION",
-                   "INTEGER_PK_TABLE_CEILING"):
-        assert anchor in body, f"El reporte final debe documentar: {anchor}"
-
-    # Los techos de deuda siguen siendo enteros no-negativos (target 0).
-    for ceiling in (INTEGER_PK_TABLE_CEILING, SERVICES_WITH_DDL_CEILING, LASTROWID_FILE_CEILING):
-        assert isinstance(ceiling, int) and ceiling >= 0
-
-
-def test_integer_pk_tables_in_base_schema_do_not_grow():
-    from backend.infrastructure.db.uuid_cutover import find_integer_pks
-
-    conn = _fresh_base_schema()
-    count = len(find_integer_pks(conn))
-    assert count <= INTEGER_PK_TABLE_CEILING, (
-        f"INTEGER PK tables grew to {count} (ceiling {INTEGER_PK_TABLE_CEILING}). "
-        "Born-clean target is 0; new tables must be TEXT PRIMARY KEY."
-    )
-
-
-def test_actualizador_migration_ledger_born_clean_natural_key():
-    """ACTUALIZADOR born-clean (REGLA CERO/REGLA 3): el ledger de migraciones
-    schema_migrations usa la clave natural `version` (única, inmutable) sin
-    surrogate entero AUTOINCREMENT — el motor de migraciones (que crea la tabla
-    primero) queda alineado con la definición born-clean de la migración 026.
-    El paquete updater (backend/infrastructure/updater/*) y actualizar.py no tocan
-    la BD ni emiten DDL/AUTOINCREMENT/lastrowid.
-    """
+def _bootstrap_full() -> sqlite3.Connection:
     import migrations.m000_base_schema as base
     from migrations import engine as migrator
 
@@ -1063,100 +1061,141 @@ def test_actualizador_migration_ledger_born_clean_natural_key():
     conn.commit()
     migrator.up(conn)
     conn.commit()
-
-    cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute("PRAGMA table_info(schema_migrations)").fetchall()}
-    assert "id" not in cols, "schema_migrations no debe tener surrogate entero"
-    assert cols["version"] == ("TEXT", 1), "version debe ser la PK natural TEXT"
-    # El ledger efectivamente registró migraciones (no quedó vacío tras el flip).
-    assert conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] > 0
-
-    eng_src = (REPO / "migrations/engine.py").read_text(encoding="utf-8")
-    assert "PRIMARY KEY AUTOINCREMENT" not in eng_src, "engine.py no debe crear tablas AUTOINCREMENT"
-    assert ".lastrowid" not in eng_src
-
-    # Paquete updater: skeletons de descarga/instalación/manifiesto, sin BD ni DDL.
-    updater_dir = REPO / "backend/infrastructure/updater"
-    for p in updater_dir.rglob("*.py"):
-        src = p.read_text(encoding="utf-8")
-        for bad in ("CREATE TABLE", "ALTER TABLE", "AUTOINCREMENT", ".lastrowid"):
-            assert bad not in src, f"{p.name} no debe contener {bad!r}"
-
-    # actualizar.py: verificador de instalación de solo lectura (sin escrituras DB).
-    act_src = (REPO / "actualizar.py").read_text(encoding="utf-8")
-    for bad in ("CREATE TABLE", "ALTER TABLE", "INSERT INTO", "AUTOINCREMENT", ".lastrowid"):
-        assert bad not in act_src, f"actualizar.py no debe contener {bad!r}"
+    return conn
 
 
-def test_instalador_provisioning_is_uuid_native_and_ddl_free():
-    """INSTALADOR born-clean (REGLA CERO + REGLA 11): la ruta de aprovisionamiento
-    (bootstrap_db + seed_demo + _seed_initial_data) es UUIDv7-native y no define
-    esquema fuera de migrations/.
-
-    - scripts/bootstrap_db.py: solo corre migraciones y verifica; sin DDL, sin
-      INSERT de entidades funcionales, sin AUTOINCREMENT.
-    - scripts/seed_demo.py: acuña new_uuid() para las entidades demo, no emite DDL
-      (bot_sessions es propiedad de m000) y no usa lastrowid como identidad.
-    - _seed_initial_data (m000): siembra el centinela matriz de forma idempotente
-      (INSERT OR IGNORE) sin lastrowid; el re-clavado a UUIDv7 queda reservado a
-      CONFIGURACION-02-IDENTITY (documentado en el docstring del seed).
-    """
-    boot_src = (REPO / "scripts/bootstrap_db.py").read_text(encoding="utf-8")
-    for ddl in ("CREATE TABLE", "ALTER TABLE", "DROP TABLE", "AUTOINCREMENT"):
-        assert ddl not in boot_src, f"bootstrap_db.py no debe contener {ddl!r}"
-    assert "INSERT INTO" not in boot_src, "bootstrap_db.py no siembra entidades; solo migra/verifica"
-
-    seed_src = (REPO / "scripts/seed_demo.py").read_text(encoding="utf-8")
-    assert "from backend.shared.ids import new_uuid" in seed_src
-    assert "CREATE TABLE" not in seed_src, "seed_demo.py no debe emitir DDL (REGLA 11)"
-    assert "ALTER TABLE" not in seed_src
-    assert ".lastrowid" not in seed_src, "seed_demo.py no usa lastrowid como identidad"
-    # Las entidades demo se acuñan con UUIDv7 explícito en el INSERT.
-    for table in ("productos", "clientes", "usuarios", "ventas", "detalles_venta", "lotes"):
-        assert f"INSERT OR IGNORE INTO {table}" in seed_src or f"INSERT INTO {table}" in seed_src, table
-
-    m000_src = (REPO / "migrations/m000_base_schema.py").read_text(encoding="utf-8")
-    # El seed matriz es idempotente y no depende de lastrowid.
-    seed_body = m000_src.split("def _seed_initial_data")[1].split("\ndef ")[0]
-    assert "INSERT OR IGNORE INTO sucursales" in seed_body
-    assert ".lastrowid" not in seed_body
-    assert "CONFIGURACION-02-IDENTITY" in seed_body, "deferral del centinela debe estar documentado"
-
-
-def _service_files_with_ddl() -> list[str]:
-    ddl = re.compile(r"CREATE TABLE|ALTER TABLE|DROP TABLE|executescript")
-    roots = [REPO / "core" / "services", REPO / "application" / "services"]
-    hits = []
-    for root in roots:
-        if not root.exists():
+def _domain_files():
+    for root in _DOMAIN_ROOTS:
+        base = REPO / root
+        if not base.exists():
             continue
-        for p in root.rglob("*.py"):
-            if "__pycache__" in p.parts:
+        for p in base.rglob("*.py"):
+            if "__pycache__" in p.parts or "test" in p.name:
                 continue
-            if ddl.search(p.read_text(encoding="utf-8")):
-                hits.append(str(p.relative_to(REPO)))
-    return sorted(hits)
+            yield p
 
 
-def test_services_emitting_ddl_do_not_grow():
-    hits = _service_files_with_ddl()
-    assert len(hits) <= SERVICES_WITH_DDL_CEILING, (
-        f"Services emitting DDL grew to {len(hits)} (ceiling {SERVICES_WITH_DDL_CEILING}). "
-        "Schema belongs in migrations/, not services.\n" + "\n".join(hits)
+def _is_functional_fk(col: str) -> bool:
+    c = col.lower()
+    return c != "id" and c.endswith("_id") and c not in _NON_IDENTITY_ID_COLS
+
+
+def test_fresh_base_schema_has_no_integer_primary_keys():
+    """CERO: m000_base_schema.up sola no debe producir ninguna PK entera."""
+    from backend.infrastructure.db.uuid_cutover import find_integer_pks
+
+    conn = _fresh_base_schema()
+    bad = find_integer_pks(conn)
+    assert bad == {}, (
+        f"{len(bad)} tablas con PK entera tras m000 (deben ser 0): {sorted(bad)}"
     )
 
 
-def test_lastrowid_usage_does_not_grow():
-    roots = [REPO / "core", REPO / "repositories", REPO / "application", REPO / "backend"]
-    hits = set()
-    for root in roots:
-        if not root.exists():
+def test_full_migration_chain_has_no_integer_primary_keys():
+    """CERO: bootstrap normal completo (m000 + engine) sin PK enteras."""
+    from backend.infrastructure.db.uuid_cutover import find_integer_pks
+
+    conn = _bootstrap_full()
+    bad = find_integer_pks(conn)
+    assert bad == {}, (
+        f"{len(bad)} tablas con PK entera tras la cadena completa (deben ser 0): {sorted(bad)}"
+    )
+
+
+def test_active_schema_has_no_autoincrement():
+    """CERO: ninguna tabla del schema activo usa AUTOINCREMENT."""
+    conn = _bootstrap_full()
+    offenders = [
+        r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%AUTOINCREMENT%'"
+        ).fetchall()
+    ]
+    assert not offenders, f"AUTOINCREMENT en schema activo: {sorted(offenders)}"
+
+
+def test_active_schema_has_no_functional_integer_fks():
+    """CERO: ninguna columna funcional *_id es INTEGER/INT en el schema activo."""
+    conn = _bootstrap_full()
+    offenders: list[str] = []
+    for (table,) in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        " AND name NOT LIKE 'schema_%'"
+    ).fetchall():
+        for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall():
+            col, ctype = row[1], (row[2] or "").upper()
+            if _is_functional_fk(col) and ctype in ("INTEGER", "INT"):
+                offenders.append(f"{table}.{col}")
+    assert not offenders, (
+        f"{len(offenders)} FK funcionales INTEGER (deben ser 0): {sorted(offenders)}"
+    )
+
+
+def test_active_schema_has_no_default_one_on_functional_fks():
+    """CERO: ninguna FK funcional lleva DEFAULT 1 (centinela arbitrario)."""
+    conn = _bootstrap_full()
+    offenders: list[str] = []
+    for (table,) in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        " AND name NOT LIKE 'schema_%'"
+    ).fetchall():
+        for row in conn.execute(f'PRAGMA table_info("{table}")').fetchall():
+            col, dflt = row[1], row[4]
+            if _is_functional_fk(col) and dflt is not None:
+                if str(dflt).strip("()\"' ") == "1":
+                    offenders.append(f"{table}.{col}")
+    assert not offenders, (
+        f"FK funcionales con DEFAULT 1 (deben ser 0): {sorted(offenders)}"
+    )
+
+
+def test_domain_code_has_no_lastrowid_identity():
+    """CERO: lastrowid no existe en código de dominio (identidad = new_uuid())."""
+    hits = []
+    for p in _domain_files():
+        rel = str(p.relative_to(REPO))
+        if rel in LASTROWID_ALLOWLIST:
             continue
-        for p in root.rglob("*.py"):
-            if "__pycache__" in p.parts or "test" in p.name:
-                continue
-            if "lastrowid" in p.read_text(encoding="utf-8"):
-                hits.add(str(p.relative_to(REPO)))
-    assert len(hits) <= LASTROWID_FILE_CEILING, (
-        f"lastrowid usage grew to {len(hits)} files (ceiling {LASTROWID_FILE_CEILING}). "
-        "Identity must come from backend.shared.ids.new_uuid(), never lastrowid."
+        if "lastrowid" in p.read_text(encoding="utf-8", errors="ignore"):
+            hits.append(rel)
+    assert not hits, (
+        f"{len(hits)} archivos de dominio usan lastrowid (deben ser 0):\n"
+        + "\n".join(sorted(hits))
+    )
+
+
+def test_domain_code_has_no_integer_casts_for_entity_ids():
+    """CERO: sin int(..._id) ni int(..sucursal/branch..) sobre identidades."""
+    rx_id = re.compile(r"(?<![\w])int\(\s*[^)\n]*_id\b")
+    rx_branch = re.compile(r"(?<![\w])int\(\s*[^)\n]*(?:sucursal|branch)")
+    hits = []
+    for p in _domain_files():
+        rel = str(p.relative_to(REPO))
+        if rel in INT_CAST_ALLOWLIST:
+            continue
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        for i, line in enumerate(text.splitlines(), 1):
+            if rx_id.search(line) or rx_branch.search(line):
+                hits.append(f"{rel}:{i}: {line.strip()[:100]}")
+    assert not hits, (
+        f"{len(hits)} casts int() sobre identidades (deben ser 0):\n"
+        + "\n".join(hits[:60])
+    )
+
+
+def test_services_repositories_ui_do_not_create_schema():
+    """CERO: DDL vive en migrations/ (o allowlist aprobada), nunca en
+    servicios/repositorios/UI/módulos."""
+    ddl = re.compile(
+        r"CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE|CREATE\s+(?:UNIQUE\s+)?INDEX|executescript\("
+    )
+    hits = []
+    for p in _domain_files():
+        rel = str(p.relative_to(REPO))
+        if rel in DDL_ALLOWLIST:
+            continue
+        if ddl.search(p.read_text(encoding="utf-8", errors="ignore")):
+            hits.append(rel)
+    assert not hits, (
+        f"{len(hits)} archivos de dominio emiten DDL (deben ser 0):\n"
+        + "\n".join(sorted(hits))
     )

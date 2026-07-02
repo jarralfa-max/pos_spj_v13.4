@@ -2464,7 +2464,7 @@ class _SeccionProveedores(QWidget):
                     f"Nombre: {prov.get('nombre','-')} | RFC: {prov.get('rfc','-')} | "
                     f"Tel: {prov.get('telefono','-')} | Email: {prov.get('email','-')}")
             deudas = [d for d in (m._ts.get_cuentas_por_pagar(0) if m._ts else [])
-                      if int(d.get("proveedor_id") or 0) == int(pid)]
+                      if str(d.get("proveedor_id") or "") == int(pid)]
             saldo = sum(float(d.get("saldo", 0) or 0) for d in deudas)
             if saldo <= 0:
                 self._lbl_resumen.setText("Sin cuentas pendientes.")

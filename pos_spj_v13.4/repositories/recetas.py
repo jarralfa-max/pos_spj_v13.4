@@ -240,22 +240,10 @@ class RecetaRepository:
                 raise RecetaError(f"COMPONENT_NOT_FOUND: {cid}")
 
     def _ensure_component_columns(self) -> None:
-        alters = []
-        if "cantidad" not in self._component_columns:
-            alters.append("ALTER TABLE product_recipe_components ADD COLUMN cantidad REAL DEFAULT 0")
-        if "unidad" not in self._component_columns:
-            alters.append("ALTER TABLE product_recipe_components ADD COLUMN unidad TEXT DEFAULT 'kg'")
-        if "component_role" not in self._component_columns:
-            alters.append("ALTER TABLE product_recipe_components ADD COLUMN component_role TEXT DEFAULT ''")
-        if "factor_costo" not in self._component_columns:
-            alters.append("ALTER TABLE product_recipe_components ADD COLUMN factor_costo REAL DEFAULT 1.0")
-        for sql in alters:
-            try:
-                self.db.execute(sql)
-            except Exception as exc:
-                logger.warning("No se pudo aplicar migración idempotente de componentes: %s", exc)
-        if alters:
-            self._component_columns = self._get_table_columns('product_recipe_components')
+        # Plan B born-clean: las columnas de product_recipe_components
+        # (cantidad/unidad/component_role/factor_costo) viven en migrations/.
+        # El repositorio no emite DDL.
+        return None
 
     # ── Write ────────────────────────────────────────────────────────────────
 

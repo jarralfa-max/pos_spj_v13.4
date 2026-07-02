@@ -60,7 +60,7 @@ class AccountingEngine:
                 modulo="ventas",
                 referencia_id=data.get("venta_id"),
                 usuario_id=data.get("usuario_id"),
-                sucursal_id=int(data.get("sucursal_id", 1)),
+                sucursal_id=str(data.get("sucursal_id", "")),
                 evento="SALE_CREATED",
                 metadata={
                     "folio": data.get("folio"),
@@ -85,7 +85,7 @@ class AccountingEngine:
                 modulo="compras",
                 referencia_id=data.get("compra_id"),
                 usuario_id=data.get("usuario_id"),
-                sucursal_id=int(data.get("sucursal_id", 1)),
+                sucursal_id=str(data.get("sucursal_id", "")),
                 evento="PURCHASE_CREATED",
                 metadata={
                     "proveedor_id": data.get("proveedor_id"),

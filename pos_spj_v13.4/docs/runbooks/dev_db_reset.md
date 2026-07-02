@@ -59,16 +59,21 @@ No escribir una migración de rescate ni un parche temporal. Atacar la causa ra�
 3. eliminar el código muerto o legacy,
 4. resetear la DB de desarrollo y reintentar.
 
-## Estado actual (deuda hacia born-clean)
+## Estado actual (Plan B COMPLETADO — cero deuda)
 
-El guardrail `tests/architecture/test_clean_birth_guardrails.py` mide la deuda
-restante hacia el born-clean (objetivo 0 en todos):
+El schema activo es 100% born-clean UUIDv7: una BD nueva creada por el bootstrap
+normal (`m000_base_schema.up` + `migrations.engine.up`) produce
+`find_integer_pks(conn) == {}`. Los antiguos techos de deuda
+(`INTEGER_PK_TABLE_CEILING`, `SERVICES_WITH_DDL_CEILING`,
+`LASTROWID_FILE_CEILING`) fueron reemplazados por **cero tolerancia** en
+`tests/architecture/test_clean_birth_guardrails.py`:
 
-- tablas con PK entera en el schema base (techo vigente);
-- servicios que emiten DDL (el schema vive en `migrations/`);
-- uso de `lastrowid` como identidad.
+- cero tablas con PK entera (base sola y cadena completa);
+- cero `AUTOINCREMENT` en el schema activo;
+- cero FK funcionales `INTEGER` y cero `DEFAULT 1` en FKs;
+- cero `lastrowid` como identidad y cero `int(..._id)` en código de dominio;
+- cero DDL fuera de `migrations/` (allowlist mínima documentada).
 
-> Nota: el corte total del schema base a `TEXT PRIMARY KEY` es el paso terminal
-> de FASE 7 y sólo es seguro una vez que cada módulo mintea UUIDs explícitamente;
-> hasta entonces los módulos aún sin refactorizar dependen de `AUTOINCREMENT`.
+`uuid_cutover` (migración 200) queda como **herramienta excepcional de
+conservación de datos en producción**; nunca es el flujo de desarrollo.
 ```

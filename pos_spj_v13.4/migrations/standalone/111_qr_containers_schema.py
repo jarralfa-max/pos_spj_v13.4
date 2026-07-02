@@ -15,12 +15,12 @@ def run(conn):
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS contenedores (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             codigo          TEXT UNIQUE NOT NULL,
             tipo            TEXT NOT NULL DEFAULT 'caja',
             descripcion     TEXT,
             sucursal_destino INTEGER,
-            proveedor_id    INTEGER,
+            proveedor_id    TEXT,
             comprador       TEXT,
             folio_factura   TEXT,
             fecha_factura   TEXT,
@@ -38,16 +38,16 @@ def run(conn):
             usuario_recibe  TEXT,
             recibido_por    TEXT,
             observaciones   TEXT,
-            compra_id       INTEGER
+            compra_id       TEXT
         )
         """
     )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS contenedor_productos (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            contenedor_id   INTEGER NOT NULL,
-            producto_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            contenedor_id   TEXT NOT NULL,
+            producto_id     TEXT NOT NULL,
             cantidad        REAL NOT NULL DEFAULT 0,
             costo_unitario  REAL NOT NULL DEFAULT 0,
             cantidad_recibida REAL DEFAULT NULL,
@@ -63,7 +63,7 @@ def run(conn):
         "ALTER TABLE contenedores ADD COLUMN recibido_por TEXT",
         "ALTER TABLE contenedores ADD COLUMN sucursal_destino INTEGER",
         "ALTER TABLE contenedor_productos ADD COLUMN observaciones TEXT",
-        "ALTER TABLE contenedores ADD COLUMN parent_id INTEGER REFERENCES contenedores(id)",
+        "ALTER TABLE contenedores ADD COLUMN parent_id TEXT REFERENCES contenedores(id)",
         "ALTER TABLE contenedores ADD COLUMN seq_num INTEGER",
     ):
         try:

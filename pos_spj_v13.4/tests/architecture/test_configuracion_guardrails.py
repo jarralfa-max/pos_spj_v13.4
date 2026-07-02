@@ -103,9 +103,13 @@ BASELINE: dict[str, dict[str, int]] = {
         "system_settings": 4,
     },
     "modulos/config_modules.py": {
-        # FASE 1 removed all SQL, commit, "Principal" fallback and direct
-        # feature_flags usage; toggles now go through FeatureFlagService.
+        # FASE 1 removed all SQL, commit and direct feature_flags usage; the
+        # "Principal"/1 branch fallback was removed too (now logs on failure).
+        # Toggles go through FeatureFlagService; reads through the QueryService.
         "except_pass": 1,     # menu-refresh swallow -> FASE 8
+        # get_branch_feature_flags(): nombre del método del ModuleSettingsQueryService
+        # (lectura canónica; NO es acceso directo a la tabla feature_flags).
+        "feature_flags": 1,
     },
     "modulos/config_hardware.py": {
         # FASE 1 removed commit()x3, sucursal_id=1 and ensure_schema/seed_defaults
@@ -139,20 +143,21 @@ BASELINE: dict[str, dict[str, int]] = {
         # FASE 3 removed _commit() (and its except: pass) — the repository no
         # longer commits/rolls back; services own the UnitOfWork boundary.
         "cursor_execute": 65,
-        "lastrowid": 1,       # transitional pre-101 fallback -> migration 200 cutover
-        "int_id_cast": 1,     # int(..._id) cast of a functional id
+        # Plan B: el fallback rowid del alta de usuarios fue eliminado (lastrowid 1->0).
+        # CONFIGURACION permisos slice: permission_codes_for_user dropped the
+        # int(user_id) cast and the "Accept legacy integer IDs" comment
+        # (int_id_cast 1->0, legacy_lower 1->0).
         "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) pre-103 fallback
-        "legacy_lower": 1,    # comment accepting legacy integer ids
         "principal_fallback": 1,
     },
     "core/repositories/hardware_config_repository.py": {
         "sql_select": 3,
         "sql_insert": 1,
         "sql_update": 1,
-        "create_table": 1,    # runtime CREATE TABLE outside migrations
-        "cursor_execute": 6,
-        "autoincrement": 1,   # id INTEGER PRIMARY KEY AUTOINCREMENT
-        "integer_pk": 1,
+        # Plan B: el CREATE TABLE runtime fue eliminado (create_table 1->0).
+        "cursor_execute": 5,
+        # HARDWARE module born-cleaned the config table (natural key `tipo`):
+        # autoincrement 1->0, integer_pk 1->0.
         "legacy_lower": 2,    # migrate_legacy_configuraciones_hardware bridge
     },
     "backend/application/commands/settings_commands.py": {},

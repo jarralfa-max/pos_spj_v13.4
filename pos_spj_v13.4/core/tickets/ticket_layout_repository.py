@@ -27,40 +27,9 @@ class TicketLayoutRepository:
         return lt if lt in self.VALID_LAYOUT_TYPES else "sale_ticket"
 
     def ensure_schema(self) -> None:
-        if self.db is None:
-            return
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS ticket_layouts(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                layout_type TEXT NOT NULL DEFAULT 'sale_ticket',
-                nombre TEXT NOT NULL DEFAULT 'Default',
-                config_json TEXT NOT NULL,
-                activo INTEGER DEFAULT 0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT
-            )
-            """
-        )
-        cols = self._table_columns("ticket_layouts")
-        migrations = {
-            "layout_type": "ALTER TABLE ticket_layouts ADD COLUMN layout_type TEXT NOT NULL DEFAULT 'sale_ticket'",
-            "nombre": "ALTER TABLE ticket_layouts ADD COLUMN nombre TEXT NOT NULL DEFAULT 'Default'",
-            "config_json": "ALTER TABLE ticket_layouts ADD COLUMN config_json TEXT NOT NULL DEFAULT '{}'",
-            "activo": "ALTER TABLE ticket_layouts ADD COLUMN activo INTEGER DEFAULT 0",
-            "created_at": "ALTER TABLE ticket_layouts ADD COLUMN created_at TEXT DEFAULT CURRENT_TIMESTAMP",
-            "updated_at": "ALTER TABLE ticket_layouts ADD COLUMN updated_at TEXT",
-        }
-        for col, sql in migrations.items():
-            if col not in cols:
-                self.db.execute(sql)
-        self.db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_ticket_layouts_type_active ON ticket_layouts(layout_type, activo, updated_at, id)"
-        )
-        try:
-            self.db.commit()
-        except Exception:
-            pass
+        # Plan B born-clean: ticket_layouts (id TEXT UUIDv7) vive en
+        # migrations/m000_base_schema. El repositorio no emite DDL.
+        return None
 
     def _table_columns(self, table: str) -> set[str]:
         if self.db is None:
@@ -97,7 +66,7 @@ class TicketLayoutRepository:
             return
         if self.db is None:
             return
-        self.db.execute("CREATE TABLE IF NOT EXISTS configuraciones(clave TEXT PRIMARY KEY, valor TEXT)")
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         self.db.execute("INSERT OR REPLACE INTO configuraciones(clave, valor) VALUES (?,?)", (key, value))
         try:
             self.db.commit()

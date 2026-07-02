@@ -23,39 +23,9 @@ class StockReservationService:
         self._ensure_table()
 
     def _ensure_table(self):
-        # Usar execute() individual en lugar de executescript() para no emitir
-        # un COMMIT implícito que rompería SAVEPOINTs activos del llamador.
-        stmts = [
-            """CREATE TABLE IF NOT EXISTS stock_reservas (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                folio       TEXT UNIQUE,
-                branch_id   INTEGER NOT NULL,
-                estado      TEXT NOT NULL DEFAULT 'activa',
-                payload_json TEXT NOT NULL DEFAULT '[]',
-                created_at  TEXT DEFAULT (datetime('now')),
-                updated_at  TEXT DEFAULT (datetime('now')),
-                expires_at  TEXT DEFAULT (datetime('now', '+30 minutes'))
-            )""",
-            """CREATE TABLE IF NOT EXISTS stock_reserva_detalles (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                reserva_id  INTEGER NOT NULL,
-                producto_id INTEGER NOT NULL,
-                cantidad    REAL NOT NULL,
-                created_at  TEXT DEFAULT (datetime('now')),
-                FOREIGN KEY (reserva_id) REFERENCES stock_reservas(id)
-            )""",
-            """CREATE INDEX IF NOT EXISTS idx_stock_reserva_detalles_lookup
-                ON stock_reserva_detalles(producto_id, reserva_id)""",
-            # Migración: agregar expires_at si la tabla ya existía sin ella
-            """ALTER TABLE stock_reservas
-               ADD COLUMN expires_at TEXT DEFAULT (datetime('now', '+30 minutes'))""",
-        ]
-        for stmt in stmts:
-            try:
-                self.db.execute(stmt)
-            except Exception as exc:
-                logger.debug("stock_reservas schema ensure omitido para sentencia idempotente: %s", exc)
-
+        # Plan B born-clean: stock_reservas / stock_reserva_detalles viven en
+        # migrations/m000_base_schema (id TEXT UUIDv7, FKs TEXT). Sin DDL aquí.
+        return None
     def expirar_huerfanas(self) -> int:
         """
         Libera automáticamente reservas activas cuyo expires_at ya pasó.
