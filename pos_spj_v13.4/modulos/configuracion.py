@@ -910,6 +910,9 @@ class ModuloConfiguracion(ModuloBase):
         suc_hdr = QHBoxLayout()
         suc_hdr.addWidget(QLabel("Sucursales del sistema con horarios de atención"))
         suc_hdr.addStretch()
+        self._lbl_inst_branch = QLabel("")
+        self._lbl_inst_branch.setStyleSheet("color:#2563eb; font-weight:600;")
+        suc_hdr.addWidget(self._lbl_inst_branch)
         btn_new_suc = QPushButton("➕ Nueva sucursal")
         btn_new_suc.setObjectName("successBtn")
         apply_tooltip(btn_new_suc, "Crear nueva sucursal")
@@ -993,12 +996,25 @@ class ModuloConfiguracion(ModuloBase):
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar sucursales: {exc}")
             rows = []
+        inst = None
+        try:
+            inst = self.company_profile_service.get_installation_branch()
+        except Exception:
+            inst = None
+        inst_id = inst[0] if inst else ""
+        if hasattr(self, "_lbl_inst_branch"):
+            self._lbl_inst_branch.setText(
+                f"📍 Esta instalación: {inst[1]}" if inst
+                else "📍 Instalación sin sucursal asignada")
         self._tbl_suc_v13.setRowCount(len(rows))
         for ri, branch in enumerate(rows):
             dias_n = branch.operation_days.count(',') + 1 if branch.operation_days else 0
+            es_instalacion = str(branch.id) == str(inst_id)
+            estado = "✅ Activa" if branch.active else "❌ Inactiva"
+            if es_instalacion:
+                estado += " · 📍 instalación"
             vals = [branch.name, branch.address, f"{branch.opening_time}–{branch.closing_time}",
-                    f"{dias_n} días/sem",
-                    "✅ Activa" if branch.active else "❌ Inactiva"]
+                    f"{dias_n} días/sem", estado]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -1012,7 +1028,39 @@ class ModuloConfiguracion(ModuloBase):
             btn_ed = self._create_action_button("✏️", "Editar sucursal", "edit")
             btn_ed.clicked.connect(lambda _, sid=suc_id: self._editar_sucursal_v13(sid))
             bl.addWidget(btn_ed)
+            if not es_instalacion and branch.active:
+                btn_inst = self._create_action_button(
+                    "📍", "Usar como sucursal de esta instalación", "edit")
+                btn_inst.clicked.connect(
+                    lambda _, sid=suc_id, nom=branch.name: self._set_sucursal_instalacion(sid, nom))
+                bl.addWidget(btn_inst)
             self._tbl_suc_v13.setCellWidget(ri, 5, btn_w)
+
+    def _set_sucursal_instalacion(self, sucursal_id, nombre: str) -> None:
+        """Ancla ESTA instalación a la sucursal elegida (login y sesión la usan)."""
+        confirm = QMessageBox.question(
+            self, "Sucursal de la instalación",
+            f"¿Usar «{nombre}» como la sucursal de esta instalación?\n\n"
+            "El login y los módulos operarán sobre esa sucursal.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            branch_id, branch_name = self.company_profile_service.set_installation_branch(str(sucursal_id))
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo asignar la sucursal: {exc}")
+            return
+        # Propagar en vivo a la sesión actual (el login la leerá al arrancar).
+        try:
+            if self.container is not None and hasattr(self.container, "set_sucursal_activa"):
+                self.container.set_sucursal_activa(branch_id, branch_name)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("No se pudo propagar la sucursal a la sesión: %s", exc)
+        self._cargar_sucursales_v13()
+        QMessageBox.information(
+            self, "Sucursal de la instalación",
+            f"Esta instalación ahora opera sobre «{branch_name}».")
 
     def _nueva_sucursal_v13(self):
         self._editar_sucursal_v13(None)

@@ -268,6 +268,37 @@ class ConfigRepository:
         )
         return new_branch_uuid
 
+    # --- SUCURSAL DE LA INSTALACIÓN ---
+    INSTALLATION_BRANCH_KEY = "sucursal_instalacion_id"
+
+    def get_installation_branch(self) -> tuple[str, str] | None:
+        """(id, nombre) de la sucursal anclada a ESTA instalación, o None."""
+        row = self.db.execute(
+            """
+            SELECT s.id, s.nombre FROM sucursales s
+            JOIN configuraciones c ON c.clave=? AND c.valor = s.id
+            LIMIT 1
+            """,
+            (self.INSTALLATION_BRANCH_KEY,),
+        ).fetchone()
+        return (str(row[0]), str(row[1])) if row else None
+
+    def set_installation_branch(self, branch_id: str) -> tuple[str, str]:
+        """Ancla esta instalación a la sucursal indicada (UUID, activa).
+
+        El login y el AppContainer leen esta clave para fijar la sucursal
+        activa de la sesión. Valida UUIDv7 + existencia + activa.
+        """
+        _, branch_uuid = self._resolve_branch_row(branch_id)
+        row = self.db.execute(
+            "SELECT id, nombre FROM sucursales WHERE id=? AND COALESCE(activa,1)=1",
+            (branch_uuid,),
+        ).fetchone()
+        if not row:
+            raise ValueError("La sucursal debe existir y estar activa.")
+        self.save_setting(self.INSTALLATION_BRANCH_KEY, str(row[0]))
+        return str(row[0]), str(row[1])
+
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
         column, value = self._resolve_db_identifier("sucursales", branch_id)
         row = self.db.execute(
