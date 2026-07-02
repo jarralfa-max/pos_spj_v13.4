@@ -74,8 +74,9 @@
         "publishing Configuracion permission events with legacy op-* operation_id strings",
         "publishing Configuracion permission events with integer branch_id payload values",
         "publishing Configuracion permission events with legacy non-UUID entity_id strings",
-<<<<<<< HEAD
-        "publishing Configuracion permission event payloads with integer user_id or role_id values"
+        "publishing Configuracion permission event payloads with integer user_id or role_id values",
+        "reintroducing numeric legacy id acceptance in ConfigRepository canonical UUID routes",
+        "reintroducing Configuracion runtime fallbacks to id, rol_id or sucursal_id once UUID columns are present"
       ],
       "module_audit_progress": {
         "branch": "claude/sleepy-goodall-33uld6",
@@ -94,12 +95,6 @@
         "module_tests_passed": 83,
         "regressions": 0
       }
-=======
-        "publishing Configuracion permission event payloads with integer user_id or role_id values",
-        "reintroducing numeric legacy id acceptance in ConfigRepository canonical UUID routes",
-        "reintroducing Configuracion runtime fallbacks to id, rol_id or sucursal_id once UUID columns are present"
-      ]
->>>>>>> claude/intelligent-clarke-uq1ck7
     },
     {
       "id": "CONFIGURACION-03-UI",
