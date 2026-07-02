@@ -332,7 +332,7 @@ class UnifiedThirdPartyService:
             if tipo == "proveedor":
                 rows = self._fs.cuentas_por_pagar() if self._fs else []
                 filtered = [r for r in rows
-                            if str(r.get("supplier_id") or r.get("proveedor_id") or "") == third_party_id]
+                            if str(r.get("supplier_id") or r.get("proveedor_id") or "") == str(third_party_id)]
                 saldo = sum(float(r.get("balance", r.get("saldo", 0))) for r in filtered)
                 return {
                     "third_party_id": third_party_id,
@@ -343,7 +343,7 @@ class UnifiedThirdPartyService:
             else:
                 rows = self._fs.cuentas_por_cobrar() if self._fs else []
                 filtered = [r for r in rows
-                            if str(r.get("cliente_id") or "") == third_party_id]
+                            if str(r.get("cliente_id") or "") == str(third_party_id)]
                 saldo = sum(float(r.get("balance", r.get("saldo", 0))) for r in filtered)
                 return {
                     "third_party_id": third_party_id,
