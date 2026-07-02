@@ -123,7 +123,7 @@ class ModuloConfigModulos(QWidget):
                 self.cmb_sucursal.addItem(r[1], r[0])
             self.cmb_sucursal.blockSignals(False)
         except Exception:
-            self.cmb_sucursal.addItem("Principal", 1)
+            logger.warning("No se pudieron cargar las sucursales activas")
 
     def _cargar(self):
         suc_id = self.cmb_sucursal.currentData() or self.sucursal_id
