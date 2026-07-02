@@ -1050,9 +1050,13 @@ class ModuloConfiguracion(ModuloBase):
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"No se pudo asignar la sucursal: {exc}")
             return
-        # Propagar en vivo a la sesión actual (el login la leerá al arrancar).
+        # Propagar EN VIVO a toda la sesión (barra, módulos abiertos, container,
+        # evento ACTIVE_BRANCH_CHANGED). El login la leerá al arrancar.
         try:
-            if self.container is not None and hasattr(self.container, "set_sucursal_activa"):
+            main_win = self.window()
+            if main_win is not None and hasattr(main_win, "aplicar_sucursal_activa"):
+                main_win.aplicar_sucursal_activa(branch_id, branch_name)
+            elif self.container is not None and hasattr(self.container, "set_sucursal_activa"):
                 self.container.set_sucursal_activa(branch_id, branch_name)
         except Exception as exc:
             import logging
