@@ -81,13 +81,18 @@ def assert_uuid_identity(conn: sqlite3.Connection) -> None:
         return
     sample = ", ".join(f"{t}.{cols[0]}" for t, cols in list(bad.items())[:8])
     raise IntegerIdentityError(
-        f"La base de datos NO tiene identidad UUIDv7: quedan {len(bad)} tablas con "
-        f"PRIMARY KEY entera (p.ej. {sample}). El runtime asume el esquema "
-        f"post-corte. Aplica el corte antes de iniciar:\n"
-        f"  1) Cierra la app y respalda el .db.\n"
-        f"  2) SPJ_UUID_CUTOVER_CONFIRMED=1 y ejecuta la migración 200 "
-        f"(migrations.standalone.200_uuid_identity_cutover.run(conn)).\n"
-        f"El corte es atómico (foreign_key_check + rollback ante cualquier fallo)."
+        f"La DB no nació UUIDv7 limpia: quedan {len(bad)} tablas con PRIMARY KEY "
+        f"entera (p.ej. {sample}). El schema fuente (migrations/) es born-clean; "
+        f"esta base fue creada por código viejo o quedó contaminada.\n"
+        f"Plan B (desarrollo — flujo normal):\n"
+        f"  1) NO ejecutes la migración 200 como solución normal.\n"
+        f"  2) Corrige el schema fuente que generó estas tablas (migrations/ y "
+        f"cualquier DDL fuera de migrations) si el bootstrap volvió a crearlas.\n"
+        f"  3) Resetea la BD de desarrollo: docs/runbooks/dev_db_reset.md "
+        f"(respaldo opcional, borrar el .db y arrancar; nace limpia).\n"
+        f"Excepción (producción, conservación de datos): sólo en ese caso usa el "
+        f"corte UUID atómico (SPJ_UUID_CUTOVER_CONFIRMED=1 + migración 200; "
+        f"foreign_key_check + rollback ante cualquier fallo)."
     )
 
 

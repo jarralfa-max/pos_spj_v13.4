@@ -97,13 +97,15 @@ class GestorNotificaciones(QObject):
             SonidoAlerta.play_pago()
             self.pago_confirmado.emit(pago)
 
-    def _get_last_pedido_id(self) -> int:
+    def _get_last_pedido_id(self) -> str:
+        # Watermark de sondeo: id es UUIDv7 TEXT (ordenado en el tiempo
+        # lexicográficamente), así que el máximo lexicográfico es el más reciente.
         try:
             row = self.conn.execute(
-                "SELECT COALESCE(MAX(id),0) FROM pedidos_whatsapp").fetchone()
-            return row[0] or 0
+                "SELECT COALESCE(MAX(id),'') FROM pedidos_whatsapp").fetchone()
+            return str(row[0] or "")
         except Exception:
-            return 0
+            return ""
 
     def _get_last_pago_id(self) -> str:
         # Watermark de sondeo basado en fecha_pago (links_pago no tiene id entero).

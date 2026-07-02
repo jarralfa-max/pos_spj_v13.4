@@ -143,7 +143,7 @@ BASELINE: dict[str, dict[str, int]] = {
         # FASE 3 removed _commit() (and its except: pass) — the repository no
         # longer commits/rolls back; services own the UnitOfWork boundary.
         "cursor_execute": 65,
-        "lastrowid": 1,       # transitional pre-101 fallback -> migration 200 cutover
+        # Plan B: el fallback rowid del alta de usuarios fue eliminado (lastrowid 1->0).
         # CONFIGURACION permisos slice: permission_codes_for_user dropped the
         # int(user_id) cast and the "Accept legacy integer IDs" comment
         # (int_id_cast 1->0, legacy_lower 1->0).
@@ -154,8 +154,8 @@ BASELINE: dict[str, dict[str, int]] = {
         "sql_select": 3,
         "sql_insert": 1,
         "sql_update": 1,
-        "create_table": 1,    # runtime CREATE TABLE outside migrations
-        "cursor_execute": 6,
+        # Plan B: el CREATE TABLE runtime fue eliminado (create_table 1->0).
+        "cursor_execute": 5,
         # HARDWARE module born-cleaned the config table (natural key `tipo`):
         # autoincrement 1->0, integer_pk 1->0.
         "legacy_lower": 2,    # migrate_legacy_configuraciones_hardware bridge

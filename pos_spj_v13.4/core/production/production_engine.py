@@ -135,7 +135,8 @@ class ProductionEngine:
         return datetime.utcnow().isoformat()
 
     def _generar_folio(self, conn) -> str:
-        # FIX FALLA-8: usar MAX(id)+1 en vez de COUNT(*) para evitar colisiones
+        # FIX FALLA-8: usar el máximo del sufijo numérico del FOLIO (secuencia visible,
+        # no identidad) en vez de COUNT(*) para evitar colisiones
         # bajo concurrencia (dos lotes simultáneos con mismo COUNT darían el mismo folio)
         row = conn.execute(
             "SELECT COALESCE(MAX(CAST(SUBSTR(folio, -4) AS INTEGER)), 0) + 1 "

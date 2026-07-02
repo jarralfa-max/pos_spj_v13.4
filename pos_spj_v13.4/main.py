@@ -200,7 +200,7 @@ def inicializar_sistema():
         if _mig_conn:
             try: _mig_conn.close()
             except Exception: pass
-        logger.critical("DB sin identidad UUIDv7 (corte 200 no aplicado): %s", e)
+        logger.critical("DB sin identidad UUIDv7 born-clean — en desarrollo resetea la BD (docs/runbooks/dev_db_reset.md); NO uses la migración 200 como solución normal: %s", e)
         QMessageBox.critical(None, "Error Fatal — Identidad UUIDv7 requerida", str(e))
         sys.exit(1)
     except RuntimeError as e:

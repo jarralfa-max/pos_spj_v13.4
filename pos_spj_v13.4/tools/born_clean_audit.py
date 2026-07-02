@@ -178,16 +178,21 @@ def main() -> int:
     a = audit(conn)
     creators = attribute_creators(sorted(a["int_pks"]))
 
+    fk_problems = conn.execute("PRAGMA foreign_key_check").fetchall()
     print(f"tablas={len(a['tables'])} text_pk={len(a['text_pk'])} "
           f"int_pk={len(a['int_pks'])} natural={len(a['natural_pk'])} "
           f"no_pk={len(a['no_pk'])} autoinc={len(a['autoinc'])} "
-          f"fk_int={len(a['int_fks'])} default1={len(a['default1'])}")
+          f"fk_int={len(a['int_fks'])} default1={len(a['default1'])} "
+          f"fk_check={'OK' if not fk_problems else fk_problems[:3]}")
 
     if args.md:
         Path(args.md).write_text(render_md(a, creators), encoding="utf-8")
         print(f"reporte -> {args.md}")
 
-    return 0 if not a["int_pks"] else 1
+    born_clean = (not a["int_pks"] and not a["autoinc"] and not a["int_fks"]
+                  and not a["default1"] and not fk_problems)
+    print("BORN-CLEAN:", "OK" if born_clean else "VIOLACIONES PRESENTES")
+    return 0 if born_clean else 1
 
 
 if __name__ == "__main__":
