@@ -101,6 +101,13 @@ class CompanyProfileService:
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
         return self._repository.get_branch_delivery_profile(branch_id)
 
+    def get_installation_branch(self) -> tuple[str, str] | None:
+        return self._repository.get_installation_branch()
+
+    def set_installation_branch(self, branch_id: str) -> tuple[str, str]:
+        with ConnectionUnitOfWork(self._repository.connection):
+            return self._repository.set_installation_branch(branch_id)
+
     def branches_for_company_settings(self) -> list[tuple[str, str]]:
         return self._repository.branches_for_company_settings()
 
