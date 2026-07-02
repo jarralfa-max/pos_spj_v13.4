@@ -506,7 +506,7 @@ class ModuloFidelidadConfig(QWidget):
         txt_nombre = QLineEdit(); txt_descripcion = QTextEdit()
         dt_inicio = QDateEdit(); dt_inicio.setCalendarPopup(True); dt_inicio.setDate(QDate.currentDate())
         dt_fin = QDateEdit(); dt_fin.setCalendarPopup(True); dt_fin.setDate(QDate.currentDate().addDays(30))
-        cmb_sucursal = QSpinBox(); cmb_sucursal.setRange(1, 99999); cmb_sucursal.setValue(int(self.sucursal_id) if str(self.sucursal_id or "").isdigit() else 0)
+        cmb_sucursal = QSpinBox(); cmb_sucursal.setRange(1, 99999); cmb_sucursal.setValue(str(self.sucursal_id) if str(self.sucursal_id or "").isdigit() else 0)
         f1.addRow("Nombre:", txt_nombre); f1.addRow("Descripción:", txt_descripcion)
         f1.addRow("Fecha inicio:", dt_inicio); f1.addRow("Fecha fin:", dt_fin); f1.addRow("Sucursal:", cmb_sucursal)
         tabs.addTab(t1, "Datos generales")
@@ -659,14 +659,15 @@ class ModuloFidelidadConfig(QWidget):
         row = self._require_selected_raffle()
         if not row:
             return
-        raffle_id = int(row["id"])
-        suggested = int(self._last_raffle_winner_by_id.get(raffle_id, 1) or 1)
-        winner_id, ok = QInputDialog.getInt(self, "Entregar premio", "ID del ganador:", suggested, 1)
-        if not ok: return
+        raffle_id = str(row["id"])
+        suggested = str(self._last_raffle_winner_by_id.get(raffle_id, "") or "")
+        winner_id, ok = QInputDialog.getText(self, "Entregar premio", "ID del ganador:", text=suggested)
+        winner_id = str(winner_id or "").strip()
+        if not ok or not winner_id: return
         costo, ok2 = QInputDialog.getDouble(self, "Entregar premio", "Costo real:", 0.0, 0.0, 99999999.0, 2)
         if not ok2: return
         try:
-            self.container.loyalty_service.mark_prize_delivered(int(winner_id), self.usuario or "sistema", float(costo), f"ui:winner:{winner_id}")
+            self.container.loyalty_service.mark_prize_delivered(winner_id, self.usuario or "sistema", float(costo), f"ui:winner:{winner_id}")
             Toast.success(self, "Rifas", "Premio entregado.")
             self._cargar_raffles()
         except Exception as e:

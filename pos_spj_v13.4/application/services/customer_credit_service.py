@@ -151,20 +151,7 @@ class CustomerCreditService:
     def _ensure_cxc_table(self) -> None:
         """Crea cuentas_por_cobrar si no existe (idempotente)."""
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS cuentas_por_cobrar (
-                    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-                    cliente_id       INTEGER NOT NULL,
-                    venta_id         INTEGER,
-                    folio            TEXT,
-                    monto_original   REAL    NOT NULL,
-                    saldo_pendiente  REAL    NOT NULL,
-                    estado           TEXT    DEFAULT 'pendiente',
-                    sucursal_id      INTEGER DEFAULT 1,
-                    fecha            DATETIME DEFAULT (datetime('now')),
-                    fecha_pago       DATETIME
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:

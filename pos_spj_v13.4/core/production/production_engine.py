@@ -135,7 +135,8 @@ class ProductionEngine:
         return datetime.utcnow().isoformat()
 
     def _generar_folio(self, conn) -> str:
-        # FIX FALLA-8: usar MAX(id)+1 en vez de COUNT(*) para evitar colisiones
+        # FIX FALLA-8: usar el máximo del sufijo numérico del FOLIO (secuencia visible,
+        # no identidad) en vez de COUNT(*) para evitar colisiones
         # bajo concurrencia (dos lotes simultáneos con mismo COUNT darían el mismo folio)
         row = conn.execute(
             "SELECT COALESCE(MAX(CAST(SUBSTR(folio, -4) AS INTEGER)), 0) + 1 "
@@ -533,8 +534,8 @@ class ProductionEngine:
 
             src_weight = float(batch["source_weight"])
             src_cost   = float(batch["source_cost_total"])
-            bid        = int(batch["branch_id"])
-            src_prod_id= int(batch["product_source_id"])
+            bid        = str(batch["branch_id"])
+            src_prod_id= str(batch["product_source_id"])
 
             # ── Rendimiento esperado desde receta ─────────────────────────
             exp_usable_pct = 0.0

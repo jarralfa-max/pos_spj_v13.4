@@ -30,8 +30,8 @@ Extiende ordenes_compra_items:
 
 def run(conn):
     # ── ordenes_compra: agregar columnas faltantes ─────────────────────────────
-    _safe_add_column(conn, "ordenes_compra", "pr_id",            "INTEGER")
-    _safe_add_column(conn, "ordenes_compra", "sucursal_id",      "INTEGER DEFAULT 1")
+    _safe_add_column(conn, "ordenes_compra", "pr_id",            "TEXT")
+    _safe_add_column(conn, "ordenes_compra", "sucursal_id",      "TEXT")
     _safe_add_column(conn, "ordenes_compra", "sucursal_destino", "TEXT")
     _safe_add_column(conn, "ordenes_compra", "condicion_pago",   "TEXT DEFAULT 'liquidado'")
     _safe_add_column(conn, "ordenes_compra", "plazo_dias",       "INTEGER DEFAULT 0")

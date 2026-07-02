@@ -727,11 +727,8 @@ class ConfigRepository:
                 f"INSERT INTO usuarios({','.join(role_fields)}) VALUES({placeholders})",
                 tuple(role_values),
             )
-            user_row_id = (
-                self._row_id_from_uuid("usuarios", persisted_user_id)
-                if has_user_uuid
-                else cursor.lastrowid
-            )
+            # Born-clean: usuarios.id ES el UUID persistido; sin fallback rowid.
+            user_row_id = persisted_user_id
         if employee_id and user_row_id is not None:
             self.db.execute("UPDATE personal SET usuario_id=? WHERE id=?", (user_row_id, employee_id))
         if not has_user_uuid and user_row_id is not None:

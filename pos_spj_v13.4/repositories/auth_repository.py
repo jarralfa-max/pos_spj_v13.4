@@ -84,7 +84,7 @@ class AuthRepository:
             col_pass = self._detect_password_column()
             self.db.execute(
                 f"UPDATE usuarios SET {col_pass}=? WHERE id=?",
-                (new_hash, int(user_id)),
+                (new_hash, str(user_id)),
             )
             try:
                 self.db.commit()

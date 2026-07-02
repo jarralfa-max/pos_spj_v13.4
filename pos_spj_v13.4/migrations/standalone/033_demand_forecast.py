@@ -26,9 +26,9 @@ def _create_forecast_tables(conn: sqlite3.Connection) -> None:
     """Crea las tablas base para el motor de pronóstico de demanda."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS demand_forecast (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            branch_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            product_id TEXT NOT NULL,
+            branch_id TEXT NOT NULL,
             forecast_date DATE,
             predicted_quantity REAL NOT NULL DEFAULT 0,
             run_id TEXT,
@@ -38,9 +38,9 @@ def _create_forecast_tables(conn: sqlite3.Connection) -> None:
     
     conn.execute("""
         CREATE TABLE IF NOT EXISTS replenishment_recommendations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            branch_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            product_id TEXT NOT NULL,
+            branch_id TEXT NOT NULL,
             recommended_quantity REAL NOT NULL DEFAULT 0,
             run_id TEXT,
             created_at DATETIME DEFAULT (datetime('now'))

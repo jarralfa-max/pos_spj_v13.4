@@ -148,18 +148,7 @@ class LoyaltyRepository:
     def ensure_referrals_table(self) -> None:
         # TODO: mover este DDL a migración formal cuando el bootstrap de migraciones
         # de fidelidad quede consolidado en todos los entornos.
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS referidos(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                referidor_id INTEGER,
-                referido_id INTEGER,
-                bono_dado INTEGER DEFAULT 0,
-                estado TEXT DEFAULT 'pendiente',
-                fecha DATETIME DEFAULT (datetime('now'))
-            )
-            """
-        )
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
 
     # ──────────────────────────────────────────────────────────────────
     # Cumpleaños / retención

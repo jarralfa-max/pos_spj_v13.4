@@ -176,12 +176,12 @@ class SaleFulfillmentService:
             return []
         rows = self.db.execute(
             f"SELECT {product_col} AS component_product_id, {qty_col} AS cantidad FROM product_recipe_components WHERE {recipe_col}=?",
-            (int(recipe_id),),
+            (str(recipe_id),),
         ).fetchall()
         comps: list[tuple[int, float]] = []
         for row in rows:
             try:
-                pid = int(row["component_product_id"] if hasattr(row, "keys") else row[0])
+                pid = str(row["component_product_id"] if hasattr(row, "keys") else row[0])
                 qty = float(row["cantidad"] if hasattr(row, "keys") else row[1] or 0)
             except Exception:
                 continue

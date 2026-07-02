@@ -38,7 +38,7 @@ class SaleInventoryHandler:
         bom_totals: dict[int, float] = {}
 
         for item in payload.get("items", []):
-            product_id = int(item.get("product_id") or 0)
+            product_id = str(item.get("product_id") or "")
             qty = float(item.get("qty", item.get("cantidad", 0)) or 0.0)
             if qty <= 0 or not product_id:
                 continue
@@ -109,7 +109,7 @@ class SaleInventoryHandler:
         user: str,
         folio: str,
     ) -> dict[int, float]:
-        product_id = int(item["product_id"])
+        product_id = str(item["product_id"])
         sale_qty = float(item.get("qty", item.get("cantidad", 0)) or 0.0)
 
         if self._db is not None:
@@ -146,7 +146,7 @@ class SaleInventoryHandler:
             )
         merged: dict[int, float] = {}
         for line in explosion.deductions:
-            merged[int(line.product_id)] = merged.get(int(line.product_id), 0.0) + float(line.quantity or 0.0)
+            merged[str(line.product_id)] = merged.get(str(line.product_id), 0.0) + float(line.quantity or 0.0)
         return {pid: qty for pid, qty in merged.items() if qty > 0}
 
     def _resolve_legacy_single_level(
@@ -180,7 +180,7 @@ class SaleInventoryHandler:
                 continue
             if qty_to_deduct <= 0:
                 continue
-            component_id = int(sub_item["component_product_id"])
+            component_id = str(sub_item["component_product_id"])
             merged[component_id] = merged.get(component_id, 0.0) + qty_to_deduct
         return merged
 

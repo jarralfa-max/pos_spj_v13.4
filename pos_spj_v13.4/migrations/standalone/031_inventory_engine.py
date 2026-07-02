@@ -6,7 +6,7 @@
 #   inventario_actual       — caché de stock calculado desde movimientos
 #   transferencias          — cabecera de transferencias entre sucursales
 #   transferencia_detalle   — líneas de transferencia
-#   configuracioneses         — parámetros del sistema (stock negativo, etc.)
+#   configuraciones           — parámetros de inventario (stock negativo, etc.)
 #   unidades_conversion     — factores de conversión entre unidades
 #
 # Principio: inventario_actual se recalcula desde movimientos_inventario
@@ -25,10 +25,9 @@ def run(conn: sqlite3.Connection) -> None:
     _create_inventario_actual(conn)
     _create_transferencias(conn)
     _create_transferencia_detalle(conn)
-    _create_configuracioneses(conn)
     _create_unidades_conversion(conn)
     _patch_movimientos_inventario(conn)
-    _seed_configuracioneses(conn)
+    _seed_configuraciones_inventario(conn)
     _seed_unidades(conn)
     _create_indexes(conn)
     _create_triggers(conn)
@@ -84,9 +83,9 @@ def _create_inventario_actual(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventario_actual (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id         INTEGER NOT NULL,
-            sucursal_id         INTEGER NOT NULL,
+            id                  TEXT PRIMARY KEY,
+            producto_id         TEXT NOT NULL,
+            sucursal_id         TEXT NOT NULL,
             cantidad            REAL    NOT NULL DEFAULT 0,
             costo_promedio      REAL    DEFAULT 0,
             ultima_actualizacion TEXT   DEFAULT (datetime('now')),
@@ -107,10 +106,10 @@ def _create_transferencias(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transferencias (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             folio           TEXT    NOT NULL,
-            origen_id       INTEGER NOT NULL,
-            destino_id      INTEGER NOT NULL,
+            origen_id       TEXT NOT NULL,
+            destino_id      TEXT NOT NULL,
             estado          TEXT    NOT NULL DEFAULT 'pendiente'
                             CHECK(estado IN ('pendiente','enviado','recibido','cancelado')),
             notas           TEXT    DEFAULT '',
@@ -143,9 +142,9 @@ def _create_transferencias(conn: sqlite3.Connection) -> None:
 def _create_transferencia_detalle(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transferencia_detalle (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            transferencia_id INTEGER NOT NULL,
-            producto_id      INTEGER NOT NULL,
+            id               TEXT PRIMARY KEY,
+            transferencia_id TEXT NOT NULL,
+            producto_id      TEXT NOT NULL,
             cantidad         REAL    NOT NULL CHECK(cantidad > 0),
             cantidad_recibida REAL   DEFAULT 0,
             unidad           TEXT    NOT NULL DEFAULT 'kg',
@@ -160,18 +159,9 @@ def _create_transferencia_detalle(conn: sqlite3.Connection) -> None:
 
 # ── 4. configuracioneses ────────────────────────────────────────────────────────
 
-def _create_configuracioneses(conn: sqlite3.Connection) -> None:
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS configuracioneses (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            clave       TEXT    NOT NULL UNIQUE,
-            valor       TEXT    NOT NULL,
-            tipo        TEXT    NOT NULL DEFAULT 'texto',
-            descripcion TEXT    DEFAULT '',
-            updated_at  TEXT    DEFAULT (datetime('now'))
-        )
-    """)
-    logger.info("configuracioneses creada/verificada.")
+# (Plan B born-clean / REGLA 3) La tabla `configuracioneses` era un typo muerto
+# de `configuraciones`: nada la leía. Se eliminó su creación; los defaults de
+# inventario se siembran en la tabla real `configuraciones` (ver _seed abajo).
 
 
 # ── 5. unidades_conversion ────────────────────────────────────────────────────
@@ -179,7 +169,7 @@ def _create_configuracioneses(conn: sqlite3.Connection) -> None:
 def _create_unidades_conversion(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS unidades_conversion (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            id           TEXT PRIMARY KEY,
             unidad_desde TEXT NOT NULL,
             unidad_hasta TEXT NOT NULL,
             factor       REAL NOT NULL CHECK(factor > 0),
@@ -200,7 +190,7 @@ def _patch_movimientos_inventario(conn: sqlite3.Connection) -> None:
 
 # ── 7. Seed configuracioneses ───────────────────────────────────────────────────
 
-def _seed_configuracioneses(conn: sqlite3.Connection) -> None:
+def _seed_configuraciones_inventario(conn: sqlite3.Connection) -> None:
     defaults = [
         ("permitir_stock_negativo", "false", "booleano",
          "Permite ventas aunque no haya stock suficiente"),
@@ -215,10 +205,10 @@ def _seed_configuracioneses(conn: sqlite3.Connection) -> None:
     ]
     for clave, valor, tipo, desc in defaults:
         conn.execute("""
-            INSERT OR IGNORE INTO configuracioneses (clave, valor, tipo, descripcion)
+            INSERT OR IGNORE INTO configuraciones (clave, valor, tipo, descripcion)
             VALUES (?,?,?,?)
         """, (clave, valor, tipo, desc))
-    logger.info("configuracioneses por defecto insertadas.")
+    logger.info("defaults de inventario sembrados en configuraciones.")
 
 
 # ── 8. Seed unidades de conversión ────────────────────────────────────────────
@@ -377,8 +367,8 @@ def _create_transfers(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS transfers (
             id                TEXT    PRIMARY KEY,
-            branch_origin_id  INTEGER NOT NULL,
-            branch_dest_id    INTEGER NOT NULL,
+            branch_origin_id  TEXT NOT NULL,
+            branch_dest_id    TEXT NOT NULL,
             origin_type       TEXT    NOT NULL DEFAULT 'BRANCH',
             destination_type  TEXT    NOT NULL DEFAULT 'BRANCH',
             status            TEXT    NOT NULL DEFAULT 'DISPATCHED',
@@ -397,11 +387,11 @@ def _create_transfers(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS transfer_items (
             id                 TEXT    PRIMARY KEY,
             transfer_id        TEXT    NOT NULL,
-            product_id         INTEGER NOT NULL,
+            product_id         TEXT NOT NULL,
             quantity_sent      REAL    NOT NULL CHECK(quantity_sent > 0),
             quantity_received  REAL,
             unit               TEXT    NOT NULL DEFAULT 'kg',
-            batch_id           INTEGER,
+            batch_id           TEXT,
             notes              TEXT,
             difference         REAL    GENERATED ALWAYS AS
                                (CASE WHEN quantity_received IS NOT NULL
@@ -419,11 +409,11 @@ def _create_recepciones(conn: sqlite3.Connection) -> None:
     """Recepción directa: compras, ajustes iniciales, ingreso manual."""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepciones (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             folio           TEXT    NOT NULL,
             tipo            TEXT    NOT NULL DEFAULT 'COMPRA',
-            proveedor_id    INTEGER,
-            sucursal_id     INTEGER NOT NULL,
+            proveedor_id    TEXT,
+            sucursal_id     TEXT NOT NULL,
             usuario         TEXT    NOT NULL,
             quien_entrega   TEXT,
             notas           TEXT,
@@ -436,9 +426,9 @@ def _create_recepciones(conn: sqlite3.Connection) -> None:
     """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recepcion_items (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            recepcion_id    INTEGER NOT NULL,
-            producto_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            recepcion_id    TEXT NOT NULL,
+            producto_id     TEXT NOT NULL,
             cantidad        REAL    NOT NULL CHECK(cantidad > 0),
             unidad          TEXT    NOT NULL DEFAULT 'kg',
             costo_unitario  REAL    NOT NULL DEFAULT 0 CHECK(costo_unitario >= 0),
@@ -455,9 +445,9 @@ def _create_recepciones(conn: sqlite3.Connection) -> None:
 def _create_mermas(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mermas (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id     INTEGER NOT NULL,
-            sucursal_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            producto_id     TEXT NOT NULL,
+            sucursal_id     TEXT NOT NULL,
             cantidad        REAL    NOT NULL CHECK(cantidad > 0),
             unidad          TEXT    NOT NULL DEFAULT 'kg',
             motivo          TEXT    NOT NULL,
@@ -477,9 +467,9 @@ def _create_mermas(conn: sqlite3.Connection) -> None:
 def _create_ajustes(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ajustes_inventario (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id     INTEGER NOT NULL,
-            sucursal_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            producto_id     TEXT NOT NULL,
+            sucursal_id     TEXT NOT NULL,
             tipo            TEXT    NOT NULL CHECK(tipo IN ('AJUSTE_POSITIVO','AJUSTE_NEGATIVO')),
             cantidad        REAL    NOT NULL CHECK(cantidad > 0),
             unidad          TEXT    NOT NULL DEFAULT 'kg',
@@ -500,7 +490,7 @@ def _create_ajustes(conn: sqlite3.Connection) -> None:
 def _create_unidades_medida(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS unidades_medida (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             codigo          TEXT    NOT NULL UNIQUE,
             nombre          TEXT    NOT NULL,
             factor_base     REAL    NOT NULL DEFAULT 1.0,

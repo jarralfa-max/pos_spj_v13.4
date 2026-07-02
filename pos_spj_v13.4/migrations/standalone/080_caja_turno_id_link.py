@@ -9,7 +9,7 @@ def run(conn):
     # Add turno_id to cierres_caja (nullable — preserves existing rows)
     try:
         conn.execute(
-            "ALTER TABLE cierres_caja ADD COLUMN turno_id INTEGER"
+            "ALTER TABLE cierres_caja ADD COLUMN turno_id TEXT"
         )
     except Exception:
         pass  # column already exists

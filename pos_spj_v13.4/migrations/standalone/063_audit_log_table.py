@@ -8,13 +8,13 @@ Coexiste con audit_logs (columnas en español, legacy POS) — no se toca ni eli
 def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS audit_log (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id       INTEGER,
+            id            TEXT PRIMARY KEY,
+            user_id       TEXT,
             action        TEXT    NOT NULL,
             entity        TEXT    NOT NULL,
-            entity_id     INTEGER,
+            entity_id     TEXT,
             timestamp     TEXT    NOT NULL DEFAULT (datetime('now')),
-            sucursal_id   INTEGER NOT NULL DEFAULT 1,
+            sucursal_id   TEXT NOT NULL,
             metadata_json TEXT    DEFAULT '{}'
         )
     """)

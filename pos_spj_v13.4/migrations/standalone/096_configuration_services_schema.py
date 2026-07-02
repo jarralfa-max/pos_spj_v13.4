@@ -24,7 +24,7 @@ def run(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS config_programa_fidelidad (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT PRIMARY KEY,
             nombre_programa TEXT,
             puntos_por_peso DECIMAL(10,2) DEFAULT 1.0,
             niveles TEXT,

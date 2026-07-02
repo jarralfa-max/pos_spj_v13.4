@@ -8,6 +8,7 @@ import json
 import logging
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("spj.erp_financial_service")
 
@@ -31,10 +32,11 @@ class ERPFinancialService:
         for k, v in kwargs.items():
             campos.append(k)
             vals.append(v)
+        tid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        campos.insert(0, "id"); vals.insert(0, tid)
         sql = f"INSERT INTO terceros ({','.join(campos)}) VALUES ({','.join(['?']*len(vals))})"
-        cur = self._db.execute(sql, vals)
+        self._db.execute(sql, vals)
         self._db.commit()
-        tid = cur.lastrowid
         self._ledger_evento("tercero_creado", "terceros", tid, 0, usuario_id=kwargs.get("usuario_id"))
         return tid
 
@@ -85,10 +87,12 @@ class ERPFinancialService:
         for k, v in kwargs.items():
             campos.append(k)
             vals.append(v)
+        cfid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        campos.insert(0, "id"); vals.insert(0, cfid)
         sql = f"INSERT INTO cuentas_financieras ({','.join(campos)}) VALUES ({','.join(['?']*len(vals))})"
-        cur = self._db.execute(sql, vals)
+        self._db.execute(sql, vals)
         self._db.commit()
-        return cur.lastrowid
+        return cfid
 
     # ─────────────────────────────────────────────────────────────────────────
     #  DOCUMENTOS FINANCIEROS
@@ -115,10 +119,11 @@ class ERPFinancialService:
         for k, v in kwargs.items():
             campos.append(k)
             vals.append(v)
+        doc_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        campos.insert(0, "id"); vals.insert(0, doc_id)
         sql = f"INSERT INTO documentos_financieros ({','.join(campos)}) VALUES ({','.join(['?']*len(vals))})"
-        cur = self._db.execute(sql, vals)
+        self._db.execute(sql, vals)
         self._db.commit()
-        doc_id = cur.lastrowid
         self._auditoria("crear", "documentos_financieros", doc_id,
                         valor_nuevo={"folio": folio, "tipo": tipo, "total": total},
                         usuario_id=usuario_id)
@@ -209,16 +214,16 @@ class ERPFinancialService:
                               sucursal_id: int = 1, usuario_id: Optional[int] = None,
                               observaciones: str = "") -> int:
         folio = self._gen_folio("PC", tipo[:3].upper())
-        cur = self._db.execute(
+        pc_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self._db.execute(
             "INSERT INTO pagos_cobros "
-            "(folio, tipo_operacion, tercero_id, monto_total, forma_pago, "
+            "(id, folio, tipo_operacion, tercero_id, monto_total, forma_pago, "
             " cuenta_financiera_id, sucursal_id, usuario_id, observaciones, estado) "
-            "VALUES (?,?,?,?,?,?,?,?,?,'registrado')",
-            (folio, tipo, tercero_id, monto, forma_pago, cuenta_id,
+            "VALUES (?,?,?,?,?,?,?,?,?,?,'registrado')",
+            (pc_id, folio, tipo, tercero_id, monto, forma_pago, cuenta_id,
              sucursal_id, usuario_id, observaciones)
         )
         self._db.commit()
-        pc_id = cur.lastrowid
         self._auditoria("crear", "pagos_cobros", pc_id,
                         valor_nuevo={"folio": folio, "tipo": tipo, "monto": monto},
                         usuario_id=usuario_id)
@@ -312,16 +317,17 @@ class ERPFinancialService:
                               tercero_id: Optional[int] = None, sucursal_id: int = 1,
                               usuario_id: Optional[int] = None, referencia: str = "") -> int:
         folio = self._gen_folio("MOV", tipo[:3].upper())
-        cur = self._db.execute(
+        mid = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self._db.execute(
             "INSERT INTO movimientos_financieros "
-            "(folio, tipo_movimiento, cuenta_financiera_id, monto, "
+            "(id, folio, tipo_movimiento, cuenta_financiera_id, monto, "
             " origen_modulo, origen_id, tercero_id, sucursal_id, usuario_id, referencia) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (folio, tipo, cuenta_id, monto, origen_modulo, origen_id,
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (mid, folio, tipo, cuenta_id, monto, origen_modulo, origen_id,
              tercero_id, sucursal_id, usuario_id, referencia)
         )
         self._db.commit()
-        return cur.lastrowid
+        return mid
 
     def get_movimientos(self, tipo: Optional[str] = None, sucursal_id: int = 1,
                          limit: int = 200) -> List[Dict]:
@@ -378,21 +384,22 @@ class ERPFinancialService:
         diferencia = saldo_real - saldo_sistema
         estado = "conciliado" if abs(diferencia) < 0.01 else "con_diferencia"
         folio = self._gen_folio("CONCIL", periodo.replace("-", ""))
-        cur = self._db.execute(
+        concil_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self._db.execute(
             "INSERT INTO conciliaciones_financieras "
-            "(folio, cuenta_financiera_id, periodo, saldo_sistema, saldo_real, "
+            "(id, folio, cuenta_financiera_id, periodo, saldo_sistema, saldo_real, "
             " diferencia, estado, usuario_id, sucursal_id, notas) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (folio, cuenta_id, periodo, saldo_sistema, saldo_real,
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (concil_id, folio, cuenta_id, periodo, saldo_sistema, saldo_real,
              diferencia, estado, usuario_id, sucursal_id, notas)
         )
         self._db.commit()
         self._ledger_evento(
-            "conciliacion_realizada", "conciliaciones_financieras", cur.lastrowid,
+            "conciliacion_realizada", "conciliaciones_financieras", concil_id,
             diferencia, usuario_id=usuario_id,
             referencia=f"cuenta:{cuenta_id} periodo:{periodo}"
         )
-        return cur.lastrowid
+        return concil_id
 
     def get_conciliaciones(self, sucursal_id: int = 1, limit: int = 100) -> List[Dict]:
         rows = self._db.execute(
@@ -413,14 +420,14 @@ class ERPFinancialService:
     def abrir_corte(self, saldo_inicial: float = 0, caja_id: Optional[int] = None,
                     usuario_id: Optional[int] = None, sucursal_id: int = 1) -> int:
         folio = self._gen_folio("CORTE", datetime.now().strftime("%Y%m%d"))
-        cur = self._db.execute(
+        corte_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+        self._db.execute(
             "INSERT INTO cortes_caja_erp "
-            "(folio, caja_id, usuario_id, sucursal_id, saldo_inicial, estado) "
-            "VALUES (?,?,?,?,?,'abierto')",
-            (folio, caja_id, usuario_id, sucursal_id, saldo_inicial)
+            "(id, folio, caja_id, usuario_id, sucursal_id, saldo_inicial, estado) "
+            "VALUES (?,?,?,?,?,?,'abierto')",
+            (corte_id, folio, caja_id, usuario_id, sucursal_id, saldo_inicial)
         )
         self._db.commit()
-        corte_id = cur.lastrowid
         self._ledger_evento("corte_caja_abierto", "cortes_caja_erp", corte_id,
                             saldo_inicial, usuario_id=usuario_id)
         return corte_id

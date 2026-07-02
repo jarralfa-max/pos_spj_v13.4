@@ -50,14 +50,14 @@ def run(conn) -> None:
     # ── decision_log ──────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS decision_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              TEXT PRIMARY KEY,
             tipo            TEXT    NOT NULL,
             prioridad       TEXT    NOT NULL DEFAULT 'normal',
             titulo          TEXT    NOT NULL,
             detalle         TEXT    DEFAULT '',
             impacto_est     TEXT    DEFAULT '',
             accion          TEXT    DEFAULT '',
-            sucursal_id     INTEGER DEFAULT 1,
+            sucursal_id     TEXT,
             created_at      TEXT    DEFAULT (datetime('now'))
         )
     """)
@@ -75,11 +75,11 @@ def run(conn) -> None:
     # ── hr_auditoria_log ──────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS hr_auditoria_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            empleado_id     TEXT NOT NULL,
             tipo            TEXT    NOT NULL,   -- 'dias_consecutivos' | 'horas_semanales' | 'cobertura'
             detalle         TEXT    DEFAULT '',
-            sucursal_id     INTEGER DEFAULT 1,
+            sucursal_id     TEXT,
             created_at      TEXT    DEFAULT (datetime('now'))
         )
     """)
@@ -96,13 +96,13 @@ def run(conn) -> None:
     # ── hr_pago_log ───────────────────────────────────────────────────────────
     conn.execute("""
         CREATE TABLE IF NOT EXISTS hr_pago_log (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            empleado_id     INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            empleado_id     TEXT NOT NULL,
             periodo         TEXT    NOT NULL,   -- 'YYYY-WNN' o 'YYYY-MM'
             total           REAL    NOT NULL DEFAULT 0.0,
             estado          TEXT    NOT NULL DEFAULT 'auditado',  -- 'auditado' | 'pagado' | 'rechazado'
             referencia_pago INTEGER DEFAULT NULL,  -- FK a movimientos_caja si aplica
-            sucursal_id     INTEGER DEFAULT 1,
+            sucursal_id     TEXT,
             created_at      TEXT    DEFAULT (datetime('now'))
         )
     """)

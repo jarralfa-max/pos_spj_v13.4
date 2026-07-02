@@ -245,29 +245,8 @@ class SalesService:
         raise ValueError(f"Método de pago desconocido: {method}")
 
     def _ensure_pending_sales_intents_table(self) -> None:
-        self.db.execute(
-            """CREATE TABLE IF NOT EXISTS pending_sales_intents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                folio TEXT UNIQUE NOT NULL,
-                payload_json TEXT NOT NULL,
-                estado TEXT NOT NULL DEFAULT 'pendiente_pago',
-                reservation_id INTEGER,
-                payment_id TEXT DEFAULT '',
-                payment_url TEXT DEFAULT '',
-                created_at TEXT DEFAULT (datetime('now')),
-                expires_at TEXT DEFAULT (datetime('now', '+30 minutes')),
-                confirmed_at TEXT
-            )"""
-        )
-        for stmt in (
-            "ALTER TABLE pending_sales_intents ADD COLUMN reservation_id INTEGER",
-            "ALTER TABLE pending_sales_intents ADD COLUMN payment_url TEXT DEFAULT ''",
-            "ALTER TABLE pending_sales_intents ADD COLUMN expires_at TEXT",
-        ):
-            try:
-                self.db.execute(stmt)
-            except Exception as exc:
-                logger.debug("pending_sales_intents migration skipped: %s", exc)
+        # Plan B born-clean: la tabla y sus columnas viven en migrations/m000.
+        # Aquí sólo queda el backfill de datos (no DDL).
         try:
             self.db.execute(
                 "UPDATE pending_sales_intents "
@@ -1219,7 +1198,7 @@ class SalesService:
         for it in items:
             qty = float(getattr(it, "cantidad", 0.0) or 0.0)
             pu = float(getattr(it, "precio_unitario", getattr(it, "precio_unit", 0.0)) or 0.0)
-            pid = int(getattr(it, "producto_id", 0) or 0)
+            pid = str(getattr(it, "producto_id", 0) or "")
             nm = getattr(it, "nombre", "")
             total_estimado += qty * pu
             items_payload.append({
@@ -1323,7 +1302,7 @@ class SalesService:
 
             with _txn(self.db):
                 for d in detalles:
-                    pid = int(d["producto_id"])
+                    pid = str(d["producto_id"])
                     qty = float(d["cantidad"] or 0)
                     if qty <= 0:
                         continue

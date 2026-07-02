@@ -32,24 +32,24 @@ def run(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS meat_production_runs (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id        INTEGER NOT NULL,
-            source_product_id INTEGER NOT NULL,
+            id               TEXT PRIMARY KEY,
+            branch_id        TEXT NOT NULL,
+            source_product_id TEXT NOT NULL,
             source_weight    REAL NOT NULL,
             source_cost      REAL NOT NULL,
             status           TEXT NOT NULL DEFAULT 'DRAFT',
             created_at       DATETIME DEFAULT (datetime('now')),
             fecha            DATETIME DEFAULT (datetime('now')),
             completed_at     DATETIME,
-            user_id          INTEGER
+            user_id          TEXT
         )
     """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS meat_production_yields (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            run_id          INTEGER NOT NULL,
-            yield_product_id INTEGER NOT NULL,
+            id              TEXT PRIMARY KEY,
+            run_id          TEXT NOT NULL,
+            yield_product_id TEXT NOT NULL,
             weight          REAL NOT NULL,
             allocated_cost  REAL NOT NULL DEFAULT 0,
             FOREIGN KEY (run_id) REFERENCES meat_production_runs(id) ON DELETE CASCADE

@@ -22,7 +22,7 @@ SCHEMA_SQL = f"""
 BEGIN IMMEDIATE;
 
 CREATE TABLE IF NOT EXISTS {TABLE_NAME}(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     operation_id TEXT NOT NULL,
     operation_type TEXT NOT NULL,
     retries INTEGER NOT NULL DEFAULT 0,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS {TABLE_NAME}(
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     device_id TEXT,
-    sucursal_id INTEGER NOT NULL DEFAULT 1,
+    sucursal_id TEXT NOT NULL,
     metadata TEXT,
     -- Restricciones de dominio
     CHECK (retries >= 0),
@@ -67,7 +67,7 @@ def upgrade(conn):
         # Create table if not exists
         conn.execute("""
             CREATE TABLE IF NOT EXISTS concurrency_events (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                id            TEXT PRIMARY KEY,
                 operation_id  TEXT    NOT NULL UNIQUE,
                 operation_type TEXT   NOT NULL,
                 retries       INTEGER NOT NULL DEFAULT 0,
@@ -75,7 +75,7 @@ def upgrade(conn):
                 created_at    DATETIME NOT NULL DEFAULT (datetime('now')),
                 updated_at    DATETIME NOT NULL DEFAULT (datetime('now')),
                 device_id     TEXT    NOT NULL DEFAULT 'local',
-                sucursal_id   INTEGER NOT NULL DEFAULT 1,
+                sucursal_id   TEXT NOT NULL,
                 metadata      TEXT
             )
         """)

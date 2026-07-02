@@ -26,8 +26,8 @@ def _add_col_safe(conn: sqlite3.Connection, tabla: str, col: str, defn: str) -> 
 def _create_recetas(conn: sqlite3.Connection) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recetas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            producto_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            producto_id TEXT NOT NULL,
             rendimiento REAL DEFAULT 1,
             activa INTEGER DEFAULT 1,
             created_at DATETIME DEFAULT (datetime('now'))

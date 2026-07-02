@@ -47,8 +47,8 @@ def run(conn):
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_reservations (
             id            TEXT PRIMARY KEY,
-            branch_id     INTEGER NOT NULL,
-            product_id    INTEGER NOT NULL,
+            branch_id     TEXT NOT NULL,
+            product_id    TEXT NOT NULL,
             reserved_qty  REAL    NOT NULL CHECK(reserved_qty > 0),
             operation_id  TEXT    NOT NULL,
             operation_type TEXT   NOT NULL,

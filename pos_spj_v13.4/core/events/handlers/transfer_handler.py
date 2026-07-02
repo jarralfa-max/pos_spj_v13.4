@@ -61,7 +61,7 @@ class TransferInventoryHandler:
 
             try:
                 self._inv.process_movement(
-                    product_id    = int(mov["product_id"]),
+                    product_id    = str(mov["product_id"]),
                     branch_id     = branch_id,
                     quantity      = delta,
                     movement_type = str(mov.get("movement_type", "TRANSFER")),

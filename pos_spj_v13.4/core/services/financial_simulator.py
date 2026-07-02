@@ -46,17 +46,7 @@ class FinancialSimulator:
 
     def _ensure_table(self):
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS simulation_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    escenario TEXT NOT NULL,
-                    parametros_json TEXT DEFAULT '{}',
-                    resultado_json TEXT DEFAULT '{}',
-                    recomendacion TEXT DEFAULT '',
-                    viable INTEGER DEFAULT 0,
-                    fecha TEXT DEFAULT (datetime('now'))
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:

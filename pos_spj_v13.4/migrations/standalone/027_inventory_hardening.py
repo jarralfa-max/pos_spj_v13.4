@@ -58,10 +58,10 @@ def _create_branch_inventory(conn: sqlite3.Connection) -> None:
     # No existe: crear desde cero
     conn.execute("""
         CREATE TABLE branch_inventory (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id  INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
-            batch_id   INTEGER,
+            id         TEXT PRIMARY KEY,
+            branch_id  TEXT NOT NULL,
+            product_id TEXT NOT NULL,
+            batch_id   TEXT,
             quantity   REAL    NOT NULL DEFAULT 0
                        CHECK(quantity >= 0),
             updated_at TEXT    DEFAULT (datetime('now')),
@@ -87,10 +87,10 @@ def _migrate_branch_inventory(conn: sqlite3.Connection) -> None:
 
     conn.execute("""
         CREATE TABLE branch_inventory (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            branch_id  INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
-            batch_id   INTEGER,
+            id         TEXT PRIMARY KEY,
+            branch_id  TEXT NOT NULL,
+            product_id TEXT NOT NULL,
+            batch_id   TEXT,
             quantity   REAL    NOT NULL DEFAULT 0
                        CHECK(quantity >= 0),
             updated_at TEXT    DEFAULT (datetime('now')),
@@ -123,14 +123,14 @@ def _create_inventory_movements(conn: sqlite3.Connection) -> None:
     """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS inventory_movements (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             operation_id   TEXT    NOT NULL,
-            product_id     INTEGER NOT NULL,
-            branch_id      INTEGER NOT NULL,
-            batch_id       INTEGER,
+            product_id     TEXT NOT NULL,
+            branch_id      TEXT NOT NULL,
+            batch_id       TEXT,
             movement_type  TEXT    NOT NULL,
             quantity       REAL    NOT NULL,
-            reference_id   INTEGER,
+            reference_id   TEXT,
             reference_type TEXT,
             usuario        TEXT    DEFAULT 'Sistema',
             created_at     TEXT    DEFAULT (datetime('now')),

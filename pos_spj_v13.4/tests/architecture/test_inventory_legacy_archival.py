@@ -13,14 +13,30 @@ MIGRATED_OPERATIONAL_FILES = [
 ]
 
 
-def test_legacy_inventory_archive_migration_is_registered() -> None:
+def test_legacy_inventory_archive_migration_is_noop_under_plan_b() -> None:
+    """Plan B born-clean: 099 sigue registrada (ledger estable) pero es un no-op
+    documentado — una BD nueva no debe nacer con tablas legacy_* muertas."""
     engine_source = ENGINE.read_text(encoding="utf-8")
     migration_source = ARCHIVE_MIGRATION.read_text(encoding="utf-8")
 
     assert "099_archive_legacy_inventory_sources" in engine_source
-    assert "legacy_inventario_actual" in migration_source
-    assert "legacy_branch_inventory" in migration_source
-    assert "legacy_movimientos_inventario" in migration_source
+    assert "NO-OP" in migration_source and "Plan B" in migration_source
+    assert "ALTER TABLE" not in migration_source
+
+    import sqlite3
+    import sys
+    sys.path.insert(0, str(PACKAGE_ROOT))
+    import migrations.m000_base_schema as base
+    from migrations import engine as migrator
+    conn = sqlite3.connect(":memory:")
+    base.up(conn)
+    conn.commit()
+    migrator.up(conn)
+    conn.commit()
+    legacy = [r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'legacy_%'"
+    ).fetchall()]
+    assert legacy == [], f"una BD nueva no debe tener tablas legacy_*: {legacy}"
 
 
 def test_migrated_operational_inventory_flows_do_not_reference_legacy_sources() -> None:

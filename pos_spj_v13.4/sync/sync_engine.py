@@ -43,38 +43,7 @@ class SyncEngine:
         # Identidad UUIDv7 TEXT (REGLA CERO): id es la identidad de sincronización
         # (sin columna uuid dual). El esquema canónico vive en m000_base_schema;
         # esta creación defensiva lo replica born-clean para conexiones aisladas.
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS sync_outbox (
-                id          TEXT PRIMARY KEY,
-                tabla       TEXT NOT NULL,
-                operacion   TEXT NOT NULL,   -- INSERT / UPDATE / DELETE
-                registro_id TEXT,
-                payload     TEXT,            -- JSON del registro
-                sucursal_id TEXT,
-                lamport_ts  INTEGER DEFAULT 0,
-                enviado     INTEGER DEFAULT 0,
-                intentos    INTEGER DEFAULT 0,
-                error_msg   TEXT,
-                fecha       REAL DEFAULT (unixepoch())
-            );
-            CREATE TABLE IF NOT EXISTS sync_inbox (
-                id          TEXT PRIMARY KEY,
-                tabla       TEXT NOT NULL,
-                operacion   TEXT NOT NULL,
-                registro_id TEXT,
-                payload     TEXT,
-                sucursal_origen TEXT,
-                lamport_ts  INTEGER DEFAULT 0,
-                integrado   INTEGER DEFAULT 0,
-                fecha_recibido REAL DEFAULT (unixepoch())
-            );
-            CREATE TABLE IF NOT EXISTS sync_state (
-                key   TEXT PRIMARY KEY,
-                value TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_outbox_pendiente
-                ON sync_outbox(enviado, fecha) WHERE enviado=0;
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         try: self.conn.commit()
         except Exception: pass
 

@@ -612,7 +612,7 @@ class ShiftApplicationService:
     def save_role(self, data: Dict[str, Any], role_id: Optional[int] = None) -> int:
         if role_id:
             self.repository.update_role(role_id, data)
-            return int(role_id)
+            return str(role_id)
         return self.repository.create_role(data)
 
     def deactivate_role(self, role_id: int) -> None:
@@ -624,7 +624,7 @@ class ShiftApplicationService:
     def save_assignment(self, data: Dict[str, Any], assignment_id: Optional[int] = None) -> int:
         if assignment_id:
             self.repository.update_assignment(assignment_id, data)
-            return int(assignment_id)
+            return str(assignment_id)
         return self.repository.create_assignment(data)
 
     def deactivate_assignment(self, assignment_id: int) -> None:

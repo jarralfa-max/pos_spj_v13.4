@@ -189,7 +189,7 @@ class LoyaltyService:
             return {"ok": True, "idempotent": True, "referencia": ref}
         cajero_num = 0
         try:
-            cajero_num = int(cajero_id)
+            cajero_num = str(cajero_id)
         except Exception:
             try:
                 cajero_num = self._get_cajero_id(str(cajero_id))
@@ -459,18 +459,7 @@ class LoyaltyService:
 
     def _ensure_tables(self):
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS loyalty_pasivo_log (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    fecha TEXT DEFAULT (datetime('now')),
-                    tipo TEXT NOT NULL,
-                    estrellas INTEGER DEFAULT 0,
-                    valor_unitario REAL DEFAULT 0.10,
-                    monto_total REAL DEFAULT 0.0,
-                    referencia TEXT DEFAULT '',
-                    sucursal_id INTEGER DEFAULT 1
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:
@@ -561,7 +550,8 @@ class LoyaltyService:
                 # Ajustar pasivo financiero como bitácora auxiliar
                 self._registrar_pasivo(puntos_canjeados, referencia, "reversa", commit=False)
                 self._publish_loyalty_fin_event("LOYALTY_POINTS_REVERSED", cliente_id, puntos_canjeados, referencia, usuario)
-            nuevo_saldo = int(app_res.get("saldo", self.saldo(cliente_id)))
+            saldo_fallback = self.saldo(cliente_id)  # conteo de puntos (no identidad)
+            nuevo_saldo = int(app_res.get("saldo", saldo_fallback))
             logger.info("Reversa canje cliente=%d puntos=%d ref=%s",
                         cliente_id, puntos_canjeados, referencia)
             return {
@@ -1111,7 +1101,7 @@ class LoyaltyService:
         return printable
 
     def cancel_tickets_for_sale(self, venta_id: int, reason: str) -> int:
-        cancelled = int(self._app.repo.cancel_tickets_for_sale(venta_id, reason) or 0)
+        cancelled = str(self._app.repo.cancel_tickets_for_sale(venta_id, reason) or "")
         if cancelled > 0 and self._bus:
             self._bus.publish(
                 "RAFFLE_TICKET_CANCELLED",

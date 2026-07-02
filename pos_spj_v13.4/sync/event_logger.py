@@ -71,39 +71,8 @@ class EventLogger:
         # Identidad UUIDv7 TEXT (REGLA CERO): id es la identidad del evento (sin
         # columna uuid dual). Esquema canónico en m000_base_schema; creación
         # defensiva born-clean para conexiones aisladas.
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS event_log (
-                id               TEXT    PRIMARY KEY,
-                tipo             TEXT    NOT NULL,
-                entidad          TEXT    NOT NULL,
-                entidad_id       TEXT,
-                payload          TEXT    NOT NULL,
-                payload_hash     TEXT,
-                sucursal_id      TEXT    NOT NULL,
-                usuario          TEXT    NOT NULL,
-                origin_device_id TEXT    DEFAULT '',
-                device_version   INTEGER DEFAULT 0,
-                event_version    INTEGER NOT NULL DEFAULT 1,
-                operation_id     TEXT    DEFAULT '',
-                synced           INTEGER DEFAULT 0,
-                sync_intentos    INTEGER DEFAULT 0,
-                sync_error       TEXT,
-                fecha            DATETIME DEFAULT CURRENT_TIMESTAMP,
-                fecha_sync       DATETIME
-            )
-        """)
-        for idx_sql in [
-            "CREATE INDEX IF NOT EXISTS idx_el_synced      ON event_log(synced)",
-            "CREATE INDEX IF NOT EXISTS idx_el_tipo        ON event_log(tipo)",
-            "CREATE INDEX IF NOT EXISTS idx_el_synced_tipo ON event_log(synced, tipo)",
-            "CREATE INDEX IF NOT EXISTS idx_el_hash        ON event_log(payload_hash)",
-            "CREATE INDEX IF NOT EXISTS idx_el_device_ver  ON event_log(origin_device_id, device_version)",
-        ]:
-            try:
-                self.conn.execute(idx_sql)
-            except Exception:
-                pass
-
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        # Plan B born-clean: índices de event_log viven en migrations/m000.
     def _next_device_version(self, tipo: str) -> int:
         row = self.conn.execute(
             "SELECT COALESCE(MAX(device_version), 0) + 1 FROM event_log "

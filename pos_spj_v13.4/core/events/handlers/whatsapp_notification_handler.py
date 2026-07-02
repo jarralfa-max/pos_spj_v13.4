@@ -89,7 +89,7 @@ class WhatsAppNotificationHandler:
         branch = str(payload.get("sucursal_id") or self.sucursal_id or "")
         if not repartidor_id:
             return
-        emp = self._resolver.by_employee_id(int(repartidor_id))
+        emp = self._resolver.by_employee_id(str(repartidor_id))
         if not emp:
             return
         telefono = (emp.get("telefono") or "").strip()
@@ -101,7 +101,7 @@ class WhatsAppNotificationHandler:
             f"¡Buen viaje, {nombre.split()[0]}!"
         )
         self._dispatcher.dispatch_driver(
-            empleado_id=int(repartidor_id),
+            empleado_id=str(repartidor_id),
             telefono=telefono,
             mensaje=mensaje,
             datos={"folio": folio, "direccion": direccion},

@@ -16,7 +16,7 @@ def run(conn):
     # ── 1. TERCEROS ──────────────────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS terceros (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            id               TEXT PRIMARY KEY,
             tipo_tercero     TEXT    NOT NULL DEFAULT 'cliente'
                                      CHECK(tipo_tercero IN ('cliente','proveedor','empleado','mixto')),
             nombre           TEXT    NOT NULL,
@@ -29,7 +29,7 @@ def run(conn):
                                      CHECK(estado IN ('activo','inactivo','bloqueado')),
             limite_credito   REAL    NOT NULL DEFAULT 0,
             dias_credito     INTEGER NOT NULL DEFAULT 0,
-            sucursal_id      INTEGER NOT NULL DEFAULT 1,
+            sucursal_id      TEXT NOT NULL,
             created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
             updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
         );
@@ -41,11 +41,11 @@ def run(conn):
     # ── 2. CUENTAS FINANCIERAS ───────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS cuentas_financieras (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            id            TEXT PRIMARY KEY,
             nombre        TEXT NOT NULL,
             tipo          TEXT NOT NULL DEFAULT 'caja'
                                CHECK(tipo IN ('caja','banco','efectivo','terminal','cuenta_interna')),
-            sucursal_id   INTEGER NOT NULL DEFAULT 1,
+            sucursal_id   TEXT NOT NULL,
             moneda        TEXT NOT NULL DEFAULT 'MXN',
             estado        TEXT NOT NULL DEFAULT 'activo'
                                CHECK(estado IN ('activo','inactivo')),
@@ -59,12 +59,12 @@ def run(conn):
     # ── 3. CATÁLOGO DE CUENTAS CONTABLES ────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS catalogo_cuentas_contables (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             codigo         TEXT    NOT NULL UNIQUE,
             nombre         TEXT    NOT NULL,
             tipo           TEXT    NOT NULL
                                    CHECK(tipo IN ('activo','pasivo','capital','ingreso','costo','gasto')),
-            cuenta_padre_id INTEGER REFERENCES catalogo_cuentas_contables(id),
+            cuenta_padre_id TEXT REFERENCES catalogo_cuentas_contables(id),
             estado         TEXT    NOT NULL DEFAULT 'activo'
                                    CHECK(estado IN ('activo','inactivo')),
             created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -76,7 +76,7 @@ def run(conn):
     # ── 4. DOCUMENTOS FINANCIEROS ────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS documentos_financieros (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT PRIMARY KEY,
             folio               TEXT    NOT NULL UNIQUE,
             tipo_documento      TEXT    NOT NULL
                                         CHECK(tipo_documento IN (
@@ -84,11 +84,11 @@ def run(conn):
                                             'nota_credito','nota_debito','merma','produccion',
                                             'ajuste','anticipo'
                                         )),
-            tercero_id          INTEGER REFERENCES terceros(id),
+            tercero_id          TEXT REFERENCES terceros(id),
             tercero_tipo        TEXT    NOT NULL DEFAULT 'cliente'
                                         CHECK(tercero_tipo IN ('cliente','proveedor','interno')),
             modulo_origen       TEXT    NOT NULL DEFAULT 'ventas',
-            documento_origen_id INTEGER,
+            documento_origen_id TEXT,
             fecha_emision       TEXT    NOT NULL DEFAULT (date('now')),
             fecha_vencimiento   TEXT,
             subtotal            REAL    NOT NULL DEFAULT 0,
@@ -101,9 +101,9 @@ def run(conn):
                                             'borrador','confirmado','parcial','pagado',
                                             'cancelado','reversado'
                                         )),
-            usuario_id          INTEGER,
-            sucursal_id         INTEGER NOT NULL DEFAULT 1,
-            caja_id             INTEGER,
+            usuario_id          TEXT,
+            sucursal_id         TEXT NOT NULL,
+            caja_id             TEXT,
             referencia          TEXT,
             created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
             updated_at          TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -119,7 +119,7 @@ def run(conn):
     # ── 5. PAGOS Y COBROS ────────────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS pagos_cobros (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                  TEXT PRIMARY KEY,
             folio               TEXT    NOT NULL UNIQUE,
             tipo_operacion      TEXT    NOT NULL
                                         CHECK(tipo_operacion IN (
@@ -127,7 +127,7 @@ def run(conn):
                                             'anticipo_cliente','anticipo_proveedor',
                                             'ajuste_financiero'
                                         )),
-            tercero_id          INTEGER REFERENCES terceros(id),
+            tercero_id          TEXT REFERENCES terceros(id),
             tercero_tipo        TEXT    NOT NULL DEFAULT 'cliente'
                                         CHECK(tercero_tipo IN ('cliente','proveedor')),
             monto_total         REAL    NOT NULL DEFAULT 0,
@@ -135,11 +135,11 @@ def run(conn):
                                         CHECK(forma_pago IN (
                                             'efectivo','tarjeta','transferencia','credito','mixto'
                                         )),
-            cuenta_financiera_id INTEGER REFERENCES cuentas_financieras(id),
+            cuenta_financiera_id TEXT REFERENCES cuentas_financieras(id),
             fecha               TEXT    NOT NULL DEFAULT (date('now')),
-            usuario_id          INTEGER,
-            sucursal_id         INTEGER NOT NULL DEFAULT 1,
-            caja_id             INTEGER,
+            usuario_id          TEXT,
+            sucursal_id         TEXT NOT NULL,
+            caja_id             TEXT,
             estado              TEXT    NOT NULL DEFAULT 'registrado'
                                         CHECK(estado IN (
                                             'registrado','aplicado','parcial','cancelado','reversado'
@@ -159,13 +159,13 @@ def run(conn):
     # ── 6. APLICACIONES DE PAGO/COBRO ────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS pagos_cobros_aplicaciones (
-            id                       INTEGER PRIMARY KEY AUTOINCREMENT,
-            pago_cobro_id            INTEGER NOT NULL REFERENCES pagos_cobros(id),
-            documento_financiero_id  INTEGER NOT NULL REFERENCES documentos_financieros(id),
+            id                       TEXT PRIMARY KEY,
+            pago_cobro_id            TEXT NOT NULL REFERENCES pagos_cobros(id),
+            documento_financiero_id  TEXT NOT NULL REFERENCES documentos_financieros(id),
             monto_aplicado           REAL    NOT NULL DEFAULT 0,
             saldo_anterior_documento REAL    NOT NULL DEFAULT 0,
             saldo_posterior_documento REAL   NOT NULL DEFAULT 0,
-            usuario_id               INTEGER,
+            usuario_id               TEXT,
             created_at               TEXT    NOT NULL DEFAULT (datetime('now'))
         );
         CREATE INDEX IF NOT EXISTS idx_pca_pago      ON pagos_cobros_aplicaciones(pago_cobro_id);
@@ -175,22 +175,22 @@ def run(conn):
     # ── 7. MOVIMIENTOS FINANCIEROS ───────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS movimientos_financieros (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                   TEXT PRIMARY KEY,
             folio                TEXT    NOT NULL UNIQUE,
             tipo_movimiento      TEXT    NOT NULL
                                          CHECK(tipo_movimiento IN (
                                              'entrada','salida','transferencia','ajuste','reversa'
                                          )),
-            cuenta_financiera_id INTEGER REFERENCES cuentas_financieras(id),
+            cuenta_financiera_id TEXT REFERENCES cuentas_financieras(id),
             monto                REAL    NOT NULL DEFAULT 0,
             moneda               TEXT    NOT NULL DEFAULT 'MXN',
             metodo_pago          TEXT,
             origen_modulo        TEXT,
-            origen_id            INTEGER,
-            tercero_id           INTEGER REFERENCES terceros(id),
-            usuario_id           INTEGER,
-            sucursal_id          INTEGER NOT NULL DEFAULT 1,
-            caja_id              INTEGER,
+            origen_id            TEXT,
+            tercero_id           TEXT REFERENCES terceros(id),
+            usuario_id           TEXT,
+            sucursal_id          TEXT NOT NULL,
+            caja_id              TEXT,
             estado               TEXT    NOT NULL DEFAULT 'registrado',
             fecha                TEXT    NOT NULL DEFAULT (datetime('now')),
             referencia           TEXT,
@@ -206,19 +206,19 @@ def run(conn):
     # ── 8. LEDGER FINANCIERO (INMUTABLE) ────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS ledger_financiero (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            id             TEXT PRIMARY KEY,
             evento         TEXT    NOT NULL,
             entidad_tipo   TEXT,
-            entidad_id     INTEGER,
+            entidad_id     TEXT,
             modulo_origen  TEXT,
-            tercero_id     INTEGER,
+            tercero_id     TEXT,
             monto          REAL    NOT NULL DEFAULT 0,
             moneda         TEXT    NOT NULL DEFAULT 'MXN',
             saldo_anterior REAL    NOT NULL DEFAULT 0,
             saldo_posterior REAL   NOT NULL DEFAULT 0,
-            usuario_id     INTEGER,
-            sucursal_id    INTEGER NOT NULL DEFAULT 1,
-            caja_id        INTEGER,
+            usuario_id     TEXT,
+            sucursal_id    TEXT NOT NULL,
+            caja_id        TEXT,
             timestamp      TEXT    NOT NULL DEFAULT (datetime('now')),
             referencia     TEXT,
             metadata_json  TEXT
@@ -233,15 +233,15 @@ def run(conn):
     # ── 9. AUDITORÍA DE EVENTOS ───────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS auditoria_eventos (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario_id           INTEGER,
+            id                   TEXT PRIMARY KEY,
+            usuario_id           TEXT,
             accion               TEXT    NOT NULL
                                          CHECK(accion IN (
                                              'crear','editar','cancelar','reversar','aprobar',
                                              'rechazar','consultar','exportar'
                                          )),
             entidad_tipo         TEXT,
-            entidad_id           INTEGER,
+            entidad_id           TEXT,
             modulo               TEXT,
             valor_anterior_json  TEXT,
             valor_nuevo_json     TEXT,
@@ -260,11 +260,11 @@ def run(conn):
     # ── 10. CORTES DE CAJA ───────────────────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS cortes_caja_erp (
-            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                TEXT PRIMARY KEY,
             folio             TEXT    NOT NULL UNIQUE,
-            caja_id           INTEGER,
-            usuario_id        INTEGER,
-            sucursal_id       INTEGER NOT NULL DEFAULT 1,
+            caja_id           TEXT,
+            usuario_id        TEXT,
+            sucursal_id       TEXT NOT NULL,
             fecha_apertura    TEXT    NOT NULL DEFAULT (datetime('now')),
             fecha_cierre      TEXT,
             saldo_inicial     REAL    NOT NULL DEFAULT 0,
@@ -286,17 +286,17 @@ def run(conn):
     # ── 11. CONCILIACIONES FINANCIERAS ──────────────────────────────────────
     c.executescript("""
         CREATE TABLE IF NOT EXISTS conciliaciones_financieras (
-            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            id                   TEXT PRIMARY KEY,
             folio                TEXT    NOT NULL UNIQUE,
-            cuenta_financiera_id INTEGER REFERENCES cuentas_financieras(id),
+            cuenta_financiera_id TEXT REFERENCES cuentas_financieras(id),
             periodo              TEXT    NOT NULL,
             saldo_sistema        REAL    NOT NULL DEFAULT 0,
             saldo_real           REAL    NOT NULL DEFAULT 0,
             diferencia           REAL    NOT NULL DEFAULT 0,
             estado               TEXT    NOT NULL DEFAULT 'pendiente'
                                           CHECK(estado IN ('pendiente','conciliado','con_diferencia')),
-            usuario_id           INTEGER,
-            sucursal_id          INTEGER NOT NULL DEFAULT 1,
+            usuario_id           TEXT,
+            sucursal_id          TEXT NOT NULL,
             fecha                TEXT    NOT NULL DEFAULT (date('now')),
             notas                TEXT,
             created_at           TEXT    NOT NULL DEFAULT (datetime('now'))

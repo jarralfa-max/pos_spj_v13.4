@@ -16,25 +16,8 @@ class DesktopNotificationService:
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS notification_inbox (
-                id TEXT PRIMARY KEY,
-                empleado_id TEXT,
-                tipo TEXT NOT NULL,
-                titulo TEXT NOT NULL,
-                cuerpo TEXT DEFAULT '',
-                datos TEXT DEFAULT '{}',
-                leido INTEGER DEFAULT 0,
-                sucursal_id TEXT,
-                created_at TEXT DEFAULT (datetime('now')),
-                leido_at TEXT,
-                dedupe_key TEXT,
-                severity TEXT DEFAULT 'info'
-            )
-            """
-        )
-        self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_inbox_dedupe_key ON notification_inbox(dedupe_key) WHERE dedupe_key IS NOT NULL")
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         self.db.commit()
 
     def create_notification(

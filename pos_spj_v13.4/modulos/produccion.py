@@ -959,7 +959,7 @@ class ModuloProduccion(ModuloBase):
         if not prod_id:
             return
         try:
-            detalles = self._engine.get_detalle_produccion(int(prod_id))
+            detalles = self._engine.get_detalle_produccion(str(prod_id))
         except Exception as exc:
             logger.warning("get_detalle_produccion: %s", exc)
             return

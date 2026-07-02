@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from backend.shared.ids import new_uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 
@@ -12,21 +13,7 @@ def _utc_now_iso() -> str:
 
 
 def ensure_outbox_table(db) -> None:
-    db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS event_outbox (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_type TEXT NOT NULL,
-            payload TEXT NOT NULL,
-            aggregate_type TEXT DEFAULT '',
-            aggregate_id TEXT DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'PENDING',
-            error TEXT DEFAULT '',
-            created_at TEXT NOT NULL,
-            dispatched_at TEXT
-        )
-        """
-    )
+    pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
     try:
         db.commit()
     except Exception:
@@ -39,15 +26,17 @@ def enqueue_event(
     payload: Dict[str, Any],
     aggregate_type: str = "",
     aggregate_id: str = "",
-) -> int:
+) -> str:
     ensure_outbox_table(db)
-    cur = db.execute(
+    event_id = new_uuid()  # identidad UUIDv7 (sin rowid implícito)
+    db.execute(
         """
         INSERT INTO event_outbox
-        (event_type, payload, aggregate_type, aggregate_id, status, created_at)
-        VALUES (?,?,?,?, 'PENDING', ?)
+        (id, event_type, payload, aggregate_type, aggregate_id, status, created_at)
+        VALUES (?,?,?,?,?, 'PENDING', ?)
         """,
         (
+            event_id,
             event_type,
             json.dumps(payload or {}, ensure_ascii=False, default=str),
             aggregate_type or "",
@@ -59,7 +48,7 @@ def enqueue_event(
         db.commit()
     except Exception:
         pass
-    return int(cur.lastrowid)
+    return event_id
 
 
 def fetch_pending(db, limit: int = 100) -> List[dict]:
@@ -69,7 +58,7 @@ def fetch_pending(db, limit: int = 100) -> List[dict]:
         SELECT id, event_type, payload, aggregate_type, aggregate_id, created_at
         FROM event_outbox
         WHERE status='PENDING'
-        ORDER BY id ASC
+        ORDER BY created_at ASC, id ASC
         LIMIT ?
         """,
         (int(limit),),
@@ -97,7 +86,7 @@ def mark_dispatched(db, event_id: int, error: str = "") -> None:
         SET status=?, error=?, dispatched_at=?
         WHERE id=?
         """,
-        (status, error or "", _utc_now_iso(), int(event_id)),
+        (status, error or "", _utc_now_iso(), str(event_id)),
     )
     try:
         db.commit()

@@ -88,13 +88,13 @@ def up(conn: sqlite3.Connection) -> None:
     # ══ json_log_events — structured JSON audit log ════════════════════════════
     conn.execute("""
         CREATE TABLE IF NOT EXISTS json_log_events (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            id          TEXT PRIMARY KEY,
             level       TEXT NOT NULL CHECK(level IN ('DEBUG','INFO','WARNING','ERROR','CRITICAL')),
             logger_name TEXT NOT NULL,
             message     TEXT NOT NULL,
             context     TEXT,
             operation_id TEXT,
-            sucursal_id INTEGER,
+            sucursal_id TEXT,
             usuario     TEXT,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         )

@@ -447,29 +447,8 @@ class HRRuleEngine:
         if not self.db:
             return
         try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS hr_auditoria_log (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id INTEGER NOT NULL,
-                    fecha       TEXT    NOT NULL,
-                    overwork_count INTEGER DEFAULT 0,
-                    descansos_sugeridos INTEGER DEFAULT 0,
-                    cobertura_ok INTEGER DEFAULT 1,
-                    payload     TEXT    DEFAULT '{}',
-                    created_at  TEXT    DEFAULT (datetime('now'))
-                )
-            """)
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS hr_pago_log (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    empleado_id INTEGER NOT NULL,
-                    nombre      TEXT    DEFAULT '',
-                    periodo     TEXT    DEFAULT '',
-                    total       REAL    DEFAULT 0,
-                    sucursal_id INTEGER DEFAULT 0,
-                    created_at  TEXT    DEFAULT (datetime('now'))
-                )
-            """)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
+            pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
             try:
                 self.db.commit()
             except Exception:

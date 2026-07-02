@@ -18,7 +18,7 @@ def run(conn) -> None:
         "pago_monto REAL DEFAULT 0",
         "costo_envio REAL DEFAULT 0",
         "weight_adjusted INTEGER DEFAULT 0",
-        "corte_id INTEGER DEFAULT 0",
+        "corte_id TEXT DEFAULT 0",
     ])
 
     # delivery_items: ensure weight-adjustment columns exist
@@ -35,8 +35,8 @@ def run(conn) -> None:
     # delivery_driver_cuts: ensure all cut columns exist
     conn.execute("""
         CREATE TABLE IF NOT EXISTS delivery_driver_cuts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            driver_id INTEGER NOT NULL,
+            id TEXT PRIMARY KEY,
+            driver_id TEXT NOT NULL,
             driver_nombre TEXT,
             turno_inicio DATETIME,
             turno_fin DATETIME DEFAULT (datetime('now')),
@@ -48,7 +48,7 @@ def run(conn) -> None:
             efectivo_entregado REAL DEFAULT 0,
             diferencia REAL DEFAULT 0,
             usuario_corte TEXT,
-            sucursal_id INTEGER DEFAULT 1,
+            sucursal_id TEXT,
             notas TEXT
         )
     """)

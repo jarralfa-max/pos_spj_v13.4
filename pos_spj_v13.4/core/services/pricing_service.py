@@ -21,38 +21,7 @@ class PricingService:
         self._init_tables()
 
     def _init_tables(self):
-        self.conn.executescript("""
-            CREATE TABLE IF NOT EXISTS listas_precio (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre      TEXT NOT NULL UNIQUE,
-                descripcion TEXT,
-                descuento_global DECIMAL(5,2) DEFAULT 0,
-                hereda_de   INTEGER REFERENCES listas_precio(id),
-                activa      INTEGER DEFAULT 1
-            );
-            CREATE TABLE IF NOT EXISTS precios_lista (
-                lista_id    INTEGER REFERENCES listas_precio(id) ON DELETE CASCADE,
-                producto_id INTEGER REFERENCES productos(id),
-                precio      DECIMAL(10,2) NOT NULL,
-                PRIMARY KEY (lista_id, producto_id) ON CONFLICT REPLACE
-            );
-            CREATE TABLE IF NOT EXISTS precios_volumen (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                producto_id  INTEGER REFERENCES productos(id),
-                lista_id     INTEGER REFERENCES listas_precio(id),
-                cantidad_min DECIMAL(10,3) NOT NULL,
-                precio       DECIMAL(10,2) NOT NULL,
-                unidad       TEXT DEFAULT 'kg'
-            );
-            CREATE TABLE IF NOT EXISTS clientes_lista_precio (
-                cliente_id  INTEGER PRIMARY KEY REFERENCES clientes(id),
-                lista_id    INTEGER REFERENCES listas_precio(id)
-            );
-            CREATE INDEX IF NOT EXISTS idx_precios_lista_prod
-                ON precios_lista(lista_id, producto_id);
-            CREATE INDEX IF NOT EXISTS idx_vol_prod
-                ON precios_volumen(producto_id, lista_id);
-        """)
+        pass  # Plan B born-clean: schema canónico en migrations/ (DDL removido)
         # Seed listas base
         for nombre, desc in [
             ("Mostrador",  "Precio al publico general"),

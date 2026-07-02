@@ -123,7 +123,7 @@ class CajaTicketService:
             "diferencia": float(resultado.get("diferencia", 0)),
             "fondo_inicial": float(resultado.get("fondo_inicial", 0)),
         }
-        cierre_id = int(resultado.get("cierre_id", resultado.get("turno_id", 0)))
+        cierre_id = str(resultado.get("cierre_id") or resultado.get("turno_id") or "")
 
         # Auto-save PDF
         try:
