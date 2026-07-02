@@ -39,9 +39,13 @@ logger = logging.getLogger("spj.migrations")
 #   python tools/refactor_control/build_cutover_spec.py --db <schema.db>
 from migrations.standalone._cutover_spec_generated import CUTOVER_SPECS  # noqa: E402
 
-# True: el spec resuelve el 100% de PK/FK y el corte está probado end-to-end
-# (PRAGMA foreign_key_check vacío, 0 PK enteras restantes) sobre el esquema real.
-SPEC_IS_COMPLETE = True
+# False mientras el refactor born-clean sigue en curso: aún hay identidad entera y
+# deuda diferida sin resolver (sucursales/usuarios/cajas centinela, cierre_mensual/
+# cierres_caja, ~139 tablas INTEGER-PK; ver docs/refactor/modules/cierre_global.md).
+# El corte global es el paso TERMINAL y no debe autorizarse hasta cerrar esa deuda:
+# poner en True SOLO tras auditar el spec completo (PK + cada FK) y validar el corte
+# end-to-end (PRAGMA foreign_key_check vacío, 0 PK enteras) sobre el esquema real.
+SPEC_IS_COMPLETE = False
 
 
 def audit_integer_pks(conn: Any) -> dict[str, list[str]]:

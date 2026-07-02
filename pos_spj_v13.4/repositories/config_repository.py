@@ -69,6 +69,14 @@ class ConfigRepository:
         row = self.db.execute(f"SELECT id FROM {table_name} WHERE {uuid_column}=?", (entity_id,)).fetchone()
         return int(row[0]) if row else None
 
+    def _to_int(self, value: object) -> int | None:
+        """Coacciona el rowid entero (identidad pre-cutover) para el puente
+        integer→uuid; None si el valor no es un entero válido."""
+        try:
+            return int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+
     def _uuid_from_row_id(self, table_name: str, row_id: int | None) -> str | None:
         if row_id is None:
             return None
@@ -756,9 +764,25 @@ class ConfigRepository:
         if not row:
             logger.warning("Role not found while resolving permissions: %s", role_name)
             return set()
-        # If uuid column exists, look up uuid; otherwise pass integer id as string for fallback
-        role_uuid_or_id = self._uuid_from_row_id("roles", self._to_int(row[0])) or str(row[0])
-        return self.permission_codes_for_role_id(role_uuid_or_id)
+        role_row_id = self._to_int(row[0])
+        # Ruta UUID canónica cuando la columna existe; en esquema entero pre-cutover
+        # (sin columna uuid en roles) se resuelve por rol_id entero directamente.
+        if self._column_exists("roles", "uuid"):
+            role_uuid = self._uuid_from_row_id("roles", role_row_id)
+            if role_uuid:
+                return self.permission_codes_for_role_id(role_uuid)
+        return self._role_permissions_by_row_id(role_row_id)
+
+    def _role_permissions_by_row_id(self, role_row_id: int | None) -> set[str]:
+        """Resuelve permisos por rol_id entero (esquema pre-cutover sin rol_uuid)."""
+        if role_row_id is None or not self._column_exists("rol_permisos", "rol_id"):
+            logger.warning("rol_permisos: no usable integer identity — returning empty")
+            return set()
+        rows = self.db.execute(
+            "SELECT modulo, accion FROM rol_permisos WHERE rol_id=? AND permitido=1",
+            (role_row_id,),
+        ).fetchall()
+        return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
 
     def permission_codes_for_role_id(self, role_id: str) -> set[str]:
         role_row_id, role_uuid = self._resolve_role_row(role_id)
@@ -767,38 +791,18 @@ class ConfigRepository:
                 "SELECT modulo, accion FROM rol_permisos WHERE rol_uuid=? AND permitido=1",
                 (role_uuid,),
             ).fetchall()
-        elif role_row_id is not None and self._column_exists("rol_permisos", "rol_id"):
-            rows = self.db.execute(
-                "SELECT modulo, accion FROM rol_permisos WHERE rol_id=? AND permitido=1",
-                (role_row_id,),
-            ).fetchall()
-        else:
-            logger.warning("rol_permisos: no usable identity column found — run migrations; returning empty")
-            return set()
-        return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
+            return {normalize_permission(f"{row[0]}.{row[1]}") for row in rows}
+        return self._role_permissions_by_row_id(role_row_id)
 
     def permission_codes_for_user(self, user_id: str, branch_id: str | None = None) -> set[str]:
-        # Accept legacy integer IDs (e.g. "1") until all DBs are migrated to UUID
+        # usuarios.id es la identidad canónica del usuario (entero pre-cutover,
+        # UUIDv7 TEXT tras el corte global); el binding por afinidad de SQLite
+        # resuelve ambos casos sin ramas duales uuid/id.
         user_id_str = str(user_id or "").strip()
-        has_uuid_col = self._column_exists("usuarios", "uuid")
-        try:
-            from uuid import UUID as _UUID
-            _UUID(user_id_str)
-            is_uuid = True
-        except (ValueError, AttributeError):
-            is_uuid = False
-
-        if is_uuid and has_uuid_col:
-            column, value = "uuid", user_id_str
-        else:
-            # Fallback: try integer id lookup
-            try:
-                column, value = "id", int(user_id_str)
-            except (ValueError, TypeError):
-                logger.warning("permission_codes_for_user: invalid user_id %r — returning empty set", user_id_str)
-                return set()
-
-        row = self.db.execute(f"SELECT id, rol FROM usuarios WHERE {column}=?", (value,)).fetchone()
+        if not user_id_str:
+            logger.warning("permission_codes_for_user: invalid user_id %r — returning empty set", user_id)
+            return set()
+        row = self.db.execute("SELECT id, rol FROM usuarios WHERE id=?", (user_id_str,)).fetchone()
         if not row:
             logger.warning("User not found while resolving permissions: %s", user_id)
             return set()
