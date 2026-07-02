@@ -260,11 +260,17 @@ class DialogoLogin(QDialog):
             row = db.execute(
                 "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
             ).fetchone()
-            if not row or not row[0]:
-                _logger.info("_leer_sucursal_instalacion: key not configured")
-                return {'id': None, 'nombre': ''}
-            stored = str(row[0]).strip()
+            stored = str(row[0]).strip() if row and row[0] else ""
             if not stored:
+                # Clave no configurada: resolver la primera sucursal activa
+                # (UUID real de la BD, nunca un centinela hardcodeado).
+                _logger.info("_leer_sucursal_instalacion: key not configured — usando primera activa")
+                first = db.execute(
+                    "SELECT id, nombre FROM sucursales WHERE COALESCE(activa,1)=1 "
+                    "ORDER BY fecha_alta LIMIT 1"
+                ).fetchone()
+                if first:
+                    return {'id': str(first[0]), 'nombre': str(first[1] or '')}
                 return {'id': None, 'nombre': ''}
 
             suc_row = db.execute(
@@ -381,8 +387,8 @@ class DialogoLogin(QDialog):
         layout.addWidget(lbl_sub)
         layout.addSpacing(12)
 
-        # ── Badge sucursal ───────────────────────────────────────────────
-        suc_nombre = self._sucursal_instalacion.get('nombre', 'Principal')
+        # ── Badge sucursal (la efectiva de esta instalación) ─────────────
+        suc_nombre = self._sucursal_instalacion.get('nombre') or "Sin sucursal configurada"
         lbl_suc = QLabel(f"📍  {suc_nombre}")
         lbl_suc.setAlignment(Qt.AlignCenter)
         lbl_suc.setObjectName("loginSucursal")
@@ -874,6 +880,55 @@ class MainWindow(QMainWindow):
 
         # ── Session timeout: cierra sesión por inactividad ────────────────────
         self._arrancar_session_timeout()
+
+    def aplicar_sucursal_activa(self, sucursal_id: str, nombre: str = "") -> None:
+        """Propaga EN VIVO un cambio de sucursal activa a toda la sesión.
+
+        Lo invoca Configuración al re-anclar la sucursal de la instalación:
+        actualiza usuario_actual, la barra de sesión, los módulos cargados,
+        el AppContainer y publica ACTIVE_BRANCH_CHANGED. El login la leerá de
+        la clave persistida en el próximo arranque.
+        """
+        sucursal_id = str(sucursal_id or "")
+        if not sucursal_id:
+            return
+        previous = ""
+        if self.usuario_actual:
+            previous = str(self.usuario_actual.get("active_branch_id") or "")
+            self.usuario_actual["sucursal_id"] = sucursal_id
+            self.usuario_actual["sucursal_nombre"] = nombre
+            self.usuario_actual["active_branch_id"] = sucursal_id
+        if hasattr(self, "_session_bar") and self.usuario_actual:
+            nombre_u = self.usuario_actual.get("nombre", self.usuario_actual.get("username", ""))
+            rol = str(self.usuario_actual.get("rol", "")).capitalize().replace("_", " ")
+            self._session_bar.setText(
+                f"  📍 {nombre}  —  👤 {nombre_u} ({rol})  —  Sucursal ID: {sucursal_id}")
+        for idx in range(self.stack.count()):
+            widget = self.stack.widget(idx)
+            if hasattr(widget, "set_sucursal"):
+                try: widget.set_sucursal(sucursal_id, nombre)
+                except Exception: continue
+        try:
+            self.container.set_sucursal_activa(sucursal_id, nombre)
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("set_sucursal_activa: %s", _e)
+        try:
+            from core.events.domain_events import ACTIVE_BRANCH_CHANGED
+            from core.events.event_bus import EventBus
+            from backend.shared.ids import new_uuid
+            from datetime import datetime, timezone
+            EventBus().publish(ACTIVE_BRANCH_CHANGED, {
+                "event_id":           new_uuid(),
+                "operation_id":       new_uuid(),
+                "user_id":            str((self.usuario_actual or {}).get("id") or ""),
+                "previous_branch_id": previous,
+                "active_branch_id":   sucursal_id,
+                "active_branch_name": nombre,
+                "timestamp":          datetime.now(timezone.utc).isoformat(),
+                "source_module":      "main_window.aplicar_sucursal_activa",
+            })
+        except Exception as _e:
+            import logging; logging.getLogger(__name__).debug("ACTIVE_BRANCH_CHANGED publish: %s", _e)
 
         # ── Inbox POS: mostrar mensajes no leídos tras login ──────────────────
         QTimer.singleShot(800, self._mostrar_inbox_login)
