@@ -152,7 +152,6 @@ def up(conn):
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS lotes_tarjetas_pdf (
             id           TEXT PRIMARY KEY,
-            uuid         TEXT UNIQUE DEFAULT (lower(hex(randomblob(8)))),
             nombre       TEXT,
             cantidad     INTEGER NOT NULL DEFAULT 0,
             nivel        TEXT DEFAULT 'todos',
@@ -312,7 +311,7 @@ def up(conn):
 
     # Ensure ventas has sucursal_id (critical for multi-branch)
     add_col("ventas", "sucursal_id TEXT NOT NULL")
-    add_col("ventas", "uuid TEXT")
+    # (Plan B) ventas.id ES el UUID; sin columna uuid dual.
 
     # Ensure compras has sucursal_id
     add_col("compras", "sucursal_id TEXT NOT NULL")

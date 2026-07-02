@@ -45,7 +45,7 @@ def run(conn: sqlite3.Connection) -> None:
         _add_col(conn, "productos", "es_compuesto",    "INTEGER DEFAULT 0")
         _add_col(conn, "productos", "es_subproducto",  "INTEGER DEFAULT 0")
         _add_col(conn, "productos", "precio_minimo",   "REAL DEFAULT 0")
-        _add_col(conn, "productos", "uuid",            "TEXT")
+        # (Plan B) productos.id ES el UUID; sin columna uuid dual.
     else:
         logger.warning("107: productos table does not exist — skipping (run m000 first)")
 

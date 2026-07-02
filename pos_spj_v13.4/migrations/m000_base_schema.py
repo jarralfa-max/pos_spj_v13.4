@@ -2659,7 +2659,7 @@ def _ensure_extra_columns(conn):
     ensure_column(conn, "detalles_venta", "margen_real REAL DEFAULT 0")
 
     # movimientos_inventario
-    ensure_column(conn, "movimientos_inventario", "uuid TEXT")
+    # (Plan B) movimientos_inventario.id ES el UUID; sin columna uuid dual.
     ensure_column(conn, "movimientos_inventario", "referencia_id TEXT")
     ensure_column(conn, "movimientos_inventario", "referencia_tipo TEXT")
     ensure_column(conn, "movimientos_inventario", "costo_unitario REAL DEFAULT 0")

@@ -136,18 +136,20 @@ BASELINE: dict[str, dict[str, int]] = {
         # FASE 2 added tolerant label resolvers (username_for_id/role_name_for_id
         # via _resolve_label) so events carry names, not integer ids: +1 select,
         # +1 execute vs the FASE 0 baseline.
-        "sql_select": 43,
-        "sql_insert": 11,
+        # Plan B: reescritura born-clean del repo eliminó todo el SQL dual
+        # uuid/id (ratchet DOWN: select 43→40, insert 11→10, delete 2→1,
+        # execute 65→60, cast_as_text 1→0).
+        "sql_select": 40,
+        "sql_insert": 10,
         "sql_update": 11,
-        "sql_delete": 2,
+        "sql_delete": 1,
         # FASE 3 removed _commit() (and its except: pass) — the repository no
         # longer commits/rolls back; services own the UnitOfWork boundary.
-        "cursor_execute": 65,
+        "cursor_execute": 60,
         # Plan B: el fallback rowid del alta de usuarios fue eliminado (lastrowid 1->0).
         # CONFIGURACION permisos slice: permission_codes_for_user dropped the
         # int(user_id) cast and the "Accept legacy integer IDs" comment
         # (int_id_cast 1->0, legacy_lower 1->0).
-        "cast_as_text": 1,    # CAST(h.sucursal_id AS TEXT) pre-103 fallback
         "principal_fallback": 1,
     },
     "core/repositories/hardware_config_repository.py": {
