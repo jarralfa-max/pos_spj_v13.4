@@ -42,7 +42,8 @@ class OrderBadgeService:
 
     def _safe_count(self, fn, branch_id: str) -> int:
         try:
-            return str(fn(branch_id) or "")
+            total = fn(branch_id)  # conteo (el branch es sólo filtro)
+            return int(total or 0)
         except Exception:
             return 0
 
