@@ -242,57 +242,35 @@ class DialogoLogin(QDialog):
         super().mouseMoveEvent(event)
 
     def _leer_sucursal_instalacion(self) -> dict:
-        """Lee la sucursal configurada para ESTA instalación.
+        """Resuelve la sucursal de ESTA terminal desde configuraciones.
 
-        Returns {'id': str|None, 'nombre': str}.
-        sucursales.id is now TEXT PRIMARY KEY (UUID).  The stored value in
-        configuraciones.sucursal_instalacion_id is the UUID string directly.
-        Never falls back to a hard-coded id — returns empty dict keys so
-        callers can detect an un-configured installation.
+        Estados (sin fallback silencioso a Principal):
+        - configurada y válida → {'id', 'nombre', 'configured': True};
+        - clave presente pero INVÁLIDA ("None"/""/null o sucursal inexistente/
+          inactiva) → configured False + error (el badge muestra advertencia);
+        - clave AUSENTE (bootstrap inicial) → se usa la primera sucursal activa
+          y se registra como instalación pendiente de configurar.
         """
         import logging as _log
         _logger = _log.getLogger(__name__)
+        invalido = {'id': None, 'nombre': '', 'configured': False, 'pending': False,
+                    'error': 'Sucursal de instalación no configurada o inválida'}
         try:
             db = getattr(getattr(self.auth_service, 'repo', None), 'db', None)
             if not db:
                 _logger.warning("_leer_sucursal_instalacion: no db connection available")
-                return {'id': None, 'nombre': ''}
-            row = db.execute(
-                "SELECT valor FROM configuraciones WHERE clave='sucursal_instalacion_id'"
-            ).fetchone()
-            stored = str(row[0]).strip() if row and row[0] else ""
-            if not stored:
-                # Clave no configurada: resolver la primera sucursal activa
-                # (UUID real de la BD, nunca un centinela hardcodeado).
-                _logger.info("_leer_sucursal_instalacion: key not configured — usando primera activa")
-                first = db.execute(
-                    "SELECT id, nombre FROM sucursales WHERE COALESCE(activa,1)=1 "
-                    "ORDER BY fecha_alta LIMIT 1"
-                ).fetchone()
-                if first:
-                    return {'id': str(first[0]), 'nombre': str(first[1] or '')}
-                return {'id': None, 'nombre': ''}
-
-            suc_row = db.execute(
-                "SELECT id, nombre FROM sucursales WHERE id=? AND COALESCE(activa,1)=1",
-                (stored,)
-            ).fetchone()
-            if suc_row:
-                _logger.info(
-                    "_leer_sucursal_instalacion: resolved '%s' → '%s'",
-                    stored, suc_row[1],
-                )
-                return {'id': suc_row[0], 'nombre': suc_row[1]}
-
-            _logger.warning(
-                "_leer_sucursal_instalacion: id '%s' not found in sucursales (active)", stored
-            )
-            return {'id': None, 'nombre': ''}
-
+                return dict(invalido)
+            from core.services.branch_resolution import resolve_installation_branch
+            resultado = resolve_installation_branch(db)
+            if resultado.get('pending') and resultado.get('id'):
+                # Bootstrap inicial: sucursal provisional utilizable en el
+                # login, aunque la instalación siga pendiente de configurar.
+                resultado = dict(resultado)
+                resultado['configured'] = True
+            return resultado
         except Exception as exc:
-            import logging as _log2
-            _log2.getLogger(__name__).error("_leer_sucursal_instalacion error: %s", exc)
-            return {'id': None, 'nombre': ''}
+            _logger.error("_leer_sucursal_instalacion error: %s", exc)
+            return dict(invalido)
 
     def _configurar_ui(self):
         layout = QVBoxLayout(self)
@@ -387,15 +365,25 @@ class DialogoLogin(QDialog):
         layout.addWidget(lbl_sub)
         layout.addSpacing(12)
 
-        # ── Badge sucursal (la efectiva de esta instalación) ─────────────
-        suc_nombre = self._sucursal_instalacion.get('nombre') or "Sin sucursal configurada"
-        lbl_suc = QLabel(f"📍  {suc_nombre}")
+        # ── Badge sucursal (la efectiva de esta terminal) ────────────────
+        _configurada = bool(self._sucursal_instalacion.get('configured')
+                            and self._sucursal_instalacion.get('id'))
+        if _configurada:
+            suc_nombre = self._sucursal_instalacion.get('nombre') or ""
+            lbl_suc = QLabel(f"📍  {suc_nombre}")
+            _badge_css = (
+                "color: #0891b2; background: rgba(8,145,178,0.12);"
+                " border: 1px solid rgba(8,145,178,0.35);")
+        else:
+            lbl_suc = QLabel("⚠️  Sucursal no configurada")
+            _badge_css = (
+                "color: #d97706; background: rgba(217,119,6,0.12);"
+                " border: 1px solid rgba(217,119,6,0.4);")
         lbl_suc.setAlignment(Qt.AlignCenter)
         lbl_suc.setObjectName("loginSucursal")
         lbl_suc.setWordWrap(True)
         lbl_suc.setStyleSheet(
-            "color: #0891b2; background: rgba(8,145,178,0.12);"
-            " border: 1px solid rgba(8,145,178,0.35);"
+            _badge_css +
             " border-radius: 10px; font-size: 11px; font-weight: 600;"
             " padding: 4px 14px;")
         suc_row = QHBoxLayout()
@@ -771,27 +759,35 @@ class MainWindow(QMainWindow):
         usuario          = self.usuario_actual.get("username", "")
         nombre           = self.usuario_actual.get("nombre", usuario)
         rol              = self.usuario_actual.get("rol", "cajero")
-        # Identidad UUIDv7: la sucursal circula como UUID string. Si el usuario
-        # no trae sucursal asignada, se resuelve la primera activa de la BD
-        # (nunca el centinela entero 0/1).
-        sucursal_id      = str(self.usuario_actual.get("sucursal_id") or "")
-        nombre_suc       = self.usuario_actual.get("sucursal_nombre") or ""
-        if not sucursal_id or not nombre_suc:
+        # Identidad UUIDv7: la sucursal circula como UUID string. La fuente de
+        # verdad de la terminal es la sucursal de instalación (inyectada por el
+        # login) y, en su defecto, la resuelta por AppContainer bajo la
+        # semántica de 3 estados. NO se resuelve aquí una "primera activa":
+        # una configuración inválida debe quedar visible, no ocultarse.
+        def _inv(v) -> bool:
+            return v is None or str(v).strip().lower() in ("", "none", "null")
+
+        sucursal_id = self.usuario_actual.get("sucursal_id")
+        nombre_suc  = self.usuario_actual.get("sucursal_nombre") or ""
+        if _inv(sucursal_id):
+            sucursal_id = getattr(self.container, "sucursal_id", "") or ""
+            nombre_suc  = getattr(self.container, "sucursal_nombre", "") or ""
+            if _inv(sucursal_id):
+                sucursal_id = ""
+                nombre_suc = ""
+                import logging
+                logging.getLogger(__name__).warning(
+                    "_propagar_usuario: sucursal de instalación no configurada "
+                    "o inválida; la sesión queda SIN sucursal activa. Configura "
+                    "la terminal en Configuración → Empresa.")
+        sucursal_id = str(sucursal_id or "")
+        if sucursal_id and not nombre_suc:
             try:
-                if not sucursal_id:
-                    _row = self.container.db.execute(
-                        "SELECT id, nombre FROM sucursales WHERE activa=1 "
-                        "ORDER BY fecha_alta LIMIT 1"
-                    ).fetchone()
-                    if _row:
-                        sucursal_id = str(_row[0])
-                        nombre_suc = nombre_suc or str(_row[1] or "")
-                if sucursal_id and not nombre_suc:
-                    _row_n = self.container.db.execute(
-                        "SELECT nombre FROM sucursales WHERE id=?", (sucursal_id,)
-                    ).fetchone()
-                    if _row_n:
-                        nombre_suc = str(_row_n[0] or "")
+                _row_n = self.container.db.execute(
+                    "SELECT nombre FROM sucursales WHERE id=?", (sucursal_id,)
+                ).fetchone()
+                if _row_n:
+                    nombre_suc = str(_row_n[0] or "")
             except Exception:
                 pass
         self.usuario_actual["sucursal_id"] = sucursal_id
@@ -802,9 +798,12 @@ class MainWindow(QMainWindow):
         # v13.4: Actualizar barra de sesión
         if hasattr(self, '_session_bar'):
             rol_display = rol.capitalize().replace("_", " ")
+            if sucursal_id:
+                _suc_display = f"📍 {nombre_suc}  —  Sucursal ID: {sucursal_id}"
+            else:
+                _suc_display = "⚠️ Sucursal no configurada"
             self._session_bar.setText(
-                f"  📍 {nombre_suc}  —  👤 {nombre} ({rol_display})  —  "
-                f"Sucursal ID: {sucursal_id}")
+                f"  {_suc_display}  —  👤 {nombre} ({rol_display})")
             # Color según rol
             if rol in ('admin', 'superadmin'):
                 self._session_bar.setStyleSheet(
