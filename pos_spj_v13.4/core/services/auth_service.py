@@ -140,7 +140,7 @@ class AuthService:
             self._register_failed_attempt(username)
             self.audit_service.log_change(
                 usuario=username, accion="LOGIN_FAILED", modulo="AUTH", entidad="USUARIO",
-                entidad_id=username, before_state={}, after_state={}, sucursal_id=0,
+                entidad_id=username, before_state={}, after_state={}, sucursal_id="",
                 detalles="Intento de acceso con usuario inexistente o inactivo."
             )
             raise PermissionError("Usuario no encontrado o inactivo.")
@@ -189,7 +189,7 @@ class AuthService:
         try:
             self.security_service.load_permissions(
                 usuario_id  = user_data['id'],
-                sucursal_id = user_data.get('sucursal_id', 1)
+                sucursal_id = user_data.get('sucursal_id') or ""
             )
         except Exception as e:
             logger.warning("load_permissions tras login: %s", e)

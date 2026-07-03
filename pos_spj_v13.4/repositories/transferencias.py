@@ -55,7 +55,7 @@ class TransferRepository:
     def list_active_branches(self) -> List[Dict]:
         """Active branches for selectors (SQL lives in the repo, not the UI)."""
         rows = self.db.fetchall(
-            "SELECT id, nombre FROM sucursales WHERE activa = 1 ORDER BY nombre"
+            "SELECT id, nombre FROM sucursales WHERE activa = 1 AND id IS NOT NULL AND TRIM(id) != '' AND LOWER(TRIM(id)) NOT IN ('none','null') ORDER BY nombre"
         )
         return [dict(r) for r in rows]
 

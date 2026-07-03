@@ -143,4 +143,40 @@ FINANCIAL_TRACE_FAILED     = "financial_trace_failed"    # traza financiera fall
 #   active_branch_name, timestamp, source_module
 ACTIVE_BRANCH_CHANGED = "active_branch_changed"
 
+# ── Eventos de catálogo de SUCURSALES (ciclo de vida, NO sesión) ─────────────
+# ACTIVE_BRANCH_CHANGED = cambio de sucursal activa de la sesión/terminal.
+# BRANCHES_CHANGED      = el catálogo de sucursales cambió: refrescar combos,
+#                         selectores y listas en caliente (sin reiniciar).
+# Emitidos POST-COMMIT por CompanyProfileService (core/events/catalog_events.py).
+# Payload: event_id, operation_id, branch_id, branch_name, active,
+#          action ("created"|"updated"|"deactivated"), timestamp, source_module.
+BRANCH_CREATED      = "branch_created"
+BRANCH_UPDATED      = "branch_updated"
+BRANCH_DEACTIVATED  = "branch_deactivated"
+BRANCHES_CHANGED    = "branches_changed"
+
+# ── Eventos de catálogo de PRODUCTOS ──────────────────────────────────────────
+# PRODUCTS_CHANGED es el evento agregado para refrescar inventario, ventas,
+# compras, recetas, etiquetas y todo módulo que dependa del catálogo.
+# Los canales legacy UPPERCASE (PRODUCTO_CREADO/ACTUALIZADO/ELIMINADO en
+# event_bus.py) se siguen emitiendo por compatibilidad.
+# Payload: event_id, operation_id, product_id, product_name, active,
+#          action ("created"|"updated"|"deactivated"), timestamp, source_module.
+PRODUCT_CREATED     = "product_created"
+PRODUCT_UPDATED     = "product_updated"
+PRODUCT_DEACTIVATED = "product_deactivated"
+PRODUCTS_CHANGED    = "products_changed"
+
+__all__ += [
+    "ACTIVE_BRANCH_CHANGED",
+    "BRANCH_CREATED",
+    "BRANCH_UPDATED",
+    "BRANCH_DEACTIVATED",
+    "BRANCHES_CHANGED",
+    "PRODUCT_CREATED",
+    "PRODUCT_UPDATED",
+    "PRODUCT_DEACTIVATED",
+    "PRODUCTS_CHANGED",
+]
+
 

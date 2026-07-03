@@ -475,10 +475,18 @@ class ModuloConfiguracion(ModuloBase):
         self.cmb_sucursal_inst.clear()
         self.cmb_sucursal_inst.addItem("-- Selecciona sucursal --", None)
         sucs = self.company_profile_service.branches_for_company_settings()
-        if not sucs:
-            QMessageBox.warning(self, "Sucursales", "No hay sucursales activas configuradas.")
+        validas = 0
         for sid, nombre in sucs:
-            self.cmb_sucursal_inst.addItem(nombre, sid)
+            # Nunca cargar sucursales sin UUID (id NULL/""/None/null corruptos).
+            if sid is None or str(sid).strip().lower() in ("", "none", "null"):
+                continue
+            self.cmb_sucursal_inst.addItem(nombre, str(sid))
+            validas += 1
+        if not validas:
+            QMessageBox.warning(
+                self, "Sucursales",
+                "No hay sucursales válidas con UUID. Corrige o crea una sucursal "
+                "antes de seleccionar la terminal.")
         configured_branch = settings.get('sucursal_instalacion_id')
         if configured_branch:
             stored = str(configured_branch).strip()
@@ -492,14 +500,61 @@ class ModuloConfiguracion(ModuloBase):
             finally:
                 self.cmb_sucursal_inst.blockSignals(False)
 
+    # ── Contrato de refresh en caliente (BRANCHES_CHANGED) ────────────────────
+    def _recargar_combo_sucursal_inst(self) -> None:
+        """Recarga SOLO el combo de sucursal de la terminal, preservando la
+        selección (no toca los campos de empresa capturados)."""
+        if not hasattr(self, 'cmb_sucursal_inst'):
+            return
+        prev = str(self.cmb_sucursal_inst.currentData() or "")
+        self.cmb_sucursal_inst.blockSignals(True)
+        try:
+            self.cmb_sucursal_inst.clear()
+            self.cmb_sucursal_inst.addItem("-- Selecciona sucursal --", None)
+            sucs = self.company_profile_service.branches_for_company_settings()
+            for sid, nombre in sucs:
+                if sid is None or str(sid).strip().lower() in ("", "none", "null"):
+                    continue
+                self.cmb_sucursal_inst.addItem(nombre, str(sid))
+            objetivo = prev
+            if not objetivo or objetivo.lower() in ("none", "null"):
+                anclada = self.company_profile_service.get_installation_branch()
+                objetivo = str(anclada[0]) if anclada else ""
+            for index in range(self.cmb_sucursal_inst.count()):
+                d = self.cmb_sucursal_inst.itemData(index)
+                if d is not None and str(d) == objetivo:
+                    self.cmb_sucursal_inst.setCurrentIndex(index)
+                    break
+        finally:
+            self.cmb_sucursal_inst.blockSignals(False)
+
+    def refresh_branches(self) -> None:
+        """Refresca tabla de sucursales + combo de terminal sin reiniciar."""
+        try:
+            self._cargar_sucursales_v13()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug("refresh_branches: tabla", exc_info=True)
+        try:
+            self._recargar_combo_sucursal_inst()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug("refresh_branches: combo", exc_info=True)
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
+
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Aviso", "El nombre del negocio es obligatorio.")
             return
         suc_id = self.cmb_sucursal_inst.currentData() if hasattr(self, 'cmb_sucursal_inst') else None
-        if suc_id is None:
-            QMessageBox.warning(self, "Aviso", "Selecciona la sucursal de esta terminal.")
+        suc_id_str = str(suc_id or "").strip()
+        if suc_id_str.lower() in ("", "none", "null"):
+            QMessageBox.warning(
+                self, "Sucursal inválida",
+                "Selecciona una sucursal válida. La sucursal seleccionada no tiene UUID.")
             return
         datos = {
             'nombre_empresa': nombre,
@@ -512,15 +567,31 @@ class ModuloConfiguracion(ModuloBase):
             'regimen_fiscal': self.emp_regimen.text().strip(),
             'logo_path': self.emp_logo_path.text().strip(),
             'tasa_iva': str(float(self.emp_tasa_iva.value()) / 100),
-            'sucursal_instalacion_id': str(suc_id),
         }
         try:
+            # La clave de la terminal se fija por la ruta canónica, que valida
+            # UUIDv7 + existencia + activa (jamás persiste "None").
+            branch_id, branch_name = self.company_profile_service.set_installation_branch(suc_id_str)
             self.system_settings_service.save_many(datos)
-            QMessageBox.information(self, "✅ Guardado",
-                "Datos de empresa guardados.\n"
-                "La sucursal de esta terminal se aplicará en el próximo inicio de sesión.")
+        except ValueError as exc:
+            QMessageBox.warning(self, "Sucursal inválida", f"No se pudo asignar la sucursal: {exc}")
+            return
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+            return
+        # Propagar EN VIVO (barra, módulos, container, ACTIVE_BRANCH_CHANGED).
+        try:
+            main_win = self.window()
+            if main_win is not None and hasattr(main_win, "aplicar_sucursal_activa"):
+                main_win.aplicar_sucursal_activa(branch_id, branch_name)
+            elif self.container is not None and hasattr(self.container, "set_sucursal_activa"):
+                self.container.set_sucursal_activa(branch_id, branch_name)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("No se pudo propagar la sucursal a la sesión: %s", exc)
+        QMessageBox.information(self, "✅ Guardado",
+            f"Datos de empresa guardados.\n"
+            f"Esta terminal ahora opera sobre «{branch_name}».")
 
     def _seleccionar_logo(self):
         ruta, _ = QFileDialog.getOpenFileName(
@@ -910,6 +981,9 @@ class ModuloConfiguracion(ModuloBase):
         suc_hdr = QHBoxLayout()
         suc_hdr.addWidget(QLabel("Sucursales del sistema con horarios de atención"))
         suc_hdr.addStretch()
+        self._lbl_inst_branch = QLabel("")
+        self._lbl_inst_branch.setStyleSheet("color:#2563eb; font-weight:600;")
+        suc_hdr.addWidget(self._lbl_inst_branch)
         btn_new_suc = QPushButton("➕ Nueva sucursal")
         btn_new_suc.setObjectName("successBtn")
         apply_tooltip(btn_new_suc, "Crear nueva sucursal")
@@ -993,12 +1067,25 @@ class ModuloConfiguracion(ModuloBase):
         except Exception as exc:
             QMessageBox.critical(self, "Error", f"No se pudieron cargar sucursales: {exc}")
             rows = []
+        inst = None
+        try:
+            inst = self.company_profile_service.get_installation_branch()
+        except Exception:
+            inst = None
+        inst_id = inst[0] if inst else ""
+        if hasattr(self, "_lbl_inst_branch"):
+            self._lbl_inst_branch.setText(
+                f"📍 Esta instalación: {inst[1]}" if inst
+                else "📍 Instalación sin sucursal asignada")
         self._tbl_suc_v13.setRowCount(len(rows))
         for ri, branch in enumerate(rows):
             dias_n = branch.operation_days.count(',') + 1 if branch.operation_days else 0
+            es_instalacion = str(branch.id) == str(inst_id)
+            estado = "✅ Activa" if branch.active else "❌ Inactiva"
+            if es_instalacion:
+                estado += " · 📍 instalación"
             vals = [branch.name, branch.address, f"{branch.opening_time}–{branch.closing_time}",
-                    f"{dias_n} días/sem",
-                    "✅ Activa" if branch.active else "❌ Inactiva"]
+                    f"{dias_n} días/sem", estado]
             for ci, v in enumerate(vals):
                 it = QTableWidgetItem(v)
                 it.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
@@ -1012,7 +1099,43 @@ class ModuloConfiguracion(ModuloBase):
             btn_ed = self._create_action_button("✏️", "Editar sucursal", "edit")
             btn_ed.clicked.connect(lambda _, sid=suc_id: self._editar_sucursal_v13(sid))
             bl.addWidget(btn_ed)
+            if not es_instalacion and branch.active:
+                btn_inst = self._create_action_button(
+                    "📍", "Usar como sucursal de esta instalación", "edit")
+                btn_inst.clicked.connect(
+                    lambda _, sid=suc_id, nom=branch.name: self._set_sucursal_instalacion(sid, nom))
+                bl.addWidget(btn_inst)
             self._tbl_suc_v13.setCellWidget(ri, 5, btn_w)
+
+    def _set_sucursal_instalacion(self, sucursal_id, nombre: str) -> None:
+        """Ancla ESTA instalación a la sucursal elegida (login y sesión la usan)."""
+        confirm = QMessageBox.question(
+            self, "Sucursal de la instalación",
+            f"¿Usar «{nombre}» como la sucursal de esta instalación?\n\n"
+            "El login y los módulos operarán sobre esa sucursal.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if confirm != QMessageBox.Yes:
+            return
+        try:
+            branch_id, branch_name = self.company_profile_service.set_installation_branch(str(sucursal_id))
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"No se pudo asignar la sucursal: {exc}")
+            return
+        # Propagar EN VIVO a toda la sesión (barra, módulos abiertos, container,
+        # evento ACTIVE_BRANCH_CHANGED). El login la leerá al arrancar.
+        try:
+            main_win = self.window()
+            if main_win is not None and hasattr(main_win, "aplicar_sucursal_activa"):
+                main_win.aplicar_sucursal_activa(branch_id, branch_name)
+            elif self.container is not None and hasattr(self.container, "set_sucursal_activa"):
+                self.container.set_sucursal_activa(branch_id, branch_name)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("No se pudo propagar la sucursal a la sesión: %s", exc)
+        self._cargar_sucursales_v13()
+        QMessageBox.information(
+            self, "Sucursal de la instalación",
+            f"Esta instalación ahora opera sobre «{branch_name}».")
 
     def _nueva_sucursal_v13(self):
         self._editar_sucursal_v13(None)

@@ -41,6 +41,18 @@ class ConfigRepository:
     def _require_uuid_column(self, table_name: str) -> str:
         return "id"
 
+    # Identidades corruptas que jamás deben circular como id de sucursal:
+    # NULL, cadena vacía, o los literales "None"/"null" (str(None) accidental).
+    @staticmethod
+    def _is_invalid_identity(value) -> bool:
+        return value is None or str(value).strip().lower() in ("", "none", "null")
+
+    # Filtro SQL equivalente para lecturas (selectores nunca reciben filas corruptas).
+    _VALID_BRANCH_ID_SQL = (
+        "id IS NOT NULL AND TRIM(id) != '' "
+        "AND LOWER(TRIM(id)) NOT IN ('none','null')"
+    )
+
     def _require_uuidv7(self, value: str, field_name: str) -> str:
         normalized = str(value or "").strip().lower()
         try:
@@ -74,7 +86,7 @@ class ConfigRepository:
         return uuid_column, self._require_uuidv7(entity_id, f"{table_name}.id")
 
     def _resolve_branch_row(self, branch_id: str | None) -> tuple[str | None, str | None]:
-        if not branch_id:
+        if self._is_invalid_identity(branch_id):
             return None, None
         branch_uuid = self._require_uuidv7(branch_id, "branch_id")
         if self._row_id_from_uuid("sucursales", branch_uuid) is None:
@@ -96,9 +108,9 @@ class ConfigRepository:
 
     # --- SUCURSALES ---
     def get_all_branches(self) -> list:
-        identity = self._select_identity_sql("sucursales")
         rows = self.db.execute(
-            f"SELECT {identity}, nombre, direccion, telefono, activa FROM sucursales WHERE activa = 1"
+            f"SELECT id, nombre, direccion, telefono, activa FROM sucursales "
+            f"WHERE activa = 1 AND {self._VALID_BRANCH_ID_SQL}"
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -250,6 +262,8 @@ class ConfigRepository:
         active: bool,
         branch_id: str | None = None,
     ) -> str:
+        if self._is_invalid_identity(branch_id):
+            branch_id = None  # "None"/""/null jamás son identidad: creación nueva
         _, branch_uuid = self._resolve_branch_row(branch_id)
         if branch_id is not None:
             self.db.execute(
@@ -267,6 +281,37 @@ class ConfigRepository:
             tuple(values),
         )
         return new_branch_uuid
+
+    # --- SUCURSAL DE LA INSTALACIÓN ---
+    INSTALLATION_BRANCH_KEY = "sucursal_instalacion_id"
+
+    def get_installation_branch(self) -> tuple[str, str] | None:
+        """(id, nombre) de la sucursal anclada a ESTA instalación, o None."""
+        row = self.db.execute(
+            """
+            SELECT s.id, s.nombre FROM sucursales s
+            JOIN configuraciones c ON c.clave=? AND c.valor = s.id
+            LIMIT 1
+            """,
+            (self.INSTALLATION_BRANCH_KEY,),
+        ).fetchone()
+        return (str(row[0]), str(row[1])) if row else None
+
+    def set_installation_branch(self, branch_id: str) -> tuple[str, str]:
+        """Ancla esta instalación a la sucursal indicada (UUID, activa).
+
+        El login y el AppContainer leen esta clave para fijar la sucursal
+        activa de la sesión. Valida UUIDv7 + existencia + activa.
+        """
+        _, branch_uuid = self._resolve_branch_row(branch_id)
+        row = self.db.execute(
+            "SELECT id, nombre FROM sucursales WHERE id=? AND COALESCE(activa,1)=1",
+            (branch_uuid,),
+        ).fetchone()
+        if not row:
+            raise ValueError("La sucursal debe existir y estar activa.")
+        self.save_setting(self.INSTALLATION_BRANCH_KEY, str(row[0]))
+        return str(row[0]), str(row[1])
 
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
         column, value = self._resolve_db_identifier("sucursales", branch_id)
@@ -497,7 +542,8 @@ class ConfigRepository:
 
     def active_branches_for_selector(self) -> list[tuple[str, str]]:
         rows = self.db.execute(
-            f"SELECT {self._select_identity_sql('sucursales')}, nombre FROM sucursales WHERE activa=1 ORDER BY nombre"
+            f"SELECT id, nombre FROM sucursales "
+            f"WHERE activa=1 AND {self._VALID_BRANCH_ID_SQL} ORDER BY nombre"
         ).fetchall()
         return [(str(row[0]), row[1]) for row in rows]
 
@@ -507,10 +553,10 @@ class ConfigRepository:
     def list_branch_delivery_rows(self) -> list[tuple]:
         rows = self.db.execute(
             f"""
-            SELECT {self._select_identity_sql('sucursales')}, nombre, COALESCE(direccion,''),
+            SELECT id, nombre, COALESCE(direccion,''),
                    COALESCE(hora_apertura,''), COALESCE(hora_cierre,''),
                    COALESCE(dias_operacion,''), activa
-            FROM sucursales ORDER BY nombre
+            FROM sucursales WHERE {self._VALID_BRANCH_ID_SQL} ORDER BY nombre
             """
         ).fetchall()
         return [tuple(row) for row in rows]
@@ -521,7 +567,7 @@ class ConfigRepository:
             """
             SELECT u.id AS id, u.usuario, u.nombre,
                    COALESCE(r.nombre,'cajero') AS rol,
-                   COALESCE(s.nombre,'Principal') AS sucursal,
+                   COALESCE(s.nombre,'') AS sucursal,
                    u.activo, u.id AS usuario_uuid, s.id AS sucursal_uuid_val
             FROM usuarios u
             LEFT JOIN roles r ON r.nombre = u.rol

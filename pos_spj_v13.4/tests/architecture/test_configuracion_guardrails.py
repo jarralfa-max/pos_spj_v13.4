@@ -139,18 +139,22 @@ BASELINE: dict[str, dict[str, int]] = {
         # Plan B: reescritura born-clean del repo eliminó todo el SQL dual
         # uuid/id (ratchet DOWN: select 43→40, insert 11→10, delete 2→1,
         # execute 65→60, cast_as_text 1→0).
-        "sql_select": 40,
+        # +2: get/set de la sucursal de la instalación (frontera SQL aceptada
+        # del repositorio, CFG-SCOPE-001; funcionalidad nueva, no regresión UI).
+        "sql_select": 42,
         "sql_insert": 10,
         "sql_update": 11,
         "sql_delete": 1,
         # FASE 3 removed _commit() (and its except: pass) — the repository no
         # longer commits/rolls back; services own the UnitOfWork boundary.
-        "cursor_execute": 60,
+        "cursor_execute": 62,
         # Plan B: el fallback rowid del alta de usuarios fue eliminado (lastrowid 1->0).
         # CONFIGURACION permisos slice: permission_codes_for_user dropped the
         # int(user_id) cast and the "Accept legacy integer IDs" comment
         # (int_id_cast 1->0, legacy_lower 1->0).
-        "principal_fallback": 1,
+        # Fix sucursal de instalación: list_users_v13 ya no inventa 'Principal'
+        # para usuarios cuya sucursal no resuelve (principal_fallback 1->0).
+        "principal_fallback": 0,
     },
     "core/repositories/hardware_config_repository.py": {
         "sql_select": 3,

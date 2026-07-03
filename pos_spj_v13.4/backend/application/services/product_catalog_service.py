@@ -15,6 +15,27 @@ from backend.shared.ids import new_uuid
 logger = logging.getLogger("spj.products.catalog")
 
 
+def _publish_catalog_change(action: str, *, product_id: str, product_name: str,
+                            active: bool, operation_id: str = "") -> None:
+    """POST-COMMIT: propaga el cambio de catálogo al EventBus del runtime.
+
+    Emite product_created/updated/deactivated + products_changed + el canal
+    legacy (PRODUCTO_CREADO/...). Nunca lanza — el guardado ya fue confirmado.
+    """
+    try:
+        from core.events.catalog_events import publish_product_event
+        publish_product_event(
+            action,
+            product_id=str(product_id or ""),
+            product_name=str(product_name or ""),
+            active=bool(active),
+            source_module="product_catalog",
+            operation_id=str(operation_id or ""),
+        )
+    except Exception:
+        logger.exception("No se pudo publicar el evento de catálogo (%s)", action)
+
+
 class ProductCatalogService:
     """Canonical application service for product catalog mutations."""
 
@@ -96,6 +117,15 @@ class ProductCatalogService:
             "recipe_pending": recipe_pending,
             "product_type": canonical_type,
         }
+
+        # POST-COMMIT: refrescar en caliente inventario/ventas/compras/etc.
+        _publish_catalog_change(
+            "created",
+            product_id=product_id_str,
+            product_name=command.name,
+            active=bool(getattr(command, "active", True)),
+            operation_id=getattr(command, "operation_id", "") or "",
+        )
 
         if self._event_bus is not None:
             try:
@@ -181,6 +211,15 @@ class ProductCatalogService:
             logger.exception("Product catalog update failed product_id=%s", product_id)
             raise
 
+        # POST-COMMIT: refrescar en caliente los módulos dependientes.
+        _publish_catalog_change(
+            "updated",
+            product_id=str(product_id),
+            product_name=command.name,
+            active=bool(getattr(command, "active", True)),
+            operation_id=getattr(command, "operation_id", "") or "",
+        )
+
         return UseCaseResult(
             success=True,
             operation_id=command.operation_id,
@@ -246,6 +285,16 @@ class ProductCatalogService:
         except Exception:
             logger.exception("Product catalog state change failed action=%s product_id=%s", action, product_id)
             raise
+        # POST-COMMIT: activar/desactivar también refresca los catálogos.
+        # (Sin lookup de nombre aquí: este servicio no agrega SQL de lectura;
+        # los consumidores del refresh releen el catálogo completo.)
+        _publish_catalog_change(
+            "updated" if int(active) else "deactivated",
+            product_id=str(product_id),
+            product_name="",
+            active=bool(int(active)),
+            operation_id=str(operation_id),
+        )
         return {
             "ok": True,
             "product_id": product_id,
