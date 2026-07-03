@@ -178,7 +178,12 @@ class ProductoRepository:
         self.db.commit()
 
         self._write_audit("CREATE", str(producto_id), data, usuario)
-        _get_bus().publish(PRODUCTO_CREADO, {"producto_id": producto_id, "nombre": nombre})
+        # POST-COMMIT: ruta canónica única (granular + products_changed + legacy).
+        from core.events.catalog_events import publish_product_event
+        publish_product_event(
+            "created", product_id=str(producto_id), product_name=nombre,
+            active=True, source_module="repositories.productos",
+        )
         return producto_id
 
     def update(self, producto_id: str, data: Dict, usuario: str) -> None:
@@ -197,13 +202,21 @@ class ProductoRepository:
         
         self.db.commit()
         self._write_audit("UPDATE", str(producto_id), data, usuario)
-        _get_bus().publish(PRODUCTO_ACTUALIZADO, {"producto_id": producto_id, "nombre": nombre})
+        from core.events.catalog_events import publish_product_event
+        publish_product_event(
+            "updated", product_id=str(producto_id), product_name=nombre,
+            active=True, source_module="repositories.productos",
+        )
 
     def soft_delete(self, producto_id: str, usuario: str) -> None:
         cursor = self.db.cursor()
         cursor.execute("UPDATE productos SET is_active = 0, deleted_at = ?, oculto = 1 WHERE id = ?", (self._now(), producto_id))
         self.db.commit()
-        _get_bus().publish(PRODUCTO_ELIMINADO, {"producto_id": producto_id, "usuario": usuario})
+        from core.events.catalog_events import publish_product_event
+        publish_product_event(
+            "deactivated", product_id=str(producto_id), product_name="",
+            active=False, source_module="repositories.productos",
+        )
 
     # ── Internals ─────────────────────────────────────────────────────────────
 

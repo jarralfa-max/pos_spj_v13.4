@@ -611,9 +611,15 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         try:
+            from core.events.domain_events import (
+                PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
+                PRODUCTS_CHANGED,
+            )
             self._init_refresh(container, [
                 "VENTA_COMPLETADA", "PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO",
-                "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
+                "PRODUCTO_ELIMINADO", "AJUSTE_INVENTARIO", "COMPRA_REGISTRADA",
+                PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
+                PRODUCTS_CHANGED,
             ])
         except Exception:
             logger.exception("No se pudo inicializar refresh de inventario")
@@ -632,8 +638,8 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     # ── Session ───────────────────────────────────────────────────────────────
 
-    def set_sucursal(self, sucursal_id: int, nombre_sucursal: str = "") -> None:
-        self.sucursal_id = sucursal_id
+    def set_sucursal(self, sucursal_id: str, nombre_sucursal: str = "") -> None:
+        self.sucursal_id = str(sucursal_id or "")
         if nombre_sucursal:
             self._page_header.set_subtitle(
                 f"Control de inventario · {nombre_sucursal}"
@@ -642,6 +648,14 @@ class ModuloInventarioLocal(QWidget, RefreshMixin):
 
     def set_usuario_actual(self, usuario: str, rol: str = "") -> None:
         self.usuario_actual = usuario
+
+    # ── Contrato de refresh en caliente (PRODUCTS_CHANGED) ────────────────────
+    def refresh_products(self) -> None:
+        """Recarga el catálogo/tabla de productos sin reiniciar la app."""
+        self.cargar_datos()
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         try:

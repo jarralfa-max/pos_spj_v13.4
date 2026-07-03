@@ -500,6 +500,50 @@ class ModuloConfiguracion(ModuloBase):
             finally:
                 self.cmb_sucursal_inst.blockSignals(False)
 
+    # ── Contrato de refresh en caliente (BRANCHES_CHANGED) ────────────────────
+    def _recargar_combo_sucursal_inst(self) -> None:
+        """Recarga SOLO el combo de sucursal de la terminal, preservando la
+        selección (no toca los campos de empresa capturados)."""
+        if not hasattr(self, 'cmb_sucursal_inst'):
+            return
+        prev = str(self.cmb_sucursal_inst.currentData() or "")
+        self.cmb_sucursal_inst.blockSignals(True)
+        try:
+            self.cmb_sucursal_inst.clear()
+            self.cmb_sucursal_inst.addItem("-- Selecciona sucursal --", None)
+            sucs = self.company_profile_service.branches_for_company_settings()
+            for sid, nombre in sucs:
+                if sid is None or str(sid).strip().lower() in ("", "none", "null"):
+                    continue
+                self.cmb_sucursal_inst.addItem(nombre, str(sid))
+            objetivo = prev
+            if not objetivo or objetivo.lower() in ("none", "null"):
+                anclada = self.company_profile_service.get_installation_branch()
+                objetivo = str(anclada[0]) if anclada else ""
+            for index in range(self.cmb_sucursal_inst.count()):
+                d = self.cmb_sucursal_inst.itemData(index)
+                if d is not None and str(d) == objetivo:
+                    self.cmb_sucursal_inst.setCurrentIndex(index)
+                    break
+        finally:
+            self.cmb_sucursal_inst.blockSignals(False)
+
+    def refresh_branches(self) -> None:
+        """Refresca tabla de sucursales + combo de terminal sin reiniciar."""
+        try:
+            self._cargar_sucursales_v13()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug("refresh_branches: tabla", exc_info=True)
+        try:
+            self._recargar_combo_sucursal_inst()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug("refresh_branches: combo", exc_info=True)
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
+
     def _guardar_empresa(self):
         nombre = self.emp_nombre.text().strip()
         if not nombre:

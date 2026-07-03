@@ -80,6 +80,12 @@ class CompanyProfileService:
     def get_branch(self, branch_id: str) -> dict | None:
         return self._repository.get_branch(branch_id)
 
+    @staticmethod
+    def _branch_action(is_new: bool, active: bool) -> str:
+        if is_new:
+            return "created"
+        return "updated" if active else "deactivated"
+
     def save_branch(
         self,
         *,
@@ -89,14 +95,27 @@ class CompanyProfileService:
         active: bool,
         branch_id: str | None = None,
     ) -> str:
+        is_new = not str(branch_id or "").strip() or \
+            str(branch_id).strip().lower() in ("none", "null")
         with ConnectionUnitOfWork(self._repository.connection):
-            return self._repository.save_branch(
+            saved_id = self._repository.save_branch(
                 name=name,
                 address=address,
                 phone=phone,
                 active=active,
                 branch_id=branch_id,
             )
+        # POST-COMMIT: propagar el cambio de catálogo en caliente. Si la
+        # transacción falló, la excepción del UoW impide llegar aquí.
+        from core.events.catalog_events import publish_branch_event
+        publish_branch_event(
+            self._branch_action(is_new, active),
+            branch_id=saved_id,
+            branch_name=name,
+            active=active,
+            source_module="configuracion.company_profile",
+        )
+        return saved_id
 
     def get_branch_delivery_profile(self, branch_id: str) -> dict | None:
         return self._repository.get_branch_delivery_profile(branch_id)
@@ -127,8 +146,10 @@ class CompanyProfileService:
         after_hours_message: str,
         branch_id: str | None = None,
     ) -> str:
+        is_new = not str(branch_id or "").strip() or \
+            str(branch_id).strip().lower() in ("none", "null")
         with ConnectionUnitOfWork(self._repository.connection):
-            return self._repository.save_branch_delivery_profile(
+            saved_id = self._repository.save_branch_delivery_profile(
                 name=name,
                 address=address,
                 phone=phone,
@@ -139,6 +160,24 @@ class CompanyProfileService:
                 after_hours_message=after_hours_message,
                 branch_id=branch_id,
             )
+        # POST-COMMIT: el alta/edición desde la pestaña Sucursales también
+        # debe refrescar todos los selectores en caliente.
+        branch_row = None
+        try:
+            branch_row = self._repository.get_branch(saved_id)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).debug("get_branch post-save: %s", exc)
+        activa = bool(branch_row.get("activa", 1)) if branch_row else True
+        from core.events.catalog_events import publish_branch_event
+        publish_branch_event(
+            self._branch_action(is_new, activa),
+            branch_id=saved_id,
+            branch_name=name,
+            active=activa,
+            source_module="configuracion.company_profile",
+        )
+        return saved_id
 
 
 class SettingsApplicationService:

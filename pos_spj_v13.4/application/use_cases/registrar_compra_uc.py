@@ -19,7 +19,7 @@ logger = logging.getLogger("spj.uc.registrar_compra")
 
 @dataclass
 class ItemCompraDTO:
-    product_id: int
+    product_id: str          # UUIDv7 string — jamás entero
     qty: float
     unit_cost: float
     nombre: str
@@ -27,9 +27,9 @@ class ItemCompraDTO:
 
 @dataclass
 class DatosCompraDTO:
-    proveedor_id: int
+    proveedor_id: str        # UUIDv7 string — jamás entero
     proveedor_nombre: str
-    sucursal_id: int
+    sucursal_id: str         # UUIDv7 string — jamás entero
     usuario: str
     items: list[ItemCompraDTO]
     metodo_pago: str
@@ -81,15 +81,23 @@ class RegistrarCompraUC:
             )
 
         # Fase 5: validate DIRECT purchase boundaries before touching the DB.
-        if datos.proveedor_id <= 0:
+        # Identidad UUIDv7: los IDs son strings no vacíos; las comparaciones
+        # numéricas (<= 0) sobre IDs están prohibidas y truenan con TypeError.
+        def _id_invalido(value) -> bool:
+            return not str(value or "").strip() or \
+                str(value).strip().lower() in ("none", "null", "0")
+
+        if _id_invalido(datos.proveedor_id):
             return ResultadoCompraDTO(ok=False, error="Selecciona un proveedor válido.")
-        if datos.sucursal_id <= 0:
+        if _id_invalido(datos.sucursal_id):
             return ResultadoCompraDTO(ok=False, error="Sucursal inválida para la compra.")
         if not datos.items:
             return ResultadoCompraDTO(ok=False, error="El carrito está vacío.")
         invalid = [
             i.nombre for i in datos.items
-            if i.product_id <= 0 or i.qty <= 0 or i.unit_cost < 0
+            if _id_invalido(i.product_id)
+            or float(i.qty) <= 0
+            or float(i.unit_cost) < 0
         ]
         if invalid:
             return ResultadoCompraDTO(

@@ -39,7 +39,9 @@ BASELINE: dict[str, dict[str, int]] = {
         # + ConnectionUnitOfWork, schema via migration 111. The remaining
         # sql_select/sql_update matches are comments/prose, not executable SQL;
         # the two .execute calls left are use-case executions (uc.execute).
-        "sql_select": 7,
+        # Hot-refresh fix: removing the duplicated dead _on_refresh/_exportar/
+        # _fallback block dropped one prose SELECT (7->6).
+        "sql_select": 6,
         "sql_update": 7,
     },
 }

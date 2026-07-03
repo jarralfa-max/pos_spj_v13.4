@@ -2229,7 +2229,7 @@ class RecepcionQRWidget(QWidget):
         self._cmb_sucursal_destino.clear()
         try:
             rows = self.conexion.execute(
-                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
+                "SELECT id, nombre FROM sucursales WHERE activa=1 AND id IS NOT NULL AND TRIM(id) != '' AND LOWER(TRIM(id)) NOT IN ('none','null') ORDER BY nombre"
             ).fetchall()
             for r in rows:
                 self._cmb_sucursal_destino.addItem(f"🏪 {r[1]}", r[0])

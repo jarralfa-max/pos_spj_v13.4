@@ -19,13 +19,15 @@ def db():
         """
         CREATE TABLE proveedores (id INTEGER PRIMARY KEY, nombre TEXT, activo INTEGER DEFAULT 1,
                                   rfc TEXT, telefono TEXT);
-        CREATE TABLE sucursales (id INTEGER PRIMARY KEY, nombre TEXT, activo INTEGER DEFAULT 1);
+        -- Esquema real: identidad TEXT (UUID) y columna `activa` (no `activo`).
+        CREATE TABLE sucursales (id TEXT PRIMARY KEY, nombre TEXT, activa INTEGER DEFAULT 1);
         CREATE TABLE compras (id INTEGER PRIMARY KEY, folio TEXT, fecha TEXT, total REAL,
                              estado TEXT, proveedor_id INTEGER, sucursal_id INTEGER,
                              factura TEXT, usuario TEXT, condicion_pago TEXT, moneda TEXT,
                              purchase_order_id INTEGER);
         INSERT INTO proveedores VALUES (1,'Carnes SA',1,'RFC1','555'),(2,'Inactivo',0,'','');
-        INSERT INTO sucursales VALUES (1,'Centro',1),(2,'Cerrada',0);
+        INSERT INTO sucursales VALUES ('01900000-0000-7000-8000-0000000000b1','Centro',1),
+                                      ('01900000-0000-7000-8000-0000000000b2','Cerrada',0);
         INSERT INTO compras (id,folio,fecha,total,estado,proveedor_id,sucursal_id,factura) VALUES
             (1,'C-1','2026-06-01',100.0,'credito',1,1,'F-1'),
             (2,'C-2','2026-06-02',200.0,'pagada',1,1,NULL),
@@ -93,7 +95,8 @@ def test_list_active_suppliers_excludes_inactive(repo):
 
 
 def test_list_active_branches_excludes_inactive(repo):
-    assert repo.list_active_branches() == [{"id": 1, "nombre": "Centro"}]
+    assert repo.list_active_branches() == [
+        {"id": "01900000-0000-7000-8000-0000000000b1", "nombre": "Centro"}]
 
 
 def test_get_supplier_returns_dict(repo):

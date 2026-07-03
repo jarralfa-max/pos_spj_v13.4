@@ -510,7 +510,7 @@ class DeliveryRepository:
         """Return active branches as list of dicts with id and nombre."""
         try:
             rows = self.db.execute(
-                "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY id"
+                "SELECT id, nombre FROM sucursales WHERE activa=1 AND id IS NOT NULL AND TRIM(id) != '' AND LOWER(TRIM(id)) NOT IN ('none','null') ORDER BY nombre"
             ).fetchall()
             return [{"id": r[0], "nombre": r[1]} for r in rows]
         except Exception:

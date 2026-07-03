@@ -424,7 +424,16 @@ class ModuloProductos(QWidget, RefreshMixin):
     def __init__(self, container, parent=None):
         super().__init__(parent)
         try:
-            self._init_refresh(container, ["PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO", "COMPRA_REGISTRADA"])
+            from core.events.domain_events import (
+                PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
+                PRODUCTS_CHANGED,
+            )
+            self._init_refresh(container, [
+                "PRODUCTO_ACTUALIZADO", "PRODUCTO_CREADO", "PRODUCTO_ELIMINADO",
+                "COMPRA_REGISTRADA",
+                PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
+                PRODUCTS_CHANGED,
+            ])
         except Exception:
             logger.exception("No se pudo inicializar refresh de productos")
         self.container = container # 🧠 Recibimos el Cerebro
@@ -847,6 +856,13 @@ class ModuloProductos(QWidget, RefreshMixin):
         """Auto-refresh catalog on product or purchase events."""
         try: self.cargar_catalogo()
         except Exception as e: logger.debug("refresh error: %s", e)
+
+    # ── Contrato de refresh en caliente (PRODUCTS_CHANGED) ────────────────────
+    def refresh_products(self) -> None:
+        self.cargar_catalogo()
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
 
     def cargar_catalogo(self):
         if hasattr(self, "_loading_catalogo"):
