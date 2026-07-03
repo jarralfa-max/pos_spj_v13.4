@@ -27,10 +27,17 @@ class ComprasReadRepository:
         return [{"id": r[0], "nombre": r[1]} for r in rows]
 
     def list_active_branches(self) -> list[dict[str, Any]]:
+        """Sucursales activas con identidad UUID válida (la columna es `activa`,
+        no `activo` — el nombre equivocado hacía fallar el combo de Compras y
+        lo mandaba al fallback 'Sucursal Principal')."""
         rows = self._connection.execute(
-            "SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre"
+            "SELECT id, nombre FROM sucursales "
+            "WHERE activa=1 "
+            "  AND id IS NOT NULL AND TRIM(id) != '' "
+            "  AND LOWER(TRIM(id)) NOT IN ('none','null') "
+            "ORDER BY nombre"
         ).fetchall()
-        return [{"id": r[0], "nombre": r[1]} for r in rows]
+        return [{"id": str(r[0]), "nombre": r[1]} for r in rows]
 
     def get_supplier(self, supplier_id: str) -> dict[str, Any] | None:
         row = self._connection.execute(

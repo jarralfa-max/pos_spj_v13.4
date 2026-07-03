@@ -622,12 +622,21 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self._usuario_rol    = ""
         self.carrito_compra: list[dict] = []
 
-        # EventBus: auto-refresh when products or purchases change
+        # EventBus: auto-refresh when products, purchases or branches change
         try:
+            from core.events.domain_events import (
+                BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                BRANCHES_CHANGED, PRODUCT_CREATED, PRODUCT_UPDATED,
+                PRODUCT_DEACTIVATED, PRODUCTS_CHANGED,
+            )
             self._init_refresh(container, [
                 "COMPRA_REGISTRADA", "RECEPCION_CONFIRMADA",
                 "PRODUCTO_CREADO",   "PRODUCTO_ACTUALIZADO",
                 "PROVEEDOR_CREADO",  "PROVEEDOR_ACTUALIZADO",
+                BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                BRANCHES_CHANGED,
+                PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED,
+                PRODUCTS_CHANGED,
             ])
         except Exception:
             pass
@@ -668,24 +677,54 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         return self._iva_rate_cached
 
     # ── Propagation ──────────────────────────────────────────────────────────
-    def set_sucursal(self, sucursal_id: int, nombre: str = "") -> None:
-        self.sucursal_id = sucursal_id
+    def set_sucursal(self, sucursal_id: str, nombre: str = "") -> None:
+        self.sucursal_id = str(sucursal_id or "")
         self.cargar_proveedores()
+        self.refresh_branches()
         if hasattr(self, '_buscador'):
             self._buscador.set_db(self.container.db)
         if hasattr(self, '_quick_grid'):
             self._cargar_quick_products()
 
+    # ── Contrato de refresh en caliente (BRANCHES_CHANGED/PRODUCTS_CHANGED) ──
+    def refresh_branches(self) -> None:
+        """Recarga el selector de sucursal destino desde el repositorio,
+        preservando la selección actual. No toca el carrito."""
+        if hasattr(self, 'cmb_sucursal_destino'):
+            self._cargar_sucursales_compra()
+
+    def on_branches_changed(self, payload: dict) -> None:
+        self.refresh_branches()
+
+    def refresh_products(self) -> None:
+        """Recarga buscador y grid de productos rápidos SIN tocar el carrito
+        ni las cantidades capturadas."""
+        if hasattr(self, '_buscador'):
+            try:
+                self._buscador.set_db(self.container.db)
+            except Exception:
+                logger.debug("refresh_products: buscador", exc_info=True)
+        if hasattr(self, '_quick_grid'):
+            try:
+                self._cargar_quick_products()
+            except Exception:
+                logger.debug("refresh_products: quick grid", exc_info=True)
+
+    def on_products_changed(self, payload: dict) -> None:
+        self.refresh_products()
+
     # ── E-6: Planeacion → Compras bridge ─────────────────────────────────────
 
-    def set_suggested_order(self, items: list[dict], proveedor_id: int = 0,
+    def set_suggested_order(self, items: list[dict], proveedor_id: str = "",
                              proveedor_nombre: str = "") -> None:
         """
         Pre-fills the cart from a planning suggestion.
 
-        Expected item keys: product_id (int), nombre (str), qty (float),
+        Expected item keys: product_id (str UUID), nombre (str), qty (float),
                             unit_cost (float, optional)
         Called by ModuloPlaneacionCompras.enviar_a_modulo_compras() via container.
+        Identidad UUIDv7: los IDs se validan como strings no vacíos, jamás
+        con comparaciones numéricas.
         """
         if not items:
             return
@@ -695,11 +734,11 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
         added = 0
         for it in items:
-            prod_id    = str(it.get("product_id") or it.get("producto_id") or "")
+            prod_id    = str(it.get("product_id") or it.get("producto_id") or "").strip()
             nombre     = str(it.get("nombre", f"Producto {prod_id}"))
             qty        = float(it.get("qty", it.get("cantidad", 0)) or 0)
             unit_cost  = float(it.get("unit_cost", it.get("costo_unitario", 0)) or 0)
-            if prod_id <= 0 or qty <= 0:
+            if not prod_id or qty <= 0:
                 continue
             # Avoid duplicating items already in cart
             for cart_item in self.carrito_compra:
@@ -722,14 +761,15 @@ class ModuloComprasPro(QWidget, RefreshMixin):
                 })
                 added += 1
 
-        # Pre-select provider if given
-        if proveedor_id > 0:
-            self._proveedor_id_selected = proveedor_id
+        # Pre-select provider if given (UUID string, nunca comparación numérica)
+        proveedor_id_str = str(proveedor_id or "").strip()
+        if proveedor_id_str and proveedor_id_str.lower() not in ("none", "null", "0"):
+            self._proveedor_id_selected = proveedor_id_str
             if proveedor_nombre and hasattr(self, 'txt_proveedor'):
                 self.txt_proveedor.setText(proveedor_nombre)
-            self._cargar_info_proveedor(proveedor_id)
-            self._cargar_recientes_proveedor(proveedor_id)
-            self._cargar_alertas_cxp(proveedor_id)
+            self._cargar_info_proveedor(proveedor_id_str)
+            self._cargar_recientes_proveedor(proveedor_id_str)
+            self._cargar_alertas_cxp(proveedor_id_str)
 
         self._refresh_tabla()
         self._refresh_stepper()
@@ -1768,9 +1808,10 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_sucursal_gen.addItem("Seleccionar sucursal…", None)
         try:
             for s in (self._prov_repo.get_sucursales_activas() or []):
-                self.qr_sucursal_gen.addItem(str(s.get("nombre", "")), s.get("id"))
+                self.qr_sucursal_gen.addItem(str(s.get("nombre", "")), str(s.get("id")))
         except Exception:
-            self.qr_sucursal_gen.addItem("Sucursal Principal", 1)
+            # Sin fallback 'Principal'/id entero: el problema debe ser visible.
+            logger.exception("qr_sucursal_gen: no se pudieron cargar sucursales")
         form.addRow("Sucursal destino:", self.qr_sucursal_gen)
 
         self.qr_obs_gen = QPlainTextEdit()
@@ -2180,12 +2221,13 @@ class ModuloComprasPro(QWidget, RefreshMixin):
         self.qr_sucursal_destino = QComboBox()
         try:
             for s in (self._prov_repo.get_sucursales_activas() or []):
-                self.qr_sucursal_destino.addItem(str(s.get("nombre", "")), s.get("id"))
+                self.qr_sucursal_destino.addItem(str(s.get("nombre", "")), str(s.get("id")))
             for i in range(self.qr_sucursal_destino.count()):
-                if self.qr_sucursal_destino.itemData(i) == self.sucursal_id:
+                if str(self.qr_sucursal_destino.itemData(i)) == str(self.sucursal_id):
                     self.qr_sucursal_destino.setCurrentIndex(i); break
         except Exception:
-            self.qr_sucursal_destino.addItem("Sucursal Principal", 1)
+            # Sin fallback 'Principal'/id entero: el problema debe ser visible.
+            logger.exception("qr_sucursal_destino: no se pudieron cargar sucursales")
         form_pago.addRow("Sucursal destino:", self.qr_sucursal_destino)
         cf.addLayout(form_pago)
 
@@ -5245,26 +5287,37 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     # ── Providers ────────────────────────────────────────────────────────────
     def _cargar_sucursales_compra(self) -> None:
-        """Carga sucursales activas. La del usuario corriente queda seleccionada por defecto."""
+        """Recarga sucursales activas (UUID válido) desde el repositorio.
+
+        Preserva la selección actual si la sucursal sigue existiendo; si no,
+        usa la sucursal activa de la sesión. Sin fallback a 'Principal' ni a
+        IDs enteros: si no hay sucursales válidas, el combo queda vacío y el
+        problema es visible (no se oculta).
+        """
         try:
+            prev = str(self.cmb_sucursal_destino.currentData() or "")
             self.cmb_sucursal_destino.clear()
             rows = ComprasReadRepository(self.container.db).list_active_branches()
-            if rows:
-                for r in rows:
-                    pid  = r['id']     if hasattr(r,'keys') else r[0]
-                    name = r['nombre'] if hasattr(r,'keys') else r[1]
-                    self.cmb_sucursal_destino.addItem(str(name), pid)
-                # Select the user's current branch by default
-                for i in range(self.cmb_sucursal_destino.count()):
-                    if self.cmb_sucursal_destino.itemData(i) == self.sucursal_id:
-                        self.cmb_sucursal_destino.setCurrentIndex(i)
-                        break
-            else:
-                # No sucursales table or empty — add default
-                self.cmb_sucursal_destino.addItem("Sucursal Principal", 1)
+            for r in rows:
+                pid  = str(r['id']     if hasattr(r, 'keys') else r[0])
+                name = r['nombre'] if hasattr(r, 'keys') else r[1]
+                self.cmb_sucursal_destino.addItem(str(name), pid)
+            objetivo = prev or str(self.sucursal_id or "")
+            if not objetivo:
+                session = getattr(self.container, "session", None)
+                objetivo = str(getattr(session, "sucursal_id", "") or "")
+            for i in range(self.cmb_sucursal_destino.count()):
+                if str(self.cmb_sucursal_destino.itemData(i)) == objetivo:
+                    self.cmb_sucursal_destino.setCurrentIndex(i)
+                    break
+            if not rows:
+                logger.warning(
+                    "_cargar_sucursales_compra: sin sucursales activas válidas; "
+                    "el selector queda vacío (crea/activa una sucursal en "
+                    "Configuración).")
         except Exception:
+            logger.exception("_cargar_sucursales_compra")
             self.cmb_sucursal_destino.clear()
-            self.cmb_sucursal_destino.addItem("Sucursal Principal", 1)
 
     def cargar_proveedores(self) -> None:
         try:
@@ -5968,7 +6021,7 @@ class ModuloComprasPro(QWidget, RefreshMixin):
             if not compra_dict:
                 return
             prov_nombre = self._purchase_repo.get_provider_name(
-                compra_dict.get("proveedor_id", 0))
+                str(compra_dict.get("proveedor_id") or ""))
             items = self._purchase_repo.get_purchase_detail_items(compra_dict["id"])
             html = self._generar_html_recepcion(compra_dict, items, prov_nombre)
 
@@ -7173,130 +7226,14 @@ class ModuloComprasPro(QWidget, RefreshMixin):
 
     def _on_refresh(self, event_type: str, data: dict) -> None:
         """EventBus handler: refresh product search, providers, stats and history."""
-        if hasattr(self, '_buscador'):
-            self._buscador.set_db(self.container.db)
-        self.cargar_proveedores()
-        QTimer.singleShot(0, self._refresh_stats)
-        if hasattr(self, '_tbl_hist') and self._tabs.currentIndex() == 2:
-            self._cargar_historial_compras()
-        # FASE 8: when a PO receipt is confirmed, refresh the documental sidebar
-        # so the PO state (PARCIAL / RECIBIDA) is reflected immediately.
-        # Small delay (50 ms) ensures DB writes from ReceivePOAdapter are visible.
-        if event_type == "RECEPCION_CONFIRMADA" and data.get("source") == "PO":
-            QTimer.singleShot(50, self._cargar_docs_erp)
-
-    def _exportar_historial_csv(self) -> None:
-        """Exporta el historial de compras a CSV.
-
-        FASE 9: lee del cache _hist_all_rows (datos completos de BD),
-        aplica los mismos filtros activos, incluye Tipo Doc y Estado PO.
-        """
-        import csv, os
-        all_rows = getattr(self, '_hist_all_rows', None)
-        if not all_rows:
-            QMessageBox.information(self, "Exportar", "No hay datos para exportar.")
+        # Eventos de catálogo → refresco específico ligero (no ruta pesada).
+        if event_type.startswith("branch") or event_type == "branches_changed":
+            self.refresh_branches()
             return
-
-        # Aplicar los mismos filtros que _poblar_historial
-        filtros  = self._hist_filter.values() if hasattr(self, "_hist_filter") else {}
-        estado   = (filtros.get("estado")   or "").strip().lower()
-        search   = (filtros.get("search")   or "").strip().lower()
-        tipo_doc = (filtros.get("tipo_doc") or "").strip().lower()
-        po_est   = (filtros.get("po_estado") or "").strip().upper()
-
-        rows = list(all_rows)
-        if estado:
-            rows = [r for r in rows if str(r[5] or "").strip().lower() == estado]
-        if po_est:
-            rows = [r for r in rows if str(r[10] if len(r) > 10 else "").strip().upper() == po_est]
-        if search:
-            rows = [r for r in rows if
-                    search in str(r[0] or "").lower() or
-                    search in str(r[2] or "").lower() or
-                    search in str(r[3] or "").lower()]
-        if tipo_doc == "directa":
-            rows = [r for r in rows if not (len(r) > 9 and int(r[9] or 0))]
-        elif tipo_doc == "con po":
-            rows = [r for r in rows if len(r) > 9 and int(r[9] or 0)]
-
-        if not rows:
-            QMessageBox.information(self, "Exportar", "No hay datos para exportar con los filtros actuales.")
+        if event_type.startswith("product") or event_type in (
+                "PRODUCTO_CREADO", "PRODUCTO_ACTUALIZADO", "PRODUCTO_ELIMINADO"):
+            self.refresh_products()
             return
-
-        default_name = f"compras_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Guardar historial de compras", default_name, "CSV (*.csv)")
-        if not path:
-            return
-
-        ocultar_totales = self._usuario_rol in _ROLES_SIN_TOTALES
-        try:
-            headers = [
-                "Folio", "Fecha", "Proveedor", "Usuario", "Total",
-                "Cond. Pago", "Estado", "Tipo Doc", "PO #", "Estado PO",
-            ]
-            with open(path, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f)
-                writer.writerow(headers)
-                for r in rows:
-                    po_id    = int(r[9] or 0) if len(r) > 9 else 0
-                    po_est_r = str(r[10] or "") if len(r) > 10 else ""
-                    total    = "—" if ocultar_totales else str(r[4] or "")
-                    tipo     = f"PO #{po_id}" if po_id else "Directa"
-                    writer.writerow([
-                        r[0] or "", r[1] or "", r[2] or "", r[3] or "",
-                        total,
-                        r[7] or "" if len(r) > 7 else "",  # condicion_pago
-                        r[5] or "",                          # estado
-                        tipo, po_id or "", po_est_r,
-                    ])
-            Toast.success(self, "✅ Exportado",
-                          f"{os.path.basename(path)} · {len(rows)} registros")
-        except Exception as e:
-            QMessageBox.critical(self, "Error al exportar", str(e))
-
-    def _fallback_compra_directa(self, proveedor_id, doc_ref, pago, total,
-                                  items) -> str:
-        """Safety stub: direct DB fallback is disabled for Phase 5.
-
-        Compra directa debe pasar por RegistrarCompraUC → PurchaseService para
-        mantener una única ruta de inventario, CxP, asientos, lotes y auditoría.
-        Este método permanece solo por compatibilidad con referencias antiguas y
-        no debe ser llamado desde el flujo principal.
-        """
-        raise RuntimeError(
-            "Fallback directo deshabilitado: usa RegistrarCompraUC/PurchaseService."
-        )
-        return f"""
-        <html><body style='font-family:sans-serif;font-size:12px;margin:0;padding:0;'>
-        <h3 style='text-align:center;margin:8px 0 4px;'>RECIBO DE COMPRA</h3>
-        <hr style='margin:4px 0 8px;'>
-        <table width='100%' border='0' cellspacing='0' cellpadding='0'
-               style='font-size:12px;margin-bottom:8px;'>
-          <tr><td><b>Folio:</b></td><td style='font-family:monospace;'>{compra.get('folio','?')}</td></tr>
-          <tr><td><b>Fecha:</b></td><td style='font-family:monospace;'>{str(compra.get('fecha',''))[:16]}</td></tr>
-          <tr><td><b>Proveedor:</b></td><td>{prov_display}</td></tr>
-          <tr><td><b>Referencia:</b></td><td style='font-family:monospace;'>{ref}</td></tr>
-          <tr><td><b>Usuario:</b></td><td>{compra.get('usuario','?')}</td></tr>
-          <tr><td><b>Condición:</b></td><td>{str(compra.get('estado','?')).upper()}</td></tr>
-        </table>
-        <table width='100%' border='0' cellspacing='0'
-               style='border-collapse:collapse;font-size:12px;'>
-          <tr style='background:{Colors.PRIMARY_BASE};color:#fff;'>
-            <th align='left'  style='padding:5px 6px;'>Producto</th>
-            <th align='right' style='padding:5px 6px;'>Cant.</th>
-            <th align='right' style='padding:5px 6px;'>Costo</th>
-            <th align='right' style='padding:5px 6px;'>Subtotal</th>
-          </tr>
-          {rows_html}
-        </table>
-        <hr style='margin:8px 0 4px;'>
-        <p style='font-size:14px;font-weight:bold;color:{Colors.SUCCESS_BASE};margin:4px 0;'>
-          Total: ${float(compra.get('total',0)):,.2f}</p>
-        </body></html>"""
-
-    def _on_refresh(self, event_type: str, data: dict) -> None:
-        """EventBus handler: refresh product search, providers, stats and history."""
         if hasattr(self, '_buscador'):
             self._buscador.set_db(self.container.db)
         self.cargar_proveedores()

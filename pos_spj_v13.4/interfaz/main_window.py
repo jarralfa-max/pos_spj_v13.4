@@ -541,6 +541,7 @@ class MainWindow(QMainWindow):
         self._configurar_busqueda_global()
         self._cargar_tema_inicial()
         self._cargar_logo_empresa()
+        self._suscribir_eventos_catalogo()
 
     # ── Menú superior ────────────────────────────────────────────────────────
     def _configurar_menu_superior(self):
@@ -936,6 +937,76 @@ class MainWindow(QMainWindow):
     def refresh_module_access(self) -> None:
         """Reaplica permisos del usuario activo sobre el menú lateral."""
         self._propagar_usuario()
+
+    # ── Propagación en caliente de catálogos (sucursales / productos) ────────
+    def _suscribir_eventos_catalogo(self) -> None:
+        """Suscribe la ventana a los eventos de catálogo del EventBus.
+
+        BRANCHES_CHANGED / PRODUCTS_CHANGED (y sus granulares + canales legacy
+        de producto) refrescan los módulos cargados SIN reiniciar la app.
+        Los handlers saltan al hilo Qt con QTimer.singleShot(0, ...) porque el
+        bus puede despachar desde hilos de background.
+        """
+        try:
+            from core.events.event_bus import get_bus
+            from core.events.domain_events import (
+                BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                BRANCHES_CHANGED, PRODUCT_CREATED, PRODUCT_UPDATED,
+                PRODUCT_DEACTIVATED, PRODUCTS_CHANGED,
+            )
+            bus = get_bus()
+            # El evento agregado siempre acompaña a los granulares (misma ruta
+            # canónica), así que el fan-out se engancha SOLO al agregado para
+            # no refrescar 2-3 veces por operación.
+            bus.subscribe(BRANCHES_CHANGED, self._on_branches_changed_bus,
+                          label="main_window_catalogo_sucursales")
+            bus.subscribe(PRODUCTS_CHANGED, self._on_products_changed_bus,
+                          label="main_window_catalogo_productos")
+            # Compatibilidad: emisores legacy que aún no pasan por la ruta
+            # canónica (publican solo PRODUCTO_* sin products_changed).
+            for legacy in ("PRODUCTO_CREADO", "PRODUCTO_ACTUALIZADO",
+                           "PRODUCTO_ELIMINADO"):
+                bus.subscribe(legacy, self._on_products_changed_bus,
+                              label=f"main_window_catalogo_{legacy.lower()}")
+            # Los granulares BRANCH_*/PRODUCT_* quedan disponibles para módulos
+            # que quieran reaccionar fino; MainWindow no los duplica.
+            _ = (BRANCH_CREATED, BRANCH_UPDATED, BRANCH_DEACTIVATED,
+                 PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DEACTIVATED)
+        except Exception as _e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "No se pudieron suscribir los eventos de catálogo: %s", _e)
+
+    def _on_branches_changed_bus(self, payload: dict) -> None:
+        """Handler del bus (posible hilo background) → hilo Qt."""
+        data = dict(payload or {})
+        QTimer.singleShot(0, lambda: self._on_branches_changed(data))
+
+    def _on_products_changed_bus(self, payload: dict) -> None:
+        data = dict(payload or {})
+        # Debounce corto: una ráfaga (granular+agregado+legacy) = 1 refresh.
+        if getattr(self, "_products_refresh_pending", False):
+            return
+        self._products_refresh_pending = True
+
+        def _run():
+            self._products_refresh_pending = False
+            self._on_products_changed(data)
+
+        QTimer.singleShot(150, _run)
+
+    def _stack_widgets(self) -> list:
+        return [self.stack.widget(idx) for idx in range(self.stack.count())]
+
+    def _on_branches_changed(self, payload: dict) -> None:
+        """Refresca en caliente los selectores de sucursal de TODOS los módulos."""
+        from core.events.catalog_events import fan_out_branches_changed
+        fan_out_branches_changed(self._stack_widgets(), payload)
+
+    def _on_products_changed(self, payload: dict) -> None:
+        """Refresca en caliente el catálogo de productos en TODOS los módulos."""
+        from core.events.catalog_events import fan_out_products_changed
+        fan_out_products_changed(self._stack_widgets(), payload)
 
     def _arrancar_session_timeout(self) -> None:
         """Activa el monitor de inactividad (se resetea con mouse/teclado)."""
