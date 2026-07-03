@@ -152,7 +152,9 @@ BASELINE: dict[str, dict[str, int]] = {
         # CONFIGURACION permisos slice: permission_codes_for_user dropped the
         # int(user_id) cast and the "Accept legacy integer IDs" comment
         # (int_id_cast 1->0, legacy_lower 1->0).
-        "principal_fallback": 1,
+        # Fix sucursal de instalación: list_users_v13 ya no inventa 'Principal'
+        # para usuarios cuya sucursal no resuelve (principal_fallback 1->0).
+        "principal_fallback": 0,
     },
     "core/repositories/hardware_config_repository.py": {
         "sql_select": 3,
