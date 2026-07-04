@@ -284,8 +284,23 @@ def wire_all(container: "AppContainer") -> None:
     # migración 083: trazabilidad financiera end-to-end (priority=20, post-commit)
     _wire_financial_trace_handlers(bus, container)
 
+    # Remediación A: bridge CAJA_*→CASH_* + audit de caja (antes sin consumidores)
+    _wire_cash_events(bus, container)
+
     logger.info("EventBus wiring completado — %d eventos activos",
                 len(bus.registered_events()))
+
+
+def _wire_cash_events(bus, container) -> None:
+    """Bridge legacy CAJA_* → canónico CASH_* + audit handler de caja.
+
+    DEEP_AUDIT B2: los dos vocabularios de eventos de caja no tenían un solo
+    suscriptor. El bridge unifica ambos en el canal canónico CASH_* y el audit
+    handler deja trazabilidad. El asiento de diferencia NO se registra aquí
+    (ya lo hace CajaApplicationService.generar_corte_z / CierreCajaService).
+    """
+    from core.events.cash_event_bridge import register_cash_event_bridge
+    register_cash_event_bridge(bus, container)
 
 
 def _wire_flujos_criticos(bus, container) -> None:
@@ -1345,31 +1360,35 @@ def _wire_financial_trace_handlers(bus, container) -> None:
     No interfieren con handlers críticos (p=85-100) porque son post-commit.
     Cada handler captura su propia excepción — un fallo de traza no corta el flujo.
     """
+    # Canales REALES (con emisor confirmado). Remediación A: se retiran las
+    # suscripciones a canales lowercase que NADIE emite y se reconectan waste y
+    # driver-settlement a sus canales reales.
+    #   Sanos ya:  VENTA_COMPLETADA, COMPRA_REGISTRADA, PUNTOS_ACUMULADOS,
+    #              NOMINA_PAGADA (=PAYROLL_PAID)
+    #   Reconectados:
+    #     WASTE_RECORDED("waste_recorded")           → MERMA_REGISTRADA (merma adapter)
+    #     driver_settlement_created (domain lowercase)→ DRIVER_SETTLEMENT_CREATED (event_bus)
+    #   Retirados (0 emisores en todo el repo — handlers conservados en el módulo
+    #   para reconectarse cuando el flujo publique):
+    #     payment_confirmed, delivery_payment_confirmed,
+    #     maintenance_registered, operating_supply_purchased
     from core.events.event_bus import (
         VENTA_COMPLETADA,
         COMPRA_REGISTRADA,
         PUNTOS_ACUMULADOS,
+        MERMA_CREATED,               # = "MERMA_REGISTRADA" (emitido por merma)
+        DRIVER_SETTLEMENT_CREATED,   # = "DRIVER_SETTLEMENT_CREATED" (uppercase real)
     )
     from core.events.domain_events import (
-        PAYMENT_CONFIRMED,
         PAYROLL_PAID,
-        WASTE_RECORDED,
-        DELIVERY_PAYMENT_CONFIRMED,
-        DRIVER_SETTLEMENT_CREATED,
-        MAINTENANCE_REGISTERED,
-        OPERATING_SUPPLY_PURCHASED,
     )
     from core.events.handlers.financial_trace_handler import (
         SaleTraceHandler,
         PurchaseTraceHandler,
-        PaymentTraceHandler,
         PayrollTraceHandler,
         WasteTraceHandler,
         LoyaltyTraceHandler,
-        DeliveryPaymentHandler,
         DriverSettlementHandler,
-        MaintenanceTraceHandler,
-        SupplyTraceHandler,
         _build_trace_service,
     )
 
@@ -1393,15 +1412,12 @@ def _wire_financial_trace_handlers(bus, container) -> None:
 
     _PRIORITY = 20  # post-commit, después de todos los handlers críticos
 
-    bus.subscribe(VENTA_COMPLETADA,           SaleTraceHandler(ts).handle,           priority=_PRIORITY, label="fin_trace_sale")
-    bus.subscribe(COMPRA_REGISTRADA,          PurchaseTraceHandler(ts).handle,        priority=_PRIORITY, label="fin_trace_purchase")
-    bus.subscribe(PAYMENT_CONFIRMED,          PaymentTraceHandler(ts).handle,         priority=_PRIORITY, label="fin_trace_payment")
-    bus.subscribe(PAYROLL_PAID,               PayrollTraceHandler(ts).handle,         priority=_PRIORITY, label="fin_trace_payroll")
-    bus.subscribe(WASTE_RECORDED,             WasteTraceHandler(ts).handle,           priority=_PRIORITY, label="fin_trace_waste")
-    bus.subscribe(PUNTOS_ACUMULADOS,          LoyaltyTraceHandler(ts).handle,         priority=_PRIORITY, label="fin_trace_loyalty")
-    bus.subscribe(DELIVERY_PAYMENT_CONFIRMED, DeliveryPaymentHandler(ts).handle,      priority=_PRIORITY, label="fin_trace_delivery_pay")
-    bus.subscribe(DRIVER_SETTLEMENT_CREATED,  DriverSettlementHandler(ts).handle,     priority=_PRIORITY, label="fin_trace_driver_settle")
-    bus.subscribe(MAINTENANCE_REGISTERED,     MaintenanceTraceHandler(ts).handle,     priority=_PRIORITY, label="fin_trace_maintenance")
-    bus.subscribe(OPERATING_SUPPLY_PURCHASED, SupplyTraceHandler(ts).handle,          priority=_PRIORITY, label="fin_trace_supply")
+    bus.subscribe(VENTA_COMPLETADA,          SaleTraceHandler(ts).handle,        priority=_PRIORITY, label="fin_trace_sale")
+    bus.subscribe(COMPRA_REGISTRADA,         PurchaseTraceHandler(ts).handle,     priority=_PRIORITY, label="fin_trace_purchase")
+    bus.subscribe(PAYROLL_PAID,              PayrollTraceHandler(ts).handle,      priority=_PRIORITY, label="fin_trace_payroll")
+    bus.subscribe(PUNTOS_ACUMULADOS,         LoyaltyTraceHandler(ts).handle,      priority=_PRIORITY, label="fin_trace_loyalty")
+    # Reconectados a canales reales (Remediación A):
+    bus.subscribe(MERMA_CREATED,             WasteTraceHandler(ts).handle,        priority=_PRIORITY, label="fin_trace_waste")
+    bus.subscribe(DRIVER_SETTLEMENT_CREATED, DriverSettlementHandler(ts).handle,  priority=_PRIORITY, label="fin_trace_driver_settle")
 
-    logger.debug("Registered 10 FinancialTrace handlers (priority=%d)", _PRIORITY)
+    logger.debug("Registered 6 FinancialTrace handlers en canales con emisor (priority=%d)", _PRIORITY)

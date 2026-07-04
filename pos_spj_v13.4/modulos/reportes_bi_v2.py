@@ -845,11 +845,16 @@ class ModuloReportesBIv2(QWidget):
                 MOVIMIENTO_FINANCIERO,
                 AJUSTE_INVENTARIO,
             )
+            # Remediación A: el canal canónico de corte Z de caja (CASH_*) refresca
+            # el dashboard BI. El bridge CAJA_*→CASH_* garantiza que cualquier
+            # emisor de caja (interactivo o backend) llegue por este canal único.
+            from backend.shared.events.event_names import EventName
             bus = get_bus()
             for evt in (VENTA_COMPLETADA, COMPRA_REGISTRADA,
-                        MOVIMIENTO_FINANCIERO, AJUSTE_INVENTARIO):
+                        MOVIMIENTO_FINANCIERO, AJUSTE_INVENTARIO,
+                        EventName.CASH_Z_CUT_GENERATED.value):
                 bus.subscribe(evt, self._on_business_event,
-                              label=f"bi_v2.refresh.{evt.lower()}")
+                              label=f"bi_v2.refresh.{str(evt).lower()}")
         except Exception:
             pass
 

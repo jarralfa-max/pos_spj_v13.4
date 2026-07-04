@@ -3319,7 +3319,12 @@ class ModuloFinanzasUnificadas(QWidget):
             self._kpi_timer.start()
             from core.events.event_bus import get_bus
             bus = get_bus()
-            for evt in ("VENTA_COMPLETADA", "MOVIMIENTO_FINANCIERO", "CXP_CREADA", "CXC_CREADA", "AJUSTE_INVENTARIO"):
+            # Remediación A: los eventos canónicos de caja (CASH_*) refrescan los
+            # KPIs de finanzas en caliente (antes el corte Z / movimientos de caja
+            # no llegaban a ningún dashboard).
+            for evt in ("VENTA_COMPLETADA", "MOVIMIENTO_FINANCIERO", "CXP_CREADA",
+                        "CXC_CREADA", "AJUSTE_INVENTARIO",
+                        "CASH_Z_CUT_GENERATED", "CASH_MOVEMENT_RECORDED"):
                 bus.subscribe(evt, lambda _d: QTimer.singleShot(0, lambda: self._reload_section(0)),
                               label=f"fin.ui.kpi.{evt.lower()}")
         except Exception:
