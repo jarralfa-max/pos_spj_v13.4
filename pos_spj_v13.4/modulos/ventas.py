@@ -4192,6 +4192,10 @@ class ModuloVentas(ModuloBase):
             return
         try:
             self._aplicar_resultado_venta(_r, datos_pago, usuario, cliente_id)
+            # Refresh local del grid de productos (stock visible) tras la venta.
+            # Llamada directa — antes era un QTimer.singleShot diferido que el
+            # guardrail test_ui_refreshes_products_locally_after_sale no acepta.
+            self.cargar_productos_interactivos()
             folio = getattr(_r, "folio", "")
             self._tiempo_inicio_venta = None  # reset timer
             self._venta_timing["t_products_reload"] = time.perf_counter()
@@ -4309,9 +4313,8 @@ class ModuloVentas(ModuloBase):
             self._imprimir_ticket_consolidado(datos_ticket)
         Toast.success(self, f"✅ Venta #{folio} completada", f"Total: ${float(getattr(result, 'total', 0.0) or 0.0):.2f}")
 
-
-
-        QTimer.singleShot(0, self.cargar_productos_interactivos)
+        # El refresh del grid de productos lo hace _on_checkout_success con una
+        # llamada directa a cargar_productos_interactivos() tras aplicar la venta.
         self.cancelar_venta(silent=True)
         self._actualizar_comision_turno()
 
